@@ -12,14 +12,12 @@ namespace NYT::NRpc {
 template <class TRequestMessage, class TResponse>
 TTypedClientRequest<TRequestMessage, TResponse>::TTypedClientRequest(
     IChannelPtr channel,
-    const TString& path,
-    const TString& method,
-    TProtocolVersion protocolVersion)
+    const TServiceDescriptor& serviceDescriptor,
+    const TMethodDescriptor& methodDescriptor)
     : TClientRequest(
-    std::move(channel),
-    path,
-    method,
-    protocolVersion)
+        std::move(channel),
+        serviceDescriptor,
+        methodDescriptor)
 { }
 
 template <class TRequestMessage, class TResponse>
@@ -104,9 +102,8 @@ TIntrusivePtr<T> TProxyBase::CreateRequest(const TMethodDescriptor& methodDescri
 {
     auto request = New<T>(
         Channel_,
-        ServiceDescriptor_.GetFullServiceName(),
-        methodDescriptor.MethodName,
-        ServiceDescriptor_.ProtocolVersion);
+        ServiceDescriptor_,
+        methodDescriptor);
     request->SetTimeout(DefaultTimeout_);
     request->SetRequestAck(DefaultRequestAck_);
     request->SetRequestCodec(DefaultRequestCodec_);

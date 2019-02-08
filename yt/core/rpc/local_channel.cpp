@@ -23,6 +23,9 @@ using namespace NYTree;
 using namespace NConcurrency;
 using namespace NBus;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const TString EndpointDescription = "<local>";
@@ -77,7 +80,14 @@ public:
             header.clear_timeout();
         }
 
-        auto serializedRequest = request->Serialize();
+        TSharedRefArray serializedRequest;
+        try {
+            serializedRequest = request->Serialize();
+        } catch (const std::exception& ex) {
+            responseHandler->HandleError(TError(NRpc::EErrorCode::TransportError, "Request serialization failed")
+                << ex);
+            return nullptr;
+        }
 
         auto session = New<TSession>(std::move(responseHandler), options.Timeout);
 
@@ -97,9 +107,6 @@ public:
 private:
     class TSession;
     typedef TIntrusivePtr<TSession> TSessionPtr;
-
-    class TClientRequestControl;
-    typedef TIntrusivePtr<TClientRequestControl> TClientRequestControlPtr;
 
     const IServerPtr Server_;
 
@@ -215,6 +222,18 @@ private:
         virtual void Cancel() override
         {
             Service_->HandleRequestCancelation(RequestId_);
+        }
+
+        virtual TFuture<void> SendStreamingPayload(const TStreamingPayload& payload) override
+        {
+            Service_->HandleStreamingPayload(RequestId_, payload);
+            return VoidFuture;
+        }
+
+        virtual TFuture<void> SendStreamingFeedback(const TStreamingFeedback& feedback) override
+        {
+            Service_->HandleStreamingFeedback(RequestId_, feedback);
+            return VoidFuture;
         }
 
     private:

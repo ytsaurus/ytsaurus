@@ -14,6 +14,9 @@ namespace NYT::NRpc {
 using namespace NBus;
 using namespace NRpc::NProto;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = RpcServerLogger;
@@ -55,6 +58,36 @@ public:
     virtual TRequestHeader& Header() override
     {
         return *Header_;
+    }
+
+    virtual const NRpc::TStreamingParameters& RequestAttachmentsStreamingParameters() const override
+    {
+        Y_UNREACHABLE();
+    }
+
+    virtual NRpc::TStreamingParameters& RequestAttachmentsStreamingParameters() override
+    {
+        Y_UNREACHABLE();
+    }
+
+    virtual const NRpc::TStreamingParameters& ResponseAttachmentsStreamingParameters() const override
+    {
+        Y_UNREACHABLE();
+    }
+
+    virtual NRpc::TStreamingParameters& ResponseAttachmentsStreamingParameters() override
+    {
+        Y_UNREACHABLE();
+    }
+    
+    virtual NConcurrency::IAsyncZeroCopyOutputStreamPtr GetRequestAttachmentsStream() const override
+    {
+        Y_UNIMPLEMENTED();
+    }
+
+    virtual NConcurrency::IAsyncZeroCopyInputStreamPtr GetResponseAttachmentsStream() const override
+    {
+        Y_UNIMPLEMENTED();
     }
 
     virtual bool IsHeavy() const override
@@ -184,6 +217,16 @@ public:
         ResponseMessageHandler_.Run(std::move(message));
     }
 
+    virtual void HandleStreamingPayload(const TStreamingPayload& /*payload*/) override
+    {
+        Y_UNIMPLEMENTED();
+    }
+
+    virtual void HandleStreamingFeedback(const TStreamingFeedback& /*feedback*/) override
+    {
+        Y_UNIMPLEMENTED();
+    }
+
 private:
     const IClientRequestPtr Request_;
     const TResponseMessageHandler ResponseMessageHandler_;
@@ -287,6 +330,22 @@ public:
         guard.Release();
 
         requestControl->Cancel();
+    }
+
+    virtual void HandleStreamingPayload(
+        TRequestId requestId,
+        const TStreamingPayload& /*payload*/) override
+    {
+        YT_LOG_DEBUG("Received streaming payload for redirected request; ignored (RequestId: %v)",
+            requestId);
+    }
+
+    virtual void HandleStreamingFeedback(
+        TRequestId requestId,
+        const TStreamingFeedback& /*feedback*/) override
+    {
+        YT_LOG_DEBUG("Received streaming feedback for redirected request; ignored (RequestId: %v)",
+            requestId);
     }
 
     virtual const TServiceId& GetServiceId() const override

@@ -437,7 +437,7 @@ private:
 
 DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
 {
-    const auto& requestId = context->GetRequestId();
+    auto requestId = context->GetRequestId();
 
     context->SetRequestInfo("RequestCount: %v",
         request->part_counts_size());

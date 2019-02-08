@@ -207,6 +207,11 @@ std::vector<TSharedRef>& TServiceContextBase::RequestAttachments()
     return RequestAttachments_;
 }
 
+NConcurrency::IAsyncZeroCopyInputStreamPtr TServiceContextBase::GetRequestAttachmentsStream()
+{
+    return nullptr;
+}
+
 TSharedRef TServiceContextBase::GetResponseBody()
 {
     return ResponseBody_;
@@ -222,6 +227,11 @@ void TServiceContextBase::SetResponseBody(const TSharedRef& responseBody)
 std::vector<TSharedRef>& TServiceContextBase::ResponseAttachments()
 {
     return ResponseAttachments_;
+}
+
+NConcurrency::IAsyncZeroCopyOutputStreamPtr TServiceContextBase::GetResponseAttachmentsStream()
+{
+    return nullptr;
 }
 
 const NProto::TRequestHeader& TServiceContextBase::GetRequestHeader() const
@@ -414,11 +424,15 @@ void TServiceContextWrapper::SetComplete()
     UnderlyingContext_->SetComplete();
 }
 
-void TServiceContextWrapper::SubscribeCanceled(const TClosure& /*callback*/)
-{ }
+void TServiceContextWrapper::SubscribeCanceled(const TClosure& callback)
+{
+    UnderlyingContext_->SubscribeCanceled(callback);
+}
 
-void TServiceContextWrapper::UnsubscribeCanceled(const TClosure& /*callback*/)
-{ }
+void TServiceContextWrapper::UnsubscribeCanceled(const TClosure& callback)
+{
+    UnderlyingContext_->UnsubscribeCanceled(callback);
+}
 
 bool TServiceContextWrapper::IsCanceled()
 {
@@ -463,6 +477,11 @@ std::vector<TSharedRef>& TServiceContextWrapper::RequestAttachments()
     return UnderlyingContext_->RequestAttachments();
 }
 
+NConcurrency::IAsyncZeroCopyInputStreamPtr TServiceContextWrapper::GetRequestAttachmentsStream()
+{
+    return UnderlyingContext_->GetRequestAttachmentsStream();
+}
+
 std::vector<TSharedRef>& TServiceContextWrapper::ResponseAttachments()
 {
     return UnderlyingContext_->ResponseAttachments();
@@ -471,6 +490,11 @@ std::vector<TSharedRef>& TServiceContextWrapper::ResponseAttachments()
 const NProto::TRequestHeader& TServiceContextWrapper::RequestHeader() const
 {
     return UnderlyingContext_->RequestHeader();
+}
+
+NConcurrency::IAsyncZeroCopyOutputStreamPtr TServiceContextWrapper::GetResponseAttachmentsStream()
+{
+    return UnderlyingContext_->GetResponseAttachmentsStream();
 }
 
 NProto::TRequestHeader& TServiceContextWrapper::RequestHeader()

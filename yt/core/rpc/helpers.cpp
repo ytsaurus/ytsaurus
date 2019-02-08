@@ -304,13 +304,22 @@ private:
             UnderlyingHandler_->HandleError(error);
         }
 
+        virtual void HandleStreamingPayload(const TStreamingPayload& payload) override
+        {
+            UnderlyingHandler_->HandleStreamingPayload(payload);
+        }
+
+        virtual void HandleStreamingFeedback(const TStreamingFeedback& feedback) override
+        {
+            UnderlyingHandler_->HandleStreamingFeedback(feedback);
+        }
+
     private:
         const IChannelPtr Channel_;
         const IClientResponseHandlerPtr UnderlyingHandler_;
         const TCallback<void(IChannelPtr)> OnFailure_;
 
     };
-
 };
 
 IChannelPtr CreateFailureDetectingChannel(

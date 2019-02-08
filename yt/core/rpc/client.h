@@ -19,6 +19,8 @@
 
 #include <yt/core/tracing/trace_context.h>
 
+#include <yt/core/concurrency/public.h>
+
 #include <atomic>
 
 namespace NYT::NRpc {
@@ -32,6 +34,15 @@ struct IClientRequest
 
     virtual const NProto::TRequestHeader& Header() const = 0;
     virtual NProto::TRequestHeader& Header() = 0;
+
+    virtual const TStreamingParameters& RequestAttachmentsStreamingParameters() const = 0;
+    virtual TStreamingParameters& RequestAttachmentsStreamingParameters() = 0;
+
+    virtual const TStreamingParameters& ResponseAttachmentsStreamingParameters() const = 0;
+    virtual TStreamingParameters& ResponseAttachmentsStreamingParameters() = 0;
+
+    virtual NConcurrency::IAsyncZeroCopyOutputStreamPtr GetRequestAttachmentsStream() const = 0;
+    virtual NConcurrency::IAsyncZeroCopyInputStreamPtr GetResponseAttachmentsStream() const = 0;
 
     virtual bool IsHeavy() const = 0;
 
@@ -70,6 +81,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TString, Service);
     DEFINE_BYVAL_RO_PROPERTY(TString, Method);
     DEFINE_BYVAL_RO_PROPERTY(bool, Heavy);
+    DEFINE_BYVAL_RO_PROPERTY(TAttachmentsOutputStreamPtr, RequestAttachmentsStream);
+    DEFINE_BYVAL_RO_PROPERTY(TAttachmentsInputStreamPtr, ResponseAttachmentsStream);
 
 public:
     TClientContext(
@@ -77,7 +90,9 @@ public:
         const NTracing::TTraceContext& traceContext,
         const TString& service,
         const TString& method,
-        bool heavy);
+        bool heavy,
+        TAttachmentsOutputStreamPtr requestAttachmentsStream,
+        TAttachmentsInputStreamPtr responseAttachmentsStream);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClientContext)
@@ -105,6 +120,15 @@ public:
     virtual NProto::TRequestHeader& Header() override;
     virtual const NProto::TRequestHeader& Header() const override;
 
+    virtual const TStreamingParameters& RequestAttachmentsStreamingParameters() const override;
+    virtual TStreamingParameters& RequestAttachmentsStreamingParameters() override;
+
+    virtual const TStreamingParameters& ResponseAttachmentsStreamingParameters() const override;
+    virtual TStreamingParameters& ResponseAttachmentsStreamingParameters() override;
+
+    virtual NConcurrency::IAsyncZeroCopyOutputStreamPtr GetRequestAttachmentsStream() const override;
+    virtual NConcurrency::IAsyncZeroCopyInputStreamPtr GetResponseAttachmentsStream() const override;
+
     virtual TRequestId GetRequestId() const override;
     virtual TRealmId GetRealmId() const override;
     virtual const TString& GetService() const override;
@@ -128,6 +152,7 @@ public:
 
 protected:
     const IChannelPtr Channel_;
+    const bool StreamingEnabled_;
 
     mutable NProto::TRequestHeader Header_;
     mutable TSharedRefArray SerializedData_;
@@ -136,12 +161,17 @@ protected:
     EMultiplexingBand MultiplexingBand_ = EMultiplexingBand::Default;
     bool FirstTimeSerialization_ = true;
 
+    TStreamingParameters RequestAttachmentStreamingParameters_;
+    TStreamingParameters ResponseAttachmentStreamingParameters_;
+
+    TAttachmentsOutputStreamPtr RequestAttachmentsStream_;
+    TAttachmentsInputStreamPtr ResponseAttachmentsStream_;
+
 
     TClientRequest(
         IChannelPtr channel,
-        const TString& service,
-        const TString& method,
-        TProtocolVersion protocolVersion);
+        const TServiceDescriptor& serviceDescriptor,
+        const TMethodDescriptor& methodDescriptor);
 
     // NB: doesn't copy base class.
     TClientRequest(const TClientRequest& other);
@@ -155,9 +185,21 @@ protected:
     IClientRequestControlPtr Send(IClientResponseHandlerPtr responseHandler);
 
 private:
+    void InitStreams();
+    void OnPullRequestAttachmentsStream();
+    void OnRequestStreamingPayloadAcked(int sequenceNumber, const TError& error);
+    void OnResponseAttachmentsStreamRead();
+    void OnResponseStreamingFeedbackAcked(const TError& error);
+
     void TraceRequest(const NTracing::TTraceContext& traceContext);
+
     void SetCodecsInHeader();
+    void SetStreamingParametersInHeader();
+
     const TSharedRefArray& GetSerializedData() const;
+
+    bool Sent_ = false;
+    TWeakPtr<IClientRequestControl> RequestControl_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -172,9 +214,8 @@ public:
 
     TTypedClientRequest(
         IChannelPtr channel,
-        const TString& path,
-        const TString& method,
-        TProtocolVersion protocolVersion);
+        const TServiceDescriptor& serviceDescriptor,
+        const TMethodDescriptor& methodDescriptor);
 
     TFuture<typename TResponse::TResult> Invoke();
 
@@ -202,6 +243,12 @@ struct IClientResponseHandler
      *  \param error An error that has occurred.
      */
     virtual void HandleError(const TError& error) = 0;
+
+    //! Enables passing streaming data the service to clients.
+    virtual void HandleStreamingPayload(const TStreamingPayload& payload) = 0;
+
+    //! Enables the service to notify clients about its progress in receiving streaming data.
+    virtual void HandleStreamingFeedback(const TStreamingFeedback& feedback) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClientResponseHandler)
@@ -215,24 +262,37 @@ DEFINE_ENUM(EClientResponseState,
 );
 
 //! Provides a common base for both one-way and two-way responses.
-class TClientResponseBase
+class TClientResponse
     : public IClientResponseHandler
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
+
+    const NProto::TResponseHeader& Header() const;
+
+    TSharedRefArray GetResponseMessage() const;
+
+    //! Returns total size: response message size plus attachments.
+    size_t GetTotalSize() const;
 
 protected:
-    using EState = EClientResponseState;
-
     const TClientContextPtr ClientContext_;
 
+    using EState = EClientResponseState;
     std::atomic<EState> State_ = {EState::Sent};
 
 
-    explicit TClientResponseBase(TClientContextPtr clientContext);
+    explicit TClientResponse(TClientContextPtr clientContext);
+
+    virtual void DeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = std::nullopt) = 0;
 
     // IClientResponseHandler implementation.
     virtual void HandleError(const TError& error) override;
+    virtual void HandleAcknowledgement() override;
+    virtual void HandleResponse(TSharedRefArray message) override;
+    virtual void HandleStreamingPayload(const TStreamingPayload& payload) override;
+    virtual void HandleStreamingFeedback(const TStreamingFeedback& feedback) override;
 
     void Finish(const TError& error);
 
@@ -241,38 +301,11 @@ protected:
     const IInvokerPtr& GetInvoker();
 
 private:
-    void TraceResponse();
-    void DoHandleError(const TError& error);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Describes a two-way response.
-class TClientResponse
-    : public TClientResponseBase
-{
-public:
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
-
-public:
-    const NProto::TResponseHeader& Header() const;
-    TSharedRefArray GetResponseMessage() const;
-
-    //! Returns total size: response message size plus attachments.
-    size_t GetTotalSize() const;
-
-protected:
-    explicit TClientResponse(TClientContextPtr clientContext);
-
-    virtual void DeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = std::nullopt) = 0;
-
-private:
     NProto::TResponseHeader Header_;
     TSharedRefArray ResponseMessage_;
 
-    // IClientResponseHandler implementation.
-    virtual void HandleAcknowledgement() override;
-    virtual void HandleResponse(TSharedRefArray message) override;
+    void TraceResponse();
+    void DoHandleError(const TError& error);
 
     void DoHandleResponse(TSharedRefArray message);
     void Deserialize(TSharedRefArray responseMessage);
@@ -334,10 +367,12 @@ struct TMethodDescriptor
 {
     TString MethodName;
     EMultiplexingBand MultiplexingBand = EMultiplexingBand::Default;
+    bool StreamingEnabled = false;
 
     explicit TMethodDescriptor(const TString& methodName);
 
     TMethodDescriptor& SetMultiplexingBand(EMultiplexingBand value);
+    TMethodDescriptor& SetStreamingEnabled(bool value);
 };
 
 #define DEFINE_RPC_PROXY_METHOD(ns, method, ...) \

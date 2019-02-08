@@ -8,11 +8,18 @@ import "yt/core/misc/proto/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TStreamingParameters
+{
+    optional int64 window_size = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TRequestHeader
 {
     message TRequestCodecs
     {
-        // ECompressionCodec
+        // NCompression::ECodec
         required int32 request_codec = 1;
         required int32 request_attachment_codec = 2;
         required int32 response_codec = 3;
@@ -50,6 +57,8 @@ message TRequestHeader
     optional TRequestCodecs request_codecs = 22;
 
     optional int32 response_memory_zone = 32 [default = 0]; // EMemoryZone
+
+    optional TStreamingParameters response_attachments_streaming_parameters = 33;
 
     extensions 100 to max;
 }
@@ -97,7 +106,7 @@ message TResponseHeader
 {
     message TResponseCodecs
     {
-        // ECompressionCodec
+        // NCompression::ECodec
         required int32 response_codec = 1;
         required int32 response_attachment_codec = 2;
     }
@@ -122,6 +131,28 @@ message TRequestCancelationHeader
     required string service = 2;
     required string method = 3;
     optional NYT.NProto.TGuid realm_id = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TStreamingPayloadHeader
+{
+    required NYT.NProto.TGuid request_id = 1;
+    required string service = 2;
+    required string method = 3;
+    optional NYT.NProto.TGuid realm_id = 4;
+    required int32 sequence_number = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TStreamingFeedbackHeader
+{
+    required NYT.NProto.TGuid request_id = 1;
+    required string service = 2;
+    required string method = 3;
+    optional NYT.NProto.TGuid realm_id = 4;
+    required int64 read_position = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

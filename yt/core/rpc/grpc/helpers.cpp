@@ -26,6 +26,9 @@ namespace NYT::NRpc::NGrpc {
 
 using NYTree::ENodeType;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr ui32 MinusOne = static_cast<ui32>(-1);

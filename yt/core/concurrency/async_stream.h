@@ -145,12 +145,17 @@ struct IAsyncZeroCopyOutputStream
     /*!
      *  Returns an error, if any.
      *  In contrast to IAsyncOutputStream, one may call #Write again before
-     *  the previous call is complete.
+     *  the previous call is complete. The returned future, however, provides
+     *  means to implement backpressure.
      *
      *  NB: this shared ref should become unique ref.
      */
     virtual TFuture<void> Write(const TSharedRef& data) = 0;
 
+    //! Indicates that the stream is closed.
+    /*!
+     *  No #Write calls are possible after #Close.
+     */
     virtual TFuture<void> Close() = 0;
 };
 
