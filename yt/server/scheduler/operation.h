@@ -71,7 +71,7 @@ void ToProto(
 void FromProto(
     TOperationTransactions* transactions,
     const NControllerAgent::NProto::TControllerTransactionIds& transactionIdsProto,
-    std::function<NApi::NNative::IClientPtr(const NObjectClient::TCellTag&)> getClient,
+    std::function<NApi::NNative::IClientPtr(NObjectClient::TCellTag)> getClient,
     TDuration pingPeriod);
 
 ////////////////////////////////////////////////////////////////////////////////

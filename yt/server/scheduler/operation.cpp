@@ -66,7 +66,7 @@ void ToProto(
 void FromProto(
     TOperationTransactions* transactions,
     const NControllerAgent::NProto::TControllerTransactionIds& transactionIdsProto,
-    std::function<NNative::IClientPtr(const TCellTag&)> getClient,
+    std::function<NNative::IClientPtr(TCellTag)> getClient,
     TDuration pingPeriod)
 {
     auto attachTransaction = [&] (TTransactionId transactionId) -> ITransactionPtr {
