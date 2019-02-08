@@ -18,7 +18,7 @@ public:
     explicit TEvaluator(
         TExecutorConfigPtr config,
         const NProfiling::TProfiler& profiler = NProfiling::TProfiler(),
-        IMemoryChunkProviderPtr memoryChunkProvider = nullptr);
+        NNodeTrackerClient::TNodeMemoryTracker* memoryTracker = nullptr);
 
     TQueryStatistics Run(
         TConstBaseQueryPtr fragment,
