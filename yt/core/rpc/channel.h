@@ -11,6 +11,7 @@
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
+#include <yt/core/misc/ref.h>
 
 #include <yt/core/ytree/public.h>
 
@@ -18,15 +19,44 @@ namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Encapsulates a portion of streaming data.
+struct TStreamingPayload
+{
+    int SequenceNumber;
+    std::vector<TSharedRef> Attachments;
+};
+
+//! Encapsulates a progress on reading streaming data.
+struct TStreamingFeedback
+{
+    ssize_t ReadPosition;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Controls how attachments are being streamed between clients and services.
+struct TStreamingParameters
+{
+    ssize_t WindowSize = 16_MB;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Controls the lifetime of a request sent via IChannel::Sent.
 struct IClientRequestControl
-    : public virtual TIntrinsicRefCounted
+    : public virtual TRefCounted
 {
     //! Cancels the request.
     /*!
      *  An implementation is free to ignore cancelations.
      */
     virtual void Cancel() = 0;
+
+    //! Sends the streaming request attachments to the service.
+    virtual TFuture<void> SendStreamingPayload(const TStreamingPayload& payload) = 0;
+
+    //! Notifies the service of the client's progress in reading the streaming response attachments.
+    virtual TFuture<void> SendStreamingFeedback(const TStreamingFeedback& feedback) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClientRequestControl)

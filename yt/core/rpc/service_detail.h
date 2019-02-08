@@ -52,6 +52,11 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
 
+    NConcurrency::IAsyncZeroCopyInputStreamPtr GetAttachmentsStream()
+    {
+        return Context_->GetRequestAttachmentsStream();
+    }
+
     void Reset()
     {
         TRequestMessage::Clear();
@@ -87,6 +92,11 @@ public:
     using TMessage = TResponseMessage;
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
+
+    NConcurrency::IAsyncZeroCopyOutputStreamPtr GetAttachmentsStream()
+    {
+        return Context_->GetResponseAttachmentsStream();
+    }
 
 private:
     template <class TRequestMessage_, class TResponseMessage_>
@@ -418,6 +428,12 @@ public:
         NYT::NBus::IBusPtr replyBus) override;
 
     virtual void HandleRequestCancelation(TRequestId requestId) override;
+    virtual void HandleStreamingPayload(
+        TRequestId requestId,
+        const TStreamingPayload& payload) override;
+    virtual void HandleStreamingFeedback(
+        TRequestId requestId,
+        const TStreamingFeedback& feedback) override;
 
 protected:
     using TLiteHandler = TCallback<void(const IServiceContextPtr&, const THandlerInvocationOptions&)>;
@@ -477,6 +493,9 @@ protected:
         //! If |false| then Bus will only be generating such checksums for RPC header and response body
         //! but not attachements.
         bool GenerateAttachmentChecksums = true;
+
+        //! If |true| then the method supports attachments streaming.
+        bool StreamingEnabled = false;
 
         //! If |true| then requests and responses are pooled.
         bool Pooled = true;
@@ -538,6 +557,12 @@ protected:
         TMethodDescriptor& SetGenerateAttachmentChecksums(bool value)
         {
             GenerateAttachmentChecksums = value;
+            return *this;
+        }
+
+        TMethodDescriptor& SetStreamingEnabled(bool value)
+        {
+            StreamingEnabled = value;
             return *this;
         }
 
@@ -687,8 +712,8 @@ private:
     NConcurrency::TReaderWriterSpinLock MethodMapLock_;
     THashMap<TString, TRuntimeMethodInfoPtr> MethodMap_;
 
-    TSpinLock CancelableRequestLock_;
-    THashMap<TRequestId, TServiceContext*> IdToContext_;
+    TSpinLock RequestMapLock_;
+    THashMap<TRequestId, TServiceContext*> RequestIdToContext_;
     THashMap<NYT::NBus::IBusPtr, THashSet<TServiceContext*>> ReplyBusToContexts_;
 
     std::atomic<bool> Stopped_ = {false};
@@ -728,9 +753,9 @@ private:
     static void ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo);
     static void RunRequest(const TServiceContextPtr& context);
 
-    void RegisterCancelableRequest(TServiceContext* context);
-    void UnregisterCancelableRequest(TServiceContext* context);
-    TServiceContextPtr FindCancelableRequest(TRequestId requestId);
+    void RegisterRequest(TServiceContext* context);
+    void UnregisterRequest(TServiceContext* context);
+    TServiceContextPtr FindRequest(TRequestId requestId);
 
     TMethodPerformanceCountersPtr CreateMethodPerformanceCounters(
         const TRuntimeMethodInfoPtr& runtimeInfo,

@@ -15,6 +15,8 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EMessageType, ui32,
     ((Request)              (0x69637072)) // rpci
     ((RequestCancelation)   (0x63637072)) // rpcc
     ((Response)             (0x6f637072)) // rpco
+    ((StreamingPayload)     (0x70637072)) // rpcp
+    ((StreamingFeedback)    (0x66637072)) // rpcf
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,6 +52,23 @@ TSharedRefArray CreateErrorResponseMessage(
 TSharedRefArray CreateErrorResponseMessage(
     const TError& error);
 
+TSharedRefArray CreateStreamingPayloadMessage(
+    const NProto::TStreamingPayloadHeader& header,
+    const std::vector<TSharedRef>& attachments);
+
+TSharedRefArray CreateStreamingFeedbackMessage(
+    const NProto::TStreamingFeedbackHeader& header);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(
+    NProto::TStreamingParameters* protoParameters,
+    const TStreamingParameters& parameters);
+
+void FromProto(
+    TStreamingParameters* parameters,
+    const NProto::TStreamingParameters& protoParameters);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 EMessageType GetMessageType(const TSharedRefArray& message);
@@ -77,6 +96,14 @@ void MergeRequestHeaderExtensions(
 bool ParseRequestCancelationHeader(
     const TSharedRefArray& message,
     NProto::TRequestCancelationHeader* header);
+
+bool ParseStreamingPayloadHeader(
+    const TSharedRefArray& message,
+    NProto::TStreamingPayloadHeader * header);
+
+bool ParseStreamingFeedbackHeader(
+    const TSharedRefArray& message,
+    NProto::TStreamingFeedbackHeader* header);
 
 i64 GetMessageBodySize(const TSharedRefArray& message);
 int GetMessageAttachmentCount(const TSharedRefArray& message);

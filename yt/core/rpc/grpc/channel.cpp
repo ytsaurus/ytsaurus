@@ -135,8 +135,6 @@ private:
             , CompletionQueue_(TDispatcher::Get()->PickRandomCompletionQueue())
             , Logger(GrpcLogger)
         {
-            Ref();
-
             YT_LOG_DEBUG("Sending request (RequestId: %v, Method: %v:%v, Timeout: %v)",
                 Request_->GetRequestId(),
                 Request_->GetService(),
@@ -181,7 +179,13 @@ private:
                 }
             }
 
-            RequestBody_ = Request_->Serialize();
+            try {
+                RequestBody_ = Request_->Serialize();
+            } catch (const std::exception& ex) {
+                ResponseHandler_->HandleError(TError(NRpc::EErrorCode::TransportError, "Request serialization failed")
+                    << ex);
+                return;
+            }
 
             YCHECK(RequestBody_.Size() >= 2);
             TMessageWithAttachments messageWithAttachments;
@@ -195,6 +199,7 @@ private:
                 InitialMetadataBuilder_.Add(MessageBodySizeMetadataKey, ToString(messageWithAttachments.Message.Size()));
             }
 
+            Ref();
             Stage_ = EClientCallStage::SendingRequest;
 
             std::array<grpc_op, 3> ops;
@@ -255,6 +260,16 @@ private:
             NotifyError(
                 AsStringBuf("Request canceled"),
                 TError(NYT::EErrorCode::Canceled, "Request canceled"));
+        }
+
+        virtual TFuture<void> SendStreamingPayload(const TStreamingPayload& /*payload*/) override
+        {
+            Y_UNIMPLEMENTED();
+        }
+
+        virtual TFuture<void> SendStreamingFeedback(const TStreamingFeedback& /*feedback*/) override
+        {
+            Y_UNIMPLEMENTED();
         }
 
     private:

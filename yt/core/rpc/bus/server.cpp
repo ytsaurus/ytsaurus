@@ -9,12 +9,16 @@
 #include <yt/core/misc/protobuf_helpers.h>
 
 #include <yt/core/rpc/message.h>
+#include <yt/core/rpc/stream.h>
 #include <yt/core/rpc/proto/rpc.pb.h>
 
 namespace NYT::NRpc::NBus {
 
 using namespace NConcurrency;
 using namespace NYT::NBus;
+
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,7 +63,15 @@ private:
                 break;
 
             case EMessageType::RequestCancelation:
-                OnRequestCancelationMessage(std::move(message), std::move(replyBus));
+                OnRequestCancelationMessage(std::move(message));
+                break;
+
+            case EMessageType::StreamingPayload:
+                OnStreamingPayloadMessage(std::move(message));
+                break;
+
+            case EMessageType::StreamingFeedback:
+                OnStreamingFeedbackMessage(std::move(message));
                 break;
 
             default:
@@ -99,7 +111,7 @@ private:
         auto replyWithError = [&] (const TError& error) {
             YT_LOG_DEBUG(error);
             auto response = CreateErrorResponseMessage(requestId, error);
-            replyBus->Send(std::move(response), TSendOptions(EDeliveryTrackingLevel::None));
+            replyBus->Send(std::move(response), NBus::TSendOptions(EDeliveryTrackingLevel::None));
         };
 
         if (!Started_) {
@@ -131,7 +143,7 @@ private:
             std::move(replyBus));
     }
 
-    void OnRequestCancelationMessage(TSharedRefArray message, IBusPtr /*replyBus*/)
+    void OnRequestCancelationMessage(TSharedRefArray message)
     {
         NProto::TRequestCancelationHeader header;
         if (!ParseRequestCancelationHeader(message, &header)) {
@@ -163,6 +175,82 @@ private:
             requestId);
 
         service->HandleRequestCancelation(requestId);
+    }
+
+    void OnStreamingPayloadMessage(TSharedRefArray message)
+    {
+        NProto::TStreamingPayloadHeader header;
+        if (!ParseStreamingPayloadHeader(message, &header)) {
+            // Unable to reply, no request id is known.
+            // Let's just drop the message.
+            YT_LOG_ERROR("Error parsing request streaming payload header");
+            return;
+        }
+
+        auto requestId = FromProto<TRequestId>(header.request_id());
+        auto sequenceNumber = header.sequence_number();
+        auto attachments = std::vector<TSharedRef>(message.Begin() + 1, message.End());
+        const auto& serviceName = header.service();
+        auto realmId = FromProto<TRealmId>(header.realm_id());
+
+        TServiceId serviceId(serviceName, realmId);
+        auto service = FindService(serviceId);
+        if (!service) {
+            YT_LOG_DEBUG("Service is not registered (Service: %v, RealmId: %v, RequestId: %v)",
+                serviceName,
+                realmId,
+                requestId);
+            return;
+        }
+
+        YT_LOG_DEBUG("Request streaming payload received (RequestId: %v, SequenceNumber: %v, AttachmentsSizes: %v)",
+            requestId,
+            sequenceNumber,
+            MakeFormattableRange(attachments, [] (auto* builder, const auto& attachment) {
+                builder->AppendFormat("%v", GetStreamingAttachmentSize(attachment));
+            }));
+
+        TStreamingPayload payload{
+            sequenceNumber,
+            std::move(attachments)
+        };
+        service->HandleStreamingPayload(requestId, payload);
+    }
+
+    void OnStreamingFeedbackMessage(TSharedRefArray message)
+    {
+        NProto::TStreamingFeedbackHeader header;
+        if (!ParseStreamingFeedbackHeader(message, &header)) {
+            // Unable to reply, no request id is known.
+            // Let's just drop the message.
+            YT_LOG_ERROR("Error parsing request streaming feedback header");
+            return;
+        }
+
+        auto requestId = FromProto<TRequestId>(header.request_id());
+        auto readPosition = header.read_position();
+        auto attachments = std::vector<TSharedRef>(message.Begin() + 1, message.End());
+        const auto& serviceName = header.service();
+        auto realmId = FromProto<TRealmId>(header.realm_id());
+
+        TServiceId serviceId(serviceName, realmId);
+        auto service = FindService(serviceId);
+        if (!service) {
+            YT_LOG_DEBUG("Service is not registered (Service: %v, RealmId: %v, RequestId: %v)",
+                serviceName,
+                realmId,
+                requestId);
+            return;
+        }
+
+        YT_LOG_DEBUG("Request streaming feedback received (RequestId: %v, ReadPosition: %v)",
+            requestId,
+            readPosition);
+
+        TStreamingFeedback feedback{
+            readPosition
+        };
+        service->HandleStreamingFeedback(requestId, feedback);
     }
 };
 

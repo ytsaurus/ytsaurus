@@ -25,6 +25,9 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NConcurrency;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TBalancingChannelSubprovider)

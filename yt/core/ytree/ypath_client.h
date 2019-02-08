@@ -50,6 +50,15 @@ public:
     virtual const NRpc::NProto::TRequestHeader& Header() const override;
     virtual NRpc::NProto::TRequestHeader& Header() override;
 
+    virtual const NRpc::TStreamingParameters& RequestAttachmentsStreamingParameters() const override;
+    virtual NRpc::TStreamingParameters& RequestAttachmentsStreamingParameters() override;
+
+    virtual const NRpc::TStreamingParameters& ResponseAttachmentsStreamingParameters() const override;
+    virtual NRpc::TStreamingParameters& ResponseAttachmentsStreamingParameters() override;
+
+    virtual NConcurrency::IAsyncZeroCopyOutputStreamPtr GetRequestAttachmentsStream() const override;
+    virtual NConcurrency::IAsyncZeroCopyInputStreamPtr GetResponseAttachmentsStream() const override;
+
     virtual TSharedRefArray Serialize() override;
 
 protected:

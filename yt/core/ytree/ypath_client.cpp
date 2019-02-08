@@ -144,6 +144,36 @@ NRpc::NProto::TRequestHeader& TYPathRequest::Header()
     return Header_;
 }
 
+const NRpc::TStreamingParameters& TYPathRequest::RequestAttachmentsStreamingParameters() const
+{
+    Y_UNREACHABLE();
+}
+
+NRpc::TStreamingParameters& TYPathRequest::RequestAttachmentsStreamingParameters()
+{
+    Y_UNREACHABLE();
+}
+
+const NRpc::TStreamingParameters& TYPathRequest::ResponseAttachmentsStreamingParameters() const
+{
+    Y_UNREACHABLE();
+}
+
+NRpc::TStreamingParameters& TYPathRequest::ResponseAttachmentsStreamingParameters()
+{
+    Y_UNREACHABLE();
+}
+
+NConcurrency::IAsyncZeroCopyOutputStreamPtr TYPathRequest::GetRequestAttachmentsStream() const
+{
+    Y_UNREACHABLE();
+}
+
+NConcurrency::IAsyncZeroCopyInputStreamPtr TYPathRequest::GetResponseAttachmentsStream() const
+{
+    Y_UNREACHABLE();
+}
+
 TSharedRefArray TYPathRequest::Serialize()
 {
     auto bodyData = SerializeBody();

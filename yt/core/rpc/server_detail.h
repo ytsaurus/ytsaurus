@@ -59,7 +59,10 @@ public:
     virtual void SetResponseBody(const TSharedRef& responseBody) override;
 
     virtual std::vector<TSharedRef>& RequestAttachments() override;
+    virtual NConcurrency::IAsyncZeroCopyInputStreamPtr GetRequestAttachmentsStream() override;
+
     virtual std::vector<TSharedRef>& ResponseAttachments() override;
+    virtual NConcurrency::IAsyncZeroCopyOutputStreamPtr GetResponseAttachmentsStream() override;
 
     virtual const NProto::TRequestHeader& RequestHeader() const override;
     virtual NProto::TRequestHeader& RequestHeader() override;
@@ -167,7 +170,10 @@ public:
     virtual void SetResponseBody(const TSharedRef& responseBody) override;
 
     virtual std::vector<TSharedRef>& RequestAttachments() override;
+    virtual NConcurrency::IAsyncZeroCopyInputStreamPtr GetRequestAttachmentsStream() override;
+
     virtual std::vector<TSharedRef>& ResponseAttachments() override;
+    virtual NConcurrency::IAsyncZeroCopyOutputStreamPtr GetResponseAttachmentsStream() override;
 
     virtual const NProto::TRequestHeader& RequestHeader() const override;
     virtual NProto::TRequestHeader& RequestHeader() override;
