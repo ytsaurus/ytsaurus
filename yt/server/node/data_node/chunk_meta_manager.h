@@ -101,6 +101,9 @@ public:
         TCachedChunkMetaCookie&& cookie,
         TChunkId chunkId,
         NChunkClient::TRefCountedChunkMetaPtr meta);
+    
+    //! Forcefully evicts cached chunk meta from the cache, if any.
+    void RemoveCachedMeta(TChunkId chunkId);
 
     //! Looks for blocks ext in the cache.
     NChunkClient::TRefCountedBlocksExtPtr FindCachedBlocksExt(TChunkId chunkId);
@@ -118,6 +121,9 @@ public:
         TCachedBlocksExtCookie&& cookie,
         TChunkId chunkId,
         NChunkClient::TRefCountedBlocksExtPtr blocksExt);
+
+    //! Forcefully evicts cached blocks ext from the cache, if any.
+    void RemoveCachedBlocksExt(TChunkId chunkId);
 
 private:
     class TImpl;
