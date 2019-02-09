@@ -72,6 +72,7 @@ public:
         YCHECK(Bootstrap_);
     }
 
+    
     TRefCountedChunkMetaPtr FindCachedMeta(TChunkId chunkId)
     {
         auto cachedMeta = MetaCache_->Find(chunkId);
@@ -111,6 +112,12 @@ public:
             chunkId);
     }
 
+    void RemoveCachedMeta(TChunkId chunkId)
+    {
+         MetaCache_->TryRemove(chunkId);
+    }
+
+
     TRefCountedBlocksExtPtr FindCachedBlocksExt(TChunkId chunkId)
     {
         auto cachedBlocksExt = BlocksExtCache_->Find(chunkId);
@@ -146,6 +153,11 @@ public:
 
         YT_LOG_DEBUG("Blocks ext is put into cache (ChunkId: %v)",
             chunkId);
+    }
+
+    void RemoveCachedBlocksExt(TChunkId chunkId)
+    {
+         BlocksExtCache_->TryRemove(chunkId);
     }
 
 private:
@@ -232,6 +244,11 @@ void TChunkMetaManager::EndInsertCachedMeta(
         std::move(meta));
 }
 
+void TChunkMetaManager::RemoveCachedMeta(TChunkId chunkId)
+{
+    Impl_->RemoveCachedMeta(chunkId);
+}
+
 TRefCountedBlocksExtPtr TChunkMetaManager::FindCachedBlocksExt(TChunkId chunkId)
 {
     return Impl_->FindCachedBlocksExt(chunkId);
@@ -256,6 +273,11 @@ void TChunkMetaManager::EndInsertCachedBlocksExt(
         std::move(cookie),
         chunkId,
         std::move(blocksExt));
+}
+
+void TChunkMetaManager::RemoveCachedBlocksExt(TChunkId chunkId)
+{
+    Impl_->RemoveCachedBlocksExt(chunkId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

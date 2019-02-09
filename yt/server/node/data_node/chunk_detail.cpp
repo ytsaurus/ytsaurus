@@ -2,6 +2,7 @@
 #include "private.h"
 #include "location.h"
 #include "session_manager.h"
+#include "chunk_meta_manager.h"
 
 #include <yt/server/node/cell_node/bootstrap.h>
 
@@ -31,6 +32,13 @@ TChunkBase::TChunkBase(
     , Location_(location)
     , Id_(id)
 { }
+
+TChunkBase::~TChunkBase()
+{
+    const auto& chunkMetaManager = Bootstrap_->GetChunkMetaManager();
+    chunkMetaManager->RemoveCachedMeta(Id_);
+    chunkMetaManager->RemoveCachedBlocksExt(Id_);
+}
 
 TChunkId TChunkBase::GetId() const
 {
