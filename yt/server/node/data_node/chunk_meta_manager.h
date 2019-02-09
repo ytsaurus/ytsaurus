@@ -99,7 +99,6 @@ public:
     //! Completes an asynchronous chunk meta load.
     void EndInsertCachedMeta(
         TCachedChunkMetaCookie&& cookie,
-        TChunkId chunkId,
         NChunkClient::TRefCountedChunkMetaPtr meta);
     
     //! Forcefully evicts cached chunk meta from the cache, if any.
@@ -119,7 +118,6 @@ public:
     //! Completes an asynchronous blocks ext load.
     void EndInsertCachedBlocksExt(
         TCachedBlocksExtCookie&& cookie,
-        TChunkId chunkId,
         NChunkClient::TRefCountedBlocksExtPtr blocksExt);
 
     //! Forcefully evicts cached blocks ext from the cache, if any.
