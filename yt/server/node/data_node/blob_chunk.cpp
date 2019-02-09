@@ -159,7 +159,7 @@ void TBlobChunkBase::DoReadMeta(
         readTime);
 
     const auto& chunkMetaManager = Bootstrap_->GetChunkMetaManager();
-    chunkMetaManager->EndInsertCachedMeta(std::move(cookie), Id_, std::move(meta));
+    chunkMetaManager->EndInsertCachedMeta(std::move(cookie), std::move(meta));
 }
 
 TFuture<void> TBlobChunkBase::OnBlocksExtLoaded(
@@ -406,7 +406,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
                                 TWriterGuard guard(BlocksExtLock_);
                                 WeakBlocksExt_ = blocksExt;
                             }
-                            chunkMetaManager->EndInsertCachedBlocksExt(std::move(cookie), Id_, blocksExt);
+                            chunkMetaManager->EndInsertCachedBlocksExt(std::move(cookie), blocksExt);
                         } else {
                             cookie.Cancel(TError(result));
                         }
