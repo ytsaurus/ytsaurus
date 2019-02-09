@@ -221,6 +221,7 @@ def prepare(options, build_context):
     options.build_enable_ya_yt_store = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_YA_YT_STORE", "NO"))
     options.package_enable_python_yp = parse_yes_no_bool(os.environ.get("PACKAGE_ENABLE_PYTHON_YP", "NO"))
     options.package_enable_yson_bingings = parse_yes_no_bool(os.environ.get("PACKAGE_ENABLE_YSON_BINDINGS", "NO"))
+    options.build_enable_dist_build = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_DIST_BUILD", "NO"))
 
     options.use_asan = parse_yes_no_bool(os.environ.get("USE_ASAN", "NO"))
     assert not options.use_asan or options.build_system == "ya", "ASAN build is enabled only for --build-system=ya"
@@ -369,6 +370,10 @@ def build(options, build_context):
                 "--yall-enable-dist-cache",
                 "--yall-dist-cache-put",
                 "--yall-dist-cache-no-auto-token",
+            ]
+        if options.build_enable_dist_build:
+            args += [
+                "--yall-enable-dist-build"
             ]
         if options.use_asan:
             args += [
