@@ -61,6 +61,7 @@
 
 #include <yt/client/api/transaction.h>
 
+#include <yt/core/concurrency/finally.h>
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/throughput_throttler.h>
 
@@ -2103,6 +2104,10 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     UnregisterJoblet(joblet);
 
+    auto finally = Finally([&] () {
+        ReleaseJobs({jobId});
+    });
+
     // This failure case has highest priority for users. Therefore check must be performed as early as possible.
     if (Spec_->FailOnJobRestart) {
         OnOperationFailed(TError(NScheduler::EErrorCode::OperationFailedOnJobRestart,
@@ -2114,7 +2119,6 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     if (error.Attributes().Get<bool>("fatal", false)) {
         auto wrappedError = TError("Job failed with fatal error") << error;
         OnOperationFailed(wrappedError);
-        return;
     }
 
     int failedJobCount = JobCounter->GetFailed();
@@ -2136,8 +2140,6 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     }
 
     LogProgress();
-
-    ReleaseJobs({jobId});
 }
 
 void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary, bool byScheduler)
