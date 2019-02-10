@@ -79,9 +79,12 @@ typename std::vector<T>::const_iterator FirstGreater(
 
 } // namespace
 
+struct TIndexBucketDataTag
+{ };
+
 TIndexBucket::TIndexBucket(size_t capacity, i64 alignment, i64 offset)
     : Capacity_(capacity)
-    , Data_(TAsyncFileChangelogIndex::AllocateAligned<std::nullopt_t>(capacity * sizeof(TChangelogIndexRecord), true, alignment))
+    , Data_(TAsyncFileChangelogIndex::AllocateAligned<TIndexBucketDataTag>(capacity * sizeof(TChangelogIndexRecord), true, alignment))
     , Offset_(offset)
 {
     auto maxCurrentIndexRecords = alignment / sizeof(TChangelogIndexRecord);

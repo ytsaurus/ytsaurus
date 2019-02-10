@@ -66,7 +66,7 @@ public:
     void Read(const std::optional<i32>& truncatedRecordCount = std::nullopt);
     void TruncateInvalidRecords(i64 correctPrefixSize);
 
-    template <class TTag>
+    template <class TTag = TDefaultSharedBlobTag>
     static TSharedMutableRef AllocateAligned(size_t size, bool initializeStorage, size_t alignment)
     {
         auto data = TSharedMutableRef::Allocate<TTag>(size + alignment, initializeStorage);

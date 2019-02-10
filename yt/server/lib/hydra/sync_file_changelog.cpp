@@ -684,7 +684,7 @@ private:
                 TruncatedRecordCount_ ? *TruncatedRecordCount_ : TChangelogHeader::NotTruncatedRecordCount,
                 Alignment_);
 
-            auto data = TAsyncFileChangelogIndex::AllocateAligned<std::nullopt_t>(header.HeaderSize, false, Alignment_);
+            auto data = TAsyncFileChangelogIndex::AllocateAligned(header.HeaderSize, false, Alignment_);
             ::memcpy(data.Begin(), &header, sizeof(header));
             ::memcpy(data.Begin() + sizeof(header), SerializedMeta_.Begin(), SerializedMeta_.Size());
 
