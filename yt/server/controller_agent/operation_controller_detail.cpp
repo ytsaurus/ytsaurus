@@ -2104,9 +2104,12 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     UnregisterJoblet(joblet);
 
-    auto finally = Finally([&] () {
-        ReleaseJobs({jobId});
-    });
+    auto finally = Finally(
+		[&] () {
+			ReleaseJobs({jobId});
+		},
+        /* noUncaughtExceptions */ true
+	);
 
     // This failure case has highest priority for users. Therefore check must be performed as early as possible.
     if (Spec_->FailOnJobRestart) {
@@ -2114,11 +2117,13 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
             "Job failed; failing operation since \"fail_on_job_restart\" spec option is set")
             << TErrorAttribute("job_id", joblet->JobId)
             << error);
+        return;
     }
 
     if (error.Attributes().Get<bool>("fatal", false)) {
         auto wrappedError = TError("Job failed with fatal error") << error;
         OnOperationFailed(wrappedError);
+        return;
     }
 
     int failedJobCount = JobCounter->GetFailed();
@@ -2126,6 +2131,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     if (failedJobCount >= maxFailedJobCount) {
         OnOperationFailed(TError("Failed jobs limit exceeded")
             << TErrorAttribute("max_failed_job_count", maxFailedJobCount));
+        return;
     }
 
     CheckFailedJobsStatusReceived();
