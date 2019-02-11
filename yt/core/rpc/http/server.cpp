@@ -26,6 +26,9 @@ using namespace NYT::NHttp;
 using namespace NYT::NBus;
 using namespace NYT::NRpc;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(THttpReplyBus)

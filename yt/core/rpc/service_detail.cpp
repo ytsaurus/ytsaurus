@@ -391,11 +391,11 @@ private:
     void AbortStreamsUnlessClosed()
     {
         if (RequestAttachmentsStream_) {
-            RequestAttachmentsStream_->AbortUnlessClosed();
+            RequestAttachmentsStream_->AbortUnlessClosed(Error_);
         }
 
         if (ResponseAttachmentsStream_) {
-            ResponseAttachmentsStream_->AbortUnlessClosed();
+            ResponseAttachmentsStream_->AbortUnlessClosed(Error_);
         }
     }
 

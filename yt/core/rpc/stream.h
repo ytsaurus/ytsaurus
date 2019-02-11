@@ -28,7 +28,7 @@ public:
 
     void EnqueuePayload(const TStreamingPayload& payload);
     void Abort(const TError& error);
-    void AbortUnlessClosed();
+    void AbortUnlessClosed(const TError& error);
     TStreamingFeedback GetFeedback() const;
 
 private:
@@ -61,7 +61,7 @@ public:
     virtual TFuture<void> Close() override;
 
     void Abort(const TError& error);
-    void AbortUnlessClosed();
+    void AbortUnlessClosed(const TError& error);
     void HandleFeedback(const TStreamingFeedback& feedback);
     std::optional<TStreamingPayload> TryPull();
 
