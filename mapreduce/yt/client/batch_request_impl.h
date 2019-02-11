@@ -21,8 +21,11 @@ namespace NDetail {
 struct IRetryPolicy;
 struct TResponseInfo;
 class TClient;
-class TRawBatchRequest;
 using TClientPtr = ::TIntrusivePtr<TClient>;
+
+namespace NRawClient {
+    class TRawBatchRequest;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,11 +98,11 @@ public:
     virtual void ExecuteBatch(const TExecuteBatchOptions& executeBatch) override;
 
 private:
-    TBatchRequest(NDetail::TRawBatchRequest* impl, ::TIntrusivePtr<TClient> client);
+    TBatchRequest(NDetail::NRawClient::TRawBatchRequest* impl, ::TIntrusivePtr<TClient> client);
 
 private:
     TTransactionId DefaultTransaction_;
-    ::TIntrusivePtr<NDetail::TRawBatchRequest> Impl_;
+    ::TIntrusivePtr<NDetail::NRawClient::TRawBatchRequest> Impl_;
     THolder<TBatchRequest> TmpWithTransaction_;
     ::TIntrusivePtr<TClient> Client_;
 

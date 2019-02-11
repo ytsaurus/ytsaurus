@@ -14,6 +14,8 @@
 namespace NYT {
 namespace NDetail {
 
+using namespace NRawClient;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TYtPoller::TYtPoller(TAuth auth)

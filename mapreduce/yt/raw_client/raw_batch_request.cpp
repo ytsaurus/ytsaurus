@@ -19,8 +19,7 @@
 
 #include <exception>
 
-namespace NYT {
-namespace NDetail {
+namespace NYT::NDetail::NRawClient {
 
 using NThreading::TFuture;
 using NThreading::TPromise;
@@ -587,5 +586,4 @@ size_t TRawBatchRequest::BatchSize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDetail
-} // namespace NYT
+} // namespace NYT::NDetail::NRawClient

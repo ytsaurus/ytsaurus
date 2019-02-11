@@ -15,6 +15,8 @@ static void CheckedSkip(IInputStream* input, size_t byteCount)
 
 namespace NYT {
 
+using namespace NYT::NDetail::NRawClient;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TMaybe<TNode> GetCommonTableFormat(
@@ -65,10 +67,10 @@ TMaybe<TNode> GetTableFormat(
     const TRichYPath& path)
 {
     auto formatPath = path.Path_ + "/@_format";
-    if (!NDetail::Exists(auth, transactionId, formatPath)) {
+    if (!Exists(auth, transactionId, formatPath)) {
         return TMaybe<TNode>();
     }
-    TMaybe<TNode> format = NDetail::Get(auth, transactionId, formatPath);
+    TMaybe<TNode> format = Get(auth, transactionId, formatPath);
     if (format.Get()->AsString() != "yamred_dsv") {
         return TMaybe<TNode>();
     }

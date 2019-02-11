@@ -6,6 +6,7 @@
 
 using namespace NYT;
 using namespace NYT::NDetail;
+using namespace NYT::NDetail::NRawClient;
 
 Y_UNIT_TEST_SUITE(OperationsApiParsing) {
     Y_UNIT_TEST(ParseOperationAttributes) {

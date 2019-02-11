@@ -25,6 +25,8 @@
 namespace NYT {
 namespace NDetail {
 
+using namespace NRawClient;
+
 using NThreading::TFuture;
 using NThreading::TPromise;
 using NThreading::NewPromise;

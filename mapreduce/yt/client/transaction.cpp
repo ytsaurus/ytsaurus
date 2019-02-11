@@ -154,7 +154,7 @@ void TPingableTransaction::Pinger()
     while (Running_) {
         try {
             TPingRetryPolicy retryPolicy;
-            PingTx(Auth_, TransactionId_, &retryPolicy);
+            NDetail::NRawClient::PingTx(Auth_, TransactionId_, &retryPolicy);
         } catch (const TErrorResponse& e) {
             // All other errors must be retried by our TPingRetryPolicy.
             Y_VERIFY(e.GetError().ContainsErrorCode(NYT::NClusterErrorCodes::NTransactionClient::NoSuchTransaction));
@@ -179,8 +179,8 @@ void* TPingableTransaction::Pinger(void* opaque)
 
 TYPath Snapshot(const TAuth& auth, const TTransactionId& transactionId, const TYPath& path)
 {
-    auto lockId = NDetail::Lock(auth, transactionId, path, ELockMode::LM_SNAPSHOT);
-    auto lockedNodeId = NDetail::Get(
+    auto lockId = NDetail::NRawClient::Lock(auth, transactionId, path, ELockMode::LM_SNAPSHOT);
+    auto lockedNodeId = NDetail::NRawClient::Get(
         auth,
         transactionId,
         TStringBuilder() << '#' << GetGuidAsString(lockId) << "/@node_id");
