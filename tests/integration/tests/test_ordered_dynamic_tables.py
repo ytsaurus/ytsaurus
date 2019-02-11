@@ -412,8 +412,12 @@ class TestOrderedDynamicTables(DynamicTablesBase):
 
         def _trim(trimmed_row_count):
             sync_mount_table("//tmp/t")
+            cell_id = get("//tmp/t/@tablets/0/cell_id")
+            tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+            address = self._get_tablet_leader_address(tablet_id)
             trim_rows("//tmp/t", 0, trimmed_row_count)
-            sleep(0.2)
+            # NB: 21 == 20 (static stores) + 1 (dynamic store)
+            wait(lambda: len(get("//sys/nodes/{0}/orchid/tablet_cells/{1}/tablets/{2}/stores".format(address, cell_id, tablet_id))) == 21 - trimmed_row_count)
             sync_unmount_table("//tmp/t")
 
         _check(20, 0, chunk_ids)

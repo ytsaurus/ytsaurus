@@ -1,3 +1,5 @@
+#include "helpers.h"
+
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/server/master/chunk_server/chunk.h>
@@ -33,22 +35,6 @@ void AttachToChunkList(
     for (auto* child : children) {
         child->RefObject();
     }
-}
-
-TGuid GenerateId(EObjectType type)
-{
-    static i64 counter = 0;
-    return MakeId(type, 0, counter++, 0);
-}
-
-TGuid GenerateChunkId()
-{
-    return GenerateId(EObjectType::Chunk);
-}
-
-TGuid GenerateChunkListId()
-{
-    return GenerateId(EObjectType::ChunkList);
 }
 
 std::unique_ptr<TChunk> CreateChunk()

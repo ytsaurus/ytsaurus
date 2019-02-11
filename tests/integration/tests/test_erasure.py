@@ -11,7 +11,7 @@ import yt.yson as yson
 ##################################################################
 
 class TestErasure(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 20
     NUM_SCHEDULERS = 1
 

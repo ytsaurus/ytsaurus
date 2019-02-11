@@ -7,7 +7,6 @@
 #include "chunk_reader.h"
 #include "client_cache.h"
 #include "convert_row.h"
-#include "data_slice.h"
 #include "document.h"
 #include "job_input.h"
 #include "path.h"
@@ -520,11 +519,12 @@ TTablePartList TStorage::DoGetTablesParts(
     const KeyCondition* keyCondition,
     size_t maxTableParts)
 {
-    return BuildJobs(
-        client,
-        names,
-        keyCondition,
-        maxTableParts);
+    auto fetchResult = FetchInput(client, names, keyCondition);
+    auto chunkStripeList = BuildJobs(fetchResult.DataSlices, maxTableParts);
+    return SerializeAsTablePartList(
+        chunkStripeList,
+        fetchResult.NodeDirectory,
+        fetchResult.DataSourceDirectory);
 }
 
 TTableReaderList TStorage::DoCreateTableReaders(

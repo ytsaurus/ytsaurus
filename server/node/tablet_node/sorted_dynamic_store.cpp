@@ -1097,9 +1097,17 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(TVersionedRow row, TWriteContex
         int index = value->Id;
         auto currentList = result.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
         if (currentList && currentList.HasUncommitted()) {
+            // It is possible for a replication transaction to be committing at a time when
+            // a lock is being held by another transaction (performing an unversioned write into this table and
+            // regarding it as a synchronous replica). In this case there's no actual conflict and
+            // the replicated values must come first in the edit list.
+            // See YT-10304.
+            auto oldUncommittedValue = currentList.GetUncommitted();
             currentList.GetUncommitted() = dynamicValue;
             CommitValue(result, currentList, index);
+
             PrepareFixedValue(result, index);
+            currentList.GetUncommitted() = oldUncommittedValue;
         } else {
             auto newList = PrepareFixedValue(result, index);
             newList.GetUncommitted() = dynamicValue;

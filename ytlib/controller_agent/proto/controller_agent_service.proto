@@ -54,9 +54,10 @@ message TOperationDescriptor
     required uint64 start_time = 4; // TInstant
     required string authenticated_user = 5;
     optional bytes secure_vault = 6; // YSON
-    repeated string owners = 7;
+    reserved 7; // deprecated
     required NYT.NProto.TGuid user_transaction_id = 8;
     required TPoolTreeSchedulingTagFilters pool_tree_scheduling_tag_filters = 9;
+    required bytes acl = 10; // YSON
 }
 
 message TReqRegisterOperation

@@ -4,6 +4,8 @@
 
 #include <yt/client/object_client/helpers.h>
 
+#include <yt/ytlib/security_client/acl.h>
+
 namespace NYT::NScheduler {
 
 using namespace NSecurityClient;
@@ -31,61 +33,16 @@ TNodeId NodeIdFromJobId(TJobId jobId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-EPermission GetPermission(EAccessType accessType)
+TSerializableAccessControlList MakeOperationArtifactAcl(const TSerializableAccessControlList& acl)
 {
-    // Logic of transforming access type to permissions should not break the existing behavior.
-    switch (accessType) {
-        case EAccessType::Ownership:
-            return EPermission::Write;
-        case EAccessType::IntermediateData:
-            return EPermission::Read;
-        default:
-            Y_UNREACHABLE();
+    TSerializableAccessControlList result;
+    for (auto ace : acl.Entries) {
+        if (Any(ace.Permissions & EPermission::Read)) {
+            ace.Permissions = EPermission::Read;
+            result.Entries.push_back(std::move(ace));
+        }
     }
-}
-
-} // namespace
-
-void ValidateOperationAccess(
-    const TString& user,
-    TOperationId operationId,
-    EAccessType accessType,
-    const INodePtr& acl,
-    const NApi::NNative::IClientPtr& client,
-    const NLogging::TLogger& logger)
-{
-    const auto& Logger = logger;
-    TCheckPermissionByAclOptions options;
-    options.IgnoreMissingSubjects = true;
-    auto asyncResult = client->CheckPermissionByAcl(
-        user,
-        GetPermission(accessType),
-        acl,
-        options);
-    auto result = WaitFor(asyncResult)
-        .ValueOrThrow();
-
-    if (!result.MissingSubjects.empty()) {
-        YT_LOG_DEBUG("Operation has missing subjects in ACL (OperationId: %v, MissingSubjects: %v)",
-            operationId,
-            result.MissingSubjects);
-    }
-
-    if (result.Action == ESecurityAction::Allow) {
-        YT_LOG_DEBUG("Operation access successfully validated (OperationId: %v, User: %v, AccessType: %v)",
-            operationId,
-            user,
-            accessType);
-    } else {
-        THROW_ERROR_EXCEPTION(
-            NSecurityClient::EErrorCode::AuthorizationError,
-            "Access is denied")
-            << TErrorAttribute("user", user)
-            << TErrorAttribute("access_type", accessType)
-            << TErrorAttribute("operation_id", operationId);
-    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

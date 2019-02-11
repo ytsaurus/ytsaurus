@@ -34,11 +34,7 @@ private:
         i64 MaxBlockSize = 0;
     };
 
-#ifdef YT_IN_ARCADIA
     using TKey = typename std::invoke_result_t<TKeyExtractor, const TChunk*>;
-#else
-    using TKey = typename std::result_of<TKeyExtractor(const TChunk*)>::type;
-#endif
     using TStatiticsMap = THashMap<TKey, TStatistics>;
     TStatiticsMap StatisticsMap_;
 

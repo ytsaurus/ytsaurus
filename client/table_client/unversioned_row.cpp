@@ -773,6 +773,10 @@ void ValidateClientRow(
     bool isKey,
     std::optional<int> tabletIndexColumnId = std::nullopt)
 {
+    if (!row) {
+        THROW_ERROR_EXCEPTION("Unexpected empty row");
+    }
+
     ValidateRowValueCount(row.GetCount());
     ValidateKeyColumnCount(schema.GetKeyColumnCount());
 

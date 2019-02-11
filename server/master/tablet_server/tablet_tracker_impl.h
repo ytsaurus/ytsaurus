@@ -10,6 +10,8 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
+#include <yt/core/profiling/profiler.h>
+
 namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,8 +31,11 @@ private:
     NCellMaster::TBootstrap* const Bootstrap_;
     const TInstant StartTime_;
     const ITabletCellBalancerProviderPtr TTabletCellBalancerProvider_;
+    const NProfiling::TProfiler Profiler;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+    void ProfleCellMovement(const std::vector<TTabletCellMoveDescriptor>& moveDescriptors);
 
     void ScheduleLeaderReassignment(TTabletCell* cell);
     void SchedulePeerAssignment(TTabletCell* cell, ITabletCellBalancer* balancer);

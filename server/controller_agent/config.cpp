@@ -511,11 +511,6 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("enable_job_splitting", EnableJobSplitting)
         .Default(true);
 
-    RegisterParameter("additional_intermediate_data_acl", AdditionalIntermediateDataAcl)
-        .Default(NYTree::BuildYsonNodeFluently()
-             .BeginList()
-             .EndList()->AsList());
-
     RegisterParameter("heavy_job_spec_slice_count_threshold", HeavyJobSpecSliceCountThreshold)
         .Default(1000)
         .GreaterThan(0);
@@ -607,6 +602,9 @@ TControllerAgentConfig::TControllerAgentConfig()
 
     RegisterParameter("schedule_job_wait_time_threshold", ScheduleJobWaitTimeThreshold)
         .Default(TDuration::Seconds(5));
+
+    RegisterParameter("allow_users_group_read_intermediate_data", AllowUsersGroupReadIntermediateData)
+        .Default(false);
 
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;

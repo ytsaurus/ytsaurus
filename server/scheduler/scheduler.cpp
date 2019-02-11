@@ -19,12 +19,10 @@
 
 #include <yt/server/lib/shell/config.h>
 
-#include <yt/ytlib/controller_agent/controller_agent_service_proxy.h>
-
-#include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
-
 #include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/job_resources.h>
+
+#include <yt/ytlib/security_client/acl.h>
 
 #include <yt/ytlib/node_tracker_client/channel.h>
 
@@ -46,6 +44,8 @@
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+
+#include <yt/ytlib/controller_agent/controller_agent_service_proxy.h>
 
 #include <yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
 
@@ -71,6 +71,7 @@
 #include <yt/core/ytree/service_combiner.h>
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/exception_helpers.h>
+#include <yt/core/ytree/permission.h>
 
 namespace NYT::NScheduler {
 
@@ -465,41 +466,6 @@ public:
         return operation;
     }
 
-    INodePtr FindOperationAcl(TOperationId operationId, EAccessType accessType) const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        // IntermediateDate is not supported in the scheduler.
-        YCHECK(accessType != EAccessType::IntermediateData);
-
-        auto operation = GetOperationOrThrow(operationId);
-
-        return BuildYsonNodeFluently()
-            .BeginList()
-                .Do([&] (TFluentList fluent) {
-                    NScheduler::BuildOperationAce(
-                        operation->GetOwners(),
-                        operation->GetAuthenticatedUser(),
-                        EPermission::Read | EPermission::Write,
-                        fluent);
-                })
-                .Items(OperationsEffectiveAcl_->AsList())
-            .EndList();
-    }
-
-    INodePtr GetOperationAclFromCypress(TOperationId operationId, EAccessType accessType) const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto path = GetOperationPath(operationId)
-            + (accessType == EAccessType::Ownership ? "/@effective_acl" : "/@full_spec/intermediate_data_acl");
-
-        auto result = WaitFor(GetMasterClient()->GetNode(path))
-            .ValueOrThrow();
-
-        return ConvertToNode(result);
-    }
-
     virtual TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -561,26 +527,21 @@ public:
     void ValidateOperationAccess(
         const TString& user,
         TOperationId operationId,
-        EAccessType accessType) override
+        EPermissionSet permissions) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        // IntermediateData is not supported in the scheduler.
-        YCHECK(accessType != EAccessType::IntermediateData);
-
-        auto operationAcl = WaitFor(BIND(&TImpl::FindOperationAcl, MakeStrong(this))
+        const auto& operation = WaitFor(BIND(&TImpl::GetOperationOrThrow, MakeStrong(this))
             .AsyncVia(GetControlInvoker(EControlQueue::Operation))
-            .Run(operationId, accessType))
+            .Run(operationId))
             .ValueOrThrow();
-        if (!operationAcl) {
-            operationAcl = GetOperationAclFromCypress(operationId, accessType);
-        }
 
         NScheduler::ValidateOperationAccess(
             user,
             operationId,
-            accessType,
-            operationAcl,
+            TJobId(),
+            permissions,
+            operation->GetAcl(),
             GetMasterClient(),
             Logger);
 
@@ -618,12 +579,20 @@ public:
         auto secureVault = std::move(spec->SecureVault);
         specNode->RemoveChild("secure_vault");
 
+        auto baseAcl = GetBaseOperationAcl();
+        if (spec->AddAuthenticatedUserToAcl) {
+            baseAcl.Entries.emplace_back(
+                ESecurityAction::Allow,
+                std::vector<TString>{user},
+                EPermissionSet(EPermission::Read | EPermission::Manage));
+        }
+
         auto operationId = MakeRandomId(
             EObjectType::Operation,
             GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag());
 
         auto runtimeParams = New<TOperationRuntimeParameters>();
-        Strategy_->InitOperationRuntimeParameters(runtimeParams, spec, user, type);
+        Strategy_->InitOperationRuntimeParameters(runtimeParams, spec, baseAcl, user, type);
 
         auto annotations = specNode->FindChild("annotations");
 
@@ -636,6 +605,7 @@ public:
             annotations ? annotations->AsMap() : nullptr,
             secureVault,
             runtimeParams,
+            std::move(baseAcl),
             user,
             TInstant::Now(),
             MasterConnector_->GetCancelableControlInvoker(EControlQueue::Operation),
@@ -680,7 +650,7 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        ValidateOperationAccess(user, operation->GetId(), EAccessType::Ownership);
+        ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage));
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             YT_LOG_INFO(error, "Operation is already shutting down (OperationId: %v, State: %v)",
@@ -704,7 +674,7 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        ValidateOperationAccess(user, operation->GetId(), EAccessType::Ownership);
+        ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage));
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             return MakeFuture(TError(
@@ -730,7 +700,7 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        ValidateOperationAccess(user, operation->GetId(), EAccessType::Ownership);
+        ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage));
 
         if (!operation->GetSuspended()) {
             return MakeFuture(TError(
@@ -766,7 +736,7 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        ValidateOperationAccess(user, operation->GetId(), EAccessType::Ownership);
+        ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage));
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             YT_LOG_INFO(error, "Operation is already shutting down (OperationId: %v, State: %v)",
@@ -891,9 +861,15 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        ValidateOperationAccess(user, operation->GetId(), EAccessType::Ownership);
+        ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage));
 
         auto update = ConvertTo<TOperationRuntimeParametersUpdatePtr>(parameters);
+        if (update->Acl.has_value()) {
+            update->Acl->Entries.insert(
+                update->Acl->Entries.end(),
+                operation->BaseAcl().Entries.begin(),
+                operation->BaseAcl().Entries.end());
+        }
 
         // TODO(renadeen): remove this someday
         if (!Config_->PoolChangeIsAllowed) {
@@ -959,10 +935,10 @@ public:
             .Run();
     }
 
-    TFuture<TNodeDescriptor> GetJobNode(TJobId jobId, const TString& user)
+    TFuture<TNodeDescriptor> GetJobNode(TJobId jobId, const TString& user, EPermissionSet requiredPermissions)
     {
         const auto& nodeShard = GetNodeShardByJobId(jobId);
-        return BIND(&TNodeShard::GetJobNode, nodeShard, jobId, user)
+        return BIND(&TNodeShard::GetJobNode, nodeShard, jobId, user, requiredPermissions)
             .AsyncVia(nodeShard->GetInvoker())
             .Run();
     }
@@ -1259,6 +1235,12 @@ public:
         return OperationArchiveVersion_.load();
     }
 
+    TSerializableAccessControlList GetBaseOperationAcl() const
+    {
+        YCHECK(BaseOperationAcl_.has_value());
+        return *BaseOperationAcl_;
+    }
+
 private:
     TSchedulerConfigPtr Config_;
     const TSchedulerConfigPtr InitialConfig_;
@@ -1340,7 +1322,7 @@ private:
     TEnumIndexedVector<std::vector<TOperationPtr>, EOperationState> StateToTransientOperations_;
     TInstant OperationToAgentAssignmentFailureTime_;
 
-    INodePtr OperationsEffectiveAcl_;
+    std::optional<NSecurityClient::TSerializableAccessControlList> BaseOperationAcl_;
 
     TIntrusivePtr<NYTree::ICachedYPathService> StaticOrchidService_;
     TIntrusivePtr<NYTree::TServiceCombiner> CombinedOrchidService_;
@@ -1853,7 +1835,17 @@ private:
             THROW_ERROR_EXCEPTION("Error getting operations effective acl")
                 << rspOrError;
         }
-        OperationsEffectiveAcl_ = ConvertToNode(TYsonString(rspOrError.ValueOrThrow()->value()));
+        auto operationsEffectiveAcl = ConvertTo<TSerializableAccessControlList>(
+            TYsonString(rspOrError.ValueOrThrow()->value()));
+        BaseOperationAcl_.emplace();
+        for (const auto& ace : operationsEffectiveAcl.Entries) {
+            if (ace.Action == ESecurityAction::Allow && Any(ace.Permissions & EPermission::Write)) {
+                BaseOperationAcl_->Entries.emplace_back(
+                    ESecurityAction::Allow,
+                    ace.Subjects,
+                    EPermissionSet(EPermission::Read | EPermission::Manage));
+            }
+        }
     }
 
     void RequestConfig(const TObjectServiceProxy::TReqExecuteBatchPtr& batchReq)
@@ -3539,9 +3531,9 @@ TFuture<void> TScheduler::DumpInputContext(TJobId jobId, const NYPath::TYPath& p
     return Impl_->DumpInputContext(jobId, path, user);
 }
 
-TFuture<TNodeDescriptor> TScheduler::GetJobNode(TJobId jobId, const TString& user)
+TFuture<TNodeDescriptor> TScheduler::GetJobNode(TJobId jobId, const TString& user, EPermissionSet requiredPermissions)
 {
-    return Impl_->GetJobNode(jobId, user);
+    return Impl_->GetJobNode(jobId, user, requiredPermissions);
 }
 
 TFuture<TYsonString> TScheduler::Strace(TJobId jobId, const TString& user)
@@ -3567,6 +3559,11 @@ TFuture<void> TScheduler::AbortJob(TJobId jobId, std::optional<TDuration> interr
 void TScheduler::ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context)
 {
     Impl_->ProcessNodeHeartbeat(context);
+}
+
+TSerializableAccessControlList TScheduler::GetBaseOperationAcl() const
+{
+    return Impl_->GetBaseOperationAcl();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

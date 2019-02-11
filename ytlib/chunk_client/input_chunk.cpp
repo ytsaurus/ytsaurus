@@ -27,23 +27,23 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
     SetReplicaList(FromProto<TChunkReplicaList>(chunkSpec.replicas()));
 
     const auto& chunkMeta = chunkSpec.chunk_meta();
-    auto miscExt = GetProtoExtension<NProto::TMiscExt>(chunkMeta.extensions());
+    if (auto miscExt = FindProtoExtension<NProto::TMiscExt>(chunkMeta.extensions())) {
+        TotalUncompressedDataSize_ = miscExt->uncompressed_data_size();
 
-    TotalUncompressedDataSize_ = miscExt.uncompressed_data_size();
+        // NB(psushin): we don't use overrides from master, since we can do the same estimates ourself.
+        TotalDataWeight_ = miscExt->has_data_weight() && miscExt->data_weight() > 0
+            ? miscExt->data_weight()
+            : TotalUncompressedDataSize_;
 
-    // NB(psushin): we don't use overrides from master, since we can do the same estimates ourself.
-    TotalDataWeight_ = miscExt.has_data_weight() && miscExt.data_weight() > 0
-        ? miscExt.data_weight()
-        : TotalUncompressedDataSize_;
+        TotalRowCount_ = miscExt->row_count();
 
-    TotalRowCount_ = miscExt.row_count();
+        CompressedDataSize_ = miscExt->compressed_data_size();
 
-    CompressedDataSize_ = miscExt.compressed_data_size();
-
-    MaxBlockSize_ = miscExt.has_max_block_size()
-        ? miscExt.max_block_size()
-        : DefaultMaxBlockSize;
-    UniqueKeys_ = miscExt.unique_keys();
+        MaxBlockSize_ = miscExt->has_max_block_size()
+            ? miscExt->max_block_size()
+            : DefaultMaxBlockSize;
+        UniqueKeys_ = miscExt->unique_keys();
+    }
 
     YCHECK(EChunkType(chunkMeta.type()) == EChunkType::Table);
     TableChunkFormat_ = ETableChunkFormat(chunkMeta.version());

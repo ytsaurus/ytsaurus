@@ -111,6 +111,11 @@ public:
             .Default("//sys/clickhouse/cliques");
         RegisterParameter("http_client", HttpClient)
             .DefaultNew();
+
+        RegisterPreprocessor([&] {
+            HttpClient->HeaderReadTimeout = TDuration::Hours(1);
+            HttpClient->BodyReadIdleTimeout = TDuration::Hours(1);
+        });
     }
 };
 

@@ -14,6 +14,10 @@
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
+#include <yt/client/object_client/helpers.h>
+
+#include <yt/client/security_client/helpers.h>
+
 #include <yt/client/api/transaction.h>
 
 #include <yt/core/ytree/node.h>

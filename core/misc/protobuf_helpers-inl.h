@@ -6,6 +6,7 @@
 #endif
 
 #include "assert.h"
+#include "error.h"
 
 namespace NYT {
 
@@ -268,6 +269,34 @@ void FromProtoArrayImpl(
     }
 }
 
+// Does not check for duplicates.
+template <class TOriginal, class TSerializedArray>
+void FromProtoArrayImpl(
+    THashSet<TOriginal>* originalArray,
+    const TSerializedArray& serializedArray)
+{
+    originalArray->clear();
+    originalArray->reserve(serializedArray.size());
+    for (int i = 0; i < serializedArray.size(); ++i) {
+        originalArray->emplace(
+            FromProto<TOriginal>(serializedArray.Get(i)));
+    }
+}
+
+template <class TOriginal, class TSerializedArray>
+void CheckedFromProtoArrayImpl(
+    THashSet<TOriginal>* originalArray,
+    const TSerializedArray& serializedArray)
+{
+    FromProtoArrayImpl(originalArray, serializedArray);
+
+    if (originalArray->size() != serializedArray.size()) {
+        THROW_ERROR_EXCEPTION("Duplicate elements in a serialized hash set")
+            << TErrorAttribute("unique_element_count", originalArray->size())
+            << TErrorAttribute("total_element_count", serializedArray.size());
+    }
+}
+
 template <class TOriginal, class TSerializedArray>
 void FromProtoArrayImpl(
     TMutableRange<TOriginal>* originalArray,
@@ -368,6 +397,23 @@ void FromProto(
     const ::google::protobuf::RepeatedField<TSerialized>& serializedArray)
 {
     NDetail::FromProtoArrayImpl(originalArray, serializedArray);
+}
+
+// Throws if duplicate elements are found.
+template <class TOriginal, class TSerialized>
+void CheckedHashSetFromProto(
+    THashSet<TOriginal>* originalHashSet,
+    const ::google::protobuf::RepeatedPtrField<TSerialized>& serializedHashSet)
+{
+    NDetail::CheckedFromProtoArrayImpl(originalHashSet, serializedHashSet);
+}
+
+template <class TOriginal, class TSerialized>
+void CheckedHashSetFromProto(
+    THashSet<TOriginal>* originalHashSet,
+    const ::google::protobuf::RepeatedField<TSerialized>& serializedHashSet)
+{
+    NDetail::CheckedFromProtoArrayImpl(originalHashSet, serializedHashSet);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

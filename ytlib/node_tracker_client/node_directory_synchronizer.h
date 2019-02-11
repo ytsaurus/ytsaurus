@@ -4,6 +4,8 @@
 
 #include <yt/client/api/public.h>
 
+#include <yt/core/actions/public.h>
+
 namespace NYT::NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -19,7 +21,7 @@ public:
     ~TNodeDirectorySynchronizer();
 
     void Start();
-    void Stop();
+    TFuture<void> Stop();
 
 private:
     class TImpl;

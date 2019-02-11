@@ -448,8 +448,9 @@ public:
 
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<ITableReaderPtr>, CreateTableReader, (
         const TRichYPath& path,
-        const TTableReaderOptions& options),
-        (path, options))
+        const TTableReaderOptions& options,
+        const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory),
+        (path, options, nodeDirectory))
 
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<ITableWriterPtr>, CreateTableWriter, (
         const TRichYPath& path,

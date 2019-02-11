@@ -6,6 +6,7 @@
 
 #include <yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
+#include <yt/ytlib/scheduler/config.h>
 #include <yt/ytlib/scheduler/job_resources.h>
 #include <yt/ytlib/scheduler/proto/scheduler_service.pb.h>
 
@@ -231,6 +232,11 @@ public:
 
     DEFINE_BYREF_RO_PROPERTY(NYTree::IMapNodePtr, Annotations);
 
+    //! ACEs that are always included in operation ACL
+    //! regardless any ACL specification and any ACL changes made by user.
+    DEFINE_BYREF_RO_PROPERTY(NSecurityClient::TSerializableAccessControlList, BaseAcl);
+
+public:
     //! Returns operation id.
     TOperationId GetId() const override;
 
@@ -284,10 +290,11 @@ public:
     const THashMap<TString, int>& GetSlotIndices() const;
 
     const std::vector<TString>& GetOwners() const;
-    void SetOwners(std::vector<TString> owners);
 
     TOperationRuntimeParametersPtr GetRuntimeParameters() const override;
     void SetRuntimeParameters(TOperationRuntimeParametersPtr parameters);
+
+    const NSecurityClient::TSerializableAccessControlList& GetAcl() const;
 
     NYson::TYsonString BuildAlertsString() const;
     bool HasAlert(EOperationAlertType alertType) const;
@@ -320,6 +327,7 @@ public:
         NYTree::IMapNodePtr annotations,
         NYTree::IMapNodePtr secureVault,
         TOperationRuntimeParametersPtr runtimeParams,
+        NSecurityClient::TSerializableAccessControlList baseAcl,
         const TString& authenticatedUser,
         TInstant startTime,
         IInvokerPtr controlInvoker,

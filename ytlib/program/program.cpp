@@ -128,7 +128,6 @@ void TProgram::PrintBuildAndExit()
 {
     Cout << "Build Time: " << GetBuildTime() << Endl;
     Cout << "Build Host: " << GetBuildHost() << Endl;
-    Cout << "Build Machine: " << GetBuildMachine() << Endl;
     _exit(0);
 }
 

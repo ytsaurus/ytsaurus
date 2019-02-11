@@ -41,11 +41,11 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NTableClient::ETableChunkFormat, TableChunkFormat);
     DEFINE_BYVAL_RW_PROPERTY(i64, ChunkIndex, -1);
 
-    DEFINE_BYVAL_RW_PROPERTY(i64, TotalUncompressedDataSize);
-    DEFINE_BYVAL_RW_PROPERTY(i64, TotalRowCount);
-    DEFINE_BYVAL_RW_PROPERTY(i64, CompressedDataSize); // for TSortControllerBase
-    DEFINE_BYVAL_RW_PROPERTY(i64, TotalDataWeight);
-    DEFINE_BYVAL_RO_PROPERTY(i64, MaxBlockSize); // for TChunkStripeStatistics
+    DEFINE_BYVAL_RW_PROPERTY(i64, TotalUncompressedDataSize, -1);
+    DEFINE_BYVAL_RW_PROPERTY(i64, TotalRowCount, -1);
+    DEFINE_BYVAL_RW_PROPERTY(i64, CompressedDataSize, -1); // for TSortControllerBase
+    DEFINE_BYVAL_RW_PROPERTY(i64, TotalDataWeight, -1);
+    DEFINE_BYVAL_RO_PROPERTY(i64, MaxBlockSize, -1); // for TChunkStripeStatistics
 
     DEFINE_BYVAL_RO_PROPERTY(bool, UniqueKeys, false); // for TChunkStripeStatistics
 

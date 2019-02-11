@@ -127,6 +127,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
         .Default()
         .GreaterThanOrEqual(1.0);
 
+    RegisterParameter("crash_on_operation_resource_usage_inconsistency", CrashOnOperationResourceUsageInconsistency)
+        .Default(false);
+
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")
@@ -268,7 +271,11 @@ TControllerAgentTrackerConfig::TControllerAgentTrackerConfig()
         .Default(1);
 
     RegisterParameter("min_agent_available_memory", MinAgentAvailableMemory)
-        .Default(10_GB);
+        .Default(1_GB);
+
+    RegisterParameter("min_agent_available_memory_fraction", MinAgentAvailableMemoryFraction)
+        .InRange(0.0, 1.0)
+        .Default(0.05);
 
     RegisterParameter("memory_balanced_pick_strategy_score_power", MemoryBalancedPickStrategyScorePower)
         .Default(1.0);

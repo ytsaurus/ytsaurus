@@ -10,6 +10,8 @@
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
+#include <yt/ytlib/security_client/acl.h>
+
 #include <yt/core/concurrency/async_rw_lock.h>
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_pool.h>
@@ -31,6 +33,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NProfiling;
 using namespace NControllerAgent;
+using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -467,13 +470,19 @@ public:
     virtual void InitOperationRuntimeParameters(
         const TOperationRuntimeParametersPtr& runtimeParameters,
         const TOperationSpecBasePtr& spec,
+        const TSerializableAccessControlList& baseAcl,
         const TString& user,
         EOperationType operationType) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
+        runtimeParameters->Acl = baseAcl;
+        runtimeParameters->Acl.Entries.insert(
+            runtimeParameters->Acl.Entries.end(),
+            spec->Acl.Entries.begin(),
+            spec->Acl.Entries.end());
+
         auto poolTrees = ParsePoolTrees(spec, operationType);
-        runtimeParameters->Owners = spec->Owners;
         for (const auto& tree : poolTrees) {
             auto treeParams = New<TOperationFairShareTreeRuntimeParameters>();
             auto specIt = spec->SchedulingOptionsPerPoolTree.find(tree);

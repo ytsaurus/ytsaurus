@@ -10,7 +10,7 @@ import time
 ##################################################################
 
 class TestSchedulerRemoteCopyCommands(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 9
     NUM_SCHEDULERS = 1
 
@@ -363,7 +363,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 ##################################################################
 
 class TestSchedulerRemoteCopyNetworks(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 9
     NUM_SCHEDULERS = 1
 

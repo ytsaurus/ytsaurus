@@ -17,11 +17,7 @@ void SetTimeoutOptions(
     NRpc::TClientRequest& request,
     const NApi::TTimeoutOptions& options);
 
-#ifdef YT_IN_ARCADIA
 [[noreturn]] void ThrowUnimplemented(const TString& method);
-#else
-Y_NO_RETURN void ThrowUnimplemented(const TString& method);
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,6 +79,30 @@ void FromProto(
     NApi::TCheckPermissionResult* result,
     const NProto::TCheckPermissionResult& proto);
 
+void ToProto(
+    NProto::TCheckPermissionByAclResult* proto,
+    const NApi::TCheckPermissionByAclResult& result);
+
+void FromProto(
+    NApi::TCheckPermissionByAclResult* result,
+    const NProto::TCheckPermissionByAclResult& proto);
+
+void ToProto(
+    NProto::TListOperationsResult* proto,
+    const NApi::TListOperationsResult& result);
+
+void FromProto(
+    NApi::TListOperationsResult* result,
+    const NProto::TListOperationsResult& proto);
+
+void ToProto(
+    NProto::TListJobsResult* proto,
+    const NApi::TListJobsResult& result);
+
+void FromProto(
+    NApi::TListJobsResult* result,
+    const NProto::TListJobsResult& proto);
+
 void ToProto(NProto::TColumnSchema* protoSchema, const NTableClient::TColumnSchema& schema);
 void FromProto(NTableClient::TColumnSchema* schema, const NProto::TColumnSchema& protoSchema);
 
@@ -110,11 +130,66 @@ void FromProto(
     NQueryClient::TQueryStatistics* statistics,
     const NProto::TQueryStatistics& protoStatistics);
 
+void ToProto(
+    NProto::TOperation* protoOperation,
+    const NApi::TOperation& operation);
+
+void FromProto(
+    NApi::TOperation* operation,
+    const NProto::TOperation& protoOperation);
+
+void ToProto(
+    NProto::TJob* protoJob,
+    const NApi::TJob& job);
+
+void FromProto(
+    NApi::TJob* job,
+    const NProto::TJob& protoJob);
+
+void ToProto(
+    NProto::TListJobsStatistics* protoStatistics,
+    const NApi::TListJobsStatistics& statistics);
+
+void FromProto(
+    NApi::TListJobsStatistics* statistics,
+    const NProto::TListJobsStatistics& protoStatistics);
+
+void ToProto(
+    NProto::TColumnarStatistics* protoStatistics,
+    const NTableClient::TColumnarStatistics& statistics);
+
+void FromProto(
+    NTableClient::TColumnarStatistics* statistics,
+    const NProto::TColumnarStatistics& protoStatistics);
+
+template <class TStringContainer>
+void ToProto(
+    NRpcProxy::NProto::TAttributeKeys* protoAttributes,
+    const std::optional<TStringContainer>& attributes);
+
 NProto::EOperationType ConvertOperationTypeToProto(
-    const NScheduler::EOperationType& operation_type);
+    const NScheduler::EOperationType& operationType);
 
 NScheduler::EOperationType ConvertOperationTypeFromProto(
     const NProto::EOperationType& proto);
+
+NProto::EOperationState ConvertOperationStateToProto(
+    const NScheduler::EOperationState& operationState);
+
+NScheduler::EOperationState ConvertOperationStateFromProto(
+    const NProto::EOperationState& proto);
+
+NProto::EJobType ConvertJobTypeToProto(
+    const NJobTrackerClient::EJobType& jobType);
+
+NJobTrackerClient::EJobType ConvertJobTypeFromProto(
+    const NProto::EJobType& proto);
+
+NProto::EJobState ConvertJobStateToProto(
+    const NJobTrackerClient::EJobState& jobState);
+
+NJobTrackerClient::EJobState ConvertJobStateFromProto(
+    const NProto::EJobState& proto);
 
 } // namespace NProto
 ////////////////////////////////////////////////////////////////////////////////

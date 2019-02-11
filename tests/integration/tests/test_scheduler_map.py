@@ -27,7 +27,7 @@ porto_delta_node_config = {
 ##################################################################
 
 class TestSchedulerMapCommands(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 16
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
@@ -1277,7 +1277,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
 ##################################################################
 
 class TestMapOnDynamicTables(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 16
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
@@ -1606,7 +1606,7 @@ class TestMapOnDynamicTablesPorto(YTEnvSetup):
 ##################################################################
 
 class TestInputOutputFormats(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 16
     NUM_SCHEDULERS = 1
 

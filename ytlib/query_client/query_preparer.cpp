@@ -4,8 +4,9 @@
 #include "functions.h"
 #include "helpers.h"
 #include "lexer.h"
-#include "parser.hpp"
 #include "query_helpers.h"
+
+#include <yt/ytlib/query_client/parser.h>
 
 #include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 

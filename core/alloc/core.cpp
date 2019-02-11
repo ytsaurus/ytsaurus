@@ -472,9 +472,10 @@ static_assert(sizeof(TFreeList<void>) == 64, "sizeof(TFreeList) != 64");
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr size_t ShardCount = 16;
+std::atomic<size_t> GlobalCurrentShardIndex;
 
 // Provides a context for working with sharded data structures.
-// Captures an initial random shard index upon construction (indicating the shard
+// Captures the initial shard index upon construction (indicating the shard
 // where all insertions go). Maintains the current shard index (round-robin,
 // indicating the shard currently used for extraction).
 // Can be or be not thread-safe depending on TCounter.
@@ -483,7 +484,7 @@ class TShardedState
 {
 public:
     TShardedState()
-        : InitialShardIndex_(rand() % ShardCount)
+        : InitialShardIndex_(GlobalCurrentShardIndex++ % ShardCount)
         , CurrentShardIndex_(InitialShardIndex_)
     { }
 

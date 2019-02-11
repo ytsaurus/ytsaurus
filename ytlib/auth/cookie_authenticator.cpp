@@ -123,8 +123,7 @@ private:
 
     TErrorOr<TAuthenticationResult> OnCallResultImpl(const INodePtr& data)
     {
-        // See https://doc.yandex-team.ru/blackbox/reference/method-sessionid-response-json.xml for reference.
-        auto statusId = GetByYPath<int>(data, "/status/id");
+        auto statusId = GetByYPath<i64>(data, "/status/id");
         if (!statusId.IsOK()) {
             return TError("Blackbox returned invalid response");
         }

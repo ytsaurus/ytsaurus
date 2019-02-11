@@ -8,6 +8,8 @@
 
 #include <yt/ytlib/api/native/public.h>
 
+#include <yt/ytlib/security_client/public.h>
+
 #include <yt/core/ytree/public.h>
 #include <yt/core/ytree/permission.h>
 #include <yt/core/ytree/fluent.h>
@@ -92,11 +94,16 @@ void ValidateOperationPermission(
     const NLogging::TLogger& logger,
     const TString& subnodePath = "");
 
-void BuildOperationAce(
-    const std::vector<TString>& owners,
-    const TString& authenticatedUser,
-    NYTree::EPermissionSet permissions,
-    NYTree::TFluentList fluent);
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateOperationAccess(
+    const std::optional<TString>& user,
+    TOperationId operationId,
+    TJobId jobId,
+    NYTree::EPermissionSet permissionSet,
+    const NSecurityClient::TSerializableAccessControlList& acl,
+    const NApi::NNative::IClientPtr& client,
+    const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

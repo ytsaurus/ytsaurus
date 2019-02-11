@@ -1,22 +1,22 @@
-from helpers import get_version
-
-from setuptools import setup
-
-from setuptools.dist import Distribution
-
 import os
 
-class BinaryDistribution(Distribution):
-    def is_pure(self):
-        return False
-
-    # Python 3 specific
-    def has_ext_modules(self):
-        return True
+PACKAGE_NAME = "yandex-yt-yson-bindings"
 
 def main():
+    from setuptools import setup
+    from setuptools.dist import Distribution
+    from helpers import get_version
+
+    class BinaryDistribution(Distribution):
+        def is_pure(self):
+            return False
+
+        # Python 3 specific
+        def has_ext_modules(self):
+            return True
+
     setup(
-        name = "yandex-yt-yson-bindings" + os.environ.get("PYTHON_SUFFIX", ""),
+        name = PACKAGE_NAME + os.environ.get("PYTHON_SUFFIX", ""),
         version = get_version(),
         packages = ["yt_yson_bindings"],
         package_data = {"yt_yson_bindings": ["yson_lib.so", "yson_lib.dbg.so",

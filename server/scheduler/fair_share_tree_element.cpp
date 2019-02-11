@@ -652,7 +652,7 @@ TJobResources TSchedulerElement::ComputeResourceLimitsBase(const TResourceLimits
     auto connectionTime = InstantToCpuInstant(Host_->GetConnectionTime());
     auto delay = DurationToCpuDuration(TreeConfig_->TotalResourceLimitsConsiderDelay);
     auto maxShareLimits = connectionTime + delay < GetCpuInstant()
-        ? GetHost()->GetResourceLimits(GetSchedulingTagFilter()) * GetMaxShareRatio()
+        ? GetHost()->GetResourceLimits(TreeConfig_->NodesFilter & GetSchedulingTagFilter()) * GetMaxShareRatio()
         : InfiniteJobResources();
     auto perTypeLimits = ToJobResources(resourceLimitsConfig, InfiniteJobResources());
     return Min(maxShareLimits, perTypeLimits);
@@ -1226,6 +1226,13 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
                 uncertaintyRatio = 1.0;
             }
             child->SetFairShareRatio(value * uncertaintyRatio);
+            if (uncertaintyRatio < 0.99 && !IsRoot()) {
+                YT_LOG_DEBUG("Detected situation with parent/child fair share ratio disagreement "
+                    "(Child: %v, Parent: %v, UncertaintyRatio: %v)",
+                    child->GetId(),
+                    child->GetParent()->GetId(),
+                    uncertaintyRatio);
+            }
         },
         Attributes_.FairShareRatio);
 
@@ -1895,17 +1902,17 @@ TInstant TOperationElementSharedState::GetLastScheduleJobSuccessTime() const
 
 void TOperationElement::OnOperationDeactivated(EDeactivationReason reason)
 {
-    SharedState_->OnOperationDeactivated(reason);
+    OperationElementSharedState_->OnOperationDeactivated(reason);
 }
 
 TEnumIndexedVector<int, EDeactivationReason> TOperationElement::GetDeactivationReasons() const
 {
-    return SharedState_->GetDeactivationReasons();
+    return OperationElementSharedState_->GetDeactivationReasons();
 }
 
 TEnumIndexedVector<int, EDeactivationReason> TOperationElement::GetDeactivationReasonsFromLastNonStarvingTime() const
 {
-    return SharedState_->GetDeactivationReasonsFromLastNonStarvingTime();
+    return OperationElementSharedState_->GetDeactivationReasonsFromLastNonStarvingTime();
 }
 
 std::optional<NProfiling::TTagId> TOperationElement::GetCustomProfilingTag()
@@ -1947,7 +1954,14 @@ void TOperationElement::Disable()
 {
     YT_LOG_DEBUG("Operation element disabled in strategy (OperationId: %v)", OperationId_);
 
-    auto delta = SharedState_->Disable();
+    auto delta = OperationElementSharedState_->Disable();
+    auto difference = delta - GetLocalResourceUsage();
+    if (difference != ZeroJobResources()) {
+        YT_LOG_ERROR("Found inconsistency in operation resource usage (OperationId: %v, ResourceUsageDifference: %v)",
+            OperationId_,
+            FormatResources(difference));
+        YCHECK(!TreeConfig_->CrashOnOperationResourceUsageInconsistency);
+    }
     IncreaseLocalResourceUsage(-delta);
 }
 
@@ -1955,7 +1969,7 @@ void TOperationElement::Enable()
 {
     YT_LOG_DEBUG("Operation element enabled in strategy (OperationId: %v)", OperationId_);
 
-    return SharedState_->Enable();
+    return OperationElementSharedState_->Enable();
 }
 
 std::optional<TJobResources> TOperationElementSharedState::RemoveJob(TJobId jobId)
@@ -2014,11 +2028,14 @@ std::optional<EDeactivationReason> TOperationElement::TryStartScheduleJob(
         return EDeactivationReason::ResourceLimitsExceeded;
     }
 
+    if (!CheckDemand(minNeededResources, context)) {
+        return EDeactivationReason::ResourceLimitsExceeded;
+    }
+
     TJobResources availableResourceLimits;
     if (!TryIncreaseHierarchicalResourceUsagePrecommit(
             minNeededResources,
             context,
-            /* checkDemand */ true,
             &availableResourceLimits)) {
         return EDeactivationReason::ResourceLimitsExceeded;
     }
@@ -2086,7 +2103,7 @@ TOperationElement::TOperationElement(
     , TOperationElementFixedState(operation, controllerConfig)
     , RuntimeParams_(std::move(runtimeParams))
     , Spec_(spec)
-    , SharedState_(New<TOperationElementSharedState>(spec->UpdatePreemptableJobsListLoggingPeriod))
+    , OperationElementSharedState_(New<TOperationElementSharedState>(spec->UpdatePreemptableJobsListLoggingPeriod))
     , Controller_(std::move(controller))
     , SchedulingTagFilter_(spec->SchedulingTagFilter)
     , LastNonStarvingTime_(TInstant::Now())
@@ -2099,7 +2116,7 @@ TOperationElement::TOperationElement(
     , TOperationElementFixedState(other)
     , RuntimeParams_(other.RuntimeParams_)
     , Spec_(other.Spec_)
-    , SharedState_(other.SharedState_)
+    , OperationElementSharedState_(other.OperationElementSharedState_)
     , Controller_(other.Controller_)
     , SchedulingTagFilter_(other.SchedulingTagFilter_)
     , LastNonStarvingTime_(other.LastNonStarvingTime_)
@@ -2422,7 +2439,7 @@ void TOperationElement::SetStarving(bool starving)
     }
 
     if (starving && !GetStarving()) {
-        SharedState_->ResetDeactivationReasonsFromLastNonStarvingTime();
+        OperationElementSharedState_->ResetDeactivationReasonsFromLastNonStarvingTime();
         TSchedulerElement::SetStarving(true);
         YT_LOG_INFO("Operation is now starving (TreeId: %v, OperationId: %v, Status: %v)",
             GetTreeId(),
@@ -2460,7 +2477,7 @@ bool TOperationElement::IsPreemptionAllowed(const TFairShareContext& context, co
 {
     int jobCount = GetRunningJobCount();
     if (jobCount <= config->MaxUnpreemptableRunningJobCount) {
-        SharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceLowJobCount);
+        OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceLowJobCount);
         return false;
     }
 
@@ -2468,7 +2485,7 @@ bool TOperationElement::IsPreemptionAllowed(const TFairShareContext& context, co
 
     while (element && !element->IsRoot()) {
         if (element->GetStarving()) {
-            SharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceStarvingParent);
+            OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceStarvingParent);
             return false;
         }
 
@@ -2481,14 +2498,14 @@ bool TOperationElement::IsPreemptionAllowed(const TFairShareContext& context, co
 
         // NB: we want to use <s>local</s> satisfaction here.
         if (element->ComputeLocalSatisfactionRatio() < threshold + RatioComparisonPrecision) {
-            SharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceUnsatisfiedParentOrSelf);
+            OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceUnsatisfiedParentOrSelf);
             return false;
         }
 
         element = element->GetParent();
     }
 
-    SharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::Allowed);
+    OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::Allowed);
     return true;
 }
 
@@ -2503,7 +2520,7 @@ void TOperationElement::ApplyJobMetricsDelta(const TJobMetrics& delta)
 
 void TOperationElement::IncreaseJobResourceUsage(TJobId jobId, const TJobResources& resourcesDelta)
 {
-    auto delta = SharedState_->IncreaseJobResourceUsage(jobId, resourcesDelta);
+    auto delta = OperationElementSharedState_->IncreaseJobResourceUsage(jobId, resourcesDelta);
     IncreaseHierarchicalResourceUsage(delta);
 
     UpdatePreemptableJobsList();
@@ -2511,32 +2528,32 @@ void TOperationElement::IncreaseJobResourceUsage(TJobId jobId, const TJobResourc
 
 bool TOperationElement::IsJobKnown(TJobId jobId) const
 {
-    return SharedState_->IsJobKnown(jobId);
+    return OperationElementSharedState_->IsJobKnown(jobId);
 }
 
 bool TOperationElement::IsJobPreemptable(TJobId jobId, bool aggressivePreemptionEnabled) const
 {
-    return SharedState_->IsJobPreemptable(jobId, aggressivePreemptionEnabled);
+    return OperationElementSharedState_->IsJobPreemptable(jobId, aggressivePreemptionEnabled);
 }
 
 int TOperationElement::GetRunningJobCount() const
 {
-    return SharedState_->GetRunningJobCount();
+    return OperationElementSharedState_->GetRunningJobCount();
 }
 
 int TOperationElement::GetPreemptableJobCount() const
 {
-    return SharedState_->GetPreemptableJobCount();
+    return OperationElementSharedState_->GetPreemptableJobCount();
 }
 
 int TOperationElement::GetAggressivelyPreemptableJobCount() const
 {
-    return SharedState_->GetAggressivelyPreemptableJobCount();
+    return OperationElementSharedState_->GetAggressivelyPreemptableJobCount();
 }
 
 TPreemptionStatusStatisticsVector TOperationElement::GetPreemptionStatusStatistics() const
 {
-    return SharedState_->GetPreemptionStatusStatistics();
+    return OperationElementSharedState_->GetPreemptionStatusStatistics();
 }
 
 TInstant TOperationElement::GetLastNonStarvingTime() const
@@ -2546,7 +2563,7 @@ TInstant TOperationElement::GetLastNonStarvingTime() const
 
 TInstant TOperationElement::GetLastScheduleJobSuccessTime() const
 {
-    return SharedState_->GetLastScheduleJobSuccessTime();
+    return OperationElementSharedState_->GetLastScheduleJobSuccessTime();
 }
 
 int TOperationElement::GetSlotIndex() const
@@ -2570,7 +2587,7 @@ bool TOperationElement::OnJobStarted(
     // XXX(ignat): remove before deploy on production clusters.
     YT_LOG_DEBUG("Adding job to strategy (JobId: %v)", jobId);
 
-    auto resourceUsageDelta = SharedState_->AddJob(jobId, resourceUsage, force);
+    auto resourceUsageDelta = OperationElementSharedState_->AddJob(jobId, resourceUsage, force);
     if (resourceUsageDelta) {
         CommitHierarchicalResourceUsage(*resourceUsageDelta, precommittedResources);
         UpdatePreemptableJobsList();
@@ -2585,7 +2602,7 @@ void TOperationElement::OnJobFinished(TJobId jobId)
     // XXX(ignat): remove before deploy on production clusters.
     YT_LOG_DEBUG("Removing job from strategy (JobId: %v)", jobId);
 
-    auto delta = SharedState_->RemoveJob(jobId);
+    auto delta = OperationElementSharedState_->RemoveJob(jobId);
     if (delta) {
         IncreaseHierarchicalResourceUsage(-(*delta));
         UpdatePreemptableJobsList();
@@ -2656,7 +2673,6 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(
         bool successfullyPrecommitted = TryIncreaseHierarchicalResourceUsagePrecommit(
             resourceDelta,
             *context,
-            /* checkDemand */ false,
             /* availableResourceLimitsOutput */ nullptr);
         if (successfullyPrecommitted) {
             *precommittedResources += resourceDelta;
@@ -2719,7 +2735,7 @@ void TOperationElement::UpdatePreemptableJobsList()
     TWallTimer timer;
     int moveCount = 0;
 
-    SharedState_->UpdatePreemptableJobsList(
+    OperationElementSharedState_->UpdatePreemptableJobsList(
         GetFairShareRatio(),
         TotalResourceLimits_,
         TreeConfig_->PreemptionSatisfactionThreshold,
@@ -2743,15 +2759,10 @@ void TOperationElement::UpdatePreemptableJobsList()
 bool TOperationElement::TryIncreaseHierarchicalResourceUsagePrecommit(
     const TJobResources& delta,
     const TFairShareContext& context,
-    bool checkDemand,
     TJobResources* availableResourceLimitsOutput)
 {
     auto availableResourceLimits = InfiniteJobResources();
     TSchedulerElement* failedParent = nullptr;
-
-    if (checkDemand && !CheckDemand(delta, context)) {
-        return false;
-    }
 
     TSchedulerElement* currentElement = this;
     while (currentElement) {

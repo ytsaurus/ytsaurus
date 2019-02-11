@@ -82,6 +82,100 @@ enum EOperationType
     OT_VANILLA = 8;
 }
 
+enum EOperationState
+{
+    OS_NONE = 0;
+    OS_STARTING = 1;
+    OS_ORPHANED = 2;
+    OS_WAITING_FOR_AGENT = 3;
+    OS_INITIALIZING = 4;
+    OS_PREPARING = 5;
+    OS_MATERIALIZING = 6;
+    OS_REVIVING = 7;
+    OS_REVIVING_JOBS = 8;
+    OS_PENDING = 9;
+    OS_RUNNING = 10;
+    OS_COMPLETING = 11;
+    OS_COMPLETED = 12;
+    OS_ABORTING = 13;
+    OS_ABORTED = 14;
+    OS_FAILING = 15;
+    OS_FAILED = 16;
+}
+
+enum EOperationSortDirection
+{
+    OSD_NONE = 0;
+    OSD_PAST = 1;
+    OSD_FUTURE = 2;
+}
+
+enum EJobType
+{
+    JT_MAP = 1;
+    JT_PARTITION_MAP = 2;
+    JT_SORTED_MERGE = 3;
+    JT_ORDERED_MERGE = 4;
+    JT_UNORDERED_MERGE = 5;
+    JT_PARTITION = 6;
+    JT_SIMPLE_SORT = 7;
+    JT_FINAL_SORT = 8;
+    JT_SORTED_REDUCE = 9;
+    JT_PARTITION_REDUCE = 10;
+    JT_REDUCE_COMBINER = 11;
+    JT_REMOTE_COPY = 12;
+    JT_INTERMEDIATE_SORT = 13;
+    JT_ORDERED_MAP = 14;
+    JT_JOIN_REDUCE = 15;
+    JT_VANILLA = 16;
+    JT_SCHEDULER_UNKNOWN = 98;
+
+    // Master jobs
+    JT_REPLICATE_CHUNK = 100;
+    JT_REMOVE_CHUNK = 101;
+    JT_REPAIR_CHUNK = 102;
+    JT_SEAL_CHUNK = 103;
+}
+
+enum EJobState
+{
+    JS_WAITING = 0;
+    JS_RUNNING = 1;
+    JS_ABORTING = 2;
+    JS_COMPLETED = 3;
+    JS_FAILED = 4;
+    JS_ABORTED = 5;
+    JS_LOST = 7;
+    JS_NONE = 8;
+}
+
+enum EJobSortField
+{
+    JSF_NONE = 0;
+    JSF_TYPE = 1;
+    JSF_STATE = 2;
+    JSF_START_TIME = 3;
+    JSF_FINISH_TIME = 4;
+    JSF_ADDRESS = 5;
+    JSF_DURATION = 6;
+    JSF_PROGRESS = 7;
+    JSF_ID = 8;
+}
+
+enum EJobSortDirection
+{
+    JSD_ASCENDING = 0;
+    JSD_DESCENDING = 1;
+}
+
+enum EDataSource
+{
+    DS_ARCHIVE = 0;
+    DS_RUNTIME = 1;
+    DS_AUTO = 2;
+    DS_MANUAL = 3;
+}
+
 enum ESecurityAction
 {
     SA_UNDEFINED = 0;
@@ -129,6 +223,8 @@ message TRowsetDescriptor
     repeated TColumnDescriptor columns = 3;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// TRANSACTIONS
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqStartTransaction
@@ -484,8 +580,6 @@ message TRspGenerateTimestamps
 // CYPRESS
 ////////////////////////////////////////////////////////////////////////////////
 
-//------------------------------------------------------------------------------
-
 message TReqExistsNode
 {
     required string path = 1; // YPath
@@ -817,13 +911,9 @@ message TRspAttachTransaction
     required int64 timeout = 5;
 }
 
-//------------------------------------------------------------------------------
-
 ////////////////////////////////////////////////////////////////////////////////
 // TABLES (NON-TRANSACTIONAL)
 ////////////////////////////////////////////////////////////////////////////////
-
-//------------------------------------------------------------------------------
 
 message TReqMountTable
 {
@@ -986,6 +1076,41 @@ message TRspAlterTableReplica
 
 //------------------------------------------------------------------------------
 
+message TReqGetColumnarStatistics
+{
+    message FetchChunkSpec
+    {
+        optional int32 max_chunk_per_fetch = 1 [default = 100000];
+        optional int32 max_chunk_per_locate_request = 2 [default = 10000];
+    }
+
+    message Fetcher
+    {
+        optional uint64 node_rpc_timeout = 1 [default = 30000000]; // TDuration, 30 seconds by default
+    }
+
+    repeated string path = 1; // RichYPath
+    required FetchChunkSpec fetch_chunk_spec = 2;
+    required Fetcher fetcher = 3;
+
+    optional TTransactionalOptions transactional_options = 100;
+}
+
+message TColumnarStatistics
+{
+    repeated int64 column_data_weights = 1;
+    optional int64 timestamp_total_weight = 2;
+    optional int64 legacy_chunk_data_weight = 3 [default = 0];
+}
+
+message TRspGetColumnarStatistics
+{
+
+    repeated TColumnarStatistics statistics = 1;
+}
+
+//------------------------------------------------------------------------------
+
 message TReqBalanceTabletCells
 {
     required string bundle = 1;
@@ -1000,7 +1125,9 @@ message TRspBalanceTabletCells
     repeated NYT.NProto.TGuid tablet_actions = 1;
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
+// FILE CACHING
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqGetFileFromCache
 {
@@ -1033,13 +1160,9 @@ message TRspPutFileToCache
     required TPutFileToCacheResult result = 1;
 }
 
-//------------------------------------------------------------------------------
-
 ////////////////////////////////////////////////////////////////////////////////
 // OPERATIONS
 ////////////////////////////////////////////////////////////////////////////////
-
-//------------------------------------------------------------------------------
 
 message TReqStartOperation
 {
@@ -1135,6 +1258,7 @@ message TReqGetOperation
         NYT.NProto.TGuid operation_id = 1;
         string operation_alias = 4;
     }
+    // XXX(kiselyovp) change this to TAttributeKeys
     repeated string attributes = 2;
     optional bool include_runtime = 3 [default = false];
 
@@ -1148,9 +1272,72 @@ message TRspGetOperation
 
 //------------------------------------------------------------------------------
 
+message TReqListOperations
+{
+    optional uint64 from_time = 1; // TInstant
+    optional uint64 to_time = 2; // TInstant
+    optional uint64 cursor_time = 3; // TInstant
+    optional EOperationSortDirection cursor_direction = 4 [default = OSD_PAST];
+    optional string user_filter = 5;
+
+    optional string owned_by = 6;
+
+    optional EOperationState state_filter = 7;
+    optional EOperationType type_filter = 8;
+    optional string substr_filter = 9;
+    optional string pool = 10;
+    optional bool with_failed_jobs = 11;
+    optional bool include_archive = 12 [default = false];
+    optional bool include_counters = 13 [default = true];
+    optional uint64 limit = 14 [default = 100];
+
+    optional TAttributeKeys attributes = 15;
+
+    optional bool enable_ui_mode = 16 [default = false];
+
+    optional TMasterReadOptions master_read_options = 102;
+}
+
+message TRspListOperations
+{
+    required TListOperationsResult result = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // JOBS
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqListJobs
+{
+    required NYT.NProto.TGuid operation_id = 1;
+
+    optional EJobType type = 2;
+    optional EJobState state = 3;
+    optional string address = 4;
+    optional bool with_stderr = 5;
+    optional bool with_fail_context = 6;
+    optional bool with_spec = 7;
+
+    optional EJobSortField sort_field = 8 [default = JSF_NONE];
+    optional EJobSortDirection sort_order = 9 [default = JSD_ASCENDING];
+
+    optional int64 limit = 10 [default = 1000];
+    optional int64 offset = 11 [default = 0];
+
+    optional bool include_cypress = 12 [default = false];
+    optional bool include_controller_agent = 13 [default = false];
+    optional bool include_archive = 14 [default = false];
+
+    optional EDataSource data_source = 15 [default = DS_AUTO];
+    optional uint64 running_jobs_lookbehind_period = 16 [default = 60000000]; // TDuration, 1 minute by default
+
+    optional TMasterReadOptions master_read_options = 102;
+}
+
+message TRspListJobs
+{
+    required TListJobsResult result = 1;
+}
 
 //------------------------------------------------------------------------------
 
@@ -1158,6 +1345,8 @@ message TReqGetJob
 {
     required NYT.NProto.TGuid operation_id = 1;
     required NYT.NProto.TGuid job_id = 2;
+
+    optional TAttributeKeys attributes = 3;
 }
 
 message TRspGetJob
@@ -1175,6 +1364,42 @@ message TReqStraceJob
 message TRspStraceJob
 {
     required bytes trace = 1; // YSON
+}
+
+//------------------------------------------------------------------------------
+
+message TReqGetJobInputPaths
+{
+    required NYT.NProto.TGuid job_id = 1;
+}
+
+message TRspGetJobInputPaths
+{
+    required bytes paths = 1; // YSON
+}
+
+//------------------------------------------------------------------------------
+
+message TReqGetJobStderr
+{
+    required NYT.NProto.TGuid operation_id = 1;
+    required NYT.NProto.TGuid job_id = 2;
+}
+
+message TRspGetJobStderr
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqGetJobFailContext
+{
+    required NYT.NProto.TGuid operation_id = 1;
+    required NYT.NProto.TGuid job_id = 2;
+}
+
+message TRspGetJobFailContext
+{
 }
 
 //------------------------------------------------------------------------------
@@ -1237,13 +1462,9 @@ message TRspAbortJob
 {
 }
 
-//------------------------------------------------------------------------------
-
 ////////////////////////////////////////////////////////////////////////////////
 // ETC
 ////////////////////////////////////////////////////////////////////////////////
-
-//------------------------------------------------------------------------------
 
 message TReqAddMember
 {
@@ -1289,7 +1510,178 @@ message TRspCheckPermission
     required TCheckPermissionResult result = 1;
 }
 
+//------------------------------------------------------------------------------
+
+message TReqCheckPermissionByAcl
+{
+    optional string user = 1;
+    required int32 permission = 2; // bit enum consisting of 7 bits
+    required string acl = 3;
+
+    optional bool ignore_missing_subjects = 4 [default = false];
+
+    optional TPrerequisiteOptions prerequisite_options = 101;
+    optional TMasterReadOptions master_read_options = 102;
+}
+
+message TRspCheckPermissionByAcl
+{
+    required TCheckPermissionByAclResult result = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
+// RESULTS
+////////////////////////////////////////////////////////////////////////////////
+
+message TOperation
+{
+    message TStrings {
+        repeated string data = 1;
+    }
+
+    optional NYT.NProto.TGuid id = 1;
+    optional EOperationType type = 2;
+    optional EOperationState state = 3;
+
+    optional uint64 start_time = 4; // TInstant
+    optional uint64 finish_time = 5; // TInstant
+
+    optional string authenticated_user = 6;
+    reserved 7; // deprecated
+    optional TStrings pools = 8;
+
+    optional bytes brief_spec = 9; // YSON
+    optional bytes spec = 10; // YSON
+    optional bytes full_spec = 11; // YSON
+    optional bytes unrecognized_spec = 12; // YSON
+    optional bytes annotations = 13; // YSON
+
+    optional bytes brief_progress = 14; // YSON
+    optional bytes progress = 15; // YSON
+
+    optional bytes runtime_parameters = 16; // YSON
+
+    optional bool suspended = 17;
+
+    optional bytes events = 18; // YSON
+    optional bytes result = 19; // YSON
+
+    optional bytes slot_index_per_pool_tree = 20; // YSON
+}
+
+message TListOperationsResult
+{
+    message TPoolCounts
+    {
+        message TPoolCount
+        {
+            required string pool = 1;
+            required int64 count = 2;
+        }
+
+        repeated TPoolCount entries = 1;
+    }
+
+    message TUserCounts
+    {
+        message TUserCount
+        {
+            required string user = 1;
+            required int64 count = 2;
+        }
+
+        repeated TUserCount entries = 1;
+    }
+
+    message TOperationStateCounts
+    {
+        message TOperationStateCount
+        {
+            required EOperationState state = 1;
+            required int64 count = 2;
+        }
+
+        repeated TOperationStateCount entries = 1;
+    }
+
+    message TOperationTypeCounts
+    {
+        message TOperationTypeCount
+        {
+            required EOperationType type = 1;
+            required int64 count = 2;
+        }
+
+        repeated TOperationTypeCount entries = 1;
+    }
+
+    repeated TOperation operations = 1;
+    optional TPoolCounts pool_counts = 2;
+    optional TUserCounts user_counts = 3;
+    optional TOperationStateCounts state_counts = 4;
+    optional TOperationTypeCounts type_counts = 5;
+    optional int64 failed_jobs_count = 6;
+    optional bool incomplete = 7 [default = false];
+}
+
+//------------------------------------------------------------------------------
+
+message TJob
+{
+    required NYT.NProto.TGuid id = 1;
+    required EJobType type = 2;
+    required EJobState state = 3;
+    required uint64 start_time = 4; // TInstant
+    optional uint64 finish_time = 5; // TInstant
+    required string address = 6;
+    optional double progress = 7;
+    optional uint64 stderr_size = 8;
+    optional uint64 fail_context_size = 9;
+    optional bool has_spec = 10;
+    optional bytes error = 11; // YSON
+    optional bytes brief_statistics = 12; // YSON
+    optional bytes input_paths = 13; // YSON
+    optional bytes core_infos = 14; // YSON
+}
+
+message TListJobsStatistics
+{
+    message TJobStateCounts
+    {
+        message TJobStateCount
+        {
+            required EJobState state = 1;
+            required int64 count = 2;
+        }
+        repeated TJobStateCount entries = 1;
+
+    }
+
+    message TJobTypeCounts
+    {
+        message TJobTypeCount
+        {
+            required EJobType type = 1;
+            required int64 count = 2;
+        }
+        repeated TJobTypeCount entries = 1;
+    }
+
+    required TJobStateCounts state_counts = 1;
+    required TJobTypeCounts type_counts = 2;
+}
+
+message TListJobsResult
+{
+    repeated TJob jobs = 1;
+    optional int32 cypress_job_count = 2;
+    optional int32 controller_agent_job_count = 3;
+    optional int32 archive_job_count = 4;
+
+    required TListJobsStatistics statistics = 5;
+}
+
+//------------------------------------------------------------------------------
 
 message TGetFileFromCacheResult
 {
@@ -1303,6 +1695,8 @@ message TPutFileToCacheResult
     required string path = 1; // YPath
 }
 
+//------------------------------------------------------------------------------
+
 message TCheckPermissionResult
 {
     required ESecurityAction action = 1;
@@ -1310,4 +1704,14 @@ message TCheckPermissionResult
     optional string object_name = 3;
     required NYT.NProto.TGuid subject_id = 4;
     optional string subject_name = 5;
+}
+
+//------------------------------------------------------------------------------
+
+message TCheckPermissionByAclResult
+{
+    required ESecurityAction action = 1;
+    required NYT.NProto.TGuid subject_id = 2;
+    optional string subject_name = 3;
+    repeated string missing_subjects = 4;
 }

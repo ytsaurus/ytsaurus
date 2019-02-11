@@ -1,5 +1,5 @@
-from .os_helpers import run_captured
-from .teamcity_helpers import teamcity_message
+from os_helpers import run_captured
+from teamcity_helpers import teamcity_message
 
 import requests
 
@@ -37,3 +37,5 @@ def get_package_versions(package_name, repo):
 
     return versions
 
+def get_local_package_version():
+    return run_captured("dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True).strip()

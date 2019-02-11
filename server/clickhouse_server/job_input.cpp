@@ -1,7 +1,6 @@
 #include "job_input.h"
 
 #include "convert_row.h"
-#include "data_slice.h"
 #include "read_job_spec.h"
 #include "table_schema.h"
 #include "table.h"
@@ -10,6 +9,7 @@
 #include "private.h"
 
 #include <yt/server/controller_agent/chunk_pools/chunk_stripe.h>
+#include <yt/server/controller_agent/chunk_pools/helpers.h>
 
 #include <yt/ytlib/api/native/client.h>
 
@@ -34,6 +34,8 @@
 #include <yt/client/ypath/rich.h>
 
 #include <yt/client/table_client/row_buffer.h>
+
+#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/core/logging/log.h>
 #include <yt/core/misc/protobuf_helpers.h>
@@ -93,8 +95,9 @@ class TDataSliceFetcher
 {
 public:
     // TODO(max42): use from bootstrap?
-    DEFINE_BYREF_RO_PROPERTY(TDataSourceDirectoryPtr, DataSourceDirectory, New<TDataSourceDirectory>());
-    DEFINE_BYREF_RO_PROPERTY(TNodeDirectoryPtr, NodeDirectory, New<TNodeDirectory>());
+    DEFINE_BYREF_RW_PROPERTY(TDataSourceDirectoryPtr, DataSourceDirectory, New<TDataSourceDirectory>());
+    DEFINE_BYREF_RW_PROPERTY(TNodeDirectoryPtr, NodeDirectory, New<TNodeDirectory>());
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TInputDataSlicePtr>, DataSlices);
 
 public:
     TDataSliceFetcher(
@@ -106,7 +109,7 @@ public:
         , KeyCondition_(keyCondition)
     {}
 
-    std::vector<TInputDataSlicePtr> Fetch()
+    void Fetch()
     {
         CollectTablesAttributes();
         ValidateSchema();
@@ -114,7 +117,6 @@ public:
         if (KeyCondition_) {
             FilterDataSlices();
         }
-        return DataSlices_;
     }
 
 private:
@@ -131,7 +133,7 @@ private:
 
     std::vector<TInputTable> InputTables_;
 
-    std::vector<TInputDataSlicePtr> DataSlices_;
+
 
     // TODO(max42): get rid of duplicating code.
     void CollectBasicAttributes()
@@ -270,8 +272,8 @@ private:
             DataSourceDirectory_->DataSources().push_back(std::move(dataSource));
     
             YT_LOG_DEBUG("Fetching input table (Path: %v)", table.GetPath());
-    
-            TChunkSpecList chunkSpecs;
+
+            std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
             chunkSpecs.reserve(table.ChunkCount);
     
             auto objectIdPath = FromObjectId(table.ObjectId);
@@ -331,11 +333,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTablePartList BuildJobs(
+TFetchResult FetchInput(
     NNative::IClientPtr client,
     std::vector<TString> inputTablePaths,
-    const KeyCondition* keyCondition,
-    int jobCount)
+    const KeyCondition* keyCondition)
 {
     std::vector<TRichYPath> inputTableRichPaths;
     for (const auto& path : inputTablePaths) {
@@ -346,54 +347,140 @@ TTablePartList BuildJobs(
         std::move(client),
         std::move(inputTableRichPaths),
         keyCondition);
+    dataSliceFetcher.Fetch();
 
-    auto dataSlices = dataSliceFetcher.Fetch();
+    return TFetchResult {
+        std::move(dataSliceFetcher.DataSlices()),
+        std::move(dataSliceFetcher.NodeDirectory()),
+        std::move(dataSliceFetcher.DataSourceDirectory())
+    };
+}
+
+NChunkPools::TChunkStripeListPtr BuildJobs(
+    const std::vector<TInputDataSlicePtr>& dataSlices,
+    int jobCount)
+{
+    if (jobCount == 0) {
+        jobCount = 1;
+    }
 
     TChunkStripeListPtr result = New<TChunkStripeList>();
 
-    // TODO(max42): rework.
-    ui64 totalDataWeight = 0;
+    i64 totalDataWeight = 0;
+    i64 totalRowCount = 0;
     for (const auto& dataSlice : dataSlices) {
         totalDataWeight += dataSlice->GetDataWeight();
+        totalRowCount += dataSlice->GetRowCount();
     }
 
-    ui64 currentDataWeight = 0;
-    std::vector<TInputDataSlicePtr> currentDataSlices;
+    int currentDataSliceIndex = 0;
+    i64 currentLowerRowIndex = -1;
+    i64 remainingStripeDataWeight = 0;
 
-    for (auto& dataSlice : dataSlices) {
-        currentDataWeight += dataSlice->GetDataWeight();
-        currentDataSlices.emplace_back(std::move(dataSlice));
+    for (int jobIndex = 0; jobIndex < jobCount; ++jobIndex) {
+        auto currentStripe = New<TChunkStripe>();
+        remainingStripeDataWeight += totalDataWeight / jobCount;
+        if (jobIndex + 1 == jobCount) {
+            // Make sure that the last job gets all of the remaining data.
+            remainingStripeDataWeight = totalDataWeight + 1;
+        }
+        while (true) {
+            if (currentDataSliceIndex == static_cast<int>(dataSlices.size())) {
+                break;
+            }
+            const auto& dataSlice = dataSlices[currentDataSliceIndex];
+            const auto& inputChunk = dataSlice->GetSingleUnversionedChunkOrThrow();
+            const auto& lowerLimit = inputChunk->LowerLimit();
+            const auto& upperLimit = inputChunk->UpperLimit();
+            i64 dataSliceLowerRowIndex = lowerLimit && lowerLimit->HasRowIndex() ? lowerLimit->GetRowIndex() : 0;
+            i64 dataSliceUpperRowIndex = upperLimit && upperLimit->HasRowIndex() ? upperLimit->GetRowIndex() : inputChunk->GetRowCount();
+            if (currentLowerRowIndex == -1) {
+                currentLowerRowIndex = dataSliceLowerRowIndex;
+            }
 
-        if (currentDataWeight > totalDataWeight / jobCount) {
-            currentDataWeight = 0;
-            result->Stripes.emplace_back(New<TChunkStripe>(currentDataSlices));
-            currentDataSlices.clear();
+            i64 upperRowIndex = std::min<i64>(
+                dataSliceUpperRowIndex,
+                currentLowerRowIndex + static_cast<double>(dataSlice->GetRowCount()) / dataSlice->GetDataWeight() * remainingStripeDataWeight);
+            // Take at least one row into the job.
+            upperRowIndex = std::max(upperRowIndex, currentLowerRowIndex + 1);
+
+            i64 currentDataWeight =
+                static_cast<double>(upperRowIndex - currentLowerRowIndex) / dataSlice->GetRowCount() * dataSlice->GetDataWeight();
+            bool finalDataSlice = false;
+            if (upperRowIndex < dataSlice->GetRowCount() ||
+                (upperRowIndex == dataSlice->GetRowCount() && currentDataSliceIndex == static_cast<int>(dataSlices.size())))
+            {
+                currentDataWeight = remainingStripeDataWeight;
+                finalDataSlice = true;
+            }
+
+            currentStripe->DataSlices.emplace_back(New<TInputDataSlice>(
+                EDataSourceType::UnversionedTable, TInputDataSlice::TChunkSliceList{New<TInputChunkSlice>(
+                    dataSlice->GetSingleUnversionedChunkOrThrow(),
+                    DefaultPartIndex,
+                    currentLowerRowIndex,
+                    upperRowIndex,
+                    currentDataWeight)}));
+            remainingStripeDataWeight -= currentDataWeight;
+            currentLowerRowIndex = upperRowIndex;
+
+            if (currentLowerRowIndex == dataSliceUpperRowIndex) {
+                ++currentDataSliceIndex;
+                currentLowerRowIndex = -1;
+            }
+
+            if (finalDataSlice) {
+                break;
+            }
+        }
+        auto stat = currentStripe->GetStatistics();
+        if (!currentStripe->DataSlices.empty()) {
+            AddStripeToList(currentStripe, stat.DataWeight, stat.RowCount, result);
         }
     }
 
-    if (!currentDataSlices.empty()) {
-        result->Stripes.emplace_back(New<TChunkStripe>(currentDataSlices));
-        currentDataSlices.clear();
-    }
-
+    YCHECK(currentDataSliceIndex == static_cast<int>(dataSlices.size()));
     YCHECK(static_cast<int>(result->Stripes.size()) <= jobCount);
+    YCHECK(result->GetAggregateStatistics().RowCount == totalRowCount);
 
-    // TODO(max42): return result instead of table parts...
+    return result;
+}
 
+TTablePartList SerializeAsTablePartList(
+    const TChunkStripeListPtr& chunkStripeList,
+    const TNodeDirectoryPtr& nodeDirectory,
+    const TDataSourceDirectoryPtr& dataSourceDirectory)
+{
     TTablePartList tableParts;
 
-    for (auto& chunkStripe : result->Stripes) {
+    for (auto& chunkStripe : chunkStripeList->Stripes) {
         TReadJobSpec readJobSpec;
         {
-            readJobSpec.DataSourceDirectory = dataSliceFetcher.DataSourceDirectory();
-            readJobSpec.NodeDirectory = dataSliceFetcher.NodeDirectory();
+            readJobSpec.DataSourceDirectory = dataSourceDirectory;
+            readJobSpec.NodeDirectory = nodeDirectory;
+            YCHECK(!readJobSpec.DataSourceDirectory->DataSources().empty());
             for (const auto& dataSlice : chunkStripe->DataSlices) {
+                const auto& chunkSlice = dataSlice->ChunkSlices[0];
                 auto chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
                 auto& chunkSpec = readJobSpec.DataSliceDescriptors.emplace_back().ChunkSpecs.emplace_back();
                 ToProto(&chunkSpec, chunk, EDataSourceType::UnversionedTable);
                 // TODO(max42): wtf?
-                chunkSpec.set_row_count_override(chunk->GetRowCount());
-                chunkSpec.set_data_weight_override(chunk->GetDataWeight());
+                chunkSpec.set_row_count_override(dataSlice->GetRowCount());
+                chunkSpec.set_data_weight_override(dataSlice->GetDataWeight());
+                if (chunkSlice->LowerLimit().RowIndex) {
+                    chunkSpec.mutable_lower_limit()->set_row_index(*chunkSlice->LowerLimit().RowIndex);
+                }
+                if (chunkSlice->UpperLimit().RowIndex) {
+                    chunkSpec.mutable_upper_limit()->set_row_index(*chunkSlice->UpperLimit().RowIndex);
+                }
+                NChunkClient::NProto::TMiscExt miscExt;
+                miscExt.set_row_count(chunk->GetTotalRowCount());
+                miscExt.set_uncompressed_data_size(chunk->GetTotalUncompressedDataSize());
+                miscExt.set_data_weight(chunk->GetTotalDataWeight());
+                miscExt.set_compressed_data_size(chunk->GetCompressedDataSize());
+                chunkSpec.mutable_chunk_meta()->set_version(static_cast<int>(chunk->GetTableChunkFormat()));
+                chunkSpec.mutable_chunk_meta()->set_type(static_cast<int>(EChunkType::Table));
+                SetProtoExtension(chunkSpec.mutable_chunk_meta()->mutable_extensions(), miscExt);
             }
         }
 

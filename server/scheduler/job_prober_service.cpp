@@ -69,12 +69,13 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, GetJobNode)
     {
         auto jobId = FromProto<TJobId>(request->job_id());
-        context->SetRequestInfo("JobId: %v", jobId);
+        auto requiredPermissions = EPermissionSet(request->required_permissions());
+        context->SetRequestInfo("JobId: %v, RequiredPermissions: %v", jobId, requiredPermissions);
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
-        auto jobNodeDescriptor = WaitFor(scheduler->GetJobNode(jobId, context->GetUser()))
+        auto jobNodeDescriptor = WaitFor(scheduler->GetJobNode(jobId, context->GetUser(), requiredPermissions))
             .ValueOrThrow();
 
         context->SetResponseInfo("NodeDescriptor: %v", jobNodeDescriptor);

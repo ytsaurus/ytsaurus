@@ -17,7 +17,7 @@
 %parse-param {const TString& source}
 
 %code requires {
-    #include "ast.h"
+    #include <yt/ytlib/query_client/ast.h>
 
     namespace NYT { namespace NQueryClient { namespace NAst {
         using namespace NTableClient;
@@ -619,11 +619,11 @@ const-value
         {
             switch ($op) {
                 case EUnaryOp::Minus: {
-                    if (const auto* data = std::get_if<i64>(&$value)) {
+                    if (const auto* data = std::get_if<i64>(&*$value)) {
                         $$ = -*data;
-                    } else if (const auto* data = std::get_if<ui64>(&$value)) {
+                    } else if (const auto* data = std::get_if<ui64>(&*$value)) {
                         $$ = -*data;
-                    } else if (const auto* data = std::get_if<double>(&$value)) {
+                    } else if (const auto* data = std::get_if<double>(&*$value)) {
                         $$ = -*data;
                     } else {
                         THROW_ERROR_EXCEPTION("Negation of unsupported type");
@@ -634,9 +634,9 @@ const-value
                     $$ = $value;
                     break;
                 case EUnaryOp::BitNot: {
-                    if (const auto* data = std::get_if<i64>(&$value)) {
+                    if (const auto* data = std::get_if<i64>(&*$value)) {
                         $$ = ~*data;
-                    } else if (const auto* data = std::get_if<ui64>(&$value)) {
+                    } else if (const auto* data = std::get_if<ui64>(&*$value)) {
                         $$ = ~*data;
                     } else {
                         THROW_ERROR_EXCEPTION("Bitwise negation of unsupported type");

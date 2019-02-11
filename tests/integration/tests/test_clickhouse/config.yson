@@ -54,6 +54,8 @@
     "engine" = {
         "settings" = {
             "max_temporary_non_const_columns" = 1234;
+            "max_threads" = 1;
+            "max_distributed_connections" = 1;
         };
     };
 }

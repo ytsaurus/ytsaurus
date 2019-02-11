@@ -71,11 +71,16 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CompleteOperation);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, UpdateOperationParameters);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetOperation);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ListOperations);
 
     // Jobs
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ListJobs);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetJob);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, StraceJob);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, DumpJobContext);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetJobInputPaths);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetJobStderr);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetJobFailContext);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, SignalJob);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AbandonJob);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, PollJobShell);
@@ -97,7 +102,10 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AddMember);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, RemoveMember);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CheckPermission);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CheckPermissionByAcl);
 
+    // Metadata
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetColumnarStatistics);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -667,8 +667,13 @@ public:
                 std::vector<TControllerAgentPtr> agents;
                 for (const auto& agent : registeredAgents) {
                     auto memoryStatistics = agent->GetMemoryStatistics();
-                    if (memoryStatistics && memoryStatistics->Usage + Config_->MinAgentAvailableMemory >= memoryStatistics->Limit) {
-                        continue;
+                    if (memoryStatistics) {
+                        auto minAgentAvailableMemory = std::max(
+                            Config_->MinAgentAvailableMemory,
+                            static_cast<i64>(Config_->MinAgentAvailableMemoryFraction * memoryStatistics->Limit));
+                        if (memoryStatistics->Usage + minAgentAvailableMemory >= memoryStatistics->Limit) {
+                            continue;
+                        }
                     }
                     agents.push_back(agent);
                 }
@@ -686,7 +691,11 @@ public:
                             agent->GetId());
                         continue;
                     }
-                    if (memoryStatistics->Usage + Config_->MinAgentAvailableMemory >= memoryStatistics->Limit) {
+
+                    auto minAgentAvailableMemory = std::max(
+                        Config_->MinAgentAvailableMemory,
+                        static_cast<i64>(Config_->MinAgentAvailableMemoryFraction * memoryStatistics->Limit));
+                    if (memoryStatistics->Usage + minAgentAvailableMemory >= memoryStatistics->Limit) {
                         continue;
                     }
 
@@ -744,7 +753,7 @@ public:
         if (operation->GetSecureVault()) {
             descriptor->set_secure_vault(ConvertToYsonString(operation->GetSecureVault()).GetData());
         }
-        ToProto(descriptor->mutable_owners(), operation->GetOwners());
+        descriptor->set_acl(ConvertToYsonString(operation->GetAcl()).GetData());
         ToProto(descriptor->mutable_user_transaction_id(), operation->GetUserTransactionId());
         ToProto(descriptor->mutable_pool_tree_scheduling_tag_filters(), operation->PoolTreeToSchedulingTagFilter());
 

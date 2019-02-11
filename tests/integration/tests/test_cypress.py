@@ -1208,7 +1208,7 @@ class TestCypress(YTEnvSetup):
     def test_expiration_time_can_be_set_upon_construction1(self):
         create_user("u")
         create("table", "//tmp/t", attributes={"expiration_time": str(self._now())}, authenticated_user="u")
-        time.sleep(0.1)
+        time.sleep(0.2)
         assert not exists("//tmp/t")
 
     def test_expiration_time_can_be_set_upon_construction2(self):
@@ -1978,7 +1978,7 @@ class TestCypressMulticellRpcProxy(TestCypressMulticell, TestCypressRpcProxy):
 ##################################################################
 
 class TestCypressWithoutSet(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 0
 
     DELTA_MASTER_CONFIG = {
@@ -2036,7 +2036,7 @@ class TestCypressWithoutSet(YTEnvSetup):
 ##################################################################
 
 class TestCypressApiVersion4(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 0
 
     @classmethod

@@ -13,6 +13,8 @@
 
 #include <yt/ytlib/file_client/file_ypath_proxy.h>
 
+#include <yt/ytlib/security_client/acl.h>
+
 #include <yt/client/api/transaction.h>
 
 #include <yt/client/object_client/helpers.h>
@@ -570,6 +572,66 @@ void BuildOperationAce(
             .EndList()
             .Item("permissions").Value(permissions)
         .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateOperationAccess(
+    const std::optional<TString>& user,
+    TOperationId operationId,
+    TJobId jobId,
+    EPermissionSet permissionSet,
+    const NSecurityClient::TSerializableAccessControlList& acl,
+    const NNative::IClientPtr& client,
+    const TLogger& logger)
+{
+    const auto& Logger = logger;
+
+    TCheckPermissionByAclOptions options;
+    options.IgnoreMissingSubjects = true;
+    auto aclNode = ConvertToNode(acl);
+
+    std::vector<TFuture<TCheckPermissionByAclResult>> futures;
+    for (auto permission : TEnumTraits<EPermission>::GetDomainValues()) {
+        if (Any(permission & permissionSet)) {
+            futures.push_back(client->CheckPermissionByAcl(user, permission, aclNode, options));
+        }
+    }
+
+    auto results = WaitFor(Combine(futures))
+        .ValueOrThrow();
+
+    if (!results.empty() && !results.front().MissingSubjects.empty()) {
+        YT_LOG_DEBUG("Operation has missing subjects in ACL (OperationId: %v, JobId: %v, MissingSubjects: %v)",
+            operationId ? ToString(operationId) : "<unknown>",
+            jobId ? ToString(jobId) : "<unknown>",
+            results.front().MissingSubjects);
+    }
+
+    for (const auto& result : results) {
+        if (result.Action != ESecurityAction::Allow) {
+            auto error = TError(
+                NSecurityClient::EErrorCode::AuthorizationError,
+                "Operation access denied")
+                << TErrorAttribute("user", user)
+                << TErrorAttribute("required_permissions", permissionSet)
+                << TErrorAttribute("acl", acl);
+            if (operationId) {
+                error = error << TErrorAttribute("operation_id", operationId);
+            }
+            if (jobId) {
+                error = error << TErrorAttribute("job_id", jobId);
+            }
+            THROW_ERROR error;
+        }
+    }
+
+    YT_LOG_DEBUG("Operation access successfully validated (OperationId: %v, JobId: %v, User: %v, Permissions: %v, Acl: %v)",
+        operationId ? ToString(operationId) : "<unknown>",
+        jobId ? ToString(jobId) : "<unknown>",
+        user,
+        permissionSet,
+        ConvertToYsonString(acl));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

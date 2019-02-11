@@ -8,6 +8,8 @@
 
 #include <yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
+#include <yt/ytlib/security_client/acl.h>
+
 #include <yt/ytlib/transaction_client/public.h>
 
 #include <yt/core/ytree/public.h>
@@ -26,7 +28,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
     DEFINE_BYVAL_RO_PROPERTY(TString, AuthenticatedUser);
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, SecureVault);
-    DEFINE_BYVAL_RW_PROPERTY(std::vector<TString>, Owners);
+    DEFINE_BYVAL_RW_PROPERTY(NSecurityClient::TSerializableAccessControlList, Acl);
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, UserTransactionId);
     DEFINE_BYREF_RO_PROPERTY(NScheduler::TPoolTreeToSchedulingTagFilter, PoolTreeToSchedulingTagFilter);
     DEFINE_BYVAL_RW_PROPERTY(TMemoryTag, MemoryTag);
