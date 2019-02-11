@@ -98,8 +98,8 @@ void ValidateOperationPermission(
 
 void ValidateOperationAccess(
     const std::optional<TString>& user,
-    std::optional<TOperationId> operationId,
-    std::optional<TJobId> jobId,
+    TOperationId operationId,
+    TJobId jobId,
     NYTree::EPermissionSet permissionSet,
     const NSecurityClient::TSerializableAccessControlList& acl,
     const NApi::NNative::IClientPtr& client,

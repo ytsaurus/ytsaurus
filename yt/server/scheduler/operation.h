@@ -237,7 +237,6 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NSecurityClient::TSerializableAccessControlList, BaseAcl);
 
 public:
-
     //! Returns operation id.
     TOperationId GetId() const override;
 
