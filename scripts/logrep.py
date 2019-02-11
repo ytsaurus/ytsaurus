@@ -666,8 +666,14 @@ def parse_state_attribute(address):
 def parse_banned_attribute(address):
     banned = address.attributes.get("banned", None)
     if banned and banned != "false":
+        ban_message = address.attributes.get("ban_message", "<ban-message-not-specified>")
         yield "banned:{}".format(banned)
+        yield "ban-message:\"{}\"".format(ban_message)
 
+def parse_role_attribute(address):
+    role = address.attributes.get("role", None)
+    if role:
+        yield "role:{}".format(role)
 
 def parse_rack_attribute(address):
     yield "rack:{}".format(address.attributes.get("rack", "<unknown>"))
@@ -755,7 +761,7 @@ def get_controller_agent_list(client):
 
 
 def get_node_list(client):
-    address_list = client.list("//sys/nodes", attributes=["state", "rack", "banned"])
+    address_list = client.list("//sys/nodes", attributes=["state", "rack", "banned", "ban_message"])
     result = []
     for address in address_list:
         attributes = []
@@ -767,10 +773,11 @@ def get_node_list(client):
 
 
 def get_proxy_list(client):
-    address_list = client.list("//sys/proxies", attributes=["banned"])
+    address_list = client.list("//sys/proxies", attributes=["banned", "ban_message", "role"])
     result = []
     for address in address_list:
         attributes = []
+        attributes += parse_role_attribute(address)
         attributes += parse_banned_attribute(address)
         result.append(Instance(str(address), "ytserver-http-proxy", attributes))
     return result
