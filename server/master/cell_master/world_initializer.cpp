@@ -99,6 +99,7 @@ public:
 
     bool HasProvisionLock()
     {
+        YCHECK(Bootstrap_->IsPrimaryMaster());
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto sysNode = cypressManager->ResolvePathToNodeProxy("//sys");
         return sysNode->Attributes().Get<bool>("provision_lock", false);
@@ -162,7 +163,7 @@ private:
                 EObjectType::SysNode,
                 BuildYsonStringFluently()
                     .BeginMap()
-                        .DoIf(Config_->EnableProvisionLock, [&] (TFluentMap fluent) {
+                        .DoIf(Config_->EnableProvisionLock && Bootstrap_->IsPrimaryMaster(), [&] (TFluentMap fluent) {
                             fluent.Item("provision_lock").Value(true);
                         })
                     .EndMap());

@@ -22,6 +22,8 @@ public:
     bool EnableCellBalancer;
     bool EnableTabletSizeBalancer;
 
+    bool EnableTabletCellSmoothing;
+
     double HardInMemoryCellBalanceThreshold;
     double SoftInMemoryCellBalanceThreshold;
 
@@ -47,6 +49,9 @@ public:
             .Default(false);
 
         RegisterParameter("enable_tablet_size_balancer", EnableTabletSizeBalancer)
+            .Default(true);
+
+        RegisterParameter("enable_tablet_cell_smoothing", EnableTabletCellSmoothing)
             .Default(true);
 
         RegisterParameter("soft_in_memory_cell_balance_threshold", SoftInMemoryCellBalanceThreshold)

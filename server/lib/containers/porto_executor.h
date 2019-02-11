@@ -44,6 +44,7 @@ struct IPortoExecutor
         const TString& name,
         const std::vector<TString>& value) = 0;
     virtual TFuture<void> DestroyContainer(const TString& name) = 0;
+    virtual TFuture<void> Stop(const TString& name) = 0;
     virtual TFuture<void> Start(const TString& name) = 0;
     virtual TFuture<void> Kill(const TString& name, int signal) = 0;
     virtual TFuture<std::vector<TString>> ListContainers() = 0;

@@ -25,7 +25,6 @@ void SetBuildAttributes(IYPathServicePtr orchidRoot, const char* serviceName)
                 .Item("version").Value(GetVersion())
                 .Item("build_host").Value(GetBuildHost())
                 .Item("build_time").Value(GetBuildTime())
-                .Item("build_machine").Value(GetBuildMachine())
                 .Item("start_time").Value(TInstant::Now())
             .EndMap());
 }

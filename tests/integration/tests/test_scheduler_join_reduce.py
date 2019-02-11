@@ -8,7 +8,7 @@ from yt.yson import YsonEntity
 ##################################################################
 
 class TestSchedulerJoinReduceCommands(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
@@ -824,7 +824,7 @@ echo {v = 2} >&7
                 "max_failed_job_count": 1
             })
         with pytest.raises(YtError):
-            op.track();
+            op.track()
 
     def test_join_reduce_on_dynamic_table(self):
         sync_create_cells(1)

@@ -28,6 +28,7 @@ public:
     void ValidateInitialized();
 
     //! Returns |true| if provision lock is active.
+    //! May only be called on the primary cell.
     bool HasProvisionLock();
 
 private:

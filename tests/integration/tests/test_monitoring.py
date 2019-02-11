@@ -10,7 +10,7 @@ from yt_commands import *
 ##################################################################
 
 class TestMonitoring(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
 
@@ -31,7 +31,7 @@ class TestMonitoring(YTEnvSetup):
 
         def monitoring_orchid_ready():
             try:
-                events = self.get_json(http_port,"/profiling/logging/backlog_events?from_time={}".format(int(start_time) * 1000000))
+                events = self.get_json(http_port, "/profiling/logging/backlog_events?from_time={}".format(int(start_time) * 1000000))
                 return len(events) > 0
             except urllib2.HTTPError:
                 return False

@@ -13,6 +13,7 @@
 #include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/ytlib/security_client/public.h>
+#include <yt/ytlib/security_client/acl.h>
 
 #include <yt/client/ypath/rich.h>
 
@@ -373,9 +374,6 @@ public:
 
     TString IntermediateDataMediumName;
 
-    //! Acl used for intermediate tables and stderrs.
-    NYTree::IListNodePtr IntermediateDataAcl;
-
     //! Account for job nodes and operation files (stderrs and input contexts of failed jobs).
     TString JobNodeAccount;
 
@@ -408,6 +406,13 @@ public:
 
     //! Users that can change operation parameters, e.g abort or suspend it.
     std::vector<TString> Owners;
+
+    //! ACL for operation.
+    //! It can consist of "allow"-only ACE-s with "read" and "manage" permissions.
+    NSecurityClient::TSerializableAccessControlList Acl;
+
+    //! Add the "read" and "manage" rights for the authenticated_user to |Acl|.
+    bool AddAuthenticatedUserToAcl;
 
     //! A storage keeping YSON map that is hidden under ACL in Cypress. It will be exported
     //! to all user jobs via environment variables.
@@ -544,6 +549,10 @@ public:
     //! This flag currently makes sense only for porto environment. It forces restriction on cpu limit with the
     //! container means. This option should normally be useful only for experiments and benchmarks.
     bool SetContainerCpuLimit;
+
+    //! Forcefully run job with proper ulimit -c in order to enable core dump collection.
+    //! This option should not be used outside tests.
+    bool ForceCoreDump;
 
     TUserJobSpec();
 
@@ -1037,7 +1046,10 @@ class TOperationRuntimeParameters
     : public NYTree::TYsonSerializable
 {
 public:
+    // COMPAT(levysotsky): We need to support both |Owners| and |Acl|
+    // to be able to revive old operations.
     std::vector<TString> Owners;
+    NSecurityClient::TSerializableAccessControlList Acl;
     THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr> SchedulingOptionsPerPoolTree;
 
     TOperationRuntimeParameters();
@@ -1066,7 +1078,7 @@ class TOperationRuntimeParametersUpdate
 public:
     std::optional<double> Weight;
     std::optional<TString> Pool;
-    std::optional<std::vector<TString>> Owners;
+    std::optional<NSecurityClient::TSerializableAccessControlList> Acl;
     THashMap<TString, TOperationFairShareTreeRuntimeParametersUpdatePtr> SchedulingOptionsPerPoolTree;
 
     TOperationRuntimeParametersUpdate();

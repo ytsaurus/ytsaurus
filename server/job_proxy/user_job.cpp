@@ -489,7 +489,7 @@ private:
         Process_->AddArguments({"--job-id", ToString(JobSatelliteConnection_.GetJobId())});
         Process_->SetWorkingDirectory(NFS::CombinePaths(Host_->GetSlotPath(), SandboxDirectoryNames[ESandboxKind::User]));
 
-        if (UserJobSpec_.has_core_table_spec()) {
+        if (UserJobSpec_.has_core_table_spec() || UserJobSpec_.force_core_dump()) {
             Process_->AddArgument("--enable-core-dump");
         }
 
@@ -528,26 +528,6 @@ private:
     {
         if (UserJobEnvironment_) {
             UserJobEnvironment_->CleanProcesses();
-        }
-    }
-
-    void KillUserProcesses()
-    {
-        if (JobEnvironmentType_ == EJobEnvironmentType::Simple) {
-            return;
-        }
-
-        BIND(&TUserJob::DoKillUserProcesses, MakeWeak(this))
-            .Via(PipeIOPool_->GetInvoker())
-            .Run();
-    }
-
-    void DoKillUserProcesses()
-    {
-        try {
-            SignalJob("SIGKILL");
-        } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Failed to kill user processes");
         }
     }
 
@@ -752,8 +732,8 @@ private:
     virtual void Fail() override
     {
         auto error = TError("Job failed by external request");
-        CleanupUserProcesses();
         JobErrorPromise_.TrySet(error);
+        CleanupUserProcesses();
     }
 
     void ValidatePrepared()
@@ -1115,7 +1095,7 @@ private:
 
         YT_LOG_ERROR(error, "%v", message);
 
-        KillUserProcesses();
+        CleanupUserProcesses();
 
         for (const auto& reader : TablePipeReaders_) {
             reader->Abort();

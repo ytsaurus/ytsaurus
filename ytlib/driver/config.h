@@ -2,6 +2,9 @@
 
 #include "public.h"
 
+#include <yt/ytlib/node_tracker_client/config.h>
+#include <yt/ytlib/node_tracker_client/helpers.h>
+
 #include <yt/client/api/config.h>
 
 #include <yt/client/chunk_client/config.h>
@@ -42,6 +45,8 @@ public:
 
     std::optional<TString> Token;
 
+    NNodeTrackerClient::TNodeDirectorySynchronizerConfigPtr NodeDirectorySynchronizer;
+
     TDriverConfig()
     {
         RegisterParameter("file_reader", FileReader)
@@ -74,6 +79,9 @@ public:
 
         RegisterParameter("token", Token)
             .Optional();
+
+        RegisterParameter("node_directory_synchronizer", NodeDirectorySynchronizer)
+            .DefaultNew();
     }
 };
 

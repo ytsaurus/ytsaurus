@@ -159,7 +159,7 @@ void TBlobChunkBase::DoReadMeta(
         readTime);
 
     const auto& chunkMetaManager = Bootstrap_->GetChunkMetaManager();
-    chunkMetaManager->EndInsertCachedMeta(std::move(cookie), Id_, std::move(meta));
+    chunkMetaManager->EndInsertCachedMeta(std::move(cookie), std::move(meta));
 }
 
 TFuture<void> TBlobChunkBase::OnBlocksExtLoaded(
@@ -389,55 +389,33 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
                 return lhs.BlockIndex < rhs.BlockIndex;
             });
 
-        auto onSyncBlocksExt = [&] (const TRefCountedBlocksExtPtr& blocksExt) {
-            asyncResults.push_back(OnBlocksExtLoaded(session, blocksExt));
-        };
-
-        auto onAsyncBlocksExt = [&] (TFuture<TRefCountedBlocksExtPtr>&& asyncBlocksExt) {
-            asyncResults.push_back(asyncBlocksExt.Apply(BIND(&TBlobChunkBase::OnBlocksExtLoaded, MakeStrong(this), session)));
-        };
-
         auto blocksExt = FindCachedBlocksExt();
         if (blocksExt) {
-            onSyncBlocksExt(blocksExt);
+            asyncResults.push_back(OnBlocksExtLoaded(session, blocksExt));
         } else {
-            TWriterGuard guard(BlocksExtLock_);
-            auto blocksExt = WeakBlocksExt_.Lock();
-            if (blocksExt) {
-                guard.Release();
-                onSyncBlocksExt(blocksExt);
-            } else {
-                if (!AsyncBlocksExt_) {
-                    const auto& chunkMetaManager = Bootstrap_->GetChunkMetaManager();
-                    auto cookie = chunkMetaManager->BeginInsertCachedBlocksExt(Id_);
-                    AsyncBlocksExt_ = cookie.GetValue().Apply(BIND([] (const TCachedBlocksExtPtr& cachedBlocksExt) {
-                        return cachedBlocksExt->GetBlocksExt();
+            const auto& chunkMetaManager = Bootstrap_->GetChunkMetaManager();
+            auto cookie = chunkMetaManager->BeginInsertCachedBlocksExt(Id_);
+            auto asyncCachedBlocksExt = cookie.GetValue();
+
+            if (cookie.IsActive()) {
+                ReadMeta(options)
+                    .Subscribe(BIND([=, this_ = MakeStrong(this), cookie = std::move(cookie)] (const TErrorOr<TRefCountedChunkMetaPtr>& result) mutable {
+                        if (result.IsOK()) {
+                            auto blocksExt = New<TRefCountedBlocksExt>(GetProtoExtension<TBlocksExt>(result.Value()->extensions()));
+                            {
+                                TWriterGuard guard(BlocksExtLock_);
+                                WeakBlocksExt_ = blocksExt;
+                            }
+                            chunkMetaManager->EndInsertCachedBlocksExt(std::move(cookie), blocksExt);
+                        } else {
+                            cookie.Cancel(TError(result));
+                        }
                     }));
-                    if (cookie.IsActive()) {
-                        ReadMeta(options)
-                            .Subscribe(BIND([=, this_ = MakeStrong(this), cookie = std::move(cookie)] (const TErrorOr<TRefCountedChunkMetaPtr>& result) mutable {
-                                if (result.IsOK()) {
-                                    auto blocksExt = New<TRefCountedBlocksExt>(GetProtoExtension<TBlocksExt>(result.Value()->extensions()));
-                                    {
-                                        TWriterGuard guard(BlocksExtLock_);
-                                        WeakBlocksExt_ = blocksExt;
-                                        AsyncBlocksExt_.Reset();
-                                    }
-                                    chunkMetaManager->EndInsertCachedBlocksExt(std::move(cookie), Id_, blocksExt);
-                                } else {
-                                    {
-                                        TWriterGuard guard(BlocksExtLock_);
-                                        AsyncBlocksExt_.Reset();
-                                    }
-                                    cookie.Cancel(TError(result));
-                                }
-                            }));
-                    }
-                }
-                auto asyncBlocksExt = AsyncBlocksExt_;
-                guard.Release();
-                onAsyncBlocksExt(std::move(asyncBlocksExt));
             }
+
+            asyncResults.push_back(asyncCachedBlocksExt.Apply(BIND([=, this_ = MakeStrong(this)] (const TCachedBlocksExtPtr& cachedBlocksExt) {
+                return OnBlocksExtLoaded(session, cachedBlocksExt->GetBlocksExt());
+            })));
         }
     }
 

@@ -17,7 +17,7 @@ porto_delta_node_config = {
 }
 
 class TestSchedulerUserStatistics(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 

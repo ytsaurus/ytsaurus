@@ -36,7 +36,7 @@ class WriteAceRemoved:
 ##################################################################
 
 class DynamicTablesBase(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 16
     NUM_SCHEDULERS = 0
     USE_DYNAMIC_TABLES = True
@@ -108,12 +108,7 @@ class DynamicTablesBase(YTEnvSetup):
             addr = x["address"]
             addresses.append(addr)
             set_node_decommissioned(addr, True)
-        clear_metadata_caches()
         return addresses
-
-    def _set_nodes_decommission(self, addresses, decomission):
-        for addr in addresses:
-            set_node_decommissioned(addr, decomission)
 
     def _get_profiling(self, table, filter=None, filter_table=False):
         tablets = get(table + "/@tablets")
@@ -186,6 +181,23 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
             insert_rows("//tmp/t", rows)
             assert lookup_rows("//tmp/t", keys) == rows
 
+    def _wait_for_cells_good_after_peer_decommission(self, cell_id):
+        def check():
+            if get("#{0}/@health".format(cell_id)) != "good":
+                return False
+
+            peers = get("#{0}/@peers".format(cell_id))
+            for peer in peers:
+                if "address" not in peer:
+                    return False
+                address = peer["address"]
+                if get("//sys/nodes/{0}/@decommissioned".format(address)):
+                    return False
+
+            return True
+
+        wait(check)
+
     def test_follower_catchup(self):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
         sync_create_cells(1, tablet_cell_bundle="b")
@@ -197,10 +209,8 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
 
         set_node_decommissioned(follower_address, True)
-        sleep(3.0)
-        clear_metadata_caches()
+        self._wait_for_cells_good_after_peer_decommission(cell_id)
 
-        assert get("#" + cell_id + "/@health") == "good"
         for i in xrange(0, 100):
             rows = [{"key": i, "value": "test"}]
             keys = [{"key": i}]
@@ -223,8 +233,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
 
         set_node_decommissioned(leader_address, True)
-        sleep(3.0)
-        clear_metadata_caches()
+        self._wait_for_cells_good_after_peer_decommission(cell_id)
 
         assert get("#" + cell_id + "/@health") == "good"
         peers = get("#" + cell_id + "/@peers")
@@ -245,10 +254,10 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         insert_rows("//tmp/t", rows)
 
         cell_id = ls("//sys/tablet_cells")[0]
-        self._decommission_all_peers(cell_id)
-        sleep(3.0)
 
-        assert get("#" + cell_id + "/@health") == "good"
+        self._decommission_all_peers(cell_id)
+        self._wait_for_cells_good_after_peer_decommission(cell_id)
+
         assert lookup_rows("//tmp/t", keys) == rows
 
     def test_tablet_cell_health_statistics(self):
@@ -301,8 +310,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert self._find_tablet_orchid(address, tablet_id) is not None
 
         remove("//tmp/t")
-        sleep(1)
-        assert self._find_tablet_orchid(address, tablet_id) is None
+        wait(lambda: self._find_tablet_orchid(address, tablet_id) is None)
 
     def test_no_copy_mounted(self):
         sync_create_cells(1)
@@ -1147,9 +1155,10 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
     }
 
     def _verify_resource_usage(self, account, resource, expected):
-        sleep(0.5)
-        assert get("//sys/accounts/{0}/@resource_usage/{1}".format(account, resource)) == expected
-        assert get("//sys/accounts/{0}/@committed_resource_usage/{1}".format(account, resource)) == expected
+        def resource_usage_matches():
+            return (get("//sys/accounts/{0}/@resource_usage/{1}".format(account, resource)) == expected and
+                    get("//sys/accounts/{0}/@committed_resource_usage/{1}".format(account, resource)) == expected)
+        wait(resource_usage_matches)
 
     def _multicell_set(self, path, value):
         set(path, value)
@@ -1273,7 +1282,6 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         self._create_sorted_table("//tmp/t", account="test_account")
         self._verify_resource_usage("test_account", "tablet_count", 1)
         remove("//tmp/t")
-        sleep(1)
         self._verify_resource_usage("test_account", "tablet_count", 0)
 
     def test_tablet_count_set_account(self):
@@ -1324,23 +1332,22 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
             mount_table("//tmp/t")
 
         def _verify():
-            sleep(0.5)
             data_size = get("//tmp/t/@{0}_data_size".format(mode))
             resource_usage = get("//sys/accounts/test_account/@resource_usage")
             committed_resource_usage = get("//sys/accounts/test_account/@committed_resource_usage")
-            assert resource_usage["tablet_static_memory"] == data_size
-            assert resource_usage == committed_resource_usage
-            assert get("//tmp/t/@resource_usage/tablet_count") == 1
-            assert get("//tmp/t/@resource_usage/tablet_static_memory") == data_size
-            assert get("//tmp/@recursive_resource_usage/tablet_count") == 1
-            assert get("//tmp/@recursive_resource_usage/tablet_static_memory") == data_size
+            return (resource_usage["tablet_static_memory"] == data_size and
+                    resource_usage == committed_resource_usage and
+                    get("//tmp/t/@resource_usage/tablet_count") == 1 and
+                    get("//tmp/t/@resource_usage/tablet_static_memory") == data_size and
+                    get("//tmp/@recursive_resource_usage/tablet_count") == 1 and
+                    get("//tmp/@recursive_resource_usage/tablet_static_memory") == data_size)
 
         self._multicell_set("//sys/accounts/test_account/@resource_limits/tablet_static_memory", 1000)
         sync_mount_table("//tmp/t")
-        _verify()
+        wait(_verify)
 
         sync_compact_table("//tmp/t")
-        _verify();
+        wait(_verify)
 
         self._multicell_set("//sys/accounts/test_account/@resource_limits/tablet_static_memory", 0)
         with pytest.raises(YtError):
@@ -1350,7 +1357,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
 
         sync_compact_table("//tmp/t")
-        _verify();
+        wait(_verify)
 
         sync_unmount_table("//tmp/t")
         self._verify_resource_usage("test_account", "tablet_static_memory", 0)
@@ -1398,6 +1405,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         sync_mount_table("//tmp/t2")
         insert_rows("//tmp/t2", [{"key": 2, "value": "2"}])
 
+    @flaky(max_runs=5)
     @pytest.mark.parametrize("resource", ["chunk_count", "disk_space_per_medium/default"])
     def test_changelog_resource_limits(self, resource):
         create_account("test_account")
@@ -2018,7 +2026,7 @@ class TestTabletActions(DynamicTablesBase):
                 wait_for_tablet_state("//tmp/t", "mounted")
             else:
                 sleep(1)
-                assert get("//tmp/t/@tablet_count") == 2
+                wait(lambda: get("//tmp/t/@tablet_count") == 2)
             sync_unmount_table("//tmp/t")
 
         global_config = "//sys/@config/tablet_manager/tablet_balancer/tablet_balancer_schedule"
@@ -2237,28 +2245,27 @@ class TestTabletActions(DynamicTablesBase):
             wait(lambda: get("#{0}/@cell_id".format(tablet_id)) == dst)
             expected = "frozen" if freeze else "mounted"
             wait(lambda: get("#{0}/@state".format(tablet_id)) == expected)
-            multicell_sleep()
 
         set("//tmp/t/@in_memory_mode", "compressed")
         sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
-        multicell_sleep()
+        wait(lambda: get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") >= get("//tmp/t/@compressed_data_size"))
+
         size = get("//sys/accounts/test_account/@resource_usage/tablet_static_memory")
-        assert size >= get("//tmp/t/@compressed_data_size")
 
         move(cells[1])
-        assert get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == size
+        wait(lambda: get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == size)
 
         sync_unmount_table("//tmp/t")
         set("//tmp/t/@in_memory_mode", "none")
         sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
         move(cells[1])
-        assert get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == 0
+        wait(lambda: get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == 0)
 
         sync_unmount_table("//tmp/t")
         set("//tmp/t/@in_memory_mode", "compressed")
         sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
         move(cells[1])
-        assert get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == size
+        wait(lambda: get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == size)
 
     def test_tablet_cell_decomission(self):
         cells = sync_create_cells(2)

@@ -1,7 +1,7 @@
 #include "read_job.h"
 
+#include "job_input.h"
 #include "chunk_reader.h"
-#include "data_slice.h"
 #include "read_job_spec.h"
 #include "table_reader.h"
 #include "table_schema.h"
@@ -12,6 +12,10 @@
 
 #include <yt/ytlib/table_client/config.h>
 
+#include <yt/ytlib/chunk_client/input_chunk_slice.h>
+
+#include <yt/ytlib/chunk_client/input_data_slice.h>
+
 #include <yt/core/misc/error.h>
 #include <yt/core/yson/string.h>
 #include <yt/core/ytree/convert.h>
@@ -20,6 +24,7 @@ namespace NYT::NClickHouseServer {
 
 using namespace NApi;
 using namespace NChunkClient;
+using namespace NChunkPools;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
 using namespace NYson;
@@ -90,28 +95,36 @@ TTableReaderList CreateJobTableReaders(
 {
     auto readJobSpec = LoadReadJobSpec(jobSpec);
 
+    i64 totalRowCount = 0;
+    i64 totalDataWeight = 0;
+    for (const auto& dataSliceDescriptor : readJobSpec.DataSliceDescriptors) {
+        totalRowCount += dataSliceDescriptor.ChunkSpecs[0].row_count_override();
+        totalDataWeight += dataSliceDescriptor.ChunkSpecs[0].data_weight_override();
+    }
+    YT_LOG_DEBUG("Deserialized job spec (RowCount: %v, DataWeight: %v)", totalRowCount, totalDataWeight);
+
     auto dataSourceType = readJobSpec.GetCommonDataSourceType();
     YT_LOG_DEBUG("Creating table readers (MaxStreamCount: %v, DataSourceType: %v, Columns: %v)",
         maxStreamCount,
         dataSourceType,
         columns);
 
-    std::vector<TDataSliceDescriptorList> dataSlices;
-
+    TChunkStripeListPtr chunkStripeList;
     if (dataSourceType == EDataSourceType::UnversionedTable) {
-        dataSlices = MergeUnversionedChunks(
-            std::move(readJobSpec.DataSliceDescriptors),
-            maxStreamCount);
-    } else if (dataSourceType == EDataSourceType::VersionedTable) {
-        dataSlices = MergeVersionedChunks(
-            std::move(readJobSpec.DataSliceDescriptors),
-            maxStreamCount);
+        std::vector<TInputDataSlicePtr> dataSlices;
+        for (const auto& dataSliceDescriptor : readJobSpec.DataSliceDescriptors) {
+            const auto& chunkSpec = dataSliceDescriptor.GetSingleChunk();
+            auto inputChunk = New<TInputChunk>(chunkSpec);
+            auto inputChunkSlice = New<TInputChunkSlice>(std::move(inputChunk));
+            auto dataSlice = CreateUnversionedInputDataSlice(std::move(inputChunkSlice));
+            dataSlices.emplace_back(std::move(dataSlice));
+        }
+        chunkStripeList = BuildJobs(dataSlices, maxStreamCount);
     } else {
-        THROW_ERROR_EXCEPTION("Invalid job specification: unsupported data source type")
-            << TErrorAttribute("type", dataSourceType);
+        YCHECK(false);
     }
 
-    YT_LOG_DEBUG("Data slices created (Count: %v)", dataSlices.size());
+    YT_LOG_DEBUG("Per-thread stripes prepared (Count: %v)", chunkStripeList->Stripes.size());
 
     auto schema = readJobSpec.GetCommonNativeSchema();
 
@@ -145,7 +158,33 @@ TTableReaderList CreateJobTableReaders(
     YT_LOG_INFO("Creating table readers");
 
     std::vector<NTableClient::ISchemafulReaderPtr> chunkReaders;
-    for (const auto& dataSliceDescriptors: dataSlices) {
+    for (const auto& chunkStripe : chunkStripeList->Stripes) {
+        std::vector<TDataSliceDescriptor> dataSliceDescriptors;
+        i64 rowCount = 0;
+        i64 dataWeight = 0;
+        for (const auto& inputDataSlice : chunkStripe->DataSlices) {
+            auto inputChunk = inputDataSlice->GetSingleUnversionedChunkOrThrow();
+            NChunkClient::NProto::TChunkSpec chunkSpec;
+            auto chunkSlice = inputDataSlice->ChunkSlices[0];
+            if (chunkSlice->UpperLimit().RowIndex) {
+                inputChunk->UpperLimit() = std::make_unique<TReadLimit>();
+                inputChunk->UpperLimit()->SetRowIndex(*chunkSlice->UpperLimit().RowIndex);
+            }
+            if (chunkSlice->LowerLimit().RowIndex) {
+                inputChunk->LowerLimit() = std::make_unique<TReadLimit>();
+                inputChunk->LowerLimit()->SetRowIndex(*chunkSlice->LowerLimit().RowIndex);
+            }
+            ToProto(&chunkSpec, inputChunk, EDataSourceType::UnversionedTable);
+            chunkSpec.set_row_count_override(inputDataSlice->GetRowCount());
+            chunkSpec.set_data_weight_override(inputDataSlice->GetDataWeight());
+            dataSliceDescriptors.emplace_back(chunkSpec);
+
+            rowCount += inputChunk->GetRowCount();
+            dataWeight += inputDataSlice->GetDataWeight();
+        }
+
+        YT_LOG_DEBUG("Table reader created (RowCount: %v, DataWeight: %v)", rowCount, dataWeight);
+
         auto chunkReader = CreateChunkReader(
             nativeReaderConfig,
             nativeReaderOptions,

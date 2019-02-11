@@ -161,7 +161,7 @@ TSortedDynamicRowRef TSortedStoreManager::ModifyRow(
             writeLockMask = PrimaryLockMask;
             break;
         default:
-            break;
+            Y_UNREACHABLE();
     }
 
     if (atomic &&

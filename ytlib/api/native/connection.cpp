@@ -132,6 +132,10 @@ public:
             timestampProviderConfig = New<TRemoteTimestampProviderConfig>();
             timestampProviderConfig->Addresses = Config_->PrimaryMaster->Addresses;
             timestampProviderConfig->RpcTimeout = Config_->PrimaryMaster->RpcTimeout;
+            // TRetryingChannelConfig
+            timestampProviderConfig->RetryBackoffTime = Config_->PrimaryMaster->RetryBackoffTime;
+            timestampProviderConfig->RetryAttempts = Config_->PrimaryMaster->RetryAttempts;
+            timestampProviderConfig->RetryTimeout = Config_->PrimaryMaster->RetryTimeout;
         }
         TimestampProvider_ = CreateRemoteTimestampProvider(
             timestampProviderConfig,

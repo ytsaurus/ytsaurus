@@ -146,11 +146,7 @@ TString GetRealPath(const TString& path)
     }
     parts.push_back(RealPath(curPath));
 
-#ifdef YT_IN_ARCADIA
     Reverse(parts.begin(), parts.end());
-#else
-    reverse(parts.begin(), parts.end());
-#endif
     return CombinePaths(parts);
 }
 
@@ -717,14 +713,21 @@ void ExpectIOErrors(std::function<void()> func)
         func();
     } catch (const TSystemError& ex) {
         auto status = ex.Status();
-        if (status == EIO ||
-            status == ENOSPC ||
-            status == EROFS)
-        {
-            throw;
+        switch (status) {
+            case ENOMEM:
+                fprintf(stderr, "Out-of-memory condition detected during IO operation; terminating\n");
+                _exit(9);
+                break;
+            case EIO:
+            case ENOSPC:
+            case EROFS:
+                throw;
+            default: {
+                TError error(ex);
+                YT_LOG_FATAL(error,"Unexpected exception thrown during IO operation");
+                break;
+            }
         }
-        TError error(ex);
-        YT_LOG_FATAL(error,"Unexpected exception thrown during IO operation");
     } catch (...) {
         TError error(CurrentExceptionMessage());
         YT_LOG_FATAL(error, "Unexpected exception thrown during IO operation");

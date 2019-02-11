@@ -119,16 +119,13 @@ public:
         const TString& user,
         const NYPath::TYPath& path,
         NYTree::EPermission permission,
-        const NApi::TCheckPermissionOptions& options);
+        const NApi::TCheckPermissionOptions& options) override;
 
     virtual TFuture<NApi::TCheckPermissionByAclResult> CheckPermissionByAcl(
         const std::optional<TString>& user,
         NYTree::EPermission permission,
         NYTree::INodePtr acl,
-        const NApi::TCheckPermissionByAclOptions& options) override
-    {
-        ThrowUnimplemented("check_permission_by_acl");
-    }
+        const NApi::TCheckPermissionByAclOptions& options) override;
 
     // Scheduler
     virtual TFuture<NScheduler::TOperationId> StartOperation(
@@ -174,40 +171,25 @@ public:
     }
 
     virtual TFuture<NYson::TYsonString> GetJobInputPaths(
-        NJobTrackerClient::TJobId,
-        const NApi::TGetJobInputPathsOptions&) override
-    {
-        ThrowUnimplemented("get_job_input_paths");
-    }
+        NJobTrackerClient::TJobId jobId,
+        const NApi::TGetJobInputPathsOptions& options) override;
 
     virtual TFuture<TSharedRef> GetJobStderr(
-        NJobTrackerClient::TOperationId,
-        NJobTrackerClient::TJobId,
-        const NApi::TGetJobStderrOptions&) override
-    {
-        ThrowUnimplemented("get_job_stderr");
-    }
+        NJobTrackerClient::TOperationId operationId,
+        NJobTrackerClient::TJobId jobId,
+        const NApi::TGetJobStderrOptions& options) override;
 
     virtual TFuture<TSharedRef> GetJobFailContext(
-        NJobTrackerClient::TOperationId,
-        NJobTrackerClient::TJobId,
-        const NApi::TGetJobFailContextOptions&) override
-    {
-        ThrowUnimplemented("get_job_fail_context");
-    }
+        NJobTrackerClient::TOperationId operationId,
+        NJobTrackerClient::TJobId jobId,
+        const NApi::TGetJobFailContextOptions& options) override;
 
     virtual TFuture<NApi::TListOperationsResult> ListOperations(
-        const NApi::TListOperationsOptions&) override
-    {
-        ThrowUnimplemented("list_operations");
-    }
+        const NApi::TListOperationsOptions& options) override;
 
     virtual TFuture<NApi::TListJobsResult> ListJobs(
         NJobTrackerClient::TOperationId,
-        const NApi::TListJobsOptions&) override
-    {
-        ThrowUnimplemented("list_jobs");
-    }
+        const NApi::TListJobsOptions&) override;
 
     virtual TFuture<NYson::TYsonString> GetJob(
         NJobTrackerClient::TOperationId operationId,
@@ -250,12 +232,9 @@ public:
         ThrowUnimplemented("locate_skynet_share");
     }
 
-    TFuture<std::vector<NTableClient::TColumnarStatistics>> GetColumnarStatistics(
-        const std::vector<NYPath::TRichYPath>&,
-        const NApi::TGetColumnarStatisticsOptions&) override
-    {
-        Y_UNIMPLEMENTED();
-    }
+    virtual TFuture<std::vector<NTableClient::TColumnarStatistics>> GetColumnarStatistics(
+        const std::vector<NYPath::TRichYPath>& path,
+        const NApi::TGetColumnarStatisticsOptions& options) override;
 
 private:
     const TConnectionPtr Connection_;

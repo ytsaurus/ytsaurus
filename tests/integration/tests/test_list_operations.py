@@ -101,11 +101,17 @@ class ListOperationsSetup(YTEnvSetup):
                 "schema": [
                     {"name":"key", "type": "int64", "sort_order":"ascending"},
                     {"name":"value", "type": "int64"},
-                ]
+                ],
+                "dynamic": cls.DRIVER_BACKEND == "rpc"
             }
         )
 
-        write_table(cls._input_path, {"key": 1, "value": 2})
+        if cls.DRIVER_BACKEND != "rpc":
+            write_table(cls._input_path, {"key": 1, "value": 2})
+        else:
+            sync_mount_table(cls._input_path)
+            insert_rows(cls._input_path, [{"key": 1, "value": 2}])
+            sync_unmount_table(cls._input_path)
 
         create("table", cls._output_path, recursive=True, ignore_existing=True)
 
@@ -465,3 +471,25 @@ class TestListOperationsArchiveOnly(_TestListOperationsBase):
     def test_owned_by_filter_is_not_supported(self):
         with pytest.raises(YtError):
             list_operations(include_archive=True, owned_by="root")
+
+##################################################################
+
+class TestListOperationsCypressOnlyRpcProxy(TestListOperationsCypressOnly):
+    USE_DYNAMIC_TABLES = True
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_PROXY = True
+
+
+class TestListOperationsCypressArchiveRpcProxy(TestListOperationsCypressArchive):
+    USE_DYNAMIC_TABLES = True
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_PROXY = True
+
+
+class TestListOperationsArchiveOnlyRpcProxy(TestListOperationsArchiveOnly):
+    USE_DYNAMIC_TABLES = True
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_PROXY = True

@@ -19,11 +19,26 @@ namespace NYT::NClickHouseServer {
 
 // Tables should have identical schemas (native and YQL) and types (static/dynamic)
 
-TTablePartList BuildJobs(
+struct TFetchResult
+{
+    std::vector<NChunkClient::TInputDataSlicePtr> DataSlices;
+    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
+    NChunkClient::TDataSourceDirectoryPtr DataSourceDirectory;
+};
+
+TFetchResult FetchInput(
     NApi::NNative::IClientPtr client,
     std::vector<TString> inputTablePaths,
-    const DB::KeyCondition* keyCondition,
+    const DB::KeyCondition* keyCondition);
+
+NChunkPools::TChunkStripeListPtr BuildJobs(
+    const std::vector<NChunkClient::TInputDataSlicePtr>& dataSlices,
     int jobCount);
+
+TTablePartList SerializeAsTablePartList(
+    const NChunkPools::TChunkStripeListPtr& chunkStripeListPtr,
+    const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
+    const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

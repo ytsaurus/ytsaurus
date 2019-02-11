@@ -1,6 +1,7 @@
 #include "fair_share_tree.h"
 #include "fair_share_tree_element.h"
 #include "public.h"
+#include "pools_config_parser.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
 #include "fair_share_strategy_operation_controller.h"
@@ -378,123 +379,76 @@ TPoolsUpdateResult TFairShareTree::UpdatePools(const INodePtr& poolsNode)
 
     LastPoolsNodeUpdate = poolsNode;
 
-    std::vector<TError> errors;
-
-    try {
-        // Build the set of potential orphans.
-        THashSet<TString> orphanPoolIds;
-        for (const auto& pair : Pools) {
-            YCHECK(orphanPoolIds.insert(pair.first).second);
-        }
-
-        // Track ids appearing in various branches of the tree.
-        THashMap<TString, TYPath> poolIdToPath;
-
-        // NB: std::function is needed by parseConfig to capture itself.
-        std::function<void(INodePtr, TCompositeSchedulerElementPtr)> parseConfig =
-            [&] (INodePtr configNode, TCompositeSchedulerElementPtr parent) {
-                auto configMap = configNode->AsMap();
-                for (const auto& pair : configMap->GetChildren()) {
-                    const auto& childId = pair.first;
-                    const auto& childNode = pair.second;
-                    auto childPath = childNode->GetPath();
-                    if (!poolIdToPath.insert(std::make_pair(childId, childPath)).second) {
-                        errors.emplace_back(
-                            "Pool %Qv is defined both at %v and %v; skipping second occurrence",
-                            childId,
-                            poolIdToPath[childId],
-                            childPath);
-                        continue;
-                    }
-
-                    // Parse config.
-                    auto poolConfigNode = ConvertToNode(childNode->Attributes());
-                    TPoolConfigPtr poolConfig;
-                    try {
-                        poolConfig = ConvertTo<TPoolConfigPtr>(poolConfigNode);
-                    } catch (const std::exception& ex) {
-                        errors.emplace_back(
-                            TError(
-                                "Error parsing configuration of pool %Qv; using defaults",
-                                childPath)
-                            << ex);
-                        poolConfig = New<TPoolConfig>();
-                    }
-
-                    try {
-                        poolConfig->Validate();
-                    } catch (const std::exception& ex) {
-                        errors.emplace_back(
-                            TError(
-                                "Misconfiguration of pool %Qv found",
-                                childPath)
-                            << ex);
-                    }
-
-                    auto pool = FindPool(childId);
-                    if (pool) {
-                        // Reconfigure existing pool.
-                        ReconfigurePool(pool, poolConfig);
-                        YCHECK(orphanPoolIds.erase(childId) == 1);
-                    } else {
-                        // Create new pool.
-                        pool = New<TPool>(
-                            Host,
-                            this,
-                            childId,
-                            poolConfig,
-                            /* defaultConfigured */ false,
-                            Config,
-                            GetPoolProfilingTag(childId),
-                            TreeId);
-                        RegisterPool(pool, parent);
-                    }
-                    SetPoolParent(pool, parent);
-
-                    if (parent->GetMode() == ESchedulingMode::Fifo) {
-                        parent->SetMode(ESchedulingMode::FairShare);
-                        errors.emplace_back(
-                            TError(
-                                "Pool %Qv cannot have subpools since it is in %Qlv mode",
-                                parent->GetId(),
-                                ESchedulingMode::Fifo));
-                    }
-
-                    // Parse children.
-                    parseConfig(childNode, pool.Get());
-                }
-            };
-
-        // Run recursive descent parsing.
-        parseConfig(poolsNode, RootElement);
-
-        // Unregister orphan pools.
-        for (const auto& id : orphanPoolIds) {
-            auto pool = GetPool(id);
-            if (pool->IsEmpty()) {
-                UnregisterPool(pool);
-            } else {
-                pool->SetDefaultConfig();
-                SetPoolDefaultParent(pool);
-            }
-        }
-
-        ResetTreeIndexes();
-        RootElement->Update(GlobalDynamicAttributes_);
-        RootElementSnapshot = CreateRootElementSnapshot();
-    } catch (const std::exception& ex) {
-        auto error = TError("Error updating pools in tree %Qv", TreeId)
-            << ex;
-        LastPoolsNodeUpdateError = error;
-        return {error, true};
+    THashMap<TString, TString> poolToParentMap;
+    for (const auto& [poolId, pool] : Pools) {
+        poolToParentMap[poolId] = pool->GetParent()->GetId();
     }
 
-    if (!errors.empty()) {
-        auto combinedError = TError("Found pool configuration issues in tree %Qv", TreeId)
-            << std::move(errors);
-        LastPoolsNodeUpdateError = combinedError;
-        return {combinedError, true};
+    TPoolsConfigParser poolsConfigParser(poolToParentMap, RootElement->GetId());
+
+    TError parseResult = poolsConfigParser.TryParse(poolsNode);
+    if (!parseResult.IsOK()) {
+        auto wrappedError = TError("Found pool configuration issues in tree %Qv; update skipped", TreeId)
+            << parseResult;
+        LastPoolsNodeUpdateError = wrappedError;
+        return {wrappedError, false};
     }
+
+    const auto& parsedPoolMap = poolsConfigParser.GetPoolConfigMap();
+
+    for (const auto& poolId: poolsConfigParser.GetNewPoolsByInOrderTraversal()) {
+        auto it = parsedPoolMap.find(poolId);
+        YCHECK(it != parsedPoolMap.end());
+        auto parsedPool = it->second;
+        auto pool = New<TPool>(
+            Host,
+            this,
+            poolId,
+            parsedPool.PoolConfig,
+            /* defaultConfigured */ false,
+            Config,
+            GetPoolProfilingTag(poolId),
+            TreeId);
+        const auto& parent = parsedPool.ParentId == RootPoolName
+            ? static_cast<TCompositeSchedulerElementPtr>(RootElement)
+            : GetPool(parsedPool.ParentId);
+
+        RegisterPool(pool, parent);
+    }
+
+    for (const auto& [poolId, parsedPool] : parsedPoolMap) {
+        if (parsedPool.IsNew) {
+            continue;
+        }
+        const auto& pool = GetPool(poolId);
+        ReconfigurePool(pool, parsedPool.PoolConfig);
+        if (parsedPool.ParentIsChanged) {
+            const auto& parent = parsedPool.ParentId == RootPoolName
+                ? static_cast<TCompositeSchedulerElementPtr>(RootElement)
+                : GetPool(parsedPool.ParentId);
+            SetPoolParent(pool, parent);
+        }
+    }
+
+    std::vector<TPoolPtr> erasedPools;
+    for (const auto& [poolId, pool] : Pools) {
+        if (!parsedPoolMap.contains(poolId)) {
+            erasedPools.push_back(pool);
+        }
+    }
+
+    for (const auto& pool : erasedPools) {
+        if (pool->IsEmpty()) {
+            UnregisterPool(pool);
+        } else {
+            pool->SetDefaultConfig();
+            SetPoolDefaultParent(pool);
+        }
+    }
+
+    ResetTreeIndexes();
+    RootElement->Update(GlobalDynamicAttributes_);
+    RootElementSnapshot = CreateRootElementSnapshot();
 
     LastPoolsNodeUpdateError = TError();
 
@@ -1180,7 +1134,7 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
     }
 
     if (!Dominates(context->SchedulingContext->ResourceLimits(), context->SchedulingContext->ResourceUsage())) {
-        YT_LOG_INFO("Resource usage exceeds node resource limits even after preemption.");
+        YT_LOG_INFO("Resource usage exceeds node resource limits even after preemption");
     }
 }
 
@@ -1374,14 +1328,17 @@ void TFairShareTree::UnregisterPool(const TPoolPtr& pool)
 
     YCHECK(PoolToMinUnusedSlotIndex.erase(pool->GetId()) == 1);
     YCHECK(PoolToSpareSlotIndices.erase(pool->GetId()) <= 1);
+
+    // We cannot use pool after erase because Pools may contain last alive reference to it.
+    auto extractedPool = std::move(Pools[pool->GetId()]);
     YCHECK(Pools.erase(pool->GetId()) == 1);
 
-    pool->SetAlive(false);
-    auto parent = pool->GetParent();
-    SetPoolParent(pool, nullptr);
+    extractedPool->SetAlive(false);
+    auto parent = extractedPool->GetParent();
+    SetPoolParent(extractedPool, nullptr);
 
     YT_LOG_INFO("Pool unregistered (Pool: %v, Parent: %v)",
-        pool->GetId(),
+        extractedPool->GetId(),
         parent->GetId());
 }
 
@@ -1822,6 +1779,18 @@ void TFairShareTree::ProfileCompositeSchedulerElement(TMetricsAccumulator& accum
     auto tag = element->GetProfilingTag();
     ProfileSchedulerElement(accumulator, element, "/pools", {tag, TreeIdProfilingTag});
 
+    accumulator.Add(
+        "/pools/running_operation_count",
+        element->RunningOperationCount(),
+        EMetricType::Gauge,
+        {tag, TreeIdProfilingTag});
+    accumulator.Add(
+        "/pools/total_operation_count",
+        element->OperationCount(),
+        EMetricType::Gauge,
+        {tag, TreeIdProfilingTag});
+
+    // Deprecated.
     accumulator.Add(
         "/running_operation_count",
         element->RunningOperationCount(),

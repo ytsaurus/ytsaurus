@@ -31,7 +31,7 @@ class PrepareTables(object):
 ##################################################################
 
 class TestResourceUsage(YTEnvSetup, PrepareTables):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
@@ -427,7 +427,7 @@ class TestStrategies(YTEnvSetup):
 ##################################################################
 
 class TestSchedulerOperationLimits(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
@@ -1265,7 +1265,7 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
 ##################################################################
 
 class TestSchedulerPools(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
@@ -1294,16 +1294,8 @@ class TestSchedulerPools(YTEnvSetup):
         set("//sys/pool_trees/default/@default_parent_pool", "default_pool")
         time.sleep(0.5)
 
-    def _prepare(self):
-        create("table", "//tmp/t_in")
-        set("//tmp/t_in/@replication_factor", 1)
-        write_table("//tmp/t_in", {"foo": "bar"})
-
-        create("table", "//tmp/t_out")
-        set("//tmp/t_out/@replication_factor", 1)
-
     def test_pools_reconfiguration(self):
-        self._prepare()
+        create_test_tables(attributes={"replication_factor": 1})
 
         testing_options = {"scheduling_delay": 1000}
 
@@ -1441,7 +1433,7 @@ class TestSchedulerPools(YTEnvSetup):
             op.track()
 
     def test_event_log(self):
-        self._prepare()
+        create_test_tables(attributes={"replication_factor": 1})
 
         create("map_node", "//sys/pools/event_log_test_pool", attributes={"min_share_resources": {"cpu": 1}})
         op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "event_log_test_pool"})
@@ -1471,6 +1463,132 @@ class TestSchedulerPools(YTEnvSetup):
             return True
         wait(lambda: check_pools())
 
+
+class TestSchedulerPoolsReconfiguration(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,  # Update pools configuration period
+        }
+    }
+
+    orchid_pools = "//sys/scheduler/orchid/scheduler/pools"
+
+    def setup_method(self, method):
+        super(TestSchedulerPoolsReconfiguration, self).setup_method(method)
+        wait(lambda: len(ls(self.orchid_pools)) == 1, sleep_backoff=0.1)  # <Root> is always in orchid
+        wait(lambda: not get("//sys/scheduler/@alerts"), sleep_backoff=0.1)
+
+    def test_add_nested_pool(self):
+        set("//sys/pools/test_parent", {"test_pool": {}})
+
+        self.wait_pool_exists("test_parent")
+        self.wait_pool_exists("test_pool")
+
+        assert self.get_pool_parent("test_parent") == "<Root>"
+        assert self.get_pool_parent("test_pool") == "test_parent"
+
+    def test_move_to_existing_pool(self):
+        create("map_node", "//sys/pools/test_parent")
+        create("map_node", "//sys/pools/test_pool")
+        self.wait_pool_exists("test_pool")
+        assert self.get_pool_parent("test_pool") == "<Root>"
+
+        move("//sys/pools/test_pool", "//sys/pools/test_parent/test_pool")
+        wait(lambda: self.get_pool_parent("test_pool") == "test_parent")
+
+    def test_move_to_new_pool(self):
+        create("map_node", "//sys/pools/test_pool")
+        self.wait_pool_exists("test_pool")
+
+        tx = start_transaction()
+        create("map_node", "//sys/pools/new_pool", tx=tx)
+        move("//sys/pools/test_pool", "//sys/pools/new_pool/test_pool", tx=tx)
+        commit_transaction(tx)
+
+        self.wait_pool_exists("new_pool")
+        wait(lambda: self.get_pool_parent("test_pool") == "new_pool")
+
+    def test_move_to_root_pool(self):
+        set("//sys/pools/test_parent", {"test_pool": {}})
+        self.wait_pool_exists("test_pool")
+        assert self.get_pool_parent("test_pool") == "test_parent"
+
+        move("//sys/pools/test_parent/test_pool", "//sys/pools/test_pool")
+
+        wait(lambda: self.get_pool_parent("test_pool") == "<Root>")
+
+    def test_parent_child_swap_is_forbidden(self):
+        set("//sys/pools/test_parent", {"test_pool": {}})
+        self.wait_pool_exists("test_pool")
+        assert self.get_pool_parent("test_pool") == "test_parent"
+
+        tx = start_transaction()
+        move("//sys/pools/test_parent/test_pool", "//sys/pools/test_pool", tx=tx)
+        move("//sys/pools/test_parent", "//sys/pools/test_pool/test_parent", tx=tx)
+        commit_transaction(tx)
+
+        wait(lambda: get("//sys/scheduler/@alerts"))
+        alert_message = get("//sys/scheduler/@alerts")[0]["inner_errors"][0]["inner_errors"][0]["message"]
+        assert "Path to pool \"test_parent\" changed in more than one place; make pool tree changes more gradually" == alert_message
+        assert self.get_pool_parent("test_pool") == "test_parent"
+
+    def test_duplicate_pools_are_forbidden(self):
+        tx = start_transaction()
+        set("//sys/pools/test_parent1", {"test_pool": {}}, tx=tx)
+        set("//sys/pools/test_parent2", {"test_pool": {}}, tx=tx)
+        commit_transaction(tx)
+
+        alert_message = self.wait_and_get_inner_alert_message()
+        assert "Duplicate poolId test_pool found in new configuration" == alert_message
+        assert ls(self.orchid_pools) == ['<Root>']
+
+    def test_root_id_are_forbidden(self):
+        set("//sys/pools/test_parent", {"<Root>": {}})
+
+        alert_message = self.wait_and_get_inner_alert_message()
+        assert "Use of root element id is forbidden" == alert_message
+        assert ls(self.orchid_pools) == ['<Root>']
+
+    def test_bad_pool_configuration(self):
+        create("map_node", "//sys/pools/test_pool", attributes={"max_operation_count": "trash"})
+
+        alert_message = self.wait_and_get_inner_alert_message()
+        assert "Parsing configuration of pool \"test_pool\" failed" == alert_message
+        assert ls(self.orchid_pools) == ['<Root>']
+
+    def test_operation_count_validation_on_pool(self):
+        create("map_node", "//sys/pools/test_pool", attributes={
+            "max_operation_count": 1,
+            "max_running_operation_count": 2
+        })
+
+        alert_message = self.wait_and_get_inner_alert_message()
+        assert "Parsing configuration of pool \"test_pool\" failed" == alert_message
+        assert ls(self.orchid_pools) == ['<Root>']
+
+    def test_subpools_of_fifo_pools_are_forbidden(self):
+        tx = start_transaction()
+        create("map_node", "//sys/pools/test_pool", attributes={"mode": "fifo"}, tx=tx)
+        create("map_node", "//sys/pools/test_pool/test_child", tx=tx)
+        commit_transaction(tx)
+
+        alert_message = self.wait_and_get_inner_alert_message()
+        assert "Pool \"test_pool\" cannot have subpools since it is in fifo mode" == alert_message
+        assert ls(self.orchid_pools) == ['<Root>']
+
+    def wait_pool_exists(self, pool):
+        wait(lambda: exists(self.orchid_pools + "/" + pool), sleep_backoff=0.1)
+
+    def get_pool_parent(self, pool):
+        return get(self.orchid_pools + "/" + pool + "/parent")
+
+    def wait_and_get_inner_alert_message(self):
+        wait(lambda: get("//sys/scheduler/@alerts"))
+        return get("//sys/scheduler/@alerts")[0]["inner_errors"][0]["inner_errors"][0]["message"]
 
 ##################################################################
 

@@ -783,7 +783,7 @@ void TNodeShard::ResumeOperationJobs(TOperationId operationId)
     operationState->ForbidNewJobs = false;
 }
 
-TNodeDescriptor TNodeShard::GetJobNode(TJobId jobId, const TString& user)
+TNodeDescriptor TNodeShard::GetJobNode(TJobId jobId, const TString& user, EPermissionSet requiredPermissions)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -815,7 +815,7 @@ TNodeDescriptor TNodeShard::GetJobNode(TJobId jobId, const TString& user)
         operationId = job->GetOperationId();
     }
 
-    Host_->ValidateOperationAccess(user, operationId, EAccessType::Ownership);
+    Host_->ValidateOperationAccess(user, operationId, requiredPermissions);
 
     return node->NodeDescriptor();
 }
@@ -828,7 +828,7 @@ TYsonString TNodeShard::StraceJob(TJobId jobId, const TString& user)
 
     auto job = GetJobOrThrow(jobId);
 
-    Host_->ValidateOperationAccess(user, job->GetOperationId(), EAccessType::Ownership);
+    Host_->ValidateOperationAccess(user, job->GetOperationId(), EPermissionSet(EPermission::Read));
 
     YT_LOG_DEBUG("Getting strace dump (JobId: %v, OperationId: %v)",
         job->GetId(),
@@ -859,7 +859,7 @@ void TNodeShard::DumpJobInputContext(TJobId jobId, const TYPath& path, const TSt
 
     auto job = GetJobOrThrow(jobId);
 
-    Host_->ValidateOperationAccess(user, job->GetOperationId(), EAccessType::Ownership);
+    Host_->ValidateOperationAccess(user, job->GetOperationId(), EPermissionSet(EPermission::Read));
 
     YT_LOG_DEBUG("Saving input contexts (JobId: %v, OperationId: %v, Path: %v, User: %v)",
         job->GetId(),
@@ -900,7 +900,7 @@ void TNodeShard::SignalJob(TJobId jobId, const TString& signalName, const TStrin
 
     auto job = GetJobOrThrow(jobId);
 
-    Host_->ValidateOperationAccess(user, job->GetOperationId(), EAccessType::Ownership);
+    Host_->ValidateOperationAccess(user, job->GetOperationId(), EPermissionSet(EPermission::Manage));
 
     YT_LOG_DEBUG("Sending job signal (JobId: %v, OperationId: %v, Signal: %v)",
         job->GetId(),
@@ -930,7 +930,7 @@ void TNodeShard::AbandonJob(TJobId jobId, const TString& user)
 
     auto job = GetJobOrThrow(jobId);
 
-    Host_->ValidateOperationAccess(user, job->GetOperationId(), EAccessType::Ownership);
+    Host_->ValidateOperationAccess(user, job->GetOperationId(), EPermissionSet(EPermission::Manage));
 
     YT_LOG_DEBUG("Abandoning job by user request (JobId: %v, OperationId: %v, User: %v)",
         job->GetId(),
@@ -973,7 +973,7 @@ void TNodeShard::AbortJobByUserRequest(TJobId jobId, std::optional<TDuration> in
 
     auto job = GetJobOrThrow(jobId);
 
-    Host_->ValidateOperationAccess(user, job->GetOperationId(), EAccessType::Ownership);
+    Host_->ValidateOperationAccess(user, job->GetOperationId(), EPermissionSet(EPermission::Manage));
 
     if (job->GetState() != EJobState::Running &&
         job->GetState() != EJobState::Waiting)

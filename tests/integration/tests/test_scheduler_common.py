@@ -81,7 +81,7 @@ class PrepareTables(object):
 ##################################################################
 
 class TestEventLog(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
@@ -186,7 +186,7 @@ class TestEventLogPorto(YTEnvSetup):
 ##################################################################
 
 class TestSchedulerControllerThrottling(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
@@ -231,7 +231,7 @@ class TestSchedulerControllerThrottling(YTEnvSetup):
 
 @unix_only
 class TestJobStderr(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 16
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
@@ -449,7 +449,7 @@ class TestJobStderrPorto(YTEnvSetup):
 ##################################################################
 
 class TestUserFiles(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 16
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
@@ -710,7 +710,7 @@ class TestUserFilesPorto(YTEnvSetup):
 ##################################################################
 
 class TestSchedulerOperationNodeFlush(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
@@ -753,7 +753,7 @@ class TestSchedulerOperationNodeFlush(YTEnvSetup):
 
 @require_ytserver_root_privileges
 class TestSchedulerCommon(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 16
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
@@ -1469,6 +1469,22 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
         with pytest.raises(YtError):
             op.track()
 
+    def test_non_trivial_error_code(self):
+        create("table", "//tmp/t1", attributes={"replication_factor": 1})
+        write_table("//tmp/t1", [{"foo": i} for i in range(10)])
+
+        create("table", "//tmp/t2", attributes={"replication_factor": 1})
+
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                job_count=10,
+                command="exit 22",
+                spec={
+                    "max_failed_job_count": 1,
+                })
+
 ##################################################################
 
 class TestSchedulerCommonMulticell(TestSchedulerCommon):
@@ -2069,7 +2085,7 @@ class TestDisabledJobRevival(TestJobRevivalBase):
 ##################################################################
 
 class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 2
 
@@ -2132,7 +2148,7 @@ class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
 ##################################################################
 
 class TestSchedulerMaxChunkPerJob(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
@@ -2181,7 +2197,7 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
 ##################################################################
 
 class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
@@ -2237,7 +2253,7 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
 ##################################################################
 
 class TestSchedulingTags(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 2
     NUM_SCHEDULERS = 1
 
@@ -2401,7 +2417,7 @@ class TestSchedulingTags(YTEnvSetup):
 ##################################################################
 
 class TestSchedulerConfig(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
@@ -2554,7 +2570,7 @@ class TestSchedulerConfig(YTEnvSetup):
 ##################################################################
 
 class TestSchedulerSnapshots(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
@@ -3399,7 +3415,8 @@ fi
             wait(lambda: get(op.get_path() + "/@state") == "running")
             assert op.get_job_count("failed") == 1
 
-    def test_attributes(self):
+    @pytest.mark.parametrize("use_owners", [False, True])
+    def test_attributes(self, use_owners):
         create_user("u")
         create("table", "//tmp/t_input")
         write_table("//tmp/t_input", [{"x": "y"}, {"a": "b"}])
@@ -3414,15 +3431,19 @@ else
 fi
 """
 
+        spec = {"data_size_per_job": 1}
+        if use_owners:
+            spec["owners"] = ["u"]
+        else:
+            spec["acl"] = [make_ace("allow", "u", ["read", "manage"])]
+
         op = map(
             command=cmd,
             in_="//tmp/t_input",
             out="//tmp/t_output",
-            spec={
-                "data_size_per_job": 1,
-                "owners": ["u"]
-            },
-            dont_track=True)
+            spec=spec,
+            dont_track=True,
+        )
 
         state_path = "//sys/scheduler/orchid/scheduler/operations/{0}/state".format(op.id)
         wait(lambda: get(state_path) == "running", ignore_exceptions=True)
@@ -3682,6 +3703,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
             "controller_agent_tracker": {
                 "agent_pick_strategy": "memory_usage_balanced",
                 "min_agent_available_memory": 0,
+                "min_agent_available_memory_fraction": 0.0,
             }
         }
     }
@@ -3865,7 +3887,6 @@ class TestNewLivePreview(YTEnvSetup):
     NUM_NODES = 3
 
     def test_new_live_preview_simple(self):
-        create_user("u")
         data = [{"foo": i} for i in range(3)]
 
         create("table", "//tmp/t1")
@@ -3889,7 +3910,7 @@ class TestNewLivePreview(YTEnvSetup):
         release_breakpoint(job_id=jobs[1])
         wait(lambda: op.get_job_count("completed") == 2)
 
-        live_preview_data = read_table(op.get_path() + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0", authenticated_user="u")
+        live_preview_data = read_table(op.get_path() + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0")
         assert len(live_preview_data) == 2
 
         assert all(record in data for record in live_preview_data)
@@ -3911,8 +3932,11 @@ class TestNewLivePreview(YTEnvSetup):
             command=with_breakpoint("BREAKPOINT ; cat"),
             in_="//tmp/t1",
             out="//tmp/t2",
-            spec={"data_size_per_job": 1,
-                  "intermediate_data_acl": [{"action": "allow", "permissions": ["read"], "subjects": ["u1"]}]})
+            spec={
+                "data_size_per_job": 1,
+                "acl": [make_ace("allow", "u1", "read")],
+            },
+        )
 
         jobs = wait_breakpoint(job_count=2)
 
@@ -4101,7 +4125,7 @@ class TestOperationAliasesBase(YTEnvSetup):
         assert get(op.get_path() + "/@suspended")
         resume_op("*my_op")
         assert not get(op.get_path() + "/@suspended")
-        update_op_parameters("*my_op", parameters={"owners": ["u"]})
+        update_op_parameters("*my_op", parameters={"acl": [make_ace("allow", "u", ["manage", "read"])]})
         assert len(get(op.get_path() + "/@alerts")) == 1
         wait(lambda: get(op.get_path() + "/@state") == "running")
         abort_op("*my_op")

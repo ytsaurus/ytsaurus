@@ -149,8 +149,7 @@ private:
                     ? TError(errorNode->GetValue<TString>())
                     : TError("Blackbox did not provide any human-readable error details");
 
-                // See https://doc.yandex-team.ru/blackbox/concepts/blackboxErrors.xml
-                switch (EBlackboxException(exceptionIdNode->GetValue<i64>())) {
+                switch (static_cast<EBlackboxException>(exceptionIdNode->GetValue<i64>())) {
                     case EBlackboxException::Ok:
                         return result;
                     case EBlackboxException::DBFetchFailed:

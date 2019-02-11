@@ -22,6 +22,8 @@
 
 #include <yt/core/yson/public.h>
 
+#include <yt/core/ytree/public.h>
+
 #include <yt/core/misc/sync_expiring_cache.h>
 
 namespace NYT::NScheduler {
@@ -48,7 +50,7 @@ struct INodeShardHost
     virtual void ValidateOperationAccess(
         const TString& user,
         TOperationId operationId,
-        EAccessType accessType) = 0;
+        NYTree::EPermission permission) = 0;
 
     virtual TFuture<void> AttachJobContext(
         const NYTree::TYPath& path,
@@ -125,7 +127,10 @@ public:
     void AbortOperationJobs(TOperationId operationId, const TError& abortReason, bool terminated);
     void ResumeOperationJobs(TOperationId operationId);
 
-    NNodeTrackerClient::TNodeDescriptor GetJobNode(TJobId jobId, const TString& user);
+    // NB(levysotsky): We check not "read" permission here but |requiredPermissions|
+    // because the client will further communicate with the node
+    // (where no permission checks are performed).
+    NNodeTrackerClient::TNodeDescriptor GetJobNode(TJobId jobId, const TString& user, NYTree::EPermissionSet requiredPermissions);
 
     NYson::TYsonString StraceJob(TJobId jobId, const TString& user);
     void DumpJobInputContext(TJobId jobId, const NYTree::TYPath& path, const TString& user);

@@ -103,11 +103,6 @@ DEFINE_ENUM(EControllerAgentPickStrategy,
     (MemoryUsageBalanced)
 );
 
-DEFINE_ENUM(EAccessType,
-    (Ownership)
-    (IntermediateData)
-);
-
 DEFINE_ENUM(ENodeState,
     (Unknown)
     (Offline)

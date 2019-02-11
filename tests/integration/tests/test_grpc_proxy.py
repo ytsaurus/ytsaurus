@@ -5,8 +5,12 @@ from yt_commands import discover_proxies
 from yt_driver_bindings import Driver
 from yt_yson_bindings import loads_proto, dumps_proto, loads, dumps
 
-import yt_proto.yt.client.api.rpc_proxy.proto.api_service_pb2 as api_service_pb2
-import yt_proto.yt.core.misc.proto.error_pb2 as error_pb2
+try:
+    import yt_proto.yt.client.api.rpc_proxy.proto.api_service_pb2 as api_service_pb2
+    import yt_proto.yt.core.misc.proto.error_pb2 as error_pb2
+    pb2_imported = True
+except ImportError:
+    pb2_imported = False
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError, underscore_case_to_camel_case
@@ -18,6 +22,7 @@ except ImportError:
 from yt.wire_format import (AttachmentStream, serialize_rows_to_unversioned_wire_format,
                             deserialize_rows_from_unversioned_wire_format, build_columns_from_schema)
 
+import pytest
 import grpc
 import sys
 from datetime import datetime
@@ -34,6 +39,7 @@ def uuid_to_dict(guid):
     parts = uuid_to_parts(guid)
     return {"first": parts[0], "second": parts[1]}
 
+@pytest.mark.skipif(not pb2_imported, reason="Some of pb2 modules could not be imported")
 class TestGrpcProxy(YTEnvSetup):
     ENABLE_RPC_PROXY = True
     USE_DYNAMIC_TABLES = True

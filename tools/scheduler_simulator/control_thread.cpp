@@ -4,6 +4,8 @@
 
 #include <yt/server/scheduler/fair_share_strategy.h>
 
+#include <yt/ytlib/security_client/acl.h>
+
 #include <yt/core/concurrency/public.h>
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/scheduler.h>
@@ -213,6 +215,7 @@ void TSimulatorControlThread::OnOperationStarted(const TControlThreadEvent& even
     SchedulerStrategy_->InitOperationRuntimeParameters(
         runtimeParameters,
         NYTree::ConvertTo<TOperationSpecBasePtr>(description.Spec),
+        NSecurityClient::TSerializableAccessControlList(),
         description.AuthenticatedUser,
         description.Type);
     auto operation = New<NSchedulerSimulator::TOperation>(description, runtimeParameters);

@@ -11,6 +11,8 @@
 
 #include <yt/server/lib/misc/job_table_schema.h>
 
+#include <yt/server/lib/scheduler/helpers.h>
+
 #include <yt/server/controller_agent/chunk_pools/helpers.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -40,6 +42,8 @@
 
 #include <yt/ytlib/scheduler/helpers.h>
 
+#include <yt/ytlib/security_client/acl.h>
+
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/columnar_statistics_fetcher.h>
 #include <yt/ytlib/table_client/data_slice_fetcher.h>
@@ -67,6 +71,7 @@
 #include <yt/core/erasure/codec.h>
 
 #include <yt/core/misc/fs.h>
+#include <yt/core/misc/finally.h>
 #include <yt/core/misc/chunked_input_stream.h>
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/numeric_helpers.h>
@@ -103,6 +108,7 @@ using namespace NCoreDump::NProto;
 using namespace NConcurrency;
 using namespace NApi;
 using namespace NRpc;
+using namespace NSecurityClient;
 using namespace NTableClient;
 using namespace NQueryClient;
 using namespace NProfiling;
@@ -189,7 +195,7 @@ TOperationControllerBase::TOperationControllerBase(
     , CoreNotes_({
         Format("OperationId: %v", OperationId)
     })
-    , Owners(operation->GetOwners())
+    , Acl(operation->GetAcl())
     , CancelableContext(New<TCancelableContext>())
     , InvokerPool(CreateFairShareInvokerPool(
         CreateMemoryTaggingInvoker(CreateSerializedInvoker(Host->GetControllerThreadPoolInvoker()), operation->GetMemoryTag()),
@@ -591,7 +597,7 @@ void TOperationControllerBase::ValidateIntermediateDataAccess(const TString& use
 {
     // Permission for IntermediateData can be only Read.
     YCHECK(permission == EPermission::Read);
-    Host->ValidateOperationAccess(user, EAccessType::IntermediateData);
+    Host->ValidateOperationAccess(user, EPermissionSet(permission));
 }
 
 void TOperationControllerBase::InitUpdatingTables()
@@ -2103,12 +2109,20 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     UnregisterJoblet(joblet);
 
+    auto finally = Finally(
+		[&] () {
+			ReleaseJobs({jobId});
+		},
+        /* noUncaughtExceptions */ true
+	);
+
     // This failure case has highest priority for users. Therefore check must be performed as early as possible.
     if (Spec_->FailOnJobRestart) {
         OnOperationFailed(TError(NScheduler::EErrorCode::OperationFailedOnJobRestart,
             "Job failed; failing operation since \"fail_on_job_restart\" spec option is set")
             << TErrorAttribute("job_id", joblet->JobId)
             << error);
+        return;
     }
 
     if (error.Attributes().Get<bool>("fatal", false)) {
@@ -2122,6 +2136,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     if (failedJobCount >= maxFailedJobCount) {
         OnOperationFailed(TError("Failed jobs limit exceeded")
             << TErrorAttribute("max_failed_job_count", maxFailedJobCount));
+        return;
     }
 
     CheckFailedJobsStatusReceived();
@@ -2136,8 +2151,6 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     }
 
     LogProgress();
-
-    ReleaseJobs({jobId});
 }
 
 void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary, bool byScheduler)
@@ -3289,12 +3302,7 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
             joblet);
     }
 
-    schedulerJobSpecExt->set_acl(BuildYsonStringFluently()
-        .BeginList()
-            .Do(std::bind(&BuildOperationAce, Owners, AuthenticatedUser, EPermission::Read, _1))
-        .EndList()
-        .GetData()
-    );
+    schedulerJobSpecExt->set_acl(ConvertToYsonString(Acl).GetData());
 }
 
 void TOperationControllerBase::RegisterTask(TTaskPtr task)
@@ -4230,6 +4238,13 @@ void TOperationControllerBase::CreateLivePreviewTables()
 
         auto path = GetOperationPath(OperationId) + "/intermediate";
 
+        auto intermediateDataAcl = MakeOperationArtifactAcl(Acl);
+        if (Config->AllowUsersGroupReadIntermediateData) {
+            intermediateDataAcl.Entries.emplace_back(
+                ESecurityAction::Allow,
+                std::vector<TString>{UsersGroupName},
+                EPermissionSet(EPermission::Read));
+        }
         addRequest(
             path,
             IntermediateOutputCellTag,
@@ -4237,37 +4252,8 @@ void TOperationControllerBase::CreateLivePreviewTables()
             Spec_->IntermediateCompressionCodec,
             Spec_->IntermediateDataAccount,
             "create_intermediate",
-            BuildYsonStringFluently()
-                .BeginList()
-                    .Do(std::bind(&BuildOperationAce, Owners, AuthenticatedUser, EPermission::Read, _1))
-                    .DoFor(Spec_->IntermediateDataAcl->GetChildren(), [] (TFluentList fluent, const INodePtr& node) {
-                        fluent.Item().Value(node);
-                    })
-                    .DoFor(Config->AdditionalIntermediateDataAcl->GetChildren(), [] (TFluentList fluent, const INodePtr& node) {
-                        fluent.Item().Value(node);
-                    })
-                .EndList(),
+            ConvertToYsonString(intermediateDataAcl),
             std::nullopt);
-    }
-
-    {
-        YT_LOG_INFO("Creating intermediate data access node (IntermediateDataAcl: %v)",
-            ConvertToYsonString(Spec_->IntermediateDataAcl, EYsonFormat::Text));
-
-        auto path = GetOperationPath(OperationId) + "/intermediate_data_access";
-
-        auto req = TCypressYPathProxy::Create(path);
-        req->set_type(static_cast<int>(EObjectType::MapNode));
-        req->set_ignore_existing(true);
-
-        auto attributes = CreateEphemeralAttributes();
-        attributes->Set("acl", ConvertToYsonString(Spec_->IntermediateDataAcl));
-        attributes->Set("inherit_acl", false);
-
-        ToProto(req->mutable_node_attributes(), *attributes);
-        GenerateMutationId(req);
-
-        batchReq->AddRequest(req, "create_intermediate_data_access");
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -6200,8 +6186,8 @@ void TOperationControllerBase::Dispose()
 
 void TOperationControllerBase::UpdateRuntimeParameters(const TOperationRuntimeParametersUpdatePtr& update)
 {
-    if (update->Owners) {
-        Owners = *update->Owners;
+    if (update->Acl) {
+        Acl = *update->Acl;
     }
 }
 
@@ -6958,6 +6944,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_copy_files(config->CopyFiles);
     jobSpec->set_file_account(fileAccount);
     jobSpec->set_set_container_cpu_limit(config->SetContainerCpuLimit);
+    jobSpec->set_force_core_dump(config->ForceCoreDump);
 
     jobSpec->set_port_count(config->PortCount);
     jobSpec->set_use_porto_memory_tracking(config->UsePortoMemoryTracking);

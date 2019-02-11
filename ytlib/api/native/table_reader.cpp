@@ -86,7 +86,8 @@ public:
         const TColumnFilter& columnFilter,
         bool unordered,
         IThroughputThrottlerPtr bandwidthThrottler,
-        IThroughputThrottlerPtr rpsThrottler)
+        IThroughputThrottlerPtr rpsThrottler,
+        TNodeDirectoryPtr nodeDirectory)
         : Config_(std::move(config))
         , Options_(std::move(options))
         , Client_(std::move(client))
@@ -97,6 +98,7 @@ public:
         , BandwidthThrottler_(std::move(bandwidthThrottler))
         , RpsThrottler_(std::move(rpsThrottler))
         , TransactionId_(Transaction_ ? Transaction_->GetId() : NullTransactionId)
+        , NodeDirectory_(std::move(nodeDirectory))
     {
         YCHECK(Config_);
         YCHECK(Client_);
@@ -183,6 +185,7 @@ private:
     const IThroughputThrottlerPtr BandwidthThrottler_;
     const IThroughputThrottlerPtr RpsThrottler_;
     const TTransactionId TransactionId_;
+    const TNodeDirectoryPtr NodeDirectory_;
 
     TClientBlockReadOptions BlockReadOptions_;
 
@@ -203,7 +206,8 @@ private:
             NameTable_,
             ColumnFilter_,
             BandwidthThrottler_,
-            RpsThrottler_))
+            RpsThrottler_,
+            NodeDirectory_))
             .ValueOrThrow();
 
         if (Transaction_) {
@@ -223,6 +227,7 @@ TFuture<ITableReaderPtr> CreateTableReader(
     const NYPath::TRichYPath& path,
     const TTableReaderOptions& options,
     TNameTablePtr nameTable,
+    TNodeDirectoryPtr nodeDirectory,
     const TColumnFilter& columnFilter,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler)
@@ -245,7 +250,8 @@ TFuture<ITableReaderPtr> CreateTableReader(
         columnFilter,
         options.Unordered,
         bandwidthThrottler,
-        rpsThrottler);
+        rpsThrottler,
+        nodeDirectory);
 
     return reader->GetReadyEvent().Apply(BIND([=] () -> ITableReaderPtr {
         return reader;
@@ -438,7 +444,8 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler)
+    NConcurrency::IThroughputThrottlerPtr rpsThrottler,
+    TNodeDirectoryPtr nodeDirectory)
 {
     auto Logger = ApiLogger;
 
@@ -522,7 +529,10 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
         ValidateDynamicTableTimestamp(richPath, dynamic, schema, *attributes);
     }
 
-    auto nodeDirectory = New<TNodeDirectory>();
+    if (!nodeDirectory) {
+        nodeDirectory = New<TNodeDirectory>();
+    }
+
     std::vector<TChunkSpec> chunkSpecs;
 
     {

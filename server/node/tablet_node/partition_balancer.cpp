@@ -205,17 +205,37 @@ private:
 
         partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Splitting);
 
+        YT_LOG_DEBUG("Partition is scheduled for split (PartitionId: %v, TabletId: %v)",
+            partition->GetId(),
+            partition->GetTablet()->GetId());
+
         BIND(&TPartitionBalancer::DoRunSplit, MakeStrong(this))
             .AsyncVia(partition->GetTablet()->GetEpochAutomatonInvoker())
-            .Run(slot, partition, splitFactor);
+            .Run(
+                slot,
+                partition,
+                splitFactor,
+                partition->GetTablet(),
+                partition->GetId(),
+                partition->GetTablet()->GetId());
         return true;
     }
 
-    void DoRunSplit(TTabletSlotPtr slot, TPartition* partition, int splitFactor)
+    void DoRunSplit(
+        TTabletSlotPtr slot,
+        TPartition* partition,
+        int splitFactor,
+        TTablet* tablet,
+        TPartitionId partitonId,
+        TTabletId tabletId)
     {
         auto Logger = BuildLogger(slot, partition);
 
-        auto* tablet = partition->GetTablet();
+        YT_LOG_DEBUG("Splitting partition (PartitionId: %v, TabletId: %v)",
+            partitonId,
+            tabletId);
+
+        YCHECK(tablet == partition->GetTablet());
         const auto& hydraManager = slot->GetHydraManager();
 
         YT_LOG_INFO("Partition is eligible for split (SplitFactor: %v)",
@@ -320,20 +340,36 @@ private:
 
         partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Sampling);
 
+        YT_LOG_DEBUG("Partition is scheduled for sampling (PartitionId: %v, TabletId: %v)",
+            partition->GetId(),
+            partition->GetTablet()->GetId());
+
         BIND(&TPartitionBalancer::DoRunSample, MakeStrong(this), Passed(std::move(guard)))
             .AsyncVia(partition->GetTablet()->GetEpochAutomatonInvoker())
-            .Run(slot, partition);
+            .Run(
+                slot,
+                partition,
+                partition->GetTablet(),
+                partition->GetId(),
+                partition->GetTablet()->GetId());
         return true;
     }
 
     void DoRunSample(
         TAsyncSemaphoreGuard /*guard*/,
         TTabletSlotPtr slot,
-        TPartition* partition)
+        TPartition* partition,
+        TTablet* tablet,
+        TPartitionId partitonId,
+        TTabletId tabletId)
     {
         auto Logger = BuildLogger(slot, partition);
 
-        auto* tablet = partition->GetTablet();
+        YT_LOG_DEBUG("Sampling partition (PartitionId: %v, TabletId: %v)",
+            partitonId,
+            tabletId);
+
+        YCHECK(tablet == partition->GetTablet());
         auto config = tablet->GetConfig();
 
         const auto& hydraManager = slot->GetHydraManager();

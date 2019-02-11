@@ -1,8 +1,6 @@
 #include <yt/build/build.h>
 
-#if defined(YT_IN_ARCADIA)
 #include <yt/build/ya_version.h>
-#endif
 
 #include <util/system/compiler.h>
 
@@ -27,8 +25,6 @@ Y_WEAK int GetVersionPatch()
     return @YT_VERSION_PATCH@;
 }
 
-#if defined(YT_IN_ARCADIA)
-
 Y_WEAK const char* GetVersion()
 {
     static auto version = CreateYTVersion(@YT_VERSION_MAJOR@, @YT_VERSION_MINOR@, @YT_VERSION_PATCH@, "@YT_VERSION_BRANCH@");
@@ -41,40 +37,11 @@ const char* GetBuildHost()
     return buildHost.data();
 }
 
-const char* GetBuildMachine()
-{
-    return "unknown";
-}
-
 const char* GetBuildTime()
 {
     static auto buildDate = GetYaBuildDate();
     return buildDate.data();
 }
-
-#else
-
-Y_WEAK const char* GetVersion()
-{
-    return "@YT_VERSION@";
-}
-
-Y_WEAK const char* GetBuildHost()
-{
-    return "@YT_BUILD_HOST@";
-}
-
-Y_WEAK const char* GetBuildMachine()
-{
-    return "@YT_BUILD_MACHINE@";
-}
-
-Y_WEAK const char* GetBuildTime()
-{
-    return "@YT_BUILD_TIME@";
-}
-
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

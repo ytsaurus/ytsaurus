@@ -15,7 +15,6 @@
 #include <yt/client/api/public.h>
 
 #include <yt/core/ytree/public.h>
-#include <yt/core/ytree/permission.h>
 
 #include <yt/core/concurrency/public.h>
 
@@ -159,7 +158,7 @@ public:
     void ValidateOperationAccess(
         const TString& user,
         TOperationId operationId,
-        const NScheduler::EAccessType accessType);
+        NYTree::EPermission permission);
 
     //! Raised when connection prcoess starts.
     //! Subscribers may throw and yield.

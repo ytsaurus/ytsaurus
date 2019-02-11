@@ -147,6 +147,8 @@ public:
     //! Enables infer of weight from effective min share ratios (if weight is not implicitly specified); inferred weight is this number mupltiplied by min share ratio.
     std::optional<double> InferWeightFromMinShareRatioMultiplier;
 
+    bool CrashOnOperationResourceUsageInconsistency;
+
     TFairShareStrategyTreeConfig();
 };
 
@@ -308,6 +310,9 @@ public:
 
     // Agent must have at least #MinAgentAvailableMemory free memory to serve new operation.
     i64 MinAgentAvailableMemory;
+
+    // Agent must have at least #MinAgentAvailableMemoryFraction of free memory to serve new operation.
+    double MinAgentAvailableMemoryFraction;
 
     // Must be at least #MinAgentCount controller agent for successful assignment agent to waiting operation.
     int MinAgentCount;

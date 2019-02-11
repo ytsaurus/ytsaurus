@@ -371,54 +371,6 @@ public:
         return operation;
     }
 
-    INodePtr FindOperationAcl(TOperationId operationId, EAccessType accessType) const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto operation = GetOperationOrThrow(operationId);
-
-        switch (accessType) {
-            case EAccessType::Ownership:
-                return BuildYsonNodeFluently()
-                    .BeginList()
-                        .Do([&] (TFluentList fluent) {
-                            NScheduler::BuildOperationAce(
-                                operation->GetOwners(),
-                                operation->GetAuthenticatedUser(),
-                                EPermission::Read | EPermission::Write,
-                                fluent);
-                        })
-                        .Items(OperationsEffectiveAcl_->AsList())
-                    .EndList();
-            case EAccessType::IntermediateData:
-                return BuildYsonNodeFluently()
-                    .BeginList()
-                        .Do([&] (TFluentList fluent) {
-                            if (auto intermediateDataAcl = operation->GetSpec()->FindChild("intermediate_data_acl")) {
-                                fluent.Items(intermediateDataAcl->AsList());
-                            } else {
-                                fluent.Items(OperationsEffectiveAcl_->AsList());
-                            }
-                        })
-                    .EndList();
-            default:
-                Y_UNREACHABLE();
-        }
-    }
-
-    INodePtr GetOperationAclFromCypress(TOperationId operationId, EAccessType accessType) const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto path = GetOperationPath(operationId)
-            + (accessType == EAccessType::Ownership ? "/@effective_acl" : "/@full_spec/intermediate_data_acl");
-
-        auto result = WaitFor(Bootstrap_->GetMasterClient()->GetNode(path))
-            .ValueOrThrow();
-
-        return ConvertToNode(result);
-    }
-
     const TOperationIdToOperationMap& GetOperations() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -507,8 +459,8 @@ public:
     TFuture<void> UpdateOperationRuntimeParameters(TOperationId operationId, TOperationRuntimeParametersUpdatePtr update)
     {
         auto operation = GetOperationOrThrow(operationId);
-        if (update->Owners) {
-            operation->SetOwners(*update->Owners);
+        if (update->Acl) {
+            operation->SetAcl(*update->Acl);
             const auto& controller = operation->GetController();
             if (controller) {
                 return BIND(&IOperationControllerSchedulerHost::UpdateRuntimeParameters, controller, std::move(update))
@@ -720,21 +672,16 @@ public:
     void ValidateOperationAccess(
         const TString& user,
         TOperationId operationId,
-        EAccessType accessType)
+        EPermission permission)
     {
-
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto operationAcl = FindOperationAcl(operationId, accessType);
-        if (!operationAcl) {
-            operationAcl = GetOperationAclFromCypress(operationId, accessType);
-        }
 
         NScheduler::ValidateOperationAccess(
             user,
             operationId,
-            accessType,
-            operationAcl,
+            TJobId(),
+            permission,
+            GetOperationOrThrow(operationId)->GetAcl(),
             Bootstrap_->GetMasterClient(),
             Logger);
 
@@ -1712,9 +1659,9 @@ const IThroughputThrottlerPtr& TControllerAgent::GetJobSpecSliceThrottler() cons
 void TControllerAgent::ValidateOperationAccess(
     const TString& user,
     TOperationId operationId,
-    EAccessType accessType)
+    NYTree::EPermission permission)
 {
-    return Impl_->ValidateOperationAccess(user, operationId, accessType);
+    return Impl_->ValidateOperationAccess(user, operationId, permission);
 }
 
 

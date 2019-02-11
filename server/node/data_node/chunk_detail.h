@@ -71,7 +71,8 @@ protected:
         NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
         TChunkId id);
-
+    ~TChunkBase();
+    
     void StartAsyncRemove();
     virtual TFuture<void> AsyncRemove() = 0;
 

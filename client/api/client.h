@@ -16,6 +16,7 @@
 #include <yt/client/security_client/public.h>
 
 #include <yt/client/node_tracker_client/public.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/client/table_client/config.h>
 #include <yt/client/table_client/row_base.h>
@@ -872,7 +873,7 @@ struct TOperation
     std::optional<TInstant> FinishTime;
 
     std::optional<TString> AuthenticatedUser;
-    std::optional<std::vector<TString>> Owners;
+    NYTree::INodePtr Acl;
 
     std::optional<std::vector<TString>> Pools;
 
@@ -989,7 +990,8 @@ struct IClientBase
 
     virtual TFuture<ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,
-        const TTableReaderOptions& options = TTableReaderOptions()) = 0;
+        const TTableReaderOptions& options = TTableReaderOptions(),
+        const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory = nullptr) = 0;
 
     virtual TFuture<ITableWriterPtr> CreateTableWriter(
         const NYPath::TRichYPath& path,

@@ -1043,7 +1043,7 @@ private:
             YT_LOG_DEBUG_IF(verboseLogging, "(%v, %v) make batch [%v .. %v] from %v ranges",
                 currentSampleCount,
                 nextSampleCount,
-                group.front().second,
+                group.front().first,
                 group.back().second,
                 group.size());
             groupedSplits.push_back(MakeSharedRange(std::move(group), holder));

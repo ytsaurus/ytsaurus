@@ -86,7 +86,8 @@ public:
 
     virtual TFuture<ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,
-        const NApi::TTableReaderOptions& options) override;
+        const NApi::TTableReaderOptions& options,
+        const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory) override;
 
     virtual TFuture<ITableWriterPtr> CreateTableWriter(
         const NYPath::TRichYPath& path,
