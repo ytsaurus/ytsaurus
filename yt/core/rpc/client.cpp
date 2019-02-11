@@ -482,12 +482,12 @@ void TClientResponse::Finish(const TError& error)
 
     const auto& requestAttachmentsStream = ClientContext_->GetRequestAttachmentsStream();
     if (requestAttachmentsStream) {
-        requestAttachmentsStream->AbortUnlessClosed();
+        requestAttachmentsStream->AbortUnlessClosed(error);
     }
 
     const auto& responseAttachmentsStream = ClientContext_->GetResponseAttachmentsStream();
     if (responseAttachmentsStream) {
-        responseAttachmentsStream->AbortUnlessClosed();
+        responseAttachmentsStream->AbortUnlessClosed(error);
     }
 
     SetPromise(error);

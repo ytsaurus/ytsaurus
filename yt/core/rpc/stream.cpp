@@ -94,7 +94,7 @@ void TAttachmentsInputStream::Abort(const TError& error)
     DoAbort(guard, error);
 }
 
-void TAttachmentsInputStream::AbortUnlessClosed()
+void TAttachmentsInputStream::AbortUnlessClosed(const TError& error)
 {
     auto guard = Guard(Lock_);
 
@@ -102,7 +102,9 @@ void TAttachmentsInputStream::AbortUnlessClosed()
         return;
     }
 
-    DoAbort(guard, TError("Request terminated"));
+    DoAbort(
+        guard,
+        error.IsOK() ? TError("Request is already completed") : error);
 }
 
 void TAttachmentsInputStream::DoAbort(TGuard<TSpinLock>& guard, const TError& error)
@@ -205,7 +207,7 @@ void TAttachmentsOutputStream::Abort(const TError& error)
     DoAbort(guard, error);
 }
 
-void TAttachmentsOutputStream::AbortUnlessClosed()
+void TAttachmentsOutputStream::AbortUnlessClosed(const TError& error)
 {
     auto guard = Guard(Lock_);
 
@@ -213,7 +215,9 @@ void TAttachmentsOutputStream::AbortUnlessClosed()
         return;
     }
 
-    DoAbort(guard, TError("Request terminated"));
+    DoAbort(
+        guard,
+        error.IsOK() ? TError("Request is already completed") : error);
 }
 
 void TAttachmentsOutputStream::DoAbort(TGuard<TSpinLock>& guard, const TError& error)

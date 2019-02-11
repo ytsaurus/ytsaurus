@@ -17,9 +17,8 @@ using namespace NBus;
 TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(IChannelPtr channel)
     : TClientRequest(
         std::move(channel),
-        TObjectServiceProxy::GetDescriptor().ServiceName,
-        "Execute",
-        TObjectServiceProxy::GetDescriptor().ProtocolVersion)
+        TObjectServiceProxy::GetDescriptor(),
+        TMethodDescriptor("Execute"))
 { }
 
 TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(
