@@ -48,6 +48,8 @@
 
 #include <exception>
 
+using namespace NYT::NDetail::NRawClient;
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,7 +80,8 @@ TNodeId TClientBase::Create(
 {
     THttpHeader header("POST", "create");
     header.AddMutationId();
-    header.MergeParameters(NDetail::SerializeParamsForCreate(TransactionId_, path, type, options));
+    // TODO: use corresponding function
+    header.MergeParameters(NRawClient::SerializeParamsForCreate(TransactionId_, path, type, options));
     return ParseGuidFromResponse(RetryRequest(Auth_, header));
 }
 
@@ -88,20 +91,20 @@ void TClientBase::Remove(
 {
     THttpHeader header("POST", "remove");
     header.AddMutationId();
-    header.MergeParameters(NDetail::SerializeParamsForRemove(TransactionId_, path, options));
+    header.MergeParameters(SerializeParamsForRemove(TransactionId_, path, options));
     RetryRequest(Auth_, header);
 }
 
 bool TClientBase::Exists(const TYPath& path)
 {
-    return NYT::NDetail::Exists(Auth_, TransactionId_, path);
+    return NRawClient::Exists(Auth_, TransactionId_, path);
 }
 
 TNode TClientBase::Get(
     const TYPath& path,
     const TGetOptions& options)
 {
-    return NDetail::Get(Auth_, TransactionId_, path, options);
+    return NRawClient::Get(Auth_, TransactionId_, path, options);
 }
 
 void TClientBase::Set(
@@ -109,14 +112,14 @@ void TClientBase::Set(
     const TNode& value,
     const TSetOptions& options)
 {
-    NDetail::Set(Auth_, TransactionId_, path, value, options);
+    NRawClient::Set(Auth_, TransactionId_, path, value, options);
 }
 
 TNode::TListType TClientBase::List(
     const TYPath& path,
     const TListOptions& options)
 {
-    return NDetail::List(Auth_, TransactionId_, path, options);
+    return NRawClient::List(Auth_, TransactionId_, path, options);
 }
 
 TNodeId TClientBase::Copy(
@@ -126,7 +129,7 @@ TNodeId TClientBase::Copy(
 {
     THttpHeader header("POST", "copy");
     header.AddMutationId();
-    header.MergeParameters(NDetail::SerializeParamsForCopy(TransactionId_, sourcePath, destinationPath, options));
+    header.MergeParameters(NRawClient::SerializeParamsForCopy(TransactionId_, sourcePath, destinationPath, options));
     return ParseGuidFromResponse(RetryRequest(Auth_, header));
 }
 
@@ -137,7 +140,7 @@ TNodeId TClientBase::Move(
 {
     THttpHeader header("POST", "move");
     header.AddMutationId();
-    header.MergeParameters(NDetail::SerializeParamsForMove(TransactionId_, sourcePath, destinationPath, options));
+    header.MergeParameters(NRawClient::SerializeParamsForMove(TransactionId_, sourcePath, destinationPath, options));
     return ParseGuidFromResponse(RetryRequest(Auth_, header));
 }
 
@@ -146,7 +149,7 @@ TNodeId TClientBase::Link(
     const TYPath& linkPath,
     const TLinkOptions& options)
 {
-    return NYT::NDetail::Link(Auth_, TransactionId_, targetPath, linkPath, options);
+    return NRawClient::Link(Auth_, TransactionId_, targetPath, linkPath, options);
 }
 
 void TClientBase::Concatenate(
@@ -179,7 +182,7 @@ TRichYPath TClientBase::CanonizeYPath(const TRichYPath& path)
 TVector<TTableColumnarStatistics> TClientBase::GetTableColumnarStatistics(const TVector<TRichYPath>& paths)
 {
     THttpHeader header("GET", "get_table_columnar_statistics");
-    header.MergeParameters(NDetail::SerializeParamsForGetTableColumnarStatistics(TransactionId_, paths));
+    header.MergeParameters(NRawClient::SerializeParamsForGetTableColumnarStatistics(TransactionId_, paths));
     auto response = NodeFromYsonString(RetryRequest(Auth_, header, /* body = */ Nothing(), /* heavy = */ true));
     TVector<TTableColumnarStatistics> result;
     Deserialize(result, response);
@@ -215,8 +218,8 @@ IFileWriterPtr TClientBase::CreateFileWriter(
     const TFileWriterOptions& options)
 {
     auto realPath = CanonizePath(Auth_, path);
-    if (!NYT::NDetail::Exists(Auth_, TransactionId_, realPath.Path_)) {
-        NYT::NDetail::Create(Auth_, TransactionId_, realPath.Path_, NT_FILE,
+    if (!NRawClient::Exists(Auth_, TransactionId_, realPath.Path_)) {
+        NRawClient::Create(Auth_, TransactionId_, realPath.Path_, NT_FILE,
             TCreateOptions().IgnoreExisting(true));
     }
     return new TFileWriter(realPath, Auth_, TransactionId_, options);
@@ -446,12 +449,12 @@ EOperationBriefState TClientBase::CheckOperation(const TOperationId& operationId
 
 void TClientBase::AbortOperation(const TOperationId& operationId)
 {
-    NYT::NDetail::AbortOperation(Auth_, operationId);
+    NRawClient::AbortOperation(Auth_, operationId);
 }
 
 void TClientBase::CompleteOperation(const TOperationId& operationId)
 {
-    NYT::NDetail::CompleteOperation(Auth_, operationId);
+    NRawClient::CompleteOperation(Auth_, operationId);
 }
 
 void TClientBase::WaitForOperation(const TOperationId& operationId)
@@ -490,8 +493,8 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
     const TTableWriterOptions& options)
 {
     auto realPath = CanonizePath(Auth_, path);
-    if (!NYT::NDetail::Exists(Auth_, TransactionId_, realPath.Path_)) {
-        NYT::NDetail::Create(Auth_, TransactionId_, realPath.Path_, NT_TABLE,
+    if (!NRawClient::Exists(Auth_, TransactionId_, realPath.Path_)) {
+        NRawClient::Create(Auth_, TransactionId_, realPath.Path_, NT_TABLE,
             TCreateOptions().IgnoreExisting(true));
     }
     return MakeHolder<TClientWriter>(
@@ -635,7 +638,7 @@ ILockPtr TTransaction::Lock(
     ELockMode mode,
     const TLockOptions& options)
 {
-    auto lockId = NYT::NDetail::Lock(Auth_, TransactionId_, path, mode, options);
+    auto lockId = NRawClient::Lock(Auth_, TransactionId_, path, mode, options);
     return ::MakeIntrusive<TLock>(lockId, GetParentClientImpl(), options.Waitable_);
 }
 
@@ -763,7 +766,8 @@ void TClient::InsertRows(
 {
     THttpHeader header("PUT", "insert_rows");
     header.SetInputFormat(TFormat::YsonBinary());
-    header.MergeParameters(NDetail::SerializeParametersForInsertRows(path, options));
+    // TODO: use corresponding raw request
+    header.MergeParameters(SerializeParametersForInsertRows(path, options));
 
     auto body = NodeListToYsonString(rows);
     RetryRequest(Auth_, header, TStringBuf(body), true);
@@ -776,7 +780,8 @@ void TClient::DeleteRows(
 {
     THttpHeader header("PUT", "delete_rows");
     header.SetInputFormat(TFormat::YsonBinary());
-    header.MergeParameters(NDetail::SerializeParametersForDeleteRows(path, options));
+    // TODO: use corresponding raw request
+    header.MergeParameters(NRawClient::SerializeParametersForDeleteRows(path, options));
 
     auto body = NodeListToYsonString(keys);
     RetryRequest(Auth_, header, TStringBuf(body), true);
@@ -791,7 +796,8 @@ void TClient::TrimRows(
     THttpHeader header("POST", "trim_rows");
     header.AddParameter("trimmed_row_count", rowCount);
     header.AddParameter("tablet_index", tabletIndex);
-    header.MergeParameters(NDetail::SerializeParametersForTrimRows(path, options));
+    // TODO: use corresponding raw request
+    header.MergeParameters(NRawClient::SerializeParametersForTrimRows(path, options));
     RetryRequest(Auth_, header, Nothing(), true);
 }
 
@@ -869,9 +875,10 @@ void TClient::DisableTableReplica(const TReplicaId& replicaid)
 
 void TClient::AlterTableReplica(const TReplicaId& replicaId, const TAlterTableReplicaOptions& options)
 {
+    // TODO: use corresponding raw method
     THttpHeader header("POST", "alter_table_replica");
     header.AddMutationId();
-    header.MergeParameters(NDetail::SerializeParamsForAlterTableReplica(replicaId, options));
+    header.MergeParameters(NRawClient::SerializeParamsForAlterTableReplica(replicaId, options));
     RetryRequest(Auth_, header);
 }
 
@@ -900,20 +907,20 @@ TOperationAttributes TClient::GetOperation(
     const TOperationId& operationId,
     const TGetOperationOptions& options)
 {
-    return NYT::NDetail::GetOperation(Auth_, operationId, options);
+    return NRawClient::GetOperation(Auth_, operationId, options);
 }
 
 TListOperationsResult TClient::ListOperations(
     const TListOperationsOptions& options)
 {
-    return NYT::NDetail::ListOperations(Auth_, options);
+    return NRawClient::ListOperations(Auth_, options);
 }
 
 void TClient::UpdateOperationParameters(
     const TOperationId& operationId,
     const TUpdateOperationParametersOptions& options)
 {
-    return NYT::NDetail::UpdateOperationParameters(Auth_, operationId, options);
+    return NRawClient::UpdateOperationParameters(Auth_, operationId, options);
 }
 
 TJobAttributes TClient::GetJob(
@@ -921,21 +928,21 @@ TJobAttributes TClient::GetJob(
     const TJobId& jobId,
     const TGetJobOptions& options)
 {
-    return NYT::NDetail::GetJob(Auth_, operationId, jobId, options);
+    return NRawClient::GetJob(Auth_, operationId, jobId, options);
 }
 
 TListJobsResult TClient::ListJobs(
     const TOperationId& operationId,
     const TListJobsOptions& options)
 {
-    return NYT::NDetail::ListJobs(Auth_, operationId, options);
+    return NRawClient::ListJobs(Auth_, operationId, options);
 }
 
 IFileReaderPtr TClient::GetJobInput(
     const TJobId& jobId,
     const TGetJobInputOptions& options)
 {
-    return NYT::NDetail::GetJobInput(Auth_, jobId, options);
+    return NRawClient::GetJobInput(Auth_, jobId, options);
 }
 
 IFileReaderPtr TClient::GetJobFailContext(
@@ -943,7 +950,7 @@ IFileReaderPtr TClient::GetJobFailContext(
     const TJobId& jobId,
     const TGetJobFailContextOptions& options)
 {
-    return NYT::NDetail::GetJobFailContext(Auth_, operationId, jobId, options);
+    return NRawClient::GetJobFailContext(Auth_, operationId, jobId, options);
 }
 
 IFileReaderPtr TClient::GetJobStderr(
@@ -951,7 +958,7 @@ IFileReaderPtr TClient::GetJobStderr(
     const TJobId& jobId,
     const TGetJobStderrOptions& options)
 {
-    return NYT::NDetail::GetJobStderr(Auth_, operationId, jobId, options);
+    return NRawClient::GetJobStderr(Auth_, operationId, jobId, options);
 }
 
 TMaybe<TYPath> TClient::GetFileFromCache(
@@ -959,7 +966,7 @@ TMaybe<TYPath> TClient::GetFileFromCache(
     const TYPath& cachePath,
     const TGetFileFromCacheOptions& options)
 {
-    return NYT::NDetail::GetFileFromCache(Auth_, md5Signature, cachePath, options);
+    return NRawClient::GetFileFromCache(Auth_, md5Signature, cachePath, options);
 }
 
 TYPath TClient::PutFileToCache(
@@ -968,7 +975,7 @@ TYPath TClient::PutFileToCache(
     const TYPath& cachePath,
     const TPutFileToCacheOptions& options)
 {
-    return NYT::NDetail::PutFileToCache(Auth_, filePath, md5Signature, cachePath, options);
+    return NRawClient::PutFileToCache(Auth_, filePath, md5Signature, cachePath, options);
 }
 
 TYtPoller& TClient::GetYtPoller()

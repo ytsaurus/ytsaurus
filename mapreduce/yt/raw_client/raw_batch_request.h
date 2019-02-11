@@ -13,13 +13,12 @@
 
 #include <exception>
 
-namespace NYT {
-namespace NDetail {
+namespace NYT::NDetail {
+    struct IRetryPolicy;
+    struct TResponseInfo;
+}
 
-////////////////////////////////////////////////////////////////////////////////
-
-struct IRetryPolicy;
-struct TResponseInfo;
+namespace NYT::NDetail::NRawClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -158,5 +157,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDetail
-} // namespace NYT
+} // namespace NYT::NDetail::NRawClient

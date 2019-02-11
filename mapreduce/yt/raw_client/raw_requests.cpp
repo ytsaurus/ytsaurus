@@ -11,8 +11,7 @@
 #include <mapreduce/yt/interface/serialize.h>
 #include <mapreduce/yt/node/node_io.h>
 
-namespace NYT {
-namespace NDetail {
+namespace NYT::NDetail::NRawClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -38,7 +37,7 @@ void ExecuteBatch(
     }
 
     while (batchRequest.BatchSize()) {
-        NDetail::TRawBatchRequest retryBatch;
+        TRawBatchRequest retryBatch;
 
         while (batchRequest.BatchSize()) {
             auto parameters = TNode::CreateMap();
@@ -74,7 +73,7 @@ TNode Get(
     IRetryPolicy* retryPolicy)
 {
     THttpHeader header("GET", "get");
-    header.MergeParameters(NDetail::SerializeParamsForGet(transactionId, path, options));
+    header.MergeParameters(SerializeParamsForGet(transactionId, path, options));
     return NodeFromYsonString(RetryRequestWithPolicy(auth, header, "", retryPolicy).Response);
 }
 
@@ -88,7 +87,7 @@ void Set(
 {
     THttpHeader header("PUT", "set");
     header.AddMutationId();
-    header.MergeParameters(NDetail::SerializeParamsForSet(transactionId, path, options));
+    header.MergeParameters(SerializeParamsForSet(transactionId, path, options));
     auto body = NodeToYsonString(value);
     RetryRequestWithPolicy(auth, header, body, retryPolicy);
 }
@@ -100,7 +99,7 @@ bool Exists(
     IRetryPolicy* retryPolicy)
 {
     THttpHeader header("GET", "exists");
-    header.MergeParameters(NDetail::SerializeParamsForExists(transactionId, path));
+    header.MergeParameters(SerializeParamsForExists(transactionId, path));
     return ParseBoolFromResponse(RetryRequestWithPolicy(auth, header, "", retryPolicy).Response);
 }
 
@@ -114,7 +113,7 @@ TNodeId Create(
 {
     THttpHeader header("POST", "create");
     header.AddMutationId();
-    header.MergeParameters(NDetail::SerializeParamsForCreate(transactionId, path, type, options));
+    header.MergeParameters(SerializeParamsForCreate(transactionId, path, type, options));
     return ParseGuidFromResponse(RetryRequestWithPolicy(auth, header, "", retryPolicy).Response);
 }
 
@@ -127,7 +126,7 @@ void Remove(
 {
     THttpHeader header("POST", "remove");
     header.AddMutationId();
-    header.MergeParameters(NDetail::SerializeParamsForRemove(transactionId, path, options));
+    header.MergeParameters(SerializeParamsForRemove(transactionId, path, options));
     RetryRequestWithPolicy(auth, header, "", retryPolicy);
 }
 
@@ -146,7 +145,7 @@ TNode::TListType List(
     if (path.empty() && updatedPath.EndsWith('/')) {
         updatedPath.pop_back();
     }
-    header.MergeParameters(NDetail::SerializeParamsForList(transactionId, updatedPath, options));
+    header.MergeParameters(SerializeParamsForList(transactionId, updatedPath, options));
     auto result = RetryRequestWithPolicy(auth, header, "", retryPolicy);
     return NodeFromYsonString(result.Response).AsList();
 }
@@ -161,7 +160,7 @@ TNodeId Link(
 {
     THttpHeader header("POST", "link");
     header.AddMutationId();
-    header.MergeParameters(NDetail::SerializeParamsForLink(transactionId, targetPath, linkPath, options));
+    header.MergeParameters(SerializeParamsForLink(transactionId, targetPath, linkPath, options));
     return ParseGuidFromResponse(RetryRequestWithPolicy(auth, header, "", retryPolicy).Response);
 }
 
@@ -175,7 +174,7 @@ TLockId Lock(
 {
     THttpHeader header("POST", "lock");
     header.AddMutationId();
-    header.MergeParameters(NDetail::SerializeParamsForLock(transactionId, path, mode, options));
+    header.MergeParameters(SerializeParamsForLock(transactionId, path, mode, options));
     return ParseGuidFromResponse(RetryRequestWithPolicy(auth, header, "", retryPolicy).Response);
 }
 
@@ -185,7 +184,7 @@ void PingTx(
     IRetryPolicy* retryPolicy)
 {
     THttpHeader header("POST", "ping_tx");
-    header.MergeParameters(NDetail::SerializeParamsForPingTx(transactionId));
+    header.MergeParameters(SerializeParamsForPingTx(transactionId));
     TRequestConfig requestConfig;
     requestConfig.SocketTimeout = TConfig::Get()->PingTimeout;
     RetryRequestWithPolicy(auth, header, "", retryPolicy, requestConfig);
@@ -287,7 +286,7 @@ TOperationAttributes GetOperation(
     IRetryPolicy* retryPolicy)
 {
     THttpHeader header("GET", "get_operation");
-    header.MergeParameters(NDetail::SerializeParamsForGetOperation(operationId, options));
+    header.MergeParameters(SerializeParamsForGetOperation(operationId, options));
     auto result = RetryRequestWithPolicy(auth, header, "", retryPolicy);
     return ParseOperationAttributes(NodeFromYsonString(result.Response));
 }
@@ -296,7 +295,7 @@ void AbortOperation(const TAuth& auth, const TOperationId& operationId)
 {
     THttpHeader header("POST", "abort_op");
     header.AddMutationId();
-    header.MergeParameters(NDetail::SerializeParamsForAbortOperation(operationId));
+    header.MergeParameters(SerializeParamsForAbortOperation(operationId));
     RetryRequest(auth, header);
 }
 
@@ -304,7 +303,7 @@ void CompleteOperation(const TAuth& auth, const TOperationId& operationId)
 {
     THttpHeader header("POST", "complete_op");
     header.AddMutationId();
-    header.MergeParameters(NDetail::SerializeParamsForCompleteOperation(operationId));
+    header.MergeParameters(SerializeParamsForCompleteOperation(operationId));
     RetryRequest(auth, header);
 }
 
@@ -324,7 +323,7 @@ TListOperationsResult ListOperations(
     IRetryPolicy* retryPolicy)
 {
     THttpHeader header("GET", "list_operations");
-    header.MergeParameters(NDetail::SerializeParamsForListOperations(options));
+    header.MergeParameters(SerializeParamsForListOperations(options));
     auto responseInfo = RetryRequestWithPolicy(auth, header, "", retryPolicy);
     auto resultNode = NodeFromYsonString(responseInfo.Response);
 
@@ -361,7 +360,7 @@ void UpdateOperationParameters(
     IRetryPolicy* retryPolicy)
 {
     THttpHeader header("POST", "update_op_parameters");
-    header.MergeParameters(NDetail::SerializeParamsForUpdateOperationParameters(operationId, options));
+    header.MergeParameters(SerializeParamsForUpdateOperationParameters(operationId, options));
     RetryRequestWithPolicy(auth, header, "", retryPolicy);
 }
 
@@ -372,7 +371,7 @@ TNode ListJobsOld(
     IRetryPolicy* retryPolicy)
 {
     THttpHeader header("GET", "list_jobs");
-    header.MergeParameters(NDetail::SerializeParamsForListJobs(operationId, options));
+    header.MergeParameters(SerializeParamsForListJobs(operationId, options));
     auto responseInfo = RetryRequestWithPolicy(auth, header, "", retryPolicy);
     return NodeFromYsonString(responseInfo.Response);
 }
@@ -456,7 +455,7 @@ TJobAttributes GetJob(
     IRetryPolicy* retryPolicy)
 {
     THttpHeader header("GET", "get_job");
-    header.MergeParameters(NDetail::SerializeParamsForGetJob(operationId, jobId, options));
+    header.MergeParameters(SerializeParamsForGetJob(operationId, jobId, options));
     auto responseInfo = RetryRequestWithPolicy(auth, header, "", retryPolicy);
     auto resultNode = NodeFromYsonString(responseInfo.Response);
     return ParseJobAttributes(resultNode);
@@ -469,7 +468,7 @@ TListJobsResult ListJobs(
     IRetryPolicy* retryPolicy)
 {
     THttpHeader header("GET", "list_jobs");
-    header.MergeParameters(NDetail::SerializeParamsForListJobs(operationId, options));
+    header.MergeParameters(SerializeParamsForListJobs(operationId, options));
     auto responseInfo = RetryRequestWithPolicy(auth, header, "", retryPolicy);
     auto resultNode = NodeFromYsonString(responseInfo.Response);
 
@@ -606,5 +605,4 @@ TYPath PutFileToCache(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDetail
-} // namespace NYT
+} // namespace NYT::NDetail::NRawClient

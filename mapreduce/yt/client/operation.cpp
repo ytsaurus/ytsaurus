@@ -63,6 +63,8 @@
 namespace NYT {
 namespace NDetail {
 
+using namespace NRawClient;
+
 static const ui64 DefaultExrtaTmpfsSize = 1024LL * 1024LL;
 static const bool LockCachedFilesWhenStartingOperation = false;
 
@@ -475,7 +477,7 @@ private:
 
     void CreateStorage() const
     {
-        NYT::NDetail::Create(OperationPreparer_.GetAuth(), Options_.FileStorageTransactionId_, GetCachePath(), NT_MAP,
+        Create(OperationPreparer_.GetAuth(), Options_.FileStorageTransactionId_, GetCachePath(), NT_MAP,
             TCreateOptions()
             .IgnoreExisting(true)
             .Recursive(true));

@@ -3,8 +3,7 @@
 #include <mapreduce/yt/interface/fwd.h>
 #include <mapreduce/yt/interface/client_method_options.h>
 
-namespace NYT {
-namespace NDetail {
+namespace NYT::NDetail::NRawClient {
 
 ////////////////////////////////////////////////////////////////////
 
@@ -132,5 +131,4 @@ TNode SerializeParamsForPutFileToCache(
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NDetail
-} // namespace NYT
+} // namespace NYT::NDetail::NRawClient

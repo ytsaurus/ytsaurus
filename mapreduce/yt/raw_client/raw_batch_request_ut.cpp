@@ -8,6 +8,7 @@
 
 using namespace NYT;
 using namespace NYT::NDetail;
+using namespace NYT::NDetail::NRawClient;
 
 
 class TTestRetryPolicy

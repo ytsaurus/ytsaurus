@@ -28,6 +28,8 @@
 namespace NYT {
 namespace NDetail {
 
+using namespace NRawClient;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NSkiff::TSkiffSchemaPtr ReadSkiffSchema(const TString& fileName)

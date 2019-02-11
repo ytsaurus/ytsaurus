@@ -9,6 +9,8 @@
 namespace NYT {
 namespace NDetail {
 
+using namespace NRawClient;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransactionAbortable::TTransactionAbortable(const TAuth& auth, const TTransactionId& transactionId)

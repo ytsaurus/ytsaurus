@@ -61,7 +61,7 @@ public:
             WriteTransaction_.ConstructInPlace(auth, parentId);
             auto append = path.Append_.GetOrElse(false);
             auto lockMode = (append  ? LM_SHARED : LM_EXCLUSIVE);
-            NDetail::Lock(Auth_, WriteTransaction_->GetId(), path.Path_, lockMode, TLockOptions());
+            NDetail::NRawClient::Lock(Auth_, WriteTransaction_->GetId(), path.Path_, lockMode, TLockOptions());
         }
 
         EmptyBuffers_.Push(TBuffer(bufferSize * 2));

@@ -13,8 +13,7 @@
 #include <util/generic/guid.h>
 #include <util/string/cast.h>
 
-namespace NYT {
-namespace NDetail {
+namespace NYT::NDetail::NRawClient {
 
 ////////////////////////////////////////////////////////////////////
 
@@ -549,5 +548,4 @@ TNode SerializeParamsForPutFileToCache(
         ("cache_path", cachePath);
 }
 
-} // namespace NDetail
-} // namespace NYT
+} // namespace NYT::NDetail::NRawClient

@@ -11,7 +11,9 @@
 namespace NYT {
 namespace NDetail {
 
-class TRawBatchRequest;
+namespace NRawClient {
+    class TRawBatchRequest;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,7 +29,7 @@ public:
 public:
     virtual ~IYtPollerItem() = default;
 
-    virtual void PrepareRequest(TRawBatchRequest* batchRequest) = 0;
+    virtual void PrepareRequest(NRawClient::TRawBatchRequest* batchRequest) = 0;
 
     // Should return PollContinue if poller should continue polling this item.
     // Should return PollBreak if poller should stop polling this item.
