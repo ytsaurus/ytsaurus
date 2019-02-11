@@ -3,7 +3,7 @@
 #include <yt/core/concurrency/fork_aware_spinlock.h>
 
 extern "C" {
-#include <yt/contrib/jerasure/jerasure.h>
+#include <contrib/libs/jerasure/jerasure.h>
 }
 
 namespace NYT::NErasure {
