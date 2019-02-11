@@ -679,7 +679,7 @@ public:
         NScheduler::ValidateOperationAccess(
             user,
             operationId,
-            /* jobId */ std::nullopt,
+            TJobId(),
             permission,
             GetOperationOrThrow(operationId)->GetAcl(),
             Bootstrap_->GetMasterClient(),

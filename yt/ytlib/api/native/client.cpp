@@ -4436,7 +4436,7 @@ private:
 
         NScheduler::ValidateOperationAccess(
             /* user */ std::nullopt,
-            /* operationId */ std::nullopt,
+            TOperationId(),
             jobId,
             permissions,
             acl,
