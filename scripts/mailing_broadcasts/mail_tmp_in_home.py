@@ -57,38 +57,47 @@ def make_stat(output_path, cluster):
         return 0, 0
 
     yt.config["proxy"]["url"] = cluster
-    rx = re.compile("//home/[^/]+")
     result = {}
-    folders = yt.search("//home",
-                        object_filter=lambda obj: obj.attributes.get("account") == "tmp",
-                        attributes=["account"])
-    for folder in folders:
+    paths = yt.search("//home",
+                      object_filter=lambda obj: obj.attributes.get("account") == "tmp",
+                      attributes=["account"])
+    for path in paths:
         try:
-            if not yt.exists(folder):
-                print "skip", folder
+            if not yt.exists(path):
+                print "skip cause doesn't exists", path
                 continue
 
-            prefix = rx.match(folder).group()
+            proper_parent = yt.ypath_dirname(path)
+            account = yt.get(proper_parent + "/@account")
+            while account == "tmp":
+                proper_parent = yt.ypath_dirname(proper_parent)
+                account = yt.get(proper_parent + "/@account")
 
-            if prefix in result:
-                result[prefix]["paths"].append(folder)
-                pair = get_disk_and_chunks(folder)
-                result[prefix]["disk_space"] += pair[0]
-                result[prefix]["chunk_count"] += pair[1]
+            if proper_parent == "//home":
+                raise Exception("Found folder with tmp account in //home !!!")
+
+            if account in result:
+                result[account]["paths"].append(path)
+                pair = get_disk_and_chunks(path)
+                result[account]["disk_space"] += pair[0]
+                result[account]["chunk_count"] += pair[1]
                 continue
 
-            account = yt.get(prefix + "/@account")
-            responsibles = yt.get("//sys/accounts/" + account + "/@responsibles") if yt.exists("//sys/accounts/" + account + "/@responsibles") else []
-            pair = get_disk_and_chunks(folder)
-            result[prefix] = {
+            print "Adding new account: " + account
+            if not yt.exists("//sys/accounts/" + account + "/@responsibles"):
+                raise Exception("Account " + account + "has no responsibles!!")
+
+            responsibles = yt.get("//sys/accounts/" + account + "/@responsibles")
+            pair = get_disk_and_chunks(path)
+            result[account] = {
                 "account": account,
-                "paths": [folder],
+                "paths": [path],
                 "disk_space": pair[0],
                 "chunk_count": pair[1],
                 "responsibles": responsibles
             }
         except:
-            print "bug on " + folder
+            print "bug on " + path
             raise
     json.dump(result, open(output_path, 'w'), indent=True)
 
