@@ -51,7 +51,14 @@ public:
 
     TFuture<void> Stop()
     {
-        TerminationPromise_.Set(TError("Node directory synchronizer terminated"));
+
+        {
+            auto guard = Guard(SpinLock_);
+            Stopped_ = true;
+            if (TerminationFuture_) {
+                TerminationFuture_.Cancel();
+            }
+        }
         return SyncExecutor_->Stop();
     }
 
@@ -61,7 +68,10 @@ private:
     const TNodeDirectoryPtr NodeDirectory_;
 
     const TPeriodicExecutorPtr SyncExecutor_;
-    TPromise<TClusterMeta> TerminationPromise_ = NewPromise<TClusterMeta>();
+
+    TSpinLock SpinLock_;
+    bool Stopped_ = false;
+    TFuture<TClusterMeta> TerminationFuture_;
 
     void DoSync()
     {
@@ -73,13 +83,15 @@ private:
             options.PopulateNodeDirectory = true;
             auto asyncMeta = DirectoryClient_->GetClusterMeta(options);
 
-            // NB(psushin): the trick with TerminationPromise_ allows us to immediately terminate synchronizer,
-            // e.g. when we get stuck in very long sequence of retries.
-            auto promise = NewPromise<TClusterMeta>();
-            promise.TrySetFrom(TerminationPromise_.ToFuture());
-            promise.TrySetFrom(asyncMeta);
+            {
+                auto guard = Guard(SpinLock_);
+                if (Stopped_) {
+                    return;
+                }
+                TerminationFuture_ = std::move(asyncMeta);
+            }
 
-            auto meta = WaitFor(promise.ToFuture())
+            auto meta = WaitFor(TerminationFuture_)
                 .ValueOrThrow();
 
             NodeDirectory_->MergeFrom(*meta.NodeDirectory);
