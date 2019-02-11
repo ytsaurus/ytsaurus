@@ -3,8 +3,8 @@
 #include "jerasure.h"
 
 extern "C" {
-#include <yt/contrib/jerasure/jerasure.h>
-#include <yt/contrib/jerasure/cauchy.h>
+#include <contrib/libs/jerasure/jerasure.h>
+#include <contrib/libs/jerasure/cauchy.h>
 }
 
 #include <algorithm>
