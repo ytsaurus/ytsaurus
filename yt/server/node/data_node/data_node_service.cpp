@@ -1286,7 +1286,7 @@ private:
 
         context->SetRequestInfo("PeerNodeId: %v, PeerAddress: %v, ExpirationTime: %v, BlockCount: %v",
             request->peer_node_id(),
-            (nodeDescriptor ? nodeDescriptor : &NullNodeDescriptor)->GetDefaultAddress(),
+            (nodeDescriptor ? nodeDescriptor : &NullNodeDescriptor())->GetDefaultAddress(),
             expirationTime,
             request->block_ids_size());
 

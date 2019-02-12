@@ -49,7 +49,7 @@ void TPeerBlockTable::UpdatePeer(const TBlockId& blockId, const TPeerInfo& peer)
     YT_LOG_DEBUG("Updating peer (BlockId: %v, NodeId: %v, Address: %v, ExpirationTime: %v)",
         blockId,
         peer.NodeId,
-        (nodeDescriptor ? nodeDescriptor : &NullNodeDescriptor)->GetDefaultAddress(),
+        (nodeDescriptor ? nodeDescriptor : &NullNodeDescriptor())->GetDefaultAddress(),
         peer.ExpirationTime);
 
     SweepAllExpiredPeers();
