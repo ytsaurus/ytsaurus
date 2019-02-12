@@ -53,7 +53,9 @@ private:
     std::vector<TString> Tags_;
 };
 
-extern const TNodeDescriptor NullNodeDescriptor;
+const TNodeDescriptor& NullNodeDescriptor();
+
+////////////////////////////////////////////////////////////////////////////////
 
 bool operator == (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs);
 bool operator != (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs);
