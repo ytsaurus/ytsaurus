@@ -158,14 +158,10 @@ message TCacheResource {
 }
 
 message TLayer {
+    reserved 2;
+
     // Уникальный идентификатор (произвольная строка)
     string Id = 1;
-
-    // Мы хотим избавиться от вложенности TResource в TLayer https://st.yandex-team.ru/ISS-6264
-    // Поэтому в будующем это поле будет удалено
-    // Сейчас при наличии этого поля в спеке, информация будет браться из него, иначе из остальных полей
-    // Поле Verification.CheckPeriodMs игнорируется
-    TResource Resource = 2;
 
     //не нужно для Pod-agent
     TResourceMeta Meta = 3; // Мета информация о ресурсе, необходимо для интеграции с CI/CD
