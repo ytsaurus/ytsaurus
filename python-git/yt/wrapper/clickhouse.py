@@ -11,7 +11,7 @@ from tempfile import NamedTemporaryFile
 
 DEFAULT_CPU_LIMIT = 8
 DEFAULT_MEMORY_LIMIT = 15 * 2 ** 30
-MEMORY_FOOTPRINT = 2 * 2 ** 30
+MEMORY_FOOTPRINT = 16 * 2 ** 30
 DEFAULT_CYPRESS_BASE_CONFIG_PATH = "//sys/clickhouse/config"
 
 
