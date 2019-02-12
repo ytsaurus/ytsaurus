@@ -1003,6 +1003,11 @@ public:
         TUser* user,
         EPermission permission)
     {
+        if (IsVersionedType(object->GetType()) && object->IsForeign()) {
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Checking permission for a versioned foreign object (ObjectId: %v)",
+                object->GetId());
+        }
+        
         TPermissionCheckResult result;
         if (FastChecksPassed(user, permission, &result)) {
             return result;
