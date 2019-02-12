@@ -30,13 +30,12 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString NullAddress("<null>");
-const TNodeDescriptor NullNodeDescriptor(NullAddress);
+const TNodeDescriptor NullNodeDescriptor(TString("<null>"));
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TNodeDescriptor::TNodeDescriptor()
-    : DefaultAddress_(NullAddress)
+    : DefaultAddress_(NullNodeDescriptor.GetDefaultAddress())
 { }
 
 TNodeDescriptor::TNodeDescriptor(const TString& defaultAddress)
@@ -117,7 +116,7 @@ void TNodeDescriptor::Persist(const TStreamPersistenceContext& context)
 void FormatValue(TStringBuilder* builder, const TNodeDescriptor& descriptor, TStringBuf /*spec*/)
 {
     if (descriptor.IsNull()) {
-        builder->AppendString(NullAddress);
+        builder->AppendString(NullNodeDescriptor.GetDefaultAddress());
         return;
     }
 
@@ -140,7 +139,7 @@ TString ToString(const TNodeDescriptor& descriptor)
 const TString& GetDefaultAddress(const TAddressMap& addresses)
 {
     if (addresses.empty()) {
-        return NullAddress;
+        return NullNodeDescriptor.GetDefaultAddress();
     }
     auto it = addresses.find(DefaultNetworkName);
     YCHECK(it != addresses.end());
@@ -150,7 +149,7 @@ const TString& GetDefaultAddress(const TAddressMap& addresses)
 const TString& GetDefaultAddress(const NProto::TAddressMap& addresses)
 {
     if (addresses.entries_size() == 0) {
-        return NullAddress;
+        return NullNodeDescriptor.GetDefaultAddress();
     }
     for (const auto& entry : addresses.entries()) {
         if (entry.network() == DefaultNetworkName) {
