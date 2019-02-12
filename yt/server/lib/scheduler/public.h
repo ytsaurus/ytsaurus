@@ -56,6 +56,7 @@ DEFINE_ENUM(EOperationAlertType,
     (OperationPending)
     (OperationCompletedByUserRequest)
     (OperationBannedInTentativeTree)
+    (OwnersInSpecIgnored)
 );
 
 DEFINE_ENUM(EAgentToSchedulerOperationEventType,
