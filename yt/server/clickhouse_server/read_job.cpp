@@ -124,7 +124,11 @@ TTableReaderList CreateJobTableReaders(
         YCHECK(false);
     }
 
-    YT_LOG_DEBUG("Per-thread stripes prepared (Count: %v)", chunkStripeList->Stripes.size());
+    i64 totalDataSliceCount = 0;
+    for (const auto& stripe : chunkStripeList->Stripes) {
+        totalDataSliceCount += stripe->DataSlices.size();
+    }
+    YT_LOG_DEBUG("Per-thread stripes prepared (Count: %v, TotalDataSliceCount: %v)", chunkStripeList->Stripes.size(), totalDataSliceCount);
 
     auto schema = readJobSpec.GetCommonNativeSchema();
 

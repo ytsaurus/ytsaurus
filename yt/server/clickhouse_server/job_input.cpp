@@ -380,10 +380,7 @@ NChunkPools::TChunkStripeListPtr BuildJobs(
     for (int jobIndex = 0; jobIndex < jobCount; ++jobIndex) {
         auto currentStripe = New<TChunkStripe>();
         remainingStripeDataWeight += totalDataWeight / jobCount;
-        if (jobIndex + 1 == jobCount) {
-            // Make sure that the last job gets all of the remaining data.
-            remainingStripeDataWeight = totalDataWeight + 1;
-        }
+        bool takeAllRemaining = jobIndex + 1 == jobCount;
         while (true) {
             if (currentDataSliceIndex == static_cast<int>(dataSlices.size())) {
                 break;
@@ -394,21 +391,31 @@ NChunkPools::TChunkStripeListPtr BuildJobs(
             const auto& upperLimit = inputChunk->UpperLimit();
             i64 dataSliceLowerRowIndex = lowerLimit && lowerLimit->HasRowIndex() ? lowerLimit->GetRowIndex() : 0;
             i64 dataSliceUpperRowIndex = upperLimit && upperLimit->HasRowIndex() ? upperLimit->GetRowIndex() : inputChunk->GetRowCount();
+            if (dataSliceLowerRowIndex >= dataSliceUpperRowIndex) {
+                currentDataSliceIndex++;
+                continue;
+            }
+
             if (currentLowerRowIndex == -1) {
                 currentLowerRowIndex = dataSliceLowerRowIndex;
             }
 
-            i64 upperRowIndex = std::min<i64>(
-                dataSliceUpperRowIndex,
-                currentLowerRowIndex + static_cast<double>(dataSlice->GetRowCount()) / dataSlice->GetDataWeight() * remainingStripeDataWeight);
+            i64 upperRowIndex = -1;
+            if (takeAllRemaining) {
+                upperRowIndex = dataSliceUpperRowIndex;
+            } else {
+                upperRowIndex = std::min<i64>(
+                    dataSliceUpperRowIndex,
+                    currentLowerRowIndex + static_cast<double>(dataSlice->GetRowCount()) / dataSlice->GetDataWeight() * remainingStripeDataWeight);
+            }
             // Take at least one row into the job.
             upperRowIndex = std::max(upperRowIndex, currentLowerRowIndex + 1);
 
             i64 currentDataWeight =
                 static_cast<double>(upperRowIndex - currentLowerRowIndex) / dataSlice->GetRowCount() * dataSlice->GetDataWeight();
             bool finalDataSlice = false;
-            if (upperRowIndex < dataSlice->GetRowCount() ||
-                (upperRowIndex == dataSlice->GetRowCount() && currentDataSliceIndex == static_cast<int>(dataSlices.size())))
+            if (upperRowIndex < dataSliceUpperRowIndex ||
+                (upperRowIndex == dataSliceUpperRowIndex && currentDataSliceIndex == static_cast<int>(dataSlices.size()) - 1))
             {
                 currentDataWeight = remainingStripeDataWeight;
                 finalDataSlice = true;
