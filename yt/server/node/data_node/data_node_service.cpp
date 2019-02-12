@@ -1282,11 +1282,11 @@ private:
         TPeerInfo peer(request->peer_node_id(), expirationTime);
 
         const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();
-        auto maybeNodeDescriptor = nodeDirectory->FindDescriptor(request->peer_node_id());
+        const auto* nodeDescriptor = nodeDirectory->FindDescriptor(request->peer_node_id());
 
-        context->SetRequestInfo("PeerNodeId: %v, Descriptor: %v, ExpirationTime: %v, BlockCount: %v",
+        context->SetRequestInfo("PeerNodeId: %v, PeerAddress: %v, ExpirationTime: %v, BlockCount: %v",
             request->peer_node_id(),
-            maybeNodeDescriptor,
+            (nodeDescriptor ? nodeDescriptor : &NullNodeDescriptor)->GetDefaultAddress(),
             expirationTime,
             request->block_ids_size());
 
