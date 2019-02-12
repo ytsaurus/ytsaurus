@@ -151,8 +151,6 @@ public:
 
     virtual bool Write(TRange<TUnversionedRow> rows) override;
     virtual TFuture<void> GetReadyEvent() override;
-    virtual const TNameTablePtr& GetNameTable() const override;
-    virtual const TTableSchema& GetSchema() const override;
     virtual TBlob GetContext() const override;
     virtual i64 GetWrittenSize() const override;
     virtual TFuture<void> Close() override;
@@ -235,16 +233,6 @@ bool TSchemalessWriterForWebJson::Write(TRange<TUnversionedRow> rows)
 TFuture<void> TSchemalessWriterForWebJson::GetReadyEvent()
 {
     return MakeFuture(Error_);
-}
-
-const TTableSchema& TSchemalessWriterForWebJson::GetSchema() const
-{
-    Y_UNREACHABLE();
-}
-
-const TNameTablePtr& TSchemalessWriterForWebJson::GetNameTable() const
-{
-    return NameTable_;
 }
 
 TBlob TSchemalessWriterForWebJson::GetContext() const

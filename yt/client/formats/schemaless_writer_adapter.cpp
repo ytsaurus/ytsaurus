@@ -71,16 +71,6 @@ TFuture<void> TSchemalessFormatWriterBase::Close()
     return MakeFuture(Error_);
 }
 
-const TTableSchema& TSchemalessFormatWriterBase::GetSchema() const
-{
-    Y_UNREACHABLE();
-}
-
-const TNameTablePtr& TSchemalessFormatWriterBase::GetNameTable() const
-{
-    return NameTable_;
-}
-
 TBlobOutput* TSchemalessFormatWriterBase::GetOutputStream()
 {
     return &CurrentBuffer_;

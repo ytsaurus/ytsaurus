@@ -68,12 +68,12 @@ struct TPipeReaderToWriterOptions
 
 void PipeReaderToWriter(
     NApi::ITableReaderPtr reader,
-    IUnversionedWriterPtr writer,
+    IUnversionedRowsetWriterPtr writer,
     const TPipeReaderToWriterOptions& options);
 
 void PipeReaderToWriter(
     ISchemalessChunkReaderPtr reader,
-    IUnversionedWriterPtr writer,
+    IUnversionedRowsetWriterPtr writer,
     const TPipeReaderToWriterOptions& options);
 
 void PipeInputToOutput(

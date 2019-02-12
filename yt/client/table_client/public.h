@@ -180,11 +180,11 @@ DECLARE_REFCOUNTED_CLASS(TRowBuffer)
 
 DECLARE_REFCOUNTED_STRUCT(ISchemalessReader)
 DECLARE_REFCOUNTED_STRUCT(IUnversionedWriter)
+DECLARE_REFCOUNTED_STRUCT(IUnversionedRowsetWriter)
 
-using TSchemalessWriterFactory = std::function<IUnversionedWriterPtr(TNameTablePtr)>;
+using TSchemalessWriterFactory = std::function<IUnversionedRowsetWriterPtr(TNameTablePtr)>;
 
 DECLARE_REFCOUNTED_STRUCT(ISchemafulReader)
-DECLARE_REFCOUNTED_STRUCT(IUnversionedRowsetWriter)
 
 DECLARE_REFCOUNTED_STRUCT(IVersionedReader)
 DECLARE_REFCOUNTED_STRUCT(IVersionedWriter)
