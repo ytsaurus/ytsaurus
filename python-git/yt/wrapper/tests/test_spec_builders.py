@@ -17,8 +17,8 @@ class NonCopyable:
     def __init__(self, fun):
         self._fun = fun
 
-    def __call__(self, *args, **kw):
-        return self._fun(*args, **kw)
+    def __call__(self, *args, **kwargs):
+        return self._fun(*args, **kwargs)
 
     def __deepcopy__(self, _memo):
         raise TypeError("not copyable")

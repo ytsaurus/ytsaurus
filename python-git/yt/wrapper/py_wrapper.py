@@ -3,7 +3,8 @@ from __future__ import print_function
 from . import config
 from .config import get_config
 from .pickling import Pickler
-from .common import get_python_version, YtError, chunk_iter_stream, get_value, which, get_disk_size, is_arcadia_python
+from .common import (get_python_version, YtError, chunk_iter_stream, get_value, which,
+                     get_disk_size, is_arcadia_python)
 from .py_runner_helpers import process_rows
 from .local_mode import is_local_mode, enable_local_files_usage_in_job
 from ._py_runner import get_platform_version, main as run_py_runner
@@ -54,10 +55,9 @@ class TarInfo(tarfile.TarInfo):
         pass
 
 class WrapResult(object):
-    __slots__ = ["cmd", "files", "tmpfs_size", "environment", "local_files_to_remove", "title"]
-    def __init__(self, cmd, files=None, tmpfs_size=0, environment=None, local_files_to_remove=None, title=None):
+    __slots__ = ["cmd", "tmpfs_size", "environment", "local_files_to_remove", "title"]
+    def __init__(self, cmd, tmpfs_size=0, environment=None, local_files_to_remove=None, title=None):
         self.cmd = cmd
-        self.files = files
         self.tmpfs_size = tmpfs_size
         self.environment = environment
         self.local_files_to_remove = local_files_to_remove
@@ -113,23 +113,18 @@ class TempfilesManager(object):
         self._root_directory = directory
 
     def __enter__(self):
-        self._tmp_dir = tempfile.mkdtemp(prefix="yt_python_tmp_files", dir=self._root_directory)
+        self.tmp_dir = tempfile.mkdtemp(prefix="yt_python_tmp_files", dir=self._root_directory)
         # NB: directory should be accesible from jobs in local mode.
-        os.chmod(self._tmp_dir, 0o755)
+        os.chmod(self.tmp_dir, 0o755)
         return self
 
     def __exit__(self, type, value, traceback):
         if self._remove_temp_files:
-            for file in self._tempfiles_pool:
-                try:
-                    os.remove(file)
-                except OSError:
-                    pass
-            shutil.rmtree(self._tmp_dir)
+            shutil.rmtree(self.tmp_dir, ignore_errors=True)
 
     def create_tempfile(self, suffix="", prefix="", dir=None):
         """Use syntax tempfile.mkstemp"""
-        filepath = os.path.join(self._tmp_dir, prefix + suffix)
+        filepath = os.path.join(self.tmp_dir, prefix + suffix)
         if dir == self._root_directory and not os.path.exists(filepath):
             open(filepath, "a").close()
         else:
@@ -536,7 +531,7 @@ def build_main_file_arguments(function, create_temp_file, file_argument_builder)
 
     return [file_argument_builder(main_filename), module_import_path, main_module_type]
 
-def do_wrap(function, tempfiles_manager, local_mode, uploader, params, client):
+def do_wrap(function, tempfiles_manager, local_mode, file_manager, params, client):
     assert params.job_type in ["mapper", "reducer", "reduce_combiner"]
 
     def create_temp_file(prefix="", suffix=""):
@@ -545,7 +540,6 @@ def do_wrap(function, tempfiles_manager, local_mode, uploader, params, client):
             prefix=prefix,
             suffix=suffix)
 
-    uploaded_files = []
     def file_argument_builder(file, caller=False):
         if isinstance(file, str):
             filename = file
@@ -554,7 +548,7 @@ def do_wrap(function, tempfiles_manager, local_mode, uploader, params, client):
         if enable_local_files_usage_in_job(client):
             return os.path.abspath(filename)
         else:
-            uploaded_files.append(uploader(file))
+            file_manager.add_files(file)
             return ("./" if caller else "") + os.path.basename(filename)
 
     is_standalone_binary = SINGLE_INDEPENDENT_BINARY_CASE or \
@@ -602,22 +596,13 @@ def do_wrap(function, tempfiles_manager, local_mode, uploader, params, client):
             file_argument_builder)
 
     cmd = " ".join(caller_arguments + function_and_config_arguments + modules_arguments + main_file_arguments)
-    return WrapResult(cmd=cmd, files=uploaded_files, tmpfs_size=tmpfs_size, environment=environment,
+    return WrapResult(cmd=cmd, tmpfs_size=tmpfs_size, environment=environment,
                       title=title, local_files_to_remove=None)
 
 def wrap(client, **kwargs):
-    local_mode = is_local_mode(client)
-    remove_temp_files = get_config(client)["clear_local_temp_files"] and not local_mode
-
-    with TempfilesManager(remove_temp_files, get_local_temp_directory(client)) as tempfiles_manager:
-        result = do_wrap(tempfiles_manager=tempfiles_manager, client=client, local_mode=local_mode, **kwargs)
-        if enable_local_files_usage_in_job(client):
-            # NOTE: Some temp files can be created inside tmp dir so it is necessary that _tmp_dir goes
-            # after all files from tempfiles pool to ensure their successful removal.
-            result.local_files_to_remove = tempfiles_manager._tempfiles_pool + [tempfiles_manager._tmp_dir]
-        else:
-            result.local_files_to_remove = []
-        return result
+    result = do_wrap(client=client, **kwargs)
+    result.local_files_to_remove = []
+    return result
 
 def enable_python_job_processing_for_standalone_binary():
     """Enables alternative method to run python functions as jobs in YT operations.

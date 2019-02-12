@@ -77,7 +77,7 @@ def test_group_blobs_by_size():
     assert list(group_blobs_by_size(lines, 100)) == [lines]
     assert list(group_blobs_by_size(lines, 3)) == \
            [["ab", "abc"], ["def"], ["ghijklmn"], ["op"]]
-    assert list(group_blobs_by_size(["abcdef"], 2)) == [["abcdef"], []]
+    assert list(group_blobs_by_size(["abcdef"], 2)) == [["abcdef"]]
 
 def test_time_functions():
     now = datetime.now()
