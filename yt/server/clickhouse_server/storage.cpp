@@ -565,6 +565,9 @@ ITableReaderPtr TStorage::DoCreateTableReader(
 
     NApi::TTableReaderOptions readerOptions;
     readerOptions.Unordered = options.Unordered;
+    readerOptions.Config = New<NTableClient::TTableReaderConfig>();
+    // TODO(max42): YT-10134.
+    readerOptions.Config->FetchFromPeers = false;
 
     auto chunkReader = CreateSchemafulTableReader(
         client,
