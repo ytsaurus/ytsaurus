@@ -386,7 +386,7 @@ TEST_F(TSchemalessWriterForWebJson, SkipUnregisteredColumns)
 
     EXPECT_EQ(true, Writer_->Write(rows));
 
-    KeyDId_ = Writer_->GetNameTable()->RegisterName("column_d");
+    KeyDId_ = NameTable_->RegisterName("column_d");
 
     rows.clear();
     row.Reset();

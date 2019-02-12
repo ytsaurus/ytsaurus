@@ -233,7 +233,7 @@ IUnversionedWriterPtr CreateSchemalessFromApiWriterAdapter(
 
 void PipeReaderToWriter(
     NApi::ITableReaderPtr reader,
-    IUnversionedWriterPtr writer,
+    IUnversionedRowsetWriterPtr writer,
     const TPipeReaderToWriterOptions& options)
 {
     TPeriodicYielder yielder(TDuration::Seconds(1));
@@ -286,7 +286,7 @@ void PipeReaderToWriter(
 
 void PipeReaderToWriter(
     ISchemalessChunkReaderPtr reader,
-    IUnversionedWriterPtr writer,
+    IUnversionedRowsetWriterPtr writer,
     const TPipeReaderToWriterOptions& options)
 {
     PipeReaderToWriter(

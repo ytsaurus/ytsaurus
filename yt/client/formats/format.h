@@ -65,7 +65,7 @@ void Deserialize(TFormat& value, NYTree::INodePtr node);
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ISchemalessFormatWriter
-    : public NTableClient::IUnversionedWriter
+    : public NTableClient::IUnversionedRowsetWriter
 {
     virtual TBlob GetContext() const = 0;
 
