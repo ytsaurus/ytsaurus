@@ -611,6 +611,12 @@ public:
             MasterConnector_->GetCancelableControlInvoker(EControlQueue::Operation),
             spec->Alias);
 
+        if (!spec->Owners.empty()) {
+            operation->SetAlert(
+                EOperationAlertType::OwnersInSpecIgnored,
+                TError("\"owners\" field in spec ignored as it was specified simultaneously with \"acl\""));
+        }
+
         operation->SetStateAndEnqueueEvent(EOperationState::Starting);
 
         auto codicilGuard = operation->MakeCodicilGuard();

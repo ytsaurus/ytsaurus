@@ -38,13 +38,15 @@ static void ValidateOperationAcl(const TSerializableAccessControlList& acl)
 void ProcessAclAndOwnersParameters(TSerializableAccessControlList* acl, std::vector<TString>* owners)
 {
     if (!acl->Entries.empty() && !owners->empty()) {
-        THROW_ERROR_EXCEPTION(
-            "\"owners\" is a deprecated field and should not be specified simultaneously with \"acl\"");
+        // COMPAT(levysotsky): Priority is given to |acl| currently.
+        // An error should be thrown here when all the clusters are updated.
+    } else if (!owners->empty()) {
+        acl->Entries.emplace_back(
+            ESecurityAction::Allow,
+            *owners,
+            EPermissionSet(EPermission::Read | EPermission::Manage));
+        owners->clear();
     }
-    if (!owners->empty()) {
-        acl->Entries.emplace_back(ESecurityAction::Allow, *owners, EPermission::Read | EPermission::Manage);
-    }
-    owners->clear();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
