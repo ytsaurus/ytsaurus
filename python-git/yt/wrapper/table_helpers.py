@@ -1,7 +1,8 @@
 from . import py_wrapper
 
 from .batch_helpers import batch_apply, create_batch_client
-from .common import flatten, update, get_value, chunk_iter_stream, require, get_disk_size
+from .common import (NullContext, CustomTqdm, flatten, update, get_value, chunk_iter_stream,
+                     require, get_disk_size)
 from .config import get_config
 from .errors import YtError
 from .format import create_format, YsonFormat, YamrFormat, SkiffFormat
@@ -18,6 +19,7 @@ import yt.yson as yson
 from yt.packages.six import text_type, binary_type, PY3, string_types
 from yt.packages.six.moves import map as imap, zip as izip
 
+import os
 import time
 import types
 from copy import deepcopy
@@ -147,37 +149,105 @@ def _remove_tables(tables, client=None):
 
     batch_apply(remove, tables_to_remove, client=client)
 
-class FileUploader(object):
+class _MultipleFilesProgressBar(object):
+    def __init__(self, total_size, file_count, force=False):
+        self.total_size = total_size
+        self.file_count = file_count
+        self.force = force
+        self._tqdm = None
+        self._current_file_index = 0
+        self._current_filename = None
+
+    def __enter__(self):
+        bar_format = "{l_bar}{bar}| {n_fmt}/{total_fmt}"
+        if self.force:
+            disable = False
+        else:
+            disable = None
+        self._tqdm = CustomTqdm(unit="b", unit_scale=True, disable=disable, bar_format=bar_format,total=self.total_size)
+        self._tqdm.set_description("Starting upload")
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self._tqdm.close()
+        self._tqdm = None
+
+    def _set_status(self, status):
+        self._tqdm.set_description("({}/{}) [{}] {}".format(self._current_file_index, self.file_count, status.upper(),
+                                                            os.path.basename(self._current_filename)))
+
+    def monitor(self, filename):
+        if isinstance(filename, LocalFile):
+            filename = filename.path
+        self._current_file_index += 1
+        self._current_filename = filename
+        return _UploadProgressMonitor(self)
+
+class _UploadProgressMonitor(object):
+    def __init__(self, bar):
+        self._bar = bar
+
+    def start(self):
+        self._bar._set_status("upload")
+
+    def update(self, size):
+        self._bar._tqdm.update(size)
+
+    def finish(self, status="ok"):
+        self._bar._set_status(status)
+
+class FileManager(object):
     def __init__(self, client):
         self.client = client
         self.disk_size = 0
+        self.local_size = 0
+        self.files = []
         self.uploaded_files = []
 
-    def __call__(self, files):
-        if files is None:
+    def add_files(self, files):
+        for file in flatten(files):
+            if isinstance(file, (text_type, binary_type, LocalFile)):
+                file_params = {"filename": file}
+            else:
+                file_params = deepcopy(file)
+            filename = file_params["filename"]
+            local_file = LocalFile(filename)
+            self.local_size += get_disk_size(local_file.path, False)
+            self.disk_size += get_disk_size(local_file.path)
+            self.files.append(file_params)
+    
+    def upload_files(self):
+        if not self.files:
             return []
 
+        enable_progress_bar = get_config(self.client)["write_progress_bar"]["enable"]
+        if enable_progress_bar is False:
+            bar = NullContext()
+        else:
+            force = enable_progress_bar is True
+            bar = _MultipleFilesProgressBar(self.local_size, len(self.files), force)
+
         file_paths = []
-        with Transaction(transaction_id=null_transaction_id,
-                         attributes={"title": "Python wrapper: upload operation files"},
-                         client=self.client):
-            for file in flatten(files):
-                if isinstance(file, (text_type, binary_type, LocalFile)):
-                    file_params = {"filename": file}
-                else:
-                    file_params = deepcopy(file)
-
-                filename = file_params.pop("filename")
-                local_file = LocalFile(filename)
-
-                self.disk_size += get_disk_size(local_file.path)
-
-                path = upload_file_to_cache(filename=local_file.path, client=self.client, **file_params)
-                file_paths.append(yson.to_yson_type(path, attributes={
-                    "executable": is_executable(local_file.path, client=self.client),
-                    "file_name": local_file.file_name,
-                }))
-                self.uploaded_files.append(path)
+        with bar:
+            with Transaction(transaction_id=null_transaction_id,
+                             attributes={"title": "Python wrapper: upload operation files"},
+                             client=self.client):
+                for file_params in self.files:
+                    filename = file_params.pop("filename")
+                    local_file = LocalFile(filename)
+                    if enable_progress_bar is False:
+                        upload_monitor = None
+                    else:
+                        upload_monitor = bar.monitor(filename)
+                    path = upload_file_to_cache(filename=local_file.path,
+                                                progress_monitor=upload_monitor,
+                                                client=self.client,
+                                                **file_params)
+                    file_paths.append(yson.to_yson_type(path, attributes={
+                        "executable": is_executable(local_file.path, client=self.client),
+                        "file_name": local_file.file_name,
+                    }))
+                    self.uploaded_files.append(path)
         return file_paths
 
 def _is_python_function(binary):
@@ -251,7 +321,7 @@ def _prepare_operation_formats(format, input_format, output_format, binary, inpu
 
     return input_format, output_format
 
-def _prepare_binary(binary, file_uploader, params, client=None):
+def _prepare_binary(binary, file_manager, tempfiles_manager, params, local_mode, client=None):
     result = None
     if _is_python_function(binary):
         start_time = time.time()
@@ -260,13 +330,15 @@ def _prepare_binary(binary, file_uploader, params, client=None):
             raise YtError("Yamr format does not support reduce by %r", params.group_by)
         result = \
             py_wrapper.wrap(function=binary,
-                            uploader=file_uploader,
+                            file_manager=file_manager,
+                            tempfiles_manager=tempfiles_manager,
+                            local_mode=local_mode,
                             params=params,
                             client=client)
 
         logger.debug("Collecting python modules and uploading to cypress takes %.2lf seconds", time.time() - start_time)
     else:
-        result = py_wrapper.WrapResult(cmd=binary, files=[], tmpfs_size=0, environment={},
+        result = py_wrapper.WrapResult(cmd=binary, tmpfs_size=0, environment={},
                                        local_files_to_remove=[], title=None)
 
     result.environment["YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB"] = \

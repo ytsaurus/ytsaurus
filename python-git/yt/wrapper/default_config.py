@@ -521,6 +521,11 @@ default_config = {
     "skynet_manager_url": "http://skynet-manager.yt.yandex.net/api/v1",
 
     "enable_logging_for_params_changes": False,
+
+    # Progress bar settings.
+    "write_progress_bar": {
+        "enable": None,
+    },
 }
 
 # pydoc :: default_config :: end

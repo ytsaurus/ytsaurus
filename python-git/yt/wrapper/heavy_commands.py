@@ -1,5 +1,6 @@
 from .config import get_option, get_config, get_total_request_timeout, get_command_param
-from .common import group_blobs_by_size, YtError
+from .common import (CustomTqdm, group_blobs_by_size, split_lines_by_max_size,
+                     stream_or_empty_bytes, YtError, MB)
 from .retries import Retrier, IteratorRetrier, default_chaos_monkey
 from .errors import YtMasterCommunicationError, YtChunkUnavailable
 from .ypath import YPathSupportingAppend
@@ -13,6 +14,71 @@ from .format import YtFormatReadError
 import yt.logger as logger
 
 import time
+import os
+
+class _FakeProgressReporter(object):
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, type, value, traceback):
+        pass
+
+    def wrap_stream(self, stream):
+        return stream
+
+class _ProgressReporter(object):
+    def __init__(self, monitor):
+        self._monitor = monitor
+
+    def __enter__(self):
+        self._monitor.start()
+
+    def __exit__(self, type, value, traceback):
+        self._monitor.finish()
+
+    def wrap_stream(self, stream):
+        # NB: we first split every line in a stream into pieces <= 1 MB,
+        # then merge consequent lines into chunks >= 1 MB.
+        # This way, the resulting chunks' size is between 1 MB and 2 MB.
+        stream_split = split_lines_by_max_size(stream, MB)
+        stream_grouped = group_blobs_by_size(stream_split, MB)
+        for group in stream_grouped:
+            chunk = b"".join(group)
+            self._monitor.update(len(chunk))
+            yield chunk
+
+class _SimpleProgressBar(object):
+    def __init__(self, size_hint=None, filename_hint=None, force=False):
+        self.size_hint = size_hint
+        self.filename_hint = filename_hint
+        self.force = force
+        self._tqdm = None
+
+    def _set_status(self, status):
+        if self.filename_hint:
+            self._tqdm.set_description("[{}]: {}".format(status.upper(), os.path.basename(self.filename_hint)))
+        else:
+            self._tqdm.set_description("[{}]".format(status.upper()))
+
+    def start(self):
+        if self.force:
+            disable = False
+        else:
+            disable = None
+        self._tqdm = CustomTqdm(unit="b", unit_scale=True, disable=disable, total=self.size_hint, leave=False)
+        self._set_status("upload")
+        return self
+
+    def finish(self, status="ok"):
+        self._set_status(status)
+        self._tqdm.close()
+        self._tqdm = None
+
+    def update(self, size):
+        self._tqdm.update(size)
 
 def process_read_exception(exception):
     logger.warning("Read request failed with error: %s", str(exception))
@@ -72,7 +138,12 @@ class WriteRequestRetrier(Retrier):
         self.params = None
 
 def make_write_request(command_name, stream, path, params, create_object, use_retries,
-                       is_stream_compressed=False, client=None):
+                       is_stream_compressed=False, size_hint=None, filename_hint=None,
+                       progress_monitor=None, client=None):
+    # NB: if stream is empty, we still want to make an empty write, e.g. for `write_table(name, [])`.
+    # So, if stream is empty, we explicitly make it b"".
+    stream = stream_or_empty_bytes(stream)
+
     path = YPathSupportingAppend(path, client=client)
     transaction_timeout = get_total_request_timeout(client)
 
@@ -90,42 +161,52 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
         if not created:
             create_object(path, client)
         params["path"] = path
-        if use_retries:
-            chunk_size = get_config(client)["write_retries"]["chunk_size"]
 
-            write_action = lambda chunk, params: _make_transactional_request(
-                command_name,
-                params,
-                data=iter(chunk),
-                is_data_compressed=is_stream_compressed,
-                use_heavy_proxy=True,
-                client=client)
-
-            runner = WriteRequestRetrier(transaction_timeout=transaction_timeout,
-                                         write_action=write_action,
-                                         client=client)
-            for chunk in group_blobs_by_size(stream, chunk_size):
-                assert isinstance(chunk, list)
-                logger.debug(
-                    "Processing {0} chunk (length: {1}, transaction: {2})"
-                    .format(command_name, len(chunk), get_command_param("transaction_id", client)))
-
-                runner.run_write_action(chunk, params)
-                params["path"].append = True
-                # NOTE: If previous chunk was successfully written then
-                # no need in additional attributes here, it is already
-                # set by first request.
-                for attr in ["schema", "optimize_for", "compression_codec", "erasure_codec"]:
-                    if attr in params["path"].attributes:
-                        del params["path"].attributes[attr]
+        enable_progress_bar = get_config(client)["write_progress_bar"]["enable"]
+        if progress_monitor is None:
+            force = enable_progress_bar is True
+            progress_monitor = _SimpleProgressBar(size_hint, filename_hint, force)
+        if get_config(client)["write_progress_bar"]["enable"] is not False:
+            progress_reporter = _ProgressReporter(progress_monitor)
         else:
-            _make_transactional_request(
-                command_name,
-                params,
-                data=stream,
-                is_data_compressed=is_stream_compressed,
-                use_heavy_proxy=True,
-                client=client)
+            progress_reporter = _FakeProgressReporter()
+
+        with progress_reporter:
+            if use_retries:
+                chunk_size = get_config(client)["write_retries"]["chunk_size"]
+                write_action = lambda chunk, params: _make_transactional_request(
+                    command_name,
+                    params,
+                    data=progress_reporter.wrap_stream(chunk),
+                    is_data_compressed=is_stream_compressed,
+                    use_heavy_proxy=True,
+                    client=client)
+
+                runner = WriteRequestRetrier(transaction_timeout=transaction_timeout,
+                                             write_action=write_action,
+                                             client=client)
+                for chunk in group_blobs_by_size(stream, chunk_size):
+                    assert isinstance(chunk, list)
+                    logger.debug(
+                        "Processing {0} chunk (length: {1}, transaction: {2})"
+                        .format(command_name, len(chunk), get_command_param("transaction_id", client)))
+
+                    runner.run_write_action(chunk, params)
+                    params["path"].append = True
+                    # NOTE: If previous chunk was successfully written then
+                    # no need in additional attributes here, it is already
+                    # set by first request.
+                    for attr in ["schema", "optimize_for", "compression_codec", "erasure_codec"]:
+                        if attr in params["path"].attributes:
+                            del params["path"].attributes[attr]
+            else:
+                _make_transactional_request(
+                    command_name,
+                    params,
+                    data=progress_reporter.wrap_stream(stream),
+                    is_data_compressed=is_stream_compressed,
+                    use_heavy_proxy=True,
+                    client=client)
 
 def _get_read_response(command_name, params, transaction_id, client=None):
     make_request = lambda: _make_transactional_request(

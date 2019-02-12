@@ -29,6 +29,7 @@ CONTRIB_PYTHON_PACKAGE_LIST = [
     "backports_abc",
     "singledispatch",
     "tornado",
+    "tqdm",
 ]
 
 PY23_BINARIES = [
