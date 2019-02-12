@@ -9,6 +9,7 @@
 namespace NYT::NDataNode {
 
 using namespace NChunkClient;
+using namespace NNodeTrackerClient;
 using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,12 +44,12 @@ void TPeerBlockTable::UpdatePeer(const TBlockId& blockId, const TPeerInfo& peer)
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
     const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();
-    auto maybeNodeDescriptor = nodeDirectory->FindDescriptor(peer.NodeId);
+    const auto* nodeDescriptor = nodeDirectory->FindDescriptor(peer.NodeId);
 
-    YT_LOG_DEBUG("Updating peer (BlockId: %v, Address: %v, NodeId: %v, ExpirationTime: %v)",
+    YT_LOG_DEBUG("Updating peer (BlockId: %v, NodeId: %v, Address: %v, ExpirationTime: %v)",
         blockId,
-        maybeNodeDescriptor,
         peer.NodeId,
+        (nodeDescriptor ? nodeDescriptor : &NullNodeDescriptor)->GetDefaultAddress(),
         peer.ExpirationTime);
 
     SweepAllExpiredPeers();
