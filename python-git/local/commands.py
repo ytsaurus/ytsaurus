@@ -228,9 +228,11 @@ _START_DEFAULTS = {
     "scheduler_count": 1,
     "http_proxy_count": 1,
     "rpc_proxy_count": None,
-    "jobs_memory_limit": 16 * GB,
-    "jobs_cpu_limit": 1,
-    "jobs_user_slot_count": 10,
+    "jobs_resource_limits": {
+        "memory": 16 * GB,
+        "cpu": 1,
+        "user_slots": 10,
+    },
     "node_chunk_store_quota": 7 * GB
 }
 
@@ -238,7 +240,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
           master_config=None, node_config=None, scheduler_config=None, proxy_config=None, controller_agent_config=None,
           proxy_port=None, http_proxy_ports=None, http_proxy_count=None, id=None, local_cypress_dir=None, use_proxy_from_yt_source=False,
           enable_debug_logging=False, tmpfs_path=None, port_range_start=None, fqdn=None, path=None,
-          prepare_only=False, jobs_memory_limit=None, jobs_cpu_limit=None, jobs_user_slot_count=None,
+          prepare_only=False, jobs_memory_limit=None, jobs_cpu_limit=None, jobs_user_slot_count=None, jobs_resource_limits=None,
           node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=True, wait_tablet_cell_initialization=False,
           meta_files_suffix=None, set_pdeath_sig=False, watcher_config=None, cell_tag=0, use_new_proxy=False):
 
@@ -295,6 +297,9 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
                              watcher_config=watcher_config,
                              cell_tag=cell_tag,
                              allow_chunk_storage_in_tmpfs=allow_chunk_storage_in_tmpfs,
+                             jobs_memory_limit=jobs_memory_limit,
+                             jobs_cpu_limit=jobs_cpu_limit,
+                             jobs_user_slot_count=jobs_user_slot_count,
                              **options)
 
     environment.id = sandbox_id
