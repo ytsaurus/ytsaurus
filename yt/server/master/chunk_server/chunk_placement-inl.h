@@ -101,13 +101,13 @@ void TChunkPlacement::ForEachDataCenter(const TDataCenterSet* dataCenters, T cal
     const auto& allDataCenters = Bootstrap_->GetNodeTracker()->DataCenters();
 
     if (dataCenters) {
-        if (dataCenters->count(nullptr)) {
+        if (dataCenters->count(nullptr) != 0) {
             callback(nullptr);
         }
 
         // NB: SmallSet doesn't support iteration.
         for (const auto& [dataCenterId, dataCenter] : allDataCenters) {
-            if (dataCenters->count(dataCenter)) {
+            if (dataCenters->count(dataCenter) != 0) {
                 callback(dataCenter);
             }
         }
