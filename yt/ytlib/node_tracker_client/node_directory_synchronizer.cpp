@@ -55,8 +55,8 @@ public:
         {
             auto guard = Guard(SpinLock_);
             Stopped_ = true;
-            if (TerminationFuture_) {
-                TerminationFuture_.Cancel();
+            if (TerminationPromise_) {
+                TerminationPromise_.TrySet(TError("Node directory synchrnonizer terminated"));
             }
         }
         return SyncExecutor_->Stop();
@@ -71,7 +71,7 @@ private:
 
     TSpinLock SpinLock_;
     bool Stopped_ = false;
-    TFuture<TClusterMeta> TerminationFuture_;
+    TPromise<TClusterMeta> TerminationPromise_;
 
     void DoSync()
     {
@@ -84,14 +84,17 @@ private:
             auto asyncMeta = DirectoryClient_->GetClusterMeta(options);
 
             {
+                auto promise = NewPromise<TClusterMeta>();
+                promise.TrySetFrom(promise.ToFuture());
+
                 auto guard = Guard(SpinLock_);
                 if (Stopped_) {
                     return;
                 }
-                TerminationFuture_ = std::move(asyncMeta);
+                TerminationPromise_ = std::move(promise);
             }
 
-            auto meta = WaitFor(TerminationFuture_)
+            auto meta = WaitFor(TerminationPromise_.ToFuture())
                 .ValueOrThrow();
 
             NodeDirectory_->MergeFrom(*meta.NodeDirectory);
