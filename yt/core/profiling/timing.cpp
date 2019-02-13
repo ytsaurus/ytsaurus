@@ -171,7 +171,9 @@ TInstant GetInstant()
 TDuration CpuDurationToDuration(TCpuDuration duration)
 {
     // TDuration is unsigned and thus does not support negative values.
-    Y_ASSERT(duration >= 0);
+    if (duration < 0) {
+        duration = 0;
+    }
     return TDuration::Seconds(static_cast<double>(duration) / TClockConverter::Get()->GetClockRate());
 }
 
@@ -198,7 +200,9 @@ TValue DurationToValue(TDuration duration)
 TDuration ValueToDuration(TValue value)
 {
     // TDuration is unsigned and thus does not support negative values.
-    Y_ASSERT(value >= 0);
+    if (value < 0) {
+        value = 0;
+    }
     return TDuration::MicroSeconds(static_cast<ui64>(value));
 }
 
