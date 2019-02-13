@@ -344,13 +344,13 @@ void TObjectServiceProxy::TRspExecuteBatch::SetPromise(const TError& error)
 }
 
 void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(
-    TRef data, std::optional<NCompression::ECodec> codecId)
+    TRef data,
+    std::optional<NCompression::ECodec> codecId)
 {
     NProto::TRspExecute body;
     if (codecId) {
         DeserializeProtoWithCompression(&body, data, *codecId);
     } else {
-        // COMPAT(kiselyovp)
         DeserializeProtoWithEnvelope(&body, data);
     }
 

@@ -40,8 +40,7 @@ message TRspRegularAttachments
 message TReqCompression
 {
     required int32 request_codec = 1;
-    required int32 request_attachment_codec = 2;
-    required string message = 3;
+    required string message = 2;
 }
 
 message TRspCompression

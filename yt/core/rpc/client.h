@@ -107,10 +107,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(bool, RequestAck, true);
     DEFINE_BYVAL_RW_PROPERTY(bool, Heavy, false);
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<NCompression::ECodec>, RequestCodec);
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<NCompression::ECodec>, RequestAttachmentCodec);
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<NCompression::ECodec>, ResponseCodec);
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<NCompression::ECodec>, ResponseAttachmentCodec);
+    DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, RequestCodec, NCompression::ECodec::None);
+    DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, ResponseCodec, NCompression::ECodec::None);
+    DEFINE_BYVAL_RW_PROPERTY(bool, EnableLegacyRpcCodecs, true);
     DEFINE_BYVAL_RW_PROPERTY(bool, GenerateAttachmentChecksums, true);
     DEFINE_BYVAL_RW_PROPERTY(bool, UseUndumpableMemoryZone, false);
 
@@ -397,10 +396,9 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, DefaultTimeout);
     DEFINE_BYVAL_RW_PROPERTY(bool, DefaultRequestAck, true);
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<NCompression::ECodec>, DefaultRequestCodec);
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<NCompression::ECodec>, DefaultRequestAttachmentCodec);
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<NCompression::ECodec>, DefaultResponseCodec);
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<NCompression::ECodec>, DefaultResponseAttachmentCodec);
+    DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, DefaultRequestCodec, NCompression::ECodec::None);
+    DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, DefaultResponseCodec, NCompression::ECodec::None);
+    DEFINE_BYVAL_RW_PROPERTY(bool, DefaultEnableLegacyRpcCodecs, true);
 
 protected:
     const IChannelPtr Channel_;

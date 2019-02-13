@@ -2571,28 +2571,18 @@ class TestDynamicTablesWithCompressionRpcProxy(DynamicTablesSingleCellBase):
 
     DELTA_DRIVER_CONFIG = {
         "request_codec": "lz4",
-        "request_attachment_codec": "lz4_high_compression",
         "response_codec": "quick_lz",
-        "response_attachment_codec": "snappy"
     }
 
-class TestDynamicTablesWithOldCompressionRpcProxy(DynamicTablesSingleCellBase):
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-    ENABLE_PROXY = True
-
-    DELTA_DRIVER_CONFIG = {
-        "request_codec": "lz4"
-    }
-
-class TestDynamicTablesWithOmittedCompressionRpcProxy(DynamicTablesSingleCellBase):
+class TestDynamicTablesWithModernCompressionRpcProxy(DynamicTablesSingleCellBase):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_PROXY = True
 
     DELTA_DRIVER_CONFIG = {
         "request_codec": "lz4",
-        "response_codec": "quick_lz"
+        "response_codec": "quick_lz",
+        "enable_legacy_rpc_codecs": False
     }
 
 class TestDynamicTablesResourceLimitsRpcProxy(TestDynamicTablesResourceLimits):

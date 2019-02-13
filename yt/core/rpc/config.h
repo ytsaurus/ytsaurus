@@ -58,8 +58,7 @@ public:
     static const bool DefaultHeavy;
     bool Heavy;
 
-    static const NCompression::ECodec DefaultResponseCodec;
-    NCompression::ECodec ResponseCodec;
+    std::optional<NCompression::ECodec> ResponseCodec;
 
     static const int DefaultMaxQueueSize;
     int MaxQueueSize;
@@ -81,7 +80,7 @@ public:
         RegisterParameter("heavy", Heavy)
             .Default(DefaultHeavy);
         RegisterParameter("response_codec", ResponseCodec)
-            .Default(DefaultResponseCodec);
+            .Default();
         RegisterParameter("max_queue_size", MaxQueueSize)
             .Default(DefaultMaxQueueSize);
         RegisterParameter("max_concurrency", MaxConcurrency)

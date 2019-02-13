@@ -126,7 +126,8 @@ struct THandlerInvocationOptions
     bool Heavy = TMethodConfig::DefaultHeavy;
 
     //! The codec to compress response body.
-    NCompression::ECodec ResponseCodec = TMethodConfig::DefaultResponseCodec;
+    //! If not given then the client's value is used.
+    std::optional<NCompression::ECodec> ResponseCodec;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -163,8 +164,9 @@ public:
         }
         Request_->Context_ = UnderlyingContext_.Get();
 
+        const auto& requestHeader = GetRequestHeader();
         auto body = UnderlyingContext_->GetRequestBody();
-        if (GetRequestHeader().has_request_format()) {
+        if (requestHeader.has_request_format()) {
             auto format = static_cast<EMessageFormat>(GetRequestHeader().request_format());
             if (format != EMessageFormat::Protobuf) {
                 body = ConvertMessageFromFormat(
@@ -174,35 +176,29 @@ public:
             }
         }
 
-        // COMPAT(kiselyovp)
-        bool compatibilityMode = !GetRequestHeader().has_request_codecs();
-
-        auto requestCodecId = NCompression::ECodec::None;
-        if (!compatibilityMode) {
-            int intRequestCodecId = GetRequestHeader().request_codecs().request_codec();
-            if (!ConvertCodecFromIntOrReplyError(
-                intRequestCodecId,
-                &requestCodecId,
-                "Request codec is not supported"))
-            {
+        // COMPAT(kiselyovp): legacy RPC codecs
+        std::optional<NCompression::ECodec> bodyCodecId;
+        NCompression::ECodec attachmentCodecId;
+        if (requestHeader.has_codecs()) {
+            int intCodecId = requestHeader.codecs().request_codec();
+            NCompression::ECodec codecId;
+            if (!TryEnumCast(intCodecId, &codecId)) {
+                UnderlyingContext_->Reply(TError(
+                    NRpc::EErrorCode::ProtocolError,
+                    "Request codec %v is not supported",
+                    intCodecId));
                 return false;
             }
-        }
-        auto requestAttachmentCodecId = NCompression::ECodec::None;
-        if (!compatibilityMode) {
-            int intRequestAttachmentCodecId = GetRequestHeader().request_codecs().request_attachment_codec();
-            if (!ConvertCodecFromIntOrReplyError(
-                intRequestAttachmentCodecId,
-                &requestAttachmentCodecId,
-                "Request attachment codec is not supported"))
-            {
-                return false;
-            }
+            bodyCodecId = codecId;
+            attachmentCodecId = codecId;
+        } else {
+            bodyCodecId = std::nullopt;
+            attachmentCodecId = NCompression::ECodec::None;
         }
 
-        bool deserializationSucceeded = compatibilityMode
-            ? TryDeserializeProtoWithEnvelope(Request_.get(), body)
-            : TryDeserializeProtoWithCompression(Request_.get(), body, requestCodecId);
+        bool deserializationSucceeded = bodyCodecId
+            ? TryDeserializeProtoWithCompression(Request_.get(), body, *bodyCodecId)
+            : TryDeserializeProtoWithEnvelope(Request_.get(), body);
         if (!deserializationSucceeded) {
             UnderlyingContext_->Reply(TError(
                 NRpc::EErrorCode::ProtocolError,
@@ -210,12 +206,14 @@ public:
             return false;
         }
 
-        auto* attachmentCodec = NCompression::GetCodec(requestAttachmentCodecId);
+        auto* attachmentCodec = NCompression::GetCodec(attachmentCodecId);
+
         std::vector<TSharedRef> requestAttachments;
         requestAttachments.reserve(UnderlyingContext_->RequestAttachments().size());
-        for (const auto& attachment: UnderlyingContext_->RequestAttachments()) {
+        for (const auto& attachment : UnderlyingContext_->RequestAttachments()) {
             try {
-                requestAttachments.emplace_back(attachmentCodec->Decompress(attachment));
+                auto decompressedAttachment = attachmentCodec->Decompress(attachment);
+                requestAttachments.push_back(std::move(decompressedAttachment));
             } catch (const std::exception& ex) {
                 UnderlyingContext_->Reply(TError(
                     NRpc::EErrorCode::ProtocolError,
@@ -276,46 +274,47 @@ protected:
     void DoReply(const TError& error)
     {
         if (error.IsOK()) {
-            // COMPAT(kiselyovp)
-            bool compatibilityMode = !GetRequestHeader().has_request_codecs();
+            const auto& requestHeader = GetRequestHeader();
 
-            auto responseCodecId = this->Options_.ResponseCodec;
-            if (!compatibilityMode) {
-                int intResponseCodecId = GetRequestHeader().request_codecs().response_codec();
-                if (!ConvertCodecFromIntOrReplyError(
-                    intResponseCodecId,
-                    &responseCodecId,
-                    "Response codec is not supported"))
-                {
+            // COMPAT(kiselyovp): legacy RPC codecs
+            bool enableBodyEnvelope;
+            NCompression::ECodec bodyCodecId;
+            NCompression::ECodec attachmentCodecId;
+            if (requestHeader.has_codecs()) {
+                int intCodecId = requestHeader.codecs().response_codec();
+                NCompression::ECodec codecId;
+                if (!TryEnumCast(intCodecId, &codecId)) {
+                    UnderlyingContext_->Reply(TError(
+                        NRpc::EErrorCode::ProtocolError,
+                        "Response codec %v is not supported",
+                        intCodecId));
                     return;
                 }
+
+                enableBodyEnvelope = false;
+                bodyCodecId = Options_.ResponseCodec.value_or(codecId);
+                attachmentCodecId = bodyCodecId;
+            } else {
+                enableBodyEnvelope = true;
+                bodyCodecId = Options_.ResponseCodec.value_or(NCompression::ECodec::None);
+                attachmentCodecId = NCompression::ECodec::None;
             }
-            auto responseAttachmentCodecId = NCompression::ECodec::None;
-            if (!compatibilityMode) {
-                int intResponseAttachmentCodecId =
-                    GetRequestHeader().request_codecs().response_attachment_codec();
-                if (!ConvertCodecFromIntOrReplyError(
-                    intResponseAttachmentCodecId,
-                    &responseAttachmentCodecId,
-                    "Response attachment codec is not supported"))
-                {
+
+            auto serializedBody = enableBodyEnvelope
+                ? SerializeProtoToRefWithEnvelope(*Response_, bodyCodecId)
+                : SerializeProtoToRefWithCompression(*Response_, bodyCodecId, false);
+
+            if (requestHeader.has_response_format()) {
+                int intFormat = requestHeader.response_format();
+                EMessageFormat format;
+                if (!TryEnumCast(intFormat, &format)) {
+                    UnderlyingContext_->Reply(TError(
+                        NRpc::EErrorCode::ProtocolError,
+                        "Message format %v is not supported",
+                        intFormat));
                     return;
                 }
-            }
 
-            auto serializedBody = compatibilityMode
-                ? SerializeProtoToRefWithEnvelope(*Response_, responseCodecId, false)
-                : SerializeProtoToRefWithCompression(*Response_, responseCodecId, false);
-
-            auto* responseAttachmentCodec = NCompression::GetCodec(responseAttachmentCodecId);
-            std::vector<TSharedRef> responseAttachments;
-            for (const auto& attachment: Response_->Attachments()) {
-                responseAttachments.emplace_back(responseAttachmentCodec->Compress(attachment));
-            }
-
-            if (GetRequestHeader().has_response_format()) {
-                YCHECK(compatibilityMode);
-                auto format = static_cast<EMessageFormat>(GetRequestHeader().response_format());
                 if (format != EMessageFormat::Protobuf) {
                     serializedBody = ConvertMessageToFormat(
                         serializedBody,
@@ -323,7 +322,14 @@ protected:
                         NYson::ReflectProtobufMessageType<TResponseMessage>());
                 }
             }
-            
+
+            auto* attachmentCodec = NCompression::GetCodec(attachmentCodecId);
+            std::vector<TSharedRef> responseAttachments;
+            for (const auto& attachment : Response_->Attachments()) {
+                auto compressedAttachment = attachmentCodec->Compress(attachment);
+                responseAttachments.push_back(std::move(compressedAttachment));
+            }
+
             this->UnderlyingContext_->SetResponseBody(std::move(serializedBody));
             this->UnderlyingContext_->ResponseAttachments() = std::move(responseAttachments);
         }
@@ -332,21 +338,6 @@ protected:
             this->Request_.reset();
             this->Response_.reset();
         }
-    }
-
-private:
-    bool ConvertCodecFromIntOrReplyError(
-        int intCodecId,
-        NCompression::ECodec* codecId,
-        const TString& errorString)
-    {
-        if (!TryEnumCast(intCodecId, codecId)) {
-            UnderlyingContext_->Reply(TError(
-                NRpc::EErrorCode::ProtocolError,
-                errorString));
-            return false;
-        }
-        return true;
     }
 };
 
@@ -512,7 +503,7 @@ protected:
             return *this;
         }
 
-        TMethodDescriptor& SetResponseCodec(NCompression::ECodec value)
+        TMethodDescriptor& SetResponseCodec(std::optional<NCompression::ECodec> value)
         {
             Options.ResponseCodec = value;
             return *this;

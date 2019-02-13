@@ -36,25 +36,22 @@ TFuture<typename TResponse::TResult> TTypedClientRequest<TRequestMessage, TRespo
 template <class TRequestMessage, class TResponse>
 TSharedRefArray TTypedClientRequest<TRequestMessage, TResponse>::SerializeData() const
 {
-    // COMPAT(kiselyovp)
-    bool compatibilityMode = !RequestAttachmentCodec_ && !ResponseCodec_ && !ResponseAttachmentCodec_;
     std::vector<TSharedRef> data;
     data.reserve(Attachments().size() + 1);
 
-    auto requestCodecId = RequestCodec_.value_or(NCompression::ECodec::None);
-    auto serializedBody = compatibilityMode
-        ? SerializeProtoToRefWithEnvelope(*this, requestCodecId, false)
-        : SerializeProtoToRefWithCompression(*this, requestCodecId, false);
-    data.emplace_back(std::move(serializedBody));
+    // COMPAT(kiselyovp): legacy RPC codecs
+    auto serializedBody = EnableLegacyRpcCodecs_
+        ? SerializeProtoToRefWithEnvelope(*this, RequestCodec_, false)
+        : SerializeProtoToRefWithCompression(*this, RequestCodec_, false);
+    data.push_back(std::move(serializedBody));
 
-    auto requestAttachmentCodecId = compatibilityMode
+    auto attachmentCodecId = EnableLegacyRpcCodecs_
         ? NCompression::ECodec::None
-        : RequestAttachmentCodec_.value_or(requestCodecId);
-    auto* requestAttachmentCodec = NCompression::GetCodec(requestAttachmentCodecId);
-
-    for (const auto& attachment: Attachments()) {
-        auto compressedAttachment = requestAttachmentCodec->Compress(attachment);
-        data.emplace_back(std::move(compressedAttachment));
+        : RequestCodec_;
+    auto* attachementCodec = NCompression::GetCodec(attachmentCodecId);
+    for (const auto& attachment : Attachments()) {
+        auto compressedAttachment = attachementCodec->Compress(attachment);
+        data.push_back(std::move(compressedAttachment));
     }
 
     return TSharedRefArray(std::move(data));
@@ -90,7 +87,7 @@ void TTypedClientResponse<TResponseMessage>::DeserializeBody(TRef data, std::opt
     if (codecId) {
         DeserializeProtoWithCompression(this, data, *codecId);
     } else {
-        // COMPAT(kiselyovp) old compression
+        // COMPAT(kiselyovp): legacy RPC codecs
         DeserializeProtoWithEnvelope(this, data);
     }
 }
@@ -107,9 +104,8 @@ TIntrusivePtr<T> TProxyBase::CreateRequest(const TMethodDescriptor& methodDescri
     request->SetTimeout(DefaultTimeout_);
     request->SetRequestAck(DefaultRequestAck_);
     request->SetRequestCodec(DefaultRequestCodec_);
-    request->SetRequestAttachmentCodec(DefaultRequestAttachmentCodec_);
     request->SetResponseCodec(DefaultResponseCodec_);
-    request->SetResponseAttachmentCodec(DefaultResponseAttachmentCodec_);
+    request->SetEnableLegacyRpcCodecs(DefaultEnableLegacyRpcCodecs_);
     request->SetMultiplexingBand(methodDescriptor.MultiplexingBand);
     return request;
 }
