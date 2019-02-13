@@ -21,6 +21,7 @@
 #include <yt/client/table_client/versioned_row.h>
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/helpers.h>
+#include <yt/client/table_client/schema.h>
 
 #include <yt/ytlib/query_client/config.h>
 #include <yt/ytlib/query_client/column_evaluator.h>

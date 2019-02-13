@@ -14,6 +14,7 @@
 #include <yt/client/table_client/name_table.h>
 #include <yt/ytlib/table_client/chunk_state.h>
 #include <yt/ytlib/table_client/columnar_chunk_meta.h>
+#include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/ytlib/api/native/table_reader.h>
 

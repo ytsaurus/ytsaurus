@@ -24,6 +24,7 @@
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/versioned_writer.h>
 #include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/schema.h>
 
 #include <yt/core/misc/range.h>
 #include <yt/core/misc/random.h>

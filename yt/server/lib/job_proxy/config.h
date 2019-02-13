@@ -12,12 +12,13 @@
 
 #include <yt/ytlib/hydra/config.h>
 
-#include <yt/ytlib/scheduler/config.h>
+#include <yt/ytlib/api/native/config.h>
 
 #include <yt/core/bus/tcp/config.h>
 
 #include <yt/core/net/address.h>
 
+#include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/yson_serializable.h>
 

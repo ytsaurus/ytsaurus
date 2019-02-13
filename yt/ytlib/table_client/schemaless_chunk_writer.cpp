@@ -29,6 +29,7 @@
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_listener.h>
 #include <yt/ytlib/transaction_client/config.h>
+#include <yt/ytlib/table_client/table_upload_options.h>
 #include <yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>

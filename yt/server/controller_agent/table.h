@@ -12,6 +12,7 @@
 #include <yt/ytlib/cypress_client/public.h>
 
 #include <yt/client/table_client/column_rename_descriptor.h>
+#include <yt/ytlib/table_client/table_upload_options.h>
 
 namespace NYT::NControllerAgent {
 
