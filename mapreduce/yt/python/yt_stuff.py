@@ -1,3 +1,5 @@
+from yt.common import update
+
 from functools import wraps
 import logging
 import os
@@ -11,6 +13,7 @@ import random
 import string
 import gzip
 import contextlib
+import copy
 
 
 import yatest.common
@@ -29,8 +32,11 @@ _ADMISSIBLE_ENV_VARS = [
 _YT_PREFIX = "//"
 _YT_MAX_START_RETRIES = 3
 
+MB = 1024 * 1024
+GB = MB * 1024
+
 # See https://a.yandex-team.ru/arc/trunk/arcadia/devtools/ya/test/node/run_test.py?rev=2316309#L30
-FILE_SIZE_LIMIT = 2 * 1024 * 1024
+FILE_SIZE_LIMIT = 2 * MB
 
 
 def get_value(value, default):
@@ -72,9 +78,7 @@ class YtConfig(object):
                  ram_drive_path=None,
                  local_cypress_dir=None,
                  wait_tablet_cell_initialization=None,
-                 jobs_memory_limit=None,
-                 jobs_cpu_limit=None,
-                 jobs_user_slot_count=None,
+                 job_controller_resource_limits=None,
                  forbid_chunk_storage_in_tmpfs=None,
                  node_chunk_store_quota=None,
                  yt_version=None,
@@ -93,17 +97,7 @@ class YtConfig(object):
         self.scheduler_config = scheduler_config
         self.master_config = master_config
         self.proxy_config = proxy_config
-
-        controller_config = {
-            "controller_agent": {
-                "environment": {x: os.environ[x] for x in _ADMISSIBLE_ENV_VARS if x in os.environ}
-            }
-        }
-
-        with tempfile.NamedTemporaryFile(delete=False) as controller_agent_config_with_default_env:
-            yson.dump(controller_config, controller_agent_config_with_default_env)
-
-        self.controller_agent_config = get_value(controller_agent_config, controller_agent_config_with_default_env.name)
+        self.controller_agent_config = controller_agent_config
 
         self.yt_path = yt_path
 
@@ -114,9 +108,7 @@ class YtConfig(object):
         self.local_cypress_dir = local_cypress_dir
 
         self.wait_tablet_cell_initialization = wait_tablet_cell_initialization
-        self.jobs_memory_limit = get_value(jobs_memory_limit, 25 * 1024 ** 3)
-        self.jobs_cpu_limit = jobs_cpu_limit
-        self.jobs_user_slot_count = jobs_user_slot_count
+        self.job_controller_resource_limits = job_controller_resource_limits
         self.forbid_chunk_storage_in_tmpfs = forbid_chunk_storage_in_tmpfs
         self.node_chunk_store_quota = node_chunk_store_quota
 
@@ -137,6 +129,56 @@ class YtConfig(object):
 
         self.cell_tag = cell_tag
         self.python_binary = python_binary
+
+    def build_master_config(self):
+        if self.master_config is not None:
+            return copy.deepcopy(self.master_config)
+        else:
+            return {}
+
+    def build_node_config(self):
+        if self.node_config is not None:
+            return copy.deepcopy(self.node_config)
+        else:
+            return {}
+
+    def build_proxy_config(self):
+        if self.proxy_config is not None:
+            return copy.deepcopy(self.proxy_config)
+        else:
+            return {}
+
+    def build_scheduler_config(self):
+        if self.scheduler_config is not None:
+            return copy.deepcopy(self.scheduler_config)
+        else:
+            return {}
+
+    def build_controller_agent_config(self):
+        if self.controller_agent_config is not None:
+            conrtoller_agent_config = copy.deepcopy(self.controller_agent_config)
+        else:
+            conrtoller_agent_config = {}
+
+        return update(
+            conrtoller_agent_config,
+            {
+                "controller_agent": {
+                    "environment": {x: os.environ[x] for x in _ADMISSIBLE_ENV_VARS if x in os.environ}
+                }
+            }
+        )
+
+    def build_job_controller_resource_limits(self):
+        if self.job_controller_resource_limits is None:
+            job_controller_resource_limits = {}
+        else:
+            job_controller_resource_limits = copy.copy(self.job_controller_resource_limits)
+
+        if "memory" not in job_controller_resource_limits:
+            job_controller_resource_limits["memory"] = 25 * GB
+
+        return job_controller_resource_limits
 
 
 class YtStuff(object):
@@ -369,7 +411,6 @@ class YtStuff(object):
                 "--id", self.yt_id,
                 "--path", self.yt_work_dir,
                 "--fqdn", self.config.fqdn,
-                "--jobs-memory-limit", str(self.config.jobs_memory_limit),
             ]
 
             if get_value(self.config.enable_debug_logging, True):
@@ -377,11 +418,6 @@ class YtStuff(object):
 
             if get_value(self.config.enable_rpc_proxy, True):
                 args += ["--rpc-proxy"]
-
-            if self.config.jobs_cpu_limit:
-                args += ["--jobs-cpu-limit", str(self.config.jobs_cpu_limit)]
-            if self.config.jobs_user_slot_count:
-                args += ["--jobs-user-slot-count", str(self.config.jobs_user_slot_count)]
 
             if self.config.wait_tablet_cell_initialization:
                 args += ["--wait-tablet-cell-initialization"]
@@ -397,20 +433,19 @@ class YtStuff(object):
             if self.version == '19_4':
                 args += ["--use-new-proxy"]
 
-            if self.tmpfs_path:
+            if self.tmpfs_path is not None:
                 args += ["--tmpfs-path", self.tmpfs_path]
-            if self.config.node_config:
-                args += ["--node-config", self.config.node_config]
             if self.config.node_count:
                 args += ["--node-count", str(self.config.node_count)]
-            if self.config.scheduler_config:
-                args += ["--scheduler-config", self.config.scheduler_config]
-            if self.config.proxy_config:
-                args += ["--proxy-config", self.config.proxy_config]
             if self.config.cell_tag is not None:
                 args += ["--cell-tag", str(self.config.cell_tag)]
-            if self.config.controller_agent_config:
-                args += ["--controller-agent-config", self.config.controller_agent_config]
+
+            args += ["--master-config", yson.dumps(self.config.build_master_config(), yson_format="text")]
+            args += ["--node-config", yson.dumps(self.config.build_node_config(), yson_format="text")]
+            args += ["--scheduler-config", yson.dumps(self.config.build_scheduler_config(), yson_format="text")]
+            args += ["--proxy-config", yson.dumps(self.config.build_proxy_config(), yson_format="text")]
+            args += ["--controller-agent-config", yson.dumps(self.config.build_controller_agent_config(), yson_format="text")]
+            args += ["--jobs-resource-limits", yson.dumps(self.config.build_job_controller_resource_limits(), yson_format="text")]
 
             local_cypress_dir = self.config.local_cypress_dir or yatest.common.get_param("yt_local_cypress_dir")
             if local_cypress_dir:
