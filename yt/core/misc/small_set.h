@@ -15,7 +15,10 @@
 
 #include "small_vector.h"
 
+#include <cstddef>
+#include <iterator>
 #include <set>
+#include <type_traits>
 
 namespace NYT {
 
@@ -24,92 +27,58 @@ namespace NYT {
 /// maintained with no mallocs.  If the set gets large, we expand to using an
 /// std::set to maintain reasonable lookup times.
 ///
-/// Note that this set does not provide a way to iterate over members in the
-/// set.
-template <typename T, unsigned N,  typename C = std::less<T> >
+/// Note that any modification of the set may invalidate *all* iterators.
+template <typename T, unsigned N, typename C = std::less<T>>
 class SmallSet
 {
-  /// Use a SmallVector to hold the elements here (even though it will never
-  /// reach its 'large' stage) to avoid calling the default ctors of elements
-  /// we will never use.
-  SmallVector<T, N> Vector;
-  std::set<T, C> Set;
-  typedef typename SmallVector<T, N>::const_iterator VIterator;
-  typedef typename SmallVector<T, N>::iterator mutable_iterator;
-public:
-  SmallSet() {}
-
-  bool empty() const { return Vector.empty() && Set.empty(); }
-  unsigned size() const {
-    return isSmall() ? Vector.size() : Set.size();
-  }
-
-  const T& front() const {
-    return isSmall() ? Vector.front() : *Set.begin();
-  }
-
-  /// count - Return true if the element is in the set.
-  bool count(const T &V) const {
-    if (isSmall()) {
-      // Since the collection is small, just do a linear search.
-      return vfind(V) != Vector.end();
-    } else {
-      return Set.count(V);
-    }
-  }
-
-  /// insert - Insert an element into the set if it isn't already there.
-  bool insert(const T &V) {
-    if (!isSmall())
-      return Set.insert(V).second;
-
-    VIterator I = vfind(V);
-    if (I != Vector.end())    // Don't reinsert if it already exists.
-      return false;
-    if (Vector.size() < N) {
-      Vector.push_back(V);
-      return true;
-    }
-
-    // Otherwise, grow from vector to set.
-    while (!Vector.empty()) {
-      Set.insert(Vector.back());
-      Vector.pop_back();
-    }
-    Set.insert(V);
-    return true;
-  }
-
-  template <typename IterT>
-  void insert(IterT I, IterT E) {
-    for (; I != E; ++I)
-      insert(*I);
-  }
-
-  bool erase(const T &V) {
-    if (!isSmall())
-      return Set.erase(V);
-    for (mutable_iterator I = Vector.begin(), E = Vector.end(); I != E; ++I)
-      if (*I == V) {
-        Vector.erase(I);
-        return true;
-      }
-    return false;
-  }
-
-  void clear() {
-    Vector.clear();
-    Set.clear();
-  }
 private:
-  bool isSmall() const { return Set.empty(); }
+    /// Use a SmallVector to hold the elements here (even though it will never
+    /// reach its 'large' stage) to avoid calling the default ctors of elements
+    /// we will never use.
+    SmallVector<T, N> Vector;
+    std::set<T, C> Set;
 
-  VIterator vfind(const T &V) const {
-    for (VIterator I = Vector.begin(), E = Vector.end(); I != E; ++I)
-      if (*I == V)
-        return I;
-    return Vector.end();
-  }
+    using TSetConstIterator = typename std::set<T, C>::const_iterator;
+    using TVectorConstIterator = typename SmallVector<T, N>::const_iterator;
+
+public:
+    class const_iterator;
+    using size_type = std::size_t;
+
+    SmallSet() {}
+
+    [[nodiscard]] bool empty() const;
+
+    size_type size() const;
+
+    const T& front() const;
+
+    /// count - Return true if the element is in the set.
+    size_type count(const T& v) const;
+
+    /// insert - Insert an element into the set if it isn't already there.
+    std::pair<const_iterator, bool> insert(const T& v);
+
+    template <typename TIter>
+    void insert(TIter i, TIter e);
+
+    bool erase(const T& v);
+
+    void clear();
+
+    const_iterator begin() const;
+    const_iterator cbegin() const;
+
+    const_iterator end() const;
+    const_iterator cend() const;
+
+private:
+    bool IsSmall() const;
 };
 
 } // namespace NYT
+
+#define SMALL_SET_INL_H_
+#include "small_set-inl.h"
+#undef SMALL_SET_INL_H_
+
