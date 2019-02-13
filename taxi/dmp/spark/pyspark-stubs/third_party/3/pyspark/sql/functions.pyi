@@ -9,7 +9,7 @@ import pandas.core.series     # type: ignore
 from pyspark.sql._typing import ColumnOrName
 from pyspark.sql.column import Column
 from pyspark.sql.dataframe import DataFrame
-from pyspark.sql.types import DataType, StructField
+from pyspark.sql.types import DataType, StructField, StructType
 
 def approxCountDistinct(col: ColumnOrName, rsd: Optional[float] = ...) -> Column: ...
 def approx_count_distinct(col: Column, rsd: Optional[float] = ...) -> Column: ...
@@ -235,4 +235,4 @@ class PandasUDFType:
 @overload
 def pandas_udf(f: Callable[..., pandas.core.series.Series], returnType: StructField, functionType: int) -> Callable[..., Column]: ...
 @overload
-def pandas_udf(f: Callable[[pandas.core.frame.DataFrame], pandas.core.frame.DataFrame], returnType: StructField, functionType: int) -> Callable[..., Column]: ...  # type: ignore
+def pandas_udf(f: Callable[[pandas.core.frame.DataFrame], pandas.core.frame.DataFrame], returnType: StructType, functionType: int) -> Callable[..., Column]: ...  # type: ignore
