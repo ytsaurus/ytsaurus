@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/core/http/http.h>
+#include <yt/core/profiling/profiler.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
 

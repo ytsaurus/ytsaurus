@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/ytlib/table_client/schema.h>
+#include <yt/client/table_client/public.h>
 #include <yt/ytlib/api/native/client.h>
 
 #include <yt/client/api/public.h>

@@ -9,7 +9,7 @@
 
 #include <yt/ytlib/api/native/public.h>
 
-#include <yt/client/formats/format.h>
+#include <yt/client/formats/public.h>
 
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
@@ -23,11 +23,6 @@
 #include <yt/core/yson/lexer.h>
 #include <yt/core/yson/public.h>
 
-#include <yt/core/compression/public.h>
-
-#include <yt/core/erasure/public.h>
-
-#include <yt/core/misc/phoenix.h>
 
 namespace NYT::NTableClient {
 
@@ -38,6 +33,7 @@ class TTableOutput
 {
 public:
     explicit TTableOutput(std::unique_ptr<NFormats::IParser> parser);
+    ~TTableOutput() override;
 
 private:
     void DoWrite(const void* buf, size_t len);
@@ -106,26 +102,6 @@ void ValidateKeyColumns(
     bool validateColumnNames);
 TColumnFilter CreateColumnFilter(const std::optional<std::vector<TString>>& columns, TNameTablePtr nameTable);
 int GetSystemColumnCount(TChunkReaderOptionsPtr options);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTableUploadOptions
-{
-    NChunkClient::EUpdateMode UpdateMode;
-    NCypressClient::ELockMode LockMode;
-    TTableSchema TableSchema;
-    ETableSchemaMode SchemaMode;
-    EOptimizeFor OptimizeFor;
-    NCompression::ECodec CompressionCodec;
-    NErasure::ECodec ErasureCodec;
-
-    void Persist(NPhoenix::TPersistenceContext& context);
-};
-
-TTableUploadOptions GetTableUploadOptions(
-    const NYPath::TRichYPath& path,
-    const NYTree::IAttributeDictionary& cypressTableAttributes,
-    i64 rowCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 

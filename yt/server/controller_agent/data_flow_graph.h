@@ -5,7 +5,8 @@
 
 #include <yt/server/controller_agent/chunk_pools/public.h>
 
-#include <yt/ytlib/table_client/helpers.h>
+#include <yt/ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/table_upload_options.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 
