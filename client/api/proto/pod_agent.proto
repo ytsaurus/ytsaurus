@@ -398,6 +398,7 @@ message TBox {
     repeated TMountedStaticResource StaticResources = 10;
 }
 
+// Успешными кодами ответов считаются те, что лежат в полуинтервале [200, 300)
 message THttpGet {
     uint32 Port = 1;
 
