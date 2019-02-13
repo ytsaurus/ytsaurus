@@ -220,41 +220,33 @@ class TestListJobs(YTEnvSetup):
         auto_options = dict(data_source="auto")
         for options in (manual_options, runtime_options, auto_options):
             res = list_jobs(op.id, **options)
-            for key in res["type_counts"]:
-                correct = 0
-                if key == "partition_reduce":
-                    correct = 1
-                if key == "partition_map":
-                    correct = 5
-                assert res["type_counts"][key] == correct, str(res["type_counts"])
-            for key in res["state_counts"]:
-                correct = 0
-                if key == "completed":
-                    correct = 4
-                if key == "failed" or key == "aborted":
-                    correct = 1
-                assert res["state_counts"][key] == correct
             assert res["cypress_job_count"] == 6
             assert res["scheduler_job_count"] == 0
             assert res["archive_job_count"] == yson.YsonEntity()
 
+            assert res["type_counts"] == {
+                "partition_reduce": 1,
+                "partition_map": 5,
+            }
+            assert res["state_counts"] == {
+                "completed": 4,
+                "failed": 1,
+                "aborted": 1,
+            }
+
             res = list_jobs(op.id, type="partition_reduce", **options)
-            for key in res["type_counts"]:
-                correct = 0
-                if key == "partition_reduce":
-                    correct = 1
-                if key == "partition_map":
-                    correct = 5
-                assert res["type_counts"][key] == correct
-            for key in res["state_counts"]:
-                correct = 0
-                if key == "completed":
-                    correct = 1
-                assert res["state_counts"][key] == correct
             assert res["cypress_job_count"] == 6
             assert res["scheduler_job_count"] == 0
             assert res["controller_agent_job_count"] == 0
             assert res["archive_job_count"] == yson.YsonEntity()
+
+            assert res["type_counts"] == {
+                "partition_reduce": 1,
+                "partition_map": 5,
+            }
+            assert res["state_counts"] == {
+                "completed": 1,
+            }
 
             res = list_jobs(op.id, job_state="failed", **options)["jobs"]
             assert sorted(map_failed_jobs) == sorted([job["id"] for job in res])
@@ -322,20 +314,15 @@ class TestListJobs(YTEnvSetup):
             assert res["controller_agent_job_count"] == yson.YsonEntity()
             assert res["archive_job_count"] == 6
 
-            for key in res["type_counts"]:
-                correct = 0
-                if key == "partition_reduce":
-                    correct = 1
-                if key == "partition_map":
-                    correct = 5
-                assert res["type_counts"][key] == correct
-            for key in res["state_counts"]:
-                correct = 0
-                if key == "completed":
-                    correct = 4
-                if key == "failed" or key == "aborted":
-                    correct = 1
-                assert res["state_counts"][key] == correct
+            assert res["type_counts"] == {
+                "partition_reduce": 1,
+                "partition_map": 5,
+            }
+            assert res["state_counts"] == {
+                "completed": 4,
+                "failed": 1,
+                "aborted": 1,
+            }
 
             res = res["jobs"]
             assert sorted(jobs.keys()) == sorted([job["id"] for job in res])

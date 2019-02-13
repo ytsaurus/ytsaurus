@@ -6594,8 +6594,6 @@ private:
         TFuture<std::pair<std::vector<TJob>, int>> controllerAgentJobsFuture;
         TFuture<std::pair<std::vector<TJob>, TListJobsStatistics>> archiveJobsFuture;
 
-        std::optional<TListJobsStatistics> statistics;
-
         bool doesArchiveExists = DoesOperationsArchiveExist();
 
         // Issue the requests in parallel.
@@ -6623,7 +6621,7 @@ private:
             }
 
             const auto& archiveJobs = archiveJobsOrError.Value();
-            statistics = archiveJobs.second;
+            result.Statistics = archiveJobs.second;
             UpdateJobsList(archiveJobs.first, &result.Jobs);
 
             result.ArchiveJobCount = 0;
@@ -6661,7 +6659,7 @@ private:
         }
 
         if (options.DataSource != EDataSource::Archive) {
-            statistics = TListJobsStatistics();
+            result.Statistics = TListJobsStatistics();
 
             std::vector<TJob> filteredJobs;
             for (const auto& job : result.Jobs) {
@@ -6669,12 +6667,12 @@ private:
                     continue;
                 }
 
-                statistics->TypeCounts[job.Type] += 1;
+                result.Statistics.TypeCounts[job.Type] += 1;
                 if (options.Type && job.Type != *options.Type) {
                     continue;
                 }
 
-                statistics->StateCounts[job.State] += 1;
+                result.Statistics.StateCounts[job.State] += 1;
                 if (options.State && job.State != *options.State) {
                     continue;
                 }
@@ -6683,7 +6681,6 @@ private:
             }
 
             result.Jobs = filteredJobs;
-            result.Statistics = *statistics;
 
             auto comparer = GetJobsComparator(options.SortField, options.SortOrder);
             std::sort(result.Jobs.begin(), result.Jobs.end(), comparer);
