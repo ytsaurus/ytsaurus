@@ -71,9 +71,7 @@ TClientRequest::TClientRequest(const TClientRequest& other)
     , RequestAck_(other.RequestAck_)
     , Heavy_(other.Heavy_)
     , RequestCodec_(other.RequestCodec_)
-    , RequestAttachmentCodec_(other.RequestAttachmentCodec_)
     , ResponseCodec_(other.ResponseCodec_)
-    , ResponseAttachmentCodec_(other.ResponseAttachmentCodec_)
     , GenerateAttachmentChecksums_(other.GenerateAttachmentChecksums_)
     , UseUndumpableMemoryZone_(other.UseUndumpableMemoryZone_)
     , Channel_(other.Channel_)
@@ -393,20 +391,14 @@ void TClientRequest::TraceRequest(const NTracing::TTraceContext& traceContext)
 
 void TClientRequest::SetCodecsInHeader()
 {
-    if (!RequestAttachmentCodec_ && !ResponseCodec_ && !ResponseAttachmentCodec_) {
+    // COMPAT(kiselyovp): legacy RPC codecs
+    if (EnableLegacyRpcCodecs_) {
         return;
     }
 
-    auto requestCodecId = RequestCodec_.value_or(NCompression::ECodec::None);
-    auto requestAttachmentCodecId = RequestAttachmentCodec_.value_or(requestCodecId);
-    auto responseCodecId = ResponseCodec_.value_or(NCompression::ECodec::None);
-    auto responseAttachmentCodecId = ResponseAttachmentCodec_.value_or(responseCodecId);
-
-    auto* protoCodecs = Header_.mutable_request_codecs();
-    protoCodecs->set_request_codec(static_cast<int>(requestCodecId));
-    protoCodecs->set_request_attachment_codec(static_cast<int>(requestAttachmentCodecId));
-    protoCodecs->set_response_codec(static_cast<int>(responseCodecId));
-    protoCodecs->set_response_attachment_codec(static_cast<int>(responseAttachmentCodecId));
+    auto* protoCodecs = Header_.mutable_codecs();
+    protoCodecs->set_request_codec(static_cast<int>(RequestCodec_));
+    protoCodecs->set_response_codec(static_cast<int>(ResponseCodec_));
 }
 
 void TClientRequest::SetStreamingParametersInHeader()
@@ -520,19 +512,22 @@ void TClientResponse::Deserialize(TSharedRefArray responseMessage)
 
     YCHECK(ParseResponseHeader(ResponseMessage_, &Header_));
 
-    // COMPAT(kiselyovp)
-    bool compatibilityMode = !Header_.has_response_codecs();
-
-    std::optional<NCompression::ECodec> responseCodecId;
-    if (!compatibilityMode) {
-        responseCodecId = CheckedEnumCast<NCompression::ECodec>(Header_.response_codecs().response_codec());
+    // COMPAT(kiselyovp): legacy RPC codecs
+    std::optional<NCompression::ECodec> bodyCodecId;
+    NCompression::ECodec attachmentCodecId;
+    if (Header_.has_codecs()) {
+        bodyCodecId = attachmentCodecId = CheckedEnumCast<NCompression::ECodec>(Header_.codecs().response_codec());
+    } else {
+        bodyCodecId = std::nullopt;
+        attachmentCodecId = NCompression::ECodec::None;
     }
-    DeserializeBody(ResponseMessage_[1], responseCodecId);
 
-    auto responseAttachmentCodecId = compatibilityMode
-        ? NCompression::ECodec::None
-        : CheckedEnumCast<NCompression::ECodec>(Header_.response_codecs().response_attachment_codec());
-    auto* responseAttachmentCodec = NCompression::GetCodec(responseAttachmentCodecId);
+    DeserializeBody(ResponseMessage_[1], bodyCodecId);
+
+    auto* attachmentCodec = NCompression::GetCodec(attachmentCodecId);
+
+    auto memoryZone = FromProto<EMemoryZone>(Header_.response_memory_zone());
+
     Attachments_.clear();
     Attachments_.reserve(ResponseMessage_.Size() - 2);
     for (auto attachmentIt = ResponseMessage_.Begin() + 2;
@@ -541,8 +536,14 @@ void TClientResponse::Deserialize(TSharedRefArray responseMessage)
     {
         TSharedRef decompressedAttachment;
         {
-            TMemoryZoneGuard guard(FromProto<EMemoryZone>(Header_.response_memory_zone()));
-            decompressedAttachment = responseAttachmentCodec->Decompress(*attachmentIt);
+            TMemoryZoneGuard guard(memoryZone);
+            if (attachmentCodecId == NCompression::ECodec::None && memoryZone != EMemoryZone::Normal) {
+                struct TCopiedAttachmentTag
+                { };
+                decompressedAttachment = TSharedMutableRef::MakeCopy<TCopiedAttachmentTag>(*attachmentIt);
+            } else {
+                decompressedAttachment = attachmentCodec->Decompress(*attachmentIt);
+            }
         }
         Attachments_.push_back(std::move(decompressedAttachment));
     }

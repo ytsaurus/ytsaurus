@@ -113,10 +113,8 @@ TApiServiceProxy TTransaction::CreateApiServiceProxy()
     TApiServiceProxy proxy(Channel_);
     auto config = Connection_->GetConfig();
     proxy.SetDefaultRequestCodec(config->RequestCodec);
-    proxy.SetDefaultRequestAttachmentCodec(config->RequestAttachmentCodec);
     proxy.SetDefaultResponseCodec(config->ResponseCodec);
-    proxy.SetDefaultResponseAttachmentCodec(config->ResponseAttachmentCodec);
-
+    proxy.SetDefaultEnableLegacyRpcCodecs(config->EnableLegacyRpcCodecs);
     return proxy;
 }
 

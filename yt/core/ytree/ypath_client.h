@@ -136,7 +136,6 @@ protected:
         if (codecId) {
             DeserializeProtoWithCompression(this, data, *codecId);
         } else {
-            // COMPAT(kiselyovp)
             DeserializeProtoWithEnvelope(this, data);
         }
     }

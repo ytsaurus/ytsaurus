@@ -21,9 +21,9 @@ message TRequestHeader
     {
         // NCompression::ECodec
         required int32 request_codec = 1;
-        required int32 request_attachment_codec = 2;
         required int32 response_codec = 3;
-        required int32 response_attachment_codec = 4;
+        // deprecated = 2;
+        // deprecated = 4;
     }
 
     optional NYT.NProto.TGuid request_id = 1;
@@ -54,7 +54,7 @@ message TRequestHeader
     optional int64 logging_suppression_timeout = 20 [default = 0];
     optional bool disable_logging_suppression_if_request_failed = 21 [default = false];
 
-    optional TRequestCodecs request_codecs = 22;
+    optional TRequestCodecs codecs = 22;
 
     optional int32 response_memory_zone = 32 [default = 0]; // EMemoryZone
 
@@ -108,7 +108,7 @@ message TResponseHeader
     {
         // NCompression::ECodec
         required int32 response_codec = 1;
-        required int32 response_attachment_codec = 2;
+        // deprecated = 2;
     }
 
     optional NYT.NProto.TGuid request_id = 1;
@@ -118,7 +118,7 @@ message TResponseHeader
 
     optional int32 response_format = 3;
 
-    optional TResponseCodecs response_codecs = 4;
+    optional TResponseCodecs codecs = 4;
 
     optional int32 response_memory_zone = 5 [default = 0]; // EMemoryZone
 }

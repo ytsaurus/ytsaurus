@@ -1326,8 +1326,8 @@ TString TServiceBase::FormatRequestInfo(
         GetTotalMessageAttachmentSize(message),
         GetMessageAttachmentCount(message));
 
-    if (header.has_request_codecs()) {
-        const auto& requestCodecs = header.request_codecs();
+    if (header.has_codecs()) {
+        const auto& codecs = header.codecs();
         auto optionalCodecCast = [] (int intCodecId) -> std::optional<NCompression::ECodec> {
             NCompression::ECodec codecId;
             if (!TryEnumCast<NCompression::ECodec>(intCodecId, &codecId)) {
@@ -1336,13 +1336,9 @@ TString TServiceBase::FormatRequestInfo(
             return codecId;
         };
         delimitedBuilder->AppendFormat("RequestCodec: %v",
-            optionalCodecCast(requestCodecs.request_codec()));
-        delimitedBuilder->AppendFormat("RequestAttachmentCodec: %v",
-            optionalCodecCast(requestCodecs.request_attachment_codec()));
+            optionalCodecCast(codecs.request_codec()));
         delimitedBuilder->AppendFormat("ResponseCodec: %v",
-            optionalCodecCast(requestCodecs.response_codec()));
-        delimitedBuilder->AppendFormat("ResponseAttachmentCodec: %v",
-            optionalCodecCast(requestCodecs.response_attachment_codec()));
+            optionalCodecCast(codecs.response_codec()));
     }
 
     return builder.Flush();

@@ -182,10 +182,9 @@ public:
         const auto& attachments = request->Attachments();
         const auto& compressedAttachments = context->RequestAttachments();
         EXPECT_TRUE(attachments.size() == compressedAttachments.size());
-        auto requestAttachmentCodecId = CheckedEnumCast<NCompression::ECodec>(request->request_attachment_codec());
-        auto* requestAttachmentCodec = NCompression::GetCodec(requestAttachmentCodecId);
+        auto* requestCodec = NCompression::GetCodec(requestCodecId);
         for (int i = 0; i < attachments.size(); ++i) {
-            auto compressedAttachment = requestAttachmentCodec->Compress(attachments[i]);
+            auto compressedAttachment = requestCodec->Compress(attachments[i]);
             EXPECT_TRUE(TRef::AreBitwiseEqual(compressedAttachments[i], compressedAttachment));
         }
 
@@ -814,9 +813,7 @@ TYPED_TEST(TRpcTest, NullAndEmptyAttachments)
 TYPED_TEST(TNotGrpcTest, Compression)
 {
     const auto requestCodecId = NCompression::ECodec::QuickLz;
-    const auto requestAttachmentCodecId = NCompression::ECodec::Lz4;
     const auto responseCodecId = NCompression::ECodec::Snappy;
-    const auto responseAttachmentCodecId = NCompression::ECodec::Lz4HighCompression;
 
     TString message("This is a message string.");
     std::vector<TString> attachmentStrings({
@@ -827,13 +824,11 @@ TYPED_TEST(TNotGrpcTest, Compression)
 
     TMyProxy proxy(this->CreateChannel());
     proxy.SetDefaultRequestCodec(requestCodecId);
-    proxy.SetDefaultRequestAttachmentCodec(requestAttachmentCodecId);
     proxy.SetDefaultResponseCodec(responseCodecId);
-    proxy.SetDefaultResponseAttachmentCodec(responseAttachmentCodecId);
+    proxy.SetDefaultEnableLegacyRpcCodecs(false);
 
     auto req = proxy.Compression();
     req->set_request_codec(static_cast<int>(requestCodecId));
-    req->set_request_attachment_codec(static_cast<int>(requestAttachmentCodecId));
     req->set_message(message);
     for (const auto& attachmentString : attachmentStrings) {
         req->Attachments().push_back(SharedRefFromString(attachmentString));
@@ -853,10 +848,10 @@ TYPED_TEST(TNotGrpcTest, Compression)
     const auto& attachments = rsp->Attachments();
     EXPECT_TRUE(attachments.size() == attachmentStrings.size());
     EXPECT_TRUE(rsp->GetResponseMessage().Size() == attachments.size() + 2);
-    auto* responseAttachmentCodec = NCompression::GetCodec(responseAttachmentCodecId);
+    auto* responseCodec = NCompression::GetCodec(responseCodecId);
     for (int i = 0; i < attachments.size(); ++i) {
         EXPECT_TRUE(StringFromSharedRef(attachments[i]) == attachmentStrings[i]);
-        auto compressedAttachment = responseAttachmentCodec->Compress(attachments[i]);
+        auto compressedAttachment = responseCodec->Compress(attachments[i]);
         EXPECT_TRUE(TRef::AreBitwiseEqual(rsp->GetResponseMessage()[i + 2], compressedAttachment));
     }
 }

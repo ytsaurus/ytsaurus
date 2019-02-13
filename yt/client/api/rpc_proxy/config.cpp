@@ -45,13 +45,12 @@ TConnectionConfig::TConnectionConfig()
         .DefaultNew();
 
     RegisterParameter("request_codec", RequestCodec)
-        .Optional();
-    RegisterParameter("request_attachment_codec", RequestAttachmentCodec)
-        .Optional();
+        .Default(NCompression::ECodec::None);
     RegisterParameter("response_codec", ResponseCodec)
-        .Optional();
-    RegisterParameter("response_attachment_codec", ResponseAttachmentCodec)
-        .Optional();
+        .Default(NCompression::ECodec::None);
+    // COMPAT(kiselyovp): legacy RPC codecs
+    RegisterParameter("enable_legacy_rpc_codecs", EnableLegacyRpcCodecs)
+        .Default(true);
 
     RegisterParameter("enable_proxy_discovery", EnableProxyDiscovery)
         .Default(true);
