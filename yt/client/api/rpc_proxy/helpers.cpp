@@ -360,6 +360,7 @@ void ToProto(
     }
 
     ToProto(proto->mutable_statistics(), result.Statistics);
+    NYT::ToProto(proto->mutable_errors(), result.Errors);
 }
 
 void FromProto(
@@ -385,6 +386,7 @@ void FromProto(
     }
 
     FromProto(&result->Statistics, proto.statistics());
+    NYT::FromProto(&result->Errors, proto.errors());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
