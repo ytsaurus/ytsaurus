@@ -349,66 +349,61 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
 
     context->ProduceOutputValue(BuildYsonStringFluently()
         .BeginMap()
-            .Item("jobs").BeginList()
-                .DoFor(result.Jobs, [] (TFluentList fluent, const TJob& job) {
-                    fluent
-                        .Item().BeginMap()
-                            .Item("id").Value(job.Id)
-                            .Item("type").Value(job.Type)
-                            .Item("state").Value(job.State)
-                            .Item("address").Value(job.Address)
-                            .Item("start_time").Value(job.StartTime)
-                            .DoIf(job.FinishTime.operator bool(), [&] (TFluentMap fluent) {
-                                fluent.Item("finish_time").Value(*job.FinishTime);
-                            })
-                            .DoIf(job.Progress.operator bool(), [&] (TFluentMap fluent) {
-                                fluent.Item("progress").Value(*job.Progress);
-                            })
-                            .DoIf(job.StderrSize.operator bool(), [&] (TFluentMap fluent) {
-                                fluent.Item("stderr_size").Value(*job.StderrSize);
-                            })
-                            .DoIf(job.FailContextSize.operator bool(), [&] (TFluentMap fluent) {
-                                fluent.Item("fail_context_size").Value(*job.FailContextSize);
-                            })
-                            .DoIf(job.HasSpec.operator bool(), [&] (TFluentMap fluent) {
-                                fluent.Item("has_spec").Value(*job.HasSpec);
-                            })
-                            .DoIf(job.Error.operator bool(), [&] (TFluentMap fluent) {
-                                fluent.Item("error").Value(job.Error);
-                            })
-                            .DoIf(job.BriefStatistics.operator bool(), [&] (TFluentMap fluent) {
-                                fluent.Item("brief_statistics").Value(job.BriefStatistics);
-                            })
-                            .DoIf(job.InputPaths.operator bool(), [&] (TFluentMap fluent) {
-                                fluent.Item("input_paths").Value(job.InputPaths);
-                            })
-                            .DoIf(job.CoreInfos.operator bool(), [&] (TFluentMap fluent) {
-                                fluent.Item("core_infos").Value(job.CoreInfos);
-                            })
-                        .EndMap();
-                })
-            .EndList()
+            .Item("jobs").DoListFor(result.Jobs, [] (TFluentList fluent, const TJob& job) {
+                fluent
+                    .Item().BeginMap()
+                        .Item("id").Value(job.Id)
+                        .Item("type").Value(job.Type)
+                        .Item("state").Value(job.State)
+                        .Item("address").Value(job.Address)
+                        .Item("start_time").Value(job.StartTime)
+                        .DoIf(job.FinishTime.operator bool(), [&] (TFluentMap fluent) {
+                            fluent.Item("finish_time").Value(*job.FinishTime);
+                        })
+                        .DoIf(job.Progress.operator bool(), [&] (TFluentMap fluent) {
+                            fluent.Item("progress").Value(*job.Progress);
+                        })
+                        .DoIf(job.StderrSize.operator bool(), [&] (TFluentMap fluent) {
+                            fluent.Item("stderr_size").Value(*job.StderrSize);
+                        })
+                        .DoIf(job.FailContextSize.operator bool(), [&] (TFluentMap fluent) {
+                            fluent.Item("fail_context_size").Value(*job.FailContextSize);
+                        })
+                        .DoIf(job.HasSpec.operator bool(), [&] (TFluentMap fluent) {
+                            fluent.Item("has_spec").Value(*job.HasSpec);
+                        })
+                        .DoIf(job.Error.operator bool(), [&] (TFluentMap fluent) {
+                            fluent.Item("error").Value(job.Error);
+                        })
+                        .DoIf(job.BriefStatistics.operator bool(), [&] (TFluentMap fluent) {
+                            fluent.Item("brief_statistics").Value(job.BriefStatistics);
+                        })
+                        .DoIf(job.InputPaths.operator bool(), [&] (TFluentMap fluent) {
+                            fluent.Item("input_paths").Value(job.InputPaths);
+                        })
+                        .DoIf(job.CoreInfos.operator bool(), [&] (TFluentMap fluent) {
+                            fluent.Item("core_infos").Value(job.CoreInfos);
+                        })
+                    .EndMap();
+            })
             .Item("cypress_job_count").Value(result.CypressJobCount)
             // COMPAT(asaitgalin): Remove it in favor of controller_agent_job_count
             .Item("scheduler_job_count").Value(result.ControllerAgentJobCount)
             .Item("controller_agent_job_count").Value(result.ControllerAgentJobCount)
             .Item("archive_job_count").Value(result.ArchiveJobCount)
-            .Item("type_counts").BeginMap()
-                .DoFor(TEnumTraits<NJobTrackerClient::EJobType>::GetDomainValues(), [&] (TFluentMap fluent, const auto& item) {
-                    i64 count = result.Statistics.TypeCounts[item];
-                    if (count) {
-                        fluent.Item(FormatEnum(item)).Value(count);
-                    }
-                })
-            .EndMap()
-            .Item("state_counts").BeginMap()
-                .DoFor(TEnumTraits<NJobTrackerClient::EJobState>::GetDomainValues(), [&] (TFluentMap fluent, const auto& item) {
-                    i64 count = result.Statistics.StateCounts[item];
-                    if (count) {
-                        fluent.Item(FormatEnum(item)).Value(count);
-                    }
-                })
-            .EndMap()
+            .Item("type_counts").DoMapFor(TEnumTraits<NJobTrackerClient::EJobType>::GetDomainValues(), [&] (TFluentMap fluent, const auto& item) {
+                i64 count = result.Statistics.TypeCounts[item];
+                if (count) {
+                    fluent.Item(FormatEnum(item)).Value(count);
+                }
+            })
+            .Item("state_counts").DoMapFor(TEnumTraits<NJobTrackerClient::EJobState>::GetDomainValues(), [&] (TFluentMap fluent, const auto& item) {
+                i64 count = result.Statistics.StateCounts[item];
+                if (count) {
+                    fluent.Item(FormatEnum(item)).Value(count);
+                }
+            })
+            .Item("errors").Value(result.Errors)
         .EndMap());
 }
 

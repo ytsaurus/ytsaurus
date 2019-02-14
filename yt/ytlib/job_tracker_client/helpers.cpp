@@ -41,4 +41,16 @@ void FromProto(TJobToRelease* jobToRelease, const TJobToRemove& protoJobToRemove
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsJobFinished(EJobState state)
+{
+    return state >= EJobState::Completed;
+}
+
+bool IsJobInProgress(EJobState state)
+{
+    return !IsJobFinished(state);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NJobTrackerClient

@@ -9,11 +9,13 @@ from yt.test_helpers import wait
 from yt.test_helpers.job_events import JobEvents, TimeoutError
 
 import __builtin__
-import copy as pycopy
 import contextlib
+import copy as pycopy
 import os
+import random
 import re
 import stat
+import string
 import sys
 import tempfile
 import time
@@ -84,6 +86,25 @@ def init_drivers(clusters):
                 secondary_drivers.append(Driver(config=secondary_driver_config))
 
             clusters_drivers[instance._cluster_name] = [driver] + secondary_drivers
+
+def wait_assert(check_fn, *args, **kwargs):
+    last_exception = []
+    last_exc_info = []
+    def wrapper():
+        try:
+            check_fn(*args, **kwargs)
+        except AssertionError as e:
+            last_exception[:] = [e]
+            last_exc_info[:] = [sys.exc_info()]
+            return False
+        return True
+    try:
+        wait(wrapper)
+    except WaitFailed:
+        if not last_exception:
+            raise
+        tb = "\n".join(traceback.format_tb(last_exc_info[0][2]))
+        raise AssertionError("waited assertion failed\n{}{}".format(tb, last_exception[0]))
 
 def wait_drivers():
     for cluster in clusters_drivers.values():
@@ -983,6 +1004,9 @@ def create_user(name, **kwargs):
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
     execute_command("create", kwargs)
+
+def make_random_string(length=10):
+    return "".join(random.choice(string.letters) for _ in xrange(length))
 
 def create_test_tables(row_count=1, **kwargs):
     create("table", "//tmp/t_in", **kwargs)
