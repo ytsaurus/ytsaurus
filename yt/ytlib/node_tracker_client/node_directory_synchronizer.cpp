@@ -51,15 +51,6 @@ public:
 
     TFuture<void> Stop()
     {
-        decltype(TerminationPromise_) promise;
-        {
-            auto guard = Guard(SpinLock_);
-            Stopped_ = true;
-            promise = TerminationPromise_;
-        }
-        if (promise) {
-            promise.TrySet(TError("Node directory synchrnonizer terminated"));
-        }
         return SyncExecutor_->Stop();
     }
 
@@ -70,10 +61,6 @@ private:
 
     const TPeriodicExecutorPtr SyncExecutor_;
 
-    TSpinLock SpinLock_;
-    bool Stopped_ = false;
-    TPromise<TClusterMeta> TerminationPromise_;
-
     void DoSync()
     {
         try {
@@ -83,20 +70,9 @@ private:
             options.ReadFrom = EMasterChannelKind::Cache;
             options.PopulateNodeDirectory = true;
 
-            auto asyncMeta = DirectoryClient_->GetClusterMeta(options);
-            
-            auto promise = NewPromise<TClusterMeta>();
-            promise.TrySetFrom(asyncMeta);
-
-            {
-                auto guard = Guard(SpinLock_);
-                if (Stopped_) {
-                    return;
-                }
-                TerminationPromise_ = promise;
-            }
-
-            auto meta = WaitFor(promise.ToFuture())
+            // Request may block for prolonged periods of time;
+            // handle cancelation requests (induced by stopping the executor) immediately.
+            auto meta = WaitFor(DirectoryClient_->GetClusterMeta(options).ToImmediatelyCancelable())
                 .ValueOrThrow();
 
             NodeDirectory_->MergeFrom(*meta.NodeDirectory);
