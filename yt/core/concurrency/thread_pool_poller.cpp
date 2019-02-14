@@ -225,10 +225,6 @@ private:
 
     using TPollableEntryPtr = TIntrusivePtr<TPollableEntry>;
 
-    static void DoUnregisterPollable(const TPollableEntryPtr& entry)
-    {
-    }
-
     class TThread
         : public TSchedulerThread
     {
