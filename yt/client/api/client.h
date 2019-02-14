@@ -950,6 +950,8 @@ struct TListJobsResult
     std::optional<int> ArchiveJobCount;
 
     TListJobsStatistics Statistics;
+
+    std::vector<TError> Errors;
 };
 
 struct TGetFileFromCacheResult

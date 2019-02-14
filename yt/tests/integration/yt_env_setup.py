@@ -666,7 +666,6 @@ class YTEnvSetup(object):
 
             yt_commands.wait_for_nodes(driver=driver)
             yt_commands.wait_for_chunk_replicator(driver=driver)
-        yt_commands.reset_events_on_fs()
 
     @classmethod
     def _teardown_method(cls):
@@ -712,6 +711,7 @@ class YTEnvSetup(object):
     def setup_method(self, method):
         if not self.SINGLE_SETUP_TEARDOWN:
             self._setup_method()
+        yt_commands.reset_events_on_fs()
 
     def teardown_method(self, method):
         if not self.SINGLE_SETUP_TEARDOWN:
