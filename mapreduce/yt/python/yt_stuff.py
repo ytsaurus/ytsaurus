@@ -581,7 +581,7 @@ class YtStuff(object):
                 stderr=self.yt_local_err,
             )
             self.is_running = False
-        except Exception, e:
+        except Exception as e:
             self._log("Errors while stopping local YT:\n%s", str(e))
             self._save_logs(save_yt_all=True)
             raise
