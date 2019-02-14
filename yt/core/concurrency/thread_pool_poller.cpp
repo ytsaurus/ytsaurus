@@ -297,6 +297,10 @@ private:
 
         void HandleEvents()
         {
+            if (Poller_->ShutdownStarted_.load()) {
+                return;
+            }
+
             std::array<decltype(Poller_->Impl_)::TEvent, MaxEventsPerPoll> events;
             int eventCount = Poller_->Impl_.Wait(events.data(), MaxEventsPerPoll, PollerThreadQuantum.MicroSeconds());
             if (eventCount == 0) {
