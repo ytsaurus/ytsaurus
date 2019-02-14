@@ -49,9 +49,7 @@ public:
     TTcpBusServerConfig();
 
     static TTcpBusServerConfigPtr CreateTcp(int port);
-
     static TTcpBusServerConfigPtr CreateUnixDomain(const TString& address);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TTcpBusServerConfig)
