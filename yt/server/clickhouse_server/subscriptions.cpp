@@ -438,7 +438,7 @@ TSubscriptionManager::~TSubscriptionManager()
 }
 
 // TODO: move to config
-static const TDuration DEFAULT_POLL_FREQUENCY = TDuration::Minutes(1);
+static const TDuration DEFAULT_POLL_FREQUENCY = TDuration::Seconds(20);
 
 void TSubscriptionManager::Subscribe(
     NApi::NNative::IClientPtr client,
