@@ -430,9 +430,6 @@ class YtStuff(object):
                 self.yt_proxy_port = self.config.proxy_port
                 args += ["--proxy-port", str(self.config.proxy_port)]
 
-            if self.version == '19_4':
-                args += ["--use-new-proxy"]
-
             if self.tmpfs_path is not None:
                 args += ["--tmpfs-path", self.tmpfs_path]
             if self.config.node_count:
