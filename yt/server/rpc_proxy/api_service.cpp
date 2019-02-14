@@ -2661,6 +2661,13 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ModifyRows)
     {
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        const auto& path = request->path();
+
+        context->SetRequestInfo("TransactionId: %v, Path: %v",
+            transactionId,
+            path);
+
         TTransactionAttachOptions attachOptions;
         attachOptions.Ping = false;
         attachOptions.PingAncestors = false;
@@ -2669,15 +2676,13 @@ private:
         auto transaction = GetTransactionOrAbortContext(
             context,
             request,
-            FromProto<TTransactionId>(request->transaction_id()),
+            transactionId,
             attachOptions);
         if (!transaction) {
             return;
         }
 
         auto modifyRowsWindow = GetOrCreateTransactionModifyRowsSlidingWindow(transaction);
-
-        const auto& path = request->path();
 
         auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
             request->rowset_descriptor(),
