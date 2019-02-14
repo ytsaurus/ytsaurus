@@ -91,7 +91,8 @@ public:
     TReusableMergeIterator& operator++();
 
 private:
-    // The ranges are sorted by the their first elements (from largest to smallest).
+    // The ranges are arranged (no pun intended) into a heap (by the their first elements).
+    // The front of the heap holds the smallest range (according to TCompare).
     // Empty ranges are immediately removed.
     std::vector<TRange> Ranges_;
     bool IsIterationInProgress_;
