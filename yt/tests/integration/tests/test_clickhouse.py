@@ -244,7 +244,7 @@ class TestJobInput(ClickhouseTestBase):
             self._expect_row_count(clique, 'select * from "//tmp/t" where i >= 3', 7)
             self._expect_row_count(clique, 'select * from "//tmp/t" where i < 2', 2)
             self._expect_row_count(clique, 'select * from "//tmp/t" where 5 <= i and i <= 8', 4)
-            #self._expect_row_count('select * from "//tmp/t" where i in (-1, 2, 8, 8, 15)', 2)
+            self._expect_row_count(clique, 'select * from "//tmp/t" where i in (-1, 2, 8, 8, 15)', 2)
 
 class TestCompositeTypes(ClickhouseTestBase):
     def setup(self):
