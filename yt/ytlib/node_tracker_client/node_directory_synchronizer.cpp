@@ -51,13 +51,14 @@ public:
 
     TFuture<void> Stop()
     {
-
+        decltype(TerminationPromise_) promise;
         {
             auto guard = Guard(SpinLock_);
             Stopped_ = true;
-            if (TerminationPromise_) {
-                TerminationPromise_.TrySet(TError("Node directory synchrnonizer terminated"));
-            }
+            promise = TerminationPromise_;
+        }
+        if (promise) {
+            promise.TrySet(TError("Node directory synchrnonizer terminated"));
         }
         return SyncExecutor_->Stop();
     }
@@ -81,20 +82,21 @@ private:
             TGetClusterMetaOptions options;
             options.ReadFrom = EMasterChannelKind::Cache;
             options.PopulateNodeDirectory = true;
+
             auto asyncMeta = DirectoryClient_->GetClusterMeta(options);
+            
+            auto promise = NewPromise<TClusterMeta>();
+            promise.TrySetFrom(asyncMeta);
 
             {
-                auto promise = NewPromise<TClusterMeta>();
-                promise.TrySetFrom(promise.ToFuture());
-
                 auto guard = Guard(SpinLock_);
                 if (Stopped_) {
                     return;
                 }
-                TerminationPromise_ = std::move(promise);
+                TerminationPromise_ = promise;
             }
 
-            auto meta = WaitFor(TerminationPromise_.ToFuture())
+            auto meta = WaitFor(promise.ToFuture())
                 .ValueOrThrow();
 
             NodeDirectory_->MergeFrom(*meta.NodeDirectory);
