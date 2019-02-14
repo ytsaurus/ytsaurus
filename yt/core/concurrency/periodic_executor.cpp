@@ -1,9 +1,12 @@
 #include "periodic_executor.h"
+#include "scheduler.h"
 
 #include <yt/core/actions/bind.h>
 #include <yt/core/actions/invoker_util.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
+
+#include <yt/core/misc/finally.h>
 
 #include <yt/core/utilex/random.h>
 
@@ -30,24 +33,37 @@ TPeriodicExecutor::TPeriodicExecutor(
 void TPeriodicExecutor::Start()
 {
     TGuard<TSpinLock> guard(SpinLock_);
-    if (Started_)
+    
+    if (Started_) {
         return;
+    }
+    
     ExecutedPromise_ = TPromise<void>();
     IdlePromise_ = TPromise<void>();
     Started_ = true;
     PostDelayedCallback(RandomDuration(Splay_));
 }
 
-void TPeriodicExecutor::DoStop()
+void TPeriodicExecutor::DoStop(TGuard<TSpinLock>& guard)
 {
-    if (Started_) {
-        Started_ = false;
-        OutOfBandRequested_ = false;
-        if (ExecutedPromise_ && !ExecutedPromise_.IsSet()) {
-            TInverseGuard<TSpinLock> guard(SpinLock_);
-            ExecutedPromise_.Set(GetStoppedError());
-        }
-        TDelayedExecutor::CancelAndClear(Cookie_);
+    if (!Started_) {
+        return;
+    }
+
+    Started_ = false;
+    OutOfBandRequested_ = false;
+    auto executedPromise = ExecutedPromise_;
+    auto executionCanceler = ExecutionCanceler_;
+    TDelayedExecutor::CancelAndClear(Cookie_);
+
+    guard.Release();
+
+    if (executedPromise) {
+        executedPromise.TrySet(MakeStoppedError());
+    }
+
+    if (executionCanceler) {
+        executionCanceler.Run();
     }
 }
 
@@ -56,17 +72,18 @@ TFuture<void> TPeriodicExecutor::Stop()
     TGuard<TSpinLock> guard(SpinLock_);
     if (ExecutingCallback_) {
         InitIdlePromise();
-        DoStop();
-        return IdlePromise_;
+        auto idlePromise = IdlePromise_;
+        DoStop(guard);
+        return idlePromise;
     } else {
-        DoStop();
+        DoStop(guard);
         return VoidFuture;
     }
 }
 
-TError TPeriodicExecutor::GetStoppedError()
+TError TPeriodicExecutor::MakeStoppedError()
 {
-    return TError("Periodic executor is stopped");
+    return TError(NYT::EErrorCode::Canceled, "Periodic executor is stopped");
 }
 
 void TPeriodicExecutor::InitIdlePromise()
@@ -91,7 +108,7 @@ void TPeriodicExecutor::InitExecutedPromise()
     if (Started_) {
         ExecutedPromise_ = NewPromise<void>();
     } else {
-        ExecutedPromise_ = MakePromise<void>(GetStoppedError());
+        ExecutedPromise_ = MakePromise<void>(MakeStoppedError());
     }
 }
 
@@ -120,8 +137,9 @@ void TPeriodicExecutor::ScheduleNext()
     YCHECK(Busy_);
     Busy_ = false;
 
-    if (!Started_)
+    if (!Started_) {
         return;
+    }
 
     if (IdlePromise_ && IdlePromise_.IsSet()) {
         IdlePromise_ = TPromise<void>();
@@ -167,10 +185,12 @@ void TPeriodicExecutor::OnCallbackSuccess()
     TPromise<void> executedPromise;
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        if (!Started_ || Busy_)
+        if (!Started_ || Busy_) {
             return;
+        }
         Busy_ = true;
         ExecutingCallback_ = true;
+        ExecutionCanceler_ = GetCurrentFiberCanceler();
         TDelayedExecutor::CancelAndClear(Cookie_);
         if (ExecutedPromise_) {
             executedPromise = ExecutedPromise_;
@@ -181,32 +201,40 @@ void TPeriodicExecutor::OnCallbackSuccess()
         }
     }
 
+    // Run proper cleanup even if the fiber is terminated by throwing TFiberCanceledException.
+    auto finallyGuard = Finally([&] {
+        TPromise<void> idlePromise;
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            idlePromise = IdlePromise_;
+            ExecutingCallback_ = false;
+            ExecutionCanceler_.Reset();
+        }
+
+        if (idlePromise) {
+            idlePromise.TrySet();
+        }
+        
+        if (executedPromise) {
+            executedPromise.TrySet();
+        }
+
+        if (Mode_ == EPeriodicExecutorMode::Automatic) {
+            ScheduleNext();
+        }
+    });
+
     Callback_.Run();
-
-    TPromise<void> idlePromise;
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        idlePromise = IdlePromise_;
-        ExecutingCallback_ = false;
-    }
-
-    if (idlePromise && !idlePromise.IsSet()) {
-        idlePromise.Set();
-    }
-    if (executedPromise) {
-        executedPromise.Set();
-    }
-
-    if (Mode_ == EPeriodicExecutorMode::Automatic) {
-        ScheduleNext();
-    }
 }
 
 void TPeriodicExecutor::OnCallbackFailure()
 {
     TGuard<TSpinLock> guard(SpinLock_);
-    if (!Started_)
+    
+    if (!Started_) {
         return;
+    }
+    
     PostDelayedCallback(Period_);
 }
 
