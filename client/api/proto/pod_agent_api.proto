@@ -14,6 +14,8 @@ import "yp/client/api/proto/secrets.proto";
 // NOTE: В будущем Pod-agent будет принимать только это сообщение, сейчас он все еще принимает TPodAgentSpec отдельно для обратной совместимости
 // NOTE: Валидация - все alias секретов различны
 message TPodAgentRequest {
+    reserved 4;
+
     // Конфигурация Пода
     TPodAgentSpec Spec = 1;
 
@@ -24,7 +26,7 @@ message TPodAgentRequest {
     TPodAgentResourceCacheSpec ResourceCacheSpec = 3;
 
     // Подсети пода, подсеть с id=boxes_subnet будет использоваться для выдачи ip каждому box
-    repeated NYP.NClient.NApi.NProto.TPodStatus.TIP6AddressAllocation ip6_address_allocations = 4;
+    repeated NYP.NClient.NApi.NProto.TPodStatus.TIP6SubnetAllocation ip6_subnet_allocations = 5;
 }
 
 // Спека для получения расширенного debug состояния pod_agent
