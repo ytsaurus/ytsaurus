@@ -260,7 +260,10 @@ class TestAccounts(YTEnvSetup):
         tx = start_transaction()
         for i in xrange(0, 5):
             write_table("//tmp/t", {"a" : "b"}, tx=tx)
+
             self._replicator_sleep()
+            ping_transaction(tx)
+
             account_space = get_account_disk_space("tmp")
             tx_space = self._get_tx_disk_space(tx, "tmp")
 
