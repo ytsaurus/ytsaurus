@@ -891,7 +891,7 @@ public:
 
         auto newParams = UpdateRuntimeParameters(operation->GetRuntimeParameters(), update);
 
-        Strategy_->ValidateOperationRuntimeParameters(operation.Get(), newParams);
+        Strategy_->ValidateOperationRuntimeParameters(operation.Get(), newParams, /* validatePools */ update->ContainsPool());
 
         operation->SetRuntimeParameters(newParams);
         Strategy_->ApplyOperationRuntimeParameters(operation.Get());

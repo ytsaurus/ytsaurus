@@ -1084,6 +1084,8 @@ public:
     THashMap<TString, TOperationFairShareTreeRuntimeParametersUpdatePtr> SchedulingOptionsPerPoolTree;
 
     TOperationRuntimeParametersUpdate();
+
+    bool ContainsPool() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationRuntimeParametersUpdate)

@@ -261,6 +261,16 @@ TOperationRuntimeParametersPtr TOperation::GetRuntimeParameters() const
     return RuntimeParameters_;
 }
 
+bool TOperation::GetActivated() const
+{
+    return Activated_;
+}
+
+void TOperation::SetActivated(bool value)
+{
+    Activated_ = value;
+};
+
 void TOperation::SetRuntimeParameters(TOperationRuntimeParametersPtr parameters)
 {
     if (parameters->Acl != RuntimeParameters_->Acl) {
