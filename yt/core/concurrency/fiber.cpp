@@ -116,6 +116,7 @@ void TFiber::SetSleeping(TFuture<void> awaitedFuture)
     // THREAD_AFFINITY(OwnerThread);
 
     TGuard<TSpinLock> guard(SpinLock_);
+    UnwindIfCanceled();
     Y_ASSERT(State_ != EFiberState::Terminated);
     State_ = EFiberState::Sleeping;
     Y_ASSERT(!AwaitedFuture_);
@@ -142,8 +143,9 @@ void TFiber::Cancel()
     VERIFY_THREAD_AFFINITY_ANY();
 
     bool expected = false;
-    if (!Canceled_.compare_exchange_strong(expected, true, std::memory_order_relaxed))
+    if (!Canceled_.compare_exchange_strong(expected, true, std::memory_order_relaxed)) {
         return;
+    }
 
     TFuture<void> awaitedFuture;
     {
@@ -176,6 +178,8 @@ const TClosure& TFiber::GetCanceler()
 
 bool TFiber::IsCancelable() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     TGuard<TSpinLock> guard(SpinLock_);
     return static_cast<bool>(Canceler_);
 }
@@ -185,6 +189,16 @@ bool TFiber::IsCanceled() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return Canceled_.load(std::memory_order_relaxed);
+}
+
+void TFiber::UnwindIfCanceled() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    if (IsCanceled()) {
+        YT_LOG_DEBUG("Throwing fiber cancelation exception");
+        throw TFiberCanceledException();
+    }
 }
 
 bool TFiber::IsTerminated() const

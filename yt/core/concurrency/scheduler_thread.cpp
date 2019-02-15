@@ -32,14 +32,6 @@ void UnwindFiber(TFiberPtr fiber)
     GetFinalizerInvoker()->Invoke(BIND(&ResumeFiber, Passed(std::move(fiber))));
 }
 
-void CheckForCanceledFiber(TFiber* fiber)
-{
-    if (fiber->IsCanceled()) {
-        YT_LOG_DEBUG("Throwing fiber cancelation exception");
-        throw TFiberCanceledException();
-    }
-}
-
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -362,7 +354,7 @@ void TSchedulerThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvoke
             resumer = std::move(resumer),
             unwinder = std::move(unwinder)
         ] (const TError&) mutable {
-            YT_LOG_DEBUG("Waking up fiber %llx", fiber->GetId());
+            YT_LOG_DEBUG("Waking up fiber (TargetFiberId: %llx)", fiber->GetId());
             GuardedInvoke(std::move(invoker), std::move(resumer), std::move(unwinder));
         }));
     } else {
@@ -443,7 +435,7 @@ void TSchedulerThread::YieldTo(TFiberPtr&& other)
     // Cannot access |this| from this point as the fiber might be resumed
     // in other scheduler.
 
-    CheckForCanceledFiber(caller);
+    caller->UnwindIfCanceled();
 }
 
 void TSchedulerThread::SwitchTo(IInvokerPtr invoker)
@@ -453,7 +445,7 @@ void TSchedulerThread::SwitchTo(IInvokerPtr invoker)
     auto fiber = CurrentFiber_.Get();
     YCHECK(fiber);
 
-    CheckForCanceledFiber(fiber);
+    fiber->UnwindIfCanceled();
 
     // Update scheduling state.
     YCHECK(!SwitchToInvoker_);
@@ -469,23 +461,21 @@ void TSchedulerThread::SwitchTo(IInvokerPtr invoker)
 
 void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
 {
+    YT_LOG_DEBUG("WaitFor");
     VERIFY_THREAD_AFFINITY(HomeThread);
 
     auto fiber = CurrentFiber_.Get();
     YCHECK(fiber);
 
-// Check cancellation after wakeup to reduce sync execution time.
-#if 0
-    CheckForCanceledFiber(fiber);
-#endif
+    // NB: This may throw TFiberCanceledException;
+    // therefore this call must come first and succeed before we update our internal state.
+    fiber->SetSleeping(future);
 
     // Update scheduling state.
     YCHECK(!WaitForFuture_);
     WaitForFuture_ = std::move(future);
     YCHECK(!SwitchToInvoker_);
     SwitchToInvoker_ = std::move(invoker);
-
-    fiber->SetSleeping(WaitForFuture_);
 
     SwitchContextFrom(fiber);
 
@@ -524,8 +514,7 @@ void TSchedulerThread::SwitchContextFrom(TFiber* currentFiber)
     currentFiber->InvokeContextOutHandlers();
     currentFiber->GetContext()->SwitchTo(&SchedulerContext_);
     currentFiber->InvokeContextInHandlers();
-
-    CheckForCanceledFiber(currentFiber);
+    currentFiber->UnwindIfCanceled();
 }
 
 void TSchedulerThread::SetCurrentFiber(TFiberPtr fiber)
