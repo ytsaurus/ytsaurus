@@ -367,6 +367,7 @@ message TQueryStatistics
     optional uint64 wait_on_ready_event_time = 10; // TDuration
     optional bool incomplete_input = 11;
     optional bool incomplete_output = 12;
+    optional uint64 memory_usage = 15 [ default = 0 ];
 
     repeated TQueryStatistics inner_statistics = 14;
 }
