@@ -19,6 +19,13 @@ def test_get(yt_stuff):
     yt.set('//test_get/int64', 13)
     assert client.get('//test_get/int64') == 13
 
+    # test get uint64
+    yt.create('uint64_node', '//test_get/uint64')
+    yt.set('//test_get/uint64', 42)
+    assert client.get('//test_get/uint64') == 42
+    yt.set('//test_get/uint64', 2**64 - 1)
+    assert client.get('//test_get/uint64') == 2**64 - 1
+
     # test get list
     l = [1, 2, 'a', 'b', ['x', 'z'], {'a': 1, 'b': 2}]
     yt.create('list_node', '//test_get/list')
@@ -72,6 +79,8 @@ def test_set(yt_stuff):
     assert yt.get('//test_set/string/@xxx') == {'a': 1, 'b': 2}
     client.set('//test_set/string/@yyy', ['a', 2, 'c'])
     assert yt.get('//test_set/string/@yyy') == ['a', 2, 'c']
+    client.set('//test_set/string/@ui64', 2**64 - 1)
+    assert yt.get('//test_set/string/@ui64') == 2**64 - 1
 
 
 def test_exists(yt_stuff):
@@ -246,8 +255,8 @@ def test_insert(yt_stuff):
     assert rows[0] == {'key': 'a', 'value': '1'}
 
     # test update
-    client.insert_rows('//test_insert/table', [{'key': 'a'}])
-    client.insert_rows('//test_insert/table', [{'key': 'b'}], update=True)
+    client.insert_rows('//test_insert/table', [{'key': 'a', 'count': 0}])
+    client.insert_rows('//test_insert/table', [{'key': 'b', 'count': 0}], update=True)
 
     rows = client.select_rows('key, value from [//test_insert/table] where key="a" or key="b"')
     assert len(rows) == 2
