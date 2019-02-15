@@ -18,13 +18,13 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchedulerProgram
+class TControllerAgentProgram
     : public TProgram
     , public TProgramPdeathsigMixin
     , public TProgramConfigMixin<TControllerAgentBootstrapConfig>
 {
 public:
-    TSchedulerProgram()
+    TControllerAgentProgram()
         : TProgramPdeathsigMixin(Opts_)
         , TProgramConfigMixin(Opts_)
     { }
@@ -71,6 +71,6 @@ protected:
 
 int main(int argc, const char** argv)
 {
-    return NYT::NControllerAgent::TSchedulerProgram().Run(argc, argv);
+    return NYT::NControllerAgent::TControllerAgentProgram().Run(argc, argv);
 }
 
