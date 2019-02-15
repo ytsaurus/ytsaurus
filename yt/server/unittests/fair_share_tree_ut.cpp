@@ -25,15 +25,15 @@ struct TSchedulerStrategyHostMock
     , public ISchedulerStrategyHost
     , public TEventLogHostBase
 {
-    explicit TSchedulerStrategyHostMock(const TJobResourcesWithQuotaList& nodeResourceLimitsList)
-        : NodeResourceLimitsList(nodeResourceLimitsList)
+    explicit TSchedulerStrategyHostMock(TJobResourcesWithQuotaList nodeResourceLimitsList)
+        : NodeResourceLimitsList(std::move(nodeResourceLimitsList))
     { }
 
     TSchedulerStrategyHostMock()
         : TSchedulerStrategyHostMock(TJobResourcesWithQuotaList{})
     { }
 
-    virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter)
+    virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) override
     {
         if (!filter.IsEmpty()) {
             return ZeroJobResources();
@@ -208,12 +208,12 @@ public:
     virtual void SetSlotIndex(const TString& /* treeId */, int /* slotIndex */) override
     { }
 
-    virtual TString GetAuthenticatedUser() const
+    virtual TString GetAuthenticatedUser() const override
     {
         return "root";
     }
 
-    virtual TOperationId GetId() const
+    virtual TOperationId GetId() const override
     {
         return Id_;
     }
@@ -229,6 +229,11 @@ public:
     }
 
     virtual TOperationRuntimeParametersPtr GetRuntimeParameters() const override
+    {
+        Y_UNREACHABLE();
+    }
+
+    virtual bool GetActivated() const override
     {
         Y_UNREACHABLE();
     }
@@ -255,8 +260,14 @@ public:
         return FakeCounter_;
     }
 
+    virtual NConcurrency::TReaderWriterSpinLock* GetSharedStateTreeLock() override
+    {
+        return &SharedStateTreeLock_;
+    }
+
 private:
     NProfiling::TAggregateGauge FakeCounter_;
+    NConcurrency::TReaderWriterSpinLock SharedStateTreeLock_;
 };
 
 class TFairShareTreeTest
@@ -378,17 +389,14 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     auto poolA = CreateTestPool(host.Get(), "A");
     auto poolB = CreateTestPool(host.Get(), "B");
 
-    rootElement->AddChild(poolA);
-    poolA->SetParent(rootElement.Get());
+    poolA->AttachParent(rootElement.Get());
 
-    rootElement->AddChild(poolB);
-    poolB->SetParent(rootElement.Get());
+    poolB->AttachParent(rootElement.Get());
 
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, jobResources));
     auto operationElementX = CreateTestOperationElement(host.Get(), operationOptions, operationX.Get());
 
-    poolA->AddChild(operationElementX);
-    operationElementX->SetParent(poolA.Get());
+    operationElementX->AttachParent(poolA.Get(), true);
     operationElementX->Enable();
 
     auto dynamicAttributes = TDynamicAttributesList(4);
@@ -427,8 +435,7 @@ TEST_F(TFairShareTreeTest, TestUpdatePreemptableJobsList)
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, jobResources));
     auto operationElementX = CreateTestOperationElement(host.Get(), operationOptions, operationX.Get());
 
-    rootElement->AddChild(operationElementX);
-    operationElementX->SetParent(rootElement.Get());
+    operationElementX->AttachParent(rootElement.Get(), true);
     operationElementX->Enable();
 
     std::vector<TJobId> jobIds;
@@ -486,8 +493,7 @@ TEST_F(TFairShareTreeTest, TestBestAllocationRatio)
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(3, jobResources));
     auto operationElementX = CreateTestOperationElement(host.Get(), operationOptions, operationX.Get());
 
-    rootElement->AddChild(operationElementX);
-    operationElementX->SetParent(rootElement.Get());
+    operationElementX->AttachParent(rootElement.Get(), true);
     operationElementX->Enable();
 
     auto dynamicAttributes = TDynamicAttributesList(4);
@@ -508,13 +514,10 @@ TEST_F(TFairShareTreeTest, TestOperationCountLimits)
         pools[i] = CreateTestPool(host.Get(), "pool" + ToString(i));
     }
 
-    rootElement->AddChild(pools[0], /* enabled */ true);
-    rootElement->AddChild(pools[1], /* enabled */ true);
-    pools[0]->SetParent(rootElement.Get());
-    pools[1]->SetParent(rootElement.Get());
+    pools[0]->AttachParent(rootElement.Get());
+    pools[1]->AttachParent(rootElement.Get());
 
-    pools[1]->AddChild(pools[2], /* enabled */ true);
-    pools[2]->SetParent(pools[1].Get());
+    pools[2]->AttachParent(pools[1].Get());
 
     pools[2]->IncreaseOperationCount(1);
     pools[2]->IncreaseRunningOperationCount(1);
@@ -569,16 +572,12 @@ TEST_F(TFairShareTreeTest, TestMaxPossibleUsageRatioWithoutLimit)
     // Pool with total demand <10, 15>.
     auto pool = CreateTestPool(host.Get(), "A");
 
-    pool->AddChild(firstOperationElement, true);
-    firstOperationElement->SetParent(pool.Get());
-    pool->AddChild(secondOperationElement);
-    secondOperationElement->SetParent(pool.Get());
-
     // Root element.
     auto rootElement = CreateTestRootElement(host.Get());
+    pool->AttachParent(rootElement.Get());
 
-    rootElement->AddChild(pool, true);
-    pool->SetParent(rootElement.Get());
+    firstOperationElement->AttachParent(pool.Get(), true);
+    secondOperationElement->AttachParent(pool.Get(), true);
 
     // Сheck MaxPossibleUsageRatio computation.
     auto dynamicAttributes = TDynamicAttributesList(4);
@@ -615,8 +614,7 @@ TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
 
     // Root element.
     auto rootElement = CreateTestRootElement(host.Get());
-    rootElement->AddChild(operationElement, true);
-    operationElement->SetParent(rootElement.Get());
+    operationElement->AttachParent(rootElement.Get(), true);
 
     // We run operation with 2 jobs and simulate 3 concurrent heartbeats.
     // Two of them must succeed and call controller ScheduleJob,

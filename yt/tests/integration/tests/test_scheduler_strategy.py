@@ -1288,12 +1288,6 @@ class TestSchedulerPools(YTEnvSetup):
         }
     }
 
-    def setup_method(self, method):
-        super(TestSchedulerPools, self).setup_method(method)
-        set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 3)
-        set("//sys/pool_trees/default/@default_parent_pool", "default_pool")
-        time.sleep(0.5)
-
     def test_pools_reconfiguration(self):
         create_test_tables(attributes={"replication_factor": 1})
 
@@ -1326,6 +1320,7 @@ class TestSchedulerPools(YTEnvSetup):
             set(output + "/@replication_factor", 1)
 
         create("map_node", "//sys/pools/default_pool")
+        set("//sys/pool_trees/default/@default_parent_pool", "default_pool")
         time.sleep(0.2)
 
         command = with_breakpoint("cat ; BREAKPOINT")
@@ -1384,9 +1379,6 @@ class TestSchedulerPools(YTEnvSetup):
         assert pool_fifo["parent"] == "custom_pool_fifo"
         assert pool_fifo["mode"] == "fifo"
 
-        remove("//sys/pools/custom_pool")
-        remove("//sys/pools/custom_pool_fifo")
-
     def test_ephemeral_pools_limit(self):
         create("table", "//tmp/t_in")
         set("//tmp/t_in/@replication_factor", 1)
@@ -1398,6 +1390,8 @@ class TestSchedulerPools(YTEnvSetup):
             set(output + "/@replication_factor", 1)
 
         create("map_node", "//sys/pools/default_pool")
+        set("//sys/pool_trees/default/@default_parent_pool", "default_pool")
+        set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 3)
         time.sleep(0.2)
 
         ops = []
@@ -1425,6 +1419,8 @@ class TestSchedulerPools(YTEnvSetup):
                 spec={"pool": "pool4"})
 
         remove("//sys/pools/default_pool")
+        remove("//sys/pool_trees/default/@default_parent_pool")
+        remove("//sys/pool_trees/default/@max_ephemeral_pools_per_user")
 
         for breakpoint_name in breakpoints:
             release_breakpoint(breakpoint_name)
@@ -1553,11 +1549,18 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
         assert "Use of root element id is forbidden" == alert_message
         assert ls(self.orchid_pools) == ['<Root>']
 
-    def test_bad_pool_configuration(self):
+    def test_invalid_pool_attributes(self):
         create("map_node", "//sys/pools/test_pool", attributes={"max_operation_count": "trash"})
 
         alert_message = self.wait_and_get_inner_alert_message()
         assert "Parsing configuration of pool \"test_pool\" failed" == alert_message
+        assert ls(self.orchid_pools) == ['<Root>']
+
+    def test_invalid_pool_node(self):
+        set("//sys/pools/test_pool", 0)
+
+        alert_message = self.wait_and_get_inner_alert_message()
+        assert "Found node with type Int64, but only Map is allowed" == alert_message
         assert ls(self.orchid_pools) == ['<Root>']
 
     def test_operation_count_validation_on_pool(self):
@@ -1579,6 +1582,20 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
         alert_message = self.wait_and_get_inner_alert_message()
         assert "Pool \"test_pool\" cannot have subpools since it is in fifo mode" == alert_message
         assert ls(self.orchid_pools) == ['<Root>']
+
+    def test_ephemeral_to_explicit_pool_transformation(self):
+        create("map_node", "//sys/pools/default_pool")
+        set("//sys/pool_trees/default/@default_parent_pool", "default_pool")
+        self.wait_pool_exists("default_pool")
+
+        run_sleeping_vanilla(spec={"pool": "test_pool"})
+        self.wait_pool_exists("test_pool")
+
+        create("map_node", "//sys/pools/test_pool")
+
+        wait(lambda: self.get_pool_parent("test_pool") == "<Root>")
+        ephemeral_pools = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/user_to_ephemeral_pools/root"
+        assert get(ephemeral_pools) == []
 
     def wait_pool_exists(self, pool):
         wait(lambda: exists(self.orchid_pools + "/" + pool), sleep_backoff=0.1)

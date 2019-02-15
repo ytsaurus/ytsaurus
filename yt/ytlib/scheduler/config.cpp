@@ -1272,6 +1272,15 @@ TOperationRuntimeParametersUpdate::TOperationRuntimeParametersUpdate()
     });
 }
 
+bool TOperationRuntimeParametersUpdate::ContainsPool() const
+{
+    auto result = Pool.has_value();
+    for (const auto& [_, treeOptions] : SchedulingOptionsPerPoolTree) {
+        result |= treeOptions->Pool.has_value();
+    }
+    return result;
+}
+
 TOperationFairShareTreeRuntimeParametersPtr UpdateFairShareTreeRuntimeParameters(
     const TOperationFairShareTreeRuntimeParametersPtr& origin,
     const TOperationFairShareTreeRuntimeParametersUpdatePtr& update)
@@ -1296,12 +1305,13 @@ TOperationRuntimeParametersPtr UpdateRuntimeParameters(
     if (update->Acl) {
         result->Acl = *update->Acl;
     }
-    for (const auto& [poolTree, treeUpdate] : update->SchedulingOptionsPerPoolTree) {
-        auto& treeParams = result->SchedulingOptionsPerPoolTree[poolTree];
-        treeParams = UpdateFairShareTreeRuntimeParameters(treeParams, treeUpdate);
+    for (auto& [poolTree, treeParams] : result->SchedulingOptionsPerPoolTree) {
+        auto treeUpdateIt = update->SchedulingOptionsPerPoolTree.find(poolTree);
+        if (treeUpdateIt != update->SchedulingOptionsPerPoolTree.end()) {
+            treeParams = UpdateFairShareTreeRuntimeParameters(treeParams, treeUpdateIt->second);
+        }
 
-        // TODO(levysotsky): Make sure the priority of these weight and pool
-        // should be like this (applied after per-tree update), or fix it.
+        // NB: root level attributes has higher priority.
         if (update->Weight) {
             treeParams->Weight = *update->Weight;
         }
