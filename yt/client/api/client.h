@@ -428,7 +428,7 @@ struct TSelectRowsOptions
     //! Path in Cypress with UDFs.
     std::optional<TString> UdfRegistryPath;
     //! Memory limit per execution node
-    size_t MemoryLimitPerNode = 2_GB;
+    size_t MemoryLimitPerNode = std::numeric_limits<size_t>::max();
 };
 
 struct TGetNodeOptions

@@ -30,9 +30,9 @@ using NNodeTrackerClient::TNodeMemoryTracker;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMemoryProviderMapByTag;
+DECLARE_REFCOUNTED_CLASS(TMemoryProviderMapByTag)
 
-DECLARE_REFCOUNTED_CLASS(TMemoryProviderMapByTag);
+DECLARE_REFCOUNTED_CLASS(TTrackedMemoryChunkProvider)
 
 class TTrackedMemoryChunkProvider
     : public IMemoryChunkProvider
@@ -70,14 +70,16 @@ public:
 
     virtual std::unique_ptr<TAllocationHolder> Allocate(size_t size, TRefCountedTypeCookie cookie) override
     {
-        auto guard = Guard(SpinLock_);
-
-        if (Allocated_ + size > Limit_) {
-            THROW_ERROR_EXCEPTION("Not enough memory to allocate %v (Allocated: %v, Limit: %v)",
-                size,
-                Allocated_,
-                Limit_);
-        }
+        size_t allocated;
+        do {
+            allocated = Allocated_.load();
+            if (allocated + size > Limit_) {
+                THROW_ERROR_EXCEPTION("Not enough memory to allocate %v (Allocated: %v, Limit: %v)",
+                    size,
+                    allocated,
+                    Limit_);
+            }
+        } while (!Allocated_.compare_exchange_strong(allocated, allocated + size));
 
         std::unique_ptr<THolder> result(TAllocationHolder::Allocate<THolder>(size, cookie));
         result->Owner = this;
@@ -92,9 +94,18 @@ public:
         }
         YCHECK(result->GetRef().Size() != 0);
 
-        Allocated_ += result->GetRef().Size();
+        auto delta = result->GetRef().Size() - size;
+        allocated = Allocated_.fetch_add(delta);
+
+        auto maxAllocated = MaxAllocated_.load();
+        while (maxAllocated < allocated && !MaxAllocated_.compare_exchange_weak(maxAllocated, allocated));
 
         return result;
+    }
+
+    size_t GetMaxAllocated() const
+    {
+        return MaxAllocated_;
     }
 
     ~TTrackedMemoryChunkProvider();
@@ -103,18 +114,21 @@ private:
     const TString Key_;
     const TMemoryProviderMapByTagPtr Parent_;
     const size_t Limit_;
-    size_t Allocated_ = 0;
+    std::atomic<size_t> Allocated_ = 0;
+    std::atomic<size_t> MaxAllocated_ = 0;
+
     NNodeTrackerClient::EMemoryCategory MainCategory_;
     NNodeTrackerClient::TNodeMemoryTracker* MemoryTracker_;
-    TSpinLock SpinLock_;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TTrackedMemoryChunkProvider)
 
 class TMemoryProviderMapByTag
     : public TRefCounted
 {
 public:
-    IMemoryChunkProviderPtr GetProvider(
+    TTrackedMemoryChunkProviderPtr GetProvider(
         TString tag,
         size_t limit,
         NNodeTrackerClient::EMemoryCategory mainCategory,
@@ -123,7 +137,7 @@ public:
         auto guard = Guard(SpinLock_);
         auto it = Map_.emplace(tag, nullptr).first;
 
-        IMemoryChunkProviderPtr result = it->second.Lock();
+        TTrackedMemoryChunkProviderPtr result = it->second.Lock();
 
         if (!result) {
             result = New<TTrackedMemoryChunkProvider>(tag, this, limit, mainCategory, memoryTracker);
@@ -136,7 +150,7 @@ public:
     friend class TTrackedMemoryChunkProvider;
 
 private:
-    THashMap<TString, TWeakPtr<IMemoryChunkProvider>> Map_;
+    THashMap<TString, TWeakPtr<TTrackedMemoryChunkProvider>> Map_;
     TSpinLock SpinLock_;
 };
 
@@ -213,6 +227,12 @@ public:
                 YT_LOG_DEBUG("Finalizing evaluation");
             });
 
+            auto memoryChunkProvider = MemoryProvider_.GetProvider(
+                ToString(options.ReadSessionId),
+                options.MemoryLimitPerNode,
+                NNodeTrackerClient::EMemoryCategory::Query,
+                MemoryTracker_);
+
             try {
                 TCGVariables fragmentParams;
                 auto cgQuery = Codegen(
@@ -243,11 +263,7 @@ public:
                 executionContext.Offset = query->Offset;
                 executionContext.Limit = query->Limit;
                 executionContext.IsOrdered = query->IsOrdered();
-                executionContext.MemoryChunkProvider = MemoryProvider_.GetProvider(
-                    ToString(options.ReadSessionId),
-                    options.MemoryLimitPerNode,
-                    NNodeTrackerClient::EMemoryCategory::Query,
-                    MemoryTracker_);
+                executionContext.MemoryChunkProvider = memoryChunkProvider;
 
                 YT_LOG_DEBUG("Evaluating query");
 
@@ -266,6 +282,8 @@ public:
             statistics.AsyncTime = wallTime.GetElapsedTime() - statistics.SyncTime;
             statistics.ExecuteTime =
                 statistics.SyncTime - statistics.ReadTime - statistics.WriteTime - statistics.CodegenTime;
+
+            statistics.MemoryUsage = memoryChunkProvider->GetMaxAllocated();
 
             YT_LOG_DEBUG("Query statistics (%v)", statistics);
 
