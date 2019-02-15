@@ -11,6 +11,8 @@
 
 #include <yt/core/misc/lazy_ptr.h>
 
+#include <yt/core/logging/log.h>
+
 #include <exception>
 #include <atomic>
 
@@ -183,14 +185,11 @@ TEST_W(TPeriodicTest, ParallelOnExecuted2)
 
 TEST_W(TPeriodicTest, Stop)
 {
-    auto startedPromise = NewPromise<void>();
     auto neverSetPromise = NewPromise<void>();
     auto immediatelyCancelableFuture = neverSetPromise.ToFuture().ToImmediatelyCancelable();
-    auto callback = BIND([&] () mutable {
-        startedPromise.Set();
+    auto callback = BIND([&] {
         Y_UNUSED(WaitFor(immediatelyCancelableFuture));
     });
-
     auto actionQueue = New<TActionQueue>();
     auto executor = New<TPeriodicExecutor>(
         actionQueue->GetInvoker(),
@@ -198,11 +197,11 @@ TEST_W(TPeriodicTest, Stop)
         TDuration::MilliSeconds(100));
 
     executor->Start();
-    WaitFor(startedPromise.ToFuture())
-        .ThrowOnError();
+    // Wait for the callback to enter WaitFor.
+    Sleep(TDuration::MilliSeconds(100));
     WaitFor(executor->Stop())
         .ThrowOnError();
-
+    
     EXPECT_TRUE(immediatelyCancelableFuture.IsSet());
     EXPECT_EQ(NYT::EErrorCode::Canceled, immediatelyCancelableFuture.Get().GetCode());
 }
