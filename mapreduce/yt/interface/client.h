@@ -61,7 +61,7 @@ class IClientBase
     , public IOperationClient
 {
 public:
-    virtual Y_WARN_UNUSED_RESULT ITransactionPtr StartTransaction(
+    [[nodiscard]] virtual ITransactionPtr StartTransaction(
         const TStartTransactionOptions& options = TStartTransactionOptions()) = 0;
 
     //
@@ -135,7 +135,7 @@ public:
     // Returned object WILL NOT ping transaction automatically.
     // Otherwise returened object is similar to the object returned by StartTransaction
     // and it can see all the changes made inside the transaction.
-    virtual Y_WARN_UNUSED_RESULT ITransactionPtr AttachTransaction(
+    [[nodiscard]] virtual ITransactionPtr AttachTransaction(
         const TTransactionId& transactionId) = 0;
 
     virtual void MountTable(
