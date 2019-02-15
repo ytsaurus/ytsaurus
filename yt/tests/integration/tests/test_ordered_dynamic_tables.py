@@ -26,7 +26,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
     def _wait_for_in_memory_stores_preload(self, table):
         for tablet in get(table + "/@tablets"):
             tablet_id = tablet["tablet_id"]
-            address = self._get_tablet_leader_address(tablet_id)
+            address = get_tablet_leader_address(tablet_id)
             def all_preloaded():
                 tablet_data = self._find_tablet_orchid(address, tablet_id)
                 return all(s["preload_state"] == "complete" for s in tablet_data["stores"].itervalues() if s["store_state"] == "persistent")
@@ -414,7 +414,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
             sync_mount_table("//tmp/t")
             cell_id = get("//tmp/t/@tablets/0/cell_id")
             tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-            address = self._get_tablet_leader_address(tablet_id)
+            address = get_tablet_leader_address(tablet_id)
             trim_rows("//tmp/t", 0, trimmed_row_count)
             # NB: 21 == 20 (static stores) + 1 (dynamic store)
             wait(lambda: len(get("//sys/nodes/{0}/orchid/tablet_cells/{1}/tablets/{2}/stores".format(address, cell_id, tablet_id))) == 21 - trimmed_row_count)
@@ -669,7 +669,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        address = self._get_tablet_leader_address(tablet_id)
+        address = get_tablet_leader_address(tablet_id)
 
         def _check_preload_state(state):
             sleep(1.0)

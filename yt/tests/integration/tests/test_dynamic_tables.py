@@ -61,12 +61,6 @@ class DynamicTablesBase(YTEnvSetup):
             })
         create_dynamic_table(path, **attributes)
 
-    def _get_tablet_leader_address(self, tablet_id):
-        cell_id = get("//sys/tablets/" + tablet_id + "/@cell_id")
-        peers = get("//sys/tablet_cells/" + cell_id + "/@peers")
-        leader_peer = list(x for x in peers if x["state"] == "leading")[0]
-        return leader_peer["address"]
-
     def _get_recursive(self, path, result=None):
         if result is None or result.attributes.get("opaque", False):
             result = get(path, attributes=["opaque"])
@@ -306,7 +300,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        address = self._get_tablet_leader_address(tablet_id)
+        address = get_tablet_leader_address(tablet_id)
         assert self._find_tablet_orchid(address, tablet_id) is not None
 
         remove("//tmp/t")
@@ -1064,7 +1058,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//sys/tablet_cell_bundles/b/@dynamic_options/suppress_tablet_cell_decommission", True)
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        address = self._get_tablet_leader_address(tablet_id)
+        address = get_tablet_leader_address(tablet_id)
 
         version = get("//sys/tablet_cell_bundles/b/@dynamic_config_version")
         wait(lambda: get("//sys/nodes/{0}/orchid/tablet_cells/{1}/dynamic_config_version".format(address, cell)) == version)
