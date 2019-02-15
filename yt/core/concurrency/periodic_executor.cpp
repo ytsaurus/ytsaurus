@@ -6,10 +6,8 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/finally.h>
-
 #include <yt/core/utilex/random.h>
-
+#include <yt/core/logging/log.h>
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -201,8 +199,7 @@ void TPeriodicExecutor::OnCallbackSuccess()
         }
     }
 
-    // Run proper cleanup even if the fiber is terminated by throwing TFiberCanceledException.
-    auto finallyGuard = Finally([&] {
+    auto cleanup = [=] () mutable {
         TPromise<void> idlePromise;
         {
             TGuard<TSpinLock> guard(SpinLock_);
@@ -222,9 +219,21 @@ void TPeriodicExecutor::OnCallbackSuccess()
         if (Mode_ == EPeriodicExecutorMode::Automatic) {
             ScheduleNext();
         }
-    });
+    };
 
-    Callback_.Run();
+    try {
+        Callback_.Run();
+    } catch (const TFiberCanceledException&) {
+        // There's very little we can do here safely;
+        // in particular, we should refrain from setting promises;
+        // let's forward the call to the delayed executor.
+        TDelayedExecutor::Submit(
+            BIND([this_ = MakeWeak(this), cleanup = std::move(cleanup)] () mutable { cleanup(); }),
+            TDuration::Zero());  
+        throw;
+    }
+
+    cleanup();
 }
 
 void TPeriodicExecutor::OnCallbackFailure()
