@@ -16,7 +16,7 @@ public:
         IStoragePtr storage,
         ICoordinationServicePtr coordinationService,
         ICliqueAuthorizationManagerPtr cliqueAuthorizationManager,
-        TConfigPtr nativeConfig,
+        TClickHouseServerBootstrapConfigPtr nativeConfig,
         std::string cliqueId,
         std::string instanceId,
         ui16 tcpPort,

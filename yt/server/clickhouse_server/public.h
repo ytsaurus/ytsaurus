@@ -44,7 +44,7 @@ struct TValue;
 class TReadJobSpec;
 
 DECLARE_REFCOUNTED_CLASS(TEngineConfig);
-DECLARE_REFCOUNTED_CLASS(TConfig);
+DECLARE_REFCOUNTED_CLASS(TClickHouseServerBootstrapConfig);
 DECLARE_REFCOUNTED_CLASS(TUserConfig);
 DECLARE_REFCOUNTED_CLASS(TNativeClientCacheConfig);
 

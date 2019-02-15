@@ -100,7 +100,7 @@ private:
     const IStoragePtr Storage;
     const ICoordinationServicePtr CoordinationService;
     const ICliqueAuthorizationManagerPtr CliqueAuthorizationManager_;
-    const TConfigPtr NativeConfig_;
+    const TClickHouseServerBootstrapConfigPtr NativeConfig_;
     const std::string CliqueId_;
     const std::string InstanceId_;
     ui16 TcpPort_;
@@ -131,7 +131,7 @@ public:
         IStoragePtr storage,
         ICoordinationServicePtr coordinationService,
         ICliqueAuthorizationManagerPtr cliqueAuthorizationManager,
-        TConfigPtr nativeConfig,
+        TClickHouseServerBootstrapConfigPtr nativeConfig,
         std::string cliqueId,
         std::string instanceId,
         ui16 tcpPort,
@@ -483,7 +483,7 @@ TServer::TServer(
     IStoragePtr storage,
     ICoordinationServicePtr coordinationService,
     ICliqueAuthorizationManagerPtr cliqueAuthorizationManager,
-    TConfigPtr nativeConfig,
+    TClickHouseServerBootstrapConfigPtr nativeConfig,
     std::string cliqueId,
     std::string instanceId,
     ui16 tcpPort,

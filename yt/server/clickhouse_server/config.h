@@ -145,7 +145,7 @@ DEFINE_REFCOUNTED_TYPE(TEngineConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TConfig
+class TClickHouseServerBootstrapConfig
     : public TServerConfig
 {
 public:
@@ -163,7 +163,7 @@ public:
     //! User for communication with YT.
     TString User;
 
-    TConfig()
+    TClickHouseServerBootstrapConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
 
@@ -184,7 +184,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TConfig);
+DEFINE_REFCOUNTED_TYPE(TClickHouseServerBootstrapConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
