@@ -422,11 +422,17 @@ class TestMedia(YTEnvSetup):
 
         wait(lambda: len(get("#{0}/@stored_replicas".format(chunk1))) == 2 and len(get("#{0}/@stored_replicas".format(chunk2))) == 2)
 
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", False, recursive=True)
+        wait(lambda: not get("//sys/@chunk_replicator_enabled"))
+
         chunk1_nodes = get("#{0}/@stored_replicas".format(chunk1))
         chunk2_nodes = get("#{0}/@stored_replicas".format(chunk2))
 
         for node in chunk1_nodes + chunk2_nodes:
             set("//sys/nodes/{0}/@banned".format(node), True)
+
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", True)
+        wait(lambda: get("//sys/@chunk_replicator_enabled"))
 
         def persistent_chunk_is_lost_vital():
             lvc = ls("//sys/lost_vital_chunks")
