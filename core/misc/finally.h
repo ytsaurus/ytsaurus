@@ -49,7 +49,7 @@ private:
 };
 
 template <class TCallback>
-TFinallyGuard<typename std::decay<TCallback>::type> Finally(TCallback&& callback, bool noUncaughtExceptions = false) Y_WARN_UNUSED_RESULT;
+[[nodiscard]] TFinallyGuard<typename std::decay<TCallback>::type> Finally(TCallback&& callback, bool noUncaughtExceptions = false);
 
 template <class TCallback>
 TFinallyGuard<typename std::decay<TCallback>::type> Finally(TCallback&& callback, bool noUncaughtExceptions)
