@@ -2,7 +2,6 @@ from __future__ import print_function
 
 from yt.common import makedirp
 from yt.wrapper.common import DoNotReplaceAction, chunk_iter_stream, MB
-from yt.wrapper.job_runner import make_run_script, get_output_descriptor_list
 from yt.wrapper.file_commands import _get_remote_temp_files_directory
 import yt.logger as logger
 import yt.wrapper as yt
