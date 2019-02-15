@@ -123,6 +123,11 @@ cdef TNode _pyobj_to_TNode(obj):
             raise Exception()
     elif isinstance(obj, basestring):
         return TNode(_to_TString(obj))
+    elif isinstance(obj, long):
+        if obj < 2**63:
+            return TNode(<i64>obj)
+        else:
+            return TNode(<ui64>obj)
     elif isinstance(obj, bool):
         return TNode(<bint>obj)
     elif isinstance(obj, int):
