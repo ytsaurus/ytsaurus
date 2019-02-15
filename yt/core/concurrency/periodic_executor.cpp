@@ -228,7 +228,7 @@ void TPeriodicExecutor::OnCallbackSuccess()
         // in particular, we should refrain from setting promises;
         // let's forward the call to the delayed executor.
         TDelayedExecutor::Submit(
-            BIND([this_ = MakeWeak(this), cleanup = std::move(cleanup)] () mutable { cleanup(); }),
+            BIND([this_ = MakeStrong(this), cleanup = std::move(cleanup)] () mutable { cleanup(); }),
             TDuration::Zero());  
         throw;
     }
