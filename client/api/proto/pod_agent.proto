@@ -481,6 +481,10 @@ message TBoxStatus {
 
     repeated TContainerStatus Inits = 3;
 
+    // Адрес из подсети c id 'boxes_subnet', выделенной на поде (см ip6_subnet_allocations)
+    // Пустая строка, если подсеть не выделена
+    string ip6_address = 10;
+
     // Неструктурированное описание последней ошибки
     string FailReason = 5;
 
