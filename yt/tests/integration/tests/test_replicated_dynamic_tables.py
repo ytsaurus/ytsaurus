@@ -300,7 +300,6 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
     def test_enable_disable_replica_unmounted(self):
         self._create_replicated_table("//tmp/t", mount=False)
-        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         attributes = get("#{0}/@".format(replica_id), attributes=["state", "tablets"])
         assert attributes["state"] == "disabled"
