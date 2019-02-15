@@ -260,7 +260,10 @@ class TestAccounts(YTEnvSetup):
         tx = start_transaction()
         for i in xrange(0, 5):
             write_table("//tmp/t", {"a" : "b"}, tx=tx)
+
             self._replicator_sleep()
+            ping_transaction(tx)
+
             account_space = get_account_disk_space("tmp")
             tx_space = self._get_tx_disk_space(tx, "tmp")
 
@@ -1152,6 +1155,14 @@ class TestAccounts(YTEnvSetup):
 
         assert get("//tmp/dir1/@account") == "a1"
         assert get("//tmp/dir1/dir2/@account") == "a2"
+
+    def test_recursive_create_with_explicit_account(self):
+        create_account("a")
+        create("document", "//tmp/one/two/three", recursive=True, attributes={"account": "a"})
+        assert get("//tmp/@account") == "tmp"
+        assert get("//tmp/one/two/three/@account") == "a"
+        assert get("//tmp/one/two/@account") == "a"
+        assert get("//tmp/one/@account") == "a"
 
     def test_nested_tx_copy(self):
         create("table", "//tmp/t")

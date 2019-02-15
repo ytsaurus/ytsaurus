@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/client/table_client/value_consumer.h> // TODO(babenko): replace with public
+#include <yt/client/table_client/public.h>
 
 #include <yt/client/table_client/unversioned_writer.h>
 

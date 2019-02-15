@@ -70,6 +70,16 @@ public:
         return true;
     }
 
+    virtual bool supportsIndexForIn() const override
+    {
+        return Schema.HasPrimaryKey();
+    }
+
+    virtual bool mayBenefitFromIndexForIn(const DB::ASTPtr& /* leftInOperand */) const override
+    {
+        return supportsIndexForIn();
+    }
+
     DB::QueryProcessingStage::Enum getQueryProcessingStage(const DB::Context& context) const override;
 
     DB::BlockInputStreams read(

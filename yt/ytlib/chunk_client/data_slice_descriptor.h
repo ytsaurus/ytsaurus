@@ -4,8 +4,6 @@
 
 #include <yt/ytlib/chunk_client/data_slice_descriptor.pb.h>
 
-#include <yt/client/table_client/schema.h>
-
 #include <yt/ytlib/transaction_client/public.h>
 
 namespace NYT::NChunkClient {

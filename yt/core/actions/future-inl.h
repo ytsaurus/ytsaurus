@@ -729,6 +729,27 @@ TFuture<T> TFutureBase<T>::ToUncancelable()
 }
 
 template <class T>
+TFuture<T> TFutureBase<T>::ToImmediatelyCancelable()
+{
+    if (!Impl_) {
+        return TFuture<T>();
+    }
+
+    auto promise = NewPromise<T>();
+
+    this->Subscribe(BIND([=] (const TErrorOr<T>& value) mutable {
+        promise.TrySet(value);
+    }));
+
+    promise.OnCanceled(BIND([=, underlying = Impl_] () mutable {
+        underlying->Cancel();
+        promise.TrySet(TError(NYT::EErrorCode::Canceled, "Operation canceled"));
+    }));
+
+    return promise;
+}
+
+template <class T>
 TFuture<T> TFutureBase<T>::WithTimeout(TDuration timeout)
 {
     Y_ASSERT(Impl_);

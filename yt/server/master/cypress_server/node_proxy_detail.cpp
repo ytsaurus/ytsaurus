@@ -1291,8 +1291,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto* node = GetThisImpl();
     auto* account = replace ? node->GetParent()->GetAccount() : node->GetAccount();
 
-    auto factory = CreateCypressFactory(account, TNodeFactoryOptions());
-
     TInheritedAttributeDictionary inheritedAttributes(Bootstrap_);
     GatherInheritableAttributes(
             replace ? node->GetParent() : node,
@@ -1301,8 +1299,15 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     std::unique_ptr<IAttributeDictionary> explicitAttributes;
     if (request->has_node_attributes()) {
         explicitAttributes = FromProto(request->node_attributes());
+
+        auto optionalAccount = explicitAttributes->FindAndRemove<TString>("account");
+        if (optionalAccount) {
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            account = securityManager->GetAccountByNameOrThrow(*optionalAccount);
+        }
     }
 
+    auto factory = CreateCypressFactory(account, TNodeFactoryOptions());
     auto newProxy = factory->CreateNode(type, &inheritedAttributes, explicitAttributes.get());
 
     if (replace) {

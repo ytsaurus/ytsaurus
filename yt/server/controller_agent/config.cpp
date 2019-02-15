@@ -606,6 +606,9 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("allow_users_group_read_intermediate_data", AllowUsersGroupReadIntermediateData)
         .Default(false);
 
+    RegisterParameter("custom_job_metrics", CustomJobMetrics)
+        .Default();
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {
@@ -637,6 +640,15 @@ TControllerAgentConfig::TControllerAgentConfig()
         UpdateOptions(&SortOperationOptions, OperationOptions);
         UpdateOptions(&RemoteCopyOperationOptions, OperationOptions);
         UpdateOptions(&VanillaOperationOptions, OperationOptions);
+
+        for (const auto& customJobMetricDescription : CustomJobMetrics) {
+            for (auto metricName : TEnumTraits<NScheduler::EJobMetricName>::GetDomainValues()) {
+                if (FormatEnum(metricName) == customJobMetricDescription.ProfilingName) {
+                    THROW_ERROR_EXCEPTION("Metric with profiling name $Qv is already presented",
+                         customJobMetricDescription.ProfilingName);
+                }
+            }
+        }
     });
 }
 

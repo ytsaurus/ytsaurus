@@ -181,6 +181,10 @@ public:
     //! Returns a wrapper that suppresses cancelation attempts.
     TFuture<T> ToUncancelable();
 
+    //! Returns a wrapper that handles cancelation requests by immediately becoming set
+    //! with NYT::EErrorCode::Canceled code.
+    TFuture<T> ToImmediatelyCancelable();
+
     //! Returns a future that is either set to an actual value (if the original one is set in timely manner)
     //! or to |EErrorCode::Timeout| (in case of timeout).
     TFuture<T> WithTimeout(TDuration timeout);

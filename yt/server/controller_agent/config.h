@@ -4,6 +4,8 @@
 
 #include <yt/server/lib/misc/config.h>
 
+#include <yt/server/lib/scheduler/job_metrics.h>
+
 #include <yt/ytlib/chunk_client/config.h>
 
 #include <yt/ytlib/api/native/config.h>
@@ -701,6 +703,8 @@ public:
 
     // TODO(levysotsky): Get rid of this option when everybody migrates to new operation ACLs.
     bool AllowUsersGroupReadIntermediateData;
+
+    std::vector<NScheduler::TCustomJobMetricDescription> CustomJobMetrics;
 
     TControllerAgentConfig();
 

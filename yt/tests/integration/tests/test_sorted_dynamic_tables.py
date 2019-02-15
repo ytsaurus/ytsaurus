@@ -62,7 +62,7 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
     def _wait_for_in_memory_stores_preload(self, table):
         for tablet in get(table + "/@tablets"):
             tablet_id = tablet["tablet_id"]
-            address = self._get_tablet_leader_address(tablet_id)
+            address = get_tablet_leader_address(tablet_id)
             def all_preloaded():
                 orchid = self._find_tablet_orchid(address, tablet_id)
                 if not orchid:
@@ -300,7 +300,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        address = self._get_tablet_leader_address(tablet_id)
+        address = get_tablet_leader_address(tablet_id)
         assert self._find_tablet_orchid(address, tablet_id) is not None
 
         remove("//tmp/t")
@@ -1276,7 +1276,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        address = self._get_tablet_leader_address(tablet_id)
+        address = get_tablet_leader_address(tablet_id)
 
         rows = [{"key": i, "value": str(i)} for i in xrange(10)]
         insert_rows("//tmp/t", rows)
@@ -1302,7 +1302,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             set("//tmp/t/@in_memory_mode", "none")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        address = self._get_tablet_leader_address(tablet_id)
+        address = get_tablet_leader_address(tablet_id)
 
         def _check_preload_state(state):
             sleep(1.0)
@@ -2465,7 +2465,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        address = self._get_tablet_leader_address(tablet_id)
+        address = get_tablet_leader_address(tablet_id)
         orchid = self._find_tablet_orchid(address, tablet_id)
         assert len(orchid["partitions"]) == 1
 

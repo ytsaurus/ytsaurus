@@ -33,7 +33,8 @@ struct TReusableMergeIterator<T, TCompare>::TRangeCompare
 {
     bool operator()(const TRange& lhs, const TRange& rhs) const
     {
-        // Note the argument reversal.
+        // Note the argument reversal: in C++, the front of a heap holds the
+        // highest value, and we need the lowest.
         return TCompare()(*rhs.Begin, *lhs.Begin);
     }
 };
