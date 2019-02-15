@@ -84,8 +84,7 @@ class YtConfig(object):
                  yt_version=None,
                  cell_tag=None,
                  python_binary=None,
-                 enable_debug_logging=None,
-                 enable_rpc_proxy=None):
+                 enable_debug_logging=None):
 
         self.fqdn = get_value(fqdn, "localhost")
         self.yt_id = yt_id
@@ -113,7 +112,6 @@ class YtConfig(object):
         self.node_chunk_store_quota = node_chunk_store_quota
 
         self.enable_debug_logging = enable_debug_logging
-        self.enable_rpc_proxy = enable_rpc_proxy
 
         yt_package_versions = os.listdir(yatest.common.build_path("yt/packages"))
         if len(yt_package_versions) != 1:
@@ -411,13 +409,11 @@ class YtStuff(object):
                 "--id", self.yt_id,
                 "--path", self.yt_work_dir,
                 "--fqdn", self.config.fqdn,
+                "--rpc-proxy",
             ]
 
             if get_value(self.config.enable_debug_logging, True):
                 args += ["--enable-debug-logging"]
-
-            if get_value(self.config.enable_rpc_proxy, True):
-                args += ["--rpc-proxy"]
 
             if self.config.wait_tablet_cell_initialization:
                 args += ["--wait-tablet-cell-initialization"]
