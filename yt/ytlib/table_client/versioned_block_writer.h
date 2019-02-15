@@ -5,7 +5,7 @@
 #include "block_writer.h"
 #include "chunk_meta_extensions.h"
 
-#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/public.h>
 #include <yt/client/table_client/versioned_row.h>
 
 #include <yt/core/misc/bitmap.h>

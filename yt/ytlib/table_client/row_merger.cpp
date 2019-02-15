@@ -6,6 +6,7 @@
 #include <yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/schema.h>
 
 namespace NYT::NTableClient {
 

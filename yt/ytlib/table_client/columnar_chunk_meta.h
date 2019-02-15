@@ -4,6 +4,7 @@
 #include "chunk_meta_extensions.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/client/table_client/schema.h>
 
 namespace NYT::NTableClient {
 

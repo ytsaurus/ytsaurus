@@ -29,6 +29,7 @@
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/table_upload_options.h>
 
 #include <yt/client/table_client/unversioned_row.h>
 

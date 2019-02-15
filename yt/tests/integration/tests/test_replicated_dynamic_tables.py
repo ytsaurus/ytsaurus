@@ -575,8 +575,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         _do()
 
-        alter_table_replica(replica_id1, mode="async")
-        alter_table_replica(replica_id1, mode="sync")
+        sync_alter_table_replica_mode(replica_id1, "async")
+        sync_alter_table_replica_mode(replica_id1, "sync")
 
         _do()
 
@@ -632,8 +632,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         _do()
 
-        alter_table_replica(replica_id1, mode="async")
-        alter_table_replica(replica_id1, mode="sync")
+        sync_alter_table_replica_mode(replica_id1, "async")
+        sync_alter_table_replica_mode(replica_id1, "sync")
 
         _do()
 
@@ -689,8 +689,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         _do()
 
-        alter_table_replica(replica_id1, mode="async")
-        alter_table_replica(replica_id1, mode="sync")
+        sync_alter_table_replica_mode(replica_id1, "async")
+        sync_alter_table_replica_mode(replica_id1, "sync")
 
         _do()
 
@@ -744,8 +744,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert select_rows("* from [//tmp/r1]", driver=self.replica_driver) == [{"key": 1, "value1": "test", "value2": 123}]
         assert select_rows("* from [//tmp/r2]", driver=self.replica_driver) == []
 
-        alter_table_replica(replica_id1, mode="async")
-        alter_table_replica(replica_id2, mode="sync")
+        sync_alter_table_replica_mode(replica_id1, "async")
+        sync_alter_table_replica_mode(replica_id2, "sync")
 
         def check_not_writable():
             try:
@@ -784,8 +784,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(lambda: select_rows("* from [//tmp/r1]", driver=self.replica_driver) == [{"$tablet_index": 0, "$row_index": 0, "key": 1, "value1": "test", "value2": 123}])
         assert select_rows("* from [//tmp/r2]", driver=self.replica_driver) == []
 
-        alter_table_replica(replica_id1, mode="async")
-        alter_table_replica(replica_id2, mode="sync")
+        sync_alter_table_replica_mode(replica_id1, "async")
+        sync_alter_table_replica_mode(replica_id2, "sync")
 
         def check_not_writable():
             try:
@@ -1119,13 +1119,13 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert lookup_rows("//tmp/t", [{"key": 100000}]) == []
 
         sync_disable_table_replica(replica_id2)
-        alter_table_replica(replica_id2, mode="async")
+        sync_alter_table_replica_mode(replica_id2, "async")
         clear_metadata_caches()
         sleep(1.0)
         with pytest.raises(YtError): insert_rows("//tmp/t", [{"key": 666, "value1": "hello"}])
         insert_rows("//tmp/t", [{"key": 666, "value1": "hello"}], require_sync_replica=False)
 
-        alter_table_replica(replica_id2, mode="sync")
+        sync_alter_table_replica_mode(replica_id2, "sync")
         sleep(1.0)
         with pytest.raises(YtError): lookup_rows("//tmp/t", [{"key": 666}]) == []
 
@@ -1133,7 +1133,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sleep(1.0)
         assert lookup_rows("//tmp/t", [{"key": 666}], column_names=["key", "value1"]) == [{"key": 666, "value1": "hello"}]
 
-        alter_table_replica(replica_id2, mode="async")
+        sync_alter_table_replica_mode(replica_id2, "async")
         sleep(1.0)
         with pytest.raises(YtError): lookup_rows("//tmp/t", [{"key": 666}]) == []
 
@@ -1159,7 +1159,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         })
         with pytest.raises(YtError): select_rows("* from [//tmp/t] as t1 join [//tmp/z] as t2 on t1.key = t2.key")
 
-        alter_table_replica(replica_id2, mode="async")
+        sync_alter_table_replica_mode(replica_id2, "async")
         sleep(1.0)
         with pytest.raises(YtError): select_rows("* from [//tmp/t]")
 

@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/unversioned_writer.h>
 
 #include <yt/core/actions/future.h>

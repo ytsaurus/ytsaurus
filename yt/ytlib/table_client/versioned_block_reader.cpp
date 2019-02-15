@@ -5,6 +5,8 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
+#include <yt/client/table_client/schema.h>
+
 #include <yt/core/misc/serialize.h>
 #include <yt/core/misc/algorithm_helpers.h>
 

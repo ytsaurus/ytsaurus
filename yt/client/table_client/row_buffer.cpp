@@ -1,4 +1,6 @@
 #include "row_buffer.h"
+
+#include "schema.h"
 #include "unversioned_row.h"
 #include "versioned_row.h"
 

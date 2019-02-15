@@ -1448,6 +1448,28 @@ def sync_disable_table_replica(replica_id, driver=None):
     print >>sys.stderr, "Waiting for replica to become disabled..."
     wait(lambda: get("#{0}/@state".format(replica_id), driver=driver) == "disabled")
 
+def get_tablet_leader_address(tablet_id):
+    cell_id = get("//sys/tablets/" + tablet_id + "/@cell_id")
+    peers = get("//sys/tablet_cells/" + cell_id + "/@peers")
+    leader_peer = list(x for x in peers if x["state"] == "leading")[0]
+    return leader_peer["address"]
+
+def sync_alter_table_replica_mode(replica_id, mode, driver=None):
+    alter_table_replica(replica_id, mode=mode, driver = driver)
+
+    print >>sys.stderr, "Waiting for replica mode to become {}...".format(mode)
+    tablets = get("#{}/@tablets".format(replica_id), driver=driver)
+    tablet_ids = [x["tablet_id"] for x in tablets]
+    cell_ids = [get("#{}/@cell_id".format(tablet_id), driver=driver) for tablet_id in tablet_ids]
+    addresses = [get_tablet_leader_address(tablet_id) for tablet_id in tablet_ids]
+    def check():
+        for tablet_id, cell_id, address in zip(tablet_ids, cell_ids, addresses):
+            actual_mode = get("//sys/nodes/{}/orchid/tablet_cells/{}/tablets/{}/replicas/{}/mode".format(address, cell_id, tablet_id, replica_id), driver=driver)
+            if actual_mode != mode:
+                return False
+        return True
+    wait(check)
+
 def create_table_with_attributes(path, **attributes):
     create("table", path, attributes=attributes)
 
