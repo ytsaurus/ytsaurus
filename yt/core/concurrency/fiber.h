@@ -114,6 +114,12 @@ public:
      */
     bool IsCanceled() const;
 
+    //! Throws TFiberCanceledException if canceled.
+    /*!
+     *  Thread affinity: any
+     */
+    void UnwindIfCanceled() const;
+
     //! Returns |true| if the fiber has finished executing.
     /*!
      * This could either happen normally (i.e. the callee returns) or
