@@ -31,6 +31,23 @@ class TestReplicaSets(object):
         with yp_env.yp_instance.create_client(config={"user": user_id}) as client:
             client.create_object("replica_set", attributes={"spec": {"account_id": account_id}})
 
+    def test_update_spec(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        rs_id = yp_client.create_object(
+            object_type="replica_set",
+            attributes={
+                "spec": {
+                    "revision_id": "1"
+                }
+            })
+
+        yp_client.update_object("replica_set", rs_id, set_updates=[
+            {"path": "/spec/revision_id", "value": "2"},
+        ])
+
+        assert yp_client.get_object("replica_set", rs_id, selectors=["/spec/revision_id"])[0][0] == "2"
+
     def test_simple(self, yp_env):
         yp_client = yp_env.yp_client
 
