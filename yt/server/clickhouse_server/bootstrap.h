@@ -25,8 +25,8 @@ namespace NYT::NClickHouseServer {
 class TBootstrap
 {
 private:
-    const TConfigPtr Config;
-    const NYTree::INodePtr ConfigNode;
+    const TClickHouseServerBootstrapConfigPtr Config_;
+    const NYTree::INodePtr ConfigNode_;
     TString InstanceId_;
     TString CliqueId_;
     ui16 RpcPort_;
@@ -34,7 +34,7 @@ private:
     ui16 TcpPort_;
     ui16 HttpPort_;
 
-    NConcurrency::TActionQueuePtr ControlQueue;
+    NConcurrency::TActionQueuePtr ControlQueue_;
 
     NBus::IBusServerPtr BusServer;
     NRpc::IServerPtr RpcServer;
@@ -53,7 +53,7 @@ private:
 
 public:
     TBootstrap(
-        TConfigPtr config,
+        TClickHouseServerBootstrapConfigPtr config,
         NYTree::INodePtr configNode,
         TString instanceId,
         TString cliqueId,
@@ -61,18 +61,14 @@ public:
         ui16 monitoringPort,
         ui16 tcpPort,
         ui16 httpPort);
-    ~TBootstrap();
 
-    void Initialize();
     void Run();
 
-    TConfigPtr GetConfig() const;
+    TClickHouseServerBootstrapConfigPtr GetConfig() const;
     IInvokerPtr GetControlInvoker() const;
     NApi::NNative::IConnectionPtr GetConnection() const;
-    NConcurrency::IThroughputThrottlerPtr GetScanThrottler() const;
 
 private:
-    void DoInitialize();
     void DoRun();
 };
 

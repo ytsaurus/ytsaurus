@@ -65,7 +65,7 @@ const NLogging::TLogger BootstrapLogger("Bootstrap");
 ////////////////////////////////////////////////////////////////////////////////
 
 TBootstrap::TBootstrap(
-    TConfigPtr config,
+    TClickHouseServerBootstrapConfigPtr config,
     INodePtr configNode,
     TString instanceId,
     TString cliqueId,
@@ -73,38 +73,32 @@ TBootstrap::TBootstrap(
     ui16 monitoringPort,
     ui16 tcpPort,
     ui16 httpPort)
-    : Config(std::move(config))
-    , ConfigNode(std::move(configNode))
+    : Config_(std::move(config))
+    , ConfigNode_(std::move(configNode))
     , InstanceId_(std::move(instanceId))
     , CliqueId_(std::move(cliqueId))
     , RpcPort_(rpcPort)
     , MonitoringPort_(monitoringPort)
     , TcpPort_(tcpPort)
     , HttpPort_(httpPort)
-{}
-
-TBootstrap::~TBootstrap()
-{}
-
-void TBootstrap::Initialize()
 {
-    ConfigureSingletons(Config);
-
-    ControlQueue = New<TActionQueue>("Control");
-    BIND(&TBootstrap::DoInitialize, this)
-        .AsyncVia(GetControlInvoker())
-        .Run()
-        .Get()
-        .ThrowOnError();
+    WarnForUnrecognizedOptions(BootstrapLogger, Config_);
 }
 
 void TBootstrap::Run()
 {
-    Y_VERIFY(ControlQueue);
-    GetControlInvoker()->Invoke(BIND(&TBootstrap::DoRun, this));
+    ControlQueue_ = New<TActionQueue>("Control");
+
+    BIND(&TBootstrap::DoRun, this)
+        .AsyncVia(GetControlInvoker())
+        .Run()
+        .Get()
+        .ThrowOnError();
+
+    Sleep(TDuration::Max());
 }
 
-void TBootstrap::DoInitialize()
+void TBootstrap::DoRun()
 {
     MonitoringManager = New<TMonitoringManager>();
     MonitoringManager->Register(
@@ -115,7 +109,7 @@ void TBootstrap::DoInitialize()
     SetNodeByYPath(
         orchidRoot,
         "/config",
-        ConfigNode);
+        ConfigNode_);
     SetNodeByYPath(
         orchidRoot,
         "/profiling",
@@ -127,13 +121,13 @@ void TBootstrap::DoInitialize()
 
     SetBuildAttributes(orchidRoot, "clickhouse_server");
 
-    if (Config->CoreDumper) {
-        CoreDumper = NCoreDump::CreateCoreDumper(Config->CoreDumper);
+    if (Config_->CoreDumper) {
+        CoreDumper = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
 
-    if (Config->RpcServer) {
-        Config->BusServer->Port = RpcPort_;
-        BusServer = CreateTcpBusServer(Config->BusServer);
+    if (Config_->RpcServer) {
+        Config_->BusServer->Port = RpcPort_;
+        BusServer = CreateTcpBusServer(Config_->BusServer);
 
         RpcServer = NRpc::NBus::CreateBusServer(BusServer);
 
@@ -145,7 +139,7 @@ void TBootstrap::DoInitialize()
             orchidRoot,
             GetControlInvoker()));
 
-        RpcServer->Configure(Config->RpcServer);
+        RpcServer->Configure(Config_->RpcServer);
     }
 
     auto poller = CreateThreadPoolPoller(1, "Http");
@@ -159,15 +153,15 @@ void TBootstrap::DoInitialize()
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
 
     Connection = NApi::NNative::CreateConnection(
-        Config->ClusterConnection,
+        Config_->ClusterConnection,
         connectionOptions);
 
     NativeClientCache = CreateNativeClientCache(
-        Config->ClientCache,
+        Config_->ClientCache,
         Connection);
 
-    if (Config->ScanThrottler) {
-        ScanThrottler = CreateReconfigurableThroughputThrottler(Config->ScanThrottler);
+    if (Config_->ScanThrottler) {
+        ScanThrottler = CreateReconfigurableThroughputThrottler(Config_->ScanThrottler);
     }  else {
         ScanThrottler = GetUnlimitedThrottler();
     }
@@ -179,22 +173,19 @@ void TBootstrap::DoInitialize()
     CoordinationService = CreateCoordinationService(Connection, CliqueId_);
 
     auto client = NativeClientCache->CreateNativeClient(TClientOptions("root"));
-    CliqueAuthorizationManager = CreateCliqueAuthorizationManager(client, CliqueId_, Config->ValidateOperationPermission);
+    CliqueAuthorizationManager = CreateCliqueAuthorizationManager(client, CliqueId_, Config_->ValidateOperationPermission);
 
     Server = std::make_unique<TServer>(
         logger,
         Storage,
         CoordinationService,
         CliqueAuthorizationManager,
-        Config,
+        Config_,
         CliqueId_,
         InstanceId_,
         TcpPort_,
         HttpPort_);
-}
 
-void TBootstrap::DoRun()
-{
     const auto& Logger = BootstrapLogger;
 
     if (MonitoringManager) {
@@ -202,36 +193,31 @@ void TBootstrap::DoRun()
     }
 
     if (HttpServer) {
-        YT_LOG_INFO("Listening for HTTP requests on port %v", Config->MonitoringPort);
+        YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
         HttpServer->Start();
     }
 
     if (RpcServer) {
-        YT_LOG_INFO("Listening for RPC requests on port %v", Config->RpcPort);
+        YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
         RpcServer->Start();
     }
 
     Server->Start();
 }
 
-TConfigPtr TBootstrap::GetConfig() const
+TClickHouseServerBootstrapConfigPtr TBootstrap::GetConfig() const
 {
-    return Config;
+    return Config_;
 }
 
 IInvokerPtr TBootstrap::GetControlInvoker() const
 {
-    return ControlQueue->GetInvoker();
+    return ControlQueue_->GetInvoker();
 }
 
 NApi::NNative::IConnectionPtr TBootstrap::GetConnection() const
 {
     return Connection;
-}
-
-IThroughputThrottlerPtr TBootstrap::GetScanThrottler() const
-{
-    return ScanThrottler;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
