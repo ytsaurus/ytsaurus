@@ -3862,8 +3862,12 @@ class TestPorts(YTEnvSetup):
 
         server_socket = None
         try:
-            server_socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
-            server_socket.bind(("::1", 20001))
+            try: 
+                server_socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+                server_socket.bind(("::1", 20001))
+            except Exception as err:
+                pytest.skip("Caught following exception while trying to bind to port 20001: {}".format(err))
+                return
 
             # We run test several times to make sure that ports did not stuck inside node.
             for iteration in range(3):
