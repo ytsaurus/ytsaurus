@@ -36,11 +36,11 @@ private:
 
     NConcurrency::TActionQueuePtr ControlQueue_;
 
-    NBus::IBusServerPtr BusServer;
-    NRpc::IServerPtr RpcServer;
-    NHttp::IServerPtr HttpServer;
-    NMonitoring::TMonitoringManagerPtr MonitoringManager;
-    ICoreDumperPtr CoreDumper;
+    NBus::IBusServerPtr BusServer_;
+    NRpc::IServerPtr RpcServer_;
+    NHttp::IServerPtr HttpServer_;
+    NMonitoring::TMonitoringManagerPtr MonitoringManager_;
+    ICoreDumperPtr CoreDumper_;
 
     NApi::NNative::IConnectionPtr Connection;
     INativeClientCachePtr NativeClientCache;

@@ -1,5 +1,7 @@
 #include "bootstrap.h"
 
+#include "private.h"
+
 #include <yt/server/clickhouse_server/server.h>
 
 #include <yt/server/clickhouse_server/client_cache.h>
@@ -59,8 +61,8 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const auto& Logger = ServerLogger;
 const NLogging::TLogger EngineLogger("Engine");
-const NLogging::TLogger BootstrapLogger("Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,7 +84,7 @@ TBootstrap::TBootstrap(
     , TcpPort_(tcpPort)
     , HttpPort_(httpPort)
 {
-    WarnForUnrecognizedOptions(BootstrapLogger, Config_);
+    WarnForUnrecognizedOptions(Logger, Config_);
 }
 
 void TBootstrap::Run()
@@ -100,10 +102,13 @@ void TBootstrap::Run()
 
 void TBootstrap::DoRun()
 {
-    MonitoringManager = New<TMonitoringManager>();
-    MonitoringManager->Register(
+    YT_LOG_INFO("Starting ClickHouse server");
+
+    MonitoringManager_ = New<TMonitoringManager>();
+    MonitoringManager_->Register(
         "/ref_counted",
         CreateRefCountedTrackerStatisticsProducer());
+    MonitoringManager_->Start();
 
     auto orchidRoot = GetEphemeralNodeFactory(true)->CreateMap();
     SetNodeByYPath(
@@ -117,35 +122,33 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/monitoring",
-        CreateVirtualNode(MonitoringManager->GetService()));
+        CreateVirtualNode(MonitoringManager_->GetService()));
 
     SetBuildAttributes(orchidRoot, "clickhouse_server");
 
     if (Config_->CoreDumper) {
-        CoreDumper = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
+        CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
 
-    if (Config_->RpcServer) {
-        Config_->BusServer->Port = RpcPort_;
-        BusServer = CreateTcpBusServer(Config_->BusServer);
+    Config_->BusServer->Port = RpcPort_;
+    BusServer_ = CreateTcpBusServer(Config_->BusServer);
 
-        RpcServer = NRpc::NBus::CreateBusServer(BusServer);
+    RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
 
-        RpcServer->RegisterService(CreateAdminService(
-            GetControlInvoker(),
-            CoreDumper));
+    RpcServer_->RegisterService(CreateAdminService(
+        GetControlInvoker(),
+        CoreDumper_));
 
-        RpcServer->RegisterService(CreateOrchidService(
-            orchidRoot,
-            GetControlInvoker()));
+    RpcServer_->RegisterService(CreateOrchidService(
+        orchidRoot,
+        GetControlInvoker()));
 
-        RpcServer->Configure(Config_->RpcServer);
-    }
+    RpcServer_->Configure(Config_->RpcServer);
 
-    auto poller = CreateThreadPoolPoller(1, "Http");
-    HttpServer = NHttp::CreateServer(MonitoringPort_, poller);
+    Config_->MonitoringServer->Port = MonitoringPort_;
+    HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
 
-    HttpServer->AddHandler(
+    HttpServer_->AddHandler(
         "/orchid/",
         GetOrchidYPathHttpHandler(orchidRoot));
 
@@ -186,20 +189,14 @@ void TBootstrap::DoRun()
         TcpPort_,
         HttpPort_);
 
-    const auto& Logger = BootstrapLogger;
-
-    if (MonitoringManager) {
-        MonitoringManager->Start();
-    }
-
-    if (HttpServer) {
+    if (HttpServer_) {
         YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
-        HttpServer->Start();
+        HttpServer_->Start();
     }
 
-    if (RpcServer) {
+    if (RpcServer_) {
         YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
-        RpcServer->Start();
+        RpcServer_->Start();
     }
 
     Server->Start();
