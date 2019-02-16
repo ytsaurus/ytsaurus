@@ -11,7 +11,7 @@ SPEC_WITH_CPU_MONITOR = {
         "check_period": 10,
         "smoothing_factor": 0.2,
         "vote_window_size": 10,
-        "vote_decision_threshold": 5,
+        "vote_decision_threshold": 3,
         "min_cpu_limit": 0.1,
         "enable_cpu_reclaim": True
     }
@@ -57,7 +57,8 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
         with ProfileMetric.at_scheduler("scheduler/pools/metrics/aggregated_smoothed_cpu_usage_x100").with_tag("pool", "root") as smoothed_cpu, \
                 ProfileMetric.at_scheduler("scheduler/pools/metrics/aggregated_max_cpu_usage_x100").with_tag("pool", "root") as max_cpu, \
                 ProfileMetric.at_scheduler("scheduler/pools/metrics/aggregated_preemptable_cpu_x100").with_tag("pool", "root") as preemptable_cpu:
-            run_test_vanilla(": ;", SPEC_WITH_CPU_MONITOR).track()
+            run_sleeping_vanilla(SPEC_WITH_CPU_MONITOR)
+            time.sleep(3)
 
         print smoothed_cpu.differentiate()
         print max_cpu.differentiate()
