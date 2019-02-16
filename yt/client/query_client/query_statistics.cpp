@@ -18,7 +18,6 @@ void TQueryStatistics::AddInnerStatistics(const TQueryStatistics& statistics)
     InnerStatistics.push_back(statistics);
     IncompleteInput |= statistics.IncompleteInput;
     IncompleteOutput |= statistics.IncompleteOutput;
-    MemoryUsage = std::max(MemoryUsage, statistics.MemoryUsage);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,7 +35,6 @@ void ToProto(NProto::TQueryStatistics* serialized, const TQueryStatistics& origi
     serialized->set_codegen_time(ToProto<i64>(original.CodegenTime));
     serialized->set_incomplete_input(original.IncompleteInput);
     serialized->set_incomplete_output(original.IncompleteOutput);
-    serialized->set_memory_usage(original.MemoryUsage);
     ToProto(serialized->mutable_inner_statistics(), original.InnerStatistics);
 }
 
@@ -53,7 +51,6 @@ void FromProto(TQueryStatistics* original, const NProto::TQueryStatistics& seria
     original->CodegenTime = FromProto<TDuration>(serialized.codegen_time());
     original->IncompleteInput = serialized.incomplete_input();
     original->IncompleteOutput = serialized.incomplete_output();
-    original->MemoryUsage = serialized.memory_usage();
     FromProto(&original->InnerStatistics, serialized.inner_statistics());
 }
 
@@ -63,7 +60,7 @@ TString ToString(const TQueryStatistics& stats)
         "{"
         "RowsRead: %v, BytesRead: %v, RowsWritten: %v, "
         "SyncTime: %v, AsyncTime: %v, ExecuteTime: %v, ReadTime: %v, WriteTime: %v, CodegenTime: %v, "
-        "WaitOnReadyEventTime: %v, IncompleteInput: %v, IncompleteOutput: %v, MemoryUsage: %v"
+        "WaitOnReadyEventTime: %v, IncompleteInput: %v, IncompleteOutput: %v"
         "}",
         stats.RowsRead,
         stats.BytesRead,
@@ -76,8 +73,7 @@ TString ToString(const TQueryStatistics& stats)
         stats.CodegenTime,
         stats.WaitOnReadyEventTime,
         stats.IncompleteInput,
-        stats.IncompleteOutput,
-        stats.MemoryUsage);
+        stats.IncompleteOutput);
 }
 
 void Serialize(const TQueryStatistics& statistics, NYson::IYsonConsumer* consumer)
@@ -95,7 +91,6 @@ void Serialize(const TQueryStatistics& statistics, NYson::IYsonConsumer* consume
             .Item("codegen_time").Value(statistics.CodegenTime.MilliSeconds())
             .Item("incomplete_input").Value(statistics.IncompleteInput)
             .Item("incomplete_output").Value(statistics.IncompleteOutput)
-            .Item("memory_usage").Value(statistics.MemoryUsage)
             .DoIf(!statistics.InnerStatistics.empty(), [&] (NYTree::TFluentMap fluent) {
                 fluent
                     .Item("inner_statistics").DoListFor(statistics.InnerStatistics, [=] (

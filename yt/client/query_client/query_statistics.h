@@ -22,7 +22,6 @@ struct TQueryStatistics
     TDuration WaitOnReadyEventTime;
     bool IncompleteInput = false;
     bool IncompleteOutput = false;
-    size_t MemoryUsage = 0;
 
     std::vector<TQueryStatistics> InnerStatistics;
 
