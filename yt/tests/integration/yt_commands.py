@@ -749,9 +749,9 @@ class Operation(object):
 
     def build_progress(self):
         try:
-            progress = get(self.get_path() + "/@brief_progress/jobs", verbose=False)
+            progress = get(self.get_path() + "/@brief_progress/jobs", verbose=False, verbose_error=False)
         except YtError:
-            return ""
+            return "(brief progress is not available yet)"
 
         result = {}
         for job_type in progress:
