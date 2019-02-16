@@ -32,11 +32,23 @@ class Clique(object):
         self.spec["tasks"]["clickhouse_servers"]["force_core_dump"] = True
         self.instance_count = instance_count
 
+    def _get_active_instance_count(self):
+        if exists("//sys/clickhouse/cliques/{0}".format(self.op.id), verbose=False):
+            return len(get("//sys/clickhouse/cliques/{0}".format(self.op.id), verbose=False))
+        else:
+            return 0
+
+    def _print_progress(self):
+        print >>sys.stderr, self.op.build_progress(), "(active instance count: {})".format(self._get_active_instance_count())
+
     def __enter__(self):
         self.op = start_op("vanilla",
                            spec=self.spec,
                            dont_track=True)
 
+        print >>sys.stderr, "Waiting for clique {} to become ready".format(self.op.id)
+
+        MAX_COUNTER_VALUE = 210
         counter = 0
         while True:
             state = self.op.get_state(verbose=False)
@@ -46,14 +58,17 @@ class Clique(object):
 
             if state == "aborted" or state == "failed":
                 raise self.op.get_error()
-            elif state == "running" and \
-                    exists("//sys/clickhouse/cliques/{0}".format(self.op.id)) and \
-                    len(get("//sys/clickhouse/cliques/{0}".format(self.op.id))) == self.instance_count:
+            elif state == "running" and self._get_active_instance_count() == self.instance_count:
                 break
             elif counter % 30 == 0:
-                print >>sys.stderr, self.op.build_progress()
+                self._print_progress()
+            elif counter >= MAX_COUNTER_VALUE:
+                raise YtError("Clique did not start in time, clique directory: {}".format(get("//sys/clickhouse/cliques/{0}".format(self.op.id), verbose=False)))
+
             time.sleep(self.op._poll_frequency)
             counter += 1
+
+        self._print_progress()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
