@@ -39,7 +39,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IMemoryChunkProvider
-    : public TRefCounted
+    : public TIntrinsicRefCounted
 {
     virtual std::unique_ptr<TAllocationHolder> Allocate(size_t size, TRefCountedTypeCookie cookie) = 0;
 };
