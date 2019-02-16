@@ -36,6 +36,7 @@ struct IPathService;
 struct IAuthorizationTokenService;
 struct TColumn;
 struct TValue;
+class TBootstrap;
 
 #undef DELCARE_SHARED_STRUCT
 

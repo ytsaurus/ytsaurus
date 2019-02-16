@@ -12,6 +12,7 @@
 #include "table_functions.h"
 #include "table_functions_concat.h"
 #include "tcp_handler.h"
+#include "public.h"
 
 #include <yt/server/clickhouse_server/storage.h>
 #include <yt/server/clickhouse_server/poco_config.h>
@@ -96,6 +97,7 @@ class TServer::TImpl
     : public IServer
 {
 private:
+    TBootstrap* const Bootstrap_;
     const ILoggerPtr AppLogger;
     const IStoragePtr Storage;
     const ICoordinationServicePtr CoordinationService;
@@ -127,6 +129,7 @@ private:
 
 public:
     TImpl(
+        TBootstrap* bootstrap,
         ILoggerPtr logger,
         IStoragePtr storage,
         ICoordinationServicePtr coordinationService,
@@ -136,7 +139,8 @@ public:
         std::string instanceId,
         ui16 tcpPort,
         ui16 httpPort)
-        : AppLogger(std::move(logger))
+        : Bootstrap_(bootstrap)
+        , AppLogger(std::move(logger))
         , Storage(std::move(storage))
         , CoordinationService(std::move(coordinationService))
         , CliqueAuthorizationManager_(std::move(cliqueAuthorizationManager))
@@ -420,7 +424,7 @@ private:
                     httpParams->setKeepAliveTimeout(keepAliveTimeout);
 
                     Servers.emplace_back(new Poco::Net::HTTPServer(
-                        CreateHttpHandlerFactory(*this),
+                        CreateHttpHandlerFactory(Bootstrap_, *this),
                         *ServerPool,
                         socket,
                         httpParams));
@@ -437,7 +441,7 @@ private:
                     socket.setSendTimeout(settings.send_timeout);
 
                     Servers.emplace_back(new Poco::Net::TCPServer(
-                        CreateTcpHandlerFactory(*this),
+                        CreateTcpHandlerFactory(Bootstrap_, *this),
                         *ServerPool,
                         socket,
                         new Poco::Net::TCPServerParams()));
@@ -479,6 +483,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TServer::TServer(
+    TBootstrap* bootstrap,
     ILoggerPtr logger,
     IStoragePtr storage,
     ICoordinationServicePtr coordinationService,
@@ -489,6 +494,7 @@ TServer::TServer(
     ui16 tcpPort,
     ui16 httpPort)
     : Impl_(std::make_unique<TImpl>(
+        bootstrap,
         std::move(logger),
         std::move(storage),
         std::move(coordinationService),

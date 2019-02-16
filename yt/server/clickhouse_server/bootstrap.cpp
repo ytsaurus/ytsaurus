@@ -178,6 +178,7 @@ void TBootstrap::DoRun()
     CliqueAuthorizationManager = CreateCliqueAuthorizationManager(rootClient, CliqueId_, Config_->ValidateOperationPermission);
 
     Server = std::make_unique<TServer>(
+        this,
         logger,
         Storage,
         CoordinationService,
