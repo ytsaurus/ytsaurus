@@ -43,6 +43,8 @@
 #include <yt/core/yson/string.h>
 #include <yt/core/ytree/convert.h>
 
+#include <Interpreters/Context.h>
+
 #include <util/generic/algorithm.h>
 #include <util/generic/string.h>
 #include <util/string/join.h>
@@ -876,5 +878,14 @@ IStoragePtr CreateStorage(
 
     return std::make_shared<TStorageSyncWrapper>(std::move(storage));
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void SetupHostContext(TBootstrap* bootstrap, DB::Context& context)
+{
+    context.getHostContext() = std::make_shared<THostContext>(bootstrap);
+}
+
+/////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer

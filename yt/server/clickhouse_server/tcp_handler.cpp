@@ -1,5 +1,7 @@
 #include "tcp_handler.h"
 
+#include "storage.h"
+
 #include <server/TCPHandler.h>
 
 #include <common/logger_useful.h>
@@ -14,12 +16,14 @@ class TTcpHandlerFactory
     : public Poco::Net::TCPServerConnectionFactory
 {
 private:
+    TBootstrap* Bootstrap_;
     IServer& Server;
     Logger* Log;
 
 public:
-    TTcpHandlerFactory(IServer& server)
-        : Server(server)
+    TTcpHandlerFactory(TBootstrap* bootstrap, IServer& server)
+        : Bootstrap_(bootstrap)
+        , Server(server)
         , Log(&Logger::get("TCPHandlerFactory"))
     {}
 
@@ -35,14 +39,34 @@ Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(
     LOG_TRACE(Log, "TCP Request. "
         << "Address: " << socket.peerAddress().toString());
 
-    return new TCPHandler(Server, socket);
+    class TTcpHandler
+        : public DB::TCPHandler
+    {
+    public:
+        TTcpHandler(TBootstrap* bootstrap, DB::IServer& server, const Poco::Net::StreamSocket& socket)
+            : DB::TCPHandler(server, socket)
+            , Bootstrap_(bootstrap)
+        { }
+
+        virtual void customizeContext(DB::Context& context) override
+        {
+            SetupHostContext(Bootstrap_, context);
+        }
+
+    private:
+        TBootstrap* const Bootstrap_;
+    };
+
+    return new TTcpHandler(Bootstrap_, Server, socket);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Poco::Net::TCPServerConnectionFactory::Ptr CreateTcpHandlerFactory(IServer& server)
+Poco::Net::TCPServerConnectionFactory::Ptr CreateTcpHandlerFactory(TBootstrap* bootstrap, IServer& server)
 {
-    return new TTcpHandlerFactory(server);
+    return new TTcpHandlerFactory(bootstrap, server);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer

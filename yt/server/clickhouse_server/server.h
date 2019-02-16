@@ -12,6 +12,7 @@ class TServer
 {
 public:
     TServer(
+        TBootstrap* bootstrap,
         ILoggerPtr logger,
         IStoragePtr storage,
         ICoordinationServicePtr coordinationService,

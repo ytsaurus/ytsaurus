@@ -1,5 +1,6 @@
 #pragma once
 
+#include "private.h"
 #include "public.h"
 #include "public_ch.h"
 
@@ -15,6 +16,14 @@
 #include <yt/ytlib/api/native/public.h>
 
 #include <yt/core/concurrency/public.h>
+
+#include <Interpreters/Context.h>
+
+namespace DB {
+
+class Context;
+
+}
 
 namespace NYT::NClickHouseServer {
 
@@ -115,6 +124,31 @@ IStoragePtr CreateStorage(
     NApi::NNative::IConnectionPtr connection,
     NApi::NNative::TClientCachePtr clientCache,
     NConcurrency::IThroughputThrottlerPtr scanThrottler);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class THostContext
+    : public DB::IHostContext
+{
+public:
+    explicit THostContext(TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
+    {
+        const auto& Logger = ServerLogger;
+        YT_LOG_INFO("Host context created (Bootstrap: %v)", static_cast<void*>(Bootstrap_));
+    }
+
+    ~THostContext()
+    {
+        const auto& Logger = ServerLogger;
+        YT_LOG_INFO("Host context destroyed (Bootstrap: %v)", static_cast<void*>(Bootstrap_));
+    }
+
+private:
+    TBootstrap* Bootstrap_;
+};
+
+void SetupHostContext(TBootstrap* bootstrap, DB::Context& context);
 
 ////////////////////////////////////////////////////////////////////////////////
 
