@@ -113,7 +113,7 @@ struct IStorage
 
 IStoragePtr CreateStorage(
     NApi::NNative::IConnectionPtr connection,
-    INativeClientCachePtr clientCache,
+    NApi::NNative::TClientCachePtr clientCache,
     NConcurrency::IThroughputThrottlerPtr scanThrottler);
 
 ////////////////////////////////////////////////////////////////////////////////

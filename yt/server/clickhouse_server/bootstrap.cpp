@@ -4,7 +4,6 @@
 
 #include <yt/server/clickhouse_server/server.h>
 
-#include <yt/server/clickhouse_server/client_cache.h>
 #include <yt/server/clickhouse_server/config.h>
 #include <yt/server/clickhouse_server/directory.h>
 #include <yt/server/clickhouse_server/logger.h>
@@ -18,12 +17,14 @@
 #include <yt/ytlib/api/connection.h>
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/client_cache.h>
 #include <yt/ytlib/monitoring/http_integration.h>
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 #include <yt/ytlib/orchid/orchid_service.h>
 #include <yt/ytlib/core_dump/core_dumper.h>
 
 #include <yt/client/api/client.h>
+#include <yt/client/api/client_cache.h>
 
 #include <yt/core/bus/tcp/server.h>
 
@@ -155,13 +156,11 @@ void TBootstrap::DoRun()
     NApi::NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
 
-    Connection = NApi::NNative::CreateConnection(
+    Connection_ = NApi::NNative::CreateConnection(
         Config_->ClusterConnection,
         connectionOptions);
 
-    NativeClientCache = CreateNativeClientCache(
-        Config_->ClientCache,
-        Connection);
+    ClientCache_ = New<NApi::NNative::TClientCache>(Config_->ClientCache, Connection_);
 
     if (Config_->ScanThrottler) {
         ScanThrottler = CreateReconfigurableThroughputThrottler(Config_->ScanThrottler);
@@ -171,12 +170,12 @@ void TBootstrap::DoRun()
 
     auto logger = CreateLogger(EngineLogger);
 
-    Storage = CreateStorage(Connection, NativeClientCache, ScanThrottler);
+    Storage = CreateStorage(Connection_, ClientCache_, ScanThrottler);
 
-    CoordinationService = CreateCoordinationService(Connection, CliqueId_);
+    CoordinationService = CreateCoordinationService(Connection_, CliqueId_);
 
-    auto client = NativeClientCache->CreateNativeClient(TClientOptions("root"));
-    CliqueAuthorizationManager = CreateCliqueAuthorizationManager(client, CliqueId_, Config_->ValidateOperationPermission);
+    auto rootClient = ClientCache_->GetClient(RootUserName);
+    CliqueAuthorizationManager = CreateCliqueAuthorizationManager(rootClient, CliqueId_, Config_->ValidateOperationPermission);
 
     Server = std::make_unique<TServer>(
         logger,
@@ -214,7 +213,7 @@ IInvokerPtr TBootstrap::GetControlInvoker() const
 
 NApi::NNative::IConnectionPtr TBootstrap::GetConnection() const
 {
-    return Connection;
+    return Connection_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

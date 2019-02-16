@@ -49,7 +49,6 @@ DECLARE_REFCOUNTED_CLASS(TUserConfig);
 DECLARE_REFCOUNTED_CLASS(TNativeClientCacheConfig);
 
 DECLARE_REFCOUNTED_STRUCT(ISubscriptionManager);
-DECLARE_REFCOUNTED_STRUCT(INativeClientCache);
 
 ////////////////////////////////////////////////////////////////////////////////
 

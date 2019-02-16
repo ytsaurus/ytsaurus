@@ -1,3 +1,5 @@
+#pragma once
+
 #include "private.h"
 
 #include <yt/ytlib/api/native/connection.h>
