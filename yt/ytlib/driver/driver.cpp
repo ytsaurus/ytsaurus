@@ -15,12 +15,11 @@
 #include <yt/client/api/transaction.h>
 #include <yt/client/api/connection.h>
 #include <yt/client/api/sticky_transaction_pool.h>
+#include <yt/client/api/client_cache.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/core/yson/null_consumer.h>
-
-#include <yt/core/misc/sync_cache.h>
 
 namespace NYT::NDriver {
 
@@ -94,36 +93,16 @@ TCommandDescriptor IDriver::GetCommandDescriptorOrThrow(const TString& commandNa
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCachedClient
-    : public TSyncCacheValueBase<TString, TCachedClient>
-{
-public:
-    TCachedClient(
-        const TString& user,
-        IClientPtr client)
-        : TSyncCacheValueBase(user)
-        , Client_(std::move(client))
-    { }
-
-    const IClientPtr& GetClient()
-    {
-        return Client_;
-    }
-
-private:
-    const IClientPtr Client_;
-};
 
 class TDriver;
 typedef TIntrusivePtr<TDriver> TDriverPtr;
 
 class TDriver
     : public IDriver
-    , public TSyncSlruCacheBase<TString, TCachedClient>
 {
 public:
     TDriver(TDriverConfigPtr config, IConnectionPtr connection)
-        : TSyncSlruCacheBase(config->ClientCache)
+        : ClientCache_(New<TClientCache>(config->ClientCache, connection))
         , Config_(std::move(config))
         , Connection_(std::move(connection))
         , StickyTransactionPool_(CreateStickyTransactionPool(Logger))
@@ -318,25 +297,11 @@ public:
         YCHECK(entry.Descriptor.OutputType == EDataType::Null || request.OutputStream);
 
         const auto& user = request.AuthenticatedUser;
-
-        auto cachedClient = Find(user);
-        if (!cachedClient) {
-            TClientOptions options;
-            options.PinnedUser = user;
-            if (request.UserToken) {
-                options.Token = request.UserToken;
-            }
-            if (Config_->Token) {
-                options.Token = Config_->Token;
-            }
-            cachedClient = New<TCachedClient>(user, Connection_->CreateClient(options));
-
-            TryInsert(cachedClient, &cachedClient);
-        }
+        const auto& client = ClientCache_->GetClient(user, request.UserToken);
 
         auto context = New<TCommandContext>(
             this,
-            cachedClient->GetClient(),
+            client,
             Config_,
             entry.Descriptor,
             request,
@@ -365,7 +330,7 @@ public:
 
     virtual void ClearMetadataCaches() override
     {
-        Clear();
+        ClientCache_->Clear();
         Connection_->ClearMetadataCaches();
     }
 
@@ -401,6 +366,8 @@ public:
     }
 
 private:
+    TClientCachePtr ClientCache_;
+
     class TCommandContext;
     typedef TIntrusivePtr<TCommandContext> TCommandContextPtr;
     typedef TCallback<void(ICommandContextPtr)> TExecuteCallback;
