@@ -15,17 +15,6 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNativeClientCacheConfig
-    : public TAsyncExpiringCacheConfig
-{
-public:
-    TNativeClientCacheConfig() = default;
-};
-
-DEFINE_REFCOUNTED_TYPE(TNativeClientCacheConfig);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TUserConfig
     : public TYsonSerializable
 {
@@ -151,7 +140,7 @@ class TClickHouseServerBootstrapConfig
 public:
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
-    TNativeClientCacheConfigPtr ClientCache;
+    TSlruCacheConfigPtr ClientCache;
 
     //! Controls incoming bandwidth used by scan jobs.
     NConcurrency::TThroughputThrottlerConfigPtr ScanThrottler;

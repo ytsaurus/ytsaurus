@@ -42,8 +42,8 @@ private:
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     ICoreDumperPtr CoreDumper_;
 
-    NApi::NNative::IConnectionPtr Connection;
-    INativeClientCachePtr NativeClientCache;
+    NApi::NNative::IConnectionPtr Connection_;
+    NApi::NNative::TClientCachePtr ClientCache_;
     NConcurrency::IThroughputThrottlerPtr ScanThrottler;
 
     IStoragePtr Storage;

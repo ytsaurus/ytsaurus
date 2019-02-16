@@ -5,7 +5,6 @@
 #include "attributes_helpers.h"
 #include "auth_token.h"
 #include "chunk_reader.h"
-#include "client_cache.h"
 #include "convert_row.h"
 #include "document.h"
 #include "job_input.h"
@@ -18,6 +17,7 @@
 
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/client_cache.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/helpers.h>
@@ -159,12 +159,12 @@ class TStorage
 private:
     const NLogging::TLogger& Logger = ServerLogger;
     const IConnectionPtr Connection;
-    const INativeClientCachePtr ClientCache;
+    const NApi::NNative::TClientCachePtr ClientCache;
     const IThroughputThrottlerPtr ScanThrottler;
 
 public:
     TStorage(NApi::NNative::IConnectionPtr connection,
-             INativeClientCachePtr clientCache,
+             NApi::NNative::TClientCachePtr clientCache,
              IThroughputThrottlerPtr scanThrottler)
         : Connection(std::move(connection))
         , ClientCache(std::move(clientCache))
@@ -364,7 +364,7 @@ DEFINE_REFCOUNTED_TYPE(TStorage);
 NApi::NNative::IClientPtr TStorage::CreateNativeClient(
     const IAuthorizationToken& token)
 {
-    return ClientCache->CreateNativeClient(UnwrapAuthToken(token));
+    return ClientCache->GetClient(*UnwrapAuthToken(token).PinnedUser);
 }
 
 std::vector<TTablePtr> TStorage::DoListTables(
@@ -866,7 +866,7 @@ public:
 
 IStoragePtr CreateStorage(
     NApi::NNative::IConnectionPtr connection,
-    INativeClientCachePtr clientCache,
+    NApi::NNative::TClientCachePtr clientCache,
     IThroughputThrottlerPtr scanThrottler)
 {
     auto storage = New<TStorage>(
