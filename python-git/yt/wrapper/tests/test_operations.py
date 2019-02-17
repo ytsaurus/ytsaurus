@@ -1713,3 +1713,13 @@ print(op.id)
         yt.shuffle_table(table)
         assert len(list(yt.read_table(table))) == 3
 
+    def test_stderr_decoding(self):
+        input_table = TEST_DIR + "/input"
+        output_table = TEST_DIR + "/output"
+        yt.write_table(input_table, [{"x": 0}, {"x": 1}, {"x": 2}])
+        with set_config_option("operation_tracker/stderr_encoding", "latin1"):
+            op = yt.run_map("echo -e -n '\\xF1\\xF2\\xF3\\xF4' >&2; cat", input_table, output_table)
+            stderrs = op.get_stderrs()
+            assert len(stderrs) == 1
+            assert remove_asan_warning(stderrs[0]["stderr"]) == "\xF1\xF2\xF3\xF4"
+

@@ -354,6 +354,8 @@ default_config = {
         "stderr_download_timeout": 60 * 1000,
         # Enables logging in text format operation failed error and job errors.
         "enable_logging_failed_operation": True,
+        # Stderr encoding.
+        "stderr_encoding": "utf8",
     },
 
     "read_parallel": {
