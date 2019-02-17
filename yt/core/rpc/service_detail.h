@@ -126,7 +126,7 @@ struct THandlerInvocationOptions
     bool Heavy = TMethodConfig::DefaultHeavy;
 
     //! In case the client has provided "none" response codec, this value is used instead.
-    NCompression::ECodec ResponseCodec;
+    NCompression::ECodec ResponseCodec = NCompression::ECodec::None;
 
     THandlerInvocationOptions& SetHeavy(bool value)
     {
