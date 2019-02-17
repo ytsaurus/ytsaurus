@@ -502,9 +502,7 @@ class YtStuff(object):
                     pass
             return False
         self.yt_wrapper.config["proxy"]["url"] = self.get_server()
-        self.yt_wrapper.config["proxy"]["enable_proxy_discovery"] = False
         self.yt_client.config["proxy"]["url"] = self.get_server()
-        self.yt_client.config["proxy"]["enable_proxy_discovery"] = False
         self.env["YT_PROXY"] = self.get_server()
 
         tmpdir = os.environ.get("TMPDIR")
