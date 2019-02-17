@@ -128,6 +128,12 @@ DEFINE_ENUM(EProcessErrorCode,
     ((CannotResolveBinary)(10002))
 );
 
+// Memory zone is used to pass hint to the allocator.
+DEFINE_ENUM(EMemoryZone,
+    ((Normal)     (0)) // default memory type
+    ((Undumpable) (1)) // memory is omitted from the core dump
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TMountTmpfsConfig)

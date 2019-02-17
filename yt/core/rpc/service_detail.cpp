@@ -88,7 +88,6 @@ public:
     TServiceContext(
         TServiceBasePtr&& service,
         TAcceptedRequest&& acceptedRequest,
-        TString&& globalRequestInfo,
         const NLogging::TLogger& logger)
         : TServiceContextBase(
             std::move(acceptedRequest.Header),
@@ -99,7 +98,6 @@ public:
         , RequestId_(acceptedRequest.RequestId)
         , ReplyBus_(std::move(acceptedRequest.ReplyBus))
         , RuntimeInfo_(std::move(acceptedRequest.RuntimeInfo))
-        , GlobalRequestInfo_(std::move(globalRequestInfo))
         , PerformanceCounters_(Service_->LookupMethodPerformanceCounters(RuntimeInfo_, User_))
         , TraceContext_(acceptedRequest.TraceContext)
         , ArrivalInstant_(GetCpuInstant())
@@ -160,10 +158,7 @@ public:
         }
 
         auto wrappedHandler = BIND(&TServiceContext::DoRun, MakeStrong(this), handler);
-
-        const auto& descriptor = RuntimeInfo_->Descriptor;
-        const auto& invoker = descriptor.Invoker ? descriptor.Invoker : Service_->DefaultInvoker_;
-        invoker->Invoke(std::move(wrappedHandler));
+        GetInvoker()->Invoke(std::move(wrappedHandler));
     }
 
     virtual void SubscribeCanceled(const TClosure& callback) override
@@ -190,7 +185,10 @@ public:
         YT_LOG_DEBUG("Request canceled (RequestId: %v)",
             RequestId_);
 
-        AbortStreamsUnlessClosed();
+        if (RuntimeInfo_->Descriptor.StreamingEnabled) {
+            static const auto CanceledError = TError("Request canceled");
+            AbortStreamsUnlessClosed(CanceledError);
+        }
 
         Profiler.Increment(PerformanceCounters_->CanceledRequestCounter);
     }
@@ -209,7 +207,10 @@ public:
         YT_LOG_DEBUG("Request timed out, canceling (RequestId: %v)",
             RequestId_);
 
-        AbortStreamsUnlessClosed();
+        if (RuntimeInfo_->Descriptor.StreamingEnabled) {
+            static const auto TimedOutError = TError("Request timed out");
+            AbortStreamsUnlessClosed(TimedOutError);
+        }
 
         Canceled_.Fire();
         Profiler.Increment(PerformanceCounters_->TimedOutRequestCounter);
@@ -225,23 +226,73 @@ public:
 
     virtual IAsyncZeroCopyInputStreamPtr GetRequestAttachmentsStream() override
     {
+        auto guard = Guard(StreamsLock_);
+
         if (!RequestAttachmentsStream_) {
-            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::StreamingNotSupported, "Streaming is not supported");
+            if (!RuntimeInfo_->Descriptor.StreamingEnabled) {
+                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::StreamingNotSupported, "Streaming is not supported");
+            }
+            RequestAttachmentsStream_ =  New<TAttachmentsInputStream>(
+                BIND(&TServiceContext::OnRequestAttachmentsStreamRead, MakeWeak(this)),
+                GetInvoker());
         }
+
+        auto error = StreamsError_;
+
+        guard.Release();
+
+        if (!error.IsOK()) {
+            RequestAttachmentsStream_->AbortUnlessClosed(error);
+        }
+
         return RequestAttachmentsStream_;
+    }
+
+    virtual void SetResponseCodec(NCompression::ECodec codec) override
+    {
+        auto guard = Guard(StreamsLock_);
+        if (ResponseAttachmentsStream_) {
+            THROW_ERROR_EXCEPTION("Cannot update response codec after response attachments stream is accessed");
+        }
+        TServiceContextBase::SetResponseCodec(codec);
     }
 
     virtual IAsyncZeroCopyOutputStreamPtr GetResponseAttachmentsStream() override
     {
+        auto guard = Guard(StreamsLock_);
+
         if (!ResponseAttachmentsStream_) {
-            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::StreamingNotSupported, "Streaming is not supported");
+            if (!RuntimeInfo_->Descriptor.StreamingEnabled) {
+                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::StreamingNotSupported, "Streaming is not supported");
+            }
+            ResponseAttachmentsStream_ = New<TAttachmentsOutputStream>(
+                FromProto<TStreamingParameters>(RequestHeader_->response_attachments_streaming_parameters()),
+                ResponseMemoryZone_,
+                ResponseCodec_,
+                GetInvoker(),
+                BIND(&TServiceContext::OnPullResponseAttachmentsStream, MakeWeak(this)));
         }
+
+        auto error = StreamsError_;
+
+        guard.Release();
+
+        if (!error.IsOK()) {
+            ResponseAttachmentsStream_->AbortUnlessClosed(error);
+        }
+
         return ResponseAttachmentsStream_;
     }
 
     void HandleStreamingPayload(const TStreamingPayload& payload)
     {
-        if (!RequestAttachmentsStream_) {
+        TAttachmentsInputStreamPtr stream;
+        {
+            auto guard = Guard(StreamsLock_);
+            stream = RequestAttachmentsStream_;
+        }
+
+        if (!stream) {
             YT_LOG_DEBUG("Received streaming payload for a method that does not support streaming; ignored "
                 "(Method: %v:%v, RequestId: %v)",
                 Service_->ServiceId_.ServiceName,
@@ -251,17 +302,23 @@ public:
         }
 
         try {
-            RequestAttachmentsStream_->EnqueuePayload(payload);
+            stream->EnqueuePayload(payload);
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Error handling streaming payload (RequestId: %v)",
                 RequestId_);
-            RequestAttachmentsStream_->Abort(ex);
+            stream->Abort(ex);
         }
     }
 
     void HandleStreamingFeedback(const TStreamingFeedback& feedback)
     {
-        if (!ResponseAttachmentsStream_) {
+        TAttachmentsOutputStreamPtr stream;
+        {
+            auto guard = Guard(StreamsLock_);
+            stream = ResponseAttachmentsStream_;
+        }
+
+        if (!stream) {
             YT_LOG_DEBUG("Received streaming feedback for a method that does not support streaming; ignored "
                 "(Method: %v:%v, RequestId: %v)",
                 Service_->ServiceId_.ServiceName,
@@ -271,11 +328,11 @@ public:
         }
 
         try {
-            ResponseAttachmentsStream_->HandleFeedback(feedback);
+            stream->HandleFeedback(feedback);
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Error handling streaming feedback (RequestId: %v)",
                 RequestId_);
-            ResponseAttachmentsStream_->Abort(ex);
+            stream->Abort(ex);
         }
     }
 
@@ -284,11 +341,16 @@ private:
     const TRequestId RequestId_;
     const IBusPtr ReplyBus_;
     const TRuntimeMethodInfoPtr RuntimeInfo_;
-    const TString GlobalRequestInfo_;
     TMethodPerformanceCounters* const PerformanceCounters_;
     const NTracing::TTraceContext TraceContext_;
 
+    EMemoryZone ResponseMemoryZone_;
+
+    NCompression::ECodec RequestCodec_;
+
     TDelayedExecutorCookie TimeoutCookie_;
+
+    TString GlobalRequestInfo_;
 
     bool Cancelable_ = false;
     TSingleShotCallbackList<void()> Canceled_;
@@ -306,6 +368,8 @@ private:
     std::atomic_flag RunLatch_ = ATOMIC_FLAG_INIT;
     bool FinalizeLatch_ = false;
 
+    TSpinLock StreamsLock_;
+    TError StreamsError_;
     TAttachmentsInputStreamPtr RequestAttachmentsStream_;
     TAttachmentsOutputStreamPtr ResponseAttachmentsStream_;
 
@@ -344,6 +408,46 @@ private:
             Profiler.Update(PerformanceCounters_->RemoteWaitTimeCounter, DurationToValue(now - retryStart));
         }
 
+        {
+            auto intMemoryZone = RequestHeader_->response_memory_zone();
+            if (!TryEnumCast<EMemoryZone>(intMemoryZone, &ResponseMemoryZone_)) {
+                Reply(TError(
+                    NRpc::EErrorCode::ProtocolError,
+                    "Response memory zone %v is not supported",
+                    intMemoryZone));
+                return;
+            }
+        }
+
+        // COMPAT(kiselyovp): legacy RPC codecs
+        if (RequestHeader_->has_request_codec()) {
+            int intRequestCodecId = RequestHeader_->request_codec();
+            if (!TryEnumCast(intRequestCodecId, &RequestCodec_)) {
+                Reply(TError(
+                    NRpc::EErrorCode::ProtocolError,
+                    "Request codec %v is not supported",
+                    intRequestCodecId));
+                return;
+            }
+        } else {
+            RequestCodec_ = NCompression::ECodec::None;
+        }
+
+        if (RequestHeader_->has_response_codec()) {
+            int intResponseCodecId = RequestHeader_->response_codec();
+            if (!TryEnumCast(intResponseCodecId, &ResponseCodec_)) {
+                Reply(TError(
+                    NRpc::EErrorCode::ProtocolError,
+                    "Response codec %v is not supported",
+                    intResponseCodecId));
+                return;
+            }
+        } else {
+            ResponseCodec_ = NCompression::ECodec::None;
+        }
+        
+        BuildGlobalRequestInfo();
+
         if (IsRegistrable()) {
             Service_->RegisterRequest(this);
         }
@@ -358,16 +462,64 @@ private:
             }
         }
 
-        if (RuntimeInfo_->Descriptor.StreamingEnabled) {
-            RequestAttachmentsStream_ =  New<TAttachmentsInputStream>(
-                BIND(&TServiceContext::OnRequestAttachmentsStreamRead, MakeWeak(this)));
-            ResponseAttachmentsStream_ = New<TAttachmentsOutputStream>(
-                FromProto<TStreamingParameters>(RequestHeader_->response_attachments_streaming_parameters()),
-                BIND(&TServiceContext::OnPullResponseAttachmentsStream, MakeWeak(this)));
-        }
-
         Profiler.Increment(RuntimeInfo_->QueueSizeCounter, +1);
         ++Service_->ActiveRequestCount_;
+    }
+
+    void BuildGlobalRequestInfo()
+    {
+        TStringBuilder builder;
+        TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
+
+        if (RequestHeader_->has_request_id()) {
+            delimitedBuilder->AppendFormat("RequestId: %v", FromProto<TRequestId>(RequestHeader_->request_id()));
+        }
+
+        if (RequestHeader_->has_realm_id()) {
+            delimitedBuilder->AppendFormat("RealmId: %v", FromProto<TRealmId>(RequestHeader_->realm_id()));
+        }
+
+        if (RequestHeader_->has_user()) {
+            delimitedBuilder->AppendFormat("User: %v", RequestHeader_->user());
+        }
+
+        if (RequestHeader_->has_mutation_id()) {
+            delimitedBuilder->AppendFormat("MutationId: %v", FromProto<TMutationId>(RequestHeader_->mutation_id()));
+        }
+
+        if (RequestHeader_->has_start_time()) {
+            delimitedBuilder->AppendFormat("StartTime: %v", FromProto<TInstant>(RequestHeader_->start_time()));
+        }
+
+        delimitedBuilder->AppendFormat("Retry: %v", RequestHeader_->retry());
+
+        if (RequestHeader_->has_user_agent()) {
+            delimitedBuilder->AppendFormat("UserAgent: %v", RequestHeader_->user_agent());
+        }
+
+        if (RequestHeader_->has_timeout()) {
+            delimitedBuilder->AppendFormat("Timeout: %v", FromProto<TDuration>(RequestHeader_->timeout()));
+        }
+
+        if (RequestHeader_->tos_level() != NBus::DefaultTosLevel) {
+            delimitedBuilder->AppendFormat("TosLevel: %x", RequestHeader_->tos_level());
+        }
+
+        delimitedBuilder->AppendFormat("Endpoint: %v", ReplyBus_->GetEndpointDescription());
+
+        delimitedBuilder->AppendFormat("BodySize: %v, AttachmentsSize: %v/%v",
+            GetMessageBodySize(RequestMessage_),
+            GetTotalMessageAttachmentSize(RequestMessage_),
+            GetMessageAttachmentCount(RequestMessage_));
+
+        // COMPAT(kiselyovp)
+        if (RequestHeader_->has_request_codec() && RequestHeader_->has_response_codec()) {
+            delimitedBuilder->AppendFormat("RequestCodec: %v, ResponseCodec: %v",
+                RequestCodec_,
+                ResponseCodec_);
+        }
+
+        GlobalRequestInfo_ = builder.Flush();
     }
 
     void Finalize()
@@ -383,19 +535,36 @@ private:
             Service_->UnregisterRequest(this);
         }
 
-        AbortStreamsUnlessClosed();
+
+        if (RuntimeInfo_->Descriptor.StreamingEnabled) {
+            static const auto FinalizedError = TError("Request finalized");
+            AbortStreamsUnlessClosed(Error_.IsOK() ? Error_ : FinalizedError);
+        }
 
         DoSetComplete();
     }
 
-    void AbortStreamsUnlessClosed()
+    void AbortStreamsUnlessClosed(const TError& error)
     {
-        if (RequestAttachmentsStream_) {
-            RequestAttachmentsStream_->AbortUnlessClosed(Error_);
+        auto guard = Guard(StreamsLock_);
+
+        if (!StreamsError_.IsOK()) {
+            return;
         }
 
-        if (ResponseAttachmentsStream_) {
-            ResponseAttachmentsStream_->AbortUnlessClosed(Error_);
+        StreamsError_ = error;
+
+        auto requestAttachmentsStream = RequestAttachmentsStream_;
+        auto responseAttachmentsStream = ResponseAttachmentsStream_;
+
+        guard.Release();
+
+        if (requestAttachmentsStream) {
+            requestAttachmentsStream->AbortUnlessClosed(Error_);
+        }
+
+        if (responseAttachmentsStream) {
+            responseAttachmentsStream->AbortUnlessClosed(Error_);
         }
     }
 
@@ -480,9 +649,7 @@ private:
         busOptions.ChecksummedPartCount = RuntimeInfo_->Descriptor.GenerateAttachmentChecksums
             ? NBus::TSendOptions::AllParts
             : 2; // RPC header + response body
-        if (FromProto<EMemoryZone>(RequestHeader_->response_memory_zone()) == EMemoryZone::Undumpable) {
-            busOptions.UseUndumpableMemoryZone = true;
-        }
+        busOptions.MemoryZone = ResponseMemoryZone_;
         ReplyBus_->Send(responseMessage, busOptions);
 
         ReplyInstant_ = GetCpuInstant();
@@ -611,17 +778,19 @@ private:
 
     void OnPullResponseAttachmentsStream()
     {
-        auto result = ResponseAttachmentsStream_->TryPull();
-        if (!result) {
+        YCHECK(ResponseAttachmentsStream_);
+        auto payload = ResponseAttachmentsStream_->TryPull();
+        if (!payload) {
             return;
         }
 
-        YT_LOG_DEBUG("Response streaming attachments pulled (RequestId: %v, SequenceNumber: %v, AttachmentsSizes: %v)",
+        YT_LOG_DEBUG("Response streaming attachments pulled (RequestId: %v, SequenceNumber: %v, Sizes: %v, Closed: %v)",
             RequestId_,
-            result->SequenceNumber,
-            MakeFormattableRange(MakeRange(result->Attachments), [] (auto* builder, const auto& attachment) {
+            payload->SequenceNumber,
+            MakeFormattableRange(MakeRange(payload->Attachments), [] (auto* builder, const auto& attachment) {
                 builder->AppendFormat("%v", GetStreamingAttachmentSize(attachment));
-            }));
+            }),
+            !payload->Attachments.back());
 
         NProto::TStreamingPayloadHeader header;
         ToProto(header.mutable_request_id(), RequestId_);
@@ -630,19 +799,22 @@ private:
         if (GetRealmId()) {
             ToProto(header.mutable_realm_id(), GetRealmId());
         }
-        header.set_sequence_number(result->SequenceNumber);
+        header.set_sequence_number(payload->SequenceNumber);
+        header.set_codec(static_cast<int>(payload->Codec));
+        header.set_memory_zone(static_cast<int>(payload->MemoryZone));
 
-        auto message = CreateStreamingPayloadMessage(header, result->Attachments);
+        auto message = CreateStreamingPayloadMessage(header, payload->Attachments);
 
-        // XXX(babenko): support undumpable memory zone
         NBus::TSendOptions options;
         options.TrackingLevel = EDeliveryTrackingLevel::Full;
+        options.MemoryZone = payload->MemoryZone;
         ReplyBus_->Send(std::move(message), options).Subscribe(
-            BIND(&TServiceContext::OnResponseStreamingPayloadAcked, MakeStrong(this), result->SequenceNumber));
+            BIND(&TServiceContext::OnResponseStreamingPayloadAcked, MakeStrong(this), payload->SequenceNumber));
     }
 
     void OnResponseStreamingPayloadAcked(int sequenceNumber, const TError& error)
     {
+        YCHECK(ResponseAttachmentsStream_);
         if (error.IsOK()) {
             YT_LOG_DEBUG("Response streaming payload delivery acknowledged (RequestId: %v, SequenceNumber: %v)",
                 RequestId_,
@@ -657,6 +829,7 @@ private:
 
     void OnRequestAttachmentsStreamRead()
     {
+        YCHECK(RequestAttachmentsStream_);
         auto feedback = RequestAttachmentsStream_->GetFeedback();
 
         YT_LOG_DEBUG("Request streaming attachments read (RequestId: %v, ReadPosition: %v)",
@@ -682,14 +855,22 @@ private:
 
     void OnRequestStreamingFeedbackAcked(const TError& error)
     {
+        YCHECK(RequestAttachmentsStream_);
         if (error.IsOK()) {
-            YT_LOG_DEBUG("Response streaming feedback delivery acknowledged (RequestId: %v)",
+            YT_LOG_DEBUG("Request streaming feedback delivery acknowledged (RequestId: %v)",
                 RequestId_);
         } else {
-            YT_LOG_DEBUG(error, "Response streaming feedback delivery failed (RequestId: %v)",
+            YT_LOG_DEBUG(error, "Request streaming feedback delivery failed (RequestId: %v)",
                 RequestId_);
-            ResponseAttachmentsStream_->Abort(error);
+            RequestAttachmentsStream_->Abort(error);
         }
+    }
+
+
+    const IInvokerPtr& GetInvoker()
+    {
+        const auto& descriptor = RuntimeInfo_->Descriptor;
+        return descriptor.Invoker ? descriptor.Invoker : Service_->DefaultInvoker_;
     }
 };
 
@@ -914,15 +1095,9 @@ void TServiceBase::HandleAuthenticatedRequest(
 {
     auto runtimeInfo = acceptedRequest.RuntimeInfo;
 
-    auto globalRequestInfo = FormatRequestInfo(
-        acceptedRequest.Message,
-        *acceptedRequest.Header,
-        acceptedRequest.ReplyBus);
-
     auto context = New<TServiceContext>(
         this,
         std::move(acceptedRequest),
-        std::move(globalRequestInfo),
         Logger);
 
     runtimeInfo->RequestQueue.Enqueue(std::move(context));
@@ -1213,7 +1388,6 @@ void TServiceBase::Configure(INodePtr configNode)
 
             auto& descriptor = runtimeInfo->Descriptor;
             descriptor.SetHeavy(methodConfig->Heavy);
-            descriptor.SetResponseCodec(methodConfig->ResponseCodec);
             descriptor.SetMaxQueueSize(methodConfig->MaxQueueSize);
             descriptor.SetMaxConcurrency(methodConfig->MaxConcurrency);
             descriptor.SetLogLevel(methodConfig->LogLevel);
@@ -1275,73 +1449,6 @@ std::vector<TString> TServiceBase::SuggestAddresses()
     VERIFY_THREAD_AFFINITY_ANY();
 
     return std::vector<TString>();
-}
-
-TString TServiceBase::FormatRequestInfo(
-    const TSharedRefArray& message,
-    const NProto::TRequestHeader& header,
-    const IBusPtr& replyBus)
-{
-    TStringBuilder builder;
-    TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
-
-    if (header.has_request_id()) {
-        delimitedBuilder->AppendFormat("RequestId: %v", FromProto<TRequestId>(header.request_id()));
-    }
-
-    if (header.has_realm_id()) {
-        delimitedBuilder->AppendFormat("RealmId: %v", FromProto<TRealmId>(header.realm_id()));
-    }
-
-    if (header.has_user()) {
-        delimitedBuilder->AppendFormat("User: %v", header.user());
-    }
-
-    if (header.has_mutation_id()) {
-        delimitedBuilder->AppendFormat("MutationId: %v", FromProto<TMutationId>(header.mutation_id()));
-    }
-
-    if (header.has_start_time()) {
-        delimitedBuilder->AppendFormat("StartTime: %v", FromProto<TInstant>(header.start_time()));
-    }
-
-    delimitedBuilder->AppendFormat("Retry: %v", header.retry());
-
-    if (header.has_user_agent()) {
-        delimitedBuilder->AppendFormat("UserAgent: %v", header.user_agent());
-    }
-
-    if (header.has_timeout()) {
-        delimitedBuilder->AppendFormat("Timeout: %v", FromProto<TDuration>(header.timeout()));
-    }
-
-    if (header.tos_level() != NBus::DefaultTosLevel) {
-        delimitedBuilder->AppendFormat("TosLevel: %x", header.tos_level());
-    }
-
-    delimitedBuilder->AppendFormat("Endpoint: %v", replyBus->GetEndpointDescription());
-
-    delimitedBuilder->AppendFormat("BodySize: %v, AttachmentsSize: %v/%v",
-        GetMessageBodySize(message),
-        GetTotalMessageAttachmentSize(message),
-        GetMessageAttachmentCount(message));
-
-    if (header.has_codecs()) {
-        const auto& codecs = header.codecs();
-        auto optionalCodecCast = [] (int intCodecId) -> std::optional<NCompression::ECodec> {
-            NCompression::ECodec codecId;
-            if (!TryEnumCast<NCompression::ECodec>(intCodecId, &codecId)) {
-                return std::nullopt;
-            }
-            return codecId;
-        };
-        delimitedBuilder->AppendFormat("RequestCodec: %v",
-            optionalCodecCast(codecs.request_codec()));
-        delimitedBuilder->AppendFormat("ResponseCodec: %v",
-            optionalCodecCast(codecs.response_codec()));
-    }
-
-    return builder.Flush();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TServiceBase, Discover)

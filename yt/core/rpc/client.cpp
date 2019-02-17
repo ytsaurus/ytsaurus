@@ -33,6 +33,7 @@ TClientContext::TClientContext(
     const TString& service,
     const TString& method,
     bool heavy,
+    EMemoryZone memoryZone,
     TAttachmentsOutputStreamPtr requestAttachmentsStream,
     TAttachmentsInputStreamPtr responseAttachmentsStream)
     : RequestId_(requestId)
@@ -40,6 +41,7 @@ TClientContext::TClientContext(
     , Service_(service)
     , Method_(method)
     , Heavy_(heavy)
+    , MemoryZone_(memoryZone)
     , RequestAttachmentsStream_(std::move(requestAttachmentsStream))
     , ResponseAttachmentsStream_(std::move(responseAttachmentsStream))
 { }
@@ -61,8 +63,6 @@ TClientRequest::TClientRequest(
     Header_.set_protocol_version_minor(serviceDescriptor.ProtocolVersion.Minor);
 
     ToProto(Header_.mutable_request_id(), TRequestId::Create());
-
-    InitStreams();
 }
 
 TClientRequest::TClientRequest(const TClientRequest& other)
@@ -73,7 +73,7 @@ TClientRequest::TClientRequest(const TClientRequest& other)
     , RequestCodec_(other.RequestCodec_)
     , ResponseCodec_(other.ResponseCodec_)
     , GenerateAttachmentChecksums_(other.GenerateAttachmentChecksums_)
-    , UseUndumpableMemoryZone_(other.UseUndumpableMemoryZone_)
+    , MemoryZone_(other.MemoryZone_)
     , Channel_(other.Channel_)
     , StreamingEnabled_(other.StreamingEnabled_)
     , Header_(other.Header_)
@@ -81,9 +81,7 @@ TClientRequest::TClientRequest(const TClientRequest& other)
     , Hash_(other.Hash_)
     , MultiplexingBand_(other.MultiplexingBand_)
     , FirstTimeSerialization_(other.FirstTimeSerialization_)
-{
-    InitStreams();
-}
+{ }
 
 TSharedRefArray TClientRequest::Serialize()
 {
@@ -105,14 +103,11 @@ TSharedRefArray TClientRequest::Serialize()
 
 IClientRequestControlPtr TClientRequest::Send(IClientResponseHandlerPtr responseHandler)
 {
-    YCHECK(!Sent_);
-    Sent_ = true;
-
     TSendOptions options;
     options.Timeout = Timeout_;
     options.RequestAck = RequestAck_;
     options.GenerateAttachmentChecksums = GenerateAttachmentChecksums_;
-    options.UseUndumpableMemoryZone = UseUndumpableMemoryZone_;
+    options.MemoryZone = MemoryZone_;
     options.MultiplexingBand = MultiplexingBand_;
     auto control = Channel_->Send(
         this,
@@ -154,8 +149,6 @@ TStreamingParameters& TClientRequest::ResponseAttachmentsStreamingParameters()
 
 NConcurrency::IAsyncZeroCopyOutputStreamPtr TClientRequest::GetRequestAttachmentsStream() const
 {
-    // Failure here indicates an attempt to access a stream of an unsent request.
-    YCHECK(Sent_);
     if (!RequestAttachmentsStream_) {
         THROW_ERROR_EXCEPTION(NRpc::EErrorCode::StreamingNotSupported, "Streaming is not supported");
     }
@@ -164,8 +157,6 @@ NConcurrency::IAsyncZeroCopyOutputStreamPtr TClientRequest::GetRequestAttachment
 
 NConcurrency::IAsyncZeroCopyInputStreamPtr TClientRequest::GetResponseAttachmentsStream() const
 {
-    // Failure here indicates an attempt to access a stream of an unsent request.
-    YCHECK(Sent_);
     if (!ResponseAttachmentsStream_) {
         THROW_ERROR_EXCEPTION(NRpc::EErrorCode::StreamingNotSupported, "Streaming is not supported");
     }
@@ -277,27 +268,27 @@ TClientContextPtr TClientRequest::CreateClientContext()
         TraceRequest(traceContext);
     }
 
+    if (StreamingEnabled_) {
+        RequestAttachmentsStream_ = New<TAttachmentsOutputStream>(
+            RequestAttachmentStreamingParameters_,
+            MemoryZone_,
+            RequestCodec_,
+            GetInvoker(),
+            BIND(&TClientRequest::OnPullRequestAttachmentsStream, MakeWeak(this)));
+        ResponseAttachmentsStream_ = New<TAttachmentsInputStream>(
+            BIND(&TClientRequest::OnResponseAttachmentsStreamRead, MakeWeak(this)),
+            GetInvoker());
+    }
+
     return New<TClientContext>(
         GetRequestId(),
         traceContext,
         GetService(),
         GetMethod(),
         Heavy_,
+        MemoryZone_,
         RequestAttachmentsStream_,
         ResponseAttachmentsStream_);
-}
-
-void TClientRequest::InitStreams()
-{
-    if (!StreamingEnabled_) {
-        return;
-    }
-
-    RequestAttachmentsStream_ = New<TAttachmentsOutputStream>(
-        RequestAttachmentStreamingParameters_,
-        BIND(&TClientRequest::OnPullRequestAttachmentsStream, MakeWeak(this)));
-    ResponseAttachmentsStream_ = New<TAttachmentsInputStream>(
-        BIND(&TClientRequest::OnResponseAttachmentsStreamRead, MakeWeak(this)));
 }
 
 void TClientRequest::OnPullRequestAttachmentsStream()
@@ -307,19 +298,19 @@ void TClientRequest::OnPullRequestAttachmentsStream()
         return;
     }
 
-    YCHECK(Sent_);
     auto control = RequestControl_.Lock();
     if (!control) {
         RequestAttachmentsStream_->Abort(TError(NRpc::EErrorCode::StreamingNotSupported, "Streaming is not supported"));
         return;
     }
 
-    YT_LOG_DEBUG("Request streaming attachments pulled (RequestId: %v, SequenceNumber: %v, AttachmentsSizes: %v)",
+    YT_LOG_DEBUG("Request streaming attachments pulled (RequestId: %v, SequenceNumber: %v, Sizes: %v, Closed: %v)",
         GetRequestId(),
         payload->SequenceNumber,
         MakeFormattableRange(MakeRange(payload->Attachments), [] (auto* builder, const auto& attachment) {
             builder->AppendFormat("%v", GetStreamingAttachmentSize(attachment));
-        }));
+        }),
+        !payload->Attachments.back());
 
     control->SendStreamingPayload(*payload).Subscribe(
         BIND(&TClientRequest::OnRequestStreamingPayloadAcked, MakeStrong(this), payload->SequenceNumber));;
@@ -343,7 +334,6 @@ void TClientRequest::OnResponseAttachmentsStreamRead()
 {
     auto feedback = ResponseAttachmentsStream_->GetFeedback();
 
-    YCHECK(Sent_);
     auto control = RequestControl_.Lock();
     if (!control) {
         ResponseAttachmentsStream_->Abort(TError(NRpc::EErrorCode::StreamingNotSupported, "Streaming is not supported"));
@@ -368,6 +358,13 @@ void TClientRequest::OnResponseStreamingFeedbackAcked(const TError& error)
             GetRequestId());
         ResponseAttachmentsStream_->Abort(error);
     }
+}
+
+const IInvokerPtr& TClientRequest::GetInvoker() const
+{
+    return GetHeavy()
+        ? TDispatcher::Get()->GetHeavyInvoker()
+        : TDispatcher::Get()->GetLightInvoker();
 }
 
 void TClientRequest::TraceRequest(const NTracing::TTraceContext& traceContext)
@@ -396,9 +393,8 @@ void TClientRequest::SetCodecsInHeader()
         return;
     }
 
-    auto* protoCodecs = Header_.mutable_codecs();
-    protoCodecs->set_request_codec(static_cast<int>(RequestCodec_));
-    protoCodecs->set_response_codec(static_cast<int>(ResponseCodec_));
+    Header_.set_request_codec(static_cast<int>(RequestCodec_));
+    Header_.set_response_codec(static_cast<int>(ResponseCodec_));
 }
 
 void TClientRequest::SetStreamingParametersInHeader()
@@ -515,8 +511,8 @@ void TClientResponse::Deserialize(TSharedRefArray responseMessage)
     // COMPAT(kiselyovp): legacy RPC codecs
     std::optional<NCompression::ECodec> bodyCodecId;
     NCompression::ECodec attachmentCodecId;
-    if (Header_.has_codecs()) {
-        bodyCodecId = attachmentCodecId = CheckedEnumCast<NCompression::ECodec>(Header_.codecs().response_codec());
+    if (Header_.has_codec()) {
+        bodyCodecId = attachmentCodecId = CheckedEnumCast<NCompression::ECodec>(Header_.codec());
     } else {
         bodyCodecId = std::nullopt;
         attachmentCodecId = NCompression::ECodec::None;
@@ -526,7 +522,7 @@ void TClientResponse::Deserialize(TSharedRefArray responseMessage)
 
     auto* attachmentCodec = NCompression::GetCodec(attachmentCodecId);
 
-    auto memoryZone = FromProto<EMemoryZone>(Header_.response_memory_zone());
+    auto memoryZone = CheckedEnumCast<EMemoryZone>(Header_.memory_zone());
 
     Attachments_.clear();
     Attachments_.reserve(ResponseMessage_.Size() - 2);
@@ -574,23 +570,24 @@ void TClientResponse::DoHandleResponse(TSharedRefArray message)
 void TClientResponse::HandleStreamingPayload(const TStreamingPayload& payload)
 {
     const auto& stream = ClientContext_->GetResponseAttachmentsStream();
-    if (stream) {
-        stream->EnqueuePayload(payload);
-    } else {
+    if (!stream) {
         YT_LOG_DEBUG("Received streaming attachments payload for request with disabled streaming; ignored (RequestId: %v)",
             ClientContext_->GetRequestId());
+        return;
     }
+    stream->EnqueuePayload(payload);
 }
 
 void TClientResponse::HandleStreamingFeedback(const TStreamingFeedback& feedback)
 {
     const auto& stream = ClientContext_->GetRequestAttachmentsStream();
-    if (stream) {
-        stream->HandleFeedback(feedback);
-    } else {
+    if (!stream) {
         YT_LOG_DEBUG("Received streaming attachments feedback for request with disabled streaming; ignored (RequestId: %v)",
             ClientContext_->GetRequestId());
+        return;
     }
+
+    stream->HandleFeedback(feedback);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

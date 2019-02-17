@@ -250,7 +250,7 @@ public:
         
         WaitFor(response->GetAttachmentsStream()->Close())
             .ThrowOnError();
-        
+
         response->set_total_size(totalSize);
         context->Reply();
     }
@@ -681,6 +681,10 @@ TYPED_TEST(TNotGrpcTest, StreamingEcho)
 {
     TMyProxy proxy(this->CreateChannel());
     auto req = proxy.StreamingEcho();
+    req->SetRequestCodec(NCompression::ECodec::Lz4);
+    req->SetResponseCodec(NCompression::ECodec::QuickLz);
+    req->SetEnableLegacyRpcCodecs(false);
+    
     auto asyncInvokeResult = req->Invoke();
 
     const int AttachmentCount = 30;
@@ -711,6 +715,7 @@ TYPED_TEST(TNotGrpcTest, StreamingEcho)
         WaitFor(asyncCloseResult)
             .ThrowOnError();
     }
+
 
     auto rsp = WaitFor(asyncInvokeResult)
         .ValueOrThrow();
@@ -1028,7 +1033,19 @@ class TAttachmentsInputStreamTest
 protected:
     TAttachmentsInputStreamPtr CreateStream()
     {
-        return New<TAttachmentsInputStream>(BIND([=] {}));
+        return New<TAttachmentsInputStream>(
+            BIND([=] {}),
+            nullptr);
+    }
+
+    static TStreamingPayload MakePayload(int sequenceNumber, std::vector<TSharedRef> attachments)
+    {
+        return TStreamingPayload{
+            NCompression::ECodec::None,
+            EMemoryZone::Normal,
+            sequenceNumber,
+            std::move(attachments)
+        };
     }
 };
 
@@ -1049,7 +1066,7 @@ TEST_F(TAttachmentsInputStreamTest, EnqueueBeforeRead)
     auto stream = CreateStream();
 
     auto payload = TSharedRef::FromString("payload");
-    stream->EnqueuePayload({0, std::vector<TSharedRef>{payload}});
+    stream->EnqueuePayload(MakePayload(0, std::vector<TSharedRef>{payload}));
 
     auto future = stream->Read();
     EXPECT_TRUE(future.IsSet());
@@ -1065,7 +1082,7 @@ TEST_F(TAttachmentsInputStreamTest, ReadBeforeEnqueue)
     EXPECT_FALSE(future.IsSet());
 
     auto payload = TSharedRef::FromString("payload");
-    stream->EnqueuePayload({0, std::vector<TSharedRef>{payload}});
+    stream->EnqueuePayload(MakePayload(0, std::vector<TSharedRef>{payload}));
 
     EXPECT_TRUE(future.IsSet());
     EXPECT_TRUE(TRef::AreBitwiseEqual(payload, future.Get().ValueOrThrow()));
@@ -1077,8 +1094,8 @@ TEST_F(TAttachmentsInputStreamTest, CloseBeforeRead)
     auto stream = CreateStream();
 
     auto payload = TSharedRef::FromString("payload");
-    stream->EnqueuePayload({0, std::vector<TSharedRef>{payload}});
-    stream->EnqueuePayload({1, std::vector<TSharedRef>{TSharedRef()}});
+    stream->EnqueuePayload(MakePayload(0, {payload}));
+    stream->EnqueuePayload(MakePayload(1, {TSharedRef()}));
 
     auto future1 = stream->Read();
     EXPECT_TRUE(future1.IsSet());
@@ -1095,14 +1112,14 @@ TEST_F(TAttachmentsInputStreamTest, WrongSequenceNumber)
 {
     auto stream = CreateStream();
     EXPECT_THROW({
-        stream->EnqueuePayload({1, std::vector<TSharedRef>{TSharedRef()}});
+        stream->EnqueuePayload(MakePayload(1, {TSharedRef()}));
     }, TErrorException);
 }
 
 TEST_F(TAttachmentsInputStreamTest, EmptyAttachmentReadPosition)
 {
     auto stream = CreateStream();
-    stream->EnqueuePayload({0, std::vector<TSharedRef>{TSharedMutableRef::Allocate(0)}});
+    stream->EnqueuePayload(MakePayload(0, {TSharedMutableRef::Allocate(0)}));
     EXPECT_EQ(0, stream->GetFeedback().ReadPosition);
     auto future = stream->Read();
     EXPECT_TRUE(future.IsSet());
@@ -1113,7 +1130,7 @@ TEST_F(TAttachmentsInputStreamTest, EmptyAttachmentReadPosition)
 TEST_F(TAttachmentsInputStreamTest, Close)
 {
     auto stream = CreateStream();
-    stream->EnqueuePayload({0, std::vector<TSharedRef>{{}}});
+    stream->EnqueuePayload(MakePayload(0, {TSharedRef()}));
     auto future = stream->Read();
     EXPECT_TRUE(future.IsSet());
     EXPECT_FALSE(future.Get().ValueOrThrow());
@@ -1134,6 +1151,9 @@ protected:
         parameters.WindowSize = windowSize;
         return New<TAttachmentsOutputStream>(
             parameters,
+            EMemoryZone::Normal,
+            NCompression::ECodec::None,
+            nullptr,
             BIND([=] {
                 ++PullCallbackCounter_;
             }));

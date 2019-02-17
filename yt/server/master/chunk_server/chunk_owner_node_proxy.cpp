@@ -414,7 +414,9 @@ ENodeType TChunkOwnerNodeProxy::GetType() const
 
 bool TChunkOwnerNodeProxy::DoInvoke(const NRpc::IServiceContextPtr& context)
 {
-    DISPATCH_YPATH_HEAVY_SERVICE_METHOD(Fetch);
+    DISPATCH_YPATH_SERVICE_METHOD(Fetch,
+        .SetHeavy(true)
+        .SetResponseCodec(NCompression::ECodec::Lz4));
     DISPATCH_YPATH_SERVICE_METHOD(BeginUpload);
     DISPATCH_YPATH_SERVICE_METHOD(GetUploadParams);
     DISPATCH_YPATH_SERVICE_METHOD(EndUpload);

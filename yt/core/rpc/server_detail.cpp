@@ -140,16 +140,16 @@ TSharedRefArray TServiceContextBase::GetResponseMessage() const
         ToProto(header.mutable_error(), Error_);
 
         if (RequestHeader_->has_response_format()) {
-            header.set_response_format(RequestHeader_->response_format());
-        }
-
-        if (RequestHeader_->has_codecs()) {
-            const auto& protoCodecs = RequestHeader_->codecs();
-            header.mutable_codecs()->set_response_codec(protoCodecs.response_codec());
+            header.set_format(RequestHeader_->response_format());
         }
 
         if (RequestHeader_->has_response_memory_zone()) {
-            header.set_response_memory_zone(RequestHeader_->response_memory_zone());
+            header.set_memory_zone(RequestHeader_->response_memory_zone());
+        }
+
+        // COMPAT(kiselyovp)
+        if (RequestHeader_->has_response_codec()) {
+            header.set_codec(static_cast<int>(ResponseCodec_));
         }
 
         ResponseMessage_ = Error_.IsOK()
@@ -328,6 +328,16 @@ NLogging::ELogLevel TServiceContextBase::GetLogLevel() const
 bool TServiceContextBase::IsPooled() const
 {
     return false;
+}
+
+NCompression::ECodec TServiceContextBase::GetResponseCodec() const
+{
+    return ResponseCodec_;
+}
+
+void TServiceContextBase::SetResponseCodec(NCompression::ECodec codec)
+{
+    ResponseCodec_ = codec;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -522,6 +532,16 @@ NLogging::ELogLevel TServiceContextWrapper::GetLogLevel() const
 bool TServiceContextWrapper::IsPooled() const
 {
     return UnderlyingContext_->IsPooled();
+}
+
+NCompression::ECodec TServiceContextWrapper::GetResponseCodec() const
+{
+    return UnderlyingContext_->GetResponseCodec();
+}
+
+void TServiceContextWrapper::SetResponseCodec(NCompression::ECodec codec)
+{
+    UnderlyingContext_->SetResponseCodec(codec);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

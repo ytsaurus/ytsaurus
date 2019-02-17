@@ -18,6 +18,8 @@
 
 #include <yt/core/rpc/proto/rpc.pb.h>
 
+#include <yt/core/compression/public.h>
+
 namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -170,6 +172,12 @@ struct IServiceContext
 
     //! Returns |true| if requests and responses are pooled.
     virtual bool IsPooled() const = 0;
+
+    //! Returns the currently configured response codec.
+    virtual NCompression::ECodec GetResponseCodec() const = 0;
+
+    //! Changes the response codec.
+    virtual void SetResponseCodec(NCompression::ECodec codec) = 0;
 
 
     // Extension methods.

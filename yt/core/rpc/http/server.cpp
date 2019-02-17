@@ -121,8 +121,9 @@ public:
         }
 
         YCHECK(message.Size() >= 2);
-        if (responseHeader.has_response_format()) {
-            Rsp_->GetHeaders()->Add("Content-Type", ToHttpContentType(static_cast<EMessageFormat>(responseHeader.response_format())));
+        if (responseHeader.has_format()) {
+            auto format = CheckedEnumCast<EMessageFormat>(responseHeader.format());
+            Rsp_->GetHeaders()->Add("Content-Type", ToHttpContentType(format));
         }
 
         FillYTErrorHeaders(Rsp_, TError{});

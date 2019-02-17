@@ -129,12 +129,12 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples)
             .SetCancelable(true)
-            .SetResponseCodec(NCompression::ECodec::Lz4)
-            .SetHeavy(true));
+            .SetHeavy(true)
+            .SetResponseCodec(NCompression::ECodec::Lz4));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSlices)
             .SetCancelable(true)
-            .SetResponseCodec(NCompression::ECodec::Lz4)
-            .SetHeavy(true));
+            .SetHeavy(true)
+            .SetResponseCodec(NCompression::ECodec::Lz4));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics)
             .SetCancelable(true));
     }

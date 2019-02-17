@@ -81,6 +81,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TString, Service);
     DEFINE_BYVAL_RO_PROPERTY(TString, Method);
     DEFINE_BYVAL_RO_PROPERTY(bool, Heavy);
+    DEFINE_BYVAL_RO_PROPERTY(EMemoryZone, MemoryZone);
     DEFINE_BYVAL_RO_PROPERTY(TAttachmentsOutputStreamPtr, RequestAttachmentsStream);
     DEFINE_BYVAL_RO_PROPERTY(TAttachmentsInputStreamPtr, ResponseAttachmentsStream);
 
@@ -91,6 +92,7 @@ public:
         const TString& service,
         const TString& method,
         bool heavy,
+        EMemoryZone memoryZone,
         TAttachmentsOutputStreamPtr requestAttachmentsStream,
         TAttachmentsInputStreamPtr responseAttachmentsStream);
 };
@@ -111,7 +113,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, ResponseCodec, NCompression::ECodec::None);
     DEFINE_BYVAL_RW_PROPERTY(bool, EnableLegacyRpcCodecs, true);
     DEFINE_BYVAL_RW_PROPERTY(bool, GenerateAttachmentChecksums, true);
-    DEFINE_BYVAL_RW_PROPERTY(bool, UseUndumpableMemoryZone, false);
+    DEFINE_BYVAL_RW_PROPERTY(EMemoryZone, MemoryZone, EMemoryZone::Normal);
 
 public:
     virtual TSharedRefArray Serialize() override;
@@ -184,11 +186,12 @@ protected:
     IClientRequestControlPtr Send(IClientResponseHandlerPtr responseHandler);
 
 private:
-    void InitStreams();
     void OnPullRequestAttachmentsStream();
     void OnRequestStreamingPayloadAcked(int sequenceNumber, const TError& error);
     void OnResponseAttachmentsStreamRead();
     void OnResponseStreamingFeedbackAcked(const TError& error);
+
+    const IInvokerPtr& GetInvoker() const;
 
     void TraceRequest(const NTracing::TTraceContext& traceContext);
 
@@ -197,7 +200,6 @@ private:
 
     const TSharedRefArray& GetSerializedData() const;
 
-    bool Sent_ = false;
     TWeakPtr<IClientRequestControl> RequestControl_;
 };
 
@@ -226,7 +228,7 @@ private:
 
 //! Handles the outcome of a single RPC request.
 struct IClientResponseHandler
-    : public virtual TIntrinsicRefCounted
+    : public virtual TRefCounted
 {
     //! Called when request delivery is acknowledged.
     virtual void HandleAcknowledgement() = 0;
@@ -243,7 +245,7 @@ struct IClientResponseHandler
      */
     virtual void HandleError(const TError& error) = 0;
 
-    //! Enables passing streaming data the service to clients.
+    //! Enables passing streaming data from the service to clients.
     virtual void HandleStreamingPayload(const TStreamingPayload& payload) = 0;
 
     //! Enables the service to notify clients about its progress in receiving streaming data.
