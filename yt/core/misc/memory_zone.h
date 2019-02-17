@@ -1,18 +1,8 @@
 #pragma once
 
-#include <yt/core/misc/common.h>
+#include "public.h"
 
 namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Memory zone is used to pass hint to the allocator:
-// #Normal - default memory type,
-// #Undumpable - memory is omitted from the core dump.
-DEFINE_ENUM(EMemoryZone,
-    ((Normal)     (0))
-    ((Undumpable) (1))
-);
 
 ////////////////////////////////////////////////////////////////////////////////
 

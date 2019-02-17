@@ -9,6 +9,9 @@
 
 #include <yt/core/actions/future.h>
 
+#include <yt/core/compression/public.h>
+#include <yt/core/misc/memory_zone.h>
+
 namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,7 +25,9 @@ class TAttachmentsInputStream
     : public NConcurrency::IAsyncZeroCopyInputStream
 {
 public:
-    explicit TAttachmentsInputStream(TClosure readCallback);
+    TAttachmentsInputStream(
+        TClosure readCallback,
+        IInvokerPtr compressionInvoker);
 
     virtual TFuture<TSharedRef> Read() override;
 
@@ -33,16 +38,28 @@ public:
 
 private:
     const TClosure ReadCallback_;
+    const IInvokerPtr CompressionInvoker_;
+
+    struct TQueueEntry
+    {
+        TSharedRef Attachment;
+        size_t CompressedSize;
+    };
 
     TSpinLock Lock_;
     int SequenceNumber_ = 0;
-    TRingQueue<TSharedRef> Queue_;
+    TRingQueue<TQueueEntry> Queue_;
     TError Error_;
     TPromise<TSharedRef> Promise_;
     std::atomic<ssize_t> ReadPosition_ = {0};
     bool Closed_ = false;
 
-    void DoAbort(TGuard<TSpinLock>& guard, const TError& error);
+    void DoEnqueuePayload(
+        const TStreamingPayload& payload,
+        const std::vector<TSharedRef>& decompressedAttachments);
+    void DoAbort(
+        TGuard<TSpinLock>& guard,
+        const TError& error);
 };
 
 DEFINE_REFCOUNTED_TYPE(TAttachmentsInputStream)
@@ -55,6 +72,9 @@ class TAttachmentsOutputStream
 public:
     TAttachmentsOutputStream(
         const TStreamingParameters& parameters,
+        EMemoryZone memoryZone,
+        NCompression::ECodec codec,
+        IInvokerPtr compressionInvoker,
         TClosure pullCallback);
 
     virtual TFuture<void> Write(const TSharedRef& data) override;
@@ -67,6 +87,9 @@ public:
 
 private:
     const TStreamingParameters Parameters_;
+    const EMemoryZone MemoryZone_;
+    const NCompression::ECodec Codec_;
+    const IInvokerPtr CompressionInvoker_;
     const TClosure PullCallback_;
 
     struct TConfirmationEntry
@@ -86,6 +109,7 @@ private:
     ssize_t ReadPosition_ = 0;
     int SequenceNumber_ = 0;
 
+    TFuture<void> DoWrite(const TSharedRef& data);
     void MaybeInvokePullCallback(TGuard<TSpinLock>& guard);
     bool CanPullMore(bool first) const;
     void DoAbort(TGuard<TSpinLock>& guard, const TError& error);

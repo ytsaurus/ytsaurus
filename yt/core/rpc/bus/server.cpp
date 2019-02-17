@@ -7,9 +7,11 @@
 #include <yt/core/bus/server.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/cast.h>
 
 #include <yt/core/rpc/message.h>
 #include <yt/core/rpc/stream.h>
+
 #include <yt/core/rpc/proto/rpc.pb.h>
 
 namespace NYT::NRpc::NBus {
@@ -203,14 +205,40 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Request streaming payload received (RequestId: %v, SequenceNumber: %v, AttachmentsSizes: %v)",
+        NCompression::ECodec codec;
+        int intCodec = header.codec();
+        if (!TryEnumCast(intCodec, &codec)) {
+            YT_LOG_WARNING("Streaming payload codec is not supported; canceling request (RequestId: %v, Codec: %v)",
+                requestId,
+                intCodec);
+            service->HandleRequestCancelation(requestId);
+            return;
+        }
+
+        EMemoryZone memoryZone;
+        int intMemoryZone = header.memory_zone();
+        if (!TryEnumCast(intMemoryZone, &memoryZone)) {
+            YT_LOG_WARNING("Streaming payload memory zone is not supported; canceling request (RequestId: %v, MemoryZone: %v)",
+                requestId,
+                intMemoryZone);
+            service->HandleRequestCancelation(requestId);
+            return;
+        }
+
+        YT_LOG_DEBUG("Request streaming payload received (RequestId: %v, SequenceNumber: %v, Sizes: %v, "
+            "Codec: %v, MemoryZone: %v, Closed: %v)",
             requestId,
             sequenceNumber,
             MakeFormattableRange(attachments, [] (auto* builder, const auto& attachment) {
                 builder->AppendFormat("%v", GetStreamingAttachmentSize(attachment));
-            }));
+            }),
+            codec,
+            memoryZone,
+            !attachments.back());
 
         TStreamingPayload payload{
+            codec,
+            memoryZone,
             sequenceNumber,
             std::move(attachments)
         };

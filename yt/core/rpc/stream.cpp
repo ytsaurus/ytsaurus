@@ -1,5 +1,7 @@
 #include "stream.h"
 
+#include <yt/core/compression/codec.h>
+
 namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,8 +18,10 @@ size_t GetStreamingAttachmentSize(TRef attachment)
 ////////////////////////////////////////////////////////////////////////////////
 
 TAttachmentsInputStream::TAttachmentsInputStream(
-    TClosure readCallback)
+    TClosure readCallback,
+    IInvokerPtr compressionInvoker)
     : ReadCallback_(std::move(readCallback))
+    , CompressionInvoker_(std::move(compressionInvoker))
 { }
 
 TFuture<TSharedRef> TAttachmentsInputStream::Read()
@@ -38,20 +42,44 @@ TFuture<TSharedRef> TAttachmentsInputStream::Read()
         Promise_ = NewPromise<TSharedRef>();
         return Promise_.ToFuture();
     } else {
-        auto attachment = std::move(Queue_.front());
+        auto entry = std::move(Queue_.front());
         Queue_.pop();
-        ReadPosition_ += GetStreamingAttachmentSize(attachment);
-        if (!attachment) {
+        ReadPosition_ += entry.CompressedSize;
+        if (!entry.Attachment) {
             YCHECK(!Closed_);
             Closed_ = true;
         }
         guard.Release();
         ReadCallback_();
-        return MakeFuture(attachment);
+        return MakeFuture(entry.Attachment);
     }
 }
 
 void TAttachmentsInputStream::EnqueuePayload(const TStreamingPayload& payload)
+{
+    if (payload.Codec == NCompression::ECodec::None) {
+        DoEnqueuePayload(payload, payload.Attachments);
+    } else {
+        CompressionInvoker_->Invoke(BIND([=, this_= MakeWeak(this)] {
+            std::vector<TSharedRef> decompressedAttachments;
+            decompressedAttachments.reserve(payload.Attachments.size());
+            auto* codec = NCompression::GetCodec(payload.Codec);
+            for (const auto& attachment : payload.Attachments) {
+                TSharedRef decompressedAttachment;
+                if (attachment) {
+                    TMemoryZoneGuard guard(payload.MemoryZone);
+                    decompressedAttachment = codec->Decompress(attachment);
+                }
+                decompressedAttachments.push_back(std::move(decompressedAttachment));
+            }
+            DoEnqueuePayload(payload, decompressedAttachments);
+        }));
+    }
+}
+
+void TAttachmentsInputStream::DoEnqueuePayload(
+    const TStreamingPayload& payload,
+    const std::vector<TSharedRef>& decompressedAttachments)
 {
     auto guard = Guard(Lock_);
 
@@ -69,21 +97,25 @@ void TAttachmentsInputStream::EnqueuePayload(const TStreamingPayload& payload)
 
     for (size_t index = 0; index < payload.Attachments.size(); ++index) {
         if (!Promise_ || index > 0) {
-            Queue_.push(payload.Attachments[index]);
+            Queue_.push({
+                decompressedAttachments[index],
+                GetStreamingAttachmentSize(payload.Attachments[index])
+            });
         }
     }
 
     if (Promise_) {
         auto promise = std::move(Promise_);
         Promise_.Reset();
-        const auto& attachment = payload.Attachments[0];
-        ReadPosition_ += GetStreamingAttachmentSize(attachment);
-        if (!attachment) {
+        const auto& compressedAttachment = payload.Attachments[0];
+        const auto& decompressedAttachment = decompressedAttachments[0];
+        ReadPosition_ += GetStreamingAttachmentSize(compressedAttachment);
+        if (!decompressedAttachment) {
             YCHECK(!Closed_);
             Closed_ = true;
         }
         guard.Release();
-        promise.Set(attachment);
+        promise.Set(decompressedAttachment);
         ReadCallback_();
     }
 }
@@ -135,15 +167,36 @@ TStreamingFeedback TAttachmentsInputStream::GetFeedback() const
 
 TAttachmentsOutputStream::TAttachmentsOutputStream(
     const TStreamingParameters& parameters,
+    EMemoryZone memoryZone,
+    NCompression::ECodec codec,
+    IInvokerPtr compressisonInvoker,
     TClosure pullCallback)
     : Parameters_(parameters)
+    , MemoryZone_(memoryZone)
+    , Codec_(codec)
+    , CompressionInvoker_(std::move(compressisonInvoker))
     , PullCallback_(std::move(pullCallback))
 { }
+
 
 TFuture<void> TAttachmentsOutputStream::Write(const TSharedRef& data)
 {
     YCHECK(data);
+    if (Codec_ == NCompression::ECodec::None) {
+        return DoWrite(data);
+    } else {
+        return BIND([=, this_ = MakeStrong(this)] {
+            auto* codec = NCompression::GetCodec(Codec_);
+            auto compressedData = codec->Compress(data);
+            return DoWrite(compressedData);
+        })
+            .AsyncVia(CompressionInvoker_)
+            .Run();
+    }
+}
 
+TFuture<void> TAttachmentsOutputStream::DoWrite(const TSharedRef& data)
+{
     auto guard = Guard(Lock_);
 
     // Failure here indicates an attempt to write into a closed stream.
@@ -186,9 +239,9 @@ TFuture<void> TAttachmentsOutputStream::Close()
 
     auto promise = ClosePromise_ = NewPromise<void>();
 
-    DataQueue_.push({});
-
-    WritePosition_ += 1;
+    TSharedRef nullAttachment;
+    DataQueue_.push(nullAttachment);
+    WritePosition_ += GetStreamingAttachmentSize(nullAttachment);
 
     ConfirmationQueue_.push({
         WritePosition_,
@@ -260,7 +313,7 @@ void TAttachmentsOutputStream::HandleFeedback(const TStreamingFeedback& feedback
     }
 
     if (feedback.ReadPosition > WritePosition_) {
-        THROW_ERROR_EXCEPTION("Stream read position exceed write position: %v > %v",
+        THROW_ERROR_EXCEPTION("Stream read position exceeds write position: %v > %v",
             feedback.ReadPosition,
             WritePosition_);
     }
@@ -300,6 +353,8 @@ std::optional<TStreamingPayload> TAttachmentsOutputStream::TryPull()
     }
 
     TStreamingPayload result;
+    result.Codec = Codec_;
+    result.MemoryZone = MemoryZone_;
     while (CanPullMore(result.Attachments.empty())) {
         auto attachment = std::move(DataQueue_.front());
         SentPosition_ += GetStreamingAttachmentSize(attachment);

@@ -13,6 +13,8 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref.h>
 
+#include <yt/core/compression/public.h>
+
 #include <yt/core/ytree/public.h>
 
 namespace NYT::NRpc {
@@ -22,6 +24,8 @@ namespace NYT::NRpc {
 //! Encapsulates a portion of streaming data.
 struct TStreamingPayload
 {
+    NCompression::ECodec Codec;
+    EMemoryZone MemoryZone;
     int SequenceNumber;
     std::vector<TSharedRef> Attachments;
 };
@@ -68,7 +72,7 @@ struct TSendOptions
     std::optional<TDuration> Timeout;
     bool RequestAck = true;
     bool GenerateAttachmentChecksums = true;
-    bool UseUndumpableMemoryZone = false;
+    EMemoryZone MemoryZone = EMemoryZone::Normal;
     EMultiplexingBand MultiplexingBand = EMultiplexingBand::Default;
 };
 

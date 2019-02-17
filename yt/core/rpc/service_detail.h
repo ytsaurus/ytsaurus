@@ -125,9 +125,20 @@ struct THandlerInvocationOptions
     //! in a separate thread?
     bool Heavy = TMethodConfig::DefaultHeavy;
 
-    //! The codec to compress response body.
-    //! If not given then the client's value is used.
-    std::optional<NCompression::ECodec> ResponseCodec;
+    //! In case the client has provided "none" response codec, this value is used instead.
+    NCompression::ECodec ResponseCodec;
+
+    THandlerInvocationOptions& SetHeavy(bool value)
+    {
+        Heavy = value;
+        return *this;
+    }
+
+    THandlerInvocationOptions& SetResponseCodec(NCompression::ECodec value)
+    {
+        ResponseCodec = value;
+        return *this;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -147,12 +158,15 @@ public:
         : TServiceContextWrapper(std::move(context))
         , Options_(options)
     {
-        if (UnderlyingContext_->IsPooled()) {
-            Response_ = ObjectPool<TTypedResponse, TPooledTypedResponseTraits<TResponseMessage>>().Allocate();
-        } else {
-            Response_ = std::make_shared<TTypedResponse>();
-        }
+        Response_ = UnderlyingContext_->IsPooled()
+            ? ObjectPool<TTypedResponse, TPooledTypedResponseTraits<TResponseMessage>>().Allocate()
+            : std::make_shared<TTypedResponse>();
+
         Response_->Context_ = this->UnderlyingContext_.Get();
+
+        if (GetResponseCodec() == NCompression::ECodec::None) {
+            SetResponseCodec(Options_.ResponseCodec);
+        }
     }
 
     bool DeserializeRequest()
@@ -179,8 +193,8 @@ public:
         // COMPAT(kiselyovp): legacy RPC codecs
         std::optional<NCompression::ECodec> bodyCodecId;
         NCompression::ECodec attachmentCodecId;
-        if (requestHeader.has_codecs()) {
-            int intCodecId = requestHeader.codecs().request_codec();
+        if (requestHeader.has_request_codec()) {
+            int intCodecId = requestHeader.request_codec();
             NCompression::ECodec codecId;
             if (!TryEnumCast(intCodecId, &codecId)) {
                 UnderlyingContext_->Reply(TError(
@@ -267,7 +281,7 @@ public:
     }
 
 protected:
-    THandlerInvocationOptions Options_;
+    const THandlerInvocationOptions Options_;
     typename TObjectPool<TTypedRequest, TPooledTypedRequestTraits<TRequestMessage>>::TObjectPtr Request_;
     typename TObjectPool<TTypedResponse, TPooledTypedResponseTraits<TResponseMessage>>::TObjectPtr Response_;
 
@@ -278,25 +292,13 @@ protected:
 
             // COMPAT(kiselyovp): legacy RPC codecs
             bool enableBodyEnvelope;
-            NCompression::ECodec bodyCodecId;
             NCompression::ECodec attachmentCodecId;
-            if (requestHeader.has_codecs()) {
-                int intCodecId = requestHeader.codecs().response_codec();
-                NCompression::ECodec codecId;
-                if (!TryEnumCast(intCodecId, &codecId)) {
-                    UnderlyingContext_->Reply(TError(
-                        NRpc::EErrorCode::ProtocolError,
-                        "Response codec %v is not supported",
-                        intCodecId));
-                    return;
-                }
-
+            auto bodyCodecId = UnderlyingContext_->GetResponseCodec();;
+            if (requestHeader.has_request_codec()) {
                 enableBodyEnvelope = false;
-                bodyCodecId = Options_.ResponseCodec.value_or(codecId);
                 attachmentCodecId = bodyCodecId;
             } else {
                 enableBodyEnvelope = true;
-                bodyCodecId = Options_.ResponseCodec.value_or(NCompression::ECodec::None);
                 attachmentCodecId = NCompression::ECodec::None;
             }
 
@@ -503,7 +505,7 @@ protected:
             return *this;
         }
 
-        TMethodDescriptor& SetResponseCodec(std::optional<NCompression::ECodec> value)
+        TMethodDescriptor& SetResponseCodec(NCompression::ECodec value)
         {
             Options.ResponseCodec = value;
             return *this;
@@ -751,15 +753,9 @@ private:
     TMethodPerformanceCountersPtr CreateMethodPerformanceCounters(
         const TRuntimeMethodInfoPtr& runtimeInfo,
         const TString& user);
-
     TMethodPerformanceCounters* LookupMethodPerformanceCounters(
         const TRuntimeMethodInfoPtr& runtimeInfo,
         const TString& user);
-
-    static TString FormatRequestInfo(
-        const TSharedRefArray& message,
-        const NProto::TRequestHeader& header,
-        const NYT::NBus::IBusPtr& replyBus);
 };
 
 DEFINE_REFCOUNTED_TYPE(TServiceBase)

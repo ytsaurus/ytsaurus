@@ -3,6 +3,8 @@
 #include "server.h"
 #include "service.h"
 
+#include <yt/core/misc/memory_zone.h>
+
 #include <yt/core/concurrency/rw_spinlock.h>
 
 #include <yt/core/logging/log.h>
@@ -75,6 +77,9 @@ public:
 
     virtual bool IsPooled() const override;
 
+    virtual NCompression::ECodec GetResponseCodec() const override;
+    virtual void SetResponseCodec(NCompression::ECodec codec) override;
+
 protected:
     const std::unique_ptr<NProto::TRequestHeader> RequestHeader_;
     const TSharedRefArray RequestMessage_;
@@ -97,6 +102,8 @@ protected:
 
     TString RequestInfo_;
     TString ResponseInfo_;
+
+    NCompression::ECodec ResponseCodec_ = NCompression::ECodec::None;
 
     TServiceContextBase(
         std::unique_ptr<NProto::TRequestHeader> header,
@@ -185,6 +192,9 @@ public:
     virtual NLogging::ELogLevel GetLogLevel() const override;
 
     virtual bool IsPooled() const override;
+
+    virtual NCompression::ECodec GetResponseCodec() const override;
+    virtual void SetResponseCodec(NCompression::ECodec codec) override;
 
 protected:
     const IServiceContextPtr UnderlyingContext_;
