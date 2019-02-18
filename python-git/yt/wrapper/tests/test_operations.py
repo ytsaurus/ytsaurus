@@ -31,6 +31,8 @@ from yt.packages.six.moves import xrange, zip as izip
 
 import yt.wrapper as yt
 
+from flaky import flaky
+
 import io
 import logging
 import os
@@ -407,6 +409,7 @@ class TestOperations(object):
         yt.run_map(sum_x_raw, table, table, format=yt.DsvFormat())
         check(yt.read_table(table), [{"sum": "9"}])
 
+    @flaky(max_runs=5)
     @add_failed_operation_stderrs_to_error_message
     def test_python_operations_and_file_cache(self):
         def func(row):
