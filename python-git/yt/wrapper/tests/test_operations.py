@@ -409,6 +409,7 @@ class TestOperations(object):
         yt.run_map(sum_x_raw, table, table, format=yt.DsvFormat())
         check(yt.read_table(table), [{"sum": "9"}])
 
+    # Remove flaky after YT-10347.
     @flaky(max_runs=5)
     @add_failed_operation_stderrs_to_error_message
     def test_python_operations_and_file_cache(self):

@@ -206,6 +206,7 @@ class TestSpecBuilders(object):
         yt.run_operation(spec_builder)
         check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
 
+    # Remove flaky after YT-10347.
     @flaky(max_runs=5)
     @add_failed_operation_stderrs_to_error_message
     def test_python_operations_and_file_cache(self):
