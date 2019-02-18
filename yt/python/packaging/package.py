@@ -14,6 +14,8 @@ import contextlib
 import shutil
 import tempfile
 
+PYTHONPATH = ":".join([os.environ.get("PYTHONPATH", ""), os.path.abspath(os.path.dirname(__file__))])
+
 class PackageError(Exception):
     pass
 
@@ -110,7 +112,7 @@ def build_pypi_package(python_type, python_suffix, upload, build_dir):
 
     package_version = debian.get_local_package_version()
 
-    env = {}
+    env = {"PYTHONPATH": PYTHONPATH}
     python = "python" + python_suffix
     pypi_package_name = get_python_package_name(build_dir)
     if python_type == "skynet":
@@ -178,7 +180,8 @@ def build_debian_package(package_name, python_type, python_suffix, repositories,
         "SOURCE_DIR": install_dir,
         "DEB_BUILD_OPTIONS": deb_build_options,
         "PYBUILD_DEST_INTERPRETER": python,
-        "PYBUILD_PACKAGE_NAME": package_name
+        "PYBUILD_PACKAGE_NAME": package_name,
+        "PYTHONPATH": PYTHONPATH,
     }
     run(["dpkg-buildpackage", "-b"], env=dpkg_buildpackage_env)
 
