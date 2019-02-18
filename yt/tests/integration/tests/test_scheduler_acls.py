@@ -37,6 +37,9 @@ class TestOperationAcls(YTEnvSetup):
             "alerts_update_period": 100,
             "operations_update_period": 100,
         },
+        "controller_agent": {
+            "watchers_update_period": 100,
+        },
     }
 
     input_path = "//tmp/input"
@@ -290,7 +293,7 @@ class TestOperationAcls(YTEnvSetup):
     def test_acl_priority_over_owners(self):
         spec = {
             "owners": [self.no_rights_user],
-            "acl": [make_ace("allow", self.manage_and_read_user, "manage")],
+            "acl": [make_ace("allow", self.manage_user, "manage")],
         }
         with self._run_op_context_manager(spec=spec) as (op, job_id):
             wait(lambda: op.get_alerts().keys() == ["owners_in_spec_ignored"])
@@ -343,6 +346,9 @@ class TestOperationAcls(YTEnvSetup):
         flag_path = "//sys/controller_agents/config/allow_users_group_read_intermediate_data"
         try:
             set(flag_path, allow_access, recursive=True)
+            # Wait for controller agent config update.
+            time.sleep(0.5)
+
             op = map_reduce(
                 dont_track=True,
                 mapper_command="cat",
@@ -355,23 +361,36 @@ class TestOperationAcls(YTEnvSetup):
                 },
             )
 
-            operation_path = op.get_path()
-
             def transaction_and_intermediate_exist():
-                if not exists(operation_path + "/@async_scheduler_transaction_id"):
+                if not exists(op.get_path() + "/@async_scheduler_transaction_id"):
                     return False
-                scheduler_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
-                return exists(operation_path + "/intermediate", tx=scheduler_transaction_id)
+                scheduler_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
+                return exists(op.get_path() + "/intermediate", tx=scheduler_transaction_id)
 
             wait(transaction_and_intermediate_exist)
 
-            scheduler_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
+            scheduler_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
             if allow_access:
-                read_table(operation_path + "/intermediate", tx=scheduler_transaction_id, authenticated_user=self.no_rights_user)
+                read_table(op.get_path() + "/intermediate", tx=scheduler_transaction_id, authenticated_user=self.no_rights_user)
             else:
                 with raises_with_codes(AuthorizationErrorCode):
-                    read_table(operation_path + "/intermediate", tx=scheduler_transaction_id, authenticated_user=self.no_rights_user)
+                    read_table(op.get_path() + "/intermediate", tx=scheduler_transaction_id, authenticated_user=self.no_rights_user)
             op.complete()
             op.track()
         finally:
             set(flag_path, False)
+            time.sleep(0.5)
+
+    @pytest.mark.parametrize("add_authenticated_user", [False, True])
+    def test_add_authenticated_user_to_acl(self, add_authenticated_user):
+        spec = {
+            "acl": [make_ace("allow", self.manage_and_read_user, ["manage", "read"])],
+            "add_authenticated_user_to_acl": add_authenticated_user,
+        }
+        with self._run_op_context_manager(spec=spec) as (op, job_id):
+            self._validate_access(
+                self.operation_authenticated_user,
+                add_authenticated_user,
+                _abort_op,
+                operation_id=op.id,
+            )
