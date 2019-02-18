@@ -293,7 +293,7 @@ class TestOperationAcls(YTEnvSetup):
     def test_acl_priority_over_owners(self):
         spec = {
             "owners": [self.no_rights_user],
-            "acl": [make_ace("allow", self.manage_user, "manage")],
+            "acl": [make_ace("allow", self.manage_and_read_user, "manage")],
         }
         with self._run_op_context_manager(spec=spec) as (op, job_id):
             wait(lambda: op.get_alerts().keys() == ["owners_in_spec_ignored"])
@@ -349,10 +349,11 @@ class TestOperationAcls(YTEnvSetup):
             # Wait for controller agent config update.
             time.sleep(0.5)
 
+            breakpoint_name = "breakpoint_" + self._random_string(10)
             op = map_reduce(
                 dont_track=True,
                 mapper_command="cat",
-                reducer_command="cat; sleep 1000",
+                reducer_command=with_breakpoint("cat; BREAKPOINT", breakpoint_name=breakpoint_name),
                 in_=self.input_path,
                 out=self.output_path,
                 sort_by=["key"],
@@ -360,6 +361,8 @@ class TestOperationAcls(YTEnvSetup):
                     "acl": [make_ace("allow", self.manage_and_read_user, ["read", "manage"])],
                 },
             )
+
+            wait_breakpoint(breakpoint_name=breakpoint_name)
 
             def transaction_and_intermediate_exist():
                 if not exists(op.get_path() + "/@async_scheduler_transaction_id"):
@@ -375,7 +378,8 @@ class TestOperationAcls(YTEnvSetup):
             else:
                 with raises_with_codes(AuthorizationErrorCode):
                     read_table(op.get_path() + "/intermediate", tx=scheduler_transaction_id, authenticated_user=self.no_rights_user)
-            op.complete()
+
+            release_breakpoint(breakpoint_name=breakpoint_name)
             op.track()
         finally:
             set(flag_path, False)
