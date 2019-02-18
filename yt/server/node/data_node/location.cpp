@@ -45,7 +45,6 @@ using namespace NYson;
 
 // Others must not be able to list chunk store and chunk cache directories.
 static const int ChunkFilesPermissions = 0751;
-static const auto TrashCheckPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -693,7 +692,7 @@ TStoreLocation::TStoreLocation(
     , TrashCheckExecutor_(New<TPeriodicExecutor>(
         TrashCheckQueue_->GetInvoker(),
         BIND(&TStoreLocation::OnCheckTrash, MakeWeak(this)),
-        TrashCheckPeriod,
+        Config_->TrashCheckPeriod,
         EPeriodicExecutorMode::Automatic))
 {
     auto throttlersProfiler = GetProfiler().AppendPath("/location");
@@ -772,7 +771,7 @@ IThroughputThrottlerPtr TStoreLocation::GetInThrottler(const TWorkloadDescriptor
 
 void TStoreLocation::RemoveChunkFiles(TChunkId chunkId, bool force)
 {
-    if (force) {
+    if (force || Config_->MaxTrashTtl == TDuration::Zero()) {
         RemoveChunkFilesPermanently(chunkId);
     } else {
         MoveChunkFilesToTrash(chunkId);

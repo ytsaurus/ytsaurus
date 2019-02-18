@@ -294,6 +294,15 @@ void TBlobSession::DoWriteBlocks(const std::vector<TBlock>& blocks, int beginBlo
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
                 Y_UNREACHABLE();
             }
+        } catch (const TSystemError& ex) {
+            if (ex.Status() == ENOSPC) {
+                auto error = TError("Not enough space to finish blob session for chunk %v", GetChunkId())
+                    << TError(ex);
+
+                SetFailed(error, /* fatal */ false);
+            } else {
+                throw;
+            }
         } catch (const TBlockChecksumValidationException& ex) {
             SetFailed(TError(
                 NChunkClient::EErrorCode::InvalidBlockChecksum,
