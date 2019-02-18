@@ -295,8 +295,7 @@ void TJobStatistics::SetError(const TError& error)
 void TJobStatistics::SetSpec(const NJobTrackerClient::NProto::TJobSpec& spec)
 {
     TString specString;
-    bool result = spec.SerializeToString(&specString);
-    YCHECK(result);
+    YCHECK(spec.SerializeToString(&specString));
     Spec_ = std::move(specString);
 }
 

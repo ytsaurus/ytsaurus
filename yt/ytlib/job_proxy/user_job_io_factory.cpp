@@ -528,20 +528,20 @@ class TVanillaJobIOFactory
     : public TUserJobIOFactoryBase
 {
 public:
-    explicit TVanillaJobIOFactory(
+    TVanillaJobIOFactory(
         IJobSpecHelperPtr jobSpecHelper,
         const TClientBlockReadOptions& blockReadOptions,
         NChunkClient::TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr inBandwidthThrottler,
         IThroughputThrottlerPtr outBandwidthThrottler,
         IThroughputThrottlerPtr outRpsThrottler)
-    : TUserJobIOFactoryBase(
-        std::move(jobSpecHelper),
-        blockReadOptions,
-        std::move(trafficMeter),
-        std::move(inBandwidthThrottler),
-        std::move(outBandwidthThrottler),
-        std::move(outRpsThrottler))
+        : TUserJobIOFactoryBase(
+            std::move(jobSpecHelper),
+            blockReadOptions,
+            std::move(trafficMeter),
+            std::move(inBandwidthThrottler),
+            std::move(outBandwidthThrottler),
+            std::move(outRpsThrottler))
     { }
 
     virtual ISchemalessMultiChunkReaderPtr CreateReader(
@@ -596,27 +596,73 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
     const auto jobType = jobSpecHelper->GetJobType();
     switch (jobType) {
         case EJobType::Map:
-            return New<TMapJobIOFactory>(jobSpecHelper, true, blockReadOptions, std::move(trafficMeter), std::move(inBandwidthThrottler), std::move(outBandwidthThrottler), std::move(outRpsThrottler));
+            return New<TMapJobIOFactory>(
+                jobSpecHelper,
+                true,
+                blockReadOptions,
+                std::move(trafficMeter),
+                std::move(inBandwidthThrottler),
+                std::move(outBandwidthThrottler),
+                std::move(outRpsThrottler));
 
         case EJobType::OrderedMap:
-            return New<TMapJobIOFactory>(jobSpecHelper, false, blockReadOptions, std::move(trafficMeter), std::move(inBandwidthThrottler), std::move(outBandwidthThrottler), std::move(outRpsThrottler));
+            return New<TMapJobIOFactory>(
+                jobSpecHelper,
+                false,
+                blockReadOptions,
+                std::move(trafficMeter),
+                std::move(inBandwidthThrottler),
+                std::move(outBandwidthThrottler),
+                std::move(outRpsThrottler));
 
         case EJobType::SortedReduce:
-            return New<TSortedReduceJobIOFactory>(jobSpecHelper, true, blockReadOptions, std::move(trafficMeter), std::move(inBandwidthThrottler), std::move(outBandwidthThrottler), std::move(outRpsThrottler));
+            return New<TSortedReduceJobIOFactory>(
+                jobSpecHelper,
+                true,
+                blockReadOptions,
+                std::move(trafficMeter),
+                std::move(inBandwidthThrottler),
+                std::move(outBandwidthThrottler),
+                std::move(outRpsThrottler));
 
         case EJobType::JoinReduce:
-            return New<TSortedReduceJobIOFactory>(jobSpecHelper, false, blockReadOptions, std::move(trafficMeter), std::move(inBandwidthThrottler), std::move(outBandwidthThrottler), std::move(outRpsThrottler));
+            return New<TSortedReduceJobIOFactory>(
+                jobSpecHelper,
+                false,
+                blockReadOptions,
+                std::move(trafficMeter),
+                std::move(inBandwidthThrottler),
+                std::move(outBandwidthThrottler),
+                std::move(outRpsThrottler));
 
         case EJobType::PartitionMap:
-            return New<TPartitionMapJobIOFactory>(jobSpecHelper, blockReadOptions, std::move(trafficMeter), std::move(inBandwidthThrottler), std::move(outBandwidthThrottler), std::move(outRpsThrottler));
+            return New<TPartitionMapJobIOFactory>(
+                jobSpecHelper,
+                blockReadOptions,
+                std::move(trafficMeter),
+                std::move(inBandwidthThrottler),
+                std::move(outBandwidthThrottler),
+                std::move(outRpsThrottler));
 
         // ToDo(psushin): handle separately to form job result differently.
         case EJobType::ReduceCombiner:
         case EJobType::PartitionReduce:
-            return New<TPartitionReduceJobIOFactory>(jobSpecHelper, blockReadOptions, std::move(trafficMeter), std::move(inBandwidthThrottler), std::move(outBandwidthThrottler), std::move(outRpsThrottler));
+            return New<TPartitionReduceJobIOFactory>(
+                jobSpecHelper,
+                blockReadOptions,
+                std::move(trafficMeter),
+                std::move(inBandwidthThrottler),
+                std::move(outBandwidthThrottler),
+                std::move(outRpsThrottler));
 
         case EJobType::Vanilla:
-            return New<TVanillaJobIOFactory>(jobSpecHelper, blockReadOptions, std::move(trafficMeter), std::move(inBandwidthThrottler), std::move(outBandwidthThrottler), std::move(outRpsThrottler));
+            return New<TVanillaJobIOFactory>(
+                jobSpecHelper,
+                blockReadOptions,
+                std::move(trafficMeter),
+                std::move(inBandwidthThrottler),
+                std::move(outBandwidthThrottler),
+                std::move(outRpsThrottler));
 
         default:
             THROW_ERROR_EXCEPTION(

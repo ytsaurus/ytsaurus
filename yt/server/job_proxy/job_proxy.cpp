@@ -544,7 +544,7 @@ TJobResult TJobProxy::DoRun()
         jobEnvironmentConfig->MemoryWatchdogPeriod);
 
     if (schedulerJobSpecExt.has_user_job_spec()) {
-        auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+        const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
 
         if (JobProxyEnvironment_ && userJobSpec.use_porto_memory_tracking()) {
             JobProxyEnvironment_->EnablePortoMemoryTracking();
