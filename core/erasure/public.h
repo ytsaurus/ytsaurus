@@ -14,8 +14,11 @@ namespace NYT::NErasure {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TPartIndexList = ::NErasure::TPartIndexList;
-using TPartIndexSet = ::NErasure::TPartIndexSet;
+struct TJerasureTag {};
+struct TLrcTag {};
+
+using ::NErasure::TPartIndexList;
+using ::NErasure::TPartIndexSet;
 
 DEFINE_ENUM_WITH_UNDERLYING_TYPE(ECodec, i8,
     ((None)           (0))
@@ -34,16 +37,15 @@ struct TCodecTraits {
         YCHECK(expr);
     }
 
-    template <class Tag>
-    static inline TMutableBlobType AllocateBlob(size_t size, bool initializeStorage)
+    static inline TMutableBlobType AllocateBlob(size_t size)
     {
-        return TMutableBlobType::Allocate<Tag>(size, initializeStorage);
+        return TMutableBlobType::Allocate<TJerasureTag>(size, false);
     }
 
-    template <class Tag>
-    static inline TBufferType AllocateBuffer(Tag tag, size_t size)
+    static inline TBufferType AllocateBuffer(size_t size)
     {
-        return TBufferType(tag, size);
+        // Only Lrc now uses buffer allocation
+        return TBufferType(TLrcTag(), size);
     }
 
     static inline TBlobType FromBufferToBlob(TBufferType&& blob)
