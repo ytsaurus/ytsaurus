@@ -5,7 +5,7 @@ PACKAGE_NAME = "yandex-yt-yson-bindings"
 def main():
     from setuptools import setup
     from setuptools.dist import Distribution
-    from helpers import get_version
+    from setup_helpers import get_version
 
     class BinaryDistribution(Distribution):
         def is_pure(self):
