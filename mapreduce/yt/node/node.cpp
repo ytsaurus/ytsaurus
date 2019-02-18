@@ -262,23 +262,23 @@ size_t TNode::Size() const
 TNode::EType TNode::GetType() const
 {
     switch (Value_.index()) {
-        case TValue::TagOf<TUndefined>():
+        case TVariantIndexV<TUndefined, TValue>:
             return Undefined;
-        case TValue::TagOf<TString>():
+        case TVariantIndexV<TString, TValue>:
             return String;
-        case TValue::TagOf<i64>():
+        case TVariantIndexV<i64, TValue>:
             return Int64;
-        case TValue::TagOf<ui64>():
+        case TVariantIndexV<ui64, TValue>:
             return Uint64;
-        case TValue::TagOf<double>():
+        case TVariantIndexV<double, TValue>:
             return Double;
-        case TValue::TagOf<bool>():
+        case TVariantIndexV<bool, TValue>:
             return Bool;
-        case TValue::TagOf<TListType>():
+        case TVariantIndexV<TListType, TValue>:
             return List;
-        case TValue::TagOf<TMapType>():
+        case TVariantIndexV<TMapType, TValue>:
             return Map;
-        case TValue::TagOf<TNull>():
+        case TVariantIndexV<TNull, TValue>:
             return Null;
     }
     Y_UNREACHABLE();
