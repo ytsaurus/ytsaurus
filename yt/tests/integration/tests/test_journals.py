@@ -116,7 +116,7 @@ class TestJournals(YTEnvSetup):
 
                 self._i += 1
 
-                if self._i == 50:
+                if self._i == 3:
                     self._owner.Env.kill_nodes()
                     raise "" # Throw to abort the journal writer without sealing the chunk.
 
