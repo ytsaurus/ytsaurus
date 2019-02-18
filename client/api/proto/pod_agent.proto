@@ -485,6 +485,9 @@ message TBoxStatus {
     // Пустая строка, если подсеть не выделена
     string ip6_address = 10;
 
+    // Имя porto контейнера (относительно корневого контейнера пода)
+    string container_name = 11;
+
     // Неструктурированное описание последней ошибки
     string FailReason = 5;
 
