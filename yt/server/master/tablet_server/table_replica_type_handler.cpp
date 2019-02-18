@@ -93,11 +93,6 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual TObjectBase* DoGetParent(TTableReplica* replica) override
-    {
-        return replica->GetTable();
-    }
-
     virtual TString DoGetName(const TTableReplica* replica) override
     {
         return Format("table replica %v", replica->GetId());
