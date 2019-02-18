@@ -2379,7 +2379,7 @@ private:
     }
 
     template <class TReq>
-    void ExecuteTabletSerivceRequest(const TYPath& path, TReq* req, TYPath* fullPath = nullptr)
+    void ExecuteTabletServiceRequest(const TYPath& path, TReq* req, TYPath* fullPath = nullptr)
     {
         TTableId tableId;
         TCellTag cellTag;
@@ -2440,7 +2440,7 @@ private:
                 .ValueOrThrow();
             req.set_mount_timestamp(mountTimestamp);
 
-            ExecuteTabletSerivceRequest(path, &req, &fullPath);
+            ExecuteTabletServiceRequest(path, &req, &fullPath);
         } else {
             auto req = TTableYPathProxy::Mount(path);
             SetMutationId(req, options);
@@ -2484,7 +2484,7 @@ private:
             }
             req.set_force(options.Force);
 
-            ExecuteTabletSerivceRequest(path, &req);
+            ExecuteTabletServiceRequest(path, &req);
         } else {
             auto req = TTableYPathProxy::Unmount(path);
             SetMutationId(req, options);
@@ -2517,7 +2517,7 @@ private:
                 req.set_first_tablet_index(*options.LastTabletIndex);
             }
 
-            ExecuteTabletSerivceRequest(path, &req);
+            ExecuteTabletServiceRequest(path, &req);
         } else {
             auto req = TTableYPathProxy::Remount(path);
             SetMutationId(req, options);
@@ -2549,7 +2549,7 @@ private:
                 req.set_last_tablet_index(*options.LastTabletIndex);
             }
 
-            ExecuteTabletSerivceRequest(path, &req);
+            ExecuteTabletServiceRequest(path, &req);
         } else {
             auto req = TTableYPathProxy::Freeze(path);
             SetMutationId(req, options);
@@ -2581,7 +2581,7 @@ private:
                 req.set_last_tablet_index(*options.LastTabletIndex);
             }
 
-            ExecuteTabletSerivceRequest(path, &req);
+            ExecuteTabletServiceRequest(path, &req);
         } else {
             auto req = TTableYPathProxy::Unfreeze(path);
             SetMutationId(req, options);
@@ -2612,7 +2612,7 @@ private:
         return req;
     }
 
-    TTableYPathProxy::TReqReshardPtr MakeYpathReshardRequest(
+    TTableYPathProxy::TReqReshardPtr MakeYPathReshardRequest(
         const TYPath& path,
         const TReshardTableOptions& options)
     {
@@ -2638,9 +2638,9 @@ private:
             ToProto(req.mutable_pivot_keys(), pivotKeys);
             req.set_tablet_count(pivotKeys.size());
 
-            ExecuteTabletSerivceRequest(path, &req);
+            ExecuteTabletServiceRequest(path, &req);
         } else {
-            auto req = MakeYpathReshardRequest(path, options);
+            auto req = MakeYPathReshardRequest(path, options);
             ToProto(req->mutable_pivot_keys(), pivotKeys);
             req->set_tablet_count(pivotKeys.size());
 
@@ -2659,9 +2659,9 @@ private:
             auto req = MakeReshardRequest(options);
             req.set_tablet_count(tabletCount);
 
-            ExecuteTabletSerivceRequest(path, &req);
+            ExecuteTabletServiceRequest(path, &req);
         } else {
-            auto req = MakeYpathReshardRequest(path, options);
+            auto req = MakeYPathReshardRequest(path, options);
             req->set_tablet_count(tabletCount);
 
             auto proxy = CreateWriteProxy<TObjectServiceProxy>();
@@ -2943,22 +2943,53 @@ private:
         batchRsp->GetResponse<TYPathProxy::TRspSet>(0)
             .ThrowOnError();
     }
+    
+    static bool TryParseObjectId(const TYPath& path, TObjectId* objectId)
+    {
+        NYPath::TTokenizer tokenizer(path);
+        if (tokenizer.Advance() != NYPath::ETokenType::Literal) {
+            return false;
+        }
+
+        auto token = tokenizer.GetToken();
+        if (!token.StartsWith(ObjectIdPathPrefix)) {
+            return false;
+        }
+
+        *objectId = TObjectId::FromString(token.SubString(ObjectIdPathPrefix.length(), token.length() - ObjectIdPathPrefix.length()));
+        return true;
+    }
+
+    void ValidatePermission(const TYPath& path, EPermission permission)
+    {
+        // TODO(babenko): consider passing proper timeout
+        const auto& user = Options_.GetUser();
+        WaitFor(CheckPermission(user, path, permission, {}))
+            .ValueOrThrow()
+            .ToError(user, permission)
+            .ThrowOnError();
+    }
 
     void DoRemoveNode(
         const TYPath& path,
         const TRemoveNodeOptions& options)
     {
-        TCellTag cellTag = PrimaryMasterCellTag;
+        auto cellTag = PrimaryMasterCellTag;
 
-        NYPath::TTokenizer tokenizer(path);
-        if (tokenizer.Advance() == NYPath::ETokenType::Literal) {
-            const auto& token = tokenizer.GetToken();
-            if (token.StartsWith(ObjectIdPathPrefix)) {
-                TStringBuf objectIdString(token.begin() + ObjectIdPathPrefix.length(), token.end());
-                TObjectId objectId;
-                if (TObjectId::FromString(objectIdString, &objectId)) {
-                    cellTag = CellTagFromId(objectId);
+        TObjectId objectId;
+        if (TryParseObjectId(path, &objectId)) {
+            cellTag = CellTagFromId(objectId);
+            switch (TypeFromId(objectId)) {
+                case EObjectType::TableReplica: {
+                    // TODO(babenko): consider passing proper timeout
+                    auto tablePathYson = WaitFor(GetNode(FromObjectId(objectId) + "/@table_path", {}))
+                        .ValueOrThrow();
+                    auto tablePath = ConvertTo<TYPath>(tablePathYson);
+                    ValidatePermission(tablePath, EPermission::Write);
+                    break;
                 }
+                default:
+                    break;
             }
         }
 
@@ -3514,32 +3545,32 @@ private:
         EObjectType type,
         const TCreateObjectOptions& options)
     {
-        auto attributes = options.Attributes;
+        auto attributes = options.Attributes ? options.Attributes->Clone() : EmptyAttributes().Clone();
         auto cellTag = PrimaryMasterCellTag;
+        switch (type) {
+            case EObjectType::TableReplica: {
+                auto path = attributes->Get<TString>("table_path");
+                ValidatePermission(path, EPermission::Write);
 
-        if (type == EObjectType::TableReplica) {
-            std::optional<TString> path;
-            if (!attributes || !(path = attributes->Find<TString>("table_path"))) {
-                THROW_ERROR_EXCEPTION("Attribute \"table_path\" is not found");
+                TTableId tableId;
+                ResolveExternalNode(path, &tableId, &cellTag);
+
+                attributes->Set("table_path", FromObjectId(tableId));
+                break;
             }
 
-            TTableId tableId;
-            ResolveExternalNode(*path, &tableId, &cellTag);
+            case EObjectType::TabletAction: {
+                auto tabletIds = attributes->Get<std::vector<TTabletId>>("tablet_ids");
+                if (tabletIds.empty()) {
+                    THROW_ERROR_EXCEPTION("\"tablet_ids\" are empty");
+                }
 
-            auto newAttributes = options.Attributes->Clone();
-            newAttributes->Set("table_path", FromObjectId(tableId));
-
-            attributes = std::move(newAttributes);
-        } else if (type == EObjectType::TabletAction) {
-            std::optional<std::vector<TTabletId>> tabletIds;
-            if (!attributes ||
-                !(tabletIds = attributes->Find<std::vector<TTabletId>>("tablet_ids")) ||
-                tabletIds->empty())
-            {
-                THROW_ERROR_EXCEPTION("Attribute \"tablet_ids\" is not found or is empty");
+                cellTag = CellTagFromId(tabletIds[0]);
+                break;
             }
 
-            cellTag = CellTagFromId((*tabletIds)[0]);
+            default:
+                break;
         }
 
         auto proxy = CreateWriteProxy<TObjectServiceProxy>(cellTag);
