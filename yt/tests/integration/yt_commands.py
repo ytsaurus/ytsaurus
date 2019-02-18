@@ -1256,11 +1256,18 @@ def make_schema(columns, **attributes):
     schema = yson.YsonList()
     for column_schema in columns:
         column_schema = column_schema.copy()
-        column_schema.setdefault("required", False)
         schema.append(column_schema)
     for attr, value in attributes.items():
         schema.attributes[attr] = value
     return schema
+
+def normalize_schema(schema):
+    "Remove 'type_v2' field from schema, useful for schema comparison."""
+    result = pycopy.deepcopy(schema)
+    for column in result:
+        if "type_v2" in column:
+            del column["type_v2"]
+    return result
 
 ##################################################################
 
