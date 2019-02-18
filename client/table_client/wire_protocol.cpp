@@ -88,7 +88,7 @@ public:
         WriteUint64(size);
         EnsureAlignedUpCapacity(size);
         YCHECK(message.SerializePartialToArray(Current_, size));
-        bzero(Current_ + size, AlignUp(size) - size);
+        memset(Current_ + size, 0, AlignUp(size) - size);
 
         NSan::CheckMemIsInitialized(Current_, AlignUp(size));
         Current_ += AlignUp(size);
@@ -246,11 +246,14 @@ private:
     template <class T>
     void UnsafeWritePod(const T& value)
     {
+        NSan::CheckMemIsInitialized(&value, sizeof(T));
+
         static_assert(!std::is_reference<T>::value, "T must not be a reference");
         static_assert(!std::is_pointer<T>::value, "T must not be a pointer");
         // Do not use #UnsafeWriteRaw here to allow compiler to optimize memcpy & AlignUp.
         // Both of them are constexprs.
         memcpy(Current_, &value, sizeof(T));
+        memset(Current_ + sizeof(T), 0, AlignUp(sizeof(T)) - sizeof(T));
 
         NSan::CheckMemIsInitialized(Current_, AlignUp(sizeof(T)));
         Current_ += AlignUp(sizeof(T));
