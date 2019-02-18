@@ -121,7 +121,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 "short_jobs_alert_min_job_duration": 5000,
                 "low_cpu_usage_alert_min_execution_time": 1,
                 "low_cpu_usage_alert_min_average_job_time": 1,
-                "low_cpu_usage_alert_cpu_usage_threshold": 0.3,
+                "low_cpu_usage_alert_cpu_usage_threshold": 0.5,
                 "operation_too_long_alert_min_wall_time": 0,
                 "operation_too_long_alert_estimate_duration_threshold": 5000
             },
@@ -226,20 +226,14 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
     # if these three tests flap - call renadeen@
     def test_low_cpu_alert_presence(self):
-        create_test_tables(attributes={"compression_codec": "none"})
-        op = map(
-            command="sleep 1; cat",
-            in_="//tmp/t_in",
-            out="//tmp/t_out")
+        op = run_test_vanilla("sleep 1")
+        op.track()
 
         assert "low_cpu_usage" in op.get_alerts()
 
     def test_low_cpu_alert_absence(self):
-        create_test_tables()
-        op = map(
-            command="python -c 'for i in xrange(10000000): x = 1'; cat",
-            in_="//tmp/t_in",
-            out="//tmp/t_out")
+        op = run_test_vanilla(command='pids=""; for i in 1 2; do while : ; do : ; done & pids="$pids $!"; done; sleep 1; for p in $pids; do kill $p; done')
+        op.track()
 
         assert "low_cpu_usage" not in op.get_alerts()
 
