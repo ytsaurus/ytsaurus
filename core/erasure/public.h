@@ -6,8 +6,6 @@
 
 #include <library/erasure/codec.h>
 
-#include <util/system/compiler.h>
-
 #include <bitset>
 
 namespace NYT::NErasure {
@@ -26,15 +24,19 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(ECodec, i8,
     ((Lrc_12_2_2)     (2))
 );
 
-struct TCodecTraits {
+struct TCodecTraits
+{
     using TBlobType = TSharedRef;
     using TMutableBlobType = TSharedMutableRef;
     using TBufferType = NYT::TBlob;
     using ECodecType = ECodec;
 
-    static inline void Check(bool expr)
+    static inline void Check(bool expr, const char* strExpr, const char* file, int line)
     {
-        YCHECK(expr);
+        if (Y_UNLIKELY(!expr)) {
+            ::NYT::NDetail::AssertTrapImpl("YCHECK", strExpr, file, line);
+            BUILTIN_UNREACHABLE();
+        }
     }
 
     static inline TMutableBlobType AllocateBlob(size_t size)
