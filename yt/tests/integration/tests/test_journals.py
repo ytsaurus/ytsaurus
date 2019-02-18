@@ -125,7 +125,7 @@ class TestJournals(YTEnvSetup):
 
         create("journal", "//tmp/j1")
         with pytest.raises(YtError):
-            write_journal("//tmp/j1", None, raw=False, input_stream=JournalDataStream(self))
+            write_journal("//tmp/j1", None, is_raw=False, input_stream=JournalDataStream(self))
 
         assert not get("//tmp/j1/@sealed")
 
@@ -165,7 +165,7 @@ class TestJournals(YTEnvSetup):
 
         set("//sys/@config/chunk_manager/enable_chunk_sealer", True, recursive=True)
 
-        wait_until_sealed("//tmp/j1")
+        wait_until_sealed("//tmp/j1") # TODOKETE i fail here
 
         def replicator_has_done_well():
             try:
@@ -188,3 +188,9 @@ class TestJournals(YTEnvSetup):
 
 class TestJournalsMulticell(TestJournals):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+class TestJournalsRpcProxy(TestJournals):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_PROXY = True
+    DELTA_DRIVER_CONFIG = {"default_stream_timeout": 5000}

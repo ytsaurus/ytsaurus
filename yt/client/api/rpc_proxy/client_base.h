@@ -123,35 +123,21 @@ public:
 
     // Files
     virtual TFuture<NApi::IFileReaderPtr> CreateFileReader(
-        const NYPath::TYPath&,
-        const NApi::TFileReaderOptions&) override
-    {
-        ThrowUnimplemented("read_file");
-    }
+        const NYPath::TYPath& path,
+        const NApi::TFileReaderOptions& options) override;
 
     virtual NApi::IFileWriterPtr CreateFileWriter(
-        const NYPath::TYPath&,
-        const NApi::TFileWriterOptions&) override
-    {
-        ThrowUnimplemented("write_file");
-    }
-
+        const NYPath::TYPath& path,
+        const NApi::TFileWriterOptions& options) override;
 
     // Journals
     virtual NApi::IJournalReaderPtr CreateJournalReader(
-        const NYPath::TYPath&,
-        const NApi::TJournalReaderOptions&) override
-    {
-        ThrowUnimplemented("read_journal");
-    }
+        const NYPath::TYPath& path,
+        const NApi::TJournalReaderOptions& options) override;
 
     virtual NApi::IJournalWriterPtr CreateJournalWriter(
-        const NYPath::TYPath&,
-        const NApi::TJournalWriterOptions&) override
-    {
-        ThrowUnimplemented("write_journal");
-    }
-
+        const NYPath::TYPath& path,
+        const NApi::TJournalWriterOptions& options) override;
 
     // Tables
     virtual TFuture<ITableReaderPtr> CreateTableReader(

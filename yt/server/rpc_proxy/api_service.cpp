@@ -11,6 +11,10 @@
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
 
+#include <yt/client/api/file_reader.h>
+#include <yt/client/api/file_writer.h>
+#include <yt/client/api/journal_reader.h>
+#include <yt/client/api/journal_writer.h>
 #include <yt/client/api/transaction.h>
 #include <yt/client/api/rowset.h>
 #include <yt/client/api/sticky_transaction_pool.h>
@@ -445,6 +449,9 @@ public:
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ListJobs));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpJobContext));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobInput)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobInputPaths));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobStderr));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobFailContext));
@@ -473,6 +480,20 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveMember));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckPermission));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckPermissionByAcl));
+
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateFileReader)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateFileWriter)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateJournalReader)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateJournalWriter)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetFileFromCache));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PutFileToCache));
@@ -2164,6 +2185,58 @@ private:
             client->DumpJobContext(jobId, path, options));
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetJobInput)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto jobId = FromProto<TJobId>(request->job_id());
+
+        TGetJobInputOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("JobId: %v", jobId);
+
+        auto jobInputReader = WaitFor(client->GetJobInput(jobId, options)).ValueOrThrow();
+        auto outputStream = response->GetAttachmentsStream();
+
+        // client will send an empty ref via stream when it wants to stop reading
+        auto readResult = request->GetAttachmentsStream()->Read().
+            Apply(BIND ([] (const TErrorOr<TSharedRef>& refOrError) {
+                const auto& ref = refOrError.ValueOrThrow();
+                if (ref.Size() != 0) {
+                    THROW_ERROR_EXCEPTION("Expected an empty ref")
+                        << TErrorAttribute("attachment_size", ref.Size());
+                }
+            }));
+
+        auto writeResult = outputStream->Write(
+            TSharedRef::FromString(NApi::NRpcProxy::JobInputReaderHandshake));
+
+        while (true) {
+            std::vector<TFuture<void>> asyncResults({writeResult, readResult});
+            auto combinedResult = CombineQuorum(asyncResults, 1);
+            WaitFor(combinedResult).ThrowOnError();
+
+            if (readResult.IsSet()) {
+                break;
+            }
+
+            auto block = WaitFor(jobInputReader->Read()).ValueOrThrow();
+            if (!block) {
+                break;
+            }
+            writeResult = outputStream->Write(block);
+        }
+
+        WaitFor(outputStream->Close())
+            .ThrowOnError();
+        context->Reply();
+        // TODOKETE think about crazy clients
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetJobInputPaths)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
@@ -2942,6 +3015,280 @@ private:
                 auto* response = &context->Response();
                 ToProto(response->mutable_result(), result);
             });
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // FILES
+    ////////////////////////////////////////////////////////////////////////////////
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateFileReader)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto path = request->path();
+
+        TFileReaderOptions options;
+        if (request->has_offset()) {
+            options.Offset = request->offset();
+        }
+        if (request->has_length()) {
+            options.Length = request->length();
+        }
+        if (request->has_config()) {
+            options.Config = ConvertTo<TFileReaderConfigPtr>(TYsonString(request->config()));
+        }
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        if (request->has_suppressable_access_tracking_options()) {
+            FromProto(&options, request->suppressable_access_tracking_options());
+        }
+
+        context->SetRequestInfo("Path: %v, Offset: %v, Length: %v",
+            path,
+            options.Offset,
+            options.Length);
+
+        auto fileReader = WaitFor(client->CreateFileReader(path, options)).ValueOrThrow();
+        auto outputStream = response->GetAttachmentsStream();
+        ui64 revision = fileReader->GetRevision();
+        TSharedRef revisionRef(&revision, sizeof(revision), nullptr);
+        auto writeResult = outputStream->Write(revisionRef);
+        // client will send an empty ref via stream when it wants to stop reading
+        auto readResult = request->GetAttachmentsStream()->Read().
+            Apply(BIND ([] (const TErrorOr<TSharedRef>& refOrError) {
+                const auto& ref = refOrError.ValueOrThrow();
+                if (ref.Size() != 0) {
+                    THROW_ERROR_EXCEPTION("Expected an empty ref")
+                        << TErrorAttribute("attachment_size", ref.Size());
+                }
+            }));
+
+        while (true) {
+            std::vector<TFuture<void>> asyncResults({writeResult, readResult});
+            auto combinedResult = CombineQuorum(asyncResults, 1);
+            WaitFor(combinedResult).ThrowOnError();
+
+            if (readResult.IsSet()) {
+                break;
+            }
+
+            auto block = WaitFor(fileReader->Read()).ValueOrThrow();
+            if (!block) {
+                break;
+            }
+            writeResult = outputStream->Write(block);
+        }
+
+        WaitFor(outputStream->Close())
+            .ThrowOnError();
+        context->Reply();
+        // TODOKETE think about crazy clients
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateFileWriter)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto path = request->path();
+
+        TFileWriterOptions options;
+        options.Append = request->append();
+        options.ComputeMD5 = request->compute_md5();
+        if (request->has_compression_codec()) {
+            options.CompressionCodec = CheckedEnumCast<NCompression::ECodec>(request->compression_codec());
+        }
+        if (request->has_erasure_codec()) {
+            options.ErasureCodec = CheckedEnumCast<NErasure::ECodec>(request->erasure_codec());
+        }
+        if (request->has_config()) {
+            options.Config = ConvertTo<TFileWriterConfigPtr>(TYsonString(request->config()));
+        }
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
+        }
+
+        context->SetRequestInfo(
+            "Path: %v, Append: %v, ComputeMD5: %v, CompressionCodec: %v, ErasureCodec: %v",
+            path,
+            options.Append,
+            options.ComputeMD5,
+            options.CompressionCodec,
+            options.ErasureCodec);
+
+        auto fileWriter = client->CreateFileWriter(path, options);
+        WaitFor(fileWriter->Open()).ThrowOnError();
+        response->GetAttachmentsStream()->Close();
+        auto inputStream = request->GetAttachmentsStream();
+
+        while (true) {
+            auto block = WaitFor(inputStream->Read()).ValueOrThrow();
+            if (!block) {
+                break;
+            }
+            WaitFor(fileWriter->Write(block)).ThrowOnError();
+        }
+
+        WaitFor(fileWriter->Close())
+            .ThrowOnError();
+        context->Reply();
+        // TODOKETE think about crazy clients
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // JOURNALS
+    ////////////////////////////////////////////////////////////////////////////////
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateJournalReader)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto path = request->path();
+
+        TJournalReaderOptions options;
+        if (request->has_first_row_index()) {
+            options.FirstRowIndex = request->first_row_index();
+        }
+        if (request->has_row_count()) {
+            options.RowCount = request->row_count();
+        }
+        if (request->has_config()) {
+            options.Config = ConvertTo<TJournalReaderConfigPtr>(TYsonString(request->config()));
+        }
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        if (request->has_suppressable_access_tracking_options()) {
+            FromProto(&options, request->suppressable_access_tracking_options());
+        }
+
+        context->SetRequestInfo("Path: %v, FirstRowIndex: %v, RowCount: %v",
+            path,
+            options.FirstRowIndex,
+            options.RowCount);
+
+        auto journalReader = client->CreateJournalReader(path, options);
+        WaitFor(journalReader->Open()).ThrowOnError();
+
+        auto outputStream = response->GetAttachmentsStream();
+        auto writeResult = outputStream->Write(
+            TSharedRef::FromString(NApi::NRpcProxy::JournalReaderHandshake));
+        // client will send an empty ref via stream when it wants to stop reading
+        auto readResult = request->GetAttachmentsStream()->Read().
+            Apply(BIND ([] (const TErrorOr<TSharedRef>& refOrError) {
+            const auto& ref = refOrError.ValueOrThrow();
+            if (ref.Size() != 0) {
+                THROW_ERROR_EXCEPTION("Expected an empty ref")
+                    << TErrorAttribute("attachment_size", ref.Size());
+            }
+        }));
+
+        while (true) {
+            std::vector<TFuture<void>> asyncResults({writeResult, readResult});
+            auto combinedResult = CombineQuorum(asyncResults, 1);
+            WaitFor(combinedResult).ThrowOnError();
+
+            if (readResult.IsSet()) {
+                break;
+            }
+
+            auto rows = WaitFor(journalReader->Read()).ValueOrThrow();
+            if (rows.empty()) {
+                break;
+            }
+
+            for (size_t rowIndex = 0; rowIndex + 1 < rows.size(); ++rowIndex) {
+                outputStream->Write(rows[rowIndex]);
+            }
+
+            writeResult = outputStream->Write(rows.back());
+        }
+
+        WaitFor(outputStream->Close())
+            .ThrowOnError();
+        context->Reply();
+        // TODOKETE think about crazy clients
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateJournalWriter)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto path = request->path();
+
+        TJournalWriterOptions options;
+        if (request->has_config()) {
+            options.Config = ConvertTo<TJournalWriterConfigPtr>(TYsonString(request->config()));
+        }
+        options.EnableMultiplexing = request->enable_multiplexing();
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
+        }
+
+        context->SetRequestInfo(
+            "Path: %v, EnableMultiplexing: %v",
+            path,
+            options.EnableMultiplexing);
+
+        auto journalWriter = client->CreateJournalWriter(path, options);
+        WaitFor(journalWriter->Open()).ThrowOnError();
+        response->GetAttachmentsStream()->Close();
+        auto inputStream = request->GetAttachmentsStream();
+
+        auto readNextRow = [=] () {
+            YT_LOG_INFO("Reading a row LUL...");
+            TFuture<TSharedRef> result = inputStream->Read();
+            result.Subscribe(BIND ([=] (const TErrorOr<TSharedRef>&) {
+                YT_LOG_INFO("Stopped reading a row LUL!");
+            }));
+            return result;
+        };
+        // auto asyncNextRow = inputStream->Read(); // TODOKETE looks very similar to TRpcJournalReader, bro
+        auto asyncNextRow = readNextRow();
+        TSharedRef nextRow;
+        do {
+            std::vector<TSharedRef> rows;
+
+            WaitFor(asyncNextRow);
+            while (asyncNextRow.IsSet()) {
+                nextRow = asyncNextRow.Get().ValueOrThrow();
+                if (!nextRow) {
+                    break;
+                }
+                rows.push_back(std::move(nextRow));
+                // asyncNextRow = inputStream->Read();
+                asyncNextRow = readNextRow();
+            }
+
+            WaitFor(journalWriter->Write(rows)).ThrowOnError();
+        } while (nextRow);
+
+        WaitFor(journalWriter->Close())
+            .ThrowOnError();
+        context->Reply();
+        // TODOKETE think about crazy clients
     }
 
     ////////////////////////////////////////////////////////////////////////////////

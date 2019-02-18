@@ -1463,6 +1463,93 @@ message TRspAbortJob
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// STREAMING
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCreateFileReader
+{
+    required string path = 1; // YPath
+
+    optional int64 offset = 2;
+    optional int64 length = 3;
+    optional bytes config = 4; // YSON-serialized TFileReaderConfig
+
+    optional TTransactionalOptions transactional_options = 100;
+    optional TSuppressableAccessTrackingOptions suppressable_access_tracking_options = 104;
+}
+
+// revision number is sent via stream
+message TRspCreateFileReader
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqCreateFileWriter
+{
+    required string path = 1; // YPath
+
+    optional bool append = 2 [default = true];
+    optional bool compute_md5 = 3 [default = false];
+    optional int32 compression_codec = 4; // NCompression::ECodec
+    optional int32 erasure_codec = 5; // NErasure::ECodec
+    optional bytes config = 6; // YSON-serialized TFileWriterConfig
+
+    optional TTransactionalOptions transactional_options = 100;
+    optional TPrerequisiteOptions prerequisite_options = 101;
+}
+
+message TRspCreateFileWriter
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqCreateJournalReader
+{
+    required string path = 1; // YPath
+
+    optional int64 first_row_index = 2;
+    optional int64 row_count = 3;
+    optional bytes config = 4; // YSON-serialized TJournalReaderConfig
+
+    optional TTransactionalOptions transactional_options = 100;
+    optional TSuppressableAccessTrackingOptions suppressable_access_tracking_options = 104;
+}
+
+message TRspCreateJournalReader
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqCreateJournalWriter
+{
+    required string path = 1; // YPath
+
+    optional bytes config = 2; // YSON-serialized TJournalWriterConfig
+    optional bool enable_multiplexing = 3 [default = true];
+
+    optional TTransactionalOptions transactional_options = 100;
+    optional TPrerequisiteOptions prerequisite_options = 101;
+}
+
+message TRspCreateJournalWriter
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqGetJobInput
+{
+    required NYT.NProto.TGuid job_id = 1;
+}
+
+message TRspGetJobInput
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // ETC
 ////////////////////////////////////////////////////////////////////////////////
 

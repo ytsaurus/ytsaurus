@@ -90,6 +90,7 @@ class TestRpcProxyBase(YTEnvSetup):
                    mapper_command=cmd,
                    **kwargs)
 
+
     def _start_simple_operation_on_fs(self, event_name="barrier", **kwargs):
         return self._start_simple_operation(events_on_fs().wait_event_cmd(event_name), **kwargs)
 
@@ -103,6 +104,12 @@ class TestRpcProxyBase(YTEnvSetup):
     def _remove_simple_tables(self):
         remove("//tmp/t_in", recursive=True)
         remove("//tmp/t_out", recursive=True)
+
+    # TODOKETE
+    def _write_file_crutch(self, path, data):
+        # cmd = "echo \"{0}\" > {1}".format(data, path)
+        # self._start_simple_operation(cmd).track()
+        write_file(path, data, driver=get_native_driver()) # TODOKETE
 
 ##################################################################
 
@@ -563,4 +570,3 @@ class TestAclsRpcProxy(TestRpcProxyBase):
         assert check_permission_by_acl("u1", "remove", [{"subjects": ["u1"], "permissions": ["remove"], "action": "allow"}])["action"] == "allow"
         assert check_permission_by_acl("u1", "remove", [{"subjects": ["u2"], "permissions": ["remove"], "action": "allow"}])["action"] == "deny"
         assert check_permission_by_acl(None, "remove", [{"subjects": ["u2"], "permissions": ["remove"], "action": "allow"}])["action"] == "allow"
-

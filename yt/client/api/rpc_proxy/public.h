@@ -15,7 +15,9 @@ extern const TString BannedAttributeName;
 extern const TString RoleAttributeName;
 extern const TString AliveNodeName;
 extern const TString ApiServiceName;
-extern const TString DiscoveryServiceName;
+extern const TString DiscoveryServiceName; // TODOKETE remove handshakes??
+extern const TString JournalReaderHandshake;
+extern const TString JobInputReaderHandshake;
 
 ////////////////////////////////////////////////////////////////////////////////
 
