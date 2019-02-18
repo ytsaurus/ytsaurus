@@ -376,7 +376,7 @@ inline bool TNode::ConvertTo<bool>() const {
 
 template<typename T>
 inline bool TNode::IsOfType() const noexcept {
-    return (Value_.index() == TValue::TagOf<T>());
+    return ::HoldsAlternative<T>(Value_);
 }
 
 template<typename T>
