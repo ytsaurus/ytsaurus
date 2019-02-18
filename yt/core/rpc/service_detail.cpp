@@ -223,28 +223,12 @@ public:
         }
     }
 
-
     virtual IAsyncZeroCopyInputStreamPtr GetRequestAttachmentsStream() override
     {
-        auto guard = Guard(StreamsLock_);
-
-        if (!RequestAttachmentsStream_) {
-            if (!RuntimeInfo_->Descriptor.StreamingEnabled) {
-                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::StreamingNotSupported, "Streaming is not supported");
-            }
-            RequestAttachmentsStream_ =  New<TAttachmentsInputStream>(
-                BIND(&TServiceContext::OnRequestAttachmentsStreamRead, MakeWeak(this)),
-                GetInvoker());
+        if (!RuntimeInfo_->Descriptor.StreamingEnabled) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::StreamingNotSupported, "Streaming is not supported");
         }
-
-        auto error = StreamsError_;
-
-        guard.Release();
-
-        if (!error.IsOK()) {
-            RequestAttachmentsStream_->AbortUnlessClosed(error);
-        }
-
+        CreateRequestAttachmentsStream();
         return RequestAttachmentsStream_;
     }
 
@@ -259,40 +243,16 @@ public:
 
     virtual IAsyncZeroCopyOutputStreamPtr GetResponseAttachmentsStream() override
     {
-        auto guard = Guard(StreamsLock_);
-
-        if (!ResponseAttachmentsStream_) {
-            if (!RuntimeInfo_->Descriptor.StreamingEnabled) {
-                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::StreamingNotSupported, "Streaming is not supported");
-            }
-            ResponseAttachmentsStream_ = New<TAttachmentsOutputStream>(
-                FromProto<TStreamingParameters>(RequestHeader_->response_attachments_streaming_parameters()),
-                ResponseMemoryZone_,
-                ResponseCodec_,
-                GetInvoker(),
-                BIND(&TServiceContext::OnPullResponseAttachmentsStream, MakeWeak(this)));
+        if (!RuntimeInfo_->Descriptor.StreamingEnabled) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::StreamingNotSupported, "Streaming is not supported");
         }
-
-        auto error = StreamsError_;
-
-        guard.Release();
-
-        if (!error.IsOK()) {
-            ResponseAttachmentsStream_->AbortUnlessClosed(error);
-        }
-
+        CreateResponseAttachmentsStream();
         return ResponseAttachmentsStream_;
     }
 
     void HandleStreamingPayload(const TStreamingPayload& payload)
     {
-        TAttachmentsInputStreamPtr stream;
-        {
-            auto guard = Guard(StreamsLock_);
-            stream = RequestAttachmentsStream_;
-        }
-
-        if (!stream) {
+        if (!RuntimeInfo_->Descriptor.StreamingEnabled) {
             YT_LOG_DEBUG("Received streaming payload for a method that does not support streaming; ignored "
                 "(Method: %v:%v, RequestId: %v)",
                 Service_->ServiceId_.ServiceName,
@@ -300,13 +260,13 @@ public:
                 RequestId_);
             return;
         }
-
+        CreateRequestAttachmentsStream();
         try {
-            stream->EnqueuePayload(payload);
+            RequestAttachmentsStream_->EnqueuePayload(payload);
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Error handling streaming payload (RequestId: %v)",
                 RequestId_);
-            stream->Abort(ex);
+            RequestAttachmentsStream_->Abort(ex);
         }
     }
 
@@ -775,6 +735,47 @@ private:
         YT_LOG_EVENT(Logger, LogLevel_, builder.Flush());
     }
 
+
+    void CreateRequestAttachmentsStream()
+    {
+        auto guard = Guard(StreamsLock_);
+
+        if (!RequestAttachmentsStream_) {
+            RequestAttachmentsStream_ =  New<TAttachmentsInputStream>(
+                BIND(&TServiceContext::OnRequestAttachmentsStreamRead, MakeWeak(this)),
+                GetInvoker());
+        }
+
+        auto error = StreamsError_;
+
+        guard.Release();
+
+        if (!error.IsOK()) {
+            RequestAttachmentsStream_->AbortUnlessClosed(error);
+        }
+    }
+
+    void CreateResponseAttachmentsStream()
+    {
+        auto guard = Guard(StreamsLock_);
+
+        if (!ResponseAttachmentsStream_) {
+            ResponseAttachmentsStream_ = New<TAttachmentsOutputStream>(
+                FromProto<TStreamingParameters>(RequestHeader_->response_attachments_streaming_parameters()),
+                ResponseMemoryZone_,
+                ResponseCodec_,
+                GetInvoker(),
+                BIND(&TServiceContext::OnPullResponseAttachmentsStream, MakeWeak(this)));
+        }
+
+        auto error = StreamsError_;
+
+        guard.Release();
+
+        if (!error.IsOK()) {
+            ResponseAttachmentsStream_->AbortUnlessClosed(error);
+        }
+    }
 
     void OnPullResponseAttachmentsStream()
     {
