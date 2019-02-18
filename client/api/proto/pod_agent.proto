@@ -331,6 +331,10 @@ message TWorkload {
     TStopPolicy StopPolicy = 7;
 
     TDestroyPolicy DestroyPolicy = 12;
+
+    //передавать/не передавать логи в yt при помощи push client
+    //описание: https://wiki.yandex-team.ru/users/aneporada/push-agent-config/
+    bool TransmitLogs = 13;
 }
 
 // Mutable поля Workload
