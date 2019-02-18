@@ -44,7 +44,7 @@ struct TCodecTraits {
 
     static inline TBufferType AllocateBuffer(size_t size)
     {
-        // Only Lrc now uses buffer allocation
+        // Only Lrc now uses buffer allocation.
         return TBufferType(TLrcTag(), size);
     }
 
