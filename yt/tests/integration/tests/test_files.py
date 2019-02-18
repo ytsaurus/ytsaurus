@@ -243,3 +243,9 @@ class TestFiles(YTEnvSetup):
 
 class TestFilesMulticell(TestFiles):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+class TestFilesRpcProxy(TestFiles):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_PROXY = True
+

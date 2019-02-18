@@ -7,6 +7,7 @@
 #include "timestamp_provider.h"
 #include "credentials_injecting_channel.h"
 #include "dynamic_channel_pool.h"
+#include "job_input_reader.h"
 
 #include <yt/core/net/address.h>
 
@@ -706,6 +707,22 @@ TFuture<void> TClient::DumpJobContext(
     req->set_path(path);
 
     return req->Invoke().As<void>();
+}
+
+TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> TClient::GetJobInput(
+    NJobTrackerClient::TJobId jobId,
+    const NApi::TGetJobInputOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+    auto connection = GetRpcProxyConnection();
+    const auto& config = connection->GetConfig();
+
+    auto req = proxy.GetJobInput();
+    req->SetTimeout(config->DefaultStreamTimeout);
+
+    ToProto(req->mutable_job_id(), jobId);
+
+    return CreateRpcJobInputReader(req);
 }
 
 TFuture<NYson::TYsonString> TClient::GetJobInputPaths(

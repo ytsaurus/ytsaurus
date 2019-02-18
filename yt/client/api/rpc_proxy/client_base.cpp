@@ -5,6 +5,10 @@
 #include "helpers.h"
 #include "config.h"
 #include "private.h"
+#include "file_reader.h"
+#include "file_writer.h"
+#include "journal_reader.h"
+#include "journal_writer.h"
 
 #include <yt/core/net/address.h>
 
@@ -33,6 +37,7 @@ using namespace NYson;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
+using namespace NYTree;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -453,6 +458,123 @@ TFuture<NObjectClient::TObjectId> TClientBase::CreateObject(
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspCreateObjectPtr& rsp) {
         return FromProto<NObjectClient::TObjectId>(rsp->object_id());
     }));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<NApi::IFileReaderPtr> TClientBase::CreateFileReader(
+    const NYPath::TYPath& path,
+    const NApi::TFileReaderOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+    auto connection = GetRpcProxyConnection();
+    const auto& config = connection->GetConfig();
+
+    auto req = proxy.CreateFileReader();
+    req->SetTimeout(config->DefaultStreamTimeout);
+
+    req->set_path(path);
+    if (options.Offset) {
+        req->set_offset(*options.Offset);
+    }
+    if (options.Length) {
+        req->set_length(*options.Length);
+    }
+    if (options.Config) {
+        req->set_config(ConvertToYsonString(*options.Config).GetData());
+    }
+
+    ToProto(req->mutable_transactional_options(), options);
+    ToProto(req->mutable_suppressable_access_tracking_options(), options);
+
+    return CreateRpcFileReader(req);
+}
+
+NApi::IFileWriterPtr TClientBase::CreateFileWriter(
+    const NYPath::TYPath& path,
+    const NApi::TFileWriterOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+    auto connection = GetRpcProxyConnection();
+    const auto& config = connection->GetConfig();
+
+    auto req = proxy.CreateFileWriter();
+    req->SetTimeout(config->DefaultStreamTimeout);
+
+    req->set_path(path);
+
+    req->set_append(options.Append);
+    req->set_compute_md5(options.ComputeMD5);
+    if (options.CompressionCodec) {
+        req->set_compression_codec(static_cast<int>(*options.CompressionCodec));
+    }
+    if (options.ErasureCodec) {
+        req->set_erasure_codec(static_cast<int>(*options.ErasureCodec));
+    }
+    if (options.Config) {
+        req->set_config(ConvertToYsonString(*options.Config).GetData());
+    }
+
+    ToProto(req->mutable_transactional_options(), options);
+    ToProto(req->mutable_prerequisite_options(), options);
+
+    return CreateRpcFileWriter(req);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+NApi::IJournalReaderPtr TClientBase::CreateJournalReader(
+    const NYPath::TYPath& path,
+    const NApi::TJournalReaderOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+    auto connection = GetRpcProxyConnection();
+    const auto& config = connection->GetConfig();
+
+    auto req = proxy.CreateJournalReader();
+    req->SetTimeout(config->DefaultStreamTimeout);
+
+    req->set_path(path);
+
+    if (options.FirstRowIndex) {
+        req->set_first_row_index(*options.FirstRowIndex);
+    }
+    if (options.RowCount) {
+        req->set_row_count(*options.RowCount);
+    }
+    if (options.Config) {
+        req->set_config(ConvertToYsonString(*options.Config).GetData());
+    }
+
+    ToProto(req->mutable_transactional_options(), options);
+    ToProto(req->mutable_suppressable_access_tracking_options(), options);
+
+    return CreateRpcJournalReader(req);
+}
+
+NApi::IJournalWriterPtr TClientBase::CreateJournalWriter(
+    const NYPath::TYPath& path,
+    const NApi::TJournalWriterOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+    auto connection = GetRpcProxyConnection();
+    const auto& config = connection->GetConfig();
+
+    auto req = proxy.CreateJournalWriter();
+    req->SetTimeout(config->DefaultStreamTimeout);
+
+    req->set_path(path);
+
+    if (options.Config) {
+        req->set_config(ConvertToYsonString(*options.Config).GetData());
+    }
+    req->set_enable_multiplexing(options.EnableMultiplexing);
+    // TODO(kiselyovp) profiler is ignored
+
+    ToProto(req->mutable_transactional_options(), options);
+    ToProto(req->mutable_prerequisite_options(), options);
+
+    return CreateRpcJournalWriter(req);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
