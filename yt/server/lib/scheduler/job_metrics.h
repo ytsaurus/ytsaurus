@@ -26,6 +26,7 @@ DEFINE_ENUM(EJobMetricName,
     (AggregatedSmoothedCpuUsageX100)
     (AggregatedMaxCpuUsageX100)
     (AggregatedPreemptableCpuX100)
+    (AggregatedPreemptedCpuX100)
 
     (TotalTime)
     (ExecTime)

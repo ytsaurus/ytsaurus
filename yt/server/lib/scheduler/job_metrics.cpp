@@ -100,6 +100,8 @@ TJobMetrics TJobMetrics::FromJobTrackerStatistics(
         FindNumericValue(statistics, "/job_proxy/aggregated_max_cpu_usage_x100").value_or(0);
     metrics.Values()[EJobMetricName::AggregatedPreemptableCpuX100] =
         FindNumericValue(statistics, "/job_proxy/aggregated_preemptable_cpu_x100").value_or(0);
+    metrics.Values()[EJobMetricName::AggregatedPreemptedCpuX100] =
+        FindNumericValue(statistics, "/job_proxy/aggregated_preempted_cpu_x100").value_or(0);
 
     for (const auto& jobMetriDescription : customJobMetricDescriptions) {
         metrics.CustomValues()[jobMetriDescription] = FindNumericValue(statistics, jobMetriDescription.StatisticsPath).value_or(0);
