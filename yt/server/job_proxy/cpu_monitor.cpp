@@ -41,7 +41,9 @@ void TCpuMonitor::FillStatistics(NJobTrackerClient::TStatistics& statistics) con
 
         statistics.AddSample("/job_proxy/aggregated_smoothed_cpu_usage_x100", static_cast<i64>(AggregatedSmoothedCpuUsage_ * 100));
         statistics.AddSample("/job_proxy/aggregated_max_cpu_usage_x100", static_cast<i64>(AggregatedMaxCpuUsage_ * 100));
-        statistics.AddSample("/job_proxy/aggregated_preemptable_cpu_x100", static_cast<i64>(AggregatedPreemptableCpu_ * 100));
+        const auto preemptableCpu = static_cast<i64>(AggregatedPreemptableCpu_ * 100);
+        statistics.AddSample("/job_proxy/aggregated_preemptable_cpu_x100", preemptableCpu);
+        statistics.AddSample("/job_proxy/aggregated_preempted_cpu_x100", Config_->EnableCpuReclaim ? preemptableCpu : 0);
     }
 }
 
