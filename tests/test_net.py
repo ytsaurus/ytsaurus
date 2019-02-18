@@ -4,6 +4,8 @@ from yp.common import YtResponseError, YpNoSuchObjectError, wait
 
 from yt.yson import YsonEntity
 
+from six.moves import xrange
+
 import pytest
 
 def ipv6_to_ptr_record(address):

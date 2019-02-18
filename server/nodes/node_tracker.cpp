@@ -417,6 +417,7 @@ public:
         static bool IsPersistentSecretVaultError(const TError& error)
         {
             return
+                error.FindMatching(ESecretVaultErrorCode::NonexistentEntityError) ||
                 error.FindMatching(ESecretVaultErrorCode::DelegationAccessError) ||
                 error.FindMatching(ESecretVaultErrorCode::DelegationTokenRevoked);
         }

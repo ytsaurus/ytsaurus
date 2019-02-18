@@ -23,13 +23,16 @@ def start_yp_local():
     sandbox_name = os.path.basename(sandbox_path)
     sandbox_directory_path = os.path.dirname(sandbox_path)
 
+    # Keep it sync with YpTestEnvironment to prevent port conflicts.
+    ports_lock_path = os.path.join(sandbox_directory_path, "ports")
+
     os.chdir(sandbox_directory_path)
 
     try:
         cli_stderr_file_path = os.path.join(sandbox_path, "yp_local_stderr_" + generate_uuid())
         with open(cli_stderr_file_path, "w") as cli_stderr_file:
             cli.check_call(
-                ["start", "--id", sandbox_name],
+                ["start", "--id", sandbox_name, "--port-locks-path", ports_lock_path],
                 stdout=sys.stdout,
                 stderr=cli_stderr_file
             )
