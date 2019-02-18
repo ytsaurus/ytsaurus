@@ -105,6 +105,9 @@ message TComputeResources {
     uint64 MemoryGuarantee = 4;
     uint64 MemoryLimit = 5;
     uint64 AnonymousMemoryLimit = 6;
+
+    // Если true иммигрирует кэш при незначительной ошибке страницы, по умолчанию: false.
+    bool RechargeOnPgfault = 7;
 }
 
 // Проверки целостности ресурса
