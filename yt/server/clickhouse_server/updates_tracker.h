@@ -25,7 +25,7 @@ using IUpdatesTrackerPtr = std::unique_ptr<IUpdatesTracker>;
 ////////////////////////////////////////////////////////////////////////////////
 
 IUpdatesTrackerPtr CreateUpdatesTracker(
-    IStoragePtr storage,
+    TQueryContext* storage,
     IAuthorizationTokenPtr token,
     const std::string& path);
 

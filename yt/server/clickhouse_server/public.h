@@ -28,14 +28,14 @@ DECLARE_SHARED_STRUCT(IColumnBuilder);
 DECLARE_SHARED_STRUCT(ICoordinationService);
 DECLARE_SHARED_STRUCT(IDocument);
 DECLARE_SHARED_STRUCT(ILogger);
-DECLARE_SHARED_STRUCT(IStorage);
+DECLARE_SHARED_STRUCT(IQueryContext);
 DECLARE_SHARED_STRUCT(ITableReader);
 DECLARE_SHARED_STRUCT(TTable);
 
 struct IPathService;
-struct IAuthorizationTokenService;
 struct TColumn;
 struct TValue;
+struct TQueryContext;
 class TBootstrap;
 
 #undef DELCARE_SHARED_STRUCT
@@ -50,6 +50,8 @@ DECLARE_REFCOUNTED_CLASS(TUserConfig);
 DECLARE_REFCOUNTED_CLASS(TNativeClientCacheConfig);
 
 DECLARE_REFCOUNTED_STRUCT(ISubscriptionManager);
+
+using TQueryId = TGuid;
 
 ////////////////////////////////////////////////////////////////////////////////
 

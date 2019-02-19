@@ -1,6 +1,5 @@
 #include "storage_read_job.h"
 
-#include "auth_token.h"
 #include "db_helpers.h"
 #include "format_helpers.h"
 #include "input_stream.h"
@@ -8,7 +7,7 @@
 #include "type_helpers.h"
 #include "virtual_columns.h"
 
-#include <yt/server/clickhouse_server/storage.h>
+#include <yt/server/clickhouse_server/query_context.h>
 #include <yt/server/clickhouse_server/table_reader.h>
 #include <yt/server/clickhouse_server/table.h>
 
@@ -38,17 +37,18 @@ class TStorageReadJob
     : public IStorageWithVirtualColumns
 {
 private:
-    const IStoragePtr Storage;
+    TQueryContext* QueryContext_;
     const NamesAndTypesList Columns;
     const std::string JobSpec;
 
     Poco::Logger* Logger;
 
 public:
-    TStorageReadJob(IStoragePtr storage,
-                    NamesAndTypesList columns,
-                    std::string jobSpec)
-        : Storage(std::move(storage))
+    TStorageReadJob(
+        TQueryContext* queryContext,
+        NamesAndTypesList columns,
+        std::string jobSpec)
+        : QueryContext_(queryContext)
         , Columns(std::move(columns))
         , JobSpec(std::move(jobSpec))
         , Logger(&Poco::Logger::get("StorageReadJob"))
@@ -89,7 +89,7 @@ private:
 BlockInputStreams TStorageReadJob::read(
     const Names& columnNames,
     const SelectQueryInfo& /* queryInfo */,
-    const Context& context,
+    const Context& /* context */,
     QueryProcessingStage::Enum /* processedStage */,
     size_t /* maxBlockSize */,
     unsigned numStreams)
@@ -100,13 +100,10 @@ BlockInputStreams TStorageReadJob::read(
     DB::Names virtualColumns;
     SplitColumns(columnNames, physicalColumns, virtualColumns);
 
-    auto token = CreateAuthToken(*Storage, context);
-
     TTableReaderOptions readerOptions;
     readerOptions.Unordered = true;
 
-    auto tableReaders = Storage->CreateTableReaders(
-        *token,
+    auto tableReaders = QueryContext_->CreateTableReaders(
         ToString(JobSpec),
         ToString(physicalColumns),
         GetSystemColumns(virtualColumns),
@@ -129,7 +126,7 @@ QueryProcessingStage::Enum TStorageReadJob::getQueryProcessingStage(const Contex
 ////////////////////////////////////////////////////////////////////////////////
 
 StoragePtr CreateStorageReadJob(
-    IStoragePtr storage,
+    TQueryContext* queryContext,
     std::vector<TTablePtr> tables,
     std::string jobSpec)
 {
@@ -143,7 +140,7 @@ StoragePtr CreateStorageReadJob(
     DB::NamesAndTypesList columns = GetTableColumns(*representative);
 
     return std::make_shared<TStorageReadJob>(
-        std::move(storage),
+        queryContext,
         std::move(columns),
         std::move(jobSpec));
 }

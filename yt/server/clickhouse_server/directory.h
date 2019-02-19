@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include "auth_token.h"
-
 #include <yt/ytlib/api/native/public.h>
 
 namespace NYT::NClickHouseServer {
@@ -114,19 +112,13 @@ struct ICoordinationService
 {
     virtual ~ICoordinationService() = default;
 
-    virtual IAuthorizationTokenService* AuthTokenService() = 0;
-
     // Opens or creates a directory inside `path` associated with a current clique.
-    virtual IDirectoryPtr OpenOrCreateDirectory(
-        const IAuthorizationToken& authToken,
-        const TString& path) = 0;
+    virtual IDirectoryPtr OpenOrCreateDirectory(const TString& path) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ICoordinationServicePtr CreateCoordinationService(
-    NApi::NNative::IConnectionPtr connection,
-    TString cliqueId);
+ICoordinationServicePtr CreateCoordinationService(NApi::NNative::IClientPtr client, TString cliqueId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

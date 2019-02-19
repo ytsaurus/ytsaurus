@@ -1,13 +1,12 @@
 #include "table_dictionary_source.h"
 
-#include "auth_token.h"
 #include "db_helpers.h"
 #include "input_stream.h"
 #include "logging_helpers.h"
 #include "type_helpers.h"
 #include "updates_tracker.h"
 
-#include <yt/server/clickhouse_server/storage.h>
+#include <yt/server/clickhouse_server/query_context.h>
 
 #include <Common/Exception.h>
 #include <DataStreams/IBlockInputStream.h>
@@ -40,7 +39,7 @@ class TTableDictionarySource
     : public DB::IDictionarySource
 {
 private:
-    IStoragePtr Storage;
+    TQueryContext* Storage;
     IAuthorizationTokenPtr Token;
     std::string TableName;
     DB::NamesAndTypesList Columns;
@@ -49,7 +48,7 @@ private:
 
 public:
     TTableDictionarySource(
-        IStoragePtr storage,
+        TQueryContext* storage,
         IAuthorizationTokenPtr token,
         std::string name,
         DB::NamesAndTypesList columns);
@@ -84,7 +83,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableDictionarySource::TTableDictionarySource(
-    IStoragePtr storage,
+    TQueryContext* storage,
     IAuthorizationTokenPtr token,
     std::string name,
     DB::NamesAndTypesList columns)
@@ -167,7 +166,7 @@ void TTableDictionarySource::ValidateStructure(const TTable& table)
 ////////////////////////////////////////////////////////////////////////////////
 
 DB::DictionarySourcePtr CreateTableDictionarySource(
-    IStoragePtr storage,
+    TQueryContext* storage,
     IAuthorizationTokenPtr authToken,
     const std::string& tableName,
     const DB::Block& sampleBlock)
@@ -182,7 +181,7 @@ DB::DictionarySourcePtr CreateTableDictionarySource(
 ////////////////////////////////////////////////////////////////////////////////
 
 void RegisterTableDictionarySource(
-    IStoragePtr storage,
+    TQueryContext* storage,
     IAuthorizationTokenPtr authToken)
 {
     auto createTableSource = [=] (

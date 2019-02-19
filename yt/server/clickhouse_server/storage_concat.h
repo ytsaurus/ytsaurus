@@ -12,7 +12,6 @@ namespace NYT::NClickHouseServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 DB::StoragePtr CreateStorageConcat(
-    IStoragePtr storage,
     std::vector<TTablePtr> tables,
     IExecutionClusterPtr cluster);
 

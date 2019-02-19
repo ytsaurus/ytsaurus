@@ -105,6 +105,7 @@ class Clique(object):
                 "--port", port,
                 "-q", query,
                 "--format", "JSON",
+                "-u", "root",
                 "--output_format_json_quote_64bit_integers", "0"]
         print >>sys.stderr, "Running '{0}'...".format(' '.join(args))
 

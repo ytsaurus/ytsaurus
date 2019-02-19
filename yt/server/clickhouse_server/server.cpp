@@ -1,6 +1,5 @@
 #include "server.h"
 
-#include "auth_token.h"
 #include "cluster_tracker.h"
 #include "database.h"
 #include "functions.h"
@@ -8,13 +7,13 @@
 #include "logger.h"
 #include "runtime_components_factory.h"
 #include "system_tables.h"
-#include "table_dictionary_source.h"
+//#include "table_dictionary_source.h"
 #include "table_functions.h"
 #include "table_functions_concat.h"
 #include "tcp_handler.h"
 #include "public.h"
 
-#include <yt/server/clickhouse_server/storage.h>
+#include <yt/server/clickhouse_server/query_context.h>
 #include <yt/server/clickhouse_server/poco_config.h>
 #include <yt/server/clickhouse_server/config.h>
 
@@ -99,7 +98,6 @@ class TServer::TImpl
 private:
     TBootstrap* const Bootstrap_;
     const ILoggerPtr AppLogger;
-    const IStoragePtr Storage;
     const ICoordinationServicePtr CoordinationService;
     const ICliqueAuthorizationManagerPtr CliqueAuthorizationManager_;
     const TClickHouseServerBootstrapConfigPtr NativeConfig_;
@@ -107,8 +105,6 @@ private:
     const std::string InstanceId_;
     ui16 TcpPort_;
     ui16 HttpPort_;
-
-    IAuthorizationTokenPtr ServerAuthToken;
 
     Poco::AutoPtr<Poco::Util::LayeredConfiguration> EngineConfig_;
 
@@ -131,7 +127,6 @@ public:
     TImpl(
         TBootstrap* bootstrap,
         ILoggerPtr logger,
-        IStoragePtr storage,
         ICoordinationServicePtr coordinationService,
         ICliqueAuthorizationManagerPtr cliqueAuthorizationManager,
         TClickHouseServerBootstrapConfigPtr nativeConfig,
@@ -141,7 +136,6 @@ public:
         ui16 httpPort)
         : Bootstrap_(bootstrap)
         , AppLogger(std::move(logger))
-        , Storage(std::move(storage))
         , CoordinationService(std::move(coordinationService))
         , CliqueAuthorizationManager_(std::move(cliqueAuthorizationManager))
         , NativeConfig_(std::move(nativeConfig))
@@ -154,7 +148,6 @@ public:
     void Start()
     {
         SetupRootLogger();
-        CreateServerAuthToken();
         EngineConfig_ = new Poco::Util::LayeredConfiguration();
         EngineConfig_->add(ConvertToPocoConfig(ConvertToNode(NativeConfig_->Engine)));
         SetupLoggers();
@@ -233,13 +226,6 @@ private:
         rootLogger.setLevel("information");
     }
 
-    void CreateServerAuthToken()
-    {
-        auto serverUser = NativeConfig_->User;
-        auto* auth = Storage->AuthTokenService();
-        ServerAuthToken = CreateAuthToken(*auth, serverUser);
-    }
-
     void SetupLoggers()
     {
         logger().setLevel(NativeConfig_->Engine->LogLevel);
@@ -251,7 +237,6 @@ private:
 
         ExecutionClusterNodeTracker = CreateClusterNodeTracker(
             CoordinationService,
-            ServerAuthToken,
             NativeConfig_->Engine->CypressRootPath + "/cliques",
             TcpPort_);
     }
@@ -265,13 +250,10 @@ private:
         // Context contains all that query execution is dependent:
         // settings, available functions, data types, aggregate functions, databases...
         auto runtimeComponentsFactory = CreateRuntimeComponentsFactory(
-            Storage,
             CliqueId_,
-            ServerAuthToken,
             storageHomePath,
             CliqueAuthorizationManager_);
-        Context = std::make_unique<DB::Context>(
-            Context::createGlobal(std::move(runtimeComponentsFactory)));
+        Context = std::make_unique<DB::Context>(Context::createGlobal(std::move(runtimeComponentsFactory)));
         Context->setGlobalContext(*Context);
         Context->setApplicationType(Context::ApplicationType::SERVER);
 
@@ -285,10 +267,10 @@ private:
         registerStorageMemory(StorageFactory::instance());
 
         RegisterFunctions();
-        RegisterTableFunctions(Storage);
-        RegisterConcatenatingTableFunctions(Storage, ExecutionClusterNodeTracker);
+        RegisterTableFunctions();
+        RegisterConcatenatingTableFunctions(ExecutionClusterNodeTracker);
 
-        RegisterTableDictionarySource(Storage, ServerAuthToken);
+        //RegisterTableDictionarySource(Storage, ServerAuthToken);
 
         // Initialize DateLUT early, to not interfere with running time of first query.
         LOG_DEBUG(log, "Initializing DateLUT.");
@@ -351,7 +333,7 @@ private:
 
         // Default database that wraps connection to YT cluster.
         {
-            auto defaultDatabase = CreateDatabase(Storage, ExecutionClusterNodeTracker);
+            auto defaultDatabase = CreateDatabase(ExecutionClusterNodeTracker);
             LOG_INFO(log, "Main database is available under names 'default' and " << CliqueId_);
             Context->addDatabase("default", defaultDatabase);
             Context->addDatabase(CliqueId_, defaultDatabase);
@@ -485,7 +467,6 @@ private:
 TServer::TServer(
     TBootstrap* bootstrap,
     ILoggerPtr logger,
-    IStoragePtr storage,
     ICoordinationServicePtr coordinationService,
     ICliqueAuthorizationManagerPtr cliqueAuthorizationManager,
     TClickHouseServerBootstrapConfigPtr nativeConfig,
@@ -496,7 +477,6 @@ TServer::TServer(
     : Impl_(std::make_unique<TImpl>(
         bootstrap,
         std::move(logger),
-        std::move(storage),
         std::move(coordinationService),
         std::move(cliqueAuthorizationManager),
         std::move(nativeConfig),

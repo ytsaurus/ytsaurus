@@ -1,12 +1,11 @@
 #include "storage_table.h"
 
-#include "auth_token.h"
 #include "query_helpers.h"
 #include "storage_distributed.h"
 #include "virtual_columns.h"
 #include "public_ch.h"
 
-#include <yt/server/clickhouse_server/storage.h>
+#include <yt/server/clickhouse_server/query_context.h>
 
 #include <Common/Exception.h>
 #include <Common/typeid_cast.h>
@@ -42,7 +41,6 @@ private:
 
 public:
     TStorageTable(
-        IStoragePtr storage,
         TTablePtr table,
         IExecutionClusterPtr cluster);
 
@@ -75,11 +73,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStorageTable::TStorageTable(IStoragePtr storage,
-                             TTablePtr table,
-                             IExecutionClusterPtr cluster)
+TStorageTable::TStorageTable(
+    TTablePtr table,
+    IExecutionClusterPtr cluster)
     : TStorageDistributed(
-        std::move(storage),
         std::move(cluster),
         TClickHouseTableSchema::From(*table),
         &Poco::Logger::get("StorageTable"))
@@ -92,12 +89,9 @@ TTablePartList TStorageTable::GetTableParts(
     const KeyCondition* keyCondition,
     size_t maxParts)
 {
-    auto& storage = GetStorage();
+    auto* queryContext = GetQueryContext(context);
 
-    auto authToken = CreateAuthToken(*storage, context);
-
-    return storage->GetTableParts(
-        *authToken,
+    return queryContext->GetTableParts(
         Table->Name,
         keyCondition,
         maxParts);
@@ -155,14 +149,14 @@ ASTPtr TStorageTable::RewriteSelectQueryForTablePart(
 ////////////////////////////////////////////////////////////////////////////////
 
 DB::StoragePtr CreateStorageTable(
-    IStoragePtr storage,
     TTablePtr table,
     IExecutionClusterPtr cluster)
 {
     return std::make_shared<TStorageTable>(
-        std::move(storage),
         std::move(table),
         std::move(cluster));
 }
+
+/////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer

@@ -14,7 +14,6 @@ public:
     TServer(
         TBootstrap* bootstrap,
         ILoggerPtr logger,
-        IStoragePtr storage,
         ICoordinationServicePtr coordinationService,
         ICliqueAuthorizationManagerPtr cliqueAuthorizationManager,
         TClickHouseServerBootstrapConfigPtr nativeConfig,

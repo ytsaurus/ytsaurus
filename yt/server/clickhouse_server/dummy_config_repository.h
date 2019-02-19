@@ -8,10 +8,7 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<DB::IExternalLoaderConfigRepository> CreateExternalLoaderConfigRepository(
-    IStoragePtr storage,
-    IAuthorizationTokenPtr authToken,
-    const std::string& path);
+std::unique_ptr<DB::IExternalLoaderConfigRepository> CreateDummyConfigRepository();
 
 ////////////////////////////////////////////////////////////////////////////////
 

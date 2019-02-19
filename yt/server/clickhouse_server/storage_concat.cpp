@@ -1,7 +1,6 @@
 #include "storage_table.h"
 
 #include "public_ch.h"
-#include "auth_token.h"
 #include "format_helpers.h"
 #include "logging_helpers.h"
 #include "query_helpers.h"
@@ -10,7 +9,7 @@
 
 #include <yt/server/clickhouse_server/table.h>
 #include <yt/server/clickhouse_server/table_partition.h>
-#include <yt/server/clickhouse_server/storage.h>
+#include <yt/server/clickhouse_server/query_context.h>
 
 #include <Common/Exception.h>
 #include <Common/typeid_cast.h>
@@ -46,7 +45,6 @@ private:
 
 public:
     TStorageConcat(
-        IStoragePtr storage,
         std::vector<TTablePtr> tables,
         TClickHouseTableSchema schema,
         IExecutionClusterPtr cluster);
@@ -78,12 +76,10 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TStorageConcat::TStorageConcat(
-    IStoragePtr storage,
     std::vector<TTablePtr> tables,
     TClickHouseTableSchema schema,
     IExecutionClusterPtr cluster)
     : TStorageDistributed(
-        std::move(storage),
         std::move(cluster),
         std::move(schema),
         &Poco::Logger::get("StorageConcat"))
@@ -106,14 +102,10 @@ TTablePartList TStorageConcat::GetTableParts(
     const DB::KeyCondition* keyCondition,
     size_t maxParts)
 {
+    auto* queryContext = GetQueryContext(context);
     Y_UNUSED(queryAst);
 
-    auto& storage = GetStorage();
-
-    auto authToken = CreateAuthToken(*storage, context);
-
-    return storage->ConcatenateAndGetTableParts(
-        *authToken,
+    return queryContext->ConcatenateAndGetTableParts(
         GetTableNames(),
         keyCondition,
         maxParts);
@@ -169,7 +161,6 @@ void VerifyThatSchemasAreIdentical(const std::vector<TTablePtr>& tables)
 }
 
 DB::StoragePtr CreateStorageConcat(
-    IStoragePtr storage,
     std::vector<TTablePtr> tables,
     IExecutionClusterPtr cluster)
 {
@@ -185,7 +176,6 @@ DB::StoragePtr CreateStorageConcat(
     auto commonSchema = TClickHouseTableSchema::From(*representativeTable);
 
     return std::make_shared<TStorageConcat>(
-        std::move(storage),
         std::move(tables),
         std::move(commonSchema),
         std::move(cluster));

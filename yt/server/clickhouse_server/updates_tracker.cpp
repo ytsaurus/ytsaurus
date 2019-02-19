@@ -5,7 +5,7 @@
 #include <Poco/Exception.h>
 
 #include <yt/server/clickhouse_server/objects.h>
-#include <yt/server/clickhouse_server/storage.h>
+#include <yt/server/clickhouse_server/query_context.h>
 
 #include <util/generic/maybe.h>
 
@@ -17,7 +17,7 @@ class TUpdatesTracker
     : public IUpdatesTracker
 {
 private:
-    IStoragePtr Storage;
+    TQueryContext* Storage;
     IAuthorizationTokenPtr Token;
     std::string Path;
 
@@ -25,7 +25,7 @@ private:
 
 public:
     TUpdatesTracker(
-        IStoragePtr storage,
+        TQueryContext* storage,
         IAuthorizationTokenPtr token,
         std::string path)
         : Storage(std::move(storage))
@@ -69,7 +69,7 @@ std::optional<TRevision> TUpdatesTracker::GetCurrentRevision() const
 ////////////////////////////////////////////////////////////////////////////////
 
 IUpdatesTrackerPtr CreateUpdatesTracker(
-    IStoragePtr storage,
+    TQueryContext* storage,
     IAuthorizationTokenPtr token,
     const std::string& path)
 {
