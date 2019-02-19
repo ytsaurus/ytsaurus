@@ -459,7 +459,7 @@ class UserJobSpecBuilder(object):
         if "local_files" in spec:
             del spec["local_files"]
 
-        return spec, tmpfs_size, file_manager.disk_size
+        return spec, tmpfs_size #, file_manager.disk_size
 
     def _prepare_memory_limit(self, spec, client=None):
         memory_limit = get_value(spec.get("memory_limit"), get_config(client)["memory_limit"])
