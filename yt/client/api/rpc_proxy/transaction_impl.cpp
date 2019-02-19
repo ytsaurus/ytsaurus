@@ -425,14 +425,12 @@ TFuture<TSelectRowsResult> TTransaction::SelectRows(
 
 TFuture<ITableReaderPtr> TTransaction::CreateTableReader(
     const TRichYPath& path,
-    const NApi::TTableReaderOptions& options,
-    const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory)
+    const NApi::TTableReaderOptions& options)
 {
     ValidateActive();
     return Client_->CreateTableReader(
         path,
-        PatchTransactionId(options),
-        nodeDirectory);
+        PatchTransactionId(options));
 }
 
 TFuture<ITableWriterPtr> TTransaction::CreateTableWriter(

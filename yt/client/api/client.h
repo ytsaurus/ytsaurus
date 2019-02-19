@@ -992,8 +992,7 @@ struct IClientBase
 
     virtual TFuture<ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,
-        const TTableReaderOptions& options = TTableReaderOptions(),
-        const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory = nullptr) = 0;
+        const TTableReaderOptions& options = TTableReaderOptions()) = 0;
 
     virtual TFuture<ITableWriterPtr> CreateTableWriter(
         const NYPath::TRichYPath& path,

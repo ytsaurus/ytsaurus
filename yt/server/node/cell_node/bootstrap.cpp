@@ -235,14 +235,6 @@ void TBootstrap::DoRun()
 
     MasterClient = MasterConnection->CreateNativeClient(TClientOptions(NSecurityClient::RootUserName));
 
-    NodeDirectory = New<TNodeDirectory>();
-
-    NodeDirectorySynchronizer = New<TNodeDirectorySynchronizer>(
-        Config->NodeDirectorySynchronizer,
-        MasterConnection,
-        NodeDirectory);
-    NodeDirectorySynchronizer->Start();
-
     LookupThreadPool = New<TThreadPool>(
         Config->QueryAgent->LookupThreadPoolSize,
         "Lookup");
@@ -827,7 +819,7 @@ const TMasterConnectorPtr& TBootstrap::GetMasterConnector() const
 
 const TNodeDirectoryPtr& TBootstrap::GetNodeDirectory() const
 {
-    return NodeDirectory;
+    return MasterConnection->GetNodeDirectory();
 }
 
 const IQuerySubexecutorPtr& TBootstrap::GetQueryExecutor() const
