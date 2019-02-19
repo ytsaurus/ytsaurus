@@ -49,9 +49,7 @@ struct TBucket
 
     void Drain()
     {
-        TGuard<TSpinLock> guard(SpinLock);
         Queue.clear();
-        Size = 0;
     }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
@@ -71,8 +69,8 @@ struct TBucket
     TFairShareThreadPoolTag Tag;
     TWeakPtr<TFairShareQueue> Parent;
     TRingQueue<TEnqueuedAction> Queue;
-    TSpinLock SpinLock;
-    size_t Size = 0;
+    //TSpinLock SpinLock;
+    //size_t Size = 0;
     THeapItem* HeapIterator = nullptr;
     i64 WaitTime = 0;
 };
@@ -189,10 +187,6 @@ public:
         QueueSize_.fetch_add(1, std::memory_order_relaxed);
 
         InsertBucket(bucket);
-        ++bucket->Size;
-
-        TGuard<TSpinLock> bucketGuard(bucket->SpinLock);
-        guard.Release();
 
         Y_ASSERT(callback);
 
@@ -239,7 +233,7 @@ public:
         TBucketPtr bucket;
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            bucket = GetStarvingBucket();
+            bucket = GetStarvingBucket(action);
 
             if (!bucket) {
                 return EBeginExecuteResult::QueueEmpty;
@@ -249,18 +243,7 @@ public:
             execution.AccountedAt = GetCpuInstant();
         }
 
-        Y_ASSERT(action && action->Finished);
-
-        {
-            TGuard<TSpinLock> guard(bucket->SpinLock);
-
-            if (bucket->Queue.empty()) {
-                return EBeginExecuteResult::QueueEmpty;
-            }
-
-            *action = std::move(bucket->Queue.front());
-            bucket->Queue.pop();
-        }
+        Y_ASSERT(action && !action->Finished);
 
         CallbackEventCount_->CancelWait();
 
@@ -271,7 +254,7 @@ public:
             CpuDurationToValue(action->StartedAt - action->EnqueuedAt));
 
         {
-            TGuard<TSpinLock> guard(bucket->SpinLock);
+            TGuard<TSpinLock> guard(SpinLock_);
             bucket->WaitTime = action->StartedAt - action->EnqueuedAt;
         }
 
@@ -401,15 +384,17 @@ private:
         SiftDown(Heap_.begin(), Heap_.end(), Heap_.begin() + indexInHeap, std::less<>());
     }
 
-    TBucketPtr GetStarvingBucket()
+    TBucketPtr GetStarvingBucket(TEnqueuedAction* action)
     {
         // For each currently evaluating buckets recalculate excess time.
         AccountCurrentlyExecutingBuckets();
 
         while (!Heap_.empty()) {
             const auto& bucket = Heap_[0].Bucket;
-            if (bucket->Size > 0) {
-                --bucket->Size;
+
+            if (!bucket->Queue.empty()) {
+                *action = std::move(bucket->Queue.front());
+                bucket->Queue.pop();
                 return bucket;
             }
             ExtractHeap(Heap_.begin(), Heap_.end());
@@ -518,7 +503,7 @@ public:
         }
     }
 
-    IInvokerPtr GetInvoker(const TFairShareThreadPoolTag& tag)
+    IInvokerPtr GetInvoker(const TFairShareThreadPoolTag& tag) override
     {
         return Queue_->GetInvoker(tag);
     }
