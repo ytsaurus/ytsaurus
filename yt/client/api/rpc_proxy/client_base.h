@@ -156,8 +156,7 @@ public:
     // Tables
     virtual TFuture<ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath&,
-        const NApi::TTableReaderOptions&,
-        const NNodeTrackerClient::TNodeDirectoryPtr&) override
+        const NApi::TTableReaderOptions&) override
     {
         ThrowUnimplemented("read_table");
     }

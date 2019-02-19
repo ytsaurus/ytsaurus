@@ -106,16 +106,9 @@ public:
         , Config_(std::move(config))
         , Connection_(std::move(connection))
         , StickyTransactionPool_(CreateStickyTransactionPool(Logger))
-        , NodeDirectory_(New<TNodeDirectory>())
-        , NodeDirectorySynchronizer_(New<TNodeDirectorySynchronizer>(
-            Config_->NodeDirectorySynchronizer,
-            Connection_,
-            NodeDirectory_))
     {
         YCHECK(Config_);
         YCHECK(Connection_);
-
-        NodeDirectorySynchronizer_->Start();
 
         // Register all commands.
 #define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy, version) \
@@ -304,8 +297,7 @@ public:
             client,
             Config_,
             entry.Descriptor,
-            request,
-            NodeDirectory_);
+            request);
 
         return BIND(&TDriver::DoExecute, entry.Execute, context)
             .AsyncVia(Connection_->GetInvoker())
@@ -352,12 +344,6 @@ public:
 
         ClearMetadataCaches();
 
-        if (NodeDirectorySynchronizer_) {
-            WaitFor(NodeDirectorySynchronizer_->Stop())
-                .ThrowOnError();
-            NodeDirectorySynchronizer_.Reset();
-        }
-
         // Release the connection with entire thread pools.
         if (Connection_) {
             Connection_->Terminate();
@@ -378,9 +364,6 @@ private:
     IConnectionPtr Connection_;
 
     const IStickyTransactionPoolPtr StickyTransactionPool_;
-
-    TNodeDirectoryPtr NodeDirectory_;
-    TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
 
     struct TCommandEntry
     {
@@ -448,14 +431,12 @@ private:
             IClientPtr client,
             TDriverConfigPtr config,
             const TCommandDescriptor& descriptor,
-            const TDriverRequest& request,
-            TNodeDirectoryPtr nodeDirectory)
+            const TDriverRequest& request)
             : Driver_(std::move(driver))
             , Client_(std::move(client))
             , Config_(std::move(config))
             , Descriptor_(descriptor)
             , Request_(request)
-            , NodeDirectory_(std::move(nodeDirectory))
         { }
 
         virtual const TDriverConfigPtr& GetConfig() override
@@ -471,11 +452,6 @@ private:
         virtual const IDriverPtr& GetDriver() override
         {
             return Driver_;
-        }
-
-        virtual const TNodeDirectoryPtr& GetNodeDirectory() override
-        {
-            return NodeDirectory_;
         }
 
         virtual const TDriverRequest& Request() override
@@ -542,7 +518,6 @@ private:
 
         std::optional<TFormat> InputFormat_;
         std::optional<TFormat> OutputFormat_;
-        const TNodeDirectoryPtr NodeDirectory_;
     };
 };
 

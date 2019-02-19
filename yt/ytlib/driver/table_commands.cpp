@@ -81,8 +81,7 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
 
     auto reader = WaitFor(context->GetClient()->CreateTableReader(
         Path,
-        Options,
-        context->GetNodeDirectory()))
+        Options))
         .ValueOrThrow();
 
     if (reader->GetTotalRowCount() > 0) {
@@ -169,8 +168,7 @@ void TReadBlobTableCommand::DoExecute(ICommandContextPtr context)
 
     auto reader = WaitFor(context->GetClient()->CreateTableReader(
         Path,
-        Options,
-        context->GetNodeDirectory()))
+        Options))
         .ValueOrThrow();
 
     auto input = NNative::CreateBlobTableReader(

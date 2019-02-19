@@ -86,8 +86,7 @@ public:
         const TColumnFilter& columnFilter,
         bool unordered,
         IThroughputThrottlerPtr bandwidthThrottler,
-        IThroughputThrottlerPtr rpsThrottler,
-        TNodeDirectoryPtr nodeDirectory)
+        IThroughputThrottlerPtr rpsThrottler)
         : Config_(std::move(config))
         , Options_(std::move(options))
         , Client_(std::move(client))
@@ -98,7 +97,6 @@ public:
         , BandwidthThrottler_(std::move(bandwidthThrottler))
         , RpsThrottler_(std::move(rpsThrottler))
         , TransactionId_(Transaction_ ? Transaction_->GetId() : NullTransactionId)
-        , NodeDirectory_(std::move(nodeDirectory))
     {
         YCHECK(Config_);
         YCHECK(Client_);
@@ -206,8 +204,7 @@ private:
             NameTable_,
             ColumnFilter_,
             BandwidthThrottler_,
-            RpsThrottler_,
-            NodeDirectory_))
+            RpsThrottler_))
             .ValueOrThrow();
 
         if (Transaction_) {
@@ -227,7 +224,6 @@ TFuture<ITableReaderPtr> CreateTableReader(
     const NYPath::TRichYPath& path,
     const TTableReaderOptions& options,
     TNameTablePtr nameTable,
-    TNodeDirectoryPtr nodeDirectory,
     const TColumnFilter& columnFilter,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler)
@@ -250,8 +246,7 @@ TFuture<ITableReaderPtr> CreateTableReader(
         columnFilter,
         options.Unordered,
         bandwidthThrottler,
-        rpsThrottler,
-        nodeDirectory);
+        rpsThrottler);
 
     return reader->GetReadyEvent().Apply(BIND([=] () -> ITableReaderPtr {
         return reader;
@@ -444,8 +439,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler,
-    TNodeDirectoryPtr nodeDirectory)
+    NConcurrency::IThroughputThrottlerPtr rpsThrottler)
 {
     auto Logger = ApiLogger;
 
@@ -529,10 +523,6 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
         ValidateDynamicTableTimestamp(richPath, dynamic, schema, *attributes);
     }
 
-    if (!nodeDirectory) {
-        nodeDirectory = New<TNodeDirectory>();
-    }
-
     std::vector<TChunkSpec> chunkSpecs;
 
     {
@@ -540,7 +530,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
 
         FetchChunkSpecs(
             client,
-            nodeDirectory,
+            client->GetNativeConnection()->GetNodeDirectory(),
             tableCellTag,
             objectIdPath,
             richPath.GetRanges(),
@@ -599,7 +589,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
             TNodeDescriptor(),
             std::nullopt,
             client->GetNativeConnection()->GetBlockCache(),
-            nodeDirectory,
+            client->GetNativeConnection()->GetNodeDirectory(),
             dataSourceDirectory,
             dataSliceDescriptor,
             nameTable,
@@ -630,7 +620,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
             TNodeDescriptor(),
             std::nullopt,
             client->GetNativeConnection()->GetBlockCache(),
-            nodeDirectory,
+            client->GetNativeConnection()->GetNodeDirectory(),
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
             nameTable,
