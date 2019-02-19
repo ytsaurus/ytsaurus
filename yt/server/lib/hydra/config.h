@@ -35,8 +35,6 @@ public:
     //! Should only be used in tests and local mode.
     bool EnableSync;
 
-    i64 PreallocateSize;
-
     TFileChangelogConfig()
     {
         RegisterParameter("index_block_size", IndexBlockSize)
@@ -49,8 +47,6 @@ public:
             .Default(TDuration::MilliSeconds(10));
         RegisterParameter("enable_sync", EnableSync)
             .Default(true);
-        RegisterParameter("preallocate_size", PreallocateSize)
-            .Default(-1);
     }
 };
 
