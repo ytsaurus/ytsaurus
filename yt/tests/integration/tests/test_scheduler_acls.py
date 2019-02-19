@@ -216,8 +216,7 @@ class TestOperationAcls(YTEnvSetup):
 
     @pytest.mark.parametrize("should_update_operation_parameters", [False, True])
     def test_manage_job_actions(self, should_update_operation_parameters):
-        def _signal_job(operation_id, job_id, **kwargs):
-            time.sleep(1.0) # give job proxy some time to send a heartbeat
+        def _signal_job(job_id, **kwargs):
             signal_job(job_id, "SIGURG", **kwargs)
 
         actions = [
@@ -228,11 +227,11 @@ class TestOperationAcls(YTEnvSetup):
 
         for action in actions:
             with self._run_op_context_manager(should_update_operation_parameters) as (op, job_id):
-                self._validate_access(self.no_rights_user, False, action, operation_id=op.id, job_id=job_id)
-                self._validate_access(self.read_only_user, False, action, operation_id=op.id, job_id=job_id)
-                self._validate_access(self.manage_only_user, True, action, operation_id=op.id, job_id=job_id)
+                self._validate_access(self.no_rights_user, False, action, job_id=job_id)
+                self._validate_access(self.read_only_user, False, action, job_id=job_id)
+                self._validate_access(self.manage_only_user, True, action, job_id=job_id)
             with self._run_op_context_manager(should_update_operation_parameters) as (op, job_id):
-                self._validate_access(self.manage_and_read_user, True, action, operation_id=op.id, job_id=job_id)
+                self._validate_access(self.manage_and_read_user, True, action, job_id=job_id)
 
     @pytest.mark.parametrize("should_update_operation_parameters", [False, True])
     def test_manage_and_read_job_actions(self, should_update_operation_parameters):
