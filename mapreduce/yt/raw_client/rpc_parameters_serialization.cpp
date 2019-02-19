@@ -36,7 +36,7 @@ static void SetPathParam(TNode* node, const TYPath& path)
 
 static TNode SerializeAttributeFilter(const TAttributeFilter& attributeFilter)
 {
-    TNode result;
+    TNode result = TNode::CreateList();
     for (const auto& attribute : attributeFilter.Attributes_) {
         result.Add(attribute);
     }
@@ -45,7 +45,7 @@ static TNode SerializeAttributeFilter(const TAttributeFilter& attributeFilter)
 
 static TNode SerializeAttributeFilter(const TOperationAttributeFilter& attributeFilter)
 {
-    TNode result;
+    TNode result = TNode::CreateList();
     for (const auto& attribute : attributeFilter.Attributes_) {
         result.Add(::ToString(attribute));
     }
