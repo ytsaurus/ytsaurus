@@ -199,6 +199,7 @@ void TJournalChunk::DoReadBlockRange(
         locationProfiler.Update(performanceCounters.JournalBlockReadSize, bytesRead);
         locationProfiler.Update(performanceCounters.JournalBlockReadTime, NProfiling::DurationToValue(readTime));
         locationProfiler.Update(performanceCounters.JournalBlockReadThroughput, bytesRead * 1000000 / (1 + readTime.MicroSeconds()));
+        locationProfiler.Increment(performanceCounters.JournalBlockReadBytes, bytesRead);
         DataNodeProfiler.Increment(DiskJournalReadByteCounter, bytesRead);
 
         promise.Set(TBlock::Wrap(blocks));
