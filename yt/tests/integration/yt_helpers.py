@@ -18,13 +18,14 @@ class ProfileMetric(object):
         except YtError:
             return []
 
-        if len(self.tags) == 0:
-            return entries
         result = []
         for entry in entries:
+            satisfied = True
             for tag in self.tags:
-                if tag in entry["tags"] and self.tags[tag] == entry["tags"][tag]:
-                    result.append(entry)
+                if tag not in entry["tags"] or self.tags[tag] != entry["tags"][tag]:
+                    satisfied = False
+            if satisfied:
+                result.append(entry)
         return result
 
     def __enter__(self):
@@ -37,6 +38,10 @@ class ProfileMetric(object):
             return False
         else:
             self.profile = self._read_from_cypress()
+
+    def update_profile(self):
+        self.profile = self._read_from_cypress()
+        return self
 
     def get(self):
         return self.profile[self.len_on_enter:]
