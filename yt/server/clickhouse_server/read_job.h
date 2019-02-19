@@ -21,7 +21,6 @@ TTableReaderList CreateJobTableReaders(
     const TString& jobSpec,
     const std::vector<TString>& columns,
     const TSystemColumns& systemColumns,
-    const NConcurrency::IThroughputThrottlerPtr throttler,
     size_t maxStreamCount,
     const TTableReaderOptions& options);
 

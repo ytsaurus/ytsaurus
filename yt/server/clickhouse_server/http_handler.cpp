@@ -1,6 +1,6 @@
 #include "http_handler.h"
 
-#include "storage.h"
+#include "query_context.h"
 
 #include <server/HTTPHandler.h>
 #include <server/NotFoundHandler.h>

@@ -47,7 +47,6 @@ using IExecutionClusterPtr = IClusterNodeTrackerPtr;
 
 IClusterNodeTrackerPtr CreateClusterNodeTracker(
     ICoordinationServicePtr coordinationService,
-    IAuthorizationTokenPtr authToken,
     const std::string directoryPath,
     uint64_t clickhousePort);
 

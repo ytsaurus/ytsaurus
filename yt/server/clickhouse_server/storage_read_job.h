@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/server/clickhouse_server/table.h>
 
 #include <Storages/IStorage.h>
@@ -12,7 +14,7 @@ namespace NYT::NClickHouseServer {
 
 // TODO: ITablePartPtr instead of tables
 DB::StoragePtr CreateStorageReadJob(
-    IStoragePtr storage,
+    TQueryContext* queryContext,
     std::vector<TTablePtr> tables,
     std::string jobSpec);
 

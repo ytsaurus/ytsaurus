@@ -76,6 +76,9 @@ public:
 
 private:
     static TYPath PocoPathToYPath(const std::string& key) {
+        if (key.empty()) {
+            return "";
+        }
         auto ypath = TString("/" + key);
         for (char& c : ypath) {
             if (c == '.') {

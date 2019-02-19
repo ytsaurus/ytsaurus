@@ -44,9 +44,8 @@ private:
 
     NApi::NNative::IConnectionPtr Connection_;
     NApi::NNative::TClientCachePtr ClientCache_;
-    NConcurrency::IThroughputThrottlerPtr ScanThrottler;
+    NApi::NNative::IClientPtr RootClient_;
 
-    IStoragePtr Storage;
     ICoordinationServicePtr CoordinationService;
     ICliqueAuthorizationManagerPtr CliqueAuthorizationManager;
     std::unique_ptr<TServer> Server;
@@ -67,6 +66,7 @@ public:
     TClickHouseServerBootstrapConfigPtr GetConfig() const;
     IInvokerPtr GetControlInvoker() const;
     NApi::NNative::IConnectionPtr GetConnection() const;
+    NApi::NNative::TClientCachePtr GetClientCache() const;
 
 private:
     void DoRun();

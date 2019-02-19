@@ -7,7 +7,7 @@
 #include <yt/server/clickhouse_server/config.h>
 #include <yt/server/clickhouse_server/directory.h>
 #include <yt/server/clickhouse_server/logger.h>
-#include <yt/server/clickhouse_server/storage.h>
+#include <yt/server/clickhouse_server/query_context.h>
 #include <yt/server/clickhouse_server/clique_authorization_manager.h>
 
 #include <yt/server/lib/admin/admin_service.h>
@@ -162,25 +162,16 @@ void TBootstrap::DoRun()
 
     ClientCache_ = New<NApi::NNative::TClientCache>(Config_->ClientCache, Connection_);
 
-    if (Config_->ScanThrottler) {
-        ScanThrottler = CreateReconfigurableThroughputThrottler(Config_->ScanThrottler);
-    }  else {
-        ScanThrottler = GetUnlimitedThrottler();
-    }
-
     auto logger = CreateLogger(EngineLogger);
 
-    Storage = CreateStorage(Connection_, ClientCache_, ScanThrottler);
+    RootClient_ = ClientCache_->GetClient(Config_->User);
 
-    CoordinationService = CreateCoordinationService(Connection_, CliqueId_);
-
-    auto rootClient = ClientCache_->GetClient(RootUserName);
-    CliqueAuthorizationManager = CreateCliqueAuthorizationManager(rootClient, CliqueId_, Config_->ValidateOperationPermission);
+    CoordinationService = CreateCoordinationService(RootClient_, CliqueId_);
+    CliqueAuthorizationManager = CreateCliqueAuthorizationManager(RootClient_, CliqueId_, Config_->ValidateOperationPermission);
 
     Server = std::make_unique<TServer>(
         this,
         logger,
-        Storage,
         CoordinationService,
         CliqueAuthorizationManager,
         Config_,
@@ -215,6 +206,11 @@ IInvokerPtr TBootstrap::GetControlInvoker() const
 NApi::NNative::IConnectionPtr TBootstrap::GetConnection() const
 {
     return Connection_;
+}
+
+NApi::NNative::TClientCachePtr TBootstrap::GetClientCache() const
+{
+    return ClientCache_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
