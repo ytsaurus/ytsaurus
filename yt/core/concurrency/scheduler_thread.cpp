@@ -461,7 +461,6 @@ void TSchedulerThread::SwitchTo(IInvokerPtr invoker)
 
 void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
 {
-    YT_LOG_DEBUG("WaitFor");
     VERIFY_THREAD_AFFINITY(HomeThread);
 
     auto fiber = CurrentFiber_.Get();
