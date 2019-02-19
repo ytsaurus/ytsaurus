@@ -146,23 +146,25 @@ public:
 
     virtual TFuture<void> Append(const TSharedRef& data) override
     {
-        if (!EnableMultiplexing_) {
-            return UnderlyingChangelog_->Append(data);
+        TFuture<void> asyncResult;
+        if (EnableMultiplexing_) {
+            int recordId = UnderlyingChangelog_->GetRecordCount();
+            auto flushResult = UnderlyingChangelog_->Append(data);
+            const auto& journalManager = Location_->GetJournalManager();
+            asyncResult = journalManager->AppendMultiplexedRecord(
+                ChunkId_,
+                recordId,
+                data,
+                flushResult);
+        } else {
+            asyncResult = UnderlyingChangelog_->Append(data);
         }
-
-        int recordId = UnderlyingChangelog_->GetRecordCount();
-        auto flushResult = UnderlyingChangelog_->Append(data);
-        const auto& journalManager = Location_->GetJournalManager();
-        return journalManager->AppendMultiplexedRecord(
-            ChunkId_,
-            recordId,
-            data,
-            flushResult);
+        return asyncResult.ToUncancelable();
     }
 
     virtual TFuture<void> Flush() override
     {
-        return UnderlyingChangelog_->Flush();
+        return UnderlyingChangelog_->Flush().ToUncancelable();
     }
 
     virtual TFuture<std::vector<TSharedRef>> Read(
@@ -175,18 +177,18 @@ public:
 
     virtual TFuture<void> Truncate(int recordCount) override
     {
-        return UnderlyingChangelog_->Truncate(recordCount);
+        return UnderlyingChangelog_->Truncate(recordCount).ToUncancelable();
     }
 
     virtual TFuture<void> Close() override
     {
         Owner_->TryRemove(this);
-        return UnderlyingChangelog_->Close();
+        return UnderlyingChangelog_->Close().ToUncancelable();
     }
 
     virtual TFuture<void> Preallocate(size_t size) override
     {
-        return UnderlyingChangelog_->Preallocate(size);
+        return UnderlyingChangelog_->Preallocate(size).ToUncancelable();
     }
 
 private:
