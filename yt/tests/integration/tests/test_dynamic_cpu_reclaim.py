@@ -4,6 +4,7 @@ from yt_env_setup import YTEnvSetup, wait, require_ytserver_root_privileges
 from yt_commands import *
 from yt_helpers import ProfileMetric
 
+import time
 import copy
 
 SPEC_WITH_CPU_MONITOR = {
@@ -58,15 +59,15 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
                 ProfileMetric.at_scheduler("scheduler/pools/metrics/aggregated_max_cpu_usage_x100").with_tag("pool", "root") as max_cpu, \
                 ProfileMetric.at_scheduler("scheduler/pools/metrics/aggregated_preemptable_cpu_x100").with_tag("pool", "root") as preemptable_cpu:
             run_sleeping_vanilla(SPEC_WITH_CPU_MONITOR)
-            time.sleep(3)
 
+        wait(lambda: preemptable_cpu.update_profile().differentiate() > 0)
+        smoothed_cpu_diff = smoothed_cpu.update_profile().differentiate()
+        assert smoothed_cpu_diff > 0
+        assert smoothed_cpu_diff < max_cpu.update_profile().differentiate()
+
+        print preemptable_cpu.differentiate()
         print smoothed_cpu.differentiate()
         print max_cpu.differentiate()
-        print preemptable_cpu.differentiate()
-
-        assert smoothed_cpu.differentiate() > 0
-        assert smoothed_cpu.differentiate() < max_cpu.differentiate()
-        assert preemptable_cpu.differentiate() > 0
 
     @pytest.mark.xfail(run=True, reason="Works fine locally but fails at tc. Need to observe it a bit.")
     def test_busy(self):
