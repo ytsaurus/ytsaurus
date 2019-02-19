@@ -236,6 +236,24 @@ Y_UNIT_TEST_SUITE(CypressClient) {
             TNode::TListType({barNode, "foo"}));
     }
 
+    // YT-10354
+    Y_UNIT_TEST(TestListEmptyAttributeFilter)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto tx = client->StartTransaction();
+        client->Set(workingDir + "/foo", 5);
+        client->Set(workingDir + "/bar", "bar");
+
+        NYT::TAttributeFilter filter;
+        auto res = client->List(workingDir, NYT::TListOptions().AttributeFilter(std::move(filter)));
+
+        UNIT_ASSERT_VALUES_EQUAL(
+            SortedStrings(res),
+            TNode::TListType({"bar", "foo"}));
+    }
+
     Y_UNIT_TEST(TestCopy)
     {
         TTestFixture fixture;
