@@ -574,9 +574,8 @@ public:
 
         YCHECK(CurrentFilePosition_ <= size);
 
-        WaitFor(IOEngine_->Fallocate(DataFile_, size))
-            .ThrowOnError();
-
+        // PB: acually does ftruncate
+        DataFile_->Resize(size);
         YT_LOG_DEBUG("Finished preallocating changelog");
     }
 
