@@ -302,6 +302,9 @@ private:
 
             chunkMeta = GetChunkMeta(readers.front());
 
+            // We do not support node reallocation for erasure chunks.
+            auto options = New<TRemoteWriterOptions>();
+            options->AllowAllocatingNewTargetNodes = false;
             auto writers = CreateErasurePartWriters(
                 WriterConfig_,
                 New<TRemoteWriterOptions>(),
