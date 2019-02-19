@@ -421,6 +421,15 @@ void TBlobSession::DoOpenWriter()
             Writer_ = New<TFileWriter>(Location_->GetIOEngine(), GetChunkId(), fileName, Options_.SyncOnClose, Options_.EnableWriteDirectIO);
             WaitFor(Writer_->Open())
                 .ThrowOnError();
+        } catch (const TSystemError& ex) {
+            if (ex.Status() == ENOSPC) {
+                auto error = TError("Not enough space to start blob session for chunk %v", GetChunkId())
+                    << TError(ex);
+
+                SetFailed(error, /* fatal */ false);
+            } else {
+                throw;
+            }
         }
         catch (const std::exception& ex) {
             SetFailed(TError(
@@ -504,6 +513,15 @@ void TBlobSession::DoCloseWriter(const TRefCountedChunkMetaPtr& chunkMeta)
         try {
             WaitFor(Writer_->Close(chunkMeta))
                 .ThrowOnError();
+        } catch (const TSystemError& ex) {
+            if (ex.Status() == ENOSPC) {
+                auto error = TError("Not enough space to finish blob session for chunk %v", GetChunkId())
+                    << TError(ex);
+
+                SetFailed(error, /* fatal */ false);
+            } else {
+                throw;
+            }
         } catch (const std::exception& ex) {
             SetFailed(TError(
                 NChunkClient::EErrorCode::IOError,
