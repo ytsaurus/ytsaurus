@@ -7154,7 +7154,7 @@ NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateTableReader
 
 void TOperationControllerBase::ValidateUserFileCount(TUserJobSpecPtr spec, const TString& operation)
 {
-    if (spec && spec->FilePaths.size() > Config->MaxUserFileCount) {
+    if (spec->FilePaths.size() > Config->MaxUserFileCount) {
         THROW_ERROR_EXCEPTION("Too many user files in %v: maximum allowed %v, actual %v",
             operation,
             Config->MaxUserFileCount,

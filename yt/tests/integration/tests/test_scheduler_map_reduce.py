@@ -840,6 +840,22 @@ print "x={0}\ty={1}".format(x, y)
 
         assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
 
+    def test_commandless_user_job_spec(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        for i in range(50):
+            write_table("<append=%true>//tmp/t_in", [{"key": i}])
+        op = map_reduce(in_="//tmp/t_in",
+                        out="//tmp/t_out",
+                        reducer_command="cat",
+                        sort_by=["key"],
+                        spec={
+                            "mapper": {"cpu_limit": 1},
+                            "reduce_combiner": {"cpu_limit": 1}
+                        })
+
+        assert_items_equal(read_table("//tmp/t_in"), read_table("//tmp/t_out"))
+
     def test_sampling(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "string"},
                                                            {"name": "value", "type": "string"}]})
