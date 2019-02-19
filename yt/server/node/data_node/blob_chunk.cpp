@@ -321,6 +321,7 @@ void TBlobChunkBase::DoReadBlockSet(
         locationProfiler.Update(performanceCounters.BlobBlockReadSize, bytesRead);
         locationProfiler.Update(performanceCounters.BlobBlockReadTime, NProfiling::DurationToValue(readTime));
         locationProfiler.Update(performanceCounters.BlobBlockReadThroughput, bytesRead * 1000000 / (1 + readTime.MicroSeconds()));
+        locationProfiler.Increment(performanceCounters.BlobBlockReadBytes, bytesRead);
 
         Location_->IncreaseCompletedIOSize(EIODirection::Read, session->Options.WorkloadDescriptor, bytesRead);
 

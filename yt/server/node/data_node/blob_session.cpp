@@ -330,6 +330,7 @@ void TBlobSession::DoWriteBlocks(const std::vector<TBlock>& blocks, int beginBlo
         locationProfiler.Update(performanceCounters.BlobBlockWriteSize, block.Size());
         locationProfiler.Update(performanceCounters.BlobBlockWriteTime, NProfiling::DurationToValue(writeTime));
         locationProfiler.Update(performanceCounters.BlobBlockWriteThroughput, block.Size() * 1000000 / (1 + writeTime.MicroSeconds()));
+        locationProfiler.Increment(performanceCounters.BlobBlockWriteBytes, block.Size());
 
         Location_->IncreaseCompletedIOSize(EIODirection::Write, Options_.WorkloadDescriptor, block.Size());
 
