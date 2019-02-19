@@ -421,15 +421,15 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
         case EInternedAttributeKey::InheritAcl:
         case EInternedAttributeKey::Acl:
         case EInternedAttributeKey::Owner: {
-            auto attributeApplied = TObjectProxyBase::SetBuiltinAttribute(key, value);
-            if (attributeApplied && !GetThisImpl()->IsBeingCreated()) {
+            auto attributeUpdated = TObjectProxyBase::SetBuiltinAttribute(key, value);
+            if (attributeUpdated && !GetThisImpl()->IsBeingCreated()) {
                 LogStructuredEventFluently(Logger, ELogLevel::Info)
                     .Item("event").Value(EAccessControlEvent::ObjectAcdUpdated)
                     .Item("attribute").Value(GetUninternedAttributeKey(key))
                     .Item("path").Value(GetPath())
                     .Item("value").Value(value);
             }
-            return attributeApplied;
+            return attributeUpdated;
         }
 
         default:
