@@ -223,6 +223,7 @@ def prepare(options, build_context):
     options.package_enable_python_yp = parse_yes_no_bool(os.environ.get("PACKAGE_ENABLE_PYTHON_YP", "NO"))
     options.package_enable_yson_bingings = parse_yes_no_bool(os.environ.get("PACKAGE_ENABLE_YSON_BINDINGS", "NO"))
     options.package_enable_rpc_bingings = parse_yes_no_bool(os.environ.get("PACKAGE_ENABLE_RPC_BINDINGS", "NO"))
+    options.package_enable_driver_bingings = parse_yes_no_bool(os.environ.get("PACKAGE_ENABLE_DRIVER_BINDINGS", "NO"))
     options.build_enable_dist_build = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_DIST_BUILD", "NO"))
 
     options.use_asan = parse_yes_no_bool(os.environ.get("USE_ASAN", "NO"))
@@ -880,6 +881,63 @@ def package_rpc_bindings(options, build_context):
             "--python-type", python_type,
             "--library-path", os.path.join(options.working_directory, library_path),
             "--package-path", os.path.join(rpc_packages_path, package_path),
+            "--package-name", package_name,
+        ]
+        run(run_args, cwd=options.working_directory)
+
+@build_step
+@only_for_projects("yt")
+def package_driver_bindings(options, build_context):
+    if not options.package or not options.package_enable_driver_bingings:
+        teamcity_message("Skipping packaging driver_bindings")
+        return
+
+    config_generator = os.path.join(get_bin_dir(options), "build_python_packages_config_generator")
+    config = json.loads(run_captured([config_generator]))
+    
+    mkdirp(os.path.join(options.working_directory, "changelogs"))
+    changelog_dir = os.path.join(
+        tempfile.mkdtemp(dir=os.path.join(options.working_directory, "changelogs")),
+        "yandex-yt-python-driver")
+    mkdirp(os.path.join(changelog_dir, "debian"))
+    with cwd(changelog_dir):
+        shutil.copy(os.path.join(options.checkout_directory, "debian/changelog"), "debian/changelog")
+        dch(version=config["yt_version"],
+            message="Package version bump; no source changes.")
+        with open("debian/changelog") as fin:
+            text = fin.read()
+        with open("debian/changelog", "w") as fout:
+            fout.write(text.replace("yandex-yt", "yandex-yt-python-driver"))
+
+    driver_packages_path = os.path.join(options.checkout_directory, "yt/python/driver-debian")
+    args = [
+        os.path.join(options.checkout_directory, "yt/python/packaging/package.py"),
+        "--working-directory", options.working_directory,
+        "--debian-repositories", "yt-common",
+        "--changelog-path", os.path.join(changelog_dir, "debian/changelog"),
+        "--source-python-module-path", os.path.join(options.checkout_directory, "yt/python/yt_driver_bindings"),
+    ]
+
+    configurations = [
+        # build_type, python_type, library_path, package_path, package_name
+
+        # Python-friendly debian packages.
+        ("debian", "2", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-driver", "yandex-yt-python-driver"),
+    ]
+
+    # TODO(ignat): split this code to function.
+    for build_type, python_type, library_path, package_path, package_name in configurations:
+        if python_type == "2" and not options.build_enable_python_2_7:
+            continue
+        if python_type == "3" and not options.build_enable_python_3_4:
+            continue
+        # NB: skynet enabled by default.
+
+        run_args = args + [
+            "--build-type", build_type,
+            "--python-type", python_type,
+            "--library-path", os.path.join(options.working_directory, library_path),
+            "--package-path", os.path.join(driver_packages_path, package_path),
             "--package-name", package_name,
         ]
         run(run_args, cwd=options.working_directory)
