@@ -150,21 +150,21 @@ def _remove_tables(tables, client=None):
     batch_apply(remove, tables_to_remove, client=client)
 
 class _MultipleFilesProgressBar(object):
-    def __init__(self, total_size, file_count, force=False):
+    def __init__(self, total_size, file_count, enable):
         self.total_size = total_size
         self.file_count = file_count
-        self.force = force
+        self.enable = enable
         self._tqdm = None
         self._current_file_index = 0
         self._current_filename = None
 
     def __enter__(self):
         bar_format = "{l_bar}{bar}| {n_fmt}/{total_fmt}"
-        if self.force:
-            disable = False
-        else:
+        if self.enable is None:
             disable = None
-        self._tqdm = CustomTqdm(unit="b", unit_scale=True, disable=disable, bar_format=bar_format,total=self.total_size)
+        else:
+            disable = not enable
+        self._tqdm = CustomTqdm(disable=disable, bar_format=bar_format, total=self.total_size)
         self._tqdm.set_description("Starting upload")
         return self
 
@@ -215,7 +215,7 @@ class FileManager(object):
             self.local_size += get_disk_size(local_file.path, False)
             self.disk_size += get_disk_size(local_file.path)
             self.files.append(file_params)
-    
+
     def upload_files(self):
         if not self.files:
             return []
@@ -224,8 +224,7 @@ class FileManager(object):
         if enable_progress_bar is False:
             bar = NullContext()
         else:
-            force = enable_progress_bar is True
-            bar = _MultipleFilesProgressBar(self.local_size, len(self.files), force)
+            bar = _MultipleFilesProgressBar(self.local_size, len(self.files), enable_progress_bar)
 
         file_paths = []
         with bar:

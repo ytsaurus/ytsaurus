@@ -51,10 +51,10 @@ class _ProgressReporter(object):
             yield chunk
 
 class _SimpleProgressBar(object):
-    def __init__(self, size_hint=None, filename_hint=None, force=False):
+    def __init__(self, size_hint=None, filename_hint=None, enable=None):
         self.size_hint = size_hint
         self.filename_hint = filename_hint
-        self.force = force
+        self.enable = enable
         self._tqdm = None
 
     def _set_status(self, status):
@@ -64,11 +64,11 @@ class _SimpleProgressBar(object):
             self._tqdm.set_description("[{}]".format(status.upper()))
 
     def start(self):
-        if self.force:
-            disable = False
-        else:
+        if self.enable is None:
             disable = None
-        self._tqdm = CustomTqdm(unit="b", unit_scale=True, disable=disable, total=self.size_hint, leave=False)
+        else:
+            disable = not self.enable
+        self._tqdm = CustomTqdm(disable=disable, total=self.size_hint, leave=False)
         self._set_status("upload")
         return self
 
@@ -164,8 +164,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
 
         enable_progress_bar = get_config(client)["write_progress_bar"]["enable"]
         if progress_monitor is None:
-            force = enable_progress_bar is True
-            progress_monitor = _SimpleProgressBar(size_hint, filename_hint, force)
+            progress_monitor = _SimpleProgressBar(size_hint, filename_hint, enable_progress_bar)
         if get_config(client)["write_progress_bar"]["enable"] is not False:
             progress_reporter = _ProgressReporter(progress_monitor)
         else:

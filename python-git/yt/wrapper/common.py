@@ -53,6 +53,10 @@ class CustomTqdm(tqdm.tqdm):
     # Disable the monitor thread.
     monitor_interval = 0
 
+    def __init__(self, *args, **kwargs):
+        kwargs = update(dict(unit="b", unit_scale=True, ascii=True), kwargs)
+        super(CustomTqdm, self).__init__(*args, **kwargs)
+
     @classmethod
     def format_meter(cls, n, total, *args, **kwargs):
         # NB: `super(cls)` does not support static methods, so we need `super(cls, cls)`.
@@ -63,7 +67,7 @@ class CustomTqdm(tqdm.tqdm):
         else:
             # Quick way to remove colon from the progress bar
             ind = meter.find(" :")
-            return meter[:ind] + meter[ind+2:]
+            return meter[:ind] + meter[ind + 2:]
 
 def compose(*args):
     def compose_two(f, g):
