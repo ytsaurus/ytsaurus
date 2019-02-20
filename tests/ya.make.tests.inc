@@ -17,6 +17,7 @@ SET(YP_TEST_SRCS
     test_cli.py
     test_client_discovery.py
     test_dns_record_set.py
+    test_dynamic_resource.py
     test_endpoint_sets.py
     test_endpoints.py
     test_grpc_stubs.py

@@ -1,6 +1,7 @@
 SET(PROTO_SRCS
 yp_proto/yp/client/api/proto/conditions.proto
 yp_proto/yp/client/api/proto/cluster_api.proto
+yp_proto/yp/client/api/proto/dynamic_resource.proto
 yp_proto/yp/client/api/proto/pod_agent.proto
 yp_proto/yp/client/api/proto/data_model.proto
 yp_proto/yp/client/api/proto/object_type.proto

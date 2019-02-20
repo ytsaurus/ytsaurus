@@ -4,6 +4,7 @@ package NYP.NClient.NApi.NProto;
 import "yp/client/api/proto/cluster_api.proto";
 import "yp/client/api/proto/pod_agent.proto";
 import "yp/client/api/proto/object_type.proto";
+import "yp/client/api/proto/conditions.proto";
 
 import "yt/core/yson/proto/protobuf_interop.proto";
 import "yt/core/ytree/proto/attributes.proto";
@@ -729,6 +730,9 @@ message TPodSpec
 
     // If given, overrides the podset's account.
     optional string account_id = 17;
+
+    // Dynamic resources for the pod
+    repeated TPodDynamicResourceSpec dynamic_resources = 18;
 }
 
 enum EEvictionState
@@ -941,6 +945,9 @@ message TPodStatus
 
     // Timestamp of the spec as reported by agent.
     optional uint64 agent_spec_timestamp = 12;
+
+    // List of dynamic resources currently present in pod
+    repeated TPodDynamicResourceStatus dynamic_resources = 13;
 }
 
 message TPodControl
@@ -1352,3 +1359,81 @@ message TAccount
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TPodDynamicResourceSpec {
+    // resource identifier
+    optional string id = 1;
+    
+    // desired revision of the resource
+    optional uint64 revision = 2;
+
+    message TStorageOptions {
+        // name of the box to download resource into
+        optional string box_ref = 1;
+
+        // filesystem path where the application should see the resource
+        optional string destination = 2;
+
+        // filesystem path where resource versions should be downloaded
+        optional string storage_dir = 3;
+
+        // HTTP GET handle to notify
+        // HTTP response codes from range 200-299 are considered to be success
+        message THttpAction {
+            // url to call
+            optional string url = 1;
+
+            // expected HTTP response body
+            optional string expected_answer = 2;
+        }
+
+        // Shell command to exec to notify
+        message TExecAction {
+            // shell command to exec
+            optional string command_line = 1;
+
+            // stdout to accept, if empty, stdout is ignored
+            optional string expected_answer = 2;
+        }
+
+        oneof Action {
+            THttpAction http_action = 4;
+            TExecAction exec_action = 5;
+        }
+
+        message TVerification {
+            // checksum in the form: <scheme>:<value> Supported schemes are "MD5:", "EMPTY:", "SHA256:", all case sensitive
+            optional string checksum = 1;
+
+            // period of checksum check. First check is done right after download
+            optional uint64 check_period_ms = 2;
+        }
+
+        // rule how to check the resource
+        optional TVerification verification = 6;
+    }
+
+    optional TStorageOptions storage_options = 3;
+
+    // url where to download the resource from
+    // supported protocols: http, https, rbtorrent, raw
+    // (for raw resources use raw:<raw string>)
+    optional string url = 4;
+}
+
+message TPodDynamicResourceStatus {
+    // resource identifier
+    optional string id = 1;
+
+    // current resource revision in pod
+    optional uint64 revision = 2;
+
+    // resource is currently active
+    optional TCondition ready = 3;
+
+    // resource is currently being deployed
+    optional TCondition in_progress = 4;
+
+    // resource deploy failed with error
+    optional TCondition error = 5;
+}

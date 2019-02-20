@@ -1,3 +1,4 @@
+#include "dynamic_resource.h"
 #include "pod_set.h"
 #include "pod.h"
 #include "node_segment.h"
@@ -39,6 +40,7 @@ TPodSet::TPodSet(
     ISession* session)
     : TObject(id, TObjectId(), typeHandler, session)
     , Pods_(this)
+    , DynamicResources_(this)
     , Spec_(this)
 { }
 

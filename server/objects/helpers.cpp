@@ -507,6 +507,8 @@ TStringBuf GetCapitalizedHumanReadableTypeName(EObjectType type)
             return AsStringBuf("Resource");
         case EObjectType::ResourceCache:
             return AsStringBuf("Resource cache");
+        case EObjectType::DynamicResource:
+            return AsStringBuf("Dynamic resource");
         case EObjectType::NetworkProject:
             return AsStringBuf("Network project");
         case EObjectType::ReplicaSet:
@@ -551,6 +553,8 @@ TStringBuf GetLowercaseHumanReadableTypeName(EObjectType type)
             return AsStringBuf("resource");
         case EObjectType::ResourceCache:
             return AsStringBuf("resource cache");
+        case EObjectType::DynamicResource:
+            return AsStringBuf("dynamic resource");
         case EObjectType::NetworkProject:
             return AsStringBuf("network project");
         case EObjectType::ReplicaSet:

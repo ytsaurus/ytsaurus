@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package NYP.NClient.NApi.NProto;
+
+import "yp_proto/yp/client/api/proto/data_model.proto";
+import "yp_proto/yp/client/api/proto/object_type.proto";
+import "yp_proto/yp/client/api/proto/conditions.proto";
+
+import "yt/core/yson/proto/protobuf_interop.proto";
+import "yt/core/ytree/proto/attributes.proto";
+
+option java_package = "ru.yandex.yp.client.api";
+option java_outer_classname = "DynamicResource";
+
+// for field descriptions see NYP.NClient.NApi.NProto.TSchemaMeta
+message TDynamicResourceMeta {
+    string id = 1;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    // id of pod_set where to deploy the resource
+    string pod_set_id = 4;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+    string uuid = 12;
+    string name = 13;
+};
+
+message TDynamicResourceSpec {
+    // resource revision, server-side incremented sequence, monotonic
+    uint64 revision = 1;
+
+    // url where to download the resource from
+    // supported protocols: http, https, rbtorrent, raw
+    // (for raw resources use raw:<base64>)
+    string url = 2;
+
+    // options how to handle resource inside the box
+    TPodDynamicResourceSpec.TStorageOptions storage_options = 3;
+    
+    // size of the update window in pods
+    uint32 update_window = 4;
+
+}
+
+message TDynamicResourceStatus {
+    message TRevisionStatus {
+        // revision id
+        uint64 revision = 1;
+        // amount of pods where this revision is active
+        TAggregatedCondition ready = 2;
+        // amount of pods where this revision is currently updating
+        TAggregatedCondition in_progress = 3;
+        // amount of pods where resource update failed on installing this revision
+        TAggregatedCondition error = 4;
+    }
+    repeated TRevisionStatus revisions = 1;
+}
+
+message TDynamicResource {
+    TDynamicResourceMeta meta = 1;
+    TDynamicResourceSpec spec = 2;
+    TDynamicResourceStatus status = 3;
+    NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+}

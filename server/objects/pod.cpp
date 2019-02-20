@@ -28,6 +28,11 @@ const TScalarAttributeSchema<TPod, TPod::TStatus::TAgent::TPodAgentPayload> TPod
     [] (TPod* pod) { return &pod->Status().Agent().PodAgentPayload(); }
 };
 
+const TScalarAttributeSchema<TPod, TPod::TStatus::TDynamicResourceStatus> TPod::TStatus::DynamicResourcesSchema{
+    &PodsTable.Fields.Status_DynamicResources,
+    [] (TPod* pod) { return &pod->Status().DynamicResources(); }
+};
+
 const TScalarAttributeSchema<TPod, TPod::TStatus::TAgent::TOther> TPod::TStatus::TAgent::OtherSchema{
     &PodsTable.Fields.Status_Agent_Other,
     [] (TPod* pod) { return &pod->Status().Agent().Other(); }
@@ -61,6 +66,7 @@ TPod::TStatus::TStatus(TPod* pod)
     : Agent_(pod)
     , GenerationNumber_(pod, &GenerationNumberSchema)
     , AgentSpecTimestamp_(pod, &AgentSpecTimestampSchema)
+    , DynamicResources_(pod, &DynamicResourcesSchema)
     , Other_(pod, &OtherSchema)
 { }
 
@@ -96,6 +102,11 @@ const TTimestampAttributeSchema TPod::TSpec::UpdateTimestampSchema{
     &PodsTable.Fields.Spec_UpdateTag
 };
 
+const TScalarAttributeSchema<TPod, TPod::TSpec::TDynamicResourceSpec> TPod::TSpec::DynamicResourcesSchema{
+    &PodsTable.Fields.Spec_DynamicResources,
+    [] (TPod* pod) { return &pod->Spec().DynamicResources(); }
+};
+
 const TScalarAttributeSchema<TPod, TPod::TSpec::TOther> TPod::TSpec::OtherSchema{
     &PodsTable.Fields.Spec_Other,
     [] (TPod* pod) { return &pod->Spec().Other(); }
@@ -114,6 +125,7 @@ TPod::TSpec::TSpec(TPod* pod)
     , EnableScheduling_(pod, &EnableSchedulingSchema)
     , Secrets_(pod, &SecretsSchema)
     , UpdateTimestamp_(pod, &UpdateTimestampSchema)
+    , DynamicResources_(pod, &DynamicResourcesSchema)
     , Other_(pod, &OtherSchema)
     , Account_(pod, &AccountSchema)
 { }

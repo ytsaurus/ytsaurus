@@ -59,6 +59,9 @@ enum EObjectType
     OT_RESOURCE_CACHE = 15
     [(NYT.NYson.NProto.enum_value_name) = "resource_cache"];
 
+    OT_DYNAMIC_RESOURCE = 16
+    [(NYT.NYson.NProto.enum_value_name) = "dynamic_resource"];
+
     OT_SCHEMA = 256
     [(NYT.NYson.NProto.enum_value_name) = "schema"];
 

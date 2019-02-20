@@ -63,6 +63,10 @@ public:
         static const TScalarAttributeSchema<TPod, NTransactionClient::TTimestamp> AgentSpecTimestampSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<NTransactionClient::TTimestamp>, AgentSpecTimestamp);
 
+        using TDynamicResourceStatus = std::vector<NClient::NApi::NProto::TPodDynamicResourceStatus>;
+        static const TScalarAttributeSchema<TPod, TDynamicResourceStatus> DynamicResourcesSchema;
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TDynamicResourceStatus>, DynamicResources);
+
         using TOther = NProto::TPodStatusOther;
         static const TScalarAttributeSchema<TPod, TOther> OtherSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TOther>, Other);
@@ -95,6 +99,10 @@ public:
 
         static const TTimestampAttributeSchema UpdateTimestampSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TTimestampAttribute, UpdateTimestamp);
+
+        using TDynamicResourceSpec = std::vector<NClient::NApi::NProto::TPodDynamicResourceSpec>;
+        static const TScalarAttributeSchema<TPod, TDynamicResourceSpec> DynamicResourcesSchema;
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TDynamicResourceSpec>, DynamicResources);
 
         using TOther = NProto::TPodSpecOther;
         static const TScalarAttributeSchema<TPod, TOther> OtherSchema;

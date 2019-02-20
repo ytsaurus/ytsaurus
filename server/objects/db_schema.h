@@ -148,6 +148,7 @@ extern const struct TPodsTable
         TDBField Status_Agent_State{"status.agent.state"};
         TDBField Status_Agent_IssPayload{"status.agent.iss_payload"};
         TDBField Status_Agent_PodAgentPayload{"status.agent.pod_agent_payload"};
+        TDBField Status_DynamicResources{"status.dynamic_resources"};
         TDBField Status_Agent_Other{"status.agent.other"};
         TDBField Status_Other{"status.other"};
         TDBField Spec_NodeId{"spec.node_id"};
@@ -158,6 +159,7 @@ extern const struct TPodsTable
         TDBField Spec_UpdateTag{"spec.update_tag"};
         TDBField Spec_Other{"spec.other"};
         TDBField Spec_AccountId{"spec.account_id"};
+        TDBField Spec_DynamicResources{"spec.dynamic_resources"};
     } Fields;
 } PodsTable;
 
@@ -262,6 +264,27 @@ extern const struct TResourceCachesTable
         TDBField Status{"status"};
     } Fields;
 } ResourceCachesTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const struct TDynamicResourcesTable
+    : public TDBTable
+    , public TObjectTableBase
+{
+    TDynamicResourcesTable()
+        : TDBTable("dynamic_resources")
+    {
+        Key = {&Fields.Meta_PodSetId, &TObjectTableBase::Fields.Meta_Id};
+    }
+
+    struct TFields
+        : public TObjectTableBase::TFields
+    {
+        TDBField Meta_PodSetId{"meta.pod_set_id"};
+        TDBField Spec{"spec"};
+        TDBField Status{"status"};
+    } Fields;
+} DynamicResourcesTable;
 
 ////////////////////////////////////////////////////////////////////////////////
 

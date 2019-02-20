@@ -27,6 +27,9 @@ public:
     using TPodsAttribute = TChildrenAttribute<TPod>;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TPodsAttribute, Pods);
 
+    using TDynamicResourcesAttribute = TChildrenAttribute<TDynamicResource>;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TDynamicResourcesAttribute, DynamicResources);
+
     class TSpec
     {
     public:

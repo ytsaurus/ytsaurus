@@ -93,6 +93,10 @@ public:
                 MakeAttributeSchema("agent_spec_timestamp")
                     ->SetAttribute(TPod::TStatus::AgentSpecTimestampSchema),
 
+                MakeAttributeSchema("dynamic_resources")
+                    ->SetAttribute(TPod::TStatus::DynamicResourcesSchema)
+                    ->SetUpdatable(),
+
                 MakeFallbackAttributeSchema()
                     ->SetAttribute(TPod::TStatus::OtherSchema)
             });
@@ -129,6 +133,10 @@ public:
                     ->SetUpdatable()
                     ->SetUpdateHandler<TPod>(std::bind(&TPodTypeHandler::OnAccountUpdated, this, _1, _2))
                     ->SetValidator<TPod>(std::bind(&TPodTypeHandler::ValidateAccount, this, _1, _2)),
+
+                MakeAttributeSchema("dynamic_resources")
+                    ->SetAttribute(TPod::TSpec::DynamicResourcesSchema)
+                    ->SetUpdatable(),
 
                 MakeFallbackAttributeSchema()
                     ->SetAttribute(TPod::TSpec::OtherSchema)
