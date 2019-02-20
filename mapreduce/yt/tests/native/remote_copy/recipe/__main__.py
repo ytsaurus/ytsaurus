@@ -1,5 +1,3 @@
-import json
-
 from library.python.testing.recipe import declare_recipe, set_env
 
 from mapreduce.yt.python.yt_stuff import YtStuff, YtConfig
@@ -8,31 +6,35 @@ import yatest.common
 
 import yt.wrapper
 
+import os
+import json
+
 info_files = []
 
 
 def start(args, recipe_info_json_file, yt_config):
-    yt_config.python_binary = yatest.common.binary_path("contrib/tools/python/python")
+    if yt_config is None:
+        yt_config = YtConfig()
 
-    yt = YtStuff(yt_config)
-    yt.start_local_yt()
+    yt_stuff = YtStuff(yt_config)
+    yt_stuff.start_local_yt()
 
     recipe_info = {
-        "yt_id": yt.yt_id,
-        "yt_work_dir": yt.yt_work_dir,
-        "yt_local_path": yt.yt_local_path
+        "yt_id": yt_stuff.yt_id,
+        "yt_work_dir": yt_stuff.yt_work_dir,
+        "yt_local_exec": yt_stuff.yt_local_exec
     }
 
-    with open(recipe_info_json_file, "w") as f:
-        json.dump(recipe_info, f)
-    return yt
+    with open(recipe_info_json_file, "w") as fout:
+        json.dump(recipe_info, fout)
+    return yt_stuff
 
 
 def stop(args, recipe_info_json_file):
     with open(recipe_info_json_file) as f:
         recipe_info = json.load(f)
     yatest.common.execute(
-        recipe_info["yt_local_path"] + [
+        recipe_info["yt_local_exec"] + [
             "stop",
             os.path.join(
                 recipe_info["yt_work_dir"],

@@ -1,4 +1,7 @@
 from yt.common import update
+from yt.environment.arcadia_interop import prepare_yt_binaries
+
+import yt.yson as yson
 
 from functools import wraps
 import logging
@@ -15,10 +18,7 @@ import gzip
 import contextlib
 import copy
 
-
 import yatest.common
-
-import yt.yson as yson
 
 import devtools.swag.daemon
 import devtools.swag.ports
@@ -81,7 +81,6 @@ class YtConfig(object):
                  job_controller_resource_limits=None,
                  forbid_chunk_storage_in_tmpfs=None,
                  node_chunk_store_quota=None,
-                 yt_version=None,
                  cell_tag=None,
                  python_binary=None,
                  enable_debug_logging=None):
@@ -112,18 +111,6 @@ class YtConfig(object):
         self.node_chunk_store_quota = node_chunk_store_quota
 
         self.enable_debug_logging = enable_debug_logging
-
-        yt_package_versions = os.listdir(yatest.common.build_path("yt/packages"))
-        if len(yt_package_versions) != 1:
-            raise RuntimeError("Test should specify exactly one version of YT package in DEPENDS")
-
-        if yt_version is None:
-            self.yt_version = yt_package_versions[-1]
-        else:
-            if yt_version not in yt_package_versions:
-                raise RuntimeError("YT package version mismatch (version in DEPENDS: {0}, version in YtConfig: {1}) "
-                                   .format(yt_package_versions[-1], yt_version))
-            self.yt_version = yt_version
 
         self.cell_tag = cell_tag
         self.python_binary = python_binary
@@ -182,7 +169,6 @@ class YtConfig(object):
 class YtStuff(object):
     def __init__(self, config=None):
         self.config = config or YtConfig()
-        self.version = self.config.yt_version
 
         self.python_binary = self.config.python_binary or yatest.common.python_path()
 
@@ -272,17 +258,28 @@ class YtStuff(object):
         if self.tmpfs_path:
             self.tmpfs_path = tempfile.mkdtemp(prefix="yt_", dir=self.tmpfs_path)
 
-        # Folders
+        # YT directory.
         self.yt_path = tempfile.mkdtemp(dir=work_path, prefix="yt_") if self.config.yt_path is None else self.config.yt_path
+
+        # YT binaries.
         self.yt_bins_path = os.path.join(self.yt_path, "bin")
-        self.yt_thor_path = os.path.join(self.yt_path, "yt-thor")
-        # Binaries
-        self.yt_local_path = [self.python_binary, os.path.join(self.yt_bins_path, "yt_local")]
+        os.makedirs(self.yt_bins_path)
 
-        yt_archive_path = yatest.common.binary_path('yt/packages/{0}/yt/packages/{0}/yt_thor.tar'.format(self.version))
+        source_prefix = ""
+        yt_package_versions = os.listdir(yatest.common.build_path("yt/packages"))
+        if len(yt_package_versions) > 1:
+            raise RuntimeError("Test should specify not more than one version of YT package in DEPENDS")
+        if len(yt_package_versions) == 1:
+            source_prefix = "yt/packages/" + yt_package_versions[0] + "/"
+
+        prepare_yt_binaries(self.yt_bins_path, source_prefix)
+
+        self.yt_local_exec = [yatest.common.binary_path(source_prefix + "yt/python/yt/local/bin/yt_local_make/yt_local")]
+
+        # Thor (YT UI).
+        yt_archive_path = yatest.common.binary_path("yt/packages/19_4/yt/packages/19_4/yt_thor.tar")
         self._extract_tar(yt_archive_path, self.yt_path)
-
-        self._replace_binaries()
+        self.yt_thor_path = os.path.join(self.yt_path, "yt-thor")
 
         user_yt_work_dir_base = self.config.yt_work_dir or yatest.common.get_param("yt_work_dir")
         if user_yt_work_dir_base:
@@ -305,35 +302,10 @@ class YtStuff(object):
         self.yt_local_err = open(yt_local_err_path, "r+")
         self.is_running = False
 
-    def _replace_binaries(self):
-        paths = [self.yt_bins_path]
-        for path in paths:
-            if not os.path.exists(path):
-                os.makedirs(path)
-
-        self.yt_local_path = [yatest.common.binary_path('yt/packages/{}/contrib/python/yt_local/bin/local/yt_local'.format(self.version))]
-        self.yt_env_watcher_dir_path = yatest.common.binary_path('yt/packages/{}/contrib/python/yt_local/bin/watcher'.format(self.version))
-
-        programs = [('master', 'master/bin'),
-                    ('node', 'node/bin'),
-                    ('job-proxy', 'job_proxy/bin'),
-                    ('exec', 'bin/exec'),
-                    ('proxy', 'rpc_proxy/bin'),
-                    ('http-proxy', 'http_proxy/bin'),
-                    ('tools', 'bin/tools'),
-                    ('scheduler', 'scheduler/bin'),
-                    ('controller-agent', 'controller_agent/bin')]
-        for binary, server_dir in programs:
-            binary_path = yatest.common.binary_path('yt/packages/{0}/yt/{0}/yt/server/{1}/ytserver-{2}'
-                                                    .format(self.version, server_dir, binary))
-            os.symlink(binary_path, os.path.join(self.yt_bins_path, 'ytserver-' + binary))
-
     def _prepare_env(self):
         self.env = {}
         self.env["PATH"] = ":".join([
-            "/usr/sbin",  # It is required to locate logrotate in watcher process
             self.yt_bins_path,
-            self.yt_env_watcher_dir_path,
         ])
         self.env["YT_LOCAL_THOR_PATH"] = self.yt_thor_path
         self.env["YT_ENABLE_VERBOSE_LOGGING"] = "1"
@@ -403,7 +375,7 @@ class YtStuff(object):
             if local_cypress_dir:
                 args += ["--local-cypress-dir", local_cypress_dir]
 
-            cmd = self.yt_local_path + list(args)
+            cmd = self.yt_local_exec + list(args)
             self._log(" ".join([os.path.basename(cmd[0])] + cmd[1:]))
 
             special_file = os.path.join(self.yt_work_dir, self.yt_id, "started")
@@ -519,7 +491,7 @@ class YtStuff(object):
 
     def suspend_local_yt(self):
         try:
-            cmd = self.yt_local_path + [
+            cmd = self.yt_local_exec + [
                 "stop", os.path.join(self.yt_work_dir, self.yt_id),
             ]
             self._log(" ".join([os.path.basename(cmd[0])] + cmd[1:]))
