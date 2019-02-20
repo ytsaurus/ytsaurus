@@ -128,8 +128,8 @@ public:
     virtual std::vector<int> GetPids() override
     {
         auto pids = GetPidsByUid();
-        auto my_pid = ::getpid();
-        auto it = std::find(pids.begin(), pids.end(), my_pid);
+        auto myPid = ::getpid();
+        auto it = std::find(pids.begin(), pids.end(), myPid);
         if (it != pids.end()) {
             pids.erase(it);
         }
