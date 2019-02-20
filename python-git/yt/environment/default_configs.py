@@ -175,7 +175,10 @@ b"""
         enable_read_from_followers = %true;
         scheduler = {
             retry_backoff_time = 100;
-        }
+        };
+        node_directory_synchronizer = {
+            sync_period = 100;
+        };
     };
 
     controller_agent = {
@@ -243,6 +246,10 @@ b"""
 
         scheduler = {
             retry_backoff_time = 100;
+        };
+
+        node_directory_synchronizer = {
+            sync_period = 100;
         };
 
         enable_udf = %true;
