@@ -660,6 +660,14 @@ func (w *Writer) RawNode(raw []byte) {
 	}
 }
 
+func (w *Writer) Any(v interface{}) {
+	if w.err != nil {
+		return
+	}
+
+	w.err = encodeAny(w, v)
+}
+
 func (w *Writer) Finish() error {
 	if w.err != nil {
 		return w.err

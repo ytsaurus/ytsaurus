@@ -42,8 +42,8 @@
 * TODO
 ** implicit int-uint conversion
 ** SyntaxError type
-** omitempty
+** DONE omitempty
 ** zero initialization of fields
 ** handling nil values
 ** cleanup error handling
-** TextMarshaler and BinaryMarshaler
+** DONE TextMarshaler and BinaryMarshaler

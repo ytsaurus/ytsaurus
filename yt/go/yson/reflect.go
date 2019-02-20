@@ -131,7 +131,7 @@ func decodeReflect(d *Reader, v reflect.Value) error {
 	case reflect.Map:
 		return decodeReflectMap(d, v)
 	default:
-		return &UnsupportedTypeError{UserType: v.Type()}
+		return &UnsupportedTypeError{v.Type()}
 	}
 }
 

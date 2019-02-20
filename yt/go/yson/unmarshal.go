@@ -1,4 +1,4 @@
-// Package yson implements encoding and decoding of YSON.
+// package yson implements encoding and decoding of YSON.
 //
 // See https://wiki.yandex-team.ru/yt/userdoc/yson/ for introduction to YSON.
 //
@@ -26,6 +26,7 @@
 package yson
 
 import (
+	"encoding"
 	"errors"
 	"math"
 	"reflect"
@@ -38,8 +39,8 @@ type Unmarshaler interface {
 	UnmarshalYSON([]byte) error
 }
 
-// StreamUnmarhsaler is an interface implemented by types that can unmarhsal themselves from YSON reader.
-type StreamUnmarhsaler interface {
+// StreamUnmarshaler is an interface implemented by types that can unmarhsal themselves from YSON reader.
+type StreamUnmarshaler interface {
 	UnmarshalYSON(*Reader) error
 }
 
@@ -199,18 +200,35 @@ func decodeAny(r *Reader, v interface{}) (err error) {
 	case *RawValue:
 		var raw []byte
 		raw, err = r.NextRawValue()
+		if err != nil {
+			return
+		}
+
 		*vv = make([]byte, len(raw))
 		copy(*vv, raw)
-	case StreamUnmarhsaler:
+
+	case encoding.TextUnmarshaler:
+		var b []byte
+		b, err = decodeString(r)
+		err = vv.UnmarshalText(b)
+	case encoding.BinaryUnmarshaler:
+		var b []byte
+		b, err = decodeString(r)
+		err = vv.UnmarshalBinary(b)
+
+	case StreamUnmarshaler:
 		err = vv.UnmarshalYSON(r)
 	case Unmarshaler:
 		var raw []byte
 		raw, err = r.NextRawValue()
 		if err != nil {
-			err = vv.UnmarshalYSON(raw)
+			return
 		}
+
+		err = vv.UnmarshalYSON(raw)
 	case *interface{}:
 		err = decodeGeneric(r, vv)
+
 	default:
 		err = decodeReflect(r, reflect.ValueOf(v))
 	}
