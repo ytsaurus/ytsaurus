@@ -134,7 +134,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SetupHostContext(TBootstrap* bootstrap, DB::Context& context);
+void SetupHostContext(TBootstrap* bootstrap, DB::Context& context, TQueryId queryId = TQueryId());
 
 TQueryContext* GetQueryContext(const DB::Context& context);
 

@@ -101,6 +101,12 @@ public:
             ProxiedRequestHeaders_->Remove("Authorization");
             ProxiedRequestHeaders_->Add("X-Yt-User", User_);
             ProxiedRequestHeaders_->Add("X-Clickhouse-User", User_);
+            ProxiedRequestHeaders_->Add("X-Yt-Request-Id", ToString(Request_->GetRequestId()));
+
+            CgiParameters_.EraseAll("database");
+            CgiParameters_.EraseAll("query_id");
+            CgiParameters_.emplace("query_id", ToString(Request_->GetRequestId()));
+
 
             ProxiedRequestUrl_ = Format("http://%v:%v%v?%v",
                 InstanceHost_,
@@ -135,6 +141,7 @@ public:
         YT_LOG_DEBUG("Forwarding back subresponse");
         Response_->SetStatus(ProxiedRespose_->GetStatusCode());
         Response_->GetHeaders()->MergeFrom(ProxiedRespose_->GetHeaders());
+
         PipeInputToOutput(ProxiedRespose_, Response_);
         YT_LOG_DEBUG("ProxiedRespose forwarded");
     }
@@ -232,8 +239,8 @@ private:
             ParseTokenFromAuthorizationHeader(*authorization);
         } else if (CgiParameters_.Has("password")) {
             Token_ = CgiParameters_.Get("password");
-            CgiParameters_.Erase("password");
-            CgiParameters_.Erase("user");
+            CgiParameters_.EraseAll("password");
+            CgiParameters_.EraseAll("user");
         } else {
             ReplyWithError(EStatusCode::Unauthorized,
                 TError("Authorization should be perfomed either by setting `Authorization` header (`Basic` or `OAuth` schemes) "

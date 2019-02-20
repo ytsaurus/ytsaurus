@@ -561,11 +561,15 @@ NApi::NNative::IClientPtr& TQueryContext::Client()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SetupHostContext(TBootstrap* bootstrap, DB::Context& context)
+void SetupHostContext(TBootstrap* bootstrap, DB::Context& context, TQueryId queryId)
 {
+    if (!queryId) {
+        queryId = TQueryId::Create();
+    }
+
     context.getHostContext() = std::make_shared<TQueryContext>(
         bootstrap,
-        TQueryId::Create(),
+        queryId,
         context);
 }
 
