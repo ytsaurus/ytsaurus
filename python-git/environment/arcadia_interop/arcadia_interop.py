@@ -1,13 +1,12 @@
 import os
 import fcntl
 import time
-import subprocess
 
 import yatest.common
 
 YT_ABI = "19_4"
 
-def prepare_yt_binaries(destination):
+def prepare_yt_binaries(destination, source_prefix=""):
     programs = [("master", "master/bin"),
                 ("node", "node/bin"),
                 ("job-proxy", "job_proxy/bin"),
@@ -18,14 +17,14 @@ def prepare_yt_binaries(destination):
                 ("scheduler", "scheduler/bin"),
                 ("controller-agent", "controller_agent/bin")]
     for binary, server_dir in programs:
-        binary_path = yatest.common.binary_path("yt/{0}/yt/server/{1}/ytserver-{2}"
-                                                .format(YT_ABI, server_dir, binary))
+        binary_path = yatest.common.binary_path("{0}yt/{1}/yt/server/{2}/ytserver-{3}"
+                                                .format(source_prefix, YT_ABI, server_dir, binary))
         os.symlink(binary_path, os.path.join(destination, "ytserver-" + binary))
 
-    watcher_path = yatest.common.binary_path("yt/python/yt/environment/bin/yt_env_watcher_make/yt_env_watcher")
+    watcher_path = yatest.common.binary_path(source_prefix + "yt/python/yt/environment/bin/yt_env_watcher_make/yt_env_watcher")
     os.symlink(watcher_path, os.path.join(destination, "yt_env_watcher"))
 
-    logrotate_path = yatest.common.binary_path("infra/nanny/logrotate/logrotate")
+    logrotate_path = yatest.common.binary_path(source_prefix + "infra/nanny/logrotate/logrotate")
     os.symlink(logrotate_path, os.path.join(destination, "logrotate"))
 
 def prepare_yt_environment(destination):
