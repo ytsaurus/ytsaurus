@@ -6006,7 +6006,7 @@ private:
                         continue;
                     }
 
-                    if (snapshotId <= thresholdId) {
+                    if (snapshotId < thresholdId) {
                         YT_LOG_INFO("Removing tablet cell snapshot (CellId: %v, SnapshotId: %v)",
                             cellId,
                             snapshotId);
@@ -6052,7 +6052,7 @@ private:
                         continue;
                     }
 
-                    if (changelogId <= thresholdId) {
+                    if (changelogId < thresholdId) {
                         YT_LOG_INFO("Removing tablet cell changelog (CellId: %v, ChangelogId: %v)",
                             cellId,
                             changelogId);
