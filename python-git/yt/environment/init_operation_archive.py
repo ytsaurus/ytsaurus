@@ -163,36 +163,36 @@ TRANSFORMS[0] = [
     Convert(
         "ordered_by_id",
         table_info=TableInfo([
-            ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
-            ("id_hi", "uint64"),
-            ("id_lo", "uint64"),
-        ], [
-            ("state", "string"),
-            ("authenticated_user", "string"),
-            ("operation_type", "string"),
-            ("progress", "any"),
-            ("spec", "any"),
-            ("brief_progress", "any"),
-            ("brief_spec", "any"),
-            ("start_time", "int64"),
-            ("finish_time", "int64"),
-            ("filter_factors", "string"),
-            ("result", "any")
-        ],
-        in_memory=True,
-        get_pivot_keys=get_default_pivots,
-        attributes={"tablet_cell_bundle": "sys"})),
+                ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
+                ("id_hi", "uint64"),
+                ("id_lo", "uint64"),
+            ], [
+                ("state", "string"),
+                ("authenticated_user", "string"),
+                ("operation_type", "string"),
+                ("progress", "any"),
+                ("spec", "any"),
+                ("brief_progress", "any"),
+                ("brief_spec", "any"),
+                ("start_time", "int64"),
+                ("finish_time", "int64"),
+                ("filter_factors", "string"),
+                ("result", "any")
+            ],
+            in_memory=True,
+            get_pivot_keys=get_default_pivots,
+            attributes={"tablet_cell_bundle": "sys"})),
     Convert(
         "ordered_by_start_time",
         table_info=TableInfo([
-            ("start_time", "int64"),
-            ("id_hi", "uint64"),
-            ("id_lo", "uint64")
-        ], [
-            ("dummy", "int64")
-        ],
-        in_memory=True,
-        attributes={"tablet_cell_bundle": "sys"}))
+                ("start_time", "int64"),
+                ("id_hi", "uint64"),
+                ("id_lo", "uint64")
+            ], [
+                ("dummy", "int64")
+            ],
+            in_memory=True,
+            attributes={"tablet_cell_bundle": "sys"}))
 ]
 
 def convert_start_finish_time_mapper(row):
@@ -613,7 +613,7 @@ TRANSFORMS[15] = [
 TRANSFORMS[16] = [
     Convert(
         "jobs",
-            table_info=TableInfo([
+        table_info=TableInfo([
                 ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
                 ("operation_id_hi", "uint64"),
                 ("operation_id_lo", "uint64"),
@@ -680,7 +680,7 @@ TRANSFORMS[17] = [
 TRANSFORMS[18] = [
     Convert(
         "jobs",
-            table_info=TableInfo([
+        table_info=TableInfo([
                 ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
                 ("operation_id_hi", "uint64"),
                 ("operation_id_lo", "uint64"),
@@ -722,7 +722,7 @@ TRANSFORMS[19] = [
 TRANSFORMS[20] = [
     Convert(
         "jobs",
-            table_info=TableInfo([
+        table_info=TableInfo([
                 ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
                 ("operation_id_hi", "uint64"),
                 ("operation_id_lo", "uint64"),
@@ -766,7 +766,7 @@ TRANSFORMS[21] = [
         use_default_mapper=True),
     Convert(
         "jobs",
-            table_info=TableInfo([
+        table_info=TableInfo([
                 ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
                 ("operation_id_hi", "uint64"),
                 ("operation_id_lo", "uint64"),
@@ -825,7 +825,7 @@ TRANSFORMS[22] = [
 TRANSFORMS[23] = [
     Convert(
         "jobs",
-            table_info=TableInfo([
+        table_info=TableInfo([
                 ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
                 ("operation_id_hi", "uint64"),
                 ("operation_id_lo", "uint64"),
@@ -990,7 +990,7 @@ TRANSFORMS[29] = [
             ("slot_index_per_pool_tree", "any"),
             ("annotations", "any")
         ],
-        in_memory=True))
+            in_memory=True))
 ]
 
 def swap_table(client, target, source, version):
