@@ -147,8 +147,8 @@ class TestRuntimeParameters(YTEnvSetup):
 
     def create_custom_pool_tree_with_one_node(self, pool_tree):
         tag = pool_tree
-        node = ls("//sys/nodes")[0]
-        set("//sys/nodes/" + node + "/@user_tags/end", tag)
+        node = ls("//sys/cluster_nodes")[0]
+        set("//sys/cluster_nodes/" + node + "/@user_tags/end", tag)
         create("map_node", "//sys/pool_trees/" + pool_tree, attributes={"nodes_filter": tag})
         set("//sys/pool_trees/default/@nodes_filter", "!" + tag)
         return node

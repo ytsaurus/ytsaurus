@@ -50,7 +50,7 @@ class TestTables(YTEnvSetup):
 
         write_table("//tmp/table", [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 3}])
 
-        nodes = ls("//sys/nodes")
+        nodes = ls("//sys/cluster_nodes")
         for node in nodes:
             set_node_banned(node, True)
 

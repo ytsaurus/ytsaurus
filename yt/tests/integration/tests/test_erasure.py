@@ -78,11 +78,11 @@ class TestErasure(YTEnvSetup):
         parts = [int(s, 16) for s in chunk_id.split("-")]
         parts[2] = (parts[2] / 2 ** 16) * (2 ** 16) + 103 + replica_index
         node_chunk_id = "-".join(hex(i)[2:] for i in parts)
-        return get("//sys/nodes/{0}/orchid/stored_chunks/{1}".format(address, node_chunk_id))["block_count"]
+        return get("//sys/cluster_nodes/{0}/orchid/stored_chunks/{1}".format(address, node_chunk_id))["block_count"]
 
     def _prepare_table(self):
-        for node in ls("//sys/nodes"):
-            set("//sys/nodes/{0}/@resource_limits_overrides".format(node), {"repair_slots": 0})
+        for node in ls("//sys/cluster_nodes"):
+            set("//sys/cluster_nodes/{0}/@resource_limits_overrides".format(node), {"repair_slots": 0})
 
         remove("//tmp/table", force=True)
         create("table", "//tmp/table", attributes={"erasure_codec": "lrc_12_2_2"})

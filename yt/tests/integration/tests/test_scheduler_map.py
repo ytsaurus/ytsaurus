@@ -669,8 +669,8 @@ print row + table_index
             })
         wait_breakpoint(job_count=5)
 
-        for n in get("//sys/nodes"):
-            job_controller = get("//sys/nodes/{0}/orchid/job_controller/active_jobs/scheduler".format(n))
+        for n in get("//sys/cluster_nodes"):
+            job_controller = get("//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler".format(n))
             for job_id, values in job_controller.items():
                 assert "start_time" in values
                 assert "operation_id" in values
@@ -1236,9 +1236,9 @@ class TestJobSizeAdjuster(YTEnvSetup):
         replica_to_ban = str(replicas[0])  # str() is for attribute stripping.
 
         banned = False
-        for node in ls("//sys/nodes"):
+        for node in ls("//sys/cluster_nodes"):
             if node == replica_to_ban:
-                set("//sys/nodes/{0}/@banned".format(node), True)
+                set("//sys/cluster_nodes/{0}/@banned".format(node), True)
                 banned = True
         assert banned
 
@@ -1265,9 +1265,9 @@ class TestJobSizeAdjuster(YTEnvSetup):
                 break
 
         unbanned = False
-        for node in ls("//sys/nodes"):
+        for node in ls("//sys/cluster_nodes"):
             if node == replica_to_ban:
-                set("//sys/nodes/{0}/@banned".format(node), False)
+                set("//sys/cluster_nodes/{0}/@banned".format(node), False)
                 unbanned = True
         assert unbanned
 

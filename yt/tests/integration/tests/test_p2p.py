@@ -9,9 +9,9 @@ def clear_everything_after_test(func):
         self = args[0]
         self.Env.kill_nodes()
         self.Env.start_nodes()
-        nodes = list(get("//sys/nodes"))
+        nodes = list(get("//sys/cluster_nodes"))
         for node in nodes:
-            set("//sys/nodes/{0}/@user_tags".format(node), [])
+            set("//sys/cluster_nodes/{0}/@user_tags".format(node), [])
     return wrapped
 
 class TestBlockPeerDistributorSynthetic(YTEnvSetup):
@@ -46,8 +46,8 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
         chunk_id = get_singular_chunk_id("//tmp/t")
         # Node that is the seed for the only existing chunk.
         self.seed = str(get("#{0}/@stored_replicas/0".format(chunk_id)))
-        self.nodes = ls("//sys/nodes")
-        self.non_seeds = ls("//sys/nodes")
+        self.nodes = ls("//sys/cluster_nodes")
+        self.non_seeds = ls("//sys/cluster_nodes")
         self.non_seeds.remove(self.seed)
         assert len(self.non_seeds) == 3
         print >>sys.stderr, "Seed: ", self.seed
@@ -77,7 +77,7 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
     @clear_everything_after_test
     def test_node_filter_tags(self):
         for non_seed in self.non_seeds:
-            set("//sys/nodes/{0}/@user_tags".format(non_seed), ["tag42"])
+            set("//sys/cluster_nodes/{0}/@user_tags".format(non_seed), ["tag42"])
         # Wait for node directory to become updated.
         time.sleep(2)
         with ProfileMetric.at_node(self.seed, "data_node/p2p/distributed_block_size") as p:
