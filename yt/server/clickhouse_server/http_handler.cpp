@@ -67,18 +67,20 @@ Poco::Net::HTTPRequestHandler* THttpHandlerFactory::createRequestHandler(
         : public DB::HTTPHandler
     {
     public:
-        THttpHandler(TBootstrap* bootstrap, DB::IServer& server)
+        THttpHandler(TBootstrap* bootstrap, DB::IServer& server, TQueryId queryId)
             : DB::HTTPHandler(server)
             , Bootstrap_(bootstrap)
+            , QueryId_(queryId)
         { }
 
         virtual void customizeContext(DB::Context& context) override
         {
-            SetupHostContext(Bootstrap_, context);
+            SetupHostContext(Bootstrap_, context, QueryId_);
         }
 
     private:
         TBootstrap* const Bootstrap_;
+        const TQueryId QueryId_;
     };
 
     const Poco::URI uri(request.getURI());
@@ -99,12 +101,18 @@ Poco::Net::HTTPRequestHandler* THttpHandlerFactory::createRequestHandler(
         }
     }
 
+    auto ytRequestId = request.get("X-Yt-Request-Id", "");
+    TQueryId queryId;
+    if (!TQueryId::FromString(ytRequestId, &queryId)) {
+        queryId = TQueryId::Create();
+    }
+
     // Query execution
     // HTTPHandler executes query in read-only mode for GET requests
     if (IsGet(request) || IsPost(request)) {
         if ((uri.getPath() == "/") ||
             (uri.getPath() == "/query")) {
-            auto* handler = new THttpHandler(Bootstrap_, Server);
+            auto* handler = new THttpHandler(Bootstrap_, Server, queryId);
             return handler;
         }
     }
