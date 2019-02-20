@@ -136,7 +136,9 @@ public:
         YCHECK(Config_);
         YCHECK(Connection_);
 
-        NodeDirectorySynchronizer_->Start();
+        if (!Config_->Token) {
+            NodeDirectorySynchronizer_->Start();
+        }
 
         // Register all commands.
 #define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy, version) \
@@ -387,11 +389,11 @@ public:
 
         ClearMetadataCaches();
 
-        if (NodeDirectorySynchronizer_) {
+        if (NodeDirectorySynchronizer_ && !Config_->Token) {
             WaitFor(NodeDirectorySynchronizer_->Stop())
                 .ThrowOnError();
-            NodeDirectorySynchronizer_.Reset();
         }
+        NodeDirectorySynchronizer_.Reset();
 
         // Release the connection with entire thread pools.
         if (Connection_) {
