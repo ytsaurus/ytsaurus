@@ -93,7 +93,7 @@ func TestMap(t *testing.T) {
 
 func TestMain(m *testing.M) {
 	if mapreduce.InsideJob() {
-		mapreduce.JobMain()
+		os.Exit(mapreduce.JobMain())
 	}
 
 	os.Exit(m.Run())

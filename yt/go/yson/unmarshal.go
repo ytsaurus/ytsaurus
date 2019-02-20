@@ -230,6 +230,7 @@ func decodeAny(r *Reader, v interface{}) (err error) {
 		err = decodeGeneric(r, vv)
 
 	default:
+		zeroInitialize(v)
 		err = decodeReflect(r, reflect.ValueOf(v))
 	}
 
