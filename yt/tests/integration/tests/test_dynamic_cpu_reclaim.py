@@ -155,8 +155,8 @@ class TestDynamicCpuReclaim(YTEnvSetup):
         assert len(op1.get_running_jobs()) == 1
 
     def wait_and_get_stats_path(self, job_id):
-        node = ls("//sys/nodes")[0]
-        result = "//sys/nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/statistics/job_proxy".format(node, job_id)
+        node = ls("//sys/cluster_nodes")[0]
+        result = "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/statistics/job_proxy".format(node, job_id)
         wait(lambda: exists(result))
         return result
 

@@ -677,7 +677,7 @@ class Operation(object):
     def get_job_phase(self, job_id):
         job_path = "//sys/scheduler/orchid/scheduler/jobs/{0}".format(job_id)
         node = get(job_path + "/address", verbose=False)
-        job_phase_path = "//sys/nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/job_phase".format(node, job_id)
+        job_phase_path = "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/job_phase".format(node, job_id)
         return get(job_phase_path, verbose=False)
 
     def ensure_running(self, timeout=2.0):
@@ -1143,7 +1143,7 @@ def get_racks(driver=None):
     return ls("//sys/racks", driver=driver)
 
 def get_nodes(driver=None):
-    return ls("//sys/nodes", driver=driver)
+    return ls("//sys/cluster_nodes", driver=driver)
 
 def get_media(driver=None):
     return ls("//sys/media", driver=driver)
@@ -1255,29 +1255,23 @@ def check_all_stderrs(op, expected_content, expected_count, substring=False):
 def set_banned_flag(value, nodes=None):
     if value:
         flag = True
-        state = "offline"
+        expected_state = "offline"
     else:
         flag = False
-        state = "online"
+        expected_state = "online"
 
     if not nodes:
-        nodes = get("//sys/nodes").keys()
+        nodes = ls("//sys/cluster_nodes")
 
     for address in nodes:
-        set("//sys/nodes/{0}/@banned".format(address), flag)
+        set("//sys/cluster_nodes/{0}/@banned".format(address), flag)
 
-    for iter in xrange(50):
-        ok = True
+    def check():
         for address in nodes:
-            if get("//sys/nodes/{0}/@state".format(address)) != state:
-                ok = False
-                break
-        if ok:
-            for address in nodes:
-                print >>sys.stderr, "Node {0} is {1}".format(address, state)
-            break
-
-        time.sleep(0.1)
+            if get("//sys/cluster_nodes/{0}/@state".format(address)) != expected_state:
+                return False
+        return True
+    wait(check)
 
 ##################################################################
 
@@ -1295,19 +1289,19 @@ class PrepareTables(object):
 ##################################################################
 
 def set_node_banned(address, flag, driver=None):
-    set("//sys/nodes/%s/@banned" % address, flag, driver=driver)
+    set("//sys/cluster_nodes/%s/@banned" % address, flag, driver=driver)
     ban, state = ("banned", "offline") if flag else ("unbanned", "online")
     print >>sys.stderr, "Waiting for node %s to become %s..." % (address, ban)
-    wait(lambda: get("//sys/nodes/%s/@state" % address, driver=driver) == state)
+    wait(lambda: get("//sys/cluster_nodes/%s/@state" % address, driver=driver) == state)
 
 def set_node_decommissioned(address, flag, driver=None):
-    set("//sys/nodes/%s/@decommissioned" % address, flag, driver=driver)
+    set("//sys/cluster_nodes/%s/@decommissioned" % address, flag, driver=driver)
     print >>sys.stderr, "Node %s is %s" % (address, "decommissioned" if flag else "not decommissioned")
 
 def wait_for_nodes(driver=None):
     print >>sys.stderr, "Waiting for nodes to become online..."
     wait(lambda: all(n.attributes["state"] == "online"
-                     for n in ls("//sys/nodes", attributes=["state"], driver=driver)))
+                     for n in ls("//sys/cluster_nodes", attributes=["state"], driver=driver)))
 
 def wait_for_chunk_replicator(driver=None):
     print >>sys.stderr, "Waiting for chunk replicator to become enabled..."
@@ -1338,7 +1332,7 @@ def wait_for_cells(cell_ids=None, driver=None):
                 return False
             node = peer["address"]
             try:
-                if not exists("//sys/nodes/{0}/orchid/tablet_cells/{1}".format(node, cell.attributes["id"]), driver=driver):
+                if not exists("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}".format(node, cell.attributes["id"]), driver=driver):
                     return False
             except YtResponseError:
                 return False
@@ -1464,7 +1458,7 @@ def sync_alter_table_replica_mode(replica_id, mode, driver=None):
     addresses = [get_tablet_leader_address(tablet_id) for tablet_id in tablet_ids]
     def check():
         for tablet_id, cell_id, address in zip(tablet_ids, cell_ids, addresses):
-            actual_mode = get("//sys/nodes/{}/orchid/tablet_cells/{}/tablets/{}/replicas/{}/mode".format(address, cell_id, tablet_id, replica_id), driver=driver)
+            actual_mode = get("//sys/cluster_nodes/{}/orchid/tablet_cells/{}/tablets/{}/replicas/{}/mode".format(address, cell_id, tablet_id, replica_id), driver=driver)
             if actual_mode != mode:
                 return False
         return True

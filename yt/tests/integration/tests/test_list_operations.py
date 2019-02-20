@@ -118,8 +118,8 @@ class ListOperationsSetup(YTEnvSetup):
         # Setup pool trees.
         set("//sys/pool_trees/default/@nodes_filter", "!other")
 
-        nodes = ls("//sys/nodes")
-        set("//sys/nodes/" + nodes[0] + "/@user_tags/end", "other")
+        nodes = ls("//sys/cluster_nodes")
+        set("//sys/cluster_nodes/" + nodes[0] + "/@user_tags/end", "other")
 
         create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "tag"}, ignore_existing=True)
         create("map_node", "//sys/pool_trees/other/some_pool", ignore_existing=True)

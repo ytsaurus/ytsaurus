@@ -178,7 +178,7 @@ class TestGrpcProxy(YTEnvSetup):
                 return False
 
             node = cell.attributes["peers"][0]["address"]
-            if not self._exists_node(path="//sys/nodes/{0}/orchid/tablet_cells/{1}".format(node, cell.attributes["id"])):
+            if not self._exists_node(path="//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}".format(node, cell.attributes["id"])):
                 return False
 
             return True

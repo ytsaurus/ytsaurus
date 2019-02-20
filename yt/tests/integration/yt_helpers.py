@@ -61,7 +61,7 @@ class ProfileMetric(object):
 
     @staticmethod
     def at_node(node, path):
-        return ProfileMetric("//sys/nodes/{0}/orchid/profiling/{1}".format(node, path))
+        return ProfileMetric("//sys/cluster_nodes/{0}/orchid/profiling/{1}".format(node, path))
 
     def with_tag(self, tag_name, tag_value):
         if self.len_on_enter is not None:

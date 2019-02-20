@@ -449,7 +449,7 @@ print "x={0}\ty={1}".format(x, y)
         assert len(replicas) == 1
         node_id = replicas[0]
 
-        set("//sys/nodes/{}/@banned".format(node_id), True)
+        set("//sys/cluster_nodes/{}/@banned".format(node_id), True)
         return [node_id]
 
     @unix_only
@@ -538,7 +538,7 @@ print "x={0}\ty={1}".format(x, y)
 
         # Make chunk available again.
         for n in banned_nodes:
-            set("//sys/nodes/{0}/@banned".format(n), False)
+            set("//sys/cluster_nodes/{0}/@banned".format(n), False)
 
         wait(lambda: get_unavailable_chunk_count() == 0)
 
@@ -805,7 +805,7 @@ print "x={0}\ty={1}".format(x, y)
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         job_count = 20
-        node_count = get("//sys/nodes/@count")
+        node_count = get("//sys/cluster_nodes/@count")
         write_table("//tmp/t1", [{"a": "x" * 10**6} for i in range(job_count)])
         op = map_reduce(in_="//tmp/t1",
                         out="//tmp/t2",

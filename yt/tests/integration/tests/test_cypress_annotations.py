@@ -34,8 +34,8 @@ class TestAnnotations(YTEnvSetup):
     }
 
     def test_annotations(self):
-        n = ls("//sys/nodes")[0]
-        assert "node" == get("//sys/nodes/{0}/@annotations/whoami".format(n))
+        n = ls("//sys/cluster_nodes")[0]
+        assert "node" == get("//sys/cluster_nodes/{0}/@annotations/whoami".format(n))
 
         pm = ls("//sys/primary_masters")[0]
         assert "master" == get("//sys/primary_masters/{0}/orchid/config/cypress_annotations/whoami".format(pm))
