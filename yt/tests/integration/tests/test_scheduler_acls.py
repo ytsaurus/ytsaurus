@@ -42,9 +42,6 @@ class TestOperationAcls(YTEnvSetup):
         },
     }
 
-    input_path = "//tmp/input"
-    output_path = "//tmp/output"
-
     operation_authenticated_user = "operation_authenticated_user"
     no_rights_user = "no_rights_user"
     read_only_user = "read_only_user"
@@ -67,10 +64,6 @@ class TestOperationAcls(YTEnvSetup):
         sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(cls.Env.create_native_client())
 
-        create("table", cls.input_path)
-        write_table(cls.input_path, {"key": i for i in xrange(20)})
-        create("table", cls.output_path)
-
         for user in [
             cls.operation_authenticated_user,
             cls.no_rights_user,
@@ -83,6 +76,14 @@ class TestOperationAcls(YTEnvSetup):
     @staticmethod
     def _random_string(length):
         return "".join(random.choice(string.letters) for _ in xrange(length))
+
+    def _create_tables(self):
+        input_path = "//tmp/input_" + self._random_string(5)
+        output_path = "//tmp/output_" + self._random_string(5)
+        create("table", input_path)
+        write_table(input_path, {"key": i for i in xrange(20)})
+        create("table", output_path)
+        return input_path, output_path
 
     @staticmethod
     def _validate_access(user, should_have_access, action, **action_args):
@@ -110,6 +111,7 @@ class TestOperationAcls(YTEnvSetup):
             raise AssertionError(message)
 
     def _run_and_fail_op(self, should_update_operation_parameters):
+        input_path, output_path = self._create_tables()
         breakpoint_name = "breakpoint_" + self._random_string(10)
         spec = deepcopy(self.spec)
         spec["job_count"] = 1
@@ -118,8 +120,8 @@ class TestOperationAcls(YTEnvSetup):
             del spec["acl"]
         op = map(
             dont_track=True,
-            in_=self.input_path,
-            out=self.output_path,
+            in_=input_path,
+            out=output_path,
             command=with_breakpoint("cat; echo SOME-STDERR >&2; BREAKPOINT; exit 1", breakpoint_name=breakpoint_name),
             authenticated_user=self.operation_authenticated_user,
             spec=spec,
@@ -134,6 +136,7 @@ class TestOperationAcls(YTEnvSetup):
 
     @contextmanager
     def _run_op_context_manager(self, should_update_operation_parameters=False, spec=None):
+        input_path, output_path = self._create_tables()
         breakpoint_name = "breakpoint_" + self._random_string(10)
         command = with_breakpoint("echo SOME-STDERR >&2; cat; BREAKPOINT;", breakpoint_name=breakpoint_name)
         if spec is None:
@@ -142,29 +145,32 @@ class TestOperationAcls(YTEnvSetup):
             saved_acl = spec.pop("acl")
         op = map(
             dont_track=True,
-            in_=self.input_path,
-            out=self.output_path,
+            in_=input_path,
+            out=output_path,
             command=command,
             authenticated_user=self.operation_authenticated_user,
             spec=spec,
         )
-        job_id, = wait_breakpoint(breakpoint_name=breakpoint_name)
-        if should_update_operation_parameters:
-            update_op_parameters(op.id, parameters={"acl": saved_acl})
-
-        yield op, job_id
-
-        release_breakpoint(breakpoint_name=breakpoint_name)
         try:
-            op.complete()
-        except YtError as e:
-            # TODO: Ensure it is "no such operation" error.
-            pass
-        try:
-            op.track()
-        except YtError as e:
-            # TODO: Ensure it is "no such operation" error or operation has failed or aborted.
-            pass
+            job_id, = wait_breakpoint(breakpoint_name=breakpoint_name)
+            if should_update_operation_parameters:
+                update_op_parameters(op.id, parameters={"acl": saved_acl})
+            wait(op.get_running_jobs)
+
+            yield op, job_id
+
+            release_breakpoint(breakpoint_name=breakpoint_name)
+        finally:
+            try:
+                op.complete()
+            except YtError as e:
+                # TODO: Ensure it is "no such operation" error.
+                pass
+            try:
+                op.track()
+            except YtError as e:
+                # TODO: Ensure it is "no such operation" error or operation has failed or aborted.
+                pass
 
 
     @pytest.mark.parametrize("should_update_operation_parameters", [False, True])
@@ -348,13 +354,14 @@ class TestOperationAcls(YTEnvSetup):
             # Wait for controller agent config update.
             time.sleep(0.5)
 
+            input_path, output_path = self._create_tables()
             breakpoint_name = "breakpoint_" + self._random_string(10)
             op = map_reduce(
                 dont_track=True,
                 mapper_command="cat",
                 reducer_command=with_breakpoint("cat; BREAKPOINT", breakpoint_name=breakpoint_name),
-                in_=self.input_path,
-                out=self.output_path,
+                in_=input_path,
+                out=output_path,
                 sort_by=["key"],
                 spec={
                     "acl": [make_ace("allow", self.manage_and_read_user, ["read", "manage"])],
