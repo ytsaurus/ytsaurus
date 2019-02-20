@@ -128,6 +128,7 @@ class Convert(object):
 
             if client.exists(source_table):
                 table_info.create_table(client, target_table)
+                client.set(target_table + "/@tablet_cell_bundle", client.get(source_table + "/@tablet_cell_bundle"))
                 mapper = self.mapper if self.mapper else table_info.get_default_mapper()
                 unmount_table(client, source_table)
 
@@ -179,7 +180,8 @@ TRANSFORMS[0] = [
             ("result", "any")
         ],
         in_memory=True,
-        get_pivot_keys=get_default_pivots)),
+        get_pivot_keys=get_default_pivots,
+        attributes={"tablet_cell_bundle": "sys"})),
     Convert(
         "ordered_by_start_time",
         table_info=TableInfo([
@@ -189,7 +191,8 @@ TRANSFORMS[0] = [
         ], [
             ("dummy", "int64")
         ],
-        in_memory=True))
+        in_memory=True,
+        attributes={"tablet_cell_bundle": "sys"}))
 ]
 
 def convert_start_finish_time_mapper(row):
@@ -234,7 +237,8 @@ TRANSFORMS[3] = [
             ], [
                 ("stderr", "string")
             ],
-            get_pivot_keys=get_default_pivots)),
+            get_pivot_keys=get_default_pivots,
+            attributes={"tablet_cell_bundle": "sys"})),
     Convert(
         "jobs",
         table_info=TableInfo([
@@ -251,7 +255,8 @@ TRANSFORMS[3] = [
                 ("error", "any"),
                 ("statistics", "any")
             ],
-            get_pivot_keys=get_default_pivots))
+            get_pivot_keys=get_default_pivots,
+            attributes={"tablet_cell_bundle": "sys"}))
 ]
 
 TRANSFORMS[4] = [
@@ -540,21 +545,7 @@ def add_attributes(path, attributes):
 
     return action
 
-def add_sys_bundle(table):
-    return add_attributes(table, {"tablet_cell_bundle": "sys"})
-
-def ensure_sys_bundle_existence(client):
-    if not client.exists("//sys/tablet_cell_bundles/sys"):
-        logging.info("Creating sys bundle")
-        client.create("tablet_cell_bundle", attributes={"name": "sys"})
-
-ACTIONS[12] = [
-    ensure_sys_bundle_existence,
-    add_sys_bundle("ordered_by_id"),
-    add_sys_bundle("ordered_by_start_time"),
-    add_sys_bundle("jobs"),
-    add_sys_bundle("stderrs"),
-]
+ACTIONS[12] = [lambda *args: None]
 
 TRANSFORMS[13] = [
     Convert(
@@ -594,12 +585,12 @@ TRANSFORMS[14] = [
                 ("spec", "string"),
                 ("spec_version", "int64"),
             ],
-            get_pivot_keys=get_default_pivots))
+            get_pivot_keys=get_default_pivots,
+            attributes={"tablet_cell_bundle": "sys"}))
 ]
 
 ACTIONS[14] = [
-    set_table_ttl_1week("job_specs"),
-    add_sys_bundle("job_specs"),
+    set_table_ttl_1week("job_specs")
 ]
 
 TRANSFORMS[15] = [
@@ -768,7 +759,10 @@ TRANSFORMS[21] = [
             ], [
                 ("fail_context", "string")
             ],
-            attributes={"atomicity": "none"}),
+            attributes={
+                "atomicity": "none",
+                "tablet_cell_bundle": "sys"
+            }),
         use_default_mapper=True),
     Convert(
         "jobs",
@@ -912,11 +906,8 @@ TRANSFORMS[26] = [
             ("operation_id_lo", "uint64"),
         ],
             in_memory=True,
-            get_pivot_keys=get_default_pivots)),
-]
-
-ACTIONS[26] = [
-    add_sys_bundle("operation_aliases"),
+            get_pivot_keys=get_default_pivots,
+            attributes={"tablet_cell_bundle": "sys"})),
 ]
 
 TRANSFORMS[27] = [
@@ -964,12 +955,11 @@ TRANSFORMS[28] = [
                 ("profile_blob", "string")
             ],
             get_pivot_keys=get_default_pivots,
-            attributes={"atomicity": "none"}),
+            attributes={
+                "atomicity": "none",
+                "tablet_cell_bundle": "sys"
+            }),
         use_default_mapper=True)
-]
-
-ACTIONS[28] = [
-    add_sys_bundle("job_profiles"),
 ]
 
 TRANSFORMS[29] = [
