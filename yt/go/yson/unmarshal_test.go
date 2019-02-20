@@ -34,8 +34,16 @@ func TestRawField(t *testing.T) {
 	require.NoError(t, Unmarshal(buf, &s))
 }
 
+type simplestStruct struct {
+	A int
+}
+
 func TestUnmarshalZeroInitializes(t *testing.T) {
-	t.Skip("not implemented")
+	var v simplestStruct
+	v.A = 1
+
+	require.NoError(t, Unmarshal([]byte("{}"), &v))
+	require.Equal(t, 0, v.A)
 }
 
 func TestUnmarshalRecursionLimit(t *testing.T) {
