@@ -2100,7 +2100,7 @@ void TNodeTracker::TClusterNodeTypeHandler::DoZombifyObject(TNode* node)
 {
     TObjectTypeHandlerWithMapBase::DoZombifyObject(node);
     // NB: Destroy the node right away and do not wait for GC to prevent
-    // dangling links from occuring in //sys/nodes.
+    // dangling links from occurring in //sys/cluster_nodes.
     Owner_->DestroyNode(node);
 }
 
