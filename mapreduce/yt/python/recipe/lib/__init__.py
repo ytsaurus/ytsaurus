@@ -13,39 +13,38 @@ recipe_info_json_file = "yt_recipe_info.json"
 def start(args, yt_config=None):
     if yt_config is None:
         yt_config = YtConfig()
-    yt_config.python_binary = yatest.common.binary_path("contrib/tools/python/python")
 
-    yt = YtStuff(yt_config)
-    yt.start_local_yt()
+    yt_stuff = YtStuff(yt_config)
+    yt_stuff.start_local_yt()
 
     recipe_info = {
-        "yt_id": yt.yt_id,
-        "yt_work_dir": yt.yt_work_dir,
-        "yt_local_path": yt.yt_local_path
+        "yt_id": yt_stuff.yt_id,
+        "yt_work_dir": yt_stuff.yt_work_dir,
+        "yt_local_exec": yt_stuff.yt_local_exec,
     }
 
-    with open(recipe_info_json_file, "w") as f:
-        json.dump(recipe_info, f)
+    with open(recipe_info_json_file, "w") as fout:
+        json.dump(recipe_info, fout)
 
     os.symlink(
-        os.path.join(yt.yt_work_dir, yt.yt_id, "info.yson"),
+        os.path.join(yt_stuff.yt_work_dir, yt_stuff.yt_id, "info.yson"),
         "info.yson"
     )
 
-    with open("yt_proxy_port.txt", "w") as f:
-        f.write(str(yt.yt_proxy_port))
+    with open("yt_proxy_port.txt", "w") as fout:
+        fout.write(str(yt_stuff.yt_proxy_port))
 
-    set_env("YT_PROXY", "localhost:" + str(yt.yt_proxy_port))
+    set_env("YT_PROXY", "localhost:" + str(yt_stuff.yt_proxy_port))
 
-    return yt
+    return yt_stuff
 
 
 def stop(args):
-    with open(recipe_info_json_file) as f:
-        recipe_info = json.load(f)
+    with open(recipe_info_json_file) as fin:
+        recipe_info = json.load(fin)
 
     yatest.common.execute(
-        recipe_info["yt_local_path"] + [
+        recipe_info["yt_local_exec"] + [
             "stop",
             os.path.join(
                 recipe_info["yt_work_dir"],
