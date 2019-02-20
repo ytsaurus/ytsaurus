@@ -28,7 +28,6 @@ func zeroInitialize(v interface{}) {
 }
 
 func (d *Decoder) Decode(v interface{}) error {
-	zeroInitialize(v)
 	return decodeAny(d.R, v)
 }
 

@@ -26,7 +26,7 @@ func parseJobArgs(args []string) (job jobArgs, err error) {
 	return
 }
 
-func JobMain() {
+func JobMain() int {
 	args, err := parseJobArgs(os.Args[1:])
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
@@ -35,19 +35,19 @@ func JobMain() {
 	job := NewJob(args.job)
 	if job == nil {
 		_, _ = fmt.Fprintf(os.Stderr, "job: unknown job type '%s'\n", args.job)
-		os.Exit(2)
+		return 2
 	}
 
 	var ctx jobContext
 	if err = ctx.initPipes(args.nOutputPipes); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
-		os.Exit(3)
+		return 3
 	}
 
 	if err := job.Do(&ctx, ctx.in, ctx.writers()); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
-	os.Exit(0)
+	return 0
 }
