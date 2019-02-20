@@ -868,6 +868,7 @@ public:
 
             // Don't populate caches in chunk jobs.
             RepairReader->PopulateCache = false;
+            RepairReader->RetryTimeout = TDuration::Minutes(15);
             SealReader->PopulateCache = false;
         });
     }
