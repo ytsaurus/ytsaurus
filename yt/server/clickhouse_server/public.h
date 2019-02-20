@@ -48,8 +48,16 @@ DECLARE_REFCOUNTED_CLASS(TEngineConfig);
 DECLARE_REFCOUNTED_CLASS(TClickHouseServerBootstrapConfig);
 DECLARE_REFCOUNTED_CLASS(TUserConfig);
 DECLARE_REFCOUNTED_CLASS(TNativeClientCacheConfig);
+DECLARE_REFCOUNTED_CLASS(TClickHouseHost);
 
 DECLARE_REFCOUNTED_STRUCT(ISubscriptionManager);
+
+//! This enum corresponds to DB::ClientInfo::QueryKind.
+DEFINE_ENUM(EQueryKind,
+    ((NoQuery)(0))
+    ((InitialQuery)(1))
+    ((SecondaryQuery)(2))
+);
 
 using TQueryId = TGuid;
 

@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/server/clickhouse_server/server.h>
+#include <yt/server/clickhouse_server/host.h>
 
 #include <yt/server/clickhouse_server/config.h>
 #include <yt/server/clickhouse_server/directory.h>
@@ -169,7 +169,7 @@ void TBootstrap::DoRun()
     CoordinationService = CreateCoordinationService(RootClient_, CliqueId_);
     CliqueAuthorizationManager = CreateCliqueAuthorizationManager(RootClient_, CliqueId_, Config_->ValidateOperationPermission);
 
-    Server = std::make_unique<TServer>(
+    ClickHouseHost_ = New<TClickHouseHost>(
         this,
         logger,
         CoordinationService,
@@ -190,27 +190,32 @@ void TBootstrap::DoRun()
         RpcServer_->Start();
     }
 
-    Server->Start();
+    ClickHouseHost_->Start();
 }
 
-TClickHouseServerBootstrapConfigPtr TBootstrap::GetConfig() const
+const TClickHouseServerBootstrapConfigPtr& TBootstrap::GetConfig() const
 {
     return Config_;
 }
 
-IInvokerPtr TBootstrap::GetControlInvoker() const
+const IInvokerPtr& TBootstrap::GetControlInvoker() const
 {
     return ControlQueue_->GetInvoker();
 }
 
-NApi::NNative::IConnectionPtr TBootstrap::GetConnection() const
+const NApi::NNative::IConnectionPtr& TBootstrap::GetConnection() const
 {
     return Connection_;
 }
 
-NApi::NNative::TClientCachePtr TBootstrap::GetClientCache() const
+const NApi::NNative::TClientCachePtr& TBootstrap::GetClientCache() const
 {
     return ClientCache_;
+}
+
+const TClickHouseHostPtr& TBootstrap::GetHost() const
+{
+    return ClickHouseHost_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

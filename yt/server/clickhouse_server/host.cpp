@@ -1,4 +1,4 @@
-#include "server.h"
+#include "host.h"
 
 #include "cluster_tracker.h"
 #include "database.h"
@@ -16,6 +16,9 @@
 #include <yt/server/clickhouse_server/query_context.h>
 #include <yt/server/clickhouse_server/poco_config.h>
 #include <yt/server/clickhouse_server/config.h>
+
+#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/profiling/profile_manager.h>
 
 #include <AggregateFunctions/registerAggregateFunctions.h>
 #include <Common/Exception.h>
@@ -71,6 +74,7 @@ void registerStorageMemory(StorageFactory & factory);
 namespace NYT::NClickHouseServer {
 
 using namespace DB;
+using namespace NProfiling;
 
 namespace {
 
@@ -92,8 +96,15 @@ std::string GetCanonicalPath(std::string path)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TServer::TImpl
+namespace {
+
+const auto& Logger = ServerLogger;
+
+}
+
+class TClickHouseHost::TImpl
     : public IServer
+    , public TRefCounted
 {
 private:
     TBootstrap* const Bootstrap_;
@@ -103,6 +114,7 @@ private:
     const TClickHouseServerBootstrapConfigPtr NativeConfig_;
     const std::string CliqueId_;
     const std::string InstanceId_;
+    const IInvokerPtr ControlInvoker_;
     ui16 TcpPort_;
     ui16 HttpPort_;
 
@@ -141,12 +153,15 @@ public:
         , NativeConfig_(std::move(nativeConfig))
         , CliqueId_(std::move(cliqueId))
         , InstanceId_(std::move(instanceId))
+        , ControlInvoker_(Bootstrap_->GetControlInvoker())
         , TcpPort_(tcpPort)
         , HttpPort_(httpPort)
     {}
 
     void Start()
     {
+        VERIFY_INVOKER_AFFINITY(GetControlInvoker());
+
         SetupRootLogger();
         EngineConfig_ = new Poco::Util::LayeredConfiguration();
         EngineConfig_->add(ConvertToPocoConfig(ConvertToNode(NativeConfig_->Engine)));
@@ -156,6 +171,12 @@ public:
         WarmupDictionaries();
         EnterExecutionCluster();
         SetupHandlers();
+
+        ProfilingExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(),
+            BIND(&TImpl::OnProfiling, MakeWeak(this)),
+            NativeConfig_->ProfilingPeriod);
+        ProfilingExecutor_->Start();
     }
 
     void Shutdown()
@@ -213,7 +234,59 @@ public:
         return Cancelled;
     }
 
+    void OnProfiling()
+    {
+        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
+        YT_LOG_DEBUG("Flushing profiling");
+
+        for (auto& [user, runningQueryCount] : UserToRunningInitialQueryCount_) {
+            ServerProfiler.Enqueue(
+                "/running_initial_query_count",
+                runningQueryCount,
+                EMetricType::Gauge,
+                {TProfileManager::Get()->RegisterTag("user", user)});
+        }
+
+        for (auto& [user, runningQueryCount] : UserToRunningSecondaryQueryCount_) {
+            ServerProfiler.Enqueue(
+                "/running_secondary_query_count",
+                runningQueryCount,
+                EMetricType::Gauge,
+                {TProfileManager::Get()->RegisterTag("user", user)});
+        }
+    }
+
+    void AdjustQueryCount(const TString& user, EQueryKind queryKind, int delta)
+    {
+        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
+        auto& queryCountMap = (queryKind == EQueryKind::InitialQuery)
+            ? UserToRunningInitialQueryCount_
+            : UserToRunningSecondaryQueryCount_;
+        THashMap<TString, int>::insert_ctx ctx;
+        auto it = queryCountMap.find(user, ctx);
+        if (it == queryCountMap.end()) {
+            it = queryCountMap.emplace_direct(ctx, user, delta);
+        } else {
+            it->second += delta;
+        }
+        YCHECK(it->second >= 0);
+        if (it->second == 0) {
+            queryCountMap.erase(it);
+        }
+    }
+
+    const IInvokerPtr& GetControlInvoker() const
+    {
+        return ControlInvoker_;
+    }
+
 private:
+    TPeriodicExecutorPtr ProfilingExecutor_;
+    THashMap<TString, int> UserToRunningInitialQueryCount_;
+    THashMap<TString, int> UserToRunningSecondaryQueryCount_;
+
     void SetupRootLogger()
     {
         LogChannel = WrapToLogChannel(AppLogger);
@@ -464,7 +537,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServer::TServer(
+TClickHouseHost::TClickHouseHost(
     TBootstrap* bootstrap,
     ILoggerPtr logger,
     ICoordinationServicePtr coordinationService,
@@ -474,7 +547,7 @@ TServer::TServer(
     std::string instanceId,
     ui16 tcpPort,
     ui16 httpPort)
-    : Impl_(std::make_unique<TImpl>(
+    : Impl_(New<TImpl>(
         bootstrap,
         std::move(logger),
         std::move(coordinationService),
@@ -486,17 +559,27 @@ TServer::TServer(
         httpPort))
 { }
 
-void TServer::Start()
+void TClickHouseHost::Start()
 {
     Impl_->Start();
 }
 
-void TServer::Shutdown()
+void TClickHouseHost::Shutdown()
 {
     Impl_->Shutdown();
 }
 
-TServer::~TServer() = default;
+void TClickHouseHost::AdjustQueryCount(const TString& user, EQueryKind queryKind, int delta)
+{
+    Impl_->AdjustQueryCount(user, queryKind, delta);
+}
+
+const IInvokerPtr& TClickHouseHost::GetControlInvoker() const
+{
+    return Impl_->GetControlInvoker();
+}
+
+TClickHouseHost::~TClickHouseHost() = default;
 
 ////////////////////////////////////////////////////////////////////////////////
 

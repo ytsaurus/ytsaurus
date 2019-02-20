@@ -1,8 +1,10 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/server/clickhouse_server/public.h>
 
-#include <yt/server/clickhouse_server/server.h>
+#include <yt/server/clickhouse_server/host.h>
 
 #include <yt/ytlib/api/public.h>
 #include <yt/ytlib/api/native/public.h>
@@ -48,7 +50,7 @@ private:
 
     ICoordinationServicePtr CoordinationService;
     ICliqueAuthorizationManagerPtr CliqueAuthorizationManager;
-    std::unique_ptr<TServer> Server;
+    TClickHouseHostPtr ClickHouseHost_;
 
 public:
     TBootstrap(
@@ -63,10 +65,11 @@ public:
 
     void Run();
 
-    TClickHouseServerBootstrapConfigPtr GetConfig() const;
-    IInvokerPtr GetControlInvoker() const;
-    NApi::NNative::IConnectionPtr GetConnection() const;
-    NApi::NNative::TClientCachePtr GetClientCache() const;
+    const TClickHouseServerBootstrapConfigPtr& GetConfig() const;
+    const IInvokerPtr& GetControlInvoker() const;
+    const NApi::NNative::IConnectionPtr& GetConnection() const;
+    const NApi::NNative::TClientCachePtr& GetClientCache() const;
+    const TClickHouseHostPtr& GetHost() const;
 
 private:
     void DoRun();
