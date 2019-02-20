@@ -80,8 +80,10 @@ inline constexpr EValueType GetPhysicalType(ELogicalValueType type)
 
         case ELogicalValueType::Utf8:
             return EValueType::String;
+
+        default:
+            Y_UNREACHABLE();
     }
-    Y_UNREACHABLE();
 }
 
 inline constexpr ELogicalValueType GetLogicalType(EValueType type)
@@ -95,8 +97,10 @@ inline constexpr ELogicalValueType GetLogicalType(EValueType type)
         case EValueType::String:
         case EValueType::Any:
             return static_cast<ELogicalValueType>(type);
+
+        default:
+            Y_UNREACHABLE();
     }
-    Y_UNREACHABLE();
 }
 
 inline constexpr bool IsIntegralType(EValueType type)
