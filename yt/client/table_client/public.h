@@ -225,6 +225,7 @@ struct IValueConsumer;
 DECLARE_REFCOUNTED_CLASS(TLogicalType)
 DECLARE_REFCOUNTED_CLASS(TSimpleLogicalType)
 DECLARE_REFCOUNTED_CLASS(TOptionalLogicalType)
+DECLARE_REFCOUNTED_CLASS(TListLogicalType)
 
 ////////////////////////////////////////////////////////////////////////////////
 
