@@ -1,6 +1,8 @@
 package yson
 
-import "github.com/pkg/errors"
+import (
+	"golang.org/x/xerrors"
+)
 
 // SliceYPath splits ypath into attributes and path.
 //
@@ -21,7 +23,7 @@ func SliceYPath(ypath []byte) (attrs, path []byte, err error) {
 		op := s.step(&s, ypath[i])
 		switch op {
 		case scanError:
-			err = errors.New("ypath: invalid format")
+			err = xerrors.New("ypath: invalid format")
 			return
 
 		case scanBeginAttrs:
@@ -34,7 +36,7 @@ func SliceYPath(ypath []byte) (attrs, path []byte, err error) {
 
 		default:
 			if depth == 0 {
-				err = errors.New("ypath: invalid format")
+				err = xerrors.New("ypath: invalid format")
 				return
 			}
 
@@ -44,6 +46,6 @@ func SliceYPath(ypath []byte) (attrs, path []byte, err error) {
 		}
 	}
 
-	err = errors.New("ypath: invalid format")
+	err = xerrors.New("ypath: invalid format")
 	return
 }

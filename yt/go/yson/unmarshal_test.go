@@ -18,8 +18,24 @@ func TestInvalidSyntax(t *testing.T) {
 	require.Error(t, Unmarshal([]byte("0>0"), &v))
 }
 
-func TestUnmarshalZeroInitializes(t *testing.T) {
+type structWithRawFields struct {
+	A RawValue
+	B RawValue
+}
 
+func TestRawField(t *testing.T) {
+	var s structWithRawFields
+	require.NoError(t, Unmarshal([]byte("{A=abc;B=[1;2;3]}"), &s))
+	require.Equal(t, []byte("abc"), []byte(s.A))
+	require.Equal(t, []byte("[1;2;3]"), []byte(s.B))
+
+	buf, err := MarshalFormat(map[string]interface{}{"A": "abc", "B": []int{1, 2, 3}}, FormatBinary)
+	require.NoError(t, err)
+	require.NoError(t, Unmarshal(buf, &s))
+}
+
+func TestUnmarshalZeroInitializes(t *testing.T) {
+	t.Skip("not implemented")
 }
 
 func TestUnmarshalRecursionLimit(t *testing.T) {
@@ -41,4 +57,21 @@ func TestUnmarhalListFragment(t *testing.T) {
 
 	require.Nil(t, d.Decode(&i))
 	require.Equal(t, 2, i)
+}
+
+type nestedStruct struct {
+	A int
+}
+
+type outerStruct struct {
+	B *nestedStruct
+}
+
+func TestUnmarshalPointerField(t *testing.T) {
+	var s outerStruct
+
+	require.NoError(t, Unmarshal([]byte("{B={A=1}}"), &s))
+
+	assert.NotNil(t, s.B)
+	assert.Equal(t, 1, s.B.A)
 }

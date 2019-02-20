@@ -2,9 +2,11 @@ package yson
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -120,4 +122,23 @@ func TestYSONTranscoding(t *testing.T) {
 	data, err := Marshal(&customMarshal{})
 	require.Nil(t, err)
 	assert.Equal(t, []byte("{a=b;c=[1;2;3;];}"), data)
+}
+
+func TestMarshalTime(t *testing.T) {
+	t0 := time.Now()
+	b, err := t0.MarshalText()
+	require.NoError(t, err)
+
+	data, err := Marshal(t0)
+	require.NoError(t, err)
+
+	assert.Equal(t, fmt.Sprintf("%q", b), string(data))
+}
+
+func TestDecodeTime(t *testing.T) {
+	t0 := time.Now()
+	b, _ := t0.MarshalText()
+	_ = t0.UnmarshalText(b)
+
+	testRoundtrip(t, t0)
 }

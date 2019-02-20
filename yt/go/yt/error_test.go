@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 )
 
 func TestNewError(t *testing.T) {
@@ -16,8 +17,8 @@ func TestNewError(t *testing.T) {
 
 	_ = err2
 
-	require.Panics(t, func () {
-		Err(struct{}{})
+	require.Panics(t, func() {
+		_ = Err(struct{}{})
 	})
 }
 
@@ -37,6 +38,9 @@ func TestContainsCode(t *testing.T) {
 	require.False(t, ContainsErrorCode(err2, 100))
 	require.True(t, ContainsErrorCode(err2, 101))
 	require.True(t, ContainsErrorCode(err2, 102))
+
+	err3 := xerrors.Errorf("HTTP error: %w", Err(ErrorCode(101)))
+	require.True(t, ContainsErrorCode(err3, 101))
 }
 
 func TestErrorsInterop(t *testing.T) {

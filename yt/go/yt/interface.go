@@ -1,0 +1,634 @@
+package yt
+
+import (
+	"context"
+	"io"
+	"time"
+
+	"a.yandex-team.ru/yt/go/guid"
+
+	"a.yandex-team.ru/yt/go/ypath"
+)
+
+// TransactionOptions control transactional context of cypress command.
+//
+// Do not use this options directly. Use Transaction instead.
+type TransactionOptions struct {
+	TransactionID TxID `http:"transaction_id"`
+	Ping          bool `http:"ping"`
+	PingAncestors bool `http:"ping_ancestor_transactions"`
+}
+
+// AccessTrackingOptions suppresses update of "modification_time", "access_time" and
+// "access_counter" cypress attributes.
+type AccessTrackingOptions struct {
+	SuppressAccessTracking       bool `http:"suppress_access_tracking"`
+	SuppressModificationTracking bool `http:"suppress_modification_tracking"`
+}
+
+// MutatingOptions enable safe retries of cypress commands in the presence of network errors.
+//
+// MutatingOptions are managed internally by the library.
+type MutatingOptions struct {
+	MutationID MutationID `http:"mutation_id"`
+	Retry      bool       `http:"retry"`
+}
+
+type ReadKind string
+
+const (
+	ReadFromLeader   ReadKind = "leader"
+	ReadFromFollower ReadKind = "follower"
+	ReadFromCache    ReadKind = "cache"
+)
+
+// ReadRetryOptions is marker for distinguishing requests that might be safely retried.
+type ReadRetryOptions struct {
+}
+
+// MasterReadOptions specify where cypress read requests are routed.
+//
+// By default read requests are served from followers.
+type MasterReadOptions struct {
+	ReadFrom ReadKind `http:"read_from"`
+}
+
+type PrerequisiteRevision struct {
+	Path          ypath.Path `yson:"path"`
+	TransactionID TxID       `yson:"transaction_id"`
+	Revision      Revision   `yson:"revision"`
+}
+
+type PrerequisiteOptions struct {
+	TransactionIDs []TxID                 `http:"prerequisite_transaction_ids,omitnil"`
+	Revisions      []PrerequisiteRevision `http:"prerequisite_revisions,omitnil"`
+}
+
+// CreateNodeOptions.
+//
+// See https://wiki.yandex-team.ru/yt/userdoc/api/#create
+type CreateNodeOptions struct {
+	Recursive      bool `http:"recursive"`
+	IgnoreExisting bool `http:"ignore_existing"`
+	Force          bool `http:"force"`
+
+	Attributes map[string]interface{} `http:"attributes,omitnil"`
+
+	*TransactionOptions
+	*AccessTrackingOptions
+	*MutatingOptions
+}
+
+type CreateObjectOptions struct {
+	Attributes map[string]interface{} `http:"attributes,omitnil"`
+
+	*AccessTrackingOptions
+	*MutatingOptions
+}
+
+type NodeExistsOptions struct {
+	*MasterReadOptions
+	*TransactionOptions
+	*AccessTrackingOptions
+	*ReadRetryOptions
+}
+
+type RemoveNodeOptions struct {
+	Recursive bool `http:"recursive"`
+	Force     bool `http:"force"`
+
+	*TransactionOptions
+	*AccessTrackingOptions
+	*MoveNodeOptions
+	*MutatingOptions
+}
+
+type GetNodeOptions struct {
+	Attributes []string `http:"attributes,omitnil"`
+	MaxSize    *int64   `http:"max_size,omitnil"`
+
+	*TransactionOptions
+	*AccessTrackingOptions
+	*PrerequisiteOptions
+	*MasterReadOptions
+}
+
+type SetNodeOptions struct {
+	Recursive bool `http:"recursive"`
+	Force     bool `http:"force"`
+
+	*TransactionOptions
+	*AccessTrackingOptions
+	*MutatingOptions
+	*PrerequisiteOptions
+}
+
+type ListNodeOptions struct {
+	Attributes []string `http:"attributes,omitnil"`
+	MaxSize    *int64   `http:"max_size,omitnil"`
+
+	*TransactionOptions
+	*MasterReadOptions
+	*AccessTrackingOptions
+	*PrerequisiteOptions
+}
+
+type CopyNodeOptions struct {
+	Recursive      bool `http:"recursive"`
+	IgnoreExisting bool `http:"ignore_existing"`
+	Force          bool `http:"force"`
+
+	PreserveAccount        *bool `http:"preserve_account,omitnil"`
+	PreserveExpirationTime *bool `http:"preserve_expiration_time,omitnil"`
+	PreserveCreationTime   *bool `http:"preserve_creation_time,omitnil"`
+	PessimisticQuotaCheck  *bool `http:"pessimistic_quota_check,omitnil"`
+
+	*TransactionOptions
+	// *AccessTrackingOptions
+	*MutatingOptions
+	*PrerequisiteOptions
+}
+
+type MoveNodeOptions struct {
+	Recursive bool `http:"recursive"`
+	Force     bool `http:"force"`
+
+	PreserveAccount        *bool `http:"preserve_account,omitnil"`
+	PreserveExpirationTime *bool `http:"preserve_expiration_time,omitnil"`
+	PessimisticQuotaCheck  *bool `http:"pessimistic_quota_check,omitnil"`
+
+	*TransactionOptions
+	// *AccessTrackingOptions
+	*MutatingOptions
+	*PrerequisiteOptions
+}
+
+type LinkNodeOptions struct {
+	Recursive      bool `http:"recursive"`
+	IgnoreExisting bool `http:"ignore_existing"`
+	Force          bool `http:"force"`
+
+	Attributes map[string]interface{} `http:"attributes,omitnil"`
+
+	*TransactionOptions
+	// *AccessTrackingOptions
+	*MutatingOptions
+	*PrerequisiteOptions
+}
+
+type CypressClient interface {
+	// http:verb:"create"
+	// http:params:"path","type"
+	CreateNode(
+		ctx context.Context,
+		path ypath.Path,
+		typ NodeType,
+		options *CreateNodeOptions,
+	) (id NodeID, err error)
+
+	// http:verb:"create"
+	// http:params:"type"
+	CreateObject(
+		ctx context.Context,
+		typ NodeType,
+		options *CreateObjectOptions,
+	) (id NodeID, err error)
+
+	// http:verb:"exists"
+	// http:params:"path"
+	NodeExists(
+		ctx context.Context,
+		path ypath.Path,
+		options *NodeExistsOptions,
+	) (ok bool, err error)
+
+	// http:verb:"remove"
+	// http:params:"path"
+	RemoveNode(
+		ctx context.Context,
+		path ypath.Path,
+		options *RemoveNodeOptions,
+	) (err error)
+
+	// http:verb:"get"
+	// http:params:"path"
+	// http:extra
+	GetNode(
+		ctx context.Context,
+		path ypath.Path,
+		result interface{},
+		options *GetNodeOptions,
+	) (err error)
+
+	// http:verb:"set"
+	// http:params:"path"
+	// http:extra
+	SetNode(
+		ctx context.Context,
+		path ypath.Path,
+		value interface{},
+		options *SetNodeOptions,
+	) (err error)
+
+	// http:verb:"list"
+	// http:params:"path"
+	// http:extra
+	ListNode(
+		ctx context.Context,
+		path ypath.Path,
+		result interface{},
+		options *ListNodeOptions,
+	) (err error)
+
+	// http:verb:"copy"
+	// http:params:"source_path","destination_path"
+	CopyNode(
+		ctx context.Context,
+		src ypath.Path,
+		dst ypath.Path,
+		options *CopyNodeOptions,
+	) (id NodeID, err error)
+
+	// http:verb:"move"
+	// http:params:"source_path","destination_path"
+	MoveNode(
+		ctx context.Context,
+		src ypath.Path,
+		dst ypath.Path,
+		options *MoveNodeOptions,
+	) (id NodeID, err error)
+
+	// http:verb:"link"
+	// http:params:"target_path","link_path"
+	LinkNode(
+		ctx context.Context,
+		target ypath.Path,
+		link ypath.Path,
+		options *LinkNodeOptions,
+	) (id NodeID, err error)
+}
+
+type StartTxOptions struct {
+	Timeout  *time.Duration `http:"timeout,omitnil"`
+	Deadline *time.Time     `http:"deadline,omitnil"`
+
+	ParentID *TxID `http:"parent_id,omitnil"`
+
+	Ping          bool `http:"ping"`
+	PingAncestors bool `http:"ping_ancestor_transactions"`
+
+	Sticky bool `http:"sticky"`
+
+	PrerequisiteTransactionIDs []TxID `http:"prerequisite_transaction_ids,omitnil"`
+
+	Attributes map[string]interface{} `http:"attributes,omitnil"`
+
+	*MutatingOptions
+}
+
+type PingTxOptions struct {
+	*TransactionOptions
+}
+
+type AbortTxOptions struct {
+	*TransactionOptions
+	*MutatingOptions
+	*PrerequisiteOptions
+}
+
+type CommitTxOptions struct {
+	*MutatingOptions
+	*PrerequisiteOptions
+	*TransactionOptions
+}
+
+// LowLevelTxClient provides stateless interface to YT transactions.
+//
+// Clients should rarely use it directly.
+type LowLevelTxClient interface {
+	// http:verb:"start_transaction"
+	StartTx(
+		ctx context.Context,
+		options *StartTxOptions,
+	) (id TxID, err error)
+
+	// http:verb:"ping_transaction"
+	// http:params:"transaction_id"
+	PingTx(
+		ctx context.Context,
+		id TxID,
+		options *PingTxOptions,
+	) (err error)
+
+	// http:verb:"abort_transaction"
+	// http:params:"transaction_id"
+	AbortTx(
+		ctx context.Context,
+		id TxID,
+		options *AbortTxOptions,
+	) (err error)
+
+	// http:verb:"commit_transaction"
+	// http:params:"transaction_id"
+	CommitTx(
+		ctx context.Context,
+		id TxID,
+		options *CommitTxOptions,
+	) (err error)
+}
+
+type WriteFileOptions struct {
+	ComputeMD5 bool        `http:"compute_md5"`
+	FileWriter interface{} `http:"file_writer"`
+
+	*TransactionOptions
+	*PrerequisiteOptions
+}
+
+type ReadFileOptions struct {
+	Offset     *int64      `http:"offset,omitnil"`
+	Length     *int64      `http:"length,omitnil"`
+	FileReader interface{} `http:"file_reader"`
+
+	*TransactionOptions
+	*AccessTrackingOptions
+}
+
+type PutFileToCacheOptions struct {
+	CachePath ypath.Path `http:"cache_path"`
+
+	*MasterReadOptions
+	*MutatingOptions
+	*PrerequisiteOptions
+}
+
+type GetFileFromCacheOptions struct {
+	CachePath ypath.Path `http:"cache_path"`
+
+	*MasterReadOptions
+}
+
+type FileClient interface {
+	// http:verb:"write_file"
+	// http:params:"path"
+	WriteFile(
+		ctx context.Context,
+		path ypath.Path,
+		options *WriteFileOptions,
+	) (w io.WriteCloser, err error)
+
+	// http:verb:"read_file"
+	// http:params:"path"
+	ReadFile(
+		ctx context.Context,
+		path ypath.Path,
+		options *ReadFileOptions,
+	) (r io.ReadCloser, err error)
+
+	// http:verb:"put_file_to_cache"
+	// http:params:"path","md5"
+	PutFileToCache(
+		ctx context.Context,
+		path ypath.Path,
+		md5 string,
+		options *PutFileToCacheOptions,
+	) (cachedPath ypath.Path, err error)
+
+	// http:verb:"get_file_from_cache"
+	// http:params:"md5"
+	GetFileFromCache(
+		ctx context.Context,
+		md5 string,
+		options *GetFileFromCacheOptions,
+	) (path ypath.Path, err error)
+}
+
+type WriteTableOptions struct {
+	TableWriter interface{} `http:"table_writer"`
+
+	*TransactionOptions
+	*AccessTrackingOptions
+}
+
+type ReadTableOptions struct {
+	Unordered   bool        `http:"unordered"`
+	TableReader interface{} `http:"table_reader"`
+
+	ControlAttributes interface{} `http:"control_attributes,omitnil"`
+	StartRowIndexOnly *bool       `http:"start_row_index_only,omitnil"`
+
+	*TransactionOptions
+	*AccessTrackingOptions
+}
+
+type TableClient interface {
+	// http:verb:"write_table"
+	// http:params:"path"
+	WriteTable(
+		ctx context.Context,
+		path ypath.Path,
+		options *WriteTableOptions,
+	) (w TableWriter, err error)
+
+	// http:verb:"read_table"
+	// http:params:"path"
+	ReadTable(
+		ctx context.Context,
+		path ypath.Path,
+		options *ReadTableOptions,
+	) (r TableReader, err error)
+}
+
+type StartOperationOptions struct {
+	*TransactionOptions
+	*MutatingOptions
+}
+
+type AbortOperationOptions struct {
+	AbortMessage *string `http:"abort_message,omitnil"`
+}
+
+type SuspendOperationOptions struct {
+	AbortRunningJobs bool `http:"abort_running_jobs"`
+}
+
+type ResumeOperationOptions struct {
+}
+
+type CompleteOperationOptions struct {
+}
+
+type UpdateOperationParametersOptions struct {
+}
+
+type ListOperationsOptions struct {
+	*MasterReadOptions
+}
+
+type GetOperationOptions struct {
+	Attributes     []string `http:"attributes,omitnil"`
+	IncludeRuntime *bool    `http:"include_runtime,omitnil"`
+
+	*MasterReadOptions
+}
+
+type OperationResult struct {
+	Error *Error `yson:"error"`
+}
+
+type OperationStatus struct {
+	ID     OperationID      `yson:"id"`
+	State  OperationState   `yson:"state"`
+	Result *OperationResult `yson:"result"`
+}
+
+// LowLevelSchedulerClient is stateless interface to the YT scheduler.
+//
+// Clients should use package mapreduce instead.
+type LowLevelSchedulerClient interface {
+	// http:verb:"start_operation"
+	// http:params:"operation_type","spec"
+	StartOperation(
+		ctx context.Context,
+		opType OperationType,
+		spec interface{},
+		options *StartOperationOptions,
+	) (opID OperationID, err error)
+
+	// http:verb:"abort_operation"
+	// http:params:"operation_id"
+	AbortOperation(
+		ctx context.Context,
+		opID OperationID,
+		options *AbortOperationOptions,
+	) (err error)
+
+	// http:verb:"suspend_operation"
+	// http:params:"operation_id"
+	SuspendOperation(
+		ctx context.Context,
+		opID OperationID,
+		options *SuspendOperationOptions,
+	) (err error)
+
+	// http:verb:"resume_operation"
+	// http:params:"operation_id"
+	ResumeOperation(
+		ctx context.Context,
+		opID OperationID,
+		options *ResumeOperationOptions,
+	) (err error)
+
+	// http:verb:"complete_operation"
+	// http:params:"operation_id"
+	CompleteOperation(
+		ctx context.Context,
+		opID OperationID,
+		options *CompleteOperationOptions,
+	) (err error)
+
+	// http:verb:"update_operation_parameters"
+	// http:params:"operation_id","parameters"
+	UpdateOperationParameters(
+		ctx context.Context,
+		opID OperationID,
+		params interface{},
+		options *UpdateOperationParametersOptions,
+	) (err error)
+
+	// http:verb:"get_operation"
+	// http:params:"operation_id"
+	GetOperation(
+		ctx context.Context,
+		opID OperationID,
+		options *GetOperationOptions,
+	) (status *OperationStatus, err error)
+}
+
+type AddMemberOptions struct{}
+
+type RemoveMemberOptions struct{}
+
+type AdminClient interface {
+	// http:verb:"add_member"
+	// http:params:"group","member"
+	AddMember(
+		ctx context.Context,
+		group string,
+		member string,
+		options *AddMemberOptions,
+	) (err error)
+
+	// http:verb:"remove_member"
+	// http:params:"group","member"
+	RemoveMember(
+		ctx context.Context,
+		group string,
+		member string,
+		options *RemoveMemberOptions,
+	) (err error)
+}
+
+type LockNodeOptions struct {
+	*TransactionOptions
+	*MutatingOptions
+}
+
+type UnlockNodeOptions struct {
+	*TransactionOptions
+	*MutatingOptions
+}
+
+type LockResult struct {
+	NodeID NodeID    `yson:"node_id"`
+	LockID guid.GUID `yson:"lock_id"`
+}
+
+type LockClient interface {
+	// http:verb:"lock"
+	// http:params:"path","mode"
+	LockNode(
+		ctx context.Context,
+		path ypath.Path,
+		mode LockMode,
+		options *LockNodeOptions,
+	) (res LockResult, err error)
+
+	// http:verb:"unlock"
+	// http:params:"path"
+	UnlockNode(
+		ctx context.Context,
+		path ypath.Path,
+		options *UnlockNodeOptions,
+	) (err error)
+}
+
+type Tx interface {
+	CypressClient
+	FileClient
+	TableClient
+	LockClient
+
+	ID() TxID
+	Commit() error
+	Rollback() error
+
+	// Begin creates nested transaction.
+	Begin(ctx context.Context, options *StartTxOptions) (tx Tx, err error)
+}
+
+type Client interface {
+	CypressClient
+	FileClient
+	TableClient
+
+	// Begin creates new tx.
+	//
+	// Tx lifetime is bound to ctx. Tx is automatically aborted when ctx is canceled.
+	Begin(ctx context.Context, options *StartTxOptions) (tx Tx, err error)
+
+	LowLevelTxClient
+	LowLevelSchedulerClient
+
+	AdminClient
+}

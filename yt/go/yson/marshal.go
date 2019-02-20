@@ -2,6 +2,7 @@ package yson
 
 import (
 	"bytes"
+	"encoding"
 	"fmt"
 	"io"
 	"reflect"
@@ -27,7 +28,7 @@ type Marshaler interface {
 
 // StreamMarhsaler is an interface implemented by types that can encode themselves to YSON.
 type StreamMarhsaler interface {
-	MarhsalYSON(*Writer) error
+	MarshalYSON(*Writer) error
 }
 
 func (e *Encoder) Encode(value interface{}) (err error) {
@@ -46,7 +47,7 @@ func (e *Encoder) Encode(value interface{}) (err error) {
 //
 // If value implements Marshaler interface, Marshal calls its MarshalYSON method to produce YSON.
 //
-// If value implements StreamMarhsaler interface, Marshal calls its MarhsalYSON method to produce YSON.
+// If value implements StreamMarhsaler interface, Marshal calls its MarshalYSON method to produce YSON.
 //
 // Otherwise, the following default encoding is used.
 //
@@ -89,11 +90,17 @@ func (e *Encoder) Encode(value interface{}) (err error) {
 //
 // Pointer values are encoded as the value pointed to. A nil pointer encodes as the YSON entity value.
 //
+// Values implementing encoding.TextMarshaler and encoding.BinaryMarshaler interface are encoded as YSON strings.
+//
 // Interface values are encoded as the value contained in the interface. A nil interface value encodes as the YSON entity value.
 func Marshal(value interface{}) ([]byte, error) {
-	var buf bytes.Buffer
-	encoder := NewEncoder(&buf)
+	return MarshalFormat(value, FormatText)
+}
 
+func MarshalFormat(value interface{}, format Format) ([]byte, error) {
+	var buf bytes.Buffer
+	writer := NewWriterFormat(&buf, format)
+	encoder := Encoder{writer}
 	err := encoder.Encode(value)
 	return buf.Bytes(), err
 }
@@ -260,9 +267,23 @@ func encodeAny(w *Writer, value interface{}) (err error) {
 		w.RawNode(raw)
 
 	case StreamMarhsaler:
-		if err = vv.MarhsalYSON(w); err != nil {
+		if err = vv.MarshalYSON(w); err != nil {
 			return err
 		}
+
+	case encoding.TextMarshaler:
+		var text []byte
+		if text, err = vv.MarshalText(); err != nil {
+			return err
+		}
+		w.Bytes(text)
+
+	case encoding.BinaryMarshaler:
+		var bin []byte
+		if bin, err = vv.MarshalBinary(); err != nil {
+			return err
+		}
+		w.Bytes(bin)
 
 	default:
 		err = encodeReflect(w, reflect.ValueOf(vv))

@@ -301,7 +301,8 @@ func (r *Reader) NextListItem() (ok bool, err error) {
 		return false, err
 	}
 
-	return op != scanEndList, nil
+	ok = op != scanEndList && op != scanEnd
+	return
 }
 
 // NextKey returns true if next event in the stream is a key.
@@ -375,25 +376,32 @@ func (r *Reader) NextRawValue() ([]byte, error) {
 }
 
 func (r *Reader) readMore() error {
+	// NOTE: if r.r == nil buffer we are using user provided buffer.
+	// In that case we are not allowed to modify it.
+
 	if r.keep == -1 {
 		r.pos = 0
 		r.end = 0
 	}
 
-	if r.keep != -1 && r.keep > len(r.buf)/2 {
+	if r.r != nil && r.keep != -1 && r.keep > len(r.buf)/2 {
 		copy(r.buf, r.buf[r.keep:r.end])
 		r.pos -= r.keep
 		r.end -= r.keep
 		r.keep = 0
 	}
 
-	if r.end > len(r.buf)/2 {
+	if r.r != nil && r.end > len(r.buf)/2 {
 		r.buf = append(r.buf, make([]byte, len(r.buf))...)
 	}
 
 	if r.r != nil {
 		n, err := r.r.Read(r.buf[r.end:])
 		r.end += n
+
+		if n > 0 && err == io.EOF {
+			err = nil
+		}
 		return err
 	}
 
