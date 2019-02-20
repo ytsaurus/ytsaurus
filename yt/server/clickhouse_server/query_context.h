@@ -4,6 +4,7 @@
 #include "bootstrap.h"
 #include "public.h"
 #include "public_ch.h"
+#include "host.h"
 
 #include "document.h"
 #include "objects.h"
@@ -51,6 +52,7 @@ struct TTableObject
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(max42): Most of the helpers in context are redundant, get rid of them.
 struct TQueryContext
     : public DB::IHostContext
 {
@@ -58,36 +60,13 @@ public:
     TLogger Logger;
     TString User;
     TQueryId QueryId;
+    EQueryKind QueryKind;
 
-    explicit TQueryContext(TBootstrap* bootstrap, const TString& user, TQueryId queryId)
-        : Logger(ServerLogger)
-        , User(user)
-        , QueryId(queryId)
-        , Bootstrap_(bootstrap)
-    {
-        Logger.AddTag("QueryId: %v", queryId);
-        YT_LOG_INFO("Host context created (User: %v)", User);
-    }
+    explicit TQueryContext(TBootstrap* bootstrap, TQueryId queryId, const DB::Context& context);
 
-    ~TQueryContext()
-    {
-        YT_LOG_INFO("Host context destroyed");
-    }
+    ~TQueryContext();
 
-    NApi::NNative::IClientPtr& Client()
-    {
-        ClientLock_.AcquireReader();
-        auto clientPresent = static_cast<bool>(Client_);
-        ClientLock_.ReleaseReader();
-
-        if (!clientPresent) {
-            ClientLock_.AcquireWriter();
-            Client_ = Bootstrap_->GetClientCache()->GetClient(User);
-            ClientLock_.ReleaseWriter();
-        }
-
-        return Client_;
-    }
+    NApi::NNative::IClientPtr& Client();
 
     // Related services
 
@@ -139,6 +118,7 @@ public:
 
 private:
     TBootstrap* Bootstrap_;
+    TClickHouseHostPtr Host_;
 
     TReaderWriterSpinLock ClientLock_;
 

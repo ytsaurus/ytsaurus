@@ -142,9 +142,6 @@ public:
 
     TSlruCacheConfigPtr ClientCache;
 
-    //! Controls incoming bandwidth used by scan jobs.
-    NConcurrency::TThroughputThrottlerConfigPtr ScanThrottler;
-
     bool ValidateOperationPermission;
 
     TEngineConfigPtr Engine;
@@ -152,15 +149,14 @@ public:
     //! User for communication with YT.
     TString User;
 
+    TDuration ProfilingPeriod;
+
     TClickHouseServerBootstrapConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
 
         RegisterParameter("client_cache", ClientCache)
             .DefaultNew();
-
-        RegisterParameter("scan_throttler", ScanThrottler)
-            .Default();
 
         RegisterParameter("validate_operation_permission", ValidateOperationPermission)
             .Default(true);
@@ -170,6 +166,9 @@ public:
 
         RegisterParameter("engine", Engine)
             .DefaultNew();
+
+        RegisterParameter("profiling_period", ProfilingPeriod)
+            .Default(TDuration::Seconds(1));
     }
 };
 

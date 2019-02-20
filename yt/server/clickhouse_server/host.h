@@ -1,6 +1,10 @@
 #pragma once
 
+#include "query_context.h"
+
 #include <yt/server/clickhouse_server/public.h>
+
+#include <yt/core/actions/public.h>
 
 #include <string>
 
@@ -8,10 +12,11 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TServer
+class TClickHouseHost
+    : public TRefCounted
 {
 public:
-    TServer(
+    TClickHouseHost(
         TBootstrap* bootstrap,
         ILoggerPtr logger,
         ICoordinationServicePtr coordinationService,
@@ -22,15 +27,25 @@ public:
         ui16 tcpPort,
         ui16 httpPort);
 
-    ~TServer();
+    ~TClickHouseHost();
 
     void Start();
     void Shutdown();
 
+    //! Change internal user -> query count mapping value, which is used in profiling.
+    /*!
+     *  \note Invoker affinity: Control invoker
+     */
+    void AdjustQueryCount(const TString& user, EQueryKind queryKind, int delta);
+
+    const IInvokerPtr& GetControlInvoker() const;
+
 private:
     class TImpl;
-    std::unique_ptr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 };
+
+DEFINE_REFCOUNTED_TYPE(TClickHouseHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
