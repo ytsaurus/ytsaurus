@@ -4079,7 +4079,7 @@ class TestConnectToMaster(YTEnvSetup):
         return False
 
 
-class TestOperationAliasesBase(YTEnvSetup):
+class TestOperationAliases(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_NODES = 3
@@ -4111,7 +4111,7 @@ class TestOperationAliasesBase(YTEnvSetup):
         # Init operations archive.
         sync_create_cells(1)
 
-    def _test_aliases(self, is_native):
+    def test_aliases(self):
         with pytest.raises(YtError):
             # Alias should start with *.
             vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
@@ -4125,8 +4125,7 @@ class TestOperationAliasesBase(YTEnvSetup):
         assert ls("//sys/scheduler/orchid/scheduler/operations") == [op.id, "*my_op"]
         assert get("//sys/scheduler/orchid/scheduler/operations/" + op.id) == get("//sys/scheduler/orchid/scheduler/operations/\\*my_op")
         wait(lambda: op.get_state() == "running")
-        if is_native:
-            assert list_operations()["operations"][0]["brief_spec"]["alias"] == "*my_op"
+        assert list_operations()["operations"][0]["brief_spec"]["alias"] == "*my_op"
 
         # It is not allowed to use alias of already running operation.
         with pytest.raises(YtError):
@@ -4159,7 +4158,7 @@ class TestOperationAliasesBase(YTEnvSetup):
         complete_op("*my_op")
         assert get(op.get_path() + "/@state") == "completed"
 
-    def _test_get_operation_latest_archive_version(self):
+    def test_get_operation_latest_archive_version(self):
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client())
 
         set("//sys/scheduler/config", {"operations_cleaner": {"enable": False}})
@@ -4203,24 +4202,11 @@ class TestOperationAliasesBase(YTEnvSetup):
         assert info["type"] == "vanilla"
 
 
-class TestOperationAliasesNative(TestOperationAliasesBase):
-    def test_aliases(self):
-        self._test_aliases(True)
 
-    def test_get_operation_latest_archive_version(self):
-        self._test_get_operation_latest_archive_version()
-
-
-class TestOperationAliasesRpc(TestOperationAliasesBase):
+class TestOperationAliasesRpcProxy(TestOperationAliases):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_PROXY = True
-
-    def test_aliases(self):
-        self._test_aliases(False)
-
-    def test_get_operation_latest_archive_version(self):
-        self._test_get_operation_latest_archive_version()
 
 
 class TestContainerCpuLimit(YTEnvSetup):
@@ -4238,3 +4224,4 @@ class TestContainerCpuLimit(YTEnvSetup):
         statistics = get(op.get_path() + "/@progress/job_statistics")
         cpu_usage = get_statistics(statistics, "user_job.cpu.user.$.completed.vanilla.max")
         assert cpu_usage < 2500
+
