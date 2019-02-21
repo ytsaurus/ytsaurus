@@ -1,5 +1,7 @@
 #include "helpers.h"
 
+#include <yt/core/misc/proc.h>
+
 namespace Py {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -128,10 +130,12 @@ void ValidateArgumentsEmpty(const Py::Tuple& args, const Py::Dict& kwargs)
 
 TGilGuard::TGilGuard()
     : State_(PyGILState_Ensure())
+    , ThreadId_(GetCurrentThreadId())
 { }
 
 TGilGuard::~TGilGuard()
 {
+    YCHECK(ThreadId_ == GetCurrentThreadId());
     PyGILState_Release(State_);
 }
 
@@ -139,10 +143,12 @@ TGilGuard::~TGilGuard()
 
 TReleaseAcquireGilGuard::TReleaseAcquireGilGuard()
     : State_(PyEval_SaveThread())
+    , ThreadId_(GetCurrentThreadId())
 { }
 
 TReleaseAcquireGilGuard::~TReleaseAcquireGilGuard()
 {
+    YCHECK(ThreadId_ == GetCurrentThreadId());
     PyEval_RestoreThread(State_);
 }
 
