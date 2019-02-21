@@ -80,8 +80,8 @@ TString ToString(const TTabletAction& action)
         action.GetSkipFreezing(),
         action.GetFreeze(),
         action.GetTabletCount(),
-        MakeFormattableRange(action.Tablets(), TObjectIdFormatter()),
-        MakeFormattableRange(action.TabletCells(), TObjectIdFormatter()),
+        MakeFormattableView(action.Tablets(), TObjectIdFormatter()),
+        MakeFormattableView(action.TabletCells(), TObjectIdFormatter()),
         action.PivotKeys(),
         action.GetCorrelationId(),
         action.GetExpirationTime());

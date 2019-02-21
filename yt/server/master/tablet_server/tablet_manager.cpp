@@ -5166,8 +5166,8 @@ private:
             transaction->GetId(),
             table->GetId(),
             tabletId,
-            MakeFormattableRange(chunksToAttach, TObjectIdFormatter()),
-            MakeFormattableRange(chunksToDetach, TObjectIdFormatter()),
+            MakeFormattableView(chunksToAttach, TObjectIdFormatter()),
+            MakeFormattableView(chunksToDetach, TObjectIdFormatter()),
             attachedRowCount,
             detachedRowCount,
             retainedTimestamp);

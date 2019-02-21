@@ -69,25 +69,32 @@ TString Format(TStringBuf format, TArgs&&... args);
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TRange, class TFormatter>
-struct TFormattableRange
+struct TFormattableView
 {
-    TRange Range;
+    using TBegin = std::decay_t<decltype(std::declval<const TRange>().begin())>;
+    using TEnd = std::decay_t<decltype(std::declval<const TRange>().end())>;
+
+    TBegin RangeBegin;
+    TEnd RangeEnd;
     TFormatter Formatter;
     size_t Limit = std::numeric_limits<size_t>::max();
+
+    TBegin begin() const;
+    TEnd end() const;
 };
 
 //! Annotates a given #range with #formatter to be applied to each item.
 template <class TRange, class TFormatter>
-TFormattableRange<TRange, TFormatter> MakeFormattableRange(
+TFormattableView<TRange, TFormatter> MakeFormattableView(
     const TRange& range,
-    const TFormatter& formatter);
+    TFormatter&& formatter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TRange, class TFormatter>
-TFormattableRange<TRange, TFormatter> MakeShrunkFormattableRange(
+TFormattableView<TRange, TFormatter> MakeShrunkFormattableView(
     const TRange& range,
-    const TFormatter& formatter,
+    TFormatter&& formatter,
     size_t limit);
 
 ////////////////////////////////////////////////////////////////////////////////

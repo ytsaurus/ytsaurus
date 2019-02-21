@@ -2197,7 +2197,7 @@ private:
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk trees attached (ParentId: %v, ChildIds: %v)",
             parentId,
-            MakeFormattableRange(children, TObjectIdFormatter()));
+            MakeFormattableView(children, TObjectIdFormatter()));
     }
 
 

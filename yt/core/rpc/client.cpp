@@ -307,7 +307,7 @@ void TClientRequest::OnPullRequestAttachmentsStream()
     YT_LOG_DEBUG("Request streaming attachments pulled (RequestId: %v, SequenceNumber: %v, Sizes: %v, Closed: %v)",
         GetRequestId(),
         payload->SequenceNumber,
-        MakeFormattableRange(MakeRange(payload->Attachments), [] (auto* builder, const auto& attachment) {
+        MakeFormattableView(payload->Attachments, [] (auto* builder, const auto& attachment) {
             builder->AppendFormat("%v", GetStreamingAttachmentSize(attachment));
         }),
         !payload->Attachments.back());

@@ -315,7 +315,7 @@ public:
 
         YT_LOG_DEBUG("Node register mutation scheduled (Address: %v, NodeGroups: %v)",
             address,
-            MakeFormattableRange(groups, [] (auto* builder, const auto* group) {
+            MakeFormattableView(groups, [] (auto* builder, const auto* group) {
                 builder->AppendFormat("%v", group->Id);
             }));
 

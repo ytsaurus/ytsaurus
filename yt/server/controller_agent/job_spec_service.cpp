@@ -64,7 +64,7 @@ private:
         }
 
         context->SetRequestInfo("JobSpecRequests: %v",
-            MakeFormattableRange(jobSpecRequests, [] (TStringBuilder* builder, const TJobSpecRequest& req) {
+            MakeFormattableView(jobSpecRequests, [] (TStringBuilder* builder, const TJobSpecRequest& req) {
                 FormatValue(builder, req.JobId, TStringBuf());
             }));
 

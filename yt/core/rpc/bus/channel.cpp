@@ -819,7 +819,7 @@ private:
                 "Codec: %v, MemoryZone: %v, Closed: %v)",
                 requestId,
                 sequenceNumber,
-                MakeFormattableRange(attachments, [] (auto* builder, const auto& attachment) {
+                MakeFormattableView(attachments, [] (auto* builder, const auto& attachment) {
                     builder->AppendFormat("%v", GetStreamingAttachmentSize(attachment));
                 }),
                 codec,

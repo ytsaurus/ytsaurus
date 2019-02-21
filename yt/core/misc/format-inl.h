@@ -201,20 +201,32 @@ struct TValueFormatter<TEnum, typename std::enable_if<TEnumTraits<TEnum>::IsEnum
 };
 
 template <class TRange, class TFormatter>
-TFormattableRange<TRange, TFormatter> MakeFormattableRange(
-    const TRange& range,
-    const TFormatter& formatter)
+typename TFormattableView<TRange, TFormatter>::TBegin TFormattableView<TRange, TFormatter>::begin() const
 {
-    return TFormattableRange<TRange, TFormatter>{range, formatter};
+    return RangeBegin;
 }
 
 template <class TRange, class TFormatter>
-TFormattableRange<TRange, TFormatter> MakeShrunkFormattableRange(
+typename TFormattableView<TRange, TFormatter>::TEnd TFormattableView<TRange, TFormatter>::end() const
+{
+    return RangeEnd;
+}
+
+template <class TRange, class TFormatter>
+TFormattableView<TRange, TFormatter> MakeFormattableView(
     const TRange& range,
-    const TFormatter& formatter,
+    TFormatter&& formatter)
+{
+    return TFormattableView<TRange, std::decay_t<TFormatter>>{range.begin(), range.end(), std::forward<TFormatter>(formatter)};
+}
+
+template <class TRange, class TFormatter>
+TFormattableView<TRange, TFormatter> MakeShrunkFormattableView(
+    const TRange& range,
+    TFormatter&& formatter,
     size_t limit)
 {
-    return TFormattableRange<TRange, TFormatter>{range, formatter, limit};
+    return TFormattableView<TRange, std::decay_t<TFormatter>>{range.begin(), range.end(), std::forward<TFormatter>(formatter), limit};
 }
 
 template <class TRange, class TFormatter>
@@ -257,13 +269,13 @@ void FormatKeyValueRange(TStringBuilder* builder, const TRange& range, const TFo
     builder->AppendChar('}');
 }
 
-// TFormattableRange
+// TFormattableView
 template <class TRange, class TFormatter>
-struct TValueFormatter<TFormattableRange<TRange, TFormatter>>
+struct TValueFormatter<TFormattableView<TRange, TFormatter>>
 {
-    static void Do(TStringBuilder* builder, const TFormattableRange<TRange, TFormatter>& range, TStringBuf /*format*/)
+    static void Do(TStringBuilder* builder, const TFormattableView<TRange, TFormatter>& range, TStringBuf /*format*/)
     {
-        FormatRange(builder, range.Range, range.Formatter, range.Limit);
+        FormatRange(builder, range, range.Formatter, range.Limit);
     }
 };
 

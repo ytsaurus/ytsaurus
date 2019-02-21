@@ -415,7 +415,7 @@ private:
         context->SetRequestInfo("BlockIds: %v:%v, PopulateCache: %v, FetchFromCache: %v, "
             "FetchFromDisk: %v, Workload: %v",
             chunkId,
-            MakeShrunkFormattableRange(blockIndexes, TDefaultFormatter(), 3),
+            MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3),
             populateCache,
             fetchFromCache,
             fetchFromDisk,

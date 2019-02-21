@@ -281,7 +281,7 @@ TChunkReplicaList AllocateWriteTargets(
 
     YT_LOG_DEBUG("Write targets allocated (ChunkId: %v, Targets: %v)",
         sessionId,
-        MakeFormattableRange(replicas, TChunkReplicaAddressFormatter(nodeDirectory)));
+        MakeFormattableView(replicas, TChunkReplicaAddressFormatter(nodeDirectory)));
 
     return replicas;
 }
