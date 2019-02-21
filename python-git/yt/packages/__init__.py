@@ -1,3 +1,8 @@
+try:
+    from . import tqdm
+except ImportError:
+    import tqdm
+
 import os
 import sys
 
