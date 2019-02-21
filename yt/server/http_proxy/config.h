@@ -104,6 +104,7 @@ class TClickHouseConfig
 public:
     TString DiscoveryPath;
     NHttp::TClientConfigPtr HttpClient;
+    TDuration ProfilingPeriod;
 
     TClickHouseConfig()
     {
@@ -111,6 +112,8 @@ public:
             .Default("//sys/clickhouse/cliques");
         RegisterParameter("http_client", HttpClient)
             .DefaultNew();
+        RegisterParameter("profiling_period", ProfilingPeriod)
+            .Default(TDuration::Seconds(1));
 
         RegisterPreprocessor([&] {
             HttpClient->HeaderReadTimeout = TDuration::Hours(1);
