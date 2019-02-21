@@ -1737,7 +1737,7 @@ private:
             "ResultingPartitionIds: %v, DataSize: %v, Keys: %v)",
             tablet->GetId(),
             partitionId,
-            MakeFormattableRange(
+            MakeFormattableView(
                 MakeRange(
                     tablet->PartitionList().data() + partitionIndex,
                     tablet->PartitionList().data() + partitionIndex + pivotKeys.size()),
@@ -1768,7 +1768,7 @@ private:
         int lastPartitionIndex = firstPartitionIndex + request->partition_count() - 1;
 
         auto originalPartitionIds = Format("%v",
-            MakeFormattableRange(
+            MakeFormattableView(
                 MakeRange(
                     tablet->PartitionList().data() + firstPartitionIndex,
                     tablet->PartitionList().data() + lastPartitionIndex + 1),

@@ -384,7 +384,7 @@ private:
             for (const auto& split : splits) {
                 YT_LOG_DEBUG("Ranges in split %v: %v",
                     split.Id,
-                    MakeFormattableRange(split.Ranges, TRangeFormatter()));
+                    MakeFormattableView(split.Ranges, TRangeFormatter()));
             }
         }
     }

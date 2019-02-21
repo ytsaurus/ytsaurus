@@ -156,7 +156,7 @@ std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TE
                         tabletInfo->TabletId,
                         tabletInfo->CellId,
                         tabletInfo->MountRevision,
-                        MakeFormattableRange(tabletInfo->Owners, [] (auto* builder, const auto& weakOwner) {
+                        MakeFormattableView(tabletInfo->Owners, [] (auto* builder, const auto& weakOwner) {
                             if (auto owner = weakOwner.Lock()) {
                                 FormatValue(builder, owner->Path, TStringBuf());
                             }

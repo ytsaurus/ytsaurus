@@ -305,7 +305,7 @@ private:
         Logger.AddTag("CellId: %v, TabletId: %v, PartitionIds: %v",
             slot->GetCellId(),
             partition->GetTablet()->GetId(),
-            MakeFormattableRange(
+            MakeFormattableView(
                 MakeRange(
                     tablet->PartitionList().data() + firstPartitionIndex,
                     tablet->PartitionList().data() + lastPartitionIndex + 1),

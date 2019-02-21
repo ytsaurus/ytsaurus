@@ -306,7 +306,7 @@ void AppendUdfDescriptors(
         functionBody.ChunkSpecs = chunks;
 
         YT_LOG_DEBUG("Appending UDF descriptor {%v}",
-            MakeFormattableRange(chunks, [] (TStringBuilder* builder, const NChunkClient::NProto::TChunkSpec& chunkSpec) {
+            MakeFormattableView(chunks, [] (TStringBuilder* builder, const NChunkClient::NProto::TChunkSpec& chunkSpec) {
                 builder->AppendFormat("%v", FromProto<TGuid>(chunkSpec.chunk_id()));
             }));
 

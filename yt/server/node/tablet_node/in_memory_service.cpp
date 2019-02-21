@@ -119,10 +119,10 @@ private:
         auto sessionId = FromProto<TInMemorySessionId>(request->session_id());
         context->SetRequestInfo("SessionId: %v, TabletIds: %v, ChunkIds: %v",
             sessionId,
-            MakeFormattableRange(request->tablet_id(), [] (TStringBuilder* builder, const NYT::NProto::TGuid& tabletId) {
+            MakeFormattableView(request->tablet_id(), [] (TStringBuilder* builder, const NYT::NProto::TGuid& tabletId) {
                 FormatValue(builder, FromProto<TTabletId>(tabletId), TStringBuf());
             }),
-            MakeFormattableRange(request->chunk_id(), [] (TStringBuilder* builder, const NYT::NProto::TGuid& chunkId) {
+            MakeFormattableView(request->chunk_id(), [] (TStringBuilder* builder, const NYT::NProto::TGuid& chunkId) {
                 FormatValue(builder, FromProto<TChunkId>(chunkId), TStringBuf());
             }));
 

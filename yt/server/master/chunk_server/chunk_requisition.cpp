@@ -150,7 +150,7 @@ void FormatValue(TStringBuilder* builder, TChunkReplication replication, TString
     return builder->AppendFormat(
         "{Vital: %v, Media: {%v}}",
         replication.GetVital(),
-        MakeFormattableRange(
+        MakeFormattableView(
             filteredPolicies,
             [&] (TStringBuilder* aBuilder, const TIndexPolicyPair& pair) {
                 aBuilder->AppendFormat("%v: %v", pair.first, pair.second);
@@ -496,7 +496,7 @@ void FormatValue(TStringBuilder* builder, const TChunkRequisition& requisition, 
     builder->AppendFormat(
         "{Vital: %v, Entries: {%v}}",
         requisition.GetVital(),
-        MakeFormattableRange(
+        MakeFormattableView(
             requisition,
             [] (TStringBuilder* builder, const TRequisitionEntry& entry) {
                 FormatValue(builder, entry);

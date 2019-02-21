@@ -1198,7 +1198,7 @@ bool TChunkReplicator::CreateReplicationJob(
         (*job)->GetJobId(),
         sourceNode->GetDefaultAddress(),
         chunkWithIndexes,
-        MakeFormattableRange(targetNodes, TNodePtrAddressFormatter()));
+        MakeFormattableView(targetNodes, TNodePtrAddressFormatter()));
 
     return targetNodes.size() == replicasNeeded;
 }
@@ -1393,7 +1393,7 @@ bool TChunkReplicator::CreateRepairJob(
         (*job)->GetJobId(),
         node->GetDefaultAddress(),
         chunkWithIndexes,
-        MakeFormattableRange(targetNodes, TNodePtrAddressFormatter()),
+        MakeFormattableView(targetNodes, TNodePtrAddressFormatter()),
         erasedPartIndexes);
 
     return true;

@@ -120,8 +120,8 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
         upperBound,
         blockReadOptions.WorkloadDescriptor,
         blockReadOptions.ReadSessionId,
-        MakeFormattableRange(stores, TStoreIdFormatter()),
-        MakeFormattableRange(stores, TStoreRangeFormatter()),
+        MakeFormattableView(stores, TStoreIdFormatter()),
+        MakeFormattableView(stores, TStoreRangeFormatter()),
         bounds.Size());
 
     auto rowMerger = std::make_unique<TSchemafulRowMerger>(
@@ -259,7 +259,7 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
         upperRowIndex,
         blockReadOptions.WorkloadDescriptor,
         blockReadOptions.ReadSessionId,
-        MakeFormattableRange(stores, TStoreIdFormatter()));
+        MakeFormattableView(stores, TStoreIdFormatter()));
 
     std::vector<std::function<ISchemafulReaderPtr()>> readers;
     for (const auto& store : stores) {
@@ -344,8 +344,8 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
         timestamp,
         blockReadOptions.WorkloadDescriptor,
         blockReadOptions.ReadSessionId,
-        MakeFormattableRange(stores, TStoreIdFormatter()),
-        MakeFormattableRange(stores, TStoreRangeFormatter()));
+        MakeFormattableView(stores, TStoreIdFormatter()),
+        MakeFormattableView(stores, TStoreRangeFormatter()));
 
     auto rowMerger = std::make_unique<TSchemafulRowMerger>(
         rowBuffer,
@@ -469,8 +469,8 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         majorTimestamp,
         blockReadOptions.WorkloadDescriptor,
         blockReadOptions.ReadSessionId,
-        MakeFormattableRange(stores, TStoreIdFormatter()),
-        MakeFormattableRange(stores, TStoreRangeFormatter()));
+        MakeFormattableView(stores, TStoreIdFormatter()),
+        MakeFormattableView(stores, TStoreRangeFormatter()));
 
     auto rowMerger = std::make_unique<TVersionedRowMerger>(
         New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
