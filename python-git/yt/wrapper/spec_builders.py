@@ -8,10 +8,10 @@ from .cypress_commands import exists, get, remove_with_empty_dirs, get_attribute
 from .errors import YtOperationFailedError
 from .file_commands import LocalFile, _touch_file_in_cache
 from .ypath import TablePath, FilePath
-from .py_wrapper import OperationParameters, TempfilesManager, get_local_temp_directory
+from .py_wrapper import OperationParameters, TempfilesManager, get_local_temp_directory, WrapResult
 from .table_commands import is_empty, is_sorted
 from .table_helpers import (FileManager, _prepare_operation_formats, _is_python_function,
-                            _prepare_binary, _prepare_source_tables, _prepare_destination_tables,
+                            _prepare_python_command, _prepare_source_tables, _prepare_destination_tables,
                             _prepare_table_writer, _prepare_stderr_table)
 from .local_mode import is_local_mode, enable_local_files_usage_in_job
 
@@ -421,14 +421,31 @@ class UserJobSpecBuilder(object):
             output_table_count=output_table_count,
             use_yamr_descriptors=spec.get("use_yamr_descriptors", False))
 
-        local_mode = is_local_mode(client)
-        remove_temp_files = get_config(client)["clear_local_temp_files"] and not local_mode
-        with TempfilesManager(remove_temp_files, get_local_temp_directory(client)) as tempfiles_manager:
-            prepare_result = _prepare_binary(spec["command"], file_manager, tempfiles_manager, params, local_mode,
-                                             client=client)
-            if enable_local_files_usage_in_job(client):
-                prepare_result.local_files_to_remove += tempfiles_manager._tempfiles_pool + [tempfiles_manager.tmp_dir]
-            local_files = file_manager.upload_files()
+        if _is_python_function(spec["command"]):
+            local_mode = is_local_mode(client)
+            remove_temp_files = get_config(client)["clear_local_temp_files"] and not local_mode
+            with TempfilesManager(remove_temp_files, get_local_temp_directory(client)) as tempfiles_manager:
+                prepare_result = _prepare_python_command(
+                    spec["command"],
+                    file_manager,
+                    tempfiles_manager,
+                    params,
+                    local_mode,
+                    client=client)
+                if enable_local_files_usage_in_job(client):
+                    prepare_result.local_files_to_remove += tempfiles_manager._tempfiles_pool + [tempfiles_manager.tmp_dir]
+                local_files = file_manager.upload_files()
+        else:
+            prepare_result = WrapResult(
+                cmd=spec["command"],
+                tmpfs_size=0,
+                environment={},
+                local_files_to_remove=[],
+                title=None)
+            local_files = []
+
+        prepare_result.environment["YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB"] = \
+            str(int(get_config(client)["allow_http_requests_to_yt_from_job"]))
 
         tmpfs_size = prepare_result.tmpfs_size
         environment = prepare_result.environment

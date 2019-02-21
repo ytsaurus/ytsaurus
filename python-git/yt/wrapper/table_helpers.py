@@ -320,28 +320,20 @@ def _prepare_operation_formats(format, input_format, output_format, binary, inpu
 
     return input_format, output_format
 
-def _prepare_binary(binary, file_manager, tempfiles_manager, params, local_mode, client=None):
-    result = None
-    if _is_python_function(binary):
-        start_time = time.time()
-        if isinstance(params.input_format, YamrFormat) and params.group_by is not None \
-                and set(params.group_by) != {"key"}:
-            raise YtError("Yamr format does not support reduce by %r", params.group_by)
-        result = \
-            py_wrapper.wrap(function=binary,
-                            file_manager=file_manager,
-                            tempfiles_manager=tempfiles_manager,
-                            local_mode=local_mode,
-                            params=params,
-                            client=client)
+def _prepare_python_command(binary, file_manager, tempfiles_manager, params, local_mode, client=None):
+    start_time = time.time()
+    if isinstance(params.input_format, YamrFormat) and params.group_by is not None \
+            and set(params.group_by) != {"key"}:
+        raise YtError("Yamr format does not support reduce by %r", params.group_by)
+    result = \
+        py_wrapper.wrap(function=binary,
+                        file_manager=file_manager,
+                        tempfiles_manager=tempfiles_manager,
+                        local_mode=local_mode,
+                        params=params,
+                        client=client)
 
-        logger.debug("Collecting python modules and uploading to cypress takes %.2lf seconds", time.time() - start_time)
-    else:
-        result = py_wrapper.WrapResult(cmd=binary, tmpfs_size=0, environment={},
-                                       local_files_to_remove=[], title=None)
-
-    result.environment["YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB"] = \
-        str(int(get_config(client)["allow_http_requests_to_yt_from_job"]))
+    logger.debug("Collecting python modules and uploading to cypress takes %.2lf seconds", time.time() - start_time)
 
     return result
 
