@@ -1048,7 +1048,7 @@ def transform_archive(client, transform_begin, transform_end, force, archive_pat
             raise ValueError("Version {0} must have actions or transformations".format(version))
         client.set_attribute(archive_path, "version", version)
 
-def create_tables(client, target_version, shards=1, base_path=BASE_PATH):
+def create_tables(client, target_version, override_tablet_cell_bundle="default", shards=1, base_path=BASE_PATH):
     """ Creates operation archive tables of given version """
     assert target_version in TRANSFORMS
 
@@ -1060,16 +1060,18 @@ def create_tables(client, target_version, shards=1, base_path=BASE_PATH):
             if convertion.table_info:
                 schemas[convertion.table] = convertion.table_info
     for table in schemas:
-        table_path = BASE_PATH + "/" + table
+        table_path = base_path + "/" + table
+        if override_tablet_cell_bundle is not None:
+            schemas[table].attributes["tablet_cell_bundle"] = override_tablet_cell_bundle
         schemas[table].create_dynamic_table(client, table_path)
         schemas[table].alter_table(client, table_path, shards)
 
     client.set(BASE_PATH + "/@version", target_version)
 
-def create_tables_latest_version(client, shards=1, base_path=BASE_PATH):
+def create_tables_latest_version(client, override_tablet_cell_bundle="default", shards=1, base_path=BASE_PATH):
     """ Creates operation archive tables of latest version """
     latest_version = max(TRANSFORMS.keys())
-    create_tables(client, latest_version, shards=shards, base_path=base_path)
+    create_tables(client, latest_version, override_tablet_cell_bundle, shards=shards, base_path=base_path)
 
 def main():
     parser = argparse.ArgumentParser(description="Transform operations archive")
@@ -1097,7 +1099,7 @@ def main():
     next_version = current_version + 1
 
     if args.latest:
-        create_tables_latest_version(client)
+        create_tables_latest_version(client, override_tablet_cell_bundle=None)  # TODO(renadeen): promote python, fix usages in yt tests and get rid of None
     else:
         target_version = args.target_version
         transform_archive(client, next_version, target_version, args.force, archive_path, shard_count=args.shard_count)
