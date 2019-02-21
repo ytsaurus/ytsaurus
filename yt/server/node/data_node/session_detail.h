@@ -73,6 +73,7 @@ protected:
     const NProfiling::TProfiler Profiler;
 
     bool Active_ = false;
+    TError PendingCancelationError_;
     std::atomic<bool> Canceled_ = {false};
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
