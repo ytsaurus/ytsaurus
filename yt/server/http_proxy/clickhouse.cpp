@@ -12,6 +12,10 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/concurrency/periodic_executor.h>
+
+#include <yt/core/profiling/profile_manager.h>
+
 #include <library/string_utils/base64/base64.h>
 
 #include <util/string/cgiparam.h>
@@ -24,12 +28,14 @@ namespace NYT::NHttpProxy {
 using namespace NConcurrency;
 using namespace NHttp;
 using namespace NYTree;
+using namespace NProfiling;
 using namespace NLogging;
 using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TLogger ClickHouseLogger("ClickHouseProxy");
+TProfiler ClickHouseProfiler("/clickhouse_proxy");
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -112,7 +118,6 @@ public:
             CgiParameters_.EraseAll("query_id");
             CgiParameters_.emplace("query_id", ToString(Request_->GetRequestId()));
 
-
             ProxiedRequestUrl_ = Format("http://%v:%v%v?%v",
                 InstanceHost_,
                 InstanceHttpPort_,
@@ -130,9 +135,9 @@ public:
     {
         try {
             YT_LOG_DEBUG("Querying instance (Url: %v)", ProxiedRequestUrl_);
-            ProxiedRespose_ = WaitFor(HttpClient_->Post(ProxiedRequestUrl_, ProxiedRequestBody_, ProxiedRequestHeaders_))
+            ProxiedResponse_ = WaitFor(HttpClient_->Post(ProxiedRequestUrl_, ProxiedRequestBody_, ProxiedRequestHeaders_))
                 .ValueOrThrow();
-            YT_LOG_DEBUG("Got response from instance (StatusCode: %v)", ProxiedRespose_->GetStatusCode());
+            YT_LOG_DEBUG("Got response from instance (StatusCode: %v)", ProxiedResponse_->GetStatusCode());
         } catch (const std::exception& ex) {
             ReplyWithError(EStatusCode::InternalServerError, TError("ProxiedRequest failed")
                 << ex);
@@ -141,14 +146,18 @@ public:
         return true;
     }
 
-    void ForwardProxiedRespose()
+    void ForwardProxiedResponse()
     {
         YT_LOG_DEBUG("Forwarding back subresponse");
-        Response_->SetStatus(ProxiedRespose_->GetStatusCode());
-        Response_->GetHeaders()->MergeFrom(ProxiedRespose_->GetHeaders());
+        Response_->SetStatus(ProxiedResponse_->GetStatusCode());
+        Response_->GetHeaders()->MergeFrom(ProxiedResponse_->GetHeaders());
+        PipeInputToOutput(ProxiedResponse_, Response_);
+        YT_LOG_DEBUG("Proxied response forwarded");
+    }
 
-        PipeInputToOutput(ProxiedRespose_, Response_);
-        YT_LOG_DEBUG("ProxiedRespose forwarded");
+    const TString& GetUser() const
+    {
+        return User_;
     }
 
 private:
@@ -175,7 +184,7 @@ private:
     THeadersPtr ProxiedRequestHeaders_;
 
     //! Response from a chosen instance.
-    IResponsePtr ProxiedRespose_;
+    IResponsePtr ProxiedResponse_;
 
     void ReplyWithError(EStatusCode statusCode, const TError& error) const
     {
@@ -306,7 +315,14 @@ TClickHouseHandler::TClickHouseHandler(TBootstrap* bootstrap)
     , Coordinator_(bootstrap->GetCoordinator())
     , Config_(Bootstrap_->GetConfig()->ClickHouse)
     , HttpClient_(CreateClient(Config_->HttpClient, Bootstrap_->GetPoller()))
-{ }
+    , ControlInvoker_(Bootstrap_->GetControlInvoker())
+{
+    ProfilingExecutor_ = New<TPeriodicExecutor>(
+        ControlInvoker_,
+        BIND(&TClickHouseHandler::OnProfiling, MakeWeak(this)),
+        Config_->ProfilingPeriod);
+    ProfilingExecutor_->Start();
+}
 
 void TClickHouseHandler::HandleRequest(
     const IRequestPtr& request,
@@ -334,7 +350,44 @@ void TClickHouseHandler::HandleRequest(
             // TODO(max42): profile something here.
             return;
         }
-        context->ForwardProxiedRespose();
+
+        ControlInvoker_->Invoke(BIND(&TClickHouseHandler::AdjustQueryCount, MakeWeak(this), context->GetUser(), +1));
+        context->ForwardProxiedResponse();
+        ControlInvoker_->Invoke(BIND(&TClickHouseHandler::AdjustQueryCount, MakeWeak(this), context->GetUser(), -1));
+    }
+}
+
+void TClickHouseHandler::AdjustQueryCount(const TString& user, int delta)
+{
+    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
+    THashMap<TString, int>::insert_ctx ctx;
+    auto it = UserToRunningQueryCount_.find(user, ctx);
+    if (it == UserToRunningQueryCount_.end()) {
+        it = UserToRunningQueryCount_.emplace_direct(ctx, user, delta);
+    } else {
+        it->second += delta;
+    }
+    YCHECK(it->second >= 0);
+    if (it->second == 0) {
+        UserToRunningQueryCount_.erase(it);
+    }
+}
+
+void TClickHouseHandler::OnProfiling()
+{
+    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
+    const auto& Logger = ClickHouseLogger;
+
+    YT_LOG_DEBUG("Flushing profiling");
+
+    for (auto& [user, runningQueryCount] : UserToRunningQueryCount_) {
+        ClickHouseProfiler.Enqueue(
+            "/running_query_count",
+            runningQueryCount,
+            EMetricType::Gauge,
+            {TProfileManager::Get()->RegisterTag("user", user)});
     }
 }
 
