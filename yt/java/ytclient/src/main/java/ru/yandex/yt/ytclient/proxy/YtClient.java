@@ -26,7 +26,7 @@ import ru.yandex.yt.ytclient.rpc.RpcCompression;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 
-public class YtClient extends ApiServiceClient implements AutoCloseable {
+public class YtClient extends DestinationsSelector implements AutoCloseable {
     private static final Logger logger = LoggerFactory.getLogger(ApiServiceClient.class);
 
     private final List<PeriodicDiscovery> discovery;
@@ -230,7 +230,7 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
         return result;
     }
 
-    private List<RpcClient> selectDestinations() {
+    public List<RpcClient> selectDestinations() {
         return Manifold.selectDestinations(
                 dataCenters, 3,
                 localDataCenter != null,
