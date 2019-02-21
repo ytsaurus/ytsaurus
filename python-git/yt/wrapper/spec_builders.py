@@ -407,9 +407,6 @@ class UserJobSpecBuilder(object):
             else:
                 files.append(file)
 
-        for file in flatten(spec.get("local_files", [])):
-            local_files.append(LocalFile(file))
-
         params = OperationParameters(
             input_format=input_format,
             output_format=output_format,
