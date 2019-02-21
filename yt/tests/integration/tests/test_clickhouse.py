@@ -27,6 +27,7 @@ class Clique(object):
                                                           max_failed_job_count=max_failed_job_count,
                                                           cpu_limit=1,
                                                           memory_limit=5*2**30,
+                                                          memory_footprint=2*2**30,
                                                           **kwargs)
         self.spec = simplify_structure(spec_builder.build())
         self.spec["tasks"]["clickhouse_servers"]["force_core_dump"] = True
