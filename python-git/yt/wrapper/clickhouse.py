@@ -22,6 +22,7 @@ def get_clickhouse_clique_spec_builder(instance_count,
                                        max_failed_job_count=None,
                                        cpu_limit=None,
                                        memory_limit=None,
+                                       memory_footprint=None,
                                        enable_monitoring=None,
                                        spec=None):
     """Returns a spec builder for the clickhouse clique consisting of a given number of instances.
@@ -34,6 +35,8 @@ def get_clickhouse_clique_spec_builder(instance_count,
     :type host_ytserver_clickhouse_path: str
     :param max_failed_job_count: maximum number of failed jobs that is allowed for the underlying vanilla operation.
     :type max_failed_job_count: int
+    :param memory_footprint: amount of memory that goes to the YT runtime
+    :type memory_footprint: int
     :param enable_monitoring: (only for development use) option that makes clickhouse bind monitoring port to 10042.
     :type enable_monitoring: bool
     :param spec: other spec options.
@@ -47,6 +50,9 @@ def get_clickhouse_clique_spec_builder(instance_count,
 
     if memory_limit is None:
         memory_limit = DEFAULT_MEMORY_LIMIT
+
+    if memory_footprint is None:
+        memory_footprint = MEMORY_FOOTPRINT
 
     if enable_monitoring is None:
         enable_monitoring = False
@@ -80,15 +86,15 @@ def get_clickhouse_clique_spec_builder(instance_count,
     spec_builder = \
         VanillaSpecBuilder() \
             .begin_task("clickhouse_servers") \
-            .job_count(instance_count) \
-            .file_paths(file_paths) \
-            .command('{} --config config.yson --instance-id $YT_JOB_ID '
-                     '--clique-id $YT_OPERATION_ID --rpc-port $YT_PORT_0 --monitoring-port {} '
-                     '--tcp-port $YT_PORT_2 --http-port $YT_PORT_3'
-                     .format(executable_path, monitoring_port)) \
-            .memory_limit(memory_limit + MEMORY_FOOTPRINT) \
-            .cpu_limit(cpu_limit) \
-            .port_count(4) \
+                .job_count(instance_count) \
+                .file_paths(file_paths) \
+                .command('{} --config config.yson --instance-id $YT_JOB_ID '
+                         '--clique-id $YT_OPERATION_ID --rpc-port $YT_PORT_0 --monitoring-port {} '
+                         '--tcp-port $YT_PORT_2 --http-port $YT_PORT_3'
+                         .format(executable_path, monitoring_port)) \
+                .memory_limit(memory_limit + memory_footprint) \
+                .cpu_limit(cpu_limit) \
+                .port_count(4) \
             .end_task() \
             .max_failed_job_count(max_failed_job_count) \
             .spec(spec)
@@ -154,6 +160,7 @@ def start_clickhouse_clique(instance_count,
                             clickhouse_config=None,
                             cpu_limit=None,
                             memory_limit=None,
+                            memory_footprint=None,
                             enable_monitoring=None,
                             enable_query_log=None,
                             client=None,
@@ -168,6 +175,8 @@ def start_clickhouse_clique(instance_count,
     :type cpu_limit: int
     :param memory_limit: amount of memory that will be available to each instance
     :type memory_limit: int
+    :param memory_footprint: amount of memory that goes to the YT runtime
+    :type memory_footprint: int
     :param enable_monitoring: (only for development use) option that makes clickhouse bind monitoring port to 10042.
     :type enable_monitoring: bool
     :param enable_query_log: enable clickhouse query log.
@@ -186,6 +195,7 @@ def start_clickhouse_clique(instance_count,
                                                           cypress_config_path=cypress_config_path,
                                                           cpu_limit=cpu_limit,
                                                           memory_limit=memory_limit,
+                                                          memory_footprint=memory_footprint,
                                                           enable_monitoring=enable_monitoring,
                                                           **kwargs),
                        client=client,
