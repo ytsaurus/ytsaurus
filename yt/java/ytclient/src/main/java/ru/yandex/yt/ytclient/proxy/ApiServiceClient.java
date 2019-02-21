@@ -195,7 +195,7 @@ public class ApiServiceClient implements TransactionalClient {
         this(Option.of(client), options, client.getService(ApiService.class, options));
     }
 
-    ApiServiceClient(RpcOptions options) {
+    public ApiServiceClient(RpcOptions options) {
         this(Option.empty(), options, RpcServiceClient.create(ApiService.class, options));
     }
 

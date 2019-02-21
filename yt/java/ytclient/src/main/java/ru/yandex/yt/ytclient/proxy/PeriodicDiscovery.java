@@ -170,11 +170,11 @@ public class PeriodicDiscovery implements AutoCloseable {
         final int port = addr.getPort();
         RpcClient rpcClient = new DefaultRpcBusClient(
                 new DefaultBusFactory(connector, () -> new InetSocketAddress(host, port)), datacenterName);
-        if (!credentials.isEmpty()) {
-            rpcClient = rpcClient.withTokenAuthentication(credentials);
-        }
         if (!compression.isEmpty()) {
             rpcClient = rpcClient.withCompression(compression);
+        }
+        if (!credentials.isEmpty()) {
+            rpcClient = rpcClient.withTokenAuthentication(credentials);
         }
 
         return new DiscoveryServiceClient(rpcClient, options);

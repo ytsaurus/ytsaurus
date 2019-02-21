@@ -29,6 +29,11 @@ public class TokenAuthentication implements RpcClient {
     }
 
     @Override
+    public RpcClient withTokenAuthentication(RpcCredentials credentials) {
+        return new TokenAuthentication(this.client, credentials);
+    }
+
+    @Override
     public void close() {
         client.close();
     }
