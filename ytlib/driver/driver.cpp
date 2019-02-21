@@ -16,6 +16,8 @@
 #include <yt/client/api/connection.h>
 #include <yt/client/api/sticky_transaction_pool.h>
 
+#include <yt/client/api/rpc_proxy/connection_impl.h>
+
 #include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/core/yson/null_consumer.h>
@@ -128,15 +130,15 @@ public:
         , Connection_(std::move(connection))
         , StickyTransactionPool_(CreateStickyTransactionPool(Logger))
         , NodeDirectory_(New<TNodeDirectory>())
-        , NodeDirectorySynchronizer_(New<TNodeDirectorySynchronizer>(
-            Config_->NodeDirectorySynchronizer,
-            Connection_,
-            NodeDirectory_))
     {
         YCHECK(Config_);
         YCHECK(Connection_);
 
-        if (!Config_->Token) {
+        if (!dynamic_cast<NYT::NApi::NRpcProxy::TConnection*>(Connection_.Get())) {
+            NodeDirectorySynchronizer_ = New<TNodeDirectorySynchronizer>(
+                Config_->NodeDirectorySynchronizer,
+                Connection_,
+                NodeDirectory_);
             NodeDirectorySynchronizer_->Start();
         }
 
@@ -389,7 +391,7 @@ public:
 
         ClearMetadataCaches();
 
-        if (NodeDirectorySynchronizer_ && !Config_->Token) {
+        if (NodeDirectorySynchronizer_) {
             WaitFor(NodeDirectorySynchronizer_->Stop())
                 .ThrowOnError();
         }
