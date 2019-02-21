@@ -191,7 +191,7 @@ public:
 
     bool IsRepeated() const
     {
-        return Underlying_->is_repeated();
+        return Underlying_->is_repeated() && !IsYsonMap();
     }
 
     bool IsRequired() const
@@ -230,6 +230,8 @@ public:
     {
         return EnumType_;
     }
+
+    TProtobufElement GetElement(bool insideRepeated) const;
 
 private:
     const FieldDescriptor* const Underlying_;
@@ -304,6 +306,17 @@ public:
         return field;
     }
 
+    TProtobufElement GetElement() const
+    {
+        if (IsAttributeDictionary()) {
+            return std::make_unique<TProtobufAttributeDictionaryElement>();
+        } else {
+            return std::make_unique<TProtobufMessageElement>(TProtobufMessageElement{
+                this
+            });
+        }
+    }
+
 private:
     TProtobufTypeRegistry* const Registry_;
     const Descriptor* const Underlying_;
@@ -319,6 +332,27 @@ private:
 const TProtobufField* TProtobufField::GetYsonMapValueField() const
 {
     return MessageType_->GetFieldByNumber(ProtobufMapValueFieldNumber);
+}
+
+TProtobufElement TProtobufField::GetElement(bool insideRepeated) const
+{
+    if (IsRepeated() && !insideRepeated) {
+        return std::make_unique<TProtobufRepeatedElement>(TProtobufRepeatedElement{
+            GetElement(true)
+        });
+    } else if (IsYsonMap()) {
+        return std::make_unique<TProtobufMapElement>(TProtobufMapElement{
+            GetYsonMapValueField()->GetElement(false)
+        });
+    } else if (IsYsonString()) {
+        return std::make_unique<TProtobufAnyElement>();
+    } else if (IsMessage()) {
+        return std::make_unique<TProtobufMessageElement>(TProtobufMessageElement{
+            MessageType_
+        });
+    } else {
+        return std::make_unique<TProtobufScalarElement>();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1522,8 +1556,8 @@ private:
         }
 
         if (typeEntry.RepeatedField == field) {
-            Y_ASSERT(field->IsRepeated());
             if (!field->IsYsonMap()) {
+                Y_ASSERT(field->IsRepeated());
                 OnListItem(typeEntry.GenerateNextListIndex());
             }
         } else {
@@ -1899,15 +1933,47 @@ void ParseProtobuf(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TProtobufMessageType* GetMessageTypeByYPath(
-    const TProtobufMessageType* rootType,
-    const TYPath& path)
+namespace {
+
+TStringBuf FormatYPath(TStringBuf ypath)
 {
-    auto formatYPath = [] (TStringBuf ypath) {
-        return ypath.empty() ? AsStringBuf("/") : ypath;
+    return ypath.empty() ? AsStringBuf("/") : ypath;
+}
+
+TProtobufElementResolveResult GetProtobufElementFromField(
+    const TProtobufField* field,
+    bool insideRepeated,
+    const NYPath::TTokenizer& tokenizer)
+{
+    auto element = field->GetElement(insideRepeated);
+    if (std::holds_alternative<std::unique_ptr<TProtobufScalarElement>>(element) && !tokenizer.GetSuffix().empty()) {
+        THROW_ERROR_EXCEPTION("Field %v is scalar and does not support nested access",
+            FormatYPath(tokenizer.GetPrefixPlusToken()))
+            << TErrorAttribute("ypath", tokenizer.GetPrefixPlusToken());
+    }
+    return TProtobufElementResolveResult{
+        std::move(element),
+        tokenizer.GetPrefixPlusToken(),
+        tokenizer.GetSuffix()
+    };
+}
+
+} // namespace
+
+TProtobufElementResolveResult ResolveProtobufElementByYPath(
+    const TProtobufMessageType* rootType,
+    const NYPath::TYPath& path)
+{
+    NYPath::TTokenizer tokenizer(path);
+
+    auto makeResult = [&] (TProtobufElement element) {
+        return TProtobufElementResolveResult{
+            std::move(element),
+            tokenizer.GetPrefixPlusToken(),
+            tokenizer.GetSuffix()
+        };
     };
 
-    NYPath::TTokenizer tokenizer(path);
     auto* currentType = rootType;
     while (true) {
         YCHECK(currentType);
@@ -1920,10 +1986,9 @@ const TProtobufMessageType* GetMessageTypeByYPath(
         tokenizer.Expect(NYPath::ETokenType::Slash);
 
         if (currentType->IsAttributeDictionary()) {
-            THROW_ERROR_EXCEPTION("Field %v is an attribute dictionary",
-                formatYPath(tokenizer.GetPrefix()))
-                << TErrorAttribute("ypath", tokenizer.GetPrefix())
-                << TErrorAttribute("message_type", currentType->GetFullName());
+            tokenizer.Advance();
+            tokenizer.Expect(NYPath::ETokenType::Literal);
+            return makeResult(std::make_unique<TProtobufAnyElement>());
         }
 
         tokenizer.Advance();
@@ -1931,27 +1996,40 @@ const TProtobufMessageType* GetMessageTypeByYPath(
 
         const auto& fieldName = tokenizer.GetLiteralValue();
         const auto* field = currentType->FindFieldByName(fieldName);
-        auto fieldYPath = tokenizer.GetPrefixPlusToken();
         if (!field) {
             THROW_ERROR_EXCEPTION("No such field %v",
-                formatYPath(fieldYPath))
-                << TErrorAttribute("ypath", fieldYPath)
+                FormatYPath(tokenizer.GetPrefixPlusToken()))
+                << TErrorAttribute("ypath", tokenizer.GetPrefixPlusToken())
                 << TErrorAttribute("message_type", currentType->GetFullName());
         }
+
         if (!field->IsMessage()) {
-            THROW_ERROR_EXCEPTION("Field %v is not a message",
-                formatYPath(fieldYPath))
-                << TErrorAttribute("ypath", fieldYPath)
-                << TErrorAttribute("message_type", currentType->GetFullName());
+            if (field->IsRepeated()) {
+                tokenizer.Advance();
+                if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
+                    return makeResult(field->GetElement(false));
+                }
+
+                tokenizer.Expect(NYPath::ETokenType::Slash);
+                tokenizer.Advance();
+                tokenizer.Expect(NYPath::ETokenType::Literal);
+
+                return GetProtobufElementFromField(
+                    field,
+                    true,
+                    tokenizer);
+            } else {
+                return GetProtobufElementFromField(
+                    field,
+                    false,
+                    tokenizer);
+            }
         }
 
         if (field->IsYsonMap()) {
             tokenizer.Advance();
             if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
-                THROW_ERROR_EXCEPTION("Field %v is a YSON map",
-                    formatYPath(tokenizer.GetPrefix()))
-                    << TErrorAttribute("ypath", tokenizer.GetPrefix())
-                    << TErrorAttribute("message_type", currentType->GetFullName());
+                return makeResult(field->GetElement(false));
             }
 
             tokenizer.Expect(NYPath::ETokenType::Slash);
@@ -1960,30 +2038,36 @@ const TProtobufMessageType* GetMessageTypeByYPath(
 
             const auto* valueField = field->GetYsonMapValueField();
             if (!valueField->IsMessage()) {
-                THROW_ERROR_EXCEPTION("Map value %v is not a message",
-                    formatYPath(tokenizer.GetPrefixPlusToken()))
-                    << TErrorAttribute("ypath", tokenizer.GetPrefixPlusToken());
+                return GetProtobufElementFromField(
+                    valueField,
+                    false,
+                    tokenizer);
             }
+
             currentType = valueField->GetMessageType();
         } else if (field->IsRepeated()) {
             tokenizer.Advance();
             if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
-                THROW_ERROR_EXCEPTION("Field %v is repeated",
-                    formatYPath(tokenizer.GetPrefix()))
-                    << TErrorAttribute("ypath", tokenizer.GetPrefix())
-                    << TErrorAttribute("message_type", currentType->GetFullName());
+                return makeResult(field->GetElement(false));
             }
 
             tokenizer.Expect(NYPath::ETokenType::Slash);
             tokenizer.Advance();
             tokenizer.Expect(NYPath::ETokenType::Literal);
 
+            if (!field->IsMessage()) {
+                return GetProtobufElementFromField(
+                    field,
+                    true,
+                    tokenizer);
+            }
+
             currentType = field->GetMessageType();
         } else {
             currentType = field->GetMessageType();
         }
     }
-    return currentType;
+    return makeResult(currentType->GetElement());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
