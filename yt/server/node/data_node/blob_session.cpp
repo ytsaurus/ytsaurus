@@ -483,7 +483,7 @@ void TBlobSession::OnWriterAborted(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    YT_LOG_INFO(error, "Session canceled");
+    YT_LOG_DEBUG(error, "Session canceled");
 
     ReleaseSpace();
     Finished_.Fire(error);
