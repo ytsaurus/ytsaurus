@@ -361,6 +361,7 @@ public:
         // Release the connection with entire thread pools.
         if (Connection_) {
             Connection_->Terminate();
+            ClientCache_.Reset();
             Connection_.Reset();
         }
     }
