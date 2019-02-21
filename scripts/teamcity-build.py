@@ -770,6 +770,22 @@ def run_unit_tests(options, build_context):
         process_core_dumps(options, "unit_tests", sandbox_current)
         rmtree(sandbox_current)
 
+def perform_packaging(options, packages_path, args, configurations):
+    for build_type, python_type, library_path, package_path, package_name in configurations:
+        if python_type == "2" and not options.build_enable_python_2_7:
+            continue
+        if python_type == "3" and not options.build_enable_python_3_4:
+            continue
+        # NB: skynet enabled by default.
+
+        run_args = args + [
+            "--build-type", build_type,
+            "--python-type", python_type,
+            "--library-path", os.path.join(options.working_directory, library_path),
+            "--package-path", os.path.join(packages_path, package_path),
+            "--package-name", package_name,
+        ]
+        run(run_args, cwd=options.working_directory)
 
 @build_step
 @only_for_projects("yt")
@@ -805,21 +821,7 @@ def package_yson_bindings(options, build_context):
         ("debian", "skynet", "lib/pyshared-skynet/yson_lib.so", "yandex-yt-python-any-yson", "yandex-yt-python-skynet-yson"),
     ]
 
-    for build_type, python_type, library_path, package_path, package_name in configurations:
-        if python_type == "2" and not options.build_enable_python_2_7:
-            continue
-        if python_type == "3" and not options.build_enable_python_3_4:
-            continue
-        # NB: skynet enabled by default.
-
-        run_args = args + [
-            "--build-type", build_type,
-            "--python-type", python_type,
-            "--library-path", os.path.join(options.working_directory, library_path),
-            "--package-path", os.path.join(yson_packages_path, package_path),
-            "--package-name", package_name,
-        ]
-        run(run_args, cwd=options.working_directory)
+    perform_packaging(options, yson_packages_path, args, configurations)
 
 
 @build_step
@@ -868,22 +870,9 @@ def package_rpc_bindings(options, build_context):
         ("debian", "3", "lib/pyshared-3-4/driver_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-3-4-driver-rpc"),
         ("debian", "skynet", "lib/pyshared-skynet/driver_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-skynet-driver-rpc"),
     ]
+    
+    perform_packaging(options, rpc_packages_path, args, configurations)
 
-    for build_type, python_type, library_path, package_path, package_name in configurations:
-        if python_type == "2" and not options.build_enable_python_2_7:
-            continue
-        if python_type == "3" and not options.build_enable_python_3_4:
-            continue
-        # NB: skynet enabled by default.
-
-        run_args = args + [
-            "--build-type", build_type,
-            "--python-type", python_type,
-            "--library-path", os.path.join(options.working_directory, library_path),
-            "--package-path", os.path.join(rpc_packages_path, package_path),
-            "--package-name", package_name,
-        ]
-        run(run_args, cwd=options.working_directory)
 
 @build_step
 @only_for_projects("yt")
@@ -925,22 +914,7 @@ def package_driver_bindings(options, build_context):
         ("debian", "2", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-driver", "yandex-yt-python-driver"),
     ]
 
-    # TODO(ignat): split this code to function.
-    for build_type, python_type, library_path, package_path, package_name in configurations:
-        if python_type == "2" and not options.build_enable_python_2_7:
-            continue
-        if python_type == "3" and not options.build_enable_python_3_4:
-            continue
-        # NB: skynet enabled by default.
-
-        run_args = args + [
-            "--build-type", build_type,
-            "--python-type", python_type,
-            "--library-path", os.path.join(options.working_directory, library_path),
-            "--package-path", os.path.join(driver_packages_path, package_path),
-            "--package-name", package_name,
-        ]
-        run(run_args, cwd=options.working_directory)
+    perform_packaging(options, driver_packages_path, args, configurations)
 
 
 def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None, python_version=None):
