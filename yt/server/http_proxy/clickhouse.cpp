@@ -91,6 +91,11 @@ public:
                 InstanceHost_,
                 InstanceHttpPort_);
 
+            // TODO(max42): remove this when DataLens makes proper authorization. Duh.
+            if (auto* header = Request_->GetHeaders()->Find("X-DataLens-Real-User")) {
+                YT_LOG_DEBUG("Header contains DataLens real username (RealUser: %v)", *header);
+            }
+
             ProxiedRequestBody_ = Request_->ReadAll();
             if (!ProxiedRequestBody_) {
                 ReplyWithError(EStatusCode::BadRequest, TError("Body should not be empty"));
