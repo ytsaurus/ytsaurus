@@ -1081,35 +1081,123 @@ TEST(TProtobufToYsonTest, UnknownFields)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DO(path, result) \
-    EXPECT_EQ( \
-        ReflectProtobufMessageType<NYT::NProto::result>(), \
-        GetMessageTypeByYPath(ReflectProtobufMessageType<NYT::NProto::TMessage>(), path));
-
-TEST(TGetMessageByYPath, Success)
+template <class T>
+void TestMessageByYPath(const TYPath& path)
 {
-    DO("", TMessage)
-    DO("/nested_message1", TNestedMessage)
-    DO("/repeated_nested_message1/0/nested_message", TNestedMessage)
-    DO("/nested_message_map/k", TNestedMessage)
-    DO("/nested_message_map/k/nested_message", TNestedMessage)
-    DO("/nested_message_map/k/nested_message/nested_message_map/k", TNestedMessage)
+    auto result = ResolveProtobufElementByYPath(ReflectProtobufMessageType<NYT::NProto::TMessage>(), path);
+    EXPECT_TRUE(std::holds_alternative<std::unique_ptr<TProtobufMessageElement>>(result.Element));
+    const auto& messageElement = std::get<std::unique_ptr<TProtobufMessageElement>>(result.Element);
+    EXPECT_EQ(ReflectProtobufMessageType<T>(), messageElement->Type);
+    EXPECT_EQ(path, result.HeadPath);
+    EXPECT_EQ("", result.TailPath);
 }
 
-#undef DO
+TEST(TResolveProtobufElementByYPath, Message)
+{
+    TestMessageByYPath<NYT::NProto::TMessage>("");
+    TestMessageByYPath<NYT::NProto::TNestedMessage>("/nested_message1");
+    TestMessageByYPath<NYT::NProto::TNestedMessage>("/repeated_nested_message1/0/nested_message");
+    TestMessageByYPath<NYT::NProto::TNestedMessage>("/nested_message_map/k");
+    TestMessageByYPath<NYT::NProto::TNestedMessage>("/nested_message_map/k/nested_message");
+    TestMessageByYPath<NYT::NProto::TNestedMessage>("/nested_message_map/k/nested_message/nested_message_map/k");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TestScalarByYPath(const TYPath& path)
+{
+    auto result = ResolveProtobufElementByYPath(ReflectProtobufMessageType<NYT::NProto::TMessage>(), path);
+    EXPECT_TRUE(std::holds_alternative<std::unique_ptr<TProtobufScalarElement>>(result.Element));
+    EXPECT_EQ(path, result.HeadPath);
+    EXPECT_EQ("", result.TailPath);
+}
+
+TEST(TResolveProtobufElementByYPath, Scalar)
+{
+    TestScalarByYPath("/uint32_field");
+    TestScalarByYPath("/repeated_int32_field/123");
+    TestScalarByYPath("/repeated_nested_message1/0/color");
+    TestScalarByYPath("/nested_message_map/abc/int32_field");
+    TestScalarByYPath("/int32_map/abc");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TestAttributeDictionaryByYPath(const TYPath& path, const TYPath& headPath)
+{
+    auto result = ResolveProtobufElementByYPath(ReflectProtobufMessageType<NYT::NProto::TMessage>(), path);
+    EXPECT_TRUE(std::holds_alternative<std::unique_ptr<TProtobufAttributeDictionaryElement>>(result.Element));
+    EXPECT_EQ(headPath, result.HeadPath);
+    EXPECT_EQ(path.substr(headPath.length()), result.TailPath);
+}
+
+TEST(TResolveProtobufElementByYPath, AttributeDictionary)
+{
+    TestAttributeDictionaryByYPath("/attributes", "/attributes");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TestAnyByYPath(const TYPath& path, const TYPath& headPath)
+{
+    auto result = ResolveProtobufElementByYPath(ReflectProtobufMessageType<NYT::NProto::TMessage>(), path);
+    EXPECT_TRUE(std::holds_alternative<std::unique_ptr<TProtobufAnyElement>>(result.Element));
+    EXPECT_EQ(headPath, result.HeadPath);
+    EXPECT_EQ(path.substr(headPath.length()), result.TailPath);
+}
+
+TEST(TResolveProtobufElementByYPath, Any)
+{
+    TestAnyByYPath("/yson_field", "/yson_field");
+    TestAnyByYPath("/yson_field/abc", "/yson_field");
+    TestAnyByYPath("/attributes/abc", "/attributes/abc");
+    TestAnyByYPath("/attributes/abc/xyz", "/attributes/abc");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TestRepeatedByYPath(const TYPath& path)
+{
+    auto result = ResolveProtobufElementByYPath(ReflectProtobufMessageType<NYT::NProto::TMessage>(), path);
+    EXPECT_TRUE(std::holds_alternative<std::unique_ptr<TProtobufRepeatedElement>>(result.Element));
+    EXPECT_EQ(path, result.HeadPath);
+    EXPECT_EQ("", result.TailPath);
+}
+
+TEST(TResolveProtobufElementByYPath, Repeated)
+{
+    TestRepeatedByYPath("/repeated_int32_field");
+    TestRepeatedByYPath("/nested_message1/repeated_int32_field");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TestMapByYPath(const TYPath& path)
+{
+    auto result = ResolveProtobufElementByYPath(ReflectProtobufMessageType<NYT::NProto::TMessage>(), path);
+    EXPECT_TRUE(std::holds_alternative<std::unique_ptr<TProtobufMapElement>>(result.Element));
+    EXPECT_EQ(path, result.HeadPath);
+    EXPECT_EQ("", result.TailPath);
+}
+
+TEST(TResolveProtobufElementByYPath, Map)
+{
+    TestMapByYPath("/int32_map");
+    TestMapByYPath("/nested_message_map");
+    TestMapByYPath("/nested_message_map/abc/nested_message_map");
+    TestMapByYPath("/nested_message1/nested_message_map");
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 #define DO(path, errorPath) \
-    EXPECT_YPATH({GetMessageTypeByYPath(ReflectProtobufMessageType<NYT::NProto::TMessage>(), path);}, errorPath);
+    EXPECT_YPATH({ResolveProtobufElementByYPath(ReflectProtobufMessageType<NYT::NProto::TMessage>(), path);}, errorPath);
 
-TEST(TGetMessageByYPath, Failure)
+TEST(TResolveProtobufElementByYPath, Failure)
 {
-    DO("/int64_field", "/int64_field")
-    DO("/repeated_int32_field", "/repeated_int32_field")
-    DO("/attributes/k", "/attributes")
+    DO("/repeated_int32_field/1/2", "/repeated_int32_field/1")
     DO("/missing", "/missing")
-    DO("/nested_message_map", "/nested_message_map")
-    DO("/int32_map/k", "/int32_map/k")
-    DO("/repeated_nested_message1", "/repeated_nested_message1")
+    DO("/repeated_nested_message1/1/xyz/abc", "/repeated_nested_message1/1/xyz")
 }
 
 #undef DO
