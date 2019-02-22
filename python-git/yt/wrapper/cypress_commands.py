@@ -350,7 +350,7 @@ def get_attribute(path, attribute, default=_KWARG_SENTINEL, client=None):
     :param str attribute: attribute.
     :param default: if node hasn't attribute `attribute` this value will be returned.
     """
-    attribute_path = "{0}/@{1}".format(path, attribute)
+    attribute_path = "{0}/@{1}".format(YPath(path, client=client), attribute)
     if default is not _KWARG_SENTINEL and not exists(attribute_path, client=client):
         return default
     return get(attribute_path, client=client)

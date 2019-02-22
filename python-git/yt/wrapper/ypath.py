@@ -261,6 +261,9 @@ class TablePath(YPathSupportingAppend):
                  end_index=None,
                  ranges=None,
                  schema=None,
+                 optimize_for=None,
+                 compression_codec=None,
+                 erasure_codec=None,
                  foreign=None,
                  rename_columns=None,
                  simplify=None,
@@ -283,6 +286,9 @@ class TablePath(YPathSupportingAppend):
         :param int end_index: upper bound of rows.
         :param list ranges: list of ranges of rows. It overwrites all other row limits.
         :param list schema: table schema description.
+        :param string optimize_for: value of optimize_for mode.
+        :param string compression_codec: compression codec.
+        :param string erasure_codec: erasure codec.
         :param bool foreign: table is foreign for sorted reduce and joinreduce operations.
         :param dict attributes: attributes, it updates attributes specified in name.
 
@@ -302,6 +308,12 @@ class TablePath(YPathSupportingAppend):
             attributes["columns"] = columns
         if schema is not None:
             attributes["schema"] = schema
+        if optimize_for is not None:
+            attributes["optimize_for"] = schema
+        if compression_codec is not None:
+            attributes["compression_codec"] = compression_codec
+        if erasure_codec is not None:
+            attributes["erasure_codec"] = erasure_codec
         if foreign is not None:
             attributes["foreign"] = foreign
         if rename_columns is not None:
