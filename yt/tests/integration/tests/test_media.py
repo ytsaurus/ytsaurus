@@ -244,8 +244,8 @@ class TestMedia(YTEnvSetup):
         empty_tbl_media = {"default": {"replication_factor": 0, "data_parts_only": False}}
         with pytest.raises(YtError): set("//tmp/t5/@media", empty_tbl_media)
 
-        partity_loss_tbl_media = {"default": {"replication_factor": 3, "data_parts_only": True}}
-        with pytest.raises(YtError): set("//tmp/t5/@media", partity_loss_tbl_media)
+        parity_loss_tbl_media = {"default": {"replication_factor": 3, "data_parts_only": True}}
+        with pytest.raises(YtError): set("//tmp/t5/@media", parity_loss_tbl_media)
 
     def test_write_to_non_default_medium(self):
         create("table", "//tmp/t6")

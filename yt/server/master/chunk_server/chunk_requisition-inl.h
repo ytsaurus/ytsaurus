@@ -8,16 +8,6 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TReplicationPolicy::TReplicationPolicy()
-    : ReplicationFactor_(0)
-    , DataPartsOnly_(false)
-{ }
-
-inline TReplicationPolicy::TReplicationPolicy(int replicationFactor, bool dataPartsOnly)
-    : ReplicationFactor_(replicationFactor)
-    , DataPartsOnly_(dataPartsOnly)
-{ }
-
 inline void TReplicationPolicy::Clear()
 {
     *this = TReplicationPolicy();
@@ -61,14 +51,37 @@ inline bool operator!=(TReplicationPolicy lhs, TReplicationPolicy rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline bool TChunkReplication::TEntry::operator==(const TEntry& rhs) const
+{
+    return MediumIndex_ == rhs.MediumIndex_ && Policy_ == rhs.Policy_;
+}
+
+inline bool TChunkReplication::TEntryComparator::operator()(const TEntry& lhs, const TEntry& rhs) const
+{
+    return lhs.MediumIndex_ < rhs.MediumIndex_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline TChunkReplication::iterator TChunkReplication::begin()
+{
+    return Entries_.begin();
+}
+
+inline TChunkReplication::iterator TChunkReplication::end()
+{
+    return Entries_.end();
+}
+
 inline TChunkReplication::const_iterator TChunkReplication::begin() const
 {
-    return MediumReplicationPolicies.begin();
+    return Entries_.begin();
 }
 
 inline TChunkReplication::const_iterator TChunkReplication::end() const
 {
-    return MediumReplicationPolicies.end();
+
+    return Entries_.end();
 }
 
 inline TChunkReplication::const_iterator TChunkReplication::cbegin() const
@@ -81,24 +94,51 @@ inline TChunkReplication::const_iterator TChunkReplication::cend() const
     return end();
 }
 
-inline TChunkReplication::iterator TChunkReplication::begin()
+inline bool TChunkReplication::Contains(int mediumIndex) const
 {
-    return MediumReplicationPolicies.begin();
+    return Find(mediumIndex) != end();
 }
 
-inline TChunkReplication::iterator TChunkReplication::end()
+inline bool TChunkReplication::Erase(int mediumIndex)
 {
-    return MediumReplicationPolicies.end();
+    auto it = Find(mediumIndex);
+    if (it != Entries_.end()) {
+        Entries_.erase(it);
+        return true;
+    } else {
+        return false;
+    }
 }
 
-inline const TReplicationPolicy& TChunkReplication::operator[](int mediumIndex) const
+inline void TChunkReplication::Set(int mediumIndex, TReplicationPolicy policy, bool eraseEmpty)
 {
-    return MediumReplicationPolicies[mediumIndex];
+    if (policy || !eraseEmpty) {
+        auto [it, inserted] = Insert(mediumIndex, policy);
+        if (!inserted) {
+            it->Policy() = policy;
+        }
+    } else {
+        // NB: ignoring policy.DataPartsOnly as it makes no sense for 0 RF
+        Erase(mediumIndex);
+    }
 }
 
-inline TReplicationPolicy& TChunkReplication::operator[](int mediumIndex)
+inline void TChunkReplication::Aggregate(int mediumIndex, TReplicationPolicy policy)
 {
-    return MediumReplicationPolicies[mediumIndex];
+    auto [it, inserted] = Insert(mediumIndex, policy);
+    if (!inserted) {
+        it->Policy() |= policy;
+    }
+}
+
+inline const TReplicationPolicy& TChunkReplication::Get(int mediumIndex) const
+{
+    auto it = Find(mediumIndex);
+    if (it != end()) {
+        return it->Policy();
+    } else {
+        return EmptyReplicationPolicy;
+    }
 }
 
 inline bool TChunkReplication::GetVital() const
@@ -117,12 +157,50 @@ inline bool operator==(const TChunkReplication& lhs, const TChunkReplication& rh
         return true;
 
     return (lhs.GetVital() == rhs.GetVital()) &&
-        std::equal(lhs.begin(), lhs.end(), rhs.begin());
+        std::equal(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
 }
 
 inline bool operator!=(const TChunkReplication& lhs, const TChunkReplication& rhs)
 {
     return !(lhs == rhs);
+}
+
+template <class T>
+/*static*/ inline auto TChunkReplication::Find(T& entries, int mediumIndex) -> decltype(entries.begin())
+{
+    TEntry entry(mediumIndex, TReplicationPolicy()); // the comparator ignores policy during lookup
+    auto [rangeBegin, rangeEnd] = std::equal_range(entries.begin(), entries.end(), entry, TEntryComparator());
+    if (rangeBegin == rangeEnd) {
+        return entries.end();
+    } else {
+        YCHECK(std::distance(rangeBegin, rangeEnd) == 1);
+        return rangeBegin;
+    }
+}
+
+inline TChunkReplication::const_iterator TChunkReplication::Find(int mediumIndex) const
+{
+    return Find(Entries_, mediumIndex);
+}
+
+inline TChunkReplication::iterator TChunkReplication::Find(int mediumIndex)
+{
+    return Find(Entries_, mediumIndex);
+}
+
+inline std::pair<TChunkReplication::iterator, bool> TChunkReplication::Insert(int mediumIndex, TReplicationPolicy policy)
+{
+    TEntry entry(mediumIndex, policy);
+    auto it = std::lower_bound(
+        Entries_.begin(),
+        Entries_.end(),
+        entry, // the comparator ignores policy during lookup
+        TEntryComparator());
+    if (it != Entries_.end() && !TEntryComparator()(entry, *it)) {
+        return {it, false};
+    }
+    it = Entries_.insert(it, TEntry(mediumIndex, policy));
+    return {it, true};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -146,7 +224,6 @@ inline bool TRequisitionEntry::operator<(const TRequisitionEntry& rhs) const
     if (Account != rhs.Account) {
         return Account->GetId() < rhs.Account->GetId();
     }
-
 
     if (MediumIndex != rhs.MediumIndex) {
         return MediumIndex < rhs.MediumIndex;
@@ -192,7 +269,9 @@ inline TChunkRequisition::TChunkRequisition(
     TReplicationPolicy replicationPolicy,
     bool committed)
     : Entries_(1, TRequisitionEntry(account, mediumIndex, replicationPolicy, committed))
-{ }
+{
+    YCHECK(replicationPolicy);
+}
 
 inline TChunkRequisition::const_iterator TChunkRequisition::begin() const
 {

@@ -536,7 +536,7 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
             const auto& replication = node->Replication();
             auto primaryMediumIndex = node->GetPrimaryMediumIndex();
             BuildYsonFluently(consumer)
-                .Value(replication[primaryMediumIndex].GetReplicationFactor());
+                .Value(replication.Get(primaryMediumIndex).GetReplicationFactor());
             return true;
         }
 
@@ -631,8 +631,6 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
-    auto* node = GetThisImpl<TChunkOwnerBase>();
-
     switch (key) {
         case EInternedAttributeKey::ReplicationFactor: {
             ValidateStorageParametersUpdate();
@@ -659,7 +657,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
         case EInternedAttributeKey::Media: {
             ValidateStorageParametersUpdate();
             auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
-            auto replication = node->Replication(); // Copying for modification.
+            auto replication = GetThisImpl<TChunkOwnerBase>()->Replication(); // Copying for modification.
             // Preserves vitality.
             serializableReplication.ToChunkReplication(&replication, chunkManager);
             SetReplication(replication);
@@ -716,7 +714,7 @@ void TChunkOwnerNodeProxy::SetReplicationFactor(int replicationFactor)
     auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
 
     auto replication = node->Replication();
-    if (replication[mediumIndex].GetReplicationFactor() == replicationFactor) {
+    if (replication.Get(mediumIndex).GetReplicationFactor() == replicationFactor) {
         return;
     }
 
@@ -725,7 +723,9 @@ void TChunkOwnerNodeProxy::SetReplicationFactor(int replicationFactor)
         ValidatePermission(medium, EPermission::Use);
     }
 
-    replication[mediumIndex].SetReplicationFactor(replicationFactor);
+    auto policy = replication.Get(mediumIndex);
+    policy.SetReplicationFactor(replicationFactor);
+    replication.Set(mediumIndex, policy);
     ValidateChunkReplication(chunkManager, replication, mediumIndex);
 
     node->Replication() = replication;
