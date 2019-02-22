@@ -1484,9 +1484,9 @@ public:
             default:
                 Y_UNREACHABLE();
         }
-        for (int mediumIndex = 0; mediumIndex < NChunkClient::MaxMediumCount; ++mediumIndex) {
-            tabletStatistics.DiskSpacePerMedium[mediumIndex] = CalculateDiskSpaceUsage(
-                table->Replication()[mediumIndex].GetReplicationFactor(),
+        for (const auto& entry : table->Replication()) {
+            tabletStatistics.DiskSpacePerMedium[entry.GetMediumIndex()] = CalculateDiskSpaceUsage(
+                entry.Policy().GetReplicationFactor(),
                 treeStatistics.RegularDiskSpace,
                 treeStatistics.ErasureDiskSpace);
         }
@@ -5852,7 +5852,7 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
         *writerOptions = New<TTableWriterOptions>();
-        (*writerOptions)->ReplicationFactor = chunkReplication[primaryMediumIndex].GetReplicationFactor();
+        (*writerOptions)->ReplicationFactor = chunkReplication.Get(primaryMediumIndex).GetReplicationFactor();
         (*writerOptions)->MediumName = primaryMedium->GetName();
         (*writerOptions)->Account = table->GetAccount()->GetName();
         (*writerOptions)->CompressionCodec = table->GetCompressionCodec();
