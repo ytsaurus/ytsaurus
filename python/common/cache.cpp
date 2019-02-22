@@ -52,10 +52,16 @@ PyObjectPtr TPythonStringCache::GetPythonString(TStringBuf string)
 
     TItem item;
     item.OriginalKey = PyObjectPtr(PyBytes_FromStringAndSize(string.data(), string.size()));
+    if (!item.OriginalKey.get()) {
+        throw Py::Exception();
+    }
     weight += sizeof(PyObject) + Py_SIZE(item.OriginalKey.get());
 
     if (Encoding_) {
         item.EncodedKey = PyObjectPtr(PyUnicode_FromEncodedObject(item.OriginalKey.get(), Encoding_->data(), "strict"));
+        if (!item.EncodedKey.get()) {
+            throw Py::Exception();
+        }
         weight += sizeof(PyObject) + Py_SIZE(item.EncodedKey.get());
     }
 
