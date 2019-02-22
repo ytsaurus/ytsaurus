@@ -3,11 +3,15 @@
 #include <util/system/platform.h>
 
 #ifdef _linux_
-#include <yt/contrib/aio/aio_abi.h>
+    #include <yt/contrib/aio/aio_abi.h>
 
-#include <sys/syscall.h>
+    #include <sys/syscall.h>
 
-#include <unistd.h>
+    #include <unistd.h>
+
+    #ifndef FALLOC_FL_CONVERT_UNWRITTEN
+        #define FALLOC_FL_CONVERT_UNWRITTEN 0x4
+    #endif
 #endif
 
 #include <yt/core/concurrency/action_queue.h>
@@ -175,10 +179,11 @@ protected:
         const std::shared_ptr<TFileHandle>& handle,
         i64 newSize)
     {
-        // FALLOC_FL_CONVERT_UNWRITTEN = 0x04
-        if (fallocate(*handle, 0x04, 0, newSize) != 0) {
-            YT_LOG_WARNING("Cannot fallocate: %v", TError::FromSystem());
+#ifdef _linux
+        if (fallocate(*handle, FALLOC_FL_CONVERT_UNWRITTEN, 0, newSize) != 0) {
+            YT_LOG_WARNING(TError::FromSystem(), "fallocate call failed");
         }
+#endif
     }
 
     void DoFlushDirectory(const TString& path)
@@ -577,9 +582,11 @@ private:
         const std::shared_ptr<TFileHandle>& handle,
         i64 newSize)
     {
-        if (fallocate(*handle, 0x04, 0, newSize) != 0) {
-            YT_LOG_WARNING("Cannot fallocate: %v", TError::FromSystem());
+#ifdef _linux_
+        if (fallocate(*handle, FALLOC_FL_CONVERT_UNWRITTEN, 0, newSize) != 0) {
+            YT_LOG_WARNING(TError::FromSystem(), "fallocate call failed");
         }
+#endif
     }
 };
 
