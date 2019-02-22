@@ -431,6 +431,7 @@ class UserJobSpecBuilder(object):
                     client=client)
                 if enable_local_files_usage_in_job(client):
                     prepare_result.local_files_to_remove += tempfiles_manager._tempfiles_pool + [tempfiles_manager.tmp_dir]
+                local_files = file_manager.upload_files()
         else:
             prepare_result = WrapResult(
                 cmd=spec["command"],
@@ -438,8 +439,8 @@ class UserJobSpecBuilder(object):
                 environment={},
                 local_files_to_remove=[],
                 title=None)
+            local_files = file_manager.upload_files()
 
-        local_files = file_manager.upload_files()
 
         tmpfs_size = prepare_result.tmpfs_size
         environment = prepare_result.environment
