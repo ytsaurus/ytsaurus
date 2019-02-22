@@ -493,7 +493,7 @@ class YTInstance(object):
                 self.synchronize()
 
             # TODO(asaitgalin): Create this user inside master.
-            client = self.create_client()
+            client = self.create_native_client()
             if not client.exists("//sys/users/application_operations"):
                 client.create("user", attributes={"name": "application_operations"})
                 client.add_member("application_operations", "superusers")
@@ -843,7 +843,7 @@ class YTInstance(object):
                 # driver so it is requirement to have driver bindings if secondary cells are started.
                 client = None
                 if not secondary:
-                    client = self.create_client()
+                    client = self.create_native_client()
                 else:
                     client = self.create_native_client(master_name.replace("master", "driver"))
                 client.config["proxy"]["retries"]["enable"] = False
@@ -857,7 +857,7 @@ class YTInstance(object):
         cell_ready = quorum_ready
 
         if secondary:
-            primary_cell_client = self.create_client()
+            primary_cell_client = self.create_native_client()
             cell_tag = int(
                 self._cluster_configuration["master"]["secondary_cell_tags"][cell_index - 1])
 
@@ -901,7 +901,7 @@ class YTInstance(object):
     def start_nodes(self, sync=True):
         self._run_yt_component("node")
 
-        native_client = self.create_client()
+        native_client = self.create_native_client()
 
         def nodes_ready():
             self._validate_processes_are_running("node")
@@ -947,7 +947,7 @@ class YTInstance(object):
     def start_schedulers(self, sync=True):
         self._remove_scheduler_lock()
 
-        client = self.create_client()
+        client = self.create_native_client()
         client.create("map_node", "//sys/pool_trees/default", ignore_existing=True, recursive=True)
         client.set("//sys/pool_trees/@default_tree", "default")
         if not client.exists("//sys/pools"):
@@ -1013,7 +1013,7 @@ class YTInstance(object):
         def controller_agents_ready():
             self._validate_processes_are_running("controller_agent")
 
-            client = self.create_client()
+            client = self.create_native_client()
             instances = client.list("//sys/controller_agents/instances")
             if len(instances) != self.controller_agent_count:
                 return False, "Only {0} agents are registered in cypress".format(len(instances))
@@ -1075,7 +1075,7 @@ class YTInstance(object):
         return YtClient(config=config)
 
     def _remove_scheduler_lock(self):
-        client = self.create_client()
+        client = self.create_native_client()
         try:
             tx_id = client.get("//sys/scheduler/lock/@locks/0/transaction_id")
             if tx_id:
@@ -1258,7 +1258,7 @@ class YTInstance(object):
     def start_rpc_proxy(self, sync=True):
         self._run_yt_component("proxy", name="rpc_proxy")
 
-        native_client = self.create_client()
+        native_client = self.create_native_client()
 
         def rpc_proxy_ready():
             self._validate_processes_are_running("rpc_proxy")
@@ -1271,14 +1271,12 @@ class YTInstance(object):
     def start_skynet_managers(self, sync=True):
         self._run_yt_component("skynet-manager", name="skynet_manager")
 
-        native_client = self.create_client()
-
         def skynet_manager_ready():
             self._validate_processes_are_running("skynet_manager")
 
             http_port = self.configs["skynet_manager"][0]["port"]
             try:
-                rsp = requests.get("http://localhost:{}/debug/healthcheck".format(http_port))
+                requests.get("http://localhost:{}/debug/healthcheck".format(http_port))
             except (requests.exceptions.RequestException, socket.error):
                 return False
 
