@@ -86,22 +86,25 @@ TFuture<void> TSessionBase::Start()
 
     YT_LOG_DEBUG("Starting session");
 
-    return DoStart().Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        
-        YCHECK(!Active_);
-        Active_ = true;
+    return DoStart()
+            .Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+            VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (error.IsOK()) {
-            YT_LOG_DEBUG("Session started");
-            if (!PendingCancelationError_.IsOK()) {
-                Cancel(PendingCancelationError_);
+            YCHECK(!Active_);
+            Active_ = true;
+
+            if (error.IsOK()) {
+                YT_LOG_DEBUG("Session started");
+                if (!PendingCancelationError_.IsOK()) {
+                    Cancel(PendingCancelationError_);
+                }
+            } else {
+                YT_LOG_DEBUG(error, "Session has failed to start");
+                Cancel(error);
             }
-        } else {
-            YT_LOG_DEBUG(error, "Session has failed to start");
-            Cancel(error);
-        }
-    }).AsyncVia(Bootstrap_->GetControlInvoker()));
+        }).AsyncVia(Bootstrap_->GetControlInvoker()))
+        // TODO(babenko): session start cancelation is not properly supported
+        .ToUncancelable();
 }
 
 void TSessionBase::Ping()
