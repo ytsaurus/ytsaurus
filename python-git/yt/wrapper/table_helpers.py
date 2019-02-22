@@ -322,16 +322,15 @@ def _prepare_operation_formats(format, input_format, output_format, binary, inpu
 
 def _prepare_python_command(binary, file_manager, tempfiles_manager, params, local_mode, client=None):
     start_time = time.time()
-    if isinstance(params.input_format, YamrFormat) and params.group_by is not None \
-            and set(params.group_by) != {"key"}:
+    if isinstance(params.input_format, YamrFormat) and params.group_by is not None and set(params.group_by) != {"key"}:
         raise YtError("Yamr format does not support reduce by %r", params.group_by)
-    result = \
-        py_wrapper.wrap(function=binary,
-                        file_manager=file_manager,
-                        tempfiles_manager=tempfiles_manager,
-                        local_mode=local_mode,
-                        params=params,
-                        client=client)
+    result = py_wrapper.wrap(
+        function=binary,
+        file_manager=file_manager,
+        tempfiles_manager=tempfiles_manager,
+        local_mode=local_mode,
+        params=params,
+        client=client)
 
     logger.debug("Collecting python modules and uploading to cypress takes %.2lf seconds", time.time() - start_time)
 
