@@ -91,8 +91,7 @@ public:
         YCHECK(Bootstrap_);
 
         // TODO(prime): disable RPC attachment checksums for methods receiving/returning blocks
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk)
-            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CancelChunk));
