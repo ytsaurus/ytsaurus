@@ -16,6 +16,7 @@
 #include <yt/core/misc/cast.h>
 #include <yt/core/misc/string.h>
 #include <yt/core/misc/small_vector.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
 #include <yt/core/ytree/proto/attributes.pb.h>
 
@@ -1929,6 +1930,17 @@ void ParseProtobuf(
 {
     TProtobufParser parser(consumer, inputStream, rootType, options);
     parser.Parse();
+}
+
+void WriteProtobufMessage(
+    IYsonConsumer* consumer,
+    const ::google::protobuf::Message& message,
+    const TProtobufParserOptions& options)
+{
+    auto data = SerializeProtoToRef(message);
+    ArrayInputStream stream(data.Begin(), data.Size());
+    const auto* type = ReflectProtobufMessageType(message.GetDescriptor());
+    ParseProtobuf(consumer, &stream, type, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
