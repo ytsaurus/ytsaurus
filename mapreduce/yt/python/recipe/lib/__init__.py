@@ -1,11 +1,11 @@
-import os
-import json
+from mapreduce.yt.python.yt_stuff import YtStuff, YtConfig
 
 from library.python.testing.recipe import set_env
 
 import yatest.common
 
-from mapreduce.yt.python.yt_stuff import YtStuff, YtConfig
+import os
+import json
 
 recipe_info_json_file = "yt_recipe_info.json"
 
@@ -40,6 +40,9 @@ def start(args, yt_config=None):
 
 
 def stop(args):
+    if not os.path.exists(recipe_info_json_file):
+        return
+
     with open(recipe_info_json_file) as fin:
         recipe_info = json.load(fin)
 
