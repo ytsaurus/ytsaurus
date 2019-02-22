@@ -19,6 +19,7 @@
 
 #include <util/folder/dirut.h>
 #include <util/generic/singleton.h>
+#include <util/string/builder.h>
 #include <util/string/cast.h>
 #include <util/string/type.h>
 #include <util/system/env.h>
@@ -74,9 +75,14 @@ class TAbnormalTerminator
          return *Singleton<TAbnormalTerminator>();
      }
 
-     static void TerminateWithTimeout(const TDuration& timeout, const std::function<void(void)>& exitFunction)
+     static void TerminateWithTimeout(
+         const TDuration& timeout,
+         const std::function<void(void)>& exitFunction,
+         const TString& logMessage)
      {
-         auto result = NThreading::Async([&] {
+         auto result = NThreading::Async(
+             [&] {
+                 LOG_INFO(logMessage.Data());
                  NDetail::TAbortableRegistry::Get()->AbortAllAndBlockForever();
                  exitFunction();
              },
@@ -87,17 +93,18 @@ class TAbnormalTerminator
 
      static void SignalHandler(int signalNumber)
      {
-         LOG_INFO("Signal %d received, aborting transactions. Waiting 5 seconds...", signalNumber);
+         TString logMessage = TStringBuilder() << "Signal " << signalNumber << " received, aborting transactions. Waiting 5 seconds...";
          TerminateWithTimeout(
              TDuration::Seconds(5),
              [&] {
                  _exit(-signalNumber);
-             });
+             },
+             logMessage);
      }
 
      static void TerminateHandler()
      {
-         LOG_INFO("Terminate called, aborting transactions. Waiting 5 seconds...");
+         TString logMessage = TStringBuilder() << "Terminate called, aborting transactions. Waiting 5 seconds...";
          TerminateWithTimeout(
              TDuration::Seconds(5),
              [&] {
@@ -106,7 +113,8 @@ class TAbnormalTerminator
                  } else {
                      abort();
                  }
-             });
+             },
+             logMessage);
      }
 
  private:

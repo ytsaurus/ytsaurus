@@ -1,4 +1,5 @@
 #include <mapreduce/yt/interface/client.h>
+#include <mapreduce/yt/interface/logging/log.h>
 #include <mapreduce/yt/common/config.h>
 
 #include <util/system/env.h>
@@ -28,15 +29,34 @@ private:
 };
 REGISTER_MAPPER(TFailingMapper);
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TFailingAndDeadlockingLogger
+    : public ILogger
+{
+public:
+    void Log(ELevel, const TSourceLocation&, const char*, va_list) override
+    {
+        TGuard<TMutex> guard(Mutex_);
+        ythrow yexception() << "OOPS";
+    }
+
+private:
+    TMutex Mutex_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 int main(int argc, const char** argv) {
     Initialize(argc, argv);
 
     TConfig::Get()->LogLevel = "debug";
-    const TString ytProxy = GetEnv("YT_PROXY");
+    TString ytProxy = GetEnv("YT_PROXY");
     auto sleepSeconds = FromString<int>(GetEnv("SLEEP_SECONDS"));
     auto transactionTitle = GetEnv("TRANSACTION_TITLE");
-    const TString inputTable = GetEnv("INPUT_TABLE");
-    const TString outputTable = GetEnv("OUTPUT_TABLE");
+    TString inputTable = GetEnv("INPUT_TABLE");
+    TString outputTable = GetEnv("OUTPUT_TABLE");
+    bool failAndDeadlockLogger = FromString<bool>(GetEnv("FAIL_AND_DEADLOCK_LOGGER", "0"));
 
     auto client = CreateClient(ytProxy);
     {
@@ -46,12 +66,19 @@ int main(int argc, const char** argv) {
 
     ITransactionPtr transaction = client->StartTransaction(TStartTransactionOptions().Title(transactionTitle));
 
-    client->Map(
-        TMapOperationSpec()
-            .AddInput<TNode>(inputTable)
-            .AddOutput<TNode>(outputTable)
-            .MaxFailedJobCount(1),
-        new TFailingMapper(sleepSeconds));
+    if (failAndDeadlockLogger) {
+        TFailingAndDeadlockingLogger logger;
+        SetLogger(&logger);
+        LOG_DEBUG("Not so fast");
+        Y_FAIL("LOG_DEBUG should have never returned");
+    } else {
+        client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>(inputTable)
+                .AddOutput<TNode>(outputTable)
+                .MaxFailedJobCount(1),
+            new TFailingMapper(sleepSeconds));
+    }
 
     return 0;
 }

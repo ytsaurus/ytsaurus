@@ -80,15 +80,15 @@ def test_abort_operations_and_transactions_on_operation_fail(yt_stuff):
             "SLEEP_SECONDS": "0",
             "YT_CLEANUP_ON_TERMINATION": "1",
             "TRANSACTION_TITLE": "test-operation-fail",
-            "INPUT_TABLE": "//test-operation-fail-input",
-            "OUTPUT_TABLE": "//test-operation-fail-output",
+            "INPUT_TABLE": "//tmp/test-operation-fail-input",
+            "OUTPUT_TABLE": "//tmp/test-operation-fail-output",
         },
     )
 
     operation = get_operation_by_cmd_pattern(yt_client, pattern="on_operation_fail", attributes=["state"])
     assert operation["state"] == "failed"
 
-    check_table_is_not_locked(yt_client, "//test-operation-fail-output")
+    check_table_is_not_locked(yt_client, "//tmp/test-operation-fail-output")
     check_transaction_will_die(yt_client, "test-operation-fail", 5)
 
 def test_abort_operations_and_transactions_on_signal(yt_stuff):
@@ -107,8 +107,8 @@ def test_abort_operations_and_transactions_on_signal(yt_stuff):
             "SLEEP_SECONDS": "30",
             "YT_CLEANUP_ON_TERMINATION": "1",
             "TRANSACTION_TITLE": "test-signal",
-            "INPUT_TABLE": "//test-signal-input",
-            "OUTPUT_TABLE": "//test-signal-output",
+            "INPUT_TABLE": "//tmp/test-signal-input",
+            "OUTPUT_TABLE": "//tmp/test-signal-output",
         },
         wait=False,
     )
@@ -125,5 +125,28 @@ def test_abort_operations_and_transactions_on_signal(yt_stuff):
     process.process.send_signal(15)
     process.process.wait()
 
-    check_table_is_not_locked(yt_client, "//test-signal-output")
+    check_table_is_not_locked(yt_client, "//tmp/test-signal-output")
     check_transaction_will_die(yt_client, "test-signal", 5)
+
+def test_finish_with_deadlocked_logger(yt_stuff):
+    yt_client = yt_stuff.get_yt_client()
+
+    process = yatest.common.execute(
+        # Argument has no meaning for program
+        # we need it to find our operation later.
+        [TEST_PROGRAM, "deadlocked_logger"],
+        check_exit_code=False,
+        collect_cores=False,
+        env={
+            "YT_LOG_LEVEL": "DEBUG",
+            "MR_RUNTIME": "YT",
+            "YT_PROXY": yt_stuff.get_server(),
+            "SLEEP_SECONDS": "0",
+            "YT_CLEANUP_ON_TERMINATION": "1",
+            "TRANSACTION_TITLE": "test-deadlocked-logger",
+            "INPUT_TABLE": "//tmp/test-deadlocked-logger-input",
+            "OUTPUT_TABLE": "//tmp/test-deadlocked-logger-output",
+            "FAIL_AND_DEADLOCK_LOGGER": "1",
+        },
+        timeout=10,
+    )
