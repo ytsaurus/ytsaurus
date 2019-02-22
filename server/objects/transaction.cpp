@@ -1623,9 +1623,9 @@ private:
             }
 
             TStringBuilder builder;
-            static const char HexDigits[] = "0123456789abcdef";
-            for (int index = 0; index < 8; ++index) {
-                builder.AppendChar(HexDigits[RandomNumber<size_t>(16)]);
+            static const TString AvailableChars = "0123456789abcdefghijklmnopqrstuvwxyz";
+            for (int index = 0; index < 16; ++index) {
+                builder.AppendChar(AvailableChars[RandomNumber<size_t>(AvailableChars.size())]);
             }
             return builder.Flush();
         }
