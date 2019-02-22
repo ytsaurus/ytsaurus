@@ -151,6 +151,12 @@ void ParseProtobuf(
     const TProtobufMessageType* rootType,
     const TProtobufParserOptions& options = TProtobufParserOptions());
 
+//! Invokes #ParseProtobuf to write #message into #consumer.
+void WriteProtobufMessage(
+    IYsonConsumer* consumer,
+    const ::google::protobuf::Message& message,
+    const TProtobufParserOptions& options = TProtobufParserOptions());
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYson
