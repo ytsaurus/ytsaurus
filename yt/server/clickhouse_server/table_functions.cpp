@@ -3,7 +3,7 @@
 #include "storage_read_job.h"
 #include "type_helpers.h"
 
-#include <yt/server/clickhouse_server/query_context.h>
+#include "query_context.h"
 
 #include <Columns/ColumnString.h>
 #include <Columns/ColumnsNumber.h>
@@ -20,15 +20,6 @@
 #include <TableFunctions/TableFunctionFactory.h>
 
 #include <string>
-
-namespace DB {
-
-namespace ErrorCodes
-{
-    extern const int NUMBER_OF_ARGUMENTS_DOESNT_MATCH;
-}
-
-}   // namespace DB
 
 namespace NYT::NClickHouseServer {
 

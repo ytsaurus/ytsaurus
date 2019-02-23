@@ -1,11 +1,12 @@
 #pragma once
 
-#include "public_ch.h"
+#include "private.h"
+
 #include "cluster_tracker.h"
 #include "storage_with_virtual_columns.h"
 #include "table_schema.h"
 
-#include <yt/server/clickhouse_server/table_partition.h>
+#include "table_partition.h"
 
 #include <Interpreters/Cluster.h>
 #include <Interpreters/Context.h>

@@ -1,15 +1,6 @@
 #include "storage_stub.h"
 
-#include <yt/server/clickhouse_server/table.h>
-
-namespace DB {
-
-namespace ErrorCodes
-{
-    extern const int NOT_IMPLEMENTED;
-}
-
-}   // namespace DB
+#include "table.h"
 
 namespace NYT::NClickHouseServer {
 

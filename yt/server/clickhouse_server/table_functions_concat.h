@@ -1,9 +1,7 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 #include "cluster_tracker.h"
-
-#include <yt/server/clickhouse_server/public.h>
 
 namespace NYT::NClickHouseServer {
 

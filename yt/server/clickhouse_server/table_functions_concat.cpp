@@ -5,8 +5,8 @@
 #include "storage_concat.h"
 #include "type_helpers.h"
 
-#include <yt/server/clickhouse_server/table_partition.h>
-#include <yt/server/clickhouse_server/query_context.h>
+#include "table_partition.h"
+#include "query_context.h"
 
 #include <Common/Exception.h>
 #include <Common/OptimizedRegularExpression.h>
@@ -25,18 +25,6 @@
 #include <Poco/Logger.h>
 
 #include <common/logger_useful.h>
-
-
-namespace DB {
-
-namespace ErrorCodes {
-    extern const int NUMBER_OF_ARGUMENTS_DOESNT_MATCH;
-    extern const int TOO_LESS_ARGUMENTS_FOR_FUNCTION;
-    extern const int TOO_MANY_ARGUMENTS_FOR_FUNCTION;
-    extern const int CANNOT_SELECT;
-}
-
-} // namespace DB
 
 namespace NYT::NClickHouseServer {
 

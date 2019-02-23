@@ -2,7 +2,7 @@
 
 #include "query_context.h"
 
-#include <yt/server/clickhouse_server/public.h>
+#include "private.h"
 
 #include <yt/core/actions/public.h>
 

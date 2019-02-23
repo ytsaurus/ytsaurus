@@ -6,15 +6,6 @@
 #include <Common/typeid_cast.h>
 #include <IO/WriteHelpers.h>
 
-namespace DB {
-
-namespace ErrorCodes
-{
-    extern const int UNKNOWN_TYPE;
-}
-
-}   // namespace DB
-
 namespace NYT::NClickHouseServer {
 
 using namespace DB;

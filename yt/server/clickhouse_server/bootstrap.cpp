@@ -2,13 +2,13 @@
 
 #include "private.h"
 
-#include <yt/server/clickhouse_server/host.h>
+#include "host.h"
 
-#include <yt/server/clickhouse_server/config.h>
-#include <yt/server/clickhouse_server/directory.h>
-#include <yt/server/clickhouse_server/logger.h>
-#include <yt/server/clickhouse_server/query_context.h>
-#include <yt/server/clickhouse_server/clique_authorization_manager.h>
+#include "config.h"
+#include "directory.h"
+#include "logger.h"
+#include "query_context.h"
+#include "clique_authorization_manager.h"
 
 #include <yt/server/lib/admin/admin_service.h>
 

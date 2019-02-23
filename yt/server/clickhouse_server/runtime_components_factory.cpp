@@ -5,7 +5,7 @@
 #include "security_manager.h"
 #include "type_helpers.h"
 
-#include <yt/server/clickhouse_server/query_context.h>
+#include "query_context.h"
 
 #include <Dictionaries/Embedded/GeoDictionariesLoader.h>
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/public.h>
+#include "public.h"
 
 #include <Dictionaries/Embedded/IGeoDictionariesLoader.h>
 

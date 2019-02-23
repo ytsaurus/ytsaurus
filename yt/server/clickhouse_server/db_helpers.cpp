@@ -2,21 +2,12 @@
 
 #include "type_helpers.h"
 
-#include <yt/server/clickhouse_server/table.h>
-#include <yt/server/clickhouse_server/value.h>
+#include "table.h"
+#include "value.h"
 
 #include <DataTypes/DataTypeFactory.h>
 
 #include <IO/WriteHelpers.h>
-
-namespace DB {
-
-namespace ErrorCodes
-{
-    extern const int UNKNOWN_TYPE;
-}
-
-}   // namespace DB
 
 namespace NYT::NClickHouseServer {
 

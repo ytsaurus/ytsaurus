@@ -2,7 +2,7 @@
 
 #include "cluster_tracker.h"
 
-#include <yt/server/clickhouse_server/table_reader.h>
+#include "table_reader.h"
 
 #include <Interpreters/Cluster.h>
 #include <Storages/IStorage.h>

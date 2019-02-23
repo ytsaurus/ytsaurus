@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include "column_builder.h"
 #include "system_columns.h"

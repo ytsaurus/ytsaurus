@@ -2,8 +2,6 @@
 
 #include "private.h"
 #include "bootstrap.h"
-#include "public.h"
-#include "public_ch.h"
 #include "host.h"
 
 #include "document.h"
