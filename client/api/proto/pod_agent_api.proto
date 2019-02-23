@@ -17,13 +17,13 @@ message TPodAgentRequest {
     reserved 4;
 
     // Конфигурация Пода
-    TPodAgentSpec Spec = 1;
+    TPodAgentSpec spec = 1;
 
     // Секреты (raw, unencrypted)
-    repeated NYP.NClient.NApi.NProto.TSecret Secrets = 2;
+    repeated NYP.NClient.NApi.NProto.TSecret secrets = 2;
 
     // Кэш ресурсы для пода
-    TPodAgentResourceCacheSpec ResourceCacheSpec = 3;
+    TPodAgentResourceCacheSpec resource_cache_spec = 3;
 
     // Подсети пода, подсеть с id=boxes_subnet будет использоваться для выдачи ip каждому box
     repeated NYP.NClient.NApi.NProto.TPodStatus.TIP6SubnetAllocation ip6_subnet_allocations = 5;
@@ -31,24 +31,24 @@ message TPodAgentRequest {
 
 // Спека для получения расширенного debug состояния pod_agent
 message TPodAgentDebugSpec {
-    repeated string WorkloadIds = 1;
-    repeated string LayerIds = 2;
-    repeated string VolumeIds = 3;
-    repeated string BoxIds = 4;
-    repeated string StaticResourceIds = 5;
+    repeated string workload_ids = 1;
+    repeated string layer_ids = 2;
+    repeated string volume_ids = 3;
+    repeated string box_ids = 4;
+    repeated string static_resource_ids = 5;
 }
 
 // Расширенный debug status возвращаемый Pod-agent
 message TPodAgentDebugStatus {
     // Состояние behavior tree для workloads в dot формате
-    map<string, string> WorkloadTreeDots = 1;
+    map<string, string> workload_tree_dots = 1;
     // Состояние behavior tree для layers в dot формате
-    map<string, string> LayerTreeDots = 2;
+    map<string, string> layer_tree_dots = 2;
     // Состояние behavior tree для volumes в dot формате
-    map<string, string> VolumeTreeDots = 3;
+    map<string, string> volume_tree_dots = 3;
     // Состояние behavior tree для boxes в dot формате
-    map<string, string> BoxTreeDots = 4;
+    map<string, string> box_tree_dots = 4;
     // Состояние behavior tree для layers в dot формате
-    map<string, string> StaticResourcesTreeDots = 5;
+    map<string, string> static_resources_tree_dots = 5;
 }
 
