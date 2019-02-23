@@ -2,8 +2,6 @@
 
 #include "private.h"
 
-#include "public_ch.h"
-
 #include <yt/client/table_client/public.h>
 
 #include <Core/Field.h>

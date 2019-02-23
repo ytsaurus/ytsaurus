@@ -7,25 +7,15 @@
 #include "type_helpers.h"
 #include "virtual_columns.h"
 
-#include <yt/server/clickhouse_server/query_context.h>
-#include <yt/server/clickhouse_server/table_reader.h>
-#include <yt/server/clickhouse_server/table.h>
+#include "query_context.h"
+#include "table_reader.h"
+#include "table.h"
 
 #include <Interpreters/Context.h>
 
 #include <Poco/Logger.h>
 
 #include <common/logger_useful.h>
-
-namespace DB {
-
-namespace ErrorCodes
-{
-    extern const int INCOMPATIBLE_COLUMNS;
-    extern const int LOGICAL_ERROR;
-}
-
-}   // namespace DB
 
 namespace NYT::NClickHouseServer {
 

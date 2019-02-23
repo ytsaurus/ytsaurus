@@ -4,8 +4,8 @@
 #include "storage_stub.h"
 #include "type_helpers.h"
 
-#include <yt/server/clickhouse_server/query_context.h>
-#include <yt/server/clickhouse_server/table.h>
+#include "query_context.h"
+#include "table.h"
 
 #include <Common/Exception.h>
 #include <Common/LRUCache.h>
@@ -16,15 +16,6 @@
 #include <mutex>
 #include <string>
 #include <vector>
-
-namespace DB {
-
-namespace ErrorCodes
-{
-    extern const int NOT_IMPLEMENTED;
-}
-
-}   // namespace DB
 
 namespace NYT::NClickHouseServer {
 

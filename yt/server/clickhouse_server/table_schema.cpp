@@ -2,7 +2,7 @@
 
 #include "db_helpers.h"
 
-#include <yt/server/clickhouse_server/table.h>
+#include "table.h"
 
 #include <DataTypes/DataTypeFactory.h>
 

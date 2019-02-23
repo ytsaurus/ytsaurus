@@ -1,6 +1,6 @@
 #include "logger.h"
 
-#include <yt/server/clickhouse_server/logger.h>
+#include "logger.h"
 
 #include <yt/core/logging/log.h>
 #include <yt/core/profiling/timing.h>

@@ -2,7 +2,7 @@
 
 #include "cluster_nodes.h"
 
-#include <yt/server/clickhouse_server/directory.h>
+#include "directory.h"
 
 #include <Interpreters/Context.h>
 

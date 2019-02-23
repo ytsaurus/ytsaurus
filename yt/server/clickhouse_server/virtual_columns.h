@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/system_columns.h>
+#include "system_columns.h"
 
 #include <Core/NamesAndTypes.h>
 

@@ -1,10 +1,10 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
-#include <yt/server/clickhouse_server/public.h>
+#include "private.h"
 
-#include <yt/server/clickhouse_server/host.h>
+#include "host.h"
 
 #include <yt/ytlib/api/public.h>
 #include <yt/ytlib/api/native/public.h>

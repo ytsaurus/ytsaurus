@@ -11,11 +11,11 @@
 #include "table_functions.h"
 #include "table_functions_concat.h"
 #include "tcp_handler.h"
-#include "public.h"
+#include "private.h"
 
-#include <yt/server/clickhouse_server/query_context.h>
-#include <yt/server/clickhouse_server/poco_config.h>
-#include <yt/server/clickhouse_server/config.h>
+#include "query_context.h"
+#include "poco_config.h"
+#include "config.h"
 
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/profiling/profile_manager.h>
@@ -59,17 +59,6 @@
 #include <memory>
 #include <sstream>
 #include <vector>
-
-namespace DB {
-
-namespace ErrorCodes
-{
-    extern const int NO_ELEMENTS_IN_CONFIG;
-}
-
-void registerStorageMemory(StorageFactory & factory);
-
-}   // namespace DB
 
 namespace NYT::NClickHouseServer {
 

@@ -6,7 +6,7 @@
 #include "type_helpers.h"
 #include "updates_tracker.h"
 
-#include <yt/server/clickhouse_server/query_context.h>
+#include "query_context.h"
 
 #include <Common/Exception.h>
 #include <DataStreams/IBlockInputStream.h>

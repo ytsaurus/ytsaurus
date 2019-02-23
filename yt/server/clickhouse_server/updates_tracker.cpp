@@ -4,8 +4,8 @@
 
 #include <Poco/Exception.h>
 
-#include <yt/server/clickhouse_server/objects.h>
-#include <yt/server/clickhouse_server/query_context.h>
+#include "objects.h"
+#include "query_context.h"
 
 #include <util/generic/maybe.h>
 

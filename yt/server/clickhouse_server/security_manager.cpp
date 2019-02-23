@@ -2,7 +2,7 @@
 
 #include "format_helpers.h"
 
-#include <yt/server/clickhouse_server/clique_authorization_manager.h>
+#include "clique_authorization_manager.h"
 
 #include <Poco/Net/IPAddress.h>
 #include <Poco/Util/AbstractConfiguration.h>

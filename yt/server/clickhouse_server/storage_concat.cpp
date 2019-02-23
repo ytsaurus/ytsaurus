@@ -1,15 +1,15 @@
 #include "storage_table.h"
 
-#include "public_ch.h"
+#include "private.h"
 #include "format_helpers.h"
 #include "logging_helpers.h"
 #include "query_helpers.h"
 #include "storage_distributed.h"
 #include "virtual_columns.h"
 
-#include <yt/server/clickhouse_server/table.h>
-#include <yt/server/clickhouse_server/table_partition.h>
-#include <yt/server/clickhouse_server/query_context.h>
+#include "table.h"
+#include "table_partition.h"
+#include "query_context.h"
 
 #include <Common/Exception.h>
 #include <Common/typeid_cast.h>
@@ -20,16 +20,6 @@
 #include <Parsers/queryToString.h>
 
 #include <common/logger_useful.h>
-
-namespace DB {
-
-namespace ErrorCodes
-{
-    extern const int INCOMPATIBLE_COLUMNS;
-    extern const int LOGICAL_ERROR;
-}
-
-}   // namespace DB
 
 namespace NYT::NClickHouseServer {
 

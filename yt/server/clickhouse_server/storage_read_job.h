@@ -1,8 +1,8 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
-#include <yt/server/clickhouse_server/table.h>
+#include "table.h"
 
 #include <Storages/IStorage.h>
 
