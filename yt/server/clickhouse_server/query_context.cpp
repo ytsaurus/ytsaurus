@@ -329,11 +329,6 @@ TTableReaderList TQueryContext::CreateTableReaders(
         options);
 }
 
-const IPathService* TQueryContext::PathService()
-{
-    return GetPathService();
-}
-
 ITableReaderPtr TQueryContext::CreateTableReader(
     const TString& name,
     const TTableReaderOptions& options)

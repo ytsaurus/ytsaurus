@@ -68,10 +68,6 @@ public:
 
     NApi::NNative::IClientPtr& Client();
 
-    // Related services
-
-    const IPathService* PathService();
-
     // Access data / metadata
 
     std::vector<TTablePtr> ListTables(

@@ -32,7 +32,6 @@ DECLARE_SHARED_STRUCT(IQueryContext);
 DECLARE_SHARED_STRUCT(ITableReader);
 DECLARE_SHARED_STRUCT(TTable);
 
-struct IPathService;
 struct TColumn;
 struct TValue;
 struct TQueryContext;
