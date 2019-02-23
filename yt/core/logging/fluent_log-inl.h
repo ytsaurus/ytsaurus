@@ -12,11 +12,13 @@ namespace NYT::NLogging {
 /////////////////////////////////////////////////////////////////////////////////////////////
 
 template <class TParent>
-TOneShotFluentLogEventImpl<TParent>::TOneShotFluentLogEventImpl(TStatePtr state, const NLogging::TLogger& logger,
+TOneShotFluentLogEventImpl<TParent>::TOneShotFluentLogEventImpl(
+    TStatePtr state,
+    const NLogging::TLogger& logger,
     NLogging::ELogLevel level)
     : TBase(state->GetConsumer())
     , State_(std::move(state))
-    , Logger_(logger)
+    , Logger_(&logger)
     , Level_(level)
 { }
 
@@ -30,8 +32,11 @@ NYTree::TFluentYsonBuilder::TAny<TOneShotFluentLogEventImpl<TParent>&&> TOneShot
 template <class TParent>
 TOneShotFluentLogEventImpl<TParent>::~TOneShotFluentLogEventImpl()
 {
-    LogStructuredEvent(Logger_, State_->GetValue(), Level_);
+    if (State_) {
+        LogStructuredEvent(*Logger_, State_->GetValue(), Level_);
+    }
 }
+
 /////////////////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NLogging
