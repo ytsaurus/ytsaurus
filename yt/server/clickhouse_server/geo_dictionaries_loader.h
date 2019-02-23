@@ -1,7 +1,5 @@
 #pragma once
 
-#include "public.h"
-
 #include <Dictionaries/Embedded/IGeoDictionariesLoader.h>
 
 #include <memory>

@@ -1,7 +1,5 @@
 #pragma once
 
-#include "public.h"
-
 #include <Interpreters/IExternalLoaderConfigRepository.h>
 
 namespace NYT::NClickHouseServer {

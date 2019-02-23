@@ -6,7 +6,6 @@
 
 #include "document.h"
 #include "objects.h"
-#include "path.h"
 #include "system_columns.h"
 #include "table_reader.h"
 #include "table_partition.h"
