@@ -34,14 +34,12 @@ public:
         IChunkPtr chunk,
         TChunkBlockManagerPtr chunkBlockManager,
         IBlockCachePtr blockCache,
-        TBlockMetaCachePtr blockMetaCache,
-        TClosure failureHandler)
+        TBlockMetaCachePtr blockMetaCache)
         : Config_(std::move(config))
         , Chunk_(std::move(chunk))
         , ChunkBlockManager_(std::move(chunkBlockManager))
         , BlockCache_(std::move(blockCache))
         , BlockMetaCache_(std::move(blockMetaCache))
-        , FailureHandler_(std::move(failureHandler))
     { }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
@@ -135,7 +133,6 @@ private:
     const TChunkBlockManagerPtr ChunkBlockManager_;
     const IBlockCachePtr BlockCache_;
     const TBlockMetaCachePtr BlockMetaCache_;
-    const TClosure FailureHandler_;
 
     struct TReadBlockSetSession
         : public TIntrinsicRefCounted
@@ -205,17 +202,12 @@ private:
 
     void ThrowError(const TError& error)
     {
-        if (FailureHandler_) {
-            FailureHandler_.Run();
-        }
-
         THROW_ERROR_EXCEPTION(
             NDataNode::EErrorCode::LocalChunkReaderFailed,
             "Error accessing local chunk %v",
             Chunk_->GetId())
             << error;
     }
-
 };
 
 IChunkReaderPtr CreateLocalChunkReader(
@@ -223,16 +215,14 @@ IChunkReaderPtr CreateLocalChunkReader(
     IChunkPtr chunk,
     TChunkBlockManagerPtr chunkBlockManager,
     IBlockCachePtr blockCache,
-    TBlockMetaCachePtr blockMetaCache,
-    TClosure failureHandler)
+    TBlockMetaCachePtr blockMetaCache)
 {
     return New<TLocalChunkReader>(
         std::move(config),
         std::move(chunk),
         std::move(chunkBlockManager),
         std::move(blockCache),
-        std::move(blockMetaCache),
-        std::move(failureHandler));
+        std::move(blockMetaCache));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
