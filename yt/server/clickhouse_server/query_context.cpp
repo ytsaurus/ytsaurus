@@ -7,7 +7,6 @@
 #include "convert_row.h"
 #include "document.h"
 #include "job_input.h"
-#include "path.h"
 #include "read_job.h"
 #include "read_job_spec.h"
 #include "schemaful_table_reader.h"
