@@ -268,16 +268,14 @@ protected:
     TInstant AllowedCompactionTimestamp_;
 
     NConcurrency::TReaderWriterSpinLock SpinLock_;
-
     std::atomic<NProfiling::TCpuInstant> LocalChunkCheckDeadline_ = {0};
-    NChunkClient::IChunkReaderPtr ChunkReader_;
-    bool ChunkReaderIsLocal_ = false;
+    NChunkClient::IChunkReaderPtr CachedChunkReader_;
+    bool CachedChunkReaderIsLocal_ = false;
+    TWeakPtr<NDataNode::IChunk> CachedWeakChunk_;
 
     // Cached for fast retrieval from ChunkMeta_.
     NChunkClient::NProto::TMiscExt MiscExt_;
     NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_;
-
-    void OnLocalReaderFailed();
 
     NChunkClient::IBlockCachePtr GetBlockCache();
 
