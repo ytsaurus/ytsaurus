@@ -463,12 +463,14 @@ def share_packages(options, build_context):
         "yandex-yt-master",
         "yandex-yt-scheduler",
         "yandex-yt-controller-agent",
+        "yandex-yt-clickhouse",
         "yandex-yt-node",
         "yandex-yt-http-proxy-dbg",
         "yandex-yt-proxy-dbg",
         "yandex-yt-master-dbg",
         "yandex-yt-scheduler-dbg",
         "yandex-yt-controller-agent-dbg",
+        "yandex-yt-clickhouse-dbg",
         "yandex-yt-node-dbg"
     ]
 
@@ -559,6 +561,7 @@ def package(options, build_context):
             PACKAGE_LIST = [
                 "yandex-yt-python-skynet-driver.json",
                 "yandex-yt-controller-agent.json",
+                "yandex-yt-clickhouse.json",
                 "yandex-yt-http-proxy.json",
                 "yandex-yt-master.json",
                 "yandex-yt-node.json",
@@ -667,6 +670,7 @@ def run_sandbox_upload(options, build_context):
         "ytserver-job-proxy",
         "ytserver-scheduler",
         "ytserver-controller-agent",
+        "ytserver-clickhouse",
         "ytserver-master",
         "ytserver-core-forwarder",
         "ytserver-exec",
