@@ -713,7 +713,7 @@ IChunkReaderPtr TChunkStoreBase::GetChunkReader(const NConcurrency::IThroughputT
             ReaderConfig_,
             chunk,
             ChunkBlockManager_,
-            GetBlockCache(),
+            DoGetBlockCache(),
             nullptr /* blockMetaCache */);
         CachedChunkReaderIsLocal_ = true;
         YT_LOG_DEBUG("Local chunk reader created and cached");
@@ -733,7 +733,7 @@ IChunkReaderPtr TChunkStoreBase::GetChunkReader(const NConcurrency::IThroughputT
             New<TNodeDirectory>(),
             LocalDescriptor_,
             std::nullopt,
-            GetBlockCache(),
+            DoGetBlockCache(),
             /* trafficMeter */ nullptr,
             throttler,
             GetUnlimitedThrottler() /* rpsThrottler */);
@@ -872,10 +872,10 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
     YCHECK(chunkData->ChunkMeta);
 
     PreloadedBlockCache_ = New<TPreloadedBlockCache>(
-            this,
-            chunkData,
-            StoreId_,
-            BlockCache_);
+        this,
+        chunkData,
+        StoreId_,
+        BlockCache_);
 
     ChunkState_ = New<TChunkState>(
         PreloadedBlockCache_,
@@ -891,13 +891,19 @@ IBlockCachePtr TChunkStoreBase::GetBlockCache()
     VERIFY_THREAD_AFFINITY_ANY();
 
     TReaderGuard guard(SpinLock_);
+    return DoGetBlockCache();
+}
+
+IBlockCachePtr TChunkStoreBase::DoGetBlockCache()
+{
+    // VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+
     return PreloadedBlockCache_ ? PreloadedBlockCache_ : BlockCache_;
 }
 
-
 bool TChunkStoreBase::ValidateBlockCachePreloaded()
 {
-    // Under spin lock
+    // VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
     if (InMemoryMode_ == EInMemoryMode::None) {
         return false;

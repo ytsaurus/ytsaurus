@@ -278,7 +278,7 @@ protected:
     NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_;
 
     NChunkClient::IBlockCachePtr GetBlockCache();
-
+    
     virtual void PrecacheProperties();
 
     bool ValidateBlockCachePreloaded();
@@ -288,7 +288,7 @@ protected:
 private:
     IDynamicStorePtr BackingStore_;
 
-    NDataNode::IChunkPtr Chunk_;
+    NChunkClient::IBlockCachePtr DoGetBlockCache();
 
     friend TPreloadedBlockCache;
 };
