@@ -19,7 +19,7 @@ TFuture<ITableReaderPtr> CreateTableReader(
     const NYPath::TRichYPath& path,
     const TTableReaderOptions& options,
     NTableClient::TNameTablePtr nameTable,
-    const NTableClient::TColumnFilter& columnFilter = NTableClient::TColumnFilter(),
+    const NTableClient::TColumnFilter& columnFilter = {},
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
     NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
 
@@ -28,9 +28,17 @@ TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunk
     const NYPath::TRichYPath& richPath,
     const TTableReaderOptions& options,
     NTableClient::TNameTablePtr nameTable,
-    const NTableClient::TColumnFilter& columnFilter = NTableClient::TColumnFilter(),
+    const NTableClient::TColumnFilter& columnFilter = {},
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
     NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
+
+NConcurrency::IAsyncZeroCopyInputStreamPtr CreateBlobTableReader(
+    ITableReaderPtr reader,
+    const std::optional<TString>& partIndexColumnName,
+    const std::optional<TString>& dataColumnName,
+    i64 startPartIndex,
+    std::optional<i64> offset = std::nullopt,
+    std::optional<i64> partSize = std::nullopt);
 
 ////////////////////////////////////////////////////////////////////////////////
 

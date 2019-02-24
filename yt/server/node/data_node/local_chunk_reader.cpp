@@ -45,7 +45,7 @@ public:
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         const std::vector<int>& blockIndexes,
-        const std::optional<i64>& /* estimatedSize */) override
+        std::optional<i64> /* estimatedSize */) override
     {
         auto session = New<TReadBlockSetSession>();
         static_cast<TClientBlockReadOptions&>(session->Options) = options;
@@ -61,7 +61,7 @@ public:
         const TClientBlockReadOptions& clientOptions,
         int firstBlockIndex,
         int blockCount,
-        const std::optional<i64>& /* estimatedSize */) override
+        std::optional<i64> /* estimatedSize */) override
     {
         TBlockReadOptions options;
         static_cast<TClientBlockReadOptions&>(options) = clientOptions;

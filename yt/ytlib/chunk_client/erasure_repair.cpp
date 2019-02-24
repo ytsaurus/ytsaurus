@@ -561,7 +561,7 @@ public:
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         const std::vector<int>& blockIndexes,
-        const std::optional<i64>& /* estimatedSize */) override
+        std::optional<i64> /* estimatedSize */) override
     {
         // NB(psushin): do not use estimated size for throttling here, repair requires much more traffic than estimated.
         // When reading erasure chunks we fallback to post-throttling.
@@ -582,7 +582,7 @@ public:
         const TClientBlockReadOptions& options,
         int firstBlockIndex,
         int blockCount,
-        const std::optional<i64>& /* estimatedSize */)
+        std::optional<i64> /* estimatedSize */)
     {
         // Implement when first needed.
         Y_UNIMPLEMENTED();
