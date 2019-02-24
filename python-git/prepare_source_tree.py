@@ -65,12 +65,6 @@ def cp_r(path, dest_dir):
     else:
         shutil.copy2(path, dest_dir)
 
-def ln_s(path, link):
-    """create symlink"""
-    logger.info("Making symlink from %s to %s", path, link)
-    if not os.path.exists(link):
-        os.symlink(path, link)
-
 def replace(path, dest_dir):
     dst_path = os.path.join(dest_dir, os.path.basename(path))
     if os.path.exists(dst_path):
@@ -133,13 +127,13 @@ def prepare_python_source_tree(python_root, yt_root, prepare_binary_symlinks=Tru
         for binary in PY23_BINARIES:
             binary_path = os.path.join(python_root, binary)
             for suffix in ("2", "3"):
-                ln_s(binary_path, binary_path + suffix)
+                replace_symlink(binary_path, binary_path + suffix)
 
         for binary in YT_PREFIX_BINARIES:
             binary_path = os.path.join(python_root, binary)
             dirname, basename = os.path.split(binary_path)
             link_path = os.path.join(dirname, "yt_" + basename)
-            ln_s(binary_path, link_path)
+            replace_symlink(binary_path, link_path)
 
 
 def main():
