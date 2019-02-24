@@ -304,7 +304,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     }
 
     PrepareLoadFactorIterator(dataCenters, medium);
-    if (!LoadFactorToNodeIterator.IsValid()) {
+    if (!LoadFactorToNodeIterator_.IsValid()) {
         return TNodeList();
     }
 
@@ -332,11 +332,11 @@ TNodeList TChunkPlacement::GetWriteTargets(
         YCHECK(!hasEnoughTargets());
 
         bool hasProgress = false;
-        if (!LoadFactorToNodeIterator.IsValid()) {
+        if (!LoadFactorToNodeIterator_.IsValid()) {
             PrepareLoadFactorIterator(dataCenters, medium);
         }
-        for ( ; !hasEnoughTargets() && LoadFactorToNodeIterator.IsValid(); ++LoadFactorToNodeIterator) {
-            auto* node = LoadFactorToNodeIterator->second;
+        for ( ; !hasEnoughTargets() && LoadFactorToNodeIterator_.IsValid(); ++LoadFactorToNodeIterator_) {
+            auto* node = LoadFactorToNodeIterator_->second;
             hasProgress |= tryAdd(node, enableRackAwareness);
         }
         return hasProgress;
@@ -455,11 +455,11 @@ bool TChunkPlacement::HasBalancingTargets(const TDataCenterSet& dataCenters, TMe
     }
 
     PrepareFillFactorIterator(&dataCenters, medium);
-    if (!FillFactorToNodeIterator.IsValid()) {
+    if (!FillFactorToNodeIterator_.IsValid()) {
         return false;
     }
 
-    auto* node = FillFactorToNodeIterator->second;
+    auto* node = FillFactorToNodeIterator_->second;
     auto nodeFillFactor = node->GetFillFactor(medium->GetIndex());
     YCHECK(nodeFillFactor);
     return *nodeFillFactor < maxFillFactor;
@@ -499,8 +499,8 @@ TNode* TChunkPlacement::GetBalancingTarget(
         nullptr);
 
     PrepareFillFactorIterator(dataCenters, medium);
-    for ( ; FillFactorToNodeIterator.IsValid(); ++FillFactorToNodeIterator) {
-        auto* node = FillFactorToNodeIterator->second;
+    for ( ; FillFactorToNodeIterator_.IsValid(); ++FillFactorToNodeIterator_) {
+        auto* node = FillFactorToNodeIterator_->second;
         auto nodeFillFactor = node->GetFillFactor(medium->GetIndex());
         YCHECK(nodeFillFactor);
         if (*nodeFillFactor > maxFillFactor) {
@@ -730,22 +730,22 @@ int TChunkPlacement::GetMaxReplicasPerRack(
 
 void TChunkPlacement::PrepareFillFactorIterator(const TDataCenterSet* dataCenters, const TMedium* medium)
 {
-    FillFactorToNodeIterator.Reset();
+    FillFactorToNodeIterator_.Reset();
     ForEachDataCenter(dataCenters, [&] (const TDataCenter* dataCenter) {
         auto it = DomainToFillFactorToNode_.find(TPlacementDomain{dataCenter, medium});
         if (it != DomainToFillFactorToNode_.end()) {
-            FillFactorToNodeIterator.AddRange(it->second);
+            FillFactorToNodeIterator_.AddRange(it->second);
         }
     });
 }
 
 void TChunkPlacement::PrepareLoadFactorIterator(const TDataCenterSet* dataCenters, const TMedium* medium)
 {
-    LoadFactorToNodeIterator.Reset();
+    LoadFactorToNodeIterator_.Reset();
     ForEachDataCenter(dataCenters, [&] (const TDataCenter* dataCenter) {
         auto it = DomainToLoadFactorToNode_.find(TPlacementDomain{dataCenter, medium});
         if (it != DomainToLoadFactorToNode_.end()) {
-            LoadFactorToNodeIterator.AddRange(it->second);
+            LoadFactorToNodeIterator_.AddRange(it->second);
         }
     });
 }
