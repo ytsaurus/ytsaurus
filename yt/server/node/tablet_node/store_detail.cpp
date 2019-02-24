@@ -896,14 +896,14 @@ IBlockCachePtr TChunkStoreBase::GetBlockCache()
 
 IBlockCachePtr TChunkStoreBase::DoGetBlockCache()
 {
-    // VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
     return PreloadedBlockCache_ ? PreloadedBlockCache_ : BlockCache_;
 }
 
 bool TChunkStoreBase::ValidateBlockCachePreloaded()
 {
-    // VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
     if (InMemoryMode_ == EInMemoryMode::None) {
         return false;
