@@ -52,7 +52,7 @@ def prepare_debian_files(changelog_path, package_name, python_suffix, build_dir)
         changelog_file.write(data)
         changelog_file.truncate()
 
-def prepare_library_file(library_path, debug, python_suffix, python_module_dir):
+def prepare_library_file(library_path, debug, python_suffix, platform, python_module_dir):
     teamcity_message("Preparing library file")
 
     def get_debug_name(name):
@@ -73,7 +73,7 @@ def prepare_library_file(library_path, debug, python_suffix, python_module_dir):
     shutil.copyfile(library_path, target_library_path)
 
     # TODO(ignat): extraction of debug symbols is not supported for MacOS.
-    if not debug and target_library_name.endswith(".so"):
+    if not debug and platform == "linux":
         debug_target_library_name = get_debug_name(target_library_name)
         debug_target_library_path = os.path.join(python_module_dir, debug_target_library_name)
         run(["objcopy", "--only-keep-debug", target_library_path, debug_target_library_path])
@@ -107,7 +107,7 @@ def get_python_package_name(build_dir):
     setup = imp.load_source("setup", os.path.join(build_dir, "setup.py"))
     return setup.PACKAGE_NAME
 
-def build_pypi_package(python_type, python_suffix, upload, build_dir):
+def build_pypi_package(python_type, python_suffix, platform, upload, build_dir):
     teamcity_message("Building pypi package")
 
     package_version = debian.get_local_package_version()
@@ -120,20 +120,41 @@ def build_pypi_package(python_type, python_suffix, upload, build_dir):
         env["PYTHON_SUFFIX"] = "-skynet"
         python = "/skynet/python/bin/python"
 
+    tag_filters = []
+
     python_api_version = "cp27"
     if python_type == "3":
         python_api_version = "cp34"
+    tag_filters.append(python_api_version)
+
+    if platform == "linux":
+        tag_filters.append("linux")
+    else:
+        tag_filters.append("macosx")
+
+    args = [python, "setup.py", "bdist_wheel"]
+    if platform == "darwin":
+        platform_name = "macosx_10_10_intel"
+        tag_filters.append(platform_name)
+        args += ["--plat-name", platform_name]
+        if python_api_version == "cp27":
+            # By default so abi tag is calculated from python that runs setup.py.
+            # It is cp27mu for standard python on Linux, but library for MacOS usually built
+            # without unicode support and so abi tag should be cp27m.
+            env["PYTHON_SO_ABI"] = "cp27m"
 
     version_part_count = len(package_version.replace("-", ".").split("."))
-    if package_version in pypi.get_package_versions(pypi_package_name, tag_filter_string=python_api_version, version_part_count=version_part_count):
+    if package_version in pypi.get_package_versions(pypi_package_name, tag_filters=tag_filters, version_part_count=version_part_count):
         return
 
-    #  Also we should change get_abi_version in python to return the same version as MacOS python.
-    # macosx_platforms = ["macosx_{0}_{1}_{2}".format(v1, v2, platform_type) for v1 in (10,)
-    #                     for v2 in xrange(9, 14) for platform_type in ("intel", "x86_64")]
-    # for platform in platforms:
-    #     args += ["--plat-name", platform]
-    args = [python, "setup.py", "bdist_wheel"]
+    #    # TODO(ignat): fix this comment.
+    #    # Also we should change get_abi_version in python to return the same version as MacOS python.
+    #    macosx_platforms = ["macosx_{0}_{1}_{2}".format(v1, v2, platform_type)
+    #                        for v1 in (10,)
+    #                        for v2 in xrange(9, 15)
+    #                        for platform_type in ("x86_64", "intel")]
+    #    for platform in macosx_platforms:
+    #        args += ["--plat-name", platform]
     if python_suffix == "3":
         args += ["--py-limited-api", "cp34"]
     if upload:
@@ -192,6 +213,7 @@ def build_package(
     checkout_directory,
     build_type,
     python_type,
+    platform,
     library_path,
     changelog_path,
     source_python_module_path,
@@ -231,15 +253,16 @@ def build_package(
         shutil.copytree(os.path.join(checkout_directory, source_python_module_path), python_module_dir)
 
         prepare_debian_files(changelog_path, package_name, python_suffix, build_dir)
-        prepare_library_file(library_path, debug, python_suffix, python_module_dir)
+        prepare_library_file(library_path, debug, python_suffix, platform, python_module_dir)
         prepare_version_file(checkout_directory, python_module_dir)
         prepare_install_directory(python_module_dir, python_type, install_dir)
 
         if build_type == "pypi":
-            build_pypi_package(python_type, python_suffix, upload, build_dir)
+            build_pypi_package(python_type, python_suffix, platform, upload, build_dir)
             return
 
         if build_type == "debian":
+            assert platform == "linux"
             build_debian_package(package_name, python_type, python_suffix, debian_repositories, debug, upload, build_dir, install_dir)
             return
 
@@ -257,6 +280,11 @@ def main():
         default="2",
         choices=["2", "3", "skynet"],
         help="Version of python")
+    parser.add_argument(
+        "--platform",
+        default="linux",
+        choices=["linux", "darwin"],
+        help="Platform name")
     parser.add_argument(
         "--library-path",
         required=True,
@@ -308,6 +336,7 @@ def main():
             checkout_directory=checkout_directory,
             build_type=args.build_type,
             python_type=args.python_type,
+            platform=args.platform,
             library_path=args.library_path,
             changelog_path=args.changelog_path,
             source_python_module_path=args.source_python_module_path,

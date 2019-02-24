@@ -157,6 +157,11 @@ def iter_enabled_python_versions(options, enable_skynet=False):
     if enable_skynet:
         yield "skynet"
 
+def iter_enabled_python_platforms(options):
+    yield "linux"
+    if options.package:
+        yield "darwin"
+
 def get_ya(options):
     return os.path.join(options.checkout_directory, "ya")
 
@@ -364,6 +369,7 @@ def build(options, build_context):
             "-T",
             "--yall-cmake-like-install", options.working_directory,
             "--yall-python-version-list", ",".join(iter_enabled_python_versions(options, enable_skynet=True)),
+            "--yall-python-platform-list", ",".join(iter_enabled_python_platforms(options)),
         ]
         args += ya_make_args(options)
         args += ya_make_definition_args(options)
@@ -771,7 +777,7 @@ def run_unit_tests(options, build_context):
         rmtree(sandbox_current)
 
 def perform_packaging(options, packages_path, args, configurations):
-    for build_type, python_type, library_path, package_path, package_name in configurations:
+    for build_type, python_type, platform, library_path, package_path, package_name in configurations:
         if python_type == "2" and not options.build_enable_python_2_7:
             continue
         if python_type == "3" and not options.build_enable_python_3_4:
@@ -781,6 +787,7 @@ def perform_packaging(options, packages_path, args, configurations):
         run_args = args + [
             "--build-type", build_type,
             "--python-type", python_type,
+            "--platform", platform,
             "--library-path", os.path.join(options.working_directory, library_path),
             "--package-path", os.path.join(packages_path, package_path),
             "--package-name", package_name,
@@ -807,18 +814,22 @@ def package_yson_bindings(options, build_context):
         # build_type, python_type, library_path, package_path, package_name
 
         # Pypi packages.
-        ("pypi", "2", "lib/pyshared-2-7/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python-yson"),
-        ("pypi", "3", "lib/pyshared-3-4/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python3-yson"),
-        ("pypi", "skynet", "lib/pyshared-skynet/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python-skynet-yson"),
+        ("pypi", "2", "linux", "lib/pyshared-2-7/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python-yson"),
+        ("pypi", "3", "linux", "lib/pyshared-3-4/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python3-yson"),
+        ("pypi", "skynet", "linux", "lib/pyshared-skynet/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python-skynet-yson"),
+
+        # Pypi packages for mac.
+        ("pypi", "2", "darwin", "lib/pyshared-2-7-darwin/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python-yson"),
+        ("pypi", "3", "darwin", "lib/pyshared-3-4-darwin/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python3-yson"),
 
         # Python-friendly debian packages.
-        ("debian", "2", "lib/pyshared-2-7/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python-yson"),
-        ("debian", "3", "lib/pyshared-3-4/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python3-yson"),
+        ("debian", "2", "linux", "lib/pyshared-2-7/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python-yson"),
+        ("debian", "3", "linux", "lib/pyshared-3-4/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python3-yson"),
 
         # Non-python-friendly debian packages.
-        ("debian", "2", "lib/pyshared-2-7/yson_lib.so", "yandex-yt-python-any-yson", "yandex-yt-python-2-7-yson"),
-        ("debian", "3", "lib/pyshared-3-4/yson_lib.so", "yandex-yt-python-any-yson", "yandex-yt-python-3-4-yson"),
-        ("debian", "skynet", "lib/pyshared-skynet/yson_lib.so", "yandex-yt-python-any-yson", "yandex-yt-python-skynet-yson"),
+        ("debian", "2", "linux", "lib/pyshared-2-7/yson_lib.so", "yandex-yt-python-any-yson", "yandex-yt-python-2-7-yson"),
+        ("debian", "3", "linux", "lib/pyshared-3-4/yson_lib.so", "yandex-yt-python-any-yson", "yandex-yt-python-3-4-yson"),
+        ("debian", "skynet", "linux", "lib/pyshared-skynet/yson_lib.so", "yandex-yt-python-any-yson", "yandex-yt-python-skynet-yson"),
     ]
 
     perform_packaging(options, yson_packages_path, args, configurations)
@@ -857,18 +868,18 @@ def package_rpc_bindings(options, build_context):
         # build_type, python_type, library_path, package_path, package_name
 
         # Pypi packages.
-        ("pypi", "2", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-driver-rpc"),
-        ("pypi", "3", "lib/pyshared-3-4/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python3-driver-rpc"),
-        ("pypi", "skynet", "lib/pyshared-skynet/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-skynet-driver-rpc"),
+        ("pypi", "2", "linux", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-driver-rpc"),
+        ("pypi", "3", "linux", "lib/pyshared-3-4/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python3-driver-rpc"),
+        ("pypi", "skynet", "linux", "lib/pyshared-skynet/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-skynet-driver-rpc"),
 
         # Python-friendly debian packages.
-        ("debian", "2", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-driver-rpc"),
-        ("debian", "3", "lib/pyshared-3-4/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python3-driver-rpc"),
+        ("debian", "2", "linux", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-driver-rpc"),
+        ("debian", "3", "linux", "lib/pyshared-3-4/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python3-driver-rpc"),
 
         # Non-python-friendly debian packages.
-        ("debian", "2", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-2-7-driver-rpc"),
-        ("debian", "3", "lib/pyshared-3-4/driver_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-3-4-driver-rpc"),
-        ("debian", "skynet", "lib/pyshared-skynet/driver_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-skynet-driver-rpc"),
+        ("debian", "2", "linux", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-2-7-driver-rpc"),
+        ("debian", "3", "linux", "lib/pyshared-3-4/driver_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-3-4-driver-rpc"),
+        ("debian", "skynet", "linux", "lib/pyshared-skynet/driver_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-skynet-driver-rpc"),
     ]
     
     perform_packaging(options, rpc_packages_path, args, configurations)
@@ -911,7 +922,7 @@ def package_driver_bindings(options, build_context):
         # build_type, python_type, library_path, package_path, package_name
 
         # Python-friendly debian packages.
-        ("debian", "2", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-driver", "yandex-yt-python-driver"),
+        ("debian", "2", "linux", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-driver", "yandex-yt-python-driver"),
     ]
 
     perform_packaging(options, driver_packages_path, args, configurations)
