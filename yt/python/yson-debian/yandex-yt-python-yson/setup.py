@@ -1,4 +1,5 @@
 import os
+import sysconfig
 
 PACKAGE_NAME = "yandex-yt-yson-bindings"
 
@@ -6,6 +7,14 @@ def main():
     from setuptools import setup
     from setuptools.dist import Distribution
     from setup_helpers import get_version
+
+    if "PYTHON_SO_ABI" in os.environ:
+        get_config_vars_original = sysconfig.get_config_vars
+        def get_config_vars_patch():
+            result = get_config_vars_original()
+            result["SOABI"] = os.environ["PYTHON_SO_ABI"]
+            return result
+        sysconfig.get_config_vars = get_config_vars_patch
 
     class BinaryDistribution(Distribution):
         def is_pure(self):

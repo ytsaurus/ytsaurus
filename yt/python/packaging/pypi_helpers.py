@@ -3,7 +3,7 @@ import requests
 # Keep it sync with your pypi settings.
 PYPI_URL = "https://pypi.yandex-team.ru/simple/{package_name}"
 
-def get_package_versions(package_name, tag_filter_string=None, version_part_count=4):
+def get_package_versions(package_name, tag_filters=None, version_part_count=4):
     def extract_full_version_string(line):
         # Some magic to extract full version string from html link.
         return line.split(package_name.replace("-", "_"))[1].split("-", 1)[1].rsplit(".whl", 1)[0]
@@ -30,9 +30,9 @@ def get_package_versions(package_name, tag_filter_string=None, version_part_coun
     lines_with_download_links = [line for line in html.split("\n") if "rel=\"package\"" in line]
     full_version_strings = map(extract_full_version_string, lines_with_download_links)
 
-    tag_filter = None
-    if tag_filter_string is not None:
-        tag_filter = lambda full_version_string: tag_filter_string in full_version_string
+    if tag_filters is None:
+        tag_filters = []
+    tag_filter = lambda full_version_string: all(tag in full_version_string for tag in tag_filters)
     fill_version_strings_filtered = filter(tag_filter, full_version_strings)
 
     return set(map(extract_version, fill_version_strings_filtered))
