@@ -95,7 +95,6 @@ private:
     // The front of the heap holds the smallest range (according to TCompare).
     // Empty ranges are immediately removed.
     std::vector<TRange> Ranges_;
-    bool IsIterationInProgress_;
 };
 
 struct TFillFactorToNodeMapItemComparator
@@ -175,8 +174,8 @@ private:
 
     const TChunkManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
-    TReusableMergeIterator<TFillFactorToNodeIterator, TFillFactorToNodeMapItemComparator> FillFactorToNodeIterator;
-    TReusableMergeIterator<TLoadFactorToNodeIterator, TLoadFactorToNodeMapItemComparator> LoadFactorToNodeIterator;
+    TReusableMergeIterator<TFillFactorToNodeIterator, TFillFactorToNodeMapItemComparator> FillFactorToNodeIterator_;
+    TReusableMergeIterator<TLoadFactorToNodeIterator, TLoadFactorToNodeMapItemComparator> LoadFactorToNodeIterator_;
 
     using TFillFactorToNodeMaps = THashMap<TPlacementDomain, TFillFactorToNodeMap>;
     using TLoadFactorToNodeMaps = THashMap<TPlacementDomain, TLoadFactorToNodeMap>;
