@@ -612,7 +612,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
             richPath.GetColumns()));
 
         std::vector<TDataSliceDescriptor> dataSliceDescriptors;
-        for (auto& chunkSpec : chunkSpecs) {
+        for (const auto& chunkSpec : chunkSpecs) {
             dataSliceDescriptors.emplace_back(chunkSpec);
         }
 

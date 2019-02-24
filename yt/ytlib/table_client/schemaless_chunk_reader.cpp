@@ -1034,7 +1034,7 @@ public:
                 RowIndex_ += deltaIndex;
 
                 // Rewind row column readers to proper row index.
-                for (auto& reader : RowColumnReaders_) {
+                for (const auto& reader : RowColumnReaders_) {
                     reader->SkipToRowIndex(RowIndex_);
                 }
                 if (SchemalessReader_) {
@@ -1060,7 +1060,7 @@ public:
                 }
             } else {
                 // We do not read keys, so we must skip rows for key readers.
-                for (auto& reader : KeyColumnReaders_) {
+                for (const auto& reader : KeyColumnReaders_) {
                     reader->SkipToRowIndex(RowIndex_ + rowLimit);
                 }
             }
