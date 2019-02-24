@@ -47,8 +47,6 @@ using EPermissionSet = EPermission;
 
 const EPermissionSet NonePermissions = EPermissionSet(0x0000);
 
-EPermissionSet ParsePermissions(const std::vector<TString>& items);
-
 std::vector<TString> FormatPermissions(EPermissionSet permissions);
 
 ////////////////////////////////////////////////////////////////////////////////
