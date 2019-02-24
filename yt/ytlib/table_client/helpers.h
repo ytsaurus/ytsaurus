@@ -36,7 +36,7 @@ NApi::ITableReaderPtr CreateApiFromSchemalessChunkReaderAdapter(
 ////////////////////////////////////////////////////////////////////////////////
 
 void PipeReaderToWriter(
-    ISchemalessChunkReaderPtr reader,
+    const ISchemalessChunkReaderPtr& reader,
     IUnversionedRowsetWriterPtr writer,
     const TPipeReaderToWriterOptions& options);
 
@@ -44,7 +44,8 @@ void PipeReaderToWriter(
 
 // NB: not using TYsonString here to avoid copying.
 TUnversionedValue MakeUnversionedValue(
-    TStringBuf ysonString, int id,
+    TStringBuf ysonString,
+    int id,
     NYson::TStatelessLexer& lexer);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,8 +88,8 @@ std::vector<NChunkClient::TInputChunkPtr> CollectTableInputChunks(
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Helpers for updating columnar statistics with versioned and unversioned rows.
-void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, const TUnversionedRow& row);
-void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, const TVersionedRow& row);
+void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, TUnversionedRow row);
+void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, TVersionedRow row);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -124,8 +124,8 @@ NApi::ITableReaderPtr CreateApiFromSchemalessChunkReaderAdapter(
 ////////////////////////////////////////////////////////////////////////////////
 
 void PipeReaderToWriter(
-    ISchemalessChunkReaderPtr reader,
-    IUnversionedRowsetWriterPtr writer,
+    const ISchemalessChunkReaderPtr& reader,
+    const IUnversionedRowsetWriterPtr& writer,
     const TPipeReaderToWriterOptions& options)
 {
     PipeReaderToWriter(
@@ -169,7 +169,7 @@ TUnversionedValue MakeUnversionedValue(TStringBuf ysonString, int id, TStateless
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int GetSystemColumnCount(TChunkReaderOptionsPtr options)
+int GetSystemColumnCount(const TChunkReaderOptionsPtr& options)
 {
     int systemColumnCount = 0;
     if (options->EnableRowIndex) {
@@ -195,13 +195,15 @@ void ValidateKeyColumns(
 {
     if (requireUniqueKeys) {
         if (chunkKeyColumns.size() > keyColumns.size()) {
-            THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns, "Chunk has more key columns than requested: actual %v, expected %v",
+            THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns,
+                "Chunk has more key columns than requested: actual %v, expected %v",
                 chunkKeyColumns,
                 keyColumns);
         }
     } else {
         if (chunkKeyColumns.size() < keyColumns.size()) {
-            THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns, "Chunk has less key columns than requested: actual %v, expected %v",
+            THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns,
+                "Chunk has less key columns than requested: actual %v, expected %v",
                 chunkKeyColumns,
                 keyColumns);
         }
@@ -210,7 +212,8 @@ void ValidateKeyColumns(
     if (validateColumnNames) {
         for (int i = 0; i < std::min(keyColumns.size(), chunkKeyColumns.size()); ++i) {
             if (chunkKeyColumns[i] != keyColumns[i]) {
-                THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns, "Incompatible key columns: actual %v, expected %v",
+                THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns,
+                    "Incompatible key columns: actual %v, expected %v",
                     chunkKeyColumns,
                     keyColumns);
             }
@@ -218,7 +221,9 @@ void ValidateKeyColumns(
     }
 }
 
-TColumnFilter CreateColumnFilter(const std::optional<std::vector<TString>>& columns, TNameTablePtr nameTable)
+TColumnFilter CreateColumnFilter(
+    const std::optional<std::vector<TString>>& columns,
+    const TNameTablePtr& nameTable)
 {
     if (!columns) {
         return TColumnFilter();
@@ -393,6 +398,8 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 template <typename TValue>
 void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, TRange<TValue> values)
 {
@@ -405,12 +412,14 @@ void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatistics
     }
 }
 
-void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, const TUnversionedRow& row)
+} // namespace
+
+void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, TUnversionedRow row)
 {
     UpdateColumnarStatistics(columnarStatisticsExt, MakeRange(row.Begin(), row.End()));
 }
 
-void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, const TVersionedRow& row)
+void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, TVersionedRow row)
 {
     UpdateColumnarStatistics(columnarStatisticsExt, MakeRange(row.BeginKeys(), row.EndKeys()));
     UpdateColumnarStatistics(columnarStatisticsExt, MakeRange(row.BeginValues(), row.EndValues()));
