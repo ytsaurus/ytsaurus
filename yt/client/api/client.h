@@ -246,7 +246,9 @@ struct TCheckPermissionOptions
     , public TMasterReadOptions
     , public TTransactionalOptions
     , public TPrerequisiteOptions
-{ };
+{
+    std::optional<std::vector<TString>> Columns;
+};
 
 struct TCheckPermissionResult
 {
@@ -257,6 +259,12 @@ struct TCheckPermissionResult
     std::optional<TString> ObjectName;
     NSecurityClient::TSubjectId SubjectId;
     std::optional<TString> SubjectName;
+};
+
+struct TCheckPermissionResponse
+    : public TCheckPermissionResult
+{
+    std::optional<std::vector<TCheckPermissionResult>> Columns;
 };
 
 struct TCheckPermissionByAclOptions
@@ -634,6 +642,7 @@ struct TTableReaderOptions
     : public TTransactionalOptions
 {
     bool Unordered = false;
+    bool OmitInaccessibleColumns = false;
     NTableClient::TTableReaderConfigPtr Config;
 };
 
@@ -1206,7 +1215,7 @@ struct IClient
         const TString& member,
         const TRemoveMemberOptions& options = TRemoveMemberOptions()) = 0;
 
-    virtual TFuture<TCheckPermissionResult> CheckPermission(
+    virtual TFuture<TCheckPermissionResponse> CheckPermission(
         const TString& user,
         const NYPath::TYPath& path,
         NYTree::EPermission permission,

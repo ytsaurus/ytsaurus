@@ -142,9 +142,15 @@ public:
         return UnderlyingReader_->GetNameTable();
     }
 
-    virtual TKeyColumns GetKeyColumns() const override
+    virtual const TKeyColumns& GetKeyColumns() const override
     {
         return KeyColumns_;
+    }
+
+    virtual const std::vector<TString>& GetOmittedInaccessibleColumns() const override
+    {
+        static const std::vector<TString> Result;
+        return Result;
     }
 
     virtual i64 GetTotalRowCount() const override

@@ -742,9 +742,9 @@ public:
             if (table->TableUploadOptions.TableSchema.IsSorted()) {
                 if (table->TableUploadOptions.TableSchema.GetKeyColumns() != PrimaryKeyColumns_) {
                     THROW_ERROR_EXCEPTION("Merge key columns do not match output table schema in \"strong\" schema mode")
-                            << TErrorAttribute("output_schema", table->TableUploadOptions.TableSchema)
-                            << TErrorAttribute("merge_by", PrimaryKeyColumns_)
-                            << TErrorAttribute("schema_inference_mode", Spec_->SchemaInferenceMode);
+                        << TErrorAttribute("output_schema", table->TableUploadOptions.TableSchema)
+                        << TErrorAttribute("merge_by", PrimaryKeyColumns_)
+                        << TErrorAttribute("schema_inference_mode", Spec_->SchemaInferenceMode);
                 }
             } else {
                 table->TableUploadOptions.TableSchema =

@@ -619,7 +619,7 @@ TEST_P(TSchemalessChunksLookupTest, WiderKeyColumns)
     std::vector<TUnversionedRow> expected;
     std::vector<TUnversionedRow> keys;
 
-    TKeyColumns keyColumns = Schema_.GetKeyColumns();
+    auto keyColumns = Schema_.GetKeyColumns();
     keyColumns.push_back("w1");
     keyColumns.push_back("w2");
 

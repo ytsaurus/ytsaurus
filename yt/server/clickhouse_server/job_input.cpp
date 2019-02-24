@@ -21,6 +21,8 @@
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
@@ -149,9 +151,9 @@ private:
             }
         }
 
-        GetUserObjectBasicAttributes<TInputTable>(
+        GetUserObjectBasicAttributes(
             Client,
-            InputTables_,
+            MakeUserObjectList(InputTables_),
             NullTransactionId,
             Logger,
             EPermission::Read);
@@ -273,16 +275,11 @@ private:
     
             YT_LOG_DEBUG("Fetching input table (Path: %v)", table.GetPath());
 
-            std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
-            chunkSpecs.reserve(table.ChunkCount);
-    
-            auto objectIdPath = FromObjectId(table.ObjectId);
-    
-            FetchChunkSpecs(
+            auto chunkSpecs = FetchChunkSpecs(
                 Client,
                 NodeDirectory_,
                 table.CellTag,
-                objectIdPath,
+                FromObjectId(table.ObjectId),
                 table.Path.GetRanges(),
                 table.ChunkCount,
                 100000, // MaxChunksPerFetch
@@ -294,8 +291,7 @@ private:
                     SetTransactionId(req, NullTransactionId);
                     SetSuppressAccessTracking(req, true);
                 },
-                Logger,
-                &chunkSpecs);
+                Logger);
     
             for (int i = 0; i < static_cast<int>(chunkSpecs.size()); ++i) {
                 auto& chunk = chunkSpecs[i];

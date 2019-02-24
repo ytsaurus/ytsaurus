@@ -34,8 +34,12 @@ struct ITableReader
     //! Returns the name table used for constructing rows.
     virtual const NTableClient::TNameTablePtr& GetNameTable() const = 0;
 
-    //! Returns the schema used for constructing rows.
-    virtual NTableClient::TKeyColumns GetKeyColumns() const = 0;
+    //! Returns the names of key columns.
+    virtual const NTableClient::TKeyColumns& GetKeyColumns() const = 0;
+
+    //! Returns the names of columns that are not accessible according to columnar ACL
+    //! and were omitted. See #TTableReaderOptions::OmitInaccessibleColumns.
+    virtual const std::vector<TString>& GetOmittedInaccessibleColumns() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITableReader)

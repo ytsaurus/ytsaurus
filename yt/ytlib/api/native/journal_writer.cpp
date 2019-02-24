@@ -373,7 +373,7 @@ private:
 
                 GetUserObjectBasicAttributes(
                     Client_,
-                    TMutableRange<TUserObject>(&userObject, 1),
+                    {&userObject},
                     Transaction_ ? Transaction_->GetId() : NullTransactionId,
                     Logger,
                     EPermission::Write);

@@ -34,8 +34,8 @@ static void ValidateKeyColumnsEqual(const TKeyColumns& keyColumns, const TTableS
 {
     if (keyColumns != schema.GetKeyColumns()) {
         THROW_ERROR_EXCEPTION("YPath attribute \"sorted_by\" must be compatible with table schema for a \"strong\" schema mode")
-                << TErrorAttribute("key_columns", keyColumns)
-                << TErrorAttribute("table_schema", schema);
+            << TErrorAttribute("key_columns", keyColumns)
+            << TErrorAttribute("table_schema", schema);
     }
 }
 

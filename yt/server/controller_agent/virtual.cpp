@@ -44,11 +44,9 @@ bool TVirtualStaticTable::DoInvoke(const IServiceContextPtr& context)
 
 DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, GetBasicAttributes)
 {
-    auto permissions = EPermissionSet(request->permissions());
-    for (auto permission : TEnumTraits<EPermission>::GetDomainValues()) {
-        if (Any(permissions & permission)) {
-            ValidatePermission(EPermissionCheckScope::This, permission);
-        }
+    if (request->has_permission()) {
+        auto permission = CheckedEnumCast<EPermission>(request->permission());
+        ValidatePermission(EPermissionCheckScope::This, permission);
     }
 
     ToProto(response->mutable_object_id(), TGuid());

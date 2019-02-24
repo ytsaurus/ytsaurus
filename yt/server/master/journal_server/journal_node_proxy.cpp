@@ -151,9 +151,9 @@ private:
         return TBase::DoInvoke(context);
     }
 
-    virtual void ValidateFetchParameters(const std::vector<NChunkClient::TReadRange>& ranges) override
+    virtual void ValidateFetch(TFetchContext* context) override
     {
-        for (const auto& range : ranges) {
+        for (const auto& range : context->Ranges) {
             const auto& lowerLimit = range.LowerLimit();
             const auto& upperLimit = range.UpperLimit();
             if (upperLimit.HasKey() || lowerLimit.HasKey()) {

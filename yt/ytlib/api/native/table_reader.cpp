@@ -166,10 +166,16 @@ public:
         return UnderlyingReader_->GetNameTable();
     }
 
-    virtual TKeyColumns GetKeyColumns() const override
+    virtual const TKeyColumns& GetKeyColumns() const override
     {
         YCHECK(UnderlyingReader_);
         return UnderlyingReader_->GetKeyColumns();
+    }
+
+    virtual const std::vector<TString>& GetOmittedInaccessibleColumns() const override
+    {
+        YCHECK(UnderlyingReader_);
+        return UnderlyingReader_->GetOmittedInaccessibleColumns();
     }
 
 private:
@@ -264,32 +270,35 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
     NConcurrency::IThroughputThrottlerPtr rpsThrottler)
 {
-    auto Logger = ApiLogger;
-
     const auto& path = richPath.GetPath();
     auto readSessionId = TReadSessionId::Create();
-    Logger.AddTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
-        path,
-        options.TransactionId,
-        readSessionId);
+
+    auto Logger = NLogging::TLogger(ApiLogger)
+        .AddTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
+            path,
+            options.TransactionId,
+            readSessionId);
 
     YT_LOG_INFO("Opening table reader");
 
     TUserObject userObject;
-    userObject.Path = path;
+    userObject.Path = richPath;
 
     auto config = options.Config ? options.Config : New<TTableReaderConfig>();
 
+    TGetUserObjectBasicAttributesOptions getUserObjectBasicAttributesOptions;
+    getUserObjectBasicAttributesOptions.SuppressAccessTracking = config->SuppressAccessTracking;
+    getUserObjectBasicAttributesOptions.OmitInaccessibleColumns = options.OmitInaccessibleColumns;
     GetUserObjectBasicAttributes(
         client,
-        TMutableRange<TUserObject>(&userObject, 1),
+        {&userObject},
         options.TransactionId,
         Logger,
         EPermission::Read,
-        config->SuppressAccessTracking);
+        getUserObjectBasicAttributesOptions);
 
-    const auto& objectId = userObject.ObjectId;
-    const auto tableCellTag = userObject.CellTag;
+    auto objectId = userObject.ObjectId;
+    auto tableCellTag = userObject.CellTag;
 
     TYPath objectIdPath;
     if (objectId) {
@@ -351,7 +360,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
     {
         YT_LOG_INFO("Fetching table chunks");
 
-        FetchChunkSpecs(
+        chunkSpecs = FetchChunkSpecs(
             client,
             client->GetNativeConnection()->GetNodeDirectory(),
             tableCellTag,
@@ -360,7 +369,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
             chunkCount,
             config->MaxChunksPerFetch,
             config->MaxChunksPerLocateRequest,
-            [&] (TChunkOwnerYPathProxy::TReqFetchPtr req) {
+            [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
                 req->set_fetch_all_meta_extensions(false);
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                 req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
@@ -369,7 +378,6 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
                 SetSuppressAccessTracking(req, config->SuppressAccessTracking);
             },
             Logger,
-            &chunkSpecs,
             config->UnavailableChunkStrategy == EUnavailableChunkStrategy::Skip /* skipUnavailableChunks */);
 
         CheckUnavailableChunks(config->UnavailableChunkStrategy, &chunkSpecs);
@@ -408,9 +416,8 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
             config,
             internalOptions,
             client,
-            // HTTP proxy doesn't have a node descriptor.
-            TNodeDescriptor(),
-            std::nullopt,
+            /* localDescriptor */ {},
+            /* partitionTag */ std::nullopt,
             client->GetNativeConnection()->GetBlockCache(),
             client->GetNativeConnection()->GetNodeDirectory(),
             dataSourceDirectory,
@@ -439,8 +446,8 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
             config,
             internalOptions,
             client,
-            // HTTP proxy doesn't have a node descriptor.
-            TNodeDescriptor(),
+            // Client doesn't have a node descriptor.
+            /* localDescriptor */ {},
             std::nullopt,
             client->GetNativeConnection()->GetBlockCache(),
             client->GetNativeConnection()->GetNodeDirectory(),
@@ -450,6 +457,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
             blockReadOptions,
             columnFilter,
             schema.GetKeyColumns(),
+            userObject.OmittedInaccessibleColumns,
             /* partitionTag */ std::nullopt,
             /* trafficMeter */ nullptr,
             bandwidthThrottler,
@@ -461,6 +469,8 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
             return reader;
         }));
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative
 

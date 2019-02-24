@@ -79,11 +79,13 @@ TCheckPermissionCommand::TCheckPermissionCommand()
     RegisterParameter("user", User);
     RegisterParameter("permission", Permission);
     RegisterParameter("path", Path);
+    RegisterParameter("columns", Options.Columns)
+        .Optional();
 }
 
 void TCheckPermissionCommand::DoExecute(ICommandContextPtr context)
 {
-    auto result =
+    auto response =
         WaitFor(context->GetClient()->CheckPermission(
             User,
             Path.GetPath(),
@@ -91,8 +93,8 @@ void TCheckPermissionCommand::DoExecute(ICommandContextPtr context)
             Options))
         .ValueOrThrow();
 
-    context->ProduceOutputValue(BuildYsonStringFluently()
-        .BeginMap()
+    auto produceResult = [] (auto fluent, const auto& result) {
+        fluent
             .Item("action").Value(result.Action)
             .DoIf(result.ObjectId.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("object_id").Value(result.ObjectId);
@@ -105,6 +107,20 @@ void TCheckPermissionCommand::DoExecute(ICommandContextPtr context)
             })
             .DoIf(result.SubjectName.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("subject_name").Value(result.SubjectName);
+            });
+    };
+
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .BeginMap()
+            .Do([&] (auto fluent) { produceResult(fluent, response); })
+            .DoIf(response.Columns.has_value(), [&] (auto fluent) {
+                fluent
+                    .Item("columns").DoListFor(*response.Columns, [&] (auto fluent, const auto& result) {
+                        fluent
+                            .Item().BeginMap()
+                                .Do([&] (auto fluent) { produceResult(fluent, result); })
+                            .EndMap();
+                    });
             })
         .EndMap());
 }

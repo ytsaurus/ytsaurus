@@ -9,8 +9,11 @@
 #include <yt/ytlib/scheduler/config.h>
 
 #include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/client/api/transaction.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/actions/cancelable_context.h>
 

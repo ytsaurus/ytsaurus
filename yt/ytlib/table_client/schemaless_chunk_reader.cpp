@@ -136,9 +136,15 @@ public:
         return NameTable_;
     }
 
-    virtual TKeyColumns GetKeyColumns() const override
+    virtual const TKeyColumns& GetKeyColumns() const override
     {
         return KeyColumns_;
+    }
+
+    virtual const std::vector<TString>& GetOmittedInaccessibleColumns() const override
+    {
+        static const std::vector<TString> Result;
+        return Result;
     }
 
     virtual i64 GetTableRowIndex() const override
@@ -1897,6 +1903,7 @@ public:
         const TClientBlockReadOptions& blockReadOptions,
         const TColumnFilter& columnFilter,
         const TKeyColumns& keyColumns,
+        const std::vector<TString>& omittedInaccessibleColumns,
         std::optional<int> partitionTag,
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr bandwidthThrottler,
@@ -1905,14 +1912,12 @@ public:
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
 
     virtual i64 GetSessionRowIndex() const override;
-
     virtual i64 GetTotalRowCount() const override;
+    virtual i64 GetTableRowIndex() const override;
 
     virtual const TNameTablePtr& GetNameTable() const override;
-
-    virtual TKeyColumns GetKeyColumns() const override;
-
-    virtual i64 GetTableRowIndex() const override;
+    virtual const TKeyColumns& GetKeyColumns() const override;
+    virtual const std::vector<TString>& GetOmittedInaccessibleColumns() const override;
 
     virtual void Interrupt() override;
 
@@ -1922,6 +1927,7 @@ public:
 private:
     const TNameTablePtr NameTable_;
     const TKeyColumns KeyColumns_;
+    const std::vector<TString> OmittedInaccessibleColumns_;
 
     ISchemalessChunkReaderPtr CurrentReader_;
     std::atomic<i64> RowIndex_ = {0};
@@ -1954,6 +1960,7 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
     const TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter,
     const TKeyColumns& keyColumns,
+    const std::vector<TString>& omittedInaccessibleColumns,
     std::optional<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
@@ -1981,6 +1988,7 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
             rpsThrottler))
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
+    , OmittedInaccessibleColumns_(omittedInaccessibleColumns)
     , RowCount_(GetCumulativeRowCount(dataSliceDescriptors))
 {
     if (dataSliceDescriptors.empty()) {
@@ -2053,9 +2061,15 @@ const TNameTablePtr& TSchemalessMultiChunkReader<TBase>::GetNameTable() const
 }
 
 template <class TBase>
-TKeyColumns TSchemalessMultiChunkReader<TBase>::GetKeyColumns() const
+const TKeyColumns& TSchemalessMultiChunkReader<TBase>::GetKeyColumns() const
 {
     return KeyColumns_;
+}
+
+template <class TBase>
+const std::vector<TString>& TSchemalessMultiChunkReader<TBase>::GetOmittedInaccessibleColumns() const
+{
+    return OmittedInaccessibleColumns_;
 }
 
 template <class TBase>
@@ -2097,7 +2111,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
     NNative::IClientPtr client,
-    const TNodeDescriptor &localDescriptor,
+    const TNodeDescriptor& localDescriptor,
     std::optional<TNodeId> localNodeId,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
@@ -2106,7 +2120,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     TNameTablePtr nameTable,
     const TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter,
-    const TKeyColumns &keyColumns,
+    const TKeyColumns& keyColumns,
+    const std::vector<TString>& omittedInaccessibleColumns,
     std::optional<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
@@ -2126,6 +2141,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
         blockReadOptions,
         columnFilter,
         keyColumns,
+        omittedInaccessibleColumns,
         partitionTag,
         trafficMeter,
         std::move(bandwidthThrottler),
@@ -2141,7 +2157,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
     NNative::IClientPtr client,
-    const TNodeDescriptor &localDescriptor,
+    const TNodeDescriptor& localDescriptor,
     std::optional<TNodeId> localNodeId,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
@@ -2150,7 +2166,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     TNameTablePtr nameTable,
     const TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter,
-    const TKeyColumns &keyColumns,
+    const TKeyColumns& keyColumns,
+    const std::vector<TString>& omittedInaccessibleColumns,
     std::optional<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
@@ -2170,6 +2187,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
         blockReadOptions,
         columnFilter,
         keyColumns,
+        omittedInaccessibleColumns,
         partitionTag,
         trafficMeter,
         std::move(bandwidthThrottler),
@@ -2359,14 +2377,20 @@ public:
         return NameTable_;
     }
 
-    virtual TKeyColumns GetKeyColumns() const override
+    virtual const TKeyColumns& GetKeyColumns() const override
     {
         return KeyColumns_;
     }
 
+    virtual const std::vector<TString>& GetOmittedInaccessibleColumns() const override
+    {
+        static const std::vector<TString> Result;
+        return Result;
+    }
+
     virtual i64 GetTableRowIndex() const override
     {
-        // Versioned data don't have table row index;
+        // Not supported for versioned data.
         return 0;
     }
 

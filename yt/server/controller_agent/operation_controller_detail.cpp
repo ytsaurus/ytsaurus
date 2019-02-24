@@ -49,11 +49,12 @@
 #include <yt/ytlib/table_client/data_slice_fetcher.h>
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schema.h>
-#include <yt/client/table_client/table_consumer.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/ytlib/api/native/connection.h>
+
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/client/chunk_client/data_statistics.h>
 
@@ -62,6 +63,7 @@
 #include <yt/client/table_client/column_rename_descriptor.h>
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/table_consumer.h>
 
 #include <yt/client/api/transaction.h>
 
@@ -703,9 +705,9 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 
     // Process output and stderr tables.
     if (!OutputTables_.empty()) {
-        GetUserObjectBasicAttributes<TOutputTablePtr>(
+        GetUserObjectBasicAttributes(
             OutputClient,
-            OutputTables_,
+            MakeUserObjectList(OutputTables_),
             OutputTransaction->GetId(),
             Logger,
             EPermission::Write);
@@ -716,7 +718,7 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
     if (StderrTable_) {
         GetUserObjectBasicAttributes(
             Client,
-            TMutableRange<TOutputTablePtr>(&StderrTable_, 1),
+            {StderrTable_.Get()},
             DebugTransaction->GetId(),
             Logger,
             EPermission::Write);
@@ -727,7 +729,7 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
     if (CoreTable_) {
         GetUserObjectBasicAttributes(
             Client,
-            TMutableRange<TOutputTablePtr>(&CoreTable_, 1),
+            {CoreTable_.Get()},
             DebugTransaction->GetId(),
             Logger,
             EPermission::Write);
@@ -4357,8 +4359,7 @@ void TOperationControllerBase::FetchInputTables()
             ranges.size(),
             hasColumnSelectors);
 
-        std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
-        FetchChunkSpecs(
+        auto chunkSpecs = FetchChunkSpecs(
             InputClient,
             InputNodeDirectory_,
             table->CellTag,
@@ -4367,7 +4368,7 @@ void TOperationControllerBase::FetchInputTables()
             table->ChunkCount,
             Config->MaxChunksPerFetch,
             Config->MaxChunksPerLocateRequest,
-            [&] (TChunkOwnerYPathProxy::TReqFetchPtr req) {
+            [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
                 req->set_fetch_all_meta_extensions(false);
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                 if (table->IsDynamic || IsBoundaryKeysFetchEnabled()) {
@@ -4378,8 +4379,7 @@ void TOperationControllerBase::FetchInputTables()
                 req->set_fetch_parity_replicas(true);
                 SetTransactionId(req, *table->TransactionId);
             },
-            Logger,
-            &chunkSpecs);
+            Logger);
 
         for (const auto& chunkSpec : chunkSpecs) {
             auto inputChunk = New<TInputChunk>(chunkSpec);
@@ -4469,9 +4469,9 @@ void TOperationControllerBase::GetInputTablesAttributes()
 {
     YT_LOG_INFO("Getting input tables attributes");
 
-    GetUserObjectBasicAttributes<TInputTablePtr>(
+    GetUserObjectBasicAttributes(
         InputClient,
-        InputTables_,
+        MakeUserObjectList(InputTables_),
         InputTransaction->GetId(),
         Logger,
         EPermission::Read);
@@ -4907,7 +4907,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
 
         switch (file.Type) {
             case EObjectType::Table:
-                FetchChunkSpecs(
+                file.ChunkSpecs = FetchChunkSpecs(
                     InputClient,
                     InputNodeDirectory_,
                     file.CellTag,
@@ -4916,7 +4916,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
                     file.ChunkCount,
                     Config->MaxChunksPerFetch,
                     Config->MaxChunksPerLocateRequest,
-                    [&] (TChunkOwnerYPathProxy::TReqFetchPtr req) {
+                    [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
                         req->set_fetch_all_meta_extensions(false);
                         req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                         if (file.Dynamic || IsBoundaryKeysFetchEnabled()) {
@@ -4927,8 +4927,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
                         req->set_fetch_parity_replicas(true);
                         SetTransactionId(req, *file.TransactionId);
                     },
-                    Logger,
-                    &file.ChunkSpecs);
+                    Logger);
 
                 break;
 
@@ -5118,14 +5117,13 @@ void TOperationControllerBase::GetUserFilesAttributes()
 {
     YT_LOG_INFO("Getting user files attributes");
 
-    for (auto& pair : UserJobFiles_) {
-        const auto& userJobSpec = pair.first;
-        auto& files = pair.second;
-        GetUserObjectBasicAttributes<TUserFile>(
+    for (auto& [userJobSpec, files] : UserJobFiles_) {
+        GetUserObjectBasicAttributes(
             Client,
-            files,
+            MakeUserObjectList(files),
             InputTransaction->GetId(),
-            TLogger(Logger).AddTag("TaskTitle: %v", userJobSpec->TaskTitle),
+            TLogger(Logger)
+                .AddTag("TaskTitle: %v", userJobSpec->TaskTitle),
             EPermission::Read);
     }
 

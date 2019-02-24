@@ -59,7 +59,7 @@ void Deserialize(TSerializableAccessControlEntry& ace, NYTree::INodePtr node)
 {
     using NYTree::Deserialize;
 
-    const auto mapNode = node->AsMap();
+    auto mapNode = node->AsMap();
 
     Deserialize(ace.Action, mapNode->GetChild("action"));
     Deserialize(ace.Subjects, mapNode->GetChild("subjects"));
@@ -69,6 +69,20 @@ void Deserialize(TSerializableAccessControlEntry& ace, NYTree::INodePtr node)
     }
     if (auto columnsNode = mapNode->FindChild("columns")) {
         Deserialize(ace.Columns, columnsNode);
+    }
+
+    if (ace.Action == ESecurityAction::Undefined) {
+        THROW_ERROR_EXCEPTION("%Qlv action is not allowed",
+            ESecurityAction::Undefined);
+    }
+
+    if (ace.Columns) {
+        for (auto permission : TEnumTraits<EPermission>::GetDomainValues()) {
+            if (Any(ace.Permissions & permission) && permission != EPermission::Read) {
+                THROW_ERROR_EXCEPTION("Columnar ACE cannot contain %Qlv permission",
+                    permission);
+            }
+        }
     }
 }
 
