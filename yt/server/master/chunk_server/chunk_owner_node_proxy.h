@@ -28,15 +28,22 @@ protected:
     virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
     virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override;
-    virtual void ValidateFetchParameters(const std::vector<NChunkClient::TReadRange>& ranges);
 
     virtual bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
 
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
+    struct TFetchContext
+    {
+        NNodeTrackerClient::EAddressType AddressType = NNodeTrackerClient::EAddressType::InternalRpc;
+        bool FetchParityReplicas = false;
+        std::vector<NChunkClient::TReadRange> Ranges;
+    };
+
+    virtual void ValidateFetch(TFetchContext* context);
+
     void ValidateInUpdate();
     virtual void ValidateBeginUpload();
-    virtual void ValidateFetch();
     virtual void ValidateStorageParametersUpdate() override;
 
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Fetch);
@@ -45,6 +52,8 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, EndUpload);
 
 private:
+    class TFetchChunkVisitor;
+
     void SetReplicationFactor(int replicationFactor);
     void SetVital(bool vital);
     void SetReplication(const TChunkReplication& replication);

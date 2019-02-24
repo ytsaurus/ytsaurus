@@ -520,11 +520,11 @@ TFuture<void> TClient::RemoveMember(
     return req->Invoke().As<void>();
 }
 
-TFuture<NApi::TCheckPermissionResult> TClient::CheckPermission(
+TFuture<TCheckPermissionResponse> TClient::CheckPermission(
     const TString& user,
     const NYPath::TYPath& path,
     NYTree::EPermission permission,
-    const NApi::TCheckPermissionOptions& options)
+    const TCheckPermissionOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -534,17 +534,21 @@ TFuture<NApi::TCheckPermissionResult> TClient::CheckPermission(
     req->set_user(user);
     req->set_path(path);
     req->set_permission(static_cast<int>(permission));
+    // XXX(babenko): columns
 
     ToProto(req->mutable_master_read_options(), options);
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_prerequisite_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspCheckPermissionPtr& rsp) {
-        return FromProto<NApi::TCheckPermissionResult>(rsp->result());
+        // XXX(babenko): columns
+        TCheckPermissionResponse response;
+        static_cast<TCheckPermissionResult&>(response) = FromProto<NApi::TCheckPermissionResult>(rsp->result());
+        return response;
     }));
 }
 
-TFuture<NApi::TCheckPermissionByAclResult> TClient::CheckPermissionByAcl(
+TFuture<TCheckPermissionByAclResult> TClient::CheckPermissionByAcl(
     const std::optional<TString>& user,
     NYTree::EPermission permission,
     NYTree::INodePtr acl,

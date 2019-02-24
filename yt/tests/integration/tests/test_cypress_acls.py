@@ -7,7 +7,7 @@ from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
-class TestAcls(YTEnvSetup):
+class TestCypressAcls(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -727,7 +727,94 @@ class TestAcls(YTEnvSetup):
             make_ace("allow", "d2", "read", "object_only"),
             make_ace("allow", "d3", "read", "object_and_descendants")])
 
+    def test_read_table_with_denied_columns(self):
+        create_user("u")
+
+        create("table", "//tmp/t", attributes={
+                "schema": [
+                    {"name": "public", "type": "string"},
+                    {"name": "secret", "type": "string"}
+                ],
+                "acl": [
+                     make_ace("deny", "u", "read", columns="secret"),
+                ]
+            })
+        write_table("//tmp/t", [{"public": "a", "secret": "b"}])
+        
+        assert read_table("//tmp/t{public}") == [{"public": "a"}]
+
+        with pytest.raises(YtError):
+            read_table("//tmp/t", authenticated_user="u")
+        with pytest.raises(YtError):
+            read_table("//tmp/t{secret}", authenticated_user="u")
+
+    def test_map_table_with_denied_columns(self):
+        create_user("u")
+
+        create("table", "//tmp/t_in", attributes={
+                "schema": [
+                    {"name": "public", "type": "string"},
+                    {"name": "secret", "type": "string"}
+                ],
+                "acl": [
+                     make_ace("deny", "u", "read", columns="secret"),
+                ]
+            })
+        write_table("//tmp/t_in", [{"public": "a", "secret": "b"}])
+
+        create("table", "//tmp/t_out")
+
+        map(in_="//tmp/t_in{public}", out="//tmp/t_out", command="cat", authenticated_user="u")
+        assert read_table("//tmp/t_out") == [{"public": "a"}]
+
+        with pytest.raises(YtError):
+             map(in_="//tmp/t_in{secret}", out="//tmp/t_out", command="cat", authenticated_user="u")
+        with pytest.raises(YtError):
+             map(in_="//tmp/t_in", out="//tmp/t_out", command="cat", authenticated_user="u")
+
+    @pytest.mark.parametrize("acl_path", ["//tmp/dir/t", "//tmp/dir"])
+    def test_check_permission_for_columnar_acl(self, acl_path):
+        create_user("u1")
+        create_user("u2")
+        create_user("u3")
+        create_user("u4")
+
+        create("table", "//tmp/dir/t", attributes={
+                   "schema": [
+                       {"name": "a", "type": "string"},
+                       {"name": "b", "type": "string"},
+                       {"name": "c", "type": "string"}
+                   ]},
+               recursive=True)
+
+        set(acl_path + "/@acl", [
+             make_ace("deny", "u1", "read", columns="a"),
+             make_ace("allow", "u2", "read", columns="b"),
+             make_ace("deny", "u4", "read")
+        ])
+
+        response1 = check_permission("u1", "read", "//tmp/dir/t", columns=["a", "b", "c"])
+        assert response1["action"] == "allow"
+        assert response1["columns"][0]["action"] == "deny"
+        assert response1["columns"][1]["action"] == "deny"
+        assert response1["columns"][2]["action"] == "allow"
+
+        response2 = check_permission("u2", "read", "//tmp/dir/t", columns=["a", "b", "c"])
+        assert response2["action"] == "allow"
+        assert response2["columns"][0]["action"] == "deny"
+        assert response2["columns"][1]["action"] == "allow"
+        assert response2["columns"][2]["action"] == "allow"
+
+        response3 = check_permission("u3", "read", "//tmp/dir/t", columns=["a", "b", "c"])
+        assert response3["action"] == "allow"
+        assert response3["columns"][0]["action"] == "deny"
+        assert response3["columns"][1]["action"] == "deny"
+        assert response3["columns"][2]["action"] == "allow"
+
+        response4 = check_permission("u4", "read", "//tmp/dir/t", columns=["a", "b", "c"])
+        assert response4["action"] == "deny"
+
 ##################################################################
 
-class TestAclsMulticell(TestAcls):
+class TestCypressAclsMulticell(TestCypressAcls):
     NUM_SECONDARY_MASTER_CELLS = 2

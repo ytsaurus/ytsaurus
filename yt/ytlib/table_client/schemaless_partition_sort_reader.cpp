@@ -190,9 +190,15 @@ public:
         return NameTable_;
     }
 
-    virtual TKeyColumns GetKeyColumns() const override
+    virtual const TKeyColumns& GetKeyColumns() const override
     {
         return KeyColumns_;
+    }
+
+    virtual const std::vector<TString>& GetOmittedInaccessibleColumns() const override
+    {
+        static const std::vector<TString> Result;
+        return Result;
     }
 
     virtual bool IsFetchingCompleted() const override

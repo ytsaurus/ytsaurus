@@ -127,17 +127,18 @@ private:
         TUserObject userObject;
         userObject.Path = Path_;
 
+        TGetUserObjectBasicAttributesOptions getUserObjectBasicAttributesOptions;
+        getUserObjectBasicAttributesOptions.SuppressAccessTracking = Options_.SuppressAccessTracking;
         GetUserObjectBasicAttributes(
             Client_,
-            TMutableRange<TUserObject>(&userObject, 1),
+            {&userObject},
             Transaction_ ? Transaction_->GetId() : NullTransactionId,
             Logger,
             EPermission::Read,
-            Options_.SuppressAccessTracking);
+            getUserObjectBasicAttributesOptions);
 
-        const auto cellTag = userObject.CellTag;
-        const auto& objectId = userObject.ObjectId;
-
+        auto cellTag = userObject.CellTag;
+        auto objectId = userObject.ObjectId;
         auto objectIdPath = FromObjectId(objectId);
 
         if (userObject.Type != EObjectType::File) {
@@ -189,7 +190,8 @@ private:
             }
             if (Options_.Length) {
                 if (*Options_.Length < 0) {
-                    THROW_ERROR_EXCEPTION("Invalid length to read from file: %v < 0", *Options_.Length);
+                    THROW_ERROR_EXCEPTION("Invalid length to read from file: %v < 0",
+                        *Options_.Length);
                 }
                 upperLimit.SetOffset(offset + *Options_.Length);
             }
@@ -220,8 +222,8 @@ private:
             Config_,
             New<TMultiChunkReaderOptions>(),
             Client_,
-            TNodeDescriptor(),
-            std::nullopt,
+            /* localDescriptor */ {},
+            /* partitionTag */ std::nullopt,
             Client_->GetNativeConnection()->GetBlockCache(),
             nodeDirectory,
             BlockReadOptions_,

@@ -19,22 +19,7 @@ public:
 
     explicit TTableNodeTypeHandlerBase(NCellMaster::TBootstrap* bootstrap);
 
-    virtual bool IsSupportedInheritableAttribute(const TString& key) const override
-    {
-        static const THashSet<TString> supportedInheritableAttributes = {
-            "atomicity",
-            "commit_ordering",
-            "in_memory_mode",
-            "optimize_for",
-            "tablet_cell_bundle"
-        };
-
-        if (supportedInheritableAttributes.contains(key)) {
-            return true;
-        }
-
-        return TBase::IsSupportedInheritableAttribute(key);
-    }
+    virtual bool IsSupportedInheritableAttribute(const TString& key) const override;
 
     virtual bool HasBranchedChangesImpl(TImpl* originatingNode, TImpl* branchedNode) override;
 
@@ -64,10 +49,6 @@ protected:
         NSecurityServer::TAccount* account) override;
 
     virtual bool IsExternalizable() const override;
-
-private:
-    NSecurityServer::TClusterResources GetTabletResourceUsage(
-        const NCypressServer::TCypressNodeBase* table);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,7 +67,6 @@ protected:
     virtual NCypressServer::ICypressNodeProxyPtr DoGetProxy(
         TTableNode* trunkNode,
         NTransactionServer::TTransaction* transaction) override;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,13 +81,14 @@ public:
 
     virtual NObjectClient::EObjectType GetObjectType() const override;
 
-    virtual bool HasBranchedChangesImpl(TReplicatedTableNode* originatingNode, TReplicatedTableNode* branchedNode) override;
+    virtual bool HasBranchedChangesImpl(
+        TReplicatedTableNode* originatingNode,
+        TReplicatedTableNode* branchedNode) override;
 
 protected:
     virtual NCypressServer::ICypressNodeProxyPtr DoGetProxy(
         TReplicatedTableNode* trunkNode,
         NTransactionServer::TTransaction* transaction) override;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

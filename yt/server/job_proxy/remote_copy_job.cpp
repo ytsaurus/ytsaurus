@@ -8,6 +8,7 @@
 #include <yt/client/chunk_client/data_statistics.h>
 
 #include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>

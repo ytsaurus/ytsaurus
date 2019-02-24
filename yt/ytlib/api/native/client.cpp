@@ -782,7 +782,7 @@ public:
         const TString& member,
         const TRemoveMemberOptions& options),
         (group, member, options))
-    IMPLEMENT_METHOD(TCheckPermissionResult, CheckPermission, (
+    IMPLEMENT_METHOD(TCheckPermissionResponse, CheckPermission, (
         const TString& user,
         const TYPath& path,
         EPermission permission,
@@ -3890,7 +3890,7 @@ private:
             .ThrowOnError();
     }
 
-    TCheckPermissionResult DoCheckPermission(
+    TCheckPermissionResponse DoCheckPermission(
         const TString& user,
         const TYPath& path,
         EPermission permission,
@@ -3903,6 +3903,9 @@ private:
         auto req = TObjectYPathProxy::CheckPermission(path);
         req->set_user(user);
         req->set_permission(static_cast<int>(permission));
+        if (options.Columns) {
+            ToProto(req->mutable_columns()->mutable_items(), *options.Columns);
+        }
         SetTransactionId(req, options, true);
         SetCachingHeader(req, options);
         batchReq->AddRequest(req);
@@ -3912,13 +3915,25 @@ private:
         auto rsp = batchRsp->GetResponse<TObjectYPathProxy::TRspCheckPermission>(0)
             .ValueOrThrow();
 
-        TCheckPermissionResult result;
-        result.Action = ESecurityAction(rsp->action());
-        result.ObjectId = FromProto<TObjectId>(rsp->object_id());
-        result.ObjectName = rsp->has_object_name() ? std::make_optional(rsp->object_name()) : std::nullopt;
-        result.SubjectId = FromProto<TSubjectId>(rsp->subject_id());
-        result.SubjectName = rsp->has_subject_name() ? std::make_optional(rsp->subject_name()) : std::nullopt;
-        return result;
+        auto fillResult = [] (auto* result, const auto& protoResult) {
+            result->Action = CheckedEnumCast<ESecurityAction>(protoResult.action());
+            result->ObjectId = FromProto<TObjectId>(protoResult.object_id());
+            result->ObjectName = protoResult.has_object_name() ? std::make_optional(protoResult.object_name()) : std::nullopt;
+            result->SubjectId = FromProto<TSubjectId>(protoResult.subject_id());
+            result->SubjectName = protoResult.has_subject_name() ? std::make_optional(protoResult.subject_name()) : std::nullopt;
+        };
+
+        TCheckPermissionResponse response;
+        fillResult(&response, *rsp);
+        if (rsp->has_columns()) {
+            response.Columns.emplace();
+            response.Columns->reserve(static_cast<size_t>(rsp->columns().items_size()));
+            for (const auto& protoResult : rsp->columns().items()) {
+                fillResult(&response.Columns->emplace_back(), protoResult);
+            }
+        }
+
+        return response;
     }
 
 

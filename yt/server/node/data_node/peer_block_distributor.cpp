@@ -10,6 +10,7 @@
 #include <yt/server/node/data_node/master_connector.h>
 
 #include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>

@@ -102,22 +102,24 @@ private:
         auto options = TCheckPermissionOptions();
         options.ReadFrom = EMasterChannelKind::Cache;
         return client->CheckPermission(key.User, FromObjectId(key.TableId), key.Permission, options).Apply(
-            BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TCheckPermissionResult>& resultOrError) {
-                if (!resultOrError.IsOK()) {
+            BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TCheckPermissionResponse>& responseOrError) {
+                if (!responseOrError.IsOK()) {
                     auto wrappedError = TError("Error checking permission for table %v",
                         key.TableId)
-                        << resultOrError;
+                        << responseOrError;
                     YT_LOG_WARNING(wrappedError);
                     THROW_ERROR wrappedError;
                 }
 
-                const auto& result = resultOrError.Value();
+                const auto& response = responseOrError.Value();
 
                 YT_LOG_DEBUG("Table permission check complete (Key: %v, Action: %v)",
                     key,
-                    result.Action);
+                    response.Action);
 
-                auto error = result.ToError(key.User, key.Permission);
+                // XXX(babenko): columnar ACL
+
+                auto error = response.ToError(key.User, key.Permission);
                 if (!error.IsOK()) {
                     THROW_ERROR error << TErrorAttribute("object", key.TableId);
                 }

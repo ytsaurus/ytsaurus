@@ -55,9 +55,8 @@ void ProcessFetchResponse(
     bool skipUnavailableChunks = false);
 
 //! Synchronously fetches chunk specs from master,
-//! waits for thre result and processes the response.
-//! The resulting chunk specs are appended to #chunkSpecs.
-void FetchChunkSpecs(
+//! waits for the result and processes the responses.
+std::vector<NProto::TChunkSpec> FetchChunkSpecs(
     const NApi::NNative::IClientPtr& client,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
     NObjectClient::TCellTag cellTag,
@@ -66,9 +65,8 @@ void FetchChunkSpecs(
     int chunkCount,
     int maxChunksPerFetch,
     int maxChunksPerLocateRequest,
-    const std::function<void(TChunkOwnerYPathProxy::TReqFetchPtr)> initializeFetchRequest,
+    const std::function<void(const TChunkOwnerYPathProxy::TReqFetchPtr&)> initializeFetchRequest,
     const NLogging::TLogger& logger,
-    std::vector<NProto::TChunkSpec>* chunkSpecs,
     bool skipUnavialableChunks = false);
 
 //! Synchronously invokes TChunkServiceProxy::AllocateWriteTargets.
@@ -130,20 +128,46 @@ IChunkReaderPtr CreateRemoteReader(
 
 struct TUserObject
 {
+    // Input
     NYPath::TRichYPath Path;
+
+    // Output
     NObjectClient::TObjectId ObjectId;
     NObjectClient::TCellTag CellTag;
     NObjectClient::EObjectType Type = NObjectClient::EObjectType::Null;
+    // XXX(babenko)
     std::optional<NObjectClient::TTransactionId> TransactionId;
+    std::vector<TString> OmittedInaccessibleColumns;
 
     virtual ~TUserObject() = default;
 
+    // XXX(babenko): get rid of this
     virtual TString GetPath() const;
 
     bool IsPrepared() const;
 
     void Persist(const TStreamPersistenceContext& context);
 };
+
+struct TGetUserObjectBasicAttributesOptions
+{
+    bool SuppressAccessTracking = false;
+    NApi::EMasterChannelKind ChannelKind = NApi::EMasterChannelKind::Follower;
+    bool OmitInaccessibleColumns = false;
+};
+
+void GetUserObjectBasicAttributes(
+    const NApi::NNative::IClientPtr& client,
+    const std::vector<TUserObject*>& objects,
+    NObjectClient::TTransactionId defaultTransactionId,
+    const NLogging::TLogger& logger,
+    NYTree::EPermission permission,
+    const TGetUserObjectBasicAttributesOptions& options = {});
+
+template <class T>
+std::vector<TUserObject*> MakeUserObjectList(std::vector<T>& vector);
+template <class T>
+std::vector<TUserObject*> MakeUserObjectList(std::vector<TIntrusivePtr<T>>& vector);
 
 ////////////////////////////////////////////////////////////////////////////////
 

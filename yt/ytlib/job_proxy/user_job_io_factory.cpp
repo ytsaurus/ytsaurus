@@ -113,45 +113,28 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
     IThroughputThrottlerPtr bandwidthTrottler,
     IThroughputThrottlerPtr rpsTrottler)
 {
-    if (isParallel) {
-        return CreateSchemalessParallelMultiReader(
-            jobSpecHelper->GetJobIOConfig()->TableReader,
-            std::move(options),
-            std::move(client),
-            nodeDescriptor,
-            std::nullopt,
-            GetNullBlockCache(),
-            jobSpecHelper->GetInputNodeDirectory(),
-            dataSourceDirectory,
-            std::move(dataSliceDescriptors),
-            std::move(nameTable),
-            blockReadOptions,
-            columnFilter,
-            TKeyColumns(),
-            /* partitionTag */ std::nullopt,
-            std::move(trafficMeter),
-            std::move(bandwidthTrottler),
-            std::move(rpsTrottler));
-    } else {
-        return CreateSchemalessSequentialMultiReader(
-            jobSpecHelper->GetJobIOConfig()->TableReader,
-            std::move(options),
-            std::move(client),
-            nodeDescriptor,
-            std::nullopt,
-            GetNullBlockCache(),
-            jobSpecHelper->GetInputNodeDirectory(),
-            dataSourceDirectory,
-            std::move(dataSliceDescriptors),
-            std::move(nameTable),
-            blockReadOptions,
-            columnFilter,
-            TKeyColumns(),
-            /* partitionTag */ std::nullopt,
-            std::move(trafficMeter),
-            std::move(bandwidthTrottler),
-            std::move(rpsTrottler));
-    }
+    auto createReader = isParallel
+        ? CreateSchemalessParallelMultiReader
+        : CreateSchemalessSequentialMultiReader;
+    return createReader(
+        jobSpecHelper->GetJobIOConfig()->TableReader,
+        std::move(options),
+        std::move(client),
+        nodeDescriptor,
+        std::nullopt,
+        GetNullBlockCache(),
+        jobSpecHelper->GetInputNodeDirectory(),
+        dataSourceDirectory,
+        std::move(dataSliceDescriptors),
+        std::move(nameTable),
+        blockReadOptions,
+        columnFilter,
+        /* keyColumns */ {},
+        /* omittedInaccessibleColumns */ {},
+        /* partitionTag */ std::nullopt,
+        std::move(trafficMeter),
+        std::move(bandwidthTrottler),
+        std::move(rpsTrottler));
 }
 
 ISchemalessMultiChunkReaderPtr CreateRegularReader(
@@ -309,6 +292,7 @@ public:
                 BlockReadOptions_,
                 columnFilter,
                 keyColumns,
+                /* omittedInaccessibleColumns */ {},
                 /* partitionTag */ std::nullopt,
                 TrafficMeter_,
                 InBandwidthThrottler_,
@@ -338,6 +322,7 @@ public:
                 BlockReadOptions_,
                 columnFilter,
                 keyColumns,
+                /* omittedInaccessibleColumns */ {},
                 /* partitionTag */ std::nullopt,
                 TrafficMeter_,
                 InBandwidthThrottler_,

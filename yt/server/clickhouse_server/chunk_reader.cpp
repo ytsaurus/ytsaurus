@@ -105,7 +105,7 @@ ISchemafulReaderPtr CreateChunkReader(
                 config,
                 options,
                 client,
-                TNodeDescriptor(),
+                /* localDescriptor */ {},
                 std::nullopt,
                 client->GetNativeConnection()->GetBlockCache(),
                 nodeDirectory,
@@ -114,7 +114,8 @@ ISchemafulReaderPtr CreateChunkReader(
                 nameTable,
                 blockReadOptions,
                 columnFilter,
-                TKeyColumns(),
+                {}, /* keyColumns */
+                {}, /* omittedInaccessibleColumns */
                 std::nullopt,
                 nullptr /* trafficMeter */,
                 bandwidthThrottler,
@@ -131,7 +132,7 @@ ISchemafulReaderPtr CreateChunkReader(
                 config,
                 options,
                 client,
-                TNodeDescriptor(),
+                /* localDescriptor */ {},
                 std::nullopt,
                 client->GetNativeConnection()->GetBlockCache(),
                 nodeDirectory,

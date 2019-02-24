@@ -11,7 +11,10 @@
 #include "table_partition.h"
 #include "table_schema.h"
 
+#include <yt/client/table_client/schema.h>
+
 #include <yt/ytlib/api/native/client_cache.h>
+
 #include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/core/concurrency/public.h>

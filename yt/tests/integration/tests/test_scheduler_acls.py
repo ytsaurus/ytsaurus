@@ -15,7 +15,7 @@ from copy import deepcopy
 def _abort_op(**kwargs):
     abort_op(kwargs.pop("operation_id"), **kwargs)
 
-class TestOperationAcls(YTEnvSetup):
+class TestSchedulerAcls(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
     SINGLE_SETUP_TEARDOWN = True
 
@@ -58,7 +58,7 @@ class TestOperationAcls(YTEnvSetup):
 
     @classmethod
     def setup_class(cls):
-        super(TestOperationAcls, cls).setup_class()
+        super(TestSchedulerAcls, cls).setup_class()
 
         # Init operations archive.
         sync_create_cells(1)

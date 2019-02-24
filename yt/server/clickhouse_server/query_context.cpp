@@ -16,21 +16,33 @@
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/client_cache.h>
+
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
+
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/schema.h>
+
 #include <yt/ytlib/transaction_client/helpers.h>
+
 #include <yt/ytlib/api/native/transaction.h>
+
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/schemaful_reader.h>
+
 #include <yt/client/api/file_reader.h>
 #include <yt/client/api/transaction.h>
+
 #include <yt/client/node_tracker_client/node_directory.h>
+
 #include <yt/client/ypath/rich.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/async_stream.h>
@@ -41,6 +53,7 @@
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/yson/string.h>
 #include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/attributes.h>
 
 #include <util/generic/algorithm.h>
 #include <util/generic/string.h>
@@ -170,7 +183,9 @@ std::vector<TClickHouseTablePtr> TQueryContext::ListTables(const TString& path, 
 
     auto tables =  BuildTablesList(GetAbsolutePath(path), fetchNode, recursive);
 
-    YT_LOG_INFO("Table list fetched (Path: %v)", path, tables.size());
+    YT_LOG_INFO("Table list fetched (Path: %v)",
+        path,
+        tables.size());
 
     return tables;
 }

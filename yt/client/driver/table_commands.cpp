@@ -53,6 +53,8 @@ TReadTableCommand::TReadTableCommand()
         .Default(false);
     RegisterParameter("start_row_index_only", StartRowIndexOnly)
         .Default(false);
+    RegisterParameter("omit_inaccessible_columns", Options.OmitInaccessibleColumns)
+        .Default(false);
 
     RegisterPostprocessor([&] {
         Path = Path.Normalize();
@@ -61,10 +63,12 @@ TReadTableCommand::TReadTableCommand()
 
 void TReadTableCommand::DoExecute(ICommandContextPtr context)
 {
-    YT_LOG_DEBUG("Executing \"read_table\" command (Path: %v, Unordered: %v, StartRowIndexOnly: %v)",
+    YT_LOG_DEBUG("Executing \"read_table\" command (Path: %v, Unordered: %v, StartRowIndexOnly: %v, "
+        "OmitInaccessibleColumns: %v)",
         Path,
         Unordered,
-        StartRowIndexOnly);
+        StartRowIndexOnly,
+        OmitInaccessibleColumns);
 
     Options.Ping = true;
     Options.Config = UpdateYsonSerializable(
@@ -109,11 +113,13 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
     auto finally = Finally([&] () {
         auto dataStatistics = reader->GetDataStatistics();
         YT_LOG_DEBUG("Command statistics (RowCount: %v, WrittenSize: %v, "
-            "ReadUncompressedDataSize: %v, ReadCompressedDataSize: %v)",
+            "ReadUncompressedDataSize: %v, ReadCompressedDataSize: %v, "
+            "OmittedInaccessibleColumns: %v)",
             dataStatistics.row_count(),
             writer->GetWrittenSize(),
             dataStatistics.uncompressed_data_size(),
-            dataStatistics.compressed_data_size());
+            dataStatistics.compressed_data_size(),
+            reader->GetOmittedInaccessibleColumns());
     });
 
     TPipeReaderToWriterOptions options;

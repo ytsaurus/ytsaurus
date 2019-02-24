@@ -17,8 +17,8 @@ struct ISchemalessReader
     virtual bool Read(std::vector<TUnversionedRow>* rows) = 0;
 
     virtual const TNameTablePtr& GetNameTable() const = 0;
-
-    virtual TKeyColumns GetKeyColumns() const = 0;
+    virtual const TKeyColumns& GetKeyColumns() const = 0;
+    virtual const std::vector<TString>& GetOmittedInaccessibleColumns() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchemalessReader)

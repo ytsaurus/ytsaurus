@@ -14,6 +14,8 @@
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/input_chunk.h>
 
+#include <yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/client/object_client/helpers.h>
@@ -38,6 +40,7 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/permission.h>
+#include <yt/core/ytree/attributes.h>
 
 namespace NYT::NTableClient {
 
@@ -93,14 +96,19 @@ public:
         return UnderlyingReader_->Read(rows);
     }
 
-    virtual const NTableClient::TNameTablePtr& GetNameTable() const override
+    virtual const TNameTablePtr& GetNameTable() const override
     {
         return UnderlyingReader_->GetNameTable();
     }
 
-    virtual NTableClient::TKeyColumns GetKeyColumns() const override
+    virtual const TKeyColumns& GetKeyColumns() const override
     {
         return UnderlyingReader_->GetKeyColumns();
+    }
+
+    virtual const std::vector<TString>& GetOmittedInaccessibleColumns() const override
+    {
+        return UnderlyingReader_->GetOmittedInaccessibleColumns();
     }
 
 private:
@@ -306,20 +314,21 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
 {
     const auto& Logger = logger;
 
-    YT_LOG_INFO("Getting table attributes (Path: %v)", path);
+    YT_LOG_INFO("Getting table attributes (Path: %v)",
+        path);
 
     TYPath objectIdPath;
     TCellTag tableCellTag;
     {
         TUserObject userObject;
         userObject.Path = path;
+
         GetUserObjectBasicAttributes(
             client,
-            TMutableRange<TUserObject>(&userObject, 1),
+            {&userObject},
             transactionId,
             Logger,
-            EPermission::Read,
-            false /* suppressAccessTracking */);
+            EPermission::Read);
 
         const auto& objectId = userObject.ObjectId;
         tableCellTag = userObject.CellTag;
@@ -332,7 +341,10 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
         }
     }
 
-    YT_LOG_INFO("Requesting table chunk count (TableCellTag: %v, ObjectIdPath: %v)", tableCellTag, objectIdPath);
+    YT_LOG_INFO("Requesting table chunk count (TableCellTag: %v, ObjectIdPath: %v)",
+        tableCellTag,
+        objectIdPath);
+
     int chunkCount;
     {
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
@@ -355,8 +367,7 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
 
     YT_LOG_INFO("Fetching chunk specs (ChunkCount: %v)", chunkCount);
 
-    std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
-    FetchChunkSpecs(
+    auto chunkSpecs = FetchChunkSpecs(
         client,
         nodeDirectory,
         tableCellTag,
@@ -365,13 +376,12 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
         chunkCount,
         config->MaxChunksPerFetch,
         config->MaxChunksPerLocateRequest,
-        [&] (TChunkOwnerYPathProxy::TReqFetchPtr req) {
+        [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
             req->set_fetch_all_meta_extensions(false);
             SetTransactionId(req, transactionId);
         },
-        Logger,
-        &chunkSpecs);
+        Logger);
 
     std::vector<TInputChunkPtr> inputChunks;
     for (const auto& chunkSpec : chunkSpecs) {
@@ -421,9 +431,11 @@ void CheckUnavailableChunks(EUnavailableChunkStrategy strategy, std::vector<TChu
             continue;
         }
 
-        auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
-        auto throwUnavailable = [&] () {
-            THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::ChunkUnavailable, "Chunk %v is unavailable", chunkId);
+        auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+        auto throwUnavailable = [&] {
+            THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::ChunkUnavailable,
+                "Chunk %v is unavailable",
+                chunkId);
         };
 
         switch (strategy) {

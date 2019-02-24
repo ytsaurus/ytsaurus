@@ -36,6 +36,8 @@
 
 #include <yt/client/api/transaction.h>
 
+#include <yt/client/object_client/helpers.h>
+
 #include <yt/core/misc/memory_zone.h>
 
 namespace NYT::NTabletNode {

@@ -1174,19 +1174,22 @@ def set_account_disk_space_limit(account, limit, medium="default"):
 def get_chunk_replication_factor(chunk_id):
     return get("#{0}/@media/default/replication_factor".format(chunk_id))
 
-def make_ace(action, subjects, permissions, inheritance_mode="object_and_descendants"):
+def make_ace(action, subjects, permissions, inheritance_mode="object_and_descendants", columns=None):
     def _to_list(x):
         if isinstance(x, str):
             return [x]
         else:
             return x
 
-    return {
+    ace = {
         "action": action,
         "subjects": _to_list(subjects),
         "permissions": _to_list(permissions),
         "inheritance_mode": inheritance_mode
     }
+    if columns is not None:
+        ace["columns"] = _to_list(columns)
+    return ace
 
 #########################################
 

@@ -34,13 +34,26 @@ message TPrerequisitesExt
 
 message TReqGetBasicAttributes
 {
-    optional uint32 permissions = 1 [default = 0];
+    optional int32 permission = 1; // EPermission
+
+    message TColumns
+    {
+        repeated string items = 1;
+    }
+    optional TColumns columns = 2;
+    optional bool omit_inaccessible_columns = 3;
 }
 
 message TRspGetBasicAttributes
 {
     required NYT.NProto.TGuid object_id = 1;
     required int32 cell_tag = 2;
+
+    message TColumns
+    {
+        repeated string items = 1;
+    }
+    optional TColumns omitted_inaccessible_columns = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,16 +61,37 @@ message TRspGetBasicAttributes
 message TReqCheckPermission
 {
     required string user = 1;
-    required int32 permission = 2;
+    required int32 permission = 2; // EPermission
+
+    message TColumns
+    {
+        repeated string items = 1;
+    }
+    optional TColumns columns = 3;
 }
 
 message TRspCheckPermission
 {
-    required int32 action = 1;
+    message TResult
+    {
+        required int32 action = 1; // ESecurityAction
+        optional NYT.NProto.TGuid object_id = 2;
+        optional string object_name = 5;
+        optional NYT.NProto.TGuid subject_id = 4;
+        optional string subject_name = 3;
+    }
+
+    message TColumns
+    {
+        repeated TResult items = 1;
+    }
+
+    required int32 action = 1; // ESecurityAction
     optional NYT.NProto.TGuid object_id = 2;
     optional string object_name = 5;
     optional NYT.NProto.TGuid subject_id = 4;
     optional string subject_name = 3;
+    optional TColumns columns = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
