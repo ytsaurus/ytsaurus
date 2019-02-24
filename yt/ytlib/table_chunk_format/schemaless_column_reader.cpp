@@ -68,8 +68,9 @@ public:
                         Lexer_);
                 }
 
-                if (IdMapping_[value.Id].ReaderSchemaIndex >= 0) {
-                    value.Id = IdMapping_[value.Id].ReaderSchemaIndex;
+                auto id = IdMapping_[value.Id].ReaderSchemaIndex;
+                if (id >= 0) {
+                    value.Id = id;
                     *rows[rowIndex].End() = value;
                     rows[rowIndex].SetCount(rows[rowIndex].GetCount() + 1);
                 }

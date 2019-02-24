@@ -1789,7 +1789,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                 const auto& chunkSpec = dataSliceDescriptor.GetSingleChunk();
 
                 auto memoryEstimate = GetChunkReaderMemoryEstimate(chunkSpec, config);
-                auto createReader = [=] () {
+                auto createReader = [=] {
                     try {
                         auto remoteReader = CreateRemoteReader(
                             chunkSpec,
@@ -1804,7 +1804,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             bandwidthThrottler,
                             rpsThrottler);
 
-                        TReadRange range = {
+                        TReadRange range{
                             chunkSpec.has_lower_limit() ? TReadLimit(chunkSpec.lower_limit()) : TReadLimit(),
                             chunkSpec.has_upper_limit() ? TReadLimit(chunkSpec.upper_limit()) : TReadLimit()
                         };
@@ -1849,8 +1849,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
 
             case EDataSourceType::VersionedTable: {
                 auto memoryEstimate = GetDataSliceDescriptorReaderMemoryEstimate(dataSliceDescriptor, config);
-                auto createReader = [=] () {
-
+                auto createReader = [=] {
                     return CreateSchemalessMergingMultiChunkReader(
                         config,
                         options,

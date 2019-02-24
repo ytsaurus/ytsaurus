@@ -176,13 +176,13 @@ public:
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         const std::vector<int>& blockIndexes,
-        const std::optional<i64>& estimatedSize) override;
+        std::optional<i64> estimatedSize) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         int firstBlockIndex,
         int blockCount,
-        const std::optional<i64>& estimatedSize) override;
+        std::optional<i64> estimatedSize) override;
 
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientBlockReadOptions& options,
@@ -1029,7 +1029,7 @@ public:
         TReplicationReader* reader,
         const TClientBlockReadOptions& options,
         const std::vector<int>& blockIndexes,
-        const std::optional<i64>& estimatedSize)
+        std::optional<i64> estimatedSize)
         : TSessionBase(reader, options)
         , BlockIndexes_(blockIndexes)
     {
@@ -1510,7 +1510,7 @@ private:
 TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     const TClientBlockReadOptions& options,
     const std::vector<int>& blockIndexes,
-    const std::optional<i64>& estimatedSize)
+    std::optional<i64> estimatedSize)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1771,7 +1771,7 @@ TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     const TClientBlockReadOptions& options,
     int firstBlockIndex,
     int blockCount,
-    const std::optional<i64>& estimatedSize)
+    std::optional<i64> estimatedSize)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
