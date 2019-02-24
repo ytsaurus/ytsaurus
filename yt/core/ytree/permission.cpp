@@ -7,20 +7,11 @@ namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EPermissionSet ParsePermissions(const std::vector<TString>& items)
-{
-    auto result = NonePermissions;
-    for (const auto& item : items) {
-        result |= ParseEnum<EPermission>(item);
-    }
-    return result;
-}
-
 std::vector<TString> FormatPermissions(EPermissionSet permissions)
 {
     std::vector<TString> result;
     for (auto value : TEnumTraits<EPermission>::GetDomainValues()) {
-        if ((permissions & value) != NonePermissions) {
+        if (Any(permissions & value)) {
             result.push_back(FormatEnum(value));
         }
     }
