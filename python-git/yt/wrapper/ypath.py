@@ -309,7 +309,7 @@ class TablePath(YPathSupportingAppend):
         if schema is not None:
             attributes["schema"] = schema
         if optimize_for is not None:
-            attributes["optimize_for"] = schema
+            attributes["optimize_for"] = optimize_for
         if compression_codec is not None:
             attributes["compression_codec"] = compression_codec
         if erasure_codec is not None:
