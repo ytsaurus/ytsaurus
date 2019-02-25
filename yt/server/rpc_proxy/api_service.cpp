@@ -9,6 +9,7 @@
 #include <yt/ytlib/auth/token_authenticator.h>
 
 #include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/client_cache.h>
 #include <yt/ytlib/api/native/connection.h>
 
 #include <yt/client/api/transaction.h>
@@ -398,9 +399,14 @@ public:
             NullRealmId,
             bootstrap->GetRpcAuthenticator())
         , Bootstrap_(bootstrap)
+        , Config_(bootstrap->GetConfig()->ApiService)
         , Coordinator_(bootstrap->GetProxyCoordinator())
         , StickyTransactionPool_(CreateStickyTransactionPool(Logger))
     {
+        AuthenticatedClientCache_ = New<NApi::NNative::TClientCache>(
+            Config_->ClientCache,
+            Bootstrap_->GetNativeConnection());
+
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction));
@@ -486,31 +492,18 @@ public:
 
 private:
     const TBootstrap* Bootstrap_;
+    const TApiServiceConfigPtr Config_;
     const IProxyCoordinatorPtr Coordinator_;
 
     TSpinLock SpinLock_;
-    // TODO(sandello): Introduce expiration times for clients.
-    THashMap<TString, NNative::IClientPtr> AuthenticatedClients_;
+    NNative::TClientCachePtr AuthenticatedClientCache_;
     const IStickyTransactionPoolPtr StickyTransactionPool_;
 
     THashMap<TTransactionId, TModifyRowsSlidingWindowPtr> TransactionToModifyRowsSlidingWindow_;
 
     NNative::IClientPtr GetOrCreateClient(const TString& user)
     {
-        auto guard = Guard(SpinLock_);
-
-        auto it = AuthenticatedClients_.find(user);
-        if (it == AuthenticatedClients_.end()) {
-            const auto& connection = Bootstrap_->GetNativeConnection();
-            auto client = connection->CreateNativeClient(TClientOptions(user));
-            YCHECK(AuthenticatedClients_.insert(std::make_pair(user, client)).second);
-
-            YT_LOG_DEBUG("Created native client (User: %v)", user);
-
-            return client;
-        }
-
-        return it->second;
+        return AuthenticatedClientCache_->GetClient(user);
     }
 
     TString ExtractIP(TString address)
@@ -543,7 +536,7 @@ private:
         const auto& user = context->GetUser();
 
         // Pretty-printing Protobuf requires a bunch of effort, so we make it conditional.
-        if (Bootstrap_->GetConfig()->ApiService->VerboseLogging) {
+        if (Config_->VerboseLogging) {
             YT_LOG_DEBUG("RequestId: %v, RequestBody: %v",
                 context->GetRequestId(),
                 request->ShortDebugString());
@@ -2723,7 +2716,7 @@ private:
         }
 
         std::optional<size_t> sequenceNumber;
-        if (Bootstrap_->GetConfig()->ApiService->EnableModifyRowsRequestReordering &&
+        if (Config_->EnableModifyRowsRequestReordering &&
             request->has_sequence_number())
         {
             sequenceNumber = request->sequence_number();
