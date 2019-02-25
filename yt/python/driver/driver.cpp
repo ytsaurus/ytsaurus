@@ -307,7 +307,8 @@ public:
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, WriteCoreDump)
 
-    Py::Object WriteOperationControllerCoreDump(Py::Tuple& args, Py::Dict& kwargs) {
+    Py::Object WriteOperationControllerCoreDump(Py::Tuple& args, Py::Dict& kwargs)
+    {
         if (!HasArgument(args, kwargs, "operation_id")) {
             throw CreateYtError("Missing argument 'operation_id'");
         }
