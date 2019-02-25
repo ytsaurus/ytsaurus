@@ -1652,6 +1652,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     nameTable,
                     blockReadOptions,
                     chunkMeta->Schema().GetKeyColumns(),
+                    /* omittedInaccessibleColumns */ {},
                     columnFilter,
                     readRange);
             };
@@ -1776,6 +1777,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     nameTable,
                     blockReadOptions,
                     chunkMeta->Schema().GetKeyColumns(),
+                    /* omittedInaccessibleColumns */ {},
                     columnFilter,
                     keys);
             };

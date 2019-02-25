@@ -150,8 +150,9 @@ public:
             chunkReader,
             New<TNameTable>(),
             blockReadOptions,
-            TKeyColumns(),
-            TColumnFilter(),
+            /* keyColumns */ {},
+            /* omittedInaccessibleColumns */ {},
+            /* columnFilter */ {},
             readRange);
 
         auto apiReader = CreateApiFromSchemalessChunkReaderAdapter(std::move(schemalessReader));

@@ -330,7 +330,8 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
         MemoryReader_,
         readNameTable,
         blockReadOptions,
-        TKeyColumns(),
+        /* keyColumns */ {},
+        /* omittedInaccessibleColumns */ {},
         columnFilter,
         std::get<3>(GetParam()));
 
@@ -570,7 +571,8 @@ protected:
             WriteNameTable_,
             blockReadOptions,
             keyColumns,
-            TColumnFilter(),
+            /* omittedInaccessibleColumns */ {},
+            /* columnFilter */ {},
             keys);
     }
 

@@ -2,7 +2,7 @@ import pytest
 
 from yt_env_setup import YTEnvSetup, unix_only
 from yt_commands import *
-
+from yt.yson import YsonList
 from yt.environment.helpers import assert_items_equal
 
 ##################################################################
@@ -747,6 +747,46 @@ class TestCypressAcls(YTEnvSetup):
             read_table("//tmp/t", authenticated_user="u")
         with pytest.raises(YtError):
             read_table("//tmp/t{secret}", authenticated_user="u")
+
+    def test_columnar_acl_sanity(self):
+        create_user("u")
+        create("table", "//tmp/t", attributes={
+            "acl": [make_ace("allow", "u", "read", columns="secret")]
+        })
+        with pytest.raises(YtError):
+            create("table", "//tmp/t", attributes={
+                "acl": [make_ace("allow", "u", "write", columns="secret")]
+            })
+
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    @pytest.mark.parametrize("strict", [False, True])
+    def test_read_table_with_omitted_columns(self, optimize_for, strict):
+        create_user("u")
+
+        schema = YsonList([
+            {"name": "public", "type": "string"},
+            {"name": "secret", "type": "string"}
+        ])
+        schema.attributes["strict"] = strict
+
+        create("table", "//tmp/t", attributes={
+            "optimize_for": optimize_for,
+            "sche"
+            "schema": schema,
+            "acl": [make_ace("deny", "u", "read", columns="secret"),]
+        })
+
+        row = {"public": "a", "secret": "b"}
+        if not strict:
+            row["other"] = "c"
+
+        public_row = row
+        public_row.pop("secret", None)
+        
+        write_table("//tmp/t", [row])
+        assert read_table("//tmp/t{public}") == [{"public": "a"}]
+        assert read_table("//tmp/t", omit_inaccessible_columns=True, authenticated_user="u") == [public_row]
+        assert read_table("//tmp/t{secret}", omit_inaccessible_columns=True, authenticated_user="u") == [{}]
 
     def test_map_table_with_denied_columns(self):
         create_user("u")

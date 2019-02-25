@@ -68,6 +68,7 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
                     std::move(nameTable),
                     blockReadOptions,
                     keyColumns,
+                    /* omittedInaccessibleColumns */ {},
                     columnFilter,
                     readRange);
             };
