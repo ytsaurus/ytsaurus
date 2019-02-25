@@ -256,8 +256,7 @@ private:
     template <class U>
     friend TFuture<U> MakeFuture(U value);
     template <class U>
-    // XXX(babenko): 'NYT::' is a workaround; cf. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=52625
-    friend class NYT::TFutureBase;
+    friend class TFutureBase;
     template <class U>
     friend class TPromiseBase;
 
@@ -287,8 +286,7 @@ private:
     template <class U>
     friend TFuture<U> MakeWellKnownFuture(TErrorOr<U> value);
     template <class U>
-    // XXX(babenko): 'NYT::' is a workaround; cf. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=52625
-    friend class NYT::TFutureBase;
+    friend class TFutureBase;
     template <class U>
     friend class TPromiseBase;
 
