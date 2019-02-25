@@ -47,6 +47,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     TNameTablePtr nameTable,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     const TKeyColumns& keyColumns,
+    const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const NChunkClient::TReadRange& readRange,
     std::optional<int> partitionTag = std::nullopt);
@@ -60,6 +61,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     TNameTablePtr nameTable,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     const TKeyColumns& keyColumns,
+    const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
     TChunkReaderPerformanceCountersPtr performanceCounters = nullptr,
