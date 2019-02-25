@@ -158,9 +158,12 @@ def iter_enabled_python_versions(options, enable_skynet=False):
         yield "skynet"
 
 def iter_enabled_python_platforms(options):
-    yield "linux"
-    if options.package:
-        yield "darwin"
+    if options.ya_target_platform:
+        yield options.ya_target_platform
+    else:
+        yield "linux"
+        if options.package:
+            yield "darwin"
 
 def get_ya(options):
     return os.path.join(options.checkout_directory, "ya")
