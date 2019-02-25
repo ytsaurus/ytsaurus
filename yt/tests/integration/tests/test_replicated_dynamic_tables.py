@@ -1190,23 +1190,31 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [])
 
     def test_replica_permissions(self):
+        create("map_node", "//tmp/dir")
         self._create_cells()
-        self._create_replicated_table("//tmp/t")
+        self._create_replicated_table("//tmp/dir/t")
 
         create_user("u")
 
-        set("//tmp/t/@acl", [make_ace("deny", "u", "write")])
+        set("//tmp/dir/@acl", [make_ace("deny", "u", "write")])
         with pytest.raises(YtError):
-            create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", authenticated_user="u")
+            create_table_replica("//tmp/dir/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", authenticated_user="u")
 
-        set("//tmp/t/@acl", [make_ace("allow", "u", "write")])
-        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", authenticated_user="u")
+        set("//tmp/dir/@acl", [make_ace("allow", "u", "write")])
+        replica_id = create_table_replica("//tmp/dir/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", authenticated_user="u")
 
-        set("//tmp/t/@acl", [make_ace("deny", "u", "write")])
+        set("//tmp/dir/@acl", [make_ace("deny", "u", "write")])
+        with pytest.raises(YtError):
+            alter_table_replica(replica_id, enabled=True, authenticated_user="u")
+
+        set("//tmp/dir/@acl", [make_ace("allow", "u", "write")])
+        alter_table_replica(replica_id, enabled=True, sauthenticated_user="u")
+
+        set("//tmp/dir/@acl", [make_ace("deny", "u", "write")])
         with pytest.raises(YtError):
             remove("#" + replica_id, authenticated_user="u")
 
-        set("//tmp/t/@acl", [make_ace("allow", "u", "write")])
+        set("//tmp/dir/@acl", [make_ace("allow", "u", "write")])
         remove("#" + replica_id, authenticated_user="u")
 
 ##################################################################

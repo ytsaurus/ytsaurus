@@ -2778,7 +2778,7 @@ private:
         TTableReplicaId replicaId,
         const TAlterTableReplicaOptions& options)
     {
-        auto cellTag = CellTagFromId(replicaId);
+        ValidateTableReplicaTablePermission(replicaId, EPermission::Write);
 
         auto req = TTableReplicaYPathProxy::Alter(FromObjectId(replicaId));
         if (options.Enabled) {
@@ -2793,6 +2793,8 @@ private:
         if (options.Atomicity) {
             req->set_atomicity(static_cast<int>(*options.Atomicity));
         }
+
+        auto cellTag = CellTagFromId(replicaId);
         auto proxy = CreateWriteProxy<TObjectServiceProxy>(cellTag);
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
@@ -2970,6 +2972,15 @@ private:
             .ThrowOnError();
     }
 
+    void ValidateTableReplicaTablePermission(TTableReplicaId replicaId, EPermission permission)
+    {
+        // TODO(babenko): consider passing proper timeout
+        auto tablePathYson = WaitFor(GetNode(FromObjectId(replicaId) + "/@table_path", {}))
+            .ValueOrThrow();
+        auto tablePath = ConvertTo<TYPath>(tablePathYson);
+        ValidatePermission(tablePath, EPermission::Write);
+    }
+
     void DoRemoveNode(
         const TYPath& path,
         const TRemoveNodeOptions& options)
@@ -2981,11 +2992,7 @@ private:
             cellTag = CellTagFromId(objectId);
             switch (TypeFromId(objectId)) {
                 case EObjectType::TableReplica: {
-                    // TODO(babenko): consider passing proper timeout
-                    auto tablePathYson = WaitFor(GetNode(FromObjectId(objectId) + "/@table_path", {}))
-                        .ValueOrThrow();
-                    auto tablePath = ConvertTo<TYPath>(tablePathYson);
-                    ValidatePermission(tablePath, EPermission::Write);
+                    ValidateTableReplicaTablePermission(objectId, EPermission::Write);
                     break;
                 }
                 default:
