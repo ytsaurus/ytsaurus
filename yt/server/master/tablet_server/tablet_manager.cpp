@@ -589,9 +589,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidatePermission(replica, EPermission::Write);
-        
         auto* table = replica->GetTable();
         auto state = replica->GetState();
 
