@@ -11,7 +11,7 @@
     },
     "build": {
         "targets": [
-            "yt/server/clickhouse/bin"
+            "yt/server/clickhouse_server/bin"
         ],
         "flags": [
             {
