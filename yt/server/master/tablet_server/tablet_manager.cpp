@@ -487,9 +487,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidatePermission(table, EPermission::Write);
-
         for (const auto* replica : table->Replicas()) {
             if (replica->GetClusterName() == clusterName &&
                 replica->GetReplicaPath() == replicaPath)
