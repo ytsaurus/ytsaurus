@@ -499,6 +499,14 @@ public:
             }
         }
 
+        if (!preserveTimestamps && atomicity == NTransactionClient::EAtomicity::None) {
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::InvalidTabletState,
+                "Cannot set atomicity %v with preserveTimestamps %v",
+                atomicity,
+                preserveTimestamps);
+        }
+
         YCHECK(!startReplicationRowIndexes || startReplicationRowIndexes->size() == table->Tablets().size());
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -626,6 +634,14 @@ public:
                         tablet->GetState());
                 }
             }
+        }
+
+        if (!preserveTimestamps && atomicity == NTransactionClient::EAtomicity::None) {
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::InvalidTabletState,
+                "Cannot set atomicity %v with preserveTimestamps %v",
+                atomicity,
+                preserveTimestamps);
         }
 
         if (mode && replica->GetMode() == *mode) {
