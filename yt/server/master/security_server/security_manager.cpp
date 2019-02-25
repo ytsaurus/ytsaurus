@@ -1338,7 +1338,7 @@ public:
         return RequestTracker_->ThrottleUserRequest(user, requestCount, workloadType);
     }
 
-    void SetUserReadRequestRateLimit(TUser* user, int limit, EUserWorkloadType type)
+    void SetUserRequestRateLimit(TUser* user, int limit, EUserWorkloadType type)
     {
         RequestTracker_->SetUserRequestRateLimit(user, limit, type);
     }
@@ -2827,7 +2827,7 @@ TFuture<void> TSecurityManager::ThrottleUser(TUser* user, int requestCount, EUse
 
 void TSecurityManager::SetUserRequestRateLimit(TUser* user, int limit, EUserWorkloadType type)
 {
-    Impl_->SetUserReadRequestRateLimit(user, limit, type);
+    Impl_->SetUserRequestRateLimit(user, limit, type);
 }
 
 void TSecurityManager::SetUserRequestQueueSizeLimit(TUser* user, int limit)
