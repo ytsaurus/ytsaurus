@@ -693,6 +693,15 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         _do()
 
+    @skip_if_rpc_driver_backend
+    def test_replication_with_invalid_options(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t")
+
+        with pytest.raises(YtError): create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "async", "preserve_timestamps": "false", "atomicity": "none"})
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "async", "preserve_timestamps": "false"})
+        with pytest.raises(YtError): alter_table_replica(replica_id, atomicity="none")
+
     def test_sync_replication_switch(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": "true"})
