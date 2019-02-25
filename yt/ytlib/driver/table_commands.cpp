@@ -6,7 +6,11 @@
 #include <yt/client/api/skynet.h>
 #include <yt/client/api/table_reader.h>
 
+// YT-9161: Used for BlobTableReader.
 #include <yt/ytlib/api/native/table_reader.h>
+
+// YT-9161: Used for CreateSchemalessFromApiWriterAdapter.
+#include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/client/query_client/query_statistics.h>
 
@@ -15,10 +19,6 @@
 #include <yt/client/table_client/unversioned_writer.h>
 #include <yt/client/table_client/versioned_writer.h>
 #include <yt/client/table_client/columnar_statistics.h>
-
-#include <yt/ytlib/table_client/helpers.h>
-#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
-#include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/client/table_client/table_consumer.h>
 
 #include <yt/client/tablet_client/table_mount_cache.h>

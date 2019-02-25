@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/ytlib/node_tracker_client/helpers.h>
-
 #include <yt/client/api/config.h>
 
 #include <yt/client/chunk_client/config.h>
