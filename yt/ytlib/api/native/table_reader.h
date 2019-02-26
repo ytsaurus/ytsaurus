@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/client/api/client.h>
-
 #include <yt/ytlib/table_client/public.h>
+
+#include <yt/client/api/client.h>
 
 #include <yt/client/ypath/public.h>
 
@@ -31,14 +31,6 @@ TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunk
     const NTableClient::TColumnFilter& columnFilter = NTableClient::TColumnFilter(),
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
     NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
-
-NConcurrency::IAsyncZeroCopyInputStreamPtr CreateBlobTableReader(
-    ITableReaderPtr reader,
-    const std::optional<TString>& partIndexColumnName,
-    const std::optional<TString>& dataColumnName,
-    i64 startPartIndex,
-    const std::optional<i64>& offset = std::nullopt,
-    const std::optional<i64>& partSize = std::nullopt);
 
 ////////////////////////////////////////////////////////////////////////////////
 

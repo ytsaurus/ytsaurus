@@ -6,14 +6,12 @@
 #include <yt/client/api/skynet.h>
 #include <yt/client/api/table_reader.h>
 
-// YT-9161: Used for BlobTableReader.
-#include <yt/ytlib/api/native/table_reader.h>
-
 // YT-9161: Used for CreateSchemalessFromApiWriterAdapter.
 #include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/client/query_client/query_statistics.h>
 
+#include <yt/client/table_client/blob_reader.h>
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/unversioned_writer.h>
@@ -171,7 +169,7 @@ void TReadBlobTableCommand::DoExecute(ICommandContextPtr context)
         Options))
         .ValueOrThrow();
 
-    auto input = NNative::CreateBlobTableReader(
+    auto input = CreateBlobTableReader(
         std::move(reader),
         PartIndexColumnName,
         DataColumnName,
