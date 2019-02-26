@@ -4,7 +4,7 @@
 #include "format_helpers.h"
 #include "storage_concat.h"
 #include "type_helpers.h"
-
+#include "helpers.h"
 #include "table_partition.h"
 #include "query_context.h"
 
@@ -80,28 +80,28 @@ T EvaluateArgument(ASTPtr& argument, const Context& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SortTablesByName(std::vector<TTablePtr>& tables)
+void SortTablesByName(std::vector<TClickHouseTablePtr>& tables)
 {
     std::sort(
         tables.begin(),
         tables.end(),
-        [] (const TTablePtr& lhs, const TTablePtr& rhs) {
+        [] (const TClickHouseTablePtr& lhs, const TClickHouseTablePtr& rhs) {
             return lhs->Name < rhs->Name;
         });
 }
 
-std::string GetTableBaseName(const TTable& table) {
+std::string GetTableBaseName(const TClickHouseTable& table) {
     // TODO: abstract ypath
     return ToStdString(TStringBuf(table.Name).RNextTok('/'));
 }
 
 using TTableNameFilter = std::function<bool(const std::string& tableName)>;
 
-std::vector<TTablePtr> FilterTablesByName(
-    const std::vector<TTablePtr>& tables,
+std::vector<TClickHouseTablePtr> FilterTablesByName(
+    const std::vector<TClickHouseTablePtr>& tables,
     TTableNameFilter nameFilter)
 {
-    std::vector<TTablePtr> filtered;
+    std::vector<TClickHouseTablePtr> filtered;
     for (const auto& table : tables) {
         const auto basename = GetTableBaseName(*table);
         if (nameFilter(basename)) {
@@ -179,10 +179,10 @@ StoragePtr TConcatenateTablesList::Execute(
     const std::vector<TString>& tableNames,
     TQueryContext* queryContext) const
 {
-    std::vector<TTablePtr> tables;
+    std::vector<TClickHouseTablePtr> tables;
     tables.reserve(tableNames.size());
     for (const auto& name : tableNames) {
-        auto table = queryContext->GetTable(name);
+        auto table = FetchClickHouseTable(queryContext->Client(), name, queryContext->Logger);
         tables.push_back(std::move(table));
     }
 
@@ -222,8 +222,8 @@ protected:
     }
 
     // 0-th argument reserved to directory path
-    virtual std::vector<TTablePtr> FilterTables(
-        const std::vector<TTablePtr>& tables,
+    virtual std::vector<TClickHouseTablePtr> FilterTables(
+        const std::vector<TClickHouseTablePtr>& tables,
         TArguments& arguments,
         const Context& context) const = 0;
 
@@ -233,7 +233,7 @@ private:
         const Context& context) const;
 
     StoragePtr CreateStorage(
-        const std::vector<TTablePtr>& tables,
+        const std::vector<TClickHouseTablePtr>& tables,
         const Context& context) const;
 };
 
@@ -257,7 +257,7 @@ StoragePtr TListFilterAndConcatenateTables::executeImpl(
     auto selectedTables = FilterTables(allTables, arguments, context);
 
     for (auto& table : selectedTables) {
-        table = queryContext->GetTable(table->Name);
+        table = FetchClickHouseTable(queryContext->Client(), table->Name, queryContext->Logger);
     }
 
     return CreateStorage(selectedTables, context);
@@ -277,7 +277,7 @@ std::string TListFilterAndConcatenateTables::GetDirectoryRequiredArgument(
 }
 
 StoragePtr TListFilterAndConcatenateTables::CreateStorage(
-    const std::vector<TTablePtr>& tables,
+    const std::vector<TClickHouseTablePtr>& tables,
     const Context& /* context */) const
 {
     if (tables.empty()) {
@@ -309,16 +309,16 @@ public:
     }
 
 private:
-    std::vector<TTablePtr> FilterTables(
-        const std::vector<TTablePtr>& tables,
+    std::vector<TClickHouseTablePtr> FilterTables(
+        const std::vector<TClickHouseTablePtr>& tables,
         TArguments& arguments,
         const Context& context) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TTablePtr> TConcatenateTablesRange::FilterTables(
-    const std::vector<TTablePtr>& tables,
+std::vector<TClickHouseTablePtr> TConcatenateTablesRange::FilterTables(
+    const std::vector<TClickHouseTablePtr>& tables,
     TArguments& arguments,
     const Context& context) const
 {
@@ -378,16 +378,16 @@ public:
     }
 
 private:
-    std::vector<TTablePtr> FilterTables(
-        const std::vector<TTablePtr>& tables,
+    std::vector<TClickHouseTablePtr> FilterTables(
+        const std::vector<TClickHouseTablePtr>& tables,
         TArguments& arguments,
         const Context& context) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TTablePtr> TConcatenateTablesRegexp::FilterTables(
-    const std::vector<TTablePtr>& tables,
+std::vector<TClickHouseTablePtr> TConcatenateTablesRegexp::FilterTables(
+    const std::vector<TClickHouseTablePtr>& tables,
     TArguments& arguments,
     const Context& context) const
 {
@@ -426,8 +426,8 @@ public:
     }
 
 private:
-    std::vector<TTablePtr> FilterTables(
-        const std::vector<TTablePtr>& tables,
+    std::vector<TClickHouseTablePtr> FilterTables(
+        const std::vector<TClickHouseTablePtr>& tables,
         TArguments& arguments,
         const Context& context) const override;
 };
@@ -435,8 +435,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TTablePtr> TConcatenateTablesLike::FilterTables(
-    const std::vector<TTablePtr>& tables,
+std::vector<TClickHouseTablePtr> TConcatenateTablesLike::FilterTables(
+    const std::vector<TClickHouseTablePtr>& tables,
     TArguments& arguments,
     const Context& context) const
 {

@@ -31,11 +31,11 @@ class TStorageConcat final
     : public TStorageDistributed
 {
 private:
-    std::vector<TTablePtr> Tables;
+    std::vector<TClickHouseTablePtr> Tables;
 
 public:
     TStorageConcat(
-        std::vector<TTablePtr> tables,
+        std::vector<TClickHouseTablePtr> tables,
         TClickHouseTableSchema schema,
         IExecutionClusterPtr cluster);
 
@@ -66,7 +66,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TStorageConcat::TStorageConcat(
-    std::vector<TTablePtr> tables,
+    std::vector<TClickHouseTablePtr> tables,
     TClickHouseTableSchema schema,
     IExecutionClusterPtr cluster)
     : TStorageDistributed(
@@ -130,7 +130,7 @@ ASTPtr TStorageConcat::RewriteSelectQueryForTablePart(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void VerifyThatSchemasAreIdentical(const std::vector<TTablePtr>& tables)
+void VerifyThatSchemasAreIdentical(const std::vector<TClickHouseTablePtr>& tables)
 {
     if (tables.size() <= 1) {
         return;
@@ -151,7 +151,7 @@ void VerifyThatSchemasAreIdentical(const std::vector<TTablePtr>& tables)
 }
 
 DB::StoragePtr CreateStorageConcat(
-    std::vector<TTablePtr> tables,
+    std::vector<TClickHouseTablePtr> tables,
     IExecutionClusterPtr cluster)
 {
     if (tables.empty()) {

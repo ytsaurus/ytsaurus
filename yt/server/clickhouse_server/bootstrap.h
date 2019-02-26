@@ -2,8 +2,6 @@
 
 #include "private.h"
 
-#include "private.h"
-
 #include "host.h"
 
 #include <yt/ytlib/api/public.h>
@@ -49,7 +47,6 @@ private:
     NApi::NNative::IClientPtr RootClient_;
 
     ICoordinationServicePtr CoordinationService;
-    ICliqueAuthorizationManagerPtr CliqueAuthorizationManager;
     TClickHouseHostPtr ClickHouseHost_;
 
 public:
@@ -69,6 +66,7 @@ public:
     const IInvokerPtr& GetControlInvoker() const;
     const NApi::NNative::IConnectionPtr& GetConnection() const;
     const NApi::NNative::TClientCachePtr& GetClientCache() const;
+    const NApi::NNative::IClientPtr& GetRootClient() const;
     const TClickHouseHostPtr& GetHost() const;
 
 private:

@@ -13,37 +13,37 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TColumn::IsSorted() const
+bool TClickHouseColumn::IsSorted() const
 {
     return (Flags & static_cast<int>(EColumnFlags::Sorted)) != 0;
 }
 
-bool TColumn::IsNullable() const
+bool TClickHouseColumn::IsNullable() const
 {
     return (Flags & static_cast<int>(EColumnFlags::Nullable)) != 0;
 }
 
 
-void TColumn::SetSorted()
+void TClickHouseColumn::SetSorted()
 {
     Flags |= static_cast<int>(EColumnFlags::Sorted);
 }
 
-void TColumn::SetNullable()
+void TClickHouseColumn::SetNullable()
 {
     Flags |= static_cast<int>(EColumnFlags::Nullable);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool operator == (const TColumn& lhs, const TColumn& rhs)
+bool operator == (const TClickHouseColumn& lhs, const TClickHouseColumn& rhs)
 {
     return lhs.Name == rhs.Name &&
         lhs.Type == rhs.Type &&
         lhs.Flags == rhs.Flags;
 }
 
-bool operator != (const TColumn& lhs, const TColumn& rhs)
+bool operator != (const TClickHouseColumn& lhs, const TClickHouseColumn& rhs)
 {
     return !(lhs == rhs);
 }
@@ -53,7 +53,7 @@ bool operator != (const TColumn& lhs, const TColumn& rhs)
 class TClickHouseTableSchemaBuilder
 {
 private:
-    std::vector<TColumn> Columns;
+    std::vector<TClickHouseColumn> Columns;
 
 public:
     TClickHouseTableSchemaBuilder()
@@ -62,7 +62,7 @@ public:
     // return false if column skipped
     bool AddColumn(const TColumnSchema& columnSchema);
 
-    std::vector<TColumn> GetColumns()
+    std::vector<TClickHouseColumn> GetColumns()
     {
         return std::move(Columns);
     }
@@ -79,7 +79,7 @@ bool TClickHouseTableSchemaBuilder::AddColumn(const TColumnSchema& ytColumn)
         return false;
     }
 
-    TColumn column;
+    TClickHouseColumn column;
     column.Name = ytColumn.Name();
     column.Type = RepresentYtType(ytPhysicalType);
     if (ytColumn.SortOrder()) {
@@ -91,7 +91,7 @@ bool TClickHouseTableSchemaBuilder::AddColumn(const TColumnSchema& ytColumn)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTablePtr CreateTable(
+TClickHouseTablePtr CreateClickHouseTable(
     const TString& name,
     const TTableSchema& schema)
 {
@@ -101,7 +101,7 @@ TTablePtr CreateTable(
         schemaBuilder.AddColumn(columnSchema);
     }
 
-    return std::make_shared<TTable>(name, schemaBuilder.GetColumns());
+    return std::make_shared<TClickHouseTable>(name, schemaBuilder.GetColumns());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

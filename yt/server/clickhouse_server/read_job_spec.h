@@ -32,7 +32,7 @@ public:
 
     NChunkClient::EDataSourceType GetCommonDataSourceType() const;
     NTableClient::TTableSchema GetCommonNativeSchema() const;
-    std::vector<TTablePtr> GetTables() const;
+    std::vector<TClickHouseTablePtr> GetTables() const;
 
 private:
     const std::vector<NChunkClient::TDataSource>& DataSources() const

@@ -503,7 +503,8 @@ static INodePtr WalkNodeByYPath(
     const TYPath& path,
     std::function<INodePtr(const TString&)> handleMissingAttribute,
     std::function<INodePtr(const IMapNodePtr&, const TString&)> handleMissingChildKey,
-    std::function<INodePtr(const IListNodePtr&, int)> handleMissingChildIndex)
+    std::function<INodePtr(const IListNodePtr&, int)> handleMissingChildIndex,
+    std::function<INodePtr(const INodePtr&)> handleNodeCannotHaveChildren)
 {
     auto currentNode = root;
     NYPath::TTokenizer tokenizer(path);
@@ -551,8 +552,7 @@ static INodePtr WalkNodeByYPath(
                     break;
                 }
                 default:
-                    ThrowCannotHaveChildren(currentNode);
-                    Y_UNREACHABLE();
+                    return handleNodeCannotHaveChildren(currentNode);
             }
         }
     }
@@ -577,6 +577,10 @@ INodePtr GetNodeByYPath(
         [] (const IListNodePtr& node, int index) {
             ThrowNoSuchChildIndex(node, index);
             return nullptr;
+        },
+        [] (const INodePtr& node) {
+            ThrowCannotHaveChildren(node);
+            return nullptr;
         }
     );
 }
@@ -595,6 +599,9 @@ INodePtr FindNodeByYPath(
             return nullptr;
         },
         [] (const IListNodePtr& node, int index) {
+            return nullptr;
+        },
+        [] (const INodePtr& node) {
             return nullptr;
         }
     );

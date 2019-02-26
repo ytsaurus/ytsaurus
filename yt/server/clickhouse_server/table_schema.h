@@ -29,7 +29,7 @@ public:
 
     DB::DataTypes GetKeyDataTypes() const;
 
-    static TClickHouseTableSchema From(const TTable& table);
+    static TClickHouseTableSchema From(const TClickHouseTable& table);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

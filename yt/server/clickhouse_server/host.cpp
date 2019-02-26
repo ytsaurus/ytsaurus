@@ -1,5 +1,6 @@
 #include "host.h"
 
+#include "config_repository.h"
 #include "cluster_tracker.h"
 #include "database.h"
 #include "functions.h"
@@ -7,15 +8,16 @@
 #include "logger.h"
 #include "runtime_components_factory.h"
 #include "system_tables.h"
-//#include "table_dictionary_source.h"
+#include "dictionary_source.h"
 #include "table_functions.h"
 #include "table_functions_concat.h"
 #include "tcp_handler.h"
 #include "private.h"
-
 #include "query_context.h"
+#include "security_manager.h"
 #include "poco_config.h"
 #include "config.h"
+#include "clique_authorization_manager.h"
 
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/profiling/profile_manager.h>
@@ -32,11 +34,13 @@
 #include <Interpreters/AsynchronousMetrics.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/ProcessList.h>
+#include <Interpreters/IRuntimeComponentsFactory.h>
 #include <server/IServer.h>
 #include <Storages/System/attachSystemTables.h>
 #include <Storages/StorageFactory.h>
 #include <Storages/StorageMemory.h>
 #include <TableFunctions/registerTableFunctions.h>
+#include <Dictionaries/Embedded/GeoDictionariesLoader.h>
 
 #include <common/DateLUT.h>
 #include <common/logger_useful.h>
@@ -99,10 +103,9 @@ private:
     TBootstrap* const Bootstrap_;
     const ILoggerPtr AppLogger;
     const ICoordinationServicePtr CoordinationService;
-    const ICliqueAuthorizationManagerPtr CliqueAuthorizationManager_;
-    const TClickHouseServerBootstrapConfigPtr NativeConfig_;
-    const std::string CliqueId_;
-    const std::string InstanceId_;
+    const TClickHouseServerBootstrapConfigPtr Config_;
+    const TString CliqueId_;
+    const TString InstanceId_;
     const IInvokerPtr ControlInvoker_;
     ui16 TcpPort_;
     ui16 HttpPort_;
@@ -129,8 +132,7 @@ public:
         TBootstrap* bootstrap,
         ILoggerPtr logger,
         ICoordinationServicePtr coordinationService,
-        ICliqueAuthorizationManagerPtr cliqueAuthorizationManager,
-        TClickHouseServerBootstrapConfigPtr nativeConfig,
+        TClickHouseServerBootstrapConfigPtr config,
         std::string cliqueId,
         std::string instanceId,
         ui16 tcpPort,
@@ -138,8 +140,7 @@ public:
         : Bootstrap_(bootstrap)
         , AppLogger(std::move(logger))
         , CoordinationService(std::move(coordinationService))
-        , CliqueAuthorizationManager_(std::move(cliqueAuthorizationManager))
-        , NativeConfig_(std::move(nativeConfig))
+        , Config_(std::move(config))
         , CliqueId_(std::move(cliqueId))
         , InstanceId_(std::move(instanceId))
         , ControlInvoker_(Bootstrap_->GetControlInvoker())
@@ -153,7 +154,7 @@ public:
 
         SetupRootLogger();
         EngineConfig_ = new Poco::Util::LayeredConfiguration();
-        EngineConfig_->add(ConvertToPocoConfig(ConvertToNode(NativeConfig_->Engine)));
+        EngineConfig_->add(ConvertToPocoConfig(ConvertToNode(Config_->Engine)));
         SetupLoggers();
         SetupExecutionClusterNodeTracker();
         SetupContext();
@@ -164,7 +165,7 @@ public:
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
-            NativeConfig_->ProfilingPeriod);
+            Config_->ProfilingPeriod);
         ProfilingExecutor_->Start();
     }
 
@@ -290,7 +291,7 @@ private:
 
     void SetupLoggers()
     {
-        logger().setLevel(NativeConfig_->Engine->LogLevel);
+        logger().setLevel(Config_->Engine->LogLevel);
     }
 
     void SetupExecutionClusterNodeTracker()
@@ -299,7 +300,7 @@ private:
 
         ExecutionClusterNodeTracker = CreateClusterNodeTracker(
             CoordinationService,
-            NativeConfig_->Engine->CypressRootPath + "/cliques",
+            Config_->Engine->CypressRootPath + "/cliques",
             TcpPort_);
     }
 
@@ -307,21 +308,27 @@ private:
     {
         Poco::Logger* log = &logger();
 
-        auto storageHomePath = NativeConfig_->Engine->CypressRootPath;
+        auto storageHomePath = Config_->Engine->CypressRootPath;
 
-        // Context contains all that query execution is dependent:
-        // settings, available functions, data types, aggregate functions, databases...
-        auto runtimeComponentsFactory = CreateRuntimeComponentsFactory(
+        auto cliqueAuthorizationManager = CreateCliqueAuthorizationManager(
+            Bootstrap_->GetRootClient(), 
             CliqueId_,
-            storageHomePath,
-            CliqueAuthorizationManager_);
+            Config_->ValidateOperationPermission);
+        auto securityManager = CreateSecurityManager(std::move(cliqueAuthorizationManager));
+        auto dictionariesConfigRepository = CreateDictionaryConfigRepository(Config_->Engine->Dictionaries);
+        auto geoDictionariesLoader = std::make_unique<GeoDictionariesLoader>();
+        auto runtimeComponentsFactory = CreateRuntimeComponentsFactory(
+            std::move(securityManager),
+            std::move(dictionariesConfigRepository),
+            std::move(geoDictionariesLoader));
+
         Context = std::make_unique<DB::Context>(Context::createGlobal(std::move(runtimeComponentsFactory)));
         Context->setGlobalContext(*Context);
         Context->setApplicationType(Context::ApplicationType::SERVER);
 
         Context->setConfig(EngineConfig_);
 
-        Context->setUsersConfig(ConvertToPocoConfig(ConvertToNode(NativeConfig_->Engine->Users)));
+        Context->setUsersConfig(ConvertToPocoConfig(ConvertToNode(Config_->Engine->Users)));
 
         registerFunctions();
         registerAggregateFunctions();
@@ -331,8 +338,7 @@ private:
         RegisterFunctions();
         RegisterTableFunctions();
         RegisterConcatenatingTableFunctions(ExecutionClusterNodeTracker);
-
-        //RegisterTableDictionarySource(Storage, ServerAuthToken);
+        RegisterTableDictionarySource(Bootstrap_);
 
         // Initialize DateLUT early, to not interfere with running time of first query.
         LOG_DEBUG(log, "Initializing DateLUT.");
@@ -350,7 +356,7 @@ private:
 
         Context->setDefaultProfiles(*EngineConfig_);
 
-        std::string path = GetCanonicalPath(NativeConfig_->Engine->DataPath);
+        std::string path = GetCanonicalPath(Config_->Engine->DataPath);
         Poco::File(path).createDirectories();
         Context->setPath(path);
 
@@ -419,7 +425,7 @@ private:
 
         ServerPool = std::make_unique<Poco::ThreadPool>(3, EngineConfig_->getInt("max_connections", 1024));
 
-        auto listenHosts = NativeConfig_->Engine->ListenHosts;
+        auto listenHosts = Config_->Engine->ListenHosts;
 
         bool tryListen = false;
         if (listenHosts.empty()) {
@@ -530,8 +536,7 @@ TClickHouseHost::TClickHouseHost(
     TBootstrap* bootstrap,
     ILoggerPtr logger,
     ICoordinationServicePtr coordinationService,
-    ICliqueAuthorizationManagerPtr cliqueAuthorizationManager,
-    TClickHouseServerBootstrapConfigPtr nativeConfig,
+    TClickHouseServerBootstrapConfigPtr config,
     std::string cliqueId,
     std::string instanceId,
     ui16 tcpPort,
@@ -540,8 +545,7 @@ TClickHouseHost::TClickHouseHost(
         bootstrap,
         std::move(logger),
         std::move(coordinationService),
-        std::move(cliqueAuthorizationManager),
-        std::move(nativeConfig),
+        std::move(config),
         std::move(cliqueId),
         std::move(instanceId),
         tcpPort,

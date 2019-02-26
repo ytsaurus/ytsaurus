@@ -90,15 +90,12 @@ BlockInputStreams TStorageReadJob::read(
     DB::Names virtualColumns;
     SplitColumns(columnNames, physicalColumns, virtualColumns);
 
-    TTableReaderOptions readerOptions;
-    readerOptions.Unordered = true;
-
     auto tableReaders = QueryContext_->CreateTableReaders(
         ToString(JobSpec),
         ToString(physicalColumns),
         GetSystemColumns(virtualColumns),
         numStreams,
-        readerOptions);
+        true /* unordered */);
 
     BlockInputStreams streams;
     for (auto& tableReader: tableReaders) {
@@ -117,7 +114,7 @@ QueryProcessingStage::Enum TStorageReadJob::getQueryProcessingStage(const Contex
 
 StoragePtr CreateStorageReadJob(
     TQueryContext* queryContext,
-    std::vector<TTablePtr> tables,
+    std::vector<TClickHouseTablePtr> tables,
     std::string jobSpec)
 {
     if (tables.empty()) {

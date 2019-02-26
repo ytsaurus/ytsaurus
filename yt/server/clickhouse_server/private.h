@@ -21,13 +21,16 @@ class TReadJobSpec;
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TEngineConfig);
+DECLARE_REFCOUNTED_CLASS(TDictionarySourceYtConfig);
+DECLARE_REFCOUNTED_CLASS(TDictionarySourceConfig);
+DECLARE_REFCOUNTED_CLASS(TDictionaryConfig);
 DECLARE_REFCOUNTED_CLASS(TClickHouseServerBootstrapConfig);
 DECLARE_REFCOUNTED_CLASS(TUserConfig);
 DECLARE_REFCOUNTED_CLASS(TClickHouseHost);
 DECLARE_REFCOUNTED_STRUCT(ISubscriptionManager);
 
 class TClickHouseTableSchema;
-struct TColumn;
+struct TClickHouseColumn;
 struct TValue;
 struct TQueryContext;
 class TBootstrap;
@@ -56,7 +59,7 @@ DECLARE_SHARED_STRUCT(IDocument);
 DECLARE_SHARED_STRUCT(ILogger);
 DECLARE_SHARED_STRUCT(IQueryContext);
 DECLARE_SHARED_STRUCT(ITableReader);
-DECLARE_SHARED_STRUCT(TTable);
+DECLARE_SHARED_STRUCT(TClickHouseTable);
 
 #undef DELCARE_SHARED_STRUCT
 
@@ -94,6 +97,9 @@ class KeyCondition;
 struct SelectQueryInfo;
 class Field;
 class StorageFactory;
+class ISecurityManager;
+class IExternalLoaderConfigRepository;
+class IRuntimeComponentsFactory;
 
 // TODO(max42): get rid of this!
 void registerStorageMemory(StorageFactory & factory);
@@ -101,3 +107,10 @@ void registerStorageMemory(StorageFactory & factory);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace DB
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Why this class is outside of namespace DB? 0_o
+class IGeoDictionariesLoader;
+
+////////////////////////////////////////////////////////////////////////////////

@@ -2,16 +2,14 @@
 
 #include "private.h"
 
-#include <Interpreters/IRuntimeComponentsFactory.h>
-
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<DB::IRuntimeComponentsFactory> CreateRuntimeComponentsFactory(
-    std::string cliqueId,
-    std::string homePath,
-    ICliqueAuthorizationManagerPtr cliqueAuthorizationManager);
+    std::unique_ptr<DB::ISecurityManager> securityManager,
+    std::unique_ptr<DB::IExternalLoaderConfigRepository> dictionariesConfigRepository,
+    std::unique_ptr<IGeoDictionariesLoader> geoDictionariesLoader);
 
 ////////////////////////////////////////////////////////////////////////////////
 
