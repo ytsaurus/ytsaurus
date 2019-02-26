@@ -75,7 +75,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         return removed
 
     def test_basic_sanity(self):
-        init_operation_archive.create_tables_latest_version(self.Env.create_native_client())
+        init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
 
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -140,7 +140,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         wait(scheduler_alert_set)
 
     def test_start_stop(self):
-        init_operation_archive.create_tables_latest_version(self.Env.create_native_client())
+        init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
 
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -165,7 +165,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         wait(lambda: len(self._get_removed_operations(ops)) == 4)
 
     def test_revive(self):
-        init_operation_archive.create_tables_latest_version(self.Env.create_native_client())
+        init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
 
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -188,7 +188,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         wait(lambda: get(CLEANER_ORCHID + "/submitted_count") == 3)
 
     def test_max_operation_count_per_user(self):
-        init_operation_archive.create_tables_latest_version(self.Env.create_native_client())
+        init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
 
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
