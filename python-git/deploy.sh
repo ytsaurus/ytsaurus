@@ -143,7 +143,11 @@ if [ -z "$SKIP_WHEEL" ]; then
     # See PEP-425, PEP-513 and https://github.com/pypa/manylinux for more details.
     # This is why oldest distributions are chosen - precise.
     if [ "$CODENAME" = "precise" ]; then
+        # TODO(ignat): ignore error code since new version of distutils. 
+        # For yandex-yt-python it would be fixed here: YT-10356.
+        set +e
         python setup.py bdist_wheel --universal upload -r yandex
+        set -e
     fi
 fi
 
