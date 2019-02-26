@@ -28,11 +28,11 @@ class TStorageTable final
     : public TStorageDistributed
 {
 private:
-    TTablePtr Table;
+    TClickHouseTablePtr Table;
 
 public:
     TStorageTable(
-        TTablePtr table,
+        TClickHouseTablePtr table,
         IExecutionClusterPtr cluster);
 
     std::string getTableName() const override
@@ -65,7 +65,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TStorageTable::TStorageTable(
-    TTablePtr table,
+    TClickHouseTablePtr table,
     IExecutionClusterPtr cluster)
     : TStorageDistributed(
         std::move(cluster),
@@ -140,7 +140,7 @@ ASTPtr TStorageTable::RewriteSelectQueryForTablePart(
 ////////////////////////////////////////////////////////////////////////////////
 
 DB::StoragePtr CreateStorageTable(
-    TTablePtr table,
+    TClickHouseTablePtr table,
     IExecutionClusterPtr cluster)
 {
     return std::make_shared<TStorageTable>(

@@ -48,7 +48,7 @@ private:
 
 std::string TStorageInputStream::getName() const
 {
-    const std::vector<TTablePtr>& tables = TableReader->GetTables();
+    const std::vector<TClickHouseTablePtr>& tables = TableReader->GetTables();
     if (tables.size() == 1) {
         return tables.front()->Name;
     } else {

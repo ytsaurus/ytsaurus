@@ -39,11 +39,11 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTablePtr FilterColumns(
-    const TTablePtr& table,
+TClickHouseTablePtr FilterColumns(
+    const TClickHouseTablePtr& table,
     const std::vector<TString>& columns)
 {
-    auto filtered = std::make_shared<TTable>(table->Name);
+    auto filtered = std::make_shared<TClickHouseTable>(table->Name);
 
     for (const auto& column: table->Columns) {
         if (IsIn(columns, column.Name)) {
@@ -56,13 +56,9 @@ TTablePtr FilterColumns(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NTableClient::TTableReaderOptionsPtr CreateNativeReaderOptions(
-    const TTableReaderOptions& options,
-    const TSystemColumns& systemColumns)
+NTableClient::TTableReaderOptionsPtr CreateNativeReaderOptions(const TSystemColumns& systemColumns)
 {
     auto nativeOptions = New<NTableClient::TTableReaderOptions>();
-
-    Y_UNUSED(options);
 
     if (systemColumns.TableName) {
         nativeOptions->EnableTableIndex = true;
@@ -93,7 +89,7 @@ TTableReaderList CreateJobTableReaders(
     const std::vector<TString>& columns,
     const TSystemColumns& systemColumns,
     size_t maxStreamCount,
-    const TTableReaderOptions& options)
+    bool unordered)
 {
     auto readJobSpec = LoadReadJobSpec(jobSpec);
 
@@ -145,11 +141,11 @@ TTableReaderList CreateJobTableReaders(
 
     auto readerSchema = schema.Filter(dataColumns);
 
-    std::vector<TTablePtr> sourceTables = readJobSpec.GetTables();
+    std::vector<TClickHouseTablePtr> sourceTables = readJobSpec.GetTables();
 
     YT_LOG_DEBUG("Number of job source tables: %v", sourceTables.size());
 
-    std::vector<TTablePtr> readerTables;
+    std::vector<TClickHouseTablePtr> readerTables;
     readerTables.reserve(sourceTables.size());
     for (const auto& table : sourceTables) {
         readerTables.push_back(FilterColumns(table, dataColumns));
@@ -159,7 +155,7 @@ TTableReaderList CreateJobTableReaders(
 
     // TODO
     auto nativeReaderConfig = New<TTableReaderConfig>();
-    auto nativeReaderOptions = CreateNativeReaderOptions(options, systemColumns);
+    auto nativeReaderOptions = CreateNativeReaderOptions(systemColumns);
 
     YT_LOG_INFO("Creating table readers");
 
@@ -200,7 +196,7 @@ TTableReaderList CreateJobTableReaders(
             dataSliceDescriptors,
             GetUnlimitedThrottler(),
             readerSchema,
-            options.Unordered);
+            unordered);
 
         chunkReaders.push_back(std::move(chunkReader));
     }

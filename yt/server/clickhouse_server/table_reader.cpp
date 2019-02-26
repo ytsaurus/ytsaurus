@@ -1,10 +1,21 @@
 #include "table_reader.h"
 
 #include "private.h"
-
+#include "helpers.h"
 #include "column_builder.h"
 #include "system_columns.h"
 
+#include <yt/ytlib/api/native/table_reader.h>
+
+#include <yt/ytlib/table_client/config.h>
+
+#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
+
+#include <yt/client/api/client.h>
+
+#include <yt/client/ypath/rich.h>
+
+#include <yt/client/table_client/schemaful_reader_adapter.h>
 #include <yt/client/table_client/schemaful_reader.h>
 #include <yt/client/table_client/unversioned_row.h>
 
@@ -20,6 +31,9 @@ namespace NYT::NClickHouseServer {
 
 using namespace NConcurrency;
 using namespace NTableClient;
+using namespace NYPath;
+using namespace NLogging;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -147,7 +161,7 @@ class TColumnHandlerFactory
 {
 private:
     template <class TTypedColumnTraits>
-    static THandlerFunction CreateHandlerFunction(const TColumn& columnSchema)
+    static THandlerFunction CreateHandlerFunction(const TClickHouseColumn& columnSchema)
     {
         return [columnSchema](
             IColumnBuilder& columnBuilder,
@@ -170,7 +184,7 @@ private:
     }
 
 public:
-    static THandlerFunction Create(const TColumn& schema)
+    static THandlerFunction Create(const TClickHouseColumn& schema)
     {
         switch (schema.Type) {
             /// Invalid type.
@@ -228,7 +242,7 @@ public:
 // System column handlers
 
 THandlerFunction CreateSourceTableColumnHandler(
-    const std::vector<TTablePtr>& tables)
+    const std::vector<TClickHouseTablePtr>& tables)
 {
     auto handler = [tables] (IColumnBuilder& columnBuilder, const TUnversionedValue& value)
     {
@@ -247,11 +261,11 @@ THandlerFunction CreateSourceTableColumnHandler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TColumn> ConcatColumns(
-    std::vector<TColumn> physical,
+std::vector<TClickHouseColumn> ConcatColumns(
+    std::vector<TClickHouseColumn> physical,
     TSystemColumns system)
 {
-    std::vector<TColumn> all;
+    std::vector<TClickHouseColumn> all;
     all.reserve(physical.size() + system.GetCount());
 
     all.insert(all.end(), physical.begin(), physical.end());
@@ -270,11 +284,11 @@ class TTableReader
 private:
     static const size_t MAX_ROWS_PER_READ = 1024;
 
-    const std::vector<TTablePtr> Tables;
+    const std::vector<TClickHouseTablePtr> Tables;
 
-    std::vector<TColumn> PhysicalColumns;
+    std::vector<TClickHouseColumn> PhysicalColumns;
     TSystemColumns SystemColumns;
-    std::vector<TColumn> AllColumns;
+    std::vector<TClickHouseColumn> AllColumns;
 
     const ISchemafulReaderPtr ChunkReader;
 
@@ -284,8 +298,8 @@ private:
     std::vector<THandlerFunction> ColumnHandlers;
 
 public:
-    TTableReader(std::vector<TTablePtr> tables,
-                 std::vector<TColumn> columns,
+    TTableReader(std::vector<TClickHouseTablePtr> tables,
+                 std::vector<TClickHouseColumn> columns,
                  TSystemColumns systemColumns,
                  ISchemafulReaderPtr chunkReader)
         : Tables(std::move(tables))
@@ -299,12 +313,12 @@ public:
         PrepareColumnHandlers();
     }
 
-    const std::vector<TTablePtr>& GetTables() const override
+    const std::vector<TClickHouseTablePtr>& GetTables() const override
     {
         return Tables;
     }
 
-    std::vector<TColumn> GetColumns() const override
+    std::vector<TClickHouseColumn> GetColumns() const override
     {
         return AllColumns;
     }
@@ -398,8 +412,8 @@ void TTableReader::ValidateColumns(const TColumnBuilderList& columns) const
 ////////////////////////////////////////////////////////////////////////////////
 
 ITableReaderPtr CreateTableReader(
-    std::vector<TTablePtr> tables,
-    std::vector<TColumn> columns,
+    std::vector<TClickHouseTablePtr> tables,
+    std::vector<TClickHouseColumn> columns,
     TSystemColumns systemColumns,
     ISchemafulReaderPtr chunkReader)
 {
@@ -415,7 +429,7 @@ ITableReaderPtr CreateTableReader(
 }
 
 ITableReaderPtr CreateTableReader(
-    TTablePtr table,
+    TClickHouseTablePtr table,
     ISchemafulReaderPtr chunkReader)
 {
     return CreateTableReader(
@@ -424,5 +438,67 @@ ITableReaderPtr CreateTableReader(
         {},
         std::move(chunkReader));
 }
+
+/////////////////////////////////////////////////////////////////////////////
+
+ISchemafulReaderPtr CreateSchemafulTableReader(
+    const NApi::NNative::IClientPtr& client,
+    const TRichYPath& path,
+    const TTableSchema& schema,
+    const NApi::TTableReaderOptions& options,
+    const TColumnFilter& columnFilter)
+{
+    auto schemalessReaderFactory = [=] (
+        TNameTablePtr nameTable,
+        const TColumnFilter& columnFilter) -> ISchemalessReaderPtr
+    {
+        return WaitFor(
+            NApi::NNative::CreateSchemalessMultiChunkReader(
+                client,
+                path,
+                options,
+                nameTable,
+                columnFilter))
+            .ValueOrThrow();
+    };
+
+    return CreateSchemafulReaderAdapter(
+        std::move(schemalessReaderFactory),
+        schema,
+        columnFilter);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+ITableReaderPtr CreateTableReader(const NApi::NNative::IClientPtr& client, const TRichYPath& path, bool unordered, TLogger logger)
+{
+    const auto& Logger = logger;
+
+    YT_LOG_INFO("Creating table reader (Path: %v)", path);
+
+    auto tableObject = GetTableAttributes(
+        client,
+        path,
+        EPermission::Read,
+        logger);
+
+    NApi::TTableReaderOptions readerOptions;
+    readerOptions.Unordered = unordered;
+    readerOptions.Config = New<NTableClient::TTableReaderConfig>();
+    // TODO(max42): YT-10134.
+    readerOptions.Config->FetchFromPeers = false;
+
+    auto chunkReader = CreateSchemafulTableReader(
+        client,
+        path,
+        tableObject->Schema,
+        readerOptions);
+
+    // TODO(max42): rename?
+    auto readerTable = CreateClickHouseTable(path.GetPath(), tableObject->Schema);
+    return NClickHouseServer::CreateTableReader(readerTable, std::move(chunkReader));
+}
+
+/////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer

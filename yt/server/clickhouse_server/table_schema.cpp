@@ -31,7 +31,7 @@ DB::DataTypes TClickHouseTableSchema::GetKeyDataTypes() const
     return dataTypes;
 }
 
-TClickHouseTableSchema TClickHouseTableSchema::From(const TTable& table)
+TClickHouseTableSchema TClickHouseTableSchema::From(const TClickHouseTable& table)
 {
     const auto& dataTypes = DB::DataTypeFactory::instance();
 

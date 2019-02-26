@@ -39,17 +39,6 @@ using TObjectList = std::vector<TObjectListItem>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTableObject
-    : public NChunkClient::TUserObject
-{
-    int ChunkCount = 0;
-    bool Dynamic = false;
-    NTableClient::TTableSchema Schema;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(max42): Most of the helpers in context are redundant, get rid of them.
 struct TQueryContext
     : public DB::IHostContext
 {
@@ -63,17 +52,12 @@ public:
 
     ~TQueryContext();
 
-    NApi::NNative::IClientPtr& Client();
+    const NApi::NNative::IClientPtr& Client() const;
 
-    // Access data / metadata
-
-    std::vector<TTablePtr> ListTables(
+    // TODO(max42): helpers below should not belong to query context. Maybe move them to helpers.h?
+    std::vector<TClickHouseTablePtr> ListTables(
         const TString& path = {},
         bool recursive = false);
-
-    TTablePtr GetTable(const TString& name);
-
-    std::vector<TTablePtr> GetTables(const TString& jobSpec);
 
     TTablePartList GetTableParts(const TString& name, const DB::KeyCondition* keyCondition, size_t maxParts = 1);
     TTablePartList GetTablesParts(const std::vector<TString>& names, const DB::KeyCondition* keyCondition, size_t maxParts = 1);
@@ -88,41 +72,19 @@ public:
         const TStringList& columns,
         const TSystemColumns& systemColumns,
         size_t maxStreamCount,
-        const TTableReaderOptions& options);
-
-    ITableReaderPtr CreateTableReader(const TString& name, const TTableReaderOptions& options);
-
-    TString ReadFile(const TString& name);
-
-    IDocumentPtr ReadDocument(const TString& name);
+        bool unordered);
 
     bool Exists(const TString& name);
-
-    TObjectList ListObjects(const TString& path);
-
-    TObjectAttributes GetObjectAttributes(const TString& path);
-
-    NYTree::IMapNodePtr GetAttributes(const TString& path, const std::vector<TString>& attributes);
-
-    // We still need this for effective polling through metadata cache
-    // TODO: replace by CreateObjectPoller
-
-    std::optional<TRevision> GetObjectRevision(const TString& name, bool throughCache);
 
 private:
     TBootstrap* Bootstrap_;
     TClickHouseHostPtr Host_;
 
-    TReaderWriterSpinLock ClientLock_;
+    //! Spinlock controlling lazy client creation.
+    mutable TReaderWriterSpinLock ClientLock_;
 
     //! Native client for the user that initiated the query. Created on first use.
-    NApi::NNative::IClientPtr Client_;
-
-    std::unique_ptr<TTableObject> GetTableAttributes(
-        NApi::NNative::ITransactionPtr transaction,
-        const NYPath::TRichYPath& path,
-        NYTree::EPermission permission,
-        bool suppressAccessTracking);
+    mutable NApi::NNative::IClientPtr Client_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

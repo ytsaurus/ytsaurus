@@ -1,0 +1,165 @@
+#include "dictionary_source.h"
+
+#include "db_helpers.h"
+#include "bootstrap.h"
+#include "helpers.h"
+#include "table_reader.h"
+#include "revision_tracker.h"
+#include "input_stream.h"
+
+#include <yt/client/ypath/rich.h>
+
+#include <Common/Exception.h>
+#include <DataStreams/IBlockInputStream.h>
+#include <Dictionaries/DictionarySourceFactory.h>
+#include <Dictionaries/DictionaryStructure.h>
+
+#include <Poco/Util/AbstractConfiguration.h>
+
+namespace DB
+{
+
+namespace ErrorCodes
+{
+    extern const int NOT_IMPLEMENTED;
+    extern const int INCOMPATIBLE_COLUMNS;
+}
+
+}
+
+namespace NYT::NClickHouseServer {
+
+using DB::Exception;
+
+using namespace NYPath;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTableDictionarySource
+    : public DB::IDictionarySource
+{
+public:
+    TTableDictionarySource(
+        TBootstrap* bootstrap,
+        DB::DictionaryStructure dictionaryStructure,
+        TRichYPath path,
+        DB::NamesAndTypesList columns)
+        : Bootstrap_(bootstrap)
+        , DictionaryStructure_(std::move(dictionaryStructure))
+        , Path_(std::move(path))
+        , Columns_(std::move(columns))
+        , RevisionTracker_(path.GetPath(), bootstrap->GetRootClient())
+        , Logger(TLogger(ServerLogger)
+            .AddTag("Path: %v", Path_))
+    { }
+
+    virtual DB::BlockInputStreamPtr loadAll() override
+    {
+        RevisionTracker_.FixCurrentRevision();
+
+        YT_LOG_INFO("Reloading dictionary (Revision: %v)", RevisionTracker_.GetRevision());
+
+        auto table = FetchClickHouseTable(Bootstrap_->GetRootClient(), Path_, Logger);
+        ValidateStructure(*table);
+
+        auto reader = CreateTableReader(Bootstrap_->GetRootClient(), Path_, false /* unordered */, Logger);
+        return CreateStorageInputStream(std::move(reader));
+    }
+
+    virtual DB::BlockInputStreamPtr loadIds(const std::vector<UInt64>& /* ids */) override
+    {
+        throw Exception(
+            "Method loadIds is not supported for TableDictionarySource",
+            DB::ErrorCodes::NOT_IMPLEMENTED);
+    }
+
+    virtual bool supportsSelectiveLoad() const override
+    {
+        return false;
+    }
+
+    virtual DB::BlockInputStreamPtr loadKeys(
+        const DB::Columns& /* keyColumns */,
+        const std::vector<size_t>& /* requestedRows */) override
+    {
+        throw Exception(
+            "Method loadKeys is not supported for TableDictionarySource",
+            DB::ErrorCodes::NOT_IMPLEMENTED);
+    }
+
+    virtual bool isModified() const override
+    {
+        YT_LOG_DEBUG("Checking dictionary revision (OldRevision: %v)", RevisionTracker_.GetRevision());
+        return RevisionTracker_.HasRevisionChanged();
+    }
+
+    virtual DB::DictionarySourcePtr clone() const override
+    {
+        return std::make_unique<TTableDictionarySource>(
+            Bootstrap_,
+            DictionaryStructure_,
+            Path_,
+            Columns_);
+    }
+
+    std::string toString() const override
+    {
+        return "YT: " + ToString(Path_);
+    }
+
+    DB::BlockInputStreamPtr loadUpdatedAll() override
+    {
+        throw Exception{"Method loadUpdatedAll is unsupported for TTableDictionarySource", DB::ErrorCodes::NOT_IMPLEMENTED};
+    }
+
+    bool hasUpdateField() const override
+    {
+        return false;
+    }
+
+private:
+    TBootstrap* Bootstrap_;
+    DB::DictionaryStructure DictionaryStructure_;
+    TRichYPath Path_;
+    DB::NamesAndTypesList Columns_;
+    TRevisionTracker RevisionTracker_;
+    TLogger Logger;
+
+    void ValidateStructure(const TClickHouseTable& table)
+    {
+        const auto tableColumns = GetTableColumns(table);
+
+        if (tableColumns != Columns_) {
+            throw Exception(
+                "table schema does not match dictionary structure: "
+                "expected " + Columns_.toString() + ", found " + tableColumns.toString(),
+                DB::ErrorCodes::INCOMPATIBLE_COLUMNS);
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+void RegisterTableDictionarySource(TBootstrap* bootstrap)
+{
+    auto creator = [bootstrap] (
+        const DB::DictionaryStructure& dictionaryStructure,
+        const Poco::Util::AbstractConfiguration& config,
+        const std::string& dictSectionPath,
+        DB::Block& sampleBlock,
+        const DB::Context& /* context */) -> DB::DictionarySourcePtr
+    {
+        const auto& path = TRichYPath::Parse(TString(config.getString(dictSectionPath + ".yt.path")));
+        return std::make_unique<TTableDictionarySource>(
+            bootstrap,
+            dictionaryStructure,
+            path,
+            sampleBlock.getNamesAndTypesList());
+    };
+
+    DB::DictionarySourceFactory::instance().registerSource("yt", creator);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NClickHouseServer

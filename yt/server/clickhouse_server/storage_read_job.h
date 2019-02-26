@@ -15,7 +15,7 @@ namespace NYT::NClickHouseServer {
 // TODO: ITablePartPtr instead of tables
 DB::StoragePtr CreateStorageReadJob(
     TQueryContext* queryContext,
-    std::vector<TTablePtr> tables,
+    std::vector<TClickHouseTablePtr> tables,
     std::string jobSpec);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -8,9 +8,7 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<DB::ISecurityManager> CreateSecurityManager(
-    std::string cliqueId,
-    ICliqueAuthorizationManagerPtr cliqueAuthorizationManager);
+std::unique_ptr<DB::ISecurityManager> CreateSecurityManager(ICliqueAuthorizationManagerPtr cliqueAuthorizationManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 

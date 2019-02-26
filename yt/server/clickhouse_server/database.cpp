@@ -3,7 +3,7 @@
 #include "storage_table.h"
 #include "storage_stub.h"
 #include "type_helpers.h"
-
+#include "helpers.h"
 #include "query_context.h"
 #include "table.h"
 
@@ -20,6 +20,7 @@
 namespace NYT::NClickHouseServer {
 
 using namespace DB;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,10 +113,10 @@ private:
 
 StoragePtr TDatabase::GetTable(
     const Context& context,
-    const std::string& name) const
+    const std::string& path) const
 {
     auto* queryContext = GetQueryContext(context);
-    auto table = queryContext->GetTable(TString(name));
+    auto table = FetchClickHouseTable(queryContext->Client(), TRichYPath::Parse(TString(path)), queryContext->Logger);
     if (!table) {
         // table not found
         return nullptr;

@@ -22,7 +22,7 @@ TTableReaderList CreateJobTableReaders(
     const std::vector<TString>& columns,
     const TSystemColumns& systemColumns,
     size_t maxStreamCount,
-    const TTableReaderOptions& options);
+    bool unordered);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -8,6 +8,7 @@
 #include "directory.h"
 #include "logger.h"
 #include "query_context.h"
+#include "security_manager.h"
 #include "clique_authorization_manager.h"
 
 #include <yt/server/lib/admin/admin_service.h>
@@ -167,13 +168,11 @@ void TBootstrap::DoRun()
     RootClient_ = ClientCache_->GetClient(Config_->User);
 
     CoordinationService = CreateCoordinationService(RootClient_, CliqueId_);
-    CliqueAuthorizationManager = CreateCliqueAuthorizationManager(RootClient_, CliqueId_, Config_->ValidateOperationPermission);
 
     ClickHouseHost_ = New<TClickHouseHost>(
         this,
         logger,
         CoordinationService,
-        CliqueAuthorizationManager,
         Config_,
         CliqueId_,
         InstanceId_,
@@ -211,6 +210,11 @@ const NApi::NNative::IConnectionPtr& TBootstrap::GetConnection() const
 const NApi::NNative::TClientCachePtr& TBootstrap::GetClientCache() const
 {
     return ClientCache_;
+}
+
+const NApi::NNative::IClientPtr& TBootstrap::GetRootClient() const
+{
+    return RootClient_;
 }
 
 const TClickHouseHostPtr& TBootstrap::GetHost() const

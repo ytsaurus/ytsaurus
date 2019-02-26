@@ -85,17 +85,17 @@ NTableClient::TTableSchema TReadJobSpec::GetCommonNativeSchema() const
     return *representative.Schema();
 }
 
-std::vector<TTablePtr> TReadJobSpec::GetTables() const
+std::vector<TClickHouseTablePtr> TReadJobSpec::GetTables() const
 {
     auto nativeSchema = GetCommonNativeSchema();
 
     const auto& dataSources = DataSources();
 
-    std::vector<TTablePtr> tables;
+    std::vector<TClickHouseTablePtr> tables;
     tables.reserve(dataSources.size());
     for (auto dataSource : dataSources) {
         tables.push_back(
-            CreateTable(*dataSource.GetPath(), nativeSchema));
+            CreateClickHouseTable(*dataSource.GetPath(), nativeSchema));
     }
     return tables;
 }

@@ -7,6 +7,8 @@ from yt.yson import YsonUint64
 
 from distutils.spawn import find_executable
 
+from yt.common import update
+
 TEST_DIR = os.path.join(os.path.dirname(__file__))
 
 import json
@@ -20,10 +22,20 @@ YTSERVER_CLICKHOUSE_BINARY = find_executable("ytserver-clickhouse")
 
 
 class Clique(object):
-    def __init__(self, instance_count, max_failed_job_count=0, **kwargs):
+    base_config = None
+    clique_index = 0
+
+    def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, **kwargs):
+        config = update(Clique.base_config, config_patch) if config_patch is not None else Clique.base_config
+
+        filename = "//sys/clickhouse/config-{}.yson".format(Clique.clique_index)
+        Clique.clique_index += 1
+        create("file", filename)
+        write_file(filename, yson.dumps(config, yson_format="pretty"))
+
         spec_builder = get_clickhouse_clique_spec_builder(instance_count,
                                                           host_ytserver_clickhouse_path=YTSERVER_CLICKHOUSE_BINARY,
-                                                          cypress_config_path="//sys/clickhouse/config.yson",
+                                                          cypress_config_path=filename,
                                                           max_failed_job_count=max_failed_job_count,
                                                           cpu_limit=1,
                                                           memory_limit=5*2**30,
@@ -164,10 +176,8 @@ class ClickhouseTestBase(YTEnvSetup):
         create("map_node", "//sys/clickhouse")
 
         # We need to inject cluster_connection into yson config.
-        config = yson.loads(self._read_local_config_file("config.yson"))
-        config["cluster_connection"] = self.__class__.Env.configs["driver"]
-        create("file", "//sys/clickhouse/config.yson")
-        write_file("//sys/clickhouse/config.yson", yson.dumps(config, yson_format="pretty"))
+        Clique.base_config = yson.loads(self._read_local_config_file("config.yson"))
+        Clique.base_config["cluster_connection"] = self.__class__.Env.configs["driver"]
 
 
 class TestClickhouseCommon(ClickhouseTestBase):
@@ -393,3 +403,121 @@ class TestCompositeTypes(ClickhouseTestBase):
             result = clique.make_query("select YPathString(NULL, NULL) as a, YPathString(NULL, '/x') as b, "
                                        "YPathString('{a=1}', NULL) as c")
         assert result["data"] == [{"a": None, "b": None, "c": None}]
+
+
+class TestYtDictionaries(ClickhouseTestBase):
+    def setup(self):
+        self._setup()
+
+    def test_int_key_flat(self):
+        create("table", "//tmp/dict", attributes={"schema": [{"name": "key", "type": "uint64"},
+                                                             {"name": "value_str", "type": "string"},
+                                                             {"name": "value_i64", "type": "int64"}]})
+        write_table("//tmp/dict", [
+            {"key": i, "value_str": "str" + str(i), "value_i64": i * i} for i in [1, 3, 5]
+        ])
+
+        with Clique(1, config_patch={
+            "engine": {"dictionaries": [
+                {
+                    "name": "dict",
+                    "layout": {"flat": {}},
+                    "structure": {
+                        "id": {"name": "key"},
+                        "attribute": [{"name": "value_str", "type": "String", "null_value": "n/a"},
+                                      {"name": "value_i64", "type": "Int64", "null_value": 42}]
+                    },
+                    "lifetime": 0,
+                    "source": {
+                        "yt": {
+                            "path": "//tmp/dict"
+                        }
+                    }
+                }
+            ]}}) as clique:
+            result = clique.make_query("select number, dictGetString('dict', 'value_str', number) as str, "
+                                       "dictGetInt64('dict', 'value_i64', number) as i64 from numbers(5)")
+        assert result["data"] == [
+            {"number": 0, "str": "n/a", "i64": 42},
+            {"number": 1, "str": "str1", "i64": 1},
+            {"number": 2, "str": "n/a", "i64": 42},
+            {"number": 3, "str": "str3", "i64": 9},
+            {"number": 4, "str": "n/a", "i64": 42},
+        ]
+
+    def test_composite_key_hashed(self):
+        create("table", "//tmp/dict", attributes={"schema": [{"name": "key", "type": "string"},
+                                                             {"name": "subkey", "type": "int64"},
+                                                             {"name": "value", "type": "string"}]})
+        write_table("//tmp/dict", [
+            {"key": "a", "subkey": 1, "value": "a1"},
+            {"key": "a", "subkey": 2, "value": "a2"},
+            {"key": "b", "subkey": 1, "value": "b1"},
+        ])
+
+        create("table", "//tmp/queries", attributes={"schema": [{"name": "key", "type": "string"},
+                                                                {"name": "subkey", "type": "int64"}]})
+        write_table("//tmp/queries", [{"key": "a", "subkey": 1},
+                                      {"key": "a", "subkey": 2},
+                                      {"key": "b", "subkey": 1},
+                                      {"key": "b", "subkey": 2}])
+
+        with Clique(1, config_patch={
+            "engine": {"dictionaries": [
+                {
+                    "name": "dict",
+                    "layout": {"complex_key_hashed": {}},
+                    "structure": {
+                        "key": {"attribute": [{"name": "key", "type": "String"},
+                                              {"name": "subkey", "type": "Int64"}]},
+                        "attribute": [{"name": "value", "type": "String", "null_value": "n/a"}]
+                    },
+                    "lifetime": 0,
+                    "source": {
+                        "yt": {
+                            "path": "//tmp/dict"
+                        }
+                    }
+                }
+            ]}}) as clique:
+            result = clique.make_query("select dictGetString('dict', 'value', tuple(key, subkey)) as value from \"//tmp/queries\"")
+        assert result["data"] == [{"value": "a1"}, {"value": "a2"}, {"value": "b1"}, {"value": "n/a"}]
+
+    def test_lifetime(self):
+        create("table", "//tmp/dict", attributes={"schema": [{"name": "key", "type": "uint64"},
+                                                             {"name": "value", "type": "string"}]})
+        write_table("//tmp/dict", [{"key": 42, "value": "x"}])
+
+        with Clique(1, config_patch={
+            "engine": {"dictionaries": [
+                {
+                    "name": "dict",
+                    "layout": {"flat": {}},
+                    "structure": {
+                        "id": {"name": "key"},
+                        "attribute": [{"name": "value", "type": "String", "null_value": "n/a"}]
+                    },
+                    "lifetime": 1,
+                    "source": {
+                        "yt": {
+                            "path": "//tmp/dict"
+                        }
+                    }
+                }
+            ]}}) as clique:
+            assert clique.make_query("select dictGetString('dict', 'value', CAST(42 as UInt64)) as value")["data"][0]["value"] == "x"
+
+            write_table("//tmp/dict", [{"key": 42, "value": "y"}])
+            # TODO(max42): make update time customizable in CH and reduce this constant.
+            time.sleep(7)
+            assert clique.make_query("select dictGetString('dict', 'value', CAST(42 as UInt64)) as value")["data"][0]["value"] == "y"
+
+            remove("//tmp/dict")
+            time.sleep(7)
+            assert clique.make_query("select dictGetString('dict', 'value', CAST(42 as UInt64)) as value")["data"][0]["value"] == "y"
+
+            create("table", "//tmp/dict", attributes={"schema": [{"name": "key", "type": "uint64"},
+                                                                 {"name": "value", "type": "string"}]})
+            write_table("//tmp/dict", [{"key": 42, "value": "z"}])
+            time.sleep(7)
+            assert clique.make_query("select dictGetString('dict', 'value', CAST(42 as UInt64)) as value")["data"][0]["value"] == "z"

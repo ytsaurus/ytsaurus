@@ -2,7 +2,7 @@
 
 #include "storage_read_job.h"
 #include "type_helpers.h"
-
+#include "read_job.h"
 #include "query_context.h"
 
 #include <Columns/ColumnString.h>
@@ -187,7 +187,7 @@ private:
     StoragePtr Execute(const Context& context, std::string jobSpec) const
     {
         auto* queryContext = GetQueryContext(context);
-        auto tables = queryContext->GetTables(ToString(jobSpec));
+        auto tables = LoadReadJobSpec(TString(jobSpec)).GetTables();
 
         return CreateStorageReadJob(
             queryContext,

@@ -20,7 +20,6 @@ public:
         TBootstrap* bootstrap,
         ILoggerPtr logger,
         ICoordinationServicePtr coordinationService,
-        ICliqueAuthorizationManagerPtr cliqueAuthorizationManager,
         TClickHouseServerBootstrapConfigPtr nativeConfig,
         std::string cliqueId,
         std::string instanceId,

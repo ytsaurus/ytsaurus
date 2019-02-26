@@ -6,6 +6,8 @@
 
 #include <yt/ytlib/api/native/config.h>
 
+#include <yt/client/ypath/rich.h>
+
 #include <yt/core/concurrency/config.h>
 #include <yt/core/ytree/fluent.h>
 
@@ -65,6 +67,80 @@ DEFINE_REFCOUNTED_TYPE(TUserConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDictionarySourceYtConfig
+    : public TYsonSerializable
+{
+public:
+    TDictionarySourceYtConfig()
+    {
+        RegisterParameter("path", Path);
+    }
+
+    NYPath::TRichYPath Path;
+};
+
+DEFINE_REFCOUNTED_TYPE(TDictionarySourceYtConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Source configuration.
+//! Extra supported configuration type is "yt".
+//! See: https://clickhouse.yandex/docs/en/query_language/dicts/external_dicts_dict_sources/
+class TDictionarySourceConfig
+    : public TYsonSerializable
+{
+public:
+    TDictionarySourceConfig()
+    {
+        RegisterParameter("yt", Yt)
+            .Default(nullptr);
+    }
+
+    // TODO(max42): proper value omission.
+    TDictionarySourceYtConfigPtr Yt;
+};
+
+DEFINE_REFCOUNTED_TYPE(TDictionarySourceConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! External dictionary configuration.
+//! See: https://clickhouse.yandex/docs/en/query_language/dicts/external_dicts_dict/
+class TDictionaryConfig
+    : public TYsonSerializable
+{
+public:
+    TDictionaryConfig()
+    {
+        RegisterParameter("name", Name);
+        RegisterParameter("source", Source);
+        RegisterParameter("layout", Layout);
+        RegisterParameter("structure", Structure);
+        RegisterParameter("lifetime", Lifetime);
+    }
+
+    TString Name;
+
+    //! Source configuration.
+    TDictionarySourceConfigPtr Source;
+
+    //! Layout configuration.
+    //! See: https://clickhouse.yandex/docs/en/query_language/dicts/external_dicts_dict_layout/
+    IMapNodePtr Layout;
+
+    //! Structure configuration.
+    //! See: https://clickhouse.yandex/docs/en/query_language/dicts/external_dicts_dict_structure/
+    IMapNodePtr Structure;
+
+    //! Lifetime configuration.
+    //! See: https://clickhouse.yandex/docs/en/query_language/dicts/external_dicts_dict_lifetime/
+    INodePtr Lifetime;
+};
+
+DEFINE_REFCOUNTED_TYPE(TDictionaryConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TEngineConfig
     : public TYsonSerializable
 {
@@ -89,6 +165,9 @@ public:
         RegisterParameter("settings", Settings)
             .Optional()
             .MergeBy(EMergeStrategy::Combine);
+
+        RegisterParameter("dictionaries", Dictionaries)
+            .Default();
 
         RegisterPreprocessor([&] {
             Settings["readonly"] = ConvertToNode(2);
@@ -120,6 +199,9 @@ public:
 
     //! Log level for internal CH logging.
     TString LogLevel;
+
+    //! External dictionaries.
+    std::vector<TDictionaryConfigPtr> Dictionaries;
 
     //! ClickHouse settings.
     //! Refer to https://clickhouse.yandex/docs/en/operations/settings/settings/ for a complete list.

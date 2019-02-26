@@ -1,45 +1,37 @@
 #include "runtime_components_factory.h"
 
-#include "dummy_config_repository.h"
-//#include "geo_dictionaries_loader.h"
-#include "security_manager.h"
-#include "type_helpers.h"
+#include "config_repository.h"
 
-#include "query_context.h"
-
-#include <Dictionaries/Embedded/GeoDictionariesLoader.h>
+#include <Interpreters/IRuntimeComponentsFactory.h>
+#include <Dictionaries/Embedded/IGeoDictionariesLoader.h>
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(max42): put native client here.
 class TRuntimeComponentsFactory
     : public DB::IRuntimeComponentsFactory
 {
-private:
-    std::string CliqueId;
-    std::string HomePath;
-    ICliqueAuthorizationManagerPtr CliqueAuthorizationManager_;
-
 public:
     TRuntimeComponentsFactory(
-        std::string cliqueId,
-        std::string homePath,
-        ICliqueAuthorizationManagerPtr cliqueAuthorizationManager)
-        : CliqueId(std::move(cliqueId))
-        , HomePath(std::move(homePath))
-        , CliqueAuthorizationManager_(std::move(cliqueAuthorizationManager))
+        std::unique_ptr<DB::ISecurityManager> securityManager,
+        std::unique_ptr<DB::IExternalLoaderConfigRepository> dictionariesConfigRepository,
+        std::unique_ptr<IGeoDictionariesLoader> geoDictionariesLoader)
+        : SecurityManager_(std::move(securityManager))
+        , DictionariesConfigRepository_(std::move(dictionariesConfigRepository))
+        , GeoDictionariesLoader_(std::move(geoDictionariesLoader))
     {}
 
     std::unique_ptr<DB::ISecurityManager> createSecurityManager() override
     {
-        return CreateSecurityManager(CliqueId, CliqueAuthorizationManager_);
+        YCHECK(SecurityManager_);
+        return std::move(SecurityManager_);
     }
 
     std::unique_ptr<DB::IExternalLoaderConfigRepository> createExternalDictionariesConfigRepository() override
     {
-        return CreateDummyConfigRepository();
+        YCHECK(DictionariesConfigRepository_);
+        return std::move(DictionariesConfigRepository_);
     }
 
     std::unique_ptr<DB::IExternalLoaderConfigRepository> createExternalModelsConfigRepository() override
@@ -49,21 +41,27 @@ public:
 
     std::unique_ptr<IGeoDictionariesLoader> createGeoDictionariesLoader() override
     {
-        return std::make_unique<GeoDictionariesLoader>();
+        YCHECK(GeoDictionariesLoader_);
+        return std::move(GeoDictionariesLoader_);
     }
+
+private:
+    std::unique_ptr<DB::ISecurityManager> SecurityManager_;
+    std::unique_ptr<DB::IExternalLoaderConfigRepository> DictionariesConfigRepository_;
+    std::unique_ptr<IGeoDictionariesLoader> GeoDictionariesLoader_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<DB::IRuntimeComponentsFactory> CreateRuntimeComponentsFactory(
-    std::string cliqueId,
-    std::string homePath,
-    ICliqueAuthorizationManagerPtr cliqueAuthorizationManager)
+    std::unique_ptr<DB::ISecurityManager> securityManager,
+    std::unique_ptr<DB::IExternalLoaderConfigRepository> dictionariesConfigRepository,
+    std::unique_ptr<IGeoDictionariesLoader> geoDictionariesLoader)
 {
     return std::make_unique<TRuntimeComponentsFactory>(
-        std::move(cliqueId),
-        std::move(homePath),
-        std::move(cliqueAuthorizationManager));
+        std::move(securityManager),
+        std::move(dictionariesConfigRepository),
+        std::move(geoDictionariesLoader));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

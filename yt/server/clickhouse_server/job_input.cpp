@@ -238,7 +238,7 @@ private:
         }
 
         KeyColumnCount_ = representativeTable.Schema.GetKeyColumnCount();
-        KeyColumnDataTypes_ = TClickHouseTableSchema::From(*CreateTable("", representativeTable.Schema)).GetKeyDataTypes();
+        KeyColumnDataTypes_ = TClickHouseTableSchema::From(*CreateClickHouseTable("", representativeTable.Schema)).GetKeyDataTypes();
     }
 
     void LogStatistics(const TStringBuf& stage)

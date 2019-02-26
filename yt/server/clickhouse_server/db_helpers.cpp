@@ -15,7 +15,7 @@ using namespace DB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const char* GetTypeName(const TColumn& column)
+const char* GetTypeName(const TClickHouseColumn& column)
 {
     switch (column.Type) {
         /// Invalid type.
@@ -60,7 +60,7 @@ DB::DataTypePtr GetDataType(const std::string& name)
     return DB::DataTypeFactory::instance().get(name);
 }
 
-DB::NamesAndTypesList GetTableColumns(const TTable& table)
+DB::NamesAndTypesList GetTableColumns(const TClickHouseTable& table)
 {
     const auto& dataTypeFactory = DB::DataTypeFactory::instance();
 
