@@ -730,7 +730,6 @@ private:
             // This is the root.
             return;
         }
-        ValidateNotRepeated();
         FieldStack_.pop_back();
         YPathStack_.Pop();
     }
