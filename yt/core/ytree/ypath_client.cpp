@@ -498,13 +498,10 @@ TFuture<std::vector<TString>> AsyncYPathList(
         }));
 }
 
-static INodePtr WalkNodeByYPath(
+INodePtr WalkNodeByYPath(
     const INodePtr& root,
     const TYPath& path,
-    std::function<INodePtr(const TString&)> handleMissingAttribute,
-    std::function<INodePtr(const IMapNodePtr&, const TString&)> handleMissingChildKey,
-    std::function<INodePtr(const IListNodePtr&, int)> handleMissingChildIndex,
-    std::function<INodePtr(const INodePtr&)> handleNodeCannotHaveChildren)
+    const TNodeWalkOptions& options)
 {
     auto currentNode = root;
     NYPath::TTokenizer tokenizer(path);
@@ -525,7 +522,7 @@ static INodePtr WalkNodeByYPath(
                 const auto& attributes = currentNode->Attributes();
                 currentNode = attributes.Find<INodePtr>(key);
                 if (!currentNode) {
-                    return handleMissingAttribute(key);
+                    return options.MissingAttributeHandler(key);
                 }
             }
         } else {
@@ -536,7 +533,7 @@ static INodePtr WalkNodeByYPath(
                     auto key = tokenizer.GetLiteralValue();
                     currentNode = currentMap->FindChild(key);
                     if (!currentNode) {
-                        return handleMissingChildKey(currentMap, key);
+                        return options.MissingChildKeyHandler(currentMap, key);
                     }
                     break;
                 }
@@ -547,64 +544,16 @@ static INodePtr WalkNodeByYPath(
                     auto optionalAdjustedIndex = TryAdjustChildIndex(index, currentList->GetChildCount());
                     currentNode = optionalAdjustedIndex ? currentList->FindChild(*optionalAdjustedIndex) : nullptr;
                     if (!currentNode) {
-                        return handleMissingChildIndex(currentList, optionalAdjustedIndex.value_or(index));
+                        return options.MissingChildIndexHandler(currentList, optionalAdjustedIndex.value_or(index));
                     }
                     break;
                 }
                 default:
-                    return handleNodeCannotHaveChildren(currentNode);
+                    return options.NodeCannotHaveChildrenHandler(currentNode);
             }
         }
     }
     return currentNode;
-}
-
-INodePtr GetNodeByYPath(
-    const INodePtr& root,
-    const TYPath& path)
-{
-    return WalkNodeByYPath(
-        root,
-        path,
-        [] (const TString& key) {
-            ThrowNoSuchAttribute(key);
-            return nullptr;
-        },
-        [] (const IMapNodePtr& node, const TString& key) {
-            ThrowNoSuchChildKey(node, key);
-            return nullptr;
-        },
-        [] (const IListNodePtr& node, int index) {
-            ThrowNoSuchChildIndex(node, index);
-            return nullptr;
-        },
-        [] (const INodePtr& node) {
-            ThrowCannotHaveChildren(node);
-            return nullptr;
-        }
-    );
-}
-
-INodePtr FindNodeByYPath(
-    const INodePtr& root,
-    const TYPath& path)
-{
-    return WalkNodeByYPath(
-        root,
-        path,
-        [] (const TString& key) {
-            return nullptr;
-        },
-        [] (const IMapNodePtr& node, const TString& key) {
-            return nullptr;
-        },
-        [] (const IListNodePtr& node, int index) {
-            return nullptr;
-        },
-        [] (const INodePtr& node) {
-            return nullptr;
-        }
-    );
 }
 
 void SetNodeByYPath(
@@ -862,6 +811,54 @@ bool AreNodesEqual(const INodePtr& lhs, const INodePtr& rhs)
         default:
             Y_UNREACHABLE();
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TNodeWalkOptions GetNodeByYPathOptions {
+    .MissingAttributeHandler = [] (const TString& key) {
+        ThrowNoSuchAttribute(key);
+        return nullptr;
+    },
+    .MissingChildKeyHandler = [] (const IMapNodePtr& node, const TString& key) {
+        ThrowNoSuchChildKey(node, key);
+        return nullptr;
+    },
+    .MissingChildIndexHandler = [] (const IListNodePtr& node, int index) {
+        ThrowNoSuchChildIndex(node, index);
+        return nullptr;
+    },
+    .NodeCannotHaveChildrenHandler = [] (const INodePtr& node) {
+        ThrowCannotHaveChildren(node);
+        return nullptr;
+    }
+};
+
+TNodeWalkOptions FindNodeByYPathOptions {
+    .MissingAttributeHandler = [] (const TString& /* key */) {
+        return nullptr;
+    },
+    .MissingChildKeyHandler = [] (const IMapNodePtr& /* node */, const TString& /* key */) {
+        return nullptr;
+    },
+    .MissingChildIndexHandler = [] (const IListNodePtr& /* node */, int /* index */) {
+        return nullptr;
+    },
+    .NodeCannotHaveChildrenHandler = GetNodeByYPathOptions.NodeCannotHaveChildrenHandler
+};
+
+INodePtr GetNodeByYPath(
+    const INodePtr& root,
+    const TYPath& path)
+{
+    return WalkNodeByYPath(root, path, GetNodeByYPathOptions);
+}
+
+INodePtr FindNodeByYPath(
+    const INodePtr& root,
+    const TYPath& path)
+{
+    return WalkNodeByYPath(root, path, FindNodeByYPathOptions);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

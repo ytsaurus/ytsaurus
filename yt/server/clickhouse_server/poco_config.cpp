@@ -24,9 +24,14 @@ public:
 
     bool getRaw(const std::string& key, std::string& value) const override
     {
+        TNodeWalkOptions pocoConfigWalkOptions = FindNodeByYPathOptions;
+        pocoConfigWalkOptions.NodeCannotHaveChildrenHandler = [] (const INodePtr& /* node */) {
+            return nullptr;
+        };
+
         auto ypath = PocoPathToYPath(key);
 
-        if (auto node = FindNodeByYPath(Node_, ypath)) {
+        if (auto node = WalkNodeByYPath(Node_, ypath, pocoConfigWalkOptions)) {
             switch (node->GetType()) {
                 case ENodeType::Int64:
                     value = std::to_string(node->AsInt64()->GetValue());
