@@ -10,6 +10,7 @@ def test_cypress_authentication_using_rpc_proxy():
         environment = YtTestEnvironment(
             "TestAuthenticationCypress",
             config,
+            env_options={"use_native_client": True},
             delta_proxy_config={"authentication": {"enable": True}})
         environment.env.create_native_client().set("//sys/tokens/abc", "pony")
         environment.env.create_native_client().create("user", attributes={"name": "pony"})
