@@ -6,11 +6,10 @@
 #include <yt/client/api/skynet.h>
 #include <yt/client/api/table_reader.h>
 
-// YT-9161: Used for CreateSchemalessFromApiWriterAdapter.
-#include <yt/ytlib/table_client/helpers.h>
-
 #include <yt/client/query_client/query_statistics.h>
 
+#include <yt/client/table_client/adapters.h>
+#include <yt/client/table_client/table_output.h>
 #include <yt/client/table_client/blob_reader.h>
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/row_buffer.h>
