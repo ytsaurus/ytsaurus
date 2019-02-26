@@ -916,7 +916,7 @@ def package_driver_bindings(options, build_context):
         with open("debian/changelog") as fin:
             text = fin.read()
         with open("debian/changelog", "w") as fout:
-            fout.write(text.replace("yandex-yt", "yandex-yt-python-driver"))
+            fout.write(text.replace("yandex-yt", "package-name"))
 
     driver_packages_path = os.path.join(options.checkout_directory, "yt/python/driver-debian")
     args = [
@@ -932,6 +932,7 @@ def package_driver_bindings(options, build_context):
 
         # Python-friendly debian packages.
         ("debian", "2", "linux", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-driver", "yandex-yt-python-driver"),
+        ("debian", "3", "linux", "lib/pyshared-3-4/driver_lib.so", "yandex-yt-python-driver", "yandex-yt-python3-driver"),
     ]
 
     perform_packaging(options, driver_packages_path, args, configurations)
