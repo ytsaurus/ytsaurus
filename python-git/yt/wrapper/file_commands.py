@@ -209,10 +209,19 @@ def write_file(destination, stream,
     chunk_size = get_config(client)["write_retries"]["chunk_size"]
 
     is_one_small_blob = False
-    # Read out file into the memory if it is small.
-    if _is_freshly_opened_file(stream) and _get_file_size(stream) <= chunk_size:
-        stream = stream.read()
-        is_one_small_blob = True
+    if _is_freshly_opened_file(stream):
+        size = _get_file_size(stream)
+        # Read out file into the memory if it is small.
+        if size <= chunk_size:
+            stream = stream.read()
+            is_one_small_blob = True
+        if size_hint is None:
+            size_hint = size
+    if filename_hint is None:
+        try:
+            filename_hint = os.readlink("/proc/self/fd/0")
+        except IOError:
+            pass
 
     # Read stream by chunks. Also it helps to correctly process StringIO from cStringIO
     # (it has bug with default iteration). Also it allows to avoid reading file
