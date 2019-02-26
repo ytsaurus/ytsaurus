@@ -61,16 +61,19 @@ class TestRpcProxyBase(YTEnvSetup):
     _sample_text = "sample text"
     _sample_line = {"index": _sample_index, "str": _sample_text}
 
-    def _create_simple_table(self, path, data = [], dynamic=True, sorted=True):
+    def _create_simple_table(self, path, data = [], dynamic=True, sorted=True, **kwargs):
         schema = self._schema_sorted if sorted else self._schema
         create("table", path,
                attributes={
                    "dynamic": dynamic,
-                   "schema": schema})
+                   "schema": schema},
+               **kwargs)
+
+        if dynamic:
+            sync_create_cells(1)
         if not data:
             return
         if dynamic:
-            sync_create_cells(1)
             sync_mount_table(path)
             insert_rows(path, data)
             sync_unmount_table(path)
@@ -563,4 +566,37 @@ class TestAclsRpcProxy(TestRpcProxyBase):
         assert check_permission_by_acl("u1", "remove", [{"subjects": ["u1"], "permissions": ["remove"], "action": "allow"}])["action"] == "allow"
         assert check_permission_by_acl("u1", "remove", [{"subjects": ["u2"], "permissions": ["remove"], "action": "allow"}])["action"] == "deny"
         assert check_permission_by_acl(None, "remove", [{"subjects": ["u2"], "permissions": ["remove"], "action": "allow"}])["action"] == "allow"
+
+##################################################################
+
+class TestModifyRowsRpcProxy(TestRpcProxyBase):
+    BATCH_CAPACITY = 10
+    DELTA_DRIVER_CONFIG = {"modify_rows_batch_capacity": BATCH_CAPACITY}
+
+    def _test_modify_rows_batching(self, request_count, key_count, tx_type="tablet"):
+        self._create_simple_table("//tmp/table")
+        sync_mount_table("//tmp/table")
+
+        tx = start_transaction(type=tx_type, sticky=True)
+
+        for i in range(request_count):
+            insert_rows(
+                "//tmp/table",
+                [{"index": i % key_count, "str": str(i / key_count)}],
+                tx=tx)
+
+        commit_transaction(tx, sticky=True)
+
+        expected_result = [
+            {"index": i,
+            "str": str((request_count - i - 1) // key_count)}\
+                for i in range(key_count)]
+        assert select_rows("* from [//tmp/table]") == expected_result
+
+        sync_unmount_table("//tmp/table")
+        remove("//tmp/table")
+
+    def test_modify_rows_batching(self):
+        self._test_modify_rows_batching(60, 7, "tablet")
+        self._test_modify_rows_batching(65, 7, "master")
 

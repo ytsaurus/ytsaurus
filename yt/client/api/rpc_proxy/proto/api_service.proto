@@ -438,7 +438,7 @@ message TRspGetTabletInfos
 message TReqModifyRows
 {
     // ModifyRows requests are sent asynchronously. Sequential numbering is
-    // required to restore their order. (The optionality is for compatibility.)
+    // required to restore their order. (It's optional for compatibility.)
     optional int64 sequence_number = 6;
 
     required NYT.NProto.TGuid transaction_id = 1;
