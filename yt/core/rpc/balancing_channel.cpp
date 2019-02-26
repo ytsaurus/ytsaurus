@@ -168,16 +168,15 @@ private:
             while (true) {
                 auto pickResult = PickPeer();
 
-                if (std::holds_alternative<TTooManyConcurrentRequests>(pickResult)) {
+                auto mustBreak = false;
+                Visit(pickResult,
+                    [&] (TTooManyConcurrentRequests) { mustBreak = true; },
+                    [&] (TNoMorePeers) { OnFinished(); mustBreak = true; },
+                    [&] (const TString& address) { QueryPeer(address); });
+
+                if (mustBreak) {
                     break;
                 }
-
-                if (std::holds_alternative<TNoMorePeers>(pickResult)) {
-                    OnFinished();
-                    break;
-                }
-
-                QueryPeer(std::get<TString>(pickResult));
             }
         }
 

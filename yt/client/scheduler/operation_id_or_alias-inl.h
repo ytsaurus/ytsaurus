@@ -43,13 +43,13 @@ void ToProto(TProtoClassPtr enclosingProtoMessage, const TOperationIdOrAlias& op
 {
     using NYT::ToProto;
 
-    if (auto* operationId = std::get_if<TOperationId>(&operationIdOrAlias)) {
-        ToProto(enclosingProtoMessage->mutable_operation_id(), *operationId);
-    } else if (auto* alias = std::get_if<TString>(&operationIdOrAlias)) {
-        enclosingProtoMessage->set_operation_alias(*alias);
-    } else {
-        Y_UNREACHABLE();
-    }
+    Visit(operationIdOrAlias,
+        [&] (const TOperationId& operationId) {
+            ToProto(enclosingProtoMessage->mutable_operation_id(), operationId);
+        },
+        [&] (const TString& alias) {
+            enclosingProtoMessage->set_operation_alias(alias);
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

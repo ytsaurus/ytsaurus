@@ -719,14 +719,9 @@ void Serialize(const TDescriptorType& value, NYson::IYsonConsumer* consumer)
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("tag").Value(static_cast<ETypeCategory>(value.Type.index()))
-            .DoIf(std::holds_alternative<TTypeArgument>(value.Type), [&] (TFluentMap fluent) {
-                fluent.Item("value").Value(std::get<TTypeArgument>(value.Type));
-            })
-            .DoIf(std::holds_alternative<TUnionType>(value.Type), [&] (TFluentMap fluent) {
-                fluent.Item("value").Value(std::get<TUnionType>(value.Type));
-            })
-            .DoIf(std::holds_alternative<EValueType>(value.Type), [&] (TFluentMap fluent) {
-                fluent.Item("value").Value(std::get<EValueType>(value.Type));
+            .Do([&] (TFluentMap fluent) {
+                Visit(value.Type,
+                    [&] (const auto& v) { fluent.Item("value").Value(v); });
             })
         .EndMap();
 }

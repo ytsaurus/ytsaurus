@@ -483,15 +483,16 @@ public:
         TStringBuilder builder;
         for (const auto& item : Items_) {
             builder.AppendChar('/');
-            if (const auto* const* protobufField = std::get_if<const TProtobufField*>(&item)) {
-                builder.AppendString(ToYPathLiteral((*protobufField)->GetYsonName()));
-            } else if (const auto* string = std::get_if<TString>(&item)) {
-                builder.AppendString(ToYPathLiteral(*string));
-            } else if (const auto* integer = std::get_if<int>(&item)) {
-                builder.AppendFormat("%v", *integer);
-            } else {
-                Y_UNREACHABLE();
-            }
+            Visit(item,
+                [&] (const TProtobufField* protobufField) {
+                    builder.AppendString(ToYPathLiteral(protobufField->GetYsonName()));
+                },
+                [&] (const TString& string) {
+                    builder.AppendString(ToYPathLiteral(string));
+                },
+                [&] (int integer) {
+                    builder.AppendFormat("%v", integer);
+                });
         }
         return builder.Flush();
     }

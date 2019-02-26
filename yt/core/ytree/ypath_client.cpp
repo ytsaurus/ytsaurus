@@ -253,14 +253,21 @@ void ResolveYPath(
 
         try {
             auto result = currentService->Resolve(currentPath, context);
-            if (auto* hereResult = std::get_if<IYPathService::TResolveResultHere>(&result)) {
-                *suffixService = currentService;
-                *suffixPath = std::move(hereResult->Path);
+            auto mustBreak = false;
+            Visit(std::move(result),
+                [&] (IYPathService::TResolveResultHere&& hereResult) {
+                    *suffixService = std::move(currentService);
+                    *suffixPath = std::move(hereResult.Path);
+                    mustBreak = true;
+                },
+                [&] (IYPathService::TResolveResultThere&& thereResult) {
+                    currentService = std::move(thereResult.Service);
+                    currentPath = std::move(thereResult.Path);
+                });
+
+            if (mustBreak) {
                 break;
             }
-            auto& thereResult = std::get<IYPathService::TResolveResultThere>(result);
-            currentService = std::move(thereResult.Service);
-            currentPath = std::move(thereResult.Path);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,

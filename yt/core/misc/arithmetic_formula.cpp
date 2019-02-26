@@ -363,12 +363,14 @@ i64 TGenericFormulaImpl::Eval(const THashMap<TString, i64>& values, EEvaluationC
                     YCHECK(std::holds_alternative<i64>(stack.back()));
                     i64 top = std::get<i64>(stack.back());
                     stack.pop_back();
-                    if (std::holds_alternative<i64>(stack.back())) {
-                        std::vector<i64> vector{std::get<i64>(stack.back()), top};
-                        stack.back() = vector;
-                    } else {
-                        std::get<std::vector<i64>>(stack.back()).push_back(top);
-                    }
+                    Visit(stack.back(),
+                        [&] (i64 v) {
+                            std::vector<i64> vector{v, top};
+                            stack.back() = vector;
+                        },
+                        [&] (std::vector<i64>& v) {
+                            v.push_back(top);
+                        });
                 }
                 break;
             case EFormulaTokenType::In:

@@ -1033,17 +1033,18 @@ private:
         int eventsWritten = ProcessTraceSuppressionBuffer();
 
         while (LoggerQueue_.DequeueAll(true, [&] (TLoggerQueueItem& item) {
-            if (auto* event = std::get_if<TConfigEvent>(&item)) {
-                UpdateConfig(*event);
-            } else if (const auto* event = std::get_if<TLogEvent>(&item)) {
-                WriteEvent(*event);
-                ++eventsWritten;
-            } else if (const auto* events = std::get_if<std::vector<TLogEvent>>(&item)) {
-                WriteEvents(*events);
-                eventsWritten += events->size();
-            } else {
-                Y_UNREACHABLE();
-            }
+            Visit(item,
+                [&] (TConfigEvent& event) {
+                    UpdateConfig(event);
+                },
+                [&] (const TLogEvent& event) {
+                    WriteEvent(event);
+                    ++eventsWritten;
+                },
+                [&] (const std::vector<TLogEvent>& events) {
+                    WriteEvents(events);
+                    eventsWritten += events.size();
+                });
         }))
         { }
 
@@ -1088,17 +1089,19 @@ private:
         TraceSuppressionBuffer_.clear();
 
         LoggerQueue_.DequeueAll(true, [&] (TLoggerQueueItem& item) {
-            if (auto* event = std::get_if<TConfigEvent>(&item)) {
-                UpdateConfig(*event);
-            } else if (auto* event = std::get_if<TLogEvent>(&item)) {
-                TraceSuppressionBuffer_.push_back(std::move(*event));
-            } else if (auto* events = std::get_if<std::vector<TLogEvent>>(&item)) {
-                for (auto& event : *events) {
-                    TraceSuppressionBuffer_.push_back(event);
-                }
-            } else {
-                Y_UNREACHABLE();
-            }
+            Visit(std::move(item),
+                [&] (TConfigEvent&& event) {
+                    UpdateConfig(event);
+                },
+                [&] (TLogEvent&& event) {
+                    TraceSuppressionBuffer_.emplace_back(std::move(event));
+                },
+                [&] (const std::vector<TLogEvent>& events) {
+                    TraceSuppressionBuffer_.insert(
+                        TraceSuppressionBuffer_.end(),
+                        events.begin(),
+                        events.end());
+                });
         });
 
         std::sort(TraceSuppressionBuffer_.begin(), TraceSuppressionBuffer_.end(), [] (const auto& lhs, const auto& rhs) {
