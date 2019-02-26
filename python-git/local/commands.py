@@ -103,16 +103,16 @@ def _create_node_from_local_file(local_filename, dest_filename, meta_files_suffi
             logger.warning("Found table {0} with unspecified format".format(local_filename))
             return
 
+        attributes = meta.get("attributes", {})
+        sorted_by = attributes.pop("sorted_by", [])
+
+        client.create("table", dest_filename, attributes=attributes)
+
         with open(local_filename, "rb") as table_file:
             client.write_table(dest_filename, table_file, format=meta["format"], raw=True)
 
-        attributes = meta.get("attributes", {})
-        if "sorted_by" in attributes:
-            client.run_sort(dest_filename, sort_by=attributes["sorted_by"])
-            attributes.pop("sorted_by")
-
-        for key in attributes:
-            client.set_attribute(dest_filename, key, attributes[key])
+        if sorted_by:
+            client.run_sort(dest_filename, sort_by=sorted_by)
 
 def _synchronize_cypress_with_local_dir(local_cypress_dir, meta_files_suffix, client):
     cypress_path_prefix = "//"
