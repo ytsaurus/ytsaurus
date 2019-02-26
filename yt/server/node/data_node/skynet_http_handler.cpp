@@ -18,6 +18,8 @@
 
 #include <yt/ytlib/api/native/table_reader.h>
 
+#include <yt/client/table_client/blob_reader.h>
+
 #include <yt/core/concurrency/async_stream.h>
 
 #include <yt/core/http/http.h>
@@ -154,7 +156,7 @@ public:
 
         auto apiReader = CreateApiFromSchemalessChunkReaderAdapter(std::move(schemalessReader));
 
-        auto blobReader = NNative::CreateBlobTableReader(
+        auto blobReader = NTableClient::CreateBlobTableReader(
             apiReader,
             TString("part_index"),
             TString("data"),
