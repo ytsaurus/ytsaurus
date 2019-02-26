@@ -232,25 +232,36 @@ TEST(TYsonToProtobufTest, TypeConversions)
     EXPECT_EQ(10000U, message.fixed64_field());
 }
 
-TEST(TYsonToProtobufTest, RootMessageFromEntity)
+TEST(TYsonToProtobufYsonTest, Entities)
+{
+    TEST_PROLOGUE(TMessage)
+        .BeginMap()
+            .Item("int32_field").Entity()
+            .Item("repeated_int32_field").Entity()
+            .Item("nested_message1").Entity()
+            .Item("repeated_nested_message1").Entity()
+            .Item("attributes").Entity()
+            .Item("yson_field").Entity()
+            .Item("int32_map").Entity()
+        .EndMap();
+
+    TEST_EPILOGUE(TMessage)
+    EXPECT_FALSE(message.has_int32_field_xxx());
+    EXPECT_TRUE(message.repeated_int32_field().empty());
+    EXPECT_FALSE(message.has_nested_message1());
+    EXPECT_TRUE(message.repeated_nested_message1().empty());
+    EXPECT_FALSE(message.has_attributes());
+    EXPECT_EQ("#", message.yson_field());
+    EXPECT_TRUE(message.int32_map().empty());
+}
+
+TEST(TYsonToProtobufTest, RootEntity)
 {
     TEST_PROLOGUE(TMessage)
         .Entity();
 
     TEST_EPILOGUE(TMessage)
     EXPECT_FALSE(message.has_int32_field_xxx());
-}
-
-TEST(TYsonToProtobufTest, NestedMessageFromEntity)
-{
-    TEST_PROLOGUE(TMessage)
-        .BeginMap()
-            .Item("nested_message1").Entity()
-            .Item("int32_field").Value(10000)
-        .EndMap();
-
-    TEST_EPILOGUE(TMessage)
-    EXPECT_EQ(10000, message.int32_field_xxx());
 }
 
 TEST(TYsonToProtobufTest, Failure)
