@@ -62,7 +62,7 @@ class TestOperationAcls(YTEnvSetup):
 
         # Init operations archive.
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(cls.Env.create_native_client())
+        init_operation_archive.create_tables_latest_version(cls.Env.create_native_client(), override_tablet_cell_bundle="default")
 
         for user in [
             cls.operation_authenticated_user,

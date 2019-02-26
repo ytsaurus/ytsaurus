@@ -92,9 +92,9 @@ class ListOperationsSetup(YTEnvSetup):
         # Init operations archive.
         sync_create_cells(1)
         if cls._archive_version is None:
-            init_operation_archive.create_tables_latest_version(cls.Env.create_native_client())
+            init_operation_archive.create_tables_latest_version(cls.Env.create_native_client(), override_tablet_cell_bundle="default")
         else:
-            init_operation_archive.create_tables(cls.Env.create_native_client(), cls._archive_version)
+            init_operation_archive.create_tables(cls.Env.create_native_client(), cls._archive_version, override_tablet_cell_bundle="default")
 
         create("table", cls._input_path, recursive=True, ignore_existing=True,
             attributes={
