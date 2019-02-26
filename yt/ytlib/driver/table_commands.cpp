@@ -619,6 +619,8 @@ TInsertRowsCommand::TInsertRowsCommand()
 {
     RegisterParameter("require_sync_replica", Options.RequireSyncReplica)
         .Optional();
+    RegisterParameter("sequence_number", Options.SequenceNumber)
+        .Optional();
     RegisterParameter("table_writer", TableWriter)
         .Default();
     RegisterParameter("path", Path);
@@ -825,6 +827,8 @@ void TGetInSyncReplicasCommand::DoExecute(ICommandContextPtr context)
 
 TDeleteRowsCommand::TDeleteRowsCommand()
 {
+    RegisterParameter("sequence_number", Options.SequenceNumber)
+        .Optional();
     RegisterParameter("require_sync_replica", Options.RequireSyncReplica)
         .Optional();
     RegisterParameter("table_writer", TableWriter)

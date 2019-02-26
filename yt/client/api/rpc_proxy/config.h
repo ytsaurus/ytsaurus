@@ -40,6 +40,7 @@ public:
     NCompression::ECodec ResponseCodec;
     bool EnableLegacyRpcCodecs;
     bool EnableProxyDiscovery;
+    i64 ModifyRowsBatchCapacity;
 
     TConnectionConfig();
 };

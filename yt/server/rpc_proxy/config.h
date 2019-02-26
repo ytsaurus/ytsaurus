@@ -36,8 +36,7 @@ public:
         RegisterParameter("verbose_logging", VerboseLogging)
             .Default(false);
         RegisterParameter("enable_modify_rows_request_reordering", EnableModifyRowsRequestReordering)
-            .Default(false);
-
+            .Default(true);
         RegisterParameter("client_cache", ClientCache)
             .Default(New<TSlruCacheConfig>(1000));
     }
