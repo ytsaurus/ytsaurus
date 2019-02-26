@@ -206,9 +206,7 @@ def yt(request):
     try:
         yt_config = request.getfuncargvalue("yt_config")
     except BaseException:
-        yt_config = YtConfig(
-            yt_version="19_2"
-        )
+        yt_config = YtConfig()
     try:
         yt_stuff = request.getfuncargvalue("yt_stuff")
     except BaseException:

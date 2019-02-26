@@ -15,7 +15,7 @@ def yt_stuff(request):
 
         @pytest.fixture
         def yt_config(request):
-            return YtConfig(yt_version="19_2")
+            return YtConfig(node_count=12)
 
     To use yt_stuff you only need to add to your ya.make:
         PEERDIR(mapreduce/yt/python)
