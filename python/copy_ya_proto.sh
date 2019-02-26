@@ -16,10 +16,9 @@ YP_PROTOS="
 
 PROTO_PATHS=""
 
-if [ -d "../../.git" ]; then
-    YT_PREFIX=""
-else
-    YT_PREFIX="/yt/19_3"
+if [ ! -d "../../.git" ]; then
+    echo "Must be called from git repository" >&2
+    exit 1
 fi
 
 for path in $YP_PROTOS; do
