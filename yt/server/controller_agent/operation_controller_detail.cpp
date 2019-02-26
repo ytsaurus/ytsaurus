@@ -7593,11 +7593,15 @@ void TOperationControllerBase::SetOperationAlert(EOperationAlertType alertType, 
 {
     TGuard<TSpinLock> guard(AlertsLock_);
 
-    if (alert.IsOK() && !Alerts_[alertType].IsOK()) {
+    auto& existingAlert = Alerts_[alertType];
+    if (alert.IsOK() && !existingAlert.IsOK()) {
         YT_LOG_DEBUG("Alert reset (Type: %v)",
             alertType);
-    } else {
+    } else if (!alert.IsOK() && existingAlert.IsOK()) {
         YT_LOG_DEBUG(alert, "Alert set (Type: %v)",
+            alertType);
+    } else if (!alert.IsOK() && !existingAlert.IsOK()) {
+        YT_LOG_DEBUG(alert, "Alert updated (Type: %v)",
             alertType);
     }
 
