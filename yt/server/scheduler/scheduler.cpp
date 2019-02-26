@@ -432,15 +432,15 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (const auto* id = std::get_if<TOperationId>(&idOrAlias)) {
-            auto it = IdToOperation_.find(*id);
-            return it == IdToOperation_.end() ? nullptr : it->second;
-        } else if (const auto* alias = std::get_if<TString>(&idOrAlias)) {
-            auto it = OperationAliases_.find(*alias);
-            return it == OperationAliases_.end() ? nullptr : it->second.Operation;
-        } else {
-            Y_UNREACHABLE();
-        }
+        return Visit(idOrAlias,
+            [&] (const TOperationId& id) -> TOperationPtr {
+                auto it = IdToOperation_.find(id);
+                return it == IdToOperation_.end() ? nullptr : it->second;
+            },
+            [&] (const TString& alias) -> TOperationPtr {
+                auto it = OperationAliases_.find(alias);
+                return it == OperationAliases_.end() ? nullptr : it->second.Operation;
+            });
     }
 
     TOperationPtr GetOperation(const TOperationIdOrAlias& idOrAlias) const

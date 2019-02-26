@@ -747,13 +747,13 @@ public:
         for (auto it = tokens.rbegin(); it != tokens.rend(); ++it) {
             auto token = *it;
             builder.AppendChar('/');
-            if (const auto* stringBuf = std::get_if<TStringBuf>(&token)) {
-                builder.AppendString(*stringBuf);
-            } else if (const auto* integer = std::get_if<int>(&token)) {
-                builder.AppendFormat("%v", *integer);
-            } else {
-                Y_UNREACHABLE();
-            }
+            Visit(token,
+                [&] (const TStringBuf& stringBuf) {
+                    builder.AppendString(stringBuf);
+                },
+                [&] (int integer) {
+                    builder.AppendFormat("%v", integer);
+                });
         }
 
         return builder.Flush();

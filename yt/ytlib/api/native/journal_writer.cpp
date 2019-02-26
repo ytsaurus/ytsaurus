@@ -793,22 +793,31 @@ private:
             while (true) {
                 ValidateAborted();
                 auto command = DequeueCommand();
-                if (std::holds_alternative<TCloseCommand>(command)) {
-                    HandleClose();
+                auto mustBreak = false;
+                Visit(command,
+                    [&] (TCloseCommand) {
+                        HandleClose();
+                        mustBreak = true;
+                    },
+                    [&] (TCancelCommand) {
+                        throw TFiberCanceledException();
+                    },
+                    [&] (const TBatchCommand& typedCommand) {
+                        HandleBatch(typedCommand);
+                        if (IsSessionOverfull()) {
+                            SwitchChunk();
+                            mustBreak = true;
+                        }
+                    },
+                    [&] (const TSwitchChunkCommand& typedCommand) {
+                        if (typedCommand.Session == CurrentSession_) {
+                            SwitchChunk();
+                            mustBreak = true;
+                        }
+                    });
+
+                if (mustBreak) {
                     break;
-                } else if (std::holds_alternative<TCancelCommand>(command)) {
-                    throw TFiberCanceledException();
-                } else if (auto* typedCommand = std::get_if<TBatchCommand>(&command)) {
-                    HandleBatch(*typedCommand);
-                    if (IsSessionOverfull()) {
-                        SwitchChunk();
-                        break;
-                    }
-                } else if (auto* typedCommand = std::get_if<TSwitchChunkCommand>(&command)) {
-                    if (typedCommand->Session == CurrentSession_) {
-                        SwitchChunk();
-                        break;
-                    }
                 }
             }
         }
@@ -978,13 +987,16 @@ private:
 
             while (true) {
                 auto command = DequeueCommand();
-                if (auto* typedCommand = std::get_if<TBatchCommand>(&command)) {
-                    (*typedCommand)->FlushedPromise.Set(error);
-                } else if (std::holds_alternative<TCancelCommand>(command)) {
-                    throw TFiberCanceledException();
-                } else {
-                    // Ignore.
-                }
+                Visit(command,
+                    [&] (const TBatchCommand& typedCommand) {
+                        typedCommand->FlushedPromise.Set(error);
+                    },
+                    [&] (TCancelCommand) {
+                        throw TFiberCanceledException();
+                    },
+                    [&] (const auto&) {
+                        // ignore
+                    });
             }
         }
 

@@ -2945,7 +2945,7 @@ private:
         batchRsp->GetResponse<TYPathProxy::TRspSet>(0)
             .ThrowOnError();
     }
-    
+
     static bool TryParseObjectId(const TYPath& path, TObjectId* objectId)
     {
         NYPath::TTokenizer tokenizer(path);
@@ -4417,15 +4417,18 @@ private:
         auto deadline = timeout.ToDeadLine();
 
         TOperationId operationId;
-        if (std::holds_alternative<TOperationId>(operationIdOrAlias)) {
-            operationId = std::get<TOperationId>(operationIdOrAlias);
-        } else if (!options.IncludeRuntime) {
-            THROW_ERROR_EXCEPTION(
-                "Operation alias cannot be resolved without using runtime information; "
-                "consider setting include_runtime = %true");
-        } else {
-            operationId = ResolveOperationAlias(std::get<TString>(operationIdOrAlias), options, deadline);
-        }
+        Visit(operationIdOrAlias,
+            [&] (const TOperationId& id) {
+                operationId = id;
+            },
+            [&] (const TString& alias) {
+                if (!options.IncludeRuntime) {
+                    THROW_ERROR_EXCEPTION(
+                        "Operation alias cannot be resolved without using runtime information; "
+                        "consider setting include_runtime = %true");
+                }
+                operationId = ResolveOperationAlias(alias, options, deadline);
+            });
 
         if (auto result = DoGetOperationFromCypress(operationId, deadline, options)) {
             return result;
