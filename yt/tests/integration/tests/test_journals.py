@@ -105,27 +105,10 @@ class TestJournals(YTEnvSetup):
     def test_journal_replica_changes_medium_yt_8669(self):
         set("//sys/@config/chunk_manager/enable_chunk_sealer", False, recursive=True)
 
-        class JournalDataStream(TextIOBase):
-            def __init__(self, owner):
-                self._i = 0
-                self._owner = owner
-
-            def read(self, size):
-                if size < 0:
-                    raise ValueError()
-
-                self._i += 1
-
-                if self._i == 3:
-                    self._owner.Env.kill_nodes()
-                    raise "" # Throw to abort the journal writer without sealing the chunk.
-
-                # NB: size is hackishly ignored for simplicity.
-                return '{{"data"="payload{0}";}};'.format(self._i)
-
         create("journal", "//tmp/j1")
-        with pytest.raises(YtError):
-            write_journal("//tmp/j1", None, raw=False, input_stream=JournalDataStream(self))
+        write_journal("//tmp/j1", self.DATA, journal_writer={"ignore_closing": True})
+
+        self.Env.kill_nodes()
 
         assert not get("//tmp/j1/@sealed")
 

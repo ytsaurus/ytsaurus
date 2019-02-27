@@ -250,6 +250,8 @@ private:
 TWriteJournalCommand::TWriteJournalCommand()
 {
     RegisterParameter("path", Path);
+    RegisterParameter("journal_writer", JournalWriter)
+        .Default();
 }
 
 void TWriteJournalCommand::DoExecute(ICommandContextPtr context)
