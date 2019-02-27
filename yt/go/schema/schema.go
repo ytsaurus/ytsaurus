@@ -3,6 +3,16 @@ package schema
 
 type Type string
 
+func (t Type) MarshalText() (text []byte, err error) {
+	return []byte(t), nil
+}
+
+func (t *Type) UnmarshalText(text []byte) error {
+	*t = Type(text)
+	// TODO(prime@): validate
+	return nil
+}
+
 func (t Type) String() string {
 	return string(t)
 }
@@ -26,12 +36,32 @@ const (
 
 type SortOrder string
 
+func (o SortOrder) MarshalText() (text []byte, err error) {
+	return []byte(o), nil
+}
+
+func (o *SortOrder) UnmarshalText(text []byte) error {
+	*o = SortOrder(text)
+	// TODO(prime@): validate
+	return nil
+}
+
 const (
 	SortNode      SortOrder = ""
 	SortAscending SortOrder = "ascending"
 )
 
 type AggregateFunction string
+
+func (a AggregateFunction) MarshalText() (text []byte, err error) {
+	return []byte(a), nil
+}
+
+func (a *AggregateFunction) UnmarshalText(text []byte) error {
+	*a = AggregateFunction(text)
+	// TODO(prime@): validate
+	return nil
+}
 
 const (
 	AggregateSum AggregateFunction = "sum"
