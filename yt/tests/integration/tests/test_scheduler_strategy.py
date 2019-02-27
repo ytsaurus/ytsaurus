@@ -1445,6 +1445,8 @@ class TestSchedulerPools(YTEnvSetup):
                     events.append(row["event_type"])
                     if event_type == "operation_started":
                         assert row["pool"]
+                    if event_type == "operation_completed":
+                        assert row["progress"]["job_statistics"]
             return events == ["operation_started", "operation_completed"]
         wait(lambda: check_events())
 
