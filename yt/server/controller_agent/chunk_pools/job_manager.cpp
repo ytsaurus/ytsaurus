@@ -208,7 +208,7 @@ void TJobManager::TJob::Invalidate()
 {
     YCHECK(!Invalidated_);
     Invalidated_ = true;
-    StripeList_->Stripes.clear();
+    StripeList_.Reset();
     UpdateSelf();
 }
 
