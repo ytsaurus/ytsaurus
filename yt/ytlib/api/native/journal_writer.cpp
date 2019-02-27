@@ -171,6 +171,10 @@ private:
 
         TFuture<void> Close()
         {
+            if (Config_->IgnoreClosing) {
+                return VoidFuture;
+            }
+
             EnqueueCommand(TCloseCommand());
             return ClosedPromise_;
         }
