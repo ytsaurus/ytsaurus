@@ -287,7 +287,8 @@ class TestRetries(object):
 
             response_parameters = {}
             rsp = yt.read_table(table, response_parameters=response_parameters, format=yt.JsonFormat(), raw=True)
-            assert {"start_row_index": 0, "approximate_row_count": 2} == response_parameters
+            assert response_parameters["start_row_index"] == 0
+            assert response_parameters["approximate_row_count"] == 2
             rsp.close()
         finally:
             yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
