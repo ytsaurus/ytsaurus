@@ -73,7 +73,8 @@ class TestTableCommands(object):
 
         response_parameters = {}
         list(yt.read_table(table, response_parameters=response_parameters))
-        assert {"start_row_index": 0, "approximate_row_count": 1} == response_parameters
+        assert response_parameters["start_row_index"] == 0
+        assert response_parameters["approximate_row_count"] == 1
 
         yt.write_table(table, [{"y": "1"}], raw=False)
         assert [{"y": "1"}] == list(yt.read_table(table, raw=False))
@@ -244,21 +245,20 @@ class TestTableCommands(object):
 
         with set_config_option("tabular_data_format", yt.JsonFormat()):
             rsp = yt.read_table(table, raw=True)
-            assert rsp.response_parameters == {"start_row_index": 0,
-                                               "approximate_row_count": 3}
+            assert rsp.response_parameters["start_row_index"] == 0
+            assert rsp.response_parameters["approximate_row_count"] == 3
 
             rsp = yt.read_table(yt.TablePath(table, start_index=1), raw=True)
-            assert rsp.response_parameters == {"start_row_index": 1,
-                                               "approximate_row_count": 2}
+            assert rsp.response_parameters["start_row_index"] == 1
+            assert rsp.response_parameters["approximate_row_count"] == 2
 
             rsp = yt.read_table(yt.TablePath(table, lower_key=["d"]), raw=True)
-            assert rsp.response_parameters == \
-                {"start_row_index": 2,
-                 # When reading with key limits row count is estimated rounded up to the chunk row count.
-                 "approximate_row_count": 3}
+            assert rsp.response_parameters["start_row_index"] == 2
+            # When reading with key limits row count is estimated rounded up to the chunk row count.
+            assert rsp.response_parameters["approximate_row_count"] == 3
 
             rsp = yt.read_table(yt.TablePath(table, lower_key=["x"]), raw=True)
-            assert rsp.response_parameters == {"approximate_row_count": 0}
+            assert rsp.response_parameters["approximate_row_count"] == 0
 
     def test_start_row_index_parallel(self):
         with set_config_option("read_parallel/enable", True):
