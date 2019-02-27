@@ -868,7 +868,7 @@ def package_rpc_bindings(options, build_context):
         "--working-directory", options.working_directory,
         "--debian-repositories", ",".join(options.bindings_repositories),
         "--changelog-path", os.path.join(changelog_dir, "debian/changelog"),
-        "--source-python-module-path", os.path.join(options.checkout_directory, "yt/python/yt_driver_bindings"),
+        "--source-python-module-path", os.path.join(options.checkout_directory, "yt/python/yt_driver_rpc_bindings"),
     ]
 
     configurations = [
