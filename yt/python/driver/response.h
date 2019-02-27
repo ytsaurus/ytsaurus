@@ -5,7 +5,7 @@
 #include <yt/python/yson/object_builder.h>
 #include <yt/python/yson/serialize.h>
 
-#include <yt/ytlib/driver/driver.h>
+#include <yt/client/driver/driver.h>
 
 #include <yt/core/yson/consumer.h>
 

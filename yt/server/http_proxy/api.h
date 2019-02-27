@@ -2,12 +2,12 @@
 
 #include "public.h"
 
+#include <yt/client/driver/driver.h>
+
 #include <yt/core/http/http.h>
 #include <yt/core/profiling/profiler.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
-
-#include <yt/ytlib/driver/driver.h>
 
 namespace NYT::NHttpProxy {
 

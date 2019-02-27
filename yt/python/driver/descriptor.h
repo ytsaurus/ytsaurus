@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/ytlib/driver/driver.h>
+#include <yt/client/driver/driver.h>
 
 #include <Extensions.hxx> // pycxx
 
