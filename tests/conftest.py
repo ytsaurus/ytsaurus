@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from yp.common import YtResponseError, wait
-from yp.local import YpInstance, ACTUAL_DB_VERSION
+from yp.local import YpInstance, ACTUAL_DB_VERSION, OBJECT_TYPES
 from yp.logger import logger
 
 from yt.wrapper.common import generate_uuid
@@ -39,21 +39,17 @@ if yatest_common is None:
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
 TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", TESTS_LOCATION + ".sandbox")
 
-OBJECT_TYPES = [
-    "pod",
-    "pod_set",
-    "resource",
-    "network_project",
-    "node",
-    "endpoint",
-    "endpoint_set",
-    "node_segment",
-    "user",
-    "group",
-    "internet_address",
-    "account",
-    "replica_set",
-]
+def _build_order_of_object_type_removal():
+    result = [
+        "pod",
+        "pod_set",
+    ]
+    for object_type in OBJECT_TYPES:
+        if object_type not in result:
+            result.append(object_type)
+    return result
+
+ORDER_OF_OBJECT_TYPE_REMOVAL = _build_order_of_object_type_removal()
 
 ZERO_RESOURCE_REQUESTS = {
     "vcpu_guarantee": 0,
@@ -215,7 +211,7 @@ def test_method_setup(yp_env):
 
 def test_method_teardown(yp_env):
     def cleanup_objects(yp_client):
-        for object_type in OBJECT_TYPES:
+        for object_type in ORDER_OF_OBJECT_TYPE_REMOVAL:
             if object_type == "schema":
                 continue
 
