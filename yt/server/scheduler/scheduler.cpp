@@ -1702,14 +1702,22 @@ private:
     }
 
 
-    void LogOperationFinished(const TOperationPtr& operation, ELogEventType logEventType, const TError& error)
+    void LogOperationFinished(
+        const TOperationPtr& operation,
+        ELogEventType logEventType,
+        const TError& error,
+        TYsonString progress)
     {
         LogEventFluently(logEventType)
             .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation))
             .Item("start_time").Value(operation->GetStartTime())
             .Item("finish_time").Value(operation->GetFinishTime())
             .Item("controller_time_statistics").Value(operation->ControllerTimeStatistics())
-            .Item("error").Value(error);
+            .Item("error").Value(error)
+            .DoIf(progress.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("progress").Value(progress);
+            });
+
     }
 
 
@@ -2517,6 +2525,7 @@ private:
         // The operation may still have running jobs (e.g. those started speculatively).
         AbortOperationJobs(operation, TError("Operation completed"), /* terminated */ true);
 
+        TOperationProgress operationProgress;
         try {
             // First flush: ensure that all stderrs are attached and the
             // state is changed to Completing.
@@ -2528,7 +2537,7 @@ private:
             }
 
             // Should be called before commit in controller.
-            auto operationProgress = WaitFor(BIND(&TImpl::RequestOperationProgress, MakeStrong(this), operation)
+            operationProgress = WaitFor(BIND(&TImpl::RequestOperationProgress, MakeStrong(this), operation)
                 .AsyncVia(operation->GetCancelableControlInvoker())
                 .Run())
                 .ValueOrThrow();
@@ -2571,7 +2580,7 @@ private:
         YT_LOG_INFO("Operation completed (OperationId: %v)",
              operationId);
 
-        LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
+        LogOperationFinished(operation, ELogEventType::OperationCompleted, TError(), operationProgress.Progress);
     }
 
     void DoFailOperation(
@@ -2818,7 +2827,7 @@ private:
             Y_UNUSED(WaitFor(controller->Unregister()));
         }
 
-        LogOperationFinished(operation, logEventType, error);
+        LogOperationFinished(operation, logEventType, error, operationProgress.Progress);
 
         FinishOperation(operation);
     }
@@ -2843,7 +2852,14 @@ private:
         // Result is ignored since failure causes scheduler disconnection.
         Y_UNUSED(WaitFor(MasterConnector_->FlushOperationNode(operation)));
 
-        LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
+        auto result = WaitFor(BIND(&TImpl::RequestOperationProgress, MakeStrong(this), operation)
+            .AsyncVia(operation->GetCancelableControlInvoker())
+            .Run());
+        auto progress = result.IsOK()
+            ? result.Value().Progress
+            : TYsonString();
+
+        LogOperationFinished(operation, ELogEventType::OperationCompleted, TError(), progress);
 
         FinishOperation(operation);
     }
@@ -2874,7 +2890,14 @@ private:
         // Result is ignored since failure causes scheduler disconnection.
         Y_UNUSED(WaitFor(MasterConnector_->FlushOperationNode(operation)));
 
-        LogOperationFinished(operation, ELogEventType::OperationAborted, error);
+        auto result = WaitFor(BIND(&TImpl::RequestOperationProgress, MakeStrong(this), operation)
+            .AsyncVia(operation->GetCancelableControlInvoker())
+            .Run());
+        auto progress = result.IsOK()
+            ? result.Value().Progress
+            : TYsonString();
+
+        LogOperationFinished(operation, ELogEventType::OperationAborted, error, progress);
 
         FinishOperation(operation);
     }
