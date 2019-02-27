@@ -85,7 +85,7 @@ func (e *Env) DownloadSlice(path ypath.Path, value interface{}) error {
 			return err
 		}
 
-		sliceValue = reflect.AppendSlice(sliceValue, row.Elem())
+		sliceValue = reflect.Append(sliceValue, row.Elem())
 	}
 
 	reflect.ValueOf(value).Elem().Set(sliceValue)

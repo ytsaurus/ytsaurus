@@ -211,21 +211,35 @@ func (r *Reader) decodeLastLiteral() (err error) {
 
 // Undo last call to Next.
 //
-// It is not possible to undo call Next(true).
+// It is not possible to undo call to Next(true).
 func (r *Reader) Undo(event Event) {
-	r.undo = true
-	r.undoEvent = event
+	switch event {
+	case EventLiteral:
+		r.undoEvent = event
+		r.undo = true
+
+	case EventBeginAttrs:
+		r.s.undo(scanBeginAttrs)
+		r.pos--
+
+	case EventBeginMap:
+		r.s.undo(scanBeginMap)
+		r.pos--
+
+	case EventBeginList:
+		r.s.undo(scanBeginList)
+		r.pos--
+
+	default:
+		panic(fmt.Sprintf("can't undo %d", event))
+	}
 }
 
 // Next returns next event from yson stream.
 func (r *Reader) Next(skipAttributes bool) (Event, error) {
 	if r.undo {
 		r.undo = false
-		if r.undoEvent == EventBeginAttrs && skipAttributes {
-			r.s.undo(scanBeginAttrs)
-		} else {
-			return r.undoEvent, nil
-		}
+		return r.undoEvent, nil
 	}
 
 	r.keep = -1
@@ -338,6 +352,11 @@ func (r *Reader) NextKey() (ok bool, err error) {
 //
 // Returned slice is valid only until next call to the reader.
 func (r *Reader) NextRawValue() ([]byte, error) {
+	if r.undo {
+		r.undo = false
+		return r.buf[r.keep:r.pos], nil
+	}
+
 	r.keep = -1
 	op, err := r.scanWhile(scanSkipSpace)
 	if err != nil {

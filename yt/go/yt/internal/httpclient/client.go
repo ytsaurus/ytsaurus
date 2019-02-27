@@ -34,9 +34,9 @@ func decodeYTErrorFromHeaders(h http.Header) (ytErr *yt.Error, err error) {
 type httpClient struct {
 	internal.Encoder
 
-	logger          internal.LoggingInterceptor
-	mutationRetrier internal.MutationRetrier
-	readRetrier     internal.ReadRetrier
+	requestLogger   *internal.LoggingInterceptor
+	mutationRetrier *internal.MutationRetrier
+	readRetrier     *internal.ReadRetrier
 
 	clusterURL string
 	httpClient *http.Client
@@ -150,12 +150,13 @@ func (c *httpClient) readResult(rsp *http.Response) (res *internal.CallResult, e
 
 	res = &internal.CallResult{}
 
-	res.Err, err = decodeYTErrorFromHeaders(rsp.Header)
+	var ytErr *yt.Error
+	ytErr, err = decodeYTErrorFromHeaders(rsp.Header)
 	if err != nil {
 		return
 	}
-	if res.Err != nil {
-		return nil, res.Err
+	if ytErr != nil {
+		return nil, ytErr
 	}
 
 	if rsp.StatusCode/100 != 2 {
@@ -313,6 +314,26 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 	client.Encoder.InvokeReadRow = client.doReadRow
 	client.Encoder.InvokeWrite = client.doWrite
 	client.Encoder.InvokeWriteRow = client.doWriteRow
+
+	client.mutationRetrier = &internal.MutationRetrier{
+		Backoff: &internal.DefaultBackoff,
+		Log:     client.log,
+	}
+	client.readRetrier = &internal.ReadRetrier{
+		Backoff: &internal.DefaultBackoff,
+		Log:     client.log,
+	}
+	client.requestLogger = &internal.LoggingInterceptor{client.log}
+
+	client.Encoder.Invoke = client.Encoder.Invoke.
+		Wrap(client.requestLogger.Intercept).
+		Wrap(client.mutationRetrier.Intercept).
+		Wrap(client.readRetrier.Intercept)
+
+	client.Encoder.InvokeRead = client.Encoder.InvokeRead.Wrap(client.requestLogger.Read)
+	client.Encoder.InvokeReadRow = client.Encoder.InvokeReadRow.Wrap(client.requestLogger.ReadRow)
+	client.Encoder.InvokeWrite = client.Encoder.InvokeWrite.Wrap(client.requestLogger.Write)
+	client.Encoder.InvokeWriteRow = client.Encoder.InvokeWriteRow.Wrap(client.requestLogger.WriteRow)
 
 	if c.Token != "" {
 		client.credentials = &yt.TokenCredentials{c.Token}

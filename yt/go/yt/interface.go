@@ -111,6 +111,8 @@ type GetNodeOptions struct {
 	*AccessTrackingOptions
 	*PrerequisiteOptions
 	*MasterReadOptions
+
+	*ReadRetryOptions
 }
 
 type SetNodeOptions struct {
@@ -131,6 +133,8 @@ type ListNodeOptions struct {
 	*MasterReadOptions
 	*AccessTrackingOptions
 	*PrerequisiteOptions
+
+	*ReadRetryOptions
 }
 
 type CopyNodeOptions struct {
@@ -366,6 +370,7 @@ type GetFileFromCacheOptions struct {
 	CachePath ypath.Path `http:"cache_path"`
 
 	*MasterReadOptions
+	*ReadRetryOptions
 }
 
 type FileClient interface {
@@ -463,6 +468,8 @@ type UpdateOperationParametersOptions struct {
 
 type ListOperationsOptions struct {
 	*MasterReadOptions
+
+	*ReadRetryOptions
 }
 
 type GetOperationOptions struct {
@@ -470,6 +477,8 @@ type GetOperationOptions struct {
 	IncludeRuntime *bool    `http:"include_runtime,omitnil"`
 
 	*MasterReadOptions
+
+	*ReadRetryOptions
 }
 
 type OperationResult struct {
@@ -543,6 +552,12 @@ type LowLevelSchedulerClient interface {
 		opID OperationID,
 		options *GetOperationOptions,
 	) (status *OperationStatus, err error)
+
+	// http:verb:"list_operations"
+	ListOperations(
+		ctx context.Context,
+		options *ListOperationsOptions,
+	) (operations []*OperationStatus, err error)
 }
 
 type AddMemberOptions struct{}
@@ -570,6 +585,10 @@ type AdminClient interface {
 }
 
 type LockNodeOptions struct {
+	Waitable     bool    `http:"waitable"`
+	ChildKey     *string `http:"child_key,omitnil"`
+	AttributeKey *string `http:"attribute_key,omitnil"`
+
 	*TransactionOptions
 	*MutatingOptions
 }

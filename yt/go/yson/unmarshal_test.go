@@ -54,17 +54,29 @@ func TestUnmarshalRecursionLimit(t *testing.T) {
 }
 
 func TestUnmarhalListFragment(t *testing.T) {
-	in := "1;2;"
+	in := "{A=1;};{B=2;};"
 
 	r := NewReaderKindFromBytes([]byte(in), StreamListFragment)
 	d := Decoder{r}
 
-	var i int
-	require.Nil(t, d.Decode(&i))
-	require.Equal(t, 1, i)
+	ok, err := r.NextListItem()
+	require.NoError(t, err)
+	require.True(t, ok)
 
-	require.Nil(t, d.Decode(&i))
-	require.Equal(t, 2, i)
+	var v RawValue
+	require.NoError(t, d.Decode(&v))
+	require.Equal(t, "{A=1;}", string(v))
+
+	ok, err = r.NextListItem()
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	require.NoError(t, d.Decode(&v))
+	require.Equal(t, "{B=2;}", string(v))
+
+	ok, err = r.NextListItem()
+	require.NoError(t, err)
+	require.False(t, ok)
 }
 
 type nestedStruct struct {
@@ -82,4 +94,13 @@ func TestUnmarshalPointerField(t *testing.T) {
 
 	assert.NotNil(t, s.B)
 	assert.Equal(t, 1, s.B.A)
+}
+
+func TestUnmarshalEntity(t *testing.T) {
+	var s outerStruct
+
+	require.NoError(t, Unmarshal([]byte("{B=#}"), &s))
+	assert.Nil(t, s.B)
+
+	require.Error(t, Unmarshal([]byte("{B=<foo=bar>#}"), &s))
 }

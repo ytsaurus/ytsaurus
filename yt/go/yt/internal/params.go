@@ -138,6 +138,7 @@ func writeGetNodeOptions(w *yson.Writer, o *yt.GetNodeOptions) {
 	writeAccessTrackingOptions(w, o.AccessTrackingOptions)
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 	writeMasterReadOptions(w, o.MasterReadOptions)
+	writeReadRetryOptions(w, o.ReadRetryOptions)
 }
 
 func writeSetNodeOptions(w *yson.Writer, o *yt.SetNodeOptions) {
@@ -170,6 +171,7 @@ func writeListNodeOptions(w *yson.Writer, o *yt.ListNodeOptions) {
 	writeMasterReadOptions(w, o.MasterReadOptions)
 	writeAccessTrackingOptions(w, o.AccessTrackingOptions)
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
+	writeReadRetryOptions(w, o.ReadRetryOptions)
 }
 
 func writeCopyNodeOptions(w *yson.Writer, o *yt.CopyNodeOptions) {
@@ -353,6 +355,7 @@ func writeGetFileFromCacheOptions(w *yson.Writer, o *yt.GetFileFromCacheOptions)
 	w.MapKeyString("cache_path")
 	w.Any(o.CachePath)
 	writeMasterReadOptions(w, o.MasterReadOptions)
+	writeReadRetryOptions(w, o.ReadRetryOptions)
 }
 
 func writeWriteTableOptions(w *yson.Writer, o *yt.WriteTableOptions) {
@@ -434,6 +437,7 @@ func writeListOperationsOptions(w *yson.Writer, o *yt.ListOperationsOptions) {
 		return
 	}
 	writeMasterReadOptions(w, o.MasterReadOptions)
+	writeReadRetryOptions(w, o.ReadRetryOptions)
 }
 
 func writeGetOperationOptions(w *yson.Writer, o *yt.GetOperationOptions) {
@@ -449,6 +453,7 @@ func writeGetOperationOptions(w *yson.Writer, o *yt.GetOperationOptions) {
 		w.Any(o.IncludeRuntime)
 	}
 	writeMasterReadOptions(w, o.MasterReadOptions)
+	writeReadRetryOptions(w, o.ReadRetryOptions)
 }
 
 func writeAddMemberOptions(w *yson.Writer, o *yt.AddMemberOptions) {
@@ -466,6 +471,16 @@ func writeRemoveMemberOptions(w *yson.Writer, o *yt.RemoveMemberOptions) {
 func writeLockNodeOptions(w *yson.Writer, o *yt.LockNodeOptions) {
 	if o == nil {
 		return
+	}
+	w.MapKeyString("waitable")
+	w.Any(o.Waitable)
+	if o.ChildKey != nil {
+		w.MapKeyString("child_key")
+		w.Any(o.ChildKey)
+	}
+	if o.AttributeKey != nil {
+		w.MapKeyString("attribute_key")
+		w.Any(o.AttributeKey)
 	}
 	writeTransactionOptions(w, o.TransactionOptions)
 	writeMutatingOptions(w, o.MutatingOptions)
@@ -728,6 +743,10 @@ func (p *GetNodeParams) MasterReadOptions() **yt.MasterReadOptions {
 	return &p.options.MasterReadOptions
 }
 
+func (p *GetNodeParams) ReadRetryOptions() **yt.ReadRetryOptions {
+	return &p.options.ReadRetryOptions
+}
+
 type SetNodeParams struct {
 	verb    Verb
 	path    ypath.Path
@@ -828,6 +847,10 @@ func (p *ListNodeParams) AccessTrackingOptions() **yt.AccessTrackingOptions {
 
 func (p *ListNodeParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
 	return &p.options.PrerequisiteOptions
+}
+
+func (p *ListNodeParams) ReadRetryOptions() **yt.ReadRetryOptions {
+	return &p.options.ReadRetryOptions
 }
 
 type CopyNodeParams struct {
@@ -1332,6 +1355,10 @@ func (p *GetFileFromCacheParams) MasterReadOptions() **yt.MasterReadOptions {
 	return &p.options.MasterReadOptions
 }
 
+func (p *GetFileFromCacheParams) ReadRetryOptions() **yt.ReadRetryOptions {
+	return &p.options.ReadRetryOptions
+}
+
 type WriteTableParams struct {
 	verb    Verb
 	path    ypath.Path
@@ -1684,6 +1711,46 @@ func (p *GetOperationParams) MarshalHTTP(w *yson.Writer) {
 
 func (p *GetOperationParams) MasterReadOptions() **yt.MasterReadOptions {
 	return &p.options.MasterReadOptions
+}
+
+func (p *GetOperationParams) ReadRetryOptions() **yt.ReadRetryOptions {
+	return &p.options.ReadRetryOptions
+}
+
+type ListOperationsParams struct {
+	verb    Verb
+	options *yt.ListOperationsOptions
+}
+
+func NewListOperationsParams(
+	options *yt.ListOperationsOptions,
+) *ListOperationsParams {
+	if options == nil {
+		options = &yt.ListOperationsOptions{}
+	}
+	return &ListOperationsParams{
+		Verb("list_operations"),
+		options,
+	}
+}
+
+func (p *ListOperationsParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *ListOperationsParams) Log() []log.Field {
+	return []log.Field{}
+}
+
+func (p *ListOperationsParams) MarshalHTTP(w *yson.Writer) {
+	writeListOperationsOptions(w, p.options)
+}
+
+func (p *ListOperationsParams) MasterReadOptions() **yt.MasterReadOptions {
+	return &p.options.MasterReadOptions
+}
+
+func (p *ListOperationsParams) ReadRetryOptions() **yt.ReadRetryOptions {
+	return &p.options.ReadRetryOptions
 }
 
 type AddMemberParams struct {

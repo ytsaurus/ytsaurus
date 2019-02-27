@@ -338,6 +338,17 @@ func (e *Encoder) GetOperation(
 	return
 }
 
+func (e *Encoder) ListOperations(
+	ctx context.Context,
+	options *yt.ListOperationsOptions,
+) (operations []*yt.OperationStatus, err error) {
+	call := e.newCall(NewListOperationsParams(options))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return res.decode(&operations)
+	})
+	return
+}
+
 func (e *Encoder) WriteFile(
 	ctx context.Context,
 	path ypath.Path,

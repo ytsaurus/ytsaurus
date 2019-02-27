@@ -53,7 +53,7 @@ func TestOperation(t *testing.T) {
 		status, err := env.YT.GetOperation(ctx, opID, nil)
 		require.NoError(t, err)
 
-		if status.State == "completed" {
+		if status.State == yt.StateCompleted {
 			break
 		}
 	}

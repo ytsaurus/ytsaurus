@@ -160,6 +160,10 @@ func (id *TxID) UnmarshalYSON(data []byte) (err error) {
 
 type MutationID guid.GUID
 
+func (id MutationID) String() string {
+	return guid.GUID(id).String()
+}
+
 func (id MutationID) MarshalYSON(w *yson.Writer) error {
 	return guid.GUID(id).MarshalYSON(w)
 }

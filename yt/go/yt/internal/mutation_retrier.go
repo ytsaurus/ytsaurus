@@ -4,13 +4,16 @@ import (
 	"context"
 	"time"
 
+	"a.yandex-team.ru/library/go/core/log"
+
 	"a.yandex-team.ru/yt/go/guid"
 
 	"a.yandex-team.ru/yt/go/yt"
 )
 
 type MutationRetrier struct {
-	Backoff yt.BackoffStrategy
+	Backoff BackoffStrategy
+	Log     log.Logger
 }
 
 type MutatingParams interface {
@@ -24,12 +27,22 @@ func (r *MutationRetrier) Intercept(ctx context.Context, call *Call, invoke Call
 
 		for i := 0; ; i++ {
 			res, err = invoke(ctx, call)
-			if err == nil {
+			if err == nil || !isTransientError(err) {
 				return
 			}
 
+			(*mut).Retry = true
+
+			backoff := r.Backoff.Backoff(i)
+			if r.Log != nil {
+				r.Log.Warn("retrying mutation",
+					log.String("call_id", call.CallID.String()),
+					log.Duration("backoff", backoff),
+					log.Error(err))
+			}
+
 			select {
-			case <-time.After(r.Backoff.Backoff(i)):
+			case <-time.After(backoff):
 			case <-ctx.Done():
 				return nil, ctx.Err()
 			}

@@ -26,14 +26,9 @@ type Call struct {
 
 type CallResult struct {
 	YSONValue []byte
-	Err       *yt.Error
 }
 
 func (res *CallResult) decodeSingle(key string, value interface{}) (err error) {
-	if res.Err != nil {
-		return res.Err
-	}
-
 	err = yson.Unmarshal(res.YSONValue, &unmapper{key: key, value: value})
 	return
 }
@@ -43,10 +38,6 @@ func (res *CallResult) decodeValue(value interface{}) (err error) {
 }
 
 func (res *CallResult) decode(value interface{}) (err error) {
-	if res.Err != nil {
-		return res.Err
-	}
-
 	err = yson.Unmarshal(res.YSONValue, value)
 	return
 }

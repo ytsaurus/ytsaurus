@@ -134,3 +134,37 @@ func TestParseTag(t *testing.T) {
 
 	assert.True(t, f.parseTag("-"))
 }
+
+type rawValueWithAttrs struct {
+	TableIndex int      `yson:"table_index,attr"`
+	Value      RawValue `yson:",value"`
+}
+
+func TestDecodeRawValueWithAttrs(t *testing.T) {
+	var v rawValueWithAttrs
+
+	require.NoError(t, Unmarshal([]byte("<table_index=1>{A=1}"), &v))
+	require.Equal(t, 1, v.TableIndex)
+	require.Equal(t, "{A=1}", string(v.Value))
+
+	require.NoError(t, Unmarshal([]byte("{A=1}"), &v))
+	require.Equal(t, 0, v.TableIndex)
+	require.Equal(t, "{A=1}", string(v.Value))
+}
+
+type intWithAttrs struct {
+	TableIndex int `yson:"table_index,attr"`
+	Value      int `yson:",value"`
+}
+
+func TestDecodeIntWithAttrs(t *testing.T) {
+	var v intWithAttrs
+
+	require.NoError(t, Unmarshal([]byte("<table_index=1>11"), &v))
+	require.Equal(t, 1, v.TableIndex)
+	require.Equal(t, 11, v.Value)
+
+	require.NoError(t, Unmarshal([]byte("11"), &v))
+	require.Equal(t, 0, v.TableIndex)
+	require.Equal(t, 11, v.Value)
+}
