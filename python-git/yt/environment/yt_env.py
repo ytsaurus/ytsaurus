@@ -1266,12 +1266,12 @@ class YTInstance(object):
     def start_rpc_proxy(self, sync=True):
         self._run_yt_component("proxy", name="rpc_proxy")
 
-        native_client = self.create_native_client()
+        client = self._create_cluster_client()
 
         def rpc_proxy_ready():
             self._validate_processes_are_running("rpc_proxy")
 
-            proxies = native_client.get("//sys/rpc_proxies")
+            proxies = client.get("//sys/rpc_proxies")
             return len(proxies) == self.rpc_proxy_count and all("alive" in proxy for proxy in proxies.values())
 
         self._wait_or_skip(lambda: self._wait_for(rpc_proxy_ready, "rpc_proxy", max_wait_time=20), sync)
