@@ -8,7 +8,7 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/driver/config.h>
+#include <yt/client/driver/config.h>
 
 #include <yt/client/api/config.h>
 

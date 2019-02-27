@@ -9,6 +9,18 @@
 
 #include <yt/build/build.h>
 
+#include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/config.h>
+
+#include <yt/ytlib/program/build_attributes.h>
+
+#include <yt/ytlib/monitoring/http_integration.h>
+#include <yt/ytlib/monitoring/monitoring_manager.h>
+
+#include <yt/ytlib/auth/authentication_manager.h>
+
+#include <yt/client/driver/driver.h>
+
 #include <yt/core/http/server.h>
 #include <yt/core/http/helpers.h>
 #include <yt/core/https/server.h>
@@ -25,17 +37,6 @@
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
-#include <yt/ytlib/api/native/connection.h>
-#include <yt/ytlib/api/native/config.h>
-
-#include <yt/ytlib/driver/driver.h>
-
-#include <yt/ytlib/program/build_attributes.h>
-
-#include <yt/ytlib/monitoring/http_integration.h>
-#include <yt/ytlib/monitoring/monitoring_manager.h>
-
-#include <yt/ytlib/auth/authentication_manager.h>
 
 namespace NYT::NHttpProxy {
 

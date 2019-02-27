@@ -4,15 +4,15 @@
 
 #include "api.h"
 
+#include <yt/ytlib/auth/public.h>
+
+#include <yt/client/driver/driver.h>
+
 #include <yt/core/http/public.h>
 
 #include <yt/core/ytree/public.h>
 
 #include <yt/core/rpc/authenticator.h>
-
-#include <yt/ytlib/driver/driver.h>
-
-#include <yt/ytlib/auth/public.h>
 
 namespace NYT::NHttpProxy {
 
