@@ -733,6 +733,14 @@ INodePtr PatchNode(const INodePtr& base, const INodePtr& patch)
 
 bool AreNodesEqual(const INodePtr& lhs, const INodePtr& rhs)
 {
+    if (!lhs && !rhs) {
+        return true;
+    }
+
+    if (!lhs || !rhs) {
+        return false;
+    }
+
     // Check types.
     auto lhsType = lhs->GetType();
     auto rhsType = rhs->GetType();
