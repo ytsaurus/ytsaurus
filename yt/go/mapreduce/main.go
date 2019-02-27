@@ -49,5 +49,10 @@ func JobMain() int {
 		return 1
 	}
 
+	if err := ctx.finish(); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
+		return 4
+	}
+
 	return 0
 }

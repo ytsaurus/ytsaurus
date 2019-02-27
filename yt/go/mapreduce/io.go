@@ -14,27 +14,95 @@ import (
 type reader struct {
 	in     io.Reader
 	reader *yson.Reader
+
+	err            error
+	eof            bool
+	hasValue       bool
+	lastTableIndex int
+	value          valueWithControlAttrs
+}
+
+type valueWithControlAttrs struct {
+	TableIndex int           `yson:"table_index,attr"`
+	Value      yson.RawValue `yson:",value"`
 }
 
 func (r *reader) TableIndex() int {
-	panic("implement me")
+	if !r.hasValue {
+		panic("TableIndex() called out of sequence")
+	}
+
+	return r.lastTableIndex
 }
 
 func (r *reader) Scan(value interface{}) error {
-	panic("implement me")
+	if !r.hasValue {
+		panic("Scan() called out of sequence")
+	}
+
+	return yson.Unmarshal([]byte(r.value.Value), value)
+}
+
+func (r *reader) Err() error {
+	return r.err
 }
 
 func (r *reader) Next() bool {
-	return false
+	r.hasValue = false
+
+	if r.eof || r.err != nil {
+		return false
+	}
+
+	var ok bool
+	ok, r.err = r.reader.NextListItem()
+	r.eof = !ok
+	if r.eof || r.err != nil {
+		return false
+	}
+
+	d := yson.Decoder{r.reader}
+	r.err = d.Decode(&r.value)
+	if r.err != nil {
+		return false
+	}
+
+	r.hasValue = true
+	r.lastTableIndex = r.value.TableIndex
+	return true
+}
+
+func newReader(r io.Reader) *reader {
+	return &reader{
+		in:     r,
+		reader: yson.NewReaderKind(r, yson.StreamListFragment),
+		eof:    false,
+	}
 }
 
 type writer struct {
 	out    io.WriteCloser
 	writer *yson.Writer
+
+	err error
 }
 
 func (w *writer) Write(value interface{}) error {
-	panic("implement me")
+	if w.err != nil {
+		return w.err
+	}
+
+	w.writer.Any(value)
+	return w.writer.Err()
+}
+
+func (w *writer) Close() error {
+	if w.err != nil {
+		return w.err
+	}
+
+	w.err = w.writer.Finish()
+	return w.err
 }
 
 type jobContext struct {
@@ -43,10 +111,7 @@ type jobContext struct {
 }
 
 func (c *jobContext) initPipes(nOutputPipes int) error {
-	c.in = &reader{
-		in:     os.Stdin,
-		reader: yson.NewReaderKind(os.Stdin, yson.StreamListFragment),
-	}
+	c.in = newReader(os.Stdin)
 
 	// Hide stdin from user code, just in case.
 	os.Stdin = nil
@@ -76,6 +141,22 @@ func (c *jobContext) initPipes(nOutputPipes int) error {
 				Kind:   yson.StreamListFragment,
 			}),
 		})
+	}
+
+	return nil
+}
+
+func (c *jobContext) finish() error {
+	if c.in.err != nil {
+		return xerrors.Errorf("input reader error: %w", c.in.err)
+	}
+
+	for _, out := range c.out {
+		_ = out.Close()
+
+		if out.err != nil {
+			return xerrors.Errorf("output writer error: %w", out.err)
+		}
 	}
 
 	return nil

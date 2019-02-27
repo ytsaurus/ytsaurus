@@ -30,7 +30,7 @@ func ExampleInfer() {
 
 	// Output:
 	// "IntColumn" is required column of type int64
-	// "AnyValue" is required column of type any
+	// "AnyValue" is optional column of type any
 	// "Optional" is optional column of type int64
 	// "custom_column_name" is required column of type utf8
 }

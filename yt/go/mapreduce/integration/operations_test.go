@@ -68,19 +68,22 @@ func TestMap(t *testing.T) {
 	env, cancel := yttest.NewEnv(t)
 	defer cancel()
 
+	job := &CatJob{}
+
 	inputPath := env.TmpPath()
 	outputPath := env.TmpPath()
 
-	require.NoError(t, env.UploadSlice(inputPath, []TestRow{
+	input := []TestRow{
 		{A: 1, B: "foo"},
 		{A: 2, B: "bar"},
-	}))
+	}
+	require.NoError(t, env.UploadSlice(inputPath, input))
 
 	_, err := env.YT.CreateNode(env.Ctx, outputPath, yt.NodeTable, nil)
 	require.NoError(t, err)
 
 	op, err := env.MR.Run(env.Ctx,
-		mapreduce.Map(&CatJob{},
+		mapreduce.Map(job,
 			&spec.Spec{
 				InputTablePaths:  []ypath.Path{inputPath},
 				OutputTablePaths: []ypath.Path{outputPath},
@@ -89,6 +92,10 @@ func TestMap(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NoError(t, op.Wait())
+
+	var output []TestRow
+	require.NoError(t, env.DownloadSlice(outputPath, &output))
+	require.Equal(t, input, output)
 }
 
 func TestMain(m *testing.M) {
