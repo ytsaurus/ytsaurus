@@ -14,15 +14,18 @@
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
-#include <library/threading/future/async.h>
 #include <library/sighandler/async_signals_handler.h>
 
 #include <util/folder/dirut.h>
+
 #include <util/generic/singleton.h>
+
 #include <util/string/builder.h>
 #include <util/string/cast.h>
 #include <util/string/type.h>
+
 #include <util/system/env.h>
+#include <util/system/thread.h>
 
 namespace NYT {
 
@@ -55,72 +58,72 @@ const TNode& GetJobSecureVault()
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAbnormalTerminator
- {
- public:
-     TAbnormalTerminator() = default;
+{
+public:
+    TAbnormalTerminator() = default;
 
-     static void SetErrorTerminationHandler()
-     {
-         Instance().DefaultHandler_ = std::get_terminate();
-         Instance().HandlerThread_.Reset(CreateThreadPool(1));
+    static void SetErrorTerminationHandler()
+    {
+        Instance().OldHandler_ = std::set_terminate(&TerminateHandler);
 
-         std::set_terminate(&TerminateHandler);
-         SetAsyncSignalFunction(SIGINT, SignalHandler);
-         SetAsyncSignalFunction(SIGTERM, SignalHandler);
-     }
+        SetAsyncSignalFunction(SIGINT, SignalHandler);
+        SetAsyncSignalFunction(SIGTERM, SignalHandler);
+    }
 
- private:
-     static TAbnormalTerminator& Instance()
-     {
-         return *Singleton<TAbnormalTerminator>();
-     }
+private:
+    static TAbnormalTerminator& Instance()
+    {
+        return *Singleton<TAbnormalTerminator>();
+    }
 
-     static void TerminateWithTimeout(
-         const TDuration& timeout,
-         const std::function<void(void)>& exitFunction,
-         const TString& logMessage)
-     {
-         auto result = NThreading::Async(
-             [&] {
-                 LOG_INFO(logMessage.Data());
-                 NDetail::TAbortableRegistry::Get()->AbortAllAndBlockForever();
-                 exitFunction();
-             },
-             *Instance().HandlerThread_);
-         Sleep(timeout);
-         exitFunction();
-     }
+    static void* Invoke(void* opaque)
+    {
+        (*reinterpret_cast<std::function<void()>*>(opaque))();
+        return nullptr;
+    }
 
-     static void SignalHandler(int signalNumber)
-     {
-         TString logMessage = TStringBuilder() << "Signal " << signalNumber << " received, aborting transactions. Waiting 5 seconds...";
-         TerminateWithTimeout(
-             TDuration::Seconds(5),
-             [&] {
-                 _exit(-signalNumber);
-             },
-             logMessage);
-     }
+    static void TerminateWithTimeout(
+        const TDuration& timeout,
+        const std::function<void(void)>& exitFunction,
+        const TString& logMessage)
+    {
+        std::function<void()> threadFun = [=] {
+            LOG_INFO("%s", logMessage.Data());
+            NDetail::TAbortableRegistry::Get()->AbortAllAndBlockForever();
+        };
+        TThread thread(TThread::TParams(Invoke, &threadFun).SetName("aborter"));
+        thread.Start();
+        thread.Detach();
 
-     static void TerminateHandler()
-     {
-         TString logMessage = TStringBuilder() << "Terminate called, aborting transactions. Waiting 5 seconds...";
-         TerminateWithTimeout(
-             TDuration::Seconds(5),
-             [&] {
-                 if (Instance().DefaultHandler_) {
-                     Instance().DefaultHandler_();
-                 } else {
-                     abort();
-                 }
-             },
-             logMessage);
-     }
+        Sleep(timeout);
+        exitFunction();
+    }
 
- private:
-     THolder<IThreadPool> HandlerThread_;
-     std::terminate_handler DefaultHandler_ = nullptr;
- };
+    static void SignalHandler(int signalNumber)
+    {
+        TerminateWithTimeout(
+            TDuration::Seconds(5),
+            std::bind(_exit, -signalNumber),
+            TStringBuilder() << "Signal " << signalNumber << " received, aborting transactions. Waiting 5 seconds...");
+    }
+
+    static void TerminateHandler()
+    {
+        TerminateWithTimeout(
+            TDuration::Seconds(5),
+            [&] {
+                if (Instance().OldHandler_) {
+                    Instance().OldHandler_();
+                } else {
+                    abort();
+                }
+            },
+            TStringBuilder() << "Terminate called, aborting transactions. Waiting 5 seconds...");
+    }
+
+private:
+    std::terminate_handler OldHandler_ = nullptr;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

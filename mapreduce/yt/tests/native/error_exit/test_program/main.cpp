@@ -37,7 +37,7 @@ class TFailingAndDeadlockingLogger
 public:
     void Log(ELevel, const TSourceLocation&, const char*, va_list) override
     {
-        TGuard<TMutex> guard(Mutex_);
+        Mutex_.Acquire();
         ythrow yexception() << "OOPS";
     }
 
@@ -48,6 +48,12 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, const char** argv) {
+    if (GetEnv("EXIT_CODE_FOR_TERMINATE")) {
+        std::set_terminate([] {
+            exit(FromString<int>(GetEnv("EXIT_CODE_FOR_TERMINATE")));
+        });
+    }
+
     Initialize(argc, argv);
 
     TConfig::Get()->LogLevel = "debug";

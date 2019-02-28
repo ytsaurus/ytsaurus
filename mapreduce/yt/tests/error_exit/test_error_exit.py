@@ -15,6 +15,10 @@ from yt_test_conf import TEST_PROGRAM_PATH
 
 TEST_PROGRAM = yatest.common.binary_path(TEST_PROGRAM_PATH)
 
+def skip_if_common_wrapper(func):
+    if "mapreduce/yt/tests/common" not in TEST_PROGRAM_PATH:
+        return func
+
 def get_operation_by_cmd_pattern(yt_client, pattern, attributes=None):
     if attributes is None:
         attributes = []
@@ -128,6 +132,7 @@ def test_abort_operations_and_transactions_on_signal(yt_stuff):
     check_table_is_not_locked(yt_client, "//tmp/test-signal-output")
     check_transaction_will_die(yt_client, "test-signal", 5)
 
+@skip_if_common_wrapper
 def test_finish_with_deadlocked_logger(yt_stuff):
     yt_client = yt_stuff.get_yt_client()
 
@@ -147,6 +152,8 @@ def test_finish_with_deadlocked_logger(yt_stuff):
             "INPUT_TABLE": "//tmp/test-deadlocked-logger-input",
             "OUTPUT_TABLE": "//tmp/test-deadlocked-logger-output",
             "FAIL_AND_DEADLOCK_LOGGER": "1",
+            "EXIT_CODE_FOR_TERMINATE": "78",
         },
-        timeout=10,
+        timeout=20,
     )
+    assert process.exit_code == 78
