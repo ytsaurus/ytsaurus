@@ -211,6 +211,26 @@ class TestCypressAcls(YTEnvSetup):
         assert ls("//tmp/p", authenticated_user="u") == ["a"]
         assert get("//tmp/p/a", authenticated_user="u") == "b"
 
+    def test_create_with_replace(self):
+        create_user("u")
+
+        # Deny writing.
+        create("map_node", "//tmp/a", attributes={"acl": [make_ace("deny", "u", "write")]})
+        create("map_node", "//tmp/a/b", attributes={"acl": [make_ace("allow", "u", "write")]})
+
+        with pytest.raises(YtError): create("table", "//tmp/a/b", force=True, authenticated_user="u")
+        set("//tmp/a/@acl", [make_ace("allow", "u", "write")])
+        create("table", "//tmp/a/b", force=True, authenticated_user="u")
+
+        # Allow write but deny remove.
+        create("map_node", "//tmp/c", attributes={"acl": [make_ace("allow", "u", "write")]})
+        create("map_node", "//tmp/c/d", attributes={"acl": [make_ace("allow", "u", "write"), make_ace("deny", "u", "remove")]})
+
+        with pytest.raises(YtError): create("table", "//tmp/c", force=True, authenticated_user="u")
+        set("//tmp/c/d/@acl", [make_ace("allow", "u", "write"), make_ace("allow", "u", "remove")])
+        create("table", "//tmp/c", force=True, authenticated_user="u")
+
+
     def test_create_in_tx1(self):
         create_user("u")
         tx = start_transaction()
@@ -276,6 +296,29 @@ class TestCypressAcls(YTEnvSetup):
             set("//tmp/t/@acl", [], authenticated_user="u")
         with pytest.raises(YtError):
             set("//tmp/t/@inherit_acl", False, authenticated_user="u")
+
+    def test_administer_permission5(self):
+        create_user("u")
+
+        create("map_node", "//tmp/dir1")
+        create("map_node", "//tmp/dir2", attributes={
+            "acl": [make_ace("deny", "u", "write"), make_ace("allow", "u", "administer")]})
+        create("map_node", "//tmp/dir3", attributes={
+            "acl": [make_ace("allow", "u", "write"), make_ace("deny", "u", "administer")]})
+        create("map_node", "//tmp/dir4", attributes={
+            "acl": [make_ace("allow", "u", "write"), make_ace("allow", "u", "administer")]})
+
+        read_acl = [make_ace("allow", "u", "read")]
+
+        with pytest.raises(YtError): create("table", "//tmp/dir1/t1", attributes={"acl": read_acl}, authenticated_user="u")
+        with pytest.raises(YtError): create("table", "//tmp/dir2/t1", attributes={"acl": read_acl}, authenticated_user="u")
+        with pytest.raises(YtError): create("table", "//tmp/dir3/t1", attributes={"acl": read_acl}, authenticated_user="u")
+        create("table", "//tmp/dir4/t1", attributes={"acl": read_acl}, authenticated_user="u")
+
+        with pytest.raises(YtError): create("table", "//tmp/dir1/t2", attributes={"inherit_acl": False}, authenticated_user="u")
+        with pytest.raises(YtError): create("table", "//tmp/dir2/t2", attributes={"inherit_acl": False}, authenticated_user="u")
+        with pytest.raises(YtError): create("table", "//tmp/dir3/t2", attributes={"inherit_acl": False}, authenticated_user="u")
+        create("table", "//tmp/dir4/t2", attributes={"inherit_acl": False}, authenticated_user="u")
 
     def test_user_rename_success(self):
         create_user("u1")

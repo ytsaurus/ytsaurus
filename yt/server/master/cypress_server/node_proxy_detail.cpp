@@ -1286,15 +1286,20 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         }
     }
 
-    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+    if (replace) {
+        ValidatePermission(EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::Remove);
+        ValidatePermission(EPermissionCheckScope::Parent, EPermission::Write);
+    } else {
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+    }
 
     auto* node = GetThisImpl();
-    auto* account = replace ? node->GetParent()->GetAccount() : node->GetAccount();
+    // The node inside which the new node must be created.
+    auto* intendedParentNode = replace ? node->GetParent() : node;
+    auto* account = intendedParentNode->GetAccount();
 
     TInheritedAttributeDictionary inheritedAttributes(Bootstrap_);
-    GatherInheritableAttributes(
-            replace ? node->GetParent() : node,
-            &inheritedAttributes.Attributes());
+    GatherInheritableAttributes(intendedParentNode, &inheritedAttributes.Attributes());
 
     std::unique_ptr<IAttributeDictionary> explicitAttributes;
     if (request->has_node_attributes()) {
@@ -1304,6 +1309,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         if (optionalAccount) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             account = securityManager->GetAccountByNameOrThrow(*optionalAccount);
+        }
+
+        if ((explicitAttributes->Contains("acl") || explicitAttributes->Contains("inherit_acl")) &&
+            intendedParentNode->GetTrunkNode())
+        {
+            ValidatePermission(intendedParentNode, EPermissionCheckScope::This, EPermission::Administer);
         }
     }
 
