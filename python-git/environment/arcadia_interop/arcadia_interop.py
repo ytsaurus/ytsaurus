@@ -1,8 +1,13 @@
 import os
 import fcntl
 import time
+import shutil
 
-import yatest.common
+try:
+    import yatest.common
+except ImportError:
+    # To avoid problems with import tests.
+    pass
 
 YT_ABI = "19_4"
 
@@ -49,3 +54,37 @@ def prepare_yt_environment(destination):
         pass
 
     return bin_dir
+
+def collect_cores(pids, working_directory, binaries, logger=None):
+    cores_path = os.path.join(working_directory, "cores")
+    if not os.path.isdir(cores_path):
+        os.makedirs(cores_path)
+
+    has_core_files = False
+    for pid in pids:
+        core_file = yatest.common.cores.recover_core_dump_file(
+            # Temporarily collect all cores since problem with core file names.
+            # yatest_common.binary_path("yp/server/master/bin/ypserver-master"),
+            "*",
+            # Process working directory.
+            working_directory,
+            pid)
+        if core_file is not None:
+            if logger is not None:
+                logger.info("Core file found: " + core_file)
+            try:
+                shutil.move(core_file, cores_path)
+            except IOError:
+                # Ignore errors (it can happen for foreign cores).
+                pass
+            has_core_files = True
+
+    if not has_core_files:
+        if logger is not None:
+            logger.debug("No core files found (working_directory: %s, pids: %s)",
+                working_directory,
+                str(pids))
+    else:
+        # Save binaries.
+        for binary in binaries:
+            shutil.copy(binary, cores_path)
