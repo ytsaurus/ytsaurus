@@ -76,7 +76,7 @@ public:
     //! Returns total compressed size of read blocks.
     i64 GetCompressedDataSize() const;
 
-    //! Returns codec and cpu time spent in compression.
+    //! Returns codec and CPU time spent in compression.
     TCodecDuration GetDecompressionTime() const;
 
 private:
