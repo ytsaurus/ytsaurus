@@ -107,6 +107,8 @@ def process_core_dumps(options, suite_name, suite_path):
         working_directory=options.working_directory,
         archive_dir=sandbox_archive)
 
+def python_package_path(options):
+    return os.path.join(options.checkout_directory, "scripts/teamcity-build/python/python_packaging/package.py")
 
 def only_for_projects(*projects):
     def decorator(func):
@@ -808,7 +810,7 @@ def package_yson_bindings(options, build_context):
 
     yson_packages_path = os.path.join(options.checkout_directory, "yt/python/yson-debian")
     args = [
-        os.path.join(options.checkout_directory, "yt/python/packaging/package.py"),
+        python_package_path(options),
         "--working-directory", options.working_directory,
         "--debian-repositories", ",".join(options.bindings_repositories),
         "--changelog-path", os.path.join(yson_packages_path, "debian/changelog"),
@@ -862,7 +864,7 @@ def package_rpc_bindings(options, build_context):
 
     rpc_packages_path = os.path.join(options.checkout_directory, "yt/python/driver-rpc-debian")
     args = [
-        os.path.join(options.checkout_directory, "yt/python/packaging/package.py"),
+        python_package_path(options),
         "--working-directory", options.working_directory,
         "--debian-repositories", ",".join(options.bindings_repositories),
         "--changelog-path", os.path.join(changelog_dir, "debian/changelog"),
@@ -916,7 +918,7 @@ def package_driver_bindings(options, build_context):
 
     driver_packages_path = os.path.join(options.checkout_directory, "yt/python/driver-debian")
     args = [
-        os.path.join(options.checkout_directory, "yt/python/packaging/package.py"),
+        python_package_path(options),
         "--working-directory", options.working_directory,
         "--debian-repositories", "yt-common",
         "--changelog-path", os.path.join(changelog_dir, "debian/changelog"),
