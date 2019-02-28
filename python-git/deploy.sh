@@ -96,9 +96,6 @@ case $PACKAGE in
     yandex-yt-python-fennel|yandex-yt-fennel)
         REPOS="yt-common"
         ;;
-    yandex-yt-python-yson|yandex-yt-python-driver-rpc)
-        REPOS="yandex-$CODENAME yt-$CODENAME"
-        ;;
     yandex-yt-python-proto)
         REPOS="common yt-common"
         ;;
@@ -136,6 +133,7 @@ fi
 
 # Upload python wheel
 if [ -z "$SKIP_WHEEL" ]; then
+    # THIS COMMENT SEEMS TO BE OUTDATED, NO MORE BINARY PACKAGES HERE!
     # Wheels are tagged only with interpreter type and platform (e.g. win32, macosx, etc.)
     # and not linux distribution aware. To preserve binary compatibility with as many
     # Ubuntu distributions as possible wheel should be built only on the oldest
