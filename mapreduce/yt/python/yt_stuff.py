@@ -1,5 +1,5 @@
 from yt.common import update
-from yt.environment.arcadia_interop import prepare_yt_binaries
+from yt.environment.arcadia_interop import prepare_yt_binaries, collect_cores
 
 import yt.yson as yson
 
@@ -560,18 +560,11 @@ class YtStuff(object):
                     self._split_file(file_path)
                     os.remove(file_path)
 
-        cores_dir = os.path.join(yt_output_dir, "cores")
-        if not os.path.isdir(cores_dir):
-            os.mkdir(cores_dir)
-
-        for pid in self._get_pids():
-            core_file = yatest.common.cores.recover_core_dump_file(
-                os.path.join(self.yt_bins_path, "ytserver"),
-                self.yt_work_dir,
-                pid
-            )
-            if core_file:
-                shutil.copy(core_file, cores_dir)
+        collect_cores(
+            self._get_pids(),
+            yt_output_dir,
+            [os.path.join(self.yt_bins_path, binary) for binary in os.listdir(self.yt_bins_path)],
+            logger=self.logger)
 
     def _get_pids(self):
         pids_file = os.path.join(self.yt_work_dir, self.yt_id, "pids.txt")
