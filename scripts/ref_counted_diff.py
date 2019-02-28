@@ -9,16 +9,23 @@ import itertools
 import json
 
 
+def get_statistics(result):
+    if "ref_counted" in result:
+        result = result["ref_counted"]
+    return result["statistics"]
+
+
 def load(filename, format_):
-    result = {}
+    file_data = open(filename).read()
     if format_ == "yson":
-        for obj in yson.loads(open(filename).read())["statistics"]:
-            result[obj["name"]] = obj
+        raw_results = yson.loads(file_data) 
     elif format_ == "json":
-        for obj in json.loads(open(filename).read())["statistics"]:
-            result[obj["name"]] = obj
+        raw_results = json.loads(file_data) 
     else:
         raise NotImplementedError("Unknown format '{}'".format(format_))
+    result = {}
+    for obj in get_statistics(raw_results):
+        result[obj["name"]] = obj
     return result
 
 
@@ -65,7 +72,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser("Calculate difference between ref counted tracker statistics")
     parser.add_argument("first_file_path", type=str, default="ref_counted1")
     parser.add_argument("second_file_path", type=str, default="ref_counted2")
-    parser.add_argument("--format", type=str, default="yson")
+    parser.add_argument("--format", type=str, default="json")
     parser.add_argument("--sort-field-name", type=str, default="objects_alive")
     return parser.parse_args()
 
