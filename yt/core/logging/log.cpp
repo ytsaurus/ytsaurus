@@ -26,7 +26,7 @@ void TMessageStringBuilder::DoPreallocate(size_t newLength)
     auto* context = GetContext();
     if (Y_UNLIKELY(context->ChunkOffset + newLength > context->Chunk.Size())) {
         auto chunkSize = std::max(ChunkSize, newLength);
-        context->Chunk = TSharedMutableRef::Allocate<TBufferTag>(chunkSize, false);
+        context->Chunk = TSharedMutableRef::Allocate<TMessageBufferTag>(chunkSize, false);
         context->ChunkOffset = 0;
     }
     Buffer_ = context->Chunk.Slice(context->ChunkOffset, context->ChunkOffset + newLength);
