@@ -8,7 +8,7 @@ clean() {
     make -f debian/rules clean
 }
 
-found_version() {
+found_debian_version() {
     local package="$1"
     local repo="$2"
     local target_version="$3"
@@ -106,7 +106,7 @@ REPOS="$REPOS $EXTRA_REPOSITORIES"
 REPOS_TO_UPLOAD=""
 if [ -z "$FORCE_DEPLOY" ]; then
     for REPO in $REPOS; do
-        if [ "$(found_version "$PACKAGE" "$REPO" "$VERSION")" = "0" ]; then
+        if [ "$(found_debian_version "$PACKAGE" "$REPO" "$VERSION")" = "0" ]; then
             REPOS_TO_UPLOAD="$REPOS_TO_UPLOAD $REPO"
         fi
     done
@@ -140,12 +140,10 @@ if [ -z "$SKIP_WHEEL" ]; then
     # distribution (since all new distributions have backward compatibility).
     # See PEP-425, PEP-513 and https://github.com/pypa/manylinux for more details.
     # This is why oldest distributions are chosen - precise.
-    if [ "$CODENAME" = "precise" ]; then
+    if [ "$CODENAME" = "precise" ] && [ "$(./find_pypi_package.py "$PACKAGE" "$VERSION")" = "0" ]; then
         # TODO(ignat): ignore error code since new version of distutils. 
         # For yandex-yt-python it would be fixed here: YT-10356.
-        set +e
         python setup.py bdist_wheel --universal upload -r yandex
-        set -e
     fi
 fi
 
