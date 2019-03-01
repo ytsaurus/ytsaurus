@@ -19,8 +19,8 @@ def main():
         name = PACKAGE_NAME + os.environ.get("PYTHON_SUFFIX", ""),
         version = get_version(),
         packages = ["yt_driver_bindings"],
-        package_data = {"yt_driver_bindings": ["driver_lib.so"] },
-
+        package_data = {"yt_driver_bindings": ["driver_lib.so", "driver_lib.dbg.so",
+                                               "driver_lib.abi3.so", "driver_lib.dbg.abi3.so"]},
         author = "Ignat Kolesnichenko",
         author_email = "ignat@yandex-team.ru",
         description = "C++ bindings to driver.",
