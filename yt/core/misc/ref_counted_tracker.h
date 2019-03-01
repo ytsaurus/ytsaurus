@@ -159,7 +159,7 @@ private:
 
     mutable NConcurrency::TForkAwareSpinLock SpinLock_;
     std::map<TKey, TRefCountedTypeCookie> KeyToCookie_;
-    std::map<TRefCountedTypeKey, size_t> TypeKeyToObjectsize_;
+    std::map<TRefCountedTypeKey, size_t> TypeKeyToObjectSize_;
     std::vector<TKey> CookieToKey_;
     TAnonymousStatistics GlobalStatistics_;
     THashSet<TStatisticsHolder*> PerThreadHolders_;
@@ -170,7 +170,7 @@ private:
     TNamedStatistics GetSnapshot() const;
     static void SortSnapshot(TNamedStatistics* snapshot, int sortByColumn);
 
-    size_t GetObjectsize(TRefCountedTypeKey typeKey) const;
+    size_t GetObjectSize(TRefCountedTypeKey typeKey) const;
 
     TNamedSlot GetSlot(TRefCountedTypeKey typeKey) const;
     TAnonymousSlot* GetPerThreadSlot(TRefCountedTypeCookie cookie);

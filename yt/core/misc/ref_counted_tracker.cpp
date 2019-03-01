@@ -227,7 +227,7 @@ TRefCountedTypeCookie TRefCountedTracker::GetCookie(
 {
     TGuard<TForkAwareSpinLock> guard(SpinLock_);
 
-    TypeKeyToObjectsize_.emplace(typeKey, Objectsize);
+    TypeKeyToObjectSize_.emplace(typeKey, Objectsize);
 
     TKey key{typeKey, location};
     auto it = KeyToCookie_.find(key);
@@ -248,7 +248,7 @@ TRefCountedTracker::TNamedStatistics TRefCountedTracker::GetSnapshot() const
 
     TNamedStatistics result;
     for (const auto& key : CookieToKey_) {
-        result.emplace_back(key, GetObjectsize(key.TypeKey));
+        result.emplace_back(key, GetObjectSize(key.TypeKey));
     }
 
     auto accumulateResult = [&] (const TAnonymousStatistics& statistics) {
@@ -389,10 +389,10 @@ size_t TRefCountedTracker::GetBytesAlive(TRefCountedTypeKey typeKey) const
     return GetSlot(typeKey).GetBytesAlive();
 }
 
-size_t TRefCountedTracker::GetObjectsize(TRefCountedTypeKey typeKey) const
+size_t TRefCountedTracker::GetObjectSize(TRefCountedTypeKey typeKey) const
 {
-    auto it = TypeKeyToObjectsize_.find(typeKey);
-    return it == TypeKeyToObjectsize_.end() ? 0 : it->second;
+    auto it = TypeKeyToObjectSize_.find(typeKey);
+    return it == TypeKeyToObjectSize_.end() ? 0 : it->second;
 }
 
 TRefCountedTracker::TNamedSlot TRefCountedTracker::GetSlot(TRefCountedTypeKey typeKey) const
@@ -401,7 +401,7 @@ TRefCountedTracker::TNamedSlot TRefCountedTracker::GetSlot(TRefCountedTypeKey ty
 
     TKey key{typeKey, TSourceLocation()};
 
-    TNamedSlot result(key, GetObjectsize(typeKey));
+    TNamedSlot result(key, GetObjectSize(typeKey));
     auto accumulateResult = [&] (const TAnonymousStatistics& statistics, TRefCountedTypeCookie cookie) {
         if (cookie < statistics.size()) {
             result += statistics[cookie];
