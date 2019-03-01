@@ -122,6 +122,9 @@ def prepare_python_source_tree(python_root, yt_root, prepare_binary_symlinks=Tru
     if prepare_bindings:
         replace(os.path.join(yt_root, "yt/python/yt_yson_bindings"), python_root)
         replace(os.path.join(yt_root, "yt/python/yt_driver_bindings"), python_root)
+        yt_driver_rpc_bindings = os.path.join(yt_root, "yt/python/yt_driver_rpc_bindings")
+        if os.path.exists(yt_driver_rpc_bindings):
+            replace(yt_driver_rpc_bindings, python_root)
 
     if prepare_binary_symlinks:
         for binary in PY23_BINARIES:
