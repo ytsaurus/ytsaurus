@@ -17,8 +17,8 @@ import (
 )
 
 type TestRow struct {
-	A int    `yt:"a"`
-	B string `yt:"a"`
+	A int    `yson:"a"`
+	B string `yson:"b"`
 }
 
 func init() {
