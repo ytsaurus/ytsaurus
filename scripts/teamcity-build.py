@@ -591,6 +591,8 @@ def package(options, build_context):
                         "-zlow",
                     ]
                     args += ya_make_args(options)
+                    if options.use_asan:
+                        args += ["--sanitize=address"]
                     tasks.append(dict(
                         args=args,
                         env=ya_make_env(options),
