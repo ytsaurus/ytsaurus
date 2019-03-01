@@ -1361,12 +1361,12 @@ func (p *GetFileFromCacheParams) ReadRetryOptions() **yt.ReadRetryOptions {
 
 type WriteTableParams struct {
 	verb    Verb
-	path    ypath.Path
+	path    ypath.YPath
 	options *yt.WriteTableOptions
 }
 
 func NewWriteTableParams(
-	path ypath.Path,
+	path ypath.YPath,
 	options *yt.WriteTableOptions,
 ) *WriteTableParams {
 	if options == nil {
@@ -1404,12 +1404,12 @@ func (p *WriteTableParams) AccessTrackingOptions() **yt.AccessTrackingOptions {
 
 type ReadTableParams struct {
 	verb    Verb
-	path    ypath.Path
+	path    ypath.YPath
 	options *yt.ReadTableOptions
 }
 
 func NewReadTableParams(
-	path ypath.Path,
+	path ypath.YPath,
 	options *yt.ReadTableOptions,
 ) *ReadTableParams {
 	if options == nil {
