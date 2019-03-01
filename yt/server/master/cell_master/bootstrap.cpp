@@ -1,5 +1,6 @@
 #include "bootstrap.h"
 #include "private.h"
+#include "annotation_setter.h"
 #include "config.h"
 #include "config_manager.h"
 #include "hydra_facade.h"
@@ -700,6 +701,8 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateTabletActionMapTypeHandler(this));
 
     RpcServer_->Configure(Config_->RpcServer);
+
+    AnnotationSetter_ = New<TAnnotationSetter>(this);
 }
 
 void TBootstrap::DoRun()
@@ -715,6 +718,8 @@ void TBootstrap::DoRun()
 
     YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
     RpcServer_->Start();
+
+    AnnotationSetter_->Start();
 }
 
 void TBootstrap::DoLoadSnapshot(const TString& fileName, bool dump)
