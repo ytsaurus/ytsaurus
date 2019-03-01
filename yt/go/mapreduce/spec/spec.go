@@ -18,8 +18,8 @@ type Spec struct {
 
 	Pool string `yson:"pool,omitempty"`
 
-	InputTablePaths  []ypath.Path `yson:"input_table_paths,omitempty"`
-	OutputTablePaths []ypath.Path `yson:"output_table_paths,omitempty"`
+	InputTablePaths  []ypath.YPath `yson:"input_table_paths,omitempty"`
+	OutputTablePaths []ypath.YPath `yson:"output_table_paths,omitempty"`
 
 	Mapper *UserScript            `yson:"mapper,omitempty"`
 	Tasks  map[string]*UserScript `yson:"tasks,omitempty"`
