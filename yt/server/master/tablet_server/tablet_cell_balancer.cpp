@@ -196,7 +196,7 @@ public:
 
         if (Provider_->IsVerboseLoggingEnabled()) {
             YT_LOG_DEBUG("Tablet cell balancer request moves (before filter): %v",
-                MakeFormattableView(TabletCellMoveDescriptors_, [] (TStringBuilder* builder, const TTabletCellMoveDescriptor& action) {
+                MakeFormattableView(TabletCellMoveDescriptors_, [] (TStringBuilderBase* builder, const TTabletCellMoveDescriptor& action) {
                     builder->AppendFormat("<%v,%v,%v,%v>",
                         action.Cell->GetId(),
                         action.PeerId,
@@ -209,7 +209,7 @@ public:
 
         if (Provider_->IsVerboseLoggingEnabled()) {
             YT_LOG_DEBUG("Tablet cell balancer request moves: %v",
-                MakeFormattableView(TabletCellMoveDescriptors_, [] (TStringBuilder* builder, const TTabletCellMoveDescriptor& action) {
+                MakeFormattableView(TabletCellMoveDescriptors_, [] (TStringBuilderBase* builder, const TTabletCellMoveDescriptor& action) {
                     builder->AppendFormat("<%v,%v,%v,%v>",
                         action.Cell->GetId(),
                         action.PeerId,
@@ -313,10 +313,10 @@ private:
 
     TString StateToString()
     {
-        return Format("%v", MakeFormattableView(Nodes_, [] (TStringBuilder* builder, const TNodeHolder& node) {
+        return Format("%v", MakeFormattableView(Nodes_, [] (TStringBuilderBase* builder, const TNodeHolder& node) {
             builder->AppendFormat("<%v: %v>",
                 node.GetNode()->GetDefaultAddress(),
-                MakeFormattableView(node.GetSlots(), [] (TStringBuilder* builder, const std::pair<const TTabletCell*, int>& pair) {
+                MakeFormattableView(node.GetSlots(), [] (TStringBuilderBase* builder, const std::pair<const TTabletCell*, int>& pair) {
                     const auto* cell = pair.first;
                     int peerId = pair.second;
                     builder->AppendFormat("<%v,%v,%v>", cell->GetCellBundle()->GetName(), cell->GetId(), peerId);

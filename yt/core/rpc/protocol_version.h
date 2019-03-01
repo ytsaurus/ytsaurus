@@ -19,7 +19,7 @@ struct TProtocolVersion
 bool operator == (const TProtocolVersion& lhs, const TProtocolVersion& rhs);
 bool operator != (const TProtocolVersion& lhs, const TProtocolVersion& rhs);
 
-void FormatValue(TStringBuilder* builder, TProtocolVersion version, TStringBuf spec);
+void FormatValue(TStringBuilderBase* builder, TProtocolVersion version, TStringBuf spec);
 TString ToString(TProtocolVersion protocolVersion);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -33,7 +33,7 @@ struct TLockKey
     void Persist(NCellMaster::TPersistenceContext& context);
 };
 
-void FormatValue(TStringBuilder* builder, const TLockKey& key, TStringBuf format);
+void FormatValue(TStringBuilderBase* builder, const TLockKey& key, TStringBuf format);
 
 ////////////////////////////////////////////////////////////////////////////////
 

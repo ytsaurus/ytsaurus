@@ -2576,7 +2576,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
 
     YT_LOG_DEBUG("Create overlapping range reader (Boundaries: %v, Chunks: %v, ColumnFilter: %v)",
         boundaries,
-        MakeFormattableView(chunkSpecs, [] (TStringBuilder* builder, const TChunkSpec& chunkSpec) {
+        MakeFormattableView(chunkSpecs, [] (TStringBuilderBase* builder, const TChunkSpec& chunkSpec) {
             FormatValue(builder, FromProto<TChunkId>(chunkSpec.chunk_id()), TStringBuf());
         }),
         columnFilter);

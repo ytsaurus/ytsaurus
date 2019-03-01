@@ -102,7 +102,7 @@ void TObjectBase::Load(NCellMaster::TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TObjectIdFormatter::operator()(TStringBuilder* builder, const TObjectBase* object) const
+void TObjectIdFormatter::operator()(TStringBuilderBase* builder, const TObjectBase* object) const
 {
     FormatValue(builder, object->GetId(), TStringBuf());
 }

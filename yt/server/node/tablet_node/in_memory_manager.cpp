@@ -895,7 +895,7 @@ private:
     TFuture<void> DoFinish(const std::vector<TChunkInfo>& chunkInfos)
     {
         YT_LOG_DEBUG("Finishing in-memory sessions (SessionIds: %v)",
-            MakeFormattableView(Nodes_, [] (TStringBuilder* builder, const TNodePtr& node) {
+            MakeFormattableView(Nodes_, [] (TStringBuilderBase* builder, const TNodePtr& node) {
                 FormatValue(builder, node->SessionId, TStringBuf());
             }));
 
@@ -1014,7 +1014,7 @@ IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
     }
 
     YT_LOG_DEBUG("In-memory sessions started (SessionIds: %v)",
-        MakeFormattableView(nodes, [] (TStringBuilder* builder, const TNodePtr& node) {
+        MakeFormattableView(nodes, [] (TStringBuilderBase* builder, const TNodePtr& node) {
             FormatValue(builder, node->SessionId, TStringBuf());
         }));
 

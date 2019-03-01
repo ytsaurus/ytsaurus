@@ -53,7 +53,7 @@ void TReplicationPolicy::Load(NCellMaster::TLoadContext& context)
     DataPartsOnly_ = Load<decltype(DataPartsOnly_)>(context);
 }
 
-void FormatValue(TStringBuilder* builder, TReplicationPolicy policy, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, TReplicationPolicy policy, TStringBuf /*spec*/)
 {
     builder->AppendFormat("{ReplicationFactor: %v, DataPartsOnly: %v}",
         policy.GetReplicationFactor(),
@@ -151,14 +151,14 @@ bool TChunkReplication::IsValid() const
     return false;
 }
 
-void FormatValue(TStringBuilder* builder, const TChunkReplication& replication, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, const TChunkReplication& replication, TStringBuf /*spec*/)
 {
     return builder->AppendFormat(
         "{Vital: %v, Media: {%v}}",
         replication.GetVital(),
         MakeFormattableView(
             replication,
-            [&] (TStringBuilder* aBuilder, const TChunkReplication::TEntry& entry) {
+            [&] (TStringBuilderBase* aBuilder, const TChunkReplication::TEntry& entry) {
                 aBuilder->AppendFormat("%v: %v", entry.GetMediumIndex(), entry.Policy());
             }));
 }
@@ -291,7 +291,7 @@ void TRequisitionEntry::Load(NCellMaster::TLoadContext& context)
     Load(context, Committed);
 }
 
-void FormatValue(TStringBuilder* builder, const TRequisitionEntry& entry, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, const TRequisitionEntry& entry, TStringBuf /*spec*/)
 {
     return builder->AppendFormat(
         "{AccountId: %v, MediumIndex: %v, ReplicationPolicy: %v, Committed: %v}",
@@ -490,14 +490,14 @@ void TChunkRequisition::AddEntry(
     Entries_.emplace_back(account, mediumIndex, replicationPolicy, committed);
 }
 
-void FormatValue(TStringBuilder* builder, const TChunkRequisition& requisition, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, const TChunkRequisition& requisition, TStringBuf /*spec*/)
 {
     builder->AppendFormat(
         "{Vital: %v, Entries: {%v}}",
         requisition.GetVital(),
         MakeFormattableView(
             requisition,
-            [] (TStringBuilder* builder, const TRequisitionEntry& entry) {
+            [] (TStringBuilderBase* builder, const TRequisitionEntry& entry) {
                 FormatValue(builder, entry);
             }));
 }

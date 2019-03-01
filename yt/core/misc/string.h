@@ -8,120 +8,67 @@ namespace NYT {
 
 // Forward declarations, avoid including format.h directly here.
 template <class... TArgs, size_t FormatLength>
-void Format(TStringBuilder* builder, const char (&format)[FormatLength], TArgs&&... args);
+void Format(TStringBuilderBase* builder, const char (&format)[FormatLength], TArgs&&... args);
 template <class... TArgs>
-void Format(TStringBuilder* builder, TStringBuf format, TArgs&&... args);
+void Format(TStringBuilderBase* builder, TStringBuf format, TArgs&&... args);
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! A simple helper for constructing strings by a sequence of appends.
-class TStringBuilder
-    : private TNonCopyable
+class TStringBuilderBase
 {
 public:
-    char* Preallocate(size_t size)
-    {
-        // Fast path.
-        if (Current_ + size <= End_) {
-            return Current_;
-        }
+    char* Preallocate(size_t size);
 
-        // Slow path.
-        size_t committedLength = GetLength();
-        size = std::max(size, MinBufferLength);
-        Str_.ReserveAndResize(committedLength + size);
-        Current_ = &*Str_.begin() + committedLength;
-        End_ = Current_ + size;
-        return Current_;
-    }
+    size_t GetLength() const;
 
-    size_t GetLength() const
-    {
-        return Current_ ? Current_ - Str_.Data() : 0;
-    }
+    TStringBuf GetBuffer() const;
 
-    TStringBuf GetBuffer() const
-    {
-        return TStringBuf(&*Str_.begin(), GetLength());
-    }
+    void Advance(size_t size);
 
-    void Advance(size_t size)
-    {
-        Current_ += size;
-        Y_ASSERT(Current_ <= End_);
-    }
+    void AppendChar(char ch);
+    void AppendChar(char ch, int n);
 
-    void AppendChar(char ch)
-    {
-        *Preallocate(1) = ch;
-        Advance(1);
-    }
-
-    void AppendChar(char ch, int n)
-    {
-        Y_ASSERT(n >= 0);
-        char* dst = Preallocate(n);
-        memset(dst, ch, n);
-        Advance(n);
-    }
-
-    void AppendString(TStringBuf str)
-    {
-        char* dst = Preallocate(str.length());
-        memcpy(dst, str.begin(), str.length());
-        Advance(str.length());
-    }
-
-    void AppendString(const char* str)
-    {
-        AppendString(TStringBuf(str));
-    }
+    void AppendString(TStringBuf str);
+    void AppendString(const char* str);
 
     template <class... TArgs, size_t FormatLength>
-    void AppendFormat(const char (&format)[FormatLength], TArgs&&... args)
-    {
-        Format(this, format, std::forward<TArgs>(args)...);
-    }
-
+    void AppendFormat(const char (&format)[FormatLength], TArgs&&... args);
     template <class... TArgs>
-    void AppendFormat(TStringBuf format, TArgs&&... args)
-    {
-        Format(this, format, std::forward<TArgs>(args)...);
-    }
+    void AppendFormat(TStringBuf format, TArgs&&... args);
 
-    void Reset()
-    {
-        Str_ = {};
-        Current_ = End_ = nullptr;
-    }
+    void Reset();
 
-    TString Flush()
-    {
-        Str_.resize(GetLength());
-        Current_ = End_ = nullptr;
-        return std::move(Str_);
-    }
-
-private:
-    TString Str_;
-
+protected:
+    char* Begin_ = nullptr;
     char* Current_ = nullptr;
     char* End_ = nullptr;
 
-    static const size_t MinBufferLength;
+    virtual void DoReset() = 0;
+    virtual void DoPreallocate(size_t size) = 0;
 
+    static constexpr size_t MinBufferLength = 1024;
 };
 
-inline void FormatValue(TStringBuilder* builder, const TStringBuilder& value, TStringBuf /*format*/)
+////////////////////////////////////////////////////////////////////////////////
+
+class TStringBuilder
+    : public TStringBuilderBase
 {
-    builder->AppendString(value.GetBuffer());
-}
+public:
+    TString Flush();
+
+protected:
+    TString Buffer_;
+
+    virtual void DoReset() override;
+    virtual void DoPreallocate(size_t size) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TString ToStringViaBuilder(const T& value, TStringBuf spec = AsStringBuf("v"))
-{
-    TStringBuilder builder;
-    FormatValue(&builder, value, spec);
-    return builder.Flush();
-}
+TString ToStringViaBuilder(const T& value, TStringBuf spec = AsStringBuf("v"));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -131,13 +78,13 @@ class TDelimitedStringBuilderWrapper
 {
 public:
     TDelimitedStringBuilderWrapper(
-        TStringBuilder* builder,
+        TStringBuilderBase* builder,
         TStringBuf delimiter = AsStringBuf(", "))
         : Builder_(builder)
         , Delimiter_(delimiter)
     { }
 
-    TStringBuilder* operator->()
+    TStringBuilderBase* operator->()
     {
         if (!FirstCall_) {
             Builder_->AppendString(Delimiter_);
@@ -147,7 +94,7 @@ public:
     }
 
 private:
-    TStringBuilder* const Builder_;
+    TStringBuilderBase* const Builder_;
     const TStringBuf Delimiter_;
 
     bool FirstCall_ = true;
@@ -160,7 +107,7 @@ private:
 struct TDefaultFormatter
 {
     template <class T>
-    void operator()(TStringBuilder* builder, const T& obj) const
+    void operator()(TStringBuilderBase* builder, const T& obj) const
     {
         FormatValue(builder, obj, AsStringBuf("v"));
     }
@@ -180,7 +127,7 @@ extern const TStringBuf DefaultKeyValueDelimiter;
  */
 template <class TIterator, class TFormatter>
 void JoinToString(
-    TStringBuilder* builder,
+    TStringBuilderBase* builder,
     const TIterator& begin,
     const TIterator& end,
     const TFormatter& formatter,
@@ -300,10 +247,10 @@ std::vector<TString> ConvertToStrings(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void UnderscoreCaseToCamelCase(TStringBuilder* builder, TStringBuf str);
+void UnderscoreCaseToCamelCase(TStringBuilderBase* builder, TStringBuf str);
 TString UnderscoreCaseToCamelCase(TStringBuf str);
 
-void CamelCaseToUnderscoreCase(TStringBuilder* builder, TStringBuf str);
+void CamelCaseToUnderscoreCase(TStringBuilderBase* builder, TStringBuf str);
 TString CamelCaseToUnderscoreCase(TStringBuf str);
 
 TString TrimLeadingWhitespaces(const TString& str);
@@ -352,3 +299,7 @@ struct TCaseInsensitiveStringEqualityComparer
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+#define STRING_INL_H_
+#include "string-inl.h"
+#undef STRING_INL_H_

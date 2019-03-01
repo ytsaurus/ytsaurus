@@ -109,7 +109,7 @@ TColumnFilter GetColumnFilter(const TTableSchema& desiredSchema, const TTableSch
 
 struct TRangeFormatter
 {
-    void operator()(TStringBuilder* builder, const TRowRange& source) const
+    void operator()(TStringBuilderBase* builder, const TRowRange& source) const
     {
         builder->AppendFormat("[%v .. %v]",
             source.first,

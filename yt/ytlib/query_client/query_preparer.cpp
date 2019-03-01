@@ -2391,7 +2391,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
     YT_LOG_DEBUG("Getting initial data splits (PrimaryPath: %v, ForeignPaths: %v)",
         table.Path,
-        MakeFormattableView(ast.Joins, [] (TStringBuilder* builder, const auto& join) {
+        MakeFormattableView(ast.Joins, [] (TStringBuilderBase* builder, const auto& join) {
             FormatValue(builder, join.Table.Path, TStringBuf());
         }));
 
