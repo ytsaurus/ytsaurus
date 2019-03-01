@@ -18,6 +18,7 @@
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/shutdown.h>
 #include <yt/core/misc/variant.h>
+#include <yt/core/misc/ref_counted_tracker.h>
 
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/profiler.h>
@@ -62,7 +63,7 @@ using namespace NTracing;
 static const TLogger Logger(SystemLoggingCategoryName);
 static const auto& Profiler = LoggingProfiler;
 
-static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
+static constexpr auto ProfilingPeriod = TDuration::Seconds(10);
 static constexpr auto DequeuePeriod = TDuration::MilliSeconds(100);
 static constexpr int PerThreadBatchingReserveCapacity = 256;
 
@@ -1001,11 +1002,13 @@ private:
         auto writtenEvents = WrittenEvents_.load();
         auto enqueuedEvents = EnqueuedEvents_.load();
         auto suppressedEvents = SuppressedEvents_.load();
+        auto messageBuffersSize = TRefCountedTracker::Get()->GetBytesAlive(GetRefCountedTypeKey<NDetail::TMessageBufferTag>());
 
         Profiler.Enqueue("/enqueued_events", enqueuedEvents, EMetricType::Counter);
         Profiler.Enqueue("/written_events", writtenEvents, EMetricType::Counter);
         Profiler.Enqueue("/backlog_events", enqueuedEvents - writtenEvents, EMetricType::Counter);
         Profiler.Enqueue("/suppressed_events", suppressedEvents, EMetricType::Counter);
+        Profiler.Enqueue("/message_buffers_size", messageBuffersSize, EMetricType::Gauge);
     }
 
     void OnDequeue()

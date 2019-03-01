@@ -29,6 +29,9 @@ struct TMessageStringBuilderContext
     TSharedMutableRef Chunk;
 };
 
+struct TMessageBufferTag
+{ };
+
 class TMessageStringBuilder
     : public TStringBuilderBase
 {
@@ -40,9 +43,6 @@ protected:
     virtual void DoPreallocate(size_t newLength) override;
 
 private:
-    struct TBufferTag
-    { };
-
     struct TContext
     {
         TSharedMutableRef Chunk;
