@@ -10,8 +10,8 @@ type MyStruct struct {
 	IntColumn    int
 	AnyValue     interface{}
 	Optional     *int
-	StringColumn string `yt:"custom_column_name"`
-	SkipMe       int    `yt:"-"`
+	StringColumn string `yson:"custom_column_name"`
+	SkipMe       int    `yson:"-"`
 }
 
 var MySchema = schema.MustInfer(&MyStruct{})

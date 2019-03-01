@@ -108,3 +108,19 @@ func TestInferMarshalerTypes(t *testing.T) {
 		},
 	})
 }
+
+type tagStruct struct {
+	A int `yson:"a"`
+	B int `yson:"-"`
+}
+
+func TestInferTags(t *testing.T) {
+	s, err := Infer(&tagStruct{})
+	require.NoError(t, err)
+
+	require.Equal(t, s, Schema{
+		Columns: []Column{
+			{Name: "a", Type: TypeInt64, Required: true},
+		},
+	})
+}

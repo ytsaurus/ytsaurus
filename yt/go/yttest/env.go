@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"testing"
 
+	"a.yandex-team.ru/yt/go/schema"
+
 	"a.yandex-team.ru/library/go/core/log/zap"
 	"a.yandex-team.ru/yt/go/yt/ythttp"
 	"go.uber.org/zap/zaptest"
@@ -49,7 +51,11 @@ func (e *Env) TmpPath() ypath.Path {
 }
 
 func (e *Env) UploadSlice(path ypath.Path, slice interface{}) error {
-	_, err := e.YT.CreateNode(e.Ctx, path, yt.NodeTable, nil)
+	_, err := e.YT.CreateNode(e.Ctx, path, yt.NodeTable, &yt.CreateNodeOptions{
+		Attributes: map[string]interface{}{
+			"schema": schema.MustInfer(reflect.New(reflect.ValueOf(slice).Type().Elem()).Interface()),
+		},
+	})
 	if err != nil {
 		return err
 	}

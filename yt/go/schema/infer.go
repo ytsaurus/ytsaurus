@@ -119,7 +119,7 @@ func Infer(value interface{}) (s Schema, err error) {
 		field := typ.Field(i)
 
 		var column *Column
-		column, err = parseTag(field.Name, field.Type, field.Tag.Get("yt"))
+		column, err = parseTag(field.Name, field.Type, field.Tag.Get("yson"))
 		if err != nil {
 			return
 		}
