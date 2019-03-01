@@ -85,8 +85,8 @@ func TestMap(t *testing.T) {
 	op, err := env.MR.Run(env.Ctx,
 		mapreduce.Map(job,
 			&spec.Spec{
-				InputTablePaths:  []ypath.Path{inputPath},
-				OutputTablePaths: []ypath.Path{outputPath},
+				InputTablePaths:  []ypath.YPath{inputPath},
+				OutputTablePaths: []ypath.YPath{outputPath},
 			},
 		))
 
