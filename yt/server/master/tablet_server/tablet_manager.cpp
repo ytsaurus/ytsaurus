@@ -5846,16 +5846,6 @@ private:
                 << ex;
         }
 
-        // Parse and prepare table writer config.
-        try {
-            *writerConfig = UpdateYsonSerializable(
-                Config_->ChunkWriter,
-                tableAttributes.FindYson(GetUninternedAttributeKey(EInternedAttributeKey::ChunkWriter)));
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing chunk writer config")
-                << ex;
-        }
-
         // Prepare tablet writer options.
         const auto& chunkReplication = table->Replication();
         auto primaryMediumIndex = table->GetPrimaryMediumIndex();
@@ -5869,6 +5859,19 @@ private:
         (*writerOptions)->ErasureCodec = table->GetErasureCodec();
         (*writerOptions)->ChunksVital = chunkReplication.GetVital();
         (*writerOptions)->OptimizeFor = table->GetOptimizeFor();
+
+        // Parse and prepare table writer config.
+        try {
+            auto config = CloneYsonSerializable(Config_->ChunkWriter);
+            config->PreferLocalHost = primaryMedium->Config()->PreferLocalHostForDynamicTables;
+
+            *writerConfig = UpdateYsonSerializable(
+                config,
+                tableAttributes.FindYson(GetUninternedAttributeKey(EInternedAttributeKey::ChunkWriter)));
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing chunk writer config")
+                << ex;
+        }
     }
 
     static TError TryParseTabletRange(
