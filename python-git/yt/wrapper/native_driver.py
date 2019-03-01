@@ -16,9 +16,23 @@ except ImportError:  # Python 3
     from io import BytesIO
 
 driver_bindings = None
-def lazy_import_driver_bindings():
+def lazy_import_driver_bindings(backend_type, allow_fallback_to_native_driver):
     global driver_bindings
-    if driver_bindings is None:
+    if driver_bindings is not None:
+        return
+
+    if backend_type == "rpc":
+        try:
+            import yt_driver_rpc_bindings
+            driver_bindings = yt_driver_rpc_bindings
+        except ImportError:
+            if allow_fallback_to_native_driver:
+                try:
+                    import yt_driver_bindings
+                    driver_bindings = yt_driver_bindings
+                except ImportError:
+                    pass
+    else:
         try:
             import yt_driver_bindings
             driver_bindings = yt_driver_bindings
@@ -26,7 +40,6 @@ def lazy_import_driver_bindings():
             pass
 
 def read_config(path):
-    lazy_import_driver_bindings()
     driver_config = yson.load(open(path, "rb"))
     return (
         driver_config["driver"],
@@ -94,13 +107,8 @@ def configure_address_resolver(address_resolver_config, client):
     address_resolver_configured = True
 
 def get_driver_instance(client):
-    lazy_import_driver_bindings()
-
     driver = get_option("_driver", client=client)
     if driver is None:
-        if driver_bindings is None:
-            raise YtError("Driver class not found, install yt driver bindings.")
-
         logging_config = None
         tracing_config = None
         address_resolver_config = None
@@ -128,6 +136,10 @@ def get_driver_instance(client):
                     "Driver connection type and client backend mismatch "
                     "(driver_connection_type: {0}, client_backend: {1})"
                     .format(driver_config["connection_type"], config["backend"]))
+
+        lazy_import_driver_bindings(config["backend"], config["allow_fallback_to_native_driver"])
+        if driver_bindings is None:
+            raise YtError("Driver class not found, install yt driver bindings.")
 
         configure_logging(logging_config, client)
         configure_tracing(tracing_config, client)

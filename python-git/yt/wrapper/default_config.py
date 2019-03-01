@@ -526,6 +526,8 @@ default_config = {
     "write_progress_bar": {
         "enable": None,
     },
+
+    "allow_fallback_to_native_driver": True,
 }
 
 # pydoc :: default_config :: end
