@@ -213,8 +213,6 @@ def ya_make_args(options):
         args += ["--thinlto"]
     if options.ya_target_platform:
         args += ["--target-platform", options.ya_target_platform]
-    if options.use_asan:
-        args += ["--sanitize=address"]
     return args
 
 @build_step
@@ -592,6 +590,8 @@ def package(options, build_context):
                         "-zlow",
                     ]
                     args += ya_make_args(options)
+                    if options.use_asan:
+                        args += ["--sanitize=address"]
                     tasks.append(dict(
                         args=args,
                         env=ya_make_env(options),
