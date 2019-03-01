@@ -144,6 +144,9 @@ public:
         RegisterPreprocessor([&] {
             Reader->WorkloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
             Writer->WorkloadDescriptor.Category = EWorkloadCategory::SystemTabletSnapshot;
+
+            //! We want to evenly distribute snapshot load across the cluster.
+            Writer->PreferLocalHost = false;
         });
     }
 };
