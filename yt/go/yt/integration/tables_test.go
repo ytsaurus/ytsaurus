@@ -5,6 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"a.yandex-team.ru/yt/go/schema"
+	"a.yandex-team.ru/yt/go/ypath"
+
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yttest"
 	"github.com/stretchr/testify/require"
@@ -24,12 +27,7 @@ func TestTables(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 	defer cancel()
 
-	t.Run("WriteReadTable", func(t *testing.T) {
-		name := tmpPath()
-
-		_, err := env.YT.CreateNode(ctx, name, yt.NodeTable, nil)
-		require.NoError(t, err)
-
+	validate := func(name ypath.Path) {
 		w, err := env.YT.WriteTable(ctx, name, nil)
 		require.NoError(t, err)
 
@@ -52,9 +50,52 @@ func TestTables(t *testing.T) {
 
 		require.False(t, r.Next())
 		require.NoError(t, r.Err())
+	}
+
+	t.Run("WriteReadTable", func(t *testing.T) {
+		name := tmpPath()
+
+		_, err := env.YT.CreateNode(ctx, name, yt.NodeTable, nil)
+		require.NoError(t, err)
+
+		validate(name)
 	})
 
 	t.Run("WriteWithSchema", func(t *testing.T) {
+		name := tmpPath()
 
+		_, err := env.YT.CreateNode(ctx, name, yt.NodeTable, &yt.CreateNodeOptions{
+			Attributes: map[string]interface{}{
+				"schema": schema.MustInfer(&exampleRow{}),
+			},
+		})
+		require.NoError(t, err)
+
+		validate(name)
+	})
+
+	t.Run("AppendToTable", func(t *testing.T) {
+		name := tmpPath()
+
+		_, err := env.YT.CreateNode(ctx, name, yt.NodeTable, nil)
+		require.NoError(t, err)
+
+		write := func() {
+			appendAttr := true
+			w, err := env.YT.WriteTable(ctx, ypath.Rich{Path: name, Append: &appendAttr}, nil)
+			require.NoError(t, err)
+
+			require.NoError(t, w.Write(exampleRow{"foo", 1}))
+			require.NoError(t, w.Write(exampleRow{"bar", 2}))
+			require.NoError(t, w.Close())
+		}
+
+		write()
+
+		write()
+
+		var rowCount int
+		require.NoError(t, env.YT.GetNode(env.Ctx, name.Attr("row_count"), &rowCount, nil))
+		require.Equal(t, 4, rowCount)
 	})
 }

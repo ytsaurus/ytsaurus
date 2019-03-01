@@ -431,7 +431,7 @@ type TableClient interface {
 	// http:params:"path"
 	WriteTable(
 		ctx context.Context,
-		path ypath.Path,
+		path ypath.YPath,
 		options *WriteTableOptions,
 	) (w TableWriter, err error)
 
@@ -439,7 +439,7 @@ type TableClient interface {
 	// http:params:"path"
 	ReadTable(
 		ctx context.Context,
-		path ypath.Path,
+		path ypath.YPath,
 		options *ReadTableOptions,
 	) (r TableReader, err error)
 }

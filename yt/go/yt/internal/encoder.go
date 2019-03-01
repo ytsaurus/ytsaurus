@@ -394,7 +394,7 @@ func (e *Encoder) GetFileFromCache(
 
 func (e *Encoder) WriteTable(
 	ctx context.Context,
-	path ypath.Path,
+	path ypath.YPath,
 	options *yt.WriteTableOptions,
 ) (w yt.TableWriter, err error) {
 	call := e.newCall(NewWriteTableParams(path, options))
@@ -403,7 +403,7 @@ func (e *Encoder) WriteTable(
 
 func (e *Encoder) ReadTable(
 	ctx context.Context,
-	path ypath.Path,
+	path ypath.YPath,
 	options *yt.ReadTableOptions,
 ) (r yt.TableReader, err error) {
 	call := e.newCall(NewReadTableParams(path, options))

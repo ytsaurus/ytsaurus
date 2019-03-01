@@ -9,6 +9,8 @@ import "a.yandex-team.ru/yt/go/yson"
 // Path is ypath in text form.
 type Path string
 
+func (_ Path) YPath() {}
+
 func (p Path) MarshalYSON(w *yson.Writer) error {
 	w.String(string(p))
 	return nil
@@ -34,34 +36,9 @@ func (p Path) NoFollowSymlink() Path {
 	return p
 }
 
-type Key []interface{}
+// YPath is interface type that is able to hold both Path and Rich.
+type YPath interface {
+	YPath()
 
-type Range struct {
-	Lower Key
-	Upper Key
-}
-
-type Rich struct {
-	Path string
-
-	Append   bool
-	SortedBy []string
-	Ranges   []Range
-}
-
-func Parse(path string) (p Rich, err error) {
-	var attrs, rest []byte
-	attrs, rest, err = yson.SliceYPath([]byte(path))
-	if err != nil {
-		return
-	}
-
-	_, _ = attrs, rest
-	panic("not implemented")
-	return
-}
-
-func (p Rich) Push(name string) Rich {
-	p.Path += "/" + name
-	return p
+	yson.StreamMarhsaler
 }
