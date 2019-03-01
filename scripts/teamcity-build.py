@@ -213,6 +213,8 @@ def ya_make_args(options):
         args += ["--thinlto"]
     if options.ya_target_platform:
         args += ["--target-platform", options.ya_target_platform]
+    if options.use_asan:
+        args += ["--sanitize=address"]
     return args
 
 @build_step
@@ -294,10 +296,6 @@ def prepare(options, build_context):
         sandbox_storage = os.path.expanduser("~/sandbox_storage/")
         if os.path.exists(sandbox_storage):
             rmtree(sandbox_storage)
-
-    if options.use_asan:
-        options.asan_build_directory = os.path.join(options.working_directory, "asan-build")
-        mkdirp(options.asan_build_directory)
 
     cleanup_cgroups()
 
@@ -888,7 +886,7 @@ def package_rpc_bindings(options, build_context):
         ("debian", "3", "linux", "lib/pyshared-3-4/driver_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-3-4-driver-rpc"),
         ("debian", "skynet", "linux", "lib/pyshared-skynet/driver_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-skynet-driver-rpc"),
     ]
-    
+
     perform_packaging(options, rpc_packages_path, args, configurations)
 
 
@@ -901,7 +899,7 @@ def package_driver_bindings(options, build_context):
 
     config_generator = os.path.join(get_bin_dir(options), "build_python_packages_config_generator")
     config = json.loads(run_captured([config_generator]))
-    
+
     mkdirp(os.path.join(options.working_directory, "changelogs"))
     changelog_dir = os.path.join(
         tempfile.mkdtemp(dir=os.path.join(options.working_directory, "changelogs")),
