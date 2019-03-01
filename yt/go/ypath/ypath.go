@@ -16,7 +16,7 @@ func (p Path) MarshalYSON(w *yson.Writer) error {
 	return nil
 }
 
-func (p Path) AppendName(name string) Path {
+func (p Path) Child(name string) Path {
 	p += Path("/" + name)
 	return p
 }

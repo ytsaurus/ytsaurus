@@ -47,7 +47,7 @@ func NewEnv(t *testing.T) (env *Env, cancel func()) {
 
 func (e *Env) TmpPath() ypath.Path {
 	uid := guid.New()
-	return ypath.Path("//tmp").AppendName(uid.String())
+	return ypath.Path("//tmp").Child(uid.String())
 }
 
 func (e *Env) UploadSlice(path ypath.Path, slice interface{}) error {

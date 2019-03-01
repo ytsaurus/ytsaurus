@@ -37,7 +37,7 @@ func (c *client) uploadSelf(ctx context.Context) error {
 	}
 	defer func() { _ = exe.Close() }()
 
-	tmpPath := ypath.Path("//tmp").AppendName(guid.New().String())
+	tmpPath := ypath.Path("//tmp").Child(guid.New().String())
 
 	_, err = c.c.CreateNode(ctx, tmpPath, yt.NodeFile, nil)
 	if err != nil {

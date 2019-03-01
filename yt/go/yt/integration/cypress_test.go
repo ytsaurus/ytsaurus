@@ -17,7 +17,7 @@ func tmpPath() ypath.Path {
 	if err != nil {
 		panic(err)
 	}
-	return ypath.Path("//tmp").AppendName(id.String())
+	return ypath.Path("//tmp").Child(id.String())
 }
 
 func TestCypress(t *testing.T) {
