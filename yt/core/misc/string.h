@@ -45,7 +45,7 @@ protected:
     char* End_ = nullptr;
 
     virtual void DoReset() = 0;
-    virtual void DoPreallocate(size_t size) = 0;
+    virtual void DoPreallocate(size_t newLength) = 0;
 
     static constexpr size_t MinBufferLength = 1024;
 };

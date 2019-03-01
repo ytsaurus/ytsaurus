@@ -6,6 +6,7 @@
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/format.h>
+#include <yt/core/misc/ref.h>
 
 #include <yt/core/tracing/trace_context.h>
 
@@ -42,7 +43,7 @@ struct TLogEvent
     const TLoggingCategory* Category = nullptr;
     ELogLevel Level = ELogLevel::Minimum;
     ELogMessageFormat MessageFormat = ELogMessageFormat::PlainText;
-    TString Message;
+    TSharedRef Message;
     NYson::TYsonString StructuredMessage;
     NProfiling::TCpuInstant Instant = 0;
     NConcurrency::TThreadId ThreadId = NConcurrency::InvalidThreadId;
@@ -65,7 +66,7 @@ public:
     bool IsLevelEnabled(ELogLevel level) const;
 
     bool IsPositionUpToDate(const TLoggingPosition& position) const;
-    void UpdatePosition(TLoggingPosition* position, const TString& message) const;
+    void UpdatePosition(TLoggingPosition* position, TStringBuf message) const;
 
     void Write(TLogEvent&& event) const;
 
@@ -151,7 +152,7 @@ void LogStructuredEvent(const TLogger& logger,
         \
         auto message__##__LINE__ = ::NYT::NLogging::NDetail::BuildLogMessage(logger.GetContext(), __VA_ARGS__); \
         if (!positionUpToDate__##__LINE__) { \
-            logger.UpdatePosition(&position__##__LINE__, message__##__LINE__); \
+            logger.UpdatePosition(&position__##__LINE__, TStringBuf(message__##__LINE__.Begin(), message__##__LINE__.Size())); \
         } \
         \
         if (position__##__LINE__.Enabled) { \

@@ -62,7 +62,7 @@ protected:
         event.MessageFormat = ELogMessageFormat::PlainText;
         event.Category = &Category;
         event.Level = ELogLevel::Debug;
-        event.Message = "message";
+        event.Message = TSharedRef::FromString("message");
         event.ThreadId = 0xba;
 
         WriteEvent(writer, event);

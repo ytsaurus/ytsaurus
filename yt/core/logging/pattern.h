@@ -11,7 +11,7 @@ namespace NYT::NLogging {
 const int MessageBufferSize = 65556;
 typedef TRawFormatter<MessageBufferSize> TMessageBuffer;
 
-void FormatMessage(TMessageBuffer* out, const TString& message);
+void FormatMessage(TMessageBuffer* out, TStringBuf message);
 void FormatDateTime(TMessageBuffer* out, TInstant dateTime);
 void FormatLevel(TMessageBuffer* out, ELogLevel level);
 

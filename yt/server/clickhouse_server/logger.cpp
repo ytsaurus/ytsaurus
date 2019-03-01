@@ -73,14 +73,14 @@ private:
 public:
     TLogger(const NLogging::TLogger& logger)
         : Logger(logger)
-    {}
+    { }
 
     void Write(const TLogEvent& e) override
     {
         NLogging::TLogEvent event;
         event.Category = Logger.GetCategory();
         event.Level = static_cast<NLogging::ELogLevel>(e.Level);
-        event.Message = e.Message;
+        event.Message = TSharedRef::FromString(e.Message);
         // YT use CPU timestamp counters instead of unix timestamps
         event.Instant = NProfiling::InstantToCpuInstant(e.Timestamp);
         event.ThreadId = e.ThreadId;

@@ -7,6 +7,50 @@ namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+TSharedRef TMessageStringBuilder::Flush()
+{
+    return Buffer_.Slice(0, GetLength());
+}
+
+void TMessageStringBuilder::DoReset()
+{
+    Buffer_.Reset();
+}
+
+void TMessageStringBuilder::DoPreallocate(size_t newLength)
+{
+    auto oldLength = GetLength();
+    newLength = FastClp2(newLength);
+    auto* context = GetContext();
+    if (Y_UNLIKELY(context->ChunkOffset + newLength > context->Chunk.Size())) {
+        auto chunkSize = std::max(ChunkSize, newLength);
+        context->Chunk = TSharedMutableRef::Allocate<TBufferTag>(chunkSize, false);
+        context->ChunkOffset = 0;
+    }
+    Buffer_ = context->Chunk.Slice(context->ChunkOffset, context->ChunkOffset + newLength);
+    context->ChunkOffset += newLength;
+    ::memcpy(Buffer_.Begin(), Begin_, oldLength);
+    Begin_ = Buffer_.Begin();
+    End_ = Begin_ + newLength;
+}
+
+TMessageStringBuilder::TContext* TMessageStringBuilder::GetContext()
+{
+    if (Y_UNLIKELY(!Context_)) {
+        Y_STATIC_THREAD(TContext) Context;
+        Context_ = &Context;
+    }
+    return Context_;
+}
+
+Y_POD_THREAD(TMessageStringBuilder::TContext*) TMessageStringBuilder::Context_;
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
 TLogger::TLogger()
     : LogManager_(nullptr)
     , Category_(nullptr)
@@ -45,7 +89,7 @@ bool TLogger::IsPositionUpToDate(const TLoggingPosition& position) const
     return !Category_ || position.CurrentVersion == Category_->ActualVersion->load(std::memory_order_relaxed);
 }
 
-void TLogger::UpdatePosition(TLoggingPosition* position, const TString& message) const
+void TLogger::UpdatePosition(TLoggingPosition* position, TStringBuf message) const
 {
     LogManager_->UpdatePosition(position, message);
 }

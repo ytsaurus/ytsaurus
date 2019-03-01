@@ -71,6 +71,15 @@ public:
         }
     }
 
+    //! Appends the string and updates the internal cursor.
+    void AppendString(TStringBuf string)
+    {
+        size_t position = 0;
+        while (position < string.length() && Cursor_ < End_) {
+            *Cursor_++ = string[position++];
+        }
+    }
+
     //! Appends a single character and updates the internal cursor.
     void AppendChar(char ch)
     {

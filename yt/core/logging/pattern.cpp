@@ -67,7 +67,7 @@ void FormatLevel(TMessageBuffer* out, ELogLevel level)
     out->AppendChar(chars[static_cast<int>(level)]);
 }
 
-void FormatMessage(TMessageBuffer* out, const TString& message)
+void FormatMessage(TMessageBuffer* out, TStringBuf message)
 {
     auto current = message.begin();
 

@@ -479,7 +479,7 @@ public:
         DoUpdateCategory(category);
     }
 
-    void UpdatePosition(TLoggingPosition* position, const TString& message)
+    void UpdatePosition(TLoggingPosition* position, TStringBuf message)
     {
         TGuard<TForkAwareSpinLock> guard(SpinLock_);
         DoUpdatePosition(position, message);
@@ -497,7 +497,7 @@ public:
             // Collect last-minute information.
             TRawFormatter<1024> formatter;
             formatter.AppendString("\n*** Fatal error ***\n");
-            formatter.AppendString(event.Message.c_str());
+            formatter.AppendString(TStringBuf(event.Message.Begin(), event.Message.End()));
             formatter.AppendString("\n*** Aborting ***\n");
 
             HandleEintr(::write, 2, formatter.GetData(), formatter.GetBytesWritten());
@@ -1140,7 +1140,7 @@ private:
         category->CurrentVersion.store(GetVersion(), std::memory_order_relaxed);
     }
 
-    void DoUpdatePosition(TLoggingPosition* position, const TString& message)
+    void DoUpdatePosition(TLoggingPosition* position, TStringBuf message)
     {
         bool positionEnabled = true;
         for (const auto& prefix : Config_->SuppressedMessages) {
@@ -1271,7 +1271,7 @@ void TLogManager::UpdateCategory(TLoggingCategory* category)
     Impl_->UpdateCategory(category);
 }
 
-void TLogManager::UpdatePosition(TLoggingPosition* position,const TString& message)
+void TLogManager::UpdatePosition(TLoggingPosition* position, TStringBuf message)
 {
     Impl_->UpdatePosition(position, message);
 }
