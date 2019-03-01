@@ -4,7 +4,7 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilder* builder, TSessionId id, TStringBuf /*format*/)
+void FormatValue(TStringBuilderBase* builder, TSessionId id, TStringBuf /*format*/)
 {
     if (id.MediumIndex == AllMediaIndex) {
         builder->AppendFormat("%v@*", id.ChunkId);

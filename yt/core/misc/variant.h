@@ -27,7 +27,7 @@ constexpr size_t VariantIndexV = TVariantIndex<T, V>::value;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class... Ts>
-void FormatValue(TStringBuilder* builder, const std::variant<Ts...>& variant, TStringBuf spec);
+void FormatValue(TStringBuilderBase* builder, const std::variant<Ts...>& variant, TStringBuf spec);
 
 template <class... Ts>
 TString ToString(const std::variant<Ts...>& variant);

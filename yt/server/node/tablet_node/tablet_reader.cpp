@@ -42,7 +42,7 @@ static const auto& Logger = TabletNodeLogger;
 
 struct TStoreRangeFormatter
 {
-    void operator()(TStringBuilder* builder, const ISortedStorePtr& store) const
+    void operator()(TStringBuilderBase* builder, const ISortedStorePtr& store) const
     {
         builder->AppendFormat("<%v:%v>",
             store->GetMinKey(),

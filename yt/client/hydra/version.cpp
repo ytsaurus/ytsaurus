@@ -69,7 +69,7 @@ TVersion TVersion::Rotate() const
     return TVersion(SegmentId + 1, 0);
 }
 
-void FormatValue(TStringBuilder* builder, TVersion version, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, TVersion version, TStringBuf /*spec*/)
 {
     builder->AppendFormat("%v:%v", version.SegmentId, version.RecordId);
 }

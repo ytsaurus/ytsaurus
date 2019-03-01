@@ -152,7 +152,7 @@ struct TExpressionFragmentPrinter
     const std::vector<TCodegenFragmentInfo>& Expressions;
 
     TExpressionFragmentPrinter(
-        TStringBuilder* builder,
+        TStringBuilderBase* builder,
         const std::vector<TDebugInfo>& debugExpressions,
         const std::vector<TCodegenFragmentInfo>& expressions)
         : TBase(builder, false)

@@ -855,10 +855,10 @@ struct TAbstractExpressionPrinter
     using TBase::Derived;
     using TBase::Visit;
 
-    TStringBuilder* Builder;
+    TStringBuilderBase* Builder;
     bool OmitValues;
 
-    TAbstractExpressionPrinter(TStringBuilder* builder, bool omitValues)
+    TAbstractExpressionPrinter(TStringBuilderBase* builder, bool omitValues)
         : Builder(builder)
         , OmitValues(omitValues)
     { }
@@ -994,7 +994,7 @@ struct TAbstractExpressionPrinter
                 Builder,
                 inExpr->Values.begin(),
                 inExpr->Values.end(),
-                [&] (TStringBuilder* builder, const TRow& row) {
+                [&] (TStringBuilderBase* builder, const TRow& row) {
                     builder->AppendString(ToString(row));
                 });
         }
@@ -1021,7 +1021,7 @@ struct TAbstractExpressionPrinter
                 Builder,
                 betweenExpr->Ranges.begin(),
                 betweenExpr->Ranges.end(),
-                [&] (TStringBuilder* builder, const TRowRange& range) {
+                [&] (TStringBuilderBase* builder, const TRowRange& range) {
                     builder->AppendString(ToString(range.first));
                     builder->AppendString(" AND ");
                     builder->AppendString(ToString(range.second));
@@ -1051,13 +1051,13 @@ struct TAbstractExpressionPrinter
                 Builder,
                 transformExpr->Values.begin(),
                 transformExpr->Values.end(),
-                [&] (TStringBuilder* builder, const TRow& row) {
+                [&] (TStringBuilderBase* builder, const TRow& row) {
                     builder->AppendChar('[');
                     JoinToString(
                         builder,
                         row.Begin(),
                         row.Begin() + argumentCount,
-                        [] (TStringBuilder* builder, const TValue& value) {
+                        [] (TStringBuilderBase* builder, const TValue& value) {
                             builder->AppendString(ToString(value));
                         });
                     builder->AppendChar(']');
@@ -1072,7 +1072,7 @@ struct TAbstractExpressionPrinter
                 Builder,
                 transformExpr->Values.begin(),
                 transformExpr->Values.end(),
-                [&] (TStringBuilder* builder, const TRow& row) {
+                [&] (TStringBuilderBase* builder, const TRow& row) {
                     builder->AppendString(ToString(row[argumentCount]));
                 });
         }

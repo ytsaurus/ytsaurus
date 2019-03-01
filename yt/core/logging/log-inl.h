@@ -23,7 +23,7 @@ TLogger& TLogger::AddTag(const char* format, TArgs&&... args)
 namespace NDetail {
 
 template <class... TArgs>
-void AppendLogMessage(TStringBuilder* builder, TStringBuf context, TStringBuf message)
+void AppendLogMessage(TStringBuilderBase* builder, TStringBuf context, TStringBuf message)
 {
     if (context) {
         if (message.length() >= 1 && message[message.length() - 1] == ')') {
@@ -43,7 +43,7 @@ void AppendLogMessage(TStringBuilder* builder, TStringBuf context, TStringBuf me
 }
 
 template <class... TArgs, size_t FormatLength>
-void AppendLogMessageWithFormat(TStringBuilder* builder, TStringBuf context, const char (&format)[FormatLength], TArgs&&... args)
+void AppendLogMessageWithFormat(TStringBuilderBase* builder, TStringBuf context, const char (&format)[FormatLength], TArgs&&... args)
 {
     if (context) {
         if (FormatLength >= 2 && format[FormatLength - 2] == ')') {

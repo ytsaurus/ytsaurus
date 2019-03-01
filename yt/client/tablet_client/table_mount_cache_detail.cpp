@@ -92,7 +92,7 @@ bool TTableMountCacheKey::operator == (const TTableMountCacheKey& other) const
     return Path == other.Path;
 }
 
-void FormatValue(TStringBuilder* builder, const TTableMountCacheKey& key, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, const TTableMountCacheKey& key, TStringBuf /*spec*/)
 {
     builder->AppendFormat("{%v %v %v}",
         key.Path,

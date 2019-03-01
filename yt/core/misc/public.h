@@ -76,6 +76,7 @@ class TSkipList;
 
 class TBlobOutput;
 
+class TStringBuilderBase;
 class TStringBuilder;
 
 struct ICheckpointableInputStream;

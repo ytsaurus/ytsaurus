@@ -29,13 +29,13 @@ inline bool IsQuotationSpecSymbol(char symbol)
 }
 
 template <class TValue>
-void FormatValue(TStringBuilder* builder, const TValue& value, TStringBuf format);
+void FormatValue(TStringBuilderBase* builder, const TValue& value, TStringBuf format);
 
 [[deprecated("Do not use this method")]]
-void FormatValue(TStringBuilder* builder, __int128 value, TStringBuf format);
+void FormatValue(TStringBuilderBase* builder, __int128 value, TStringBuf format);
 
 // TStringBuf
-inline void FormatValue(TStringBuilder* builder, TStringBuf value, TStringBuf format)
+inline void FormatValue(TStringBuilderBase* builder, TStringBuf value, TStringBuf format)
 {
     if (!format) {
         builder->AppendString(value);
@@ -113,25 +113,25 @@ inline void FormatValue(TStringBuilder* builder, TStringBuf value, TStringBuf fo
 }
 
 // TString
-inline void FormatValue(TStringBuilder* builder, const TString& value, TStringBuf format)
+inline void FormatValue(TStringBuilderBase* builder, const TString& value, TStringBuf format)
 {
     FormatValue(builder, TStringBuf(value), format);
 }
 
 // const char*
-inline void FormatValue(TStringBuilder* builder, const char* value, TStringBuf format)
+inline void FormatValue(TStringBuilderBase* builder, const char* value, TStringBuf format)
 {
     FormatValue(builder, TStringBuf(value), format);
 }
 
 // char
-inline void FormatValue(TStringBuilder* builder, char value, TStringBuf format)
+inline void FormatValue(TStringBuilderBase* builder, char value, TStringBuf format)
 {
     FormatValue(builder, TStringBuf(&value, 1), format);
 }
 
 // bool
-inline void FormatValue(TStringBuilder* builder, bool value, TStringBuf format)
+inline void FormatValue(TStringBuilderBase* builder, bool value, TStringBuf format)
 {
     // Parse custom flags.
     bool lowercase = false;
@@ -157,7 +157,7 @@ inline void FormatValue(TStringBuilder* builder, bool value, TStringBuf format)
 template <class TValue, class = void>
 struct TValueFormatter
 {
-    static void Do(TStringBuilder* builder, const TValue& value, TStringBuf format)
+    static void Do(TStringBuilderBase* builder, const TValue& value, TStringBuf format)
     {
         using ::ToString;
         FormatValue(builder, ToString(value), format);
@@ -168,7 +168,7 @@ struct TValueFormatter
 template <class TEnum>
 struct TValueFormatter<TEnum, typename std::enable_if<TEnumTraits<TEnum>::IsEnum>::type>
 {
-    static void Do(TStringBuilder* builder, TEnum value, TStringBuf format)
+    static void Do(TStringBuilderBase* builder, TEnum value, TStringBuf format)
     {
         // Obtain literal.
         auto* literal = TEnumTraits<TEnum>::FindLiteralByValue(value);
@@ -230,7 +230,7 @@ TFormattableView<TRange, TFormatter> MakeShrunkFormattableView(
 }
 
 template <class TRange, class TFormatter>
-void FormatRange(TStringBuilder* builder, const TRange& range, const TFormatter& formatter, size_t limit = std::numeric_limits<size_t>::max())
+void FormatRange(TStringBuilderBase* builder, const TRange& range, const TFormatter& formatter, size_t limit = std::numeric_limits<size_t>::max())
 {
     builder->AppendChar('[');
     size_t index = 0;
@@ -249,7 +249,7 @@ void FormatRange(TStringBuilder* builder, const TRange& range, const TFormatter&
 }
 
 template <class TRange, class TFormatter>
-void FormatKeyValueRange(TStringBuilder* builder, const TRange& range, const TFormatter& formatter, size_t limit = std::numeric_limits<size_t>::max())
+void FormatKeyValueRange(TStringBuilderBase* builder, const TRange& range, const TFormatter& formatter, size_t limit = std::numeric_limits<size_t>::max())
 {
     builder->AppendChar('{');
     size_t index = 0;
@@ -273,7 +273,7 @@ void FormatKeyValueRange(TStringBuilder* builder, const TRange& range, const TFo
 template <class TRange, class TFormatter>
 struct TValueFormatter<TFormattableView<TRange, TFormatter>>
 {
-    static void Do(TStringBuilder* builder, const TFormattableView<TRange, TFormatter>& range, TStringBuf /*format*/)
+    static void Do(TStringBuilderBase* builder, const TFormattableView<TRange, TFormatter>& range, TStringBuf /*format*/)
     {
         FormatRange(builder, range, range.Formatter, range.Limit);
     }
@@ -283,7 +283,7 @@ struct TValueFormatter<TFormattableView<TRange, TFormatter>>
 template <class T>
 struct TValueFormatter<TRange<T>>
 {
-    static void Do(TStringBuilder* builder, TRange<T> range, TStringBuf /*format*/)
+    static void Do(TStringBuilderBase* builder, TRange<T> range, TStringBuf /*format*/)
     {
         FormatRange(builder, range, TDefaultFormatter());
     }
@@ -293,7 +293,7 @@ struct TValueFormatter<TRange<T>>
 template <class T>
 struct TValueFormatter<TSharedRange<T>>
 {
-    static void Do(TStringBuilder* builder, const TSharedRange<T>& range, TStringBuf /*format*/)
+    static void Do(TStringBuilderBase* builder, const TSharedRange<T>& range, TStringBuf /*format*/)
     {
         FormatRange(builder, range, TDefaultFormatter());
     }
@@ -303,7 +303,7 @@ struct TValueFormatter<TSharedRange<T>>
 template <class T>
 struct TValueFormatter<std::vector<T>>
 {
-    static void Do(TStringBuilder* builder, const std::vector<T>& collection, TStringBuf /*format*/)
+    static void Do(TStringBuilderBase* builder, const std::vector<T>& collection, TStringBuf /*format*/)
     {
         FormatRange(builder, collection, TDefaultFormatter());
     }
@@ -313,7 +313,7 @@ struct TValueFormatter<std::vector<T>>
 template <class T, unsigned N>
 struct TValueFormatter<SmallVector<T, N>>
 {
-    static void Do(TStringBuilder* builder, const SmallVector<T, N>& collection, TStringBuf /*format*/)
+    static void Do(TStringBuilderBase* builder, const SmallVector<T, N>& collection, TStringBuf /*format*/)
     {
         FormatRange(builder, collection, TDefaultFormatter());
     }
@@ -323,7 +323,7 @@ struct TValueFormatter<SmallVector<T, N>>
 template <class T>
 struct TValueFormatter<std::set<T>>
 {
-    static void Do(TStringBuilder* builder, const std::set<T>& collection, TStringBuf /*format*/)
+    static void Do(TStringBuilderBase* builder, const std::set<T>& collection, TStringBuf /*format*/)
     {
         FormatRange(builder, collection, TDefaultFormatter());
     }
@@ -333,7 +333,7 @@ struct TValueFormatter<std::set<T>>
 template <class K, class V>
 struct TValueFormatter<std::map<K, V>>
 {
-    static void Do(TStringBuilder* builder, const std::map<K, V>& collection, TStringBuf /*format*/)
+    static void Do(TStringBuilderBase* builder, const std::map<K, V>& collection, TStringBuf /*format*/)
     {
         FormatKeyValueRange(builder, collection, TDefaultFormatter());
     }
@@ -343,7 +343,7 @@ struct TValueFormatter<std::map<K, V>>
 template <class K, class V>
 struct TValueFormatter<std::multimap<K, V>>
 {
-    static void Do(TStringBuilder* builder, const std::multimap<K, V>& collection, TStringBuf /*format*/)
+    static void Do(TStringBuilderBase* builder, const std::multimap<K, V>& collection, TStringBuf /*format*/)
     {
         FormatKeyValueRange(builder, collection, TDefaultFormatter());
     }
@@ -353,7 +353,7 @@ struct TValueFormatter<std::multimap<K, V>>
 template <class T>
 struct TValueFormatter<THashSet<T>>
 {
-    static void Do(TStringBuilder* builder, const THashSet<T>& collection, TStringBuf /*format*/)
+    static void Do(TStringBuilderBase* builder, const THashSet<T>& collection, TStringBuf /*format*/)
     {
         FormatRange(builder, collection, TDefaultFormatter());
     }
@@ -363,7 +363,7 @@ struct TValueFormatter<THashSet<T>>
 template <class K, class V>
 struct TValueFormatter<THashMap<K, V>>
 {
-    static void Do(TStringBuilder* builder, const THashMap<K, V>& collection, TStringBuf /*format*/)
+    static void Do(TStringBuilderBase* builder, const THashMap<K, V>& collection, TStringBuf /*format*/)
     {
         FormatKeyValueRange(builder, collection, TDefaultFormatter());
     }
@@ -373,7 +373,7 @@ struct TValueFormatter<THashMap<K, V>>
 template <class K, class V>
 struct TValueFormatter<THashMultiMap<K, V>>
 {
-    static void Do(TStringBuilder* builder, const THashMultiMap<K, V>& collection, TStringBuf /*format*/)
+    static void Do(TStringBuilderBase* builder, const THashMultiMap<K, V>& collection, TStringBuf /*format*/)
     {
         FormatKeyValueRange(builder, collection, TDefaultFormatter());
     }
@@ -383,7 +383,7 @@ struct TValueFormatter<THashMultiMap<K, V>>
 template <class T>
 struct TValueFormatter<::google::protobuf::RepeatedField<T>>
 {
-    static void Do(TStringBuilder* builder, const ::google::protobuf::RepeatedField<T>& collection, TStringBuf /*format*/)
+    static void Do(TStringBuilderBase* builder, const ::google::protobuf::RepeatedField<T>& collection, TStringBuf /*format*/)
     {
         FormatRange(builder, collection, TDefaultFormatter());
     }
@@ -393,7 +393,7 @@ struct TValueFormatter<::google::protobuf::RepeatedField<T>>
 template <class T>
 struct TValueFormatter<::google::protobuf::RepeatedPtrField<T>>
 {
-    static void Do(TStringBuilder* builder, const ::google::protobuf::RepeatedPtrField<T>& collection, TStringBuf /*format*/)
+    static void Do(TStringBuilderBase* builder, const ::google::protobuf::RepeatedPtrField<T>& collection, TStringBuf /*format*/)
     {
         FormatRange(builder, collection, TDefaultFormatter());
     }
@@ -403,7 +403,7 @@ struct TValueFormatter<::google::protobuf::RepeatedPtrField<T>>
 template <class T, class E>
 struct TValueFormatter<TEnumIndexedVector<T, E>>
 {
-    static void Do(TStringBuilder* builder, const TEnumIndexedVector<T, E>& collection, TStringBuf format)
+    static void Do(TStringBuilderBase* builder, const TEnumIndexedVector<T, E>& collection, TStringBuf format)
     {
         builder->AppendChar('{');
         bool firstItem = true;
@@ -421,7 +421,7 @@ struct TValueFormatter<TEnumIndexedVector<T, E>>
 };
 
 // TGuid
-inline void FormatValue(TStringBuilder* builder, TGuid value, TStringBuf /*format*/)
+inline void FormatValue(TStringBuilderBase* builder, TGuid value, TStringBuf /*format*/)
 {
     char* begin = builder->Preallocate(8 * 4 + 3);
     char* end = WriteGuidToBuffer(begin, value);
@@ -429,7 +429,7 @@ inline void FormatValue(TStringBuilder* builder, TGuid value, TStringBuf /*forma
 }
 
 // std::optional
-inline void FormatValue(TStringBuilder* builder, std::nullopt_t, TStringBuf /*format*/)
+inline void FormatValue(TStringBuilderBase* builder, std::nullopt_t, TStringBuf /*format*/)
 {
     builder->AppendString(AsStringBuf("<null>"));
 }
@@ -437,7 +437,7 @@ inline void FormatValue(TStringBuilder* builder, std::nullopt_t, TStringBuf /*fo
 template <class T>
 struct TValueFormatter<std::optional<T>>
 {
-    static void Do(TStringBuilder* builder, const std::optional<T>& value, TStringBuf format)
+    static void Do(TStringBuilderBase* builder, const std::optional<T>& value, TStringBuf format)
     {
         if (value) {
             FormatValue(builder, *value, format);
@@ -448,14 +448,14 @@ struct TValueFormatter<std::optional<T>>
 };
 
 template <class TValue>
-void FormatValue(TStringBuilder* builder, const TValue& value, TStringBuf format)
+void FormatValue(TStringBuilderBase* builder, const TValue& value, TStringBuf format)
 {
     TValueFormatter<TValue>::Do(builder, value, format);
 }
 
 template <class TValue>
 void FormatValueViaSprintf(
-    TStringBuilder* builder,
+    TStringBuilderBase* builder,
     TValue value,
     TStringBuf format,
     TStringBuf genericSpec)
@@ -500,7 +500,7 @@ template <class TValue>
 char* WriteIntToBufferBackwards(char* buffer, TValue value);
 
 template <class TValue>
-void FormatValueViaHelper(TStringBuilder* builder, TValue value, TStringBuf format, TStringBuf genericSpec)
+void FormatValueViaHelper(TStringBuilderBase* builder, TValue value, TStringBuf format, TStringBuf genericSpec)
 {
     if (format == AsStringBuf("v")) {
         const int MaxResultSize = 64;
@@ -514,7 +514,7 @@ void FormatValueViaHelper(TStringBuilder* builder, TValue value, TStringBuf form
 }
 
 #define XX(valueType, castType, genericSpec) \
-    inline void FormatValue(TStringBuilder* builder, valueType value, TStringBuf format) \
+    inline void FormatValue(TStringBuilderBase* builder, valueType value, TStringBuf format) \
     { \
         FormatValueViaHelper(builder, static_cast<castType>(value), format, genericSpec); \
     }
@@ -531,7 +531,7 @@ XX(unsigned long,   unsigned long,      AsStringBuf("lu"))
 #undef XX
 
 #define XX(valueType, castType, genericSpec) \
-    inline void FormatValue(TStringBuilder* builder, valueType value, TStringBuf format) \
+    inline void FormatValue(TStringBuilderBase* builder, valueType value, TStringBuf format) \
     { \
         FormatValueViaSprintf(builder, static_cast<castType>(value), format, genericSpec); \
     }
@@ -543,13 +543,13 @@ XX(float,           float,              AsStringBuf("f"))
 
 // Pointers
 template <class T>
-void FormatValue(TStringBuilder* builder, T* value, TStringBuf format)
+void FormatValue(TStringBuilderBase* builder, T* value, TStringBuf format)
 {
     FormatValueViaSprintf(builder, value, format, AsStringBuf("p"));
 }
 
 // TDuration (specialize for performance reasons)
-inline void FormatValue(TStringBuilder* builder, const TDuration& value, TStringBuf /*format*/)
+inline void FormatValue(TStringBuilderBase* builder, const TDuration& value, TStringBuf /*format*/)
 {
     builder->AppendFormat("%vus", value.MicroSeconds());
 }
@@ -558,7 +558,7 @@ inline void FormatValue(TStringBuilder* builder, const TDuration& value, TString
 
 template <class TArgFormatter>
 void FormatImpl(
-    TStringBuilder* builder,
+    TStringBuilderBase* builder,
     TStringBuf format,
     const TArgFormatter& argFormatter)
 {
@@ -665,7 +665,7 @@ struct TArgFormatterImpl;
 template <size_t IndexBase>
 struct TArgFormatterImpl<IndexBase>
 {
-    void operator() (size_t /*index*/, TStringBuilder* builder, TStringBuf /*format*/) const
+    void operator() (size_t /*index*/, TStringBuilderBase* builder, TStringBuf /*format*/) const
     {
         builder->AppendString(AsStringBuf("<missing argument>"));
     }
@@ -682,7 +682,7 @@ struct TArgFormatterImpl<IndexBase, THeadArg, TTailArgs...>
     const THeadArg& HeadArg;
     TArgFormatterImpl<IndexBase + 1, TTailArgs...> TailFormatter;
 
-    void operator() (size_t index, TStringBuilder* builder, TStringBuf format) const
+    void operator() (size_t index, TStringBuilderBase* builder, TStringBuf format) const
     {
         Y_ASSERT(index >= IndexBase);
         if (index == IndexBase) {
@@ -697,7 +697,7 @@ struct TArgFormatterImpl<IndexBase, THeadArg, TTailArgs...>
 
 template <class... TArgs, size_t FormatLength>
 void Format(
-    TStringBuilder* builder,
+    TStringBuilderBase* builder,
     const char (&format)[FormatLength],
     TArgs&&... args)
 {
@@ -706,7 +706,7 @@ void Format(
 
 template <class... TArgs>
 void Format(
-    TStringBuilder* builder,
+    TStringBuilderBase* builder,
     TStringBuf format,
     TArgs&&... args)
 {

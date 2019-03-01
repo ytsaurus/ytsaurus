@@ -345,7 +345,7 @@ private:
 
 struct TNodePtrAddressFormatter
 {
-    void operator()(TStringBuilder* builder, TNode* node) const;
+    void operator()(TStringBuilderBase* builder, TNode* node) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

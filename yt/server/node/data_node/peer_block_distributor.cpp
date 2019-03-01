@@ -218,7 +218,7 @@ void TPeerBlockDistributor::DistributeBlocks()
 
         YT_LOG_DEBUG("Sending block to destination nodes (BlockId: %v, DestinationNodes: %v)",
             blockId,
-            MakeFormattableView(destinationNodes, [] (TStringBuilder* builder, const std::pair<TNodeId, TNodeDescriptor>& pair) {
+            MakeFormattableView(destinationNodes, [] (TStringBuilderBase* builder, const std::pair<TNodeId, TNodeDescriptor>& pair) {
                  FormatValue(builder, pair.second, TStringBuf());
              }));
 
