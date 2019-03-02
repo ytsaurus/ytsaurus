@@ -1,8 +1,10 @@
-from helpers import get_version, prepare_files
-
-from setuptools import setup
+PACKAGE_NAME = "yandex-yt-tools"
 
 def main():
+    from helpers import get_version, prepare_files
+
+    from setuptools import setup
+
     requires = ["yandex-yt >= 0.8.43", "sh", "subprocess32"]
 
     scripts, data_files = prepare_files([
@@ -13,7 +15,7 @@ def main():
         "yt/tools/bin/yt_dump_restore_erase.py"])
 
     setup(
-        name = "yandex-yt-tools",
+        name = PACKAGE_NAME,
         version = get_version(),
         packages = ["yt.tools"],
 

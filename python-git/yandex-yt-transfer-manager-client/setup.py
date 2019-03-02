@@ -1,21 +1,23 @@
-from helpers import get_version, prepare_files
-
-import sys
-from setuptools import setup
-from setuptools.command.test import test as TestCommand
-
-class PyTest(TestCommand):
-    def finalize_options(self):
-        TestCommand.finalize_options(self)
-        self.test_args = ["-vs"]
-        self.test_suite = True
-
-    def run_tests(self):
-        #import here, cause outside the eggs aren't loaded
-        import pytest
-        pytest.main(self.test_args)
+PACKAGE_NAME = "yandex-yt-transfer-manager-client"
 
 def main():
+    from helpers import get_version, prepare_files
+
+    import sys
+    from setuptools import setup
+    from setuptools.command.test import test as TestCommand
+
+    class PyTest(TestCommand):
+        def finalize_options(self):
+            TestCommand.finalize_options(self)
+            self.test_args = ["-vs"]
+            self.test_suite = True
+
+        def run_tests(self):
+            #import here, cause outside the eggs aren't loaded
+            import pytest
+            pytest.main(self.test_args)
+
     requires = ["yandex-yt >= 0.8.25"]
 
     if sys.version_info[:2] <= (2, 6):
@@ -31,7 +33,7 @@ def main():
         v_out.write("VERSION='{0}'".format(version))
 
     setup(
-        name = "yandex-yt-transfer-manager-client",
+        name = PACKAGE_NAME,
         version = get_version(),
         packages = ["yt.transfer_manager", "yt.transfer_manager.client"],
 

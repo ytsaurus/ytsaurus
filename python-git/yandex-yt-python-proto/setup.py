@@ -1,10 +1,12 @@
-from helpers import get_version, recursive
-
-from setuptools import setup
+PACKAGE_NAME = "yandex-yt-proto"
 
 def main():
+    from helpers import get_version, recursive
+
+    from setuptools import setup
+
     setup(
-        name = "yandex-yt-proto",
+        name = PACKAGE_NAME,
         version = get_version(),
         packages = recursive("yt_proto"),
 

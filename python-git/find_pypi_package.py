@@ -3,13 +3,14 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "teamcity-build/python"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "teamcity-build/python/python_packaging"))
 
-from python_packaging.pypi_helpers import get_package_versions
+from pypi_helpers import get_package_versions
 
 def main():
     package_name, target_version = sys.argv[1:]
-    sys.stdout.write(str(int(target_version in get_package_versions(package_name))))
+    part_count = len(target_version.replace("-", ".").split("."))
+    sys.stdout.write(str(int(target_version in get_package_versions(package_name, version_part_count=part_count))))
 
 if __name__ == "__main__":
     main()

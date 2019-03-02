@@ -1,22 +1,24 @@
-from helpers import prepare_files, get_version
-
-from setuptools import setup
-from setuptools.command.test import test as TestCommand
-
-import sys
-
-class PyTest(TestCommand):
-    def finalize_options(self):
-        TestCommand.finalize_options(self)
-        self.test_args = ["-vs"]
-        self.test_suite = True
-
-    def run_tests(self):
-        #import here, cause outside the eggs aren't loaded
-        import pytest
-        pytest.main(self.test_args)
+PACKAGE_NAME = "yandex-yt-local"
 
 def main():
+    from helpers import prepare_files, get_version
+
+    from setuptools import setup
+    from setuptools.command.test import test as TestCommand
+
+    import sys
+
+    class PyTest(TestCommand):
+        def finalize_options(self):
+            TestCommand.finalize_options(self)
+            self.test_args = ["-vs"]
+            self.test_suite = True
+
+        def run_tests(self):
+            #import here, cause outside the eggs aren't loaded
+            import pytest
+            pytest.main(self.test_args)
+
     requires = []
     if sys.version_info[:2] <= (2, 6):
         requires.append("argparse")
@@ -27,7 +29,7 @@ def main():
     ])
 
     setup(
-        name = "yandex-yt-local",
+        name = PACKAGE_NAME,
         version = get_version(),
         packages = ["yt.local", "yt.environment"],
         scripts = scripts,

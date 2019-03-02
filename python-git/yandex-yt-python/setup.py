@@ -1,11 +1,13 @@
-from helpers import get_version, recursive
-
-from setuptools import setup, find_packages
-
-import os
-import sys
+PACKAGE_NAME = "yandex-yt"
 
 def main():
+    from helpers import get_version, recursive
+
+    from setuptools import setup, find_packages
+
+    import os
+    import sys
+
     version = get_version()
     version = version.split("-")[0]
     stable_versions = []
@@ -37,7 +39,7 @@ def main():
 
     find_packages("yt/packages")
     setup(
-        name = "yandex-yt",
+        name = PACKAGE_NAME,
         version = version,
         packages = ["yt", "yt.wrapper", "yt.yson", "yt.ypath", "yt.skiff"] + recursive("yt/packages"),
         scripts = scripts,
