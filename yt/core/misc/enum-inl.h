@@ -5,8 +5,6 @@
 #include "enum.h"
 #endif
 
-#include <yt/core/misc/mpl.h>
-
 #include <util/string/printf.h>
 #include <util/string/cast.h>
 
@@ -169,16 +167,16 @@ namespace NYT {
     }
 
 #define ENUM__MINMAX(name, seq) \
-    ENUM__MINMAX_IMPL(name, seq, Min) \
-    ENUM__MINMAX_IMPL(name, seq, Max)
+    ENUM__MINMAX_IMPL(name, seq, Min, min) \
+    ENUM__MINMAX_IMPL(name, seq, Max, max)
 
-#define ENUM__MINMAX_IMPL(name, seq, ext) \
-    static constexpr TType Get##ext##Value() \
+#define ENUM__MINMAX_IMPL(name, seq, Extr, extr) \
+    static constexpr TType Get##Extr##Value() \
     { \
-        return TType(::NYT::NMpl::ext( \
+        return static_cast<TType>(std::extr({ \
             PP_FOR_EACH(ENUM__MINMAX_ITEM, seq) \
             ENUM__MINMAX_ITEM_CORE(PP_HEAD(seq)) \
-        )); \
+        })); \
     }
 
 #define ENUM__MINMAX_ITEM(item) \
