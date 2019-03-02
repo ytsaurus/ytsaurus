@@ -463,8 +463,6 @@ TEST_F(TLoggingTest, LongMessages)
     for (int i = 0; i < N; ++i) {
         auto expected = Format("%v", MakeRange(chunks.data(), chunks.data() + i));
         auto actual = infoLog[i + 1];
-        //fprintf(stderr, "%s\n", expected.c_str());
-        //fprintf(stderr, "%s\n", actual.c_str());
         EXPECT_NE(TString::npos, actual.find(expected));
     }
 
