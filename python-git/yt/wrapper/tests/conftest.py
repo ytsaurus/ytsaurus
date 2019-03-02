@@ -309,7 +309,7 @@ def test_environment_job_archive(request):
     )
 
     sync_create_cell()
-    init_operation_archive.create_tables_latest_version(yt)
+    init_operation_archive.create_tables_latest_version(yt, override_tablet_cell_bundle="default")
 
     request.addfinalizer(lambda: environment.cleanup())
 
