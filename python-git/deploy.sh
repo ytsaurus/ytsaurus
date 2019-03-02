@@ -140,7 +140,8 @@ if [ -z "$SKIP_WHEEL" ]; then
     # distribution (since all new distributions have backward compatibility).
     # See PEP-425, PEP-513 and https://github.com/pypa/manylinux for more details.
     # This is why oldest distributions are chosen - precise.
-    if [ "$CODENAME" = "precise" ] && [ "$(./find_pypi_package.py "$PACKAGE" "$VERSION")" = "0" ]; then
+    PYPI_PACKAGE_NAME=$(python -c "import setup; import sys; sys.stdout.write(setup.PACKAGE_NAME)")
+    if [ "$CODENAME" = "precise" ] && [ "$(./find_pypi_package.py "$PYPI_PACKAGE_NAME" "$VERSION")" = "0" ]; then
         # TODO(ignat): ignore error code since new version of distutils. 
         # For yandex-yt-python it would be fixed here: YT-10356.
         python setup.py bdist_wheel --universal upload -r yandex
