@@ -96,7 +96,7 @@ message TReqFlushBlocks
 
 message TRspFlushBlocks
 {
-        optional bool location_sick = 1 [default = false];
+    optional bool location_sick = 1 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
