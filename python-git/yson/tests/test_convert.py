@@ -56,6 +56,10 @@ def test_convert_yson_to_json():
             b"binary_key": b"binary value",
             to_yson_type(b"yson_key"): to_yson_type(b"yson value"),
         },
+        "h": {
+            "true_value": to_yson_type(True),
+            "false_value": to_yson_type(False),
+        },
     })
 
     # Verify that result is json-serializable
@@ -68,4 +72,5 @@ def test_convert_yson_to_json():
     assert x["e"] == {"$value": None, "$attributes": {"x": "y"}}
     assert x["f"] == {"$value": "abacaba", "$attributes": {"attr": 4}}
     assert x["g"] == {"binary_key": "binary value", "yson_key": "yson value"}
-    assert set(x.keys()) == set(["a", "b", "c", "d", "e", "f", "g"])
+    assert x["h"] == {"true_value": True, "false_value": False}
+    assert set(x.keys()) == set(["a", "b", "c", "d", "e", "f", "g", "h"])
