@@ -1048,7 +1048,7 @@ def transform_archive(client, transform_begin, transform_end, force, archive_pat
             raise ValueError("Version {0} must have actions or transformations".format(version))
         client.set_attribute(archive_path, "version", version)
 
-def create_tables(client, target_version, override_tablet_cell_bundle, shards=1, base_path=BASE_PATH):
+def create_tables(client, target_version, override_tablet_cell_bundle="default", shards=1, base_path=BASE_PATH):
     """ Creates operation archive tables of given version """
     assert target_version in TRANSFORMS
 
@@ -1068,7 +1068,7 @@ def create_tables(client, target_version, override_tablet_cell_bundle, shards=1,
 
     client.set(BASE_PATH + "/@version", target_version)
 
-def create_tables_latest_version(client, override_tablet_cell_bundle=None, shards=1, base_path=BASE_PATH):
+def create_tables_latest_version(client, override_tablet_cell_bundle="default", shards=1, base_path=BASE_PATH):
     """ Creates operation archive tables of latest version """
     latest_version = max(TRANSFORMS.keys())
     create_tables(client, latest_version, override_tablet_cell_bundle, shards=shards, base_path=base_path)
@@ -1099,7 +1099,7 @@ def main():
     next_version = current_version + 1
 
     if args.latest:
-        create_tables_latest_version(client)
+        create_tables_latest_version(client, override_tablet_cell_bundle=None)  # TODO(renadeen): promote python, fix usages in yt tests and get rid of None
     else:
         target_version = args.target_version
         transform_archive(client, next_version, target_version, args.force, archive_path, shard_count=args.shard_count)
