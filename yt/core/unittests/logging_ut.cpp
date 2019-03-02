@@ -423,6 +423,54 @@ TEST_F(TLoggingTest, TraceSuppression)
     NFs::Remove("test.log");
 }
 
+TEST_F(TLoggingTest, LongMessages)
+{
+    NFs::Remove("test.log");
+
+    auto configText = R"({
+        rules = [
+            {
+                "min_level" = "info";
+                "writers" = [ "info" ];
+            };
+        ];
+        "writers" = {
+            "info" = {
+                "file_name" = "test.log";
+                "type" = "file";
+            };
+        };
+    })";
+
+    auto configNode = ConvertToNode(TYsonString(configText));
+    auto config = ConvertTo<TLogConfigPtr>(configNode);
+    TLogManager::Get()->Configure(config);
+
+    constexpr int N = 500;
+    std::vector<TString> chunks;
+    for (int i = 0; i < N; ++i) {
+        chunks.push_back(Format("PayloadPayloadPayloadPayloadPayload%v", i));
+    }
+
+    for (int i = 0; i < N; ++i) {
+        YT_LOG_INFO("%v", MakeRange(chunks.data(), chunks.data() + i));
+    }
+
+    TLogManager::Get()->Synchronize();
+
+    auto infoLog = ReadFile("test.log");
+    EXPECT_EQ(N + 1, infoLog.size());
+    for (int i = 0; i < N; ++i) {
+        auto expected = Format("%v", MakeRange(chunks.data(), chunks.data() + i));
+        auto actual = infoLog[i + 1];
+        //fprintf(stderr, "%s\n", expected.c_str());
+        //fprintf(stderr, "%s\n", actual.c_str());
+        EXPECT_NE(TString::npos, actual.find(expected));
+    }
+
+    NFs::Remove("test.log");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NLogging
