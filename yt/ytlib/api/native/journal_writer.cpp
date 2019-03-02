@@ -154,7 +154,7 @@ private:
                 return MakeFuture(Error_);
             }
 
-            TFuture<void> result = VoidFuture;
+            auto result = VoidFuture;
             for (const auto& row : rows) {
                 YCHECK(!row.Empty());
                 auto batch = EnsureCurrentBatch();
@@ -233,8 +233,6 @@ private:
         const TString DelayCounterPath_ = "/delay_time";
         TTimer DelayTimer_;
         THashMap<TString, TTagIdList> StageTags_;
-
-        TAggregateGauge QuorumLagTime_ = {"/quorum_lag"};
 
         struct TNode
             : public TRefCounted
@@ -457,7 +455,7 @@ private:
 
                 {
                     auto* prerequisitesExt = batchReq->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);
-                    for (const auto& id : Options_.PrerequisiteTransactionIds) {
+                    for (auto id : Options_.PrerequisiteTransactionIds) {
                         auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
                         ToProto(prerequisiteTransaction->mutable_transaction_id(), id);
                     }
@@ -549,7 +547,7 @@ private:
 
             {
                 auto* prerequisitesExt = batchReq->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);
-                for (const auto& id : Options_.PrerequisiteTransactionIds) {
+                for (auto id : Options_.PrerequisiteTransactionIds) {
                     auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
                     ToProto(prerequisiteTransaction->mutable_transaction_id(), id);
                 }
@@ -701,7 +699,7 @@ private:
                 node->PingExecutor->Start();
             }
 
-            const auto& chunkId = session->Id.ChunkId;
+            auto chunkId = session->Id.ChunkId;
 
             YT_LOG_INFO("Confirming chunk");
             {
@@ -878,7 +876,7 @@ private:
             auto session = CurrentSession_;
             CurrentSession_.Reset();
 
-            const auto& sessionId = session->Id;
+            auto sessionId = session->Id;
 
             DelayTimer_ = Profiler.TimingStart(
                 DelayCounterPath_,
