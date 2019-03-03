@@ -100,12 +100,19 @@ void BuildMutableOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 
 void BuildExecNodeAttributes(TExecNodePtr node, TFluentMap fluent)
 {
+    auto oldState = node->GetMasterState();
+    if (node->GetSchedulerState() != ENodeState::Online) {
+        oldState = NNodeTrackerClient::ENodeState::Offline;
+    }
+
     fluent
         .Item("scheduler_state").Value(node->GetSchedulerState())
         .Item("master_state").Value(node->GetMasterState())
+        .Item("state").Value(oldState)
         .Item("resource_usage").Value(node->GetResourceUsage())
         .Item("resource_limits").Value(node->GetResourceLimits())
         .Item("tags").Value(node->Tags());
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
