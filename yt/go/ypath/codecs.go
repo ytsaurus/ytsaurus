@@ -46,11 +46,11 @@ func CompressionBZIP2(n int) CompressionCodec {
 }
 
 const (
-	CompressionNode               = "none"
-	CompressionSnappy             = "snappy"
-	CompressionLZ4                = "lz4"
-	CompressionLZ4HighCompression = "lz4_high_compression"
-	CompressionQuickLZ            = "quick_lz"
+	CompressionNode               CompressionCodec = "none"
+	CompressionSnappy             CompressionCodec = "snappy"
+	CompressionLZ4                CompressionCodec = "lz4"
+	CompressionLZ4HighCompression CompressionCodec = "lz4_high_compression"
+	CompressionQuickLZ            CompressionCodec = "quick_lz"
 )
 
 type ErasureCodec string
@@ -65,7 +65,7 @@ func (c ErasureCodec) MarshalText() (text []byte, err error) {
 }
 
 const (
-	ErasureNone        = "none"
-	ErasureReedSolomon = "reed_solomon_6_3"
-	ErasureLRC         = "lrc_12_2_2"
+	ErasureNone        ErasureCodec = "none"
+	ErasureReedSolomon ErasureCodec = "reed_solomon_6_3"
+	ErasureLRC         ErasureCodec = "lrc_12_2_2"
 )

@@ -7,45 +7,107 @@ import (
 )
 
 func TestSliceYPathAttrs(t *testing.T) {
-	for _, test := range [][]string{
-		{
-			"//home/prime",
-			"",
-			"//home/prime",
-		},
-		{
-			"<>   #abc",
-			"<>   ",
-			"#abc",
-		},
-		{
-			"<append=%true; keys=[1;2;3;];>#abc",
-			"<append=%true; keys=[1;2;3;];>",
-			"#abc",
-		},
-	} {
-		t.Logf("checking %q", test[0])
-		attrs, rest, err := SliceYPath([]byte(test[0]))
+	for _, test := range []struct {
+		input string
+		n     int
+		bad   bool
+	}{
+		{"//home/prime", 0, false},
+		{"<>   #abc", 5, false},
+		{"<append=%true; keys=[1;2;3;];>#abc", 30, false},
 
-		require.Nil(t, err)
-		require.Equal(t, test[1], string(attrs))
-		require.Equal(t, test[2], string(rest))
+		{"", 0, true},
+		{"  ", 0, true},
+		{"<><>#", 0, true},
+		{"1#", 0, true},
+		{"<>", 0, true},
+		{"<>;#", 0, true},
+		{"{}//", 0, true},
+	} {
+		t.Logf("checking %q", test.input)
+		n, err := SliceYPathAttrs([]byte(test.input))
+
+		if !test.bad {
+			require.NoError(t, err)
+			require.Equal(t, test.n, n)
+		} else {
+			require.Error(t, err)
+		}
 	}
 }
 
-func TestSliceInvalidYPath(t *testing.T) {
-	check := func(in string) {
-		t.Logf("testing %q", in)
+func TestSliceString(t *testing.T) {
+	for _, test := range []struct {
+		input string
+		str   string
+		n     int
+		bad   bool
+	}{
+		{
+			"a]",
+			"a",
+			1,
+			false,
+		},
+		{
+			" a]",
+			"a",
+			2,
+			false,
+		},
+		{
+			" a ]",
+			"a",
+			2,
+			false,
+		},
+		{
+			"a}",
+			"a",
+			1,
+			false,
+		},
+		{
+			"a,",
+			"a",
+			1,
+			false,
+		},
+		{
+			"a)",
+			"a",
+			1,
+			false,
+		},
+		{
+			`"a")`,
+			"a",
+			3,
+			false,
+		},
+		{
+			`"a"`,
+			"",
+			0,
+			true,
+		},
+		{
+			`"a`,
+			"",
+			0,
+			true,
+		},
+	} {
+		t.Logf("checking %q", test.input)
+		var str []byte
+		n, err := SliceYPathString([]byte(test.input), &str)
 
-		_, _, err := SliceYPath([]byte(in))
-		require.Error(t, err)
+		if !test.bad {
+			require.NoError(t, err)
+			require.Equal(t, test.n, n)
+			require.Equal(t, test.str, string(str))
+		} else {
+			require.Error(t, err)
+		}
 	}
-
-	check("")
-	check("  ")
-	check("<><>#")
-	check("1#")
-	check("<>")
-	check("<>;#")
-	check("{}//")
 }

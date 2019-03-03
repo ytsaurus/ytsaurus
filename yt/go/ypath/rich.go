@@ -3,6 +3,7 @@ package ypath
 import (
 	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/yson"
+	"github.com/mitchellh/copystructure"
 )
 
 type ReadLimit struct {
@@ -15,6 +16,9 @@ func RowIndex(index int64) ReadLimit {
 }
 
 func Key(values ...interface{}) ReadLimit {
+	if values == nil {
+		values = []interface{}{}
+	}
 	return ReadLimit{Key: values}
 }
 
@@ -22,6 +26,18 @@ type Range struct {
 	Lower *ReadLimit `yson:"lower_limit,omitempty"`
 	Upper *ReadLimit `yson:"lower_limit,omitempty"`
 	Exact *ReadLimit `yson:"lower_limit,omitempty"`
+}
+
+func Full() Range {
+	return Range{}
+}
+
+func StartingFrom(lower ReadLimit) Range {
+	return Range{Lower: &lower}
+}
+
+func UpTo(lower ReadLimit) Range {
+	return Range{Upper: &lower}
 }
 
 func Interval(lower ReadLimit, upper ReadLimit) Range {
@@ -48,6 +64,10 @@ type Rich struct {
 	RenameColumns map[string]string `yson:"rename_columns,attr,omitempty"`
 }
 
+func NewRich(path Path) *Rich {
+	return &Rich{Path: path}
+}
+
 func (r Rich) MarshalYSON(w *yson.Writer) error {
 	type ClearPath Rich
 	clear := ClearPath(r)
@@ -62,16 +82,8 @@ func (r Rich) MarshalYSON(w *yson.Writer) error {
 
 func (_ Rich) YPath() {}
 
-func Parse(path string) (p Rich, err error) {
-	var attrs, rest []byte
-	attrs, rest, err = yson.SliceYPath([]byte(path))
-	if err != nil {
-		return
-	}
-
-	_, _ = attrs, rest
-	panic("not implemented")
-	return
+func (p *Rich) Copy() *Rich {
+	return copystructure.Must(copystructure.Copy(p)).(*Rich)
 }
 
 func (p *Rich) SetSchema(schema schema.Schema) *Rich {

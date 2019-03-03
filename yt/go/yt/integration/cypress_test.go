@@ -105,7 +105,7 @@ func TestCypress(t *testing.T) {
 			require.NoError(t, err)
 
 			var typ yt.NodeType
-			err = env.YT.GetNode(ctx, linkName.NoFollowSymlink().Attr("type"), &typ, nil)
+			err = env.YT.GetNode(ctx, linkName.SuppressSymlink().Attr("type"), &typ, nil)
 			require.NoError(t, err)
 			require.Equal(t, yt.NodeLink, typ)
 		})
