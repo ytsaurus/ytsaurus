@@ -169,6 +169,12 @@ public:
         RegisterParameter("dictionaries", Dictionaries)
             .Default();
 
+        RegisterParameter("path_to_regions_hierarchy_file", PathToRegionsHierarchyFile)
+            .Default("./geodata/regions_hierarchy.txt");
+
+        RegisterParameter("path_to_regions_name_files", PathToRegionsNameFiles)
+            .Default("./geodata/");
+
         RegisterPreprocessor([&] {
             Settings["readonly"] = ConvertToNode(2);
             Settings["max_memory_usage_for_all_queries"] = ConvertToNode(9_GB);
@@ -210,6 +216,10 @@ public:
 
     //! Hosts to listen.
     std::vector<TString> ListenHosts;
+
+    //! Paths to geodata stuff.
+    TString PathToRegionsHierarchyFile;
+    TString PathToRegionsNameFiles;
 };
 
 DEFINE_REFCOUNTED_TYPE(TEngineConfig);
