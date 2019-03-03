@@ -13,7 +13,6 @@
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/session_id.h>
-#include <yt/ytlib/chunk_client/medium_directory.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
@@ -161,9 +160,6 @@ private:
                 // NB: We can form a handful of batches but since flushes are monotonic,
                 // the last one will do.
                 result = AppendToBatch(batch, row);
-                if (IsBatchFull(batch)) {
-                    FlushCurrentBatch();
-                }
             }
 
             return result;
@@ -205,7 +201,7 @@ private:
             TCpuInstant StartTime;
         };
 
-        typedef TIntrusivePtr<TBatch> TBatchPtr;
+        using TBatchPtr = TIntrusivePtr<TBatch>;
 
         TSpinLock CurrentBatchSpinLock_;
         TError Error_;
@@ -230,9 +226,16 @@ private:
         TChunkListId ChunkListId_;
         IChannelPtr UploadMasterChannel_;
 
-        const TString DelayCounterPath_ = "/delay_time";
-        TTimer DelayTimer_;
-        THashMap<TString, TTagIdList> StageTags_;
+        TAggregateGauge CreateChunkTimeGauge_{"/time/create_chunk"};
+        TAggregateGauge FinishChunkTimeGauge_{"/time/finish_chunk"};
+        TAggregateGauge SealChunkTimeGauge_{"/time/seal_chunk"};
+        TAggregateGauge CloseJournalTimeGauge_{"/time/close_journal"};
+        TAggregateGauge GetBasicAttributesTimeGauge_{"/time/get_basic_attributes"};
+        TAggregateGauge GeExtendedAttributesTimeGauge_{"/time/get_extended_attributes"};
+        TAggregateGauge GetUploadParametersTimeGauge_{"/time/get_upload_parameters"};
+        TAggregateGauge BeginUploadTimeGauge_{"/time/begin_upload"};
+        TAggregateGauge AllocateTargetsTimeGauge_{"/time/allocate_targets"};
+        TAggregateGauge ConfirmChunkTimeGauge_{"/time/confirm_chunk"};
 
         struct TNode
             : public TRefCounted
@@ -271,24 +274,23 @@ private:
             }
         };
 
-        typedef TIntrusivePtr<TNode> TNodePtr;
-        typedef TWeakPtr<TNode> TNodeWeakPtr;
+        using TNodePtr = TIntrusivePtr<TNode>;
+        using TNodeWeakPtr = TWeakPtr<TNode>;
 
-        TNodeDirectoryPtr NodeDirectory_ = New<TNodeDirectory>();
+        const TNodeDirectoryPtr NodeDirectory_ = New<TNodeDirectory>();
 
         struct TChunkSession
             : public TRefCounted
         {
             TSessionId Id;
             std::vector<TNodePtr> Nodes;
-            i64 RowCount = 0;
-            i64 DataSize = 0;
             i64 FlushedRowCount = 0;
             i64 FlushedDataSize = 0;
+            bool SwitchScheduled = false;
         };
 
-        typedef TIntrusivePtr<TChunkSession> TChunkSessionPtr;
-        typedef TWeakPtr<TChunkSession> TChunkSessionWeakPtr;
+        using TChunkSessionPtr = TIntrusivePtr<TChunkSession>;
+        using TChunkSessionWeakPtr = TWeakPtr<TChunkSession>;
 
         i64 SealedRowCount_ = 0;
         TChunkSessionPtr CurrentSession_;
@@ -296,38 +298,33 @@ private:
         i64 CurrentRowIndex_ = 0;
         std::deque<TBatchPtr> PendingBatches_;
 
-        typedef TBatchPtr TBatchCommand;
+        struct TBatchCommand
+        {
+            TBatchPtr Batch;
+        };
 
-        struct TCloseCommand { };
+        struct TCloseCommand
+        { };
 
-        struct TCancelCommand { };
+        struct TCancelCommand
+        { };
 
         struct TSwitchChunkCommand
         {
             TChunkSessionPtr Session;
         };
 
-        typedef std::variant<
+        using TCommand = std::variant<
             TBatchCommand,
             TCloseCommand,
             TCancelCommand,
             TSwitchChunkCommand
-        > TCommand;
+        >;
 
         TNonblockingQueue<TCommand> CommandQueue_;
 
         THashMap<TString, TInstant> BannedNodeToDeadline_;
 
-        TTagIdList GetStageTag(const TString& stage)
-        {
-            if (auto it = StageTags_.find(stage)) {
-                return it->second;
-            }
-
-            TTagIdList tagId = {TProfileManager::Get()->RegisterTag("stage", stage)};
-            YCHECK(StageTags_.insert(std::make_pair(stage, tagId)).second);
-            return tagId;
-        }
 
         void EnqueueCommand(TCommand command)
         {
@@ -368,26 +365,21 @@ private:
 
         void OpenJournal()
         {
-            DelayTimer_ = Profiler.TimingStart(
-                DelayCounterPath_,
-                EmptyTagIds,
-                ETimerMode::Sequential);
-
             TUserObject userObject;
             userObject.Path = Path_;
 
-            GetUserObjectBasicAttributes(
-                Client_,
-                TMutableRange<TUserObject>(&userObject, 1),
-                Transaction_ ? Transaction_->GetId() : NullTransactionId,
-                Logger,
-                EPermission::Write);
+            {
+                TTimingGuard timingGuard(&Profiler, "/time/get_basic_attributes");
 
-            Profiler.TimingCheckpoint(
-                DelayTimer_,
-                GetStageTag("get_basic_attributes"));
+                GetUserObjectBasicAttributes(
+                    Client_,
+                    TMutableRange<TUserObject>(&userObject, 1),
+                    Transaction_ ? Transaction_->GetId() : NullTransactionId,
+                    Logger,
+                    EPermission::Write);
+            }
 
-            const auto cellTag = userObject.CellTag;
+            auto cellTag = userObject.CellTag;
             ObjectId_ = userObject.ObjectId;
 
             auto objectIdPath = FromObjectId(ObjectId_);
@@ -402,6 +394,8 @@ private:
             UploadMasterChannel_ = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
 
             {
+                TTimingGuard timingGuard(&Profiler, "/time/get_extended_attributes");
+
                 YT_LOG_INFO("Requesting extended journal attributes");
 
                 auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
@@ -441,11 +435,9 @@ private:
                     PrimaryMedium_);
             }
 
-            Profiler.TimingCheckpoint(
-                DelayTimer_,
-                GetStageTag("get_extended_attributes"));
-
             {
+                TTimingGuard timingGuard(&Profiler, "/time/begin_upload");
+
                 YT_LOG_INFO("Starting journal upload");
 
                 auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
@@ -495,11 +487,9 @@ private:
                 }
             }
 
-            Profiler.TimingCheckpoint(
-                DelayTimer_,
-                GetStageTag("begin_upload"));
-
             {
+                TTimingGuard timingGuard(&Profiler, "/time/get_upload_parameters");
+
                 YT_LOG_INFO("Requesting journal upload parameters");
 
                 auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
@@ -515,15 +505,11 @@ private:
                     Path_);
 
                 const auto& rsp = rspOrError.Value();
-                ChunkListId_ = FromProto<TChunkListId>(rsp->chunk_list_id());
+                ChunkListId_ = FromProto < TChunkListId > (rsp->chunk_list_id());
 
                 YT_LOG_INFO("Journal upload parameters received (ChunkListId: %v)",
                     ChunkListId_);
             }
-
-            Profiler.TimingCheckpoint(
-                DelayTimer_,
-                GetStageTag("get_upload_parameters"));
 
             YT_LOG_INFO("Journal opened");
             OpenedPromise_.Set(TError());
@@ -533,10 +519,7 @@ private:
         {
             YT_LOG_INFO("Closing journal");
 
-            DelayTimer_ = Profiler.TimingStart(
-                DelayCounterPath_,
-                EmptyTagIds,
-                ETimerMode::Sequential);
+            TTimingGuard timingGuard(&Profiler, "/time/end_upload");
 
             auto objectIdPath = FromObjectId(ObjectId_);
 
@@ -568,10 +551,6 @@ private:
                 "Error finishing upload to journal %v",
                 Path_);
 
-            Profiler.TimingCheckpoint(
-                DelayTimer_,
-                GetStageTag("close_journal"));
-
             YT_LOG_INFO("Journal closed");
 
             UploadTransaction_->Detach();
@@ -583,14 +562,11 @@ private:
         {
             auto session = New<TChunkSession>();
 
-            DelayTimer_ = Profiler.TimingStart(
-                DelayCounterPath_,
-                EmptyTagIds,
-                ETimerMode::Sequential);
-
             YT_LOG_INFO("Creating chunk");
 
             {
+                TTimingGuard timingGuard(&Profiler, "/time/create_chunk");
+
                 TChunkServiceProxy proxy(UploadMasterChannel_);
 
                 auto batchReq = proxy.ExecuteBatch();
@@ -620,27 +596,24 @@ private:
                 session->Id = FromProto<TSessionId>(rsp.session_id());
             }
 
-            YT_LOG_INFO("Chunk created (ChunkId: %v)",
+            YT_LOG_INFO("Chunk created (SessionId: %v)",
                 session->Id);
 
-            Profiler.TimingCheckpoint(
-                DelayTimer_,
-                GetStageTag("create_chunk"));
+            TChunkReplicaList replicas;
+            {
+                TTimingGuard timingGuard(&Profiler, "/time/allocate_write_targets");
 
-            auto replicas = AllocateWriteTargets(
-                Client_,
-                session->Id,
-                ReplicationFactor_,
-                WriteQuorum_,
-                std::nullopt,
-                Config_->PreferLocalHost,
-                GetBannedNodes(),
-                NodeDirectory_,
-                Logger);
-
-            Profiler.TimingCheckpoint(
-                DelayTimer_,
-                GetStageTag("allocate_targets"));
+                replicas = AllocateWriteTargets(
+                    Client_,
+                    session->Id,
+                    ReplicationFactor_,
+                    WriteQuorum_,
+                    std::nullopt,
+                    Config_->PreferLocalHost,
+                    GetBannedNodes(),
+                    NodeDirectory_,
+                    Logger);
+            }
 
             std::vector<TNodeDescriptor> targets;
             for (auto replica : replicas) {
@@ -668,6 +641,8 @@ private:
 
             YT_LOG_INFO("Starting chunk sessions");
             try {
+                TTimingGuard timingGuard(&Profiler, "/time/start_sessions");
+
                 std::vector<TFuture<void>> asyncResults;
                 for (const auto& node : session->Nodes) {
                     auto req = node->LightProxy.StartChunk();
@@ -679,6 +654,7 @@ private:
                             .AsyncVia(Invoker_));
                     asyncResults.push_back(asyncRsp);
                 }
+
                 auto result = WaitFor(CombineQuorum(asyncResults, WriteQuorum_));
                 THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error starting chunk sessions");
             } catch (const std::exception& ex) {
@@ -686,10 +662,6 @@ private:
                 return false;
             }
             YT_LOG_INFO("Chunk sessions started");
-
-            Profiler.TimingCheckpoint(
-                DelayTimer_,
-                GetStageTag("start_sessions"));
 
             for (const auto& node : session->Nodes) {
                 node->PingExecutor = New<TPeriodicExecutor>(
@@ -703,8 +675,9 @@ private:
 
             YT_LOG_INFO("Confirming chunk");
             {
-                TChunkServiceProxy proxy(UploadMasterChannel_);
+                TTimingGuard timingGuard(&Profiler, "/time/confirm_chunk");
 
+                TChunkServiceProxy proxy(UploadMasterChannel_);
                 auto batchReq = proxy.ExecuteBatch();
                 GenerateMutationId(batchReq);
                 batchReq->set_suppress_upstream_sync(true);
@@ -728,12 +701,10 @@ private:
             }
             YT_LOG_INFO("Chunk confirmed");
 
-            Profiler.TimingCheckpoint(
-                DelayTimer_,
-                GetStageTag("confirm_chunk"));
-
             YT_LOG_INFO("Attaching chunk");
             {
+                TTimingGuard timingGuard(&Profiler, "/time/attach_chunk");
+
                 TChunkServiceProxy proxy(UploadMasterChannel_);
                 auto batchReq = proxy.ExecuteBatch();
                 GenerateMutationId(batchReq);
@@ -751,14 +722,19 @@ private:
             }
             YT_LOG_INFO("Chunk attached");
 
-            Profiler.TimingCheckpoint(
-                DelayTimer_,
-                GetStageTag("attach_chunk"));
-
             CurrentSession_ = session;
 
-            for (const auto& batch : PendingBatches_) {
-                EnqueueBatchToSession(batch);
+            if (!PendingBatches_.empty()) {
+                const auto& firstBatch = PendingBatches_.front();
+                const auto& lastBatch = PendingBatches_.back();
+                YT_LOG_DEBUG("Batches reenqueued (Rows: %v-%v, Session: %v)",
+                    firstBatch->FirstRowIndex,
+                    lastBatch->FirstRowIndex + lastBatch->Rows.size() - 1,
+                    CurrentSession_->Id);
+
+                for (const auto& batch : PendingBatches_) {
+                    EnqueueBatchToSession(batch);
+                }
             }
 
             TDelayedExecutor::Submit(
@@ -771,9 +747,12 @@ private:
         void OnSessionTimeout(const TWeakPtr<TChunkSession>& session_)
         {
             auto session = session_.Lock();
-            if (session) {
-                EnqueueCommand(TSwitchChunkCommand{session});
+            if (!session) {
+                return;
             }
+
+            YT_LOG_DEBUG("Session timeout; requesting chunk switch");
+            ScheduleSwitch(session);
         }
 
         void OpenChunk()
@@ -801,20 +780,24 @@ private:
                         throw TFiberCanceledException();
                     },
                     [&] (const TBatchCommand& typedCommand) {
-                        HandleBatch(typedCommand);
-                        if (IsSessionOverfull()) {
-                            SwitchChunk();
-                            mustBreak = true;
-                        }
+                        const auto& batch = typedCommand.Batch;
+
+                        YT_LOG_DEBUG("Batch enqueued (Rows: %v-%v, Session: %v)",
+                            batch->FirstRowIndex,
+                            batch->FirstRowIndex + batch->Rows.size() - 1,
+                            CurrentSession_->Id);
+
+                        HandleBatch(batch);
                     },
                     [&] (const TSwitchChunkCommand& typedCommand) {
-                        if (typedCommand.Session == CurrentSession_) {
-                            SwitchChunk();
-                            mustBreak = true;
+                        if (typedCommand.Session != CurrentSession_) {
+                            return;
                         }
+                        mustBreak = true;
                     });
 
                 if (mustBreak) {
+                    YT_LOG_DEBUG("Switching chunk");
                     break;
                 }
             }
@@ -826,22 +809,15 @@ private:
             Closing_ = true;
         }
 
-        void HandleBatch(TBatchPtr batch)
+        void HandleBatch(const TBatchPtr& batch)
         {
             PendingBatches_.push_back(batch);
             EnqueueBatchToSession(batch);
         }
 
-        bool IsSessionOverfull()
-        {
-            return
-                CurrentSession_->RowCount > Config_->MaxChunkRowCount ||
-                CurrentSession_->DataSize > Config_->MaxChunkDataSize;
-        }
-
         void EnqueueBatchToSession(const TBatchPtr& batch)
         {
-            // Reset flushed replica count: this batch might have already been
+            // Check flushed replica count: this batch might have already been
             // flushed (partially) by the previous (failed session).
             if (batch->FlushedReplicas > 0) {
                 YT_LOG_DEBUG("Resetting flushed replica counter (Rows: %v-%v, FlushCounter: %v)",
@@ -851,22 +827,10 @@ private:
                 batch->FlushedReplicas = 0;
             }
 
-            CurrentSession_->RowCount += batch->Rows.size();
-            CurrentSession_->DataSize += batch->DataSize;
-
-            YT_LOG_DEBUG("Batch enqueued (Rows: %v-%v)",
-                batch->FirstRowIndex,
-                batch->FirstRowIndex + batch->Rows.size() - 1);
-
             for (const auto& node : CurrentSession_->Nodes) {
                 node->PendingBatches.push(batch);
                 MaybeFlushBlocks(node);
             }
-        }
-
-        void SwitchChunk()
-        {
-            YT_LOG_INFO("Switching chunk");
         }
 
         void CloseChunk()
@@ -878,12 +842,8 @@ private:
 
             auto sessionId = session->Id;
 
-            DelayTimer_ = Profiler.TimingStart(
-                DelayCounterPath_,
-                EmptyTagIds,
-                ETimerMode::Sequential);
-
             YT_LOG_INFO("Finishing chunk sessions");
+
             for (const auto& node : session->Nodes) {
                 auto req = node->LightProxy.FinishChunk();
                 ToProto(req->mutable_session_id(), sessionId);
@@ -896,12 +856,10 @@ private:
                 }
             }
 
-            Profiler.TimingCheckpoint(
-                DelayTimer_,
-                GetStageTag("finish_chunk"));
-
             {
-                YT_LOG_INFO("Sealing chunk (ChunkId: %v, RowCount: %v)",
+                TTimingGuard timingGuard(&Profiler, "/time/seal_chunk");
+
+                YT_LOG_INFO("Sealing chunk (SessionId: %v, RowCount: %v)",
                     sessionId,
                     session->FlushedRowCount);
 
@@ -925,14 +883,11 @@ private:
                     "Error sealing chunk %v",
                     sessionId);
 
-                YT_LOG_INFO("Chunk sealed");
+                YT_LOG_INFO("Chunk sealed (SessionId: %v)",
+                    sessionId);
 
                 SealedRowCount_ += session->FlushedRowCount;
             }
-
-            Profiler.TimingCheckpoint(
-                DelayTimer_,
-                GetStageTag("seal_chunk"));
         }
 
 
@@ -987,7 +942,8 @@ private:
                 auto command = DequeueCommand();
                 Visit(command,
                     [&] (const TBatchCommand& typedCommand) {
-                        typedCommand->FlushedPromise.Set(error);
+                        const auto& batch = typedCommand.Batch;
+                        batch->FlushedPromise.Set(error);
                     },
                     [&] (TCancelCommand) {
                         throw TFiberCanceledException();
@@ -1007,14 +963,6 @@ private:
             ++CurrentRowIndex_;
             return batch->FlushedPromise;
         }
-
-        bool IsBatchFull(const TBatchPtr& batch)
-        {
-            return
-                batch->DataSize > Config_->MaxBatchDataSize ||
-                batch->Rows.size() > Config_->MaxBatchRowCount;
-        }
-
 
         TBatchPtr EnsureCurrentBatch()
         {
@@ -1047,11 +995,12 @@ private:
 
             TDelayedExecutor::CancelAndClear(CurrentBatchFlushCookie_);
 
-            YT_LOG_DEBUG("Flushing batch (Rows: %v-%v)",
+            YT_LOG_DEBUG("Flushing batch (Rows: %v-%v, DataSize: %v)",
                 CurrentBatch_->FirstRowIndex,
-                CurrentBatch_->FirstRowIndex + CurrentBatch_->Rows.size() - 1);
+                CurrentBatch_->FirstRowIndex + CurrentBatch_->Rows.size() - 1,
+                CurrentBatch_->DataSize);
 
-            EnqueueCommand(TBatchCommand(CurrentBatch_));
+            EnqueueCommand(TBatchCommand{CurrentBatch_});
             CurrentBatch_.Reset();
         }
 
@@ -1074,7 +1023,7 @@ private:
                 return;
             }
 
-            YT_LOG_DEBUG("Sending ping (Address: %v, ChunkId: %v)",
+            YT_LOG_DEBUG("Sending ping (Address: %v, SessionId: %v)",
                 node->Descriptor.GetDefaultAddress(),
                 session->Id);
 
@@ -1099,7 +1048,7 @@ private:
                 return;
             }
 
-            YT_LOG_DEBUG("Ping succeeded (Address: %v, ChunkId: %v)",
+            YT_LOG_DEBUG("Ping succeeded (Address: %v, SessionId: %v)",
                 node->Descriptor.GetDefaultAddress(),
                 session->Id);
         }
@@ -1118,8 +1067,11 @@ private:
                     MaybeFlushBlocks(node);
                 }
             } else {
+                YT_LOG_WARNING(rspOrError, "Session has failed to start; requesting chunk switch (SessionId: %v, Address: %v)",
+                    session->Id,
+                    node->Descriptor.GetDefaultAddress());
+                ScheduleSwitch(session);
                 BanNode(node->Descriptor.GetDefaultAddress());
-                EnqueueCommand(TSwitchChunkCommand{session});
                 THROW_ERROR_EXCEPTION("Error starting session at %v",
                     node->Descriptor.GetDefaultAddress())
                     << rspOrError;
@@ -1186,13 +1138,14 @@ private:
                 node->InFlightBatches.push_back(batch);
             }
 
-            YT_LOG_DEBUG("Flushing journal replica (Address: %v, BlockIds: %v:%v-%v, Rows: %v-%v)",
+            YT_LOG_DEBUG("Flushing journal replica (Address: %v, BlockIds: %v:%v-%v, Rows: %v-%v, DataSize: %v)",
                 node->Descriptor.GetDefaultAddress(),
                 CurrentSession_->Id,
                 node->FirstPendingBlockIndex,
                 node->FirstPendingBlockIndex + flushRowCount - 1,
                 node->FirstPendingRowIndex,
-                node->FirstPendingRowIndex + flushRowCount - 1);
+                node->FirstPendingRowIndex + flushRowCount - 1,
+                flushDataSize);
 
             req->Invoke().Subscribe(
                 BIND(&TImpl::OnBlocksFlushed, MakeWeak(this), CurrentSession_, node, flushRowCount)
@@ -1205,8 +1158,9 @@ private:
             i64 flushRowCount,
             const TDataNodeServiceProxy::TErrorOrRspPutBlocksPtr& rspOrError)
         {
-            if (session != CurrentSession_)
+            if (session != CurrentSession_) {
                 return;
+            }
 
             if (!rspOrError.IsOK()) {
                 OnReplicaFailed(rspOrError, node, session);
@@ -1250,6 +1204,20 @@ private:
             for (auto& promise : fulfilledPromises) {
                 promise.Set();
             }
+
+            if (!session->SwitchScheduled) {
+                if (session->FlushedRowCount > Config_->MaxChunkRowCount) {
+                    YT_LOG_DEBUG("Chunk row count limit exceeded; requesting chunk switch (RowCount: %v, SessionId: %v)",
+                        session->FlushedRowCount,
+                        session->Id);
+                    ScheduleSwitch(session);
+                } else if (session->FlushedDataSize > Config_->MaxChunkDataSize) {
+                    YT_LOG_DEBUG("Chunk data size limit exceeded; requesting chunk switch (DataSize: %v, SessionId: %v)",
+                        session->FlushedDataSize,
+                        session->Id);
+                    ScheduleSwitch(session);
+                }
+            }
         }
 
         void OnReplicaFailed(
@@ -1258,11 +1226,20 @@ private:
             const TChunkSessionPtr& session)
         {
             const auto& address = node->Descriptor.GetDefaultAddress();
-            YT_LOG_WARNING(error, "Journal replica failed (Address: %v, SessionId: %v)",
+            YT_LOG_WARNING(error, "Journal replica failed; requesting chunk switch (Address: %v, SessionId: %v)",
                 address,
                 session->Id);
-
+            ScheduleSwitch(session);
             BanNode(address);
+        }
+
+        void ScheduleSwitch(const TChunkSessionPtr& session)
+        {
+            if (session->SwitchScheduled) {
+                return;
+            }
+
+            session->SwitchScheduled = true;
             EnqueueCommand(TSwitchChunkCommand{session});
         }
     };
