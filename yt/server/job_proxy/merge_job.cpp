@@ -76,7 +76,7 @@ public:
             ? CreateSchemalessParallelMultiReader
             : CreateSchemalessSequentialMultiReader;
 
-        ReaderFactory_ = [=] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
+        ReaderFactory_ = [=] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
             YCHECK(!Reader_);
             Reader_ = readerFactory(
                 Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader,
@@ -88,11 +88,10 @@ public:
                 Host_->GetInputNodeDirectory(),
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
-                nameTable,
+                std::move(nameTable),
                 BlockReadOptions_,
                 columnFilter,
                 /* keyColumns */ {},
-                /* omittedInaccessibleColumns */ {},
                 partitionTag,
                 Host_->GetTrafficMeter(),
                 Host_->GetInBandwidthThrottler(),

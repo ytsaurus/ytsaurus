@@ -115,7 +115,6 @@ ISchemafulReaderPtr CreateChunkReader(
                 blockReadOptions,
                 columnFilter,
                 {}, /* keyColumns */
-                {}, /* omittedInaccessibleColumns */
                 std::nullopt,
                 nullptr /* trafficMeter */,
                 bandwidthThrottler,

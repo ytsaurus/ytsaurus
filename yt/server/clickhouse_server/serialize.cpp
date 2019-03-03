@@ -22,6 +22,7 @@ namespace NProto {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): move to yt/core/misc
 void Serialize(const TExtension& spec, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
@@ -108,6 +109,8 @@ void Deserialize(TDataSource& spec, INodePtr node)
         std::move(path),
         std::move(schema),
         std::move(columns),
+        // TODO(max42): YT-10402, omitted inaccessible columns
+        {},
         timestamp,
         {});
 }

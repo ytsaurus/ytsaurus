@@ -33,9 +33,9 @@ public:
     }
 
 private:
-    std::function<IReaderBasePtr()> Factory_;
-    i64 MemoryFootprint_;
-    TDataSliceDescriptor DataSliceDescriptor_;
+    const std::function<IReaderBasePtr()> Factory_;
+    const i64 MemoryFootprint_;
+    const TDataSliceDescriptor DataSliceDescriptor_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

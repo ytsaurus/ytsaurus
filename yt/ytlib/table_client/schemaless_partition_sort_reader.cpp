@@ -195,12 +195,6 @@ public:
         return KeyColumns_;
     }
 
-    virtual const std::vector<TString>& GetOmittedInaccessibleColumns() const override
-    {
-        static const std::vector<TString> Result;
-        return Result;
-    }
-
     virtual bool IsFetchingCompleted() const override
     {
         YCHECK(UnderlyingReader_);

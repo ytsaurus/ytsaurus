@@ -33,7 +33,6 @@ namespace NYT::NJobProxy {
 
 using namespace NApi;
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
 using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NNodeTrackerClient;
@@ -47,26 +46,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUserJobIOFactoryBase::TUserJobIOFactoryBase(
-    IJobSpecHelperPtr jobSpecHelper,
-    const TClientBlockReadOptions& blockReadOptions,
-    NChunkClient::TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr inBandwidthThrottler,
-    IThroughputThrottlerPtr outBandwidthThrottler,
-    IThroughputThrottlerPtr outRpsThrottler)
-    : JobSpecHelper_(std::move(jobSpecHelper))
-    , BlockReadOptions_(blockReadOptions)
-    , TrafficMeter_(std::move(trafficMeter))
-    , InBandwidthThrottler_(std::move(inBandwidthThrottler))
-    , OutBandwidthThrottler_(std::move(outBandwidthThrottler))
-    , OutRpsThrottler_(std::move(outRpsThrottler))
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace {
-
-////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessMultiChunkWriterPtr CreateTableWriter(
     const IJobSpecHelperPtr& jobSpecHelper,
@@ -104,14 +84,14 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
     const TNodeDescriptor& nodeDescriptor,
     TTableReaderOptionsPtr options,
     const TDataSourceDirectoryPtr& dataSourceDirectory,
-    std::vector<NChunkClient::  TDataSliceDescriptor> dataSliceDescriptors,
+    std::vector<TDataSliceDescriptor> dataSliceDescriptors,
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter,
     bool isParallel,
     const TClientBlockReadOptions& blockReadOptions,
     TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr bandwidthTrottler,
-    IThroughputThrottlerPtr rpsTrottler)
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler)
 {
     auto createReader = isParallel
         ? CreateSchemalessParallelMultiReader
@@ -130,11 +110,10 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
         blockReadOptions,
         columnFilter,
         /* keyColumns */ {},
-        /* omittedInaccessibleColumns */ {},
         /* partitionTag */ std::nullopt,
         std::move(trafficMeter),
-        std::move(bandwidthTrottler),
-        std::move(rpsTrottler));
+        std::move(bandwidthThrottler),
+        std::move(rpsThrottler));
 }
 
 ISchemalessMultiChunkReaderPtr CreateRegularReader(
@@ -150,17 +129,16 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
     IThroughputThrottlerPtr rpsThrottler)
 {
     const auto& schedulerJobSpecExt = jobSpecHelper->GetSchedulerJobSpecExt();
-    std::vector<NChunkClient::TDataSliceDescriptor> dataSliceDescriptors;
+    std::vector<TDataSliceDescriptor> dataSliceDescriptors;
     for (const auto& inputSpec : schedulerJobSpecExt.input_table_specs()) {
         auto descriptors = UnpackDataSliceDescriptors(inputSpec);
         dataSliceDescriptors.insert(dataSliceDescriptors.end(), descriptors.begin(), descriptors.end());
     }
 
-    auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(schedulerJobSpecExt.extensions());
+    auto dataSourceDirectoryExt = GetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(schedulerJobSpecExt.extensions());
     auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
 
-    auto options = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
-        schedulerJobSpecExt.table_reader_options()));
+    auto options = ConvertTo<TTableReaderOptionsPtr>(TYsonString(schedulerJobSpecExt.table_reader_options()));
 
     return CreateTableReader(
         jobSpecHelper,
@@ -178,6 +156,59 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
         std::move(rpsThrottler));
 }
 
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TUserJobIOFactoryBase
+    : public IUserJobIOFactory
+{
+    TUserJobIOFactoryBase(
+        IJobSpecHelperPtr jobSpecHelper,
+        const TClientBlockReadOptions& blockReadOptions,
+        TTrafficMeterPtr trafficMeter,
+        IThroughputThrottlerPtr inBandwidthThrottler,
+        IThroughputThrottlerPtr outBandwidthThrottler,
+        IThroughputThrottlerPtr outRpsThrottler)
+        : JobSpecHelper_(std::move(jobSpecHelper))
+        , BlockReadOptions_(blockReadOptions)
+        , TrafficMeter_(std::move(trafficMeter))
+        , InBandwidthThrottler_(std::move(inBandwidthThrottler))
+        , OutBandwidthThrottler_(std::move(outBandwidthThrottler))
+        , OutRpsThrottler_(std::move(outRpsThrottler))
+    { }
+
+    virtual ISchemalessMultiChunkWriterPtr CreateWriter(
+        NApi::NNative::IClientPtr client,
+        TTableWriterConfigPtr config,
+        TTableWriterOptionsPtr options,
+        TChunkListId chunkListId,
+        TTransactionId transactionId,
+        const TTableSchema& tableSchema,
+        const TChunkTimestamps& chunkTimestamps) override
+    {
+        return CreateTableWriter(
+            JobSpecHelper_,
+            std::move(client),
+            std::move(config),
+            std::move(options),
+            chunkListId,
+            transactionId,
+            tableSchema,
+            chunkTimestamps,
+            TrafficMeter_,
+            OutBandwidthThrottler_);
+    }
+
+protected:
+    const IJobSpecHelperPtr JobSpecHelper_;
+    const TClientBlockReadOptions BlockReadOptions_;
+    const TTrafficMeterPtr TrafficMeter_;
+    const IThroughputThrottlerPtr InBandwidthThrottler_;
+    const IThroughputThrottlerPtr OutBandwidthThrottler_;
+    const IThroughputThrottlerPtr OutRpsThrottler_;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMapJobIOFactory
@@ -188,7 +219,7 @@ public:
         IJobSpecHelperPtr jobSpecHelper,
         bool useParallelReader,
         const TClientBlockReadOptions& blockReadOptions,
-        NChunkClient::TTrafficMeterPtr trafficMeter,
+        TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr inBandwidthThrottler,
         IThroughputThrottlerPtr outBandwidthThrottler,
         IThroughputThrottlerPtr outRpsThrottler)
@@ -236,7 +267,7 @@ public:
         IJobSpecHelperPtr jobSpecHelper,
         bool interruptAtKeyEdge,
         const TClientBlockReadOptions& blockReadOptions,
-        NChunkClient::TTrafficMeterPtr trafficMeter,
+        TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr inBandwidthThrottler,
         IThroughputThrottlerPtr outBandwidthThrottler,
         IThroughputThrottlerPtr outRpsThrottler)
@@ -271,7 +302,7 @@ public:
         // We must always enable table index to merge rows with the same index in the proper order.
         options->EnableTableIndex = true;
 
-        auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(schedulerJobSpecExt.extensions());
+        auto dataSourceDirectoryExt = GetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(schedulerJobSpecExt.extensions());
         auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
 
         for (const auto& inputSpec : schedulerJobSpecExt.input_table_specs()) {
@@ -292,7 +323,6 @@ public:
                 BlockReadOptions_,
                 columnFilter,
                 keyColumns,
-                /* omittedInaccessibleColumns */ {},
                 /* partitionTag */ std::nullopt,
                 TrafficMeter_,
                 InBandwidthThrottler_,
@@ -322,7 +352,6 @@ public:
                 BlockReadOptions_,
                 columnFilter,
                 keyColumns,
-                /* omittedInaccessibleColumns */ {},
                 /* partitionTag */ std::nullopt,
                 TrafficMeter_,
                 InBandwidthThrottler_,
@@ -351,7 +380,7 @@ public:
     explicit TPartitionMapJobIOFactory(
         IJobSpecHelperPtr jobSpecHelper,
         const TClientBlockReadOptions& blockReadOptions,
-        NChunkClient::TTrafficMeterPtr trafficMeter,
+        TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr inBandwidthThrottler,
         IThroughputThrottlerPtr outBandwidthThrottler,
         IThroughputThrottlerPtr outRpsThrottler)
@@ -371,8 +400,8 @@ public:
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter) override
     {
-        // NB(psushin): don't use parallel readers here to minimize nondetermenistics
-        // behaviour in mapper, that may lead to huge problems in presence of lost jobs.
+        // NB(psushin): don't use parallel readers here to minimize nondeterministic
+        // behaviour in mapper, which may lead to huge problems in presence of lost jobs.
         return CreateRegularReader(
             JobSpecHelper_,
             std::move(client),
@@ -386,7 +415,7 @@ public:
             OutRpsThrottler_);
     }
 
-    virtual NTableClient::ISchemalessMultiChunkWriterPtr CreateWriter(
+    virtual ISchemalessMultiChunkWriterPtr CreateWriter(
         NNative::IClientPtr client,
         TTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
@@ -450,7 +479,7 @@ public:
     explicit TPartitionReduceJobIOFactory(
         IJobSpecHelperPtr jobSpecHelper,
         const TClientBlockReadOptions& blockReadOptions,
-        NChunkClient::TTrafficMeterPtr trafficMeter,
+        TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr inBandwidthThrottler,
         IThroughputThrottlerPtr outBandwidthThrottler,
         IThroughputThrottlerPtr outRpsThrottler)
@@ -478,7 +507,7 @@ public:
 
         const auto& inputSpec = schedulerJobSpecExt.input_table_specs(0);
         auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
-        auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(schedulerJobSpecExt.extensions());
+        auto dataSourceDirectoryExt = GetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(schedulerJobSpecExt.extensions());
         auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
 
         const auto& reduceJobSpecExt = JobSpecHelper_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
@@ -516,7 +545,7 @@ public:
     TVanillaJobIOFactory(
         IJobSpecHelperPtr jobSpecHelper,
         const TClientBlockReadOptions& blockReadOptions,
-        NChunkClient::TTrafficMeterPtr trafficMeter,
+        TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr inBandwidthThrottler,
         IThroughputThrottlerPtr outBandwidthThrottler,
         IThroughputThrottlerPtr outRpsThrottler)
@@ -530,43 +559,15 @@ public:
     { }
 
     virtual ISchemalessMultiChunkReaderPtr CreateReader(
-        NNative::IClientPtr client,
-        const TNodeDescriptor& nodeDescriptor,
-        TClosure onNetworkReleased,
-        TNameTablePtr nameTable,
-        const TColumnFilter& columnFilter) override
+        NNative::IClientPtr /*client*/,
+        const TNodeDescriptor& /*nodeDescriptor*/,
+        TClosure /*onNetworkReleased*/,
+        TNameTablePtr /*nameTable*/,
+        const TColumnFilter& /*columnFilter*/) override
     {
         return nullptr;
     }
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-NTableClient::ISchemalessMultiChunkWriterPtr TUserJobIOFactoryBase::CreateWriter(
-    NNative::IClientPtr client,
-    TTableWriterConfigPtr config,
-    TTableWriterOptionsPtr options,
-    TChunkListId chunkListId,
-    TTransactionId transactionId,
-    const TTableSchema& tableSchema,
-    const TChunkTimestamps& chunkTimestamps)
-{
-    return CreateTableWriter(
-        JobSpecHelper_,
-        std::move(client),
-        std::move(config),
-        std::move(options),
-        chunkListId,
-        transactionId,
-        tableSchema,
-        chunkTimestamps,
-        TrafficMeter_,
-        OutBandwidthThrottler_);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

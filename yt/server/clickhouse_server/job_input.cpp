@@ -256,7 +256,9 @@ private:
         for (const auto& inputTable : InputTables_) {
             totalChunkCount += inputTable.ChunkCount;
         }
-        YT_LOG_INFO("Fetching data slices (InputTableCount: %v, TotalChunkCount: %v)", InputTables_.size(), totalChunkCount);
+        YT_LOG_INFO("Fetching data slices (InputTableCount: %v, TotalChunkCount: %v)",
+            InputTables_.size(),
+            totalChunkCount);
 
         for (size_t tableIndex = 0; tableIndex < InputTables_.size(); ++tableIndex) {
             auto& table = InputTables_[tableIndex];
@@ -269,7 +271,9 @@ private:
             auto dataSource = MakeUnversionedDataSource(
                 table.GetPath(),
                 table.Schema,
-                std::nullopt);
+                /* columns */ std::nullopt,
+                // TODO(max42): YT-10402, omitted inaccessible columns
+                {});
     
             DataSourceDirectory_->DataSources().push_back(std::move(dataSource));
     

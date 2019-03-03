@@ -48,7 +48,6 @@ public:
 
     virtual const TNameTablePtr& GetNameTable() const override;
     virtual const TKeyColumns& GetKeyColumns() const override;
-    virtual const std::vector<TString>& GetOmittedInaccessibleColumns() const override;
 
     virtual i64 GetTotalRowCount() const override;
     virtual i64 GetSessionRowIndex() const override;
@@ -217,12 +216,6 @@ const TNameTablePtr& TSchemalessSortedMergingReaderBase::GetNameTable() const
 const TKeyColumns& TSchemalessSortedMergingReaderBase::GetKeyColumns() const
 {
     return SessionHolder_.front().Reader->GetKeyColumns();
-}
-
-const std::vector<TString>& TSchemalessSortedMergingReaderBase::GetOmittedInaccessibleColumns() const
-{
-    static const std::vector<TString> Result;
-    return Result;
 }
 
 i64 TSchemalessSortedMergingReaderBase::GetTotalRowCount() const

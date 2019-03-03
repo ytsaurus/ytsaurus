@@ -117,7 +117,7 @@ private:
                     key,
                     response.Action);
 
-                // XXX(babenko): columnar ACL
+                // TODO(babenko): YT-10367, columnar ACL
 
                 auto error = response.ToError(key.User, key.Permission);
                 if (!error.IsOK()) {

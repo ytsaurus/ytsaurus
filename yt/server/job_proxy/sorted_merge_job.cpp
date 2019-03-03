@@ -71,7 +71,6 @@ public:
                 BlockReadOptions_,
                 /* columnFilter */ {},
                 keyColumns,
-                /* omittedInaccessibleColumns */ {},
                 /* partitionTag */ std::nullopt,
                 Host_->GetTrafficMeter(),
                 Host_->GetInBandwidthThrottler(),
