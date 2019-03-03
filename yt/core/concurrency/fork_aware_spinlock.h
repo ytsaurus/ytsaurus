@@ -12,8 +12,10 @@ class TForkAwareSpinLock
     : private TNonCopyable
 {
 public:
-    void Acquire();
-    void Release();
+    void Acquire() noexcept;
+    void Release() noexcept;
+
+    bool IsLocked() noexcept;
 
 private:
     TAdaptiveLock SpinLock_;
