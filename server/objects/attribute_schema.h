@@ -189,7 +189,7 @@ private:
     NAccessControl::EAccessControlPermission ReadPermission_ = NAccessControl::EAccessControlPermission::None;
 
 
-    void InitExpressionBuilder(const TDBField* field, const char* udfFormatter = nullptr);
+    void InitExpressionBuilder(const TDBField* field);
     template <class TTypedObject, class TTypedValue, class TSchema>
     void InitSetter(const TSchema& schema);
     template <class TTypedObject, class TTypedValue, class TSchema>
@@ -198,53 +198,6 @@ private:
     void InitRemover(const TSchema& schema);
     template <class TTypedObject, class TSchema>
     void InitPreloader(const TSchema& schema);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-struct TScalarTypeTraits
-{
-    static const char* GetFormatterUdf()
-    {
-        return nullptr;
-    }
-};
-
-template <>
-struct TScalarTypeTraits<EPodCurrentState>
-{
-    static const char* GetFormatterUdf()
-    {
-        return "format_pod_current_state";
-    }
-};
-
-template <>
-struct TScalarTypeTraits<EPodTargetState>
-{
-    static const char* GetFormatterUdf()
-    {
-        return "format_pod_target_state";
-    }
-};
-
-template <>
-struct TScalarTypeTraits<EHfsmState>
-{
-    static const char* GetFormatterUdf()
-    {
-        return "format_hfsm_state";
-    }
-};
-
-template <>
-struct TScalarTypeTraits<EResourceKind>
-{
-    static const char* GetFormatterUdf()
-    {
-        return "format_resource_kind";
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

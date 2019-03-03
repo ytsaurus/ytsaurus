@@ -51,23 +51,6 @@ class TestAdminCli(object):
         ])
         assert output == ""
 
-    def test_prepare_udfs(self, yp_env_configurable):
-        yt_client = yp_env_configurable.yp_instance.create_yt_client()
-        yp_path = "//yp_prepare_udfs_test"
-        yp_udfs_path = ypath_join(yp_path, "udfs")
-        yt_client.create("map_node", yp_path)
-        yt_client.create("map_node", yp_udfs_path)
-
-        cli = YpAdminCli()
-        output = cli.check_output([
-            "prepare-udfs",
-            "--yt-proxy", get_yt_proxy_address(yp_env_configurable),
-            "--yp-path", yp_path
-        ])
-        assert output == ""
-
-        assert "format_pod_current_state" in yt_client.list(yp_udfs_path)
-
     def test_init_and_migrate_db(self, yp_env_configurable):
         yt_client = yp_env_configurable.yp_instance.create_yt_client()
         yp_path = "//yp_init_db_test"

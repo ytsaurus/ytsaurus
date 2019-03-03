@@ -113,7 +113,7 @@ TErrorOr<std::vector<TObject*>> TLabelFilterCacheBase::DoGetFilteredObjects(cons
         auto expression = PrepareExpression(
             parsedSource,
             schema,
-            YTConnector_->GetTypeInferrers(),
+            BuiltinTypeInferrersMap,
             nullptr);
 
         TCGVariables variables;
@@ -123,7 +123,7 @@ TErrorOr<std::vector<TObject*>> TLabelFilterCacheBase::DoGetFilteredObjects(cons
             schema,
             nullptr,
             &variables,
-            YTConnector_->GetFunctionProfilers())();
+            BuiltinFunctionProfilers)();
 
         struct TRowBufferTag { };
         auto rowBuffer = New<TRowBuffer>(TRowBufferTag());

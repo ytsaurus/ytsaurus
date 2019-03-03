@@ -137,7 +137,7 @@ DEFINE_ENUM(EObjectType,
     ((Schema)        (256))
 );
 
-DEFINE_ENUM(EPodCurrentState,
+DEFINE_STRING_SERIALIZABLE_ENUM(EPodCurrentState,
     ((Unknown)         (0))
     ((StartPending)  (100))
     ((Started)       (200))
@@ -146,19 +146,19 @@ DEFINE_ENUM(EPodCurrentState,
     ((StartFailed)   (500))
 );
 
-DEFINE_ENUM(EPodTargetState,
+DEFINE_STRING_SERIALIZABLE_ENUM(EPodTargetState,
     ((Removed)         (0))
     ((Active)        (100))
 );
 
-DEFINE_ENUM(EResourceKind,
+DEFINE_STRING_SERIALIZABLE_ENUM(EResourceKind,
     ((Undefined)      (-1))
     ((Cpu)             (0))
     ((Memory)          (1))
     ((Disk)            (2))
 );
 
-DEFINE_ENUM(EHfsmState,
+DEFINE_STRING_SERIALIZABLE_ENUM(EHfsmState,
     ((Unknown)           (  0))
     ((Initial)           (100))
     ((Up)                (200))

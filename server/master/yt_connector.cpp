@@ -80,18 +80,6 @@ public:
         return Client_;
     }
 
-    const TTypeInferrerMapPtr& GetTypeInferrers()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-        return TypeInferrers_;
-    }
-
-    const TFunctionProfilerMapPtr& GetFunctionProfilers()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-        return FunctionProfilers_;
-    }
-
     const TYPath& GetRootPath()
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -163,10 +151,6 @@ private:
 
     const NNative::IConnectionPtr Connection_;
     const NNative::IClientPtr Client_;
-
-    bool UdfsLoaded_ = false;
-    TTypeInferrerMapPtr TypeInferrers_;
-    TFunctionProfilerMapPtr FunctionProfilers_;
 
     ITransactionPtr InstanceLockTransaction_;
     ITransactionPtr LeaderLockTransaction_;
@@ -271,53 +255,6 @@ private:
 
             WaitFor(InstanceLockTransaction_->LockNode(instancePath, ELockMode::Exclusive))
                 .ThrowOnError();
-        }
-
-        if (!UdfsLoaded_) {
-            std::vector<TString> functionNames;
-            {
-                YT_LOG_INFO("Listing UDFs");
-                auto result = WaitFor(Client_->ListNode(GetUdfsPath()))
-                    .ValueOrThrow();
-                functionNames = ConvertTo<std::vector<TString>>(result);
-            }
-
-            {
-                YT_LOG_INFO("Downloading UDFs (FunctionNames: %v)",
-                    functionNames);
-
-                auto externalCGInfo = New<TExternalCGInfo>();
-
-                TypeInferrers_ = New<TTypeInferrerMap>();
-                FunctionProfilers_ = New<TFunctionProfilerMap>();
-
-                MergeFrom(TypeInferrers_.Get(), *BuiltinTypeInferrersMap);
-                MergeFrom(FunctionProfilers_.Get(), *BuiltinFunctionProfilers);
-
-                const auto& functionRegistry = Client_->GetFunctionRegistry();
-                const auto& udfRegistryPath = Client_->GetNativeConnection()->GetConfig()->UdfRegistryPath;
-
-                auto descriptors = WaitFor(functionRegistry->FetchFunctions(udfRegistryPath, functionNames))
-                    .ValueOrThrow();
-
-                AppendUdfDescriptors(
-                    TypeInferrers_,
-                    externalCGInfo,
-                    functionNames,
-                    descriptors);
-
-                TClientBlockReadOptions blockReadOptions;
-                blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-
-                FetchFunctionImplementationsFromCypress(
-                    FunctionProfilers_,
-                    nullptr,
-                    externalCGInfo,
-                    Client_->GetFunctionImplCache(),
-                    blockReadOptions);
-            }
-
-            UdfsLoaded_ = true;
         }
 
         InstanceLockTransaction_->SubscribeAborted(
@@ -573,11 +510,6 @@ private:
     {
         return GetRootPath() + "/leader";
     }
-
-    TYPath GetUdfsPath()
-    {
-        return GetRootPath() + "/udfs";
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -594,16 +526,6 @@ void TYTConnector::Initialize()
 const NNative::IClientPtr& TYTConnector::GetClient()
 {
     return Impl_->GetClient();
-}
-
-const TTypeInferrerMapPtr& TYTConnector::GetTypeInferrers()
-{
-    return Impl_->GetTypeInferrers();
-}
-
-const TFunctionProfilerMapPtr& TYTConnector::GetFunctionProfilers()
-{
-    return Impl_->GetFunctionProfilers();
 }
 
 const TYPath& TYTConnector::GetRootPath()

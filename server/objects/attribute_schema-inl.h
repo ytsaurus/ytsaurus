@@ -127,7 +127,7 @@ TAttributeSchema* TAttributeSchema::SetAttribute(const TScalarAttributeSchema<TT
     InitInitializer<TTypedObject, TTypedValue>(schema);
     InitRemover<TTypedObject, TTypedValue>(schema);
     InitPreloader<TTypedObject>(schema);
-    InitExpressionBuilder(schema.Field, TScalarTypeTraits<TTypedValue>::GetFormatterUdf());
+    InitExpressionBuilder(schema.Field);
     return this;
 }
 

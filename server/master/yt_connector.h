@@ -38,8 +38,6 @@ public:
     void Initialize();
 
     const NYT::NApi::NNative::IClientPtr& GetClient();
-    const NYT::NQueryClient::TTypeInferrerMapPtr& GetTypeInferrers();
-    const NYT::NQueryClient::TFunctionProfilerMapPtr& GetFunctionProfilers();
     const NYT::NYPath::TYPath& GetRootPath();
     const NYT::NYPath::TYPath& GetDBPath();
     NYT::NYPath::TYPath GetTablePath(const NObjects::TDBTable* table);

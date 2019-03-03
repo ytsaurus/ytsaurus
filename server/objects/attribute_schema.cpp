@@ -479,9 +479,7 @@ NAccessControl::EAccessControlPermission TAttributeSchema::GetReadPermission() c
     return ReadPermission_;
 }
 
-void TAttributeSchema::InitExpressionBuilder(
-    const TDBField* field,
-    const char* udfFormatter)
+void TAttributeSchema::InitExpressionBuilder(const TDBField* field)
 {
     ExpressionBuilder_ =
         [=] (
@@ -500,13 +498,6 @@ void TAttributeSchema::InitExpressionBuilder(
                             TSourceLocation(),
                             path)
                     });
-            }
-
-            if (udfFormatter) {
-                expr = New<TFunctionExpression>(
-                    TSourceLocation(),
-                    udfFormatter,
-                    TExpressionList{std::move(expr)});
             }
 
             return expr;
