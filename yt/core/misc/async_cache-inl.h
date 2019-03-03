@@ -105,7 +105,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
 template <class TKey, class TValue, class THash>
 int TAsyncSlruCacheBase<TKey, TValue, THash>::GetSize() const
 {
-    return ItemMapSize_;
+    return ItemMapSize_.load();
 }
 
 template <class TKey, class TValue, class THash>
@@ -352,6 +352,11 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TKey& key)
     ItemMap_.erase(it);
     --ItemMapSize_;
 
+    if (!IsResurrectionSupported()) {
+        YCHECK(ValueMap_.erase(key) == 1);
+        value->Cache_.Reset();
+    }
+
     Pop(item);
 
     // Release the guard right away to prevent recursive spinlock acquisition.
@@ -383,8 +388,14 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(TValuePtr value)
     auto itemIt = ItemMap_.find(value->GetKey());
     if (itemIt != ItemMap_.end()) {
         auto* item = itemIt->second;
+        
         ItemMap_.erase(itemIt);
         --ItemMapSize_;
+
+        if (!IsResurrectionSupported()) {
+            YCHECK(ValueMap_.erase(value->GetKey()) == 1);
+            value->Cache_.Reset();
+        }
 
         Pop(item);
 
@@ -441,6 +452,12 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::OnAdded(const TValuePtr& /*value*
 template <class TKey, class TValue, class THash>
 void TAsyncSlruCacheBase<TKey, TValue, THash>::OnRemoved(const TValuePtr& /*value*/)
 { }
+
+template <class TKey, class TValue, class THash>
+bool TAsyncSlruCacheBase<TKey, TValue, THash>::IsResurrectionSupported() const
+{
+    return true;
+}
 
 template <class TKey, class TValue, class THash>
 i64 TAsyncSlruCacheBase<TKey, TValue, THash>::PushToYounger(TItem* item)
@@ -519,7 +536,12 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Trim(NConcurrency::TWriterGuard& 
         YCHECK(ItemMap_.erase(value->GetKey()) == 1);
         --ItemMapSize_;
 
-        evictedValues.emplace_back(std::move(item->Value));
+        if (!IsResurrectionSupported()) {
+            YCHECK(ValueMap_.erase(value->GetKey()) == 1);
+            value->Cache_.Reset();
+        }
+
+        evictedValues.push_back(std::move(value));
 
         delete item;
     }

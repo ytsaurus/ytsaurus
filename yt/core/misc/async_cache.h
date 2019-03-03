@@ -109,6 +109,8 @@ protected:
     virtual void OnAdded(const TValuePtr& value);
     virtual void OnRemoved(const TValuePtr& value);
 
+    virtual bool IsResurrectionSupported() const;
+
 private:
     friend class TAsyncCacheValueBase<TKey, TValue, THash>;
 
@@ -137,7 +139,7 @@ private:
     THashMap<TKey, TValue*, THash> ValueMap_;
 
     THashMap<TKey, TItem*, THash> ItemMap_;
-    volatile int ItemMapSize_ = 0; // used by GetSize
+    std::atomic<int> ItemMapSize_ = {0};
 
     std::vector<TItem*> TouchBuffer_;
     std::atomic<int> TouchBufferPosition_ = {0};
