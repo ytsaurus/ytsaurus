@@ -226,17 +226,6 @@ private:
         TChunkListId ChunkListId_;
         IChannelPtr UploadMasterChannel_;
 
-        TAggregateGauge CreateChunkTimeGauge_{"/time/create_chunk"};
-        TAggregateGauge FinishChunkTimeGauge_{"/time/finish_chunk"};
-        TAggregateGauge SealChunkTimeGauge_{"/time/seal_chunk"};
-        TAggregateGauge CloseJournalTimeGauge_{"/time/close_journal"};
-        TAggregateGauge GetBasicAttributesTimeGauge_{"/time/get_basic_attributes"};
-        TAggregateGauge GeExtendedAttributesTimeGauge_{"/time/get_extended_attributes"};
-        TAggregateGauge GetUploadParametersTimeGauge_{"/time/get_upload_parameters"};
-        TAggregateGauge BeginUploadTimeGauge_{"/time/begin_upload"};
-        TAggregateGauge AllocateTargetsTimeGauge_{"/time/allocate_targets"};
-        TAggregateGauge ConfirmChunkTimeGauge_{"/time/confirm_chunk"};
-
         struct TNode
             : public TRefCounted
         {
