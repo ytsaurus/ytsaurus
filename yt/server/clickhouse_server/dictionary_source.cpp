@@ -9,6 +9,8 @@
 
 #include <yt/client/ypath/rich.h>
 
+#include <yt/ytlib/api/native/client.h>
+
 #include <Common/Exception.h>
 #include <DataStreams/IBlockInputStream.h>
 #include <Dictionaries/DictionarySourceFactory.h>

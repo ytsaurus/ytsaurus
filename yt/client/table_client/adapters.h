@@ -29,8 +29,8 @@ struct TPipeReaderToWriterOptions
 };
 
 void PipeReaderToWriter(
-    NApi::ITableReaderPtr reader,
-    IUnversionedRowsetWriterPtr writer,
+    const NApi::ITableReaderPtr& reader,
+    const IUnversionedRowsetWriterPtr& writer,
     const TPipeReaderToWriterOptions& options);
 
 void PipeInputToOutput(
@@ -39,7 +39,7 @@ void PipeInputToOutput(
     i64 bufferBlockSize);
 
 void PipeInputToOutput(
-    NConcurrency::IAsyncInputStreamPtr input,
+    const NConcurrency::IAsyncInputStreamPtr& input,
     IOutputStream* output,
     i64 bufferBlockSize);
 
