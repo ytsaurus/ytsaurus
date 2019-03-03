@@ -253,6 +253,8 @@ public:
 
     std::optional<TString> CustomProfilingTag;
 
+    std::optional<int> MaxUnpreemptableRunningJobCount;
+
     TStrategyOperationSpec();
 
 private:
