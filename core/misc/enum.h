@@ -30,6 +30,7 @@ struct TEnumTraits
 {
     static constexpr bool IsEnum = false;
     static constexpr bool IsBitEnum = false;
+    static constexpr bool IsStringSerializableEnum = false;
 };
 
 template <class T>
@@ -41,6 +42,7 @@ struct TEnumTraits<T, true>
 
     static constexpr bool IsEnum = true;
     static constexpr bool IsBitEnum = TImpl::IsBitEnum;
+    static constexpr bool IsStringSerializableEnum = TImpl::IsStringSerializableEnum;
 
     static TStringBuf GetTypeName();
 
@@ -100,7 +102,7 @@ struct TEnumTraits<T, true>
  */
 #define DEFINE_ENUM_WITH_UNDERLYING_TYPE(name, underlyingType, seq) \
     ENUM__CLASS(name, underlyingType, seq) \
-    ENUM__BEGIN_TRAITS(name, underlyingType, false, seq) \
+    ENUM__BEGIN_TRAITS(name, underlyingType, false, false, seq) \
     ENUM__MINMAX(name, seq) \
     ENUM__END_TRAITS(name)
 
@@ -116,7 +118,7 @@ struct TEnumTraits<T, true>
  */
 #define DEFINE_BIT_ENUM_WITH_UNDERLYING_TYPE(name, underlyingType, seq) \
     ENUM__CLASS(name, underlyingType, seq) \
-    ENUM__BEGIN_TRAITS(name, underlyingType, true, seq) \
+    ENUM__BEGIN_TRAITS(name, underlyingType, true, false, seq) \
     ENUM__DECOMPOSE(name, seq) \
     ENUM__END_TRAITS(name) \
     ENUM__BITWISE_OPS(name)
@@ -128,6 +130,22 @@ struct TEnumTraits<T, true>
  */
 #define DEFINE_BIT_ENUM(name, seq) \
     DEFINE_BIT_ENUM_WITH_UNDERLYING_TYPE(name, unsigned, seq)
+
+//! Defines a smart enumeration with a specific underlying type and IsStringSerializable attribute.
+/*!
+ * \param name Enumeration name.
+ * \param seq Enumeration domain encoded as a <em>sequence</em>.
+ * \param underlyingType Underlying type.
+ */
+#define DEFINE_STRING_SERIALIZABLE_ENUM_WITH_UNDERLYING_TYPE(name, underlyingType, seq) \
+    ENUM__CLASS(name, underlyingType, seq) \
+    ENUM__BEGIN_TRAITS(name, underlyingType, false, true, seq) \
+    ENUM__MINMAX(name, seq) \
+    ENUM__END_TRAITS(name)
+
+//! Defines a smart enumeration with the default |int| underlying type and IsStringSerializable attribute.
+#define DEFINE_STRING_SERIALIZABLE_ENUM(name, seq) \
+    DEFINE_STRING_SERIALIZABLE_ENUM_WITH_UNDERLYING_TYPE(name, int, seq)
 
 ////////////////////////////////////////////////////////////////////////////////
 
