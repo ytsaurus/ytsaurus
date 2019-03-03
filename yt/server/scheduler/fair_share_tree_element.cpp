@@ -2643,7 +2643,11 @@ void TOperationElement::CheckForStarvation(TInstant now)
 bool TOperationElement::IsPreemptionAllowed(const TFairShareContext& context, const TFairShareStrategyTreeConfigPtr& config) const
 {
     int jobCount = GetRunningJobCount();
-    if (jobCount <= config->MaxUnpreemptableRunningJobCount) {
+    int maxUnpreemptableJobCount = config->MaxUnpreemptableRunningJobCount;
+    if (Spec_->MaxUnpreemptableRunningJobCount) {
+        maxUnpreemptableJobCount = std::min(maxUnpreemptableJobCount, *Spec_->MaxUnpreemptableRunningJobCount);
+    }
+    if (jobCount <= maxUnpreemptableJobCount) {
         OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceLowJobCount);
         return false;
     }
