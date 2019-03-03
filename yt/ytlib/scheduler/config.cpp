@@ -1303,6 +1303,8 @@ TStrategyOperationSpec::TStrategyOperationSpec()
         .Default(1000);
     RegisterParameter("custom_profiling_tag", CustomProfilingTag)
         .Default();
+    RegisterParameter("max_unpreemptable_job_count", MaxUnpreemptableRunningJobCount)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
