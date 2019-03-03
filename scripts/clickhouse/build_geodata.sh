@@ -1,8 +1,8 @@
 #!/bin/bash
 
-name=$(date "+%Y%m%d_%H%M")
-mkdir "$name"
-pushd "$name"
+name=$(date "+geodata-%Y%m%d-%H%M")
+mkdir $name
+pushd $name
 
 echo "Downloading hierarchies"
 curl -s 'http://geoexport.yandex.ru/?fields=id,parent_id,type,population&types=_all_' | tail -n+2 >regions_hierarchy.txt
@@ -21,7 +21,9 @@ download_regions_names "by" "by"
 download_regions_names "kz" "kz"
 download_regions_names "tr" "tr"
 
-popd
-tar czf $name.tgz $name/*
+tar czf $name.tgz *
 
-yt write-file "//sys/clickhouse/$name" <"$name.tgz"
+yt write-file //sys/clickhouse/geodata/$name <$name.tgz
+yt link --force //sys/clickhouse/geodata/$name //sys/clickhouse/geodata/geodata.tgz
+
+popd
