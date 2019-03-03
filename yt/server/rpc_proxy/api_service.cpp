@@ -2724,11 +2724,14 @@ private:
             return;
         }
 
-        auto user = request->user();
-        auto path = request->path();
-        auto permission = static_cast<EPermission>(request->permission());
+        const auto& user = request->user();
+        const auto& path = request->path();
+        auto permission = CheckedEnumCast<EPermission>(request->permission());
 
         TCheckPermissionOptions options;
+        if (request->has_columns()) {
+            options.Columns = FromProto<std::vector<TString>>(request->columns().items());
+        }
         SetTimeoutOptions(&options, context.Get());
         if (request->has_master_read_options()) {
             FromProto(&options, request->master_read_options());
@@ -2748,9 +2751,12 @@ private:
         CompleteCallWith(
             context,
             client->CheckPermission(user, path, permission, options),
-            [] (const auto& context, const auto& result) {
+            [] (const auto& context, const auto& checkResponse) {
                 auto* response = &context->Response();
-                ToProto(response->mutable_result(), result);
+                ToProto(response->mutable_result(), checkResponse);
+                if (checkResponse.Columns) {
+                    ToProto(response->mutable_columns()->mutable_items(), *checkResponse.Columns);
+                }
             });
     }
 
