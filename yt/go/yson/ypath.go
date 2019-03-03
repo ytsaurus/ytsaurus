@@ -4,10 +4,10 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// SliceYPath splits ypath into attributes and path.
+// SliceYPathAttrs splits ypath into attributes and path.
 //
-// SliceYPath does not validate that path is a correct ypath.
-func SliceYPath(ypath []byte) (attrs, path []byte, err error) {
+// SliceYPathAttrs does not validate that path is a correct ypath.
+func SliceYPathAttrs(ypath []byte) (n int, err error) {
 	var s scanner
 	s.reset(StreamNode)
 
@@ -15,8 +15,7 @@ func SliceYPath(ypath []byte) (attrs, path []byte, err error) {
 	for i := 0; i < len(ypath); i++ {
 		c := ypath[i]
 		if depth == 0 && (c == '#' || c == '/') {
-			attrs = ypath[:i]
-			path = ypath[i:]
+			n = i
 			return
 		}
 
@@ -43,6 +42,74 @@ func SliceYPath(ypath []byte) (attrs, path []byte, err error) {
 			if op == scanBeginList || op == scanBeginMap {
 				depth++
 			}
+		}
+	}
+
+	err = xerrors.New("ypath: invalid format")
+	return
+}
+
+func SliceYPathString(ypath []byte, str *[]byte) (n int, err error) {
+	var value interface{}
+	n, err = SliceYPathValue(ypath, &value)
+	if err != nil {
+		return
+	}
+
+	if s, ok := value.([]byte); ok {
+		*str = s
+	} else {
+		err = xerrors.New("ypath: type")
+	}
+
+	return
+}
+
+// SliceYPathValue decodes single YSON value from beginning of ypath.
+//
+// Returned value might point into the buffer.
+func SliceYPathValue(ypath []byte, value *interface{}) (n int, err error) {
+	var r Reader
+	r.s.reset(StreamNode)
+	r.s.stateEndTop = stateEndYPathLiteral
+	r.buf = ypath
+
+	for i := 0; i < len(ypath); i++ {
+		c := ypath[i]
+
+		op := r.s.step(&r.s, c)
+		switch op {
+		case scanBeginLiteral:
+			r.keep = i
+		case scanEnd:
+			r.pos = i
+			if err = r.decodeLastLiteral(); err != nil {
+				return
+			}
+
+			switch r.currentType {
+			case TypeEntity:
+			case TypeInt64:
+				*value = r.currentInt
+			case TypeUint64:
+				*value = r.currentUint
+			case TypeBool:
+				*value = r.currentBool
+			case TypeFloat64:
+				*value = r.currentFloat
+			case TypeString:
+				*value = r.currentString
+			default:
+				err = xerrors.New("ypath: invalid format")
+			}
+
+			n = i
+			return
+
+		case scanSkipSpace, scanContinue:
+		default:
+			err = xerrors.New("ypath: invalid format")
+			return
 		}
 	}
 

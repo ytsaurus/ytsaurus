@@ -180,7 +180,6 @@ func (r *Reader) decodeLastLiteral() (err error) {
 		r.currentString = r.buf[r.keep:r.pos]
 	case literalString:
 		r.currentType = TypeString
-		// TODO(prime@): doublecheck compatibility
 		r.currentString = unescapeC(r.buf[r.keep+1 : r.pos-1])
 	case literalBinaryString:
 		r.currentType = TypeString

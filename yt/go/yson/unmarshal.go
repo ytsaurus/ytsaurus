@@ -196,7 +196,11 @@ func decodeAny(r *Reader, v interface{}) (err error) {
 		b, err = decodeString(r)
 		*vv = string(b)
 	case *[]byte:
-		*vv, err = decodeString(r)
+		var b []byte
+		b, err = decodeString(r)
+
+		*vv = make([]byte, len(b))
+		copy(*vv, b)
 	case *RawValue:
 		var raw []byte
 		raw, err = r.NextRawValue()
@@ -206,7 +210,6 @@ func decodeAny(r *Reader, v interface{}) (err error) {
 
 		*vv = make([]byte, len(raw))
 		copy(*vv, raw)
-
 	case encoding.TextUnmarshaler:
 		var b []byte
 		b, err = decodeString(r)

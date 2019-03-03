@@ -70,7 +70,8 @@ const (
 // See "Lexical Scanning in Go - Rob Pike" https://www.youtube.com/watch?v=HxaD_trXwRE
 type scanner struct {
 	// top level scanner state is encoded as function
-	step func(*scanner, byte) opcode
+	step        func(*scanner, byte) opcode
+	stateEndTop func(*scanner, byte) opcode
 
 	parseState   []parseState                // stack or open maps, lists and attribute maps
 	endTop       bool                        // reached end of tol-level value
@@ -90,6 +91,7 @@ type scanner struct {
 
 func (s *scanner) reset(kind StreamKind) {
 	s.step = stateBeginValue
+	s.stateEndTop = stateEndTop
 	s.parseState = s.parseState[0:0]
 
 	s.err = nil
@@ -654,8 +656,8 @@ func stateEndValue(s *scanner, c byte) opcode {
 	n := len(s.parseState)
 	if n == 0 {
 		s.endTop = true
-		s.step = stateEndTop
-		return stateEndTop(s, c)
+		s.step = s.stateEndTop
+		return s.stateEndTop(s, c)
 	} else if s.fragment && n == 1 && s.parseState[n-1] != parseMapKey {
 		s.endTop = true
 	}
@@ -733,6 +735,15 @@ func stateEndValue(s *scanner, c byte) opcode {
 	}
 
 	panic("unreachable")
+}
+
+func stateEndYPathLiteral(s *scanner, c byte) opcode {
+	if !isSpace(c) && c != ']' && c != ',' && c != ')' && c != '}' {
+		return s.error(c, "after top-level value")
+	}
+
+	s.step = stateEndTop
+	return scanEnd
 }
 
 func stateEndTop(s *scanner, c byte) opcode {

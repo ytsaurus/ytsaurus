@@ -33,6 +33,8 @@ func (e *ErrorCode) UnmarshalYSON(r *yson.Reader) (err error) {
 // Since YT error might contain arbitrary nested tree structure, user
 // should traverse the whole tree when searching for a specific error
 // condition.
+//
+// Error supports brief and full formatting using %v and %+v format specifiers.
 type Error struct {
 	Code        ErrorCode              `yson:"code" json:"code"`
 	Message     string                 `yson:"message" json:"message"`
@@ -40,6 +42,9 @@ type Error struct {
 	Attributes  map[string]interface{} `yson:"attributes" json:"attributes"`
 }
 
+// ContainsErrorCode returns true iff any of the nested errors has ErrorCode equal to errorCode.
+//
+// ContainsErrorCode invokes xerrors.As internally. It is safe to pass arbitrary error value to this function.
 func ContainsErrorCode(err error, errorCode ErrorCode) bool {
 	var ytErr *Error
 	if ok := xerrors.As(err, &ytErr); ok {
@@ -58,11 +63,49 @@ func ContainsErrorCode(err error, errorCode ErrorCode) bool {
 }
 
 func (yt *Error) Error() string {
-	if yt.Code == 1 {
-		return fmt.Sprintf("yt: message=%q", yt.Message)
-	} else {
-		return fmt.Sprintf("yt: code=%d, message=%q", yt.Code, yt.Message)
+	return fmt.Sprint(yt)
+}
+
+func (yt *Error) Format(s fmt.State, v rune) { xerrors.FormatError(yt, s, v) }
+
+func (yt *Error) FormatError(p xerrors.Printer) (next error) {
+	p.Printf("yt: %s", yt.Message)
+
+	printAttrs := func(e *Error) {
+		if e.Code != 1 {
+			p.Printf("  code: %d\n", e.Code)
+		}
+
+		for name, attr := range e.Attributes {
+			p.Printf("  %s: %s\n", name, attr)
+		}
 	}
+
+	var visit func(*Error)
+	visit = func(e *Error) {
+		p.Printf("%s\n", e.Message)
+		printAttrs(e)
+
+		for _, inner := range e.InnerErrors {
+			visit(inner)
+		}
+	}
+
+	if p.Detail() {
+		p.Printf("\n")
+		printAttrs(yt)
+
+		for _, inner := range yt.InnerErrors {
+			visit(inner)
+		}
+	} else {
+		// Recursing only into the last inner error, since user asked for brief error.
+		if len(yt.InnerErrors) != 0 {
+			return yt.InnerErrors[len(yt.InnerErrors)-1]
+		}
+	}
+
+	return nil
 }
 
 type ErrorAttr struct {
