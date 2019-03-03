@@ -132,12 +132,6 @@ public:
         return KeyColumns_;
     }
 
-    virtual const std::vector<TString>& GetOmittedInaccessibleColumns() const override
-    {
-        static const std::vector<TString> Result;
-        return Result;
-    }
-
     virtual i64 GetTableRowIndex() const override
     {
         return RowIndex_;

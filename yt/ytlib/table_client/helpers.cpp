@@ -108,7 +108,7 @@ public:
 
     virtual const std::vector<TString>& GetOmittedInaccessibleColumns() const override
     {
-        return UnderlyingReader_->GetOmittedInaccessibleColumns();
+        Y_UNREACHABLE();
     }
 
 private:

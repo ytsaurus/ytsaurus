@@ -23,8 +23,14 @@ TFuture<ITableReaderPtr> CreateTableReader(
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
     NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
 
-TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
-    IClientPtr client,
+struct TSchemalessMultiChunkReaderCreateResult
+{
+    NTableClient::ISchemalessMultiChunkReaderPtr Reader;
+    std::vector<TString> OmittedInaccessibleColumns;
+};
+
+TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReader(
+    const IClientPtr& client,
     const NYPath::TRichYPath& richPath,
     const TTableReaderOptions& options,
     NTableClient::TNameTablePtr nameTable,

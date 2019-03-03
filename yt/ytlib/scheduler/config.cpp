@@ -381,6 +381,9 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("alias", Alias)
         .Default();
 
+    RegisterParameter("omit_inaccessible_columns", OmitInaccessibleColumns)
+        .Default(false);
+
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)

@@ -485,6 +485,10 @@ public:
     //! (it should start with an asterisk).
     std::optional<TString> Alias;
 
+    //! If true, then omits columns that are inaccessible due to columnar ACL restriction instead of
+    //! failing the operation.
+    bool OmitInaccessibleColumns;
+
     TOperationSpecBase();
 
 private:

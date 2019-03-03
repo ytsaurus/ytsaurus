@@ -28,37 +28,40 @@ class TDataSource
 public:
     DEFINE_BYVAL_RW_PROPERTY(EDataSourceType, Type, EDataSourceType::UnversionedTable);
     DEFINE_BYVAL_RW_PROPERTY(bool, Foreign, false);
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, Path);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<NYPath::TYPath>, Path);
     DEFINE_BYREF_RW_PROPERTY(std::optional<NTableClient::TTableSchema>, Schema);
     DEFINE_BYREF_RW_PROPERTY(std::optional<std::vector<TString>>, Columns);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TString>, OmittedInaccessibleColumns);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, Timestamp, NTransactionClient::NullTimestamp);
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TColumnRenameDescriptors, ColumnRenameDescriptors);
 
     TDataSource() = default;
-
     TDataSource(
         EDataSourceType type,
-        const std::optional<TString>& path,
+        const std::optional<NYPath::TYPath>& path,
         const std::optional<NTableClient::TTableSchema>& schema,
         const std::optional<std::vector<TString>>& columns,
+        const std::vector<TString>& omittedInaccessibleColumns,
         NTransactionClient::TTimestamp timestamp,
         const NTableClient::TColumnRenameDescriptors& columnRenameDescriptors);
 };
 
 TDataSource MakeVersionedDataSource(
-    const std::optional<TString>& path,
+    const std::optional<NYPath::TYPath>& path,
     const NTableClient::TTableSchema& schema,
     const std::optional<std::vector<TString>>& columns,
+    const std::vector<TString>& omittedInaccessibleColumns,
     NTransactionClient::TTimestamp timestamp,
     const NTableClient::TColumnRenameDescriptors& columnRenameDescriptors = {});
 
 TDataSource MakeUnversionedDataSource(
-    const std::optional<TString>& path,
+    const std::optional<NYPath::TYPath>& path,
     const std::optional<NTableClient::TTableSchema>& schema,
     const std::optional<std::vector<TString>>& columns,
+    const std::vector<TString>& omittedInaccessibleColumns,
     const NTableClient::TColumnRenameDescriptors& columnRenameDescriptors = {});
 
-TDataSource MakeFileDataSource(const std::optional<TString>& path);
+TDataSource MakeFileDataSource(const std::optional<NYPath::TYPath>& path);
 
 void FromProto(
     TDataSource* dataSource,

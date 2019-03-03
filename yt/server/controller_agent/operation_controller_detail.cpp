@@ -4458,7 +4458,7 @@ void TOperationControllerBase::LockInputTables()
         auto& table = InputTables_[index];
         const auto& path = table->Path.GetPath();
         const auto& rspOrError = batchRsp[index];
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to lock input table %Qv", path);
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to lock input table %v", path);
         const auto& rsp = rspOrError.Value();
         table->ObjectId = FromProto<TObjectId>(rsp->node_id());
         table->CellTag = FromProto<TCellTag>(rsp->cell_tag());
@@ -4469,12 +4469,15 @@ void TOperationControllerBase::GetInputTablesAttributes()
 {
     YT_LOG_INFO("Getting input tables attributes");
 
+    TGetUserObjectBasicAttributesOptions getUserObjectBasicAttributesOptions;
+    getUserObjectBasicAttributesOptions.OmitInaccessibleColumns = Spec_->OmitInaccessibleColumns;
     GetUserObjectBasicAttributes(
         InputClient,
         MakeUserObjectList(InputTables_),
         InputTransaction->GetId(),
         Logger,
-        EPermission::Read);
+        EPermission::Read,
+        getUserObjectBasicAttributesOptions);
 
     for (const auto& table : InputTables_) {
         if (table->Type != EObjectType::Table) {
@@ -4483,6 +4486,22 @@ void TOperationControllerBase::GetInputTablesAttributes()
                 EObjectType::Table,
                 table->Type);
         }
+    }
+
+    std::vector<TYsonString> omittedInaccessibleColumnsList;
+    for (const auto& table : InputTables_) {
+        if (!table->OmittedInaccessibleColumns.empty()) {
+            omittedInaccessibleColumnsList.push_back(BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("path").Value(table->Path.GetPath())
+                    .Item("columns").Value(table->OmittedInaccessibleColumns)
+                .EndMap());
+        }
+    }
+    if (!omittedInaccessibleColumnsList.empty()) {
+        auto error = TError("Some columns of input tables are inaccessible and were omitted")
+            << TErrorAttribute("input_tables", omittedInaccessibleColumnsList);
+        SetOperationAlert(EOperationAlertType::OmittedInaccesibleColumnsInInputTables, error);
     }
 
     THashMap<TCellTag, std::vector<TInputTablePtr>> cellTagToTables;
@@ -5101,7 +5120,7 @@ void TOperationControllerBase::LockUserFiles()
             for (auto& file : files) {
                 const auto& path = file.Path.GetPath();
                 const auto& rspOrError = batchRsp[index++];
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to lock user file %Qv", path);
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to lock user file %v", path);
                 const auto& rsp = rspOrError.Value();
                 file.ObjectId = FromProto<TObjectId>(rsp->node_id());
             }
@@ -5210,7 +5229,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
 
                 {
                     const auto& rspOrError = getAttributesRspsOrError[index];
-                    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of user file %Qv", path);
+                    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of user file ", path);
                     const auto& rsp = rspOrError.Value();
                     const auto& linkRsp = getLinkAttributesRspsOrError[index];
                     index++;
@@ -5821,7 +5840,7 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
         auto columnSet = THashSet<TString>(columns->begin(), columns->end());
         for (const auto& keyColumn : keyColumns) {
             if (columnSet.find(keyColumn) == columnSet.end()) {
-                THROW_ERROR_EXCEPTION("Column filter for input table %v doesn't include key column %Qv",
+                THROW_ERROR_EXCEPTION("Column filter for input table %v must include key column %Qv",
                     table->Path.GetPath(),
                     keyColumn);
             }
@@ -7425,7 +7444,8 @@ void TOperationControllerBase::InitAutoMergeJobSpecTemplates()
         dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
             IntermediatePath,
             OutputTables_[tableIndex]->TableUploadOptions.TableSchema,
-            std::nullopt));
+            /* columns */ std::nullopt,
+            /* omittedInaccessibleColumns */ {}));
 
         NChunkClient::NProto::TDataSourceDirectoryExt dataSourceDirectoryExt;
         ToProto(&dataSourceDirectoryExt, dataSourceDirectory);

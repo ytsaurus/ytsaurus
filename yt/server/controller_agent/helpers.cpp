@@ -133,6 +133,7 @@ void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector
                 file.GetPath(),
                 file.Schema,
                 file.Path.GetColumns(),
+                file.OmittedInaccessibleColumns,
                 file.Path.GetTimestamp().value_or(AsyncLastCommittedTimestamp),
                 file.Path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors()));
 
@@ -144,6 +145,7 @@ void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector
                     file.GetPath(),
                     file.Schema,
                     file.Path.GetColumns(),
+                    file.OmittedInaccessibleColumns,
                     file.Path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors()));
 
             ToProto(descriptor->mutable_data_source(), dataSource);
@@ -176,12 +178,14 @@ TDataSourceDirectoryPtr BuildDataSourceDirectoryFromInputTables(const std::vecto
                 inputTable->Path.GetPath(),
                 inputTable->Schema,
                 inputTable->Path.GetColumns(),
+                inputTable->OmittedInaccessibleColumns,
                 inputTable->Path.GetTimestamp().value_or(AsyncLastCommittedTimestamp),
                 inputTable->ColumnRenameDescriptors)
             : MakeUnversionedDataSource(
                 inputTable->Path.GetPath(),
                 inputTable->Schema,
                 inputTable->Path.GetColumns(),
+                inputTable->OmittedInaccessibleColumns,
                 inputTable->ColumnRenameDescriptors);
 
         dataSource.SetForeign(inputTable->IsForeign());
@@ -196,12 +200,15 @@ TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory()
     auto dataSourceDirectory = New<TDataSourceDirectory>();
     dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
         IntermediatePath,
-        std::nullopt,
-        std::nullopt));
+        /* schema */ std::nullopt,
+        /* columns */ std::nullopt,
+        /* omittedInaccessibleColumns */ {}));
     return dataSourceDirectory;
 }
 
-void SetDataSourceDirectory(NScheduler::NProto::TSchedulerJobSpecExt* jobSpec, const TDataSourceDirectoryPtr& dataSourceDirectory)
+void SetDataSourceDirectory(
+    NScheduler::NProto::TSchedulerJobSpecExt* jobSpec,
+    const TDataSourceDirectoryPtr& dataSourceDirectory)
 {
     NChunkClient::NProto::TDataSourceDirectoryExt dataSourceDirectoryExt;
     ToProto(&dataSourceDirectoryExt, dataSourceDirectory);

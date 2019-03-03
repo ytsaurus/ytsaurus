@@ -771,7 +771,6 @@ class TestCypressAcls(YTEnvSetup):
 
         create("table", "//tmp/t", attributes={
             "optimize_for": optimize_for,
-            "sche"
             "schema": schema,
             "acl": [make_ace("deny", "u", "read", columns="secret"),]
         })
@@ -784,9 +783,16 @@ class TestCypressAcls(YTEnvSetup):
         public_row.pop("secret", None)
         
         write_table("//tmp/t", [row])
-        assert read_table("//tmp/t{public}") == [{"public": "a"}]
-        assert read_table("//tmp/t", omit_inaccessible_columns=True, authenticated_user="u") == [public_row]
-        assert read_table("//tmp/t{secret}", omit_inaccessible_columns=True, authenticated_user="u") == [{}]
+
+        def do(path, expected_row, expected_omitted_columns):
+            response_parameters = {}
+            rows = read_table(path, omit_inaccessible_columns=True, response_parameters=response_parameters, authenticated_user="u")
+            assert rows == [expected_row]
+            assert response_parameters["omitted_inaccessible_columns"] == expected_omitted_columns
+
+        do("//tmp/t{public}", {"public": "a"}, [])
+        do("//tmp/t", public_row, ["secret"])
+        do("//tmp/t{secret}", {}, ["secret"])
 
     def test_map_table_with_denied_columns(self):
         create_user("u")
@@ -811,6 +817,47 @@ class TestCypressAcls(YTEnvSetup):
              map(in_="//tmp/t_in{secret}", out="//tmp/t_out", command="cat", authenticated_user="u")
         with pytest.raises(YtError):
              map(in_="//tmp/t_in", out="//tmp/t_out", command="cat", authenticated_user="u")
+
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    @pytest.mark.parametrize("strict", [False, True])
+    def test_map_table_with_omitted_columns(self, optimize_for, strict):
+        create_user("u")
+        create("table", "//tmp/t_in", attributes={
+            "optimize_for": optimize_for,
+            "schema": make_schema(
+                [
+                    {"name": "public", "type": "string"},
+                    {"name": "secret", "type": "string"}
+                ],
+                strict=strict),
+            "acl": [make_ace("deny", "u", "read", columns="secret")]
+        })
+
+        row = {"public": "a", "secret": "b"}
+        if not strict:
+            row["other"] = "c"
+
+        public_row = row
+        public_row.pop("secret", None)
+        
+        write_table("//tmp/t_in", [row])
+
+        def do(input_path, expected_row, expect_alert):
+            create("table", "//tmp/t_out", force=True)
+            op = map(in_=input_path, out="//tmp/t_out", command="cat", authenticated_user="u", spec={"omit_inaccessible_columns": True})
+            alerts = op.get_alerts()
+            if expect_alert:
+                assert len(alerts) == 1
+                assert alerts["omitted_inaccesible_columns_in_input_tables"]["attributes"]["input_tables"] == [
+                        {"path": "//tmp/t_in", "columns": ["secret"]}
+                    ]
+            else:
+                assert len(alerts) == 0
+            assert read_table("//tmp/t_out") == [expected_row]
+
+        do("//tmp/t_in{public}", {"public": "a"}, False)
+        do("//tmp/t_in", public_row, True)
+        do("//tmp/t_in{secret}", {}, True)
 
     @pytest.mark.parametrize("acl_path", ["//tmp/dir/t", "//tmp/dir"])
     def test_check_permission_for_columnar_acl(self, acl_path):
