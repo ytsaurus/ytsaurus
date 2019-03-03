@@ -24,6 +24,7 @@ def get_clickhouse_clique_spec_builder(instance_count,
                                        memory_limit=None,
                                        memory_footprint=None,
                                        enable_monitoring=None,
+                                       cypress_geodata_path=None,
                                        spec=None):
     """Returns a spec builder for the clickhouse clique consisting of a given number of instances.
 
@@ -73,6 +74,12 @@ def get_clickhouse_clique_spec_builder(instance_count,
     else:
         executable_path = host_ytserver_clickhouse_path
 
+    if cypress_geodata_path is not None:
+        file_paths.append(FilePath(cypress_geodata_path, file_name="geodata.tgz"))
+        extract_geodata_command = "mkdir geodata ; tar xzf geodata.tgz -C geodata/ ;"
+    else:
+        extract_geodata_command = ""
+
     if spec is None:
         spec = dict()
     if "annotations" not in spec:
@@ -83,15 +90,17 @@ def get_clickhouse_clique_spec_builder(instance_count,
 
     monitoring_port = "10142" if enable_monitoring else "$YT_PORT_1"
 
+    run_clickhouse_command = "{} --config config.yson --instance-id $YT_JOB_ID "\
+                             "--clique-id $YT_OPERATION_ID --rpc-port $YT_PORT_0 --monitoring-port {} "\
+                             "--tcp-port $YT_PORT_2 --http-port $YT_PORT_3 ;".format(executable_path, monitoring_port)
+    command = "{}\n{}".format(extract_geodata_command, run_clickhouse_command)
+
     spec_builder = \
         VanillaSpecBuilder() \
             .begin_task("clickhouse_servers") \
                 .job_count(instance_count) \
                 .file_paths(file_paths) \
-                .command('{} --config config.yson --instance-id $YT_JOB_ID '
-                         '--clique-id $YT_OPERATION_ID --rpc-port $YT_PORT_0 --monitoring-port {} '
-                         '--tcp-port $YT_PORT_2 --http-port $YT_PORT_3'
-                         .format(executable_path, monitoring_port)) \
+                .command(command) \
                 .memory_limit(memory_limit + memory_footprint) \
                 .cpu_limit(cpu_limit) \
                 .port_count(4) \
@@ -163,6 +172,7 @@ def start_clickhouse_clique(instance_count,
                             memory_footprint=None,
                             enable_monitoring=None,
                             enable_query_log=None,
+                            cypress_geodata_path=None,
                             client=None,
                             **kwargs):
     """Starts a clickhouse clique consisting of a given number of instances.
@@ -181,6 +191,8 @@ def start_clickhouse_clique(instance_count,
     :type enable_monitoring: bool
     :param enable_query_log: enable clickhouse query log.
     :type enable_query_log: bool
+    :param cypress_geodata_path: path to archive with geodata in Cypress
+    :type cypress_geodata_path str or None
     .. seealso::  :ref:`operation_parameters`.
     """
 
@@ -197,6 +209,7 @@ def start_clickhouse_clique(instance_count,
                                                           memory_limit=memory_limit,
                                                           memory_footprint=memory_footprint,
                                                           enable_monitoring=enable_monitoring,
+                                                          cypress_geodata_path=cypress_geodata_path,
                                                           **kwargs),
                        client=client,
                        sync=False)
