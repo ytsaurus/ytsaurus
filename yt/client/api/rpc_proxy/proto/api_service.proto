@@ -1505,11 +1505,23 @@ message TReqCheckPermission
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;
     optional TMasterReadOptions master_read_options = 102;
+
+    message TColumns
+    {
+        repeated string items = 1;
+    }
+    optional TColumns columns = 4;
 }
 
 message TRspCheckPermission
 {
     required TCheckPermissionResult result = 1;
+
+    message TColumns
+    {
+        repeated TCheckPermissionResult items = 1;
+    }
+    optional TColumns columns = 2;
 }
 
 //------------------------------------------------------------------------------
