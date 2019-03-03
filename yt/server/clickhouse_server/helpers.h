@@ -6,7 +6,7 @@
 
 #include <yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/client/table_client/public.h>
+#include <yt/client/table_client/schema.h>
 
 #include <yt/client/ypath/public.h>
 

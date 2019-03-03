@@ -452,7 +452,7 @@ ISchemafulReaderPtr CreateSchemafulTableReader(
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter) -> ISchemalessReaderPtr
     {
-        return WaitFor(
+        auto result = WaitFor(
             NApi::NNative::CreateSchemalessMultiChunkReader(
                 client,
                 path,
@@ -460,6 +460,7 @@ ISchemafulReaderPtr CreateSchemafulTableReader(
                 nameTable,
                 columnFilter))
             .ValueOrThrow();
+        return result.Reader;
     };
 
     return CreateSchemafulReaderAdapter(

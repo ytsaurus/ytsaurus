@@ -10,9 +10,11 @@
 
 #include <yt/ytlib/api/native/client.h>
 
+#include <yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/client/table_client/unversioned_row.h>
 
-#include <yt/client/object_client/public.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/ytree/permission.h>
 
@@ -30,6 +32,8 @@ using namespace NYTree;
 using namespace NLogging;
 using namespace NObjectClient;
 using namespace NCypressClient;
+using namespace NChunkClient;
+using namespace NApi;
 using namespace NConcurrency;
 using namespace NYson;
 
@@ -90,20 +94,23 @@ std::unique_ptr<TTableObject> GetTableAttributes(
     YT_LOG_INFO("Requesting object attributes (Path: %v)", path);
 
     {
+        TGetUserObjectBasicAttributesOptions options;
+        options.ChannelKind = EMasterChannelKind::Cache;
+        options.SuppressAccessTracking = true;
+        // TODO(max42): YT-10402, columnar ACL
         GetUserObjectBasicAttributes(
             client,
-            TMutableRange<TTableObject>(userObject.get(), 1),
+            {userObject.get()},
             NullTransactionId,
             Logger,
             permission,
-            true /* suppressAccessTracking */,
-            true /* readFromCache */);
+            options);
 
-        if (userObject->Type != NObjectClient::EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Invalid object type")
-                << TErrorAttribute("path", path)
-                << TErrorAttribute("expected", NObjectClient::EObjectType::Table)
-                << TErrorAttribute("actual", userObject->Type);
+        if (userObject->Type != EObjectType::Table) {
+            THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
+                path,
+                EObjectType::Table,
+                userObject->Type);
         }
     }
 

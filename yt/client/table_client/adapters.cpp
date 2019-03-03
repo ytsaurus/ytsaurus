@@ -104,8 +104,8 @@ IUnversionedWriterPtr CreateSchemalessFromApiWriterAdapter(
 ////////////////////////////////////////////////////////////////////////////////
 
 void PipeReaderToWriter(
-    ITableReaderPtr reader,
-    IUnversionedRowsetWriterPtr writer,
+    const ITableReaderPtr& reader,
+    const IUnversionedRowsetWriterPtr& writer,
     const TPipeReaderToWriterOptions& options)
 {
     TPeriodicYielder yielder(TDuration::Seconds(1));
@@ -180,7 +180,7 @@ void PipeInputToOutput(
 }
 
 void PipeInputToOutput(
-    NConcurrency::IAsyncInputStreamPtr input,
+    const NConcurrency::IAsyncInputStreamPtr& input,
     IOutputStream* output,
     i64 bufferBlockSize)
 {

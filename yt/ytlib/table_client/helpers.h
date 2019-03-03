@@ -37,7 +37,7 @@ NApi::ITableReaderPtr CreateApiFromSchemalessChunkReaderAdapter(
 
 void PipeReaderToWriter(
     const ISchemalessChunkReaderPtr& reader,
-    IUnversionedRowsetWriterPtr writer,
+    const IUnversionedRowsetWriterPtr& writer,
     const TPipeReaderToWriterOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,8 +55,10 @@ void ValidateKeyColumns(
     const TKeyColumns& chunkKeyColumns,
     bool requireUniqueKeys,
     bool validateColumnNames);
-TColumnFilter CreateColumnFilter(const std::optional<std::vector<TString>>& columns, TNameTablePtr nameTable);
-int GetSystemColumnCount(TChunkReaderOptionsPtr options);
+TColumnFilter CreateColumnFilter(
+    const std::optional<std::vector<TString>>& columns,
+    const TNameTablePtr& nameTable);
+int GetSystemColumnCount(const TChunkReaderOptionsPtr& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 
