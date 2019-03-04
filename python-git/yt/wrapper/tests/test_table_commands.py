@@ -3,7 +3,6 @@ from __future__ import with_statement
 from .helpers import TEST_DIR, check, set_config_option, get_tests_sandbox, set_config_options, wait
 
 import yt.wrapper.py_wrapper as py_wrapper
-from yt.wrapper.driver import get_command_list
 from yt.wrapper.py_wrapper import OperationParameters
 from yt.wrapper.table import TablePath, TempTable
 

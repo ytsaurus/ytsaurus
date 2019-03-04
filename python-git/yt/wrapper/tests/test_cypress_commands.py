@@ -258,7 +258,7 @@ class TestCypressCommands(object):
         assert str(result[0]) == table
         assert result[0].attributes["my_attribute"] == {"000": 10}
 
-    def test_link(self, yt_env):
+    def test_link(self):
         table = TEST_DIR + "/table_with_attributes"
         link = TEST_DIR + "/table_link"
         yt.create("table", table)
@@ -484,7 +484,7 @@ class TestCypressCommands(object):
             except yt.YtResponseError as err:
                 assert err.is_no_such_transaction()
 
-    def test_lock(self, yt_env):
+    def test_lock(self):
         dir = TEST_DIR + "/dir"
 
         yt.mkdir(dir)
