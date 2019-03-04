@@ -928,15 +928,14 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         initial_chunk_ids = get("//tmp/t/@chunk_ids")
         assert len(initial_chunk_ids) == 1
-        initial_chunk_id = initial_chunk_ids[0]
 
         assert get("//tmp/t/@tablets/0/flushed_row_count") == 1
         assert get("//tmp/t/@tablets/0/trimmed_row_count") == 0
 
-        sleep(3.0)
-
-        set("//tmp/t/@min_replication_log_ttl", 2000)
+        set("//tmp/t/@min_replication_log_ttl", 1000)
         sync_mount_table("//tmp/t")
+
+        sleep(5.0)
 
         insert_rows("//tmp/t", [{"key": 2, "value1": "test2"}], require_sync_replica=False)
         wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test1", "value2": YsonEntity()}, {"key": 2, "value1": "test2", "value2": YsonEntity()}])
@@ -944,7 +943,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         def check_chunks():
             chunk_ids = get("//tmp/t/@chunk_ids")
             return len(chunk_ids) == 1 and chunk_ids != initial_chunk_ids
-        wait(lambda: check_chunks())
+        wait(check_chunks)
 
         sync_unmount_table("//tmp/t")
 
