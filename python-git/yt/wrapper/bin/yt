@@ -239,7 +239,7 @@ def add_ypath_argument(parser, name, help="address in Cypress", hybrid=False, **
         argument.completer = completers.complete_ypath
 
 def add_structured_format_argument(parser, name="--format", help="", **kwargs):
-    description = 'response format: yson or json, for example: "<format=binary>yson". See also: https://wiki.yandex-team.ru/yt/userdoc/formats'
+    description = 'response or input format: yson or json, for example: "<format=binary>yson". See also: https://wiki.yandex-team.ru/yt/userdoc/formats'
     add_argument(parser, name, help, description=description, action=ParseFormat, **kwargs)
 
 def add_format_argument(parser, name="--format", help="", **kwargs):
