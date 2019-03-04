@@ -792,8 +792,8 @@ TFuture<NApi::TListOperationsResult> TClient::ListOperations(
         req->set_user_filter(*options.UserFilter);
     }
 
-    if (options.OwnedBy) {
-        req->set_owned_by(*options.OwnedBy);
+    if (options.AccessFilter) {
+        req->set_access_filter(ConvertToYsonString(options.AccessFilter).GetData());
     }
 
     if (options.StateFilter) {

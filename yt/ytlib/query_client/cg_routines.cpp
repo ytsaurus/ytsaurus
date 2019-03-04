@@ -6,6 +6,9 @@
 
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 
+#include <yt/ytlib/security_client/acl.h>
+#include <yt/ytlib/security_client/helpers.h>
+
 #include <yt/client/query_client/query_statistics.h>
 
 #include <yt/client/table_client/row_buffer.h>
@@ -2044,6 +2047,29 @@ ui64 HyperLogLogEstimateCardinality(void* hll)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void HasPermissions(
+    TExpressionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* ysonAcl,
+    TUnversionedValue* ysonSubjectClosureList,
+    TUnversionedValue* ysonPermissionList)
+{
+    using namespace NYTree;
+    using namespace NYson;
+
+    auto acl = ConvertTo<NSecurityClient::TSerializableAccessControlList>(
+        TYsonString(ysonAcl->Data.String, ysonAcl->Length));
+    auto subjectClosure = ConvertTo<THashSet<TString>>(
+        TYsonString(ysonSubjectClosureList->Data.String, ysonSubjectClosureList->Length));
+    auto permissions = ConvertTo<EPermissionSet>(
+        TYsonString(ysonPermissionList->Data.String, ysonPermissionList->Length));
+
+    auto action = CheckPermissionsByAclAndSubjectClosure(acl, subjectClosure, permissions);
+    *result = MakeUnversionedBooleanValue(action == NSecurityClient::ESecurityAction::Allow);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NRoutines
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2114,6 +2140,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(HyperLogLogAdd);
     REGISTER_ROUTINE(HyperLogLogMerge);
     REGISTER_ROUTINE(HyperLogLogEstimateCardinality);
+    REGISTER_ROUTINE(HasPermissions);
 #undef REGISTER_TRY_GET_ROUTINE
 #undef REGISTER_ROUTINE
 

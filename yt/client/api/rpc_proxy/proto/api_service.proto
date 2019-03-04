@@ -1283,7 +1283,7 @@ message TReqListOperations
     optional EOperationSortDirection cursor_direction = 4 [default = OSD_PAST];
     optional string user_filter = 5;
 
-    optional string owned_by = 6;
+    reserved 6; // deprecated
 
     optional EOperationState state_filter = 7;
     optional EOperationType type_filter = 8;
@@ -1297,6 +1297,8 @@ message TReqListOperations
     optional TAttributeKeys attributes = 15;
 
     optional bool enable_ui_mode = 16 [default = false];
+
+    optional bytes access_filter = 17; // YSON
 
     optional TMasterReadOptions master_read_options = 102;
 }
