@@ -36,6 +36,10 @@ func TestParse(t *testing.T) {
 			expected: NewRich(Root.Child("foo")).SetColumns([]string{"bar", "zog"}),
 		},
 		{
+			input:    "//foo{bar,}   ",
+			expected: NewRich(Root.Child("foo")).SetColumns([]string{"bar"}),
+		},
+		{
 			input:    "//foo{}",
 			expected: NewRich(Root.Child("foo")).SetColumns([]string{}),
 		},
@@ -80,6 +84,22 @@ func TestParse(t *testing.T) {
 			expected: NewRich(Root.Child("foo")).AddRange(Exact(Key())),
 		},
 		{
+			input:    "//foo[(%true,)]",
+			expected: NewRich(Root.Child("foo")).AddRange(Exact(Key(true))),
+		},
+		{
+			input:    "//foo[(%true,):]",
+			expected: NewRich(Root.Child("foo")).AddRange(StartingFrom(Key(true))),
+		},
+		{
+			input:    "//foo[:(%true,)]",
+			expected: NewRich(Root.Child("foo")).AddRange(UpTo(Key(true))),
+		},
+		{
+			input:    "//foo[(%true,):(%true,)]",
+			expected: NewRich(Root.Child("foo")).AddRange(Interval(Key(true), Key(true))),
+		},
+		{
 			input: "//foo[( a, 1, 2u , %true,#)]",
 			expected: NewRich(Root.Child("foo")).
 				AddRange(Exact(Key(
@@ -111,10 +131,14 @@ func TestParseInvalid(t *testing.T) {
 		"//foo{a,b}{a,b}",
 		"//foo[:][:]",
 		"//foo[:]{a,b}",
+		"//foo{a,b",
+		"//foo{a,",
+		"//foo{a",
+		"//foo{",
+		"//foo{1}",
 		"//foo{a,b}{a,b}",
 		"//foo[:]/@foo",
 		"//foo{a,b}/@foo",
-		"//t[(a,)]",
 		"//t[(a)",
 		"//t[(a",
 		"//t[(a,",
