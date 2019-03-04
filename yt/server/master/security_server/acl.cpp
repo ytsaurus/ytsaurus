@@ -43,8 +43,8 @@ void TAccessControlEntry::Persist(NCellMaster::TPersistenceContext& context)
     Persist(context, Permissions);
     Persist(context, Action);
     Persist(context, InheritanceMode);
-    // XXX(babenko)
-    if (context.GetVersion() >= 900) {
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 826) {
         Persist(context, Columns);
     }
 }
