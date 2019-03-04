@@ -141,7 +141,7 @@ struct TUserObject
 
     virtual ~TUserObject() = default;
 
-    // XXX(babenko): get rid of this
+    // TODO(babenko): get rid of this
     virtual TString GetPath() const;
 
     bool IsPrepared() const;
