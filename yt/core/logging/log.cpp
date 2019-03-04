@@ -29,7 +29,8 @@ void TMessageStringBuilder::DoPreallocate(size_t newLength)
         context->Chunk = TSharedMutableRef::Allocate<TMessageBufferTag>(chunkSize, false);
         context->ChunkOffset = 0;
     }
-    auto oldBuffer = std::move(Buffer_); // Hold the old buffer for a while.
+    // Hold the old buffer until the data is copied.
+    auto oldBuffer = std::move(Buffer_);
     Buffer_ = context->Chunk.Slice(context->ChunkOffset, context->ChunkOffset + newLength);
     context->ChunkOffset += newLength;
     ::memcpy(Buffer_.Begin(), Begin_, oldLength);
