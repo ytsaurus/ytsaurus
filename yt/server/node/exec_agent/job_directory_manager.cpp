@@ -51,8 +51,12 @@ public:
         for (const auto& volume : volumes) {
             if (volume.Path.StartsWith(Path_ + "/")) {
                 YT_LOG_DEBUG("Unlink old volume, left from previous run (Path: %v)", volume.Path);
-                WaitFor(Executor_->UnlinkVolume(volume.Path, "self"))
-                    .ThrowOnError();
+                auto error = WaitFor(Executor_->UnlinkVolume(volume.Path, "self"));
+                if (error.FindMatching(EContainerErrorCode::VolumeNotFound)) {
+                    YT_LOG_DEBUG(error, "Failed to unlink volume (Path: %v)", volume.Path);
+                } else {
+                    error.ThrowOnError();
+                }
             }
         }
     }
