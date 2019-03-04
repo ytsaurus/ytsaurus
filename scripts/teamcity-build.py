@@ -456,8 +456,6 @@ def sky_share(resource, cwd):
 def share_packages(options, build_context):
     # Share all important packages via skynet and store in sandbox.
     upload_packages = [
-        "yandex-yt-python-skynet-driver",
-        "yandex-yt-python-driver",
         "yandex-yt-src",
         "yandex-yt-http-proxy",
         "yandex-yt-proxy",
@@ -473,6 +471,9 @@ def share_packages(options, build_context):
         "yandex-yt-controller-agent-dbg",
         "yandex-yt-clickhouse-dbg",
         "yandex-yt-node-dbg"
+
+        "yandex-yt-python-skynet-driver",
+        "yandex-yt-python-driver",
     ]
 
     try:
@@ -560,7 +561,6 @@ def package(options, build_context):
             run(["make", "version"])
         else:
             PACKAGE_LIST = [
-                "yandex-yt-python-skynet-driver.json",
                 "yandex-yt-controller-agent.json",
                 "yandex-yt-clickhouse.json",
                 "yandex-yt-http-proxy.json",
@@ -613,8 +613,6 @@ def package(options, build_context):
         teamcity_interact("setParameter", name="yt.package_version", value=build_context["yt_version"])
         teamcity_interact("buildStatus", text="Package: {0}; {{build.status.text}}".format(build_context["yt_version"]))
 
-        share_packages(options, build_context)
-
         artifacts = glob.glob("./ARTIFACTS/yandex-*{0}*.changes".format(build_context["yt_version"]))
         if artifacts:
             for repository in options.repositories:
@@ -640,10 +638,190 @@ def package_yp(options, build_context):
         run(["./build_yandex_yp.sh"], cwd=os.path.join(options.checkout_directory, "yp", "python"))
 
 
+def perform_python_packaging(options, packages_path, args, configurations):
+    for build_type, python_type, platform, library_path, package_path, package_name in configurations:
+        if python_type == "2" and not options.build_enable_python_2_7:
+            continue
+        if python_type == "3" and not options.build_enable_python_3_4:
+            continue
+        # NB: skynet enabled by default.
+
+        run_args = args + [
+            "--build-type", build_type,
+            "--python-type", python_type,
+            "--platform", platform,
+            "--library-path", os.path.join(options.working_directory, library_path),
+            "--package-path", os.path.join(packages_path, package_path),
+            "--package-name", package_name,
+        ]
+        run(run_args, cwd=options.working_directory)
+
+def perform_python_packaging(options, packages_path, args, configurations):
+    for build_type, python_type, platform, library_path, package_path, package_name in configurations:
+        if python_type == "2" and not options.build_enable_python_2_7:
+            continue
+        if python_type == "3" and not options.build_enable_python_3_4:
+            continue
+        # NB: skynet enabled by default.
+
+        run_args = args + [
+            "--build-type", build_type,
+            "--python-type", python_type,
+            "--platform", platform,
+            "--library-path", os.path.join(options.working_directory, library_path),
+            "--package-path", os.path.join(packages_path, package_path),
+            "--package-name", package_name,
+        ]
+        run(run_args, cwd=options.working_directory)
+
+@build_step
+@only_for_projects("yt")
+def package_yson_bindings(options, build_context):
+    if not options.package or not options.package_enable_yson_bingings:
+        teamcity_message("Skipping packaging yson_bindings")
+        return
+
+    yson_packages_path = os.path.join(options.checkout_directory, "yt/python/yson-debian")
+    args = [
+        python_package_path(options),
+        "--working-directory", options.working_directory,
+        "--debian-repositories", ",".join(options.bindings_repositories),
+        "--changelog-path", os.path.join(yson_packages_path, "debian/changelog"),
+        "--source-python-module-path", os.path.join(options.checkout_directory, "yt/python/yt_yson_bindings"),
+    ]
+
+    configurations = [
+        # build_type, python_type, library_path, package_path, package_name
+
+        # Pypi packages.
+        ("pypi", "2", "linux", "lib/pyshared-2-7/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python-yson"),
+        ("pypi", "3", "linux", "lib/pyshared-3-4/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python3-yson"),
+        ("pypi", "skynet", "linux", "lib/pyshared-skynet/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python-skynet-yson"),
+
+        # Pypi packages for mac.
+        ("pypi", "2", "darwin", "lib/pyshared-2-7-darwin/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python-yson"),
+        ("pypi", "3", "darwin", "lib/pyshared-3-4-darwin/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python3-yson"),
+
+        # Python-friendly debian packages.
+        ("debian", "2", "linux", "lib/pyshared-2-7/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python-yson"),
+        ("debian", "3", "linux", "lib/pyshared-3-4/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python3-yson"),
+
+        # Non-python-friendly debian packages.
+        ("debian", "2", "linux", "lib/pyshared-2-7/yson_lib.so", "yandex-yt-python-any-yson", "yandex-yt-python-2-7-yson"),
+        ("debian", "3", "linux", "lib/pyshared-3-4/yson_lib.so", "yandex-yt-python-any-yson", "yandex-yt-python-3-4-yson"),
+        ("debian", "skynet", "linux", "lib/pyshared-skynet/yson_lib.so", "yandex-yt-python-any-yson", "yandex-yt-python-skynet-yson"),
+    ]
+
+    perform_python_packaging(options, yson_packages_path, args, configurations)
+
+
+@build_step
+@only_for_projects("yt")
+def package_rpc_bindings(options, build_context):
+    if not options.package or not options.package_enable_rpc_bingings:
+        teamcity_message("Skipping packaging rpc_bindings")
+        return
+
+    config_generator = os.path.join(get_bin_dir(options), "build_python_packages_config_generator")
+    config = json.loads(run_captured([config_generator]))
+
+    mkdirp(os.path.join(options.working_directory, "changelogs"))
+    changelog_dir = os.path.join(
+        tempfile.mkdtemp(dir=os.path.join(options.working_directory, "changelogs")),
+        "yandex-yt-python-driver-rpc")
+    mkdirp(os.path.join(changelog_dir, "debian"))
+    with cwd(changelog_dir):
+        dch(version=config["yt_rpc_python_bindings_version"],
+            message="Rpc driver release",
+            create_package="package-name")
+
+    rpc_packages_path = os.path.join(options.checkout_directory, "yt/python/driver-rpc-debian")
+    args = [
+        python_package_path(options),
+        "--working-directory", options.working_directory,
+        "--debian-repositories", ",".join(options.bindings_repositories),
+        "--changelog-path", os.path.join(changelog_dir, "debian/changelog"),
+        "--source-python-module-path", os.path.join(options.checkout_directory, "yt/python/yt_driver_rpc_bindings"),
+    ]
+
+    configurations = [
+        # build_type, python_type, library_path, package_path, package_name
+
+        # Pypi packages.
+        ("pypi", "2", "linux", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-driver-rpc"),
+        ("pypi", "3", "linux", "lib/pyshared-3-4/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python3-driver-rpc"),
+        ("pypi", "skynet", "linux", "lib/pyshared-skynet/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-skynet-driver-rpc"),
+
+        # Python-friendly debian packages.
+        ("debian", "2", "linux", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-driver-rpc"),
+        ("debian", "3", "linux", "lib/pyshared-3-4/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python3-driver-rpc"),
+
+        # Non-python-friendly debian packages.
+        ("debian", "2", "linux", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-2-7-driver-rpc"),
+        ("debian", "3", "linux", "lib/pyshared-3-4/driver_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-3-4-driver-rpc"),
+        ("debian", "skynet", "linux", "lib/pyshared-skynet/driver_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-skynet-driver-rpc"),
+    ]
+
+    perform_python_packaging(options, rpc_packages_path, args, configurations)
+
+
+@build_step
+@only_for_projects("yt")
+def package_driver_bindings(options, build_context):
+    if not options.package or not options.package_enable_driver_bingings:
+        teamcity_message("Skipping packaging driver_bindings")
+        return
+
+    config_generator = os.path.join(get_bin_dir(options), "build_python_packages_config_generator")
+    config = json.loads(run_captured([config_generator]))
+
+    mkdirp(os.path.join(options.working_directory, "changelogs"))
+    changelog_dir = os.path.join(
+        tempfile.mkdtemp(dir=os.path.join(options.working_directory, "changelogs")),
+        "yandex-yt-python-driver")
+    mkdirp(os.path.join(changelog_dir, "debian"))
+    with cwd(changelog_dir):
+        shutil.copy(os.path.join(options.checkout_directory, "debian/changelog"), "debian/changelog")
+        dch(version=config["yt_version"],
+            message="Package version bump; no source changes.")
+        with open("debian/changelog") as fin:
+            text = fin.read()
+        with open("debian/changelog", "w") as fout:
+            fout.write(text.replace("yandex-yt", "package-name"))
+
+    driver_packages_path = os.path.join(options.checkout_directory, "yt/python/driver-debian")
+    args = [
+        python_package_path(options),
+        "--working-directory", options.working_directory,
+        "--debian-repositories", "yt-common",
+        "--changelog-path", os.path.join(changelog_dir, "debian/changelog"),
+        "--source-python-module-path", os.path.join(options.checkout_directory, "yt/python/yt_driver_bindings"),
+        "--destination", os.path.join(options.working_directory, "./ARTIFACTS"),
+    ]
+
+    configurations = [
+        # build_type, python_type, library_path, package_path, package_name
+
+        # Python-friendly debian packages.
+        ("debian", "2", "linux", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-driver", "yandex-yt-python-driver"),
+        ("debian", "3", "linux", "lib/pyshared-3-4/driver_lib.so", "yandex-yt-python-driver", "yandex-yt-python3-driver"),
+
+        # Non-python-friendly debian packages.
+        ("debian", "2", "linux", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-any-driver", "yandex-yt-python-2-7-driver-rpc"),
+        ("debian", "3", "linux", "lib/pyshared-3-4/driver_lib.so", "yandex-yt-python-any-driver", "yandex-yt-python-3-4-driver-rpc"),
+        ("debian", "skynet", "linux", "lib/pyshared-skynet/driver_lib.so", "yandex-yt-python-any-driver", "yandex-yt-python-skynet-driver"),
+    ]
+
+    perform_python_packaging(options, driver_packages_path, args, configurations)
+
+
 @build_step
 def run_sandbox_upload(options, build_context):
     if not options.package or sys.version_info < (2, 7):
         return
+
+    # Share individual deb packages first (it is used in chef deployment).
+    share_packages(options, build_context)
 
     build_context["sandbox_upload_root"] = os.path.join(options.working_directory, "sandbox_upload")
     sandbox_ctx = {"upload_urls": {}}
@@ -782,159 +960,6 @@ def run_unit_tests(options, build_context):
     finally:
         process_core_dumps(options, "unit_tests", sandbox_current)
         rmtree(sandbox_current)
-
-def perform_packaging(options, packages_path, args, configurations):
-    for build_type, python_type, platform, library_path, package_path, package_name in configurations:
-        if python_type == "2" and not options.build_enable_python_2_7:
-            continue
-        if python_type == "3" and not options.build_enable_python_3_4:
-            continue
-        # NB: skynet enabled by default.
-
-        run_args = args + [
-            "--build-type", build_type,
-            "--python-type", python_type,
-            "--platform", platform,
-            "--library-path", os.path.join(options.working_directory, library_path),
-            "--package-path", os.path.join(packages_path, package_path),
-            "--package-name", package_name,
-        ]
-        run(run_args, cwd=options.working_directory)
-
-@build_step
-@only_for_projects("yt")
-def package_yson_bindings(options, build_context):
-    if not options.package or not options.package_enable_yson_bingings:
-        teamcity_message("Skipping packaging yson_bindings")
-        return
-
-    yson_packages_path = os.path.join(options.checkout_directory, "yt/python/yson-debian")
-    args = [
-        python_package_path(options),
-        "--working-directory", options.working_directory,
-        "--debian-repositories", ",".join(options.bindings_repositories),
-        "--changelog-path", os.path.join(yson_packages_path, "debian/changelog"),
-        "--source-python-module-path", os.path.join(options.checkout_directory, "yt/python/yt_yson_bindings"),
-    ]
-
-    configurations = [
-        # build_type, python_type, library_path, package_path, package_name
-
-        # Pypi packages.
-        ("pypi", "2", "linux", "lib/pyshared-2-7/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python-yson"),
-        ("pypi", "3", "linux", "lib/pyshared-3-4/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python3-yson"),
-        ("pypi", "skynet", "linux", "lib/pyshared-skynet/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python-skynet-yson"),
-
-        # Pypi packages for mac.
-        ("pypi", "2", "darwin", "lib/pyshared-2-7-darwin/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python-yson"),
-        ("pypi", "3", "darwin", "lib/pyshared-3-4-darwin/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python3-yson"),
-
-        # Python-friendly debian packages.
-        ("debian", "2", "linux", "lib/pyshared-2-7/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python-yson"),
-        ("debian", "3", "linux", "lib/pyshared-3-4/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python3-yson"),
-
-        # Non-python-friendly debian packages.
-        ("debian", "2", "linux", "lib/pyshared-2-7/yson_lib.so", "yandex-yt-python-any-yson", "yandex-yt-python-2-7-yson"),
-        ("debian", "3", "linux", "lib/pyshared-3-4/yson_lib.so", "yandex-yt-python-any-yson", "yandex-yt-python-3-4-yson"),
-        ("debian", "skynet", "linux", "lib/pyshared-skynet/yson_lib.so", "yandex-yt-python-any-yson", "yandex-yt-python-skynet-yson"),
-    ]
-
-    perform_packaging(options, yson_packages_path, args, configurations)
-
-
-@build_step
-@only_for_projects("yt")
-def package_rpc_bindings(options, build_context):
-    if not options.package or not options.package_enable_rpc_bingings:
-        teamcity_message("Skipping packaging rpc_bindings")
-        return
-
-    config_generator = os.path.join(get_bin_dir(options), "build_python_packages_config_generator")
-    config = json.loads(run_captured([config_generator]))
-
-    mkdirp(os.path.join(options.working_directory, "changelogs"))
-    changelog_dir = os.path.join(
-        tempfile.mkdtemp(dir=os.path.join(options.working_directory, "changelogs")),
-        "yandex-yt-python-driver-rpc")
-    mkdirp(os.path.join(changelog_dir, "debian"))
-    with cwd(changelog_dir):
-        dch(version=config["yt_rpc_python_bindings_version"],
-            message="Rpc driver release",
-            create_package="package-name")
-
-    rpc_packages_path = os.path.join(options.checkout_directory, "yt/python/driver-rpc-debian")
-    args = [
-        python_package_path(options),
-        "--working-directory", options.working_directory,
-        "--debian-repositories", ",".join(options.bindings_repositories),
-        "--changelog-path", os.path.join(changelog_dir, "debian/changelog"),
-        "--source-python-module-path", os.path.join(options.checkout_directory, "yt/python/yt_driver_rpc_bindings"),
-    ]
-
-    configurations = [
-        # build_type, python_type, library_path, package_path, package_name
-
-        # Pypi packages.
-        ("pypi", "2", "linux", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-driver-rpc"),
-        ("pypi", "3", "linux", "lib/pyshared-3-4/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python3-driver-rpc"),
-        ("pypi", "skynet", "linux", "lib/pyshared-skynet/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-skynet-driver-rpc"),
-
-        # Python-friendly debian packages.
-        ("debian", "2", "linux", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-driver-rpc"),
-        ("debian", "3", "linux", "lib/pyshared-3-4/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python3-driver-rpc"),
-
-        # Non-python-friendly debian packages.
-        ("debian", "2", "linux", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-2-7-driver-rpc"),
-        ("debian", "3", "linux", "lib/pyshared-3-4/driver_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-3-4-driver-rpc"),
-        ("debian", "skynet", "linux", "lib/pyshared-skynet/driver_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-skynet-driver-rpc"),
-    ]
-
-    perform_packaging(options, rpc_packages_path, args, configurations)
-
-
-@build_step
-@only_for_projects("yt")
-def package_driver_bindings(options, build_context):
-    if not options.package or not options.package_enable_driver_bingings:
-        teamcity_message("Skipping packaging driver_bindings")
-        return
-
-    config_generator = os.path.join(get_bin_dir(options), "build_python_packages_config_generator")
-    config = json.loads(run_captured([config_generator]))
-
-    mkdirp(os.path.join(options.working_directory, "changelogs"))
-    changelog_dir = os.path.join(
-        tempfile.mkdtemp(dir=os.path.join(options.working_directory, "changelogs")),
-        "yandex-yt-python-driver")
-    mkdirp(os.path.join(changelog_dir, "debian"))
-    with cwd(changelog_dir):
-        shutil.copy(os.path.join(options.checkout_directory, "debian/changelog"), "debian/changelog")
-        dch(version=config["yt_version"],
-            message="Package version bump; no source changes.")
-        with open("debian/changelog") as fin:
-            text = fin.read()
-        with open("debian/changelog", "w") as fout:
-            fout.write(text.replace("yandex-yt", "package-name"))
-
-    driver_packages_path = os.path.join(options.checkout_directory, "yt/python/driver-debian")
-    args = [
-        python_package_path(options),
-        "--working-directory", options.working_directory,
-        "--debian-repositories", "yt-common",
-        "--changelog-path", os.path.join(changelog_dir, "debian/changelog"),
-        "--source-python-module-path", os.path.join(options.checkout_directory, "yt/python/yt_driver_bindings"),
-    ]
-
-    configurations = [
-        # build_type, python_type, library_path, package_path, package_name
-
-        # Python-friendly debian packages.
-        ("debian", "2", "linux", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-driver", "yandex-yt-python-driver"),
-        ("debian", "3", "linux", "lib/pyshared-3-4/driver_lib.so", "yandex-yt-python-driver", "yandex-yt-python3-driver"),
-    ]
-
-    perform_packaging(options, driver_packages_path, args, configurations)
-
 
 def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None, python_version=None):
     yt_processes_cleanup()
