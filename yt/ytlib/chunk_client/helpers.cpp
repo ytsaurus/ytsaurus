@@ -97,10 +97,9 @@ void GetUserObjectBasicAttributes(
     auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_basic_attributes");
     for (size_t index = 0; index < objects.size(); ++index) {
         auto* userObject = objects[index];
-        const auto& path = userObject->GetPath();
         const auto& rspOrError = rspsOrError[index];
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes of user object %v",
-            path);
+            userObject->Path.GetPath());
         
         const auto& rsp = rspOrError.Value();
         userObject->ObjectId = NYT::FromProto<TObjectId>(rsp->object_id());
