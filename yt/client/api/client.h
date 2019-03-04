@@ -743,7 +743,6 @@ struct TListOperationsOptions
     : public TTimeoutOptions
     , public TMasterReadOptions
 {
-
     std::optional<TInstant> FromTime;
     std::optional<TInstant> ToTime;
     std::optional<TInstant> CursorTime;

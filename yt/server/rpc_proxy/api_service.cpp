@@ -1837,7 +1837,7 @@ private:
             options.ToTime,
             options.CursorTime,
             options.UserFilter,
-            ConvertToYsonString(options.AccessFilter),
+            ConvertToYsonString(options.AccessFilter, EYsonFormat::Text),
             options.StateFilter,
             options.TypeFilter,
             options.SubstrFilter);
