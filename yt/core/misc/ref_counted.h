@@ -59,7 +59,6 @@ public:
 
     static void AllocateSpace(TRefCountedTypeCookie cookie, size_t size);
     static void FreeSpace(TRefCountedTypeCookie cookie, size_t size);
-    static void ReallocateSpace(TRefCountedTypeCookie cookie, size_t freedSize, size_t allocatedSize);
 
     // Typically invoked from GDB console.
     // Dumps the ref-counted statistics sorted by "bytes alive".
