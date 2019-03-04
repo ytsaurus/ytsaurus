@@ -1516,7 +1516,7 @@ std::pair<TSharedRange<TUnversionedRow>, i64> CaptureRows(
     return CaptureRowsImpl(rows, tagCookie);
 }
 
-void Serialize(const TUnversionedValue& value, IYsonConsumer* consumer)
+void Serialize(const TUnversionedValue& value, IYsonConsumer* consumer, bool anyAsRaw)
 {
     auto type = value.Type;
     switch (type) {
@@ -1541,7 +1541,11 @@ void Serialize(const TUnversionedValue& value, IYsonConsumer* consumer)
             break;
 
         case EValueType::Any:
-            ParseYsonStringBuffer(TStringBuf(value.Data.String, value.Length), EYsonType::Node, consumer);
+            if (anyAsRaw) {
+                consumer->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
+            } else {
+                ParseYsonStringBuffer(TStringBuf(value.Data.String, value.Length), EYsonType::Node, consumer);
+            }
             break;
 
         case EValueType::Null:

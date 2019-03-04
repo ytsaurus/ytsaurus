@@ -38,4 +38,11 @@ message TMessage
 
     optional EEnum enum_field = 16;
     optional TEmbeddedMessage message_field = 17;
+
+    optional bytes any_field_with_map = 18;
+    optional bytes any_field_with_int64 = 19;
+    optional bytes any_field_with_string = 20;
+    optional bytes other_columns_field = 21;
+
+    optional int64 missing_int64_field = 22;
 }
