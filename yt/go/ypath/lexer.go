@@ -312,20 +312,20 @@ func stateRanges(l *lexer) stateFn {
 
 		case '(':
 			i++
-			var composite []interface{}
-
-			skipSpace()
-			if i >= len(l.input) {
-				l.error("eof in composite key")
-				return nil
-			}
-
-			if l.input[i] == ')' {
-				i++
-				return &ReadLimit{Key: []interface{}{}}
-			}
+			composite := []interface{}{}
 
 			for {
+				skipSpace()
+				if i >= len(l.input) {
+					l.error("eof in composite key")
+					return nil
+				}
+
+				if l.input[i] == ')' {
+					i++
+					return &ReadLimit{Key: composite}
+				}
+
 				var value interface{}
 				n, err := yson.SliceYPathValue(l.input[i:], &value)
 				if err != nil {
@@ -344,12 +344,7 @@ func stateRanges(l *lexer) stateFn {
 
 				if l.input[i] == ',' {
 					i++
-					continue
-				} else if l.input[i] == ')' {
-					i++
-					key := Key(composite...)
-					return &key
-				} else {
+				} else if l.input[i] != ')' {
 					l.error("invalid composite key")
 					return nil
 				}
