@@ -4707,7 +4707,7 @@ void TOperationControllerBase::PrepareInputTables()
         for (const auto& table : InputTables_) {
             if (table->IsForeign()) {
                 THROW_ERROR_EXCEPTION("Foreign tables are not supported in %Qlv operation", OperationType)
-                    << TErrorAttribute("foreign_table", table->GetPath());
+                    << TErrorAttribute("foreign_table", table->Path.GetPath());
             }
         }
     }

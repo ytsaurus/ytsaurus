@@ -161,7 +161,7 @@ private:
         for (const auto& table : InputTables_) {
             if (table.Type != EObjectType::Table) {
                 THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
-                    table.GetPath(),
+                    table.Path.GetPath(),
                     EObjectType::Table,
                     table.Type);
             }
@@ -231,11 +231,15 @@ private:
             const auto& table = InputTables_[i];
             if (table.Schema != representativeTable.Schema) {
                 THROW_ERROR_EXCEPTION(
-                    "YT schema mismatch: %Qlv and %Qlv", representativeTable.GetPath(), table.GetPath());
+                    "YT schema mismatch: %v and %v",
+                    representativeTable.Path.GetPath(),
+                    table.Path.GetPath());
             }
             if (table.IsDynamic != representativeTable.IsDynamic) {
                 THROW_ERROR_EXCEPTION(
-                    "Table types mismatch: %Qlv and %Qlv", representativeTable.GetPath(), table.GetPath());
+                    "Table dynamic flag mismatch: %v and %v",
+                    representativeTable.Path.GetPath(),
+                    table.Path.GetPath());
             }
         }
 
@@ -265,11 +269,11 @@ private:
     
             if (table.IsDynamic) {
                 THROW_ERROR_EXCEPTION("Dynamic tables are not supported yet (YT-9404)")
-                    << TErrorAttribute("table", table.GetPath());
+                    << TErrorAttribute("table", table.Path.GetPath());
             }
     
             auto dataSource = MakeUnversionedDataSource(
-                table.GetPath(),
+                table.Path.GetPath(),
                 table.Schema,
                 /* columns */ std::nullopt,
                 // TODO(max42): YT-10402, omitted inaccessible columns
@@ -277,7 +281,8 @@ private:
     
             DataSourceDirectory_->DataSources().push_back(std::move(dataSource));
     
-            YT_LOG_DEBUG("Fetching input table (Path: %v)", table.GetPath());
+            YT_LOG_DEBUG("Fetching input table (Path: %v)",
+                table.Path.GetPath());
 
             auto chunkSpecs = FetchChunkSpecs(
                 Client,

@@ -130,7 +130,7 @@ void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector
 
         if (file.Type == EObjectType::Table && file.Dynamic && file.Schema.IsSorted()) {
             auto dataSource = MakeVersionedDataSource(
-                file.GetPath(),
+                file.Path.GetPath(),
                 file.Schema,
                 file.Path.GetColumns(),
                 file.OmittedInaccessibleColumns,
@@ -140,9 +140,9 @@ void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector
             ToProto(descriptor->mutable_data_source(), dataSource);
         } else {
             auto dataSource = file.Type == EObjectType::File
-                ? MakeFileDataSource(file.GetPath())
+                ? MakeFileDataSource(file.Path.GetPath())
                 : MakeUnversionedDataSource(
-                    file.GetPath(),
+                    file.Path.GetPath(),
                     file.Schema,
                     file.Path.GetColumns(),
                     file.OmittedInaccessibleColumns,
