@@ -1831,13 +1831,13 @@ private:
         options.EnableUIMode = request->enable_ui_mode();
 
         context->SetRequestInfo("IncludeArchive: %v, FromTime: %v, ToTime: %v, CursorTime: %v, UserFilter: %v, "
-            "OwnedBy: %v, StateFilter: %v, TypeFilter: %v, SubstrFilter: %v",
+            "AccessFilter: %v, StateFilter: %v, TypeFilter: %v, SubstrFilter: %v",
             options.IncludeArchive,
             options.FromTime,
             options.ToTime,
             options.CursorTime,
             options.UserFilter,
-            options.OwnedBy,
+            ConvertToYsonString(options.AccessFilter),
             options.StateFilter,
             options.TypeFilter,
             options.SubstrFilter);
