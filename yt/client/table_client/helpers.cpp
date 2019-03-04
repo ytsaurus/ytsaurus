@@ -1060,12 +1060,12 @@ void UnversionedValueToYson(TUnversionedValue unversionedValue, IYsonConsumer* c
     }
 }
 
-TYsonString UnversionedValueToYson(TUnversionedValue unversionedValue)
+TYsonString UnversionedValueToYson(TUnversionedValue unversionedValue, bool enableRaw)
 {
     TString data;
     data.reserve(GetYsonSize(unversionedValue));
     TStringOutput output(data);
-    TYsonWriter writer(&output, EYsonFormat::Binary);
+    TYsonWriter writer(&output, EYsonFormat::Binary, EYsonType::Node, /* enableRaw */ enableRaw);
     UnversionedValueToYson(unversionedValue, &writer);
     return TYsonString(std::move(data));
 }
