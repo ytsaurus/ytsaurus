@@ -130,13 +130,13 @@ struct TUserObject
 {
     // Input
     NYPath::TRichYPath Path;
+    // TODO(babenko): consider making non-optional
+    std::optional<NObjectClient::TTransactionId> TransactionId;
 
     // Output
     NObjectClient::TObjectId ObjectId;
     NObjectClient::TCellTag CellTag;
     NObjectClient::EObjectType Type = NObjectClient::EObjectType::Null;
-    // XXX(babenko)
-    std::optional<NObjectClient::TTransactionId> TransactionId;
     std::vector<TString> OmittedInaccessibleColumns;
 
     virtual ~TUserObject() = default;
@@ -159,6 +159,7 @@ struct TGetUserObjectBasicAttributesOptions
 void GetUserObjectBasicAttributes(
     const NApi::NNative::IClientPtr& client,
     const std::vector<TUserObject*>& objects,
+    // TODO(babenko): consider removing
     NObjectClient::TTransactionId defaultTransactionId,
     const NLogging::TLogger& logger,
     NYTree::EPermission permission,
