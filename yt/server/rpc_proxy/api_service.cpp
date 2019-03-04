@@ -1799,8 +1799,8 @@ private:
             options.UserFilter = request->user_filter();
         }
 
-        if (request->has_owned_by()) {
-            options.OwnedBy = request->owned_by();
+        if (request->has_access_filter()) {
+            options.AccessFilter = ConvertTo<TListOperationsAccessFilterPtr>(TYsonString(request->access_filter()));
         }
 
         if (request->has_state_filter()) {

@@ -723,19 +723,34 @@ DEFINE_ENUM(EOperationSortDirection,
     ((Future) (2))
 );
 
+struct TListOperationsAccessFilter
+    : NYTree::TYsonSerializable
+{
+    TString Subject;
+    NYTree::EPermissionSet Permissions;
+
+    TListOperationsAccessFilter()
+    {
+        RegisterParameter("subject", Subject);
+        RegisterParameter("permissions", Permissions);
+    }
+};
+
+DECLARE_REFCOUNTED_TYPE(TListOperationsAccessFilter);
+DEFINE_REFCOUNTED_TYPE(TListOperationsAccessFilter);
+
 struct TListOperationsOptions
     : public TTimeoutOptions
     , public TMasterReadOptions
 {
+
     std::optional<TInstant> FromTime;
     std::optional<TInstant> ToTime;
     std::optional<TInstant> CursorTime;
     EOperationSortDirection CursorDirection = EOperationSortDirection::Past;
     std::optional<TString> UserFilter;
 
-    // XXX(lesysotsky): OwnedBy filter is currently supported only
-    // for Cypress operations, so IncludeArchive must be |false|.
-    std::optional<TString> OwnedBy;
+    TListOperationsAccessFilterPtr AccessFilter;
 
     std::optional<NScheduler::EOperationState> StateFilter;
     std::optional<NScheduler::EOperationType> TypeFilter;

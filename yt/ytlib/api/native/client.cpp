@@ -92,6 +92,7 @@
 #include <yt/client/scheduler/operation_id_or_alias.h>
 
 #include <yt/ytlib/security_client/group_ypath_proxy.h>
+#include <yt/ytlib/security_client/helpers.h>
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/schema_inferer.h>
@@ -5403,7 +5404,8 @@ private:
     void DoListOperationsFromCypress(
         TInstant deadline,
         TCountingFilter& countingFilter,
-        const std::optional<THashSet<TString>>& transitiveClosureOfOwnedBy,
+        const TListOperationsAccessFilterPtr& accessFilter,
+        const std::optional<THashSet<TString>>& transitiveClosureOfSubject,
         const TListOperationsOptions& options,
         THashMap<NScheduler::TOperationId, TOperation>* idToOperation)
     {
@@ -5453,25 +5455,6 @@ private:
                 return LightAttributes.contains(attribute);
             });
 
-        auto checkPermissions = [] (
-            const THashSet<TString>& transitiveClosureOfSubject,
-            EPermissionSet permissions,
-            const TSerializableAccessControlList& acl)
-        {
-            for (const auto& ace : acl.Entries) {
-                YCHECK(ace.Action == ESecurityAction::Allow);
-                if ((permissions & ace.Permissions) != permissions) {
-                    continue;
-                }
-                for (const auto& subject : ace.Subjects) {
-                    if (transitiveClosureOfSubject.contains(subject)) {
-                        return ESecurityAction::Allow;
-                    }
-                }
-            }
-            return ESecurityAction::Deny;
-        };
-
         TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
         auto listBatchReq = proxy.ExecuteBatch();
         SetBalancingHeader(listBatchReq, options);
@@ -5516,11 +5499,15 @@ private:
                     continue;
                 }
 
-                if (transitiveClosureOfOwnedBy && operation.Acl) {
-                    auto action = checkPermissions(
-                        *transitiveClosureOfOwnedBy,
-                        EPermissionSet(EPermission::Read | EPermission::Manage),
-                        ConvertTo<TSerializableAccessControlList>(operation.Acl));
+                if (accessFilter) {
+                    YCHECK(transitiveClosureOfSubject);
+                    if (!operation.Acl) {
+                        continue;
+                    }
+                    auto action = CheckPermissionsByAclAndSubjectClosure(
+                        ConvertTo<TSerializableAccessControlList>(operation.Acl),
+                        *transitiveClosureOfSubject,
+                        accessFilter->Permissions);
                     if (action != ESecurityAction::Allow) {
                         continue;
                     }
@@ -5611,6 +5598,8 @@ private:
     THashMap<NScheduler::TOperationId, TOperation> DoListOperationsFromArchive(
         TInstant deadline,
         TCountingFilter& countingFilter,
+        const TListOperationsAccessFilterPtr& accessFilter,
+        const std::optional<THashSet<TString>>& transitiveClosureOfSubject,
         const TListOperationsOptions& options)
     {
         if (!options.FromTime) {
@@ -5620,6 +5609,32 @@ private:
         if (!options.ToTime) {
             THROW_ERROR_EXCEPTION("Missing required parameter \"to_time\"");
         }
+
+        if (accessFilter) {
+            constexpr int requiredVersion = 30;
+            if (DoGetOperationsArchiveVersion() < requiredVersion) {
+                THROW_ERROR_EXCEPTION("\"access\" filter is not supported in operations archive of version < %v",
+                    requiredVersion);
+            }
+        }
+
+        auto addCommonWhereConjuncts = [&] (NQueryClient::TQueryBuilder* builder) {
+            builder->AddWhereConjunct(Format("start_time > %v AND start_time <= %v",
+                (*options.FromTime).MicroSeconds(),
+                (*options.ToTime).MicroSeconds()));
+
+            if (options.SubstrFilter) {
+                builder->AddWhereConjunct(
+                    Format("is_substr(%Qv, filter_factors)", to_lower(*options.SubstrFilter)));
+            }
+
+            if (accessFilter) {
+                YCHECK(transitiveClosureOfSubject);
+                builder->AddWhereConjunct(Format("NOT is_null(acl) AND _yt_has_permissions(acl, %Qv, %Qv)",
+                    ConvertToYsonString(*transitiveClosureOfSubject, EYsonFormat::Text),
+                    ConvertToYsonString(accessFilter->Permissions, EYsonFormat::Text)));
+            }
+        };
 
         if (options.IncludeCounters) {
             NQueryClient::TQueryBuilder builder;
@@ -5632,14 +5647,7 @@ private:
             auto poolIndex = builder.AddSelectExpression("pool");
             auto countIndex = builder.AddSelectExpression("sum(1)", "count");
 
-            builder.AddWhereConjunct(Format("start_time > %v AND start_time <= %v",
-                (*options.FromTime).MicroSeconds(),
-                (*options.ToTime).MicroSeconds()));
-
-            if (options.SubstrFilter) {
-                builder.AddWhereConjunct(
-                    Format("is_substr(%Qv, filter_factors)", to_lower(*options.SubstrFilter)));
-            }
+            addCommonWhereConjuncts(&builder);
 
             builder.AddGroupByExpression("any_to_yson_string(pools)", "pools_str");
             builder.AddGroupByExpression("authenticated_user");
@@ -5679,14 +5687,7 @@ private:
         builder.AddSelectExpression("id_hi");
         builder.AddSelectExpression("id_lo");
 
-        builder.AddWhereConjunct(Format("start_time > %v AND start_time <= %v",
-            (*options.FromTime).MicroSeconds(),
-            (*options.ToTime).MicroSeconds()));
-
-        if (options.SubstrFilter) {
-            builder.AddWhereConjunct(
-                Format("is_substr(%Qv, filter_factors)", to_lower(*options.SubstrFilter)));
-        }
+        addCommonWhereConjuncts(&builder);
 
         std::optional<EOrderByDirection> orderByDirection;
 
@@ -5890,6 +5891,39 @@ private:
         return idToOperation;
     }
 
+    THashSet<TString> GetSubjectClosure(
+        const TString& subject,
+        TObjectServiceProxy& proxy,
+        const TMasterReadOptions& options)
+    {
+        auto batchReq = proxy.ExecuteBatch();
+        SetBalancingHeader(batchReq, options);
+        for (const auto& path : {GetUserPath(subject), GetGroupPath(subject)}) {
+            auto req = TYPathProxy::Get(path + "/@member_of_closure");
+            SetCachingHeader(req, options);
+            batchReq->AddRequest(req);
+        }
+
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+
+        for (const auto& rspOrError : batchRsp->GetResponses<TYPathProxy::TRspGet>()) {
+            if (rspOrError.IsOK()) {
+                auto res = ConvertTo<THashSet<TString>>(TYsonString(rspOrError.Value()->value()));
+                res.insert(subject);
+                return res;
+            } else if (!rspOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
+                THROW_ERROR_EXCEPTION(
+                    "Failed to get \"member_of_closure\" attribute for subject %Qv",
+                    subject)
+                    << rspOrError;
+            }
+        }
+        THROW_ERROR_EXCEPTION(
+            "Unrecognized subject %Qv",
+            subject);
+    }
+
     // XXX(levysotsky): The counters may be incorrect if |options.IncludeArchive| is |true|
     // and an operation is in both Cypress and archive.
     // XXX(levysotsky): The "failed_jobs_count" counter is incorrect if corresponding failed operations
@@ -5917,31 +5951,38 @@ private:
                 MaxLimit);
         }
 
-        if (options.OwnedBy && options.IncludeArchive) {
-            THROW_ERROR_EXCEPTION("Archive can not be included with \"owned_by\" filter");
+        auto accessFilter = options.AccessFilter;
+        std::optional<THashSet<TString>> transitiveClosureOfSubject;
+        if (accessFilter) {
+            TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
+            transitiveClosureOfSubject = GetSubjectClosure(
+                accessFilter->Subject,
+                proxy,
+                options);
+            if (accessFilter->Subject == RootUserName || transitiveClosureOfSubject->contains(SuperusersGroupName)) {
+                accessFilter.Reset();
+            }
         }
 
         TCountingFilter countingFilter(options);
 
         THashMap<NScheduler::TOperationId, TOperation> idToOperation;
         if (options.IncludeArchive && DoesOperationsArchiveExist()) {
-            idToOperation = DoListOperationsFromArchive(deadline, countingFilter, options);
+            idToOperation = DoListOperationsFromArchive(
+                deadline,
+                countingFilter,
+                accessFilter,
+                transitiveClosureOfSubject,
+                options);
         }
 
-        std::optional<THashSet<TString>> transitiveClosureOfOwnedBy;
-        if (options.OwnedBy) {
-            TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
-            auto req = TYPathProxy::Get(GetUserPath(*options.OwnedBy) + "/@member_of_closure");
-            auto rsp = WaitFor(proxy.Execute(req))
-                .ValueOrThrow();
-            auto closure = ConvertTo<THashSet<TString>>(TYsonString(rsp->value()));
-            closure.insert(*options.OwnedBy);
-            if (*options.OwnedBy != RootUserName && !closure.contains(SuperusersGroupName)) {
-                transitiveClosureOfOwnedBy = std::move(closure);
-            } // Else the filter is empty, because the user has unlimited access.
-        }
-
-        DoListOperationsFromCypress(deadline, countingFilter, transitiveClosureOfOwnedBy, options, &idToOperation);
+        DoListOperationsFromCypress(
+            deadline,
+            countingFilter,
+            accessFilter,
+            transitiveClosureOfSubject,
+            options,
+            &idToOperation);
 
         std::vector<TOperation> operations;
         operations.reserve(idToOperation.size());

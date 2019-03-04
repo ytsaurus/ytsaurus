@@ -54,6 +54,7 @@ TOrderedByStartTimeTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTabl
     , Pool(nameTable->RegisterName("pool"))
     , Pools(nameTable->RegisterName("pools"))
     , HasFailedJobs(nameTable->RegisterName("has_failed_jobs"))
+    , Acl(nameTable->RegisterName("acl"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
