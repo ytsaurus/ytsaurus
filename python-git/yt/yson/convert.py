@@ -92,7 +92,7 @@ def yson_to_json(yson_tree, print_attributes=True, encoding=None):
         return key
 
     def process_dict(d):
-        return dict((fix_key(k), yson_to_json(v)) for k, v in iteritems(d))
+        return dict((fix_key(yson_to_json(k)), yson_to_json(v)) for k, v in iteritems(d))
 
     if hasattr(yson_tree, "attributes") and yson_tree.attributes and print_attributes:
         return {"$attributes": process_dict(yson_tree.attributes),
@@ -103,10 +103,10 @@ def yson_to_json(yson_tree, print_attributes=True, encoding=None):
         return process_dict(yson_tree)
     elif isinstance(yson_tree, YsonEntity):
         return None
-    elif PY3 and isinstance(yson_tree, YsonString):
+    elif PY3 and (isinstance(yson_tree, YsonString) or isinstance(yson_tree, binary_type)):
         return yson_tree.decode("utf-8" if encoding is None else encoding)
     elif isinstance(yson_tree, bool) or isinstance(yson_tree, YsonBoolean):
-        return "true" if yson_tree else "false"
+        return True if yson_tree else False
     else:
         if type(yson_tree) is YsonEntity:
             return None
