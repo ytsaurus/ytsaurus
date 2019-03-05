@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from yt.packages.six import iteritems, integer_types, text_type, binary_type, b
+from yt.packages.six import iteritems, integer_types, text_type, binary_type, b, PY3
 from yt.packages.six.moves import map as imap
 
 from yt.test_helpers import wait
@@ -233,8 +233,8 @@ _ASAN_WARNING_PATTERN = re.compile(
 
 def remove_asan_warning(str_or_bytes):
     """ Removes ASAN warning of form "==129647==WARNING: ASan is ignoring requested __asan_handle_no_return..." """
-    if isinstance(str_or_bytes, str):
-        return re.sub(_ASAN_WARNING_PATTERN, '', str_or_bytes.encode("utf-8")).decode("utf-8")
+    if isinstance(str_or_bytes, str) and PY3:
+        return re.sub(_ASAN_WARNING_PATTERN, '', str_or_bytes.encode("utf8")).decode("utf8")
     assert isinstance(str_or_bytes, bytes)
     return re.sub(_ASAN_WARNING_PATTERN, '', str_or_bytes)
 

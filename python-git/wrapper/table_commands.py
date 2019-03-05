@@ -1,4 +1,4 @@
-from .common import (flatten, require, update, parse_bool, get_value, set_param, datetime_to_string,
+from .common import (flatten, require, update, get_value, set_param, datetime_to_string,
                      MB, chunk_iter_stream, deprecated)
 from .config import get_config, get_option
 from .cypress_commands import (exists, remove, get_attribute, copy,
@@ -773,12 +773,10 @@ def is_sorted(table, client=None):
     if get_config(client)["yamr_mode"]["use_yamr_sort_reduce_columns"]:
         return get_sorted_by(table, [], client=client) == ["key", "subkey"]
     else:
-        return apply_function_to_result(
-            parse_bool,
-            get_attribute(TablePath(table, client=client),
-                          "sorted",
-                          default="false",
-                          client=client))
+        return get_attribute(TablePath(table, client=client),
+            "sorted",
+            default=False,
+            client=client)
 
 def alter_table(path, schema=None, dynamic=None, upstream_replica_id=None, client=None):
     """Performs schema and other table meta information modifications.

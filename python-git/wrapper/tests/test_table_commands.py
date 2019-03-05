@@ -3,7 +3,6 @@ from __future__ import with_statement
 from .helpers import TEST_DIR, check, set_config_option, get_tests_sandbox, set_config_options, wait
 
 import yt.wrapper.py_wrapper as py_wrapper
-from yt.wrapper.driver import get_command_list
 from yt.wrapper.py_wrapper import OperationParameters
 from yt.wrapper.table import TablePath, TempTable
 
@@ -24,6 +23,21 @@ import uuid
 import gzip
 from io import BytesIO
 from copy import deepcopy
+
+class FakeFileManager(object):
+    def __init__(self):
+        self.client = None
+        self.disk_size = 0
+        self.local_size = 0
+        self.files = []
+        self.uploaded_files = []
+
+    def add_files(self, files):
+        assert files != []
+        assert os.listdir(yt.config["local_temp_directory"]) != []
+
+    def upload_files(self):
+        return []
 
 @pytest.mark.usefixtures("yt_env")
 class TestTableCommands(object):
@@ -58,7 +72,8 @@ class TestTableCommands(object):
 
         response_parameters = {}
         list(yt.read_table(table, response_parameters=response_parameters))
-        assert {"start_row_index": 0, "approximate_row_count": 1} == response_parameters
+        assert response_parameters["start_row_index"] == 0
+        assert response_parameters["approximate_row_count"] == 1
 
         yt.write_table(table, [{"y": "1"}], raw=False)
         assert [{"y": "1"}] == list(yt.read_table(table, raw=False))
@@ -229,21 +244,20 @@ class TestTableCommands(object):
 
         with set_config_option("tabular_data_format", yt.JsonFormat()):
             rsp = yt.read_table(table, raw=True)
-            assert rsp.response_parameters == {"start_row_index": 0,
-                                               "approximate_row_count": 3}
+            assert rsp.response_parameters["start_row_index"] == 0
+            assert rsp.response_parameters["approximate_row_count"] == 3
 
             rsp = yt.read_table(yt.TablePath(table, start_index=1), raw=True)
-            assert rsp.response_parameters == {"start_row_index": 1,
-                                               "approximate_row_count": 2}
+            assert rsp.response_parameters["start_row_index"] == 1
+            assert rsp.response_parameters["approximate_row_count"] == 2
 
             rsp = yt.read_table(yt.TablePath(table, lower_key=["d"]), raw=True)
-            assert rsp.response_parameters == \
-                {"start_row_index": 2,
-                 # When reading with key limits row count is estimated rounded up to the chunk row count.
-                 "approximate_row_count": 3}
+            assert rsp.response_parameters["start_row_index"] == 2
+            # When reading with key limits row count is estimated rounded up to the chunk row count.
+            assert rsp.response_parameters["approximate_row_count"] == 3
 
             rsp = yt.read_table(yt.TablePath(table, lower_key=["x"]), raw=True)
-            assert rsp.response_parameters == {"approximate_row_count": 0}
+            assert rsp.response_parameters["approximate_row_count"] == 0
 
     def test_start_row_index_parallel(self):
         with set_config_option("read_parallel/enable", True):
@@ -455,10 +469,7 @@ class TestTableCommands(object):
         def foo(rec):
             yield rec
 
-        def uploader(files):
-            assert files != []
-            assert os.listdir(yt.config["local_temp_directory"]) != []
-
+        client = None
         new_temp_dir = tempfile.mkdtemp(dir=yt.config["local_temp_directory"])
         with set_config_option("local_temp_directory", new_temp_dir,
                                final_action=lambda: shutil.rmtree(new_temp_dir)):
@@ -466,9 +477,21 @@ class TestTableCommands(object):
 
             params = OperationParameters(input_format=None, output_format=None, operation_type="map", job_type="mapper", group_by=None)
             with pytest.raises(Exception):
-                py_wrapper.wrap(function=foo, uploader=None, params=params, client=None)
-            assert os.listdir(yt.config["local_temp_directory"]) == []
-            py_wrapper.wrap(function=foo, uploader=uploader, params=params, client=None)
+                with py_wrapper.TempfilesManager(remove_temp_files=True, directory=get_local_temp_directory(client)) as tempfiles_manager:
+                    py_wrapper.wrap(function=foo,
+                                    file_manager=None,
+                                    tempfiles_manager=tempfiles_manager,
+                                    params=params,
+                                    local_mode=False,
+                                    client=None)
+
+            with py_wrapper.TempfilesManager(remove_temp_files=True, directory=py_wrapper.get_local_temp_directory(client)) as tempfiles_manager:
+                py_wrapper.wrap(function=foo,
+                                file_manager=FakeFileManager(),
+                                tempfiles_manager=tempfiles_manager,
+                                params=params,
+                                local_mode=False,
+                                client=client)
             assert os.listdir(yt.config["local_temp_directory"]) == []
 
     def test_write_compressed_table_data(self):

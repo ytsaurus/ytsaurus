@@ -8,11 +8,12 @@ from .cypress_commands import exists, get, remove_with_empty_dirs, get_attribute
 from .errors import YtOperationFailedError
 from .file_commands import LocalFile, _touch_file_in_cache
 from .ypath import TablePath, FilePath
-from .py_wrapper import OperationParameters
+from .py_wrapper import OperationParameters, TempfilesManager, get_local_temp_directory, WrapResult
 from .table_commands import is_empty, is_sorted
-from .table_helpers import (FileUploader, _prepare_operation_formats, _is_python_function,
-                            _prepare_binary, _prepare_source_tables, _prepare_destination_tables,
+from .table_helpers import (FileManager, _prepare_operation_formats, _is_python_function,
+                            _prepare_python_command, _prepare_source_tables, _prepare_destination_tables,
                             _prepare_table_writer, _prepare_stderr_table)
+from .local_mode import is_local_mode, enable_local_files_usage_in_job
 
 import yt.logger as logger
 
@@ -398,19 +399,13 @@ class UserJobSpecBuilder(object):
 
     def _prepare_job_files(self, spec, group_by, should_process_key_switch, operation_type, local_files_to_remove,
                            uploaded_files, input_format, output_format, input_table_count, output_table_count, client):
-        file_uploader = FileUploader(client=client)
-        local_files = []
+        file_manager = FileManager(client=client)
         files = []
         for file in flatten(spec.get("file_paths", [])):
             if isinstance(file, LocalFile):
-                local_files.append(file)
+                file_manager.add_files(file)
             else:
                 files.append(file)
-
-        for file in flatten(spec.get("local_files", [])):
-            local_files.append(LocalFile(file))
-
-        local_files = file_uploader(local_files)
 
         params = OperationParameters(
             input_format=input_format,
@@ -423,17 +418,42 @@ class UserJobSpecBuilder(object):
             output_table_count=output_table_count,
             use_yamr_descriptors=spec.get("use_yamr_descriptors", False))
 
-        prepare_result = _prepare_binary(spec["command"], file_uploader, params, client=client)
+        if _is_python_function(spec["command"]):
+            local_mode = is_local_mode(client)
+            remove_temp_files = get_config(client)["clear_local_temp_files"] and not local_mode
+            with TempfilesManager(remove_temp_files, get_local_temp_directory(client)) as tempfiles_manager:
+                prepare_result = _prepare_python_command(
+                    spec["command"],
+                    file_manager,
+                    tempfiles_manager,
+                    params,
+                    local_mode,
+                    client=client)
+                if enable_local_files_usage_in_job(client):
+                    prepare_result.local_files_to_remove += tempfiles_manager._tempfiles_pool + [tempfiles_manager.tmp_dir]
+                local_files = file_manager.upload_files()
+        else:
+            prepare_result = WrapResult(
+                cmd=spec["command"],
+                tmpfs_size=0,
+                environment={},
+                local_files_to_remove=[],
+                title=None)
+            local_files = file_manager.upload_files()
+
 
         tmpfs_size = prepare_result.tmpfs_size
         environment = prepare_result.environment
         binary = prepare_result.cmd
         title = prepare_result.title
 
+        environment["YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB"] = \
+            str(int(get_config(client)["allow_http_requests_to_yt_from_job"]))
+
         if local_files_to_remove is not None:
             local_files_to_remove += prepare_result.local_files_to_remove
         if uploaded_files is not None:
-            uploaded_files += file_uploader.uploaded_files
+            uploaded_files += file_manager.uploaded_files
 
         spec["command"] = binary
 
@@ -448,14 +468,13 @@ class UserJobSpecBuilder(object):
 
         file_paths = []
         file_paths += flatten(local_files)
-        file_paths += flatten(prepare_result.files)
         file_paths += list(imap(lambda path: FilePath(path, client=client), files))
         if file_paths:
             spec["file_paths"] = file_paths
         if "local_files" in spec:
             del spec["local_files"]
 
-        return spec, tmpfs_size #, file_uploader.disk_size
+        return spec, tmpfs_size #, file_manager.disk_size
 
     def _prepare_memory_limit(self, spec, client=None):
         memory_limit = get_value(spec.get("memory_limit"), get_config(client)["memory_limit"])

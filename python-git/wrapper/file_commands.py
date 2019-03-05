@@ -1,6 +1,6 @@
 import yt.logger as logger
 from .config import get_config, get_option, get_backend_type
-from .common import require, chunk_iter_stream, chunk_iter_string, parse_bool, set_param, get_value
+from .common import require, chunk_iter_stream, chunk_iter_string, parse_bool, set_param, get_value, get_disk_size
 from .driver import _create_http_client_from_rpc
 from .errors import YtError, YtResponseError, YtCypressTransactionLockConflict
 from .http_helpers import get_api_commands
@@ -181,7 +181,8 @@ def read_file(path, file_reader=None, offset=None, length=None, enable_read_para
         client=client)
 
 def write_file(destination, stream,
-               file_writer=None, is_stream_compressed=False, force_create=None, compute_md5=False, client=None):
+               file_writer=None, is_stream_compressed=False, force_create=None, compute_md5=False,
+               size_hint=None, filename_hint=None, progress_monitor=None, client=None):
     """Uploads file to destination path from stream on local machine.
 
     :param destination: destination path in Cypress.
@@ -208,10 +209,19 @@ def write_file(destination, stream,
     chunk_size = get_config(client)["write_retries"]["chunk_size"]
 
     is_one_small_blob = False
-    # Read out file into the memory if it is small.
-    if _is_freshly_opened_file(stream) and _get_file_size(stream) <= chunk_size:
-        stream = stream.read()
-        is_one_small_blob = True
+    if _is_freshly_opened_file(stream):
+        size = _get_file_size(stream)
+        # Read out file into the memory if it is small.
+        if size <= chunk_size:
+            stream = stream.read()
+            is_one_small_blob = True
+        if size_hint is None:
+            size_hint = size
+    if filename_hint is None:
+        try:
+            filename_hint = os.readlink("/proc/self/fd/0")
+        except IOError:
+            pass
 
     # Read stream by chunks. Also it helps to correctly process StringIO from cStringIO
     # (it has bug with default iteration). Also it allows to avoid reading file
@@ -260,6 +270,9 @@ def write_file(destination, stream,
             prepare_file,
             enable_retries,
             is_stream_compressed=is_stream_compressed,
+            size_hint=size_hint,
+            filename_hint=filename_hint,
+            progress_monitor=progress_monitor,
             client=client)
 
 def _get_remote_temp_files_directory(client=None):
@@ -396,7 +409,7 @@ def _upload_file_to_cache_legacy(filename, hash, client=None):
 
     return destination
 
-def upload_file_to_cache(filename, hash=None, client=None):
+def upload_file_to_cache(filename, hash=None, progress_monitor=None, client=None):
     if hash is None:
         hash = md5sum(filename)
 
@@ -413,6 +426,9 @@ def upload_file_to_cache(filename, hash=None, client=None):
 
     file_path = get_file_from_cache(hash, client=client)
     if file_path:
+        if progress_monitor is not None:
+            progress_monitor.update(get_disk_size(filename, round=False))
+            progress_monitor.finish("cached")
         return file_path
 
     temp_directory = _get_remote_temp_files_directory(client)
@@ -432,7 +448,15 @@ def upload_file_to_cache(filename, hash=None, client=None):
            attributes={"replication_factor": replication_factor},
            client=client)
     with open(filename, "rb") as stream:
-        write_file(real_destination, stream, compute_md5=True, force_create=False, client=client)
+        if progress_monitor is None:
+            size_hint = get_disk_size(filename, round=False)
+            filename_hint = filename
+        else:
+            size_hint = None
+            filename_hint = None
+        write_file(real_destination, stream, compute_md5=True, force_create=False,
+                   size_hint=size_hint, filename_hint=filename, progress_monitor=progress_monitor,
+                   client=client)
 
     destination = put_file_to_cache(real_destination, hash, client=client)
     remove(real_destination, force=True, client=client)

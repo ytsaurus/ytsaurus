@@ -329,10 +329,11 @@ def get_stderrs(operation, only_failed_jobs, client=None):
         ignore_errors = get_config(yt_client)["operation_tracker"]["ignore_stderr_if_download_failed"]
 
         stderr = None
+        stderr_encoding = get_config(client)["operation_tracker"]["stderr_encoding"]
 
         if get_config(client)["enable_operations_api"]:
             try:
-                stderr = to_native_str(get_job_stderr(operation, job, client=client).read())
+                stderr = to_native_str(get_job_stderr(operation, job, client=client).read(), encoding=stderr_encoding)
             except tuple(builtins.list(get_retriable_errors()) + [YtResponseError]) as err:
                 if isinstance(err, YtResponseError) and err.is_no_such_job():
                     pass
@@ -345,7 +346,7 @@ def get_stderrs(operation, only_failed_jobs, client=None):
             has_stderr = exists(stderr_path, client=yt_client)
             if has_stderr:
                 try:
-                    stderr = to_native_str(read_file(stderr_path, client=yt_client).read())
+                    stderr = to_native_str(read_file(stderr_path, client=yt_client).read(), encoding=stderr_encoding)
                 except tuple(builtins.list(get_retriable_errors()) + [YtResponseError]):
                     if not ignore_errors:
                         raise

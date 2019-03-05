@@ -292,7 +292,7 @@ class TestYamrMode(object):
         yt.write_table(table, [b"3\t1\t3\n", b"1\t2\t4\n"])
         yt.run_reduce("cat", table, "<sorted_by=[key]>" + output_table)
         assert list(yt.read_table(output_table)) == [b"1\t2\t4\n", b"3\t1\t3\n"]
-        assert parse_bool(yt.get_attribute(output_table, "sorted", False))
+        assert yt.get_attribute(output_table, "sorted", False)
 
     def test_reduce_differently_sorted_table(self):
         table = TEST_DIR + "/table"
