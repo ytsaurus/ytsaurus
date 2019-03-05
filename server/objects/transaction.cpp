@@ -390,56 +390,54 @@ public:
 
     TGetQueryResult ExecuteGetQuery(
         EObjectType type,
-        const TObjectId& id,
+        const std::vector<TObjectId>& ids,
         const TAttributeSelector& selector)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* typeHandler = objectManager->GetTypeHandlerOrThrow(type);
 
-        auto* object = GetObject(type, id);
-        object->ValidateExists();
-
-        const auto* idField = typeHandler->GetIdField();
-        auto matcherExpr = New<TBinaryOpExpression>(
-            TSourceLocation(),
-            EBinaryOp::Equal,
-            TExpressionList{
-                New<TReferenceExpression>(TSourceLocation(), idField->Name, PrimaryTableAlias)
-            },
-            TExpressionList{
-                New<TLiteralExpression>(TSourceLocation(), id)
-            });
-
-        const auto* parentIdField = typeHandler->GetParentIdField();
-        if (parentIdField) {
-            matcherExpr = New<TBinaryOpExpression>(
-                TSourceLocation(),
-                EBinaryOp::And,
-                TExpressionList{
-                    std::move(matcherExpr)
-                },
-                TExpressionList{
-                    New<TBinaryOpExpression>(
-                        TSourceLocation(),
-                        EBinaryOp::Equal,
-                        TExpressionList{
-                            New<TReferenceExpression>(TSourceLocation(), parentIdField->Name, PrimaryTableAlias)
-                        },
-                        TExpressionList{
-                            New<TLiteralExpression>(TSourceLocation(), object->GetParentId())
-                        })
-                });
+        std::vector<TObject*> objects;
+        for (const auto& id : ids) {
+            objects.push_back(GetObject(type, id));
         }
+        for (const auto* object : objects) {
+            object->ValidateExists();
+        }
+
+        TExpressionList namesExpr;
+
+        if (typeHandler->GetParentIdField()) {
+            const auto* parentIdField = typeHandler->GetParentIdField();
+            namesExpr.emplace_back(New<TReferenceExpression>(TSourceLocation(), parentIdField->Name, PrimaryTableAlias));
+        }
+        const auto* idField = typeHandler->GetIdField();
+        namesExpr.emplace_back(New<TReferenceExpression>(TSourceLocation(), idField->Name, PrimaryTableAlias));
+
+        TLiteralValueTupleList values;
+        for (const auto* object : objects) {
+            values.emplace_back();
+            if (typeHandler->GetParentIdField()) {
+                values.back().emplace_back(object->GetParentId());
+            }
+            values.back().emplace_back(object->GetId());
+        }
+
+        auto inExpression = New<TInExpression>(
+            TSourceLocation(),
+            std::move(namesExpr),
+            std::move(values));
 
         auto query = MakeQuery(typeHandler);
 
-        query->WherePredicate = TExpressionList{matcherExpr};
+        query->WherePredicate = TExpressionList{std::move(inExpression)};
 
         TQueryContext queryContext(
             Bootstrap_,
             type,
             query.get());
         TAttributeFetcherContext fetcherContext(&queryContext);
+        fetcherContext.WillNeedObject();
+
         TResolvePermissions permissions;
         auto fetchers = BuildAttributeFetchers(
             Owner_,
@@ -450,35 +448,47 @@ public:
             &permissions);
         auto queryString = FormatQuery(*query);
 
-        YT_LOG_DEBUG("Getting object (ObjectId: %v, Query: %v)",
-            id,
+        YT_LOG_DEBUG("Getting objects (ObjectIds: %v, Query: %v)",
+            ids,
             queryString);
 
         auto rowset = RunSelect(queryString);
         auto rows = rowset->GetRows();
-        YCHECK(rows.Size() <= 1);
-        if (rows.Empty()) {
-            return TGetQueryResult();
-        }
-        auto row = rows[0];
 
-        TGetQueryResult result;
-        result.Object.emplace();
-
-        for (auto& fetcher : fetchers) {
-            fetcher.Prefetch(row);
-        }
-
-        if (!permissions.ReadPermissions.empty()) {
-            auto* object = fetcherContext.GetObject(Owner_, row);
-            const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
-            for (auto permission : permissions.ReadPermissions) {
-                accessControlManager->ValidatePermission(object, permission);
+        for (auto row : rows) {
+            for (auto& fetcher : fetchers) {
+                fetcher.Prefetch(row);
             }
         }
 
-        for (auto& fetcher : fetchers) {
-            result.Object->Values.push_back(fetcher.Fetch(row));
+        TGetQueryResult result;
+        result.Objects.resize(ids.size());
+
+        THashMap<TObjectId, size_t> objectIdToIndex;
+        for (size_t i = 0; i < ids.size(); ++i) {
+            objectIdToIndex[ids[i]] = i;
+        }
+
+        for (auto row : rows) {
+            auto* object = fetcherContext.GetObject(Owner_, row);
+
+            if (!permissions.ReadPermissions.empty()) {
+                for (auto permission : permissions.ReadPermissions) {
+                    const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+                    accessControlManager->ValidatePermission(object, permission);
+                }
+            }
+
+            auto objectIndex = objectIdToIndex.find(object->GetId());
+            YCHECK(objectIndex != objectIdToIndex.end());
+
+            auto& resultObject = result.Objects[objectIndex->second];
+            YCHECK(!resultObject.has_value());
+            resultObject.emplace();
+
+            for (auto& fetcher : fetchers) {
+                resultObject->Values.push_back(fetcher.Fetch(row));
+            }
         }
 
         return result;
@@ -2484,12 +2494,12 @@ TSchema* TTransaction::GetSchema(EObjectType type)
 
 TGetQueryResult TTransaction::ExecuteGetQuery(
     EObjectType type,
-    const TObjectId& id,
+    const std::vector<TObjectId>& ids,
     const TAttributeSelector& selector)
 {
     return Impl_->ExecuteGetQuery(
         type,
-        id,
+        ids,
         selector);
 }
 

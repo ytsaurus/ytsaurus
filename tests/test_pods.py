@@ -69,6 +69,42 @@ class TestPods(object):
         assert result[1] == pod_id
         assert result[2] == pod_set_id
 
+    def test_get_pods(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        pod_set_id1 = yp_client.create_object("pod_set")
+        pod_set_id2 = yp_client.create_object("pod_set")
+        pod_set_id3 = yp_client.create_object("pod_set")
+
+        pod_id11 = self._create_pod_with_boilerplate(yp_client, pod_set_id1, {})
+        pod_id12 = self._create_pod_with_boilerplate(yp_client, pod_set_id1, {})
+        pod_id13 = self._create_pod_with_boilerplate(yp_client, pod_set_id1, {})
+        pod_id21 = self._create_pod_with_boilerplate(yp_client, pod_set_id2, {})
+        pod_id22 = self._create_pod_with_boilerplate(yp_client, pod_set_id2, {})
+        pod_id31 = self._create_pod_with_boilerplate(yp_client, pod_set_id3, {})
+
+        result = yp_client.get_objects("pod", [pod_id11, pod_id12, pod_id31, pod_id21, pod_id22, pod_id13], selectors=["/meta/id", "/meta/pod_set_id"])
+        assert len(result) == 6
+        assert result[0][1] == pod_set_id1 and result[0][0] == pod_id11
+        assert result[1][1] == pod_set_id1 and result[1][0] == pod_id12
+        assert result[2][1] == pod_set_id3 and result[2][0] == pod_id31
+        assert result[3][1] == pod_set_id2 and result[3][0] == pod_id21
+        assert result[4][1] == pod_set_id2 and result[4][0] == pod_id22
+        assert result[5][1] == pod_set_id1 and result[5][0] == pod_id13
+
+        partial_result = yp_client.get_objects("pod", [pod_id31, pod_id12], selectors=["/meta/id", "/meta/pod_set_id"])
+        assert len(partial_result) == 2
+        assert partial_result[0][1] == pod_set_id3 and partial_result[0][0] == pod_id31
+        assert partial_result[1][1] == pod_set_id1 and partial_result[1][0] == pod_id12
+
+        yp_client.remove_object("pod", pod_id31)
+
+        with pytest.raises(YtResponseError):
+            yp_client.get_objects("pod", [pod_id31], selectors=["/meta/id"])
+
+        with pytest.raises(YtResponseError):
+            yp_client.get_objects("pod", [pod_id11, pod_id12, pod_id31, pod_id22], selectors=["/meta/id"])
+
     def test_parent_pod_set_must_exist(self, yp_env):
         yp_client = yp_env.yp_client
 

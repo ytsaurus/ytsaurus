@@ -94,7 +94,7 @@ TString ToString(const TObjectFilter& filter);
 
 struct TGetQueryResult
 {
-    std::optional<TAttributeValueList> Object;
+    std::deque<std::optional<TAttributeValueList>> Objects;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -107,7 +107,7 @@ struct TSelectQueryOptions
 
 struct TSelectQueryResult
 {
-    std::vector<TAttributeValueList> Objects;
+    std::deque<TAttributeValueList> Objects;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -154,7 +154,7 @@ public:
 
     TGetQueryResult ExecuteGetQuery(
         EObjectType type,
-        const TObjectId& id,
+        const std::vector<TObjectId>& ids,
         const TAttributeSelector& selector);
     TSelectQueryResult ExecuteSelectQuery(
         EObjectType type,

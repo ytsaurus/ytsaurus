@@ -66,6 +66,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateObject));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateObjects));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetObject));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetObjects));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectObjects));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckObjectPermissions));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetObjectAccessAllowedFor));
@@ -200,6 +201,34 @@ private:
         return payload;
     }
 
+    void MoveAttributesToProto(
+        NClient::NApi::NProto::EPayloadFormat format,
+        EObjectType objectType,
+        const TAttributeSelector& selector,
+        TAttributeValueList* object,
+        NClient::NApi::NProto::TAttributeValueList* protoResult)
+    {
+        if (format == NClient::NApi::NProto::PF_NONE) {
+            // COMPAT(babenko)
+            auto* responseValues = protoResult->mutable_values();
+            for (const auto& value : object->Values) {
+                *responseValues->Add() = value.GetData();
+            }
+        } else {
+            auto* responseValuePayloads = protoResult->mutable_value_payloads();
+            YCHECK(object->Values.size() == selector.Paths.size());
+            for (size_t index = 0; index < object->Values.size(); ++index) {
+                *responseValuePayloads->Add() = YsonStringToPayload(
+                        object->Values[index],
+                        objectType,
+                        selector.Paths[index],
+                        format);
+            }
+        }
+        object->Values.clear();
+        object->Values.shrink_to_fit();
+    }
+
     TUpdateRequest ParseRemoveUpdate(const NClient::NApi::NProto::TRemoveUpdate& protoUpdate)
     {
         return TRemoveUpdateRequest{
@@ -258,7 +287,7 @@ private:
         context->SetRequestInfo();
 
         auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
-        
+
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto transaction = WaitFor(transactionManager->StartReadWriteTransaction())
             .ValueOrThrow();
@@ -294,7 +323,7 @@ private:
         context->SetRequestInfo("TransactionId: %v", transactionId);
 
         auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
-        
+
         TTransactionWrapper transactionWrapper(transactionId, true, Bootstrap_);
         const auto& transaction = transactionWrapper.Unwrap();
 
@@ -615,35 +644,57 @@ private:
 
         auto result = transaction->ExecuteGetQuery(
             objectType,
-            objectId,
+            {objectId},
             selector);
 
-        if (!result.Object) {
-            THROW_ERROR_EXCEPTION(
-                NClient::NApi::EErrorCode::NoSuchObject,
-                "%v %Qv is missing",
-                GetCapitalizedHumanReadableTypeName(objectType),
-                objectId);
+        auto& object = result.Objects[0];
+        YCHECK(object.has_value());
+        MoveAttributesToProto(format, objectType, selector, &(*object), response->mutable_result());
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, GetObjects)
+    {
+        auto objectType = CheckedEnumCast<EObjectType>(request->object_type());
+        auto timestamp = request->timestamp();
+        TAttributeSelector selector{
+            FromProto<std::vector<TString>>(request->selector().paths())
+        };
+
+        std::vector<TObjectId> objectIds;
+        objectIds.reserve(request->subrequests().size());
+        for (const auto& subrequest : request->subrequests()) {
+            objectIds.emplace_back(subrequest.object_id());
         }
 
+        context->SetRequestInfo("ObjectIds: %v, ObjectType: %v, Timestamp: %llx, Selector: %v",
+            objectIds,
+            objectType,
+            timestamp,
+            selector.Paths);
+
+        auto format = request->format();
         if (format == NClient::NApi::NProto::PF_NONE) {
-            // COMPAT(babenko)
-            auto* responseValues = response->mutable_result()->mutable_values();
-            for (const auto& value : result.Object->Values) {
-                *responseValues->Add() = value.GetData();
-            }
-        } else {
-            auto* responseValuePayloads = response->mutable_result()->mutable_value_payloads();
-            YCHECK(result.Object->Values.size() == selector.Paths.size());
-            for (size_t index = 0; index < result.Object->Values.size(); ++index) {
-                *responseValuePayloads->Add() = YsonStringToPayload(
-                    result.Object->Values[index],
-                    objectType,
-                    selector.Paths[index],
-                    format);
-            }
+            LogDeprecatedPayloadFormat(context);
         }
 
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction(timestamp))
+            .ValueOrThrow();
+
+        auto result = transaction->ExecuteGetQuery(
+            objectType,
+            objectIds,
+            selector);
+
+        for (auto& object : result.Objects) {
+            YCHECK(object.has_value());
+            auto* subresponse = response->add_subresponses();
+            MoveAttributesToProto(format, objectType, selector, &(*object), subresponse->mutable_result());
+        }
         context->Reply();
     }
 

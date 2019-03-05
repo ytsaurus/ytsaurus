@@ -340,6 +340,44 @@ message TRspGetObject
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqGetObjects
+{
+    // Provides snapshot isolation.
+    // If omitted then reads the latest state.
+    optional uint64 timestamp = 1;
+
+    // Type of objects to get.
+    required EObjectType object_type = 2;
+
+    message TSubrequest {
+        // Id of the object to get.
+        required string object_id = 1;
+    }
+
+    // Subrequests to serve.
+    repeated TSubrequest subrequests = 3;
+
+    // Describes which attributes to fetch.
+    // TRspGetObjects.results.attributes will contain exactly this number of attributes.
+    required TAttributeSelector selector = 4;
+
+    // Format to use in response.
+    optional EPayloadFormat format = 5;
+}
+
+message TRspGetObjects
+{
+    message TSubresponse {
+        // The result containing the requested attributes.
+        optional TAttributeValueList result = 1;
+    }
+
+    // The i-th subresponse here contains the result for the i-th subrequest.
+    repeated TSubresponse subresponses = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqSelectObjects
 {
     // Provides snapshot isolation.
@@ -571,6 +609,9 @@ service ObjectService
 
     // Fetches object attributes by object id.
     rpc GetObject (TReqGetObject) returns (TRspGetObject);
+
+    // Fetches objects attributes by object ids.
+    rpc GetObjects (TReqGetObjects) returns (TRspGetObjects);
 
     // Executes a query and fetches attributes for relevant objects.
     rpc SelectObjects (TReqSelectObjects) returns (TRspSelectObjects);
