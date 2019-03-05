@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait
 from yt_commands import *
 
-class TestAnnotations(YTEnvSetup):
+class TestCypressAnnotations(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SECONDARY_MASTER_CELLS = 1
     NUM_NODES = 1
