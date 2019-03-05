@@ -51,8 +51,10 @@ class TestCypressAnnotations(YTEnvSetup):
         assert "rpc_proxy" == get("//sys/rpc_proxies/{}/@annotations/whoami".format(rp))
 
         pm = ls("//sys/primary_masters")[0]
+        wait(lambda: exists("//sys/primary_masters/{0}/@annotations".format(pm)))
         assert "master" == get("//sys/primary_masters/{0}/@annotations/whoami".format(pm))
 
         cell = ls("//sys/secondary_masters")[0]
         sm = ls("//sys/secondary_masters/" + cell)[0]
+        wait(lambda: exists("//sys/secondary_masters/{0}/{1}/@annotations".format(cell, sm)))
         assert "master" == get("//sys/secondary_masters/{0}/{1}/@annotations/whoami".format(cell, sm))
