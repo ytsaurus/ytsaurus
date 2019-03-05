@@ -122,8 +122,13 @@ void WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* valu
     // NB: Aggregate flag is neither set from TCG value nor cleared during row allocation.
     size_t id = 0;
     for (auto* value = batch.back().Begin(); value < batch.back().End(); ++value) {
-        const_cast<TUnversionedValue*>(value)->Aggregate = false;
-        const_cast<TUnversionedValue*>(value)->Id = id++;
+        auto mutableValue = const_cast<TUnversionedValue*>(value);
+        mutableValue->Aggregate = false;
+        mutableValue->Id = id++;
+
+        if (!IsStringLikeType(value->Type)) {
+            mutableValue->Length = 0;
+        }
     }
 
     if (batch.size() == batch.capacity()) {

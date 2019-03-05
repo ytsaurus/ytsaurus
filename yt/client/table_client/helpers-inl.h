@@ -10,6 +10,7 @@
 #include <yt/core/yson/protobuf_interop.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/string.h>
 
 #include <array>
 
@@ -25,7 +26,9 @@ void ToUnversionedValue(
     int id,
     typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type*)
 {
-    if (TEnumTraits<T>::IsBitEnum) {
+    if constexpr (TEnumTraits<T>::IsStringSerializableEnum) {
+        ToUnversionedValue(unversionedValue, NYT::FormatEnum(value), rowBuffer, id);
+    } else if constexpr (TEnumTraits<T>::IsBitEnum) {
         ToUnversionedValue(unversionedValue, static_cast<ui64>(value), rowBuffer, id);
     } else {
         ToUnversionedValue(unversionedValue, static_cast<i64>(value), rowBuffer, id);
@@ -44,6 +47,9 @@ void FromUnversionedValue(
             break;
         case EValueType::Uint64:
             *value = static_cast<T>(unversionedValue.Data.Uint64);
+            break;
+        case EValueType::String:
+            *value = NYT::ParseEnum<T>(TStringBuf(unversionedValue.Data.String, unversionedValue.Length));
             break;
         default:
             THROW_ERROR_EXCEPTION("Cannot parse enum value from %Qlv",
