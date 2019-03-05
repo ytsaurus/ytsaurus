@@ -59,6 +59,9 @@ class YtTestEnvironment(object):
                  delta_controller_agent_config=None,
                  delta_node_config=None,
                  delta_proxy_config=None):
+        # To use correct version of bindings we must reset it before start environment.
+        yt.native_driver.driver_bindings = None
+
         self.test_name = test_name
 
         if config is None:
@@ -241,8 +244,6 @@ class YtTestEnvironment(object):
         yt.config.config = self.config
 
 def init_environment_for_test_session(mode, **kwargs):
-    yt.native_driver.driver_bindings = None
-
     config = {"api_version": "v3"}
     if mode in ("native", "native_multicell"):
         config["backend"] = "native"
