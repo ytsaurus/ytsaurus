@@ -21,7 +21,6 @@
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/erasure/codec.h>
-#include <yt/core/erasure/helpers.h>
 
 #include <numeric>
 

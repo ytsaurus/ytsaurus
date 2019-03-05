@@ -259,7 +259,7 @@ private:
                     }
                 };
                 if (chunk->IsErasure()) {
-                    for (int index = 0; index < NErasure::MaxTotalPartCount; ++index) {
+                    for (int index = 0; index < ::NErasure::MaxTotalPartCount; ++index) {
                         addReplica(chunk->LastSeenReplicas()[index], index);
                     }
                 } else {

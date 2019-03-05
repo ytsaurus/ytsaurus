@@ -111,7 +111,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifndef FAKEID
-#define WF_WARN_UNUSED_RESULT Y_WARN_UNUSED_RESULT
+#define WF_WARN_UNUSED_RESULT [[nodiscard]]
 #else
 #define WF_WARN_UNUSED_RESULT
 #endif
