@@ -62,10 +62,10 @@ def make_request(command_name,
 
     enable_params_logging = get_config(client)["enable_logging_for_params_changes"]
     if enable_params_logging:
-        logger.debug("Start deepcopy (pid: %d)", os.getpid());
+        logger.debug("Start deepcopy (pid: %d)", os.getpid())
     command_params = deepcopy(get_option("COMMAND_PARAMS", client))
     if enable_params_logging:
-        logger.debug("Finish deepcopy (pid: %d)", os.getpid());
+        logger.debug("Finish deepcopy (pid: %d)", os.getpid())
 
     for key in _DEFAULT_COMMAND_PARAMS:
         if key in command_params and command_params[key] == _DEFAULT_COMMAND_PARAMS[key]:
