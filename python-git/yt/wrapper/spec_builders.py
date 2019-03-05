@@ -656,6 +656,14 @@ class SpecBuilder(object):
     def weight(self, weight):
         return _set_spec_value(self, "weight", weight)
 
+    @spec_option("The list of the trees in which the job operations will work")
+    def pool_trees(self, trees):
+        return _set_spec_value(self, "pool_trees", trees)
+
+    @spec_option("The list of the tentative trees in which the operation will try to launch jobs")
+    def tentative_pool_trees(self, trees):
+        return _set_spec_value(self, "tentative_pool_trees", trees)
+
     @spec_option("The dictionary with limits on different resources for a given pool (user_slots, cpu, memory)")
     def resource_limits(self, limits):
         return _set_spec_value(self, "resource_limits", limits)
