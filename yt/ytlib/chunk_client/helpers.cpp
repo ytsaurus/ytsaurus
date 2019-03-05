@@ -374,9 +374,9 @@ IChunkReaderPtr CreateRemoteReader(
         auto erasureCodecId = ECodec(chunkSpec.erasure_codec());
         YT_LOG_DEBUG("Creating erasure remote reader (Codec: %v)", erasureCodecId);
 
-        std::array<TNodeId, MaxTotalPartCount> partIndexToNodeId;
+        std::array<TNodeId, ::NErasure::MaxTotalPartCount> partIndexToNodeId;
         std::fill(partIndexToNodeId.begin(), partIndexToNodeId.end(), InvalidNodeId);
-        std::array<int, MaxTotalPartCount> partIndexToMediumIndex;
+        std::array<int, ::NErasure::MaxTotalPartCount> partIndexToMediumIndex;
         std::fill(partIndexToMediumIndex.begin(), partIndexToMediumIndex.end(), DefaultStoreMediumIndex);
         for (auto replica : replicas) {
             auto replicaIndex = replica.GetReplicaIndex();

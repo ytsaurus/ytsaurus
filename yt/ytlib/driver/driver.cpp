@@ -16,6 +16,8 @@
 #include <yt/client/api/connection.h>
 #include <yt/client/api/sticky_transaction_pool.h>
 
+#include <yt/client/api/rpc_proxy/connection_impl.h>
+
 #include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/core/yson/null_consumer.h>
@@ -128,15 +130,17 @@ public:
         , Connection_(std::move(connection))
         , StickyTransactionPool_(CreateStickyTransactionPool(Logger))
         , NodeDirectory_(New<TNodeDirectory>())
-        , NodeDirectorySynchronizer_(New<TNodeDirectorySynchronizer>(
-            Config_->NodeDirectorySynchronizer,
-            Connection_,
-            NodeDirectory_))
     {
         YCHECK(Config_);
         YCHECK(Connection_);
 
-        NodeDirectorySynchronizer_->Start();
+        if (!dynamic_cast<NYT::NApi::NRpcProxy::TConnection*>(Connection_.Get())) {
+            NodeDirectorySynchronizer_ = New<TNodeDirectorySynchronizer>(
+                Config_->NodeDirectorySynchronizer,
+                Connection_,
+                NodeDirectory_);
+            NodeDirectorySynchronizer_->Start();
+        }
 
         // Register all commands.
 #define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy, version) \
@@ -390,8 +394,8 @@ public:
         if (NodeDirectorySynchronizer_) {
             WaitFor(NodeDirectorySynchronizer_->Stop())
                 .ThrowOnError();
-            NodeDirectorySynchronizer_.Reset();
         }
+        NodeDirectorySynchronizer_.Reset();
 
         // Release the connection with entire thread pools.
         if (Connection_) {
