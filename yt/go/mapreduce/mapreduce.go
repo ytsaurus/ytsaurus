@@ -26,10 +26,19 @@ type Job interface {
 func Map(job Job, baseSpec *spec.Spec) *spec.Spec {
 	s := baseSpec.Clone()
 
+	env := map[string]string{}
+	if s.Mapper != nil && s.Mapper.Environment != nil {
+		for k, v := range s.Mapper.Environment {
+			env[k] = v
+		}
+	}
+
+	env["YT_INSIDE_JOB"] = "1"
+
 	s.Type = yt.OperationMap
 	s.Mapper = &spec.UserScript{
 		Command:     fmt.Sprintf("./go-binary -job %s -output-pipes %d", jobName(job), len(s.OutputTablePaths)),
-		Environment: map[string]string{"YT_INSIDE_JOB": "1"},
+		Environment: env,
 	}
 
 	return s
