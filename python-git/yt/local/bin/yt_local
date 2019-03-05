@@ -211,10 +211,13 @@ def add_start_subparser(subparsers):
     parser.add_argument("--prepare-only", action="store_true", default=False,
                         help="Only prepare environment, but don't start.")
 
-    parser.add_argument("--jobs-memory-limit", type=int, default=_USE_START_DEFAULT,
+    parser.add_argument("--jobs-resource-limits", type=yson._loads_from_native_str, default=_USE_START_DEFAULT,
+                        help="jobs resource limits in YSON format")
+    parser.add_argument("--jobs-memory-limit", type=int,
                         help="memory limit for jobs in bytes")
-    parser.add_argument("--jobs-cpu-limit", type=int, default=_USE_START_DEFAULT, help="cpu limit for jobs")
-    parser.add_argument("--jobs-user-slot-count", type=int, default=_USE_START_DEFAULT,
+    parser.add_argument("--jobs-cpu-limit", type=int,
+                        help="cpu limit for jobs")
+    parser.add_argument("--jobs-user-slot-count", type=int,
                         help="slot count for user jobs")
 
     parser.add_argument("--node-chunk-store-quota", type=int, default=_USE_START_DEFAULT,

@@ -358,6 +358,10 @@ class TestLocalMode(object):
                                                                  {"x": "3", "y": "3"}]
             assert client.get_attribute("//sorted_table", "sorted_by") == ["x"]
 
+            schema = client.get_attribute("//table_with_schema", "schema")
+            assert schema.attributes == {"strict": False, "unique_keys": True}
+            assert list(schema) == [{"sort_order": "ascending", "type": "int32", "name": "x", "required": False}]
+
     def test_preserve_state(self):
         with local_yt(id=_get_id("test_preserve_state")) as environment:
             client = environment.create_client()
