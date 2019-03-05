@@ -1259,7 +1259,7 @@ message TReqGetOperation
         NYT.NProto.TGuid operation_id = 1;
         string operation_alias = 4;
     }
-    // XXX(kiselyovp) change this to TAttributeKeys
+    // TODO(kiselyovp) change this to TAttributeKeys
     repeated string attributes = 2;
     optional bool include_runtime = 3 [default = false];
 
@@ -1481,7 +1481,11 @@ message TReqCreateFileReader
     optional TSuppressableAccessTrackingOptions suppressable_access_tracking_options = 104;
 }
 
-// revision number is sent via stream
+message TMetaCreateFileReader
+{
+    required uint64 revision = 1;
+}
+
 message TRspCreateFileReader
 {
 }
@@ -1490,7 +1494,7 @@ message TRspCreateFileReader
 
 message TReqCreateFileWriter
 {
-    required string path = 1; // TODOKETE RichYPath
+    required string path = 1; // RichYPath
 
     optional bool compute_md5 = 2 [default = false];
     optional bytes config = 3; // YSON-serialized TFileWriterConfig

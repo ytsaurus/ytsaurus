@@ -48,6 +48,7 @@
 #include <yt/core/misc/serialize.h>
 
 #include <yt/core/rpc/service_detail.h>
+#include <yt/core/rpc/stream.h>
 
 namespace NYT::NRpcProxy {
 
@@ -1988,42 +1989,9 @@ private:
 
         context->SetRequestInfo("JobId: %v", jobId);
 
-        auto jobInputReader = WaitFor(client->GetJobInput(jobId, options)).ValueOrThrow();
-        auto outputStream = response->GetAttachmentsStream();
-
-        // client will send an empty ref via stream when it wants to stop reading
-        auto readResult = request->GetAttachmentsStream()->Read().
-            Apply(BIND ([] (const TErrorOr<TSharedRef>& refOrError) {
-                const auto& ref = refOrError.ValueOrThrow();
-                if (ref.Size() != 0) {
-                    THROW_ERROR_EXCEPTION("Expected an empty ref")
-                        << TErrorAttribute("attachment_size", ref.Size());
-                }
-            }));
-
-        auto writeResult = outputStream->Write(
-            TSharedRef::FromString(NApi::NRpcProxy::JobInputReaderHandshake));
-
-        while (true) {
-            std::vector<TFuture<void>> asyncResults({writeResult, readResult});
-            auto combinedResult = CombineQuorum(asyncResults, 1);
-            WaitFor(combinedResult).ThrowOnError();
-
-            if (readResult.IsSet()) {
-                break;
-            }
-
-            auto block = WaitFor(jobInputReader->Read()).ValueOrThrow();
-            if (!block) {
-                break;
-            }
-            writeResult = outputStream->Write(block);
-        }
-
-        WaitFor(outputStream->Close())
-            .ThrowOnError();
-        context->Reply();
-        // TODOKETE think about crazy clients
+        auto jobInputReader = WaitFor(client->GetJobInput(jobId, options))
+            .ValueOrThrow();
+        HandleInputStreamingRequest(context, jobInputReader);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetJobInputPaths)
@@ -2644,6 +2612,7 @@ private:
         const auto attachmentsStart = request->Attachments().begin();
         for (const auto& partCount: request->part_counts()) {
             NApi::NRpcProxy::NProto::TReqModifyRows subrequest;
+            // TODO(kiselyovp) if this fails, YCHECK happens
             DeserializeProto(&subrequest, request->Attachments()[blobIndex]);
             ++blobIndex;
             std::vector<TSharedRef> attachments(
@@ -2904,41 +2873,18 @@ private:
             options.Offset,
             options.Length);
 
-        auto fileReader = WaitFor(client->CreateFileReader(path, options)).ValueOrThrow();
-        auto outputStream = response->GetAttachmentsStream();
+        auto fileReader = WaitFor(client->CreateFileReader(path, options))
+            .ValueOrThrow();
+
+        auto outputStream = context->GetResponseAttachmentsStream();
         ui64 revision = fileReader->GetRevision();
-        TSharedRef revisionRef(&revision, sizeof(revision), nullptr);
-        auto writeResult = outputStream->Write(revisionRef);
-        // client will send an empty ref via stream when it wants to stop reading
-        auto readResult = request->GetAttachmentsStream()->Read().
-            Apply(BIND ([] (const TErrorOr<TSharedRef>& refOrError) {
-                const auto& ref = refOrError.ValueOrThrow();
-                if (ref.Size() != 0) {
-                    THROW_ERROR_EXCEPTION("Expected an empty ref")
-                        << TErrorAttribute("attachment_size", ref.Size());
-                }
-            }));
-
-        while (true) {
-            std::vector<TFuture<void>> asyncResults({writeResult, readResult});
-            auto combinedResult = CombineQuorum(asyncResults, 1);
-            WaitFor(combinedResult).ThrowOnError();
-
-            if (readResult.IsSet()) {
-                break;
-            }
-
-            auto block = WaitFor(fileReader->Read()).ValueOrThrow();
-            if (!block) {
-                break;
-            }
-            writeResult = outputStream->Write(block);
-        }
-
-        WaitFor(outputStream->Close())
+        NApi::NRpcProxy::NProto::TMetaCreateFileReader meta;
+        meta.set_revision(revision);
+        auto metaRef = SerializeProtoToRef(meta);
+        WaitFor(outputStream->Write(metaRef))
             .ThrowOnError();
-        context->Reply();
-        // TODOKETE think about crazy clients
+
+        HandleInputStreamingRequest(context, fileReader);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateFileWriter)
@@ -2969,22 +2915,14 @@ private:
             options.ComputeMD5);
 
         auto fileWriter = client->CreateFileWriter(path, options);
-        WaitFor(fileWriter->Open()).ThrowOnError();
-        response->GetAttachmentsStream()->Close();
-        auto inputStream = request->GetAttachmentsStream();
-
-        while (true) {
-            auto block = WaitFor(inputStream->Read()).ValueOrThrow();
-            if (!block) {
-                break;
-            }
-            WaitFor(fileWriter->Write(block)).ThrowOnError();
-        }
-
-        WaitFor(fileWriter->Close())
+        WaitFor(fileWriter->Open())
             .ThrowOnError();
-        context->Reply();
-        // TODOKETE think about crazy clients
+
+        HandleOutputStreamingRequest(
+            context,
+            BIND(&IFileWriter::Write, fileWriter),
+            BIND(&IFileWriter::Close, fileWriter),
+            EWriterFeedbackStrategy::NoFeedback);
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -3024,46 +2962,18 @@ private:
             options.RowCount);
 
         auto journalReader = client->CreateJournalReader(path, options);
-        WaitFor(journalReader->Open()).ThrowOnError();
-
-        auto outputStream = response->GetAttachmentsStream();
-        auto writeResult = outputStream->Write(
-            TSharedRef::FromString(NApi::NRpcProxy::JournalReaderHandshake));
-        // client will send an empty ref via stream when it wants to stop reading
-        auto readResult = request->GetAttachmentsStream()->Read().
-            Apply(BIND ([] (const TErrorOr<TSharedRef>& refOrError) {
-            const auto& ref = refOrError.ValueOrThrow();
-            if (ref.Size() != 0) {
-                THROW_ERROR_EXCEPTION("Expected an empty ref")
-                    << TErrorAttribute("attachment_size", ref.Size());
-            }
-        }));
-
-        while (true) {
-            std::vector<TFuture<void>> asyncResults({writeResult, readResult});
-            auto combinedResult = CombineQuorum(asyncResults, 1);
-            WaitFor(combinedResult).ThrowOnError();
-
-            if (readResult.IsSet()) {
-                break;
-            }
-
-            auto rows = WaitFor(journalReader->Read()).ValueOrThrow();
-            if (rows.empty()) {
-                break;
-            }
-
-            for (size_t rowIndex = 0; rowIndex + 1 < rows.size(); ++rowIndex) {
-                outputStream->Write(rows[rowIndex]);
-            }
-
-            writeResult = outputStream->Write(rows.back());
-        }
-
-        WaitFor(outputStream->Close())
+        WaitFor(journalReader->Open())
             .ThrowOnError();
-        context->Reply();
-        // TODOKETE think about crazy clients
+
+        HandleInputStreamingRequest(context, BIND([=] () {
+            return journalReader->Read().Apply(BIND([] (const std::vector<TSharedRef>& rows) {
+                if (rows.empty()) {
+                    return TSharedRef();
+                }
+
+                return PackRefs(rows);
+            }));
+        }));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateJournalWriter)
@@ -3094,42 +3004,18 @@ private:
             options.EnableMultiplexing);
 
         auto journalWriter = client->CreateJournalWriter(path, options);
-        WaitFor(journalWriter->Open()).ThrowOnError();
-        response->GetAttachmentsStream()->Close();
-        auto inputStream = request->GetAttachmentsStream();
-
-        auto readNextRow = [=] () {
-            YT_LOG_INFO("Reading a row LUL...");
-            TFuture<TSharedRef> result = inputStream->Read();
-            result.Subscribe(BIND ([=] (const TErrorOr<TSharedRef>&) {
-                YT_LOG_INFO("Stopped reading a row LUL!");
-            }));
-            return result;
-        };
-        // auto asyncNextRow = inputStream->Read(); // TODOKETE looks very similar to TRpcJournalReader, bro
-        auto asyncNextRow = readNextRow();
-        TSharedRef nextRow;
-        do {
-            std::vector<TSharedRef> rows;
-
-            WaitFor(asyncNextRow);
-            while (asyncNextRow.IsSet()) {
-                nextRow = asyncNextRow.Get().ValueOrThrow();
-                if (!nextRow) {
-                    break;
-                }
-                rows.push_back(std::move(nextRow));
-                // asyncNextRow = inputStream->Read();
-                asyncNextRow = readNextRow();
-            }
-
-            WaitFor(journalWriter->Write(rows)).ThrowOnError();
-        } while (nextRow);
-
-        WaitFor(journalWriter->Close())
+        WaitFor(journalWriter->Open())
             .ThrowOnError();
-        context->Reply();
-        // TODOKETE think about crazy clients
+
+        HandleOutputStreamingRequest(
+            context,
+            BIND([=] (const TSharedRef& packedRows) {
+                std::vector<TSharedRef> rows;
+                UnpackRefs(packedRows, &rows, true);
+                return journalWriter->Write(rows);
+            }),
+            BIND(&IJournalWriter::Close, journalWriter),
+            EWriterFeedbackStrategy::OnlyPositive);
     }
 
     ////////////////////////////////////////////////////////////////////////////////

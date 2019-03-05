@@ -2,7 +2,11 @@
 
 #include <yt/client/api/file_reader.h>
 
+#include <yt/core/rpc/stream.h>
+
 namespace NYT::NApi::NRpcProxy {
+
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,17 +15,17 @@ class TRpcFileReader
 {
 public:
     TRpcFileReader(
-        TApiServiceProxy::TReqCreateFileReaderPtr request,
+        IAsyncZeroCopyInputStreamPtr underlying,
         ui64 revision):
-        Request_(request),
+        Underlying_(std::move(underlying)),
         Revision_(revision)
     {
-        YCHECK(Request_);
+        YCHECK(Underlying_);
     }
 
     virtual TFuture<TSharedRef> Read() override
     {
-        return Request_->GetResponseAttachmentsStream()->Read();
+        return Underlying_->Read();
     }
 
     virtual ui64 GetRevision() const override
@@ -29,35 +33,25 @@ public:
         return Revision_;
     }
 
-    ~TRpcFileReader() {
-        // TODO(kiselyovp) doing work in destructor but there's no better place?
-        NConcurrency::WaitFor(Request_->GetRequestAttachmentsStream()->Close());
-    }
-
 private:
-    TApiServiceProxy::TReqCreateFileReaderPtr Request_;
+    IAsyncZeroCopyInputStreamPtr Underlying_;
     ui64 Revision_;
 };
 
 TFuture<IFileReaderPtr> CreateRpcFileReader(
     TApiServiceProxy::TReqCreateFileReaderPtr request)
 {
-    request->Invoke();
+    return NRpc::CreateInputStreamAdapter(request)
+        .Apply(BIND([=] (const IAsyncZeroCopyInputStreamPtr& inputStream) {
+            return inputStream->Read().Apply(BIND([=] (const TSharedRef& metaRef) {
+                NApi::NRpcProxy::NProto::TMetaCreateFileReader meta;
+                if (!TryDeserializeProto(&meta, metaRef)) {
+                    THROW_ERROR_EXCEPTION("Failed to deserialize file reader revision");
+                }
 
-    return request->GetResponseAttachmentsStream()->Read()
-        .Apply(BIND([request] (const TErrorOr<TSharedRef>& refOrError) {
-            // TODO(kiselyovp) there should be a better way to do this, maybe find a way to send protobufs
-            const auto& revisionRef = refOrError.ValueOrThrow();
-            if (revisionRef.Size() != sizeof(ui64)) {
-                THROW_ERROR_EXCEPTION("Attachment size mismatch")
-                    << TErrorAttribute("actual_size", revisionRef.Size())
-                    << TErrorAttribute("expected_size", sizeof(ui64));
-            }
-
-            ui64 revision = *reinterpret_cast<const ui64*>(revisionRef.Begin());
-
-            return New<TRpcFileReader>(request, revision);
-        })).As<IFileReaderPtr>();
+                return New<TRpcFileReader>(inputStream, meta.revision());
+            })).As<IFileReaderPtr>();
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,7 +2,11 @@
 
 #include <yt/client/api/journal_reader.h>
 
+#include <yt/core/rpc/stream.h>
+
 namespace NYT::NApi::NRpcProxy {
+
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,17 +24,15 @@ public:
 
     virtual TFuture<void> Open() override
     {
-        Request_->Invoke();
+        auto guard = Guard(SpinLock_);
+        if (!OpenResult_) {
+            OpenResult_ = NRpc::CreateInputStreamAdapter(Request_)
+                .Apply(BIND([=, this_ = MakeStrong(this)] (const IAsyncZeroCopyInputStreamPtr& inputStream) {
+                    Underlying_ = inputStream;
+                }));
+        }
 
-        Opened_ = Request_->GetResponseAttachmentsStream()->Read() // TODOKETE this should be a separated function?? (ExpectHandshake)
-            .Apply(BIND ([] (const TErrorOr<TSharedRef>& refOrError) {
-                const auto& ref = refOrError.ValueOrThrow();
-                if (ToString(ref) != JournalReaderHandshake) {
-                    THROW_ERROR_EXCEPTION("Failed to open a journal reader: handshake mismatch");
-                }
-            }));
-
-        return Opened_;
+        return OpenResult_;
     }
 
     virtual TFuture<std::vector<TSharedRef>> Read() override
@@ -40,56 +42,40 @@ public:
         auto guard = Guard(SpinLock_);
 
         LastReadResult_ = LastReadResult_.Apply(
-            BIND ([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TSharedRef>>& resultOrError) {
-                resultOrError.ThrowOnError();
+            BIND([=, this_ = MakeStrong(this)] (const std::vector<TSharedRef>&) {
                 return DoRead();
             }));
 
         return LastReadResult_;
     }
 
-    ~TRpcJournalReader()
-    {
-        // TODO(kiselyovp) doing work in destructor but there's no better place?
-        NConcurrency::WaitFor(Request_->GetRequestAttachmentsStream()->Close());
-    }
-
 private:
     TApiServiceProxy::TReqCreateJournalReaderPtr Request_;
-    TFuture<void> Opened_;
+    IAsyncZeroCopyInputStreamPtr Underlying_;
+    TFuture<void> OpenResult_;
     TFuture<std::vector<TSharedRef>> LastReadResult_;
-    TFuture<TSharedRef> CurrentRow_;
+
     TSpinLock SpinLock_;
 
     void ValidateOpened()
     {
-        if (!Opened_.IsSet()) {
+        auto guard = Guard(SpinLock_);
+        if (!OpenResult_.IsSet()) {
             THROW_ERROR_EXCEPTION("Can't read from an unopened journal reader");
         }
-        Opened_.Get().ThrowOnError();
+        OpenResult_.Get().ThrowOnError();
     }
 
     TFuture<std::vector<TSharedRef>> DoRead()
     {
-        if (!CurrentRow_) {
-            CurrentRow_ = Request_->GetResponseAttachmentsStream()->Read();
-        }
-
-        return CurrentRow_.Apply(BIND ([=, this_ = MakeStrong(this)] (const TSharedRef& firstRow) {
-            std::vector<TSharedRef> result;
-
-            auto asyncNextRow = MakeFuture(firstRow);
-            while (asyncNextRow.IsSet()) {
-                auto nextRow = asyncNextRow.Get().ValueOrThrow();
-                if (!nextRow) {
-                    break;
-                }
-                result.push_back(nextRow);
-                asyncNextRow = Request_->GetResponseAttachmentsStream()->Read();
+        return Underlying_->Read().Apply(BIND([=] (const TSharedRef& ref) {
+            if (!ref) {
+                return std::vector<TSharedRef>();
             }
-            CurrentRow_ = asyncNextRow;
-
-            return result;
+            
+            std::vector<TSharedRef> parts;
+            UnpackRefs(ref, &parts, true);
+            return parts;
         }));
     }
 };

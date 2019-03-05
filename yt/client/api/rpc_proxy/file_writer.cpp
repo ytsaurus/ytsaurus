@@ -1,10 +1,14 @@
 #include "file_writer.h"
 
-#include <yt/core/concurrency/async_stream.h>
-
 #include <yt/client/api/file_writer.h>
 
+#include <yt/core/concurrency/async_stream.h>
+
+#include <yt/core/rpc/stream.h>
+
 namespace NYT::NApi::NRpcProxy {
+
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,47 +25,65 @@ public:
 
     virtual TFuture<void> Open() override
     {
-        InvokeResult_ = Request_->Invoke().As<void>();
+        ValidateNotClosed();
 
-        Opened_ = Request_->GetResponseAttachmentsStream()->Read() // TODOKETE this should be a separated function??
-            .Apply(BIND ([] (const TErrorOr<TSharedRef>& refOrError) {
-                const auto& ref = refOrError.ValueOrThrow();
-                if (ref.Size() != 0) {
-                    THROW_ERROR_EXCEPTION("Failed to open a file writer: expected an empty ref")
-                        << TErrorAttribute("attachment_size", ref.Size());
-                }
-            }));
+        auto guard = Guard(SpinLock_);
+        if (!OpenResult_) {
+            OpenResult_ = NRpc::CreateOutputStreamAdapter(Request_)
+                .Apply(BIND([=, this_ = MakeStrong(this)] (const IAsyncZeroCopyOutputStreamPtr& outputStream) {
+                    Underlying_ = outputStream;
+                })).As<void>();
+        }
 
-        return Opened_;
+        return OpenResult_;
     }
 
     virtual TFuture<void> Write(const TSharedRef& data) override
     {
         ValidateOpened();
-        // TODO(kiselyovp) this future is set to OK when we can send more data, not when our blob
-        // is actually written to file. If an error occurs, the client will get to know about it later.
-        // Is this fine?
-        return Request_->GetRequestAttachmentsStream()->Write(data);
+        ValidateNotClosed();
+
+        if (!data) {
+            return VoidFuture;
+        }
+
+        // data can be rewritten after returned future is set, and that can happen prematurely
+        struct TRpcFileWriterTag { };
+        auto dataCopy = TSharedMutableRef::MakeCopy<TRpcFileWriterTag>(data);
+        return Underlying_->Write(dataCopy);
     }
 
     virtual TFuture<void> Close() override
     {
         ValidateOpened();
-        Request_->GetRequestAttachmentsStream()->Close();
-        return InvokeResult_;
+        ValidateNotClosed();
+
+        Closed_ = true;
+        return Underlying_->Close();
     }
 
 private:
     TApiServiceProxy::TReqCreateFileWriterPtr Request_;
-    TFuture<void> Opened_;
-    TFuture<void> InvokeResult_;
+    IAsyncZeroCopyOutputStreamPtr Underlying_;
+    TFuture<void> OpenResult_;
+    std::atomic<bool> Closed_{false};
+
+    TSpinLock SpinLock_;
 
     void ValidateOpened()
     {
-        if (!Opened_.IsSet()) {
+        auto guard = Guard(SpinLock_);
+        if (!OpenResult_.IsSet()) {
             THROW_ERROR_EXCEPTION("Can't write into an unopened file writer");
         }
-        Opened_.Get().ThrowOnError();
+        OpenResult_.Get().ThrowOnError();
+    }
+
+    void ValidateNotClosed()
+    {
+        if (Closed_) {
+            THROW_ERROR_EXCEPTION("File writer is closed");
+        }
     }
 };
 

@@ -4,6 +4,7 @@
 #include "align.h"
 #include "assert.h"
 #include "enum.h"
+#include "error.h"
 #include "guid.h"
 #include "mpl.h"
 #include "optional.h"
@@ -42,11 +43,19 @@ void WritePod(TOutput& output, const T& obj)
 }
 
 template <class TInput, class T>
-void ReadPod(TInput& input, T& obj)
+void ReadPod(TInput& input, T& obj, bool safe = false)
 {
     static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
     auto loadBytes = input.Load(&obj, sizeof(obj));
-    YCHECK(loadBytes == sizeof(obj));
+    if (safe) {
+        if (loadBytes != sizeof(obj)) {
+            THROW_ERROR_EXCEPTION("Byte size mismatch while reading a pod")
+                << TErrorAttribute("bytes_loaded", loadBytes)
+                << TErrorAttribute("bytes_expected", sizeof(obj));
+        }
+    } else {
+        YCHECK(loadBytes == sizeof(obj));
+    }
 }
 
 template <class TOutput>
@@ -116,25 +125,58 @@ TSharedRef PackRefs(const T& parts)
     return result;
 }
 
+// XXX(kiselyovp) unittests for safe unpacking if this gets approved
 template <class T>
-void UnpackRefs(const TSharedRef& packedRef, T* parts)
+void UnpackRefs(const TSharedRef& packedRef, T* parts, bool safe = false)
 {
     TMemoryInput input(packedRef.Begin(), packedRef.Size());
 
     i32 size;
-    ReadPod(input, size);
-    YCHECK(size >= 0);
+    ReadPod(input, size, safe);
+    if (safe) {
+        if (size < 0) {
+            THROW_ERROR_EXCEPTION("Packed ref size is negative")
+                << TErrorAttribute("size", size);
+        }
+    } else {
+        YCHECK(size >= 0);
+    }
 
     parts->clear();
     parts->reserve(size);
 
     for (int index = 0; index < size; ++index) {
         i64 partSize;
-        ReadPod(input, partSize);
+        ReadPod(input, partSize, safe);
+        if (safe) {
+            if (partSize < 0) {
+                THROW_ERROR_EXCEPTION("A part of a packed ref has negative size")
+                    << TErrorAttribute("index", index)
+                    << TErrorAttribute("size", partSize);
+            }
+            if (packedRef.End() - input.Buf() < partSize) {
+                THROW_ERROR_EXCEPTION("A part of a packed ref is too large")
+                    << TErrorAttribute("index", index)
+                    << TErrorAttribute("size", partSize)
+                    << TErrorAttribute("bytes_left", packedRef.End() - input.Buf());
+            }
+        } else {
+            YCHECK(partSize >= 0);
+            YCHECK(packedRef.End() - input.Buf() >= partSize);
+        }
 
         parts->push_back(packedRef.Slice(input.Buf(), input.Buf() + partSize));
 
         input.Skip(partSize);
+    }
+
+    if (safe) {
+        if (input.Buf() < packedRef.End()) {
+            THROW_ERROR_EXCEPTION("Packed ref is too large")
+                << TErrorAttribute("extra_bytes", packedRef.End() - input.Buf());
+        }
+    } else {
+        YCHECK(input.Buf() == packedRef.End());
     }
 }
 

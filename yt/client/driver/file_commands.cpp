@@ -27,6 +27,7 @@ TReadFileCommand::TReadFileCommand()
         .Default();
 }
 
+
 void TReadFileCommand::DoExecute(ICommandContextPtr context)
 {
     Options.Config = UpdateYsonSerializable(

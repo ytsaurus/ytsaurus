@@ -216,7 +216,6 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
         op.resume()
         op.track()
         assert op.get_state() == "completed"
-        # XXX(kiselyovp) a test with abort_running_jobs=False?
 
     def test_update_op_params_check_perms(self):
         op = self._start_simple_operation_with_breakpoint()
