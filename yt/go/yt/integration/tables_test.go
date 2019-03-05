@@ -98,4 +98,27 @@ func TestTables(t *testing.T) {
 		require.NoError(t, env.YT.GetNode(env.Ctx, name.Attr("row_count"), &rowCount, nil))
 		require.Equal(t, 4, rowCount)
 	})
+
+	t.Run("ReadRanges", func(t *testing.T) {
+		name := tmpPath()
+
+		err := env.UploadSlice(name, []exampleRow{
+			{"foo", 1},
+			{"bar", 2},
+		})
+		require.NoError(t, err)
+
+		richPath := ypath.NewRich(name).
+			AddRange(ypath.Exact(ypath.RowIndex(1))).
+			AddRange(ypath.Exact(ypath.RowIndex(0)))
+
+		var result []exampleRow
+		err = env.DownloadSlice(richPath, &result)
+		require.NoError(t, err)
+
+		require.Equal(t, []exampleRow{
+			{"bar", 2},
+			{"foo", 1},
+		}, result)
+	})
 }

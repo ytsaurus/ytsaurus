@@ -35,7 +35,7 @@ func (e *Encoder) do(ctx context.Context, call *Call, decode func(res *CallResul
 
 func (e *Encoder) CreateNode(
 	ctx context.Context,
-	path ypath.Path,
+	path ypath.YPath,
 	typ yt.NodeType,
 	options *yt.CreateNodeOptions,
 ) (id yt.NodeID, err error) {
@@ -62,7 +62,7 @@ func (e *Encoder) CreateObject(
 
 func (e *Encoder) NodeExists(
 	ctx context.Context,
-	path ypath.Path,
+	path ypath.YPath,
 	options *yt.NodeExistsOptions,
 ) (ok bool, err error) {
 	call := e.newCall(NewNodeExistsParams(path, options))
@@ -75,7 +75,7 @@ func (e *Encoder) NodeExists(
 
 func (e *Encoder) RemoveNode(
 	ctx context.Context,
-	path ypath.Path,
+	path ypath.YPath,
 	options *yt.RemoveNodeOptions,
 ) (err error) {
 	call := e.newCall(NewRemoveNodeParams(path, options))
@@ -87,7 +87,7 @@ func (e *Encoder) RemoveNode(
 
 func (e *Encoder) GetNode(
 	ctx context.Context,
-	path ypath.Path,
+	path ypath.YPath,
 	result interface{},
 	options *yt.GetNodeOptions,
 ) (err error) {
@@ -100,7 +100,7 @@ func (e *Encoder) GetNode(
 
 func (e *Encoder) SetNode(
 	ctx context.Context,
-	path ypath.Path,
+	path ypath.YPath,
 	value interface{},
 	options *yt.SetNodeOptions,
 ) (err error) {
@@ -117,7 +117,7 @@ func (e *Encoder) SetNode(
 
 func (e *Encoder) ListNode(
 	ctx context.Context,
-	path ypath.Path,
+	path ypath.YPath,
 	result interface{},
 	options *yt.ListNodeOptions,
 ) (err error) {
@@ -130,8 +130,8 @@ func (e *Encoder) ListNode(
 
 func (e *Encoder) CopyNode(
 	ctx context.Context,
-	src ypath.Path,
-	dst ypath.Path,
+	src ypath.YPath,
+	dst ypath.YPath,
 	options *yt.CopyNodeOptions,
 ) (id yt.NodeID, err error) {
 	call := e.newCall(NewCopyNodeParams(src, dst, options))
@@ -144,8 +144,8 @@ func (e *Encoder) CopyNode(
 
 func (e *Encoder) MoveNode(
 	ctx context.Context,
-	src ypath.Path,
-	dst ypath.Path,
+	src ypath.YPath,
+	dst ypath.YPath,
 	options *yt.MoveNodeOptions,
 ) (id yt.NodeID, err error) {
 	call := e.newCall(NewMoveNodeParams(src, dst, options))
@@ -158,8 +158,8 @@ func (e *Encoder) MoveNode(
 
 func (e *Encoder) LinkNode(
 	ctx context.Context,
-	target ypath.Path,
-	link ypath.Path,
+	target ypath.YPath,
+	link ypath.YPath,
 	options *yt.LinkNodeOptions,
 ) (id yt.NodeID, err error) {
 	call := e.newCall(NewLinkNodeParams(target, link, options))
@@ -172,7 +172,7 @@ func (e *Encoder) LinkNode(
 
 func (e *Encoder) LockNode(
 	ctx context.Context,
-	path ypath.Path,
+	path ypath.YPath,
 	mode yt.LockMode,
 	options *yt.LockNodeOptions,
 ) (lr yt.LockResult, err error) {
@@ -186,7 +186,7 @@ func (e *Encoder) LockNode(
 
 func (e *Encoder) UnlockNode(
 	ctx context.Context,
-	path ypath.Path,
+	path ypath.YPath,
 	options *yt.UnlockNodeOptions,
 ) (err error) {
 	call := e.newCall(NewUnlockNodeParams(path, options))
@@ -351,7 +351,7 @@ func (e *Encoder) ListOperations(
 
 func (e *Encoder) WriteFile(
 	ctx context.Context,
-	path ypath.Path,
+	path ypath.YPath,
 	options *yt.WriteFileOptions,
 ) (w io.WriteCloser, err error) {
 	call := e.newCall(NewWriteFileParams(path, options))
@@ -360,7 +360,7 @@ func (e *Encoder) WriteFile(
 
 func (e *Encoder) ReadFile(
 	ctx context.Context,
-	path ypath.Path,
+	path ypath.YPath,
 	options *yt.ReadFileOptions,
 ) (r io.ReadCloser, err error) {
 	call := e.newCall(NewReadFileParams(path, options))
@@ -369,10 +369,10 @@ func (e *Encoder) ReadFile(
 
 func (e *Encoder) PutFileToCache(
 	ctx context.Context,
-	path ypath.Path,
+	path ypath.YPath,
 	md5 string,
 	options *yt.PutFileToCacheOptions,
-) (cachedPath ypath.Path, err error) {
+) (cachedPath ypath.YPath, err error) {
 	call := e.newCall(NewPutFileToCacheParams(path, md5, options))
 	err = e.do(ctx, call, func(res *CallResult) error {
 		return res.decodeValue(&cachedPath)
@@ -384,7 +384,7 @@ func (e *Encoder) GetFileFromCache(
 	ctx context.Context,
 	md5 string,
 	options *yt.GetFileFromCacheOptions,
-) (path ypath.Path, err error) {
+) (path ypath.YPath, err error) {
 	call := e.newCall(NewGetFileFromCacheParams(md5, options))
 	err = e.do(ctx, call, func(res *CallResult) error {
 		return res.decodeValue(&path)

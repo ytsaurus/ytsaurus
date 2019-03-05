@@ -24,8 +24,8 @@ func Key(values ...interface{}) ReadLimit {
 
 type Range struct {
 	Lower *ReadLimit `yson:"lower_limit,omitempty"`
-	Upper *ReadLimit `yson:"lower_limit,omitempty"`
-	Exact *ReadLimit `yson:"lower_limit,omitempty"`
+	Upper *ReadLimit `yson:"upper_limit,omitempty"`
+	Exact *ReadLimit `yson:"exact,omitempty"`
 }
 
 func Full() Range {
