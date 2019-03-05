@@ -393,6 +393,16 @@ public:
         const std::vector<TObjectId>& ids,
         const TAttributeSelector& selector)
     {
+        THashMap<TObjectId, size_t> objectIdToIndex;
+        for (size_t i = 0; i < ids.size(); ++i) {
+            if (!objectIdToIndex.insert({ids[i], i}).second) {
+                THROW_ERROR_EXCEPTION(
+                    NClient::NApi::EErrorCode::DuplicateObjectId,
+                    "ObjectId %v already requested",
+                    ids[i]);
+            }
+        }
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* typeHandler = objectManager->GetTypeHandlerOrThrow(type);
 
@@ -463,11 +473,6 @@ public:
 
         TGetQueryResult result;
         result.Objects.resize(ids.size());
-
-        THashMap<TObjectId, size_t> objectIdToIndex;
-        for (size_t i = 0; i < ids.size(); ++i) {
-            objectIdToIndex[ids[i]] = i;
-        }
 
         for (auto row : rows) {
             auto* object = fetcherContext.GetObject(Owner_, row);

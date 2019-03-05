@@ -105,6 +105,9 @@ class TestPods(object):
         with pytest.raises(YtResponseError):
             yp_client.get_objects("pod", [pod_id11, pod_id12, pod_id31, pod_id22], selectors=["/meta/id"])
 
+        with pytest.raises(YtResponseError):
+            yp_client.get_objects("pod", [pod_id11, pod_id11], selectors=["/meta/id"])
+
     def test_parent_pod_set_must_exist(self, yp_env):
         yp_client = yp_env.yp_client
 
