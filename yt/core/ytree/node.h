@@ -264,7 +264,7 @@ struct IMapNode
     //! Gets a child by its key.
     /*!
      *  \param key A key.
-     *  \return A child with the given key or NULL if the index is not valid.
+     *  \return A child with the given #key or null if no child with the given #key exists.
      */
     virtual INodePtr FindChild(const TString& key) const = 0;
 
