@@ -1,0 +1,16 @@
+{
+    "type" = "table";
+    "attributes" = {
+        "schema" = <
+            "strict" = %false;
+            "unique_keys" = %true;
+        > [
+            {
+                "sort_order" = "ascending";
+                "type" = "int32";
+                "name" = "x";
+            };
+        ];
+    };
+    "format" = "yson";
+}
