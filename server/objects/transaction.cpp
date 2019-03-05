@@ -393,16 +393,6 @@ public:
         const std::vector<TObjectId>& ids,
         const TAttributeSelector& selector)
     {
-        THashMap<TObjectId, size_t> objectIdToIndex;
-        for (size_t i = 0; i < ids.size(); ++i) {
-            if (!objectIdToIndex.insert({ids[i], i}).second) {
-                THROW_ERROR_EXCEPTION(
-                    NClient::NApi::EErrorCode::DuplicateObjectId,
-                    "ObjectId %v already requested",
-                    ids[i]);
-            }
-        }
-
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* typeHandler = objectManager->GetTypeHandlerOrThrow(type);
 
@@ -474,6 +464,11 @@ public:
         TGetQueryResult result;
         result.Objects.resize(ids.size());
 
+        THashMap<TObjectId, std::vector<size_t>> objectIdToIndexes;
+        for (size_t i = 0; i < ids.size(); ++i) {
+            objectIdToIndexes[ids[i]].push_back(i);
+        }
+
         for (auto row : rows) {
             auto* object = fetcherContext.GetObject(Owner_, row);
 
@@ -484,15 +479,21 @@ public:
                 }
             }
 
-            auto objectIndex = objectIdToIndex.find(object->GetId());
-            YCHECK(objectIndex != objectIdToIndex.end());
+            auto indexesIter = objectIdToIndexes.find(object->GetId());
+            YCHECK(indexesIter != objectIdToIndexes.end() && indexesIter->second.size() >= 1);
+            const auto& indexes = indexesIter->second;
 
-            auto& resultObject = result.Objects[objectIndex->second];
+            auto& resultObject = result.Objects[indexes[0]];
             YCHECK(!resultObject.has_value());
             resultObject.emplace();
 
             for (auto& fetcher : fetchers) {
                 resultObject->Values.push_back(fetcher.Fetch(row));
+            }
+
+            for (size_t i = 1; i < indexes.size(); ++i) {
+                YCHECK(!result.Objects[indexes[i]].has_value());
+                result.Objects[indexes[i]] = *resultObject;
             }
         }
 
