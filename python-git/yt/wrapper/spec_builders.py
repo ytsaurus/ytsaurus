@@ -24,9 +24,6 @@ import os
 import shutil
 from copy import deepcopy
 
-TMPFS_SIZE_MULTIPLIER = 1.01
-TMPFS_SIZE_ADDEND = 1024 * 1024
-
 def _check_columns(columns, type):
     if len(columns) == 1 and "," in columns:
         logger.info('Comma found in column name "%s". '
