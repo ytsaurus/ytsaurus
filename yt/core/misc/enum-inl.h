@@ -35,12 +35,13 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define ENUM__BEGIN_TRAITS(name, underlyingType, isBit, seq) \
+#define ENUM__BEGIN_TRAITS(name, underlyingType, isBit, isStringSerializable, seq) \
     struct TEnumTraitsImpl_##name \
     { \
         using TType = name; \
         using TUnderlying = underlyingType; \
         static constexpr bool IsBitEnum = isBit; \
+        static constexpr bool IsStringSerializableEnum = isStringSerializable; \
         \
         static TStringBuf GetTypeName() \
         { \

@@ -15,6 +15,8 @@
 #include <yt/client/api/sticky_transaction_pool.h>
 #include <yt/client/api/client_cache.h>
 
+#include <yt/client/api/rpc_proxy/connection_impl.h>
+
 #include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/core/yson/null_consumer.h>
