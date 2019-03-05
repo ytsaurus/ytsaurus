@@ -1,6 +1,8 @@
 #include "ref_counted_tracker.h"
 #include "demangle.h"
 
+#include <yt/core/concurrency/thread_affinity.h>
+
 #include <util/system/tls.h>
 
 #include <algorithm>
@@ -403,6 +405,10 @@ void TRefCountedTracker::FreeSpaceSlow(TRefCountedTypeCookie cookie, size_t spac
 TRefCountedTracker::TLocalSlot* TRefCountedTracker::GetLocalSlot(TRefCountedTypeCookie cookie)
 {
     Y_STATIC_THREAD(TLocalSlotsHolder) Holder;
+    auto& slots = Holder.Get().Slots;
+    if (cookie >= static_cast<int>(slots.size())) {
+        slots.resize(std::max(static_cast<size_t>(cookie + 1), slots.size() * 2));
+    }
 
     YCHECK(LocalSlotsSize >= 0);
     if (!LocalSlotsBegin) {
@@ -410,10 +416,6 @@ TRefCountedTracker::TLocalSlot* TRefCountedTracker::GetLocalSlot(TRefCountedType
         YCHECK(LocalSlotHolders_.insert(Holder.GetPtr()).second);
     }
 
-    auto& slots = Holder.Get().Slots;
-    if (cookie >= static_cast<int>(slots.size())) {
-        slots.resize(std::max(static_cast<size_t>(cookie + 1), slots.size() * 2));
-    }
     LocalSlotsBegin = slots.data();
     LocalSlotsSize = static_cast<int>(slots.size());
 
@@ -422,6 +424,7 @@ TRefCountedTracker::TLocalSlot* TRefCountedTracker::GetLocalSlot(TRefCountedType
 
 TRefCountedTracker::TGlobalSlot* TRefCountedTracker::GetGlobalSlot(TRefCountedTypeCookie cookie)
 {
+    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
     if (cookie >= static_cast<int>(GlobalSlots_.size())) {
         GlobalSlots_.resize(std::max(static_cast<size_t>(cookie) + 1, GlobalSlots_.size() * 2));
     }
