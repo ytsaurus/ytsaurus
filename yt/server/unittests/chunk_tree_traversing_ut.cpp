@@ -1,5 +1,7 @@
 #include <yt/core/test_framework/framework.h>
 
+#include "chunk_helpers.h"
+
 #include <yt/server/master/chunk_server/chunk.h>
 #include <yt/server/master/chunk_server/chunk_list.h>
 #include <yt/server/master/chunk_server/chunk_tree_traverser.h>
@@ -9,8 +11,6 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/client/chunk_client/read_limit.h>
-
-#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
@@ -25,10 +25,12 @@
 #include <yt/core/yson/string.h>
 
 namespace NYT::NChunkServer {
+
 namespace {
 
+using namespace NTesting;
+
 using namespace NChunkClient::NProto;
-using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
 using namespace NYTree;
@@ -122,71 +124,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void AttachToChunkList(
-    TChunkList* chunkList,
-    const std::vector<TChunkTree*>& children)
-{
-    NChunkServer::AttachToChunkList(
-        chunkList,
-        children.data(),
-        children.data() + children.size());
-}
+class TChunkTreeTraversingTest
+    : public TChunkGeneratorBase
+{ };
 
-TGuid GenerateId(EObjectType type)
-{
-    static i64 counter = 0;
-    return MakeId(type, 0, counter++, 0);
-}
-
-std::unique_ptr<TChunk> CreateChunk(
-    i64 rowCount,
-    i64 compressedDataSize,
-    i64 uncompressedDataSize,
-    i64 dataWeight,
-    TOwningKey minKey = TOwningKey(),
-    TOwningKey maxKey = TOwningKey())
-{
-    auto chunk = std::make_unique<TChunk>(GenerateId(EObjectType::Chunk));
-    chunk->RefObject();
-
-    TChunkMeta chunkMeta;
-    chunkMeta.set_type(static_cast<int>(EChunkType::Table));
-
-    TMiscExt miscExt;
-    miscExt.set_row_count(rowCount);
-    miscExt.set_uncompressed_data_size(uncompressedDataSize);
-    miscExt.set_compressed_data_size(compressedDataSize);
-    miscExt.set_data_weight(dataWeight);
-    SetProtoExtension(chunkMeta.mutable_extensions(), miscExt);
-
-    TBoundaryKeysExt boundaryKeysExt;
-    ToProto(boundaryKeysExt.mutable_min(), minKey);
-    ToProto(boundaryKeysExt.mutable_max(), maxKey);
-    SetProtoExtension(chunkMeta.mutable_extensions(), boundaryKeysExt);
-
-    NChunkClient::NProto::TChunkInfo chunkInfo;
-
-    chunk->Confirm(&chunkInfo, &chunkMeta);
-
-    return chunk;
-}
-
-std::unique_ptr<TChunkList> CreateChunkList(EChunkListKind kind = EChunkListKind::Static)
-{
-    auto chunkList = std::make_unique<TChunkList>(GenerateId(EObjectType::ChunkList));
-    chunkList->SetKind(kind);
-    chunkList->RefObject();
-    return chunkList;
-}
-
-TUnversionedOwningRow BuildKey(const TString& yson)
-{
-    return NTableClient::YsonToKey(yson);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TEST(TraverseChunkTree, Simple)
+TEST_F(TChunkTreeTraversingTest, Simple)
 {
     //     listA           //
     //    /     \          //
@@ -194,46 +136,46 @@ TEST(TraverseChunkTree, Simple)
     //         /     \     //
     //     chunk2   chunk3 //
 
-    auto chunk1 = CreateChunk(1, 1, 1, 1);
-    auto chunk2 = CreateChunk(2, 2, 2, 2);
-    auto chunk3 = CreateChunk(3, 3, 3, 3);
+    auto* chunk1 = CreateChunk(1, 1, 1, 1);
+    auto* chunk2 = CreateChunk(2, 2, 2, 2);
+    auto* chunk3 = CreateChunk(3, 3, 3, 3);
 
-    auto listA = CreateChunkList();
-    auto listB = CreateChunkList();
+    auto* listA = CreateChunkList();
+    auto* listB = CreateChunkList();
 
     {
         std::vector<TChunkTree*> items;
-        items.push_back(chunk2.get());
-        items.push_back(chunk3.get());
-        AttachToChunkList(listB.get(), items);
+        items.push_back(chunk2);
+        items.push_back(chunk3);
+        AttachToChunkList(listB, items);
     }
 
     {
         std::vector<TChunkTree*> items;
-        items.push_back(chunk1.get());
-        items.push_back(listB.get());
-        AttachToChunkList(listA.get(), items);
+        items.push_back(chunk1);
+        items.push_back(listB);
+        AttachToChunkList(listA, items);
     }
 
     auto callbacks = GetNonpreemptableChunkTraverserCallbacks();
 
     {
         auto visitor = New<TTestChunkVisitor>();
-        TraverseChunkTree(callbacks, visitor, listA.get());
+        TraverseChunkTree(callbacks, visitor, listA);
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
-            chunk1.get(),
+            chunk1,
             0,
             TReadLimit(),
             TReadLimit()));
         correctResult.insert(TChunkInfo(
-            chunk2.get(),
+            chunk2,
             1,
             TReadLimit(),
             TReadLimit()));
         correctResult.insert(TChunkInfo(
-            chunk3.get(),
+            chunk3,
             3,
             TReadLimit(),
             TReadLimit()));
@@ -250,7 +192,7 @@ TEST(TraverseChunkTree, Simple)
         TReadLimit upperLimit;
         upperLimit.SetRowIndex(5);
 
-        TraverseChunkTree(callbacks, visitor, listA.get(), lowerLimit, upperLimit);
+        TraverseChunkTree(callbacks, visitor, listA, lowerLimit, upperLimit);
 
         TReadLimit correctLowerLimit;
         correctLowerLimit.SetRowIndex(1);
@@ -260,12 +202,12 @@ TEST(TraverseChunkTree, Simple)
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
-            chunk2.get(),
+            chunk2,
             1,
             correctLowerLimit,
             TReadLimit()));
         correctResult.insert(TChunkInfo(
-            chunk3.get(),
+            chunk3,
             3,
             TReadLimit(),
             correctUpperLimit));
@@ -274,7 +216,7 @@ TEST(TraverseChunkTree, Simple)
     }
 }
 
-TEST(TraverseChunkTree, WithEmptyChunkLists)
+TEST_F(TChunkTreeTraversingTest, WithEmptyChunkLists)
 {
     //               list              //
     //    /     |     |     |     \    //
@@ -290,28 +232,28 @@ TEST(TraverseChunkTree, WithEmptyChunkLists)
 
     {
         std::vector<TChunkTree*> items;
-        items.push_back(empty1.get());
-        items.push_back(chunk1.get());
-        items.push_back(empty2.get());
-        items.push_back(chunk2.get());
-        items.push_back(empty3.get());
-        AttachToChunkList(list.get(), items);
+        items.push_back(empty1);
+        items.push_back(chunk1);
+        items.push_back(empty2);
+        items.push_back(chunk2);
+        items.push_back(empty3);
+        AttachToChunkList(list, items);
     }
 
     auto callbacks = GetNonpreemptableChunkTraverserCallbacks();
 
     {
         auto visitor = New<TTestChunkVisitor>();
-        TraverseChunkTree(callbacks, visitor, list.get());
+        TraverseChunkTree(callbacks, visitor, list);
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
-            chunk1.get(),
+            chunk1,
             0,
             TReadLimit(),
             TReadLimit()));
         correctResult.insert(TChunkInfo(
-            chunk2.get(),
+            chunk2,
             1,
             TReadLimit(),
             TReadLimit()));
@@ -328,7 +270,7 @@ TEST(TraverseChunkTree, WithEmptyChunkLists)
         TReadLimit upperLimit;
         upperLimit.SetRowIndex(2);
 
-        TraverseChunkTree(callbacks, visitor, list.get(), lowerLimit, upperLimit);
+        TraverseChunkTree(callbacks, visitor, list, lowerLimit, upperLimit);
 
         TReadLimit correctLowerLimit;
 
@@ -337,7 +279,7 @@ TEST(TraverseChunkTree, WithEmptyChunkLists)
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
-            chunk2.get(),
+            chunk2,
             1,
             correctLowerLimit,
             correctUpperLimit));
@@ -346,7 +288,7 @@ TEST(TraverseChunkTree, WithEmptyChunkLists)
     }
 }
 
-TEST(TraverseChunkTree, SortedDynamic)
+TEST_F(TChunkTreeTraversingTest, SortedDynamic)
 {
     //     root               //
     //    /    \              //
@@ -364,29 +306,29 @@ TEST(TraverseChunkTree, SortedDynamic)
     tablet1->SetPivotKey(BuildKey(""));
     tablet2->SetPivotKey(BuildKey("2"));
 
-    AttachToChunkList(tablet1.get(), std::vector<TChunkTree*>{chunk1.get()});
-    AttachToChunkList(tablet2.get(), std::vector<TChunkTree*>{chunk2.get(), chunk3.get()});
-    AttachToChunkList(root.get(), std::vector<TChunkTree*>{tablet1.get(), tablet2.get()});
+    AttachToChunkList(tablet1, std::vector<TChunkTree*>{chunk1});
+    AttachToChunkList(tablet2, std::vector<TChunkTree*>{chunk2, chunk3});
+    AttachToChunkList(root, std::vector<TChunkTree*>{tablet1, tablet2});
 
     auto callbacks = GetNonpreemptableChunkTraverserCallbacks();
 
     {
         auto visitor = New<TTestChunkVisitor>();
-        TraverseChunkTree(callbacks, visitor, root.get());
+        TraverseChunkTree(callbacks, visitor, root);
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
-            chunk1.get(),
+            chunk1,
             0,
             TReadLimit(),
             TReadLimit()));
         correctResult.insert(TChunkInfo(
-            chunk2.get(),
+            chunk2,
             0,
             TReadLimit(),
             TReadLimit()));
         correctResult.insert(TChunkInfo(
-            chunk3.get(),
+            chunk3,
             0,
             TReadLimit(),
             TReadLimit()));
@@ -403,16 +345,16 @@ TEST(TraverseChunkTree, SortedDynamic)
         TReadLimit upperLimit;
         upperLimit.SetChunkIndex(2);
 
-        TraverseChunkTree(callbacks, visitor, root.get(), lowerLimit, upperLimit);
+        TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
-            chunk1.get(),
+            chunk1,
             0,
             TReadLimit(),
             TReadLimit()));
         correctResult.insert(TChunkInfo(
-            chunk2.get(),
+            chunk2,
             0,
             TReadLimit(),
             TReadLimit()));
@@ -429,11 +371,11 @@ TEST(TraverseChunkTree, SortedDynamic)
         TReadLimit upperLimit;
         upperLimit.SetChunkIndex(3);
 
-        TraverseChunkTree(callbacks, visitor, root.get(), lowerLimit, upperLimit);
+        TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
-            chunk3.get(),
+            chunk3,
             0,
             TReadLimit(),
             TReadLimit()));
@@ -450,21 +392,21 @@ TEST(TraverseChunkTree, SortedDynamic)
         TReadLimit upperLimit;
         upperLimit.SetKey(BuildKey("5"));
 
-        TraverseChunkTree(callbacks, visitor, root.get(), lowerLimit, upperLimit);
+        TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
-            chunk1.get(),
+            chunk1,
             0,
             TReadLimit(),
             TReadLimit()));
         correctResult.insert(TChunkInfo(
-            chunk2.get(),
+            chunk2,
             0,
             TReadLimit(),
             upperLimit));
         correctResult.insert(TChunkInfo(
-            chunk3.get(),
+            chunk3,
             0,
             TReadLimit(),
             TReadLimit()));
@@ -473,7 +415,7 @@ TEST(TraverseChunkTree, SortedDynamic)
     }
 }
 
-TEST(TraverseChunkTree, SortedDynamicChunkShared)
+TEST_F(TChunkTreeTraversingTest, SortedDynamicChunkShared)
 {
     //          root            //
     //        /   |   \         //
@@ -491,10 +433,10 @@ TEST(TraverseChunkTree, SortedDynamicChunkShared)
     tablet2->SetPivotKey(BuildKey("2"));
     tablet3->SetPivotKey(BuildKey("4"));
 
-    AttachToChunkList(tablet1.get(), std::vector<TChunkTree*>{chunk.get()});
-    AttachToChunkList(tablet2.get(), std::vector<TChunkTree*>{chunk.get()});
-    AttachToChunkList(tablet3.get(), std::vector<TChunkTree*>{chunk.get()});
-    AttachToChunkList(root.get(), std::vector<TChunkTree*>{tablet1.get(), tablet2.get(), tablet3.get()});
+    AttachToChunkList(tablet1, std::vector<TChunkTree*>{chunk});
+    AttachToChunkList(tablet2, std::vector<TChunkTree*>{chunk});
+    AttachToChunkList(tablet3, std::vector<TChunkTree*>{chunk});
+    AttachToChunkList(root, std::vector<TChunkTree*>{tablet1, tablet2, tablet3});
 
     TReadLimit limit2;
     limit2.SetKey(BuildKey("2"));
@@ -506,21 +448,21 @@ TEST(TraverseChunkTree, SortedDynamicChunkShared)
 
     {
         auto visitor = New<TTestChunkVisitor>();
-        TraverseChunkTree(callbacks, visitor, root.get());
+        TraverseChunkTree(callbacks, visitor, root);
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
-            chunk.get(),
+            chunk,
             0,
             TReadLimit(),
             limit2));
         correctResult.insert(TChunkInfo(
-            chunk.get(),
+            chunk,
             0,
             limit2,
             limit4));
         correctResult.insert(TChunkInfo(
-            chunk.get(),
+            chunk,
             0,
             limit4,
             TReadLimit()));
@@ -537,11 +479,11 @@ TEST(TraverseChunkTree, SortedDynamicChunkShared)
         TReadLimit upperLimit;
         upperLimit.SetKey(BuildKey("4"));
 
-        TraverseChunkTree(callbacks, visitor, root.get(), lowerLimit, upperLimit);
+        TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
-            chunk.get(),
+            chunk,
             0,
             limit2,
             limit4));
@@ -558,21 +500,21 @@ TEST(TraverseChunkTree, SortedDynamicChunkShared)
         TReadLimit upperLimit;
         upperLimit.SetKey(BuildKey("5"));
 
-        TraverseChunkTree(callbacks, visitor, root.get(), lowerLimit, upperLimit);
+        TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
-            chunk.get(),
+            chunk,
             0,
             lowerLimit,
             limit2));
         correctResult.insert(TChunkInfo(
-            chunk.get(),
+            chunk,
             0,
             limit2,
             limit4));
         correctResult.insert(TChunkInfo(
-            chunk.get(),
+            chunk,
             0,
             limit4,
             upperLimit));
@@ -581,8 +523,7 @@ TEST(TraverseChunkTree, SortedDynamicChunkShared)
     }
 }
 
-
-TEST(TraverseChunkTree, OrderedDynamic)
+TEST_F(TChunkTreeTraversingTest, OrderedDynamic)
 {
     //     root               //
     //    /    \              //
@@ -598,29 +539,29 @@ TEST(TraverseChunkTree, OrderedDynamic)
     auto tablet1 = CreateChunkList(EChunkListKind::OrderedDynamicTablet);
     auto tablet2 = CreateChunkList(EChunkListKind::OrderedDynamicTablet);
 
-    AttachToChunkList(tablet1.get(), std::vector<TChunkTree*>{chunk1.get()});
-    AttachToChunkList(tablet2.get(), std::vector<TChunkTree*>{chunk2.get(), chunk3.get()});
-    AttachToChunkList(root.get(), std::vector<TChunkTree*>{tablet1.get(), tablet2.get()});
+    AttachToChunkList(tablet1, std::vector<TChunkTree*>{chunk1});
+    AttachToChunkList(tablet2, std::vector<TChunkTree*>{chunk2, chunk3});
+    AttachToChunkList(root, std::vector<TChunkTree*>{tablet1, tablet2});
 
     auto callbacks = GetNonpreemptableChunkTraverserCallbacks();
 
     {
         auto visitor = New<TTestChunkVisitor>();
-        TraverseChunkTree(callbacks, visitor, root.get());
+        TraverseChunkTree(callbacks, visitor, root);
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
-            chunk1.get(),
+            chunk1,
             0,
             TReadLimit(),
             TReadLimit()));
         correctResult.insert(TChunkInfo(
-            chunk2.get(),
+            chunk2,
             0,
             TReadLimit(),
             TReadLimit()));
         correctResult.insert(TChunkInfo(
-            chunk3.get(),
+            chunk3,
             0,
             TReadLimit(),
             TReadLimit()));
