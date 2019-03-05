@@ -993,6 +993,26 @@ TRANSFORMS[29] = [
             in_memory=True))
 ]
 
+TRANSFORMS[30] = [
+    Convert(
+        "ordered_by_start_time",
+        table_info=TableInfo([
+                ("start_time", "int64"),
+                ("id_hi", "uint64"),
+                ("id_lo", "uint64"),
+            ], [
+                ("operation_type", "string"),
+                ("state", "string"),
+                ("authenticated_user", "string"),
+                ("filter_factors", "string"),
+                ("pool", "string"),
+                ("pools", "any"),
+                ("has_failed_jobs", "boolean"),
+                ("acl", "any"),
+            ],
+            in_memory=True)),
+]
+
 def swap_table(client, target, source, version):
     backup_path = target + ".bak.{0}".format(version)
     has_target = False
