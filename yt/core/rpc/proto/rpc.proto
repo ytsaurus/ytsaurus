@@ -159,3 +159,16 @@ message TRspDiscover
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TWriterFeedback
+{
+    enum EWriterFeedback
+    {
+        WF_HANDSHAKE = 0;
+        WF_SUCCESS = 1;
+        // TODO(kiselyovp) add WF_FAILURE for table writers
+    }
+
+    required EWriterFeedback feedback = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

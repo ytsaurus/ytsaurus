@@ -2,7 +2,11 @@
 
 #include <yt/client/api/journal_writer.h>
 
+#include <yt/core/rpc/stream.h>
+
 namespace NYT::NApi::NRpcProxy {
+
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,18 +23,17 @@ public:
 
     virtual TFuture<void> Open() override
     {
-        InvokeResult_ = Request_->Invoke().As<void>();
+        ValidateNotClosed();
 
-        Opened_ = Request_->GetResponseAttachmentsStream()->Read() // TODOKETE this should be a separated function??
-            .Apply(BIND ([] (const TErrorOr<TSharedRef>& refOrError) {
-                const auto& ref = refOrError.ValueOrThrow();
-                if (ref.Size() != 0) {
-                    THROW_ERROR_EXCEPTION("Failed to open a journal writer: expected an empty ref")
-                        << TErrorAttribute("attachment_size", ref.Size());
-                }
-            }));
+        auto guard = Guard(SpinLock_);
+        if (!OpenResult_) {
+            OpenResult_ = NRpc::CreateOutputStreamAdapter(Request_, NRpc::EWriterFeedbackStrategy::OnlyPositive)
+                .Apply(BIND([=, this_ = MakeStrong(this)] (const IAsyncZeroCopyOutputStreamPtr& outputStream) {
+                    Underlying_ = outputStream;
+                })).As<void>();
+        }
 
-        return Opened_;
+        return OpenResult_;
     }
 
     virtual TFuture<void> Write(TRange<TSharedRef> rows) override
@@ -42,36 +45,39 @@ public:
             return VoidFuture;
         }
 
-        auto outputStream = Request_->GetRequestAttachmentsStream();
-        for (size_t rowIndex = 0; rowIndex + 1 < rows.Size(); ++rowIndex) {
-            outputStream->Write(rows[rowIndex]);
-        }
-
-        // TODO(kiselyovp) this future is set to OK when we can send more data, not when our rows
-        // are actually written to journal. If an error occurs, the client will get to know about it later.
-        // Is this fine?
-        return outputStream->Write(rows.Back());
+        return Underlying_->Write(PackRefs(rows));
     }
 
     virtual TFuture<void> Close() override
     {
         ValidateOpened();
-        Request_->GetRequestAttachmentsStream()->Close();
-        return InvokeResult_;
+        ValidateNotClosed();
+
+        Closed_ = true;
+        return Underlying_->Close();
     }
 
 private:
     TApiServiceProxy::TReqCreateJournalWriterPtr Request_;
-    TFuture<void> Opened_;
-    TFuture<void> InvokeResult_;
+    IAsyncZeroCopyOutputStreamPtr Underlying_;
+    TFuture<void> OpenResult_;
+    std::atomic<bool> Closed_{false};
     TSpinLock SpinLock_;
 
     void ValidateOpened()
     {
-        if (!Opened_.IsSet()) {
+        auto guard = Guard(SpinLock_);
+        if (!OpenResult_.IsSet()) {
             THROW_ERROR_EXCEPTION("Can't write into an unopened journal writer");
         }
-        Opened_.Get().ThrowOnError();
+        OpenResult_.Get().ThrowOnError();
+    }
+
+    void ValidateNotClosed()
+    {
+        if (Closed_) {
+            THROW_ERROR_EXCEPTION("File writer is closed");
+        }
     }
 };
 

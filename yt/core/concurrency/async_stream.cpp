@@ -912,7 +912,7 @@ public:
 
         if (PendingBlock_) {
             auto block = std::move(PendingBlock_);
-            PendingBlock_ = std::optional<TErrorOr<TSharedRef>>();
+            PendingBlock_.reset();
 
             return MakeFuture<TSharedRef>(*block);
         }
@@ -1011,7 +1011,7 @@ public:
 
         if (PendingBlock_) {
             auto block = std::move(PendingBlock_);
-            PendingBlock_ = std::optional<TErrorOr<TSharedRef>>();
+            PendingBlock_.reset();
 
             return MakeFuture<TSharedRef>(*block);
         }
@@ -1090,5 +1090,19 @@ void PipeInputToOutput(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TFuture<void> ExpectEndOfStream(
+    IAsyncZeroCopyInputStreamPtr input)
+{
+    YCHECK(input);
+    return input->Read().Apply(BIND([=] (const TSharedRef& ref) {
+        if (ref) {
+            THROW_ERROR_EXCEPTION("Expected end of input stream, received a non-null ref")
+                << TErrorAttribute("attachment_size", ref.Size());
+        }
+    }));
+}
+
+/////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NConcurrency

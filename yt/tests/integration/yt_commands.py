@@ -594,7 +594,15 @@ def balance_tablet_cells(bundle, tables=None, **kwargs):
 
 def write_file(path, data, **kwargs):
     kwargs["path"] = path
-    return execute_command("write_file", kwargs, input_stream=StringIO(data))
+
+    if "input_stream" in kwargs:
+        assert data is None
+        input_stream = kwargs["input_stream"]
+        del kwargs["input_stream"]
+    else:
+        input_stream = StringIO(data)
+
+    return execute_command("write_file", kwargs, input_stream=input_stream)
 
 def write_local_file(path, file_name, **kwargs):
     with open(file_name, "rt") as f:

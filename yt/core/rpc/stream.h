@@ -119,4 +119,57 @@ DEFINE_REFCOUNTED_TYPE(TAttachmentsOutputStream)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Creates an input stream adapter from an uninvoked client request.
+template <class TRequestMessage, class TResponse>
+TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateInputStreamAdapter(
+    TIntrusivePtr<TTypedClientRequest<TRequestMessage, TResponse>> request);
+
+// TODO(kiselyovp) add an option for possible negative feedback when
+// implementing CreateTableWriter
+//! Describes whether the client output stream needs server feedback to mark
+//! writes as successful and whether that feedback can be negative.
+DEFINE_ENUM(EWriterFeedbackStrategy,
+    (NoFeedback)
+    (OnlyPositive)
+);
+
+// TODO(kiselyovp) add a Failure option for table writers
+DEFINE_ENUM(EWriterFeedback,
+    (Handshake)
+    (Success)
+);
+
+//! Creates an output stream adapter from an uninvoked client request.
+template <class TRequestMessage, class TResponse>
+TFuture<NConcurrency::IAsyncZeroCopyOutputStreamPtr> CreateOutputStreamAdapter(
+    TIntrusivePtr<TTypedClientRequest<TRequestMessage, TResponse>> request,
+    EWriterFeedbackStrategy feedbackStrategy = EWriterFeedbackStrategy::NoFeedback);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Handles an incoming streaming request that uses the #CreateInputStreamAdapter
+//! function.
+void HandleInputStreamingRequest(
+    IServiceContextPtr context,
+    TCallback<TFuture<TSharedRef>()> blockGenerator);
+
+void HandleInputStreamingRequest(
+    IServiceContextPtr context,
+    NConcurrency::IAsyncZeroCopyInputStreamPtr input);
+
+//! Handles an incoming streaming request that uses the #CreateOutputStreamAdapter
+//! function with the same #feedbackStrategy.
+void HandleOutputStreamingRequest(
+    IServiceContextPtr context,
+    TCallback<TFuture<void>(TSharedRef)> blockHandler,
+    TCallback<TFuture<void>()> finalizer,
+    EWriterFeedbackStrategy feedbackStrategy = EWriterFeedbackStrategy::NoFeedback);
+
+void HandleOutputStreamingRequest(
+    IServiceContextPtr context,
+    NConcurrency::IAsyncZeroCopyOutputStreamPtr output,
+    EWriterFeedbackStrategy feedbackStrategy = EWriterFeedbackStrategy::NoFeedback);
+
+/////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NRpc
