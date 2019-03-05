@@ -185,7 +185,7 @@ type CypressClient interface {
 	// http:params:"path","type"
 	CreateNode(
 		ctx context.Context,
-		path ypath.Path,
+		path ypath.YPath,
 		typ NodeType,
 		options *CreateNodeOptions,
 	) (id NodeID, err error)
@@ -202,7 +202,7 @@ type CypressClient interface {
 	// http:params:"path"
 	NodeExists(
 		ctx context.Context,
-		path ypath.Path,
+		path ypath.YPath,
 		options *NodeExistsOptions,
 	) (ok bool, err error)
 
@@ -210,7 +210,7 @@ type CypressClient interface {
 	// http:params:"path"
 	RemoveNode(
 		ctx context.Context,
-		path ypath.Path,
+		path ypath.YPath,
 		options *RemoveNodeOptions,
 	) (err error)
 
@@ -219,7 +219,7 @@ type CypressClient interface {
 	// http:extra
 	GetNode(
 		ctx context.Context,
-		path ypath.Path,
+		path ypath.YPath,
 		result interface{},
 		options *GetNodeOptions,
 	) (err error)
@@ -229,7 +229,7 @@ type CypressClient interface {
 	// http:extra
 	SetNode(
 		ctx context.Context,
-		path ypath.Path,
+		path ypath.YPath,
 		value interface{},
 		options *SetNodeOptions,
 	) (err error)
@@ -239,7 +239,7 @@ type CypressClient interface {
 	// http:extra
 	ListNode(
 		ctx context.Context,
-		path ypath.Path,
+		path ypath.YPath,
 		result interface{},
 		options *ListNodeOptions,
 	) (err error)
@@ -248,8 +248,8 @@ type CypressClient interface {
 	// http:params:"source_path","destination_path"
 	CopyNode(
 		ctx context.Context,
-		src ypath.Path,
-		dst ypath.Path,
+		src ypath.YPath,
+		dst ypath.YPath,
 		options *CopyNodeOptions,
 	) (id NodeID, err error)
 
@@ -257,8 +257,8 @@ type CypressClient interface {
 	// http:params:"source_path","destination_path"
 	MoveNode(
 		ctx context.Context,
-		src ypath.Path,
-		dst ypath.Path,
+		src ypath.YPath,
+		dst ypath.YPath,
 		options *MoveNodeOptions,
 	) (id NodeID, err error)
 
@@ -266,8 +266,8 @@ type CypressClient interface {
 	// http:params:"target_path","link_path"
 	LinkNode(
 		ctx context.Context,
-		target ypath.Path,
-		link ypath.Path,
+		target ypath.YPath,
+		link ypath.YPath,
 		options *LinkNodeOptions,
 	) (id NodeID, err error)
 }
@@ -359,7 +359,7 @@ type ReadFileOptions struct {
 }
 
 type PutFileToCacheOptions struct {
-	CachePath ypath.Path `http:"cache_path"`
+	CachePath ypath.YPath `http:"cache_path"`
 
 	*MasterReadOptions
 	*MutatingOptions
@@ -367,7 +367,7 @@ type PutFileToCacheOptions struct {
 }
 
 type GetFileFromCacheOptions struct {
-	CachePath ypath.Path `http:"cache_path"`
+	CachePath ypath.YPath `http:"cache_path"`
 
 	*MasterReadOptions
 	*ReadRetryOptions
@@ -378,7 +378,7 @@ type FileClient interface {
 	// http:params:"path"
 	WriteFile(
 		ctx context.Context,
-		path ypath.Path,
+		path ypath.YPath,
 		options *WriteFileOptions,
 	) (w io.WriteCloser, err error)
 
@@ -386,7 +386,7 @@ type FileClient interface {
 	// http:params:"path"
 	ReadFile(
 		ctx context.Context,
-		path ypath.Path,
+		path ypath.YPath,
 		options *ReadFileOptions,
 	) (r io.ReadCloser, err error)
 
@@ -394,10 +394,10 @@ type FileClient interface {
 	// http:params:"path","md5"
 	PutFileToCache(
 		ctx context.Context,
-		path ypath.Path,
+		path ypath.YPath,
 		md5 string,
 		options *PutFileToCacheOptions,
-	) (cachedPath ypath.Path, err error)
+	) (cachedPath ypath.YPath, err error)
 
 	// http:verb:"get_file_from_cache"
 	// http:params:"md5"
@@ -405,7 +405,7 @@ type FileClient interface {
 		ctx context.Context,
 		md5 string,
 		options *GetFileFromCacheOptions,
-	) (path ypath.Path, err error)
+	) (path ypath.YPath, err error)
 }
 
 type WriteTableOptions struct {
@@ -608,7 +608,7 @@ type LockClient interface {
 	// http:params:"path","mode"
 	LockNode(
 		ctx context.Context,
-		path ypath.Path,
+		path ypath.YPath,
 		mode LockMode,
 		options *LockNodeOptions,
 	) (res LockResult, err error)
@@ -617,7 +617,7 @@ type LockClient interface {
 	// http:params:"path"
 	UnlockNode(
 		ctx context.Context,
-		path ypath.Path,
+		path ypath.YPath,
 		options *UnlockNodeOptions,
 	) (err error)
 }

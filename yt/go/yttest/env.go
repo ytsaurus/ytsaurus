@@ -50,7 +50,7 @@ func (e *Env) TmpPath() ypath.Path {
 	return ypath.Path("//tmp").Child(uid.String())
 }
 
-func (e *Env) UploadSlice(path ypath.Path, slice interface{}) error {
+func (e *Env) UploadSlice(path ypath.YPath, slice interface{}) error {
 	_, err := e.YT.CreateNode(e.Ctx, path, yt.NodeTable, &yt.CreateNodeOptions{
 		Attributes: map[string]interface{}{
 			"schema": schema.MustInfer(reflect.New(reflect.ValueOf(slice).Type().Elem()).Interface()),
@@ -75,7 +75,7 @@ func (e *Env) UploadSlice(path ypath.Path, slice interface{}) error {
 	return w.Close()
 }
 
-func (e *Env) DownloadSlice(path ypath.Path, value interface{}) error {
+func (e *Env) DownloadSlice(path ypath.YPath, value interface{}) error {
 	sliceValue := reflect.ValueOf(value).Elem()
 
 	r, err := e.YT.ReadTable(e.Ctx, path, nil)

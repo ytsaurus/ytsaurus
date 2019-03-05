@@ -496,13 +496,13 @@ func writeUnlockNodeOptions(w *yson.Writer, o *yt.UnlockNodeOptions) {
 
 type CreateNodeParams struct {
 	verb    Verb
-	path    ypath.Path
+	path    ypath.YPath
 	typ     yt.NodeType
 	options *yt.CreateNodeOptions
 }
 
 func NewCreateNodeParams(
-	path ypath.Path,
+	path ypath.YPath,
 	typ yt.NodeType,
 	options *yt.CreateNodeOptions,
 ) *CreateNodeParams {
@@ -592,12 +592,12 @@ func (p *CreateObjectParams) MutatingOptions() **yt.MutatingOptions {
 
 type NodeExistsParams struct {
 	verb    Verb
-	path    ypath.Path
+	path    ypath.YPath
 	options *yt.NodeExistsOptions
 }
 
 func NewNodeExistsParams(
-	path ypath.Path,
+	path ypath.YPath,
 	options *yt.NodeExistsOptions,
 ) *NodeExistsParams {
 	if options == nil {
@@ -643,12 +643,12 @@ func (p *NodeExistsParams) ReadRetryOptions() **yt.ReadRetryOptions {
 
 type RemoveNodeParams struct {
 	verb    Verb
-	path    ypath.Path
+	path    ypath.YPath
 	options *yt.RemoveNodeOptions
 }
 
 func NewRemoveNodeParams(
-	path ypath.Path,
+	path ypath.YPath,
 	options *yt.RemoveNodeOptions,
 ) *RemoveNodeParams {
 	if options == nil {
@@ -694,12 +694,12 @@ func (p *RemoveNodeParams) MutatingOptions() **yt.MutatingOptions {
 
 type GetNodeParams struct {
 	verb    Verb
-	path    ypath.Path
+	path    ypath.YPath
 	options *yt.GetNodeOptions
 }
 
 func NewGetNodeParams(
-	path ypath.Path,
+	path ypath.YPath,
 	options *yt.GetNodeOptions,
 ) *GetNodeParams {
 	if options == nil {
@@ -749,12 +749,12 @@ func (p *GetNodeParams) ReadRetryOptions() **yt.ReadRetryOptions {
 
 type SetNodeParams struct {
 	verb    Verb
-	path    ypath.Path
+	path    ypath.YPath
 	options *yt.SetNodeOptions
 }
 
 func NewSetNodeParams(
-	path ypath.Path,
+	path ypath.YPath,
 	options *yt.SetNodeOptions,
 ) *SetNodeParams {
 	if options == nil {
@@ -800,12 +800,12 @@ func (p *SetNodeParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
 
 type ListNodeParams struct {
 	verb    Verb
-	path    ypath.Path
+	path    ypath.YPath
 	options *yt.ListNodeOptions
 }
 
 func NewListNodeParams(
-	path ypath.Path,
+	path ypath.YPath,
 	options *yt.ListNodeOptions,
 ) *ListNodeParams {
 	if options == nil {
@@ -855,14 +855,14 @@ func (p *ListNodeParams) ReadRetryOptions() **yt.ReadRetryOptions {
 
 type CopyNodeParams struct {
 	verb    Verb
-	src     ypath.Path
-	dst     ypath.Path
+	src     ypath.YPath
+	dst     ypath.YPath
 	options *yt.CopyNodeOptions
 }
 
 func NewCopyNodeParams(
-	src ypath.Path,
-	dst ypath.Path,
+	src ypath.YPath,
+	dst ypath.YPath,
 	options *yt.CopyNodeOptions,
 ) *CopyNodeParams {
 	if options == nil {
@@ -908,14 +908,14 @@ func (p *CopyNodeParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
 
 type MoveNodeParams struct {
 	verb    Verb
-	src     ypath.Path
-	dst     ypath.Path
+	src     ypath.YPath
+	dst     ypath.YPath
 	options *yt.MoveNodeOptions
 }
 
 func NewMoveNodeParams(
-	src ypath.Path,
-	dst ypath.Path,
+	src ypath.YPath,
+	dst ypath.YPath,
 	options *yt.MoveNodeOptions,
 ) *MoveNodeParams {
 	if options == nil {
@@ -961,14 +961,14 @@ func (p *MoveNodeParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
 
 type LinkNodeParams struct {
 	verb    Verb
-	target  ypath.Path
-	link    ypath.Path
+	target  ypath.YPath
+	link    ypath.YPath
 	options *yt.LinkNodeOptions
 }
 
 func NewLinkNodeParams(
-	target ypath.Path,
-	link ypath.Path,
+	target ypath.YPath,
+	link ypath.YPath,
 	options *yt.LinkNodeOptions,
 ) *LinkNodeParams {
 	if options == nil {
@@ -1179,12 +1179,12 @@ func (p *CommitTxParams) TransactionOptions() **yt.TransactionOptions {
 
 type WriteFileParams struct {
 	verb    Verb
-	path    ypath.Path
+	path    ypath.YPath
 	options *yt.WriteFileOptions
 }
 
 func NewWriteFileParams(
-	path ypath.Path,
+	path ypath.YPath,
 	options *yt.WriteFileOptions,
 ) *WriteFileParams {
 	if options == nil {
@@ -1222,12 +1222,12 @@ func (p *WriteFileParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
 
 type ReadFileParams struct {
 	verb    Verb
-	path    ypath.Path
+	path    ypath.YPath
 	options *yt.ReadFileOptions
 }
 
 func NewReadFileParams(
-	path ypath.Path,
+	path ypath.YPath,
 	options *yt.ReadFileOptions,
 ) *ReadFileParams {
 	if options == nil {
@@ -1265,13 +1265,13 @@ func (p *ReadFileParams) AccessTrackingOptions() **yt.AccessTrackingOptions {
 
 type PutFileToCacheParams struct {
 	verb    Verb
-	path    ypath.Path
+	path    ypath.YPath
 	md5     string
 	options *yt.PutFileToCacheOptions
 }
 
 func NewPutFileToCacheParams(
-	path ypath.Path,
+	path ypath.YPath,
 	md5 string,
 	options *yt.PutFileToCacheOptions,
 ) *PutFileToCacheParams {
@@ -1837,13 +1837,13 @@ func (p *RemoveMemberParams) MarshalHTTP(w *yson.Writer) {
 
 type LockNodeParams struct {
 	verb    Verb
-	path    ypath.Path
+	path    ypath.YPath
 	mode    yt.LockMode
 	options *yt.LockNodeOptions
 }
 
 func NewLockNodeParams(
-	path ypath.Path,
+	path ypath.YPath,
 	mode yt.LockMode,
 	options *yt.LockNodeOptions,
 ) *LockNodeParams {
@@ -1886,12 +1886,12 @@ func (p *LockNodeParams) MutatingOptions() **yt.MutatingOptions {
 
 type UnlockNodeParams struct {
 	verb    Verb
-	path    ypath.Path
+	path    ypath.YPath
 	options *yt.UnlockNodeOptions
 }
 
 func NewUnlockNodeParams(
-	path ypath.Path,
+	path ypath.YPath,
 	options *yt.UnlockNodeOptions,
 ) *UnlockNodeParams {
 	if options == nil {

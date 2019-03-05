@@ -16,17 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type TestRow struct {
-	A int    `yson:"a"`
-	B string `yson:"b"`
-}
-
-func init() {
-	mapreduce.Register(&CatJob{})
-}
-
-type CatJob struct{}
-
 func DumpFDs() {
 	const procSelfFD = "/proc/self/fd"
 	files, err := ioutil.ReadDir(procSelfFD)
@@ -43,6 +32,17 @@ func DumpFDs() {
 		}
 	}
 }
+
+type TestRow struct {
+	A int    `yson:"a"`
+	B string `yson:"b"`
+}
+
+func init() {
+	mapreduce.Register(&CatJob{})
+}
+
+type CatJob struct{}
 
 func (_ *CatJob) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapreduce.Writer) (err error) {
 	if len(out) != 1 {
