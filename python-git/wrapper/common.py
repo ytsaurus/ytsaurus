@@ -25,6 +25,8 @@ except ImportError:
     except ImportError:
         linux_distribution = None
 
+from yt.packages import tqdm
+
 from multiprocessing.pool import ThreadPool
 from multiprocessing.dummy import (Process as DummyProcess,
                                    current_process as dummy_current_process)
@@ -46,6 +48,26 @@ warnings.simplefilter("default", category=YtDeprecationWarning)
 
 DEFAULT_DEPRECATION_MESSAGE = "{0} is deprecated and will be removed in the next major release, " \
                               "use {1} instead"
+
+class CustomTqdm(tqdm.tqdm):
+    # Disable the monitor thread.
+    monitor_interval = 0
+
+    def __init__(self, *args, **kwargs):
+        kwargs = update(dict(unit="b", unit_scale=True, ascii=True), kwargs)
+        super(CustomTqdm, self).__init__(*args, **kwargs)
+
+    @classmethod
+    def format_meter(cls, n, total, *args, **kwargs):
+        # NB: `super(cls)` does not support static methods, so we need `super(cls, cls)`.
+        # https://stackoverflow.com/questions/26788214/super-and-staticmethod-interaction
+        meter = super(cls, cls).format_meter(n, total, *args, **kwargs)
+        if total:
+            return meter
+        else:
+            # Quick way to remove colon from the progress bar
+            ind = meter.find(" :")
+            return meter[:ind] + meter[ind + 2:]
 
 def compose(*args):
     def compose_two(f, g):
@@ -143,7 +165,24 @@ def group_blobs_by_size(lines, chunk_size):
             size = 0
             chunk = []
 
-    yield chunk
+    if chunk:
+        yield chunk
+
+def split_lines_by_max_size(lines, max_size):
+    for line in lines:
+        if len(line) <= max_size:
+            yield line
+        else:
+            for start_index in xrange(0, len(line), max_size):
+                yield line[start_index : start_index+max_size]
+
+def stream_or_empty_bytes(stream):
+    has_some = False
+    for line in stream:
+        has_some = True
+        yield line
+    if not has_some:
+        yield b""
 
 def chunk_iter_list(lines, chunk_size):
     size = 0
@@ -288,9 +327,12 @@ def round_up_to(num, divider):
     else:
         return (1 + (num // divider)) * divider
 
-def get_disk_size(filepath):
+def get_disk_size(filepath, round=4*1024):
     stat = os.stat(filepath)
-    return round_up_to(stat.st_size, 4 * 1024)
+    if round:
+        return round_up_to(stat.st_size, round)
+    else:
+        return stat.st_size
 
 def get_binary_std_stream(stream):
     if PY3:
@@ -427,3 +469,17 @@ def simplify_structure(obj):
         obj.attributes = attributes
 
     return obj
+
+class NullContext:
+    def __enter__(self):
+        pass
+
+    def __exit__(self, type, value, traceback):
+        pass
+
+def format_disk_space(num, suffix="B"):
+    for unit in ("","Ki","Mi","Gi","Ti","Pi","Ei","Zi"):
+        if abs(num) < 1024.0:
+            return "%3.1f%s%s" % (num, unit, suffix)
+        num /= 1024.0
+    return "%.1f%s%s" % (num, "Yi", suffix)

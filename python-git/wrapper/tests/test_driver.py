@@ -1,6 +1,6 @@
 from .helpers import TEST_DIR, get_test_file_path, yatest_common
 
-from yt.wrapper.common import parse_bool, update_inplace
+from yt.wrapper.common import update_inplace
 
 import yt.yson as yson
 
@@ -54,7 +54,7 @@ def test_sanitize_structure():
 
     table = TEST_DIR + "/dynamic_table"
     yt.create("table", table, attributes={"schema": schema})
-    assert parse_bool(yt.get(table + "/@schema/@unique_keys"))
+    assert yt.get(table + "/@schema/@unique_keys")
 
 @pytest.mark.usefixtures("yt_env")
 def test_catching_sigint(yt_env):

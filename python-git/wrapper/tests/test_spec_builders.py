@@ -1,6 +1,5 @@
 from .helpers import TEST_DIR, check, get_test_file_path, set_config_option
 
-from yt.wrapper.common import parse_bool
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.spec_builders import (ReduceSpecBuilder, MergeSpecBuilder, SortSpecBuilder,
                                       MapReduceSpecBuilder, MapSpecBuilder)
@@ -10,6 +9,7 @@ import yt.wrapper as yt
 from yt.packages.six.moves import xrange
 
 import pytest
+from flaky import flaky
 
 from copy import deepcopy
 
@@ -17,8 +17,8 @@ class NonCopyable:
     def __init__(self, fun):
         self._fun = fun
 
-    def __call__(self, *args, **kw):
-        return self._fun(*args, **kw)
+    def __call__(self, *args, **kwargs):
+        return self._fun(*args, **kwargs)
 
     def __deepcopy__(self, _memo):
         raise TypeError("not copyable")
@@ -66,7 +66,7 @@ class TestSpecBuilders(object):
             .input_table_paths(tableX) \
             .output_table_path(res_table)
         yt.run_operation(spec_builder)
-        assert not parse_bool(yt.get_attribute(res_table, "sorted"))
+        assert not yt.get_attribute(res_table, "sorted")
         check([{"x": 1}], yt.read_table(res_table))
 
         spec_builder = SortSpecBuilder() \
@@ -79,7 +79,7 @@ class TestSpecBuilders(object):
             .output_table_path(res_table) \
             .mode("sorted")
         yt.run_operation(spec_builder)
-        assert parse_bool(yt.get_attribute(res_table, "sorted"))
+        assert yt.get_attribute(res_table, "sorted")
         check([{"x": 1}], yt.read_table(res_table))
 
     def test_run_operation(self):
@@ -206,6 +206,8 @@ class TestSpecBuilders(object):
         yt.run_operation(spec_builder)
         check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
 
+    # Remove flaky after YT-10347.
+    @flaky(max_runs=5)
     @add_failed_operation_stderrs_to_error_message
     def test_python_operations_and_file_cache(self):
         def func(row):

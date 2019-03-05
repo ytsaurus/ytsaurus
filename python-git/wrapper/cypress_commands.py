@@ -1,6 +1,6 @@
 from . import yson
 from .config import get_config, get_option, get_command_param
-from .common import parse_bool, flatten, get_value, YtError, set_param
+from .common import flatten, get_value, YtError, set_param
 from .errors import YtResponseError
 from .transaction_commands import (_make_transactional_request,
                                    _make_formatted_transactional_request)
@@ -286,13 +286,11 @@ def exists(path, read_from=None, client=None):
     """
     params = {"path": YPath(path, client=client)}
     set_param(params, "read_from", read_from)
-    return apply_function_to_result(
-        parse_bool,
-        _make_formatted_transactional_request(
-            "exists",
-            params,
-            format=None,
-            client=client))
+    return _make_formatted_transactional_request(
+        "exists",
+        params,
+        format=None,
+        client=client)
 
 def remove(path, recursive=False, force=False, client=None):
     """Removes Cypress node.
@@ -352,7 +350,7 @@ def get_attribute(path, attribute, default=_KWARG_SENTINEL, client=None):
     :param str attribute: attribute.
     :param default: if node hasn't attribute `attribute` this value will be returned.
     """
-    attribute_path = "{0}/@{1}".format(path, attribute)
+    attribute_path = "{0}/@{1}".format(YPath(path, client=client), attribute)
     if default is not _KWARG_SENTINEL and not exists(attribute_path, client=client):
         return default
     return get(attribute_path, client=client)

@@ -1,11 +1,12 @@
 from __future__ import print_function
 
 from yt.common import makedirp
-from yt.wrapper.common import parse_bool, DoNotReplaceAction, chunk_iter_stream, MB
-from yt.wrapper.job_runner import make_run_script, get_output_descriptor_list
+from yt.wrapper.common import DoNotReplaceAction, chunk_iter_stream, MB
 from yt.wrapper.file_commands import _get_remote_temp_files_directory
 import yt.logger as logger
 import yt.wrapper as yt
+
+from yt.packages.six.moves import xrange
 
 import collections
 import json
@@ -51,13 +52,20 @@ def make_environment_string(environment):
     return ''.join("export {var}={value}\n".format(var=var, value=shellquote(environment[var]))
                    for var in environment)
 
+def get_output_descriptor_list(output_table_count, use_yamr_descriptors):
+    if use_yamr_descriptors:
+        return [1, 2] + [i + 3 for i in xrange(output_table_count)]
+    else:
+        # descriptor #5 is for job statistics
+        return [2, 5] + [3 * i + 1 for i in xrange(output_table_count)]
+
 def make_run_sh(job_path, operation_id, job_id, sandbox_path, command, environment,
                 input_path, output_path, output_table_count, use_yamr_descriptors):
     output_descriptor_list = get_output_descriptor_list(output_table_count, use_yamr_descriptors)
 
     run_sh_path = os.path.join(job_path, "run.sh")
 
-    # We don't want to redirect stderr.
+    # Stderr is treated separately.
     output_descriptor_list.remove(2)
 
     # Sandbox_suffix is suffix relative to job_path.
@@ -68,8 +76,9 @@ def make_run_sh(job_path, operation_id, job_id, sandbox_path, command, environme
     input_rel_path = os.path.relpath(input_path, sandbox_path)
     output_rel_path = os.path.relpath(output_path, sandbox_path)
     output_descriptors_spec = " ".join(
-        "{d}> {output_rel_path}/{d}".format(d=d, output_rel_path=os.path.relpath(output_path, sandbox_path))
+        "{d}> {output_rel_path}/{d}".format(d=d, output_rel_path=output_rel_path)
         for d in output_descriptor_list)
+    output_descriptors_spec += " 2> >(tee {output_rel_path}/2 >&2)".format(output_rel_path=output_rel_path)
 
     if "BASH_ENV" in environment:
         run_bash_env_command = ". \"$BASH_ENV\""
@@ -130,7 +139,7 @@ def run_job(job_path):
     if not os.path.exists(job_path):
         raise yt.YtError("Job path {0} does not exist".format(job_path))
 
-    run_script = os.path.join(job_path, "run")
+    run_script = os.path.join(job_path, "run.sh")
     p = subprocess.Popen([run_script], close_fds=False)
     sys.exit(p.wait())
 
@@ -234,7 +243,7 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, full=Fals
         else:
             raise yt.YtError("Unknown format of job file node: {0}".format(node_type))
 
-        if parse_bool(file_.attributes.get("executable", False)):
+        if file_.attributes.get("executable", False):
             os.chmod(destination_path, os.stat(destination_path).st_mode | stat.S_IXUSR)
 
         logger.info("Done")
@@ -252,7 +261,7 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, full=Fals
     logger.info("Command was written to %s", command_path)
 
     output_table_count = len(op_spec["output_table_paths"])
-    use_yamr_descriptors = parse_bool(op_spec[job_spec_section].get("use_yamr_descriptors", False))
+    use_yamr_descriptors = op_spec[job_spec_section].get("use_yamr_descriptors", False)
 
     output_path = os.path.join(job_path, "output")
     run_config = {
@@ -268,7 +277,6 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, full=Fals
     }
     with open(os.path.join(job_path, "run_config"), "w") as fout:
         json.dump(run_config, fout)
-    make_run_script(job_path)
     make_run_sh(
         job_path,
         operation_id=run_config["operation_id"],

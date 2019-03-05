@@ -5,9 +5,9 @@ from __future__ import print_function
 from yt.common import copy_docstring_from
 
 import yt.wrapper.yson as yson
-from yt.wrapper.common import parse_bool, chunk_iter_stream, update, get_value, MB, \
+from yt.wrapper.common import chunk_iter_stream, update, get_value, MB, \
                               DoNotReplaceAction, get_binary_std_stream, get_disk_space_from_resources, \
-                              chunk_iter_rows
+                              chunk_iter_rows, format_disk_space
 from yt.wrapper.cli_helpers import write_silently, run_main
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.spec_builders import MapSpecBuilder, ReduceSpecBuilder, MapReduceSpecBuilder, EraseSpecBuilder, \
@@ -239,7 +239,7 @@ def add_ypath_argument(parser, name, help="address in Cypress", hybrid=False, **
         argument.completer = completers.complete_ypath
 
 def add_structured_format_argument(parser, name="--format", help="", **kwargs):
-    description = 'response format: yson or json, for example: "<format=binary>yson". See also: https://wiki.yandex-team.ru/yt/userdoc/formats'
+    description = 'response or input format: yson or json, for example: "<format=binary>yson". See also: https://wiki.yandex-team.ru/yt/userdoc/formats'
     add_argument(parser, name, help, description=description, action=ParseFormat, **kwargs)
 
 def add_format_argument(parser, name="--format", help="", **kwargs):
@@ -270,16 +270,27 @@ def add_exists_parser(add_parser):
     add_ypath_argument(parser, "path", hybrid=True)
     add_read_from_argument(parser)
 
-def formatted_print(obj, path, long_format):
+LONG_FORMAT_ATTRIBUTES = ("type", "target_path", "account", "resource_usage", "modification_time")
+
+def formatted_print(obj, path, long_format, recursive_resource_usage):
+    attributes = getattr(obj, "attributes", {})
+    def get_attr(attr_name):
+        if attr_name not in attributes:
+            attributes.update(yt.get(path + "&/@"))
+        return attributes[attr_name]
+
     if long_format:
-        attrs = yt.get(path + "&/@")
-        type = attrs["type"]
-        link_tail = (" -> " + str(yt.get(path + "&/@target_path"))) if type == "link" else ""
-        user = attrs["account"]
-        size = get_disk_space_from_resources(yt.get(path + "&/@recursive_resource_usage"))
-        date, time = yt.get(path + "&/@modification_time").split("T")
+        type = get_attr("type")
+        link_tail = (" -> " + str(get_attr("target_path"))) if type == "link" else ""
+        user = get_attr("account")
+        if recursive_resource_usage:
+            resource_usage = yt.get(path + "&/@recursive_resource_usage")
+        else:
+            resource_usage = get_attr("resource_usage")
+        size = get_disk_space_from_resources(resource_usage)
+        date, time = get_attr("modification_time").split("T")
         time = time[:5]
-        sys.stdout.write("%10s %20s %18d %10s %5s %s%s\n" % (type, user, size, date, time, str(obj), link_tail))
+        sys.stdout.write("%10s %20s %10s %10s %5s %s%s\n" % (type, user, format_disk_space(size), date, time, str(obj), link_tail))
     else:
         print(obj)
 
@@ -287,13 +298,21 @@ def formatted_print(obj, path, long_format):
 def list(**args):
     list_args = dict(args)
     list_args.pop("long_format")
+    list_args.pop("recursive_resource_usage")
+    if args["long_format"]:
+        assert args["format"] is None
+        list_args["attributes"] = LONG_FORMAT_ATTRIBUTES
     list = yt.list(**list_args)
     if args["format"] is None:
         if args["attributes"] is not None:
             print("WARNING! Attributes are ignored if format is not specified.", file=sys.stderr)
         for elem in list:
-            formatted_print(elem, yt.ypath_join(args["path"], yt.escape_ypath_literal(elem)), args["long_format"])
-        if parse_bool(list.attributes.get("incomplete", "false")):
+            formatted_print(
+                elem,
+                yt.ypath_join(args["path"], yt.escape_ypath_literal(elem)),
+                args["long_format"],
+                args["recursive_resource_usage"])
+        if list.attributes.get("incomplete", False):
             print("WARNING: list is incomplete, check --max-size option", file=sys.stderr)
     else:
         sys.stdout.write(list)
@@ -310,6 +329,8 @@ def add_list_parser(add_parser):
                               "if actual directory size exceeds that value only subset "
                               "of entries will be listed (it's not specified which subset); "
                               "default value is enough to list any nonsystem directory."))
+    parser.add_argument("--recursive-resource-usage", action="store_true",
+                        help="use recursive resource usage for in long format mode")
     add_read_from_argument(parser)
     group.add_argument("--absolute", action="store_true", default=False, help="print absolute paths")
 
@@ -322,20 +343,22 @@ def find(**args):
     if args["attribute_filter"] is not None:
         attributes.update(yson._loads_from_native_str(args["attribute_filter"], yson_type="map_fragment"))
 
+    long_format_attributes = LONG_FORMAT_ATTRIBUTES if args["long_format"] else []
+
     object_filter = lambda obj: \
         all([obj.attributes.get(attr) == attributes[attr] for attr in attributes])
 
     result = yt.search(args["path"],
                        node_type=args["type"],
                        path_filter=path_filter,
-                       attributes=builtins.list(attributes),
+                       attributes=builtins.list(attributes) + long_format_attributes,
                        object_filter=object_filter,
                        depth_bound=args["depth"],
                        follow_links=args["follow_links"],
                        read_from=args["read_from"])
 
     for elem in result:
-        formatted_print(elem, elem, args["long_format"])
+        formatted_print(elem, elem, args["long_format"], args["recursive_resource_usage"])
 
 def add_find_parser(add_parser):
     parser = add_parser("find", yt.search)
@@ -348,6 +371,8 @@ def add_find_parser(add_parser):
     parser.add_argument("--attribute-filter", help="yson map fragment with filtering attributes, e.g. k1=v1;k2=v2")
     parser.add_argument("--depth", type=int, help="recursion depth (infinite by default)")
     parser.add_argument("-l", "--long-format", action="store_true", help="print some extra information about nodes")
+    parser.add_argument("--recursive-resource-usage", action="store_true",
+                        help="use recursive resource usage for in long format mode")
     add_read_from_argument(parser)
     parser.set_defaults(func=find)
 
@@ -871,15 +896,16 @@ def start_clickhouse_clique_handler(*args, **kwargs):
 def add_start_clickhouse_clique_parser(add_parser): 
     parser = add_parser("start-clickhouse-clique", start_clickhouse_clique_handler) 
     parser.add_argument("--instance-count", required=True, type=int) 
-    parser.add_argument("--cypress-ytserver-clickhouse-path") 
-    parser.add_argument("--host-ytserver-clickhouse-path") 
-    parser.add_argument("--cypress-base-config-path", default="//sys/clickhouse/config") 
+    parser.add_argument("--cypress-ytserver-clickhouse-path")
+    parser.add_argument("--host-ytserver-clickhouse-path")
+    parser.add_argument("--cypress-base-config-path", default="//sys/clickhouse/config")
     parser.add_argument("--cpu-limit", default=clickhouse.DEFAULT_CPU_LIMIT, type=int) 
     parser.add_argument("--memory-limit", default=clickhouse.DEFAULT_MEMORY_LIMIT, type=int)
     parser.add_argument("--enable-monitoring", action="store_true", default=False,
                         help="(only for development use) bind monitoring port to 10142")
     parser.add_argument("--enable-query-log", action="store_true", default=False,
                         help="enable ClickHouse query log")
+    parser.add_argument("--cypress-geodata-path")
     add_structured_argument(parser, "--spec") 
     add_structured_argument(parser, "--clickhouse-config", "ClickHouse configuration patch")
 

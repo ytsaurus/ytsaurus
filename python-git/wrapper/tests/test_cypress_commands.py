@@ -4,7 +4,6 @@ from __future__ import print_function
 
 from .helpers import TEST_DIR, set_config_option
 
-from yt.wrapper.common import parse_bool
 import yt.json_wrapper as json
 import yt.yson as yson
 
@@ -259,12 +258,12 @@ class TestCypressCommands(object):
         assert str(result[0]) == table
         assert result[0].attributes["my_attribute"] == {"000": 10}
 
-    def test_link(self, yt_env):
+    def test_link(self):
         table = TEST_DIR + "/table_with_attributes"
         link = TEST_DIR + "/table_link"
         yt.create("table", table)
         yt.link(table, link)
-        assert not parse_bool(yt.get_attribute(link + "&", "broken"))
+        assert not yt.get_attribute(link + "&", "broken")
         assert yt.get_attribute(link + "&", "target_path") == table
 
         with pytest.raises(yt.YtError):
@@ -410,9 +409,10 @@ class TestCypressCommands(object):
         assert read_table() == [{"x": 3}]
         assert read_table(new_client) == [{"x": 3}]
 
-        with yt.Transaction(timeout=1000):
-            yt.write_table(table, [{"x": 4}])
-            time.sleep(3)
+        with set_config_option("ping_failed_mode", "pass"):
+            with yt.Transaction(timeout=1000):
+                yt.write_table(table, [{"x": 4}])
+                time.sleep(3)
 
         assert read_table() == [{"x": 4}]
 
@@ -484,7 +484,7 @@ class TestCypressCommands(object):
             except yt.YtResponseError as err:
                 assert err.is_no_such_transaction()
 
-    def test_lock(self, yt_env):
+    def test_lock(self):
         dir = TEST_DIR + "/dir"
 
         yt.mkdir(dir)

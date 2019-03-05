@@ -33,7 +33,7 @@ import pytest
 def pytest_ignore_collect(path, config):
     path = str(path)
     return path.startswith(get_tests_sandbox()) or \
-            path.startswith(os.path.join(get_tests_location(), "__pycache__"))
+        path.startswith(os.path.join(get_tests_location(), "__pycache__"))
 
 if yatest_common is not None:
     @pytest.fixture(scope="session", autouse=True)
@@ -46,7 +46,7 @@ if yatest_common is not None:
         os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
 
 def _pytest_finalize_func(environment, process_call_args):
-    pytest.exit('Process run by command "{0}" is dead! Tests terminated.' \
+    pytest.exit('Process run by command "{0}" is dead! Tests terminated.'
                 .format(" ".join(process_call_args)))
     environment.stop()
 
@@ -59,6 +59,9 @@ class YtTestEnvironment(object):
                  delta_controller_agent_config=None,
                  delta_node_config=None,
                  delta_proxy_config=None):
+        # To use correct version of bindings we must reset it before start environment.
+        yt.native_driver.driver_bindings = None
+
         self.test_name = test_name
 
         if config is None:
@@ -75,9 +78,9 @@ class YtTestEnvironment(object):
         dir = os.path.join(get_tests_sandbox(), uniq_dir_name)
 
         common_delta_node_config = {
-            "exec_agent" : {
-                "slot_manager" : {
-                    "enforce_job_control" : False,
+            "exec_agent": {
+                "slot_manager": {
+                    "enforce_job_control": False,
                 },
                 "statistics_reporter": {
                     "reporting_period": 1000,
@@ -93,9 +96,9 @@ class YtTestEnvironment(object):
         }
         if ENABLE_JOB_CONTROL:
             common_delta_node_config.update({
-                "exec_agent" : {
-                    "slot_manager" : {
-                        "enforce_job_control" : True,
+                "exec_agent": {
+                    "slot_manager": {
+                        "enforce_job_control": True,
                         "job_environment": {
                             "type": "cgroups",
                             "memory_watchdog_period": 100,
@@ -105,13 +108,13 @@ class YtTestEnvironment(object):
                 }
             })
         common_delta_scheduler_config = {
-            "scheduler" : {
+            "scheduler": {
                 "max_operation_count": 5,
             }
         }
 
         common_delta_controller_agent_config = {
-            "controller_agent" : {
+            "controller_agent": {
                 "operation_options": {
                     "spec_template": {
                         "max_failed_job_count": 1
@@ -207,6 +210,7 @@ class YtTestEnvironment(object):
             self.config["driver_config"] = self.env.configs["driver"]
         self.config["local_temp_directory"] = local_temp_directory
         self.config["enable_logging_for_params_changes"] = True
+        self.config["allow_fallback_to_native_driver"] = False
         self.reload_global_configuration()
 
         os.environ["PATH"] = ".:" + os.environ["PATH"]
@@ -235,6 +239,7 @@ class YtTestEnvironment(object):
 
     def reload_global_configuration(self):
         yt.config._init_state()
+        yt.native_driver.driver_bindings = None
         yt._cleanup_http_session()
         yt.config.config = self.config
 
@@ -309,7 +314,7 @@ def test_environment_job_archive(request):
     )
 
     sync_create_cell()
-    init_operation_archive.create_tables_latest_version(yt)
+    init_operation_archive.create_tables_latest_version(yt, override_tablet_cell_bundle="default")
 
     request.addfinalizer(lambda: environment.cleanup())
 

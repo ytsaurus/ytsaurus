@@ -12,6 +12,8 @@ def is_arcadia_python():
     return hasattr(sys, "extra_modules")
 
 if is_arcadia_python():
+    import tqdm
+
     class PackagesImporter(object):
         def __enter__(self):
             pass
@@ -19,6 +21,8 @@ if is_arcadia_python():
         def __exit__(self, type, value, traceback):
             pass
 else:
+    from . import tqdm
+
     class PackagesImporter(object):
         def __enter__(self):
             self.dir_name = os.path.dirname(__file__)

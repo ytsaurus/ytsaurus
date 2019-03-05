@@ -128,6 +128,7 @@ class Convert(object):
 
             if client.exists(source_table):
                 table_info.create_table(client, target_table)
+                client.set(target_table + "/@tablet_cell_bundle", client.get(source_table + "/@tablet_cell_bundle"))
                 mapper = self.mapper if self.mapper else table_info.get_default_mapper()
                 unmount_table(client, source_table)
 
@@ -162,34 +163,36 @@ TRANSFORMS[0] = [
     Convert(
         "ordered_by_id",
         table_info=TableInfo([
-            ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
-            ("id_hi", "uint64"),
-            ("id_lo", "uint64"),
-        ], [
-            ("state", "string"),
-            ("authenticated_user", "string"),
-            ("operation_type", "string"),
-            ("progress", "any"),
-            ("spec", "any"),
-            ("brief_progress", "any"),
-            ("brief_spec", "any"),
-            ("start_time", "int64"),
-            ("finish_time", "int64"),
-            ("filter_factors", "string"),
-            ("result", "any")
-        ],
-        in_memory=True,
-        get_pivot_keys=get_default_pivots)),
+                ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
+                ("id_hi", "uint64"),
+                ("id_lo", "uint64"),
+            ], [
+                ("state", "string"),
+                ("authenticated_user", "string"),
+                ("operation_type", "string"),
+                ("progress", "any"),
+                ("spec", "any"),
+                ("brief_progress", "any"),
+                ("brief_spec", "any"),
+                ("start_time", "int64"),
+                ("finish_time", "int64"),
+                ("filter_factors", "string"),
+                ("result", "any")
+            ],
+            in_memory=True,
+            get_pivot_keys=get_default_pivots,
+            attributes={"tablet_cell_bundle": "sys"})),
     Convert(
         "ordered_by_start_time",
         table_info=TableInfo([
-            ("start_time", "int64"),
-            ("id_hi", "uint64"),
-            ("id_lo", "uint64")
-        ], [
-            ("dummy", "int64")
-        ],
-        in_memory=True))
+                ("start_time", "int64"),
+                ("id_hi", "uint64"),
+                ("id_lo", "uint64")
+            ], [
+                ("dummy", "int64")
+            ],
+            in_memory=True,
+            attributes={"tablet_cell_bundle": "sys"}))
 ]
 
 def convert_start_finish_time_mapper(row):
@@ -234,7 +237,8 @@ TRANSFORMS[3] = [
             ], [
                 ("stderr", "string")
             ],
-            get_pivot_keys=get_default_pivots)),
+            get_pivot_keys=get_default_pivots,
+            attributes={"tablet_cell_bundle": "sys"})),
     Convert(
         "jobs",
         table_info=TableInfo([
@@ -251,7 +255,8 @@ TRANSFORMS[3] = [
                 ("error", "any"),
                 ("statistics", "any")
             ],
-            get_pivot_keys=get_default_pivots))
+            get_pivot_keys=get_default_pivots,
+            attributes={"tablet_cell_bundle": "sys"}))
 ]
 
 TRANSFORMS[4] = [
@@ -540,21 +545,7 @@ def add_attributes(path, attributes):
 
     return action
 
-def add_sys_bundle(table):
-    return add_attributes(table, {"tablet_cell_bundle": "sys"})
-
-def ensure_sys_bundle_existence(client):
-    if not client.exists("//sys/tablet_cell_bundles/sys"):
-        logging.info("Creating sys bundle")
-        client.create("tablet_cell_bundle", attributes={"name": "sys"})
-
-ACTIONS[12] = [
-    ensure_sys_bundle_existence,
-    add_sys_bundle("ordered_by_id"),
-    add_sys_bundle("ordered_by_start_time"),
-    add_sys_bundle("jobs"),
-    add_sys_bundle("stderrs"),
-]
+ACTIONS[12] = [lambda *args: None]
 
 TRANSFORMS[13] = [
     Convert(
@@ -594,12 +585,12 @@ TRANSFORMS[14] = [
                 ("spec", "string"),
                 ("spec_version", "int64"),
             ],
-            get_pivot_keys=get_default_pivots))
+            get_pivot_keys=get_default_pivots,
+            attributes={"tablet_cell_bundle": "sys"}))
 ]
 
 ACTIONS[14] = [
-    set_table_ttl_1week("job_specs"),
-    add_sys_bundle("job_specs"),
+    set_table_ttl_1week("job_specs")
 ]
 
 TRANSFORMS[15] = [
@@ -622,7 +613,7 @@ TRANSFORMS[15] = [
 TRANSFORMS[16] = [
     Convert(
         "jobs",
-            table_info=TableInfo([
+        table_info=TableInfo([
                 ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
                 ("operation_id_hi", "uint64"),
                 ("operation_id_lo", "uint64"),
@@ -689,7 +680,7 @@ TRANSFORMS[17] = [
 TRANSFORMS[18] = [
     Convert(
         "jobs",
-            table_info=TableInfo([
+        table_info=TableInfo([
                 ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
                 ("operation_id_hi", "uint64"),
                 ("operation_id_lo", "uint64"),
@@ -731,7 +722,7 @@ TRANSFORMS[19] = [
 TRANSFORMS[20] = [
     Convert(
         "jobs",
-            table_info=TableInfo([
+        table_info=TableInfo([
                 ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
                 ("operation_id_hi", "uint64"),
                 ("operation_id_lo", "uint64"),
@@ -768,11 +759,14 @@ TRANSFORMS[21] = [
             ], [
                 ("fail_context", "string")
             ],
-            attributes={"atomicity": "none"}),
+            attributes={
+                "atomicity": "none",
+                "tablet_cell_bundle": "sys"
+            }),
         use_default_mapper=True),
     Convert(
         "jobs",
-            table_info=TableInfo([
+        table_info=TableInfo([
                 ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
                 ("operation_id_hi", "uint64"),
                 ("operation_id_lo", "uint64"),
@@ -831,7 +825,7 @@ TRANSFORMS[22] = [
 TRANSFORMS[23] = [
     Convert(
         "jobs",
-            table_info=TableInfo([
+        table_info=TableInfo([
                 ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
                 ("operation_id_hi", "uint64"),
                 ("operation_id_lo", "uint64"),
@@ -912,11 +906,8 @@ TRANSFORMS[26] = [
             ("operation_id_lo", "uint64"),
         ],
             in_memory=True,
-            get_pivot_keys=get_default_pivots)),
-]
-
-ACTIONS[26] = [
-    add_sys_bundle("operation_aliases"),
+            get_pivot_keys=get_default_pivots,
+            attributes={"tablet_cell_bundle": "sys"})),
 ]
 
 TRANSFORMS[27] = [
@@ -964,12 +955,11 @@ TRANSFORMS[28] = [
                 ("profile_blob", "string")
             ],
             get_pivot_keys=get_default_pivots,
-            attributes={"atomicity": "none"}),
+            attributes={
+                "atomicity": "none",
+                "tablet_cell_bundle": "sys"
+            }),
         use_default_mapper=True)
-]
-
-ACTIONS[28] = [
-    add_sys_bundle("job_profiles"),
 ]
 
 TRANSFORMS[29] = [
@@ -1000,7 +990,7 @@ TRANSFORMS[29] = [
             ("slot_index_per_pool_tree", "any"),
             ("annotations", "any")
         ],
-        in_memory=True))
+            in_memory=True))
 ]
 
 def swap_table(client, target, source, version):
@@ -1058,7 +1048,7 @@ def transform_archive(client, transform_begin, transform_end, force, archive_pat
             raise ValueError("Version {0} must have actions or transformations".format(version))
         client.set_attribute(archive_path, "version", version)
 
-def create_tables(client, target_version, shards=1, base_path=BASE_PATH):
+def create_tables(client, target_version, override_tablet_cell_bundle="default", shards=1, base_path=BASE_PATH):
     """ Creates operation archive tables of given version """
     assert target_version in TRANSFORMS
 
@@ -1070,16 +1060,18 @@ def create_tables(client, target_version, shards=1, base_path=BASE_PATH):
             if convertion.table_info:
                 schemas[convertion.table] = convertion.table_info
     for table in schemas:
-        table_path = BASE_PATH + "/" + table
+        table_path = base_path + "/" + table
+        if override_tablet_cell_bundle is not None:
+            schemas[table].attributes["tablet_cell_bundle"] = override_tablet_cell_bundle
         schemas[table].create_dynamic_table(client, table_path)
         schemas[table].alter_table(client, table_path, shards)
 
     client.set(BASE_PATH + "/@version", target_version)
 
-def create_tables_latest_version(client, shards=1, base_path=BASE_PATH):
+def create_tables_latest_version(client, override_tablet_cell_bundle="default", shards=1, base_path=BASE_PATH):
     """ Creates operation archive tables of latest version """
     latest_version = max(TRANSFORMS.keys())
-    create_tables(client, latest_version, shards=shards, base_path=base_path)
+    create_tables(client, latest_version, override_tablet_cell_bundle, shards=shards, base_path=base_path)
 
 def main():
     parser = argparse.ArgumentParser(description="Transform operations archive")
@@ -1107,7 +1099,7 @@ def main():
     next_version = current_version + 1
 
     if args.latest:
-        create_tables_latest_version(client)
+        create_tables_latest_version(client, override_tablet_cell_bundle=None)  # TODO(renadeen): promote python, fix usages in yt tests and get rid of None
     else:
         target_version = args.target_version
         transform_archive(client, next_version, target_version, args.force, archive_path, shard_count=args.shard_count)

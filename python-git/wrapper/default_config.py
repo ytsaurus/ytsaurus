@@ -354,6 +354,8 @@ default_config = {
         "stderr_download_timeout": 60 * 1000,
         # Enables logging in text format operation failed error and job errors.
         "enable_logging_failed_operation": True,
+        # Stderr encoding.
+        "stderr_encoding": "utf8",
     },
 
     "read_parallel": {
@@ -519,6 +521,13 @@ default_config = {
     "skynet_manager_url": "http://skynet-manager.yt.yandex.net/api/v1",
 
     "enable_logging_for_params_changes": False,
+
+    # Progress bar settings.
+    "write_progress_bar": {
+        "enable": None,
+    },
+
+    "allow_fallback_to_native_driver": True,
 }
 
 # pydoc :: default_config :: end
