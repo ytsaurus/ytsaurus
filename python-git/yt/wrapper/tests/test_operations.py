@@ -1063,7 +1063,7 @@ print(op.id)
             if diff < 0:
                 diff = -diff
             assert tmpfs_size > 8 * 1024
-            assert diff < 5 * 1024 * 1024  # TMPFS_ADDEND + TMPFS_MULTIPLIER * archive_size + {rounded up file sizes}
+            assert diff < 10 * 1024 * 1024  # TMPFS_ADDEND + TMPFS_MULTIPLIER * archive_size + {rounded up file sizes}
             assert memory_limit - tmpfs_size == 512 * 1024 * 1024
             assert get_spec_option(op.id, "mapper/tmpfs_path") == "."
 
