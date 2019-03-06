@@ -4,7 +4,8 @@ namespace NYT::NErasure {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ICodec* GetCodec(ECodec id) {
+ICodec* GetCodec(ECodec id)
+{
     return ::NErasure::GetCodec<TCodecTraits>(id);
 }
 
