@@ -527,6 +527,8 @@ private:
         WaitFor(samplesFetcher->Fetch())
             .ThrowOnError();
 
+        YT_LOG_DEBUG("Samples fetched");
+
         std::vector<TKey> samples;
         for (const auto& sample : samplesFetcher->GetSamples()) {
             YCHECK(!sample.Incomplete);
