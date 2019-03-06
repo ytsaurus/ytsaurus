@@ -1,5 +1,7 @@
 // package ypath defined type for working with YPath.
 //
+// YPath has two forms, simple and rich.
+//
 // For more information about ypath see https://wiki.yandex-team.ru/yt/userdoc/ypath/
 //
 package ypath
@@ -27,7 +29,7 @@ type Path string
 // Root is path to cypress root.
 const Root Path = "/"
 
-// YPath is
+// YPath is implementation of YPath interface.
 func (_ Path) YPath() {}
 
 // UnmarshalText is implementation of encoding.TextUnmarshaler interface.
@@ -117,6 +119,13 @@ func (p Path) Attr(name string) Path {
 func (p Path) Attrs() Path {
 	p += "/@"
 	return p
+}
+
+// Rich creates Rich from p.
+//
+// This function doesn't validate and doesn't normalize p.
+func (p Path) Rich() *Rich {
+	return &Rich{Path: p}
 }
 
 // SuppressSymlink returns path referencing symlink node.
