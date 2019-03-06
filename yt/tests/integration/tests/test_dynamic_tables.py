@@ -857,12 +857,12 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     def test_tablet_slot_charges_cpu_resource_limit(self):
         get_cpu = lambda x: get("//sys/cluster_nodes/{0}/orchid/job_controller/resource_limits/cpu".format(x))
 
-        node = ls("//sys/cluster_nodes")[0]
-        empty_node_cpu = get_cpu(node)
-
         create_tablet_cell_bundle("b")
         cell = sync_create_cells(1, tablet_cell_bundle="b")[0]
         peer = get("#{0}/@peers/0/address".format(cell))
+
+        node = list(__builtin__.set(ls("//sys/cluster_nodes")) - __builtin__.set([peer]))[0]
+        empty_node_cpu = get_cpu(node)
 
         assigned_node_cpu = get_cpu(peer)
         assert int(empty_node_cpu - assigned_node_cpu) == 1
