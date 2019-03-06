@@ -219,10 +219,10 @@ private:
             YCHECK(object->Values.size() == selector.Paths.size());
             for (size_t index = 0; index < object->Values.size(); ++index) {
                 *responseValuePayloads->Add() = YsonStringToPayload(
-                        object->Values[index],
-                        objectType,
-                        selector.Paths[index],
-                        format);
+                    object->Values[index],
+                    objectType,
+                    selector.Paths[index],
+                    format);
             }
         }
         object->Values.clear();

@@ -349,7 +349,8 @@ message TReqGetObjects
     // Type of objects to get.
     required EObjectType object_type = 2;
 
-    message TSubrequest {
+    message TSubrequest
+    {
         // Id of the object to get.
         required string object_id = 1;
     }
@@ -367,7 +368,8 @@ message TReqGetObjects
 
 message TRspGetObjects
 {
-    message TSubresponse {
+    message TSubresponse
+    {
         // The result containing the requested attributes.
         optional TAttributeValueList result = 1;
     }
