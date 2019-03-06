@@ -400,25 +400,6 @@ class _TestListOperationsBase(ListOperationsSetup):
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op5.id, self.op4.id, self.op3.id, self.op2.id, self.op1.id]
 
-    def test_owned_by_filter(self, read_from):
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, owned_by="user3", read_from=read_from)
-        assert res["pool_counts"] == {"user2": 1, "user3": 2, "some_pool": 1}
-        assert res["user_counts"] == {"user2": 1, "user3": 2}
-        assert res["state_counts"] == {"completed": 1, "failed": 1, "aborted": 1}
-        assert res["type_counts"] == {"map": 1, "map_reduce": 1, "reduce": 1}
-        if self.check_failed_jobs_count:
-            assert res["failed_jobs_count"] == 1
-        assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id, self.op2.id]
-
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, owned_by="user1", read_from=read_from)
-        assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op2.id, self.op1.id]
-
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, owned_by="user2", read_from=read_from)
-        assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id, self.op2.id]
-
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, owned_by="user4", read_from=read_from)
-        assert [op["id"] for op in res["operations"]] == [self.op5.id, self.op4.id, self.op3.id, self.op2.id, self.op1.id]
-
 
 class TestListOperationsCypressOnly(_TestListOperationsBase):
     USE_DYNAMIC_TABLES = False
