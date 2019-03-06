@@ -1,8 +1,8 @@
 #include "security_manager.h"
 
 #include "format_helpers.h"
-
 #include "clique_authorization_manager.h"
+#include "private.h"
 
 #include <Poco/Net/IPAddress.h>
 #include <Poco/Util/AbstractConfiguration.h>
@@ -19,19 +19,6 @@
 #include <map>
 
 // TODO(max42): join with clique_authorization_manager.cpp.
-
-namespace DB
-{
-
-namespace ErrorCodes
-{
-    extern const int UNKNOWN_ADDRESS_PATTERN_TYPE;
-    extern const int IP_ADDRESS_NOT_ALLOWED;
-    extern const int BAD_ARGUMENTS;
-    extern const int UNKNOWN_USER;
-}
-
-}
 
 namespace NYT::NClickHouseServer {
 

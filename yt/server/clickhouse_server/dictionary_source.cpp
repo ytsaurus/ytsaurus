@@ -3,6 +3,7 @@
 #include "db_helpers.h"
 #include "bootstrap.h"
 #include "helpers.h"
+#include "private.h"
 #include "table_reader.h"
 #include "revision_tracker.h"
 #include "input_stream.h"
@@ -17,17 +18,6 @@
 #include <Dictionaries/DictionaryStructure.h>
 
 #include <Poco/Util/AbstractConfiguration.h>
-
-namespace DB
-{
-
-namespace ErrorCodes
-{
-    extern const int NOT_IMPLEMENTED;
-    extern const int INCOMPATIBLE_COLUMNS;
-}
-
-}
 
 namespace NYT::NClickHouseServer {
 

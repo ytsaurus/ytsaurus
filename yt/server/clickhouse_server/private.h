@@ -78,12 +78,16 @@ namespace ErrorCodes {
 extern const int CANNOT_SELECT;
 extern const int INCOMPATIBLE_COLUMNS;
 extern const int LOGICAL_ERROR;
-extern const int NO_ELEMENTS_IN_CONFIG;
 extern const int NOT_IMPLEMENTED;
 extern const int NUMBER_OF_ARGUMENTS_DOESNT_MATCH;
 extern const int TOO_LESS_ARGUMENTS_FOR_FUNCTION;
 extern const int TOO_MANY_ARGUMENTS_FOR_FUNCTION;
 extern const int UNKNOWN_TYPE;
+extern const int IP_ADDRESS_NOT_ALLOWED;
+extern const int UNKNOWN_USER;
+extern const int ILLEGAL_COLUMN;
+extern const int ILLEGAL_TYPE_OF_ARGUMENT;
+extern const int NO_SUCH_COLUMN_IN_TABLE;
 
 /////////////////////////////////////////////////////////////////////////////
 
