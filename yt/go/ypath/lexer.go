@@ -424,6 +424,7 @@ func stateSkipSpace(l *lexer) stateFn {
 	return nil
 }
 
+// Parse parses prefix and suffix of the path in simple form.
 func Parse(path string) (p *Rich, err error) {
 	var l lexer
 	if err = l.run([]byte(path)); err != nil {
