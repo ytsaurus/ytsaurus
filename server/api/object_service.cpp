@@ -690,6 +690,7 @@ private:
             objectIds,
             selector);
 
+        response->mutable_subresponses()->Reserve(result.Objects.size());
         for (auto& object : result.Objects) {
             YCHECK(object.has_value());
             auto* subresponse = response->add_subresponses();
@@ -744,26 +745,10 @@ private:
             selector,
             options);
 
-
-        for (const auto& object : result.Objects) {
+        response->mutable_results()->Reserve(result.Objects.size());
+        for (auto& object : result.Objects) {
             auto* protoResult = response->add_results();
-            if (format == NClient::NApi::NProto::PF_NONE) {
-                // COMPAT(babenko)
-                auto* responseValues = protoResult->mutable_values();
-                for (const auto& value : object.Values) {
-                    *responseValues->Add() = value.GetData();
-                }
-            } else {
-                auto* responseValuePayloads = protoResult->mutable_value_payloads();
-                YCHECK(object.Values.size() == selector.Paths.size());
-                for (size_t index = 0; index < object.Values.size(); ++index) {
-                    *responseValuePayloads->Add() = YsonStringToPayload(
-                        object.Values[index],
-                        objectType,
-                        selector.Paths[index],
-                        format);
-                }
-            }
+            MoveAttributesToProto(format, objectType, selector, &object, protoResult);
         }
         context->SetResponseInfo("Count: %v", result.Objects.size());
         context->Reply();
