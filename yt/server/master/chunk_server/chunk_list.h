@@ -3,6 +3,7 @@
 #include "public.h"
 #include "chunk_tree.h"
 #include "chunk_tree_statistics.h"
+#include "cumulative_statistics.h"
 
 #include <yt/server/master/cell_master/public.h>
 
@@ -41,20 +42,9 @@ public:
     using TChildToIndexMap = THashMap<TChunkTree*, int>;
     DEFINE_BYREF_RW_PROPERTY(TChildToIndexMap, ChildToIndex);
 
-    struct TCumulativeStatisticsEntry
-    {
-        i64 RowCount;
-        i64 ChunkCount;
-        i64 DataSize;
-
-        void Persist(NCellMaster::TPersistenceContext& context);
-    };
-
     // The i-th value is equal to the sum of statistics for children 0..i
-    // for all i in [0..Children.size() - 2]
-    // NB: Cumulative statistics for the last child (which is equal to the total chunk list statistics)
-    // is stored in #Statistics field.
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TCumulativeStatisticsEntry>, CumulativeStatistics);
+    // for all i in [0..Children.size() - 1]
+    DEFINE_BYREF_RW_PROPERTY(TCumulativeStatistics, CumulativeStatistics);
 
     DEFINE_BYREF_RW_PROPERTY(TChunkTreeStatistics, Statistics);
 
@@ -72,6 +62,8 @@ public:
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
+
+    void LoadCumulativeStatisticsCompat(NCellMaster::TLoadContext& context);
 
     TRange<TChunkList*> Parents() const;
     void AddParent(TChunkList* parent);
@@ -96,6 +88,10 @@ public:
     void SetKind(EChunkListKind kind);
 
     bool IsOrdered() const;
+
+    bool HasCumulativeStatistics() const;
+    bool HasAppendableCumulativeStatistics() const;
+    bool HasModifyableCumulativeStatistics() const;
 
 private:
     TIndexedVector<TChunkList*> Parents_;
