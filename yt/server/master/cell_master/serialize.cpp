@@ -51,6 +51,7 @@ bool ValidateSnapshotVersion(int version)
         version == 828 || // ifsmirnov: TCumulativeStatistics in chunk lists
         version == 829 || // shakurov: multiply TUser::ReadRequestRateLimit_ by the number of followers
         version == 830 || // ifsmirnov: Chunk view
+        version == 831 || // shakurov: versioned @expiration_time
         false;
 }
 

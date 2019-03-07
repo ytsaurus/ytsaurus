@@ -281,11 +281,10 @@ protected:
     }
 
     virtual void DoBranch(
-        const TImpl* originatingNode,
-        TImpl* branchedNode,
+        const TImpl* /*originatingNode*/,
+        TImpl* /*branchedNode*/,
         const TLockRequest& /*lockRequest*/)
-    {
-    }
+    { }
 
     virtual void DoLogBranch(
         const TImpl* originatingNode,
@@ -303,11 +302,19 @@ protected:
     }
 
     virtual void DoMerge(
-        TImpl* /*originatingNode*/,
+        TImpl* originatingNode,
         TImpl* branchedNode)
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ResetAccount(branchedNode);
+
+        auto oldExpirationTime = originatingNode->TryGetExpirationTime();
+        originatingNode->MergeExpirationTime(originatingNode, branchedNode);
+        auto newExpirationTime = originatingNode->TryGetExpirationTime();
+        if (originatingNode->IsTrunk() && newExpirationTime != oldExpirationTime) {
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            cypressManager->SetExpirationTime(originatingNode, newExpirationTime);
+        }
     }
 
     virtual void DoLogMerge(

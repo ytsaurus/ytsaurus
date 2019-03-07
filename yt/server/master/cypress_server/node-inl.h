@@ -53,19 +53,41 @@ void TVersionedBuiltinAttribute<T>::TTombstone::Persist(NCellMaster::TPersistenc
 
 template <class T>
 template <class TOwner>
-const T& TVersionedBuiltinAttribute<T>::Get(
+T TVersionedBuiltinAttribute<T>::Get(
     TVersionedBuiltinAttribute<T> TOwner::*member,
     const TOwner* node) const
 {
-    auto* currentNode = node;
-    while (true) {
-        Y_ASSERT(currentNode);
+    auto result = TryGet(member, node);
+    YCHECK(result);
+    return *result;
+}
+
+template <class T>
+template <class TOwner>
+std::optional<T> TVersionedBuiltinAttribute<T>::TryGet(
+    TVersionedBuiltinAttribute<T> TOwner::*member,
+    const TOwner* node) const
+{
+    for (auto* currentNode = node; currentNode; currentNode = currentNode->GetOriginator()->template As<TOwner>()) {
         const auto& attribute = currentNode->*member;
-        if (const auto* value = std::get_if<T>(&attribute.BoxedValue_)) {
-            return *value;
+
+        auto [result, mustBreak] = Visit(attribute.BoxedValue_,
+            [&] (TNull) {
+                return std::pair<std::optional<T>, bool>(std::nullopt, false);
+            },
+            [&] (TTombstone) {
+                return std::pair<std::optional<T>, bool>(std::nullopt, true);
+            },
+            [&] (const T& value) {
+                return std::pair<std::optional<T>, bool>(value, true);
+            });
+
+        if (mustBreak) {
+            return result;
         }
-        currentNode = currentNode->GetOriginator()->template As<TOwner>();
     }
+
+    return std::nullopt;
 }
 
 template <class T>

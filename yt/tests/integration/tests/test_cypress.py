@@ -1215,15 +1215,14 @@ class TestCypress(YTEnvSetup):
         time.sleep(1)
         assert not exists("//tmp/t")
 
-    def test_expiration_time_wait_for_locks_released(self):
+    def test_expiration_time_lock_conflict(self):
         create("table", "//tmp/t")
         tx = start_transaction()
         lock("//tmp/t", tx=tx)
+        with pytest.raises(YtError): set("//tmp/t/@expiration_time", str(self._now()))
+        unlock("//tmp/t", tx=tx)
         set("//tmp/t/@expiration_time", str(self._now()))
-        time.sleep(1)
-        assert exists("//tmp/t")
-        abort_transaction(tx)
-        time.sleep(1)
+        time.sleep(0.2)
         assert not exists("//tmp/t")
 
     def test_expiration_time_wait_for_parent_locks_released(self):
@@ -1259,6 +1258,95 @@ class TestCypress(YTEnvSetup):
 
     def test_no_expiration_time_for_root(self):
         with pytest.raises(YtError): set("//@expiration_time", str(self._now()))
+
+    def test_expiration_time_versioning1(self):
+        create("table", "//tmp/t1", attributes={"expiration_time": "2030-03-07T13:18:55.000000Z"})
+
+        tx = start_transaction()
+
+        set("//tmp/t1/@expiration_time", "2031-03-07T13:18:55.000000Z", tx=tx)
+
+        assert get("//tmp/t1/@expiration_time") == "2030-03-07T13:18:55.000000Z"
+        assert get("//tmp/t1/@expiration_time", tx=tx) == "2031-03-07T13:18:55.000000Z"
+
+        commit_transaction(tx)
+
+        assert get("//tmp/t1/@expiration_time") == "2031-03-07T13:18:55.000000Z"
+
+    def test_expiration_time_versioning2(self):
+        create("table", "//tmp/t1")
+
+        tx = start_transaction()
+
+        set("//tmp/t1/@expiration_time", "2030-03-07T13:18:55.000000Z", tx=tx)
+
+        assert get("//tmp/t1/@expiration_time", tx=tx) == "2030-03-07T13:18:55.000000Z"
+        assert not exists("//tmp/t1/@expiration_time")
+
+        commit_transaction(tx)
+
+        assert get("//tmp/t1/@expiration_time") == "2030-03-07T13:18:55.000000Z"
+
+    def test_expiration_time_versioning3(self):
+        create("table", "//tmp/t1", attributes={"expiration_time": "2030-03-07T13:18:55.000000Z"})
+
+        tx = start_transaction()
+        set("//tmp/t1/@expiration_time", "2031-03-07T13:18:55.000000Z", tx=tx)
+
+        assert get("//tmp/t1/@expiration_time") == "2030-03-07T13:18:55.000000Z"
+        assert get("//tmp/t1/@expiration_time", tx=tx) == "2031-03-07T13:18:55.000000Z"
+
+        remove("//tmp/t1/@expiration_time", tx=tx)
+
+        assert get("//tmp/t1/@expiration_time") == "2030-03-07T13:18:55.000000Z"
+        assert not exists("//tmp/t1/@expiration_time", tx=tx)
+
+        commit_transaction(tx)
+
+        assert not exists("//tmp/t1/@expiration_time")
+
+    def test_expiration_time_versioning4(self):
+        create("table", "//tmp/t1", attributes={"expiration_time": "2030-03-07T13:18:55.000000Z"})
+
+        tx1 = start_transaction()
+        set("//tmp/t1/@expiration_time", "2031-03-07T13:18:55.000000Z", tx=tx1)
+
+        assert get("//tmp/t1/@expiration_time") == "2030-03-07T13:18:55.000000Z"
+        assert get("//tmp/t1/@expiration_time", tx=tx1) == "2031-03-07T13:18:55.000000Z"
+
+        remove("//tmp/t1/@expiration_time", tx=tx1)
+
+        tx2 = start_transaction(tx=tx1)
+        set("//tmp/t1/@expiration_time", "2032-03-07T13:18:55.000000Z", tx=tx2)
+
+        assert get("//tmp/t1/@expiration_time") == "2030-03-07T13:18:55.000000Z"
+        assert not exists("//tmp/t1/@expiration_time", tx=tx1)
+        assert get("//tmp/t1/@expiration_time", tx=tx2) == "2032-03-07T13:18:55.000000Z"
+
+        remove("//tmp/t1/@expiration_time", tx=tx2)
+
+        assert get("//tmp/t1/@expiration_time") == "2030-03-07T13:18:55.000000Z"
+        assert not exists("//tmp/t1/@expiration_time", tx=tx1)
+        assert not exists("//tmp/t1/@expiration_time", tx=tx2)
+
+        commit_transaction(tx2)
+        commit_transaction(tx1)
+
+        assert not exists("//tmp/t1/@expiration_time")
+
+    def test_expiration_time_versioning5(self):
+        tx = start_transaction()
+        create("table", "//tmp/t1", attributes={"expiration_time": str(self._now())}, tx=tx)
+
+        time.sleep(1)
+
+        assert exists("//tmp/t1", tx=tx)
+
+        commit_transaction(tx)
+
+        time.sleep(0.2)
+
+        assert not exists("//tmp/t1")
 
     def test_copy_preserve_expiration_time(self):
         create("table", "//tmp/t1", attributes={"expiration_time": str(self._now() + timedelta(seconds=1))})
@@ -1937,6 +2025,31 @@ class TestCypress(YTEnvSetup):
         copy("//tmp/test_node", "//tmp/copy2", tx=tx1)
         assert not exists("//tmp/copy0/child", tx=tx1)
 
+    def test_builtin_versioned_attributes(self):
+        create("table", "//tmp/t1", attributes={"optimize_for": "lookup", "compression_codec": "zlib_6", "erasure_codec": "reed_solomon_6_3"})
+
+        assert get("//tmp/t1/@optimize_for") == "lookup"
+        assert get("//tmp/t1/@compression_codec") == "zlib_6"
+        assert get("//tmp/t1/@erasure_codec") == "reed_solomon_6_3"
+
+        tx = start_transaction()
+
+        set("//tmp/t1/@optimize_for", "scan", tx=tx)
+        set("//tmp/t1/@compression_codec", "lz4", tx=tx)
+        set("//tmp/t1/@erasure_codec", "lrc_12_2_2", tx=tx)
+
+        assert get("//tmp/t1/@optimize_for") == "lookup"
+        assert get("//tmp/t1/@compression_codec") == "zlib_6"
+        assert get("//tmp/t1/@erasure_codec") == "reed_solomon_6_3"
+        assert get("//tmp/t1/@optimize_for", tx=tx) == "scan"
+        assert get("//tmp/t1/@compression_codec", tx=tx) == "lz4"
+        assert get("//tmp/t1/@erasure_codec", tx=tx) == "lrc_12_2_2"
+
+        commit_transaction(tx)
+
+        assert get("//tmp/t1/@optimize_for") == "scan"
+        assert get("//tmp/t1/@compression_codec") == "lz4"
+        assert get("//tmp/t1/@erasure_codec") == "lrc_12_2_2"
 
 ##################################################################
 
