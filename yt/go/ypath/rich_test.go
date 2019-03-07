@@ -24,6 +24,10 @@ func TestParse(t *testing.T) {
 			expected: &Rich{Path: "//foo bar"},
 		},
 		{
+			input:    "  //\\xaa\\xff\\xAA\\xFF",
+			expected: &Rich{Path: "//\\xaa\\xff\\xAA\\xFF"},
+		},
+		{
 			input:    "<append=%true;>#bc67d12a-e1971bb1-3066dfe2-a94c59a8/foo",
 			expected: NewRich("#bc67d12a-e1971bb1-3066dfe2-a94c59a8/foo").SetAppend(),
 		},
