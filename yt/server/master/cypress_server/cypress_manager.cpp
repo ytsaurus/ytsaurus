@@ -1157,13 +1157,21 @@ public:
         }
     }
 
-    void SetExpirationTime(TCypressNodeBase* trunkNode, std::optional<TInstant> time)
+    void SetExpirationTime(TCypressNodeBase* node, std::optional<TInstant> time)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        Y_ASSERT(trunkNode->IsTrunk());
 
-        trunkNode->SetExpirationTime(time);
-        ExpirationTracker_->OnNodeExpirationTimeUpdated(trunkNode);
+        if (time) {
+            node->SetExpirationTime(*time);
+        } else if (node->IsTrunk()) {
+            node->ResetExpirationTime();
+        } else {
+            node->RemoveExpirationTime();
+        }
+
+        if (node->IsTrunk()) {
+            ExpirationTracker_->OnNodeExpirationTimeUpdated(node);
+        } // Otherwise the tracker will be notified when and if the node is merged in.
     }
 
 
@@ -1468,7 +1476,7 @@ private:
                 }
             }
 
-            if (node->IsTrunk() && node->GetExpirationTime()) {
+            if (node->IsTrunk() && node->TryGetExpirationTime()) {
                 ExpirationTracker_->OnNodeExpirationTimeUpdated(node);
             }
         }
@@ -2487,7 +2495,7 @@ private:
         acd->SetOwner(user);
 
         // Copy expiration time.
-        auto expirationTime = sourceNode->GetTrunkNode()->GetExpirationTime();
+        auto expirationTime = sourceNode->GetTrunkNode()->TryGetExpirationTime();
         if (factory->ShouldPreserveExpirationTime() && expirationTime) {
             SetExpirationTime(clonedNode, *expirationTime);
         }
