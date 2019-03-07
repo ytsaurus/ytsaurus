@@ -41,11 +41,6 @@ public:
         RegisterParameter("shard_count", ShardCount)
             .Default(16)
             .GreaterThan(0);
-        RegisterPostprocessor([&] () {
-            if (Capacity && Capacity < ShardCount * ShardCount) {
-                THROW_ERROR_EXCEPTION("Capacity must be greater than or equal to pow(shard_count, 2)");
-            }
-        });
     }
 };
 
