@@ -48,7 +48,7 @@ public:
             .DefaultNew();
 
         RegisterPreprocessor([&] () {
-            FunctionImplCache->Capacity = 100;
+            FunctionImplCache->Capacity = 256;
         });
     }
 };
