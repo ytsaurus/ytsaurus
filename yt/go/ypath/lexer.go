@@ -11,7 +11,7 @@ import (
 )
 
 func isHex(b byte) bool {
-	return ('a' <= b && b <= 'h') || ('A' <= b && b <= 'h') || ('0' <= b && b <= '9')
+	return ('a' <= b && b <= 'f') || ('A' <= b && b <= 'F') || ('0' <= b && b <= '9')
 }
 
 func isSpace(c byte) bool {
