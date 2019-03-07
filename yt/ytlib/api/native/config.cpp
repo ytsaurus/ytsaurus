@@ -150,7 +150,7 @@ TConnectionConfig::TConnectionConfig()
         .Default(TDuration::Minutes(30));
 
     RegisterPreprocessor([&] () {
-        FunctionImplCache->Capacity = 256;
+        FunctionImplCache->Capacity = 100;
     });
 
     RegisterPostprocessor([&] () {
