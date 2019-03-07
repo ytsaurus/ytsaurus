@@ -482,6 +482,8 @@ class YTInstance(object):
 
         self.pids_file = open(self.pids_filename, "wt")
         try:
+            self._configure_driver_logging()
+
             if self.has_http_proxy:
                 self.start_proxy(use_proxy_from_package=use_proxy_from_package, use_new_proxy=use_new_proxy, sync=False)
 
@@ -677,6 +679,22 @@ class YTInstance(object):
                 if proc.returncode is not None:
                     callback_func(self, args)
                     break
+
+    def _configure_driver_logging(self):
+        try:
+            import yt_driver_bindings
+        except ImportError:
+            guessed_version = list(self._binaries.items())[0][1].literal
+            raise YtError("YT driver bindings not found. Make sure you have installed "
+                          "yandex-yt-python-driver package (appropriate version: {0})"
+                          .format(guessed_version))
+
+        yt_driver_bindings.configure_logging(
+            get_environment_driver_logging_config(self.driver_logging_config)
+        )
+
+        import yt.wrapper.native_driver as native_driver
+        native_driver.logging_configured = True
 
     def _write_environment_info_to_file(self):
         info = {}
@@ -1063,18 +1081,6 @@ class YTInstance(object):
             "backend": "native",
             "driver_config": driver_config
         }
-
-        try:
-            import yt_driver_bindings
-        except ImportError:
-            guessed_version = list(self._binaries.items())[0][1].literal
-            raise YtError("YT driver bindings not found. Make sure you have installed "
-                          "yandex-yt-python-driver package (appropriate version: {0})"
-                          .format(guessed_version))
-
-        yt_driver_bindings.configure_logging(
-            get_environment_driver_logging_config(self.driver_logging_config)
-        )
 
         return YtClient(config=config)
 
