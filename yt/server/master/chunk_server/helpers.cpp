@@ -106,10 +106,7 @@ void DetachFromChunkList(
                 children.begin(),
                 children.begin() + newTrimmedChildCount);
 
-            auto& cumulativeStatistics = chunkList->CumulativeStatistics();
-            cumulativeStatistics.erase(
-                cumulativeStatistics.begin(),
-                std::min(cumulativeStatistics.begin() + newTrimmedChildCount, cumulativeStatistics.end()));
+            chunkList->CumulativeStatistics().EraseFromFront(newTrimmedChildCount);
 
             chunkList->SetTrimmedChildCount(0);
         } else {
@@ -121,7 +118,7 @@ void DetachFromChunkList(
         statisticsDelta.LogicalChunkCount = 0;
     } else {
         // Can handle arbitrary children.
-        // Used in sorted tablet compaction..
+        // Used in sorted tablet compaction.
         auto& childToIndex = chunkList->ChildToIndex();
         for (auto childIt = childrenBegin; childIt != childrenEnd; ++childIt) {
             auto* child = *childIt;
@@ -199,18 +196,17 @@ void AppendChunkTreeChild(
     TChunkTree* child,
     TChunkTreeStatistics* statistics)
 {
-    if (chunkList->IsOrdered()) {
-        if (!chunkList->Children().empty()) {
-            chunkList->CumulativeStatistics().push_back({
-                chunkList->Statistics().LogicalRowCount + statistics->LogicalRowCount,
-                chunkList->Statistics().LogicalChunkCount + statistics->LogicalChunkCount,
-                chunkList->Statistics().UncompressedDataSize + statistics->UncompressedDataSize
-            });
-        }
-    } else if (child) {
+    if (chunkList->HasCumulativeStatistics()) {
+        chunkList->CumulativeStatistics().PushBack(TCumulativeStatisticsEntry{
+            GetChunkTreeStatistics(child)
+        });
+    }
+
+    if (child && !chunkList->IsOrdered()) {
         int index = static_cast<int>(chunkList->Children().size());
         YCHECK(chunkList->ChildToIndex().emplace(child, index).second);
     }
+
     statistics->Accumulate(GetChunkTreeStatistics(child));
     chunkList->Children().push_back(child);
 }
@@ -230,7 +226,7 @@ void AccumulateUniqueAncestorsStatistics(
 
 void ResetChunkListStatistics(TChunkList* chunkList)
 {
-    chunkList->CumulativeStatistics().clear();
+    chunkList->CumulativeStatistics().Clear();
     chunkList->Statistics() = TChunkTreeStatistics();
     chunkList->Statistics().ChunkListCount = 1;
     chunkList->Statistics().Rank = 1;
@@ -239,6 +235,17 @@ void ResetChunkListStatistics(TChunkList* chunkList)
 void RecomputeChunkListStatistics(TChunkList* chunkList)
 {
     ResetChunkListStatistics(chunkList);
+
+    // TODO(ifsmirnov): looks like this function is called only for empty
+    // chunk lists. Check it and add YCHECK in TChunkList::SetKind
+    // that it is called only for empty chunk lists.
+    YCHECK(chunkList->Children().empty());
+
+    if (chunkList->HasAppendableCumulativeStatistics()) {
+        chunkList->CumulativeStatistics().DeclareAppendable();
+    } else if (chunkList->HasModifyableCumulativeStatistics()) {
+        chunkList->CumulativeStatistics().DeclareModifiable();
+    }
 
     std::vector<TChunkTree*> children;
     children.swap(chunkList->Children());

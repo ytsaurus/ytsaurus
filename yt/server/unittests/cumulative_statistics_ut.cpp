@@ -7,7 +7,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(CumulativeStatistics, SimpleAppendable)
+TEST(TCumulativeStatisticsTest, SimpleAppendable)
 {
     TCumulativeStatistics stats;
     stats.DeclareAppendable();
@@ -30,7 +30,7 @@ TEST(CumulativeStatistics, SimpleAppendable)
     EXPECT_EQ(3, stats.Back().RowCount);
 }
 
-TEST(CumulativeStatistics, SimpleModifiable)
+TEST(TCumulativeStatisticsTest, SimpleModifiable)
 {
     TCumulativeStatistics stats;
     stats.DeclareModifiable();

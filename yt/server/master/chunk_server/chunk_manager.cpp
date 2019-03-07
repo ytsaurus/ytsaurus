@@ -2414,6 +2414,8 @@ private:
         NeedToRecomputeStatistics_ = true;
     }
 
+    // NB(ifsmirnov): This code was used 3 years ago as an ancient COMPAT but might soon
+    // be reused when cumulative stats for dyntables come.
     void RecomputeStatistics()
     {
         YT_LOG_INFO("Started recomputing statistics");
@@ -2461,9 +2463,10 @@ private:
             int childCount = chunkList->Children().size();
 
             auto& cumulativeStatistics = chunkList->CumulativeStatistics();
-            cumulativeStatistics.clear();
+            cumulativeStatistics.Clear();
 
             for (int childIndex = 0; childIndex < childCount; ++childIndex) {
+                // TODO(ifsmirnov): think of it in context of nullptrs and cumulative statistics.
                 auto* child = chunkList->Children()[childIndex];
                 if (!child) {
                     continue;
@@ -2485,11 +2488,11 @@ private:
                         Y_UNREACHABLE();
                 }
 
-                if (childIndex + 1 < childCount) {
-                    cumulativeStatistics.push_back({
-                        statistics.LogicalRowCount + childStatistics.LogicalRowCount,
-                        statistics.LogicalChunkCount + childStatistics.LogicalChunkCount,
-                        statistics.UncompressedDataSize + childStatistics.UncompressedDataSize
+                if (childIndex + 1 < childCount && chunkList->HasCumulativeStatistics()) {
+                    cumulativeStatistics.PushBack(TCumulativeStatisticsEntry{
+                        childStatistics.LogicalRowCount,
+                        childStatistics.LogicalChunkCount,
+                        childStatistics.UncompressedDataSize
                     });
                 }
 

@@ -6,7 +6,7 @@ namespace NYT::NCellMaster {
 
 int GetCurrentSnapshotVersion()
 {
-    return 827;
+    return 828;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -48,6 +48,7 @@ bool ValidateSnapshotVersion(int version)
         version == 825 || // shakurov: In TChunkReplication, replace array with SmallVector
         version == 826 || // babenko: columnar ACLs
         version == 827 || // babenko: security tags
+        version == 828 || // ifsmirnov: TCumulativeStatistics in chunk lists
         false;
 }
 
