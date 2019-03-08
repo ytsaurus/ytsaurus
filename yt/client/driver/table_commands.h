@@ -25,7 +25,6 @@ private:
     NFormats::TControlAttributesConfigPtr ControlAttributes;
     bool Unordered;
     bool StartRowIndexOnly;
-    bool OmitInaccessibleColumns;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };

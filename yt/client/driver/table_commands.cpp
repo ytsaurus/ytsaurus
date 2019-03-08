@@ -68,7 +68,7 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
         Path,
         Unordered,
         StartRowIndexOnly,
-        OmitInaccessibleColumns);
+        Options.OmitInaccessibleColumns);
 
     Options.Ping = true;
     Options.Config = UpdateYsonSerializable(
