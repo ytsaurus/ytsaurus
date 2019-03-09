@@ -8,6 +8,8 @@
 
 #include <yt/core/profiling/timing.h>
 
+#include <util/system/tls.h>
+
 namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,28 +24,61 @@ TLogger& TLogger::AddTag(const char* format, TArgs&&... args)
 
 namespace NDetail {
 
+struct TMessageStringBuilderContext
+{
+    TSharedMutableRef Chunk;
+};
+
+struct TMessageBufferTag
+{ };
+
+class TMessageStringBuilder
+    : public TStringBuilderBase
+{
+public:
+    TSharedRef Flush();
+
+protected:
+    virtual void DoReset() override;
+    virtual void DoPreallocate(size_t newLength) override;
+
+private:
+    struct TContext
+    {
+        TSharedMutableRef Chunk;
+        size_t ChunkOffset = 0;
+    };
+
+    TSharedMutableRef Buffer_;
+
+    Y_POD_STATIC_THREAD(TContext*) Context_;
+    static TContext* GetContext();
+
+    static constexpr size_t ChunkSize = 64_KB;
+};
+
 template <class... TArgs>
-void AppendLogMessage(TStringBuilder* builder, TStringBuf context, TStringBuf message)
+void AppendLogMessage(TStringBuilderBase* builder, TStringBuf context, TRef message)
 {
     if (context) {
-        if (message.length() >= 1 && message[message.length() - 1] == ')') {
-            builder->AppendString(TStringBuf(message.data(), message.length() - 1));
+        if (message.Size() >= 1 && message[message.Size() - 1] == ')') {
+            builder->AppendString(TStringBuf(message.Begin(), message.Size() - 1));
             builder->AppendString(AsStringBuf(", "));
             builder->AppendString(context);
             builder->AppendChar(')');
         } else {
-            builder->AppendString(message);
+            builder->AppendString(TStringBuf(message.Begin(), message.Size()));
             builder->AppendString(AsStringBuf(" ("));
             builder->AppendString(context);
             builder->AppendChar(')');
         }
     } else {
-        builder->AppendString(message);
+        builder->AppendString(TStringBuf(message.Begin(), message.Size()));
     }
 }
 
 template <class... TArgs, size_t FormatLength>
-void AppendLogMessageWithFormat(TStringBuilder* builder, TStringBuf context, const char (&format)[FormatLength], TArgs&&... args)
+void AppendLogMessageWithFormat(TStringBuilderBase* builder, TStringBuf context, const char (&format)[FormatLength], TArgs&&... args)
 {
     if (context) {
         if (FormatLength >= 2 && format[FormatLength - 2] == ')') {
@@ -63,17 +98,17 @@ void AppendLogMessageWithFormat(TStringBuilder* builder, TStringBuf context, con
 }
 
 template <class... TArgs, size_t FormatLength>
-TString BuildLogMessage(TStringBuf context, const char (&format)[FormatLength], TArgs&&... args)
+TSharedRef BuildLogMessage(TStringBuf context, const char (&format)[FormatLength], TArgs&&... args)
 {
-    TStringBuilder builder;
+    TMessageStringBuilder builder;
     AppendLogMessageWithFormat(&builder, context, format, std::forward<TArgs>(args)...);
     return builder.Flush();
 }
 
 template <class... TArgs, size_t FormatLength>
-TString BuildLogMessage(TStringBuf context, const TError& error, const char (&format)[FormatLength], TArgs&&... args)
+TSharedRef BuildLogMessage(TStringBuf context, const TError& error, const char (&format)[FormatLength], TArgs&&... args)
 {
-    TStringBuilder builder;
+    TMessageStringBuilder builder;
     AppendLogMessageWithFormat(&builder, context, format, std::forward<TArgs>(args)...);
     builder.AppendChar('\n');
     FormatValue(&builder, error, TStringBuf());
@@ -81,9 +116,9 @@ TString BuildLogMessage(TStringBuf context, const TError& error, const char (&fo
 }
 
 template <class T>
-TString BuildLogMessage(TStringBuf context, const T& obj)
+TSharedRef BuildLogMessage(TStringBuf context, const T& obj)
 {
-    TStringBuilder builder;
+    TMessageStringBuilder builder;
     FormatValue(&builder, obj, TStringBuf());
     if (context) {
         builder.AppendString(AsStringBuf(" ("));
@@ -93,10 +128,10 @@ TString BuildLogMessage(TStringBuf context, const T& obj)
     return builder.Flush();
 }
 
-inline TString BuildLogMessage(TStringBuf context, TString&& message)
+inline TSharedRef BuildLogMessage(TStringBuf context, TSharedRef&& message)
 {
     if (context) {
-        TStringBuilder builder;
+        TMessageStringBuilder builder;
         AppendLogMessage(&builder, context, message);
         return builder.Flush();
     } else {
@@ -119,9 +154,9 @@ inline TLogEvent CreateLogEvent(const TLogger& logger, ELogLevel level)
 inline void LogEventImpl(
     const TLogger& logger,
     ELogLevel level,
-    TString message)
+    TSharedRef message)
 {
-    TLogEvent event = CreateLogEvent(logger, level);
+    auto event = CreateLogEvent(logger, level);
     event.Message = std::move(message);
     event.MessageFormat = ELogMessageFormat::PlainText;
     logger.Write(std::move(event));

@@ -6,7 +6,7 @@ namespace NYT::NCellMaster {
 
 int GetCurrentSnapshotVersion()
 {
-    return 824;
+    return 826;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -45,6 +45,8 @@ bool ValidateSnapshotVersion(int version)
         version == 822 || // savrus: Use current mount transaction id to lock table node during mount
         version == 823 || // ifsmirnov: Synchronous handles for tablet balancer
         version == 824 || // savrus: Remove dynamic table attrs from static tables
+        version == 825 || // shakurov: In TChunkReplication, replace array with SmallVector
+        version == 826 || // babenko: columnar ACLs
         false;
 }
 

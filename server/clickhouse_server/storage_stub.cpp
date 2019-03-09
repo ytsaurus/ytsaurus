@@ -1,15 +1,6 @@
 #include "storage_stub.h"
 
-#include <yt/server/clickhouse_server/table.h>
-
-namespace DB {
-
-namespace ErrorCodes
-{
-    extern const int NOT_IMPLEMENTED;
-}
-
-}   // namespace DB
+#include "table.h"
 
 namespace NYT::NClickHouseServer {
 
@@ -21,11 +12,11 @@ class TStorageStub
     : public DB::IStorage
 {
 private:
-    const TTablePtr Table;
+    const TClickHouseTablePtr Table;
     const NamesAndTypesList Columns;
 
 public:
-    TStorageStub(TTablePtr table)
+    TStorageStub(TClickHouseTablePtr table)
         : Table(std::move(table))
     {}
 
@@ -51,7 +42,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-StoragePtr CreateStorageStub(TTablePtr table)
+StoragePtr CreateStorageStub(TClickHouseTablePtr table)
 {
     return std::make_shared<TStorageStub>(std::move(table));
 }

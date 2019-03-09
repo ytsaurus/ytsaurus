@@ -74,7 +74,7 @@ class TestChunkServer(YTEnvSetup):
             return id.split('-')[3]
 
         for node in nodes:
-            if not (id_to_hash(id) in [id_to_hash(id_) for id_ in ls("//sys/nodes/%s/orchid/stored_chunks" % node)]):
+            if not (id_to_hash(id) in [id_to_hash(id_) for id_ in ls("//sys/cluster_nodes/%s/orchid/stored_chunks" % node)]):
                 return False
         return True
 
@@ -97,7 +97,7 @@ class TestChunkServer(YTEnvSetup):
         wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == 3)
         nodes = get("#%s/@stored_replicas" % chunk_id)
         for node in nodes:
-            assert not get("//sys/nodes/%s/@decommissioned" % node)
+            assert not get("//sys/cluster_nodes/%s/@decommissioned" % node)
 
     def test_decommission_erasure(self):
         create("table", "//tmp/t")
@@ -122,14 +122,14 @@ class TestChunkServer(YTEnvSetup):
         nodes = get("#%s/@stored_replicas" % chunk_id)
 
         for index in (4, 6, 11, 15):
-            set("//sys/nodes/%s/@banned" % nodes[index], True)
+            set("//sys/cluster_nodes/%s/@banned" % nodes[index], True)
         set_node_decommissioned(nodes[0], True)
 
         wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == 12)
 
         sync_control_chunk_replicator(True)
 
-        wait(lambda: get("//sys/nodes/%s/@decommissioned" % nodes[0]))
+        wait(lambda: get("//sys/cluster_nodes/%s/@decommissioned" % nodes[0]))
         wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == 16)
 
     def test_decommission_journal(self):
@@ -143,13 +143,13 @@ class TestChunkServer(YTEnvSetup):
         ls("//sys/chunks", attributes=["owning_nodes"])
 
     def test_disable_replicator_when_few_nodes_are_online(self):
-        nodes = ls("//sys/nodes")
+        nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 21
 
         assert get("//sys/@chunk_replicator_enabled")
 
         for i in xrange(19):
-            set("//sys/nodes/%s/@banned" % nodes[i], True)
+            set("//sys/cluster_nodes/%s/@banned" % nodes[i], True)
 
         wait(lambda: not get("//sys/@chunk_replicator_enabled"))
 
@@ -201,8 +201,8 @@ class TestChunkServer(YTEnvSetup):
         def check_replica_count():
             nodes = get("#{0}/@stored_replicas".format(chunk_id))
             for node in nodes:
-                if not (get("//sys/nodes/{0}/@chunk_replica_count/cache".format(node)) == 0 and
-                        get("//sys/nodes/{0}/@chunk_replica_count/default".format(node)) == 1):
+                if not (get("//sys/cluster_nodes/{0}/@chunk_replica_count/cache".format(node)) == 0 and
+                        get("//sys/cluster_nodes/{0}/@chunk_replica_count/default".format(node)) == 1):
                     return False
             return True
 

@@ -38,17 +38,17 @@ void TMessageQueueOutbox<TItem>::BuildOutcoming(TProtoMessage* message, TBuilder
     VERIFY_THREAD_AFFINITY(Consumer);
 
     Stack_.DequeueAll(true, [&] (TEntry& entry) {
-        if (auto* item = std::get_if<TItem>(&entry)) {
-            Queue_.emplace(std::move(*item));
-            ++NextItemId_;
-        } else if (auto* items = std::get_if<std::vector<TItem>>(&entry)) {
-            for (auto&& item : *items) {
+        Visit(std::move(entry),
+            [&] (TItem&& item) {
                 Queue_.emplace(std::move(item));
                 ++NextItemId_;
-            }
-        } else {
-            Y_UNREACHABLE();
-        }
+            },
+            [&] (std::vector<TItem>&& items) {
+                for (auto& item : items) {
+                    Queue_.emplace(std::move(item));
+                    ++NextItemId_;
+                }
+            });
     });
 
     auto firstItemId = FirstItemId_;

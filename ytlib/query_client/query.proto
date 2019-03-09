@@ -181,6 +181,7 @@ message TQuery
     required int64 input_row_limit = 2;
     required int64 output_row_limit = 3;
 
+    optional int64 offset = 16 [default = 0];
     required int64 limit = 4;
 
     required NYT.NTableClient.NProto.TTableSchemaExt original_schema = 5;
@@ -209,6 +210,7 @@ message TQueryOptions
     optional bool allow_full_scan = 7 [default = true];
     optional NYT.NProto.TGuid read_session_id = 8;
     optional uint64 deadline = 9;
+    optional uint64 memory_limit_per_node = 10;
 }
 
 message TDataRanges

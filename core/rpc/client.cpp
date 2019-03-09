@@ -2,6 +2,7 @@
 #include "private.h"
 #include "dispatcher.h"
 #include "message.h"
+#include "stream.h"
 
 #include <yt/core/net/local_address.h>
 
@@ -9,14 +10,17 @@
 #include <yt/core/misc/checksum.h>
 #include <yt/core/misc/memory_zone.h>
 
-#include <iterator>
-
 namespace NYT::NRpc {
 
 using namespace NBus;
 using namespace NYTree;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = RpcClientLogger;
 
 static const auto ClientHostAnnotation = TString("client_host");
 static const auto RequestIdAnnotation = TString("request_id");
@@ -28,30 +32,37 @@ TClientContext::TClientContext(
     const NTracing::TTraceContext& traceContext,
     const TString& service,
     const TString& method,
-    bool heavy)
+    bool heavy,
+    EMemoryZone memoryZone,
+    TAttachmentsOutputStreamPtr requestAttachmentsStream,
+    TAttachmentsInputStreamPtr responseAttachmentsStream)
     : RequestId_(requestId)
     , TraceContext_(traceContext)
     , Service_(service)
     , Method_(method)
     , Heavy_(heavy)
+    , MemoryZone_(memoryZone)
+    , RequestAttachmentsStream_(std::move(requestAttachmentsStream))
+    , ResponseAttachmentsStream_(std::move(responseAttachmentsStream))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TClientRequest::TClientRequest(
     IChannelPtr channel,
-    const TString& service,
-    const TString& method,
-    TProtocolVersion protocolVersion)
+    const TServiceDescriptor& serviceDescriptor,
+    const TMethodDescriptor& methodDescriptor)
     : Channel_(std::move(channel))
+    , StreamingEnabled_(methodDescriptor.StreamingEnabled)
 {
     Y_ASSERT(Channel_);
 
-    Header_.set_service(service);
-    Header_.set_method(method);
+    Header_.set_service(serviceDescriptor.ServiceName);
+    Header_.set_method(methodDescriptor.MethodName);
+    Header_.set_protocol_version_major(serviceDescriptor.ProtocolVersion.Major);
+    Header_.set_protocol_version_minor(serviceDescriptor.ProtocolVersion.Minor);
+
     ToProto(Header_.mutable_request_id(), TRequestId::Create());
-    Header_.set_protocol_version_major(protocolVersion.Major);
-    Header_.set_protocol_version_minor(protocolVersion.Minor);
 }
 
 TClientRequest::TClientRequest(const TClientRequest& other)
@@ -60,12 +71,11 @@ TClientRequest::TClientRequest(const TClientRequest& other)
     , RequestAck_(other.RequestAck_)
     , Heavy_(other.Heavy_)
     , RequestCodec_(other.RequestCodec_)
-    , RequestAttachmentCodec_(other.RequestAttachmentCodec_)
     , ResponseCodec_(other.ResponseCodec_)
-    , ResponseAttachmentCodec_(other.ResponseAttachmentCodec_)
     , GenerateAttachmentChecksums_(other.GenerateAttachmentChecksums_)
-    , UseUndumpableMemoryZone_(other.UseUndumpableMemoryZone_)
+    , MemoryZone_(other.MemoryZone_)
     , Channel_(other.Channel_)
+    , StreamingEnabled_(other.StreamingEnabled_)
     , Header_(other.Header_)
     , SerializedData_(other.SerializedData_)
     , Hash_(other.Hash_)
@@ -77,7 +87,11 @@ TSharedRefArray TClientRequest::Serialize()
 {
     if (FirstTimeSerialization_) {
         SetCodecsInHeader();
+        SetStreamingParametersInHeader();
     } else {
+        if (StreamingEnabled_) {
+            THROW_ERROR_EXCEPTION("Retries are not supported for requests with streaming");
+        }
         Header_.set_retry(true);
     }
     FirstTimeSerialization_ = false;
@@ -93,12 +107,14 @@ IClientRequestControlPtr TClientRequest::Send(IClientResponseHandlerPtr response
     options.Timeout = Timeout_;
     options.RequestAck = RequestAck_;
     options.GenerateAttachmentChecksums = GenerateAttachmentChecksums_;
-    options.UseUndumpableMemoryZone = UseUndumpableMemoryZone_;
+    options.MemoryZone = MemoryZone_;
     options.MultiplexingBand = MultiplexingBand_;
-    return Channel_->Send(
+    auto control = Channel_->Send(
         this,
         std::move(responseHandler),
         options);
+    RequestControl_ = control;
+    return control;
 }
 
 NProto::TRequestHeader& TClientRequest::Header()
@@ -109,6 +125,42 @@ NProto::TRequestHeader& TClientRequest::Header()
 const NProto::TRequestHeader& TClientRequest::Header() const
 {
     return Header_;
+}
+
+const TStreamingParameters& TClientRequest::RequestAttachmentsStreamingParameters() const
+{
+    return RequestAttachmentStreamingParameters_;
+}
+
+TStreamingParameters& TClientRequest::RequestAttachmentsStreamingParameters()
+{
+    return RequestAttachmentStreamingParameters_;
+}
+
+const TStreamingParameters& TClientRequest::ResponseAttachmentsStreamingParameters() const
+{
+    return ResponseAttachmentStreamingParameters_;
+}
+
+TStreamingParameters& TClientRequest::ResponseAttachmentsStreamingParameters()
+{
+    return ResponseAttachmentStreamingParameters_;
+}
+
+NConcurrency::IAsyncZeroCopyOutputStreamPtr TClientRequest::GetRequestAttachmentsStream() const
+{
+    if (!RequestAttachmentsStream_) {
+        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::StreamingNotSupported, "Streaming is not supported");
+    }
+    return RequestAttachmentsStream_;
+}
+
+NConcurrency::IAsyncZeroCopyInputStreamPtr TClientRequest::GetResponseAttachmentsStream() const
+{
+    if (!ResponseAttachmentsStream_) {
+        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::StreamingNotSupported, "Streaming is not supported");
+    }
+    return ResponseAttachmentsStream_;
 }
 
 bool TClientRequest::IsHeavy() const
@@ -216,12 +268,103 @@ TClientContextPtr TClientRequest::CreateClientContext()
         TraceRequest(traceContext);
     }
 
+    if (StreamingEnabled_) {
+        RequestAttachmentsStream_ = New<TAttachmentsOutputStream>(
+            RequestAttachmentStreamingParameters_,
+            MemoryZone_,
+            RequestCodec_,
+            GetInvoker(),
+            BIND(&TClientRequest::OnPullRequestAttachmentsStream, MakeWeak(this)));
+        ResponseAttachmentsStream_ = New<TAttachmentsInputStream>(
+            BIND(&TClientRequest::OnResponseAttachmentsStreamRead, MakeWeak(this)),
+            GetInvoker());
+    }
+
     return New<TClientContext>(
         GetRequestId(),
         traceContext,
         GetService(),
         GetMethod(),
-        Heavy_);
+        Heavy_,
+        MemoryZone_,
+        RequestAttachmentsStream_,
+        ResponseAttachmentsStream_);
+}
+
+void TClientRequest::OnPullRequestAttachmentsStream()
+{
+    auto payload = RequestAttachmentsStream_->TryPull();
+    if (!payload) {
+        return;
+    }
+
+    auto control = RequestControl_.Lock();
+    if (!control) {
+        RequestAttachmentsStream_->Abort(TError(NRpc::EErrorCode::StreamingNotSupported, "Streaming is not supported"));
+        return;
+    }
+
+    YT_LOG_DEBUG("Request streaming attachments pulled (RequestId: %v, SequenceNumber: %v, Sizes: %v, Closed: %v)",
+        GetRequestId(),
+        payload->SequenceNumber,
+        MakeFormattableView(payload->Attachments, [] (auto* builder, const auto& attachment) {
+            builder->AppendFormat("%v", GetStreamingAttachmentSize(attachment));
+        }),
+        !payload->Attachments.back());
+
+    control->SendStreamingPayload(*payload).Subscribe(
+        BIND(&TClientRequest::OnRequestStreamingPayloadAcked, MakeStrong(this), payload->SequenceNumber));;
+}
+
+void TClientRequest::OnRequestStreamingPayloadAcked(int sequenceNumber, const TError& error)
+{
+    if (error.IsOK()) {
+        YT_LOG_DEBUG("Request streaming payload delivery acknowledged (RequestId: %v, SequenceNumber: %v)",
+            GetRequestId(),
+            sequenceNumber);
+    } else {
+        YT_LOG_DEBUG(error, "Response streaming payload delivery failed (RequestId: %v, SequenceNumber: %v)",
+            GetRequestId(),
+            sequenceNumber);
+        RequestAttachmentsStream_->Abort(error);
+    }
+}
+
+void TClientRequest::OnResponseAttachmentsStreamRead()
+{
+    auto feedback = ResponseAttachmentsStream_->GetFeedback();
+
+    auto control = RequestControl_.Lock();
+    if (!control) {
+        ResponseAttachmentsStream_->Abort(TError(NRpc::EErrorCode::StreamingNotSupported, "Streaming is not supported"));
+        return;
+    }
+
+    YT_LOG_DEBUG("Response streaming attachments read (RequestId: %v, ReadPosition: %v)",
+        GetRequestId(),
+        feedback.ReadPosition);
+
+    control->SendStreamingFeedback(feedback).Subscribe(
+        BIND(&TClientRequest::OnResponseStreamingFeedbackAcked, MakeStrong(this)));
+}
+
+void TClientRequest::OnResponseStreamingFeedbackAcked(const TError& error)
+{
+    if (error.IsOK()) {
+        YT_LOG_DEBUG("Response streaming feedback delivery acknowledged (RequestId: %v)",
+            GetRequestId());
+    } else {
+        YT_LOG_DEBUG(error, "Response streaming feedback delivery failed (RequestId: %v)",
+            GetRequestId());
+        ResponseAttachmentsStream_->Abort(error);
+    }
+}
+
+const IInvokerPtr& TClientRequest::GetInvoker() const
+{
+    return GetHeavy()
+        ? TDispatcher::Get()->GetHeavyInvoker()
+        : TDispatcher::Get()->GetLightInvoker();
 }
 
 void TClientRequest::TraceRequest(const NTracing::TTraceContext& traceContext)
@@ -245,18 +388,22 @@ void TClientRequest::TraceRequest(const NTracing::TTraceContext& traceContext)
 
 void TClientRequest::SetCodecsInHeader()
 {
-    if (RequestAttachmentCodec_ || ResponseCodec_ || ResponseAttachmentCodec_) {
-        auto requestCodecId = RequestCodec_.value_or(NCompression::ECodec::None);
-        auto requestAttachmentCodecId = RequestAttachmentCodec_.value_or(requestCodecId);
-        auto responseCodecId = ResponseCodec_.value_or(NCompression::ECodec::None);
-        auto responseAttachmentCodecId = ResponseAttachmentCodec_.value_or(responseCodecId);
-
-        auto requestCodecs = Header_.mutable_request_codecs();
-        requestCodecs->set_request_codec(static_cast<int>(requestCodecId));
-        requestCodecs->set_request_attachment_codec(static_cast<int>(requestAttachmentCodecId));
-        requestCodecs->set_response_codec(static_cast<int>(responseCodecId));
-        requestCodecs->set_response_attachment_codec(static_cast<int>(responseAttachmentCodecId));
+    // COMPAT(kiselyovp): legacy RPC codecs
+    if (EnableLegacyRpcCodecs_) {
+        return;
     }
+
+    Header_.set_request_codec(static_cast<int>(RequestCodec_));
+    Header_.set_response_codec(static_cast<int>(ResponseCodec_));
+}
+
+void TClientRequest::SetStreamingParametersInHeader()
+{
+    if (!StreamingEnabled_) {
+        return;
+    }
+
+    ToProto(Header_.mutable_response_attachments_streaming_parameters(), ResponseAttachmentStreamingParameters_);
 }
 
 const TSharedRefArray& TClientRequest::GetSerializedData() const
@@ -269,56 +416,9 @@ const TSharedRefArray& TClientRequest::GetSerializedData() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClientResponseBase::TClientResponseBase(TClientContextPtr clientContext)
+TClientResponse::TClientResponse(TClientContextPtr clientContext)
     : StartTime_(NProfiling::GetInstant())
     , ClientContext_(std::move(clientContext))
-{ }
-
-void TClientResponseBase::HandleError(const TError& error)
-{
-    auto prevState = State_.exchange(EState::Done);
-    if (prevState == EState::Done) {
-        // Ignore the error.
-        // Most probably this is a late timeout.
-        return;
-    }
-
-    GetInvoker()->Invoke(
-        BIND(&TClientResponseBase::DoHandleError, MakeStrong(this), error));
-}
-
-void TClientResponseBase::DoHandleError(const TError& error)
-{
-    Finish(error);
-}
-
-void TClientResponseBase::Finish(const TError& error)
-{
-    NTracing::TTraceContextGuard guard(ClientContext_->GetTraceContext());
-    TraceResponse();
-    SetPromise(error);
-}
-
-void TClientResponseBase::TraceResponse()
-{
-    NTracing::TraceEvent(
-        ClientContext_->GetTraceContext(),
-        ClientContext_->GetService(),
-        ClientContext_->GetMethod(),
-        NTracing::ClientReceiveAnnotation);
-}
-
-const IInvokerPtr& TClientResponseBase::GetInvoker()
-{
-    return ClientContext_->GetHeavy()
-        ? TDispatcher::Get()->GetHeavyInvoker()
-        : TDispatcher::Get()->GetLightInvoker();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TClientResponse::TClientResponse(TClientContextPtr clientContext)
-    : TClientResponseBase(std::move(clientContext))
 { }
 
 const NProto::TResponseHeader& TClientResponse::Header() const
@@ -344,6 +444,59 @@ size_t TClientResponse::GetTotalSize() const
     return result;
 }
 
+void TClientResponse::HandleError(const TError& error)
+{
+    auto prevState = State_.exchange(EState::Done);
+    if (prevState == EState::Done) {
+        // Ignore the error.
+        // Most probably this is a late timeout.
+        return;
+    }
+
+    GetInvoker()->Invoke(
+        BIND(&TClientResponse::DoHandleError, MakeStrong(this), error));
+}
+
+void TClientResponse::DoHandleError(const TError& error)
+{
+    Finish(error);
+}
+
+void TClientResponse::Finish(const TError& error)
+{
+    NTracing::TTraceContextGuard guard(ClientContext_->GetTraceContext());
+
+    TraceResponse();
+
+    const auto& requestAttachmentsStream = ClientContext_->GetRequestAttachmentsStream();
+    if (requestAttachmentsStream) {
+        requestAttachmentsStream->AbortUnlessClosed(error);
+    }
+
+    const auto& responseAttachmentsStream = ClientContext_->GetResponseAttachmentsStream();
+    if (responseAttachmentsStream) {
+        responseAttachmentsStream->AbortUnlessClosed(error);
+    }
+
+    SetPromise(error);
+}
+
+void TClientResponse::TraceResponse()
+{
+    NTracing::TraceEvent(
+        ClientContext_->GetTraceContext(),
+        ClientContext_->GetService(),
+        ClientContext_->GetMethod(),
+        NTracing::ClientReceiveAnnotation);
+}
+
+const IInvokerPtr& TClientResponse::GetInvoker()
+{
+    return ClientContext_->GetHeavy()
+        ? TDispatcher::Get()->GetHeavyInvoker()
+        : TDispatcher::Get()->GetLightInvoker();
+}
+
 void TClientResponse::Deserialize(TSharedRefArray responseMessage)
 {
     Y_ASSERT(responseMessage);
@@ -355,19 +508,22 @@ void TClientResponse::Deserialize(TSharedRefArray responseMessage)
 
     YCHECK(ParseResponseHeader(ResponseMessage_, &Header_));
 
-    // COMPAT(kiselyovp)
-    bool compatibilityMode = !Header_.has_response_codecs();
-
-    std::optional<NCompression::ECodec> responseCodecId;
-    if (!compatibilityMode) {
-        responseCodecId = CheckedEnumCast<NCompression::ECodec>(Header_.response_codecs().response_codec());
+    // COMPAT(kiselyovp): legacy RPC codecs
+    std::optional<NCompression::ECodec> bodyCodecId;
+    NCompression::ECodec attachmentCodecId;
+    if (Header_.has_codec()) {
+        bodyCodecId = attachmentCodecId = CheckedEnumCast<NCompression::ECodec>(Header_.codec());
+    } else {
+        bodyCodecId = std::nullopt;
+        attachmentCodecId = NCompression::ECodec::None;
     }
-    DeserializeBody(ResponseMessage_[1], responseCodecId);
 
-    auto responseAttachmentCodecId = compatibilityMode
-        ? NCompression::ECodec::None
-        : CheckedEnumCast<NCompression::ECodec>(Header_.response_codecs().response_attachment_codec());
-    auto* responseAttachmentCodec = NCompression::GetCodec(responseAttachmentCodecId);
+    DeserializeBody(ResponseMessage_[1], bodyCodecId);
+
+    auto* attachmentCodec = NCompression::GetCodec(attachmentCodecId);
+
+    auto memoryZone = CheckedEnumCast<EMemoryZone>(Header_.memory_zone());
+
     Attachments_.clear();
     Attachments_.reserve(ResponseMessage_.Size() - 2);
     for (auto attachmentIt = ResponseMessage_.Begin() + 2;
@@ -376,8 +532,14 @@ void TClientResponse::Deserialize(TSharedRefArray responseMessage)
     {
         TSharedRef decompressedAttachment;
         {
-            TMemoryZoneGuard guard(FromProto<EMemoryZone>(Header_.response_memory_zone()));
-            decompressedAttachment = responseAttachmentCodec->Decompress(*attachmentIt);
+            TMemoryZoneGuard guard(memoryZone);
+            if (attachmentCodecId == NCompression::ECodec::None && memoryZone != EMemoryZone::Normal) {
+                struct TCopiedAttachmentTag
+                { };
+                decompressedAttachment = TSharedMutableRef::MakeCopy<TCopiedAttachmentTag>(*attachmentIt);
+            } else {
+                decompressedAttachment = attachmentCodec->Decompress(*attachmentIt);
+            }
         }
         Attachments_.push_back(std::move(decompressedAttachment));
     }
@@ -403,6 +565,29 @@ void TClientResponse::DoHandleResponse(TSharedRefArray message)
 {
     Deserialize(std::move(message));
     Finish(TError());
+}
+
+void TClientResponse::HandleStreamingPayload(const TStreamingPayload& payload)
+{
+    const auto& stream = ClientContext_->GetResponseAttachmentsStream();
+    if (!stream) {
+        YT_LOG_DEBUG("Received streaming attachments payload for request with disabled streaming; ignored (RequestId: %v)",
+            ClientContext_->GetRequestId());
+        return;
+    }
+    stream->EnqueuePayload(payload);
+}
+
+void TClientResponse::HandleStreamingFeedback(const TStreamingFeedback& feedback)
+{
+    const auto& stream = ClientContext_->GetRequestAttachmentsStream();
+    if (!stream) {
+        YT_LOG_DEBUG("Received streaming attachments feedback for request with disabled streaming; ignored (RequestId: %v)",
+            ClientContext_->GetRequestId());
+        return;
+    }
+
+    stream->HandleFeedback(feedback);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -445,6 +630,12 @@ TMethodDescriptor::TMethodDescriptor(const TString& methodName)
 TMethodDescriptor& TMethodDescriptor::SetMultiplexingBand(EMultiplexingBand value)
 {
     MultiplexingBand = value;
+    return *this;
+}
+
+TMethodDescriptor& TMethodDescriptor::SetStreamingEnabled(bool value)
+{
+    StreamingEnabled = value;
     return *this;
 }
 

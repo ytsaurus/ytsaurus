@@ -80,6 +80,12 @@ bool TOperation::SetCompleting()
     return !Completing_.exchange(true);
 }
 
+bool TOperation::GetActivated() const
+{
+    // NB(renadeen): return value doesn't matter in simulator.
+    return true;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSchedulerSimulator

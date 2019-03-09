@@ -8,7 +8,7 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/driver/config.h>
+#include <yt/client/driver/config.h>
 
 #include <yt/client/api/config.h>
 
@@ -104,6 +104,7 @@ class TClickHouseConfig
 public:
     TString DiscoveryPath;
     NHttp::TClientConfigPtr HttpClient;
+    TDuration ProfilingPeriod;
 
     TClickHouseConfig()
     {
@@ -111,6 +112,8 @@ public:
             .Default("//sys/clickhouse/cliques");
         RegisterParameter("http_client", HttpClient)
             .DefaultNew();
+        RegisterParameter("profiling_period", ProfilingPeriod)
+            .Default(TDuration::Seconds(1));
 
         RegisterPreprocessor([&] {
             HttpClient->HeaderReadTimeout = TDuration::Hours(1);

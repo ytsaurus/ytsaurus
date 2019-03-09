@@ -43,18 +43,26 @@ void TAccessControlEntry::Persist(NCellMaster::TPersistenceContext& context)
     Persist(context, Permissions);
     Persist(context, Action);
     Persist(context, InheritanceMode);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 826) {
+        Persist(context, Columns);
+    }
 }
 
 void Serialize(const TAccessControlEntry& ace, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-        .Item("action").Value(ace.Action)
-        .Item("subjects").DoListFor(ace.Subjects, [] (TFluentList fluent, TSubject* subject) {
-            fluent.Item().Value(subject->GetName());
-        })
-        .Item("permissions").Value(FormatPermissions(ace.Permissions))
-        .Item("inheritance_mode").Value(ace.InheritanceMode)
+            .Item("action").Value(ace.Action)
+            .Item("subjects").DoListFor(ace.Subjects, [] (TFluentList fluent, TSubject* subject) {
+                fluent.Item().Value(subject->GetName());
+            })
+            .Item("permissions").Value(FormatPermissions(ace.Permissions))
+            .Item("inheritance_mode").Value(ace.InheritanceMode)
+            .DoIf(ace.Columns.has_value(), [&] (auto fluent) {
+                fluent
+                    .Item("columns").Value(ace.Columns);
+            })
         .EndMap();
 }
 
@@ -108,6 +116,9 @@ void Deserialize(
 
         // Inheritance mode
         ace.InheritanceMode = serializableAce.InheritanceMode;
+
+        // Columns
+        ace.Columns = std::move(serializableAce.Columns);
 
         acl.Entries.push_back(ace);
     }

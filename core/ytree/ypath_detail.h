@@ -57,18 +57,9 @@ namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DISPATCH_YPATH_SERVICE_METHOD(method) \
+#define DISPATCH_YPATH_SERVICE_METHOD(method, ...) \
     if (context->GetMethod() == #method) { \
-        ::NYT::NRpc::THandlerInvocationOptions options; \
-        method##Thunk(context, options); \
-        return true; \
-    }
-
-#define DISPATCH_YPATH_HEAVY_SERVICE_METHOD(method) \
-    if (context->GetMethod() == #method) { \
-        ::NYT::NRpc::THandlerInvocationOptions options; \
-        options.Heavy = true; \
-        options.ResponseCodec = NCompression::ECodec::Lz4; \
+        auto options = ::NYT::NRpc::THandlerInvocationOptions() __VA_ARGS__; \
         method##Thunk(context, options); \
         return true; \
     }

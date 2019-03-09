@@ -1,6 +1,7 @@
 #include "message.h"
 #include "private.h"
 #include "service.h"
+#include "channel.h"
 
 #include <yt/core/misc/protobuf_helpers.h>
 
@@ -9,7 +10,6 @@
 namespace NYT::NRpc {
 
 using namespace NBus;
-using namespace NRpc::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,7 +52,7 @@ bool DeserializeFromProtoWithHeader(
 ////////////////////////////////////////////////////////////////////////////////
 
 TSharedRefArray CreateRequestMessage(
-    const TRequestHeader& header,
+    const NProto::TRequestHeader& header,
     const TSharedRef& body,
     const std::vector<TSharedRef>& attachments)
 {
@@ -87,14 +87,14 @@ TSharedRefArray CreateRequestMessage(
 }
 
 TSharedRefArray CreateRequestCancelationMessage(
-    const TRequestCancelationHeader& header)
+    const NProto::TRequestCancelationHeader& header)
 {
     auto headerData = SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::RequestCancelation}, header);
     return TSharedRefArray(std::move(headerData));
 }
 
 TSharedRefArray CreateResponseMessage(
-    const TResponseHeader& header,
+    const NProto::TResponseHeader& header,
     const TSharedRef& body,
     const std::vector<TSharedRef>& attachments)
 {
@@ -119,13 +119,13 @@ TSharedRefArray CreateResponseMessage(
     auto serializedBody = SerializeProtoToRefWithEnvelope(body, NCompression::ECodec::None, false);
 
     return CreateResponseMessage(
-        TResponseHeader(),
+        NProto::TResponseHeader(),
         serializedBody,
         attachments);
 }
 
 TSharedRefArray CreateErrorResponseMessage(
-    const TResponseHeader& header)
+    const NProto::TResponseHeader& header)
 {
     auto headerData = SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::Response}, header);
     return TSharedRefArray(std::move(headerData));
@@ -135,7 +135,7 @@ TSharedRefArray CreateErrorResponseMessage(
     TRequestId requestId,
     const TError& error)
 {
-    TResponseHeader header;
+    NProto::TResponseHeader header;
     ToProto(header.mutable_request_id(), requestId);
     if (!error.IsOK()) {
         ToProto(header.mutable_error(), error);
@@ -146,11 +146,53 @@ TSharedRefArray CreateErrorResponseMessage(
 TSharedRefArray CreateErrorResponseMessage(
     const TError& error)
 {
-    TResponseHeader header;
+    NProto::TResponseHeader header;
     if (!error.IsOK()) {
         ToProto(header.mutable_error(), error);
     }
     return CreateErrorResponseMessage(header);
+}
+
+TSharedRefArray CreateStreamingPayloadMessage(
+    const NProto::TStreamingPayloadHeader& header,
+    const std::vector<TSharedRef>& attachments)
+{
+    std::vector<TSharedRef> parts;
+    parts.reserve(1 + attachments.size());
+
+    parts.push_back(SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::StreamingPayload}, header));
+
+    for (const auto& attachment : attachments) {
+        parts.push_back(attachment);
+    }
+
+    return TSharedRefArray(std::move(parts));
+}
+
+TSharedRefArray CreateStreamingFeedbackMessage(
+    const NProto::TStreamingFeedbackHeader& header)
+{
+    std::vector<TSharedRef> parts;
+    parts.push_back(SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::StreamingFeedback}, header));
+    return TSharedRefArray(std::move(parts));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(
+    NProto::TStreamingParameters* protoParameters,
+    const TStreamingParameters& parameters)
+{
+    protoParameters->set_window_size(parameters.WindowSize);
+}
+
+void FromProto(
+    TStreamingParameters* parameters,
+    const NProto::TStreamingParameters& protoParameters)
+{
+    if (protoParameters.has_window_size()) {
+        parameters->WindowSize = parameters->WindowSize;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -172,7 +214,7 @@ EMessageType GetMessageType(const TSharedRefArray& message)
 
 bool ParseRequestHeader(
     const TSharedRefArray& message,
-    TRequestHeader* header)
+    NProto::TRequestHeader* header)
 {
     if (GetMessageType(message) != EMessageType::Request) {
         return false;
@@ -183,7 +225,7 @@ bool ParseRequestHeader(
 
 TSharedRefArray SetRequestHeader(
     const TSharedRefArray& message,
-    const TRequestHeader& header)
+    const NProto::TRequestHeader& header)
 {
     Y_ASSERT(GetMessageType(message) == EMessageType::Request);
     auto parts = message.ToVector();
@@ -193,7 +235,7 @@ TSharedRefArray SetRequestHeader(
 
 bool ParseResponseHeader(
     const TSharedRefArray& message,
-    TResponseHeader* header)
+    NProto::TResponseHeader* header)
 {
     if (GetMessageType(message) != EMessageType::Response) {
         return false;
@@ -204,7 +246,7 @@ bool ParseResponseHeader(
 
 TSharedRefArray SetResponseHeader(
     const TSharedRefArray& message,
-    const TResponseHeader& header)
+    const NProto::TResponseHeader& header)
 {
     Y_ASSERT(GetMessageType(message) == EMessageType::Response);
     auto parts = message.ToVector();
@@ -213,24 +255,46 @@ TSharedRefArray SetResponseHeader(
 }
 
 void MergeRequestHeaderExtensions(
-    TRequestHeader* to,
-    const TRequestHeader& from)
+    NProto::TRequestHeader* to,
+    const NProto::TRequestHeader& from)
 {
 #define X(name) \
     if (from.HasExtension(name)) { \
         to->MutableExtension(name)->CopyFrom(from.GetExtension(name)); \
     }
 
-    X(TTracingExt::tracing_ext)
+    X(NProto::TTracingExt::tracing_ext)
 
 #undef X
 }
 
 bool ParseRequestCancelationHeader(
     const TSharedRefArray& message,
-    TRequestCancelationHeader* header)
+    NProto::TRequestCancelationHeader* header)
 {
     if (GetMessageType(message) != EMessageType::RequestCancelation) {
+        return false;
+    }
+
+    return DeserializeFromProtoWithHeader(header, message[0]);
+}
+
+bool ParseStreamingPayloadHeader(
+    const TSharedRefArray& message,
+    NProto::TStreamingPayloadHeader * header)
+{
+    if (GetMessageType(message) != EMessageType::StreamingPayload) {
+        return false;
+    }
+
+    return DeserializeFromProtoWithHeader(header, message[0]);
+}
+
+bool ParseStreamingFeedbackHeader(
+    const TSharedRefArray& message,
+    NProto::TStreamingFeedbackHeader * header)
+{
+    if (GetMessageType(message) != EMessageType::StreamingFeedback) {
         return false;
     }
 

@@ -5,6 +5,8 @@
 #include "object_service.h"
 #include "type_handler_detail.h"
 
+#include <yt/server/master/table_server/table_node.h>
+
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/config.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
@@ -65,6 +67,10 @@ using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
+using namespace NTableServer;
+
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,11 +117,8 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
 
     context->SetRequestInfo();
 
-    auto permissions = EPermissionSet(request->permissions());
-    for (auto permission : TEnumTraits<EPermission>::GetDomainValues()) {
-        if (Any(permissions & permission)) {
-            ValidatePermission(EPermissionCheckScope::This, permission);
-        }
+    if (request->has_permission()) {
+        ValidateGetBasicAttributesPermissions(context);
     }
 
     ToProto(response->mutable_object_id(), GetId());
@@ -130,35 +133,61 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
     context->Reply();
 }
 
+void TObjectProxyBase::ValidateGetBasicAttributesPermissions(const TCtxGetBasicAttributesPtr& context)
+{
+    const auto& request = context->Request();
+
+    auto permission =  CheckedEnumCast<EPermission>(request.permission());
+
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    securityManager->ValidatePermission(Object_, permission);
+}
+
 DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
 {
     DeclareNonMutating();
 
-    auto userName = request->user();
-    auto permission = EPermission(request->permission());
-    context->SetRequestInfo("User: %v, Permission: %v",
-        userName,
-        permission);
+    const auto& userName = request->user();
+    auto permission = CheckedEnumCast<EPermission>(request->permission());
 
-    const auto& objectManager = Bootstrap_->GetObjectManager();
+    TPermissionCheckOptions checkOptions;
+    if (request->has_columns()) {
+        checkOptions.Columns = FromProto<std::vector<TString>>(request->columns().items());
+    }
+
+    context->SetRequestInfo("User: %v, Permission: %v, Columns: %v",
+        userName,
+        permission,
+        checkOptions.Columns);
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetUserByNameOrThrow(userName);
 
-    auto result = securityManager->CheckPermission(Object_, user, permission);
+    auto checkResponse = securityManager->CheckPermission(Object_, user, permission, checkOptions);
 
-    response->set_action(static_cast<int>(result.Action));
-    if (result.Object) {
-        ToProto(response->mutable_object_id(), result.Object->GetId());
-        const auto& handler = objectManager->GetHandler(result.Object);
-        response->set_object_name(handler->GetName(result.Object));
-    }
-    if (result.Subject) {
-        ToProto(response->mutable_subject_id(), result.Subject->GetId());
-        response->set_subject_name(result.Subject->GetName());
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+
+    auto fillResult = [&] (auto* protoResult, const auto& result) {
+        protoResult->set_action(static_cast<int>(result.Action));
+        if (result.Object) {
+            ToProto(protoResult->mutable_object_id(), result.Object->GetId());
+            const auto& handler = objectManager->GetHandler(result.Object);
+            protoResult->set_object_name(handler->GetName(result.Object));
+        }
+        if (result.Subject) {
+            ToProto(protoResult->mutable_subject_id(), result.Subject->GetId());
+            protoResult->set_subject_name(result.Subject->GetName());
+        }
+    };
+
+    fillResult(response, checkResponse);
+    if (checkResponse.Columns) {
+        for (const auto& result : *checkResponse.Columns) {
+            fillResult(response->mutable_columns()->add_items(), result);
+        }
     }
 
-    context->SetResponseInfo("Action: %v", result.Action);
+    context->SetResponseInfo("Action: %v", checkResponse.Action);
     context->Reply();
 }
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include <yt/ytlib/table_client/public.h>
 
@@ -55,15 +55,15 @@ enum class EColumnFlags
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TColumn
+struct TClickHouseColumn
 {
     TString Name;
     EClickHouseColumnType Type = EClickHouseColumnType::Invalid;
     int Flags = 0;
 
-    TColumn() = default;
+    TClickHouseColumn() = default;
 
-    TColumn(TString name, EClickHouseColumnType type, int flags = 0)
+    TClickHouseColumn(TString name, EClickHouseColumnType type, int flags = 0)
         : Name(std::move(name))
         , Type(type)
         , Flags(flags)
@@ -76,19 +76,19 @@ struct TColumn
     void SetNullable();
 };
 
-bool operator == (const TColumn& lhs, const TColumn& rhs);
-bool operator != (const TColumn& lhs, const TColumn& rhs);
+bool operator == (const TClickHouseColumn& lhs, const TClickHouseColumn& rhs);
+bool operator != (const TClickHouseColumn& lhs, const TClickHouseColumn& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTable
+struct TClickHouseTable
 {
     TString Name;
-    std::vector<TColumn> Columns;
+    std::vector<TClickHouseColumn> Columns;
 
-    TTable() = default;
+    TClickHouseTable() = default;
 
-    TTable(TString name, std::vector<TColumn> columns = {})
+    TClickHouseTable(TString name, std::vector<TClickHouseColumn> columns = {})
         : Name(std::move(name))
         , Columns(std::move(columns))
     {}
@@ -96,7 +96,7 @@ struct TTable
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTablePtr CreateTable(
+TClickHouseTablePtr CreateClickHouseTable(
     const TString& name,
     const NTableClient::TTableSchema& schema);
 

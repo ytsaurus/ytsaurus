@@ -42,6 +42,8 @@ public:
     virtual void HandleAcknowledgement() override;
     virtual void HandleResponse(TSharedRefArray message) override;
     virtual void HandleError(const TError& error) override;
+    virtual void HandleStreamingPayload(const TStreamingPayload& /*payload*/) override;
+    virtual void HandleStreamingFeedback(const TStreamingFeedback& /*feedback*/) override;
 
 private:
     const TLatencyTamingSessionPtr Session_;
@@ -145,9 +147,19 @@ public:
 
         Cleanup();
 
-        for (const auto& control : RequestControls_) {
+        for (const auto& control : requestControls) {
             control->Cancel();
         }
+    }
+
+    virtual TFuture<void> SendStreamingPayload(const TStreamingPayload& /*payload*/) override
+    {
+        Y_UNIMPLEMENTED();
+    }
+
+    virtual TFuture<void> SendStreamingFeedback(const TStreamingFeedback& /*feedback*/) override
+    {
+        Y_UNIMPLEMENTED();
     }
 
 private:
@@ -239,6 +251,16 @@ void TLatencyTamingResponseHandler::HandleError(const TError& error)
 void TLatencyTamingResponseHandler::HandleResponse(TSharedRefArray message)
 {
     Session_->HandleResponse(std::move(message), Backup_);
+}
+
+void TLatencyTamingResponseHandler::HandleStreamingPayload(const TStreamingPayload& /*payload*/)
+{
+    Y_UNIMPLEMENTED();
+}
+
+void TLatencyTamingResponseHandler::HandleStreamingFeedback(const TStreamingFeedback& /*feedback*/)
+{
+    Y_UNIMPLEMENTED();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

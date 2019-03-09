@@ -1,12 +1,12 @@
 #include "table_functions_concat.h"
 
-#include "auth_token.h"
+#include "query_context.h"
 #include "format_helpers.h"
 #include "storage_concat.h"
 #include "type_helpers.h"
-
-#include <yt/server/clickhouse_server/table_partition.h>
-#include <yt/server/clickhouse_server/storage.h>
+#include "helpers.h"
+#include "table_partition.h"
+#include "query_context.h"
 
 #include <Common/Exception.h>
 #include <Common/OptimizedRegularExpression.h>
@@ -25,18 +25,6 @@
 #include <Poco/Logger.h>
 
 #include <common/logger_useful.h>
-
-
-namespace DB {
-
-namespace ErrorCodes {
-    extern const int NUMBER_OF_ARGUMENTS_DOESNT_MATCH;
-    extern const int TOO_LESS_ARGUMENTS_FOR_FUNCTION;
-    extern const int TOO_MANY_ARGUMENTS_FOR_FUNCTION;
-    extern const int CANNOT_SELECT;
-}
-
-} // namespace DB
 
 namespace NYT::NClickHouseServer {
 
@@ -92,28 +80,28 @@ T EvaluateArgument(ASTPtr& argument, const Context& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SortTablesByName(std::vector<TTablePtr>& tables)
+void SortTablesByName(std::vector<TClickHouseTablePtr>& tables)
 {
     std::sort(
         tables.begin(),
         tables.end(),
-        [] (const TTablePtr& lhs, const TTablePtr& rhs) {
+        [] (const TClickHouseTablePtr& lhs, const TClickHouseTablePtr& rhs) {
             return lhs->Name < rhs->Name;
         });
 }
 
-std::string GetTableBaseName(const TTable& table) {
+std::string GetTableBaseName(const TClickHouseTable& table) {
     // TODO: abstract ypath
     return ToStdString(TStringBuf(table.Name).RNextTok('/'));
 }
 
 using TTableNameFilter = std::function<bool(const std::string& tableName)>;
 
-std::vector<TTablePtr> FilterTablesByName(
-    const std::vector<TTablePtr>& tables,
+std::vector<TClickHouseTablePtr> FilterTablesByName(
+    const std::vector<TClickHouseTablePtr>& tables,
     TTableNameFilter nameFilter)
 {
-    std::vector<TTablePtr> filtered;
+    std::vector<TClickHouseTablePtr> filtered;
     for (const auto& table : tables) {
         const auto basename = GetTableBaseName(*table);
         if (nameFilter(basename)) {
@@ -133,18 +121,11 @@ class TConcatenateTablesList
     : public ITableFunction
 {
 private:
-    IStoragePtr Storage;
     IExecutionClusterPtr Cluster;
 
-    Poco::Logger* Logger;
-
 public:
-    TConcatenateTablesList(
-        IStoragePtr storage,
-        IExecutionClusterPtr cluster)
-        : Storage(std::move(storage))
-        , Cluster(std::move(cluster))
-        , Logger(&Poco::Logger::get("ConcatYtTables"))
+    TConcatenateTablesList(IExecutionClusterPtr cluster)
+        : Cluster(std::move(cluster))
     {}
 
     static constexpr auto Name = "concatYtTables";
@@ -163,13 +144,7 @@ private:
         TArguments& arguments,
         const Context& context) const;
 
-    std::vector<TTablePtr> GetTables(
-        const std::vector<TString>& tableNames,
-        const IAuthorizationToken& token) const;
-
-    StoragePtr Execute(
-        const std::vector<TString>& tableNames,
-        const Context& context) const;
+    StoragePtr Execute(const std::vector<TString>& tableNames, TQueryContext* queryContext) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -178,12 +153,14 @@ StoragePtr TConcatenateTablesList::executeImpl(
     const ASTPtr& functionAst,
     const Context& context) const
 {
+    auto* queryContext = GetQueryContext(context);
+
     auto& functionNode = typeid_cast<ASTFunction &>(*functionAst);
     auto& arguments = GetAllArguments(functionNode);
 
     auto tableNames = EvaluateArguments(arguments, context);
 
-    return Execute(tableNames, context);
+    return Execute(tableNames, queryContext);
 }
 
 std::vector<TString> TConcatenateTablesList::EvaluateArguments(
@@ -198,33 +175,18 @@ std::vector<TString> TConcatenateTablesList::EvaluateArguments(
     return tableNames;
 }
 
-std::vector<TTablePtr> TConcatenateTablesList::GetTables(
+StoragePtr TConcatenateTablesList::Execute(
     const std::vector<TString>& tableNames,
-    const IAuthorizationToken& token) const
+    TQueryContext* queryContext) const
 {
-    // TODO: batch GetTabes in IStorage
-
-    std::vector<TTablePtr> tables;
+    std::vector<TClickHouseTablePtr> tables;
     tables.reserve(tableNames.size());
     for (const auto& name : tableNames) {
-        auto table = Storage->GetTable(token, name);
+        auto table = FetchClickHouseTable(queryContext->Client(), name, queryContext->Logger);
         tables.push_back(std::move(table));
     }
 
-    return tables;
-}
-
-StoragePtr TConcatenateTablesList::Execute(
-    const std::vector<TString>& tableNames,
-    const Context& context) const
-{
-    LOG_DEBUG(Logger, "Execute table function " << getName() << "(" << JoinStrings(", ", tableNames) << ")");
-
-    auto token = CreateAuthToken(*Storage, context);
-    auto tables = GetTables(tableNames, *token);
-
     return CreateStorageConcat(
-        Storage,
         std::move(tables),
         Cluster);
 }
@@ -239,40 +201,29 @@ class TListFilterAndConcatenateTables
     : public ITableFunction
 {
 private:
-    IStoragePtr Storage;
     IExecutionClusterPtr Cluster;
 
     Poco::Logger* Logger;
 
 public:
     TListFilterAndConcatenateTables(
-        IStoragePtr storage,
         IExecutionClusterPtr cluster,
         Poco::Logger* logger)
-        : Storage(std::move(storage))
-        , Cluster(std::move(cluster))
+        : Cluster(std::move(cluster))
         , Logger(logger)
     {}
 
-    StoragePtr executeImpl(
-        const ASTPtr& functionAst,
-        const Context& context) const override;
+    virtual StoragePtr executeImpl(const ASTPtr& functionAst, const Context& context) const override;
 
 protected:
-    const IStoragePtr& GetStorage() const
-    {
-        return Storage;
-    }
-
     Poco::Logger* GetLogger() const
     {
         return Logger;
     }
 
-protected:
     // 0-th argument reserved to directory path
-    virtual std::vector<TTablePtr> FilterTables(
-        const std::vector<TTablePtr>& tables,
+    virtual std::vector<TClickHouseTablePtr> FilterTables(
+        const std::vector<TClickHouseTablePtr>& tables,
         TArguments& arguments,
         const Context& context) const = 0;
 
@@ -281,17 +232,8 @@ private:
         TArguments& arguments,
         const Context& context) const;
 
-    std::vector<TTablePtr> ListAllTables(
-        const std::string& directory,
-        const IAuthorizationToken& authToken) const;
-
-    // TODO: workaround, remove this
-    void CollectSchemas(
-        std::vector<TTablePtr>& tableNames,
-        const IAuthorizationToken& authToken) const;
-
     StoragePtr CreateStorage(
-        const std::vector<TTablePtr>& tables,
+        const std::vector<TClickHouseTablePtr>& tables,
         const Context& context) const;
 };
 
@@ -301,6 +243,7 @@ StoragePtr TListFilterAndConcatenateTables::executeImpl(
     const ASTPtr& functionAst,
     const Context& context) const
 {
+    auto* queryContext = GetQueryContext(context);
     auto& functionNode = typeid_cast<ASTFunction &>(*functionAst);
     auto& arguments = GetAllArguments(functionNode);
 
@@ -308,15 +251,14 @@ StoragePtr TListFilterAndConcatenateTables::executeImpl(
         arguments,
         context);
 
-    auto authToken = CreateAuthToken(*Storage, context);
-
-    auto allTables = ListAllTables(directory, *authToken);
+    auto allTables = queryContext->ListTables(ToString(directory), false);
     SortTablesByName(allTables);
 
     auto selectedTables = FilterTables(allTables, arguments, context);
 
-    // TODO: ListTables doesn't provide table schemas
-    CollectSchemas(selectedTables, *authToken);
+    for (auto& table : selectedTables) {
+        table = FetchClickHouseTable(queryContext->Client(), table->Name, queryContext->Logger);
+    }
 
     return CreateStorage(selectedTables, context);
 }
@@ -334,24 +276,8 @@ std::string TListFilterAndConcatenateTables::GetDirectoryRequiredArgument(
     return EvaluateIdentifierArgument(arguments[0], context);
 }
 
-std::vector<TTablePtr> TListFilterAndConcatenateTables::ListAllTables(
-    const std::string& directory,
-    const IAuthorizationToken& authToken) const
-{
-    return Storage->ListTables(authToken, ToString(directory), false);
-}
-
-void TListFilterAndConcatenateTables::CollectSchemas(
-    std::vector<TTablePtr>& tables,
-    const IAuthorizationToken& authToken) const
-{
-    for (auto& table : tables) {
-        table = Storage->GetTable(authToken, table->Name);
-    }
-}
-
 StoragePtr TListFilterAndConcatenateTables::CreateStorage(
-    const std::vector<TTablePtr>& tables,
+    const std::vector<TClickHouseTablePtr>& tables,
     const Context& /* context */) const
 {
     if (tables.empty()) {
@@ -359,7 +285,7 @@ StoragePtr TListFilterAndConcatenateTables::CreateStorage(
         throw Exception("No tables found by " + getName(), ErrorCodes::CANNOT_SELECT);
     }
 
-    return CreateStorageConcat(Storage, tables, Cluster);
+    return CreateStorageConcat(tables, Cluster);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -369,10 +295,8 @@ class TConcatenateTablesRange
 {
 public:
     TConcatenateTablesRange(
-        IStoragePtr storage,
         IExecutionClusterPtr cluster)
         : TListFilterAndConcatenateTables(
-            std::move(storage),
             std::move(cluster),
             &Poco::Logger::get("ConcatYtTablesRange"))
     {}
@@ -385,16 +309,16 @@ public:
     }
 
 private:
-    std::vector<TTablePtr> FilterTables(
-        const std::vector<TTablePtr>& tables,
+    std::vector<TClickHouseTablePtr> FilterTables(
+        const std::vector<TClickHouseTablePtr>& tables,
         TArguments& arguments,
         const Context& context) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TTablePtr> TConcatenateTablesRange::FilterTables(
-    const std::vector<TTablePtr>& tables,
+std::vector<TClickHouseTablePtr> TConcatenateTablesRange::FilterTables(
+    const std::vector<TClickHouseTablePtr>& tables,
     TArguments& arguments,
     const Context& context) const
 {
@@ -440,33 +364,30 @@ class TConcatenateTablesRegexp
     : public TListFilterAndConcatenateTables
 {
 public:
-    TConcatenateTablesRegexp(
-        IStoragePtr storage,
-        IExecutionClusterPtr cluster)
+    TConcatenateTablesRegexp(IExecutionClusterPtr cluster)
         : TListFilterAndConcatenateTables(
-            std::move(storage),
             std::move(cluster),
             &Poco::Logger::get("ConcatYtTablesRegexp"))
     {}
 
     static constexpr auto Name = "concatYtTablesRegexp";
 
-    std::string getName() const override
+    virtual std::string getName() const override
     {
         return Name;
     }
 
 private:
-    std::vector<TTablePtr> FilterTables(
-        const std::vector<TTablePtr>& tables,
+    std::vector<TClickHouseTablePtr> FilterTables(
+        const std::vector<TClickHouseTablePtr>& tables,
         TArguments& arguments,
         const Context& context) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TTablePtr> TConcatenateTablesRegexp::FilterTables(
-    const std::vector<TTablePtr>& tables,
+std::vector<TClickHouseTablePtr> TConcatenateTablesRegexp::FilterTables(
+    const std::vector<TClickHouseTablePtr>& tables,
     TArguments& arguments,
     const Context& context) const
 {
@@ -491,10 +412,8 @@ class TConcatenateTablesLike
 {
 public:
     TConcatenateTablesLike(
-        IStoragePtr storage,
         IExecutionClusterPtr cluster)
         : TListFilterAndConcatenateTables(
-            std::move(storage),
             std::move(cluster),
             &Poco::Logger::get("ConcatYtTablesLike"))
     {}
@@ -507,8 +426,8 @@ public:
     }
 
 private:
-    std::vector<TTablePtr> FilterTables(
-        const std::vector<TTablePtr>& tables,
+    std::vector<TClickHouseTablePtr> FilterTables(
+        const std::vector<TClickHouseTablePtr>& tables,
         TArguments& arguments,
         const Context& context) const override;
 };
@@ -516,8 +435,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TTablePtr> TConcatenateTablesLike::FilterTables(
-    const std::vector<TTablePtr>& tables,
+std::vector<TClickHouseTablePtr> TConcatenateTablesLike::FilterTables(
+    const std::vector<TClickHouseTablePtr>& tables,
     TArguments& arguments,
     const Context& context) const
 {
@@ -537,16 +456,14 @@ std::vector<TTablePtr> TConcatenateTablesLike::FilterTables(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RegisterConcatenatingTableFunctions(
-    IStoragePtr storage,
-    IExecutionClusterPtr cluster)
+void RegisterConcatenatingTableFunctions(IExecutionClusterPtr cluster)
 {
     auto& factory = TableFunctionFactory::instance();
 
 #define REGISTER_TABLE_FUNCTION(TFunction) \
     factory.registerFunction( \
         TFunction::Name, \
-        [=] { return std::make_shared<TFunction>(storage, cluster); } \
+        [=] { return std::make_shared<TFunction>(cluster); } \
         );
 
     REGISTER_TABLE_FUNCTION(TConcatenateTablesList);
@@ -558,5 +475,7 @@ void RegisterConcatenatingTableFunctions(
 #undef REGISTER_TABLE_FUNCTION
 
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer

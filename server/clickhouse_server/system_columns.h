@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include "table.h"
 #include "table_schema.h"
@@ -18,9 +18,9 @@ struct TSystemColumns
         return TableName ? 1 : 0;
     }
 
-    std::vector<TColumn> ToColumnList() const
+    std::vector<TClickHouseColumn> ToColumnList() const
     {
-        std::vector<TColumn> columns;
+        std::vector<TClickHouseColumn> columns;
         columns.reserve(GetCount());
 
         if (TableName) {

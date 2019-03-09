@@ -78,8 +78,11 @@ public:
 
     virtual TFuture<void> Close() override
     {
-        CreateCompressor();
-        Compressor_->Finish();
+        if (!Finished_) {
+            Finished_ = true;
+            CreateCompressor();
+            Compressor_->Finish();
+        }
         return VoidFuture;
     }
 
@@ -92,6 +95,7 @@ private:
     // programming language.
     TSharedRef Holder_;
     bool Destroying_ = false;
+    bool Finished_ = false;
     std::unique_ptr<IOutputStream> Compressor_;
 
     void CreateCompressor()

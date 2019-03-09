@@ -22,7 +22,7 @@ struct TSessionId
 bool operator==(TSessionId lhs, TSessionId rhs);
 bool operator!=(TSessionId lhs, TSessionId rhs);
 
-void FormatValue(TStringBuilder* builder, TSessionId id, TStringBuf format);
+void FormatValue(TStringBuilderBase* builder, TSessionId id, TStringBuf format);
 TString ToString(TSessionId id);
 
 void ToProto(NProto::TSessionId* protoSessionId, TSessionId sessionId);

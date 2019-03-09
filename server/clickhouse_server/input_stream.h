@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/public.h>
+#include "private.h"
 
 #include <DataStreams/IBlockInputStream.h>
 

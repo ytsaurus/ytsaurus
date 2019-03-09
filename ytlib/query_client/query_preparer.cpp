@@ -2391,7 +2391,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
     YT_LOG_DEBUG("Getting initial data splits (PrimaryPath: %v, ForeignPaths: %v)",
         table.Path,
-        MakeFormattableRange(ast.Joins, [] (TStringBuilder* builder, const auto& join) {
+        MakeFormattableView(ast.Joins, [] (TStringBuilderBase* builder, const auto& join) {
             FormatValue(builder, join.Table.Path, TStringBuf());
         }));
 
@@ -2707,6 +2707,13 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         THROW_ERROR_EXCEPTION("ORDER BY used without LIMIT");
     }
 
+    if (ast.Offset) {
+        if (!query->OrderClause) {
+            THROW_ERROR_EXCEPTION("OFFSET used without ORDER BY");
+        }
+        query->Offset = *ast.Offset;
+    }
+
     auto queryFingerprint = InferName(query, true);
     YT_LOG_DEBUG("Prepared query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v)",
         queryFingerprint,
@@ -2741,6 +2748,10 @@ TQueryPtr PrepareJobQuery(
 
     const auto& ast = std::get<NAst::TQuery>(astHead.Ast);
     const auto& aliasMap = astHead.AliasMap;
+
+    if (ast.Offset) {
+        THROW_ERROR_EXCEPTION("OFFSET is not supported in map-reduce queries");
+    }
 
     if (ast.Limit) {
         THROW_ERROR_EXCEPTION("LIMIT is not supported in map-reduce queries");

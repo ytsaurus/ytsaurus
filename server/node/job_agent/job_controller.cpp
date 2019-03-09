@@ -167,7 +167,12 @@ private:
     /*!
      *  It is illegal to call #Remove before the job is stopped.
      */
-    void RemoveJob(const IJobPtr& job, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext, bool archiveProfile);
+    void RemoveJob(
+        const IJobPtr& job,
+        bool archiveJobSpec,
+        bool archiveStderr,
+        bool archiveFailContext,
+        bool archiveProfile);
 
     TJobFactory GetFactory(EJobType type) const;
 

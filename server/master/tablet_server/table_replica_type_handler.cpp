@@ -67,9 +67,6 @@ public:
         }
         auto* table = trunkNode->As<TReplicatedTableNode>();
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidatePermission(table, EPermission::Write);
-
         if (startReplicationRowIndexes && startReplicationRowIndexes->size() != table->Tablets().size()) {
             THROW_ERROR_EXCEPTION("Invalid size of \"start_replication_row_indexes\": expected zero or %v, got %v",
                 table->Tablets().size(),
@@ -92,11 +89,6 @@ public:
 
 private:
     TBootstrap* const Bootstrap_;
-
-    virtual TObjectBase* DoGetParent(TTableReplica* replica) override
-    {
-        return replica->GetTable();
-    }
 
     virtual TString DoGetName(const TTableReplica* replica) override
     {

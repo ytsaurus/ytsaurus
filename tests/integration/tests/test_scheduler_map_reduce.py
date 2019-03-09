@@ -449,7 +449,7 @@ print "x={0}\ty={1}".format(x, y)
         assert len(replicas) == 1
         node_id = replicas[0]
 
-        set("//sys/nodes/{}/@banned".format(node_id), True)
+        set("//sys/cluster_nodes/{}/@banned".format(node_id), True)
         return [node_id]
 
     @unix_only
@@ -538,7 +538,7 @@ print "x={0}\ty={1}".format(x, y)
 
         # Make chunk available again.
         for n in banned_nodes:
-            set("//sys/nodes/{0}/@banned".format(n), False)
+            set("//sys/cluster_nodes/{0}/@banned".format(n), False)
 
         wait(lambda: get_unavailable_chunk_count() == 0)
 
@@ -805,7 +805,7 @@ print "x={0}\ty={1}".format(x, y)
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         job_count = 20
-        node_count = get("//sys/nodes/@count")
+        node_count = get("//sys/cluster_nodes/@count")
         write_table("//tmp/t1", [{"a": "x" * 10**6} for i in range(job_count)])
         op = map_reduce(in_="//tmp/t1",
                         out="//tmp/t2",
@@ -839,6 +839,22 @@ print "x={0}\ty={1}".format(x, y)
                         ordered=True)
 
         assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
+
+    def test_commandless_user_job_spec(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        for i in range(50):
+            write_table("<append=%true>//tmp/t_in", [{"key": i}])
+        op = map_reduce(in_="//tmp/t_in",
+                        out="//tmp/t_out",
+                        reducer_command="cat",
+                        sort_by=["key"],
+                        spec={
+                            "mapper": {"cpu_limit": 1},
+                            "reduce_combiner": {"cpu_limit": 1}
+                        })
+
+        assert_items_equal(read_table("//tmp/t_in"), read_table("//tmp/t_out"))
 
     def test_sampling(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "string"},

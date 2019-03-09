@@ -5,6 +5,8 @@
 #include "string_column_writer.h"
 #include "boolean_column_writer.h"
 
+#include <yt/client/table_client/schema.h>
+
 namespace NYT::NTableChunkFormat {
 
 using namespace NTableClient;

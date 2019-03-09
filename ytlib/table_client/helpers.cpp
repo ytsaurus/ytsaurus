@@ -14,6 +14,8 @@
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/input_chunk.h>
 
+#include <yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/client/object_client/helpers.h>
@@ -38,6 +40,7 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/permission.h>
+#include <yt/core/ytree/attributes.h>
 
 namespace NYT::NTableClient {
 
@@ -57,31 +60,6 @@ using NChunkClient::NProto::TChunkSpec;
 
 using NYPath::TRichYPath;
 using NYT::FromProto;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTableOutput::TTableOutput(std::unique_ptr<IParser> parser)
-    : Parser_(std::move(parser))
-{ }
-
-void TTableOutput::DoWrite(const void* buf, size_t len)
-{
-    YCHECK(ParserValid_);
-    try {
-        Parser_->Read(TStringBuf(static_cast<const char*>(buf), len));
-    } catch (const std::exception& ex) {
-        ParserValid_ = false;
-        throw;
-    }
-}
-
-void TTableOutput::DoFinish()
-{
-    if (ParserValid_) {
-        // Dump everything into consumer.
-        Parser_->Finish();
-    }
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -118,14 +96,19 @@ public:
         return UnderlyingReader_->Read(rows);
     }
 
-    virtual const NTableClient::TNameTablePtr& GetNameTable() const override
+    virtual const TNameTablePtr& GetNameTable() const override
     {
         return UnderlyingReader_->GetNameTable();
     }
 
-    virtual NTableClient::TKeyColumns GetKeyColumns() const override
+    virtual const TKeyColumns& GetKeyColumns() const override
     {
         return UnderlyingReader_->GetKeyColumns();
+    }
+
+    virtual const std::vector<TString>& GetOmittedInaccessibleColumns() const override
+    {
+        Y_UNREACHABLE();
     }
 
 private:
@@ -140,203 +123,15 @@ NApi::ITableReaderPtr CreateApiFromSchemalessChunkReaderAdapter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TApiFromSchemalessWriterAdapter
-    : public NApi::ITableWriter
-{
-public:
-    explicit TApiFromSchemalessWriterAdapter(IUnversionedWriterPtr underlyingWriter)
-        : UnderlyingWriter_(std::move(underlyingWriter))
-    { }
-
-    virtual bool Write(TRange<NTableClient::TUnversionedRow> rows) override
-    {
-        return UnderlyingWriter_->Write(rows);
-    }
-
-    virtual TFuture<void> GetReadyEvent() override
-    {
-        return UnderlyingWriter_->GetReadyEvent();
-    }
-
-    virtual TFuture<void> Close() override
-    {
-        return UnderlyingWriter_->Close();
-    }
-
-    virtual const NTableClient::TNameTablePtr& GetNameTable() const override
-    {
-        return UnderlyingWriter_->GetNameTable();
-    }
-
-    virtual const NTableClient::TTableSchema& GetSchema() const override
-    {
-        return UnderlyingWriter_->GetSchema();
-    }
-
-private:
-    const IUnversionedWriterPtr UnderlyingWriter_;
-};
-
-NApi::ITableWriterPtr CreateApiFromSchemalessWriterAdapter(
-    IUnversionedWriterPtr underlyingWriter)
-{
-    return New<TApiFromSchemalessWriterAdapter>(std::move(underlyingWriter));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSchemalessApiFromWriterAdapter
-    : public IUnversionedWriter
-{
-public:
-    explicit TSchemalessApiFromWriterAdapter(NApi::ITableWriterPtr underlyingWriter)
-        : UnderlyingWriter_(std::move(underlyingWriter))
-    { }
-
-    virtual bool Write(TRange<NTableClient::TUnversionedRow> rows) override
-    {
-        return UnderlyingWriter_->Write(rows);
-    }
-
-    virtual TFuture<void> GetReadyEvent() override
-    {
-        return UnderlyingWriter_->GetReadyEvent();
-    }
-
-    virtual TFuture<void> Close() override
-    {
-        return UnderlyingWriter_->Close();
-    }
-
-    virtual const NTableClient::TNameTablePtr& GetNameTable() const override
-    {
-        return UnderlyingWriter_->GetNameTable();
-    }
-
-    virtual const NTableClient::TTableSchema& GetSchema() const override
-    {
-        return UnderlyingWriter_->GetSchema();
-    }
-
-private:
-    const NApi::ITableWriterPtr UnderlyingWriter_;
-};
-
-IUnversionedWriterPtr CreateSchemalessFromApiWriterAdapter(
-    NApi::ITableWriterPtr underlyingWriter)
-{
-    return New<TSchemalessApiFromWriterAdapter>(std::move(underlyingWriter));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void PipeReaderToWriter(
-    NApi::ITableReaderPtr reader,
-    IUnversionedWriterPtr writer,
-    const TPipeReaderToWriterOptions& options)
-{
-    TPeriodicYielder yielder(TDuration::Seconds(1));
-
-    std::vector<TUnversionedRow> rows;
-    rows.reserve(options.BufferRowCount);
-
-    while (reader->Read(&rows)) {
-        yielder.TryYield();
-
-        if (rows.empty()) {
-            WaitFor(reader->GetReadyEvent())
-                .ThrowOnError();
-            continue;
-        }
-
-        if (options.ValidateValues) {
-            for (const auto row : rows) {
-                for (const auto& value : row) {
-                    ValidateStaticValue(value);
-                }
-            }
-        }
-
-        if (options.Throttler) {
-            i64 dataWeight = 0;
-            for (const auto row : rows) {
-                dataWeight += GetDataWeight(row);
-            }
-            WaitFor(options.Throttler->Throttle(dataWeight))
-                .ThrowOnError();
-        }
-
-        if (!rows.empty() && options.PipeDelay) {
-            WaitFor(TDelayedExecutor::MakeDelayed(options.PipeDelay))
-                .ThrowOnError();
-        }
-
-        if (!writer->Write(rows)) {
-            WaitFor(writer->GetReadyEvent())
-                .ThrowOnError();
-        }
-    }
-
-    WaitFor(writer->Close())
-        .ThrowOnError();
-
-    YCHECK(rows.empty());
-}
-
-void PipeReaderToWriter(
-    ISchemalessChunkReaderPtr reader,
-    IUnversionedWriterPtr writer,
+    const ISchemalessChunkReaderPtr& reader,
+    const IUnversionedRowsetWriterPtr& writer,
     const TPipeReaderToWriterOptions& options)
 {
     PipeReaderToWriter(
         CreateApiFromSchemalessChunkReaderAdapter(reader),
         std::move(writer),
         options);
-}
-
-void PipeInputToOutput(
-    IInputStream* input,
-    IOutputStream* output,
-    i64 bufferBlockSize)
-{
-    struct TWriteBufferTag { };
-    TBlob buffer(TWriteBufferTag(), bufferBlockSize);
-
-    TPeriodicYielder yielder(TDuration::Seconds(1));
-
-    while (true) {
-        yielder.TryYield();
-
-        size_t length = input->Read(buffer.Begin(), buffer.Size());
-        if (length == 0)
-            break;
-
-        output->Write(buffer.Begin(), length);
-    }
-
-    output->Finish();
-}
-
-void PipeInputToOutput(
-    NConcurrency::IAsyncInputStreamPtr input,
-    IOutputStream* output,
-    i64 bufferBlockSize)
-{
-    struct TWriteBufferTag { };
-    auto buffer = TSharedMutableRef::Allocate<TWriteBufferTag>(bufferBlockSize, false);
-
-    while (true) {
-        auto length = WaitFor(input->Read(buffer))
-            .ValueOrThrow();
-
-        if (length == 0) {
-            break;
-        }
-
-        output->Write(buffer.Begin(), length);
-    }
-
-    output->Finish();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -374,7 +169,7 @@ TUnversionedValue MakeUnversionedValue(TStringBuf ysonString, int id, TStateless
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int GetSystemColumnCount(TChunkReaderOptionsPtr options)
+int GetSystemColumnCount(const TChunkReaderOptionsPtr& options)
 {
     int systemColumnCount = 0;
     if (options->EnableRowIndex) {
@@ -400,13 +195,15 @@ void ValidateKeyColumns(
 {
     if (requireUniqueKeys) {
         if (chunkKeyColumns.size() > keyColumns.size()) {
-            THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns, "Chunk has more key columns than requested: actual %v, expected %v",
+            THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns,
+                "Chunk has more key columns than requested: actual %v, expected %v",
                 chunkKeyColumns,
                 keyColumns);
         }
     } else {
         if (chunkKeyColumns.size() < keyColumns.size()) {
-            THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns, "Chunk has less key columns than requested: actual %v, expected %v",
+            THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns,
+                "Chunk has less key columns than requested: actual %v, expected %v",
                 chunkKeyColumns,
                 keyColumns);
         }
@@ -415,7 +212,8 @@ void ValidateKeyColumns(
     if (validateColumnNames) {
         for (int i = 0; i < std::min(keyColumns.size(), chunkKeyColumns.size()); ++i) {
             if (chunkKeyColumns[i] != keyColumns[i]) {
-                THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns, "Incompatible key columns: actual %v, expected %v",
+                THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns,
+                    "Incompatible key columns: actual %v, expected %v",
                     chunkKeyColumns,
                     keyColumns);
             }
@@ -423,7 +221,9 @@ void ValidateKeyColumns(
     }
 }
 
-TColumnFilter CreateColumnFilter(const std::optional<std::vector<TString>>& columns, TNameTablePtr nameTable)
+TColumnFilter CreateColumnFilter(
+    const std::optional<std::vector<TString>>& columns,
+    const TNameTablePtr& nameTable)
 {
     if (!columns) {
         return TColumnFilter();
@@ -436,186 +236,6 @@ TColumnFilter CreateColumnFilter(const std::optional<std::vector<TString>>& colu
     }
 
     return TColumnFilter(std::move(columnFilterIndexes));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TTableUploadOptions::Persist(NPhoenix::TPersistenceContext& context)
-{
-    using NYT::Persist;
-
-    Persist(context, UpdateMode);
-    Persist(context, LockMode);
-    Persist(context, TableSchema);
-    Persist(context, SchemaMode);
-    Persist(context, OptimizeFor);
-    Persist(context, CompressionCodec);
-    Persist(context, ErasureCodec);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ValidateKeyColumnsEqual(const TKeyColumns& keyColumns, const TTableSchema& schema)
-{
-     if (keyColumns != schema.GetKeyColumns()) {
-         THROW_ERROR_EXCEPTION("YPath attribute \"sorted_by\" must be compatible with table schema for a \"strong\" schema mode")
-             << TErrorAttribute("key_columns", keyColumns)
-             << TErrorAttribute("table_schema", schema);
-     }
-}
-
-void ValidateAppendKeyColumns(const TKeyColumns& keyColumns, const TTableSchema& schema, i64 rowCount)
-{
-    ValidateKeyColumns(keyColumns);
-
-    if (rowCount == 0) {
-        return;
-    }
-
-    auto tableKeyColumns = schema.GetKeyColumns();
-    bool areKeyColumnsCompatible = true;
-    if (tableKeyColumns.size() < keyColumns.size()) {
-        areKeyColumnsCompatible = false;
-    } else {
-        for (int i = 0; i < keyColumns.size(); ++i) {
-            if (tableKeyColumns[i] != keyColumns[i]) {
-                areKeyColumnsCompatible = false;
-                break;
-            }
-        }
-    }
-
-    if (!areKeyColumnsCompatible) {
-        THROW_ERROR_EXCEPTION("Key columns mismatch while trying to append sorted data into a non-empty table")
-            << TErrorAttribute("append_key_columns", keyColumns)
-            << TErrorAttribute("current_key_columns", tableKeyColumns);
-    }
-}
-
-TTableUploadOptions GetTableUploadOptions(
-    const TRichYPath& path,
-    const IAttributeDictionary& cypressTableAttributes,
-    i64 rowCount)
-{
-    auto schema = cypressTableAttributes.Get<TTableSchema>("schema");
-    auto schemaMode = cypressTableAttributes.Get<ETableSchemaMode>("schema_mode");
-    auto optimizeFor = cypressTableAttributes.Get<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
-    auto compressionCodec = cypressTableAttributes.Get<NCompression::ECodec>("compression_codec");
-    auto erasureCodec = cypressTableAttributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
-
-    // Some ypath attributes are not compatible with attribute "schema".
-    if (path.GetAppend() && path.GetSchema()) {
-        THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"schema\" are not compatible")
-            << TErrorAttribute("path", path);
-    }
-
-    if (!path.GetSortedBy().empty() && path.GetSchema()) {
-        THROW_ERROR_EXCEPTION("YPath attributes \"sorted_by\" and \"schema\" are not compatible")
-            << TErrorAttribute("path", path);
-    }
-
-    TTableUploadOptions result;
-    if (path.GetAppend() && !path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Strong)) {
-        ValidateKeyColumnsEqual(path.GetSortedBy(), schema);
-
-        result.LockMode = ELockMode::Exclusive;
-        result.UpdateMode = EUpdateMode::Append;
-        result.SchemaMode = ETableSchemaMode::Strong;
-        result.TableSchema = schema;
-    } else if (path.GetAppend() && !path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Weak)) {
-        // Old behaviour.
-        ValidateAppendKeyColumns(path.GetSortedBy(), schema, rowCount);
-
-        result.LockMode = ELockMode::Exclusive;
-        result.UpdateMode = EUpdateMode::Append;
-        result.SchemaMode = ETableSchemaMode::Weak;
-        result.TableSchema = TTableSchema::FromKeyColumns(path.GetSortedBy());
-    } else if (path.GetAppend() && path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Strong)) {
-        result.LockMode = schema.IsSorted() ? ELockMode::Exclusive : ELockMode::Shared;
-        result.UpdateMode = EUpdateMode::Append;
-        result.SchemaMode = ETableSchemaMode::Strong;
-        result.TableSchema = schema;
-    } else if (path.GetAppend() && path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Weak)) {
-        // Old behaviour - reset key columns if there were any.
-        result.LockMode = ELockMode::Shared;
-        result.UpdateMode = EUpdateMode::Append;
-        result.SchemaMode = ETableSchemaMode::Weak;
-        result.TableSchema = TTableSchema();
-    } else if (!path.GetAppend() && !path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Strong)) {
-        ValidateKeyColumnsEqual(path.GetSortedBy(), schema);
-
-        result.LockMode = ELockMode::Exclusive;
-        result.UpdateMode = EUpdateMode::Overwrite;
-        result.SchemaMode = ETableSchemaMode::Strong;
-        result.TableSchema = schema;
-    } else if (!path.GetAppend() && !path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Weak)) {
-        result.LockMode = ELockMode::Exclusive;
-        result.UpdateMode = EUpdateMode::Overwrite;
-        result.SchemaMode = ETableSchemaMode::Weak;
-        result.TableSchema = TTableSchema::FromKeyColumns(path.GetSortedBy());
-    } else if (!path.GetAppend() && path.GetSchema() && (schemaMode == ETableSchemaMode::Strong)) {
-        result.LockMode = ELockMode::Exclusive;
-        result.UpdateMode = EUpdateMode::Overwrite;
-        result.SchemaMode = ETableSchemaMode::Strong;
-        result.TableSchema = *path.GetSchema();
-    } else if (!path.GetAppend() && path.GetSchema() && (schemaMode == ETableSchemaMode::Weak)) {
-        // Change from Weak to Strong schema mode.
-        result.LockMode = ELockMode::Exclusive;
-        result.UpdateMode = EUpdateMode::Overwrite;
-        result.SchemaMode = ETableSchemaMode::Strong;
-        result.TableSchema = *path.GetSchema();
-    } else if (!path.GetAppend() && path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Strong)) {
-        result.LockMode = ELockMode::Exclusive;
-        result.UpdateMode = EUpdateMode::Overwrite;
-        result.SchemaMode = ETableSchemaMode::Strong;
-        result.TableSchema = schema;
-    } else if (!path.GetAppend() && path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Weak)) {
-        result.LockMode = ELockMode::Exclusive;
-        result.UpdateMode = EUpdateMode::Overwrite;
-        result.SchemaMode = ETableSchemaMode::Weak;
-        result.TableSchema = TTableSchema();
-    } else {
-        // Do not use Y_UNREACHABLE here, since this code is executed inside scheduler.
-        THROW_ERROR_EXCEPTION("Failed to define upload parameters")
-            << TErrorAttribute("path", path)
-            << TErrorAttribute("schema_mode", schemaMode)
-            << TErrorAttribute("schema", schema);
-    }
-
-    if (path.GetAppend() && path.GetOptimizeFor()) {
-        THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"optimize_for\" are not compatible")
-            << TErrorAttribute("path", path);
-    }
-
-    if (path.GetOptimizeFor()) {
-        result.OptimizeFor = *path.GetOptimizeFor();
-    } else {
-        result.OptimizeFor = optimizeFor;
-    }
-
-    if (path.GetAppend() && path.GetCompressionCodec()) {
-        THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"compression_codec\" are not compatible")
-            << TErrorAttribute("path", path);
-    }
-
-    if (path.GetCompressionCodec()) {
-        result.CompressionCodec = *path.GetCompressionCodec();
-    } else {
-        result.CompressionCodec = compressionCodec;
-    }
-
-    if (path.GetAppend() && path.GetErasureCodec()) {
-        THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"erasure_codec\" are not compatible")
-            << TErrorAttribute("path", path);
-    }
-
-    if (path.GetErasureCodec()) {
-        result.ErasureCodec = *path.GetErasureCodec();
-    } else {
-        result.ErasureCodec = erasureCodec;
-    }
-
-    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -699,20 +319,21 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
 {
     const auto& Logger = logger;
 
-    YT_LOG_INFO("Getting table attributes (Path: %v)", path);
+    YT_LOG_INFO("Getting table attributes (Path: %v)",
+        path);
 
     TYPath objectIdPath;
     TCellTag tableCellTag;
     {
         TUserObject userObject;
         userObject.Path = path;
+
         GetUserObjectBasicAttributes(
             client,
-            TMutableRange<TUserObject>(&userObject, 1),
+            {&userObject},
             transactionId,
             Logger,
-            EPermission::Read,
-            false /* suppressAccessTracking */);
+            EPermission::Read);
 
         const auto& objectId = userObject.ObjectId;
         tableCellTag = userObject.CellTag;
@@ -725,7 +346,10 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
         }
     }
 
-    YT_LOG_INFO("Requesting table chunk count (TableCellTag: %v, ObjectIdPath: %v)", tableCellTag, objectIdPath);
+    YT_LOG_INFO("Requesting table chunk count (TableCellTag: %v, ObjectIdPath: %v)",
+        tableCellTag,
+        objectIdPath);
+
     int chunkCount;
     {
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
@@ -748,8 +372,7 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
 
     YT_LOG_INFO("Fetching chunk specs (ChunkCount: %v)", chunkCount);
 
-    std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
-    FetchChunkSpecs(
+    auto chunkSpecs = FetchChunkSpecs(
         client,
         nodeDirectory,
         tableCellTag,
@@ -758,13 +381,12 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
         chunkCount,
         config->MaxChunksPerFetch,
         config->MaxChunksPerLocateRequest,
-        [&] (TChunkOwnerYPathProxy::TReqFetchPtr req) {
+        [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
             req->set_fetch_all_meta_extensions(false);
             SetTransactionId(req, transactionId);
         },
-        Logger,
-        &chunkSpecs);
+        Logger);
 
     std::vector<TInputChunkPtr> inputChunks;
     for (const auto& chunkSpec : chunkSpecs) {
@@ -775,6 +397,8 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
 
 template <typename TValue>
 void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, TRange<TValue> values)
@@ -788,12 +412,14 @@ void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatistics
     }
 }
 
-void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, const TUnversionedRow& row)
+} // namespace
+
+void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, TUnversionedRow row)
 {
     UpdateColumnarStatistics(columnarStatisticsExt, MakeRange(row.Begin(), row.End()));
 }
 
-void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, const TVersionedRow& row)
+void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, TVersionedRow row)
 {
     UpdateColumnarStatistics(columnarStatisticsExt, MakeRange(row.BeginKeys(), row.EndKeys()));
     UpdateColumnarStatistics(columnarStatisticsExt, MakeRange(row.BeginValues(), row.EndValues()));
@@ -814,9 +440,11 @@ void CheckUnavailableChunks(EUnavailableChunkStrategy strategy, std::vector<TChu
             continue;
         }
 
-        auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
-        auto throwUnavailable = [&] () {
-            THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::ChunkUnavailable, "Chunk %v is unavailable", chunkId);
+        auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+        auto throwUnavailable = [&] {
+            THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::ChunkUnavailable,
+                "Chunk %v is unavailable",
+                chunkId);
         };
 
         switch (strategy) {

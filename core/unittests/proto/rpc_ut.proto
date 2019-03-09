@@ -1,5 +1,7 @@
 package NMyRpc;
 
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqSomeCall
 {
     required int32 a = 1;
@@ -10,7 +12,11 @@ message TRspSomeCall
     required int32 b = 1;
 }
 
-message TReqPassCall {}
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPassCall 
+{
+}
 
 message TRspPassCall
 {
@@ -19,14 +25,22 @@ message TRspPassCall
     required bool retry = 3;
 }
 
-message TReqRegularAttachments { }
-message TRspRegularAttachments { }
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRegularAttachments
+{
+}
+
+message TRspRegularAttachments
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqCompression
 {
     required int32 request_codec = 1;
-    required int32 request_attachment_codec = 2;
-    required string message = 3;
+    required string message = 2;
 }
 
 message TRspCompression
@@ -34,24 +48,93 @@ message TRspCompression
     required string message = 1;
 }
 
-message TReqNullAndEmptyAttachments { }
-message TRspNullAndEmptyAttachments { }
+////////////////////////////////////////////////////////////////////////////////
 
-message TReqDoNothing { }
-message TRspDoNothing { }
+message TReqNullAndEmptyAttachments
+{
+}
 
-message TReqCustomMessageError { }
-message TRspCustomMessageError { }
+message TRspNullAndEmptyAttachments
+{
+}
 
-message TReqNotRegistered { }
-message TRspNotRegistered { }
+////////////////////////////////////////////////////////////////////////////////
 
-message TReqSlowCall { }
-message TRspSlowCall { }
+message TReqDoNothing
+{
+}
 
-message TReqSlowCanceledCall { }
-message TRspSlowCanceledCall { }
+message TRspDoNothing
+{
+}
 
-message TReqNoReply { }
-message TRspNoReply { }
+////////////////////////////////////////////////////////////////////////////////
 
+message TReqCustomMessageError
+{
+}
+
+message TRspCustomMessageError
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqNotRegistered
+{
+}
+
+message TRspNotRegistered
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSlowCall
+{
+}
+
+message TRspSlowCall
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSlowCanceledCall
+{
+}
+
+message TRspSlowCanceledCall
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqNoReply
+{
+}
+
+message TRspNoReply
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqStreamingEcho
+{
+}
+
+message TRspStreamingEcho
+{
+    required int64 total_size = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqServerStreamsAborted
+{
+}
+
+message TRspServerStreamsAborted
+{
+}

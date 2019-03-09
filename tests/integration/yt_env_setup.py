@@ -59,18 +59,18 @@ def _reset_nodes(driver=None):
         "resource_limits_overrides",
         "user_tags",
     ]
-    nodes = yt_commands.ls("//sys/nodes", attributes=attributes, driver=driver)
+    nodes = yt_commands.ls("//sys/cluster_nodes", attributes=attributes, driver=driver)
 
     requests = []
     for node in nodes:
         node_name = str(node)
         for attribute in boolean_attributes:
             if node.attributes[attribute]:
-                requests.append(yt_commands.make_batch_request("set", path="//sys/nodes/{0}/@{1}".format(node_name, attribute), input=False))
+                requests.append(yt_commands.make_batch_request("set", path="//sys/cluster_nodes/{0}/@{1}".format(node_name, attribute), input=False))
         if node.attributes["resource_limits_overrides"] != {}:
-            requests.append(yt_commands.make_batch_request("set", path="//sys/nodes/%s/@resource_limits_overrides" % node_name, input={}))
+            requests.append(yt_commands.make_batch_request("set", path="//sys/cluster_nodes/{0}/@resource_limits_overrides".format(node_name), input={}))
         if node.attributes["user_tags"] != []:
-            requests.append(yt_commands.make_batch_request("set", path="//sys/nodes/%s/@user_tags" % node_name, input=[]))
+            requests.append(yt_commands.make_batch_request("set", path="//sys/cluster_nodes/{0}/@user_tags".format(node_name), input=[]))
 
     responses = yt_commands.execute_batch(requests)
     for response in responses:
@@ -177,8 +177,8 @@ def _remove_operations(driver=None):
 
 def _wait_for_jobs_to_vanish(driver=None):
     def check_no_jobs():
-        for node in yt_commands.ls("//sys/nodes", driver=driver):
-            jobs = yt_commands.get("//sys/nodes/{0}/orchid/job_controller/active_job_count".format(node), driver=driver)
+        for node in yt_commands.ls("//sys/cluster_nodes", driver=driver):
+            jobs = yt_commands.get("//sys/cluster_nodes/{0}/orchid/job_controller/active_job_count".format(node), driver=driver)
             if jobs.get("scheduler", 0) > 0:
                 return False
         return True
@@ -666,7 +666,6 @@ class YTEnvSetup(object):
 
             yt_commands.wait_for_nodes(driver=driver)
             yt_commands.wait_for_chunk_replicator(driver=driver)
-        yt_commands.reset_events_on_fs()
 
     @classmethod
     def _teardown_method(cls):
@@ -712,6 +711,7 @@ class YTEnvSetup(object):
     def setup_method(self, method):
         if not self.SINGLE_SETUP_TEARDOWN:
             self._setup_method()
+        yt_commands.reset_events_on_fs()
 
     def teardown_method(self, method):
         if not self.SINGLE_SETUP_TEARDOWN:

@@ -134,7 +134,7 @@ void Serialize(
     const std::function<void(NYson::IYsonConsumer*)>* valueProducer = nullptr);
 void Deserialize(TError& error, NYTree::INodePtr node);
 
-void FormatValue(TStringBuilder* builder, const TError& error, TStringBuf spec);
+void FormatValue(TStringBuilderBase* builder, const TError& error, TStringBuf spec);
 TString ToString(const TError& error);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -284,7 +284,7 @@ private:
 };
 
 template <class T>
-void FormatValue(TStringBuilder* builder, const TErrorOr<T>& error, TStringBuf spec);
+void FormatValue(TStringBuilderBase* builder, const TErrorOr<T>& error, TStringBuf spec);
 template <class T>
 TString ToString(const TErrorOr<T>& valueOrError);
 

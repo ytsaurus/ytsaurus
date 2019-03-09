@@ -9,8 +9,11 @@
 #include <yt/ytlib/scheduler/config.h>
 
 #include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/client/api/transaction.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/actions/cancelable_context.h>
 
@@ -66,7 +69,7 @@ void ToProto(
 void FromProto(
     TOperationTransactions* transactions,
     const NControllerAgent::NProto::TControllerTransactionIds& transactionIdsProto,
-    std::function<NNative::IClientPtr(const TCellTag&)> getClient,
+    std::function<NNative::IClientPtr(TCellTag)> getClient,
     TDuration pingPeriod)
 {
     auto attachTransaction = [&] (TTransactionId transactionId) -> ITransactionPtr {
@@ -260,6 +263,16 @@ TOperationRuntimeParametersPtr TOperation::GetRuntimeParameters() const
 {
     return RuntimeParameters_;
 }
+
+bool TOperation::GetActivated() const
+{
+    return Activated_;
+}
+
+void TOperation::SetActivated(bool value)
+{
+    Activated_ = value;
+};
 
 void TOperation::SetRuntimeParameters(TOperationRuntimeParametersPtr parameters)
 {

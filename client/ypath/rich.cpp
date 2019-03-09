@@ -450,7 +450,7 @@ void TRichYPath::SetForeign(bool value)
 std::optional<std::vector<TString>> TRichYPath::GetColumns() const
 {
     if (Attributes().Contains("channel")) {
-        THROW_ERROR_EXCEPTION("Deprecated attribute 'channel' in YPath");
+        THROW_ERROR_EXCEPTION("Deprecated attribute \"channel\" in YPath");
     }
     return FindAttribute<std::vector<TString>>(*this, "columns");
 }

@@ -127,7 +127,7 @@ void FromProto(TWorkloadDescriptor* descriptor, const NYT::NProto::TWorkloadDesc
 }
 
 void FormatValue(
-    TStringBuilder* builder,
+    TStringBuilderBase* builder,
     const TWorkloadDescriptor& descriptor,
     TStringBuf /*format*/)
 {

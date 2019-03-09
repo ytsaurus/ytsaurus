@@ -84,6 +84,16 @@ private:
             Owner_->OnRequestCompleted();
         }
 
+        virtual void HandleStreamingPayload(const TStreamingPayload& payload) override
+        {
+            UnderlyingHandler_->HandleStreamingPayload(payload);
+        }
+
+        virtual void HandleStreamingFeedback(const TStreamingFeedback& feedback) override
+        {
+            UnderlyingHandler_->HandleStreamingFeedback(feedback);
+        }
+
     private:
         const IClientResponseHandlerPtr UnderlyingHandler_;
         const TSerializedChannelPtr Owner_;

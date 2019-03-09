@@ -30,7 +30,15 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString NullAddress("<std::nullopt>");
+static const TString NullAddress("<null>");
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TNodeDescriptor& NullNodeDescriptor()
+{
+    static const TNodeDescriptor Result(NullAddress);
+    return Result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -113,7 +121,7 @@ void TNodeDescriptor::Persist(const TStreamPersistenceContext& context)
     Persist(context, DataCenter_);
 }
 
-void FormatValue(TStringBuilder* builder, const TNodeDescriptor& descriptor, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, const TNodeDescriptor& descriptor, TStringBuf /*spec*/)
 {
     if (descriptor.IsNull()) {
         builder->AppendString(NullAddress);

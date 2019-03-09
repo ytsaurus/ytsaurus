@@ -16,6 +16,8 @@
 #include <yt/core/concurrency/throughput_throttler.h>
 #include <yt/core/concurrency/config.h>
 
+#include <yt/ytlib/election/cell_manager.h>
+
 namespace NYT::NSecurityServer {
 
 using namespace NConcurrency;
@@ -143,6 +145,7 @@ void TRequestTracker::SetUserRequestRateLimit(TUser* user, int limit, EUserWorkl
 
 void TRequestTracker::ReconfigureUserRequestRateThrottler(TUser* user)
 {
+    auto totalPeerCount = Bootstrap_->GetCellManager()->GetTotalPeerCount();
     for (auto workloadType : {EUserWorkloadType::Read, EUserWorkloadType::Write}) {
         if (!user->GetRequestRateThrottler(workloadType)) {
             user->SetRequestRateThrottler(CreateReconfigurableThroughputThrottler(New<TThroughputThrottlerConfig>()), workloadType);
@@ -150,7 +153,13 @@ void TRequestTracker::ReconfigureUserRequestRateThrottler(TUser* user)
 
         auto config = New<TThroughputThrottlerConfig>();
         config->Period = Config_->RequestRateSmoothingPeriod;
-        config->Limit = user->GetRequestRateLimit(workloadType);
+
+        auto requestRateLimit = user->GetRequestRateLimit(workloadType);
+        if (workloadType == EUserWorkloadType::Read && totalPeerCount > 0) {
+            requestRateLimit /= totalPeerCount;
+        }
+        config->Limit = requestRateLimit;
+
         user->GetRequestRateThrottler(workloadType)->Reconfigure(std::move(config));
     }
 }

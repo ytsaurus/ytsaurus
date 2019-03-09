@@ -4,9 +4,11 @@
 
 #include <yt/server/lib/scheduler/config.h>
 
-#include <yt/client/object_client/helpers.h>
-
 #include <yt/ytlib/chunk_client/helpers.h>
+
+#include <yt/ytlib/api/native/client.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/client/api/client.h>
 

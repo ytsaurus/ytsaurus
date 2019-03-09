@@ -172,13 +172,13 @@ TSharedEventQueue::TSharedEventQueue(
     }
 
     auto heartbeatStartTime = earliestTime - TDuration::MilliSeconds(heartbeatPeriod);
-    std::mt19937 random_generator;
+    std::mt19937 randomGenerator;
     std::uniform_int_distribution<int> distribution(0, heartbeatPeriod - 1);
 
     for (const auto& execNode : execNodes) {
         const int nodeShardId = GetNodeShardId(execNode->GetId(), nodeShardCount);
 
-        const auto heartbeatStartDelay = TDuration::MilliSeconds(distribution(random_generator));
+        const auto heartbeatStartDelay = TDuration::MilliSeconds(distribution(randomGenerator));
         auto heartbeat = TNodeShardEvent::Heartbeat(
             heartbeatStartTime + heartbeatStartDelay,
             execNode->GetId(),

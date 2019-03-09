@@ -52,9 +52,8 @@ TApiServiceProxy TClientBase::CreateApiServiceProxy(NRpc::IChannelPtr channel)
     TApiServiceProxy proxy(channel);
     auto config = GetRpcProxyConnection()->GetConfig();
     proxy.SetDefaultRequestCodec(config->RequestCodec);
-    proxy.SetDefaultRequestAttachmentCodec(config->RequestAttachmentCodec);
     proxy.SetDefaultResponseCodec(config->ResponseCodec);
-    proxy.SetDefaultResponseAttachmentCodec(config->ResponseAttachmentCodec);
+    proxy.SetDefaultEnableLegacyRpcCodecs(config->EnableLegacyRpcCodecs);
 
     return proxy;
 }
@@ -551,6 +550,7 @@ TFuture<TSelectRowsResult> TClientBase::SelectRows(
     if (options.UdfRegistryPath) {
         req->set_udf_registry_path(*options.UdfRegistryPath);
     }
+    req->set_memory_limit_per_node(options.MemoryLimitPerNode);
 
     return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspSelectRowsPtr>& rspOrError) {
         const auto& rsp = rspOrError.ValueOrThrow();

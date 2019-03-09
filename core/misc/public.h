@@ -76,6 +76,7 @@ class TSkipList;
 
 class TBlobOutput;
 
+class TStringBuilderBase;
 class TStringBuilder;
 
 struct ICheckpointableInputStream;
@@ -126,6 +127,12 @@ DEFINE_ENUM(EProcessErrorCode,
     ((NonZeroExitCode)    (10000))
     ((Signal)             (10001))
     ((CannotResolveBinary)(10002))
+);
+
+// Memory zone is used to pass hint to the allocator.
+DEFINE_ENUM(EMemoryZone,
+    ((Normal)     (0)) // default memory type
+    ((Undumpable) (1)) // memory is omitted from the core dump
 );
 
 ////////////////////////////////////////////////////////////////////////////////

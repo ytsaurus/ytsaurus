@@ -2,12 +2,12 @@ import pytest
 
 from yt_env_setup import YTEnvSetup, unix_only
 from yt_commands import *
-
+from yt.yson import YsonList
 from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
-class TestAcls(YTEnvSetup):
+class TestCypressAcls(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -211,6 +211,26 @@ class TestAcls(YTEnvSetup):
         assert ls("//tmp/p", authenticated_user="u") == ["a"]
         assert get("//tmp/p/a", authenticated_user="u") == "b"
 
+    def test_create_with_replace(self):
+        create_user("u")
+
+        # Deny writing.
+        create("map_node", "//tmp/a", attributes={"acl": [make_ace("deny", "u", "write")]})
+        create("map_node", "//tmp/a/b", attributes={"acl": [make_ace("allow", "u", "write")]})
+
+        with pytest.raises(YtError): create("table", "//tmp/a/b", force=True, authenticated_user="u")
+        set("//tmp/a/@acl", [make_ace("allow", "u", "write")])
+        create("table", "//tmp/a/b", force=True, authenticated_user="u")
+
+        # Allow write but deny remove.
+        create("map_node", "//tmp/c", attributes={"acl": [make_ace("allow", "u", "write")]})
+        create("map_node", "//tmp/c/d", attributes={"acl": [make_ace("allow", "u", "write"), make_ace("deny", "u", "remove")]})
+
+        with pytest.raises(YtError): create("table", "//tmp/c", force=True, authenticated_user="u")
+        set("//tmp/c/d/@acl", [make_ace("allow", "u", "write"), make_ace("allow", "u", "remove")])
+        create("table", "//tmp/c", force=True, authenticated_user="u")
+
+
     def test_create_in_tx1(self):
         create_user("u")
         tx = start_transaction()
@@ -276,6 +296,29 @@ class TestAcls(YTEnvSetup):
             set("//tmp/t/@acl", [], authenticated_user="u")
         with pytest.raises(YtError):
             set("//tmp/t/@inherit_acl", False, authenticated_user="u")
+
+    def test_administer_permission5(self):
+        create_user("u")
+
+        create("map_node", "//tmp/dir1")
+        create("map_node", "//tmp/dir2", attributes={
+            "acl": [make_ace("deny", "u", "write"), make_ace("allow", "u", "administer")]})
+        create("map_node", "//tmp/dir3", attributes={
+            "acl": [make_ace("allow", "u", "write"), make_ace("deny", "u", "administer")]})
+        create("map_node", "//tmp/dir4", attributes={
+            "acl": [make_ace("allow", "u", "write"), make_ace("allow", "u", "administer")]})
+
+        read_acl = [make_ace("allow", "u", "read")]
+
+        with pytest.raises(YtError): create("table", "//tmp/dir1/t1", attributes={"acl": read_acl}, authenticated_user="u")
+        with pytest.raises(YtError): create("table", "//tmp/dir2/t1", attributes={"acl": read_acl}, authenticated_user="u")
+        with pytest.raises(YtError): create("table", "//tmp/dir3/t1", attributes={"acl": read_acl}, authenticated_user="u")
+        create("table", "//tmp/dir4/t1", attributes={"acl": read_acl}, authenticated_user="u")
+
+        with pytest.raises(YtError): create("table", "//tmp/dir1/t2", attributes={"inherit_acl": False}, authenticated_user="u")
+        with pytest.raises(YtError): create("table", "//tmp/dir2/t2", attributes={"inherit_acl": False}, authenticated_user="u")
+        with pytest.raises(YtError): create("table", "//tmp/dir3/t2", attributes={"inherit_acl": False}, authenticated_user="u")
+        create("table", "//tmp/dir4/t2", attributes={"inherit_acl": False}, authenticated_user="u")
 
     def test_user_rename_success(self):
         create_user("u1")
@@ -727,7 +770,181 @@ class TestAcls(YTEnvSetup):
             make_ace("allow", "d2", "read", "object_only"),
             make_ace("allow", "d3", "read", "object_and_descendants")])
 
+    def test_read_table_with_denied_columns(self):
+        create_user("u")
+
+        create("table", "//tmp/t", attributes={
+                "schema": [
+                    {"name": "public", "type": "string"},
+                    {"name": "secret", "type": "string"}
+                ],
+                "acl": [
+                     make_ace("deny", "u", "read", columns="secret"),
+                ]
+            })
+        write_table("//tmp/t", [{"public": "a", "secret": "b"}])
+        
+        assert read_table("//tmp/t{public}") == [{"public": "a"}]
+
+        with pytest.raises(YtError):
+            read_table("//tmp/t", authenticated_user="u")
+        with pytest.raises(YtError):
+            read_table("//tmp/t{secret}", authenticated_user="u")
+
+    def test_columnar_acl_sanity(self):
+        create_user("u")
+        create("table", "//tmp/t", attributes={
+            "acl": [make_ace("allow", "u", "read", columns="secret")]
+        })
+        with pytest.raises(YtError):
+            create("table", "//tmp/t", attributes={
+                "acl": [make_ace("allow", "u", "write", columns="secret")]
+            })
+
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    @pytest.mark.parametrize("strict", [False, True])
+    def test_read_table_with_omitted_columns(self, optimize_for, strict):
+        create_user("u")
+
+        schema = YsonList([
+            {"name": "public", "type": "string"},
+            {"name": "secret", "type": "string"}
+        ])
+        schema.attributes["strict"] = strict
+
+        create("table", "//tmp/t", attributes={
+            "optimize_for": optimize_for,
+            "schema": schema,
+            "acl": [make_ace("deny", "u", "read", columns="secret"),]
+        })
+
+        row = {"public": "a", "secret": "b"}
+        if not strict:
+            row["other"] = "c"
+
+        public_row = row
+        public_row.pop("secret", None)
+        
+        write_table("//tmp/t", [row])
+
+        def do(path, expected_row, expected_omitted_columns):
+            response_parameters = {}
+            rows = read_table(path, omit_inaccessible_columns=True, response_parameters=response_parameters, authenticated_user="u")
+            assert rows == [expected_row]
+            assert response_parameters["omitted_inaccessible_columns"] == expected_omitted_columns
+
+        do("//tmp/t{public}", {"public": "a"}, [])
+        do("//tmp/t", public_row, ["secret"])
+        do("//tmp/t{secret}", {}, ["secret"])
+
+    def test_map_table_with_denied_columns(self):
+        create_user("u")
+
+        create("table", "//tmp/t_in", attributes={
+                "schema": [
+                    {"name": "public", "type": "string"},
+                    {"name": "secret", "type": "string"}
+                ],
+                "acl": [
+                     make_ace("deny", "u", "read", columns="secret"),
+                ]
+            })
+        write_table("//tmp/t_in", [{"public": "a", "secret": "b"}])
+
+        create("table", "//tmp/t_out")
+
+        map(in_="//tmp/t_in{public}", out="//tmp/t_out", command="cat", authenticated_user="u")
+        assert read_table("//tmp/t_out") == [{"public": "a"}]
+
+        with pytest.raises(YtError):
+             map(in_="//tmp/t_in{secret}", out="//tmp/t_out", command="cat", authenticated_user="u")
+        with pytest.raises(YtError):
+             map(in_="//tmp/t_in", out="//tmp/t_out", command="cat", authenticated_user="u")
+
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    @pytest.mark.parametrize("strict", [False, True])
+    def test_map_table_with_omitted_columns(self, optimize_for, strict):
+        create_user("u")
+        create("table", "//tmp/t_in", attributes={
+            "optimize_for": optimize_for,
+            "schema": make_schema(
+                [
+                    {"name": "public", "type": "string"},
+                    {"name": "secret", "type": "string"}
+                ],
+                strict=strict),
+            "acl": [make_ace("deny", "u", "read", columns="secret")]
+        })
+
+        row = {"public": "a", "secret": "b"}
+        if not strict:
+            row["other"] = "c"
+
+        public_row = row
+        public_row.pop("secret", None)
+        
+        write_table("//tmp/t_in", [row])
+
+        def do(input_path, expected_row, expect_alert):
+            create("table", "//tmp/t_out", force=True)
+            op = map(in_=input_path, out="//tmp/t_out", command="cat", authenticated_user="u", spec={"omit_inaccessible_columns": True})
+            alerts = op.get_alerts()
+            if expect_alert:
+                assert len(alerts) == 1
+                assert alerts["omitted_inaccesible_columns_in_input_tables"]["attributes"]["input_tables"] == [
+                        {"path": "//tmp/t_in", "columns": ["secret"]}
+                    ]
+            else:
+                assert len(alerts) == 0
+            assert read_table("//tmp/t_out") == [expected_row]
+
+        do("//tmp/t_in{public}", {"public": "a"}, False)
+        do("//tmp/t_in", public_row, True)
+        do("//tmp/t_in{secret}", {}, True)
+
+    @pytest.mark.parametrize("acl_path", ["//tmp/dir/t", "//tmp/dir"])
+    def test_check_permission_for_columnar_acl(self, acl_path):
+        create_user("u1")
+        create_user("u2")
+        create_user("u3")
+        create_user("u4")
+
+        create("table", "//tmp/dir/t", attributes={
+                   "schema": [
+                       {"name": "a", "type": "string"},
+                       {"name": "b", "type": "string"},
+                       {"name": "c", "type": "string"}
+                   ]},
+               recursive=True)
+
+        set(acl_path + "/@acl", [
+             make_ace("deny", "u1", "read", columns="a"),
+             make_ace("allow", "u2", "read", columns="b"),
+             make_ace("deny", "u4", "read")
+        ])
+
+        response1 = check_permission("u1", "read", "//tmp/dir/t", columns=["a", "b", "c"])
+        assert response1["action"] == "allow"
+        assert response1["columns"][0]["action"] == "deny"
+        assert response1["columns"][1]["action"] == "deny"
+        assert response1["columns"][2]["action"] == "allow"
+
+        response2 = check_permission("u2", "read", "//tmp/dir/t", columns=["a", "b", "c"])
+        assert response2["action"] == "allow"
+        assert response2["columns"][0]["action"] == "deny"
+        assert response2["columns"][1]["action"] == "allow"
+        assert response2["columns"][2]["action"] == "allow"
+
+        response3 = check_permission("u3", "read", "//tmp/dir/t", columns=["a", "b", "c"])
+        assert response3["action"] == "allow"
+        assert response3["columns"][0]["action"] == "deny"
+        assert response3["columns"][1]["action"] == "deny"
+        assert response3["columns"][2]["action"] == "allow"
+
+        response4 = check_permission("u4", "read", "//tmp/dir/t", columns=["a", "b", "c"])
+        assert response4["action"] == "deny"
+
 ##################################################################
 
-class TestAclsMulticell(TestAcls):
+class TestCypressAclsMulticell(TestCypressAcls):
     NUM_SECONDARY_MASTER_CELLS = 2

@@ -10,6 +10,7 @@
 #include <yt/server/node/data_node/master_connector.h>
 
 #include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>
@@ -218,7 +219,7 @@ void TPeerBlockDistributor::DistributeBlocks()
 
         YT_LOG_DEBUG("Sending block to destination nodes (BlockId: %v, DestinationNodes: %v)",
             blockId,
-             MakeFormattableRange(destinationNodes, [] (TStringBuilder* builder, const std::pair<TNodeId, TNodeDescriptor>& pair) {
+            MakeFormattableView(destinationNodes, [] (TStringBuilderBase* builder, const std::pair<TNodeId, TNodeDescriptor>& pair) {
                  FormatValue(builder, pair.second, TStringBuf());
              }));
 

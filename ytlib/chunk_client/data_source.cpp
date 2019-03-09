@@ -9,6 +9,7 @@
 namespace NYT::NChunkClient {
 
 using namespace NYTree;
+using namespace NYPath;
 using namespace NTableClient;
 using namespace NTransactionClient;
 
@@ -16,15 +17,17 @@ using namespace NTransactionClient;
 
 TDataSource::TDataSource(
     EDataSourceType type,
-    const std::optional<TString>& path,
+    const std::optional<TYPath>& path,
     const std::optional<TTableSchema>& schema,
     const std::optional<std::vector<TString>>& columns,
+    const std::vector<TString>& omittedInaccessibleColumns,
     TTimestamp timestamp,
     const TColumnRenameDescriptors& columnRenameDescriptors)
     : Type_(type)
     , Path_(path)
     , Schema_(schema)
     , Columns_(columns)
+    , OmittedInaccessibleColumns_(omittedInaccessibleColumns)
     , Timestamp_(timestamp)
     , ColumnRenameDescriptors_(columnRenameDescriptors)
 { }
@@ -49,6 +52,8 @@ void ToProto(NProto::TDataSource* protoDataSource, const TDataSource& dataSource
         ToProto(protoDataSource->mutable_columns(), *dataSource.Columns());
     }
 
+    ToProto(protoDataSource->mutable_omitted_inaccessible_columns(), dataSource.OmittedInaccessibleColumns());
+
     if (dataSource.GetPath()) {
         protoDataSource->set_path(*dataSource.GetPath());
     }
@@ -58,6 +63,7 @@ void ToProto(NProto::TDataSource* protoDataSource, const TDataSource& dataSource
     }
 
     protoDataSource->set_foreign(dataSource.GetForeign());
+
     ToProto(protoDataSource->mutable_column_rename_descriptors(), dataSource.ColumnRenameDescriptors());
 }
 
@@ -86,6 +92,8 @@ void FromProto(TDataSource* dataSource, const NProto::TDataSource& protoDataSour
         dataSource->Columns() = FromProto<std::vector<TString>>(protoDataSource.columns());
     }
 
+    dataSource->OmittedInaccessibleColumns() = FromProto<std::vector<TString>>(protoDataSource.omitted_inaccessible_columns());
+
     if (protoDataSource.has_path()) {
         dataSource->SetPath(protoDataSource.path());
     }
@@ -94,35 +102,56 @@ void FromProto(TDataSource* dataSource, const NProto::TDataSource& protoDataSour
         dataSource->SetTimestamp(protoDataSource.timestamp());
     }
 
-    if (protoDataSource.has_foreign()) {
-        dataSource->SetForeign(protoDataSource.foreign());
-    }
+    dataSource->SetForeign(protoDataSource.foreign());
 
     dataSource->ColumnRenameDescriptors() = FromProto<TColumnRenameDescriptors>(protoDataSource.column_rename_descriptors());
 }
 
 TDataSource MakeVersionedDataSource(
-    const std::optional<TString>& path,
-    const NTableClient::TTableSchema& schema,
+    const std::optional<TYPath>& path,
+    const TTableSchema& schema,
     const std::optional<std::vector<TString>>& columns,
+    const std::vector<TString>& omittedInaccessibleColumns,
     NTransactionClient::TTimestamp timestamp,
     const TColumnRenameDescriptors& columnRenameDescriptors)
 {
-    return TDataSource(EDataSourceType::VersionedTable, path, schema, columns, timestamp, columnRenameDescriptors);
+    return TDataSource(
+        EDataSourceType::VersionedTable,
+        path,
+        schema,
+        columns,
+        omittedInaccessibleColumns,
+        timestamp,
+        columnRenameDescriptors);
 }
 
 TDataSource MakeUnversionedDataSource(
-    const std::optional<TString>& path,
-    const std::optional<NTableClient::TTableSchema>& schema,
+    const std::optional<TYPath>& path,
+    const std::optional<TTableSchema>& schema,
     const std::optional<std::vector<TString>>& columns,
+    const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnRenameDescriptors& columnRenameDescriptors)
 {
-    return TDataSource(EDataSourceType::UnversionedTable, path, schema, columns, NullTimestamp, columnRenameDescriptors);
+    return TDataSource(
+        EDataSourceType::UnversionedTable,
+        path,
+        schema,
+        columns,
+        omittedInaccessibleColumns,
+        NullTimestamp,
+        columnRenameDescriptors);
 }
 
-TDataSource MakeFileDataSource(const std::optional<TString>& path)
+TDataSource MakeFileDataSource(const std::optional<TYPath>& path)
 {
-    return TDataSource(EDataSourceType::File, path, std::nullopt, std::nullopt, NullTimestamp, {});
+    return TDataSource(
+        EDataSourceType::File,
+        path,
+        std::nullopt,
+        std::nullopt,
+        {},
+        NullTimestamp,
+        {});
 }
 
 ////////////////////////////////////////////////////////////////////////////////

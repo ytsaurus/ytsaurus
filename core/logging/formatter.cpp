@@ -27,10 +27,10 @@ TLogEvent GetStartLogEvent()
     event.Instant = GetCpuInstant();
     event.Category = Logger.GetCategory();
     event.Level = ELogLevel::Info;
-    event.Message = Format("Logging started (Version: %v, BuildHost: %v, BuildTime: %v)",
+    event.Message = TSharedRef::FromString(Format("Logging started (Version: %v, BuildHost: %v, BuildTime: %v)",
         GetVersion(),
         GetBuildHost(),
-        GetBuildTime());
+        GetBuildTime()));
     return event;
 }
 
@@ -55,9 +55,9 @@ TLogEvent GetSkippedLogEvent(i64 count, const TString& skippedBy)
     event.Instant = GetCpuInstant();
     event.Category = Logger.GetCategory();
     event.Level = ELogLevel::Info;
-    event.Message = Format("Skipped log records in last second (Count: %d, SkippedBy: %v)",
+    event.Message = TSharedRef::FromString(Format("Skipped log records in last second (Count: %d, SkippedBy: %v)",
         count,
-        skippedBy);
+        skippedBy));
     return event;
 }
 
@@ -126,7 +126,7 @@ size_t TPlainTextLogFormatter::WriteFormatted(IOutputStream* outputStream, const
     buffer->AppendString(event.Category->Name);
     buffer->AppendChar('\t');
 
-    FormatMessage(buffer, event.Message);
+    FormatMessage(buffer, TStringBuf(event.Message.Begin(), event.Message.End()));
     buffer->AppendChar('\t');
 
     if (event.ThreadId != NConcurrency::InvalidThreadId) {

@@ -4,6 +4,8 @@
 
 #include <yt/core/ypath/public.h>
 
+#include <variant>
+
 namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,11 +35,63 @@ const TProtobufMessageType* ReflectProtobufMessageType(const ::google::protobuf:
 //! Extracts the underlying ::google::protobuf::Descriptor from a reflected instance.
 const ::google::protobuf::Descriptor* UnreflectProtobufMessageType(const TProtobufMessageType* type);
 
-//! Returns the type of the message inside #rootType pointed to by #path.
-/*!
- *  #path must actually point to a submessage; no repeated or scalar types allowed.
- */
-const TProtobufMessageType* GetMessageTypeByYPath(
+////////////////////////////////////////////////////////////////////////////////
+
+struct TProtobufMessageElement;
+struct TProtobufScalarElement;
+struct TProtobufAttributeDictionaryElement;
+struct TProtobufRepeatedElement;
+struct TProtobufMapElement;
+struct TProtobufAnyElement;
+
+using TProtobufElement = std::variant<
+    std::unique_ptr<TProtobufMessageElement>,
+    std::unique_ptr<TProtobufScalarElement>,
+    std::unique_ptr<TProtobufAttributeDictionaryElement>,
+    std::unique_ptr<TProtobufRepeatedElement>,
+    std::unique_ptr<TProtobufMapElement>,
+    std::unique_ptr<TProtobufAnyElement>
+>;
+
+struct TProtobufMessageElement
+{
+    const TProtobufMessageType* Type;
+};
+
+struct TProtobufScalarElement
+{
+};
+
+struct TProtobufAttributeDictionaryElement
+{
+};
+
+struct TProtobufRepeatedElement
+{
+    TProtobufElement Element;
+};
+
+struct TProtobufMapElement
+{
+    TProtobufElement Element;
+};
+
+struct TProtobufAnyElement
+{
+};
+
+struct TProtobufElementResolveResult
+{
+    TProtobufElement Element;
+    TStringBuf HeadPath;
+    TStringBuf TailPath;
+};
+
+//! Introspects a given #rootType and locates an element (represented
+//! by TProtobufElement discriminated union) at a given #path.
+//! Throws if some definite error occurs during resolve (i.e. a malformed
+//! YPath or a reference to a non-existing field).
+TProtobufElementResolveResult ResolveProtobufElementByYPath(
     const TProtobufMessageType* rootType,
     const NYPath::TYPath& path);
 
@@ -95,6 +149,12 @@ void ParseProtobuf(
     IYsonConsumer* consumer,
     ::google::protobuf::io::ZeroCopyInputStream* inputStream,
     const TProtobufMessageType* rootType,
+    const TProtobufParserOptions& options = TProtobufParserOptions());
+
+//! Invokes #ParseProtobuf to write #message into #consumer.
+void WriteProtobufMessage(
+    IYsonConsumer* consumer,
+    const ::google::protobuf::Message& message,
     const TProtobufParserOptions& options = TProtobufParserOptions());
 
 ////////////////////////////////////////////////////////////////////////////////

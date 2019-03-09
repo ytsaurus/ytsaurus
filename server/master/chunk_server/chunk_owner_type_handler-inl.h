@@ -98,7 +98,7 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
 
     try {
         node->SetPrimaryMediumIndex(primaryMedium->GetIndex());
-        node->Replication()[primaryMedium->GetIndex()].SetReplicationFactor(replicationFactor);
+        node->Replication().Set(primaryMedium->GetIndex(), TReplicationPolicy(replicationFactor, false));
         node->SetCompressionCodec(compressionCodec);
         node->SetErasureCodec(erasureCodec);
 

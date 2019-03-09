@@ -46,7 +46,7 @@ struct TWorkloadDescriptor
 i64 GetBasicPriority(EWorkloadCategory category);
 
 void FormatValue(
-    TStringBuilder* builder,
+    TStringBuilderBase* builder,
     const TWorkloadDescriptor& descriptor,
     TStringBuf format);
 TString ToString(const TWorkloadDescriptor& descriptor);

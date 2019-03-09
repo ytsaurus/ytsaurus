@@ -91,8 +91,7 @@ public:
         YCHECK(Bootstrap_);
 
         // TODO(prime): disable RPC attachment checksums for methods receiving/returning blocks
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk)
-            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CancelChunk));
@@ -129,12 +128,12 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples)
             .SetCancelable(true)
-            .SetResponseCodec(NCompression::ECodec::Lz4)
-            .SetHeavy(true));
+            .SetHeavy(true)
+            .SetResponseCodec(NCompression::ECodec::Lz4));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSlices)
             .SetCancelable(true)
-            .SetResponseCodec(NCompression::ECodec::Lz4)
-            .SetHeavy(true));
+            .SetHeavy(true)
+            .SetResponseCodec(NCompression::ECodec::Lz4));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics)
             .SetCancelable(true));
     }
@@ -416,7 +415,7 @@ private:
         context->SetRequestInfo("BlockIds: %v:%v, PopulateCache: %v, FetchFromCache: %v, "
             "FetchFromDisk: %v, Workload: %v",
             chunkId,
-            MakeShrunkFormattableRange(blockIndexes, TDefaultFormatter(), 3),
+            MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3),
             populateCache,
             fetchFromCache,
             fetchFromDisk,
@@ -1282,11 +1281,11 @@ private:
         TPeerInfo peer(request->peer_node_id(), expirationTime);
 
         const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();
-        auto maybeNodeDescriptor = nodeDirectory->FindDescriptor(request->peer_node_id());
+        const auto* nodeDescriptor = nodeDirectory->FindDescriptor(request->peer_node_id());
 
-        context->SetRequestInfo("PeerNodeId: %v, Descriptor: %v, ExpirationTime: %v, BlockCount: %v",
+        context->SetRequestInfo("PeerNodeId: %v, PeerAddress: %v, ExpirationTime: %v, BlockCount: %v",
             request->peer_node_id(),
-            maybeNodeDescriptor,
+            (nodeDescriptor ? nodeDescriptor : &NullNodeDescriptor())->GetDefaultAddress(),
             expirationTime,
             request->block_ids_size());
 

@@ -8,6 +8,8 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
+#include <yt/ytlib/node_tracker_client/public.h>
+
 #include <yt/ytlib/hive/public.h>
 
 namespace NYT::NApi::NNative {
@@ -34,6 +36,9 @@ struct IConnection
 
     virtual const NHiveClient::TClusterDirectoryPtr& GetClusterDirectory() = 0;
     virtual const NHiveClient::TClusterDirectorySynchronizerPtr& GetClusterDirectorySynchronizer() = 0;
+
+    virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() = 0;
+    virtual const NNodeTrackerClient::TNodeDirectorySynchronizerPtr& GetNodeDirectorySynchronizer() = 0;
 
     virtual const NHiveClient::TCellTrackerPtr& GetDownedCellTracker() = 0;
 

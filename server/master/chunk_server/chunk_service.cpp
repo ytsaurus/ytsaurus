@@ -218,7 +218,7 @@ private:
                     replicationFactorOverride,
                     preferredHostName,
                     forbiddenAddresses,
-                    MakeFormattableRange(targets, TNodePtrAddressFormatter()));
+                    MakeFormattableView(targets, TNodePtrAddressFormatter()));
             } catch (const std::exception& ex) {
                 auto error = TError(ex);
                 YT_LOG_DEBUG(error, "Error allocating write targets "

@@ -86,8 +86,7 @@ public:
 
     virtual TFuture<ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,
-        const NApi::TTableReaderOptions& options,
-        const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory) override;
+        const NApi::TTableReaderOptions& options) override;
 
     virtual TFuture<ITableWriterPtr> CreateTableWriter(
         const NYPath::TRichYPath& path,
@@ -181,13 +180,12 @@ private:
     const std::optional<TDuration> PingPeriod_;
     const bool Sticky_;
 
-    TSpinLock InFlightModifyRowsRequestsLock_;
-    THashMap<size_t, TFuture<void>> InFlightModifyRowsRequests_;
-    size_t InFlightModifyRowsRequestMinimalSequenceNumber_ = std::numeric_limits<size_t>::max();
-
     std::atomic<i64> ModifyRowsRequestSequenceCounter_;
+    std::vector<TFuture<void>> AsyncResults_;
+    TApiServiceProxy::TReqBatchModifyRowsPtr BatchModifyRowsRequest_;
 
     TSpinLock SpinLock_;
+    TSpinLock BatchModifyRowsRequestLock_;
     TError Error_;
     ETransactionState State_ = ETransactionState::Active;
 
@@ -214,6 +212,11 @@ private:
 
     void ValidateActive();
     void ValidateActive(TGuard<TSpinLock>&);
+
+    //! Returns a fresh batch modify rows request.
+    TApiServiceProxy::TReqBatchModifyRowsPtr CreateBatchModifyRowsRequest();
+    //! Invokes the stored batch modify rows request and replaces it with an null one.
+    TFuture<void> InvokeBatchModifyRowsRequest();
 
     template <class T>
     T PatchTransactionId(const T& options);

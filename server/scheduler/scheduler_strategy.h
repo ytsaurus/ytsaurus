@@ -156,7 +156,8 @@ struct ISchedulerStrategy
 
     virtual void ValidateOperationRuntimeParameters(
         IOperationStrategyHost* operation,
-        const TOperationRuntimeParametersPtr& runtimeParameters) = 0;
+        const TOperationRuntimeParametersPtr& runtimeParameters,
+        bool validatePools) = 0;
 
     virtual void InitOperationRuntimeParameters(
         const TOperationRuntimeParametersPtr& runtimeParameters,

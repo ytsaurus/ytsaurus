@@ -25,9 +25,6 @@ TChunkOwnerBase::TChunkOwnerBase(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
 {
     Replication_.SetVital(true);
-    for (auto& policy : Replication_) {
-        policy.Clear();
-    }
     if (IsTrunk()) {
         CompressionCodec_.Set(NCompression::ECodec::None);
         ErasureCodec_.Set(NErasure::ECodec::None);
@@ -210,9 +207,9 @@ NSecurityServer::TClusterResources TChunkOwnerBase::GetDeltaResourceUsage() cons
 NSecurityServer::TClusterResources TChunkOwnerBase::GetDiskUsage(const TDataStatistics& statistics) const
 {
     NSecurityServer::TClusterResources result;
-    for (auto mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
-        result.DiskSpace[mediumIndex] = CalculateDiskSpaceUsage(
-            Replication()[mediumIndex].GetReplicationFactor(),
+    for (const auto& entry : Replication()) {
+        result.DiskSpace[entry.GetMediumIndex()] = CalculateDiskSpaceUsage(
+            entry.Policy().GetReplicationFactor(),
             statistics.regular_disk_space(),
             statistics.erasure_disk_space());
     }

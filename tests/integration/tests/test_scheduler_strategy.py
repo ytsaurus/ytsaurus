@@ -1288,12 +1288,6 @@ class TestSchedulerPools(YTEnvSetup):
         }
     }
 
-    def setup_method(self, method):
-        super(TestSchedulerPools, self).setup_method(method)
-        set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 3)
-        set("//sys/pool_trees/default/@default_parent_pool", "default_pool")
-        time.sleep(0.5)
-
     def test_pools_reconfiguration(self):
         create_test_tables(attributes={"replication_factor": 1})
 
@@ -1326,6 +1320,7 @@ class TestSchedulerPools(YTEnvSetup):
             set(output + "/@replication_factor", 1)
 
         create("map_node", "//sys/pools/default_pool")
+        set("//sys/pool_trees/default/@default_parent_pool", "default_pool")
         time.sleep(0.2)
 
         command = with_breakpoint("cat ; BREAKPOINT")
@@ -1384,9 +1379,6 @@ class TestSchedulerPools(YTEnvSetup):
         assert pool_fifo["parent"] == "custom_pool_fifo"
         assert pool_fifo["mode"] == "fifo"
 
-        remove("//sys/pools/custom_pool")
-        remove("//sys/pools/custom_pool_fifo")
-
     def test_ephemeral_pools_limit(self):
         create("table", "//tmp/t_in")
         set("//tmp/t_in/@replication_factor", 1)
@@ -1398,6 +1390,8 @@ class TestSchedulerPools(YTEnvSetup):
             set(output + "/@replication_factor", 1)
 
         create("map_node", "//sys/pools/default_pool")
+        set("//sys/pool_trees/default/@default_parent_pool", "default_pool")
+        set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 3)
         time.sleep(0.2)
 
         ops = []
@@ -1425,6 +1419,8 @@ class TestSchedulerPools(YTEnvSetup):
                 spec={"pool": "pool4"})
 
         remove("//sys/pools/default_pool")
+        remove("//sys/pool_trees/default/@default_parent_pool")
+        remove("//sys/pool_trees/default/@max_ephemeral_pools_per_user")
 
         for breakpoint_name in breakpoints:
             release_breakpoint(breakpoint_name)
@@ -1449,6 +1445,8 @@ class TestSchedulerPools(YTEnvSetup):
                     events.append(row["event_type"])
                     if event_type == "operation_started":
                         assert row["pool"]
+                    if event_type == "operation_completed":
+                        assert row["progress"]["job_statistics"]
             return events == ["operation_started", "operation_completed"]
         wait(lambda: check_events())
 
@@ -1553,11 +1551,18 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
         assert "Use of root element id is forbidden" == alert_message
         assert ls(self.orchid_pools) == ['<Root>']
 
-    def test_bad_pool_configuration(self):
+    def test_invalid_pool_attributes(self):
         create("map_node", "//sys/pools/test_pool", attributes={"max_operation_count": "trash"})
 
         alert_message = self.wait_and_get_inner_alert_message()
         assert "Parsing configuration of pool \"test_pool\" failed" == alert_message
+        assert ls(self.orchid_pools) == ['<Root>']
+
+    def test_invalid_pool_node(self):
+        set("//sys/pools/test_pool", 0)
+
+        alert_message = self.wait_and_get_inner_alert_message()
+        assert "Found node with type Int64, but only Map is allowed" == alert_message
         assert ls(self.orchid_pools) == ['<Root>']
 
     def test_operation_count_validation_on_pool(self):
@@ -1579,6 +1584,20 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
         alert_message = self.wait_and_get_inner_alert_message()
         assert "Pool \"test_pool\" cannot have subpools since it is in fifo mode" == alert_message
         assert ls(self.orchid_pools) == ['<Root>']
+
+    def test_ephemeral_to_explicit_pool_transformation(self):
+        create("map_node", "//sys/pools/default_pool")
+        set("//sys/pool_trees/default/@default_parent_pool", "default_pool")
+        self.wait_pool_exists("default_pool")
+
+        run_sleeping_vanilla(spec={"pool": "test_pool"})
+        self.wait_pool_exists("test_pool")
+
+        create("map_node", "//sys/pools/test_pool")
+
+        wait(lambda: self.get_pool_parent("test_pool") == "<Root>")
+        ephemeral_pools = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/user_to_ephemeral_pools/root"
+        assert get(ephemeral_pools) == []
 
     def wait_pool_exists(self, pool):
         wait(lambda: exists(self.orchid_pools + "/" + pool), sleep_backoff=0.1)
@@ -1762,10 +1781,10 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         create("table", "//tmp/d", attributes={"replication_factor": 1})
         write_table("//tmp/t", {"a": 2})
 
-        nodes = ls("//sys/nodes")
+        nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 1
         node = nodes[0]
-        set("//sys/nodes/{0}/@resource_limits_overrides".format(node), {"cpu": 0})
+        set("//sys/cluster_nodes/{0}/@resource_limits_overrides".format(node), {"cpu": 0})
 
         op = map(
             dont_track=True,
@@ -1780,7 +1799,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         os.remove(chunk_path)
         os.remove(chunk_path + ".meta")
 
-        set("//sys/nodes/{0}/@resource_limits_overrides".format(node), {"cpu": 1})
+        set("//sys/cluster_nodes/{0}/@resource_limits_overrides".format(node), {"cpu": 1})
 
         while True:
             if exists("//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id)):
@@ -1911,8 +1930,8 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
     }
 
     def teardown_method(self, method):
-        for node in ls("//sys/nodes"):
-            set("//sys/nodes/{}/@resource_limits_overrides".format(node), {})
+        for node in ls("//sys/cluster_nodes"):
+            set("//sys/cluster_nodes/{}/@resource_limits_overrides".format(node), {})
         remove("//sys/pool_trees/*")
         create("map_node", "//sys/pool_trees/default")
         set("//sys/pool_trees/@default_tree", "default")
@@ -1958,8 +1977,8 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": 1}])
 
-        node = ls("//sys/nodes")[0]
-        set("//sys/nodes/{}/@resource_limits_overrides".format(node), {"cpu": 10, "user_slots": 10})
+        node = ls("//sys/cluster_nodes")[0]
+        set("//sys/cluster_nodes/{}/@resource_limits_overrides".format(node), {"cpu": 10, "user_slots": 10})
 
         ops = []
         for i in xrange(10):
@@ -2036,13 +2055,13 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         wait(lambda: "supertree1" in ls("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"))
         wait(lambda: "supertree2" in ls("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"))
 
-        node = ls("//sys/nodes")[0]
+        node = ls("//sys/cluster_nodes")[0]
         assert get("//sys/scheduler/orchid/scheduler/nodes/" + node + "/scheduler_state") == "online"
         assert get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 3
 
         assert not get("//sys/scheduler/@alerts")
 
-        set("//sys/nodes/" + node + "/@user_tags/end", "y")
+        set("//sys/cluster_nodes/" + node + "/@user_tags/end", "y")
 
         wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/" + node + "/scheduler_state") == "offline")
         assert get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 2
@@ -2167,8 +2186,8 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
 
     def create_custom_pool_tree_with_one_node(self, pool_tree):
         tag = pool_tree
-        node = ls("//sys/nodes")[0]
-        set("//sys/nodes/" + node + "/@user_tags/end", tag)
+        node = ls("//sys/cluster_nodes")[0]
+        set("//sys/cluster_nodes/" + node + "/@user_tags/end", tag)
         create("map_node", "//sys/pool_trees/" + pool_tree, attributes={"nodes_filter": tag})
         set("//sys/pool_trees/default/@nodes_filter", "!" + tag)
         return node
@@ -2215,9 +2234,9 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
     # Creates and additional pool tree called "other", configures tag filters,
     # tags some nodes as "other" and returns a list of those nodes.
     def _prepare_pool_trees(self):
-        other_nodes = ls("//sys/nodes")[:3]
+        other_nodes = ls("//sys/cluster_nodes")[:3]
         for node in other_nodes:
-            set("//sys/nodes/" + node + "/@user_tags/end", "other")
+            set("//sys/cluster_nodes/" + node + "/@user_tags/end", "other")
 
         set("//sys/pool_trees/default/@nodes_filter", "!other")
         create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other"})
@@ -2682,13 +2701,13 @@ class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
     }
 
     def test_scheduling_tag_filter_applies_from_per_pool_tree_config(self):
-        all_nodes = ls("//sys/nodes")
+        all_nodes = ls("//sys/cluster_nodes")
         default_node = all_nodes[0]
         custom_node = all_nodes[1]
         runnable_custom_node = all_nodes[2]
-        set("//sys/nodes/" + default_node + "/@user_tags/end", "default_tag")
-        set("//sys/nodes/" + custom_node + "/@user_tags/end", "custom_tag")
-        set("//sys/nodes/" + runnable_custom_node + "/@user_tags", ["custom_tag", "runnable_tag"])
+        set("//sys/cluster_nodes/" + default_node + "/@user_tags/end", "default_tag")
+        set("//sys/cluster_nodes/" + custom_node + "/@user_tags/end", "custom_tag")
+        set("//sys/cluster_nodes/" + runnable_custom_node + "/@user_tags", ["custom_tag", "runnable_tag"])
 
         set("//sys/pool_trees/default/@nodes_filter", "default_tag")
         create("map_node", "//sys/pool_trees/custom_pool_tree", attributes={"nodes_filter": "custom_tag"})

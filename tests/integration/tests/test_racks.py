@@ -26,16 +26,16 @@ class TestRacks(YTEnvSetup):
         wait(lambda: check())
 
     def _set_rack(self, node, rack):
-        set("//sys/nodes/" + node + "/@rack", rack)
+        set("//sys/cluster_nodes/" + node + "/@rack", rack)
 
     def _reset_rack(self, node):
-        remove("//sys/nodes/" + node + "/@rack")
+        remove("//sys/cluster_nodes/" + node + "/@rack")
 
     def _get_rack(self, node):
-        return get("//sys/nodes/" + node + "/@rack")
+        return get("//sys/cluster_nodes/" + node + "/@rack")
 
     def _has_rack(self, node):
-        return "rack" in ls("//sys/nodes/" + node + "/@")
+        return "rack" in ls("//sys/cluster_nodes/" + node + "/@")
 
     def _init_n_racks(self, n):
         nodes = get_nodes()
@@ -59,7 +59,7 @@ class TestRacks(YTEnvSetup):
         for rack in racks:
             create_rack(rack)
         for node, rack in node_to_rack_map.iteritems():
-            set("//sys/nodes/" + node + "/@rack", rack)
+            set("//sys/cluster_nodes/" + node + "/@rack", rack)
 
     def _get_max_replicas_per_rack(self, node_to_rack_map, chunk_id):
         replicas = self._get_replica_nodes(chunk_id)
@@ -144,7 +144,7 @@ class TestRacks(YTEnvSetup):
         create_rack("r1")
         create_rack("r2")
 
-        nodes = ls("//sys/nodes")
+        nodes = ls("//sys/cluster_nodes")
         self._set_rack(nodes[0], "r1")
         for i in xrange(1, len(nodes)):
             self._set_rack(nodes[i], "r2")
@@ -236,7 +236,7 @@ class TestRacks(YTEnvSetup):
         create_rack("r1")
         create_rack("r2")
 
-        nodes = ls("//sys/nodes")
+        nodes = ls("//sys/cluster_nodes")
         for i in xrange(len(nodes)):
             rack = "r" + str(i % 3)
             self._set_rack(nodes[i], rack)

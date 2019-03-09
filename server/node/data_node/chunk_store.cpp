@@ -620,9 +620,7 @@ void TChunkStore::OnProfiling()
     for (const auto& location : Locations_) {
         const auto& profiler = location->GetProfiler();
         for (auto type : TEnumTraits<ESessionType>::GetDomainValues()) {
-            for (const auto& location : Locations_) {
-                profiler.Update(location->GetPerformanceCounters().SessionCount[type], location->GetSessionCount(type));
-            }
+            profiler.Update(location->GetPerformanceCounters().SessionCount[type], location->GetSessionCount(type));
         }
         auto& performanceCounters = location->GetPerformanceCounters();
         profiler.Update(performanceCounters.AvailableSpace, location->GetAvailableSpace());

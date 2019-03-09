@@ -503,7 +503,7 @@ private:
         YT_LOG_INFO("Chunk replication job started (ChunkId: %v, SourceMediumIndex: %v, TargetReplicas: %v)",
             chunkId,
             sourceMediumIndex,
-            MakeFormattableRange(targetReplicas, TChunkReplicaAddressFormatter(nodeDirectory)));
+            MakeFormattableView(targetReplicas, TChunkReplicaAddressFormatter(nodeDirectory)));
 
         // Compute target medium index.
         YCHECK(!targetReplicas.empty());

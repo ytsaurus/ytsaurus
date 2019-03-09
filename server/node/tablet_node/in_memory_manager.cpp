@@ -842,7 +842,7 @@ private:
         for (const auto& node : Nodes_) {
             auto req = node->Proxy.PutBlocks();
             req->SetTimeout(HeavyRpcTimeout_);
-            req->SetUseUndumpableMemoryZone(true);
+            req->SetMemoryZone(EMemoryZone::Undumpable);
             ToProto(req->mutable_session_id(), node->SessionId);
 
             for (const auto& block : blocks) {
@@ -895,7 +895,7 @@ private:
     TFuture<void> DoFinish(const std::vector<TChunkInfo>& chunkInfos)
     {
         YT_LOG_DEBUG("Finishing in-memory sessions (SessionIds: %v)",
-            MakeFormattableRange(Nodes_, [] (TStringBuilder* builder, const TNodePtr& node) {
+            MakeFormattableView(Nodes_, [] (TStringBuilderBase* builder, const TNodePtr& node) {
                 FormatValue(builder, node->SessionId, TStringBuf());
             }));
 
@@ -1014,7 +1014,7 @@ IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
     }
 
     YT_LOG_DEBUG("In-memory sessions started (SessionIds: %v)",
-        MakeFormattableRange(nodes, [] (TStringBuilder* builder, const TNodePtr& node) {
+        MakeFormattableView(nodes, [] (TStringBuilderBase* builder, const TNodePtr& node) {
             FormatValue(builder, node->SessionId, TStringBuf());
         }));
 

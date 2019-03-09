@@ -24,9 +24,14 @@ public:
 
     bool getRaw(const std::string& key, std::string& value) const override
     {
+        TNodeWalkOptions pocoConfigWalkOptions = FindNodeByYPathOptions;
+        pocoConfigWalkOptions.NodeCannotHaveChildrenHandler = [] (const INodePtr& /* node */) {
+            return nullptr;
+        };
+
         auto ypath = PocoPathToYPath(key);
 
-        if (auto node = FindNodeByYPath(Node_, ypath)) {
+        if (auto node = WalkNodeByYPath(Node_, ypath, pocoConfigWalkOptions)) {
             switch (node->GetType()) {
                 case ENodeType::Int64:
                     value = std::to_string(node->AsInt64()->GetValue());
@@ -61,14 +66,29 @@ public:
     }
 
 
-    void enumerate(const std::string& key, Keys& range) const override
+    void enumerate(const std::string& path, Keys& range) const override
     {
-        auto ypath = PocoPathToYPath(key);
+        auto ypath = PocoPathToYPath(path);
 
         if (auto node = FindNodeByYPath(Node_, ypath)) {
-            const auto& mapNode = node->AsMap();
-            auto keys = mapNode->GetKeys();
-            range = std::vector<std::string>(keys.begin(), keys.end());
+            if (node->GetType() == ENodeType::Map) {
+                const auto& mapNode = node->AsMap();
+                for (const auto& [key, value] : mapNode->GetChildren()) {
+                    if (value->GetType() != ENodeType::List) {
+                        range.emplace_back(key);
+                    } else {
+                        for (int index = 0; index < static_cast<int>(value->AsList()->GetChildCount()); ++index) {
+                            range.emplace_back(Format("%v[%v]", key, index));
+                        }
+                    }
+                }
+            } else if (node->GetType() == ENodeType::List) {
+                // TODO(max42): is this branch needed?
+                const auto& listNode = node->AsList();
+                for (int index = 0; index < static_cast<int>(listNode->GetChildCount()); ++index) {
+                    range.emplace_back(Format("[%v]", index));
+                }
+            }
         } else {
             range = {};
         }
@@ -76,13 +96,18 @@ public:
 
 private:
     static TYPath PocoPathToYPath(const std::string& key) {
-        auto ypath = TString("/" + key);
-        for (char& c : ypath) {
-            if (c == '.') {
-                c = '/';
+        if (key.empty()) {
+            return "";
+        }
+        TYPath result = "/";
+        for (char c : key) {
+            if (c == '.' || c == '[') {
+                result.push_back('/');
+            } else if (c != ']') {
+                result.push_back(c);
             }
         }
-        return ypath;
+        return result;
     }
 };
 

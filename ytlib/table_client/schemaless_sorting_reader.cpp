@@ -142,7 +142,7 @@ public:
         return UnderlyingReader_->GetNameTable();
     }
 
-    virtual TKeyColumns GetKeyColumns() const override
+    virtual const TKeyColumns& GetKeyColumns() const override
     {
         return KeyColumns_;
     }

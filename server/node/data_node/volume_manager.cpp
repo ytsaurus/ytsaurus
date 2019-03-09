@@ -910,6 +910,11 @@ private:
     TBootstrap* const Bootstrap_;
     const std::vector<TLayerLocationPtr> LayerLocations_;
 
+    virtual bool IsResurrectionSupported() const override
+    {
+        return false;
+    }
+
     virtual i64 GetWeight(const TLayerPtr& layer) const override
     {
         return layer->GetSize();

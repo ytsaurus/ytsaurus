@@ -33,6 +33,8 @@ public:
 protected:
     typedef TCypressNodeProxyBase<TChunkOwnerNodeProxy, NYTree::IEntityNode, TTableNode> TBase;
 
+    virtual void ValidateGetBasicAttributesPermissions(const TObjectProxyBase::TCtxGetBasicAttributesPtr& context) override;
+
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
     virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override;
@@ -43,7 +45,7 @@ protected:
         const TString& key,
         const NYson::TYsonString& oldValue,
         const NYson::TYsonString& newValue) override;
-    virtual void ValidateFetchParameters(const std::vector<NChunkClient::TReadRange>& ranges) override;
+    virtual void ValidateFetch(TFetchContext* context) override;
 
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 

@@ -1,11 +1,12 @@
 #pragma once
 
-#include "public_ch.h"
+#include "private.h"
+
 #include "cluster_tracker.h"
 #include "storage_with_virtual_columns.h"
 #include "table_schema.h"
 
-#include <yt/server/clickhouse_server/table_partition.h>
+#include "table_partition.h"
 
 #include <Interpreters/Cluster.h>
 #include <Interpreters/Context.h>
@@ -40,19 +41,17 @@ class TStorageDistributed
     : public IStorageWithVirtualColumns
 {
 private:
-    const IStoragePtr Storage;
     const IExecutionClusterPtr Cluster;
     TClickHouseTableSchema Schema;
 
     Poco::Logger* Logger;
 
 public:
-    TStorageDistributed(IStoragePtr storage,
-                        IExecutionClusterPtr cluster,
-                        TClickHouseTableSchema schema,
-                        Poco::Logger* logger)
-        : Storage(std::move(storage))
-        , Cluster(std::move(cluster))
+    TStorageDistributed(
+        IExecutionClusterPtr cluster,
+        TClickHouseTableSchema schema,
+        Poco::Logger* logger)
+        : Cluster(std::move(cluster))
         , Schema(std::move(schema))
         , Logger(logger)
     {
@@ -68,6 +67,16 @@ public:
     bool isRemote() const override
     {
         return true;
+    }
+
+    virtual bool supportsIndexForIn() const override
+    {
+        return Schema.HasPrimaryKey();
+    }
+
+    virtual bool mayBenefitFromIndexForIn(const DB::ASTPtr& /* leftInOperand */) const override
+    {
+        return supportsIndexForIn();
     }
 
     DB::QueryProcessingStage::Enum getQueryProcessingStage(const DB::Context& context) const override;
@@ -90,12 +99,6 @@ protected:
     virtual DB::ASTPtr RewriteSelectQueryForTablePart(
         const DB::ASTPtr& queryAst,
         const std::string& jobSpec) = 0;
-
-protected:
-    const IStoragePtr& GetStorage() const
-    {
-        return Storage;
-    }
 
     const IExecutionClusterPtr& GetCluster() const
     {

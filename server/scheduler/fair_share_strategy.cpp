@@ -201,8 +201,9 @@ public:
 
     void DoUnregisterOperationFromTree(const TFairShareStrategyOperationStatePtr& operationState, const TString& treeId)
     {
-        auto unregistrationResult = GetTree(treeId)->UnregisterOperation(operationState);
-        ActivateOperations(unregistrationResult.OperationsToActivate);
+        auto tree = GetTree(treeId);
+        tree->UnregisterOperation(operationState);
+        ActivateOperations(tree->RunWaitingOperations());
     }
 
     virtual void DisableOperation(IOperationStrategyHost* operation) override
@@ -453,16 +454,15 @@ public:
             auto newPoolIt = newPools.find(treeId);
             YCHECK(newPoolIt != newPools.end());
 
+            auto tree = GetTree(treeId);
             if (oldPool.GetPool() != newPoolIt->second.GetPool()) {
-                bool wasActive = GetTree(treeId)->ChangeOperationPool(operation->GetId(), state, newPoolIt->second);
-                if (!wasActive) {
-                    ActivateOperations({operation->GetId()});
-                }
+                tree->ChangeOperationPool(operation->GetId(), state, newPoolIt->second);
+                ActivateOperations(tree->RunWaitingOperations());
             }
 
             auto it = runtimeParams->SchedulingOptionsPerPoolTree.find(treeId);
             YCHECK(it != runtimeParams->SchedulingOptionsPerPoolTree.end());
-            GetTree(treeId)->UpdateOperationRuntimeParameters(operation->GetId(), it->second);
+            tree->UpdateOperationRuntimeParameters(operation->GetId(), it->second);
         }
         state->TreeIdToPoolNameMap() = newPools;
     }
@@ -501,7 +501,8 @@ public:
 
     virtual void ValidateOperationRuntimeParameters(
         IOperationStrategyHost* operation,
-        const TOperationRuntimeParametersPtr& runtimeParams) override
+        const TOperationRuntimeParametersPtr& runtimeParams,
+        bool validatePools) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -513,10 +514,12 @@ public:
                 THROW_ERROR_EXCEPTION("Pool tree %Qv was not configured for this operation", pair.first);
             }
         }
-//        TODO(renadeen): we shouldn't validate pools if user didn't change them
-//        ValidateOperationPoolsCanBeUsed(operation, runtimeParams);
-//        ValidatePoolLimits(operation, runtimeParams);
-//        ValidateMaxRunningOperationsCountOnPoolChange(operation, runtimeParams);
+
+        if (validatePools) {
+            ValidateOperationPoolsCanBeUsed(operation, runtimeParams);
+            ValidatePoolLimits(operation, runtimeParams);
+            ValidateMaxRunningOperationsCountOnPoolChange(operation, runtimeParams);
+        }
     }
 
     virtual void BuildOrchid(TFluentMap fluent) override
@@ -1016,9 +1019,8 @@ private:
     {
         for (const auto& operationId : operationIds) {
             const auto& state = GetOperationState(operationId);
-            if (!state->GetActive()) {
+            if (!state->GetHost()->GetActivated()) {
                 Host->ActivateOperation(operationId);
-                state->SetActive(true);
             }
         }
     }

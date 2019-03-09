@@ -352,9 +352,9 @@ class TestFilesInSandbox(YTEnvSetup):
         replica_to_ban = str(replicas[0]) # str() is for attribute stripping.
 
         banned = False
-        for node in ls("//sys/nodes"):
+        for node in ls("//sys/cluster_nodes"):
             if node == replica_to_ban:
-                set("//sys/nodes/{0}/@banned".format(node), True)
+                set("//sys/cluster_nodes/{0}/@banned".format(node), True)
                 banned = True
         assert banned
 

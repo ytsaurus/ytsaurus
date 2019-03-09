@@ -36,11 +36,11 @@ public:
     TDuration DefaultPingPeriod;
     NBus::TTcpBusConfigPtr BusClient;
     NHttp::TClientConfigPtr HttpClient;
-    std::optional<NCompression::ECodec> RequestCodec;
-    std::optional<NCompression::ECodec> RequestAttachmentCodec;
-    std::optional<NCompression::ECodec> ResponseCodec;
-    std::optional<NCompression::ECodec> ResponseAttachmentCodec;
+    NCompression::ECodec RequestCodec;
+    NCompression::ECodec ResponseCodec;
+    bool EnableLegacyRpcCodecs;
     bool EnableProxyDiscovery;
+    i64 ModifyRowsBatchCapacity;
 
     TConnectionConfig();
 };

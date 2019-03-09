@@ -4,6 +4,8 @@
 
 #include <yt/client/api/skynet.h>
 
+#include <yt/client/object_client/helpers.h>
+
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/private.h>
 #include <yt/ytlib/chunk_client/helpers.h>
@@ -13,10 +15,12 @@
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/object_client/object_ypath_proxy.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 
 #include <yt/core/ytree/fluent.h>
+
 #include <yt/core/ypath/public.h>
 
 #include <yt/core/yson/consumer.h>
@@ -41,22 +45,20 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
     const NYPath::TRichYPath& path,
     const TLocateSkynetShareOptions& options)
 {
-    auto& Logger = ApiLogger;
+    const auto& Logger = ApiLogger;
 
     TUserObject userObject;
     userObject.Path = path;
 
     GetUserObjectBasicAttributes(
         client,
-        TMutableRange<TUserObject>(&userObject, 1),
+        {&userObject},
         NullTransactionId,
         ChunkClientLogger,
-        EPermission::Read,
-        /* suppressAccessTracking */ false);
+        EPermission::Read);
 
-    const auto& objectId = userObject.ObjectId;
-    const auto& tableCellTag = userObject.CellTag;
-
+    auto objectId = userObject.ObjectId;
+    auto tableCellTag = userObject.CellTag;
     auto objectIdPath = FromObjectId(objectId);
 
     if (userObject.Type != EObjectType::Table) {
@@ -67,7 +69,6 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
     }
 
     int chunkCount;
-
     {
         YT_LOG_INFO("Requesting chunk count");
 
@@ -95,7 +96,7 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
 
     YT_LOG_INFO("Fetching table chunks");
 
-    FetchChunkSpecs(
+    skynetShareLocations->ChunkSpecs = FetchChunkSpecs(
         client,
         skynetShareLocations->NodeDirectory,
         tableCellTag,
@@ -109,8 +110,7 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
             req->set_address_type(static_cast<int>(EAddressType::SkynetHttp));
             SetSuppressAccessTracking(req, false);
         },
-        ChunkClientLogger,
-        &skynetShareLocations->ChunkSpecs);
+        ChunkClientLogger);
 
     return skynetShareLocations;
 }

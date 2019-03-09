@@ -79,9 +79,6 @@ public:
     //! Node-to-master connection.
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
-    //! Node directory synchronization.
-    NNodeTrackerClient::TNodeDirectorySynchronizerConfigPtr NodeDirectorySynchronizer;
-
     //! Data node configuration part.
     NDataNode::TDataNodeConfigPtr DataNode;
 
@@ -129,8 +126,6 @@ public:
         RegisterParameter("orchid_cache_update_period", OrchidCacheUpdatePeriod)
             .Default(TDuration::Seconds(5));
         RegisterParameter("cluster_connection", ClusterConnection);
-        RegisterParameter("node_directory_synchronizer", NodeDirectorySynchronizer)
-            .DefaultNew();
         RegisterParameter("data_node", DataNode)
             .DefaultNew();
         RegisterParameter("exec_agent", ExecAgent)

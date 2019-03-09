@@ -26,6 +26,7 @@ protected:
 
     static void CreateClient(const TString& userName);
 };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicTablesTestBase

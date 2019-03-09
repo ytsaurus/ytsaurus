@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/public.h>
+#include "private.h"
 
 #include <Core/Field.h>
 #include <Core/NamesAndTypes.h>
@@ -12,11 +12,11 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const char* GetTypeName(const TColumn& column);
+const char* GetTypeName(const TClickHouseColumn& column);
 
 DB::DataTypePtr GetDataType(const std::string& name);
 
-DB::NamesAndTypesList GetTableColumns(const TTable& table);
+DB::NamesAndTypesList GetTableColumns(const TClickHouseTable& table);
 
 std::vector<DB::Field> GetFields(const TValue* values, size_t count);
 

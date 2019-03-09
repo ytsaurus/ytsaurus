@@ -34,6 +34,8 @@
 
 #include <yt/core/compression/codec.h>
 
+#include <yt/core/misc/sliding_window.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NYPath;
@@ -74,6 +76,8 @@ public:
         , Logger(logger.AddTag("TransactionId: %v, ConnectionCellTag: %v",
             GetId(),
             Client_->GetConnection()->GetCellTag()))
+        , OrderedRequestsSlidingWindow_(
+            BIND(&TTransaction::DoEnqueueModificationRequest, Unretained(this)))
     { }
 
 
@@ -307,13 +311,14 @@ public:
         YT_LOG_DEBUG("Buffering client row modifications (Count: %v)",
             modifications.Size());
 
-        EnqueueModificationRequest(std::make_unique<TModificationRequest>(
-            this,
-            Client_->GetNativeConnection(),
-            path,
-            std::move(nameTable),
-            std::move(modifications),
-            options));
+        EnqueueModificationRequest(
+            std::make_unique<TModificationRequest>(
+                this,
+                Client_->GetNativeConnection(),
+                path,
+                std::move(nameTable),
+                std::move(modifications),
+                options));
     }
 
 
@@ -448,9 +453,8 @@ public:
 
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<ITableReaderPtr>, CreateTableReader, (
         const TRichYPath& path,
-        const TTableReaderOptions& options,
-        const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory),
-        (path, options, nodeDirectory))
+        const TTableReaderOptions& options),
+        (path, options))
 
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<ITableWriterPtr>, CreateTableWriter, (
         const TRichYPath& path,
@@ -509,6 +513,11 @@ private:
             , Logger(Transaction_->Logger)
         { }
 
+        std::optional<i64> GetSequenceNumber()
+        {
+            return Options_.SequenceNumber;
+        }
+
         void PrepareTableSessions()
         {
             TableSession_ = Transaction_->GetOrCreateTableSession(Path_, Options_.UpstreamReplicaId);
@@ -533,6 +542,7 @@ private:
             for (const auto& replicaData : TableSession_->SyncReplicas()) {
                 auto replicaOptions = Options_;
                 replicaOptions.UpstreamReplicaId = replicaData.ReplicaInfo->ReplicaId;
+                replicaOptions.SequenceNumber.reset();
                 if (replicaData.Transaction) {
                     YT_LOG_DEBUG("Submitting remote sync replication modifications (Count: %v)",
                         Modifications_.Size());
@@ -545,7 +555,7 @@ private:
                     // YT-7551: Local sync replicas must be handled differenly.
                     // We cannot add more modifications via ITransactions interface since
                     // the transaction is already committing.
-                    YT_LOG_DEBUG("Bufferring local sync replication modifications (Count: %v)",
+                    YT_LOG_DEBUG("Buffering local sync replication modifications (Count: %v)",
                         Modifications_.Size());
                     Transaction_->EnqueueModificationRequest(std::make_unique<TModificationRequest>(
                         Transaction_,
@@ -704,7 +714,6 @@ private:
 
         const NLogging::TLogger& Logger;
 
-
         TTableCommitSessionPtr TableSession_;
 
 
@@ -731,6 +740,7 @@ private:
 
     std::vector<std::unique_ptr<TModificationRequest>> Requests_;
     std::vector<TModificationRequest*> PendingRequests_;
+    TSlidingWindow<TModificationRequest*> OrderedRequestsSlidingWindow_;
 
     struct TSyncReplica
     {
@@ -1350,9 +1360,40 @@ private:
         return transaction;
     }
 
-    void EnqueueModificationRequest(std::unique_ptr<TModificationRequest> request)
+    void DoEnqueueModificationRequest(TModificationRequest* request)
     {
-        PendingRequests_.push_back(request.get());
+        PendingRequests_.push_back(request);
+    }
+
+
+    void EnqueueModificationRequest(
+        std::unique_ptr<TModificationRequest> request)
+    {
+        try {
+            GuardedEnqueueModificationRequest(std::move(request));
+        } catch (const std::exception& ex) {
+            State_ = ETransactionState::Abort;
+            Transaction_->Abort();
+            // TODO(kiselyovp) abort foreign transactions?
+            throw;
+        }
+    }
+
+    void GuardedEnqueueModificationRequest(
+        std::unique_ptr<TModificationRequest> request)
+    {
+        auto sequenceNumber = request->GetSequenceNumber();
+
+        if (sequenceNumber) {
+            if (*sequenceNumber < 0) {
+                THROW_ERROR_EXCEPTION("Packet sequence number is negative")
+                    << TErrorAttribute("sequence_number", *sequenceNumber);
+            }
+            // this may call DoEnqueueModificationRequest right away
+            OrderedRequestsSlidingWindow_.AddPacket(*sequenceNumber, request.get());
+        } else {
+            DoEnqueueModificationRequest(request.get());
+        }
         Requests_.push_back(std::move(request));
     }
 
@@ -1405,6 +1446,12 @@ private:
     void PrepareRequests()
     {
         bool clusterDirectorySynced = false;
+
+        if (!OrderedRequestsSlidingWindow_.Empty()) {
+            THROW_ERROR_EXCEPTION("Cannot prepare transaction %v since sequence number %v is missing",
+                GetId(),
+                OrderedRequestsSlidingWindow_.GetNextSequenceNumber());
+        }
 
         // Tables with local sync replicas pose a problem since modifications in such tables
         // induce more modifications that need to be taken care of.

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 #include "table.h"
 
 #include <Columns/IColumn.h>

@@ -5,6 +5,7 @@
 #include <yt/core/rpc/client.h>
 #include <yt/core/rpc/dispatcher.h>
 #include <yt/core/rpc/message.h>
+#include <yt/core/rpc/stream.h>
 #include <yt/core/rpc/private.h>
 
 #include <yt/core/bus/bus.h>
@@ -33,6 +34,9 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 using namespace NConcurrency;
+
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,7 +81,7 @@ public:
             return nullptr;
         }
 
-        return session->Send(
+        return session->SendRequest(
             std::move(request),
             std::move(responseHandler),
             options);
@@ -272,7 +276,7 @@ private:
             }
         }
 
-        IClientRequestControlPtr Send(
+        IClientRequestControlPtr SendRequest(
             IClientRequestPtr request,
             IClientResponseHandlerPtr responseHandler,
             const TSendOptions& options)
@@ -315,11 +319,18 @@ private:
                         requestControl,
                         options));
             } else {
-                auto&& requestMessage = request->Serialize();
-                OnRequestSerialized(
-                    requestControl,
-                    options,
-                    std::move(requestMessage));
+                try {
+                    auto requestMessage = request->Serialize();
+                    OnRequestSerialized(
+                        requestControl,
+                        options,
+                        std::move(requestMessage));
+                } catch (const std::exception& ex) {
+                    OnRequestSerialized(
+                        requestControl,
+                        options,
+                        TError(ex));
+                }
             }
 
             return requestControl;
@@ -329,7 +340,7 @@ private:
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
-            const auto& requestId = requestControl->GetRequestId();
+            auto requestId = requestControl->GetRequestId();
 
             IClientResponseHandlerPtr responseHandler;
             {
@@ -359,15 +370,9 @@ private:
                 AsStringBuf("Request canceled"),
                 TError(NYT::EErrorCode::Canceled, "Request canceled"));
 
-            IBusPtr bus;
-            {
-                auto guard = Guard(SpinLock_);
-
-                if (Terminated_) {
-                    return;
-                }
-
-                bus = Bus_;
+            auto bus = FindBus();
+            if (!bus) {
+                return;
             }
 
             const auto& realmId = requestControl->GetRealmId();
@@ -378,17 +383,84 @@ private:
             ToProto(header.mutable_request_id(), requestId);
             header.set_service(service);
             header.set_method(method);
-            ToProto(header.mutable_realm_id(), realmId);
+            if (realmId) {
+                ToProto(header.mutable_realm_id(), realmId);
+            }
 
             auto message = CreateRequestCancelationMessage(header);
             bus->Send(std::move(message), NBus::TSendOptions(EDeliveryTrackingLevel::None));
+        }
+
+        TFuture<void> SendStreamingPayload(
+            const TClientRequestControlPtr& requestControl,
+            const TStreamingPayload& payload)
+        {
+            VERIFY_THREAD_AFFINITY_ANY();
+
+            auto bus = FindBus();
+            if (!bus) {
+                return MakeFuture(TError(NRpc::EErrorCode::TransportError, "Session is terminated"));
+            }
+
+            auto requestId = requestControl->GetRequestId();
+            const auto& realmId = requestControl->GetRealmId();
+            const auto& service = requestControl->GetService();
+            const auto& method = requestControl->GetMethod();
+
+            NProto::TStreamingPayloadHeader header;
+            ToProto(header.mutable_request_id(), requestId);
+            header.set_service(service);
+            header.set_method(method);
+            if (realmId) {
+                ToProto(header.mutable_realm_id(), realmId);
+            }
+            header.set_sequence_number(payload.SequenceNumber);
+            header.set_codec(static_cast<int>(payload.Codec));
+            header.set_memory_zone(static_cast<int>(payload.MemoryZone));
+
+            auto message = CreateStreamingPayloadMessage(header, payload.Attachments);
+            NBus::TSendOptions options;
+            options.TrackingLevel = EDeliveryTrackingLevel::Full;
+            options.MemoryZone = payload.MemoryZone;
+            return bus->Send(std::move(message), options);
+        }
+
+        TFuture<void> SendStreamingFeedback(
+            const TClientRequestControlPtr& requestControl,
+            const TStreamingFeedback& feedback)
+        {
+            VERIFY_THREAD_AFFINITY_ANY();
+
+            auto bus = FindBus();
+            if (!bus) {
+                return MakeFuture(TError(NRpc::EErrorCode::TransportError, "Session is terminated"));
+            }
+
+            auto requestId = requestControl->GetRequestId();
+            const auto& realmId = requestControl->GetRealmId();
+            const auto& service = requestControl->GetService();
+            const auto& method = requestControl->GetMethod();
+
+            NProto::TStreamingFeedbackHeader header;
+            ToProto(header.mutable_request_id(), requestId);
+            header.set_service(service);
+            header.set_method(method);
+            if (realmId) {
+                ToProto(header.mutable_realm_id(), realmId);
+            }
+            header.set_read_position(feedback.ReadPosition);
+
+            auto message = CreateStreamingFeedbackMessage(header);
+            NBus::TSendOptions options;
+            options.TrackingLevel = EDeliveryTrackingLevel::Full;
+            return bus->Send(std::move(message), options);
         }
 
         void HandleTimeout(const TClientRequestControlPtr& requestControl, bool aborted)
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
-            const auto& requestId = requestControl->GetRequestId();
+            auto requestId = requestControl->GetRequestId();
 
             IClientResponseHandlerPtr responseHandler;
             {
@@ -423,65 +495,28 @@ private:
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
-            NProto::TResponseHeader header;
-            if (!ParseResponseHeader(message, &header)) {
-                YT_LOG_ERROR("Error parsing response header");
-                return;
-            }
+            auto messageType = GetMessageType(message);
+            switch (messageType) {
+                case EMessageType::Response:
+                    OnResponseMessage(std::move(message));
+                    break;
 
-            auto requestId = FromProto<TRequestId>(header.request_id());
+                case EMessageType::StreamingPayload:
+                    OnStreamingPayloadMessage(std::move(message));
+                    break;
 
-            TClientRequestControlPtr requestControl;
-            IClientResponseHandlerPtr responseHandler;
-            {
-                auto guard = Guard(SpinLock_);
+                case EMessageType::StreamingFeedback:
+                    OnStreamingFeedbackMessage(std::move(message));
+                    break;
 
-                if (Terminated_) {
-                    YT_LOG_WARNING("Response received via a terminated channel (RequestId: %v)",
-                        requestId);
-                    return;
-                }
-
-                auto it = ActiveRequestMap_.find(requestId);
-                if (it == ActiveRequestMap_.end()) {
-                    // This may happen when the other party responds to an already timed-out request.
-                    YT_LOG_DEBUG("Response for an incorrect or obsolete request received (RequestId: %v)",
-                        requestId);
-                    return;
-                }
-
-                requestControl = std::move(it->second);
-                requestControl->ProfileReply(message);
-                requestControl->Finalize(guard, &responseHandler);
-                ActiveRequestMap_.erase(it);
-            }
-
-            {
-                TError error;
-                if (header.has_error()) {
-                    error = FromProto<TError>(header.error());
-                }
-                if (error.IsOK()) {
-                    NotifyResponse(
-                        requestId,
-                        requestControl,
-                        responseHandler,
-                        std::move(message));
-                } else {
-                    if (error.GetCode() == EErrorCode::PoisonPill) {
-                        YT_LOG_FATAL(error, "Poison pill received");
-                    }
-                    NotifyError(
-                        requestControl,
-                        responseHandler,
-                        AsStringBuf("Request failed"),
-                        error);
-                }
+                default:
+                    YT_LOG_ERROR("Incoming message has invalid type, ignored (Type: %x)",
+                        static_cast<ui32>(messageType));
+                    break;
             }
         }
 
-
-        //! Cached method metdata.
+        //! Cached method metadata.
         struct TMethodMetadata
         {
             NProfiling::TAggregateGauge AckTimeCounter;
@@ -544,6 +579,38 @@ private:
         typedef THashMap<TRequestId, TClientRequestControlPtr> TActiveRequestMap;
         TActiveRequestMap ActiveRequestMap_;
 
+
+        IBusPtr FindBus()
+        {
+            VERIFY_THREAD_AFFINITY_ANY();
+
+            auto guard = Guard(SpinLock_);
+
+            if (Terminated_) {
+                return nullptr;
+            }
+
+            return Bus_;
+        }
+
+        IClientResponseHandlerPtr FindResponseHandler(TRequestId requestId)
+        {
+            VERIFY_THREAD_AFFINITY_ANY();
+
+            auto guard = Guard(SpinLock_);
+
+            auto it = ActiveRequestMap_.find(requestId);
+            if (it == ActiveRequestMap_.end()) {
+                return nullptr;
+            }
+
+            const auto& requestControl = it->second;
+            IClientResponseHandlerPtr handler;
+            requestControl->GetResponseHandler(guard, &handler);
+            return handler;
+        }
+
+
         void OnRequestSerialized(
             const TClientRequestControlPtr& requestControl,
             const TSendOptions& options,
@@ -558,7 +625,7 @@ private:
                 }
             }
 
-            const auto& requestId = requestControl->GetRequestId();
+            auto requestId = requestControl->GetRequestId();
 
             IBusPtr bus;
 
@@ -627,7 +694,7 @@ private:
             busOptions.ChecksummedPartCount = options.GenerateAttachmentChecksums
                 ? NBus::TSendOptions::AllParts
                 : 2; // RPC header + request body
-            busOptions.UseUndumpableMemoryZone = options.UseUndumpableMemoryZone;
+            busOptions.MemoryZone = options.MemoryZone;
             bus->Send(requestMessage, busOptions).Subscribe(BIND(
                 &TSession::OnAcknowledgement,
                 MakeStrong(this),
@@ -647,6 +714,153 @@ private:
                 options.MultiplexingBand,
                 bus->GetEndpointDescription(),
                 GetTotalMessageAttachmentSize(requestMessage));
+        }
+
+
+        void OnResponseMessage(TSharedRefArray message)
+        {
+            NProto::TResponseHeader header;
+            if (!ParseResponseHeader(message, &header)) {
+                YT_LOG_ERROR("Error parsing response header");
+                return;
+            }
+
+            auto requestId = FromProto<TRequestId>(header.request_id());
+
+            TClientRequestControlPtr requestControl;
+            IClientResponseHandlerPtr responseHandler;
+            {
+                auto guard = Guard(SpinLock_);
+
+                if (Terminated_) {
+                    YT_LOG_WARNING("Response received via a terminated channel (RequestId: %v)",
+                        requestId);
+                    return;
+                }
+
+                auto it = ActiveRequestMap_.find(requestId);
+                if (it == ActiveRequestMap_.end()) {
+                    // This may happen when the other party responds to an already timed-out request.
+                    YT_LOG_DEBUG("Response for an incorrect or obsolete request received (RequestId: %v)",
+                        requestId);
+                    return;
+                }
+
+                requestControl = std::move(it->second);
+                requestControl->ProfileReply(message);
+                requestControl->Finalize(guard, &responseHandler);
+                ActiveRequestMap_.erase(it);
+            }
+
+            {
+                TError error;
+                if (header.has_error()) {
+                    error = FromProto<TError>(header.error());
+                }
+                if (error.IsOK()) {
+                    NotifyResponse(
+                        requestId,
+                        requestControl,
+                        responseHandler,
+                        std::move(message));
+                } else {
+                    if (error.GetCode() == EErrorCode::PoisonPill) {
+                        YT_LOG_FATAL(error, "Poison pill received");
+                    }
+                    NotifyError(
+                        requestControl,
+                        responseHandler,
+                        AsStringBuf("Request failed"),
+                        error);
+                }
+            }
+        }
+
+        void OnStreamingPayloadMessage(TSharedRefArray message)
+        {
+            NProto::TStreamingPayloadHeader header;
+            if (!ParseStreamingPayloadHeader(message, &header)) {
+                YT_LOG_ERROR("Error parsing streaming payload header");
+                return;
+            }
+
+            auto requestId = FromProto<TRequestId>(header.request_id());
+            auto sequenceNumber = header.sequence_number();
+            auto attachments = std::vector<TSharedRef>(message.Begin() + 1, message.End());
+
+            auto responseHandler = FindResponseHandler(requestId);
+            if (!responseHandler) {
+                YT_LOG_ERROR("Received streaming payload for an unknown request; ignored (RequestId: %v)",
+                    requestId);
+                return;
+            }
+
+            NCompression::ECodec codec;
+            int intCodec = header.codec();
+            if (!TryEnumCast(intCodec, &codec)) {
+                responseHandler->HandleError(TError(
+                    NRpc::EErrorCode::ProtocolError,
+                    "Streaming payload codec %v is not supported",
+                    intCodec));
+                return;
+            }
+
+            EMemoryZone memoryZone;
+            int intMemoryZone = header.memory_zone();
+            if (!TryEnumCast(intMemoryZone, &memoryZone)) {
+                responseHandler->HandleError(TError(
+                    NRpc::EErrorCode::ProtocolError,
+                    "Streaming payload memory zone %v is not supported",
+                    intMemoryZone));
+                return;
+            }
+
+            YT_LOG_DEBUG("Response streaming payload received (RequestId: %v, SequenceNumber: %v, Sizes: %v, "
+                "Codec: %v, MemoryZone: %v, Closed: %v)",
+                requestId,
+                sequenceNumber,
+                MakeFormattableView(attachments, [] (auto* builder, const auto& attachment) {
+                    builder->AppendFormat("%v", GetStreamingAttachmentSize(attachment));
+                }),
+                codec,
+                memoryZone,
+                !attachments.back());
+
+            TStreamingPayload payload{
+                codec,
+                memoryZone,
+                sequenceNumber,
+                std::move(attachments)
+            };
+            responseHandler->HandleStreamingPayload(payload);
+        }
+
+        void OnStreamingFeedbackMessage(TSharedRefArray message)
+        {
+            NProto::TStreamingFeedbackHeader header;
+            if (!ParseStreamingFeedbackHeader(message, &header)) {
+                YT_LOG_ERROR("Error parsing streaming feedback header");
+                return;
+            }
+
+            auto requestId = FromProto<TRequestId>(header.request_id());
+            auto readPosition = header.read_position();
+
+            auto responseHandler = FindResponseHandler(requestId);
+            if (!responseHandler) {
+                YT_LOG_ERROR("Received streaming payload for an unknown request; ignored (RequestId: %v)",
+                    requestId);
+                return;
+            }
+
+            YT_LOG_DEBUG("Response streaming feedback received (RequestId: %v, ReadPosition: %v)",
+                requestId,
+                readPosition);
+
+            TStreamingFeedback feedback{
+                readPosition
+            };
+            responseHandler->HandleStreamingFeedback(feedback);
         }
 
         void OnAcknowledgement(bool requestAck, TRequestId requestId, const TError& error)
@@ -742,6 +956,7 @@ private:
 
             responseHandler->HandleResponse(std::move(message));
         }
+
     };
 
     //! Controls a sent request.
@@ -866,6 +1081,16 @@ private:
             // to an extremely long chain of recursive calls.
             TDispatcher::Get()->GetLightInvoker()->Invoke(
                 BIND(&TSession::Cancel, Session_, MakeStrong(this)));
+        }
+
+        virtual TFuture<void> SendStreamingPayload(const TStreamingPayload& payload) override
+        {
+            return Session_->SendStreamingPayload(this, payload);
+        }
+
+        virtual TFuture<void> SendStreamingFeedback(const TStreamingFeedback& feedback) override
+        {
+            return Session_->SendStreamingFeedback(this, feedback);
         }
 
     private:

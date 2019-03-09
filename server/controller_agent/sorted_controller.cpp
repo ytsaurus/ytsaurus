@@ -340,9 +340,9 @@ protected:
                     if (GetPhysicalType(referenceColumn->LogicalType()) != GetPhysicalType(column.LogicalType())) {
                         THROW_ERROR_EXCEPTION("Key columns have different types in input tables")
                             << TErrorAttribute("column_name", columnName)
-                            << TErrorAttribute("input_table_1", referenceTable->GetPath())
+                            << TErrorAttribute("input_table_1", referenceTable->Path.GetPath())
                             << TErrorAttribute("type_1", referenceColumn->LogicalType())
-                            << TErrorAttribute("input_table_2", table->GetPath())
+                            << TErrorAttribute("input_table_2", table->Path.GetPath())
                             << TErrorAttribute("type_2", column.LogicalType());
                     }
                 } else {
@@ -742,9 +742,9 @@ public:
             if (table->TableUploadOptions.TableSchema.IsSorted()) {
                 if (table->TableUploadOptions.TableSchema.GetKeyColumns() != PrimaryKeyColumns_) {
                     THROW_ERROR_EXCEPTION("Merge key columns do not match output table schema in \"strong\" schema mode")
-                            << TErrorAttribute("output_schema", table->TableUploadOptions.TableSchema)
-                            << TErrorAttribute("merge_by", PrimaryKeyColumns_)
-                            << TErrorAttribute("schema_inference_mode", Spec_->SchemaInferenceMode);
+                        << TErrorAttribute("output_schema", table->TableUploadOptions.TableSchema)
+                        << TErrorAttribute("merge_by", PrimaryKeyColumns_)
+                        << TErrorAttribute("schema_inference_mode", Spec_->SchemaInferenceMode);
                 }
             } else {
                 table->TableUploadOptions.TableSchema =

@@ -57,7 +57,7 @@ public:
     const NTableClient::TTableSchema& GetTableSchema() const;
     size_t GetTableSchemaHash() const;
 
-public:
+private:
     const NTableClient::TTableSchema TableSchema_;
     const size_t TableSchemaHash_;
     const TSharedTableSchemaRegistryPtr Registry_;

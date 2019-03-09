@@ -2,6 +2,7 @@
 
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/schema.h>
 
 #include <yt/core/crypto/crypto.h>
 

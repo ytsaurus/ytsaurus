@@ -28,13 +28,12 @@ public:
 
 protected:
     const IJobHostPtr Host_;
+    const NLogging::TLogger Logger;
 
     std::atomic<bool> Initialized_ = {false};
 
     std::vector<NTableClient::ISchemalessMultiChunkWriterPtr> Writers_;
     std::unique_ptr<NTableClient::TBlobTableWriter> StderrTableWriter_;
-
-    NLogging::TLogger Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

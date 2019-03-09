@@ -42,18 +42,34 @@ TFuture<void> TChannelWrapper::Terminate(const TError& error)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TClientRequestControlThunk::SetUnderlying(IClientRequestControlPtr underlyingControl)
+void TClientRequestControlThunk::SetUnderlying(IClientRequestControlPtr underlying)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (!underlyingControl)
+    if (!underlying) {
         return;
+    }
 
     TGuard<TSpinLock> guard(SpinLock_);
-    UnderlyingCanceled_ = false;
-    Underlying_ = std::move(underlyingControl);
-    if (Canceled_) {
-        PropagateCancel(guard);
+
+    Underlying_ = std::move(underlying);
+
+    auto canceled = UnderlyingCanceled_ = Canceled_;
+    auto streamingPayloads = std::move(PendingStreamingPayloads_);
+    auto streamingFeedback = PendingStreamingFeedback_;
+
+    guard.Release();
+
+    if (canceled) {
+        Underlying_->Cancel();
+    }
+
+    for (auto& payload : streamingPayloads) {
+        payload.Promise.SetFrom(Underlying_->SendStreamingPayload(payload.Payload));
+    }
+
+    if (streamingFeedback.Feedback.ReadPosition >= 0) {
+        streamingFeedback.Promise.SetFrom(Underlying_->SendStreamingFeedback(streamingFeedback.Feedback));
     }
 }
 
@@ -62,22 +78,51 @@ void TClientRequestControlThunk::Cancel()
     VERIFY_THREAD_AFFINITY_ANY();
 
     TGuard<TSpinLock> guard(SpinLock_);
+
     Canceled_ = true;
-    if (Underlying_) {
-        PropagateCancel(guard);
+    if (Underlying_ && !UnderlyingCanceled_) {
+        UnderlyingCanceled_ = true;
+        guard.Release();
+        Underlying_->Cancel();
     }
 }
 
-void TClientRequestControlThunk::PropagateCancel(TGuard<TSpinLock>& guard)
+TFuture<void> TClientRequestControlThunk::SendStreamingPayload(const TStreamingPayload& payload)
 {
-    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+    TGuard<TSpinLock> guard(SpinLock_);
 
-    if (!UnderlyingCanceled_) {
-        UnderlyingCanceled_ = true;
-        auto underlying = Underlying_;
+    if (Underlying_) {
         guard.Release();
-        underlying->Cancel();
+        return Underlying_->SendStreamingPayload(payload);
     }
+
+    auto promise = NewPromise<void>();
+    PendingStreamingPayloads_.push_back({
+        payload,
+        promise
+    });
+    return promise.ToFuture();
+}
+
+TFuture<void> TClientRequestControlThunk::SendStreamingFeedback(const TStreamingFeedback& feedback)
+{
+    TGuard<TSpinLock> guard(SpinLock_);
+
+    if (Underlying_) {
+        guard.Release();
+        return Underlying_->SendStreamingFeedback(feedback);
+    }
+
+    if (!PendingStreamingFeedback_.Promise) {
+        PendingStreamingFeedback_.Promise = NewPromise<void>();
+    }
+    auto promise = PendingStreamingFeedback_.Promise;
+
+    PendingStreamingFeedback_.Feedback = TStreamingFeedback{
+        std::max(PendingStreamingFeedback_.Feedback.ReadPosition, feedback.ReadPosition)
+    };
+
+    return promise;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

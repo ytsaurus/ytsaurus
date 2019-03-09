@@ -104,6 +104,8 @@ DECLARE_REFCOUNTED_STRUCT(TSchedulingOptions)
 
 DECLARE_REFCOUNTED_CLASS(TJobInputReader)
 
+DECLARE_REFCOUNTED_CLASS(TClientCache)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi

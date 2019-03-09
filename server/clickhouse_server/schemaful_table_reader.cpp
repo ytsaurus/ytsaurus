@@ -16,7 +16,7 @@ using namespace NApi::NNative;
 using namespace NTableClient;
 using namespace NYPath;
 
-////////////////////////////////////    ////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 ISchemafulReaderPtr CreateSchemafulTableReader(
     const NApi::NNative::IClientPtr& client,
@@ -29,14 +29,16 @@ ISchemafulReaderPtr CreateSchemafulTableReader(
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter) -> ISchemalessReaderPtr
     {
-        return WaitFor(
-            CreateSchemalessMultiChunkReader(
-                client,
-                path,
-                options,
-                nameTable,
-                columnFilter))
+        auto asyncResult = CreateSchemalessMultiChunkReader(
+            client,
+            path,
+            options,
+            nameTable,
+            columnFilter);
+        auto result = WaitFor(asyncResult)
             .ValueOrThrow();
+        // TODO(babenko): handle omittedInaccessibleColumns
+        return result.Reader;
     };
 
     return CreateSchemafulReaderAdapter(
@@ -44,5 +46,7 @@ ISchemafulReaderPtr CreateSchemafulTableReader(
         schema,
         columnFilter);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer

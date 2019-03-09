@@ -2,11 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/data_slice_descriptor.pb.h>
-
-#include <yt/client/table_client/schema.h>
-
-#include <yt/ytlib/transaction_client/public.h>
+#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 
 namespace NYT::NChunkClient {
 
@@ -18,13 +14,11 @@ struct TDataSliceDescriptor
 
     TDataSliceDescriptor() = default;
     explicit TDataSliceDescriptor(std::vector<NProto::TChunkSpec> chunkSpecs);
-    explicit TDataSliceDescriptor(const NProto::TChunkSpec& chunkSpec);
+    explicit TDataSliceDescriptor(NProto::TChunkSpec chunkSpec);
 
     int GetDataSourceIndex() const;
     int GetRangeIndex() const;
-
     const NProto::TChunkSpec& GetSingleChunk() const;
-
     std::optional<i64> GetTag() const;
 };
 
@@ -46,14 +40,6 @@ TReadLimit GetAbsoluteLowerReadLimit(const TDataSliceDescriptor& descriptor, boo
 TReadLimit GetAbsoluteUpperReadLimit(const TDataSliceDescriptor& descriptor, bool versioned);
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// Deprecated.
-void ToProto(
-    NProto::TDataSliceDescriptor* protoDataSliceDescriptor,
-    const TDataSliceDescriptor& dataSliceDescriptor);
-void FromProto(
-    TDataSliceDescriptor* dataSliceDescriptor,
-    const NProto::TDataSliceDescriptor& protoDataSliceDescriptor);
 
 void ToProto(
     ::google::protobuf::RepeatedPtrField<NProto::TChunkSpec>* chunkSpecs,

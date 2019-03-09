@@ -30,7 +30,7 @@ class TestDataCenters(YTEnvSetup):
         assert ok
 
     def _set_rack(self, node, rack):
-        set("//sys/nodes/" + node + "/@rack", rack)
+        set("//sys/cluster_nodes/" + node + "/@rack", rack)
 
     def _set_data_center(self, rack, dc):
         set("//sys/racks/" + rack + "/@data_center", dc)
@@ -39,21 +39,21 @@ class TestDataCenters(YTEnvSetup):
         remove("//sys/racks/" + rack + "/@data_center")
 
     def _reset_rack(self, node):
-        remove("//sys/nodes/" + node + "/@rack")
+        remove("//sys/cluster_nodes/" + node + "/@rack")
 
     def _reset_data_center(self, rack):
         remove("//sys/racks/" + rack + "/@data_center")
 
 
     def _get_rack(self, node):
-        return get("//sys/nodes/" + node + "/@rack")
+        return get("//sys/cluster_nodes/" + node + "/@rack")
 
     def _get_data_center(self, rack):
         return get("//sys/racks/" + rack + "/@data_center")
 
 
     def _has_rack(self, node):
-        return "rack" in ls("//sys/nodes/" + node + "/@")
+        return "rack" in ls("//sys/cluster_nodes/" + node + "/@")
 
     def _has_data_center(self, rack):
         return "data_center" in ls("//sys/racks/" + rack + "/@")
@@ -105,7 +105,7 @@ class TestDataCenters(YTEnvSetup):
         for rack in racks:
             create_rack(rack)
         for node, rack in node_to_rack_map.iteritems():
-            set("//sys/nodes/" + node + "/@rack", rack)
+            set("//sys/cluster_nodes/" + node + "/@rack", rack)
 
     def _set_data_center_map(self, rack_to_dc_map):
         dcs = frozenset(rack_to_dc_map.itervalues())
@@ -199,7 +199,7 @@ class TestDataCenters(YTEnvSetup):
     def test_tags(self):
         n = get_nodes()[0]
 
-        tags = get("//sys/nodes/{0}/@tags".format(n))
+        tags = get("//sys/cluster_nodes/{0}/@tags".format(n))
         assert "r" not in tags
         assert "d" not in tags
 
@@ -207,18 +207,18 @@ class TestDataCenters(YTEnvSetup):
         create_rack("r")
         self._set_rack(n, "r")
 
-        tags = get("//sys/nodes/{0}/@tags".format(n))
+        tags = get("//sys/cluster_nodes/{0}/@tags".format(n))
         assert "r" in tags
         assert "d" not in tags
 
         self._set_data_center("r" , "d")
-        tags = get("//sys/nodes/{0}/@tags".format(n))
+        tags = get("//sys/cluster_nodes/{0}/@tags".format(n))
         assert "r" in tags
         assert "d" in tags
 
         self._unset_data_center("r")
 
-        tags = get("//sys/nodes/{0}/@tags".format(n))
+        tags = get("//sys/cluster_nodes/{0}/@tags".format(n))
         assert "r" in tags
         assert "d" not in tags
 

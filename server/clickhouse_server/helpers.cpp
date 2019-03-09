@@ -1,8 +1,24 @@
 #include "helpers.h"
 
+#include "table.h"
+
 #include "table_schema.h"
 
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/ytlib/chunk_client/helpers.h>
+
+#include <yt/ytlib/api/native/client.h>
+
+#include <yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/client/table_client/unversioned_row.h>
+
+#include <yt/client/object_client/helpers.h>
+
+#include <yt/core/ytree/permission.h>
+
+#include <yt/core/logging/log.h>
 
 #include <Interpreters/ExpressionActions.h>
 #include <Storages/MergeTree/KeyCondition.h>
@@ -11,6 +27,15 @@ namespace NYT::NClickHouseServer {
 
 using namespace DB;
 using namespace NTableClient;
+using namespace NYPath;
+using namespace NYTree;
+using namespace NLogging;
+using namespace NObjectClient;
+using namespace NCypressClient;
+using namespace NChunkClient;
+using namespace NApi;
+using namespace NConcurrency;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,6 +79,92 @@ Field ConvertToField(const NTableClient::TUnversionedValue& value)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<TTableObject> GetTableAttributes(
+    const NApi::NNative::IClientPtr& client,
+    const TRichYPath& path,
+    EPermission permission,
+    const TLogger& logger)
+{
+    const auto& Logger = logger;
+
+    auto userObject = std::make_unique<TTableObject>();
+    userObject->Path = path;
+
+    YT_LOG_INFO("Requesting object attributes (Path: %v)", path);
+
+    {
+        TGetUserObjectBasicAttributesOptions options;
+        options.ChannelKind = EMasterChannelKind::Cache;
+        options.SuppressAccessTracking = true;
+        // TODO(max42): YT-10402, columnar ACL
+        GetUserObjectBasicAttributes(
+            client,
+            {userObject.get()},
+            NullTransactionId,
+            Logger,
+            permission,
+            options);
+
+        if (userObject->Type != EObjectType::Table) {
+            THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
+                path,
+                EObjectType::Table,
+                userObject->Type);
+        }
+    }
+
+    YT_LOG_INFO("Requesting table attributes (Path: %v)", path);
+
+    {
+        auto objectIdPath = FromObjectId(userObject->ObjectId);
+
+        auto channel = client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Follower);
+        TObjectServiceProxy proxy(channel);
+
+        auto req = TYPathProxy::Get(objectIdPath + "/@");
+        SetSuppressAccessTracking(req, true);
+        std::vector<TString> attributeKeys {
+            "chunk_count",
+            "dynamic",
+            "schema",
+        };
+        NYT::ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+
+        auto rspOrError = WaitFor(proxy.Execute(req));
+        if (!rspOrError.IsOK()) {
+            THROW_ERROR(rspOrError).Wrap("Error getting table schema")
+                << TErrorAttribute("path", path);
+        }
+
+        const auto& rsp = rspOrError.Value();
+        auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+
+        userObject->ChunkCount = attributes->Get<int>("chunk_count");
+        userObject->Dynamic = attributes->Get<bool>("dynamic");
+        userObject->Schema = attributes->Get<TTableSchema>("schema");
+    }
+
+    return userObject;
+}
+
+TClickHouseTablePtr FetchClickHouseTable(
+    const NApi::NNative::IClientPtr& client,
+    const TRichYPath& path,
+    const TLogger& logger)
+{
+    auto userObject = GetTableAttributes(
+        client,
+        path,
+        EPermission::Read,
+        logger);
+
+    return CreateClickHouseTable(
+        path.GetPath(),
+        userObject->Schema);
+}
+
+/////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer
 

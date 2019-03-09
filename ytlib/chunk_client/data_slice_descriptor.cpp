@@ -9,15 +9,20 @@ namespace NYT::NChunkClient {
 using namespace NTableClient;
 using namespace NTransactionClient;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TDataSliceDescriptor::TDataSliceDescriptor(std::vector<NProto::TChunkSpec> chunkSpecs)
+TDataSliceDescriptor::TDataSliceDescriptor(
+    std::vector<NProto::TChunkSpec> chunkSpecs)
     : ChunkSpecs(std::move(chunkSpecs))
 { }
 
-TDataSliceDescriptor::TDataSliceDescriptor(const NProto::TChunkSpec& chunkSpec)
+TDataSliceDescriptor::TDataSliceDescriptor(
+    NProto::TChunkSpec chunkSpec)
 {
-    ChunkSpecs.push_back(chunkSpec);
+    ChunkSpecs.push_back(std::move(chunkSpec));
 }
 
 const NProto::TChunkSpec& TDataSliceDescriptor::GetSingleChunk() const
@@ -139,18 +144,6 @@ void TInterruptDescriptor::MergeFrom(TInterruptDescriptor&& source)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TDataSliceDescriptor* protoDataSliceDescriptor, const TDataSliceDescriptor& dataSliceDescriptor)
-{
-    for (const auto& chunkSpec : dataSliceDescriptor.ChunkSpecs) {
-        *protoDataSliceDescriptor->add_chunks() = chunkSpec;
-    }
-}
-
-void FromProto(TDataSliceDescriptor* dataSliceDescriptor, const NProto::TDataSliceDescriptor& protoDataSliceDescriptor)
-{
-    dataSliceDescriptor->ChunkSpecs = std::vector<NProto::TChunkSpec>(protoDataSliceDescriptor.chunks().begin(), protoDataSliceDescriptor.chunks().end());
-}
-
 void ToProto(
     ::google::protobuf::RepeatedPtrField<NProto::TChunkSpec>* chunkSpecs,
     ::google::protobuf::RepeatedField<int>* chunkSpecCountPerDataSlice,
@@ -158,7 +151,6 @@ void ToProto(
 {
     for (const auto& dataSlice : dataSlices) {
         chunkSpecCountPerDataSlice->Add(dataSlice.ChunkSpecs.size());
-
         for (const auto& chunkSpec : dataSlice.ChunkSpecs) {
             *chunkSpecs->Add() = chunkSpec;
         }
@@ -176,7 +168,6 @@ void FromProto(
         std::vector<NProto::TChunkSpec> dataSliceSpecs(
             chunkSpecs.begin() + currentIndex,
             chunkSpecs.begin() + currentIndex + chunkSpecCount);
-
         dataSlices->emplace_back(std::move(dataSliceSpecs));
         currentIndex += chunkSpecCount;
     }
