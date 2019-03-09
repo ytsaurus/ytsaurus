@@ -349,7 +349,9 @@ private:
                 req->set_erasure_codec(static_cast<int>(*erasureCodec));
             }
 
-            // XXX(babenko): security tags
+            if (auto securityTags = Path_.GetSecurityTags()) {
+                ToProto(req->mutable_security_tags()->mutable_items(), *securityTags);
+            }
 
             SetTransactionId(req, UploadTransaction_);
             GenerateMutationId(req);
