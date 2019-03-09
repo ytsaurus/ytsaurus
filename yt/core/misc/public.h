@@ -129,8 +129,6 @@ using TInternedObjectDataPtr = TIntrusivePtr<TInternedObjectData<T>>;
 template <class T>
 class TInternedObject;
 
-using TInternedObjectId = i64;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EErrorCode,
