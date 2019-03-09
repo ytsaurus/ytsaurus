@@ -31,6 +31,7 @@ import (
 	"math"
 	"reflect"
 	"strconv"
+	"time"
 )
 
 // Unmarshaler is an interface implemented by types that can unmarshal themselves from YSON.
@@ -210,13 +211,33 @@ func decodeAny(r *Reader, v interface{}) (err error) {
 
 		*vv = make([]byte, len(raw))
 		copy(*vv, raw)
+
+	case *Time:
+		var b []byte
+		b, err = decodeString(r)
+		if err != nil {
+			return
+		}
+		*vv, err = UnmarshalTime(string(b))
+
+	case *Duration:
+		i, err = decodeInt(r, 64)
+		*vv = Duration(time.Millisecond * time.Duration(i))
+
 	case encoding.TextUnmarshaler:
 		var b []byte
 		b, err = decodeString(r)
+		if err != nil {
+			return
+		}
 		err = vv.UnmarshalText(b)
+
 	case encoding.BinaryUnmarshaler:
 		var b []byte
 		b, err = decodeString(r)
+		if err != nil {
+			return
+		}
 		err = vv.UnmarshalBinary(b)
 
 	case StreamUnmarshaler:

@@ -4,9 +4,10 @@
 package spec
 
 import (
+	"github.com/mitchellh/copystructure"
+
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
-	"github.com/mitchellh/copystructure"
 )
 
 type Spec struct {

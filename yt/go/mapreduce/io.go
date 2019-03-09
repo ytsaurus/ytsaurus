@@ -58,7 +58,7 @@ func (r *reader) Next() bool {
 		return false
 	}
 
-	d := yson.Decoder{r.reader}
+	d := yson.Decoder{R: r.reader}
 	r.err = d.Decode(&r.value)
 	if r.err != nil {
 		return false
@@ -129,7 +129,4 @@ func (c *jobContext) writers() (out []Writer) {
 	}
 
 	return
-}
-
-type JobContext interface {
 }

@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"a.yandex-team.ru/yt/go/yt"
-
 	"github.com/stretchr/testify/assert"
-
 	"golang.org/x/xerrors"
+
+	"a.yandex-team.ru/yt/go/ypath"
+	"a.yandex-team.ru/yt/go/yt"
 )
 
 type zeroBackoff struct{}
@@ -79,7 +79,7 @@ func TestReadOnlyMethods(t *testing.T) {
 func TestReadRetrierRetriesGet(t *testing.T) {
 	r := &ReadRetrier{Backoff: &zeroBackoff{}}
 
-	call := &Call{Params: NewGetNodeParams("/", nil)}
+	call := &Call{Params: NewGetNodeParams(ypath.Root, nil)}
 
 	var failed bool
 
@@ -87,9 +87,9 @@ func TestReadRetrierRetriesGet(t *testing.T) {
 		if !failed {
 			failed = true
 			return &CallResult{}, xerrors.Errorf("request failed: %w", &netError{timeout: true})
-		} else {
-			return &CallResult{}, nil
 		}
+
+		return &CallResult{}, nil
 	})
 
 	assert.True(t, failed)
@@ -99,7 +99,7 @@ func TestReadRetrierRetriesGet(t *testing.T) {
 func TestReadRetrierIgnoresMutations(t *testing.T) {
 	r := &ReadRetrier{Backoff: &zeroBackoff{}}
 
-	call := &Call{Params: NewSetNodeParams("/", nil)}
+	call := &Call{Params: NewSetNodeParams(ypath.Root, nil)}
 
 	_, err := r.Intercept(context.Background(), call, func(context.Context, *Call) (*CallResult, error) {
 		return &CallResult{}, xerrors.New("request failed")

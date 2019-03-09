@@ -3,8 +3,9 @@ package yt
 import (
 	"fmt"
 
-	"a.yandex-team.ru/yt/go/yson"
 	"golang.org/x/xerrors"
+
+	"a.yandex-team.ru/yt/go/yson"
 )
 
 type ErrorCode int
@@ -16,7 +17,7 @@ func (e ErrorCode) MarshalYSON(w *yson.Writer) error {
 
 func (e *ErrorCode) UnmarshalYSON(r *yson.Reader) (err error) {
 	var code int
-	err = (&yson.Decoder{r}).Decode(&code)
+	err = (&yson.Decoder{R: r}).Decode(&code)
 	*e = ErrorCode(code)
 	return
 }
@@ -45,21 +46,29 @@ type Error struct {
 // ContainsErrorCode returns true iff any of the nested errors has ErrorCode equal to errorCode.
 //
 // ContainsErrorCode invokes xerrors.As internally. It is safe to pass arbitrary error value to this function.
-func ContainsErrorCode(err error, errorCode ErrorCode) bool {
+func ContainsErrorCode(err error, code ErrorCode) bool {
+	return FindErrorCode(err, code) != nil
+}
+
+func FindErrorCode(err error, code ErrorCode) *Error {
+	if err == nil {
+		return nil
+	}
+
 	var ytErr *Error
 	if ok := xerrors.As(err, &ytErr); ok {
-		if errorCode == ytErr.Code {
-			return true
+		if code == ytErr.Code {
+			return ytErr
 		}
 
 		for _, nested := range ytErr.InnerErrors {
-			if ContainsErrorCode(nested, errorCode) {
-				return true
+			if ytErr = FindErrorCode(nested, code); ytErr != nil {
+				return ytErr
 			}
 		}
 	}
 
-	return false
+	return nil
 }
 
 func (yt *Error) Error() string {
@@ -77,7 +86,7 @@ func (yt *Error) FormatError(p xerrors.Printer) (next error) {
 		}
 
 		for name, attr := range e.Attributes {
-			p.Printf("  %s: %s\n", name, attr)
+			p.Printf("  %s: %v\n", name, attr)
 		}
 	}
 
@@ -113,6 +122,7 @@ type ErrorAttr struct {
 	Value interface{}
 }
 
+// Err creates new error of type Error.
 func Err(args ...interface{}) error {
 	err := new(Error)
 	err.Code = 1

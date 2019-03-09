@@ -16,6 +16,7 @@ type TxInterceptor struct {
 
 	sync.Mutex
 	committed, aborted bool
+	finished           chan struct{}
 
 	id     yt.TxID
 	ctx    context.Context
@@ -58,11 +59,13 @@ func (t *TxInterceptor) pinger() {
 	for {
 		select {
 		case <-t.ctx.Done():
-			_ = t.Rollback()
-			break
+			_ = t.Abort()
+			close(t.finished)
+			return
 
 		case <-ticker.C:
 			if err := t.checkState(); err != nil {
+				close(t.finished)
 				return
 			}
 
@@ -77,7 +80,7 @@ func NewTx(ctx context.Context, e Encoder, options *yt.StartTxOptions) (*TxInter
 		return nil, err
 	}
 
-	tx := &TxInterceptor{Encoder: e, id: txID, ctx: ctx, client: e}
+	tx := &TxInterceptor{Encoder: e, id: txID, ctx: ctx, client: e, finished: make(chan struct{})}
 	tx.Encoder.Invoke = tx.Encoder.Invoke.Wrap(tx.Intercept)
 	tx.Encoder.InvokeRead = tx.Encoder.InvokeRead.Wrap(tx.Read)
 	tx.Encoder.InvokeWrite = tx.Encoder.InvokeWrite.Wrap(tx.Write)
@@ -93,6 +96,10 @@ func (t *TxInterceptor) ID() yt.TxID {
 	return t.id
 }
 
+func (t *TxInterceptor) Finished() <-chan struct{} {
+	return t.finished
+}
+
 func (t *TxInterceptor) Begin(ctx context.Context, options *yt.StartTxOptions) (tx yt.Tx, err error) {
 	if err = t.checkState(); err != nil {
 		return
@@ -106,7 +113,7 @@ func (t *TxInterceptor) Begin(ctx context.Context, options *yt.StartTxOptions) (
 	return NewTx(ctx, t.client, options)
 }
 
-func (t *TxInterceptor) Rollback() (err error) {
+func (t *TxInterceptor) Abort() (err error) {
 	if err = t.updateState(false, true); err != nil {
 		return
 	}

@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"a.yandex-team.ru/yt/go/yttest"
+	"github.com/stretchr/testify/require"
 
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
-	"github.com/stretchr/testify/require"
+	"a.yandex-team.ru/yt/go/yttest"
 )
 
 func TestOperation(t *testing.T) {

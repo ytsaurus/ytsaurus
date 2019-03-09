@@ -181,3 +181,12 @@ const (
 	LockShared    LockMode = "shared"
 	LockExclusive LockMode = "exclusive"
 )
+
+func (m LockMode) MarshalText() ([]byte, error) {
+	return []byte(m), nil
+}
+
+func (m *LockMode) UnmarshalText(b []byte) error {
+	*m = LockMode(b)
+	return nil
+}

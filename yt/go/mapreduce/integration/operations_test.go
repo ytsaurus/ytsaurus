@@ -7,13 +7,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"a.yandex-team.ru/yt/go/ypath"
+	"github.com/stretchr/testify/require"
 
 	"a.yandex-team.ru/yt/go/mapreduce"
 	"a.yandex-team.ru/yt/go/mapreduce/spec"
+	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yttest"
-	"github.com/stretchr/testify/require"
 )
 
 func DumpFDs() {
@@ -44,7 +44,7 @@ func init() {
 
 type CatJob struct{}
 
-func (_ *CatJob) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapreduce.Writer) (err error) {
+func (*CatJob) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapreduce.Writer) (err error) {
 	if len(out) != 1 {
 		DumpFDs()
 		panic(fmt.Sprintf("unexpected input table count: %d != 1", len(out)))

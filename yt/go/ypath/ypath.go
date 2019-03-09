@@ -30,7 +30,7 @@ type Path string
 const Root Path = "/"
 
 // YPath is implementation of YPath interface.
-func (_ Path) YPath() {}
+func (Path) YPath() {}
 
 // UnmarshalText is implementation of encoding.TextUnmarshaler interface.
 func (p *Path) UnmarshalText(text []byte) error {

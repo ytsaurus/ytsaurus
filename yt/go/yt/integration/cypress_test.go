@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gofrs/uuid/v3"
+	"github.com/stretchr/testify/require"
+
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yttest"
-	"github.com/gofrs/uuid/v3"
-	"github.com/stretchr/testify/require"
 )
 
 func tmpPath() ypath.Path {

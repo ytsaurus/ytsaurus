@@ -42,6 +42,6 @@ func TestTransactions(t *testing.T) {
 		tx, err := env.YT.Begin(ctx, nil)
 		require.NoError(t, err)
 
-		require.NoError(t, tx.Rollback())
+		require.NoError(t, tx.Abort())
 	})
 }

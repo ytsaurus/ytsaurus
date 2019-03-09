@@ -105,9 +105,9 @@ type interfaceType struct {
 }
 
 const (
-	methodTagHttpParams = "http:params:"
-	methodTagHttpVerb   = "http:verb:"
-	methodTagHttpExtra  = "http:extra"
+	methodTagHTTPParams = "http:params:"
+	methodTagHTTPVerb   = "http:verb:"
+	methodTagHTTPExtra  = "http:extra"
 )
 
 func parseClient(typeSpec *ast.TypeSpec) (c *interfaceType, err error) {
@@ -137,22 +137,22 @@ func parseClient(typeSpec *ast.TypeSpec) (c *interfaceType, err error) {
 			for _, comment := range ifaceMethod.Doc.List {
 				commentLine := strings.Trim(strings.TrimPrefix(comment.Text, "//"), " ")
 				switch {
-				case strings.HasPrefix(commentLine, methodTagHttpParams):
-					paramList := "[" + strings.TrimPrefix(commentLine, methodTagHttpParams) + "]"
+				case strings.HasPrefix(commentLine, methodTagHTTPParams):
+					paramList := "[" + strings.TrimPrefix(commentLine, methodTagHTTPParams) + "]"
 					if err = json.Unmarshal([]byte(paramList), &m.httpParams); err != nil {
-						err = errorf(comment.Pos(), "invalid value of %q tag: %v", methodTagHttpParams, err)
+						err = errorf(comment.Pos(), "invalid value of %q tag: %v", methodTagHTTPParams, err)
 						return
 					}
 
-				case strings.HasPrefix(commentLine, methodTagHttpVerb):
-					httpVerb := strings.TrimPrefix(commentLine, methodTagHttpVerb)
+				case strings.HasPrefix(commentLine, methodTagHTTPVerb):
+					httpVerb := strings.TrimPrefix(commentLine, methodTagHTTPVerb)
 					m.httpVerb, err = strconv.Unquote(httpVerb)
 					if err != nil {
-						err = errorf(comment.Pos(), "invalid value of %q tag: %v", methodTagHttpVerb, err)
+						err = errorf(comment.Pos(), "invalid value of %q tag: %v", methodTagHTTPVerb, err)
 						return
 					}
 
-				case strings.HasPrefix(commentLine, methodTagHttpExtra):
+				case strings.HasPrefix(commentLine, methodTagHTTPExtra):
 					m.extra = true
 
 				}
@@ -164,11 +164,11 @@ func parseClient(typeSpec *ast.TypeSpec) (c *interfaceType, err error) {
 
 			extra := 2
 			if m.extra {
-				extra += 1
+				extra++
 			}
 
 			if len(m.httpParams)+extra != len(typ.Params.List) {
-				err = errorf(typ.Pos(), "number of parameters is inconsistent with %q annotation", methodTagHttpParams)
+				err = errorf(typ.Pos(), "number of parameters is inconsistent with %q annotation", methodTagHTTPParams)
 				return
 			}
 
