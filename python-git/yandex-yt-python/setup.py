@@ -39,23 +39,25 @@ def main():
 
     find_packages("yt/packages")
     setup(
-        name = PACKAGE_NAME,
-        version = version,
-        packages = ["yt", "yt.wrapper", "yt.yson", "yt.ypath", "yt.skiff"] + recursive("yt/packages"),
-        scripts = scripts,
+        name=PACKAGE_NAME,
+        version=version,
+        packages=["yt", "yt.wrapper", "yt.yson", "yt.ypath", "yt.skiff"] + recursive("yt/packages"),
+        package_dir={"yt.packages.certifi": "yt/packages/certifi"},
+        package_data={"yt.packages.certifi": ["*.pem"]},
+        scripts=scripts,
 
-        author = "Ignat Kolesnichenko",
-        author_email = "ignat@yandex-team.ru",
-        description = "Python wrapper for YT system and yson parser.",
-        keywords = "yt python wrapper mapreduce yson",
+        author="Ignat Kolesnichenko",
+        author_email="ignat@yandex-team.ru",
+        description="Python wrapper for YT system and yson parser.",
+        keywords="yt python wrapper mapreduce yson",
 
-        long_description = \
+        long_description=\
             "It is python library for YT system that works through http api " \
             "and supports most of the features. It provides a lot of default behaviour in case "\
             "of empty tables and absent paths. Also this package provides mapreduce binary "\
             "(based on python library) that is back compatible with Yamr system.",
 
-        data_files = data_files
+        data_files=data_files
     )
 
 if __name__ == "__main__":
