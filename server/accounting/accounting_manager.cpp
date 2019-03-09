@@ -251,7 +251,7 @@ private:
         SmallSet<const NObjects::TAccount*, 16> visitedAccounts;
         const auto* currentAccount = account;
         while (currentAccount) {
-            if (!visitedAccounts.insert(currentAccount)) {
+            if (!visitedAccounts.insert(currentAccount).second) {
                 THROW_ERROR_EXCEPTION("Cyclic dependencies found while checking limits of account %v",
                     GetObjectDisplayName(account));
             }

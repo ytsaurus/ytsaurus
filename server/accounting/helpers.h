@@ -38,8 +38,8 @@ TResourceTotals& operator -=(TResourceTotals& lhs, const TResourceTotals& rhs);
 TResourceTotals operator -(const TResourceTotals& lhs, const TResourceTotals& rhs);
 TResourceTotals operator -(const TResourceTotals& arg);
 
-void FormatValue(NYT::TStringBuilder* builder, const TPerSegmentResourceTotals& totals, TStringBuf format);
-void FormatValue(NYT::TStringBuilder* builder, const TResourceTotals& totals, TStringBuf format);
+void FormatValue(NYT::TStringBuilderBase* builder, const TPerSegmentResourceTotals& totals, TStringBuf format);
+void FormatValue(NYT::TStringBuilderBase* builder, const TResourceTotals& totals, TStringBuf format);
 TString ToString(const TPerSegmentResourceTotals& totals);
 TString ToString(const TResourceTotals& totals);
 

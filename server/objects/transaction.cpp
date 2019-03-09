@@ -1068,7 +1068,7 @@ private:
 
                 request.Tag = Format("Path: %v, Columns: %v, Keys: %v",
                     path,
-                    MakeFormattableRange(idToField, [] (TStringBuilder* builder, const auto* field) {
+                    MakeFormattableView(idToField, [] (TStringBuilderBase* builder, const auto* field) {
                         FormatValue(builder, field->Name, TStringBuf());
                     }),
                     keys);
@@ -1311,7 +1311,7 @@ private:
                     rows.push_back(row);
                     YT_LOG_DEBUG("Executing write (Path: %v, Columns: %v, Row: %v)",
                         path,
-                        MakeFormattableRange(MakeRange(row.Begin() + table->Key.size(), row.End()), [&] (TStringBuilder* builder, const auto& value) {
+                        MakeFormattableView(MakeRange(row.Begin() + table->Key.size(), row.End()), [&] (TStringBuilderBase* builder, const auto& value) {
                             FormatValue(builder, idToField[value.Id - table->Key.size()]->Name, TStringBuf());
                         }),
                         row);

@@ -145,6 +145,19 @@ private:
             context->GetUser());
     }
 
+    static const TProtobufMessageType* GetMessageTypeByYPath(
+        const TProtobufMessageType* rootType,
+        const NYPath::TYPath& path)
+    {
+        auto result = ResolveProtobufElementByYPath(rootType, path);
+        auto* messageElement = std::get_if<std::unique_ptr<TProtobufMessageElement>>(&result.Element);
+        if (!messageElement) {
+            THROW_ERROR_EXCEPTION("Attribute %v is not a protobuf message",
+                result.HeadPath);
+        }
+        return (*messageElement)->Type;
+    }
+
     TYsonString PayloadToYsonString(
         const NClient::NApi::NProto::TPayload& payload,
         EObjectType type,
@@ -403,7 +416,7 @@ private:
 
         context->SetRequestInfo("TransactionId: %v, Subrequests: %v",
             transactionId,
-            MakeFormattableRange(MakeRange(subrequests), [] (auto* builder, const auto& subrequest) {
+            MakeFormattableView(MakeRange(subrequests), [] (auto* builder, const auto& subrequest) {
                 builder->AppendFormat("{ObjectType: %v}",
                     subrequest.Type);
             }));
@@ -431,7 +444,7 @@ private:
         }
 
         context->SetResponseInfo("ObjectIds: %v",
-            MakeFormattableRange(MakeRange(objects), [] (auto* builder, auto* object) {
+            MakeFormattableView(MakeRange(objects), [] (auto* builder, auto* object) {
                 builder->AppendFormat("%v",
                     object->GetId());
             }));
@@ -487,7 +500,7 @@ private:
 
         context->SetRequestInfo("TransactionId: %v, Subrequests: %v",
             transactionId,
-            MakeFormattableRange(MakeRange(subrequests), [] (auto* builder, const auto& subrequest) {
+            MakeFormattableView(MakeRange(subrequests), [] (auto* builder, const auto& subrequest) {
                 builder->AppendFormat("{ObjectType: %v, ObjectId: %v}",
                     subrequest.Type,
                     subrequest.Id);
@@ -585,7 +598,7 @@ private:
 
         context->SetRequestInfo("TransactionId: %v, Subrequests: %v",
             transactionId,
-            MakeFormattableRange(MakeRange(subrequests), [] (auto* builder, const auto& subrequest) {
+            MakeFormattableView(MakeRange(subrequests), [] (auto* builder, const auto& subrequest) {
                 builder->AppendFormat("{ObjectType: %v, ObjectId: %v, UpdateCount: %v}",
                     subrequest.Type,
                     subrequest.Id,

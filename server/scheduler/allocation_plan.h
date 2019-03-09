@@ -71,9 +71,9 @@ private:
     void EmplaceRequest(TNode* node, const TRequest& request);
 };
 
-void FormatValue(TStringBuilder* builder, const TAllocationPlan::TPodRequest& podRequest, TStringBuf format);
+void FormatValue(TStringBuilderBase* builder, const TAllocationPlan::TPodRequest& podRequest, TStringBuf format);
 
-void FormatValue(TStringBuilder* builder, const TAllocationPlan::TNodeRequest& nodeRequest, TStringBuf format);
+void FormatValue(TStringBuilderBase* builder, const TAllocationPlan::TNodeRequest& nodeRequest, TStringBuf format);
 
 ////////////////////////////////////////////////////////////////////////////////
 

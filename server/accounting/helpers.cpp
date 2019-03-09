@@ -175,7 +175,7 @@ TResourceTotals operator -(const TResourceTotals& arg)
     return result;
 }
 
-void FormatValue(TStringBuilder* builder, const TPerSegmentResourceTotals& totals, TStringBuf /*format*/)
+void FormatValue(TStringBuilderBase* builder, const TPerSegmentResourceTotals& totals, TStringBuf /*format*/)
 {
     builder->AppendString("{");
 
@@ -201,7 +201,7 @@ void FormatValue(TStringBuilder* builder, const TPerSegmentResourceTotals& total
     builder->AppendString("}");
 }
 
-void FormatValue(TStringBuilder* builder, const TResourceTotals& totals, TStringBuf /*format*/)
+void FormatValue(TStringBuilderBase* builder, const TResourceTotals& totals, TStringBuf /*format*/)
 {
     builder->AppendString("{PerSegment: {");
 

@@ -407,7 +407,7 @@ private:
 
                 YT_LOG_DEBUG("Committing scheduling results (NodeId: %v, Requests: %v)",
                     perNodePlan.Node->GetId(),
-                    MakeFormattableRange(perNodePlan.Requests, [] (auto* builder, const auto& request) {
+                    MakeFormattableView(perNodePlan.Requests, [] (auto* builder, const auto& request) {
                         FormatValue(builder, request, {});
                     }));
 

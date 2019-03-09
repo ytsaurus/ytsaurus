@@ -345,7 +345,7 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(
         result.emplace_back("devices", JoinToString(
             hostDevices.begin(),
             hostDevices.end(),
-            [] (TStringBuilder* builder, const auto& device) {
+            [] (TStringBuilderBase* builder, const auto& device) {
                 builder->AppendFormat("%v %v", device.path(), device.mode());
             },
             AsStringBuf(";")));
