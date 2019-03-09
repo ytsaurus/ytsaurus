@@ -249,8 +249,8 @@ void TDriverModuleBase::Initialize(
     initModule();
 
     auto moduleDict = getModuleDictionary();
-    moduleDict["BufferedStream"] = TBufferedStreamWrap::type();
-    moduleDict["Response"] = TDriverResponse::type();
+    moduleDict.setItem("BufferedStream", TBufferedStreamWrap::type());
+    moduleDict.setItem("Response", TDriverResponse::type());
 }
 
 Py::Object TDriverModuleBase::ConfigureLogging(const Py::Tuple& args_, const Py::Dict& kwargs_)

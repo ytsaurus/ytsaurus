@@ -95,7 +95,7 @@ public:
             std::bind(&TDriverRpcModule::moduleDictionary, this),
             &TDriverRpcModule::add_keyword_method);
 
-        moduleDictionary()["Driver"] = TDriver::type();
+        moduleDictionary().setItem("Driver", TDriver::type());
     }
 
     virtual ~TDriverRpcModule() = default;

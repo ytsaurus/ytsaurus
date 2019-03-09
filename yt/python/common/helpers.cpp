@@ -93,7 +93,7 @@ Py::Object ExtractArgument(Py::Tuple& args, Py::Dict& kwargs, const std::string&
 {
     Py::Object result;
     if (kwargs.hasKey(name)) {
-        result = kwargs[name];
+        result = kwargs.getItem(name);
         kwargs.delItem(name);
     } else {
         if (args.length() == 0) {
