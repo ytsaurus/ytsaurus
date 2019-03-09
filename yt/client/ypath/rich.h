@@ -109,6 +109,9 @@ public:
     // "transaction_id"
     std::optional<NObjectClient::TTransactionId> GetTransactionId() const;
 
+    // "security_tags"
+    std::optional<std::vector<TString>> GetSecurityTags() const;
+
 private:
     TYPath Path_;
     std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;

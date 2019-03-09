@@ -94,6 +94,47 @@ struct TVersionedObjectRefSerializer
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TInternedObjectSerializer
+{
+    template <class T, class C>
+    static void Save(C& context, const TInternedObject<T>& object)
+    {
+        using NYT::Save;
+
+        auto it = context.SavedInternedObjects().find(object.ToRaw());
+        if (it == context.SavedInternedObjects().end()) {
+            Save(context, NHydra::TEntitySerializationKey::InlineKey());
+            Save(context, *object);
+            YCHECK(context.SavedInternedObjects().emplace(object.ToRaw(), context.GenerateSerializationKey()).second);
+        } else {
+            Save(context, it->second);
+        }
+    }
+
+    template <class T, class C>
+    static void Load(C& context, TInternedObject<T>& object)
+    {
+        using NYT::Load;
+
+        auto key = NYT::Load<NHydra::TEntitySerializationKey>(context);
+        if (key == NHydra::TEntitySerializationKey::InlineKey()) {
+            T value;
+            SERIALIZATION_DUMP_INDENT(context) {
+                Load(context, value);
+            }
+            const auto& registry = context.template GetInternRegistry<T>();
+            object = registry->Intern(std::move(value));
+            auto key = context.RegisterEntity(object.ToRaw());
+            SERIALIZATION_DUMP_WRITE(context, "objref %v", key.Index);
+        } else {
+            object = TInternedObject<T>::FromRaw(context.template GetEntity<void*>(key));
+            SERIALIZATION_DUMP_WRITE(context, "objref %v", key.Index);
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NCellMaster
 
 
@@ -105,7 +146,7 @@ template <class T, class C>
 struct TSerializerTraits<
     T,
     C,
-    typename NMpl::TEnableIfC <
+    typename NMpl::TEnableIfC<
         NMpl::TAndC<
             NMpl::TIsConvertible<T, const NObjectServer::TObjectBase*>::Value,
             NMpl::TNotC<
@@ -115,8 +156,8 @@ struct TSerializerTraits<
     >::TType
 >
 {
-    typedef NCellMaster::TNonversionedObjectRefSerializer TSerializer;
-    typedef NObjectServer::TObjectRefComparer TComparer;
+    using TSerializer = NCellMaster::TNonversionedObjectRefSerializer;
+    using TComparer = NObjectServer::TObjectRefComparer;
 };
 
 template <class T, class C>
@@ -128,8 +169,18 @@ struct TSerializerTraits<
     >::TType
 >
 {
-    typedef NCellMaster::TVersionedObjectRefSerializer TSerializer;
-    typedef NCypressServer::TCypressNodeRefComparer TComparer;
+    using TSerializer = NCellMaster::TVersionedObjectRefSerializer;
+    using TComparer = NCypressServer::TCypressNodeRefComparer;
+};
+
+template <class T, class C>
+struct TSerializerTraits<
+    TInternedObject<T>,
+    C,
+    void
+>
+{
+    using TSerializer = NCellMaster::TInternedObjectSerializer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

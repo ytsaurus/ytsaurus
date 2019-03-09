@@ -17,6 +17,8 @@
 
 #include <yt/server/master/object_server/object_manager.h>
 
+#include <yt/server/master/security_server/security_manager.h>
+
 #include <yt/server/master/cell_master/hydra_facade.h>
 
 #include <yt/client/chunk_client/data_statistics.h>
@@ -195,7 +197,6 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
 
     const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
     const auto& objectManager = TBase::Bootstrap_->GetObjectManager();
-
     auto* originatingChunkList = originatingNode->GetChunkList();
     auto* branchedChunkList = branchedNode->GetChunkList();
 
@@ -257,8 +258,13 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
 
         originatingNode->SnapshotStatistics() = branchedNode->SnapshotStatistics();
         originatingNode->DeltaStatistics() = branchedNode->DeltaStatistics();
+        originatingNode->SnapshotSecurityTags() = branchedNode->SnapshotSecurityTags();
+        originatingNode->DeltaSecurityTags() = branchedNode->DeltaSecurityTags();
     } else {
         YCHECK(branchedMode == NChunkClient::EUpdateMode::Append);
+
+        const auto& securityManager = TBase::Bootstrap_->GetSecurityManager();
+        const auto& securityTagsRegistry = securityManager->GetSecurityTagsRegistry();
 
         TChunkTree* deltaTree = nullptr;
         TChunkList* newOriginatingChunkList = nullptr;
@@ -284,6 +290,8 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
             }
 
             originatingNode->DeltaStatistics() += branchedNode->DeltaStatistics();
+            originatingNode->DeltaSecurityTags() = securityTagsRegistry->Intern(
+                *originatingNode->DeltaSecurityTags() + *branchedNode->DeltaSecurityTags());
         } else {
             if (!isExternal) {
                 chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList);
@@ -296,8 +304,12 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
 
             if (newOriginatingMode == NChunkClient::EUpdateMode::Append) {
                 originatingNode->DeltaStatistics() += branchedNode->DeltaStatistics();
+                originatingNode->DeltaSecurityTags() = securityTagsRegistry->Intern(
+                    *originatingNode->DeltaSecurityTags() + *branchedNode->DeltaSecurityTags());
             } else {
                 originatingNode->SnapshotStatistics() += branchedNode->DeltaStatistics();
+                originatingNode->SnapshotSecurityTags() = securityTagsRegistry->Intern(
+                    *originatingNode->SnapshotSecurityTags() + *branchedNode->DeltaSecurityTags());
             }
         }
 
@@ -357,6 +369,8 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
     clonedNode->Replication() = sourceNode->Replication();
     clonedNode->SnapshotStatistics() = sourceNode->SnapshotStatistics();
     clonedNode->DeltaStatistics() = sourceNode->DeltaStatistics();
+    clonedNode->SnapshotSecurityTags() = sourceNode->SnapshotSecurityTags();
+    clonedNode->DeltaSecurityTags() = sourceNode->DeltaSecurityTags();
     clonedNode->SetCompressionCodec(sourceNode->GetCompressionCodec());
     clonedNode->SetErasureCodec(sourceNode->GetErasureCodec());
 

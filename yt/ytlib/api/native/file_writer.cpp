@@ -347,6 +347,8 @@ private:
                 req->set_erasure_codec(static_cast<int>(*Options_.ErasureCodec));
             }
 
+            // XXX(babenko): security tags
+
             SetTransactionId(req, UploadTransaction_);
             GenerateMutationId(req);
             batchReq->AddRequest(req, "end_upload");

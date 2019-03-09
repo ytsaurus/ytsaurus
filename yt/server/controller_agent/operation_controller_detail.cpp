@@ -1801,6 +1801,9 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
             req->set_optimize_for(static_cast<int>(table->TableUploadOptions.OptimizeFor));
             req->set_compression_codec(static_cast<int>(table->TableUploadOptions.CompressionCodec));
             req->set_erasure_codec(static_cast<int>(table->TableUploadOptions.ErasureCodec));
+            if (table->TableUploadOptions.SecurityTags) {
+                ToProto(req->mutable_security_tags()->mutable_items(), *table->TableUploadOptions.SecurityTags);
+            }
 
             SetTransactionId(req, table->UploadTransactionId);
             GenerateMutationId(req);
@@ -1808,8 +1811,7 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
         }
 
         if (table->OutputType == EOutputTableType::Stderr || table->OutputType == EOutputTableType::Core) {
-            auto attributesPath = path + "/@part_size";
-            auto req = TYPathProxy::Set(attributesPath);
+            auto req = TYPathProxy::Set(path + "/@part_size");
             SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
             req->set_value(ConvertToYsonString(GetPartSize(table->OutputType)).GetData());
             batchReq->AddRequest(req, "set_part_size");

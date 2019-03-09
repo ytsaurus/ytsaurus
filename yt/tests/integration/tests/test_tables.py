@@ -1303,3 +1303,22 @@ class TestTablesMulticell(TestTables):
             write_table("<append=%true>//tmp/input", [
                 {"foo": float("nan"), "bar": "e"},
             ])
+
+    def test_security_tags_empty_by_default(self):
+        create("table", "//tmp/t")
+        assert get("//tmp/t/@security_tags") == []
+
+    def test_write_with_security_tags(self):
+        create("table", "//tmp/t")
+
+        write_table("<security_tags=[tag1;tag2]>//tmp/t", [{"a": "b"}])
+        assert_items_equal(get("//tmp/t/@security_tags"), ["tag1", "tag2"])
+
+        write_table("//tmp/t", [{"a": "b"}])
+        assert_items_equal(get("//tmp/t/@security_tags"), [])
+
+        write_table("<security_tags=[tag3]>//tmp/t", [{"a": "b"}])
+        assert_items_equal(get("//tmp/t/@security_tags"), ["tag3"])
+
+        write_table("<security_tags=[]>//tmp/t", [{"a": "b"}])
+        assert_items_equal(get("//tmp/t/@security_tags"), [])

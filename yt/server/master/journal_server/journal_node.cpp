@@ -52,9 +52,9 @@ void TJournalNode::Load(NCellMaster::TLoadContext& context)
     Load(context, Sealed_);
 }
 
-void TJournalNode::BeginUpload(NChunkClient::EUpdateMode mode)
+void TJournalNode::BeginUpload(const TBeginUploadContext& context)
 {
-    TChunkOwnerBase::BeginUpload(mode);
+    TChunkOwnerBase::BeginUpload(context);
 
     GetTrunkNode()->Sealed_ = false;
 }
