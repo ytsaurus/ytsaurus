@@ -1322,3 +1322,10 @@ class TestTablesMulticell(TestTables):
 
         write_table("<security_tags=[]>//tmp/t", [{"a": "b"}])
         assert_items_equal(get("//tmp/t/@security_tags"), [])
+
+    def test_write_with_security_tags_append(self):
+        create("table", "//tmp/t")
+
+        write_table("<security_tags=[tag1;tag2]>//tmp/t", [{"a": "b"}])
+        write_table("<append=true>//tmp/t", [{"c": "d"}])
+        assert_items_equal(get("//tmp/t/@security_tags"), ["tag1", "tag2"])
