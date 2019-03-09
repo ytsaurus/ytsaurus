@@ -10,7 +10,7 @@ try:
 except ImportError:
     has_test_module = False
 
-from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager
+from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager, TMPFS_SIZE_MULTIPLIER
 from yt.wrapper.common import get_disk_size
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message, get_stderrs, get_operation_error
 from yt.wrapper.table import TablePath
@@ -1047,6 +1047,12 @@ print(op.id)
             file = TEST_DIR + "/test_file"
             table_file = TEST_DIR + "/test_table_file"
 
+            dynamic_libraries_size_correction = 0
+            for key, module in sys.modules.items():
+                path = getattr(module, "__file__", "")
+                if path.endswith(".so"):
+                    dynamic_libraries_size_correction += os.path.getsize(path) * (TMPFS_SIZE_MULTIPLIER - 1.0)
+
             dir_ = yt_env_with_rpc.env.path
             with tempfile.NamedTemporaryFile(dir=dir_, prefix="local_file", delete=False) as local_file:
                 local_file.write(b"a" * 42000000)
@@ -1054,7 +1060,7 @@ print(op.id)
             yt.write_table(table_file, [{"x": 1}, {"y": 2}])
             yt.write_file(file, b"a" * 10000000)
             table_file_object = yt.FilePath(table_file, attributes={"format": "json", "disk_size": 1000})
-            op = yt.run_map(foo, table, table, local_files=[local_file.name], yt_files=[file, table_file_object], format=None)
+            op = yt.run_map(foo, table, table, local_files=[local_file.name], yt_files=[file, table_file_object])
             disk_size = next(yt.read_table(table))["size"]
 
             tmpfs_size = get_spec_option(op.id, "mapper/tmpfs_size")
@@ -1063,7 +1069,7 @@ print(op.id)
             if diff < 0:
                 diff = -diff
             assert tmpfs_size > 8 * 1024
-            assert diff < 10 * 1024 * 1024  # TMPFS_ADDEND + TMPFS_MULTIPLIER * archive_size + {rounded up file sizes}
+            assert diff < dynamic_libraries_size_correction + 2 * 1024 * 1024  # TMPFS_ADDEND + TMPFS_MULTIPLIER * archive_size + {rounded up file sizes}
             assert memory_limit - tmpfs_size == 512 * 1024 * 1024
             assert get_spec_option(op.id, "mapper/tmpfs_path") == "."
 
