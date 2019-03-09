@@ -49,7 +49,7 @@ public class TokenAuthentication implements RpcClient {
                     .setToken(credentials.getToken())
                     .build());
         }
-        return client.send(this, request, handler);
+        return client.send(sender, request, handler);
     }
 
     private static String getLocalAddress() {

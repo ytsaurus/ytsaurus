@@ -26,15 +26,12 @@ public class RpcClientWithCompression implements RpcClient {
     @Override
     public RpcClientRequestControl send(RpcClient sender, RpcClientRequest request, RpcClientResponseHandler handler) {
         TRequestHeader.Builder header = request.header();
-        if (!header.hasRequestCodecs()) {
-            header.setRequestCodecs(TRequestHeader.TRequestCodecs.newBuilder()
+        if (!header.hasRequestCodec()) {
+            header
                     .setRequestCodec(compression.getRequestCodecId().getValue())
-                    .setResponseCodec(compression.getResponseCodecId().getValue())
-                    .setRequestAttachmentCodec(compression.getRequestAttachmentsCodecId().getValue())
-                    .setResponseAttachmentCodec(compression.getResponseAttachmentsCodecId().getValue())
-                    .build());
+                    .setResponseCodec(compression.getResponseCodecId().getValue());
         }
-        return client.send(this, request, handler);
+        return client.send(sender, request, handler);
     }
 
     @Override

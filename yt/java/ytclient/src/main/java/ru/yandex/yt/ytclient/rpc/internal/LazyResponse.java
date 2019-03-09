@@ -20,22 +20,27 @@ public class LazyResponse<ResponseType> implements RpcClientResponse<ResponseTyp
     private ResponseType bodyMessage;
     private final List<byte[]> attachments;
     private final RpcClient sender;
-    private final Option<TResponseHeader.TResponseCodecs> codecs;
+    private final Option<Compression> compression;
 
     public LazyResponse(
             RpcMessageParser<ResponseType> parser,
             byte[] body,
             List<byte[]> attachments,
             RpcClient sender,
-            Option<TResponseHeader.TResponseCodecs> codecs)
+            Option<TResponseHeader> responseHeader)
     {
         this.parser = parser;
         this.bodyData = body;
         this.sender = Objects.requireNonNull(sender);
-        this.codecs = Objects.requireNonNull(codecs);
 
-        if (codecs.isPresent()) {
-            Codec codec = Codec.codecFor(Compression.fromValue(codecs.get().getResponseAttachmentCodec()));
+        if (responseHeader.isPresent() && responseHeader.get().hasCodec()) {
+            this.compression = Option.of(Compression.fromValue(responseHeader.get().getCodec()));
+        } else {
+            this.compression = Option.empty();
+        }
+
+        if (compression.isPresent()) {
+            Codec codec = Codec.codecFor(compression.get());
             this.attachments = attachments.stream().map(codec::decompress).collect(Collectors.toList());
         } else {
             this.attachments = attachments;
@@ -45,8 +50,8 @@ public class LazyResponse<ResponseType> implements RpcClientResponse<ResponseTyp
     @Override
     public synchronized ResponseType body() {
         if (bodyData != null) {
-            bodyMessage = codecs.isPresent()
-                    ? RpcUtil.parseMessageBodyWithCompression(bodyData, parser, codecs.get())
+            bodyMessage = compression.isPresent()
+                    ? RpcUtil.parseMessageBodyWithCompression(bodyData, parser, compression.get())
                     : RpcUtil.parseMessageBodyWithEnvelope(bodyData, parser);
             bodyData = null;
         }

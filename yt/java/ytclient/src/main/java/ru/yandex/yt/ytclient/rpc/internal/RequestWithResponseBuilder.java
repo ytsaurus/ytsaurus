@@ -43,7 +43,7 @@ public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder,
                     }
                     result.complete(new LazyResponse<>(parser, attachments.get(0),
                             new ArrayList<>(attachments.subList(1, attachments.size())), sender,
-                            header.hasResponseCodecs() ? Option.of(header.getResponseCodecs()) : Option.empty()));
+                            Option.of(header)));
                 }
             }
 
