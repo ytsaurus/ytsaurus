@@ -56,6 +56,11 @@ struct TPermissionCheckResponse;
 
 struct TUserWorkload;
 
+struct TSecurityTags;
+using TInternedSecurityTags = TInternedObject<TSecurityTags>;
+using TSecurityTagsRegistry = TInternRegistry<TSecurityTags>;
+using TSecurityTagsRegistryPtr = TInternRegistryPtr<TSecurityTags>;
+
 DECLARE_REFCOUNTED_CLASS(TSecurityManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TSecurityManager)
 DECLARE_REFCOUNTED_CLASS(TRequestTracker)

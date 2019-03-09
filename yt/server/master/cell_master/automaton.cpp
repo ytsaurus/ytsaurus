@@ -5,9 +5,12 @@
 
 #include <yt/server/master/object_server/object_manager.h>
 
+#include <yt/server/master/security_server/security_manager.h>
+
 namespace NYT::NCellMaster {
 
 using namespace NObjectServer;
+using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,10 +62,21 @@ int TMasterAutomatonPart::GetCurrentSnapshotVersion()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TLoadContext::TLoadContext(TBootstrap* bootstrap)
+    : Bootstrap_(bootstrap)
+{ }
+
 TObjectBase* TLoadContext::GetWeakGhostObject(TObjectId id) const
 {
     const auto& objectManager = Bootstrap_->GetObjectManager();
     return objectManager->GetWeakGhostObject(id);
+}
+
+template<>
+const TSecurityTagsRegistryPtr& TLoadContext::GetInternRegistry<TSecurityTags>() const
+{
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    return securityManager->GetSecurityTagsRegistry();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

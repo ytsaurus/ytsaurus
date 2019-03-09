@@ -52,15 +52,10 @@ void TFileNode::Load(NCellMaster::TLoadContext& context)
     Load(context, MD5Hasher_);
 }
 
-void TFileNode::EndUpload(
-    const NChunkClient::NProto::TDataStatistics* statistics,
-    const NTableServer::TSharedTableSchemaPtr& sharedSchema,
-    NTableClient::ETableSchemaMode schemaMode,
-    std::optional<NTableClient::EOptimizeFor> optimizeFor,
-    const std::optional<TMD5Hasher>& md5Hasher)
+void TFileNode::EndUpload(const TEndUploadContext& context)
 {
-    SetMD5Hasher(md5Hasher);
-    TChunkOwnerBase::EndUpload(statistics, sharedSchema, schemaMode, optimizeFor, md5Hasher);
+    SetMD5Hasher(context.MD5Hasher);
+    TChunkOwnerBase::EndUpload(context);
 }
 
 void TFileNode::GetUploadParams(std::optional<TMD5Hasher>* md5Hasher)

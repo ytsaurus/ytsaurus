@@ -16,6 +16,7 @@ namespace NYT::NHydra {
 
 constexpr int NullObjectSerializationIndex = -1;
 constexpr int DestroyedObjectSerializationIndex = -2;
+constexpr int InlineObjectSerializationIndex = -3;
 
 struct TEntitySerializationKey
 {
@@ -35,6 +36,11 @@ struct TEntitySerializationKey
     static TEntitySerializationKey DestroyedObjectKey()
     {
         return TEntitySerializationKey(DestroyedObjectSerializationIndex);
+    }
+
+    static TEntitySerializationKey InlineKey()
+    {
+        return TEntitySerializationKey(InlineObjectSerializationIndex);
     }
 
 #define DEFINE_OPERATOR(op) \
@@ -86,13 +92,13 @@ public:
 public:
     virtual ~TLoadContext() = default;
 
-    TEntitySerializationKey RegisterEntity(TEntityBase* entity);
+    TEntitySerializationKey RegisterEntity(void* entity);
 
     template <class T>
     T* GetEntity(TEntitySerializationKey key) const;
 
 private:
-    std::vector<TEntityBase*> Entities_;
+    std::vector<void*> Entities_;
 
 };
 

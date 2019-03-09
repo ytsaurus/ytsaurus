@@ -1586,6 +1586,9 @@ private:
             req->set_optimize_for(static_cast<int>(TableUploadOptions_.OptimizeFor));
             req->set_compression_codec(static_cast<int>(TableUploadOptions_.CompressionCodec));
             req->set_erasure_codec(static_cast<int>(TableUploadOptions_.ErasureCodec));
+            if (TableUploadOptions_.SecurityTags) {
+                ToProto(req->mutable_security_tags()->mutable_items(), *TableUploadOptions_.SecurityTags);
+            }
 
             SetTransactionId(req, UploadTransaction_);
             GenerateMutationId(req);

@@ -579,6 +579,11 @@ std::optional<NObjectClient::TTransactionId> TRichYPath::GetTransactionId() cons
     return FindAttribute<NObjectClient::TTransactionId>(*this, "transaction_id");
 }
 
+std::optional<std::vector<TString>> TRichYPath::GetSecurityTags() const
+{
+    return FindAttribute<std::vector<TString>>(*this, "security_tags");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString ToString(const TRichYPath& path)
