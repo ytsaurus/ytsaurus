@@ -86,14 +86,14 @@ public class RpcUtil {
     public static <T> T parseMessageBodyWithCompression(
             byte[] data,
             RpcMessageParser<T> parser,
-            TResponseHeader.TResponseCodecs codecs)
+            Compression compression)
     {
         if (data == null || data.length < 8) {
             throw new IllegalStateException("Missing fixed envelope header");
         }
         try {
             CodedInputStream input;
-            Codec codec = Codec.codecFor(Compression.fromValue(codecs.getResponseCodec()));
+            Codec codec = Codec.codecFor(compression);
             byte[] decompressed = codec.decompress(data);
             input = CodedInputStream.newInstance(decompressed, 0, decompressed.length);
             return parser.parse(input);
@@ -141,13 +141,13 @@ public class RpcUtil {
     public static List<byte[]> createRequestMessage(TRequestHeader header, MessageLite body,
             List<byte[]> attachments)
     {
-        Compression attachmentsCodec = header.hasRequestCodecs() ?
-                Compression.fromValue(header.getRequestCodecs().getRequestAttachmentCodec()) :
+        Compression attachmentsCodec = header.hasRequestCodec() ?
+                Compression.fromValue(header.getRequestCodec()) :
                 Compression.fromValue(0);
         List<byte[]> message = new ArrayList<>(2 + attachments.size());
         message.add(createMessageHeader(RpcMessageType.REQUEST, header));
-        message.add(header.hasRequestCodecs()
-                ? createMessageBodyWithCompression(body, Compression.fromValue(header.getRequestCodecs().getRequestCodec()))
+        message.add(header.hasRequestCodec()
+                ? createMessageBodyWithCompression(body, Compression.fromValue(header.getRequestCodec()))
                 : createMessageBodyWithEnvelope(body));
         message.addAll(createCompressedAttachments(attachments, attachmentsCodec));
         return message;
