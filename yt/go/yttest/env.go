@@ -6,17 +6,16 @@ import (
 	"reflect"
 	"testing"
 
-	"a.yandex-team.ru/yt/go/schema"
-
-	"a.yandex-team.ru/library/go/core/log/zap"
-	"a.yandex-team.ru/yt/go/yt/ythttp"
 	"go.uber.org/zap/zaptest"
 
-	"a.yandex-team.ru/yt/go/guid"
-	"a.yandex-team.ru/yt/go/ypath"
+	"a.yandex-team.ru/library/go/core/log/zap"
 
+	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/mapreduce"
+	"a.yandex-team.ru/yt/go/schema"
+	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/yt/ythttp"
 )
 
 type Env struct {
@@ -25,14 +24,14 @@ type Env struct {
 	MR  mapreduce.Client
 }
 
-func NewEnv(t *testing.T) (env *Env, cancel func()) {
+func NewEnv(t testing.TB) (env *Env, cancel func()) {
 	var err error
 
 	config, err := yt.ClusterFromEnv()
 	if err != nil {
 		t.Fatalf("failed to get cluster from env: %+v", err)
 	}
-	config.Logger = &zap.Logger{zaptest.NewLogger(t)}
+	config.Logger = &zap.Logger{L: zaptest.NewLogger(t)}
 
 	env = &Env{}
 	env.Ctx, cancel = context.WithCancel(context.Background())

@@ -1,9 +1,10 @@
 package ypath
 
 import (
+	"github.com/mitchellh/copystructure"
+
 	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/yson"
-	"github.com/mitchellh/copystructure"
 )
 
 // ReadLimit is either table key or row index.
@@ -101,58 +102,58 @@ func (r Rich) MarshalYSON(w *yson.Writer) error {
 }
 
 // YPath is implementation of YPath interface.
-func (_ Rich) YPath() {}
+func (Rich) YPath() {}
 
 // Copy returns deep copy of p.
-func (p *Rich) Copy() *Rich {
-	return copystructure.Must(copystructure.Copy(p)).(*Rich)
+func (r *Rich) Copy() *Rich {
+	return copystructure.Must(copystructure.Copy(r)).(*Rich)
 }
 
 // SetSchema updates schema attribute of p.
-func (p *Rich) SetSchema(schema schema.Schema) *Rich {
-	p.Schema = &schema
-	return p
+func (r *Rich) SetSchema(schema schema.Schema) *Rich {
+	r.Schema = &schema
+	return r
 }
 
 // SetColumns updates columns attribute of p.
-func (p *Rich) SetColumns(columns []string) *Rich {
-	p.Columns = columns
-	return p
+func (r *Rich) SetColumns(columns []string) *Rich {
+	r.Columns = columns
+	return r
 }
 
 // SetSortedBy updates sorted_by attribute of p.
-func (p *Rich) SetSortedBy(keysColumns []string) *Rich {
-	p.SortedBy = keysColumns
-	return p
+func (r *Rich) SetSortedBy(keysColumns []string) *Rich {
+	r.SortedBy = keysColumns
+	return r
 }
 
 // SetAppend sets append attribute of p.
-func (p *Rich) SetAppend() *Rich {
+func (r *Rich) SetAppend() *Rich {
 	appendAttr := true
-	p.Append = &appendAttr
-	return p
+	r.Append = &appendAttr
+	return r
 }
 
 // AddRange adds element to ranges attribute of to p.
-func (p *Rich) AddRange(r Range) *Rich {
-	p.Ranges = append(p.Ranges, r)
-	return p
+func (r *Rich) AddRange(rr Range) *Rich {
+	r.Ranges = append(r.Ranges, rr)
+	return r
 }
 
 // SetErasure updates erasure_codec attribute of p.
-func (p *Rich) SetErasure(erasure ErasureCodec) *Rich {
-	p.Erasure = erasure
-	return p
+func (r *Rich) SetErasure(erasure ErasureCodec) *Rich {
+	r.Erasure = erasure
+	return r
 }
 
 // SetCompression updates compression_codec attribute of p.
-func (p *Rich) SetCompression(compression CompressionCodec) *Rich {
-	p.Compression = compression
-	return p
+func (r *Rich) SetCompression(compression CompressionCodec) *Rich {
+	r.Compression = compression
+	return r
 }
 
 // Child append name to Path.
-func (p *Rich) Child(name string) *Rich {
-	p.Path = p.Path.Child(name)
-	return p
+func (r *Rich) Child(name string) *Rich {
+	r.Path = r.Path.Child(name)
+	return r
 }

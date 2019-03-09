@@ -1,8 +1,9 @@
 package yson
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestReadListFragment(t *testing.T) {

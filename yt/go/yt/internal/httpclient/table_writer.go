@@ -1,8 +1,9 @@
 package httpclient
 
 import (
-	"a.yandex-team.ru/yt/go/yson"
 	"io"
+
+	"a.yandex-team.ru/yt/go/yson"
 )
 
 type tableWriter struct {

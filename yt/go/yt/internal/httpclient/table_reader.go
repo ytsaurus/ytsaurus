@@ -1,10 +1,12 @@
 package httpclient
 
 import (
+	"io"
+
+	"golang.org/x/xerrors"
+
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
-	"golang.org/x/xerrors"
-	"io"
 )
 
 type tableReader struct {
@@ -50,11 +52,7 @@ func (r *tableReader) Next() bool {
 	}
 
 	r.value, r.err = r.y.NextRawValue()
-	if r.err != nil {
-		return false
-	}
-
-	return true
+	return r.err == nil
 }
 
 func (r *tableReader) Err() error {

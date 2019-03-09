@@ -2,12 +2,12 @@ package ypath
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"strconv"
 
-	"a.yandex-team.ru/yt/go/yson"
 	"golang.org/x/xerrors"
+
+	"a.yandex-team.ru/yt/go/yson"
 )
 
 func isHex(b byte) bool {
@@ -25,60 +25,6 @@ func isSpace(c byte) bool {
 
 func isDigit(c byte) bool {
 	return '0' <= c && c <= '9'
-}
-
-func parseSuffix(suffix []byte) (ranges []Range, columns []string, err error) {
-	if len(suffix) != 0 && suffix[0] == '{' {
-		i := 1
-
-	loop:
-		for {
-			if i >= len(suffix) {
-				err = errors.New("ypath: unterminated column list")
-			}
-
-			var column []byte
-			var n int
-			n, err = yson.SliceYPathString(suffix[i:], &column)
-			if err != nil {
-				return
-			}
-
-			columns = append(columns, string(column))
-			i += n
-
-			if i >= len(suffix) {
-				err = errors.New("ypath: unterminated column list")
-				return
-			}
-
-			switch suffix[i] {
-			case ',':
-				i++
-				continue loop
-			case '}':
-				i++
-				break loop
-
-			default:
-				err = errors.New("ypath: malformed column list")
-				return
-			}
-		}
-
-		suffix = suffix[i:]
-	}
-
-	if len(suffix) != 0 && suffix[0] == '[' {
-
-	}
-
-	if len(suffix) != 0 {
-		err = errors.New("ypath: invalid suffix")
-		return
-	}
-
-	return
 }
 
 type stateFn func(*lexer) stateFn
@@ -331,10 +277,10 @@ func stateRanges(l *lexer) stateFn {
 				if err != nil {
 					l.err = xerrors.Errorf("ypath: invalid key: %v", err)
 					return nil
-				} else {
-					composite = append(composite, value)
-					i += n
 				}
+
+				composite = append(composite, value)
+				i += n
 
 				skipSpace()
 				if i >= len(l.input) {
@@ -356,11 +302,11 @@ func stateRanges(l *lexer) stateFn {
 			if err != nil {
 				l.err = xerrors.Errorf("ypath: invalid key: %v", err)
 				return nil
-			} else {
-				i += n
-				key := Key(value)
-				return &key
 			}
+
+			i += n
+			key := Key(value)
+			return &key
 		}
 	}
 

@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"a.yandex-team.ru/yt/go/yttest"
+	"github.com/stretchr/testify/require"
 
 	"a.yandex-team.ru/yt/go/yt"
-	"github.com/stretchr/testify/require"
+	"a.yandex-team.ru/yt/go/yttest"
 )
 
 func TestFiles(t *testing.T) {
@@ -39,9 +39,10 @@ func TestFiles(t *testing.T) {
 
 			r, err := env.YT.ReadFile(ctx, name, nil)
 			require.NoError(t, err)
-			defer r.Close()
+			defer func() { _ = r.Close() }()
 
 			file, err := ioutil.ReadAll(r)
+			require.NoError(t, err)
 			require.Equal(t, file, []byte("test"))
 		})
 

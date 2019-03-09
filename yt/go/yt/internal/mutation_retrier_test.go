@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"a.yandex-team.ru/yt/go/ypath"
+
 	"github.com/stretchr/testify/require"
 
 	"a.yandex-team.ru/yt/go/yt"
@@ -15,7 +17,7 @@ func TestMutationRetrierIgnoresGet(t *testing.T) {
 	r := MutationRetrier{Backoff: &zeroBackoff{}}
 
 	var called bool
-	_, err := r.Intercept(context.Background(), &Call{Params: NewGetNodeParams("", nil)},
+	_, err := r.Intercept(context.Background(), &Call{Params: NewGetNodeParams(ypath.Root, nil)},
 		func(ctx context.Context, call *Call) (*CallResult, error) {
 			if called {
 				t.Fatalf("get request retried")
@@ -33,7 +35,7 @@ func TestMutationRetriesSet(t *testing.T) {
 	var i int
 	var id yt.MutationID
 
-	_, err := r.Intercept(context.Background(), &Call{Params: NewSetNodeParams("", nil)},
+	_, err := r.Intercept(context.Background(), &Call{Params: NewSetNodeParams(ypath.Root, nil)},
 		func(ctx context.Context, call *Call) (*CallResult, error) {
 			options := call.Params.(*SetNodeParams).options
 			switch i {

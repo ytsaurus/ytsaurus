@@ -4,8 +4,9 @@ import (
 	"os"
 	"strings"
 
-	"a.yandex-team.ru/library/go/core/log"
 	"golang.org/x/xerrors"
+
+	"a.yandex-team.ru/library/go/core/log"
 )
 
 type Config struct {

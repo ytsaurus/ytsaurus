@@ -7,9 +7,9 @@ import (
 
 	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/ypath"
-
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yttest"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -108,7 +108,7 @@ func TestTables(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		richPath := ypath.NewRich(name).
+		richPath := name.Rich().
 			AddRange(ypath.Exact(ypath.RowIndex(1))).
 			AddRange(ypath.Exact(ypath.RowIndex(0)))
 

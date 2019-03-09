@@ -29,7 +29,7 @@ func (u *unmapper) UnmarshalYSON(r *yson.Reader) error {
 
 		if r.String() == u.key {
 			keyFound = true
-			if err := (&yson.Decoder{r}).Decode(u.value); err != nil {
+			if err := (&yson.Decoder{R: r}).Decode(u.value); err != nil {
 				return err
 			}
 		} else {

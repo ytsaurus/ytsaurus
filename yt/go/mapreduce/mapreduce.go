@@ -19,6 +19,9 @@ type Writer interface {
 	Write(value interface{}) error
 }
 
+type JobContext interface {
+}
+
 type Job interface {
 	Do(ctx JobContext, in Reader, out []Writer) error
 }

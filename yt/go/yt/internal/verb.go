@@ -67,7 +67,7 @@ func (v Verb) String() string {
 	return string(v)
 }
 
-func (v Verb) HttpMethod() string {
+func (v Verb) HTTPMethod() string {
 	if v.hasInput() {
 		return "PUT"
 	} else if v.volatile() {

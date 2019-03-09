@@ -1,3 +1,34 @@
+// Package yt defines interfaces of different YT services.
+//
+// All API methods follow the same conventions:
+//   - First argument is context.Context.
+//   - Last argument is pointer to Options struct.
+//   - Other arguments are required parameters.
+//
+// Zero value of every Options struct corresponds to default values of parameters.
+//
+// You may pass nil as the last argument.
+//
+//   var ctx context.Context
+//   var y yt.Client
+//   p := ypath.Path("//foo/bar/@zog")
+//
+//   // These two calls do the same thing.
+//   y.SetNode(ctx, p, 1, nil)
+//   y.SetNode(ctx, p, 1, &yt.SetNodeOptions{})
+//
+// By default, client retries all transient errors indefinitely. Use context.WithTimeout to provide timeout for api call.
+//
+// API methods are grouped into interfaces, according to part of the system they interact with:
+//   - CypressClient           - cypress nodes
+//   - LowLevelTxClient        - cypress transactions
+//   - LockClient              - cypress locks
+//   - LowLevelSchedulerClient - scheduler
+//   - FileClient              - file operations
+//   - TableClient             - table operations
+//   - AdminClient             - misc administrative commands
+//
+// Finally, yt.Client and yt.Tx provide high level api for transactions and embed interfaces of different subsystems.
 package yt
 
 import (
@@ -622,6 +653,14 @@ type LockClient interface {
 	) (err error)
 }
 
+// Tx is high level API for master transactions.
+//
+// Create new tx by calling Begin() method on Client or other Tx.
+//
+// Cleanup of started tx is responsibility of the user. Tx is terminated, either by calling Commit() or Abort(),
+// or by canceling ctx passed to Begin().
+//
+// Unterminated tx will result in goroutine leak.
 type Tx interface {
 	CypressClient
 	FileClient
@@ -630,11 +669,50 @@ type Tx interface {
 
 	ID() TxID
 	Commit() error
-	Rollback() error
+	Abort() error
+
+	// Finished returns a channel that is closed when transaction finishes, either because it was committed or aborted.
+	Finished() <-chan struct{}
 
 	// Begin creates nested transaction.
 	Begin(ctx context.Context, options *StartTxOptions) (tx Tx, err error)
 }
+
+//type LookupRowsOptions struct{}
+//type WriteRowsOptions struct{}
+//type RemoveRowsOptions struct{}
+//type SelectRowsOptions struct{}
+//
+//type Rowset struct{}
+//
+//type SQLClient interface {
+//	LookupRows(
+//		ctx context.Context,
+//		path ypath.Path,
+//		keys [][]interface{},
+//		options *LookupRowsOptions,
+//	) (rowset *Rowset, err error)
+//
+//	WriteRows(
+//		ctx context.Context,
+//		path ypath.Path,
+//		rows [][]interface{},
+//		options *WriteRowsOptions,
+//	) (err error)
+//
+//	RemoveRows(
+//		ctx context.Context,
+//		path ypath.Path,
+//		keys [][]interface{},
+//		options *RemoveRowsOptions,
+//	) (err error)
+//
+//	SelectRows(
+//		ctx context.Context,
+//		query string,
+//		options *SelectRowsOptions,
+//	) (rowset *Rowset, err error)
+//}
 
 type Client interface {
 	CypressClient

@@ -6,9 +6,10 @@ package guid
 import (
 	"fmt"
 
-	"a.yandex-team.ru/yt/go/yson"
 	"github.com/gofrs/uuid/v3"
 	"github.com/pkg/errors"
+
+	"a.yandex-team.ru/yt/go/yson"
 )
 
 type GUID uuid.UUID
@@ -83,26 +84,22 @@ func (g GUID) MarshalYSON(w *yson.Writer) error {
 	return nil
 }
 
-func (g *GUID) UnmarshalText(data []byte) error {
-	if gg, err := ParseString(string(data)); err != nil {
+func (g *GUID) UnmarshalText(data []byte) (err error) {
+	if *g, err = ParseString(string(data)); err != nil {
 		return err
-	} else {
-		*g = gg
 	}
 
 	return nil
 }
 
-func (g *GUID) UnmarshalYSON(data []byte) error {
+func (g *GUID) UnmarshalYSON(data []byte) (err error) {
 	var value string
 	if err := yson.Unmarshal(data, &value); err != nil {
 		return err
 	}
 
-	if gg, err := ParseString(value); err != nil {
+	if *g, err = ParseString(value); err != nil {
 		return err
-	} else {
-		*g = gg
 	}
 
 	return nil

@@ -60,6 +60,8 @@ func (c *httpClient) pickHeavyProxy(ctx context.Context) (string, error) {
 			err = ctx.Err()
 		default:
 		}
+
+		return "", err
 	}
 	defer func() { _ = rsp.Body.Close() }()
 
@@ -76,7 +78,7 @@ func (c *httpClient) pickHeavyProxy(ctx context.Context) (string, error) {
 		return "", xerrors.New("proxy list is empty")
 	}
 
-	best := "http://" + string(proxies[0])
+	best := "http://" + proxies[0]
 	return best, nil
 }
 
@@ -98,7 +100,7 @@ func (c *httpClient) writeParams(h http.Header, call *internal.Call) error {
 	return nil
 }
 
-func (c *httpClient) writeHttpRequest(ctx context.Context, call *internal.Call, body io.Reader) (req *http.Request, err error) {
+func (c *httpClient) writeHTTPRequest(ctx context.Context, call *internal.Call, body io.Reader) (req *http.Request, err error) {
 	url := c.clusterURL
 	if call.Params.HTTPVerb().IsHeavy() {
 		url, err = c.pickHeavyProxy(ctx)
@@ -112,7 +114,7 @@ func (c *httpClient) writeHttpRequest(ctx context.Context, call *internal.Call, 
 	}
 
 	verb := call.Params.HTTPVerb()
-	req, err = http.NewRequest(verb.HttpMethod(), url+"/api/v4/"+verb.String(), body)
+	req, err = http.NewRequest(verb.HTTPMethod(), url+"/api/v4/"+verb.String(), body)
 	if err != nil {
 		return
 	}
@@ -169,7 +171,7 @@ func (c *httpClient) readResult(rsp *http.Response) (res *internal.CallResult, e
 
 func (c *httpClient) do(ctx context.Context, call *internal.Call) (res *internal.CallResult, err error) {
 	var req *http.Request
-	req, err = c.writeHttpRequest(ctx, call, nil)
+	req, err = c.writeHTTPRequest(ctx, call, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +197,7 @@ func (c *httpClient) doWrite(ctx context.Context, call *internal.Call) (w io.Wri
 	pr, pw := io.Pipe()
 	errChan := make(chan error, 1)
 
-	req, err := c.writeHttpRequest(ctx, call, ioutil.NopCloser(pr))
+	req, err := c.writeHTTPRequest(ctx, call, ioutil.NopCloser(pr))
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +264,7 @@ func (c *httpClient) doReadRow(ctx context.Context, call *internal.Call) (r yt.T
 
 func (c *httpClient) doRead(ctx context.Context, call *internal.Call) (r io.ReadCloser, err error) {
 	var req *http.Request
-	req, err = c.writeHttpRequest(ctx, call, nil)
+	req, err = c.writeHTTPRequest(ctx, call, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -323,7 +325,7 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 		Backoff: &internal.DefaultBackoff,
 		Log:     client.log,
 	}
-	client.requestLogger = &internal.LoggingInterceptor{client.log}
+	client.requestLogger = &internal.LoggingInterceptor{Logger: client.log}
 
 	client.Encoder.Invoke = client.Encoder.Invoke.
 		Wrap(client.requestLogger.Intercept).
@@ -336,7 +338,7 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 	client.Encoder.InvokeWriteRow = client.Encoder.InvokeWriteRow.Wrap(client.requestLogger.WriteRow)
 
 	if c.Token != "" {
-		client.credentials = &yt.TokenCredentials{c.Token}
+		client.credentials = &yt.TokenCredentials{Token: c.Token}
 	}
 
 	return &client, nil
