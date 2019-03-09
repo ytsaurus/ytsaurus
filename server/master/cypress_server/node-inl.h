@@ -94,15 +94,20 @@ void TVersionedBuiltinAttribute<T>::Merge(
     const TOwner* branchedNode)
 {
     const auto& branchedAttribute = branchedNode->*member;
-    if (std::holds_alternative<TTombstone>(branchedAttribute.BoxedValue_)) {
-        if (originatingNode->IsTrunk()) {
-            BoxedValue_ = TNull();
-        } else {
-            BoxedValue_ = TTombstone();
-        }
-    } else if (const auto* value = std::get_if<T>(&branchedAttribute.BoxedValue_)) {
-        BoxedValue_ = *value;
-    }
+    Visit(branchedAttribute.BoxedValue_,
+        [&] (TTombstone) {
+            if (originatingNode->IsTrunk()) {
+                BoxedValue_ = TNull();
+            } else {
+                BoxedValue_ = TTombstone();
+            }
+        },
+        [&] (const T& value) {
+            BoxedValue_ = value;
+        },
+        [&] (TNull) {
+            // ignore
+        });
 }
 
 template <class T>

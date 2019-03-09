@@ -29,6 +29,8 @@
 #include <yt/ytlib/event_log/event_log.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
+#include <yt/ytlib/scheduler/config.h>
+#include <yt/ytlib/scheduler/helpers.h>
 
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/periodic_executor.h>

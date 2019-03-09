@@ -1,10 +1,12 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include <yt/server/lib/misc/config.h>
 
 #include <yt/ytlib/api/native/config.h>
+
+#include <yt/client/ypath/rich.h>
 
 #include <yt/core/concurrency/config.h>
 #include <yt/core/ytree/fluent.h>
@@ -12,17 +14,6 @@
 namespace NYT::NClickHouseServer {
 
 using namespace NYTree;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TNativeClientCacheConfig
-    : public TAsyncExpiringCacheConfig
-{
-public:
-    TNativeClientCacheConfig() = default;
-};
-
-DEFINE_REFCOUNTED_TYPE(TNativeClientCacheConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,6 +67,80 @@ DEFINE_REFCOUNTED_TYPE(TUserConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDictionarySourceYtConfig
+    : public TYsonSerializable
+{
+public:
+    TDictionarySourceYtConfig()
+    {
+        RegisterParameter("path", Path);
+    }
+
+    NYPath::TRichYPath Path;
+};
+
+DEFINE_REFCOUNTED_TYPE(TDictionarySourceYtConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Source configuration.
+//! Extra supported configuration type is "yt".
+//! See: https://clickhouse.yandex/docs/en/query_language/dicts/external_dicts_dict_sources/
+class TDictionarySourceConfig
+    : public TYsonSerializable
+{
+public:
+    TDictionarySourceConfig()
+    {
+        RegisterParameter("yt", Yt)
+            .Default(nullptr);
+    }
+
+    // TODO(max42): proper value omission.
+    TDictionarySourceYtConfigPtr Yt;
+};
+
+DEFINE_REFCOUNTED_TYPE(TDictionarySourceConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! External dictionary configuration.
+//! See: https://clickhouse.yandex/docs/en/query_language/dicts/external_dicts_dict/
+class TDictionaryConfig
+    : public TYsonSerializable
+{
+public:
+    TDictionaryConfig()
+    {
+        RegisterParameter("name", Name);
+        RegisterParameter("source", Source);
+        RegisterParameter("layout", Layout);
+        RegisterParameter("structure", Structure);
+        RegisterParameter("lifetime", Lifetime);
+    }
+
+    TString Name;
+
+    //! Source configuration.
+    TDictionarySourceConfigPtr Source;
+
+    //! Layout configuration.
+    //! See: https://clickhouse.yandex/docs/en/query_language/dicts/external_dicts_dict_layout/
+    IMapNodePtr Layout;
+
+    //! Structure configuration.
+    //! See: https://clickhouse.yandex/docs/en/query_language/dicts/external_dicts_dict_structure/
+    IMapNodePtr Structure;
+
+    //! Lifetime configuration.
+    //! See: https://clickhouse.yandex/docs/en/query_language/dicts/external_dicts_dict_lifetime/
+    INodePtr Lifetime;
+};
+
+DEFINE_REFCOUNTED_TYPE(TDictionaryConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TEngineConfig
     : public TYsonSerializable
 {
@@ -100,6 +165,15 @@ public:
         RegisterParameter("settings", Settings)
             .Optional()
             .MergeBy(EMergeStrategy::Combine);
+
+        RegisterParameter("dictionaries", Dictionaries)
+            .Default();
+
+        RegisterParameter("path_to_regions_hierarchy_file", PathToRegionsHierarchyFile)
+            .Default("./geodata/regions_hierarchy.txt");
+
+        RegisterParameter("path_to_regions_name_files", PathToRegionsNameFiles)
+            .Default("./geodata/");
 
         RegisterPreprocessor([&] {
             Settings["readonly"] = ConvertToNode(2);
@@ -132,6 +206,9 @@ public:
     //! Log level for internal CH logging.
     TString LogLevel;
 
+    //! External dictionaries.
+    std::vector<TDictionaryConfigPtr> Dictionaries;
+
     //! ClickHouse settings.
     //! Refer to https://clickhouse.yandex/docs/en/operations/settings/settings/ for a complete list.
     //! This map is merged into `users/profiles/default`.
@@ -139,22 +216,23 @@ public:
 
     //! Hosts to listen.
     std::vector<TString> ListenHosts;
+
+    //! Paths to geodata stuff.
+    TString PathToRegionsHierarchyFile;
+    TString PathToRegionsNameFiles;
 };
 
 DEFINE_REFCOUNTED_TYPE(TEngineConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TConfig
+class TClickHouseServerBootstrapConfig
     : public TServerConfig
 {
 public:
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
-    TNativeClientCacheConfigPtr ClientCache;
-
-    //! Controls incoming bandwidth used by scan jobs.
-    NConcurrency::TThroughputThrottlerConfigPtr ScanThrottler;
+    TSlruCacheConfigPtr ClientCache;
 
     bool ValidateOperationPermission;
 
@@ -163,15 +241,14 @@ public:
     //! User for communication with YT.
     TString User;
 
-    TConfig()
+    TDuration ProfilingPeriod;
+
+    TClickHouseServerBootstrapConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
 
         RegisterParameter("client_cache", ClientCache)
             .DefaultNew();
-
-        RegisterParameter("scan_throttler", ScanThrottler)
-            .Default();
 
         RegisterParameter("validate_operation_permission", ValidateOperationPermission)
             .Default(true);
@@ -181,10 +258,13 @@ public:
 
         RegisterParameter("engine", Engine)
             .DefaultNew();
+
+        RegisterParameter("profiling_period", ProfilingPeriod)
+            .Default(TDuration::Seconds(1));
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TConfig);
+DEFINE_REFCOUNTED_TYPE(TClickHouseServerBootstrapConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

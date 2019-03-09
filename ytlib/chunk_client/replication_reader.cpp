@@ -165,7 +165,7 @@ public:
 
         YT_LOG_DEBUG("Reader initialized (InitialSeedReplicas: %v, FetchPromPeers: %v, LocalDescriptor: %v, PopulateCache: %v, "
             "AllowFetchingSeedsFromMaster: %v, Networks: %v)",
-            MakeFormattableRange(InitialSeedReplicas_, TChunkReplicaAddressFormatter(NodeDirectory_)),
+            MakeFormattableView(InitialSeedReplicas_, TChunkReplicaAddressFormatter(NodeDirectory_)),
             Config_->FetchFromPeers,
             LocalDescriptor_,
             Config_->PopulateCache,
@@ -176,13 +176,13 @@ public:
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         const std::vector<int>& blockIndexes,
-        const std::optional<i64>& estimatedSize) override;
+        std::optional<i64> estimatedSize) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         int firstBlockIndex,
         int blockCount,
-        const std::optional<i64>& estimatedSize) override;
+        std::optional<i64> estimatedSize) override;
 
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientBlockReadOptions& options,
@@ -454,7 +454,7 @@ private:
         Reader_->ExcludeFreshSeedsFromBannedForeverPeers(seedReplicas);
 
         YT_LOG_DEBUG("Chunk seeds received (SeedReplicas: %v)",
-            MakeFormattableRange(seedReplicas, TChunkReplicaAddressFormatter(NodeDirectory_)));
+            MakeFormattableView(seedReplicas, TChunkReplicaAddressFormatter(NodeDirectory_)));
 
         YCHECK(!Reader_->SeedsPromise_.IsSet());
         Reader_->SeedsPromise_.Set(seedReplicas);
@@ -1029,7 +1029,7 @@ public:
         TReplicationReader* reader,
         const TClientBlockReadOptions& options,
         const std::vector<int>& blockIndexes,
-        const std::optional<i64>& estimatedSize)
+        std::optional<i64> estimatedSize)
         : TSessionBase(reader, options)
         , BlockIndexes_(blockIndexes)
     {
@@ -1453,7 +1453,7 @@ private:
         YT_LOG_DEBUG("Finished processing block response (Address: %v, PeerType: %v, BlocksReceived: %v, BytesReceived: %v, PeersSuggested: %v)",
               peerAddress,
               optionalPeer->Type,
-              MakeShrunkFormattableRange(receivedBlockIndexes, TDefaultFormatter(), 3),
+              MakeShrunkFormattableView(receivedBlockIndexes, TDefaultFormatter(), 3),
               bytesReceived,
               rsp->peer_descriptors_size());
 
@@ -1510,7 +1510,7 @@ private:
 TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     const TClientBlockReadOptions& options,
     const std::vector<int>& blockIndexes,
-    const std::optional<i64>& estimatedSize)
+    std::optional<i64> estimatedSize)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1771,7 +1771,7 @@ TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     const TClientBlockReadOptions& options,
     int firstBlockIndex,
     int blockCount,
-    const std::optional<i64>& estimatedSize)
+    std::optional<i64> estimatedSize)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

@@ -14,7 +14,11 @@
 
 #include <yt/core/misc/ref.h>
 
+#include <yt/core/concurrency/async_stream.h>
+
 #include <yt/core/rpc/proto/rpc.pb.h>
+
+#include <yt/core/compression/public.h>
 
 namespace NYT::NRpc {
 
@@ -26,7 +30,7 @@ namespace NYT::NRpc {
  *  Implementations are not thread-safe.
  */
 struct IServiceContext
-    : public virtual TIntrinsicRefCounted
+    : public virtual TRefCounted
 {
     //! Returns raw header of the request being handled.
     virtual const NProto::TRequestHeader& GetRequestHeader() const = 0;
@@ -139,8 +143,14 @@ struct IServiceContext
     //! Returns a vector of request attachments.
     virtual std::vector<TSharedRef>& RequestAttachments() = 0;
 
+    //! Returns the stream of asynchronous request attachments.
+    virtual NConcurrency::IAsyncZeroCopyInputStreamPtr GetRequestAttachmentsStream() = 0;
+
     //! Returns a vector of response attachments.
     virtual std::vector<TSharedRef>& ResponseAttachments() = 0;
+
+    //! Returns the stream of asynchronous response attachments.
+    virtual NConcurrency::IAsyncZeroCopyOutputStreamPtr GetResponseAttachmentsStream() = 0;
 
     //! Returns immutable request header.
     virtual const NProto::TRequestHeader& RequestHeader() const = 0;
@@ -162,6 +172,12 @@ struct IServiceContext
 
     //! Returns |true| if requests and responses are pooled.
     virtual bool IsPooled() const = 0;
+
+    //! Returns the currently configured response codec.
+    virtual NCompression::ECodec GetResponseCodec() const = 0;
+
+    //! Changes the response codec.
+    virtual void SetResponseCodec(NCompression::ECodec codec) = 0;
 
 
     // Extension methods.
@@ -231,6 +247,15 @@ struct IService
     virtual void HandleRequestCancelation(
         TRequestId requestId) = 0;
 
+    //! Enables passing streaming data from clients to the service.
+    virtual void HandleStreamingPayload(
+        TRequestId requestId,
+        const TStreamingPayload& payload) = 0;
+
+    //! Enables clients to notify the service about their progress in receiving streaming data.
+    virtual void HandleStreamingFeedback(
+        TRequestId requestId,
+        const TStreamingFeedback& feedback) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IService)

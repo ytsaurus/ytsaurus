@@ -377,6 +377,7 @@ struct TQuery
 
     TOrderExpressionList OrderExpressions;
 
+    std::optional<i64> Offset;
     std::optional<i64> Limit;
 };
 

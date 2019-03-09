@@ -53,7 +53,7 @@ void TReplicationPolicy::Load(NCellMaster::TLoadContext& context)
     DataPartsOnly_ = Load<decltype(DataPartsOnly_)>(context);
 }
 
-void FormatValue(TStringBuilder* builder, TReplicationPolicy policy, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, TReplicationPolicy policy, TStringBuf /*spec*/)
 {
     builder->AppendFormat("{ReplicationFactor: %v, DataPartsOnly: %v}",
         policy.GetReplicationFactor(),
@@ -83,48 +83,66 @@ void Deserialize(TReplicationPolicy& policy, NYTree::INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkReplication::TChunkReplication(bool clearForAggregating)
+TChunkReplication::TEntry::TEntry(int mediumIndex, TReplicationPolicy policy)
+    : MediumIndex_(static_cast<ui16>(mediumIndex))
+    , Policy_(policy)
+{ }
+
+void TChunkReplication::TEntry::Save(NCellMaster::TSaveContext& context) const
 {
-    if (clearForAggregating) {
-        for (auto& policy : MediumReplicationPolicies) {
-            policy.SetDataPartsOnly(true);
-        }
-    }
+    using NYT::Save;
+
+    Save(context, MediumIndex_);
+    Save(context, Policy_);
 }
+
+void TChunkReplication::TEntry::Load(NCellMaster::TLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, MediumIndex_);
+    Load(context, Policy_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TChunkReplication::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
-    Save(context, MediumReplicationPolicies);
+    Save(context, Entries_);
     Save(context, Vital_);
 }
 
 void TChunkReplication::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
-    Load(context, MediumReplicationPolicies);
+
+    // COMPAT(shakurov)
+    if (context.GetVersion() < 825) {
+        constexpr auto oldMaxMediumCount = 7;
+        std::array<TReplicationPolicy, oldMaxMediumCount> oldReplicationPolicies{};
+        Load(context, oldReplicationPolicies);
+        for (auto mediumIndex = 0; mediumIndex < oldMaxMediumCount; ++mediumIndex) {
+            if (auto& policy = oldReplicationPolicies[mediumIndex]) {
+                Insert(mediumIndex, policy);
+            }
+        }
+    } else {
+        Load(context, Entries_);
+    }
+
     Load(context, Vital_);
 }
 
-TChunkReplication& TChunkReplication::operator|=(const TChunkReplication& rhs)
+void TChunkReplication::ClearEntries()
 {
-    if (this == &rhs) {
-        return *this;
-    }
-
-    SetVital(GetVital() || rhs.GetVital());
-
-    for (int i = 0; i < MaxMediumCount; ++i) {
-        (*this)[i] |= rhs[i];
-    }
-
-    return *this;
+    Entries_.clear();
 }
 
 bool TChunkReplication::IsValid() const
 {
-    for (const auto& policy : MediumReplicationPolicies) {
-        if (policy && !policy.GetDataPartsOnly()) {
+    for (const auto& entry : Entries_) {
+        if (entry.Policy() && !entry.Policy().GetDataPartsOnly()) {
             // At least one medium has complete data.
             return true;
         }
@@ -133,29 +151,16 @@ bool TChunkReplication::IsValid() const
     return false;
 }
 
-void FormatValue(TStringBuilder* builder, TChunkReplication replication, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, const TChunkReplication& replication, TStringBuf /*spec*/)
 {
-    // We want to accompany medium policies with medium indexes.
-    using TIndexPolicyPair = std::pair<int, TReplicationPolicy>;
-
-    SmallVector<TIndexPolicyPair, MaxMediumCount> filteredPolicies;
-    int mediumIndex = 0;
-    for (const auto& policy : replication) {
-        if (policy) {
-            filteredPolicies.emplace_back(mediumIndex, policy);
-        }
-        ++mediumIndex;
-    }
-
     return builder->AppendFormat(
         "{Vital: %v, Media: {%v}}",
         replication.GetVital(),
-        MakeFormattableRange(
-            filteredPolicies,
-            [&] (TStringBuilder* aBuilder, const TIndexPolicyPair& pair) {
-                aBuilder->AppendFormat("%v: %v", pair.first, pair.second);
+        MakeFormattableView(
+            replication,
+            [&] (TStringBuilderBase* aBuilder, const TChunkReplication::TEntry& entry) {
+                aBuilder->AppendFormat("%v: %v", entry.GetMediumIndex(), entry.Policy());
             }));
-
 }
 
 TString ToString(const TChunkReplication& replication)
@@ -169,11 +174,11 @@ TSerializableChunkReplication::TSerializableChunkReplication(
     const TChunkReplication& replication,
     const TChunkManagerPtr& chunkManager)
 {
-    for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
-        const auto& policy = replication[mediumIndex];
-        if (policy) {
-            auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
-            YCHECK(MediumReplicationPolicies_.emplace(medium->GetName(), policy).second);
+    for (const auto& entry : replication) {
+        if (entry.Policy()) {
+            auto* medium = chunkManager->GetMediumByIndex(entry.GetMediumIndex());
+            YCHECK(IsObjectAlive(medium));
+            YCHECK(Entries_.emplace(medium->GetName(), entry.Policy()).second);
         }
     }
 }
@@ -182,29 +187,26 @@ void TSerializableChunkReplication::ToChunkReplication(
     TChunkReplication* replication,
     const TChunkManagerPtr& chunkManager)
 {
-    for (auto& policy : *replication) {
-        policy.Clear();
-    }
+    replication->ClearEntries();
 
-    for (const auto& pair : MediumReplicationPolicies_) {
+    for (const auto& pair : Entries_) {
         auto* medium = chunkManager->GetMediumByNameOrThrow(pair.first);
         auto mediumIndex = medium->GetIndex();
-        auto& policy = (*replication)[mediumIndex];
-        policy = pair.second;
+        replication->Set(mediumIndex, pair.second);
     }
 }
 
 void TSerializableChunkReplication::Serialize(NYson::IYsonConsumer* consumer) const
 {
     BuildYsonFluently(consumer)
-        .Value(MediumReplicationPolicies_);
+        .Value(Entries_);
 }
 
 void TSerializableChunkReplication::Deserialize(INodePtr node)
 {
     YCHECK(node);
 
-    MediumReplicationPolicies_ = ConvertTo<std::map<TString, TReplicationPolicy>>(node);
+    Entries_ = ConvertTo<std::map<TString, TReplicationPolicy>>(node);
 }
 
 void Serialize(const TSerializableChunkReplication& serializer, NYson::IYsonConsumer* consumer)
@@ -243,14 +245,11 @@ void ValidateChunkReplication(
             "configuring otherwise would result in a data loss");
     }
 
-    for (int index = 0; index < MaxMediumCount; ++index) {
-        const auto* medium = chunkManager->FindMediumByIndex(index);
-        if (!IsObjectAlive(medium)) {
-            continue;
-        }
+    for (const auto& entry : replication) {
+        auto* medium = chunkManager->FindMediumByIndex(entry.GetMediumIndex());
+        YCHECK(IsObjectAlive(medium));
 
-        const auto& policy = replication[index];
-        if (policy && medium->GetCache()) {
+        if (entry.Policy() && medium->GetCache()) {
             THROW_ERROR_EXCEPTION("Cache medium %Qv cannot be configured explicitly",
                 medium->GetName());
         }
@@ -258,12 +257,12 @@ void ValidateChunkReplication(
 
     if (primaryMediumIndex) {
         const auto* primaryMedium = chunkManager->GetMediumByIndex(*primaryMediumIndex);
-        const auto& primaryMediumPolicy = replication[*primaryMediumIndex];
-        if (!primaryMediumPolicy) {
+        const auto& policy = replication.Get(*primaryMediumIndex);
+        if (!policy) {
             THROW_ERROR_EXCEPTION("Medium %Qv is not configured and cannot be made primary",
-                                  primaryMedium->GetName());
+                primaryMedium->GetName());
         }
-        if (primaryMediumPolicy.GetDataPartsOnly()) {
+        if (policy.GetDataPartsOnly()) {
             THROW_ERROR_EXCEPTION("Medium %Qv stores no parity parts and cannot be made primary",
                                   primaryMedium->GetName());
         }
@@ -292,7 +291,7 @@ void TRequisitionEntry::Load(NCellMaster::TLoadContext& context)
     Load(context, Committed);
 }
 
-void FormatValue(TStringBuilder* builder, const TRequisitionEntry& entry, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, const TRequisitionEntry& entry, TStringBuf /*spec*/)
 {
     return builder->AppendFormat(
         "{AccountId: %v, MediumIndex: %v, ReplicationPolicy: %v, Committed: %v}",
@@ -367,11 +366,12 @@ void TChunkRequisition::Load(NCellMaster::TLoadContext& context)
 
 void TChunkRequisition::ForceReplicationFactor(int replicationFactor)
 {
+    Y_ASSERT(replicationFactor > 0);
+
     for (auto& entry : Entries_) {
         auto& replicationPolicy = entry.ReplicationPolicy;
-        if (replicationPolicy) {
-            replicationPolicy.SetReplicationFactor(replicationFactor);
-        }
+        YCHECK(replicationPolicy);
+        replicationPolicy.SetReplicationFactor(replicationFactor);
     }
 }
 
@@ -396,10 +396,9 @@ void TChunkRequisition::AggregateWith(
 
     Vital_ = Vital_ || replication.GetVital();
 
-    for (auto mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
-        const auto& policy = replication[mediumIndex];
-        if (policy) {
-            Entries_.emplace_back(account, mediumIndex, policy, committed);
+    for (const auto& entry : replication) {
+        if (entry.Policy()) {
+            Entries_.emplace_back(account, entry.GetMediumIndex(), entry.Policy(), committed);
         }
     }
 
@@ -408,20 +407,20 @@ void TChunkRequisition::AggregateWith(
 
 TChunkReplication TChunkRequisition::ToReplication() const
 {
-    TChunkReplication result(true /* clearForAggregating */);
+    TChunkReplication result;
     result.SetVital(Vital_);
 
     auto foundCommitted = false;
     for (const auto& entry : Entries_) {
         if (entry.Committed) {
-            result[entry.MediumIndex] |= entry.ReplicationPolicy;
+            result.Aggregate(entry.MediumIndex, entry.ReplicationPolicy);
             foundCommitted = true;
         }
     }
 
     if (!foundCommitted) {
         for (const auto& entry : Entries_) {
-            result[entry.MediumIndex] |= entry.ReplicationPolicy;
+            result.Aggregate(entry.MediumIndex, entry.ReplicationPolicy);
         }
     }
 
@@ -491,14 +490,14 @@ void TChunkRequisition::AddEntry(
     Entries_.emplace_back(account, mediumIndex, replicationPolicy, committed);
 }
 
-void FormatValue(TStringBuilder* builder, const TChunkRequisition& requisition, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, const TChunkRequisition& requisition, TStringBuf /*spec*/)
 {
     builder->AppendFormat(
         "{Vital: %v, Entries: {%v}}",
         requisition.GetVital(),
-        MakeFormattableRange(
+        MakeFormattableView(
             requisition,
-            [] (TStringBuilder* builder, const TRequisitionEntry& entry) {
+            [] (TStringBuilderBase* builder, const TRequisitionEntry& entry) {
                 FormatValue(builder, entry);
             }));
 }

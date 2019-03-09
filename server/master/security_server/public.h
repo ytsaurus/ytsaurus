@@ -49,7 +49,10 @@ class TAccessControlDescriptor;
 
 DECLARE_REFCOUNTED_STRUCT(TSerializableAccessControlEntry);
 
+struct TPermissionCheckTarget;
+struct TPermissionCheckOptions;
 struct TPermissionCheckResult;
+struct TPermissionCheckResponse;
 
 struct TUserWorkload;
 

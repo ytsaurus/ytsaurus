@@ -97,7 +97,7 @@ public:
 class TPartitionIdFormatter
 {
 public:
-    void operator()(TStringBuilder* builder, const std::unique_ptr<TPartition>& partition) const;
+    void operator()(TStringBuilderBase* builder, const std::unique_ptr<TPartition>& partition) const;
 
 };
 

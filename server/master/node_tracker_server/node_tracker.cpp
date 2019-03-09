@@ -315,7 +315,7 @@ public:
 
         YT_LOG_DEBUG("Node register mutation scheduled (Address: %v, NodeGroups: %v)",
             address,
-            MakeFormattableRange(groups, [] (auto* builder, const auto* group) {
+            MakeFormattableView(groups, [] (auto* builder, const auto* group) {
                 builder->AppendFormat("%v", group->Id);
             }));
 
@@ -2100,7 +2100,7 @@ void TNodeTracker::TClusterNodeTypeHandler::DoZombifyObject(TNode* node)
 {
     TObjectTypeHandlerWithMapBase::DoZombifyObject(node);
     // NB: Destroy the node right away and do not wait for GC to prevent
-    // dangling links from occuring in //sys/nodes.
+    // dangling links from occurring in //sys/cluster_nodes.
     Owner_->DestroyNode(node);
 }
 

@@ -40,7 +40,7 @@ public:
 
     const TLoggingCategory* GetCategory(const char* categoryName);
     void UpdateCategory(TLoggingCategory* category);
-    void UpdatePosition(TLoggingPosition* position, const TString& message);
+    void UpdatePosition(TLoggingPosition* position, TStringBuf message);
 
     int GetVersion() const;
 

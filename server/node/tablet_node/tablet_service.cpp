@@ -20,6 +20,7 @@
 #include <yt/client/table_client/wire_protocol.h>
 
 #include <yt/client/table_client/row_buffer.h>
+#include <yt/client/security_client/public.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 

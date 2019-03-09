@@ -28,10 +28,26 @@ namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Describes the result of #TSecurityManager::CheckAccess invocation.
+//! Describes an object (or its part) for which permission check
+//! was carried out.
+struct TPermissionCheckTarget
+{
+    NObjectServer::TObjectBase* Object;
+    std::optional<TString> Column;
+};
+
+//! Specifies additional options for permission check.
+struct TPermissionCheckOptions
+{
+    //! If given, indicates that only a subset of columns are to affected by the operation.
+    std::optional<std::vector<TString>> Columns;
+};
+
+//! Describes the result of a permission check for a single entity.
 struct TPermissionCheckResult
 {
     //! Was request allowed or declined?
+    //! Note that this concerns the object as a whole, even if #TPermissionCheckOptions::Columns are given.
     ESecurityAction Action = ESecurityAction::Undefined;
 
     //! The object whose ACL contains the matching ACE.
@@ -41,6 +57,16 @@ struct TPermissionCheckResult
     //! Subject to which the decision applies.
     //! Can be |nullptr|.
     TSubject* Subject = nullptr;
+};
+
+//! Describes the complete response of a permission check.
+//! This includes the result for the principal object and also its parts (e.g. columns).
+struct TPermissionCheckResponse
+    : public TPermissionCheckResult
+{
+    //! If TPermissionCheckOptions::Columns are given, this array contains
+    //! results for individual columns.
+    std::optional<std::vector<TPermissionCheckResult>> Columns;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -211,16 +237,18 @@ public:
 
 
     //! Checks if #object ACL allows access with #permission.
-    TPermissionCheckResult CheckPermission(
+    TPermissionCheckResponse CheckPermission(
         NObjectServer::TObjectBase* object,
         TUser* user,
-        EPermission permission);
+        EPermission permission,
+        const TPermissionCheckOptions& options = {});
 
     //! Checks if given ACL allows access with #permission.
-    TPermissionCheckResult CheckPermission(
+    TPermissionCheckResponse CheckPermission(
         TUser* user,
         EPermission permission,
-        const TAccessControlList& acl);
+        const TAccessControlList& acl,
+        const TPermissionCheckOptions& options = {});
 
     //! Similar to #CheckPermission but throws a human-readable exception on failure.
     /*!
@@ -229,12 +257,21 @@ public:
     void ValidatePermission(
         NObjectServer::TObjectBase* object,
         TUser* user,
-        EPermission permission);
+        EPermission permission,
+        const TPermissionCheckOptions& options = {});
 
     //! Another overload that uses the current user.
     void ValidatePermission(
         NObjectServer::TObjectBase* object,
-        EPermission permission);
+        EPermission permission,
+        const TPermissionCheckOptions& options = {});
+
+    //! If #result is denying then logs a record into a security log and throw an exception.
+    void LogAndThrowAuthorizationError(
+        const TPermissionCheckTarget& target,
+        TUser* user,
+        EPermission permission,
+        const TPermissionCheckResult& result);
 
 
     //! Throws if account limit is exceeded for some resource type with positive delta.

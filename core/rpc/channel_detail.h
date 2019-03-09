@@ -35,19 +35,34 @@ class TClientRequestControlThunk
     : public IClientRequestControl
 {
 public:
-    void SetUnderlying(IClientRequestControlPtr underlyingControl);
+    void SetUnderlying(IClientRequestControlPtr underlying);
 
     virtual void Cancel() override;
+    virtual TFuture<void> SendStreamingPayload(const TStreamingPayload& payload) override;
+    virtual TFuture<void> SendStreamingFeedback(const TStreamingFeedback& feedback) override;
 
 private:
     TSpinLock SpinLock_;
+
     bool Canceled_ = false;
+
+    struct TPendingStreamingPayload
+    {
+        TStreamingPayload Payload;
+        TPromise<void> Promise;
+    };
+    std::vector<TPendingStreamingPayload> PendingStreamingPayloads_;
+
+    struct TPendingStreamingFeedback
+    {
+        TStreamingFeedback Feedback{-1};
+        TPromise<void> Promise;
+    };
+    TPendingStreamingFeedback PendingStreamingFeedback_;
+
     bool UnderlyingCanceled_ = false;
+
     IClientRequestControlPtr Underlying_;
-
-
-    void PropagateCancel(TGuard<TSpinLock>& guard);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TClientRequestControlThunk)

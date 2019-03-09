@@ -2,7 +2,7 @@
 
 #include "db_helpers.h"
 
-#include <yt/server/clickhouse_server/system_columns.h>
+#include "system_columns.h"
 
 #include <Core/Names.h>
 

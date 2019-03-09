@@ -49,11 +49,12 @@
 #include <yt/ytlib/table_client/data_slice_fetcher.h>
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schema.h>
-#include <yt/client/table_client/table_consumer.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/ytlib/api/native/connection.h>
+
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/client/chunk_client/data_statistics.h>
 
@@ -62,6 +63,7 @@
 #include <yt/client/table_client/column_rename_descriptor.h>
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/table_consumer.h>
 
 #include <yt/client/api/transaction.h>
 
@@ -703,9 +705,9 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 
     // Process output and stderr tables.
     if (!OutputTables_.empty()) {
-        GetUserObjectBasicAttributes<TOutputTablePtr>(
+        GetUserObjectBasicAttributes(
             OutputClient,
-            OutputTables_,
+            MakeUserObjectList(OutputTables_),
             OutputTransaction->GetId(),
             Logger,
             EPermission::Write);
@@ -716,7 +718,7 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
     if (StderrTable_) {
         GetUserObjectBasicAttributes(
             Client,
-            TMutableRange<TOutputTablePtr>(&StderrTable_, 1),
+            {StderrTable_.Get()},
             DebugTransaction->GetId(),
             Logger,
             EPermission::Write);
@@ -727,7 +729,7 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
     if (CoreTable_) {
         GetUserObjectBasicAttributes(
             Client,
-            TMutableRange<TOutputTablePtr>(&CoreTable_, 1),
+            {CoreTable_.Get()},
             DebugTransaction->GetId(),
             Logger,
             EPermission::Write);
@@ -4357,8 +4359,7 @@ void TOperationControllerBase::FetchInputTables()
             ranges.size(),
             hasColumnSelectors);
 
-        std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
-        FetchChunkSpecs(
+        auto chunkSpecs = FetchChunkSpecs(
             InputClient,
             InputNodeDirectory_,
             table->CellTag,
@@ -4367,7 +4368,7 @@ void TOperationControllerBase::FetchInputTables()
             table->ChunkCount,
             Config->MaxChunksPerFetch,
             Config->MaxChunksPerLocateRequest,
-            [&] (TChunkOwnerYPathProxy::TReqFetchPtr req) {
+            [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
                 req->set_fetch_all_meta_extensions(false);
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                 if (table->IsDynamic || IsBoundaryKeysFetchEnabled()) {
@@ -4378,8 +4379,7 @@ void TOperationControllerBase::FetchInputTables()
                 req->set_fetch_parity_replicas(true);
                 SetTransactionId(req, *table->TransactionId);
             },
-            Logger,
-            &chunkSpecs);
+            Logger);
 
         for (const auto& chunkSpec : chunkSpecs) {
             auto inputChunk = New<TInputChunk>(chunkSpec);
@@ -4458,7 +4458,7 @@ void TOperationControllerBase::LockInputTables()
         auto& table = InputTables_[index];
         const auto& path = table->Path.GetPath();
         const auto& rspOrError = batchRsp[index];
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to lock input table %Qv", path);
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to lock input table %v", path);
         const auto& rsp = rspOrError.Value();
         table->ObjectId = FromProto<TObjectId>(rsp->node_id());
         table->CellTag = FromProto<TCellTag>(rsp->cell_tag());
@@ -4469,12 +4469,15 @@ void TOperationControllerBase::GetInputTablesAttributes()
 {
     YT_LOG_INFO("Getting input tables attributes");
 
-    GetUserObjectBasicAttributes<TInputTablePtr>(
+    TGetUserObjectBasicAttributesOptions getUserObjectBasicAttributesOptions;
+    getUserObjectBasicAttributesOptions.OmitInaccessibleColumns = Spec_->OmitInaccessibleColumns;
+    GetUserObjectBasicAttributes(
         InputClient,
-        InputTables_,
+        MakeUserObjectList(InputTables_),
         InputTransaction->GetId(),
         Logger,
-        EPermission::Read);
+        EPermission::Read,
+        getUserObjectBasicAttributesOptions);
 
     for (const auto& table : InputTables_) {
         if (table->Type != EObjectType::Table) {
@@ -4483,6 +4486,22 @@ void TOperationControllerBase::GetInputTablesAttributes()
                 EObjectType::Table,
                 table->Type);
         }
+    }
+
+    std::vector<TYsonString> omittedInaccessibleColumnsList;
+    for (const auto& table : InputTables_) {
+        if (!table->OmittedInaccessibleColumns.empty()) {
+            omittedInaccessibleColumnsList.push_back(BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("path").Value(table->Path.GetPath())
+                    .Item("columns").Value(table->OmittedInaccessibleColumns)
+                .EndMap());
+        }
+    }
+    if (!omittedInaccessibleColumnsList.empty()) {
+        auto error = TError("Some columns of input tables are inaccessible and were omitted")
+            << TErrorAttribute("input_tables", omittedInaccessibleColumnsList);
+        SetOperationAlert(EOperationAlertType::OmittedInaccesibleColumnsInInputTables, error);
     }
 
     THashMap<TCellTag, std::vector<TInputTablePtr>> cellTagToTables;
@@ -4688,7 +4707,7 @@ void TOperationControllerBase::PrepareInputTables()
         for (const auto& table : InputTables_) {
             if (table->IsForeign()) {
                 THROW_ERROR_EXCEPTION("Foreign tables are not supported in %Qlv operation", OperationType)
-                    << TErrorAttribute("foreign_table", table->GetPath());
+                    << TErrorAttribute("foreign_table", table->Path.GetPath());
             }
         }
     }
@@ -4907,7 +4926,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
 
         switch (file.Type) {
             case EObjectType::Table:
-                FetchChunkSpecs(
+                file.ChunkSpecs = FetchChunkSpecs(
                     InputClient,
                     InputNodeDirectory_,
                     file.CellTag,
@@ -4916,7 +4935,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
                     file.ChunkCount,
                     Config->MaxChunksPerFetch,
                     Config->MaxChunksPerLocateRequest,
-                    [&] (TChunkOwnerYPathProxy::TReqFetchPtr req) {
+                    [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
                         req->set_fetch_all_meta_extensions(false);
                         req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                         if (file.Dynamic || IsBoundaryKeysFetchEnabled()) {
@@ -4927,8 +4946,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
                         req->set_fetch_parity_replicas(true);
                         SetTransactionId(req, *file.TransactionId);
                     },
-                    Logger,
-                    &file.ChunkSpecs);
+                    Logger);
 
                 break;
 
@@ -5102,7 +5120,7 @@ void TOperationControllerBase::LockUserFiles()
             for (auto& file : files) {
                 const auto& path = file.Path.GetPath();
                 const auto& rspOrError = batchRsp[index++];
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to lock user file %Qv", path);
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to lock user file %v", path);
                 const auto& rsp = rspOrError.Value();
                 file.ObjectId = FromProto<TObjectId>(rsp->node_id());
             }
@@ -5118,14 +5136,13 @@ void TOperationControllerBase::GetUserFilesAttributes()
 {
     YT_LOG_INFO("Getting user files attributes");
 
-    for (auto& pair : UserJobFiles_) {
-        const auto& userJobSpec = pair.first;
-        auto& files = pair.second;
-        GetUserObjectBasicAttributes<TUserFile>(
+    for (auto& [userJobSpec, files] : UserJobFiles_) {
+        GetUserObjectBasicAttributes(
             Client,
-            files,
+            MakeUserObjectList(files),
             InputTransaction->GetId(),
-            TLogger(Logger).AddTag("TaskTitle: %v", userJobSpec->TaskTitle),
+            TLogger(Logger)
+                .AddTag("TaskTitle: %v", userJobSpec->TaskTitle),
             EPermission::Read);
     }
 
@@ -5212,7 +5229,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
 
                 {
                     const auto& rspOrError = getAttributesRspsOrError[index];
-                    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of user file %Qv", path);
+                    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of user file ", path);
                     const auto& rsp = rspOrError.Value();
                     const auto& linkRsp = getLinkAttributesRspsOrError[index];
                     index++;
@@ -5823,7 +5840,7 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
         auto columnSet = THashSet<TString>(columns->begin(), columns->end());
         for (const auto& keyColumn : keyColumns) {
             if (columnSet.find(keyColumn) == columnSet.end()) {
-                THROW_ERROR_EXCEPTION("Column filter for input table %v doesn't include key column %Qv",
+                THROW_ERROR_EXCEPTION("Column filter for input table %v must include key column %Qv",
                     table->Path.GetPath(),
                     keyColumn);
             }
@@ -7154,7 +7171,7 @@ NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateTableReader
 
 void TOperationControllerBase::ValidateUserFileCount(TUserJobSpecPtr spec, const TString& operation)
 {
-    if (spec && spec->FilePaths.size() > Config->MaxUserFileCount) {
+    if (spec->FilePaths.size() > Config->MaxUserFileCount) {
         THROW_ERROR_EXCEPTION("Too many user files in %v: maximum allowed %v, actual %v",
             operation,
             Config->MaxUserFileCount,
@@ -7427,7 +7444,8 @@ void TOperationControllerBase::InitAutoMergeJobSpecTemplates()
         dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
             IntermediatePath,
             OutputTables_[tableIndex]->TableUploadOptions.TableSchema,
-            std::nullopt));
+            /* columns */ std::nullopt,
+            /* omittedInaccessibleColumns */ {}));
 
         NChunkClient::NProto::TDataSourceDirectoryExt dataSourceDirectoryExt;
         ToProto(&dataSourceDirectoryExt, dataSourceDirectory);
@@ -7575,11 +7593,15 @@ void TOperationControllerBase::SetOperationAlert(EOperationAlertType alertType, 
 {
     TGuard<TSpinLock> guard(AlertsLock_);
 
-    if (alert.IsOK() && !Alerts_[alertType].IsOK()) {
+    auto& existingAlert = Alerts_[alertType];
+    if (alert.IsOK() && !existingAlert.IsOK()) {
         YT_LOG_DEBUG("Alert reset (Type: %v)",
             alertType);
-    } else {
+    } else if (!alert.IsOK() && existingAlert.IsOK()) {
         YT_LOG_DEBUG(alert, "Alert set (Type: %v)",
+            alertType);
+    } else if (!alert.IsOK() && !existingAlert.IsOK()) {
+        YT_LOG_DEBUG(alert, "Alert updated (Type: %v)",
             alertType);
     }
 

@@ -21,7 +21,7 @@ struct TChunkReplicaDescriptor
     int MediumIndex;
 };
 
-void FormatValue(TStringBuilder* builder, const TChunkReplicaDescriptor& replica, TStringBuf spec);
+void FormatValue(TStringBuilderBase* builder, const TChunkReplicaDescriptor& replica, TStringBuf spec);
 TString ToString(const TChunkReplicaDescriptor& replica);
 
 ////////////////////////////////////////////////////////////////////////////////

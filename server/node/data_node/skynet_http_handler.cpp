@@ -14,8 +14,11 @@
 #include <yt/client/table_client/name_table.h>
 #include <yt/ytlib/table_client/chunk_state.h>
 #include <yt/ytlib/table_client/columnar_chunk_meta.h>
+#include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/ytlib/api/native/table_reader.h>
+
+#include <yt/client/table_client/blob_reader.h>
 
 #include <yt/core/concurrency/async_stream.h>
 
@@ -147,13 +150,14 @@ public:
             chunkReader,
             New<TNameTable>(),
             blockReadOptions,
-            TKeyColumns(),
-            TColumnFilter(),
+            /* keyColumns */ {},
+            /* omittedInaccessibleColumns */ {},
+            /* columnFilter */ {},
             readRange);
 
         auto apiReader = CreateApiFromSchemalessChunkReaderAdapter(std::move(schemalessReader));
 
-        auto blobReader = NNative::CreateBlobTableReader(
+        auto blobReader = NTableClient::CreateBlobTableReader(
             apiReader,
             TString("part_index"),
             TString("data"),

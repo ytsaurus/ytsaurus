@@ -2,7 +2,7 @@
 
 #include "cluster_nodes.h"
 
-#include <yt/server/clickhouse_server/directory.h>
+#include "directory.h"
 
 #include <Interpreters/Context.h>
 
@@ -47,7 +47,6 @@ using IExecutionClusterPtr = IClusterNodeTrackerPtr;
 
 IClusterNodeTrackerPtr CreateClusterNodeTracker(
     ICoordinationServicePtr coordinationService,
-    IAuthorizationTokenPtr authToken,
     const std::string directoryPath,
     uint64_t clickhousePort);
 

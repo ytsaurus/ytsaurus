@@ -71,7 +71,7 @@ void ToProto(
 void FromProto(
     TOperationTransactions* transactions,
     const NControllerAgent::NProto::TControllerTransactionIds& transactionIdsProto,
-    std::function<NApi::NNative::IClientPtr(const NObjectClient::TCellTag&)> getClient,
+    std::function<NApi::NNative::IClientPtr(NObjectClient::TCellTag)> getClient,
     TDuration pingPeriod);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -122,6 +122,8 @@ struct IOperationStrategyHost
     virtual NYTree::IMapNodePtr GetSpec() const = 0;
 
     virtual TOperationRuntimeParametersPtr GetRuntimeParameters() const = 0;
+
+    virtual bool GetActivated() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -173,7 +175,10 @@ public:
     // By default, all new operations are not activated.
     // When operation passes admission control and scheduler decides
     // that it's ready to start jobs, it is marked as active.
-    DEFINE_BYVAL_RW_PROPERTY(bool, Activated);
+public:
+    virtual bool GetActivated() const override;
+
+    void SetActivated(bool value);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, Prepared);
 
@@ -344,7 +349,7 @@ private:
     const NYTree::IMapNodePtr Spec_;
     const TString CodicilData_;
     const IInvokerPtr ControlInvoker_;
-
+    bool Activated_ = false;
 
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableInvoker_;

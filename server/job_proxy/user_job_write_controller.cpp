@@ -44,8 +44,7 @@ TUserJobWriteController::TUserJobWriteController(IJobHostPtr host)
     , Logger(host->GetLogger())
 { }
 
-TUserJobWriteController::~TUserJobWriteController()
-{ }
+TUserJobWriteController::~TUserJobWriteController() = default;
 
 void TUserJobWriteController::Init()
 {

@@ -47,13 +47,10 @@ public:
     virtual std::vector<TChunkId> GetFailedChunkIds() const override;
 
     virtual const TNameTablePtr& GetNameTable() const override;
-
-    virtual TKeyColumns GetKeyColumns() const override;
+    virtual const TKeyColumns& GetKeyColumns() const override;
 
     virtual i64 GetTotalRowCount() const override;
-
     virtual i64 GetSessionRowIndex() const override;
-
     virtual i64 GetTableRowIndex() const override;
 
     virtual void Interrupt() override;
@@ -216,7 +213,7 @@ const TNameTablePtr& TSchemalessSortedMergingReaderBase::GetNameTable() const
     return SessionHolder_.front().Reader->GetNameTable();
 }
 
-TKeyColumns TSchemalessSortedMergingReaderBase::GetKeyColumns() const
+const TKeyColumns& TSchemalessSortedMergingReaderBase::GetKeyColumns() const
 {
     return SessionHolder_.front().Reader->GetKeyColumns();
 }

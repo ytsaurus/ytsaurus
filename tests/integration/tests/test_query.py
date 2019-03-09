@@ -217,10 +217,15 @@ class TestQuery(YTEnvSetup):
         def pick_items(row, items):
             return dict((col, v) for col, v in row.iteritems() if col in items)
 
-        expected = [pick_items(row, ['k', 'v']) for row in data if row['u'] > 500]
-        expected = sorted(expected, cmp=lambda x, y: x['v'] - y['v'])[0:10]
+        filtered = [pick_items(row, ['k', 'v']) for row in data if row['u'] > 500]
+        expected = sorted(filtered, cmp=lambda x, y: x['v'] - y['v'])[0:10];
 
         actual = select_rows("k, v from [//tmp/t] where u > 500 order by v limit 10")
+        assert expected == actual
+
+        expected = sorted(filtered, cmp=lambda x, y: x['v'] - y['v'])[20:30];
+
+        actual = select_rows("k, v from [//tmp/t] where u > 500 order by v offset 20 limit 10")
         assert expected == actual
 
     def test_inefficient_join(self):

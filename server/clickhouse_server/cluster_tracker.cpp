@@ -1,6 +1,5 @@
 #include "cluster_tracker.h"
 
-#include "auth_token.h"
 #include "format_helpers.h"
 #include "guarded_ptr.h"
 #include "logging_helpers.h"
@@ -308,13 +307,10 @@ void TClusterDirectoryEventHandler::Detach()
 
 IClusterNodeTrackerPtr CreateClusterNodeTracker(
     ICoordinationServicePtr coordinationService,
-    IAuthorizationTokenPtr authToken,
     const std::string directoryPath,
     uint64_t clickhousePort)
 {
-    auto directory = coordinationService->OpenOrCreateDirectory(
-        *authToken,
-        ToString(directoryPath));
+    auto directory = coordinationService->OpenOrCreateDirectory(ToString(directoryPath));
 
     return std::make_shared<TClusterNodeTracker>(
         std::move(directory),

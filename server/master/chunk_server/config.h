@@ -348,6 +348,9 @@ public:
     //! Same as #MaxReplicasPerRack but only applies to erasure chunks.
     int MaxErasureReplicasPerRack;
 
+    //! Default behavior for dynamic tables, living on this medium.
+    bool PreferLocalHostForDynamicTables;
+
     TMediumConfig()
     {
         RegisterParameter("max_replication_factor", MaxReplicationFactor)
@@ -365,6 +368,8 @@ public:
         RegisterParameter("max_erasure_replicas_per_rack", MaxErasureReplicasPerRack)
             .GreaterThanOrEqual(0)
             .Default(std::numeric_limits<int>::max());
+        RegisterParameter("prefer_local_host_for_dynamic_tables", PreferLocalHostForDynamicTables)
+            .Default(true);
     }
 };
 

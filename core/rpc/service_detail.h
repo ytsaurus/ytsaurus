@@ -52,6 +52,11 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
 
+    NConcurrency::IAsyncZeroCopyInputStreamPtr GetAttachmentsStream()
+    {
+        return Context_->GetRequestAttachmentsStream();
+    }
+
     void Reset()
     {
         TRequestMessage::Clear();
@@ -88,6 +93,11 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
 
+    NConcurrency::IAsyncZeroCopyOutputStreamPtr GetAttachmentsStream()
+    {
+        return Context_->GetResponseAttachmentsStream();
+    }
+
 private:
     template <class TRequestMessage_, class TResponseMessage_>
     friend class TTypedServiceContext;
@@ -115,8 +125,20 @@ struct THandlerInvocationOptions
     //! in a separate thread?
     bool Heavy = TMethodConfig::DefaultHeavy;
 
-    //! The codec to compress response body.
-    NCompression::ECodec ResponseCodec = TMethodConfig::DefaultResponseCodec;
+    //! In case the client has provided "none" response codec, this value is used instead.
+    NCompression::ECodec ResponseCodec = NCompression::ECodec::None;
+
+    THandlerInvocationOptions& SetHeavy(bool value)
+    {
+        Heavy = value;
+        return *this;
+    }
+
+    THandlerInvocationOptions& SetResponseCodec(NCompression::ECodec value)
+    {
+        ResponseCodec = value;
+        return *this;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -136,12 +158,15 @@ public:
         : TServiceContextWrapper(std::move(context))
         , Options_(options)
     {
-        if (UnderlyingContext_->IsPooled()) {
-            Response_ = ObjectPool<TTypedResponse, TPooledTypedResponseTraits<TResponseMessage>>().Allocate();
-        } else {
-            Response_ = std::make_shared<TTypedResponse>();
-        }
+        Response_ = UnderlyingContext_->IsPooled()
+            ? ObjectPool<TTypedResponse, TPooledTypedResponseTraits<TResponseMessage>>().Allocate()
+            : std::make_shared<TTypedResponse>();
+
         Response_->Context_ = this->UnderlyingContext_.Get();
+
+        if (GetResponseCodec() == NCompression::ECodec::None) {
+            SetResponseCodec(Options_.ResponseCodec);
+        }
     }
 
     bool DeserializeRequest()
@@ -153,8 +178,9 @@ public:
         }
         Request_->Context_ = UnderlyingContext_.Get();
 
+        const auto& requestHeader = GetRequestHeader();
         auto body = UnderlyingContext_->GetRequestBody();
-        if (GetRequestHeader().has_request_format()) {
+        if (requestHeader.has_request_format()) {
             auto format = static_cast<EMessageFormat>(GetRequestHeader().request_format());
             if (format != EMessageFormat::Protobuf) {
                 body = ConvertMessageFromFormat(
@@ -164,35 +190,29 @@ public:
             }
         }
 
-        // COMPAT(kiselyovp)
-        bool compatibilityMode = !GetRequestHeader().has_request_codecs();
-
-        auto requestCodecId = NCompression::ECodec::None;
-        if (!compatibilityMode) {
-            int intRequestCodecId = GetRequestHeader().request_codecs().request_codec();
-            if (!ConvertCodecFromIntOrReplyError(
-                intRequestCodecId,
-                &requestCodecId,
-                "Request codec is not supported"))
-            {
+        // COMPAT(kiselyovp): legacy RPC codecs
+        std::optional<NCompression::ECodec> bodyCodecId;
+        NCompression::ECodec attachmentCodecId;
+        if (requestHeader.has_request_codec()) {
+            int intCodecId = requestHeader.request_codec();
+            NCompression::ECodec codecId;
+            if (!TryEnumCast(intCodecId, &codecId)) {
+                UnderlyingContext_->Reply(TError(
+                    NRpc::EErrorCode::ProtocolError,
+                    "Request codec %v is not supported",
+                    intCodecId));
                 return false;
             }
-        }
-        auto requestAttachmentCodecId = NCompression::ECodec::None;
-        if (!compatibilityMode) {
-            int intRequestAttachmentCodecId = GetRequestHeader().request_codecs().request_attachment_codec();
-            if (!ConvertCodecFromIntOrReplyError(
-                intRequestAttachmentCodecId,
-                &requestAttachmentCodecId,
-                "Request attachment codec is not supported"))
-            {
-                return false;
-            }
+            bodyCodecId = codecId;
+            attachmentCodecId = codecId;
+        } else {
+            bodyCodecId = std::nullopt;
+            attachmentCodecId = NCompression::ECodec::None;
         }
 
-        bool deserializationSucceeded = compatibilityMode
-            ? TryDeserializeProtoWithEnvelope(Request_.get(), body)
-            : TryDeserializeProtoWithCompression(Request_.get(), body, requestCodecId);
+        bool deserializationSucceeded = bodyCodecId
+            ? TryDeserializeProtoWithCompression(Request_.get(), body, *bodyCodecId)
+            : TryDeserializeProtoWithEnvelope(Request_.get(), body);
         if (!deserializationSucceeded) {
             UnderlyingContext_->Reply(TError(
                 NRpc::EErrorCode::ProtocolError,
@@ -200,12 +220,14 @@ public:
             return false;
         }
 
-        auto* attachmentCodec = NCompression::GetCodec(requestAttachmentCodecId);
+        auto* attachmentCodec = NCompression::GetCodec(attachmentCodecId);
+
         std::vector<TSharedRef> requestAttachments;
         requestAttachments.reserve(UnderlyingContext_->RequestAttachments().size());
-        for (const auto& attachment: UnderlyingContext_->RequestAttachments()) {
+        for (const auto& attachment : UnderlyingContext_->RequestAttachments()) {
             try {
-                requestAttachments.emplace_back(attachmentCodec->Decompress(attachment));
+                auto decompressedAttachment = attachmentCodec->Decompress(attachment);
+                requestAttachments.push_back(std::move(decompressedAttachment));
             } catch (const std::exception& ex) {
                 UnderlyingContext_->Reply(TError(
                     NRpc::EErrorCode::ProtocolError,
@@ -259,53 +281,42 @@ public:
     }
 
 protected:
-    THandlerInvocationOptions Options_;
+    const THandlerInvocationOptions Options_;
     typename TObjectPool<TTypedRequest, TPooledTypedRequestTraits<TRequestMessage>>::TObjectPtr Request_;
     typename TObjectPool<TTypedResponse, TPooledTypedResponseTraits<TResponseMessage>>::TObjectPtr Response_;
 
     void DoReply(const TError& error)
     {
         if (error.IsOK()) {
-            // COMPAT(kiselyovp)
-            bool compatibilityMode = !GetRequestHeader().has_request_codecs();
+            const auto& requestHeader = GetRequestHeader();
 
-            auto responseCodecId = this->Options_.ResponseCodec;
-            if (!compatibilityMode) {
-                int intResponseCodecId = GetRequestHeader().request_codecs().response_codec();
-                if (!ConvertCodecFromIntOrReplyError(
-                    intResponseCodecId,
-                    &responseCodecId,
-                    "Response codec is not supported"))
-                {
+            // COMPAT(kiselyovp): legacy RPC codecs
+            bool enableBodyEnvelope;
+            NCompression::ECodec attachmentCodecId;
+            auto bodyCodecId = UnderlyingContext_->GetResponseCodec();;
+            if (requestHeader.has_request_codec()) {
+                enableBodyEnvelope = false;
+                attachmentCodecId = bodyCodecId;
+            } else {
+                enableBodyEnvelope = true;
+                attachmentCodecId = NCompression::ECodec::None;
+            }
+
+            auto serializedBody = enableBodyEnvelope
+                ? SerializeProtoToRefWithEnvelope(*Response_, bodyCodecId)
+                : SerializeProtoToRefWithCompression(*Response_, bodyCodecId, false);
+
+            if (requestHeader.has_response_format()) {
+                int intFormat = requestHeader.response_format();
+                EMessageFormat format;
+                if (!TryEnumCast(intFormat, &format)) {
+                    UnderlyingContext_->Reply(TError(
+                        NRpc::EErrorCode::ProtocolError,
+                        "Message format %v is not supported",
+                        intFormat));
                     return;
                 }
-            }
-            auto responseAttachmentCodecId = NCompression::ECodec::None;
-            if (!compatibilityMode) {
-                int intResponseAttachmentCodecId =
-                    GetRequestHeader().request_codecs().response_attachment_codec();
-                if (!ConvertCodecFromIntOrReplyError(
-                    intResponseAttachmentCodecId,
-                    &responseAttachmentCodecId,
-                    "Response attachment codec is not supported"))
-                {
-                    return;
-                }
-            }
 
-            auto serializedBody = compatibilityMode
-                ? SerializeProtoToRefWithEnvelope(*Response_, responseCodecId, false)
-                : SerializeProtoToRefWithCompression(*Response_, responseCodecId, false);
-
-            auto* responseAttachmentCodec = NCompression::GetCodec(responseAttachmentCodecId);
-            std::vector<TSharedRef> responseAttachments;
-            for (const auto& attachment: Response_->Attachments()) {
-                responseAttachments.emplace_back(responseAttachmentCodec->Compress(attachment));
-            }
-
-            if (GetRequestHeader().has_response_format()) {
-                YCHECK(compatibilityMode);
-                auto format = static_cast<EMessageFormat>(GetRequestHeader().response_format());
                 if (format != EMessageFormat::Protobuf) {
                     serializedBody = ConvertMessageToFormat(
                         serializedBody,
@@ -313,7 +324,14 @@ protected:
                         NYson::ReflectProtobufMessageType<TResponseMessage>());
                 }
             }
-            
+
+            auto* attachmentCodec = NCompression::GetCodec(attachmentCodecId);
+            std::vector<TSharedRef> responseAttachments;
+            for (const auto& attachment : Response_->Attachments()) {
+                auto compressedAttachment = attachmentCodec->Compress(attachment);
+                responseAttachments.push_back(std::move(compressedAttachment));
+            }
+
             this->UnderlyingContext_->SetResponseBody(std::move(serializedBody));
             this->UnderlyingContext_->ResponseAttachments() = std::move(responseAttachments);
         }
@@ -322,21 +340,6 @@ protected:
             this->Request_.reset();
             this->Response_.reset();
         }
-    }
-
-private:
-    bool ConvertCodecFromIntOrReplyError(
-        int intCodecId,
-        NCompression::ECodec* codecId,
-        const TString& errorString)
-    {
-        if (!TryEnumCast(intCodecId, codecId)) {
-            UnderlyingContext_->Reply(TError(
-                NRpc::EErrorCode::ProtocolError,
-                errorString));
-            return false;
-        }
-        return true;
     }
 };
 
@@ -418,6 +421,12 @@ public:
         NYT::NBus::IBusPtr replyBus) override;
 
     virtual void HandleRequestCancelation(TRequestId requestId) override;
+    virtual void HandleStreamingPayload(
+        TRequestId requestId,
+        const TStreamingPayload& payload) override;
+    virtual void HandleStreamingFeedback(
+        TRequestId requestId,
+        const TStreamingFeedback& feedback) override;
 
 protected:
     using TLiteHandler = TCallback<void(const IServiceContextPtr&, const THandlerInvocationOptions&)>;
@@ -477,6 +486,9 @@ protected:
         //! If |false| then Bus will only be generating such checksums for RPC header and response body
         //! but not attachements.
         bool GenerateAttachmentChecksums = true;
+
+        //! If |true| then the method supports attachments streaming.
+        bool StreamingEnabled = false;
 
         //! If |true| then requests and responses are pooled.
         bool Pooled = true;
@@ -538,6 +550,12 @@ protected:
         TMethodDescriptor& SetGenerateAttachmentChecksums(bool value)
         {
             GenerateAttachmentChecksums = value;
+            return *this;
+        }
+
+        TMethodDescriptor& SetStreamingEnabled(bool value)
+        {
+            StreamingEnabled = value;
             return *this;
         }
 
@@ -687,8 +705,8 @@ private:
     NConcurrency::TReaderWriterSpinLock MethodMapLock_;
     THashMap<TString, TRuntimeMethodInfoPtr> MethodMap_;
 
-    TSpinLock CancelableRequestLock_;
-    THashMap<TRequestId, TServiceContext*> IdToContext_;
+    TSpinLock RequestMapLock_;
+    THashMap<TRequestId, TServiceContext*> RequestIdToContext_;
     THashMap<NYT::NBus::IBusPtr, THashSet<TServiceContext*>> ReplyBusToContexts_;
 
     std::atomic<bool> Stopped_ = {false};
@@ -728,22 +746,16 @@ private:
     static void ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo);
     static void RunRequest(const TServiceContextPtr& context);
 
-    void RegisterCancelableRequest(TServiceContext* context);
-    void UnregisterCancelableRequest(TServiceContext* context);
-    TServiceContextPtr FindCancelableRequest(TRequestId requestId);
+    void RegisterRequest(TServiceContext* context);
+    void UnregisterRequest(TServiceContext* context);
+    TServiceContextPtr FindRequest(TRequestId requestId);
 
     TMethodPerformanceCountersPtr CreateMethodPerformanceCounters(
         const TRuntimeMethodInfoPtr& runtimeInfo,
         const TString& user);
-
     TMethodPerformanceCounters* LookupMethodPerformanceCounters(
         const TRuntimeMethodInfoPtr& runtimeInfo,
         const TString& user);
-
-    static TString FormatRequestInfo(
-        const TSharedRefArray& message,
-        const NProto::TRequestHeader& header,
-        const NYT::NBus::IBusPtr& replyBus);
 };
 
 DEFINE_REFCOUNTED_TYPE(TServiceBase)

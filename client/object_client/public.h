@@ -236,7 +236,7 @@ struct TVersionedObjectId
 };
 
 //! Formats id into a string (for debugging and logging purposes mainly).
-void FormatValue(TStringBuilder* builder, const TVersionedObjectId& id, TStringBuf spec);
+void FormatValue(TStringBuilderBase* builder, const TVersionedObjectId& id, TStringBuf spec);
 
 //! Converts id into a string (for debugging and logging purposes mainly).
 TString ToString(const TVersionedObjectId& id);

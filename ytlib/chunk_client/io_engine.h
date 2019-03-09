@@ -40,6 +40,7 @@ struct IIOEngine
     virtual TFuture<std::shared_ptr<TFileHandle>> Open(
         const TString& fileName,
         EOpenMode mode,
+        i64 preallocateSize = -1,
         i64 priority = std::numeric_limits<i64>::max()) = 0;
 
     virtual TFuture<void> Close(
@@ -54,6 +55,10 @@ struct IIOEngine
         i64 priority = std::numeric_limits<i64>::max()) = 0;
 
     virtual bool IsSick() const = 0;
+
+    virtual TFuture<void> Fallocate(
+        const std::shared_ptr<TFileHandle>& handle,
+        i64 newSize) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IIOEngine)

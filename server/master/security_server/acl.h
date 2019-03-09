@@ -34,6 +34,7 @@ struct TAccessControlEntry
     TSubjectList Subjects;
     EPermissionSet Permissions;
     EAceInheritanceMode InheritanceMode;
+    std::optional<std::vector<TString>> Columns;
 
     void Persist(NCellMaster::TPersistenceContext& context);
 };

@@ -3,11 +3,15 @@
 #include <util/system/platform.h>
 
 #ifdef _linux_
-#include <yt/contrib/aio/aio_abi.h>
+    #include <yt/contrib/aio/aio_abi.h>
 
-#include <sys/syscall.h>
+    #include <sys/syscall.h>
 
-#include <unistd.h>
+    #include <unistd.h>
+
+    #ifndef FALLOC_FL_CONVERT_UNWRITTEN
+        #define FALLOC_FL_CONVERT_UNWRITTEN 0x4
+    #endif
 #endif
 
 #include <yt/core/concurrency/action_queue.h>
@@ -141,8 +145,70 @@ public:
     }
 };
 
-class TThreadedIOEngine
+class TIOEngineBase
     : public IIOEngine
+{
+protected:
+    TIOEngineBase(const NLogging::TLogger& logger)
+        : Logger(logger)
+    { }
+
+    const NLogging::TLogger Logger;
+
+    std::shared_ptr<TFileHandle> DoOpen(const TString& fileName, EOpenMode mode, bool useDirectIO, i64 preallocateSize)
+    {
+        auto handle = std::make_shared<TFileHandle>(fileName, mode);
+        if (!handle->IsOpen()) {
+            THROW_ERROR_EXCEPTION(
+                "Cannot open %Qv with mode %v",
+                fileName,
+                mode)
+                << TError::FromSystem();
+        }
+        if (useDirectIO) {
+            handle->SetDirect();
+        }
+        if (preallocateSize > 0) {
+            YCHECK(mode & WrOnly);
+            DoFallocate(handle, preallocateSize);
+        }
+        return handle;
+    }
+
+    void DoFallocate(
+        const std::shared_ptr<TFileHandle>& handle,
+        i64 newSize)
+    {
+#ifdef _linux
+        if (fallocate(*handle, FALLOC_FL_CONVERT_UNWRITTEN, 0, newSize) != 0) {
+            YT_LOG_WARNING(TError::FromSystem(), "fallocate call failed");
+        }
+#endif
+    }
+
+    void DoFlushDirectory(const TString& path)
+    {
+        NFS::ExpectIOErrors([&]() {
+            NFS::FlushDirectory(path);
+        });
+    }
+
+    void DoClose(const std::shared_ptr<TFileHandle>& handle, i64 newSize, bool flush)
+    {
+        NFS::ExpectIOErrors([&]() {
+            if (newSize >= 0) {
+                handle->Resize(newSize);
+            }
+            if (flush) {
+                handle->Flush();
+            }
+            handle->Close();
+        });
+    }
+};
+
+class TThreadedIOEngine
+    : public TIOEngineBase
 {
 public:
     using TConfig = TThreadedIOEngineConfig;
@@ -153,7 +219,8 @@ public:
         const TString& locationId,
         const TProfiler& profiler,
         const NLogging::TLogger& logger)
-        : Config_(std::move(config))
+        : TIOEngineBase(logger)
+        , Config_(std::move(config))
         , ReadThreadPool_(New<TThreadPool>(Config_->ReadThreadCount, Format("DiskIOR:%v", locationId)))
         , WriteThreadPool_(New<TThreadPool>(Config_->WriteThreadCount, Format("DiskIOW:%v", locationId)))
         , ReadInvoker_(CreatePrioritizedInvoker(ReadThreadPool_->GetInvoker()))
@@ -166,13 +233,14 @@ public:
     virtual TFuture<std::shared_ptr<TFileHandle>> Open(
         const TString& fileName,
         EOpenMode mode,
+        i64 preallocateSize,
         i64 priority) override
     {
         const auto& invoker = (mode & RdOnly)
             ? ReadInvoker_
             : WriteInvoker_;
 
-        return BIND(&TThreadedIOEngine::DoOpen, MakeStrong(this), fileName, mode)
+        return BIND(&TThreadedIOEngine::DoOpen, MakeStrong(this), fileName, mode, UseDirectIO_ || (mode & DirectAligned), preallocateSize)
             .AsyncVia(CreateFixedPriorityInvoker(invoker, priority))
             .Run();
     }
@@ -266,6 +334,15 @@ public:
         return Sick_;
     }
 
+    virtual TFuture<void> Fallocate(
+        const std::shared_ptr<TFileHandle>& handle,
+        i64 newSize) override
+    {
+        return BIND(&TThreadedIOEngine::DoFallocate, MakeStrong(this), handle)
+            .AsyncVia(WriteInvoker_)
+            .Run(newSize);
+    }
+
 private:
     const TConfigPtr Config_;
     const size_t MaxBytesPerRead = 1_GB;
@@ -309,42 +386,6 @@ private:
     bool DoFlush(const std::shared_ptr<TFileHandle>& handle)
     {
         return handle->Flush();
-    }
-
-    void DoClose(const std::shared_ptr<TFileHandle>& handle, i64 newSize, bool flush)
-    {
-        NFS::ExpectIOErrors([&]() {
-            if (newSize >= 0) {
-                handle->Resize(newSize);
-            }
-            if (flush) {
-                handle->Flush();
-            }
-            handle->Close();
-        });
-    }
-
-    void DoFlushDirectory(const TString& path)
-    {
-        NFS::ExpectIOErrors([&]() {
-            NFS::FlushDirectory(path);
-        });
-    }
-
-    std::shared_ptr<TFileHandle> DoOpen(const TString& fileName, EOpenMode mode)
-    {
-        auto handle = std::make_shared<TFileHandle>(fileName, mode);
-        if (!handle->IsOpen()) {
-            THROW_ERROR_EXCEPTION(
-                "Cannot open %Qv with mode %v",
-                fileName,
-                mode)
-                << TError::FromSystem();
-        }
-        if (UseDirectIO_ || mode & DirectAligned) {
-            handle->SetDirect();
-        }
-        return handle;
     }
 
     TSharedMutableRef DoPread(
@@ -426,7 +467,7 @@ private:
 
         EOpenMode mode = OpenExisting | RdOnly | Seq | CloseOnExec;
 
-        auto file = DoOpen(fileName, mode);
+        auto file = DoOpen(fileName, mode, UseDirectIO_, -1);
         auto data = DoPread(file, file->GetLength(), 0, timer, memoryZone);
         DoClose(file, -1, false);
         return data;
@@ -535,6 +576,17 @@ private:
     {
         Profiler_.Update(SickGauge_, Sick_.load());
         Profiler_.Update(SickEventsCount_, SicknessCounter_.load());
+    }
+
+    void DoFallocate(
+        const std::shared_ptr<TFileHandle>& handle,
+        i64 newSize)
+    {
+#ifdef _linux_
+        if (fallocate(*handle, FALLOC_FL_CONVERT_UNWRITTEN, 0, newSize) != 0) {
+            YT_LOG_WARNING(TError::FromSystem(), "fallocate call failed");
+        }
+#endif
     }
 };
 
@@ -709,14 +761,15 @@ public:
 };
 
 class TAioEngine
-    : public IIOEngine
+    : public TIOEngineBase
 {
 public:
     using TConfig = TAioEngineConfig;
     using TConfigPtr = TIntrusivePtr<TConfig>;
 
-    TAioEngine(const TConfigPtr& config, const TString& locationId, const TProfiler& profiler)
-        : Profiler_(profiler)
+    TAioEngine(const TConfigPtr& config, const TString& locationId, const TProfiler& profiler, const NLogging::TLogger& logger)
+        : TIOEngineBase(logger)
+        , Profiler_(profiler)
         , MaxQueueSize_(config->MaxQueueSize)
         , Semaphore_(New<TProfiledAsyncSemaphore>(MaxQueueSize_, Profiler_, "/waiting_ops"))
         , Thread_(TThread::TParams(StaticLoop, this).SetName(Format("DiskEvents:%v", locationId)))
@@ -766,9 +819,9 @@ public:
         return TrueFuture;
     }
 
-    virtual TFuture<std::shared_ptr<TFileHandle>> Open(const TString& fileName, EOpenMode mode, i64 priority) override
+    virtual TFuture<std::shared_ptr<TFileHandle>> Open(const TString& fileName, EOpenMode mode, i64 preallocateSize, i64 priority) override
     {
-        return BIND(&TAioEngine::DoOpen, MakeStrong(this), fileName, mode)
+        return BIND(&TAioEngine::DoOpen, MakeStrong(this), fileName, mode, true, preallocateSize)
             .AsyncVia(ThreadPool_->GetInvoker())
             .Run();
     }
@@ -780,7 +833,7 @@ public:
 
     virtual TFuture<void> Close(const std::shared_ptr<TFileHandle>& handle, i64 newSize, bool /*flush*/)
     {
-        return BIND(&TAioEngine::DoClose, MakeStrong(this), handle, newSize)
+        return BIND(&TAioEngine::DoClose, MakeStrong(this), handle, newSize, false)
             .AsyncVia(ThreadPool_->GetInvoker())
             .Run();
     }
@@ -800,6 +853,15 @@ public:
             .Run();
     }
 
+    virtual TFuture<void> Fallocate(
+        const std::shared_ptr<TFileHandle>& handle,
+        i64 newSize) override
+    {
+        return BIND(&TAioEngine::DoFallocate, MakeStrong(this), handle)
+            .AsyncVia(ThreadPool_->GetInvoker())
+            .Run(newSize);
+    }
+
 private:
     const TProfiler Profiler_;
 
@@ -814,42 +876,11 @@ private:
     TThread Thread_;
     const TThreadPoolPtr ThreadPool_;
 
-    std::shared_ptr<TFileHandle> DoOpen(const TString& fileName, EOpenMode mode)
-    {
-        auto handle = std::make_shared<TFileHandle>(fileName, mode);
-        if (!handle->IsOpen()) {
-            THROW_ERROR_EXCEPTION(
-                "Cannot open %Qv with mode %v",
-                fileName,
-                mode)
-                << TError::FromSystem();
-        }
-        handle->SetDirect();
-        return handle;
-    }
-
     TFuture<TSharedMutableRef> DoReadAll(const TString& fileName, i64 priority, EMemoryZone memoryZone)
     {
         TMemoryZoneGuard guard(memoryZone);
-        auto file = DoOpen(fileName, OpenExisting | RdOnly | Seq | CloseOnExec);
+        auto file = DoOpen(fileName, OpenExisting | RdOnly | Seq | CloseOnExec, true, -1);
         return Pread(file, file->GetLength(), 0, priority);
-    }
-
-    void DoClose(const std::shared_ptr<TFileHandle>& handle, i64 newSize)
-    {
-        NFS::ExpectIOErrors([&]() {
-            if (newSize >= 0) {
-                handle->Resize(newSize);
-            }
-            handle->Close();
-        });
-    }
-
-    void DoFlushDirectory(const TString& path)
-    {
-        NFS::ExpectIOErrors([&]() {
-            NFS::FlushDirectory(path);
-        });
     }
 
     void Loop()
@@ -975,7 +1006,7 @@ IIOEnginePtr CreateIOEngine(
             return CreateIOEngine<TThreadedIOEngine>(ioConfig, locationId, profiler, logger);
 #ifdef _linux_
         case EIOEngineType::Aio:
-            return CreateIOEngine<TAioEngine>(ioConfig, locationId, profiler);
+            return CreateIOEngine<TAioEngine>(ioConfig, locationId, profiler, logger);
 #endif
         default:
             THROW_ERROR_EXCEPTION("Unknown IO engine %Qlv", engineType);

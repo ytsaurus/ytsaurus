@@ -1,16 +1,15 @@
 #include "storage_table.h"
 
-#include "public_ch.h"
-#include "auth_token.h"
+#include "private.h"
 #include "format_helpers.h"
 #include "logging_helpers.h"
 #include "query_helpers.h"
 #include "storage_distributed.h"
 #include "virtual_columns.h"
 
-#include <yt/server/clickhouse_server/table.h>
-#include <yt/server/clickhouse_server/table_partition.h>
-#include <yt/server/clickhouse_server/storage.h>
+#include "table.h"
+#include "table_partition.h"
+#include "query_context.h"
 
 #include <Common/Exception.h>
 #include <Common/typeid_cast.h>
@@ -22,16 +21,6 @@
 
 #include <common/logger_useful.h>
 
-namespace DB {
-
-namespace ErrorCodes
-{
-    extern const int INCOMPATIBLE_COLUMNS;
-    extern const int LOGICAL_ERROR;
-}
-
-}   // namespace DB
-
 namespace NYT::NClickHouseServer {
 
 using namespace DB;
@@ -42,12 +31,11 @@ class TStorageConcat final
     : public TStorageDistributed
 {
 private:
-    std::vector<TTablePtr> Tables;
+    std::vector<TClickHouseTablePtr> Tables;
 
 public:
     TStorageConcat(
-        IStoragePtr storage,
-        std::vector<TTablePtr> tables,
+        std::vector<TClickHouseTablePtr> tables,
         TClickHouseTableSchema schema,
         IExecutionClusterPtr cluster);
 
@@ -78,12 +66,10 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TStorageConcat::TStorageConcat(
-    IStoragePtr storage,
-    std::vector<TTablePtr> tables,
+    std::vector<TClickHouseTablePtr> tables,
     TClickHouseTableSchema schema,
     IExecutionClusterPtr cluster)
     : TStorageDistributed(
-        std::move(storage),
         std::move(cluster),
         std::move(schema),
         &Poco::Logger::get("StorageConcat"))
@@ -106,14 +92,10 @@ TTablePartList TStorageConcat::GetTableParts(
     const DB::KeyCondition* keyCondition,
     size_t maxParts)
 {
+    auto* queryContext = GetQueryContext(context);
     Y_UNUSED(queryAst);
 
-    auto& storage = GetStorage();
-
-    auto authToken = CreateAuthToken(*storage, context);
-
-    return storage->ConcatenateAndGetTableParts(
-        *authToken,
+    return queryContext->ConcatenateAndGetTableParts(
         GetTableNames(),
         keyCondition,
         maxParts);
@@ -148,7 +130,7 @@ ASTPtr TStorageConcat::RewriteSelectQueryForTablePart(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void VerifyThatSchemasAreIdentical(const std::vector<TTablePtr>& tables)
+void VerifyThatSchemasAreIdentical(const std::vector<TClickHouseTablePtr>& tables)
 {
     if (tables.size() <= 1) {
         return;
@@ -169,8 +151,7 @@ void VerifyThatSchemasAreIdentical(const std::vector<TTablePtr>& tables)
 }
 
 DB::StoragePtr CreateStorageConcat(
-    IStoragePtr storage,
-    std::vector<TTablePtr> tables,
+    std::vector<TClickHouseTablePtr> tables,
     IExecutionClusterPtr cluster)
 {
     if (tables.empty()) {
@@ -185,7 +166,6 @@ DB::StoragePtr CreateStorageConcat(
     auto commonSchema = TClickHouseTableSchema::From(*representativeTable);
 
     return std::make_shared<TStorageConcat>(
-        std::move(storage),
         std::move(tables),
         std::move(commonSchema),
         std::move(cluster));

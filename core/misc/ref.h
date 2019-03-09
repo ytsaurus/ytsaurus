@@ -502,7 +502,7 @@ size_t GetByteSize(const std::vector<T>& parts)
 
 inline size_t GetByteSize(TRef ref)
 {
-    return ref.Size();
+    return ref ? ref.Size() : 0;
 }
 
 inline size_t GetByteSize(const TSharedRefArray& array)

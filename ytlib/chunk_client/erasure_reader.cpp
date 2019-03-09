@@ -82,8 +82,8 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
                 client,
                 nodeDirectory,
                 // Locality doesn't matter, since we typically have only one replica.
-                TNodeDescriptor(),
-                std::nullopt,
+                /* localDescriptor */ {},
+                /* partitionTag */ std::nullopt,
                 partId,
                 partReplicas,
                 blockCache,

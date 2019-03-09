@@ -62,6 +62,8 @@ TCellMasterConfig::TCellMasterConfig()
         .Default(true);
     RegisterParameter("bus_client", BusClient)
         .DefaultNew();
+    RegisterParameter("annotation_setter_period", AnnotationSetterPeriod)
+        .Default(TDuration::Seconds(10));
     RegisterParameter("cypress_annotations", CypressAnnotations)
         .Default(BuildYsonNodeFluently()
             .BeginMap()

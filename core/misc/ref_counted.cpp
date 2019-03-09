@@ -18,37 +18,32 @@ TRefCountedTypeCookie TRefCountedTrackerFacade::GetCookie(
 
 void TRefCountedTrackerFacade::AllocateInstance(TRefCountedTypeCookie cookie)
 {
-    TRefCountedTracker::Get()->AllocateInstance(cookie);
+    TRefCountedTracker::AllocateInstance(cookie);
 }
 
 void TRefCountedTrackerFacade::FreeInstance(TRefCountedTypeCookie cookie)
 {
-    TRefCountedTracker::Get()->FreeInstance(cookie);
+    TRefCountedTracker::FreeInstance(cookie);
 }
 
 void TRefCountedTrackerFacade::AllocateTagInstance(TRefCountedTypeCookie cookie)
 {
-    TRefCountedTracker::Get()->AllocateTagInstance(cookie);
+    TRefCountedTracker::AllocateTagInstance(cookie);
 }
 
 void TRefCountedTrackerFacade::FreeTagInstance(TRefCountedTypeCookie cookie)
 {
-    TRefCountedTracker::Get()->FreeTagInstance(cookie);
+    TRefCountedTracker::FreeTagInstance(cookie);
 }
 
 void TRefCountedTrackerFacade::AllocateSpace(TRefCountedTypeCookie cookie, size_t size)
 {
-    TRefCountedTracker::Get()->AllocateSpace(cookie, size);
+    TRefCountedTracker::AllocateSpace(cookie, size);
 }
 
 void TRefCountedTrackerFacade::FreeSpace(TRefCountedTypeCookie cookie, size_t size)
 {
-    TRefCountedTracker::Get()->FreeSpace(cookie, size);
-}
-
-void TRefCountedTrackerFacade::ReallocateSpace(TRefCountedTypeCookie cookie, size_t freedSize, size_t allocatedSize)
-{
-    TRefCountedTracker::Get()->ReallocateSpace(cookie, freedSize, allocatedSize);
+    TRefCountedTracker::FreeSpace(cookie, size);
 }
 
 void TRefCountedTrackerFacade::Dump()

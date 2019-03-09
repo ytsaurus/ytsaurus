@@ -246,7 +246,9 @@ struct TCheckPermissionOptions
     , public TMasterReadOptions
     , public TTransactionalOptions
     , public TPrerequisiteOptions
-{ };
+{
+    std::optional<std::vector<TString>> Columns;
+};
 
 struct TCheckPermissionResult
 {
@@ -257,6 +259,12 @@ struct TCheckPermissionResult
     std::optional<TString> ObjectName;
     NSecurityClient::TSubjectId SubjectId;
     std::optional<TString> SubjectName;
+};
+
+struct TCheckPermissionResponse
+    : public TCheckPermissionResult
+{
+    std::optional<std::vector<TCheckPermissionResult>> Columns;
 };
 
 struct TCheckPermissionByAclOptions
@@ -427,6 +435,8 @@ struct TSelectRowsOptions
     bool AllowJoinWithoutIndex = false;
     //! Path in Cypress with UDFs.
     std::optional<TString> UdfRegistryPath;
+    //! Memory limit per execution node
+    size_t MemoryLimitPerNode = std::numeric_limits<size_t>::max();
 };
 
 struct TGetNodeOptions
@@ -632,6 +642,7 @@ struct TTableReaderOptions
     : public TTransactionalOptions
 {
     bool Unordered = false;
+    bool OmitInaccessibleColumns = false;
     NTableClient::TTableReaderConfigPtr Config;
 };
 
@@ -939,6 +950,8 @@ struct TListJobsResult
     std::optional<int> ArchiveJobCount;
 
     TListJobsStatistics Statistics;
+
+    std::vector<TError> Errors;
 };
 
 struct TGetFileFromCacheResult
@@ -990,8 +1003,7 @@ struct IClientBase
 
     virtual TFuture<ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,
-        const TTableReaderOptions& options = TTableReaderOptions(),
-        const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory = nullptr) = 0;
+        const TTableReaderOptions& options = TTableReaderOptions()) = 0;
 
     virtual TFuture<ITableWriterPtr> CreateTableWriter(
         const NYPath::TRichYPath& path,
@@ -1205,7 +1217,7 @@ struct IClient
         const TString& member,
         const TRemoveMemberOptions& options = TRemoveMemberOptions()) = 0;
 
-    virtual TFuture<TCheckPermissionResult> CheckPermission(
+    virtual TFuture<TCheckPermissionResponse> CheckPermission(
         const TString& user,
         const NYPath::TYPath& path,
         NYTree::EPermission permission,

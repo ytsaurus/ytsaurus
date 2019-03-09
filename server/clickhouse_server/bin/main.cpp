@@ -4,113 +4,107 @@
 #include <yt/ytlib/program/program.h>
 #include <yt/ytlib/program/program_config_mixin.h>
 #include <yt/ytlib/program/program_pdeathsig_mixin.h>
+#include <yt/ytlib/program/configure_singletons.h>
 
-#include <yt/core/misc/ref_counted_tracker_profiler.h>
+#include <yt/core/phdr_cache/phdr_cache.h>
 
 #include <yt/core/alloc/alloc.h>
+
+#include <yt/core/misc/ref_counted_tracker_profiler.h>
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProgram
-    : public NYT::TProgram
+class TClickHouseServerProgram
+    : public TProgram
     , public TProgramPdeathsigMixin
-    , public TProgramConfigMixin<TConfig>
+    , public TProgramConfigMixin<TClickHouseServerBootstrapConfig>
 {
 private:
     TString InstanceId_;
     TString CliqueId_;
-    ui16 RpcPort_;
-    ui16 MonitoringPort_;
-    ui16 TcpPort_;
-    ui16 HttpPort_;
+    ui16 RpcPort_ = 0;
+    ui16 MonitoringPort_ = 0;
+    ui16 TcpPort_ = 0;
+    ui16 HttpPort_ = 0;
 
 public:
-    TProgram();
+    TClickHouseServerProgram()
+        : TProgramPdeathsigMixin(Opts_)
+        , TProgramConfigMixin(Opts_)
+    {
+        Opts_.AddLongOption("instance-id", "ClickHouse instance id")
+            .Required()
+            .StoreResult(&InstanceId_);
+        Opts_.AddLongOption("clique-id", "ClickHouse clique id")
+            .Required()
+            .StoreResult(&CliqueId_);
+        Opts_.AddLongOption("rpc-port", "ytserver RPC port")
+            .DefaultValue(9200)
+            .StoreResult(&RpcPort_);
+        Opts_.AddLongOption("monitoring-port", "ytserver monitoring port")
+            .DefaultValue(9201)
+            .StoreResult(&MonitoringPort_);
+        Opts_.AddLongOption("tcp-port", "ClickHouse TCP port")
+            .DefaultValue(9202)
+            .StoreResult(&TcpPort_);
+        Opts_.AddLongOption("http-port", "ClickHouse HTTP port")
+            .DefaultValue(9203)
+            .StoreResult(&HttpPort_);
+
+        SetCrashOnError();
+    }
 
 private:
-    void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override;
+    virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
+    {
+        TThread::CurrentThreadSetName("Main");
+
+        ConfigureUids();
+        ConfigureSignals();
+        ConfigureCrashHandler();
+        ConfigureExitZeroOnSigterm();
+        EnablePhdrCache();
+        EnableRefCountedTrackerProfiling();
+        NYTAlloc::EnableLogging();
+        NYTAlloc::EnableProfiling();
+        NYTAlloc::EnableStockpile();
+
+        if (HandlePdeathsigOptions()) {
+            return;
+        }
+
+        if (HandleConfigOptions()) {
+            return;
+        }
+
+        auto config = GetConfig();
+        auto configNode = GetConfigNode();
+
+        ConfigureSingletons(config);
+
+        // TODO(babenko): This memory leak is intentional.
+        // We should avoid destroying bootstrap since some of the subsystems
+        // may be holding a reference to it and continue running some actions in background threads.
+        auto* bootstrap = new TBootstrap(
+            std::move(config),
+            std::move(configNode),
+            InstanceId_,
+            CliqueId_,
+            RpcPort_,
+            MonitoringPort_,
+            TcpPort_,
+            HttpPort_);
+        bootstrap->Run();
+    }
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-TProgram::TProgram()
-    : NYT::TProgram()
-    , TProgramPdeathsigMixin(Opts_)
-    , TProgramConfigMixin(Opts_)
-{
-    Opts_.AddLongOption("instance-id", "ClickHouse instance id")
-        .Required()
-        .StoreResult(&InstanceId_);
-    Opts_.AddLongOption("clique-id", "ClickHouse clique id")
-        .Required()
-        .StoreResult(&CliqueId_);
-    Opts_.AddLongOption("rpc-port", "ytserver RPC port")
-        .DefaultValue(9200)
-        .StoreResult(&RpcPort_);
-    Opts_.AddLongOption("monitoring-port", "ytserver monitoring port")
-        .DefaultValue(9201)
-        .StoreResult(&MonitoringPort_);
-    Opts_.AddLongOption("tcp-port", "ClickHouse TCP port")
-        .DefaultValue(9202)
-        .StoreResult(&TcpPort_);
-    Opts_.AddLongOption("http-port", "ClickHouse HTTP port")
-        .DefaultValue(9203)
-        .StoreResult(&HttpPort_);
-
-    SetCrashOnError();
-}
-
-void TProgram::DoRun(const NLastGetopt::TOptsParseResult& parseResult)
-{
-    Y_UNUSED(parseResult);
-
-    ConfigureUids();
-    ConfigureSignals();
-    ConfigureCrashHandler();
-    ConfigureExitZeroOnSigterm();
-    EnableRefCountedTrackerProfiling();
-    NYTAlloc::EnableLogging();
-    NYTAlloc::EnableProfiling();
-    NYTAlloc::EnableStockpile();
-
-    if (HandlePdeathsigOptions()) {
-        return;
-    }
-
-    if (HandleConfigOptions()) {
-        return;
-    }
-
-    auto config = GetConfig();
-    auto configNode = GetConfigNode();
-
-    TBootstrap bootstrap {
-        std::move(config),
-        std::move(configNode),
-        InstanceId_,
-        CliqueId_,
-        RpcPort_,
-        MonitoringPort_,
-        TcpPort_,
-        HttpPort_,
-    };
-
-    bootstrap.Initialize();
-    bootstrap.Run();
-
-    // TODO
-    Sleep(TDuration::Max());
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer
 
-////////////////////////////////////////////////////////////////////////////////
-
 int main(int argc, const char** argv)
 {
-    return NYT::NClickHouseServer::TProgram().Run(argc, argv);
+    return NYT::NClickHouseServer::TClickHouseServerProgram().Run(argc, argv);
 }

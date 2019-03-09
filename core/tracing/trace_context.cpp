@@ -37,7 +37,7 @@ TTraceContext TTraceContext::CreateChild() const
     return TTraceContext(TraceId_, GenerateSpanId(), SpanId_);
 }
 
-void FormatValue(TStringBuilder* builder, const TTraceContext& context, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, const TTraceContext& context, TStringBuf /*spec*/)
 {
     builder->AppendFormat("%08" PRIx64 ":%08" PRIx64 ":%08" PRIx64,
         context.GetTraceId(),

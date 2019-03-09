@@ -47,13 +47,13 @@ public:
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         const std::vector<int>& blockIndexes,
-        const std::optional<i64>& estimatedSize) override;
+        std::optional<i64> estimatedSize) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         int firstBlockIndex,
         int blockCount,
-        const std::optional<i64>& estimatedSize) override;
+        std::optional<i64> estimatedSize) override;
 
     virtual bool IsValid() const override;
 
@@ -93,7 +93,7 @@ public:
         const TClientBlockReadOptions& options,
         const TErasurePlacementExt& placementExt,
         const std::vector<int>& blockIndexes,
-        const std::optional<i64>& estimatedSize,
+        std::optional<i64> estimatedSize,
         const TWeakPtr<TRepairingReader>& reader)
         : Codec_(codec)
         , Config_(config)
@@ -261,7 +261,7 @@ TFuture<TRefCountedChunkMetaPtr> TRepairingReader::GetMeta(
 TFuture<std::vector<TBlock>> TRepairingReader::ReadBlocks(
     const TClientBlockReadOptions& options,
     const std::vector<int>& blockIndexes,
-    const std::optional<i64>& estimatedSize)
+    std::optional<i64> estimatedSize)
 {
     // We don't use estimatedSize here, because during repair actual use of bandwidth is much higher that the size of blocks;
     return PreparePlacementMeta(options).Apply(
@@ -284,7 +284,7 @@ TFuture<std::vector<TBlock>> TRepairingReader::ReadBlocks(
     const TClientBlockReadOptions& options,
     int firstBlockIndex,
     int blockCount,
-    const std::optional<i64>& estimatedSize)
+    std::optional<i64> estimatedSize)
 {
     Y_UNIMPLEMENTED();
 }

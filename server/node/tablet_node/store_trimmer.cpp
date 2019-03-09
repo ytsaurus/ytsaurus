@@ -160,7 +160,7 @@ private:
 
         try {
             YT_LOG_INFO("Trimming tablet stores (StoreIds: %v)",
-                MakeFormattableRange(stores, TStoreIdFormatter()));
+                MakeFormattableView(stores, TStoreIdFormatter()));
 
             NNative::ITransactionPtr transaction;
             {

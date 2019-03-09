@@ -520,11 +520,11 @@ TFuture<void> TClient::RemoveMember(
     return req->Invoke().As<void>();
 }
 
-TFuture<NApi::TCheckPermissionResult> TClient::CheckPermission(
+TFuture<TCheckPermissionResponse> TClient::CheckPermission(
     const TString& user,
     const NYPath::TYPath& path,
     NYTree::EPermission permission,
-    const NApi::TCheckPermissionOptions& options)
+    const TCheckPermissionOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -534,17 +534,26 @@ TFuture<NApi::TCheckPermissionResult> TClient::CheckPermission(
     req->set_user(user);
     req->set_path(path);
     req->set_permission(static_cast<int>(permission));
+    if (options.Columns) {
+        auto* protoColumns = req->mutable_columns();
+        ToProto(protoColumns->mutable_items(), *options.Columns);
+    }
 
     ToProto(req->mutable_master_read_options(), options);
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_prerequisite_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspCheckPermissionPtr& rsp) {
-        return FromProto<NApi::TCheckPermissionResult>(rsp->result());
+        TCheckPermissionResponse response;
+        static_cast<TCheckPermissionResult&>(response) = FromProto<NApi::TCheckPermissionResult>(rsp->result());
+        if (rsp->has_columns()) {
+            response.Columns = FromProto<std::vector<TCheckPermissionResult>>(rsp->columns().items());
+        }
+        return response;
     }));
 }
 
-TFuture<NApi::TCheckPermissionByAclResult> TClient::CheckPermissionByAcl(
+TFuture<TCheckPermissionByAclResult> TClient::CheckPermissionByAcl(
     const std::optional<TString>& user,
     NYTree::EPermission permission,
     NYTree::INodePtr acl,
@@ -560,7 +569,6 @@ TFuture<NApi::TCheckPermissionByAclResult> TClient::CheckPermissionByAcl(
     }
     req->set_permission(static_cast<int>(permission));
     req->set_acl(ConvertToYsonString(acl).GetData());
-
     req->set_ignore_missing_subjects(options.IgnoreMissingSubjects);
 
     ToProto(req->mutable_master_read_options(), options);

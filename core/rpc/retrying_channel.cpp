@@ -141,6 +141,16 @@ private:
             ResponseHandler_->HandleResponse(message);
         }
 
+        virtual void HandleStreamingPayload(const TStreamingPayload& /*payload*/) override
+        {
+            Y_UNIMPLEMENTED();
+        }
+
+        virtual void HandleStreamingFeedback(const TStreamingFeedback& /*feedback*/) override
+        {
+            Y_UNIMPLEMENTED();
+        }
+
 
         std::optional<TDuration> ComputeAttemptTimeout(TInstant now)
         {

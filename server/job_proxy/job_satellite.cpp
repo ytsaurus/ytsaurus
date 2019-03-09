@@ -128,8 +128,8 @@ public:
     virtual std::vector<int> GetPids() override
     {
         auto pids = GetPidsByUid();
-        auto my_pid = ::getpid();
-        auto it = std::find(pids.begin(), pids.end(), my_pid);
+        auto myPid = ::getpid();
+        auto it = std::find(pids.begin(), pids.end(), myPid);
         if (it != pids.end()) {
             pids.erase(it);
         }
@@ -290,7 +290,7 @@ TYsonString TJobProbeTools::StraceJob()
         pids.erase(it);
     }
 
-    YT_LOG_DEBUG("Run strace for %v", pids);
+    YT_LOG_DEBUG("Running strace (Pids: %v)", pids);
 
     auto result = WaitFor(BIND([=] () {
         return RunTool<TStraceTool>(pids);
@@ -312,12 +312,12 @@ void TJobProbeTools::SignalJob(const TString& signalName)
     }
 
     if (arg->Pids.empty()) {
-        THROW_ERROR_EXCEPTION("No processes in the job to send signal");
+        return;
     }
 
     arg->SignalName = signalName;
 
-    YT_LOG_INFO("Sending signal %v to pids %v",
+    YT_LOG_INFO("Sending signal (Signal: %v, Pids: %v)",
         arg->SignalName,
         arg->Pids);
 

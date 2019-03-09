@@ -160,6 +160,7 @@ public:
 
     NBus::TTcpBusConfigPtr BusClient;
 
+    TDuration AnnotationSetterPeriod;
     NYTree::IMapNodePtr CypressAnnotations;
     TCellMasterConfig();
 };

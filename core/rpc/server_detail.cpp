@@ -140,19 +140,16 @@ TSharedRefArray TServiceContextBase::GetResponseMessage() const
         ToProto(header.mutable_error(), Error_);
 
         if (RequestHeader_->has_response_format()) {
-            header.set_response_format(RequestHeader_->response_format());
-        }
-
-        if (RequestHeader_->has_request_codecs()) {
-            auto requestCodecs = RequestHeader_->request_codecs();
-            header.mutable_response_codecs()->set_response_codec(
-                requestCodecs.response_codec());
-            header.mutable_response_codecs()->set_response_attachment_codec(
-                requestCodecs.response_attachment_codec());
+            header.set_format(RequestHeader_->response_format());
         }
 
         if (RequestHeader_->has_response_memory_zone()) {
-            header.set_response_memory_zone(RequestHeader_->response_memory_zone());
+            header.set_memory_zone(RequestHeader_->response_memory_zone());
+        }
+
+        // COMPAT(kiselyovp)
+        if (RequestHeader_->has_response_codec()) {
+            header.set_codec(static_cast<int>(ResponseCodec_));
         }
 
         ResponseMessage_ = Error_.IsOK()
@@ -207,6 +204,11 @@ std::vector<TSharedRef>& TServiceContextBase::RequestAttachments()
     return RequestAttachments_;
 }
 
+NConcurrency::IAsyncZeroCopyInputStreamPtr TServiceContextBase::GetRequestAttachmentsStream()
+{
+    return nullptr;
+}
+
 TSharedRef TServiceContextBase::GetResponseBody()
 {
     return ResponseBody_;
@@ -222,6 +224,11 @@ void TServiceContextBase::SetResponseBody(const TSharedRef& responseBody)
 std::vector<TSharedRef>& TServiceContextBase::ResponseAttachments()
 {
     return ResponseAttachments_;
+}
+
+NConcurrency::IAsyncZeroCopyOutputStreamPtr TServiceContextBase::GetResponseAttachmentsStream()
+{
+    return nullptr;
 }
 
 const NProto::TRequestHeader& TServiceContextBase::GetRequestHeader() const
@@ -323,6 +330,16 @@ bool TServiceContextBase::IsPooled() const
     return false;
 }
 
+NCompression::ECodec TServiceContextBase::GetResponseCodec() const
+{
+    return ResponseCodec_;
+}
+
+void TServiceContextBase::SetResponseCodec(NCompression::ECodec codec)
+{
+    ResponseCodec_ = codec;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceContextWrapper::TServiceContextWrapper(IServiceContextPtr underlyingContext)
@@ -414,11 +431,15 @@ void TServiceContextWrapper::SetComplete()
     UnderlyingContext_->SetComplete();
 }
 
-void TServiceContextWrapper::SubscribeCanceled(const TClosure& /*callback*/)
-{ }
+void TServiceContextWrapper::SubscribeCanceled(const TClosure& callback)
+{
+    UnderlyingContext_->SubscribeCanceled(callback);
+}
 
-void TServiceContextWrapper::UnsubscribeCanceled(const TClosure& /*callback*/)
-{ }
+void TServiceContextWrapper::UnsubscribeCanceled(const TClosure& callback)
+{
+    UnderlyingContext_->UnsubscribeCanceled(callback);
+}
 
 bool TServiceContextWrapper::IsCanceled()
 {
@@ -463,6 +484,11 @@ std::vector<TSharedRef>& TServiceContextWrapper::RequestAttachments()
     return UnderlyingContext_->RequestAttachments();
 }
 
+NConcurrency::IAsyncZeroCopyInputStreamPtr TServiceContextWrapper::GetRequestAttachmentsStream()
+{
+    return UnderlyingContext_->GetRequestAttachmentsStream();
+}
+
 std::vector<TSharedRef>& TServiceContextWrapper::ResponseAttachments()
 {
     return UnderlyingContext_->ResponseAttachments();
@@ -471,6 +497,11 @@ std::vector<TSharedRef>& TServiceContextWrapper::ResponseAttachments()
 const NProto::TRequestHeader& TServiceContextWrapper::RequestHeader() const
 {
     return UnderlyingContext_->RequestHeader();
+}
+
+NConcurrency::IAsyncZeroCopyOutputStreamPtr TServiceContextWrapper::GetResponseAttachmentsStream()
+{
+    return UnderlyingContext_->GetResponseAttachmentsStream();
 }
 
 NProto::TRequestHeader& TServiceContextWrapper::RequestHeader()
@@ -501,6 +532,16 @@ NLogging::ELogLevel TServiceContextWrapper::GetLogLevel() const
 bool TServiceContextWrapper::IsPooled() const
 {
     return UnderlyingContext_->IsPooled();
+}
+
+NCompression::ECodec TServiceContextWrapper::GetResponseCodec() const
+{
+    return UnderlyingContext_->GetResponseCodec();
+}
+
+void TServiceContextWrapper::SetResponseCodec(NCompression::ECodec codec)
+{
+    UnderlyingContext_->SetResponseCodec(codec);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

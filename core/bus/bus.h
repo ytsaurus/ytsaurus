@@ -55,7 +55,7 @@ struct TSendOptions
 
     EDeliveryTrackingLevel TrackingLevel;
     int ChecksummedPartCount;
-    bool UseUndumpableMemoryZone = false;
+    EMemoryZone MemoryZone = EMemoryZone::Normal;
 };
 
 //! A bus, i.e. something capable of transmitting messages.

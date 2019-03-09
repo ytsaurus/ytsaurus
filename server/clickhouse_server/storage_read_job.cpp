@@ -1,6 +1,5 @@
 #include "storage_read_job.h"
 
-#include "auth_token.h"
 #include "db_helpers.h"
 #include "format_helpers.h"
 #include "input_stream.h"
@@ -8,25 +7,15 @@
 #include "type_helpers.h"
 #include "virtual_columns.h"
 
-#include <yt/server/clickhouse_server/storage.h>
-#include <yt/server/clickhouse_server/table_reader.h>
-#include <yt/server/clickhouse_server/table.h>
+#include "query_context.h"
+#include "table_reader.h"
+#include "table.h"
 
 #include <Interpreters/Context.h>
 
 #include <Poco/Logger.h>
 
 #include <common/logger_useful.h>
-
-namespace DB {
-
-namespace ErrorCodes
-{
-    extern const int INCOMPATIBLE_COLUMNS;
-    extern const int LOGICAL_ERROR;
-}
-
-}   // namespace DB
 
 namespace NYT::NClickHouseServer {
 
@@ -38,17 +27,18 @@ class TStorageReadJob
     : public IStorageWithVirtualColumns
 {
 private:
-    const IStoragePtr Storage;
+    TQueryContext* QueryContext_;
     const NamesAndTypesList Columns;
     const std::string JobSpec;
 
     Poco::Logger* Logger;
 
 public:
-    TStorageReadJob(IStoragePtr storage,
-                    NamesAndTypesList columns,
-                    std::string jobSpec)
-        : Storage(std::move(storage))
+    TStorageReadJob(
+        TQueryContext* queryContext,
+        NamesAndTypesList columns,
+        std::string jobSpec)
+        : QueryContext_(queryContext)
         , Columns(std::move(columns))
         , JobSpec(std::move(jobSpec))
         , Logger(&Poco::Logger::get("StorageReadJob"))
@@ -89,7 +79,7 @@ private:
 BlockInputStreams TStorageReadJob::read(
     const Names& columnNames,
     const SelectQueryInfo& /* queryInfo */,
-    const Context& context,
+    const Context& /* context */,
     QueryProcessingStage::Enum /* processedStage */,
     size_t /* maxBlockSize */,
     unsigned numStreams)
@@ -100,18 +90,12 @@ BlockInputStreams TStorageReadJob::read(
     DB::Names virtualColumns;
     SplitColumns(columnNames, physicalColumns, virtualColumns);
 
-    auto token = CreateAuthToken(*Storage, context);
-
-    TTableReaderOptions readerOptions;
-    readerOptions.Unordered = true;
-
-    auto tableReaders = Storage->CreateTableReaders(
-        *token,
+    auto tableReaders = QueryContext_->CreateTableReaders(
         ToString(JobSpec),
         ToString(physicalColumns),
         GetSystemColumns(virtualColumns),
         numStreams,
-        readerOptions);
+        true /* unordered */);
 
     BlockInputStreams streams;
     for (auto& tableReader: tableReaders) {
@@ -129,8 +113,8 @@ QueryProcessingStage::Enum TStorageReadJob::getQueryProcessingStage(const Contex
 ////////////////////////////////////////////////////////////////////////////////
 
 StoragePtr CreateStorageReadJob(
-    IStoragePtr storage,
-    std::vector<TTablePtr> tables,
+    TQueryContext* queryContext,
+    std::vector<TClickHouseTablePtr> tables,
     std::string jobSpec)
 {
     if (tables.empty()) {
@@ -143,7 +127,7 @@ StoragePtr CreateStorageReadJob(
     DB::NamesAndTypesList columns = GetTableColumns(*representative);
 
     return std::make_shared<TStorageReadJob>(
-        std::move(storage),
+        queryContext,
         std::move(columns),
         std::move(jobSpec));
 }

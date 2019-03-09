@@ -51,8 +51,6 @@ private:
         auto* replica = GetThisImpl();
         auto* table = replica->GetTable();
 
-        ValidatePermission(table, EPermission::Write);
-
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->LockNode(table, nullptr, TLockRequest(ELockMode::Exclusive));
     }

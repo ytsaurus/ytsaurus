@@ -155,7 +155,7 @@ class TestMasterCellsSync(YTEnvSetup):
 
         wait_for_cells()
         peer = get("#{0}/@peers/0/address".format(cell_id))
-        set("//sys/nodes/{0}/@disable_tablet_cells".format(peer), True)
+        set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(peer), True)
         wait(lambda: get("#{0}/@config_version".format(cell_id)) == 2)
         remove("#{0}".format(cell_id))
 

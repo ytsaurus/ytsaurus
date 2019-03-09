@@ -51,6 +51,12 @@ private:
 
     bool TryParse(const NYTree::INodePtr& configNode, const TString& parentId, bool pathToRootChanged)
     {
+        auto nodeType = configNode->GetType();
+        if (nodeType != NYTree::ENodeType::Map) {
+            Error_ = TError("Found node with type %v, but only Map is allowed", nodeType);
+            return false;
+        }
+
         for (const auto& [childId, childNode] : configNode->AsMap()->GetChildren()) {
             if (childId == RootPoolName) {
                 Error_ = TError("Use of root element id is forbidden");

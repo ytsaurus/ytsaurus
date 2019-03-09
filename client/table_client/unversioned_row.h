@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "row_base.h"
-#include "schema.h"
 #include "unversioned_value.h"
 
 #include <yt/core/misc/chunked_memory_pool.h>

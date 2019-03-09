@@ -21,6 +21,8 @@
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
@@ -149,9 +151,9 @@ private:
             }
         }
 
-        GetUserObjectBasicAttributes<TInputTable>(
+        GetUserObjectBasicAttributes(
             Client,
-            InputTables_,
+            MakeUserObjectList(InputTables_),
             NullTransactionId,
             Logger,
             EPermission::Read);
@@ -159,7 +161,7 @@ private:
         for (const auto& table : InputTables_) {
             if (table.Type != EObjectType::Table) {
                 THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
-                    table.GetPath(),
+                    table.Path.GetPath(),
                     EObjectType::Table,
                     table.Type);
             }
@@ -229,16 +231,20 @@ private:
             const auto& table = InputTables_[i];
             if (table.Schema != representativeTable.Schema) {
                 THROW_ERROR_EXCEPTION(
-                    "YT schema mismatch: %Qlv and %Qlv", representativeTable.GetPath(), table.GetPath());
+                    "YT schema mismatch: %v and %v",
+                    representativeTable.Path.GetPath(),
+                    table.Path.GetPath());
             }
             if (table.IsDynamic != representativeTable.IsDynamic) {
                 THROW_ERROR_EXCEPTION(
-                    "Table types mismatch: %Qlv and %Qlv", representativeTable.GetPath(), table.GetPath());
+                    "Table dynamic flag mismatch: %v and %v",
+                    representativeTable.Path.GetPath(),
+                    table.Path.GetPath());
             }
         }
 
         KeyColumnCount_ = representativeTable.Schema.GetKeyColumnCount();
-        KeyColumnDataTypes_ = TClickHouseTableSchema::From(*CreateTable("", representativeTable.Schema)).GetKeyDataTypes();
+        KeyColumnDataTypes_ = TClickHouseTableSchema::From(*CreateClickHouseTable("", representativeTable.Schema)).GetKeyDataTypes();
     }
 
     void LogStatistics(const TStringBuf& stage)
@@ -254,35 +260,35 @@ private:
         for (const auto& inputTable : InputTables_) {
             totalChunkCount += inputTable.ChunkCount;
         }
-        YT_LOG_INFO("Fetching data slices (InputTableCount: %v, TotalChunkCount: %v)", InputTables_.size(), totalChunkCount);
+        YT_LOG_INFO("Fetching data slices (InputTableCount: %v, TotalChunkCount: %v)",
+            InputTables_.size(),
+            totalChunkCount);
 
         for (size_t tableIndex = 0; tableIndex < InputTables_.size(); ++tableIndex) {
             auto& table = InputTables_[tableIndex];
     
             if (table.IsDynamic) {
                 THROW_ERROR_EXCEPTION("Dynamic tables are not supported yet (YT-9404)")
-                    << TErrorAttribute("table", table.GetPath());
+                    << TErrorAttribute("table", table.Path.GetPath());
             }
     
             auto dataSource = MakeUnversionedDataSource(
-                table.GetPath(),
+                table.Path.GetPath(),
                 table.Schema,
-                std::nullopt);
+                /* columns */ std::nullopt,
+                // TODO(max42): YT-10402, omitted inaccessible columns
+                {});
     
             DataSourceDirectory_->DataSources().push_back(std::move(dataSource));
     
-            YT_LOG_DEBUG("Fetching input table (Path: %v)", table.GetPath());
+            YT_LOG_DEBUG("Fetching input table (Path: %v)",
+                table.Path.GetPath());
 
-            std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
-            chunkSpecs.reserve(table.ChunkCount);
-    
-            auto objectIdPath = FromObjectId(table.ObjectId);
-    
-            FetchChunkSpecs(
+            auto chunkSpecs = FetchChunkSpecs(
                 Client,
                 NodeDirectory_,
                 table.CellTag,
-                objectIdPath,
+                FromObjectId(table.ObjectId),
                 table.Path.GetRanges(),
                 table.ChunkCount,
                 100000, // MaxChunksPerFetch
@@ -294,8 +300,7 @@ private:
                     SetTransactionId(req, NullTransactionId);
                     SetSuppressAccessTracking(req, true);
                 },
-                Logger,
-                &chunkSpecs);
+                Logger);
     
             for (int i = 0; i < static_cast<int>(chunkSpecs.size()); ++i) {
                 auto& chunk = chunkSpecs[i];
@@ -380,10 +385,7 @@ NChunkPools::TChunkStripeListPtr BuildJobs(
     for (int jobIndex = 0; jobIndex < jobCount; ++jobIndex) {
         auto currentStripe = New<TChunkStripe>();
         remainingStripeDataWeight += totalDataWeight / jobCount;
-        if (jobIndex + 1 == jobCount) {
-            // Make sure that the last job gets all of the remaining data.
-            remainingStripeDataWeight = totalDataWeight + 1;
-        }
+        bool takeAllRemaining = jobIndex + 1 == jobCount;
         while (true) {
             if (currentDataSliceIndex == static_cast<int>(dataSlices.size())) {
                 break;
@@ -394,21 +396,31 @@ NChunkPools::TChunkStripeListPtr BuildJobs(
             const auto& upperLimit = inputChunk->UpperLimit();
             i64 dataSliceLowerRowIndex = lowerLimit && lowerLimit->HasRowIndex() ? lowerLimit->GetRowIndex() : 0;
             i64 dataSliceUpperRowIndex = upperLimit && upperLimit->HasRowIndex() ? upperLimit->GetRowIndex() : inputChunk->GetRowCount();
+            if (dataSliceLowerRowIndex >= dataSliceUpperRowIndex) {
+                currentDataSliceIndex++;
+                continue;
+            }
+
             if (currentLowerRowIndex == -1) {
                 currentLowerRowIndex = dataSliceLowerRowIndex;
             }
 
-            i64 upperRowIndex = std::min<i64>(
-                dataSliceUpperRowIndex,
-                currentLowerRowIndex + static_cast<double>(dataSlice->GetRowCount()) / dataSlice->GetDataWeight() * remainingStripeDataWeight);
+            i64 upperRowIndex = -1;
+            if (takeAllRemaining) {
+                upperRowIndex = dataSliceUpperRowIndex;
+            } else {
+                upperRowIndex = std::min<i64>(
+                    dataSliceUpperRowIndex,
+                    currentLowerRowIndex + static_cast<double>(dataSlice->GetRowCount()) / dataSlice->GetDataWeight() * remainingStripeDataWeight);
+            }
             // Take at least one row into the job.
             upperRowIndex = std::max(upperRowIndex, currentLowerRowIndex + 1);
 
             i64 currentDataWeight =
                 static_cast<double>(upperRowIndex - currentLowerRowIndex) / dataSlice->GetRowCount() * dataSlice->GetDataWeight();
             bool finalDataSlice = false;
-            if (upperRowIndex < dataSlice->GetRowCount() ||
-                (upperRowIndex == dataSlice->GetRowCount() && currentDataSliceIndex == static_cast<int>(dataSlices.size())))
+            if (upperRowIndex < dataSliceUpperRowIndex ||
+                (upperRowIndex == dataSliceUpperRowIndex && currentDataSliceIndex == static_cast<int>(dataSlices.size()) - 1))
             {
                 currentDataWeight = remainingStripeDataWeight;
                 finalDataSlice = true;

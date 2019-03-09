@@ -421,15 +421,15 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
         case EInternedAttributeKey::InheritAcl:
         case EInternedAttributeKey::Acl:
         case EInternedAttributeKey::Owner: {
-            auto attributeApplied = TObjectProxyBase::SetBuiltinAttribute(key, value);
-            if (attributeApplied && !GetThisImpl()->IsBeingCreated()) {
+            auto attributeUpdated = TObjectProxyBase::SetBuiltinAttribute(key, value);
+            if (attributeUpdated && !GetThisImpl()->IsBeingCreated()) {
                 LogStructuredEventFluently(Logger, ELogLevel::Info)
                     .Item("event").Value(EAccessControlEvent::ObjectAcdUpdated)
                     .Item("attribute").Value(GetUninternedAttributeKey(key))
                     .Item("path").Value(GetPath())
                     .Item("value").Value(value);
             }
-            return attributeApplied;
+            return attributeUpdated;
         }
 
         default:
@@ -1059,14 +1059,14 @@ void TNontemplateCypressNodeProxyBase::ValidateMediaChange(
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
-    for (auto mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
-        if (newReplication[mediumIndex]) {
-            auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
+    for (const auto& entry : newReplication) {
+        if (entry.Policy()) {
+            auto* medium = chunkManager->GetMediumByIndex(entry.GetMediumIndex());
             ValidatePermission(medium, EPermission::Use);
         }
     }
 
-    if (primaryMediumIndex && !newReplication[*primaryMediumIndex]) {
+    if (primaryMediumIndex && !newReplication.Get(*primaryMediumIndex)) {
         const auto* primaryMedium = chunkManager->GetMediumByIndex(*primaryMediumIndex);
         THROW_ERROR_EXCEPTION("Cannot remove primary medium %Qv",
             primaryMedium->GetName());
@@ -1089,12 +1089,12 @@ bool TNontemplateCypressNodeProxyBase::ValidatePrimaryMediumChange(
     ValidatePermission(newPrimaryMedium, EPermission::Use);
 
     auto copiedReplication = oldReplication;
-    if (!copiedReplication[newPrimaryMediumIndex] && oldPrimaryMediumIndex) {
+    if (!copiedReplication.Get(newPrimaryMediumIndex) && oldPrimaryMediumIndex) {
         // The user is trying to set a medium with zero replication count
         // as primary. This is regarded as a request to move from one medium to
         // another.
-        copiedReplication[newPrimaryMediumIndex] = copiedReplication[*oldPrimaryMediumIndex];
-        copiedReplication[*oldPrimaryMediumIndex].Clear();
+        copiedReplication.Set(newPrimaryMediumIndex, copiedReplication.Get(*oldPrimaryMediumIndex));
+        copiedReplication.Erase(*oldPrimaryMediumIndex);
     }
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -1286,23 +1286,39 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         }
     }
 
-    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+    if (replace) {
+        ValidatePermission(EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::Remove);
+        ValidatePermission(EPermissionCheckScope::Parent, EPermission::Write);
+    } else {
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+    }
 
     auto* node = GetThisImpl();
-    auto* account = replace ? node->GetParent()->GetAccount() : node->GetAccount();
-
-    auto factory = CreateCypressFactory(account, TNodeFactoryOptions());
+    // The node inside which the new node must be created.
+    auto* intendedParentNode = replace ? node->GetParent() : node;
+    auto* account = intendedParentNode->GetAccount();
 
     TInheritedAttributeDictionary inheritedAttributes(Bootstrap_);
-    GatherInheritableAttributes(
-            replace ? node->GetParent() : node,
-            &inheritedAttributes.Attributes());
+    GatherInheritableAttributes(intendedParentNode, &inheritedAttributes.Attributes());
 
     std::unique_ptr<IAttributeDictionary> explicitAttributes;
     if (request->has_node_attributes()) {
         explicitAttributes = FromProto(request->node_attributes());
+
+        auto optionalAccount = explicitAttributes->FindAndRemove<TString>("account");
+        if (optionalAccount) {
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            account = securityManager->GetAccountByNameOrThrow(*optionalAccount);
+        }
+
+        if ((explicitAttributes->Contains("acl") || explicitAttributes->Contains("inherit_acl")) &&
+            intendedParentNode->GetTrunkNode())
+        {
+            ValidatePermission(intendedParentNode, EPermissionCheckScope::This, EPermission::Administer);
+        }
     }
 
+    auto factory = CreateCypressFactory(account, TNodeFactoryOptions());
     auto newProxy = factory->CreateNode(type, &inheritedAttributes, explicitAttributes.get());
 
     if (replace) {
@@ -1638,7 +1654,7 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
             {
                 const auto replicationFactor = node->GetReplicationFactor();
                 if (replicationFactor &&
-                    *replicationFactor != newReplication[mediumIndex].GetReplicationFactor())
+                    *replicationFactor != newReplication.Get(mediumIndex).GetReplicationFactor())
                 {
                     throwReplicationFactorMismatch(mediumIndex);
                 }
@@ -1655,6 +1671,8 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
 
             auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
             TChunkReplication replication;
+            // Vitality isn't a part of TSerializableChunkReplication, assume true.
+            replication.SetVital(true);
             serializableReplication.ToChunkReplication(&replication, chunkManager);
 
             const auto oldReplication = node->GetMedia();
@@ -1666,7 +1684,7 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
             const auto primaryMediumIndex = node->GetPrimaryMediumIndex();
             const auto replicationFactor = node->GetReplicationFactor();
             if (primaryMediumIndex && replicationFactor) {
-                if (replication[*primaryMediumIndex].GetReplicationFactor() != *replicationFactor) {
+                if (replication.Get(*primaryMediumIndex).GetReplicationFactor() != *replicationFactor) {
                     throwReplicationFactorMismatch(*primaryMediumIndex);
                 }
             }
@@ -1697,7 +1715,7 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
             if (mediumIndex) {
                 const auto replication = node->GetMedia();
                 if (replication) {
-                    if ((*replication)[*mediumIndex].GetReplicationFactor() != replicationFactor) {
+                    if (replication->Get(*mediumIndex).GetReplicationFactor() != replicationFactor) {
                         throwReplicationFactorMismatch(*mediumIndex);
                     }
                 } else if (!node->GetReplicationFactor()) {
@@ -1902,6 +1920,7 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const NYson::TYs
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
         TChunkReplication replication;
+        replication.SetVital(true);
         serializableReplication.ToChunkReplication(&replication, chunkManager);
 
         InheritedAttributes_.Media = replication;

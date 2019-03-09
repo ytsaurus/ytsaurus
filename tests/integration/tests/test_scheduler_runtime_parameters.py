@@ -15,6 +15,8 @@ class TestRuntimeParameters(YTEnvSetup):
         "scheduler": {
             "fair_share_update_period": 100,
             "operations_update_period": 10,
+            "pool_change_is_allowed": True,
+            "watchers_update_period": 100,  # Update pools configuration period
         }
     }
 
@@ -61,19 +63,11 @@ class TestRuntimeParameters(YTEnvSetup):
         # wait() is essential since resource limits are copied from runtime parameters only during fair-share update.
         wait(lambda: get(progress_path + "/resource_limits")["user_slots"] == 0, iter=5)
 
-    @pytest.mark.xfail(run=False, reason="YT-9226")
-    def test_update_pool_default_pooltree(self):
+    def test_change_pool_of_default_pooltree(self):
         create("map_node", "//sys/pools/initial_pool")
         create("map_node", "//sys/pools/changed_pool")
 
-        create_test_tables()
-
-        op = map(
-            command="sleep 100",
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            spec={"pool": "initial_pool"},
-            dont_track=True)
+        op = run_sleeping_vanilla(spec={"pool": "initial_pool"})
 
         wait(lambda: op.get_state() == "running", iter=10)
 
@@ -82,19 +76,11 @@ class TestRuntimeParameters(YTEnvSetup):
         path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/pool".format(op.id)
         assert get(path) == "changed_pool"
 
-    @pytest.mark.xfail(run=False, reason="YT-9226")
-    def test_running_operation_counts_on_update_pool(self):
+    def test_running_operation_counts_on_change_pool(self):
         create("map_node", "//sys/pools/initial_pool")
         create("map_node", "//sys/pools/changed_pool")
 
-        create_test_tables()
-
-        op = map(
-            command="sleep 100",
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            spec={"pool": "initial_pool"},
-            dont_track=True)
+        op = run_sleeping_vanilla(spec={"pool": "initial_pool"})
 
         wait(lambda: op.get_state() == "running", iter=10)
 
@@ -107,26 +93,21 @@ class TestRuntimeParameters(YTEnvSetup):
         wait(lambda: get(pools_path + "initial_pool/running_operation_count") == 0)
         wait(lambda: get(pools_path + "changed_pool/running_operation_count") == 1)
 
-    @pytest.mark.xfail(run=False, reason="YT-9226")
-    def test_update_pool_of_multitree_operation(self):
+    def test_change_pool_of_multitree_operation(self):
         self.create_custom_pool_tree_with_one_node(pool_tree="custom")
         create("map_node", "//sys/pools/default_pool")
         create("map_node", "//sys/pool_trees/custom/custom_pool1")
         create("map_node", "//sys/pool_trees/custom/custom_pool2")
-        create_test_tables()
+        time.sleep(0.1)
 
-        op = map(
-            command="sleep 100",
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
+        op = run_sleeping_vanilla(
             spec={
                 "pool_trees": ["default", "custom"],
                 "scheduling_options_per_pool_tree": {
                     "default": {"pool": "default_pool"},
                     "custom": {"pool": "custom_pool1"}
                 }
-            },
-            dont_track=True)
+            })
 
         wait(lambda: op.get_state() == "running", iter=10)
 
@@ -135,10 +116,39 @@ class TestRuntimeParameters(YTEnvSetup):
         path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/custom/pool".format(op.id)
         assert get(path) == "custom_pool2"
 
+    def test_operation_count_validation_on_change_pool(self):
+        set("//sys/pools/initial_pool", {})
+        set("//sys/pools/full_pool", {})
+        set("//sys/pools/full_pool/@max_running_operation_count", 0)
+
+        op = run_sleeping_vanilla(spec={"pool": "initial_pool"})
+
+        wait(lambda: op.get_state() == "running")
+
+        with pytest.raises(YtError):
+            update_op_parameters(op.id, parameters={"pool": "full_pool"})
+
+        path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/pool".format(op.id)
+        assert get(path) == "initial_pool"
+
+    def test_no_pool_validation_on_change_weight(self):
+        set("//sys/pools/test_pool", {})
+        op = run_sleeping_vanilla(spec={"pool": "test_pool"})
+        wait(lambda: op.get_state() == "running")
+
+        set("//sys/pools/test_pool/@max_operation_count", 0)
+        set("//sys/pools/test_pool/@max_running_operation_count", 0)
+
+        orchid_pools = "//sys/scheduler/orchid/scheduler/pools"
+        wait(lambda: get(orchid_pools + "/test_pool/max_running_operation_count") == 0)
+
+        # assert this doesn't fail
+        update_op_parameters(op.id, parameters={"weight": 2})
+
     def create_custom_pool_tree_with_one_node(self, pool_tree):
         tag = pool_tree
-        node = ls("//sys/nodes")[0]
-        set("//sys/nodes/" + node + "/@user_tags/end", tag)
+        node = ls("//sys/cluster_nodes")[0]
+        set("//sys/cluster_nodes/" + node + "/@user_tags/end", tag)
         create("map_node", "//sys/pool_trees/" + pool_tree, attributes={"nodes_filter": tag})
         set("//sys/pool_trees/default/@nodes_filter", "!" + tag)
         return node

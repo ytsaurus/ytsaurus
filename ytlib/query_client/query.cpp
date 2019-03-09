@@ -45,7 +45,7 @@ struct TExpressionPrinter
     : TAbstractExpressionPrinter<TExpressionPrinter, TConstExpressionPtr>
 {
     using TBase = TAbstractExpressionPrinter<TExpressionPrinter, TConstExpressionPtr>;
-    TExpressionPrinter(TStringBuilder* builder, bool omitValues)
+    TExpressionPrinter(TStringBuilderBase* builder, bool omitValues)
         : TBase(builder, omitValues)
     { }
 };
@@ -63,13 +63,13 @@ TString InferName(TConstExpressionPtr expr, bool omitValues)
 
 TString InferName(TConstBaseQueryPtr query, bool omitValues)
 {
-    auto namedItemFormatter = [&] (TStringBuilder* builder, const TNamedItem& item) {
+    auto namedItemFormatter = [&] (TStringBuilderBase* builder, const TNamedItem& item) {
         builder->AppendFormat("%v AS %v",
             InferName(item.Expression, omitValues),
             item.Name);
     };
 
-    auto orderItemFormatter = [&] (TStringBuilder* builder, const TOrderItem& item) {
+    auto orderItemFormatter = [&] (TStringBuilderBase* builder, const TOrderItem& item) {
         builder->AppendFormat("%v %v",
             InferName(item.first, omitValues),
             item.second ? "DESC" : "ASC");
@@ -131,6 +131,10 @@ TString InferName(TConstBaseQueryPtr query, bool omitValues)
 
     if (query->OrderClause) {
         clauses.push_back(TString("ORDER BY ") + JoinToString(query->OrderClause->OrderItems, orderItemFormatter));
+    }
+
+    if (query->Offset > 0) {
+        clauses.push_back(TString("OFFSET ") + ToString(query->Offset));
     }
 
     if (query->Limit < std::numeric_limits<i64>::max()) {
@@ -665,6 +669,7 @@ void ToProto(NProto::TQuery* serialized, const TConstQueryPtr& original)
 {
     ToProto(serialized->mutable_id(), original->Id);
 
+    serialized->set_offset(original->Offset);
     serialized->set_limit(original->Limit);
     serialized->set_use_disjoint_group_by(original->UseDisjointGroupBy);
     serialized->set_infer_ranges(original->InferRanges);
@@ -700,6 +705,7 @@ void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized)
 {
     auto result = New<TQuery>(FromProto<TGuid>(serialized.id()));
 
+    result->Offset = serialized.offset();
     result->Limit = serialized.limit();
     result->UseDisjointGroupBy = serialized.use_disjoint_group_by();
     result->InferRanges = serialized.infer_ranges();
@@ -746,6 +752,7 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
     serialized->set_allow_full_scan(original.AllowFullScan);
     ToProto(serialized->mutable_read_session_id(), original.ReadSessionId);
     serialized->set_deadline(ToProto<ui64>(original.Deadline));
+    serialized->set_memory_limit_per_node(original.MemoryLimitPerNode);
 }
 
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
@@ -762,6 +769,11 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     original->ReadSessionId  = serialized.has_read_session_id()
         ? FromProto<NChunkClient::TReadSessionId>(serialized.read_session_id())
         : NChunkClient::TReadSessionId::Create();
+
+    if (serialized.has_memory_limit_per_node()) {
+        original->MemoryLimitPerNode = serialized.memory_limit_per_node();
+    }
+
     original->Deadline = serialized.has_deadline()
         ? FromProto<TInstant>(serialized.deadline())
         : TInstant::Max();

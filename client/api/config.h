@@ -199,6 +199,8 @@ public:
 
     TDuration UploadTransactionTimeout;
 
+    bool IgnoreClosing; // for testing purposes only
+
     TJournalWriterConfig()
     {
         RegisterParameter("max_batch_delay", MaxBatchDelay)
@@ -240,6 +242,9 @@ public:
 
         RegisterParameter("upload_transaction_timeout", UploadTransactionTimeout)
             .Default(TDuration::Seconds(15));
+
+        RegisterParameter("ignore_closing", IgnoreClosing)
+            .Default(false);
     }
 };
 

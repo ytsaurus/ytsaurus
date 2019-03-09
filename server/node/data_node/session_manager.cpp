@@ -182,7 +182,7 @@ void TSessionManager::OnSessionLeaseExpired(TSessionId sessionId)
         return;
     }
 
-    YT_LOG_INFO("Session lease expired (ChunkId: %v)",
+    YT_LOG_DEBUG("Session lease expired (ChunkId: %v)",
         sessionId);
 
     session->Cancel(TError("Session lease expired"));
@@ -197,7 +197,7 @@ void TSessionManager::OnSessionFinished(const TWeakPtr<ISession>& session, const
         return;
     }
 
-    YT_LOG_INFO("Session finished (ChunkId: %v)",
+    YT_LOG_DEBUG("Session finished (ChunkId: %v)",
         session_->GetId());
 
     UnregisterSession(session_);

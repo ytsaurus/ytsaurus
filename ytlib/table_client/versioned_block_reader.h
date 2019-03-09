@@ -4,7 +4,7 @@
 #include "public.h"
 #include "schemaless_block_reader.h"
 
-#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/public.h>
 #include <yt/client/table_client/versioned_row.h>
 #include <yt/client/table_client/unversioned_row.h>
 

@@ -283,6 +283,24 @@ bool TTableNodeTypeHandlerBase<TImpl>::IsExternalizable() const
     return true;
 }
 
+template<class TImpl>
+bool TTableNodeTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const TString& key) const
+{
+    static const THashSet<TString> supportedInheritableAttributes = {
+        "atomicity",
+        "commit_ordering",
+        "in_memory_mode",
+        "optimize_for",
+        "tablet_cell_bundle"
+    };
+
+    if (supportedInheritableAttributes.contains(key)) {
+        return true;
+    }
+
+    return TBase::IsSupportedInheritableAttribute(key);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableNodeTypeHandler::TTableNodeTypeHandler(TBootstrap* bootstrap)

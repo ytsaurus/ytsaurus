@@ -39,6 +39,8 @@ public:
 
     virtual NScheduler::TOperationRuntimeParametersPtr GetRuntimeParameters() const override;
 
+    virtual bool GetActivated() const override;
+
     bool SetCompleting();
 
 private:

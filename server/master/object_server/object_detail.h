@@ -57,8 +57,9 @@ protected:
 
 
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetBasicAttributes);
-    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, CheckPermission);
+    virtual void ValidateGetBasicAttributesPermissions(const TCtxGetBasicAttributesPtr& context);
 
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, CheckPermission);
 
     //! Returns the full object id that coincides with #Id
     //! for non-versioned objects and additionally includes transaction id for

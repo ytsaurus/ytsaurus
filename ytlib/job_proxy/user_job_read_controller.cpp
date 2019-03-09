@@ -151,6 +151,21 @@ public:
     }
 
 private:
+    const IJobSpecHelperPtr JobSpecHelper_;
+    const NNative::IClientPtr Client_;
+    const IInvokerPtr SerializedInvoker_;
+    const TNodeDescriptor NodeDescriptor_;
+    const TClosure OnNetworkRelease_;
+    const IUserJobIOFactoryPtr UserJobIOFactory_;
+
+    ISchemalessMultiChunkReaderPtr Reader_;
+    std::vector<ISchemalessFormatWriterPtr> FormatWriters_;
+    std::optional<TString> UdfDirectory_;
+    std::atomic<bool> Initialized_ = {false};
+    std::atomic<bool> Interrupted_ = {false};
+
+
+private:
     TCallback<TFuture<void>()> PrepareInputActionsPassthrough(
         const TFormat& format,
         const IAsyncOutputStreamPtr& asyncOutput)
@@ -234,21 +249,6 @@ private:
             columnFilter);
         Initialized_ = true;
     }
-
-private:
-    const IJobSpecHelperPtr JobSpecHelper_;
-    const NNative::IClientPtr Client_;
-    const IInvokerPtr SerializedInvoker_;
-    const TNodeDescriptor NodeDescriptor_;
-    const TClosure OnNetworkRelease_;
-    const IUserJobIOFactoryPtr UserJobIOFactory_;
-    ISchemalessMultiChunkReaderPtr Reader_;
-    std::vector<ISchemalessFormatWriterPtr> FormatWriters_;
-    std::optional<TString> UdfDirectory_;
-    std::atomic<bool> Initialized_ = {false};
-    std::atomic<bool> Interrupted_ = {false};
-
-    NLogging::TLogger Logger;
 };
 
 DEFINE_REFCOUNTED_TYPE(TUserJobReadController)

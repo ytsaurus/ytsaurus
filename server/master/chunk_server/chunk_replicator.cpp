@@ -272,24 +272,26 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
         }
     }
 
-    const auto replicationFactors = GetChunkAggregatedReplicationFactors(chunk);
+    const auto replication = GetChunkAggregatedReplication(chunk);
 
     bool precarious = true;
     bool allMediaTransient = true;
     SmallVector<int, MaxMediumCount> mediaOnWhichLost;
     SmallVector<int, MaxMediumCount> mediaOnWhichPresent;
     int mediaOnWhichUnderreplicatedCount = 0;
-    for (const auto& mediumIdAndPtrPair : Bootstrap_->GetChunkManager()->Media()) {
-        auto* medium = mediumIdAndPtrPair.second;
+    for (auto& entry : replication) {
+        auto mediumIndex = entry.GetMediumIndex();
+        auto* medium = Bootstrap_->GetChunkManager()->FindMediumByIndex(mediumIndex);
+        YCHECK(IsObjectAlive(medium));
+
         if (medium->GetCache()) {
             continue;
         }
 
-        auto mediumIndex = medium->GetIndex();
         auto& mediumStatistics = result.PerMediumStatistics[mediumIndex];
         auto mediumTransient = medium->GetTransient();
 
-        auto mediumReplicationFactor = replicationFactors[mediumIndex];
+        auto mediumReplicationFactor = entry.Policy().GetReplicationFactor();
         auto mediumReplicaCount = replicaCount[mediumIndex];
         auto mediumDecommissionedReplicaCount = decommissionedReplicaCount[mediumIndex];
 
@@ -461,17 +463,23 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     TPerMediumArray<NErasure::TPartIndexSet> mediumToErasedIndexes{};
     TMediumSet activeMedia;
 
-    for (const auto& pair : Bootstrap_->GetChunkManager()->Media()) {
-        auto* medium = pair.second;
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+    for (const auto& entry : chunkReplication) {
+        auto mediumIndex = entry.GetMediumIndex();
+        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+        YCHECK(IsObjectAlive(medium));
+
         if (medium->GetCache()) {
             continue;
         }
 
-        auto mediumIndex = medium->GetIndex();
         auto mediumTransient = medium->GetTransient();
 
-        auto dataPartsOnly = chunkReplication[mediumIndex].GetDataPartsOnly();
-        auto mediumReplicationFactor = chunkReplication[mediumIndex].GetReplicationFactor();
+        const auto replicationPolicy = entry.Policy();
+
+        auto dataPartsOnly = replicationPolicy.GetDataPartsOnly();
+        auto mediumReplicationFactor = replicationPolicy.GetReplicationFactor();
 
         if (mediumReplicationFactor == 0 &&
             totalReplicaCounts[mediumIndex] == 0 &&
@@ -759,17 +767,22 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
     int mediaOnWhichPresentCount = 0;
     int mediaOnWhichUnderreplicatedCount = 0;
     int mediaOnWhichSealedMissingCount = 0;
-    for (const auto& mediumIdAndPtrPair : Bootstrap_->GetChunkManager()->Media()) {
-        auto* medium = mediumIdAndPtrPair.second;
+
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+    for (const auto& entry : replication) {
+        auto mediumIndex = entry.GetMediumIndex();
+        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+        YCHECK(IsObjectAlive(medium));
+
         if (medium->GetCache()) {
             continue;
         }
 
-        auto mediumIndex = medium->GetIndex();
         auto& mediumStatistics = results.PerMediumStatistics[mediumIndex];
         auto mediumTransient = medium->GetTransient();
 
-        auto mediumReplicationPolicy = replication[mediumIndex];
+        const auto mediumReplicationPolicy = entry.Policy();
         auto mediumReplicaCount = replicaCount[mediumIndex];
         auto mediumDecommissionedReplicaCount = decommissionedReplicaCount[mediumIndex];
         if (!mediumReplicationPolicy &&
@@ -1198,7 +1211,7 @@ bool TChunkReplicator::CreateReplicationJob(
         (*job)->GetJobId(),
         sourceNode->GetDefaultAddress(),
         chunkWithIndexes,
-        MakeFormattableRange(targetNodes, TNodePtrAddressFormatter()));
+        MakeFormattableView(targetNodes, TNodePtrAddressFormatter()));
 
     return targetNodes.size() == replicasNeeded;
 }
@@ -1393,7 +1406,7 @@ bool TChunkReplicator::CreateRepairJob(
         (*job)->GetJobId(),
         node->GetDefaultAddress(),
         chunkWithIndexes,
-        MakeFormattableRange(targetNodes, TNodePtrAddressFormatter()),
+        MakeFormattableView(targetNodes, TNodePtrAddressFormatter()),
         erasedPartIndexes);
 
     return true;
@@ -1694,22 +1707,25 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
 
     auto durabilityRequired = false;
 
-    for (const auto& mediumIdAndPtrPair : Bootstrap_->GetChunkManager()->Media()) {
-        auto* medium = mediumIdAndPtrPair.second;
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+    for (const auto& entry : replication) {
+        auto mediumIndex = entry.GetMediumIndex();
+        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+        YCHECK(IsObjectAlive(medium));
+
         // For now, chunk cache-as-medium support is rudimentary, and replicator
         // ignores chunk cache to preserve original behavior.
         if (medium->GetCache()) {
             continue;
         }
 
-        auto mediumIndex = medium->GetIndex();
-
         auto& statistics = allMediaStatistics.PerMediumStatistics[mediumIndex];
         if (statistics.Status == EChunkStatus::None) {
             continue;
         }
 
-        auto replicationFactor = replication[mediumIndex].GetReplicationFactor();
+        auto replicationFactor = entry.Policy().GetReplicationFactor();
         auto durabilityRequiredOnMedium =
             replication.GetVital() &&
             (chunk->IsErasure() || replicationFactor > 1) &&
@@ -1931,40 +1947,41 @@ bool TChunkReplicator::IsReplicaDecommissioned(TNodePtrWithIndexes replica)
 
 TChunkReplication TChunkReplicator::GetChunkAggregatedReplication(const TChunk* chunk)
 {
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto result = chunk->GetAggregatedReplication(GetChunkRequisitionRegistry());
-    for (const auto& [mediumId, medium] : Bootstrap_->GetChunkManager()->Media()) {
-        auto& policy = result[medium->GetIndex()];
-        if (policy) {
-            auto cap = medium->Config()->MaxReplicationFactor;
-            policy.SetReplicationFactor(std::min(cap, policy.GetReplicationFactor()));
+    for (auto& entry : result) {
+        YCHECK(entry.Policy());
+
+        auto* medium = chunkManager->FindMediumByIndex(entry.GetMediumIndex());
+        YCHECK(IsObjectAlive(medium));
+        auto cap = medium->Config()->MaxReplicationFactor;
+
+        entry.Policy().SetReplicationFactor(std::min(cap, entry.Policy().GetReplicationFactor()));
+    }
+
+    // A chunk may happen to have replicas stored on a medium it's not supposed
+    // to have replicas on. (This is common when chunks are being relocated from
+    // one medium to another.) Add corresponding entries to the aggregated
+    // replication so that such media aren't overlooked.
+    for (auto replica : chunk->StoredReplicas()) {
+        auto mediumIndex = replica.GetMediumIndex();
+        if (!result.Contains(mediumIndex)) {
+            result.Set(mediumIndex, TReplicationPolicy(), false /*eraseEmpty*/);
         }
     }
+
     return result;
 }
 
 int TChunkReplicator::GetChunkAggregatedReplicationFactor(const TChunk* chunk, int mediumIndex)
 {
     auto result = chunk->GetAggregatedReplicationFactor(mediumIndex, GetChunkRequisitionRegistry());
-    auto* medium = Bootstrap_->GetChunkManager()->FindMediumByIndex(mediumIndex);
-    if (medium) {
-        auto cap = medium->Config()->MaxReplicationFactor;
-        result = std::min(cap, result);
-    }
-    return result;
-}
 
-TPerMediumIntArray TChunkReplicator::GetChunkAggregatedReplicationFactors(const TChunk* chunk)
-{
-    const auto& chunkManager = Bootstrap_->GetChunkManager();
-    auto result = chunk->GetAggregatedReplicationFactors(GetChunkRequisitionRegistry());
-    for (auto mediumIndex = 0; mediumIndex < result.size(); ++mediumIndex) {
-        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-        if (medium) {
-            auto cap = medium->Config()->MaxReplicationFactor;
-            result[mediumIndex] = std::min(cap, result[mediumIndex]);
-        }
-    }
-    return result;
+    auto* medium = Bootstrap_->GetChunkManager()->FindMediumByIndex(mediumIndex);
+    YCHECK(IsObjectAlive(medium));
+    auto cap = medium->Config()->MaxReplicationFactor;
+
+    return std::min(cap, result);
 }
 
 void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)

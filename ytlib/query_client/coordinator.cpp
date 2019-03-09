@@ -40,7 +40,8 @@ std::pair<TConstFrontQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     subqueryPattern->OrderClause = query->OrderClause;
     subqueryPattern->HavingClause = query->HavingClause;
     subqueryPattern->GroupClause = query->GroupClause;
-    subqueryPattern->Limit = query->Limit;
+    subqueryPattern->Offset = 0;
+    subqueryPattern->Limit = query->Offset + query->Limit;
     subqueryPattern->UseDisjointGroupBy = query->UseDisjointGroupBy;
     subqueryPattern->InferRanges = query->InferRanges;
     subqueryPattern->IsFinal = false;
@@ -77,6 +78,7 @@ std::pair<TConstFrontQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 
     topQuery->HavingClause = query->HavingClause;
     topQuery->OrderClause = query->OrderClause;
+    topQuery->Offset = query->Offset;
     topQuery->Limit = query->Limit;
     topQuery->IsFinal = query->IsFinal;
     topQuery->ProjectClause = query->ProjectClause;

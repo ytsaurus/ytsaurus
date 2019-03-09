@@ -53,7 +53,7 @@ class TestGetJobStderr(YTEnvSetup):
 
     def setup(self):
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(self.Env.create_native_client())
+        init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
 
     def teardown(self):
         remove("//sys/operations_archive")

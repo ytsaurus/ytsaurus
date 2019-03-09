@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "source_location.h"
+#include "singleton.h"
 
 #include <yt/core/actions/callback.h>
 
@@ -53,18 +54,17 @@ public:
 
     TRefCountedTypeCookie GetCookie(
         TRefCountedTypeKey typeKey,
-        size_t Objectsize,
+        size_t objectSize,
         const TSourceLocation& location = TSourceLocation());
 
-    void AllocateInstance(TRefCountedTypeCookie cookie);
-    void FreeInstance(TRefCountedTypeCookie cookie);
+    static void AllocateInstance(TRefCountedTypeCookie cookie);
+    static void FreeInstance(TRefCountedTypeCookie cookie);
 
-    void AllocateTagInstance(TRefCountedTypeCookie cookie);
-    void FreeTagInstance(TRefCountedTypeCookie cookie);
+    static void AllocateTagInstance(TRefCountedTypeCookie cookie);
+    static void FreeTagInstance(TRefCountedTypeCookie cookie);
 
-    void AllocateSpace(TRefCountedTypeCookie cookie, size_t size);
-    void FreeSpace(TRefCountedTypeCookie cookie, size_t sie);
-    void ReallocateSpace(TRefCountedTypeCookie cookie, size_t sizeFreed, size_t sizeAllocated);
+    static void AllocateSpace(TRefCountedTypeCookie cookie, size_t size);
+    static void FreeSpace(TRefCountedTypeCookie cookie, size_t sie);
 
     TString GetDebugInfo(int sortByColumn = -1) const;
     TRefCountedTrackerStatistics GetStatistics() const;
@@ -77,9 +77,9 @@ public:
     int GetTrackedThreadCount() const;
 
 private:
-    class TStatisticsHolder;
-    friend class TStatisticsHolder;
-    friend class TRefCountedTrackerInitializer;
+    DECLARE_IMMORTAL_SINGLETON_FRIEND()
+
+    struct TLocalSlotsHolder;
 
     struct TKey
     {
@@ -90,93 +90,45 @@ private:
         bool operator == (const TKey& other) const;
     };
 
-    class TAnonymousSlot
-    {
-    public:
-        TAnonymousSlot() = default;
-        TAnonymousSlot(const TAnonymousSlot& other);
-
-        void AllocateInstance();
-        void FreeInstance();
-
-        void AllocateTagInstance();
-        void FreeTagInstance();
-
-        void AllocateSpace(size_t size);
-        void FreeSpace(size_t size);
-        void ReallocateSpace(size_t sizeFreed, size_t sizeAllocated);
-
-        TAnonymousSlot& operator = (const TAnonymousSlot& other);
-        TAnonymousSlot& operator += (const TAnonymousSlot& other);
-
-    protected:
-        std::atomic<size_t> ObjectsAllocated_{0};
-        std::atomic<size_t> ObjectsFreed_{0};
-        std::atomic<size_t> TagObjectsAllocated_{0};
-        std::atomic<size_t> TagObjectsFreed_{0};
-        std::atomic<size_t> SpaceSizeAllocated_{0};
-        std::atomic<size_t> SpaceSizeFreed_{0};
-
-    private:
-        static void IncreaseRelaxed(std::atomic<size_t>& counter, size_t delta);
-    };
-
-    using TAnonymousStatistics = std::vector<TAnonymousSlot>;
-
-    class TNamedSlot
-        : public TAnonymousSlot
-    {
-    public:
-        TNamedSlot(const TKey& key, size_t Objectsize);
-
-        TRefCountedTypeKey GetTypeKey() const;
-        const TSourceLocation& GetLocation() const;
-
-        TString GetTypeName() const;
-        TString GetFullName() const;
-
-        size_t GetObjectsAllocated() const;
-        size_t GetObjectsFreed() const;
-        size_t GetObjectsAlive() const;
-
-        size_t GetBytesAllocated() const;
-        size_t GetBytesFreed() const;
-        size_t GetBytesAlive() const;
-
-        TRefCountedTrackerStatistics::TNamedSlotStatistics GetStatistics() const;
-
-    private:
-        TKey Key_;
-        size_t Objectsize_;
-
-        static size_t ClampNonnegative(size_t allocated, size_t freed);
-    };
+    struct TLocalSlot;
+    struct TGlobalSlot;
+    class TNamedSlot;
 
     using TNamedStatistics = std::vector<TNamedSlot>;
 
-    static PER_THREAD TAnonymousSlot* CurrentThreadStatisticsBegin;
-    static PER_THREAD int CurrentThreadStatisticsSize;
+    // nullptr if not initialized or already destroyed
+    static PER_THREAD TLocalSlot* LocalSlotsBegin;
+    //  0 if not initialized
+    // -1 if already destroyed
+    static PER_THREAD int LocalSlotsSize;
 
     mutable NConcurrency::TForkAwareSpinLock SpinLock_;
     std::map<TKey, TRefCountedTypeCookie> KeyToCookie_;
-    std::map<TRefCountedTypeKey, size_t> TypeKeyToObjectsize_;
+    std::map<TRefCountedTypeKey, size_t> TypeKeyToObjectSize_;
     std::vector<TKey> CookieToKey_;
-    TAnonymousStatistics GlobalStatistics_;
-    THashSet<TStatisticsHolder*> PerThreadHolders_;
-
-
-    TRefCountedTracker() = default;
+    std::vector<TGlobalSlot> GlobalSlots_;
+    THashSet<TLocalSlotsHolder*> LocalSlotHolders_;
 
     TNamedStatistics GetSnapshot() const;
     static void SortSnapshot(TNamedStatistics* snapshot, int sortByColumn);
 
-    size_t GetObjectsize(TRefCountedTypeKey typeKey) const;
+    size_t GetObjectSize(TRefCountedTypeKey typeKey) const;
 
     TNamedSlot GetSlot(TRefCountedTypeKey typeKey) const;
-    TAnonymousSlot* GetPerThreadSlot(TRefCountedTypeCookie cookie);
 
-    void PreparePerThreadSlot(TRefCountedTypeCookie cookie);
-    void FlushPerThreadStatistics(TStatisticsHolder* holder);
+    void AllocateInstanceSlow(TRefCountedTypeCookie cookie);
+    void FreeInstanceSlow(TRefCountedTypeCookie cookie);
+
+    void AllocateTagInstanceSlow(TRefCountedTypeCookie cookie);
+    void FreeTagInstanceSlow(TRefCountedTypeCookie cookie);
+
+    void AllocateSpaceSlow(TRefCountedTypeCookie cookie, size_t size);
+    void FreeSpaceSlow(TRefCountedTypeCookie cookie, size_t sie);
+
+    TLocalSlot* GetLocalSlot(TRefCountedTypeCookie cookie);
+    TGlobalSlot* GetGlobalSlot(TRefCountedTypeCookie cookie);
+
+    void OnLocalSlotsDestroyed(TLocalSlotsHolder* holder);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

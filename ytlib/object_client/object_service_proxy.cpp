@@ -17,9 +17,8 @@ using namespace NBus;
 TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(IChannelPtr channel)
     : TClientRequest(
         std::move(channel),
-        TObjectServiceProxy::GetDescriptor().ServiceName,
-        "Execute",
-        TObjectServiceProxy::GetDescriptor().ProtocolVersion)
+        TObjectServiceProxy::GetDescriptor(),
+        TMethodDescriptor("Execute"))
 { }
 
 TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(
@@ -272,10 +271,10 @@ void TObjectServiceProxy::TReqExecuteBatch::OnSubbatchResponse(const TErrorOr<TR
     // The remote side shouldn't backoff until there's at least one subresponse.
     YCHECK(rsp->GetSize() > 0 || GetTotalSubrequestCount() == 0);
 
-    FullResponse()->Append(rsp);
+    GetFullResponse()->Append(rsp);
 
     if (GetTotalSubresponseCount() == GetTotalSubrequestCount()) {
-        FullResponse()->SetPromise({});
+        GetFullResponse()->SetPromise({});
         return;
     }
 
@@ -292,7 +291,7 @@ int TObjectServiceProxy::TReqExecuteBatch::GetTotalSubresponseCount() const
     return FullResponse_ ? FullResponse_->GetSize() : 0;
 }
 
-TObjectServiceProxy::TRspExecuteBatchPtr& TObjectServiceProxy::TReqExecuteBatch::FullResponse()
+TObjectServiceProxy::TRspExecuteBatchPtr TObjectServiceProxy::TReqExecuteBatch::GetFullResponse()
 {
     if (!FullResponse_) {
         // Make sure the full response uses the promise we've returned to the caller.
@@ -345,13 +344,13 @@ void TObjectServiceProxy::TRspExecuteBatch::SetPromise(const TError& error)
 }
 
 void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(
-    TRef data, std::optional<NCompression::ECodec> codecId)
+    TRef data,
+    std::optional<NCompression::ECodec> codecId)
 {
     NProto::TRspExecute body;
     if (codecId) {
         DeserializeProtoWithCompression(&body, data, *codecId);
     } else {
-        // COMPAT(kiselyovp)
         DeserializeProtoWithEnvelope(&body, data);
     }
 

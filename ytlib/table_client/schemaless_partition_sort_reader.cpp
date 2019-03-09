@@ -190,7 +190,7 @@ public:
         return NameTable_;
     }
 
-    virtual TKeyColumns GetKeyColumns() const override
+    virtual const TKeyColumns& GetKeyColumns() const override
     {
         return KeyColumns_;
     }

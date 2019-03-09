@@ -8,27 +8,25 @@ import "yt/core/misc/proto/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TStreamingParameters
+{
+    optional int64 window_size = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TRequestHeader
 {
-    message TRequestCodecs
-    {
-        // ECompressionCodec
-        required int32 request_codec = 1;
-        required int32 request_attachment_codec = 2;
-        required int32 response_codec = 3;
-        required int32 response_attachment_codec = 4;
-    }
-
     optional NYT.NProto.TGuid request_id = 1;
     required string service = 2;
     required string method = 3;
     optional NYT.NProto.TGuid realm_id = 8;
 
-    optional int32 protocol_version_major = 9 [default = 0];
-    optional int32 protocol_version_minor = 19 [default = 0];
+    optional int32 protocol_version_major = 9;
+    optional int32 protocol_version_minor = 19;
 
     optional int64 start_time = 7;
-    optional bool retry = 11 [default = false];
+    optional bool retry = 11;
     optional NYT.NProto.TGuid mutation_id = 13;
 
     optional int64 timeout = 10;
@@ -37,19 +35,23 @@ message TRequestHeader
 
     optional int32 tos_level = 14;
 
-    optional int32 request_format = 15;
-    optional int32 response_format = 16;
+    optional int32 request_format = 15;  // EMessageFormat
+    optional int32 response_format = 16; // EMessageFormat
 
-    optional bool uncancelable = 17 [default = false];
+    optional bool uncancelable = 17;
 
     optional string user_agent = 18;
 
-    optional int64 logging_suppression_timeout = 20 [default = 0];
-    optional bool disable_logging_suppression_if_request_failed = 21 [default = false];
+    optional int64 logging_suppression_timeout = 20;
+    optional bool disable_logging_suppression_if_request_failed = 21;
 
-    optional TRequestCodecs request_codecs = 22;
+    // COMPAT(kiseloyvp): these are missing when legacy mode is used
+    optional int32 request_codec = 23;  // ECodec
+    optional int32 response_codec = 24; // ECodec
 
-    optional int32 response_memory_zone = 32 [default = 0]; // EMemoryZone
+    optional int32 response_memory_zone = 32; // EMemoryZone
+
+    optional TStreamingParameters response_attachments_streaming_parameters = 33;
 
     extensions 100 to max;
 }
@@ -95,23 +97,17 @@ message TCredentialsExt
 
 message TResponseHeader
 {
-    message TResponseCodecs
-    {
-        // ECompressionCodec
-        required int32 response_codec = 1;
-        required int32 response_attachment_codec = 2;
-    }
-
     optional NYT.NProto.TGuid request_id = 1;
 
     // If omitted then OK is assumed.
     optional NYT.NProto.TError error = 2;
 
-    optional int32 response_format = 3;
+    optional int32 format = 3; // EMessageFormat
 
-    optional TResponseCodecs response_codecs = 4;
+    optional int32 memory_zone = 5; // EMemoryZone
 
-    optional int32 response_memory_zone = 5 [default = 0]; // EMemoryZone
+    // COMPAT(kiseloyvp): this is missing when legacy mode is used
+    optional int32 codec = 6; // ECodec
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -122,6 +118,30 @@ message TRequestCancelationHeader
     required string service = 2;
     required string method = 3;
     optional NYT.NProto.TGuid realm_id = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TStreamingPayloadHeader
+{
+    required NYT.NProto.TGuid request_id = 1;
+    required string service = 2;
+    required string method = 3;
+    optional NYT.NProto.TGuid realm_id = 4;
+    required int32 sequence_number = 5;
+    optional int32 codec = 6; // ECodec
+    optional int32 memory_zone = 7; // EMemoryZone
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TStreamingFeedbackHeader
+{
+    required NYT.NProto.TGuid request_id = 1;
+    required string service = 2;
+    required string method = 3;
+    optional NYT.NProto.TGuid realm_id = 4;
+    required int64 read_position = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

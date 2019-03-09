@@ -10,12 +10,13 @@
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/lazy_ptr.h>
-#include <yt/core/misc/public.h>
+
+#include <yt/core/logging/log.h>
 
 #include <exception>
+#include <atomic>
 
 namespace NYT::NConcurrency {
-
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,12 +29,13 @@ class TPeriodicTest
 
 TEST_W(TPeriodicTest, Simple)
 {
-    int count = 0;
-
+    std::atomic<int> count = {0};
     auto callback = BIND([&] () {
-        WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(200)));
+        WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(200)))
+            .ThrowOnError();
         ++count;
     });
+
     auto actionQueue = New<TActionQueue>();
     auto executor = New<TPeriodicExecutor>(
         actionQueue->GetInvoker(),
@@ -41,30 +43,39 @@ TEST_W(TPeriodicTest, Simple)
         TDuration::MilliSeconds(100));
 
     executor->Start();
-    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(500)));
-    WaitFor(executor->Stop());
-    EXPECT_EQ(2, count);
+    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(600)))
+        .ThrowOnError();
+    WaitFor(executor->Stop())
+        .ThrowOnError();
+    EXPECT_EQ(2, count.load());
 
     executor->Start();
-    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(500)));
-    WaitFor(executor->Stop());
-    EXPECT_EQ(4, count);
+    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(600)))
+        .ThrowOnError();
+    WaitFor(executor->Stop())
+        .ThrowOnError();
+    EXPECT_EQ(4, count.load());
 
     executor->Start();
-    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(200)));
-    WaitFor(executor->GetExecutedEvent());
-    EXPECT_EQ(6, count);
-    WaitFor(executor->Stop());
+    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(250)))
+        .ThrowOnError();
+    WaitFor(executor->GetExecutedEvent())
+        .ThrowOnError();;
+    EXPECT_EQ(6, count.load());
+    WaitFor(executor->Stop())
+        .ThrowOnError();;
 }
 
 TEST_W(TPeriodicTest, ParallelStop)
 {
-    int count = 0;
-
+    std::atomic<int> count = {0};
     auto callback = BIND([&] () {
-        WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(500)));
+        ++count;
+        WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(500)))
+            .ThrowOnError();
         ++count;
     });
+
     auto actionQueue = New<TActionQueue>();
     auto executor = New<TPeriodicExecutor>(
         actionQueue->GetInvoker(),
@@ -72,23 +83,27 @@ TEST_W(TPeriodicTest, ParallelStop)
         TDuration::MilliSeconds(10));
 
     executor->Start();
-    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(300)));
+    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(300)))
+        .ThrowOnError();
     {
         auto future1 = executor->Stop();
         auto future2 = executor->Stop();
-        WaitFor(Combine(std::vector<TFuture<void>>({future1, future2})));
+        WaitFor(Combine(std::vector<TFuture<void>>({future1, future2})))
+            .ThrowOnError();
     }
-    EXPECT_EQ(1, count);
+    EXPECT_EQ(1, count.load());
 
     executor->Start();
-    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(300)));
+    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(300)))
+        .ThrowOnError();
     {
         auto future1 = executor->Stop();
         auto future2 = executor->Stop();
         auto future3 = executor->Stop();
-        WaitFor(Combine(std::vector<TFuture<void>>({future1, future2, future3})));
+        WaitFor(Combine(std::vector<TFuture<void>>({future1, future2, future3})))
+            .ThrowOnError();
     }
-    EXPECT_EQ(2, count);
+    EXPECT_EQ(2, count.load());
 }
 
 TEST_W(TPeriodicTest, ParallelOnExecuted1)
@@ -96,7 +111,8 @@ TEST_W(TPeriodicTest, ParallelOnExecuted1)
     int count = 0;
 
     auto callback = BIND([&] () {
-        WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(500)));
+        WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(500)))
+            .ThrowOnError();
         ++count;
     });
     auto actionQueue = New<TActionQueue>();
@@ -106,21 +122,25 @@ TEST_W(TPeriodicTest, ParallelOnExecuted1)
         TDuration::MilliSeconds(10));
 
     executor->Start();
-    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(300)));
+    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(300)))
+        .ThrowOnError();
     {
         auto future1 = executor->GetExecutedEvent();
         auto future2 = executor->GetExecutedEvent();
-        WaitFor(Combine(std::vector<TFuture<void>>({future1, future2})));
+        WaitFor(Combine(std::vector<TFuture<void>>({future1, future2})))
+            .ThrowOnError();
     }
     EXPECT_EQ(2, count);
 
     executor->Start();
-    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(450)));
+    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(450)))
+        .ThrowOnError();
     {
         auto future1 = executor->GetExecutedEvent();
         auto future2 = executor->GetExecutedEvent();
         auto future3 = executor->GetExecutedEvent();
-        WaitFor(Combine(std::vector<TFuture<void>>({future1, future2, future3})));
+        WaitFor(Combine(std::vector<TFuture<void>>({future1, future2, future3})))
+            .ThrowOnError();
     }
     EXPECT_EQ(4, count);
 }
@@ -130,7 +150,8 @@ TEST_W(TPeriodicTest, ParallelOnExecuted2)
     int count = 0;
 
     auto callback = BIND([&] () {
-        WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(100)));
+        WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(100)))
+            .ThrowOnError();
         ++count;
     });
     auto actionQueue = New<TActionQueue>();
@@ -140,7 +161,8 @@ TEST_W(TPeriodicTest, ParallelOnExecuted2)
         TDuration::MilliSeconds(400));
 
     executor->Start();
-    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(300)));
+    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(300)))
+        .ThrowOnError();
     {
         auto future1 = executor->GetExecutedEvent();
         auto future2 = executor->GetExecutedEvent();
@@ -149,14 +171,39 @@ TEST_W(TPeriodicTest, ParallelOnExecuted2)
     EXPECT_EQ(2, count);
 
     executor->Start();
-    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(100)));
+    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(100)))
+        .ThrowOnError();
     {
         auto future1 = executor->GetExecutedEvent();
         auto future2 = executor->GetExecutedEvent();
         auto future3 = executor->GetExecutedEvent();
-        WaitFor(Combine(std::vector<TFuture<void>>({future1, future2, future3})));
+        WaitFor(Combine(std::vector<TFuture<void>>({future1, future2, future3})))
+            .ThrowOnError();
     }
     EXPECT_EQ(3, count);
+}
+
+TEST_W(TPeriodicTest, Stop)
+{
+    auto neverSetPromise = NewPromise<void>();
+    auto immediatelyCancelableFuture = neverSetPromise.ToFuture().ToImmediatelyCancelable();
+    auto callback = BIND([&] {
+        Y_UNUSED(WaitFor(immediatelyCancelableFuture));
+    });
+    auto actionQueue = New<TActionQueue>();
+    auto executor = New<TPeriodicExecutor>(
+        actionQueue->GetInvoker(),
+        callback,
+        TDuration::MilliSeconds(100));
+
+    executor->Start();
+    // Wait for the callback to enter WaitFor.
+    Sleep(TDuration::MilliSeconds(100));
+    WaitFor(executor->Stop())
+        .ThrowOnError();
+    
+    EXPECT_TRUE(immediatelyCancelableFuture.IsSet());
+    EXPECT_EQ(NYT::EErrorCode::Canceled, immediatelyCancelableFuture.Get().GetCode());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

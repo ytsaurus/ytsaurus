@@ -247,7 +247,7 @@ inline const TChunkRequisition& TChunk::GetAggregatedRequisition(const TChunkReq
     return registry->GetRequisition(AggregatedRequisitionIndex_);
 }
 
-inline TChunkReplication TChunk::GetAggregatedReplication(const TChunkRequisitionRegistry* registry) const
+inline const TChunkReplication& TChunk::GetAggregatedReplication(const TChunkRequisitionRegistry* registry) const
 {
     YCHECK(AggregatedRequisitionIndex_ != EmptyChunkRequisitionIndex);
     return registry->GetReplication(AggregatedRequisitionIndex_);
@@ -255,20 +255,7 @@ inline TChunkReplication TChunk::GetAggregatedReplication(const TChunkRequisitio
 
 inline int TChunk::GetAggregatedReplicationFactor(int mediumIndex, const TChunkRequisitionRegistry* registry) const
 {
-    return GetAggregatedReplication(registry)[mediumIndex].GetReplicationFactor();
-}
-
-inline TPerMediumIntArray TChunk::GetAggregatedReplicationFactors(const TChunkRequisitionRegistry* registry) const
-{
-    auto replication = GetAggregatedReplication(registry);
-
-    TPerMediumIntArray result;
-    auto resultIt = std::begin(result);
-    for (const auto& policy : replication) {
-        *resultIt++ = policy.GetReplicationFactor();
-    }
-
-    return result;
+    return GetAggregatedReplication(registry).Get(mediumIndex).GetReplicationFactor();
 }
 
 inline int TChunk::GetReadQuorum() const

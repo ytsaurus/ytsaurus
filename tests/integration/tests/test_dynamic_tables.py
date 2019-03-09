@@ -61,12 +61,6 @@ class DynamicTablesBase(YTEnvSetup):
             })
         create_dynamic_table(path, **attributes)
 
-    def _get_tablet_leader_address(self, tablet_id):
-        cell_id = get("//sys/tablets/" + tablet_id + "/@cell_id")
-        peers = get("//sys/tablet_cells/" + cell_id + "/@peers")
-        leader_peer = list(x for x in peers if x["state"] == "leading")[0]
-        return leader_peer["address"]
-
     def _get_recursive(self, path, result=None):
         if result is None or result.attributes.get("opaque", False):
             result = get(path, attributes=["opaque"])
@@ -80,7 +74,7 @@ class DynamicTablesBase(YTEnvSetup):
 
     def _find_tablet_orchid(self, address, tablet_id):
         def do():
-            path = "//sys/nodes/" + address + "/orchid/tablet_cells"
+            path = "//sys/cluster_nodes/" + address + "/orchid/tablet_cells"
             cells = ls(path)
             for cell_id in cells:
                 if get(path + "/" + cell_id + "/state") == "leading":
@@ -123,7 +117,7 @@ class DynamicTablesBase(YTEnvSetup):
 
             def _get_counter_impl(self, counter_name):
                 try:
-                    counters = get("//sys/nodes/%s/orchid/profiling/tablet_node/%s" % (address, counter_name))
+                    counters = get("//sys/cluster_nodes/%s/orchid/profiling/tablet_node/%s" % (address, counter_name))
                     if filter_value:
                         filter, value = filter_value
                         for counter in counters[::-1]:
@@ -191,7 +185,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
                 if "address" not in peer:
                     return False
                 address = peer["address"]
-                if get("//sys/nodes/{0}/@decommissioned".format(address)):
+                if get("//sys/cluster_nodes/{0}/@decommissioned".format(address)):
                     return False
 
             return True
@@ -306,7 +300,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        address = self._get_tablet_leader_address(tablet_id)
+        address = get_tablet_leader_address(tablet_id)
         assert self._find_tablet_orchid(address, tablet_id) is not None
 
         remove("//tmp/t")
@@ -610,10 +604,10 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         with pytest.raises(YtError): set("//tmp/t/@media", {"default": {"replication_factor": 2}})
 
     def test_cell_bundle_node_tag_filter(self):
-        node = list(get("//sys/nodes"))[0]
+        node = list(get("//sys/cluster_nodes"))[0]
         with pytest.raises(YtError):
-            set("//sys/nodes/{0}/@user_tags".format(node), ["custom!"])
-        set("//sys/nodes/{0}/@user_tags".format(node), ["custom"])
+            set("//sys/cluster_nodes/{0}/@user_tags".format(node), ["custom!"])
+        set("//sys/cluster_nodes/{0}/@user_tags".format(node), ["custom"])
         set("//sys/tablet_cell_bundles/default/@node_tag_filter", "!custom")
 
         create_tablet_cell_bundle("custom", attributes={"node_tag_filter": "custom"})
@@ -630,7 +624,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//sys/@config/tablet_manager/tablet_cell_balancer/rebalance_wait_time", 500)
         set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_tablet_cell_balancer", enable_tablet_cell_balancer)
         create_tablet_cell_bundle("custom")
-        nodes = ls("//sys/nodes")
+        nodes = ls("//sys/cluster_nodes")
         node_count = len(nodes)
         bundles = ["default", "custom"]
 
@@ -644,7 +638,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         def _check(nodes, floor, ceil):
             def predicate():
                 for node in nodes:
-                    slots = get("//sys/nodes/{0}/@tablet_slots".format(node))
+                    slots = get("//sys/cluster_nodes/{0}/@tablet_slots".format(node))
                     count = Counter([cell_ids[slot["cell_id"]] for slot in slots if slot["state"] != "none"])
                     for bundle in bundles:
                         if not floor <= count[bundle] <= ceil:
@@ -655,24 +649,24 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         _check(nodes, 1, 1)
 
-        nodes = list(get("//sys/nodes").keys())
+        nodes = ls("//sys/cluster_nodes")
 
-        set("//sys/nodes/{0}/@disable_tablet_cells".format(nodes[0]), True)
+        set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(nodes[0]), True)
         _check(nodes[:1], 0, 0)
         _check(nodes[1:], 1, 2)
 
         if not enable_tablet_cell_balancer:
             return
 
-        set("//sys/nodes/{0}/@disable_tablet_cells".format(nodes[0]), False)
+        set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(nodes[0]), False)
         _check(nodes, 1, 1)
 
         for node in nodes[:len(nodes)/2]:
-            set("//sys/nodes/{0}/@disable_tablet_cells".format(node), True)
+            set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), True)
         _check(nodes[len(nodes)/2:], 2, 2)
 
         for node in nodes[:len(nodes)/2]:
-            set("//sys/nodes/{0}/@disable_tablet_cells".format(node), False)
+            set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), False)
         _check(nodes, 1, 1)
 
     def test_cell_bundle_distribution_new(self):
@@ -750,7 +744,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         for peer in get("#" + cell + "/@peers"):
             nodes_to_save.add(peer["address"])
 
-        for node in ls("//sys/nodes"):
+        for node in ls("//sys/cluster_nodes"):
             if node not in nodes_to_save:
                 set_node_decommissioned(node, True)
 
@@ -774,7 +768,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert get("//tmp/t/@tablets/0/error_count") == 1
         assert get("//tmp/t/@tablet_error_count") == 1
 
-        for node in ls("//sys/nodes"):
+        for node in ls("//sys/cluster_nodes"):
             set_node_decommissioned(node, False)
 
     def test_tablet_error_count(self):
@@ -848,7 +842,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     def test_disable_tablet_cells(self):
         cell = sync_create_cells(1)[0]
         peer = get("#{0}/@peers/0/address".format(cell))
-        set("//sys/nodes/{0}/@disable_tablet_cells".format(peer), True)
+        set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(peer), True)
         def check():
             peers = get("#{0}/@peers".format(cell))
             if len(peers) == 0:
@@ -861,9 +855,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         wait(check)
 
     def test_tablet_slot_charges_cpu_resource_limit(self):
-        get_cpu = lambda x: get("//sys/nodes/{0}/orchid/job_controller/resource_limits/cpu".format(x))
+        get_cpu = lambda x: get("//sys/cluster_nodes/{0}/orchid/job_controller/resource_limits/cpu".format(x))
 
-        node = ls("//sys/nodes")[0]
+        node = ls("//sys/cluster_nodes")[0]
         empty_node_cpu = get_cpu(node)
 
         create_tablet_cell_bundle("b")
@@ -874,7 +868,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert int(empty_node_cpu - assigned_node_cpu) == 1
 
         def _get_orchid(path):
-            return get("//sys/nodes/{0}/orchid/tablet_cells/{1}{2}".format(peer, cell, path))
+            return get("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}{2}".format(peer, cell, path))
 
         assert _get_orchid("/dynamic_config_version") == 0
 
@@ -889,24 +883,24 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     def test_bundle_node_list(self):
         create_tablet_cell_bundle("b", attributes={"node_tag_filter": "b"})
 
-        node = ls("//sys/nodes")[0]
-        set("//sys/nodes/{0}/@user_tags".format(node), ["b"])
+        node = ls("//sys/cluster_nodes")[0]
+        set("//sys/cluster_nodes/{0}/@user_tags".format(node), ["b"])
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
 
-        set("//sys/nodes/{0}/@banned".format(node), True)
+        set("//sys/cluster_nodes/{0}/@banned".format(node), True)
         assert get("//sys/tablet_cell_bundles/b/@nodes") == []
-        set("//sys/nodes/{0}/@banned".format(node), False)
-        wait(lambda: get("//sys/nodes/{0}/@state".format(node)) == "online")
+        set("//sys/cluster_nodes/{0}/@banned".format(node), False)
+        wait(lambda: get("//sys/cluster_nodes/{0}/@state".format(node)) == "online")
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
 
-        set("//sys/nodes/{0}/@decommissioned".format(node), True)
+        set("//sys/cluster_nodes/{0}/@decommissioned".format(node), True)
         assert get("//sys/tablet_cell_bundles/b/@nodes") == []
-        set("//sys/nodes/{0}/@decommissioned".format(node), False)
+        set("//sys/cluster_nodes/{0}/@decommissioned".format(node), False)
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
 
-        set("//sys/nodes/{0}/@disable_tablet_cells".format(node), True)
+        set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), True)
         assert get("//sys/tablet_cell_bundles/b/@nodes") == []
-        set("//sys/nodes/{0}/@disable_tablet_cells".format(node), False)
+        set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), False)
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
 
         build_snapshot(cell_id=None)
@@ -1064,13 +1058,13 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//sys/tablet_cell_bundles/b/@dynamic_options/suppress_tablet_cell_decommission", True)
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        address = self._get_tablet_leader_address(tablet_id)
+        address = get_tablet_leader_address(tablet_id)
 
         version = get("//sys/tablet_cell_bundles/b/@dynamic_config_version")
-        wait(lambda: get("//sys/nodes/{0}/orchid/tablet_cells/{1}/dynamic_config_version".format(address, cell)) == version)
+        wait(lambda: get("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/dynamic_config_version".format(address, cell)) == version)
 
         remove("#{0}".format(cell))
-        wait(lambda: get("//sys/nodes/{0}/orchid/tablet_cells/{1}/life_stage".format(address, cell)) == "decommissioning_on_node")
+        wait(lambda: get("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/life_stage".format(address, cell)) == "decommissioning_on_node")
 
         with pytest.raises(YtError):
             insert_rows("//tmp/t", rows2)
@@ -1081,7 +1075,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         assert get("#{0}/@tablet_cell_life_stage".format(cell)) == "decommissioning_on_node"
         set("//sys/tablet_cell_bundles/b/@dynamic_options/suppress_tablet_cell_decommission", False)
-        wait(lambda: get("//sys/nodes/{0}/orchid/tablet_cells/{1}/life_stage".format(address, cell)) == "decommissioned")
+        wait(lambda: get("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/life_stage".format(address, cell)) == "decommissioned")
 
         remove("//sys/@config/tablet_manager/tablet_cell_decommissioner")
         wait(lambda: not exists("#{0}".format(cell)))
@@ -1937,8 +1931,8 @@ class TestTabletActions(DynamicTablesBase):
         wait(lambda: self._tablets_distribution("//tmp/r") == [2, 2])
 
     def test_tablet_balancer_with_active_action(self):
-        node = ls("//sys/nodes")[0]
-        set("//sys/nodes/{0}/@user_tags".format(node), ["custom"])
+        node = ls("//sys/cluster_nodes")[0]
+        set("//sys/cluster_nodes/{0}/@user_tags".format(node), ["custom"])
 
         create_tablet_cell_bundle("broken")
         self._configure_bundle("default")
@@ -2577,28 +2571,18 @@ class TestDynamicTablesWithCompressionRpcProxy(DynamicTablesSingleCellBase):
 
     DELTA_DRIVER_CONFIG = {
         "request_codec": "lz4",
-        "request_attachment_codec": "lz4_high_compression",
         "response_codec": "quick_lz",
-        "response_attachment_codec": "snappy"
     }
 
-class TestDynamicTablesWithOldCompressionRpcProxy(DynamicTablesSingleCellBase):
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-    ENABLE_PROXY = True
-
-    DELTA_DRIVER_CONFIG = {
-        "request_codec": "lz4"
-    }
-
-class TestDynamicTablesWithOmittedCompressionRpcProxy(DynamicTablesSingleCellBase):
+class TestDynamicTablesWithModernCompressionRpcProxy(DynamicTablesSingleCellBase):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_PROXY = True
 
     DELTA_DRIVER_CONFIG = {
         "request_codec": "lz4",
-        "response_codec": "quick_lz"
+        "response_codec": "quick_lz",
+        "enable_legacy_rpc_codecs": False
     }
 
 class TestDynamicTablesResourceLimitsRpcProxy(TestDynamicTablesResourceLimits):

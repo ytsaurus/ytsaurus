@@ -28,7 +28,8 @@ bool operator == (const TSerializableAccessControlEntry& lhs, const TSerializabl
         lhs.Action == rhs.Action &&
         lhs.Subjects == rhs.Subjects &&
         lhs.Permissions == rhs.Permissions &&
-        lhs.InheritanceMode == rhs.InheritanceMode;
+        lhs.InheritanceMode == rhs.InheritanceMode &&
+        lhs.Columns == rhs.Columns;
 }
 
 bool operator != (const TSerializableAccessControlEntry& lhs, const TSerializableAccessControlEntry& rhs)
@@ -39,28 +40,49 @@ bool operator != (const TSerializableAccessControlEntry& lhs, const TSerializabl
 // NB(levysotsky): We don't use TYsonSerializable here
 // because we want to mirror the TAccessControlList structure,
 // and a vector of TYsonSerializable-s cannot be declared (as it has no move constructor).
-void Serialize(const TSerializableAccessControlEntry& acl, NYson::IYsonConsumer* consumer)
+void Serialize(const TSerializableAccessControlEntry& ace, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("action").Value(acl.Action)
-            .Item("subjects").Value(acl.Subjects)
-            .Item("permissions").Value(acl.Permissions)
-            .Item("inheritance_mode").Value(acl.InheritanceMode)
+            .Item("action").Value(ace.Action)
+            .Item("subjects").Value(ace.Subjects)
+            .Item("permissions").Value(ace.Permissions)
+            .Item("inheritance_mode").Value(ace.InheritanceMode)
+            .DoIf(ace.Columns.has_value(), [&] (auto fluent) {
+                fluent
+                    .Item("columns").Value(ace.Columns);
+            })
         .EndMap();
 }
 
-void Deserialize(TSerializableAccessControlEntry& acl, NYTree::INodePtr node)
+void Deserialize(TSerializableAccessControlEntry& ace, NYTree::INodePtr node)
 {
     using NYTree::Deserialize;
 
-    const auto mapNode = node->AsMap();
+    auto mapNode = node->AsMap();
 
-    Deserialize(acl.Action, mapNode->GetChild("action"));
-    Deserialize(acl.Subjects, mapNode->GetChild("subjects"));
-    Deserialize(acl.Permissions, mapNode->GetChild("permissions"));
-    if (const auto inheritanceModeNode = mapNode->FindChild("inheritance_mode")) {
-        Deserialize(acl.InheritanceMode, inheritanceModeNode);
+    Deserialize(ace.Action, mapNode->GetChild("action"));
+    Deserialize(ace.Subjects, mapNode->GetChild("subjects"));
+    Deserialize(ace.Permissions, mapNode->GetChild("permissions"));
+    if (auto inheritanceModeNode = mapNode->FindChild("inheritance_mode")) {
+        Deserialize(ace.InheritanceMode, inheritanceModeNode);
+    }
+    if (auto columnsNode = mapNode->FindChild("columns")) {
+        Deserialize(ace.Columns, columnsNode);
+    }
+
+    if (ace.Action == ESecurityAction::Undefined) {
+        THROW_ERROR_EXCEPTION("%Qlv action is not allowed",
+            ESecurityAction::Undefined);
+    }
+
+    if (ace.Columns) {
+        for (auto permission : TEnumTraits<EPermission>::GetDomainValues()) {
+            if (Any(ace.Permissions & permission) && permission != EPermission::Read) {
+                THROW_ERROR_EXCEPTION("Columnar ACE cannot contain %Qlv permission",
+                    permission);
+            }
+        }
     }
 }
 

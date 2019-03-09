@@ -53,6 +53,9 @@ typedef std::vector<TDynamicAttributes> TDynamicAttributesList;
 struct IFairShareTreeHost
 {
     virtual NProfiling::TAggregateGauge& GetProfilingCounter(const TString& name) = 0;
+
+    // NB(renadeen): see TSchedulerElementSharedState for explanation
+    virtual NConcurrency::TReaderWriterSpinLock* GetSharedStateTreeLock() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -133,25 +136,48 @@ protected:
 class TSchedulerElementSharedState
     : public TIntrinsicRefCounted
 {
+    // This is node of shared state tree.
+    // Each state corresponds to some scheduler element and all its snapshots.
+    // There are three general scenarios:
+
+    // 1. Get local resource usage of particular element - we take read lock on ResourceUsageLock_ of the state.
+
+    // 2. Apply update of some property from leaf to root (increase or decrease of resource usage for example)
+    // - we take read lock on SharedStateTreeLock provided by IFairShareTreeHost for whole operation
+    // and make local updates of particular states under write lock on corresponding ResourceUsageLock_.
+
+    // 3. Modify tree structure (attach, change or detach parent of element)
+    // - we take write lock on SharedStateTreeLock for whole operation.
+    // If we need to update properties of the particular state we also take the write lock on ResourceUsageLock_ for this update
+
+    // Essentially SharedStateTreeLock protects tree structure.
+    // We take this lock if we need to access the parent link of some element
+
 public:
+    explicit TSchedulerElementSharedState(IFairShareTreeHost* host);
     TJobResources GetResourceUsage();
     TJobResources GetTotalResourceUsageWithPrecommit();
     TJobMetrics GetJobMetrics();
 
-    void CommitResourceUsage(const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources);
-    void IncreaseResourceUsage(const TJobResources& delta);
-    void IncreaseResourceUsagePrecommit(const TJobResources& delta);
+    void AttachParent(TSchedulerElementSharedState* parent);
+    void ChangeParent(TSchedulerElementSharedState* newParent);
+    void DetachParent();
+    void ReleaseResources();
+
+    bool TryIncreaseHierarchicalResourceUsagePrecommit(
+        const TJobResources &delta,
+        TJobResources *availableResourceLimitsOutput);
+    void IncreaseHierarchicalResourceUsagePrecommit(const TJobResources& delta);
+    void CommitHierarchicalResourceUsage(
+        const TJobResources& resourceUsageDelta,
+        const TJobResources& precommittedResources);
+    void IncreaseHierarchicalResourceUsage(const TJobResources& delta);
+    void ApplyHierarchicalJobMetricsDelta(const TJobMetrics& delta);
+
     bool CheckDemand(
         const TJobResources& delta,
         const TJobResources& resourceDemand,
         const TJobResources& resourceDiscount);
-    bool TryIncreaseResourceUsagePrecommit(
-        const TJobResources& delta,
-        const TJobResources& resourceLimits,
-        const TJobResources& resourceDiscount,
-        TJobResources* availableResourceLimitsOutput);
-    void ApplyJobMetricsDelta(const TJobMetrics& delta);
-
     double GetResourceUsageRatio(NNodeTrackerClient::EResourceType dominantResource, double dominantResourceLimit);
 
     bool GetAlive() const;
@@ -160,12 +186,20 @@ public:
     double GetFairShareRatio() const;
     void SetFairShareRatio(double fairShareRatio);
 
+    void SetResourceLimits(TJobResources resourceLimits);
+
 private:
+    IFairShareTreeHost* FairShareTreeHost_;
     TJobResources ResourceUsage_;
+    TJobResources ResourceLimits_ = InfiniteJobResources();
     TJobResources ResourceUsagePrecommit_;
     TJobMetrics JobMetrics_;
+
     NConcurrency::TReaderWriterSpinLock ResourceUsageLock_;
+
     NConcurrency::TReaderWriterSpinLock JobMetricsLock_;
+
+    TSchedulerElementSharedStatePtr Parent_ = nullptr;
 
     // NB: Avoid false sharing between ResourceUsageLock_ and others.
     [[maybe_unused]] char Padding[64];
@@ -173,6 +207,22 @@ private:
     std::atomic<bool> Alive_ = {true};
 
     std::atomic<double> FairShareRatio_ = {0.0};
+
+    bool IncreaseLocalResourceUsagePrecommitWithCheck(
+        const TJobResources& delta,
+        TJobResources* availableResourceLimitsOutput);
+    void IncreaseLocalResourceUsagePrecommit(const TJobResources& delta);
+    void CommitLocalResourceUsage(
+        const TJobResources& resourceUsageDelta,
+        const TJobResources& precommittedResources);
+    void IncreaseLocalResourceUsage(const TJobResources& delta);
+    void ApplyLocalJobMetricsDelta(const TJobMetrics& delta);
+
+    void DoIncreaseHierarchicalResourceUsagePrecommit(const TJobResources& delta);
+    void DoIncreaseHierarchicalResourceUsage(const TJobResources& delta);
+
+    void CheckCycleAbsence(TSchedulerElementSharedState* newParent);
+    TJobResources GetResourceUsagePrecommit();
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerElementSharedState)
@@ -242,7 +292,6 @@ public:
 
     TCompositeSchedulerElement* GetMutableParent();
     const TCompositeSchedulerElement* GetParent() const;
-    void SetParent(TCompositeSchedulerElement* parent);
 
     TInstant GetStartTime() const;
     int GetPendingJobCount() const;
@@ -261,8 +310,6 @@ public:
     virtual TString GetTreeId() const;
 
     void IncreaseHierarchicalResourceUsage(const TJobResources& delta);
-
-    void ApplyJobMetricsDeltaLocal(const TJobMetrics& delta);
 
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) = 0;
 
@@ -307,21 +354,13 @@ protected:
 
     bool CheckDemand(const TJobResources& delta, const TFairShareContext& context);
 
-    bool TryIncreaseLocalResourceUsagePrecommit(
-        const TJobResources& delta,
-        const TFairShareContext& context,
-        TJobResources* availableResourceLimitsOutput);
-
-    void IncreaseLocalResourceUsagePrecommit(const TJobResources& delta);
-    void IncreaseLocalResourceUsage(const TJobResources& delta);
-    void CommitLocalResourceUsage(const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources);
-
     TJobResources ComputeResourceLimitsBase(const TResourceLimitsConfigPtr& resourceLimitsConfig) const;
 
 private:
     void UpdateAttributes();
 
     friend class TOperationElement;
+    friend class TPool;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerElement)
@@ -407,8 +446,8 @@ public:
 
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) override;
 
-    virtual void IncreaseOperationCount(int delta);
-    virtual void IncreaseRunningOperationCount(int delta);
+    void IncreaseOperationCount(int delta);
+    void IncreaseRunningOperationCount(int delta);
 
     virtual THashSet<TString> GetAllowedProfilingTags() const = 0;
 
@@ -519,6 +558,10 @@ public:
     virtual bool AreImmediateOperationsForbidden() const override;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
+
+    void AttachParent(TCompositeSchedulerElement* newParent);
+    void ChangeParent(TCompositeSchedulerElement* newParent);
+    void DetachParent();
 
     virtual THashSet<TString> GetAllowedProfilingTags() const override;
 
@@ -763,14 +806,13 @@ public:
 
     bool TryIncreaseHierarchicalResourceUsagePrecommit(
         const TJobResources& delta,
-        const TFairShareContext& context,
-        TJobResources* availableResourceLimitsOutput);
+        TJobResources* availableResourceLimitsOutput = nullptr);
 
-    void DecreaseHierarchicalResourceUsagePrecommit(const TJobResources& precommittedResources);
+    void AttachParent(TCompositeSchedulerElement* newParent, bool enabled);
+    void ChangeParent(TCompositeSchedulerElement* newParent);
+    void DetachParent();
 
-    void CommitHierarchicalResourceUsage(
-        const TJobResources& resourceUsageDelta,
-        const TJobResources& precommittedResources);
+    void MarkOperationRunningInPool();
 
     DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareTreeRuntimeParametersPtr, RuntimeParams);
 
@@ -780,6 +822,7 @@ private:
     TOperationElementSharedStatePtr OperationElementSharedState_;
     TFairShareStrategyOperationControllerPtr Controller_;
 
+    bool IsRunningInThisPoolTree_ = false;
     TSchedulingTagFilter SchedulingTagFilter_;
 
     TInstant LastNonStarvingTime_;

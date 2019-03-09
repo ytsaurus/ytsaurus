@@ -18,6 +18,7 @@
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/shutdown.h>
 #include <yt/core/misc/variant.h>
+#include <yt/core/misc/ref_counted_tracker.h>
 
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/profiler.h>
@@ -62,7 +63,7 @@ using namespace NTracing;
 static const TLogger Logger(SystemLoggingCategoryName);
 static const auto& Profiler = LoggingProfiler;
 
-static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
+static constexpr auto ProfilingPeriod = TDuration::Seconds(10);
 static constexpr auto DequeuePeriod = TDuration::MilliSeconds(100);
 static constexpr int PerThreadBatchingReserveCapacity = 256;
 
@@ -479,7 +480,7 @@ public:
         DoUpdateCategory(category);
     }
 
-    void UpdatePosition(TLoggingPosition* position, const TString& message)
+    void UpdatePosition(TLoggingPosition* position, TStringBuf message)
     {
         TGuard<TForkAwareSpinLock> guard(SpinLock_);
         DoUpdatePosition(position, message);
@@ -497,7 +498,7 @@ public:
             // Collect last-minute information.
             TRawFormatter<1024> formatter;
             formatter.AppendString("\n*** Fatal error ***\n");
-            formatter.AppendString(event.Message.c_str());
+            formatter.AppendString(TStringBuf(event.Message.Begin(), event.Message.End()));
             formatter.AppendString("\n*** Aborting ***\n");
 
             HandleEintr(::write, 2, formatter.GetData(), formatter.GetBytesWritten());
@@ -1001,11 +1002,13 @@ private:
         auto writtenEvents = WrittenEvents_.load();
         auto enqueuedEvents = EnqueuedEvents_.load();
         auto suppressedEvents = SuppressedEvents_.load();
+        auto messageBuffersSize = TRefCountedTracker::Get()->GetBytesAlive(GetRefCountedTypeKey<NDetail::TMessageBufferTag>());
 
         Profiler.Enqueue("/enqueued_events", enqueuedEvents, EMetricType::Counter);
         Profiler.Enqueue("/written_events", writtenEvents, EMetricType::Counter);
         Profiler.Enqueue("/backlog_events", enqueuedEvents - writtenEvents, EMetricType::Counter);
         Profiler.Enqueue("/suppressed_events", suppressedEvents, EMetricType::Counter);
+        Profiler.Enqueue("/message_buffers_size", messageBuffersSize, EMetricType::Gauge);
     }
 
     void OnDequeue()
@@ -1033,17 +1036,18 @@ private:
         int eventsWritten = ProcessTraceSuppressionBuffer();
 
         while (LoggerQueue_.DequeueAll(true, [&] (TLoggerQueueItem& item) {
-            if (auto* event = std::get_if<TConfigEvent>(&item)) {
-                UpdateConfig(*event);
-            } else if (const auto* event = std::get_if<TLogEvent>(&item)) {
-                WriteEvent(*event);
-                ++eventsWritten;
-            } else if (const auto* events = std::get_if<std::vector<TLogEvent>>(&item)) {
-                WriteEvents(*events);
-                eventsWritten += events->size();
-            } else {
-                Y_UNREACHABLE();
-            }
+            Visit(item,
+                [&] (TConfigEvent& event) {
+                    UpdateConfig(event);
+                },
+                [&] (const TLogEvent& event) {
+                    WriteEvent(event);
+                    ++eventsWritten;
+                },
+                [&] (const std::vector<TLogEvent>& events) {
+                    WriteEvents(events);
+                    eventsWritten += events.size();
+                });
         }))
         { }
 
@@ -1088,17 +1092,19 @@ private:
         TraceSuppressionBuffer_.clear();
 
         LoggerQueue_.DequeueAll(true, [&] (TLoggerQueueItem& item) {
-            if (auto* event = std::get_if<TConfigEvent>(&item)) {
-                UpdateConfig(*event);
-            } else if (auto* event = std::get_if<TLogEvent>(&item)) {
-                TraceSuppressionBuffer_.push_back(std::move(*event));
-            } else if (auto* events = std::get_if<std::vector<TLogEvent>>(&item)) {
-                for (auto& event : *events) {
-                    TraceSuppressionBuffer_.push_back(event);
-                }
-            } else {
-                Y_UNREACHABLE();
-            }
+            Visit(std::move(item),
+                [&] (TConfigEvent&& event) {
+                    UpdateConfig(event);
+                },
+                [&] (TLogEvent&& event) {
+                    TraceSuppressionBuffer_.emplace_back(std::move(event));
+                },
+                [&] (const std::vector<TLogEvent>& events) {
+                    TraceSuppressionBuffer_.insert(
+                        TraceSuppressionBuffer_.end(),
+                        events.begin(),
+                        events.end());
+                });
         });
 
         std::sort(TraceSuppressionBuffer_.begin(), TraceSuppressionBuffer_.end(), [] (const auto& lhs, const auto& rhs) {
@@ -1137,7 +1143,7 @@ private:
         category->CurrentVersion.store(GetVersion(), std::memory_order_relaxed);
     }
 
-    void DoUpdatePosition(TLoggingPosition* position, const TString& message)
+    void DoUpdatePosition(TLoggingPosition* position, TStringBuf message)
     {
         bool positionEnabled = true;
         for (const auto& prefix : Config_->SuppressedMessages) {
@@ -1268,7 +1274,7 @@ void TLogManager::UpdateCategory(TLoggingCategory* category)
     Impl_->UpdateCategory(category);
 }
 
-void TLogManager::UpdatePosition(TLoggingPosition* position,const TString& message)
+void TLogManager::UpdatePosition(TLoggingPosition* position, TStringBuf message)
 {
     Impl_->UpdatePosition(position, message);
 }

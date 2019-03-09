@@ -4,6 +4,8 @@
 
 #include <yt/server/lib/misc/config.h>
 
+#include <yt/server/lib/scheduler/job_metrics.h>
+
 #include <yt/ytlib/chunk_client/config.h>
 
 #include <yt/ytlib/api/native/config.h>
@@ -702,6 +704,8 @@ public:
     // TODO(levysotsky): Get rid of this option when everybody migrates to new operation ACLs.
     bool AllowUsersGroupReadIntermediateData;
 
+    std::vector<NScheduler::TCustomJobMetricDescription> CustomJobMetrics;
+
     TControllerAgentConfig();
 
 private:
@@ -720,9 +724,6 @@ public:
     //! Node-to-master connection.
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
-    //! Node directory synchronization.
-    NNodeTrackerClient::TNodeDirectorySynchronizerConfigPtr NodeDirectorySynchronizer;
-
     TControllerAgentConfigPtr ControllerAgent;
 
     //! Known scheduler addresses.
@@ -733,8 +734,6 @@ public:
     TControllerAgentBootstrapConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
-        RegisterParameter("node_directory_synchronizer", NodeDirectorySynchronizer)
-            .DefaultNew();
         RegisterParameter("controller_agent", ControllerAgent)
             .DefaultNew();
         RegisterParameter("addresses", Addresses)

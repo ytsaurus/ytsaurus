@@ -50,6 +50,15 @@ public:
     virtual const NRpc::NProto::TRequestHeader& Header() const override;
     virtual NRpc::NProto::TRequestHeader& Header() override;
 
+    virtual const NRpc::TStreamingParameters& RequestAttachmentsStreamingParameters() const override;
+    virtual NRpc::TStreamingParameters& RequestAttachmentsStreamingParameters() override;
+
+    virtual const NRpc::TStreamingParameters& ResponseAttachmentsStreamingParameters() const override;
+    virtual NRpc::TStreamingParameters& ResponseAttachmentsStreamingParameters() override;
+
+    virtual NConcurrency::IAsyncZeroCopyOutputStreamPtr GetRequestAttachmentsStream() const override;
+    virtual NConcurrency::IAsyncZeroCopyInputStreamPtr GetResponseAttachmentsStream() const override;
+
     virtual TSharedRefArray Serialize() override;
 
 protected:
@@ -127,7 +136,6 @@ protected:
         if (codecId) {
             DeserializeProtoWithCompression(this, data, *codecId);
         } else {
-            // COMPAT(kiselyovp)
             DeserializeProtoWithEnvelope(this, data);
         }
     }
@@ -253,22 +261,6 @@ TFuture<std::vector<TString>> AsyncYPathList(
     const TYPath& path,
     std::optional<i64> limit = std::nullopt);
 
-/*!
- *  Throws exception if the specified node does not exist.
- */
-INodePtr GetNodeByYPath(
-    const INodePtr& root,
-    const TYPath& path);
-
-INodePtr FindNodeByYPath(
-    const INodePtr& root,
-    const TYPath& path);
-
-void SetNodeByYPath(
-    const INodePtr& root,
-    const TYPath& path,
-    const INodePtr& value);
-
 //! Creates missing maps along #path.
 /*!
  *  E.g. if #root is an empty map and #path is |/a/b/c| then
@@ -286,6 +278,45 @@ INodePtr PatchNode(const INodePtr& base, const INodePtr& patch);
 
 //! Checks given nodes for deep equality.
 bool AreNodesEqual(const INodePtr& lhs, const INodePtr& rhs);
+
+/////////////////////////////////////////////////////////////////////////////
+
+struct TNodeWalkOptions
+{
+    std::function<INodePtr(const TString&)> MissingAttributeHandler;
+    std::function<INodePtr(const IMapNodePtr&, const TString&)> MissingChildKeyHandler;
+    std::function<INodePtr(const IListNodePtr&, int)> MissingChildIndexHandler;
+    std::function<INodePtr(const INodePtr&)> NodeCannotHaveChildrenHandler;
+};
+
+extern TNodeWalkOptions GetNodeByYPathOptions;
+extern TNodeWalkOptions FindNodeByYPathOptions;
+
+//! Generic function walking down the node according to given ypath.
+INodePtr WalkNodeByYPath(
+    const INodePtr& root,
+    const TYPath& path,
+    const TNodeWalkOptions& options);
+
+/*!
+ *  Throws exception if the specified node does not exist.
+ */
+INodePtr GetNodeByYPath(
+    const INodePtr& root,
+    const TYPath& path);
+
+/*!
+ *  Does not throw exception if the specified node does not exist, but still throws on attempt of
+ *  moving to the child of a non-composite node.
+ */
+INodePtr FindNodeByYPath(
+    const INodePtr& root,
+    const TYPath& path);
+
+void SetNodeByYPath(
+    const INodePtr& root,
+    const TYPath& path,
+    const INodePtr& value);
 
 ////////////////////////////////////////////////////////////////////////////////
 

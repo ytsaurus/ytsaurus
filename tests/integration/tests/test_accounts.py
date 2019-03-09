@@ -260,7 +260,10 @@ class TestAccounts(YTEnvSetup):
         tx = start_transaction()
         for i in xrange(0, 5):
             write_table("//tmp/t", {"a" : "b"}, tx=tx)
+
             self._replicator_sleep()
+            ping_transaction(tx)
+
             account_space = get_account_disk_space("tmp")
             tx_space = self._get_tx_disk_space(tx, "tmp")
 
@@ -1153,6 +1156,14 @@ class TestAccounts(YTEnvSetup):
         assert get("//tmp/dir1/@account") == "a1"
         assert get("//tmp/dir1/dir2/@account") == "a2"
 
+    def test_recursive_create_with_explicit_account(self):
+        create_account("a")
+        create("document", "//tmp/one/two/three", recursive=True, attributes={"account": "a"})
+        assert get("//tmp/@account") == "tmp"
+        assert get("//tmp/one/two/three/@account") == "a"
+        assert get("//tmp/one/two/@account") == "a"
+        assert get("//tmp/one/@account") == "a"
+
     def test_nested_tx_copy(self):
         create("table", "//tmp/t")
 
@@ -1287,10 +1298,24 @@ class TestAccounts(YTEnvSetup):
                 "tablet_static_memory": 0
             })
 
+        # A cleanup from preceding tests may still be happening in background. Wait until totals have stabilized.
         resource_usage = get("//sys/accounts/@total_resource_usage")
         committed_resource_usage = get("//sys/accounts/@total_committed_resource_usage")
-
-        multicell_sleep()
+        stable_iteration_count = 0
+        for i in xrange(0, 30):
+            sleep(0.3)
+            new_resource_usage = get("//sys/accounts/@total_resource_usage")
+            new_committed_resource_usage = get("//sys/accounts/@total_committed_resource_usage")
+            if (resources_equal(resource_usage, new_resource_usage) and
+                resources_equal(committed_resource_usage, new_committed_resource_usage)):
+                stable_iteration_count += 1
+                if stable_iteration_count == 10:
+                    # Totals have been stable long enough, continue.
+                    break
+            else:
+                resource_usage = new_resource_usage
+                committed_resource_usage = new_committed_resource_usage
+                stable_iteration_count = 0
 
         assert resources_equal(get("//sys/accounts/@total_resource_limits"), total_resource_limits)
 

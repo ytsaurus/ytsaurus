@@ -62,7 +62,7 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
     def _wait_for_in_memory_stores_preload(self, table):
         for tablet in get(table + "/@tablets"):
             tablet_id = tablet["tablet_id"]
-            address = self._get_tablet_leader_address(tablet_id)
+            address = get_tablet_leader_address(tablet_id)
             def all_preloaded():
                 orchid = self._find_tablet_orchid(address, tablet_id)
                 if not orchid:
@@ -300,7 +300,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        address = self._get_tablet_leader_address(tablet_id)
+        address = get_tablet_leader_address(tablet_id)
         assert self._find_tablet_orchid(address, tablet_id) is not None
 
         remove("//tmp/t")
@@ -1276,7 +1276,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        address = self._get_tablet_leader_address(tablet_id)
+        address = get_tablet_leader_address(tablet_id)
 
         rows = [{"key": i, "value": str(i)} for i in xrange(10)]
         insert_rows("//tmp/t", rows)
@@ -1302,7 +1302,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             set("//tmp/t/@in_memory_mode", "none")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        address = self._get_tablet_leader_address(tablet_id)
+        address = get_tablet_leader_address(tablet_id)
 
         def _check_preload_state(state):
             sleep(1.0)
@@ -1896,18 +1896,19 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
         sync_freeze_table("//tmp/t")
         def check_statistics(statistics):
-            assert statistics["tablet_count"] == 1
-            assert statistics["tablet_count_per_memory_mode"]["none"] == 1
-            assert statistics["chunk_count"] == get("//tmp/t/@chunk_count")
-            assert statistics["uncompressed_data_size"] == get("//tmp/t/@uncompressed_data_size")
-            assert statistics["compressed_data_size"] == get("//tmp/t/@compressed_data_size")
-            assert statistics["disk_space"] == get("//tmp/t/@resource_usage/disk_space")
-            assert statistics["disk_space_per_medium"]["default"] == get("//tmp/t/@resource_usage/disk_space_per_medium/default")
-        statistics = get("//tmp/t/@tablet_statistics")
-        assert statistics["overlapping_store_count"] == statistics["store_count"]
-        check_statistics(statistics)
-        statistics = get("#{0}/@total_statistics".format(cell_ids[0]))
-        check_statistics(statistics)
+            return statistics["tablet_count"] == 1 and \
+                   statistics["tablet_count_per_memory_mode"]["none"] == 1 and \
+                   statistics["chunk_count"] == get("//tmp/t/@chunk_count") and \
+                   statistics["uncompressed_data_size"] == get("//tmp/t/@uncompressed_data_size") and \
+                   statistics["compressed_data_size"] == get("//tmp/t/@compressed_data_size") and \
+                   statistics["disk_space"] == get("//tmp/t/@resource_usage/disk_space") and \
+                   statistics["disk_space_per_medium"]["default"] == get("//tmp/t/@resource_usage/disk_space_per_medium/default")
+
+        tablet_statistics = get("//tmp/t/@tablet_statistics")
+        assert tablet_statistics["overlapping_store_count"] == tablet_statistics["store_count"]
+        assert check_statistics(tablet_statistics)
+
+        wait(lambda: check_statistics(get("#{0}/@total_statistics".format(cell_ids[0]))))
 
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_timestamp_access(self, optimize_for):
@@ -2465,7 +2466,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        address = self._get_tablet_leader_address(tablet_id)
+        address = get_tablet_leader_address(tablet_id)
         orchid = self._find_tablet_orchid(address, tablet_id)
         assert len(orchid["partitions"]) == 1
 

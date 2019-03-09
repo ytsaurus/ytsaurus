@@ -29,6 +29,9 @@ using namespace NBus;
 using namespace NYTree;
 using namespace NNet;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TServer)

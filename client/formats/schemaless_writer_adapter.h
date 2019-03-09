@@ -29,10 +29,6 @@ public:
 
     virtual TFuture<void> Close() override;
 
-    virtual const NTableClient::TNameTablePtr& GetNameTable() const override;
-
-    virtual const NTableClient::TTableSchema& GetSchema() const override;
-
     virtual TBlob GetContext() const override;
 
     virtual i64 GetWrittenSize() const override;

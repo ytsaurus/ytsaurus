@@ -1,13 +1,15 @@
 #include "bootstrap.h"
 
-#include <yt/server/clickhouse_server/server.h>
+#include "private.h"
 
-#include <yt/server/clickhouse_server/client_cache.h>
-#include <yt/server/clickhouse_server/config.h>
-#include <yt/server/clickhouse_server/directory.h>
-#include <yt/server/clickhouse_server/logger.h>
-#include <yt/server/clickhouse_server/storage.h>
-#include <yt/server/clickhouse_server/clique_authorization_manager.h>
+#include "host.h"
+
+#include "config.h"
+#include "directory.h"
+#include "logger.h"
+#include "query_context.h"
+#include "security_manager.h"
+#include "clique_authorization_manager.h"
 
 #include <yt/server/lib/admin/admin_service.h>
 
@@ -16,12 +18,14 @@
 #include <yt/ytlib/api/connection.h>
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/client_cache.h>
 #include <yt/ytlib/monitoring/http_integration.h>
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 #include <yt/ytlib/orchid/orchid_service.h>
 #include <yt/ytlib/core_dump/core_dumper.h>
 
 #include <yt/client/api/client.h>
+#include <yt/client/api/client_cache.h>
 
 #include <yt/core/bus/tcp/server.h>
 
@@ -59,13 +63,13 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const auto& Logger = ServerLogger;
 const NLogging::TLogger EngineLogger("Engine");
-const NLogging::TLogger BootstrapLogger("Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TBootstrap::TBootstrap(
-    TConfigPtr config,
+    TClickHouseServerBootstrapConfigPtr config,
     INodePtr configNode,
     TString instanceId,
     TString cliqueId,
@@ -73,49 +77,46 @@ TBootstrap::TBootstrap(
     ui16 monitoringPort,
     ui16 tcpPort,
     ui16 httpPort)
-    : Config(std::move(config))
-    , ConfigNode(std::move(configNode))
+    : Config_(std::move(config))
+    , ConfigNode_(std::move(configNode))
     , InstanceId_(std::move(instanceId))
     , CliqueId_(std::move(cliqueId))
     , RpcPort_(rpcPort)
     , MonitoringPort_(monitoringPort)
     , TcpPort_(tcpPort)
     , HttpPort_(httpPort)
-{}
-
-TBootstrap::~TBootstrap()
-{}
-
-void TBootstrap::Initialize()
 {
-    ConfigureSingletons(Config);
-
-    ControlQueue = New<TActionQueue>("Control");
-    BIND(&TBootstrap::DoInitialize, this)
-        .AsyncVia(GetControlInvoker())
-        .Run()
-        .Get()
-        .ThrowOnError();
+    WarnForUnrecognizedOptions(Logger, Config_);
 }
 
 void TBootstrap::Run()
 {
-    Y_VERIFY(ControlQueue);
-    GetControlInvoker()->Invoke(BIND(&TBootstrap::DoRun, this));
+    ControlQueue_ = New<TActionQueue>("Control");
+
+    BIND(&TBootstrap::DoRun, this)
+        .AsyncVia(GetControlInvoker())
+        .Run()
+        .Get()
+        .ThrowOnError();
+
+    Sleep(TDuration::Max());
 }
 
-void TBootstrap::DoInitialize()
+void TBootstrap::DoRun()
 {
-    MonitoringManager = New<TMonitoringManager>();
-    MonitoringManager->Register(
+    YT_LOG_INFO("Starting ClickHouse server");
+
+    MonitoringManager_ = New<TMonitoringManager>();
+    MonitoringManager_->Register(
         "/ref_counted",
         CreateRefCountedTrackerStatisticsProducer());
+    MonitoringManager_->Start();
 
     auto orchidRoot = GetEphemeralNodeFactory(true)->CreateMap();
     SetNodeByYPath(
         orchidRoot,
         "/config",
-        ConfigNode);
+        ConfigNode_);
     SetNodeByYPath(
         orchidRoot,
         "/profiling",
@@ -123,115 +124,102 @@ void TBootstrap::DoInitialize()
     SetNodeByYPath(
         orchidRoot,
         "/monitoring",
-        CreateVirtualNode(MonitoringManager->GetService()));
+        CreateVirtualNode(MonitoringManager_->GetService()));
 
     SetBuildAttributes(orchidRoot, "clickhouse_server");
 
-    if (Config->CoreDumper) {
-        CoreDumper = NCoreDump::CreateCoreDumper(Config->CoreDumper);
+    if (Config_->CoreDumper) {
+        CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
 
-    if (Config->RpcServer) {
-        Config->BusServer->Port = RpcPort_;
-        BusServer = CreateTcpBusServer(Config->BusServer);
+    Config_->BusServer->Port = RpcPort_;
+    BusServer_ = CreateTcpBusServer(Config_->BusServer);
 
-        RpcServer = NRpc::NBus::CreateBusServer(BusServer);
+    RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
 
-        RpcServer->RegisterService(CreateAdminService(
-            GetControlInvoker(),
-            CoreDumper));
+    RpcServer_->RegisterService(CreateAdminService(
+        GetControlInvoker(),
+        CoreDumper_));
 
-        RpcServer->RegisterService(CreateOrchidService(
-            orchidRoot,
-            GetControlInvoker()));
+    RpcServer_->RegisterService(CreateOrchidService(
+        orchidRoot,
+        GetControlInvoker()));
 
-        RpcServer->Configure(Config->RpcServer);
-    }
+    RpcServer_->Configure(Config_->RpcServer);
 
-    auto poller = CreateThreadPoolPoller(1, "Http");
-    HttpServer = NHttp::CreateServer(MonitoringPort_, poller);
+    Config_->MonitoringServer->Port = MonitoringPort_;
+    HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
 
-    HttpServer->AddHandler(
+    HttpServer_->AddHandler(
         "/orchid/",
         GetOrchidYPathHttpHandler(orchidRoot));
 
     NApi::NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
 
-    Connection = NApi::NNative::CreateConnection(
-        Config->ClusterConnection,
+    Connection_ = NApi::NNative::CreateConnection(
+        Config_->ClusterConnection,
         connectionOptions);
 
-    NativeClientCache = CreateNativeClientCache(
-        Config->ClientCache,
-        Connection);
-
-    if (Config->ScanThrottler) {
-        ScanThrottler = CreateReconfigurableThroughputThrottler(Config->ScanThrottler);
-    }  else {
-        ScanThrottler = GetUnlimitedThrottler();
-    }
+    ClientCache_ = New<NApi::NNative::TClientCache>(Config_->ClientCache, Connection_);
 
     auto logger = CreateLogger(EngineLogger);
 
-    Storage = CreateStorage(Connection, NativeClientCache, ScanThrottler);
+    RootClient_ = ClientCache_->GetClient(Config_->User);
 
-    CoordinationService = CreateCoordinationService(Connection, CliqueId_);
+    CoordinationService = CreateCoordinationService(RootClient_, CliqueId_);
 
-    auto client = NativeClientCache->CreateNativeClient(TClientOptions("root"));
-    CliqueAuthorizationManager = CreateCliqueAuthorizationManager(client, CliqueId_, Config->ValidateOperationPermission);
-
-    Server = std::make_unique<TServer>(
+    ClickHouseHost_ = New<TClickHouseHost>(
+        this,
         logger,
-        Storage,
         CoordinationService,
-        CliqueAuthorizationManager,
-        Config,
+        Config_,
         CliqueId_,
         InstanceId_,
         TcpPort_,
         HttpPort_);
-}
 
-void TBootstrap::DoRun()
-{
-    const auto& Logger = BootstrapLogger;
-
-    if (MonitoringManager) {
-        MonitoringManager->Start();
+    if (HttpServer_) {
+        YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
+        HttpServer_->Start();
     }
 
-    if (HttpServer) {
-        YT_LOG_INFO("Listening for HTTP requests on port %v", Config->MonitoringPort);
-        HttpServer->Start();
+    if (RpcServer_) {
+        YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
+        RpcServer_->Start();
     }
 
-    if (RpcServer) {
-        YT_LOG_INFO("Listening for RPC requests on port %v", Config->RpcPort);
-        RpcServer->Start();
-    }
-
-    Server->Start();
+    ClickHouseHost_->Start();
 }
 
-TConfigPtr TBootstrap::GetConfig() const
+const TClickHouseServerBootstrapConfigPtr& TBootstrap::GetConfig() const
 {
-    return Config;
+    return Config_;
 }
 
-IInvokerPtr TBootstrap::GetControlInvoker() const
+const IInvokerPtr& TBootstrap::GetControlInvoker() const
 {
-    return ControlQueue->GetInvoker();
+    return ControlQueue_->GetInvoker();
 }
 
-NApi::NNative::IConnectionPtr TBootstrap::GetConnection() const
+const NApi::NNative::IConnectionPtr& TBootstrap::GetConnection() const
 {
-    return Connection;
+    return Connection_;
 }
 
-IThroughputThrottlerPtr TBootstrap::GetScanThrottler() const
+const NApi::NNative::TClientCachePtr& TBootstrap::GetClientCache() const
 {
-    return ScanThrottler;
+    return ClientCache_;
+}
+
+const NApi::NNative::IClientPtr& TBootstrap::GetRootClient() const
+{
+    return RootClient_;
+}
+
+const TClickHouseHostPtr& TBootstrap::GetHost() const
+{
+    return ClickHouseHost_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

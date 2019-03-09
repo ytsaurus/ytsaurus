@@ -33,12 +33,11 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(IOperationStrategyHost*, Host);
     DEFINE_BYVAL_RO_PROPERTY(TFairShareStrategyOperationControllerPtr, Controller);
-    DEFINE_BYVAL_RW_PROPERTY(bool, Active);
     DEFINE_BYREF_RW_PROPERTY(TTreeIdToPoolNameMap, TreeIdToPoolNameMap);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TString>, ErasedTrees);
 
 public:
-    TFairShareStrategyOperationState(IOperationStrategyHost* host)
+    explicit TFairShareStrategyOperationState(IOperationStrategyHost* host)
         : Host_(host)
         , Controller_(New<TFairShareStrategyOperationController>(host))
     { }
@@ -60,11 +59,6 @@ public:
 using TFairShareStrategyOperationStatePtr = TIntrusivePtr<TFairShareStrategyOperationState>;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-struct TOperationUnregistrationResult
-{
-    std::vector<TOperationId> OperationsToActivate;
-};
 
 struct TPoolsUpdateResult
 {
@@ -100,18 +94,16 @@ public:
         const TStrategyOperationSpecPtr& spec,
         const TOperationFairShareTreeRuntimeParametersPtr& runtimeParams);
 
-    // Attaches operation to tree and returns if it can be activated (pools limits are satisfied)
-    bool AttachOperation(
+    void UnregisterOperation(const TFairShareStrategyOperationStatePtr& state);
+
+    void OnOperationRemovedFromPool(
         const TFairShareStrategyOperationStatePtr& state,
-        TOperationElementPtr& operationElement,
-        const TPoolName& poolName);
+        const TCompositeSchedulerElementPtr& parent);
 
-    TOperationUnregistrationResult UnregisterOperation(
-        const TFairShareStrategyOperationStatePtr& state);
-
-    // Detaches operation element from tree but leaves it eligible to be attached in another place in the same tree.
-    // Removes operation from waiting queue if operation wasn't active. Returns true if operation was active.
-    bool DetachOperation(const TFairShareStrategyOperationStatePtr& state, const TOperationElementPtr& operationElement);
+    // Returns true if all pool constraints are satisfied.
+    bool OnOperationAddedToPool(
+        const TFairShareStrategyOperationStatePtr& state,
+        const TOperationElementPtr& operationElement);
 
     void DisableOperation(const TFairShareStrategyOperationStatePtr& state);
 
@@ -119,7 +111,7 @@ public:
 
     TPoolsUpdateResult UpdatePools(const NYTree::INodePtr& poolsNode);
 
-    bool ChangeOperationPool(
+    void ChangeOperationPool(
         TOperationId operationId,
         const TFairShareStrategyOperationStatePtr& state,
         const TPoolName& newPool);
@@ -185,6 +177,10 @@ public:
 
     virtual NProfiling::TAggregateGauge& GetProfilingCounter(const TString& name) override;
 
+    std::vector<TOperationId> RunWaitingOperations();
+
+    virtual NConcurrency::TReaderWriterSpinLock* GetSharedStateTreeLock() override;
+
 private:
     TFairShareStrategyTreeConfigPtr Config;
     TFairShareStrategyOperationControllerConfigPtr ControllerConfig;
@@ -219,6 +215,8 @@ private:
 
     NConcurrency::TReaderWriterSpinLock NodeIdToLastPreemptiveSchedulingTimeLock;
     THashMap<NNodeTrackerClient::TNodeId, NProfiling::TCpuInstant> NodeIdToLastPreemptiveSchedulingTime;
+
+    NConcurrency::TReaderWriterSpinLock SharedStateTreeLock_;
 
     std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilters;
     std::vector<int> FreeSchedulingTagFilterIndexes;
@@ -394,10 +392,7 @@ private:
     const TCompositeSchedulerElement* FindPoolViolatingMaxRunningOperationCount(const TCompositeSchedulerElement* pool);
     const TCompositeSchedulerElement* FindPoolWithViolatedOperationCountLimit(const TCompositeSchedulerElementPtr& element);
 
-    void AddOperationToPool(TOperationId operationId);
-
     void DoRegisterPool(const TPoolPtr& pool);
-    void RegisterPool(const TPoolPtr& pool);
     void RegisterPool(const TPoolPtr& pool, const TCompositeSchedulerElementPtr& parent);
     void ReconfigurePool(const TPoolPtr& pool, const TPoolConfigPtr& config);
     void UnregisterPool(const TPoolPtr& pool);
@@ -407,8 +402,6 @@ private:
     void AllocateOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName);
     void ReleaseOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName);
 
-    void TryActivateOperationsFromQueue(std::vector<TOperationId>* operationsToActivate);
-
     void BuildEssentialOperationProgress(TOperationId operationId, NYTree::TFluentMap fluent);
 
     int RegisterSchedulingTagFilter(const TSchedulingTagFilter& filter);
@@ -416,11 +409,10 @@ private:
     void UnregisterSchedulingTagFilter(int index);
     void UnregisterSchedulingTagFilter(const TSchedulingTagFilter& filter);
 
-    void SetPoolParent(const TPoolPtr& pool, const TCompositeSchedulerElementPtr& parent);
-    void SetPoolDefaultParent(const TPoolPtr& pool);
-
     TPoolPtr FindPool(const TString& id);
     TPoolPtr GetPool(const TString& id);
+
+    TPoolPtr GetOrCreatePool(const TPoolName& poolName, TString userName);
 
     NProfiling::TTagId GetPoolProfilingTag(const TString& id);
 
@@ -436,7 +428,7 @@ private:
     void BuildEssentialOperationElementYson(const TSchedulerElementPtr& element, NYTree::TFluentMap fluent);
 
     NYTree::TYPath GetPoolPath(const TCompositeSchedulerElementPtr& element);
-    TCompositeSchedulerElementPtr GetDefaultParent();
+    TCompositeSchedulerElementPtr GetDefaultParentPool();
     TCompositeSchedulerElementPtr GetPoolOrParent(const TPoolName& poolName);
 
     void ValidateOperationCountLimit(const IOperationStrategyHost* operation, const TPoolName& poolName);

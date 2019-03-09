@@ -44,6 +44,10 @@ struct TModifyRowsOptions
 
     //! For writes to replicas, this is the id of the replica at the upstream cluster.
     NTabletClient::TTableReplicaId UpstreamReplicaId;
+
+    //! ModifyRows requests are sent asynchronously. Sequential numbering is
+    //! required to restore their order. (This parameter is only used by RPC proxy client.)
+    std::optional<i64> SequenceNumber;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

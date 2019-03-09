@@ -5,6 +5,7 @@ option java_outer_classname = "ApiProtos";
 option java_multiple_files = true;
 
 import "yt/core/misc/proto/guid.proto";
+import "yt/core/misc/proto/error.proto";
 import "yt/core/ytree/proto/attributes.proto";
 import "yt/client/hive/proto/timestamp_map.proto";
 
@@ -367,6 +368,7 @@ message TQueryStatistics
     optional uint64 wait_on_ready_event_time = 10; // TDuration
     optional bool incomplete_input = 11;
     optional bool incomplete_output = 12;
+    optional uint64 memory_usage = 15 [ default = 0 ];
 
     repeated TQueryStatistics inner_statistics = 14;
 }
@@ -388,6 +390,7 @@ message TReqSelectRows
     optional bool allow_full_scan = 11;
     optional bool allow_join_without_index = 12;
     optional string udf_registry_path = 13;
+    optional uint64 memory_limit_per_node = 14;
 }
 
 message TRspSelectRows
@@ -436,7 +439,7 @@ message TRspGetTabletInfos
 message TReqModifyRows
 {
     // ModifyRows requests are sent asynchronously. Sequential numbering is
-    // required to restore their order. (The optionality is for compatibility.)
+    // required to restore their order. (It's optional for compatibility.)
     optional int64 sequence_number = 6;
 
     required NYT.NProto.TGuid transaction_id = 1;
@@ -1503,11 +1506,23 @@ message TReqCheckPermission
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;
     optional TMasterReadOptions master_read_options = 102;
+
+    message TColumns
+    {
+        repeated string items = 1;
+    }
+    optional TColumns columns = 4;
 }
 
 message TRspCheckPermission
 {
     required TCheckPermissionResult result = 1;
+
+    message TColumns
+    {
+        repeated TCheckPermissionResult items = 1;
+    }
+    optional TColumns columns = 2;
 }
 
 //------------------------------------------------------------------------------
@@ -1679,6 +1694,7 @@ message TListJobsResult
     optional int32 archive_job_count = 4;
 
     required TListJobsStatistics statistics = 5;
+    repeated NYT.NProto.TError errors = 6;
 }
 
 //------------------------------------------------------------------------------

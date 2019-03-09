@@ -16,37 +16,71 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EJobMetricName,
+    (UserJobIOReads)
+    (UserJobIOWrites)
+    (UserJobIOTotal)
+    (UserJobBytesRead)
+    (UserJobBytesWritten)
+
+    (AggregatedSmoothedCpuUsageX100)
+    (AggregatedMaxCpuUsageX100)
+    (AggregatedPreemptableCpuX100)
+    (AggregatedPreemptedCpuX100)
+
+    (TotalTime)
+    (ExecTime)
+    (PrepareTime)
+    (ArtifactsDownloadTime)
+
+    (TotalTimeCompleted)
+    (TotalTimeAborted)
+);
+
+struct TCustomJobMetricDescription
+{
+    TString StatisticsPath;
+    TString ProfilingName;
+
+    void Persist(const TStreamPersistenceContext& context);
+};
+
+bool operator==(const TCustomJobMetricDescription& lhs, const TCustomJobMetricDescription& rhs);
+bool operator<(const TCustomJobMetricDescription& lhs, const TCustomJobMetricDescription& rhs);
+
+void Serialize(const TCustomJobMetricDescription& filter, NYson::IYsonConsumer* consumer);
+void Deserialize(TCustomJobMetricDescription& filter, NYTree::INodePtr node);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NScheduler
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+struct THash<NYT::NScheduler::TCustomJobMetricDescription>
+{
+    size_t operator()(const NYT::NScheduler::TCustomJobMetricDescription& jobMetricDescription) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NYT::NScheduler {
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobMetrics
 {
-    friend TJobMetrics& operator+=(TJobMetrics& lhs, const TJobMetrics& rhs);
-    friend TJobMetrics& operator-=(TJobMetrics& lhs, const TJobMetrics& rhs);
-    friend TJobMetrics operator+(const TJobMetrics& lhs, const TJobMetrics& rhs);
-    friend TJobMetrics operator-(const TJobMetrics& lhs, const TJobMetrics& rhs);
-
 public:
-    DEFINE_BYVAL_RW_PROPERTY(i64, DiskReads);
-    DEFINE_BYVAL_RW_PROPERTY(i64, DiskWrites);
-    DEFINE_BYVAL_RW_PROPERTY(i64, DiskTotal);
-    DEFINE_BYVAL_RW_PROPERTY(i64, BytesRead);
-    DEFINE_BYVAL_RW_PROPERTY(i64, BytesWritten);
+    using TValues = TEnumIndexedVector<i64, EJobMetricName>;
+    using TCustomValues = THashMap<TCustomJobMetricDescription, i64>;
+    DEFINE_BYREF_RW_PROPERTY(TValues, Values);
+    DEFINE_BYREF_RW_PROPERTY(TCustomValues, CustomValues);
 
-    // TODO(ignat): make separate tag for job state.
-    DEFINE_BYVAL_RW_PROPERTY(i64, TimeCompleted);
-    DEFINE_BYVAL_RW_PROPERTY(i64, TimeAborted);
-
-    DEFINE_BYVAL_RW_PROPERTY(i64, AggregatedSmoothedCpuUsage);
-    DEFINE_BYVAL_RW_PROPERTY(i64, AggregatedMaxCpuUsage);
-    DEFINE_BYVAL_RW_PROPERTY(i64, AggregatedPreemptableCpu);
-
-    DEFINE_BYVAL_RW_PROPERTY(i64, TotalTime);
-    DEFINE_BYVAL_RW_PROPERTY(i64, ExecTime);
-    DEFINE_BYVAL_RW_PROPERTY(i64, PrepareTime);
-    DEFINE_BYVAL_RW_PROPERTY(i64, ArtifactsDownloadTime);
-
-public:
     static TJobMetrics FromJobTrackerStatistics(
         const NJobTrackerClient::TStatistics& statistics,
-        NJobTrackerClient::EJobState jobState);
+        NJobTrackerClient::EJobState jobState,
+        const std::vector<TCustomJobMetricDescription>& customJobMetrics);
 
     bool IsEmpty() const;
 
@@ -56,6 +90,13 @@ public:
         const NProfiling::TTagIdList& tagIds) const;
 
     void Persist(const NPhoenix::TPersistenceContext& context);
+
+private:
+
+    friend TJobMetrics& operator+=(TJobMetrics& lhs, const TJobMetrics& rhs);
+    friend TJobMetrics& operator-=(TJobMetrics& lhs, const TJobMetrics& rhs);
+    friend TJobMetrics operator+(const TJobMetrics& lhs, const TJobMetrics& rhs);
+    friend TJobMetrics operator-(const TJobMetrics& lhs, const TJobMetrics& rhs);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

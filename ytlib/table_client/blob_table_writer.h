@@ -2,13 +2,14 @@
 
 #include "public.h"
 
-#include <yt/client/table_client/unversioned_row.h>
-
 #include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/ytlib/chunk_client/public.h>
+
+#include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/blob_reader.h>
 
 #include <yt/core/concurrency/throughput_throttler.h>
 
@@ -20,21 +21,6 @@
 #include <util/stream/output.h>
 
 namespace NYT::NTableClient {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TBlobTableSchema
-{
-    // Names of special blob columns.
-    static const TString PartIndexColumn;
-    static const TString DataColumn;
-
-    // Do not specify anything except name and value
-    // type in all column schemas.
-    std::vector<TColumnSchema> BlobIdColumns;
-
-    TTableSchema ToTableSchema() const;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

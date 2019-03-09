@@ -2896,19 +2896,16 @@ public:
     {
         TSortControllerBase::BuildBriefSpec(fluent);
         fluent
-            .DoIf(Spec->Mapper.Get(), [&] (TFluentMap fluent) {
+            .DoIf(Spec->HasNontrivialMapper(), [&] (TFluentMap fluent) {
                 fluent
                     .Item("mapper").BeginMap()
                         .Item("command").Value(TrimCommandForBriefSpec(Spec->Mapper->Command))
                     .EndMap();
             })
-            .DoIf(Spec->Reducer.Get(), [&] (TFluentMap fluent) {
-                fluent
-                    .Item("reducer").BeginMap()
-                        .Item("command").Value(TrimCommandForBriefSpec(Spec->Reducer->Command))
-                    .EndMap();
-            })
-            .DoIf(Spec->ReduceCombiner.Get(), [&] (TFluentMap fluent) {
+            .Item("reducer").BeginMap()
+                .Item("command").Value(TrimCommandForBriefSpec(Spec->Reducer->Command))
+            .EndMap()
+            .DoIf(Spec->HasNontrivialReduceCombiner(), [&] (TFluentMap fluent) {
                 fluent
                     .Item("reduce_combiner").BeginMap()
                         .Item("command").Value(TrimCommandForBriefSpec(Spec->ReduceCombiner->Command))
@@ -2993,9 +2990,13 @@ private:
     {
         TSortControllerBase::DoInitialize();
 
-        ValidateUserFileCount(Spec->Mapper, "mapper");
+        if (Spec->HasNontrivialMapper()) {
+            ValidateUserFileCount(Spec->Mapper, "mapper");
+        }
         ValidateUserFileCount(Spec->Reducer, "reducer");
-        ValidateUserFileCount(Spec->ReduceCombiner, "reduce combiner");
+        if (Spec->HasNontrivialReduceCombiner()) {
+            ValidateUserFileCount(Spec->ReduceCombiner, "reduce combiner");
+        }
 
         if (!CheckKeyColumnsCompatible(Spec->SortBy, Spec->ReduceBy)) {
             THROW_ERROR_EXCEPTION("Reduce columns %v are not compatible with sort columns %v",
@@ -3041,10 +3042,10 @@ private:
     virtual std::vector<TUserJobSpecPtr> GetUserJobSpecs() const override
     {
         std::vector<TUserJobSpecPtr> result = {Spec->Reducer};
-        if (Spec->Mapper) {
+        if (Spec->HasNontrivialMapper()) {
             result.emplace_back(Spec->Mapper);
         }
-        if (Spec->ReduceCombiner) {
+        if (Spec->HasNontrivialReduceCombiner()) {
             result.emplace_back(Spec->ReduceCombiner);
         }
 
@@ -3163,12 +3164,12 @@ private:
 
     virtual EJobType GetPartitionJobType() const override
     {
-        return Spec->Mapper ? EJobType::PartitionMap : EJobType::Partition;
+        return Spec->HasNontrivialMapper() ? EJobType::PartitionMap : EJobType::Partition;
     }
 
     virtual EJobType GetIntermediateSortJobType() const override
     {
-        return Spec->ReduceCombiner ? EJobType::ReduceCombiner : EJobType::IntermediateSort;
+        return Spec->HasNontrivialReduceCombiner() ? EJobType::ReduceCombiner : EJobType::IntermediateSort;
     }
 
     virtual EJobType GetFinalSortJobType() const override
@@ -3219,7 +3220,7 @@ private:
             partitionJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());
             ToProto(partitionJobSpecExt->mutable_sort_key_columns(), Spec->SortBy);
 
-            if (Spec->Mapper) {
+            if (Spec->HasNontrivialMapper()) {
                 InitUserJobSpecTemplate(
                     schedulerJobSpecExt->mutable_user_job_spec(),
                     Spec->Mapper,
@@ -3236,7 +3237,7 @@ private:
             schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).GetData());
             SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory());
 
-            if (Spec->ReduceCombiner) {
+            if (Spec->HasNontrivialReduceCombiner()) {
                 IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::ReduceCombiner));
 
                 auto* reduceJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
@@ -3336,7 +3337,7 @@ private:
 
     virtual TCpuResource GetPartitionCpuLimit() const override
     {
-        return Spec->Mapper ? Spec->Mapper->CpuLimit : 1;
+        return Spec->HasNontrivialMapper() ? Spec->Mapper->CpuLimit : 1;
     }
 
     virtual TCpuResource GetSortCpuLimit() const override
@@ -3362,7 +3363,7 @@ private:
 
         TExtendedJobResources result;
         result.SetUserSlots(1);
-        if (Spec->Mapper) {
+        if (Spec->HasNontrivialMapper()) {
             result.SetCpu(Spec->Mapper->CpuLimit);
             result.SetJobProxyMemory(
                 GetInputIOMemorySize(PartitionJobIOConfig, stat) +
@@ -3397,7 +3398,7 @@ private:
     {
         if (!IsSortedMergeNeeded(partition)) {
             return Spec->Reducer;
-        } else if (Spec->ReduceCombiner) {
+        } else if (Spec->HasNontrivialReduceCombiner()) {
             return Spec->ReduceCombiner;
         } else {
             return nullptr;
@@ -3419,7 +3420,7 @@ private:
             result.SetCpu(Spec->Reducer->CpuLimit);
             memory += GetFinalOutputIOMemorySize(FinalSortJobIOConfig);
             result.SetJobProxyMemory(memory);
-        } else if (Spec->ReduceCombiner) {
+        } else if (Spec->HasNontrivialReduceCombiner()) {
             result.SetCpu(Spec->ReduceCombiner->CpuLimit);
             memory += GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig);
             result.SetJobProxyMemory(memory);
@@ -3493,20 +3494,20 @@ private:
             .Item(JobTypeAsKey(GetFinalSortJobType())).Value(FinalSortJobCounter)
             .Item(JobTypeAsKey(GetSortedMergeJobType())).Value(SortedMergeJobCounter)
             // TODO(ignat): remove when UI migrate to new keys.
-            .Item(Spec->Mapper ? "map_jobs" : "partition_jobs").Value(GetPartitionJobCounter())
-            .Item(Spec->ReduceCombiner ? "reduce_combiner_jobs" : "sort_jobs").Value(IntermediateSortJobCounter)
+            .Item(Spec->HasNontrivialMapper() ? "map_jobs" : "partition_jobs").Value(GetPartitionJobCounter())
+            .Item(Spec->HasNontrivialReduceCombiner() ? "reduce_combiner_jobs" : "sort_jobs").Value(IntermediateSortJobCounter)
             .Item("partition_reduce_jobs").Value(FinalSortJobCounter)
             .Item("sorted_reduce_jobs").Value(SortedMergeJobCounter);
     }
 
     virtual TUserJobSpecPtr GetPartitionUserJobSpec() const override
     {
-        return Spec->Mapper;
+        return Spec->HasNontrivialMapper() ? Spec->Mapper : nullptr;
     }
 
     virtual int GetSortedMergeKeyColumnCount() const override
     {
-        return Spec->ReduceBy.size();
+        return static_cast<int>(Spec->ReduceBy.size());
     }
 
     virtual TYsonSerializablePtr GetTypedSpec() const override

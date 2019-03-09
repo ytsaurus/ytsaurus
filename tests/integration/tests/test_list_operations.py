@@ -92,9 +92,9 @@ class ListOperationsSetup(YTEnvSetup):
         # Init operations archive.
         sync_create_cells(1)
         if cls._archive_version is None:
-            init_operation_archive.create_tables_latest_version(cls.Env.create_native_client())
+            init_operation_archive.create_tables_latest_version(cls.Env.create_native_client(), override_tablet_cell_bundle="default")
         else:
-            init_operation_archive.create_tables(cls.Env.create_native_client(), cls._archive_version)
+            init_operation_archive.create_tables(cls.Env.create_native_client(), cls._archive_version, override_tablet_cell_bundle="default")
 
         create("table", cls._input_path, recursive=True, ignore_existing=True,
             attributes={
@@ -118,8 +118,8 @@ class ListOperationsSetup(YTEnvSetup):
         # Setup pool trees.
         set("//sys/pool_trees/default/@nodes_filter", "!other")
 
-        nodes = ls("//sys/nodes")
-        set("//sys/nodes/" + nodes[0] + "/@user_tags/end", "other")
+        nodes = ls("//sys/cluster_nodes")
+        set("//sys/cluster_nodes/" + nodes[0] + "/@user_tags/end", "other")
 
         create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "tag"}, ignore_existing=True)
         create("map_node", "//sys/pool_trees/other/some_pool", ignore_existing=True)

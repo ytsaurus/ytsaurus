@@ -86,12 +86,25 @@ TFuture<void> TSessionBase::Start()
 
     YT_LOG_DEBUG("Starting session");
 
-    return DoStart().Apply(BIND([=, this_ = MakeStrong(this)] {
-        YCHECK(!Active_);
-        Active_ = true;
+    return DoStart()
+            .Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+            VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_DEBUG("Session started");
-    }).AsyncVia(Bootstrap_->GetControlInvoker()));
+            YCHECK(!Active_);
+            Active_ = true;
+
+            if (error.IsOK()) {
+                YT_LOG_DEBUG("Session started");
+                if (!PendingCancelationError_.IsOK()) {
+                    Cancel(PendingCancelationError_);
+                }
+            } else {
+                YT_LOG_DEBUG(error, "Session has failed to start");
+                Cancel(error);
+            }
+        }).AsyncVia(Bootstrap_->GetControlInvoker()))
+        // TODO(babenko): session start cancelation is not properly supported
+        .ToUncancelable();
 }
 
 void TSessionBase::Ping()
@@ -107,8 +120,11 @@ void TSessionBase::Ping()
 void TSessionBase::Cancel(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
+    YCHECK(!error.IsOK());
 
     if (!Active_) {
+        YT_LOG_DEBUG(error, "Session will be canceled after becoming active");
+        PendingCancelationError_ = error;
         return;
     }
 
@@ -128,7 +144,7 @@ TFuture<IChunkPtr> TSessionBase::Finish(const TRefCountedChunkMetaPtr& chunkMeta
     try {
         ValidateActive();
 
-        YT_LOG_INFO("Finishing session");
+        YT_LOG_DEBUG("Finishing session");
 
         TLeaseManager::CloseLease(Lease_);
         Active_ = false;

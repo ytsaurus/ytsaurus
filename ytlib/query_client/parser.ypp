@@ -64,6 +64,7 @@
 %token KwFrom "keyword `FROM`"
 %token KwWhere "keyword `WHERE`"
 %token KwHaving "keyword `HAVING`"
+%token KwOffset "keyword `OFFSET`"
 %token KwLimit "keyword `LIMIT`"
 %token KwJoin "keyword `JOIN`"
 %token KwUsing "keyword `USING`"
@@ -174,7 +175,7 @@ head
 ;
 
 parse-query
-    : select-clause from-clause where-clause group-by-clause order-by-clause limit-clause
+    : select-clause from-clause where-clause group-by-clause order-by-clause offset-clause limit-clause
 ;
 
 parse-job-query
@@ -332,6 +333,14 @@ is-desc
         {
             $$ = false;
         }
+;
+
+offset-clause
+    : KwOffset Int64Literal[offset]
+        {
+            std::get<TQuery>(head->Ast).Offset = $offset;
+        }
+    |
 ;
 
 limit-clause

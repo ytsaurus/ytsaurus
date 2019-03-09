@@ -11,40 +11,41 @@ size_t TFunctionTypeInferrer::GetNormalizedConstraints(
 {
     std::unordered_map<TTypeArgument, size_t> idToIndex;
 
-    auto getIndex = [&] (const TType& type) {
-        if (auto* genericId = std::get_if<TTypeArgument>(&type)) {
-            auto itIndex = idToIndex.find(*genericId);
-            if (itIndex != idToIndex.end()) {
-                return itIndex->second;
-            } else {
-                size_t index = typeConstraints->size();
-                auto it = TypeArgumentConstraints_.find(*genericId);
-                if (it == TypeArgumentConstraints_.end()) {
-                    typeConstraints->push_back(TTypeSet({
-                        EValueType::Null,
-                        EValueType::Int64,
-                        EValueType::Uint64,
-                        EValueType::Double,
-                        EValueType::Boolean,
-                        EValueType::String,
-                        EValueType::Any}));
+    auto getIndex = [&] (const TType& type) -> size_t {
+        return Visit(type,
+            [&] (TTypeArgument genericId) -> size_t {
+                auto itIndex = idToIndex.find(genericId);
+                if (itIndex != idToIndex.end()) {
+                    return itIndex->second;
                 } else {
-                    typeConstraints->push_back(TTypeSet(it->second.begin(), it->second.end()));
+                    size_t index = typeConstraints->size();
+                    auto it = TypeArgumentConstraints_.find(genericId);
+                    if (it == TypeArgumentConstraints_.end()) {
+                        typeConstraints->push_back(TTypeSet({
+                            EValueType::Null,
+                            EValueType::Int64,
+                            EValueType::Uint64,
+                            EValueType::Double,
+                            EValueType::Boolean,
+                            EValueType::String,
+                            EValueType::Any}));
+                    } else {
+                        typeConstraints->push_back(TTypeSet(it->second.begin(), it->second.end()));
+                    }
+                    idToIndex.emplace(genericId, index);
+                    return index;
                 }
-                idToIndex.emplace(*genericId, index);
+            },
+            [&] (EValueType fixedType) -> size_t {
+                size_t index = typeConstraints->size();
+                typeConstraints->push_back(TTypeSet({fixedType}));
                 return index;
-            }
-        } else if (auto* fixedType = std::get_if<EValueType>(&type)) {
-            size_t index = typeConstraints->size();
-            typeConstraints->push_back(TTypeSet({*fixedType}));
-            return index;
-        } else if (auto* unionType = std::get_if<TUnionType>(&type)) {
-            size_t index = typeConstraints->size();
-            typeConstraints->push_back(TTypeSet(unionType->begin(), unionType->end()));
-            return index;
-        } else {
-            Y_UNREACHABLE();
-        }
+            },
+            [&] (const TUnionType& unionType) -> size_t {
+                size_t index = typeConstraints->size();
+                typeConstraints->push_back(TTypeSet(unionType.begin(), unionType.end()));
+                return index;
+            });
     };
 
     for (const auto& argumentType : ArgumentTypes_) {
@@ -83,26 +84,26 @@ void TAggregateTypeInferrer::GetNormalizedConstraints(
         THROW_ERROR_EXCEPTION("Invalid type constraints for aggregate function %Qv", name);
     };
 
-    if (auto* unionType = std::get_if<TUnionType>(&ArgumentType_)) {
-        *constraint = TTypeSet(unionType->begin(), unionType->end());
-        *resultType = setType(ResultType_, false);
-        *stateType = setType(StateType_, false);
-    } else if (auto* fixedType = std::get_if<EValueType>(&ArgumentType_)) {
-        *constraint = TTypeSet({*fixedType});
-        *resultType = setType(ResultType_, false);
-        *stateType = setType(StateType_, false);
-    } else if (auto* typeId = std::get_if<TTypeArgument>(&ArgumentType_)) {
-        auto found = TypeArgumentConstraints_.find(*typeId);
-        if (found == TypeArgumentConstraints_.end()) {
-            THROW_ERROR_EXCEPTION("Invalid type constraints for aggregate function %Qv", name);
-        }
-        *constraint = TTypeSet(found->second.begin(), found->second.end());
-
-        *resultType = setType(ResultType_, true);
-        *stateType = setType(StateType_, true);
-    } else {
-        Y_UNREACHABLE();
-    }
+    Visit(ArgumentType_,
+        [&] (const TUnionType& unionType) {
+            *constraint = TTypeSet(unionType.begin(), unionType.end());
+            *resultType = setType(ResultType_, false);
+            *stateType = setType(StateType_, false);
+        },
+        [&] (EValueType fixedType) {
+            *constraint = TTypeSet({fixedType});
+            *resultType = setType(ResultType_, false);
+            *stateType = setType(StateType_, false);
+        },
+        [&] (TTypeArgument typeId) {
+            auto found = TypeArgumentConstraints_.find(typeId);
+            if (found == TypeArgumentConstraints_.end()) {
+                THROW_ERROR_EXCEPTION("Invalid type constraints for aggregate function %Qv", name);
+            }
+            *constraint = TTypeSet(found->second.begin(), found->second.end());
+            *resultType = setType(ResultType_, true);
+            *stateType = setType(StateType_, true);
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

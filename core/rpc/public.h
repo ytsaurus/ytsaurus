@@ -19,6 +19,13 @@ class TResponseHeader;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TStreamingParameters;
+struct TStreamingPayload;
+struct TStreamingFeedback;
+
+struct TServiceDescriptor;
+struct TMethodDescriptor;
+
 class TClientRequest;
 
 template <class TRequestMessage, class TResponse>
@@ -57,6 +64,9 @@ DECLARE_REFCOUNTED_CLASS(TClientRequestControlThunk)
 DECLARE_REFCOUNTED_CLASS(TCachingChannelFactory)
 
 DECLARE_REFCOUNTED_CLASS(TResponseKeeper)
+
+DECLARE_REFCOUNTED_CLASS(TAttachmentsInputStream)
+DECLARE_REFCOUNTED_CLASS(TAttachmentsOutputStream)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,6 +112,7 @@ DEFINE_ENUM(EErrorCode,
     ((AuthenticationError)          (109))
     ((InvalidCsrfToken)             (110))
     ((InvalidCredentials)           (111))
+    ((StreamingNotSupported)        (112))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

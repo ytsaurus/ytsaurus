@@ -281,19 +281,19 @@ std::optional<TError> TError::FindMatching(TErrorCode code) const
 
 namespace {
 
-void AppendIndent(TStringBuilder* builer, int indent)
+void AppendIndent(TStringBuilderBase* builer, int indent)
 {
     builer->AppendChar(' ', indent);
 }
 
-void AppendAttribute(TStringBuilder* builder, const TString& key, const TString& value, int indent)
+void AppendAttribute(TStringBuilderBase* builder, const TString& key, const TString& value, int indent)
 {
     AppendIndent(builder, indent + 4);
     builder->AppendFormat("%-15s %s", key, value);
     builder->AppendChar('\n');
 }
 
-void AppendError(TStringBuilder* builder, const TError& error, int indent)
+void AppendError(TStringBuilderBase* builder, const TError& error, int indent)
 {
     if (error.IsOK()) {
         builder->AppendString("OK");
@@ -382,7 +382,7 @@ bool operator != (const TErrorOr<void>& lhs, const TErrorOr<void>& rhs)
     return !(lhs == rhs);
 }
 
-void FormatValue(TStringBuilder* builder, const TError& error, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, const TError& error, TStringBuf /*spec*/)
 {
     AppendError(builder, error, 0);
 }

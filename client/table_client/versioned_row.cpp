@@ -1,6 +1,8 @@
 #include "versioned_row.h"
-#include "row_buffer.h"
+
 #include "name_table.h"
+#include "row_buffer.h"
+#include "schema.h"
 
 #include <yt/core/misc/format.h>
 

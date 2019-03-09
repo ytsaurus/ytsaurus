@@ -19,16 +19,16 @@ namespace NYT::NConcurrency {
 class TReaderWriterSpinLock
 {
 public:
-    TReaderWriterSpinLock();
+    void AcquireReader() noexcept;
+    void ReleaseReader() noexcept;
 
-    void AcquireReader();
-    void ReleaseReader();
+    void AcquireWriter() noexcept;
+    void ReleaseWriter() noexcept;
 
-    void AcquireWriter();
-    void ReleaseWriter();
+    bool IsLocked() noexcept;
 
 private:
-    std::atomic<ui32> Value_;
+    std::atomic<ui32> Value_ = {0};
 
     static const ui32 WriterMask = 1;
     static const ui32 ReaderDelta = 2;

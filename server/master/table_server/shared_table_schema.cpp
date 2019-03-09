@@ -65,7 +65,7 @@ size_t TSharedTableSchema::GetTableSchemaHash() const
 
 size_t TSharedTableSchemaRegistry::TSharedTableSchemaHash::operator()(const TSharedTableSchema *sharedTableSchema) const
 {
-    return sharedTableSchema->TableSchemaHash_;
+    return sharedTableSchema->GetTableSchemaHash();
 }
 
 size_t TSharedTableSchemaRegistry::TSharedTableSchemaHash::operator()(const TTableSchema &tableSchema) const
@@ -74,7 +74,6 @@ size_t TSharedTableSchemaRegistry::TSharedTableSchemaHash::operator()(const TTab
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 bool TSharedTableSchemaRegistry::TSharedTableSchemaEqual::operator()(
     const TSharedTableSchema *lhs,

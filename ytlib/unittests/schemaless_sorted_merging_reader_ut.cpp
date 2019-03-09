@@ -4,6 +4,7 @@
 
 #include <yt/client/table_client/helpers.h>
 #include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/schema.h>
 
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_sorted_merging_reader.h>
@@ -64,13 +65,16 @@ class TSchemalessMultiChunkFakeReader
     , public ISchemalessMultiChunkReader
 {
 public:
-    TSchemalessMultiChunkFakeReader(const TTableData& tableData, int inputTableIndex, TResultStorage* resultStorage = nullptr)
+    TSchemalessMultiChunkFakeReader(
+        const TTableData& tableData,
+        int inputTableIndex,
+        TResultStorage* resultStorage = nullptr)
         : TableData_(tableData)
+        , TableSchema_(ConvertTo<TTableSchema>(TYsonString(tableData.Schema)))
+        , KeyColumns_(TableSchema_.GetKeyColumns())
         , InputTableIndex_(inputTableIndex)
         , ResultStorage_(resultStorage)
     {
-        TableSchema_ = ConvertTo<TTableSchema>(TYsonString(tableData.Schema));
-        NameTable_ = New<TNameTable>();
         for (int i = 0; i < TableSchema_.GetColumnCount(); ++i) {
             NameTable_->RegisterName(TableSchema_.Columns()[i].Name());
         }
@@ -123,9 +127,9 @@ public:
         return NameTable_;
     }
 
-    virtual TKeyColumns GetKeyColumns() const override
+    virtual const TKeyColumns& GetKeyColumns() const override
     {
-        return TableSchema_.GetKeyColumns();
+        return KeyColumns_;
     }
 
     virtual i64 GetTableRowIndex() const override
@@ -156,11 +160,13 @@ public:
 
 private:
     const TTableData& TableData_;
+    const TTableSchema TableSchema_;
+    const TKeyColumns KeyColumns_;
+    const TNameTablePtr NameTable_ = New<TNameTable>();
+
     int InputTableIndex_ = 0;
     TResultStorage* ResultStorage_ = nullptr;
 
-    TTableSchema TableSchema_;
-    TNameTablePtr NameTable_;
     int RowIndex_ = 0;
     bool Interrupted_ = false;
     std::vector<TUnversionedOwningRow> Rows_;

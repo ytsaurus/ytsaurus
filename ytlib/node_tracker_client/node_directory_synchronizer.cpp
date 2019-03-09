@@ -36,7 +36,7 @@ public:
         IConnectionPtr directoryConnection,
         TNodeDirectoryPtr nodeDirectory)
         : Config_(config)
-        , DirectoryClient_(directoryConnection->CreateClient(TClientOptions(NSecurityClient::RootUserName)))
+        , Connection_(directoryConnection)
         , NodeDirectory_(nodeDirectory)
         , SyncExecutor_(New<TPeriodicExecutor>(
             NRpc::TDispatcher::Get()->GetLightInvoker(),
@@ -51,35 +51,35 @@ public:
 
     TFuture<void> Stop()
     {
-        TerminationPromise_.Set(TError("Node directory synchronizer terminated"));
         return SyncExecutor_->Stop();
     }
 
 private:
     const TNodeDirectorySynchronizerConfigPtr Config_;
-    const IClientPtr DirectoryClient_;
+    const TWeakPtr<IConnection> Connection_;
     const TNodeDirectoryPtr NodeDirectory_;
 
     const TPeriodicExecutorPtr SyncExecutor_;
-    TPromise<TClusterMeta> TerminationPromise_ = NewPromise<TClusterMeta>();
 
     void DoSync()
     {
         try {
+            auto connection = Connection_.Lock();
+            if (!connection) {
+                return;
+            }
+
+            auto client = connection->CreateClient(TClientOptions(NSecurityClient::RootUserName));
+
             YT_LOG_DEBUG("Started updating node directory");
 
             TGetClusterMetaOptions options;
             options.ReadFrom = EMasterChannelKind::Cache;
             options.PopulateNodeDirectory = true;
-            auto asyncMeta = DirectoryClient_->GetClusterMeta(options);
 
-            // NB(psushin): the trick with TerminationPromise_ allows us to immediately terminate synchronizer,
-            // e.g. when we get stuck in very long sequence of retries.
-            auto promise = NewPromise<TClusterMeta>();
-            promise.TrySetFrom(TerminationPromise_.ToFuture());
-            promise.TrySetFrom(asyncMeta);
-
-            auto meta = WaitFor(promise.ToFuture())
+            // Request may block for prolonged periods of time;
+            // handle cancelation requests (induced by stopping the executor) immediately.
+            auto meta = WaitFor(client->GetClusterMeta(options).ToImmediatelyCancelable())
                 .ValueOrThrow();
 
             NodeDirectory_->MergeFrom(*meta.NodeDirectory);

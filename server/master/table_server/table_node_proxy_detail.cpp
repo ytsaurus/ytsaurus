@@ -19,6 +19,8 @@
 #include <yt/server/master/tablet_server/table_replica.h>
 #include <yt/server/master/tablet_server/tablet_manager.h>
 
+#include <yt/server/master/security_server/security_manager.h>
+
 #include <yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/server/master/object_server/object_manager.h>
@@ -83,6 +85,68 @@ TTableNodeProxy::TTableNodeProxy(
         transaction,
         trunkNode)
 { }
+
+void TTableNodeProxy::ValidateGetBasicAttributesPermissions(const TCtxGetBasicAttributesPtr& context)
+{
+    const auto& request = context->Request();
+    auto& response = context->Response();
+
+    auto permission =  CheckedEnumCast<EPermission>(request.permission());
+    bool omitInaccessibleColumns = request.omit_inaccessible_columns();
+
+    TPermissionCheckOptions checkOptions;
+    auto* table = GetThisImpl();
+    if (request.has_columns()) {
+        checkOptions.Columns = FromProto<std::vector<TString>>(request.columns().items());
+    } else {
+        const auto& tableSchema = table->GetTableSchema();
+        checkOptions.Columns.emplace();
+        checkOptions.Columns->reserve(tableSchema.Columns().size());
+        for (const auto& columnSchema : tableSchema.Columns()) {
+            checkOptions.Columns->push_back(columnSchema.Name());
+        }
+    }
+
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    auto* user = securityManager->GetAuthenticatedUser();
+    auto checkResponse = securityManager->CheckPermission(
+        Object_,
+        user,
+        EPermission::Read,
+        checkOptions);
+
+    if (checkResponse.Action == ESecurityAction::Deny) {
+        TPermissionCheckTarget target;
+        target.Object = Object_;
+        securityManager->LogAndThrowAuthorizationError(
+            target,
+            user,
+            permission,
+            checkResponse);
+    }
+
+    if (checkOptions.Columns) {
+        for (size_t index = 0; index < checkOptions.Columns->size(); ++index) {
+            const auto& column = (*checkOptions.Columns)[index];
+            const auto& result = (*checkResponse.Columns)[index];
+            if (result.Action == ESecurityAction::Deny) {
+                if (omitInaccessibleColumns) {
+                    auto* protoColumns = response.mutable_omitted_inaccessible_columns();
+                    protoColumns->add_items(column);
+                } else {
+                    TPermissionCheckTarget target;
+                    target.Object = Object_;
+                    target.Column = column;
+                    securityManager->LogAndThrowAuthorizationError(
+                        target,
+                        user,
+                        EPermission::Read,
+                        result);
+                }
+            }
+        }
+    }
+}
 
 void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
@@ -885,13 +949,12 @@ void TTableNodeProxy::ValidateCustomAttributeUpdate(
     TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
 }
 
-void TTableNodeProxy::ValidateFetchParameters(
-    const std::vector<NChunkClient::TReadRange>& ranges)
+void TTableNodeProxy::ValidateFetch(TFetchContext* context)
 {
-    TChunkOwnerNodeProxy::ValidateFetchParameters(ranges);
+    TChunkOwnerNodeProxy::ValidateFetch(context);
 
-    const auto* table = GetThisImpl();
-    for (const auto& range : ranges) {
+    auto* table = GetThisImpl();
+    for (const auto& range : context->Ranges) {
         const auto& lowerLimit = range.LowerLimit();
         const auto& upperLimit = range.UpperLimit();
         if ((upperLimit.HasKey() || lowerLimit.HasKey()) && !table->IsSorted()) {

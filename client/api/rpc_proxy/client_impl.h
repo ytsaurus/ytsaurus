@@ -115,13 +115,13 @@ public:
         const TString& member,
         const NApi::TRemoveMemberOptions& options) override;
 
-    virtual TFuture<NApi::TCheckPermissionResult> CheckPermission(
+    virtual TFuture<TCheckPermissionResponse> CheckPermission(
         const TString& user,
         const NYPath::TYPath& path,
         NYTree::EPermission permission,
         const NApi::TCheckPermissionOptions& options) override;
 
-    virtual TFuture<NApi::TCheckPermissionByAclResult> CheckPermissionByAcl(
+    virtual TFuture<TCheckPermissionByAclResult> CheckPermissionByAcl(
         const std::optional<TString>& user,
         NYTree::EPermission permission,
         NYTree::INodePtr acl,

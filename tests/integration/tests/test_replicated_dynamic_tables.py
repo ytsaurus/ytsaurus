@@ -300,7 +300,6 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
     def test_enable_disable_replica_unmounted(self):
         self._create_replicated_table("//tmp/t", mount=False)
-        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         attributes = get("#{0}/@".format(replica_id), attributes=["state", "tablets"])
         assert attributes["state"] == "disabled"
@@ -575,8 +574,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         _do()
 
-        alter_table_replica(replica_id1, mode="async")
-        alter_table_replica(replica_id1, mode="sync")
+        sync_alter_table_replica_mode(replica_id1, "async")
+        sync_alter_table_replica_mode(replica_id1, "sync")
 
         _do()
 
@@ -632,8 +631,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         _do()
 
-        alter_table_replica(replica_id1, mode="async")
-        alter_table_replica(replica_id1, mode="sync")
+        sync_alter_table_replica_mode(replica_id1, "async")
+        sync_alter_table_replica_mode(replica_id1, "sync")
 
         _do()
 
@@ -689,10 +688,19 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         _do()
 
-        alter_table_replica(replica_id1, mode="async")
-        alter_table_replica(replica_id1, mode="sync")
+        sync_alter_table_replica_mode(replica_id1, "async")
+        sync_alter_table_replica_mode(replica_id1, "sync")
 
         _do()
+
+    @skip_if_rpc_driver_backend
+    def test_replication_with_invalid_options(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t")
+
+        with pytest.raises(YtError): create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "async", "preserve_timestamps": "false", "atomicity": "none"})
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "async", "preserve_timestamps": "false"})
+        with pytest.raises(YtError): alter_table_replica(replica_id, atomicity="none")
 
     def test_sync_replication_switch(self):
         self._create_cells()
@@ -744,8 +752,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert select_rows("* from [//tmp/r1]", driver=self.replica_driver) == [{"key": 1, "value1": "test", "value2": 123}]
         assert select_rows("* from [//tmp/r2]", driver=self.replica_driver) == []
 
-        alter_table_replica(replica_id1, mode="async")
-        alter_table_replica(replica_id2, mode="sync")
+        sync_alter_table_replica_mode(replica_id1, "async")
+        sync_alter_table_replica_mode(replica_id2, "sync")
 
         def check_not_writable():
             try:
@@ -784,8 +792,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(lambda: select_rows("* from [//tmp/r1]", driver=self.replica_driver) == [{"$tablet_index": 0, "$row_index": 0, "key": 1, "value1": "test", "value2": 123}])
         assert select_rows("* from [//tmp/r2]", driver=self.replica_driver) == []
 
-        alter_table_replica(replica_id1, mode="async")
-        alter_table_replica(replica_id2, mode="sync")
+        sync_alter_table_replica_mode(replica_id1, "async")
+        sync_alter_table_replica_mode(replica_id2, "sync")
 
         def check_not_writable():
             try:
@@ -920,15 +928,14 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         initial_chunk_ids = get("//tmp/t/@chunk_ids")
         assert len(initial_chunk_ids) == 1
-        initial_chunk_id = initial_chunk_ids[0]
 
         assert get("//tmp/t/@tablets/0/flushed_row_count") == 1
         assert get("//tmp/t/@tablets/0/trimmed_row_count") == 0
 
-        sleep(3.0)
-
-        set("//tmp/t/@min_replication_log_ttl", 2000)
+        set("//tmp/t/@min_replication_log_ttl", 1000)
         sync_mount_table("//tmp/t")
+
+        sleep(5.0)
 
         insert_rows("//tmp/t", [{"key": 2, "value1": "test2"}], require_sync_replica=False)
         wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test1", "value2": YsonEntity()}, {"key": 2, "value1": "test2", "value2": YsonEntity()}])
@@ -936,7 +943,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         def check_chunks():
             chunk_ids = get("//tmp/t/@chunk_ids")
             return len(chunk_ids) == 1 and chunk_ids != initial_chunk_ids
-        wait(lambda: check_chunks())
+        wait(check_chunks)
 
         sync_unmount_table("//tmp/t")
 
@@ -1119,13 +1126,13 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert lookup_rows("//tmp/t", [{"key": 100000}]) == []
 
         sync_disable_table_replica(replica_id2)
-        alter_table_replica(replica_id2, mode="async")
+        sync_alter_table_replica_mode(replica_id2, "async")
         clear_metadata_caches()
         sleep(1.0)
         with pytest.raises(YtError): insert_rows("//tmp/t", [{"key": 666, "value1": "hello"}])
         insert_rows("//tmp/t", [{"key": 666, "value1": "hello"}], require_sync_replica=False)
 
-        alter_table_replica(replica_id2, mode="sync")
+        sync_alter_table_replica_mode(replica_id2, "sync")
         sleep(1.0)
         with pytest.raises(YtError): lookup_rows("//tmp/t", [{"key": 666}]) == []
 
@@ -1133,7 +1140,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sleep(1.0)
         assert lookup_rows("//tmp/t", [{"key": 666}], column_names=["key", "value1"]) == [{"key": 666, "value1": "hello"}]
 
-        alter_table_replica(replica_id2, mode="async")
+        sync_alter_table_replica_mode(replica_id2, "async")
         sleep(1.0)
         with pytest.raises(YtError): lookup_rows("//tmp/t", [{"key": 666}]) == []
 
@@ -1159,7 +1166,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         })
         with pytest.raises(YtError): select_rows("* from [//tmp/t] as t1 join [//tmp/z] as t2 on t1.key = t2.key")
 
-        alter_table_replica(replica_id2, mode="async")
+        sync_alter_table_replica_mode(replica_id2, "async")
         sleep(1.0)
         with pytest.raises(YtError): select_rows("* from [//tmp/t]")
 
@@ -1189,6 +1196,34 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         delete_rows("//tmp/t", [{"key": 1}], require_sync_replica=False)
         wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [])
+
+    def test_replica_permissions(self):
+        create("map_node", "//tmp/dir")
+        self._create_cells()
+        self._create_replicated_table("//tmp/dir/t")
+
+        create_user("u")
+
+        set("//tmp/dir/@acl", [make_ace("deny", "u", "write")])
+        with pytest.raises(YtError):
+            create_table_replica("//tmp/dir/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", authenticated_user="u")
+
+        set("//tmp/dir/@acl", [make_ace("allow", "u", "write")])
+        replica_id = create_table_replica("//tmp/dir/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", authenticated_user="u")
+
+        set("//tmp/dir/@acl", [make_ace("deny", "u", "write")])
+        with pytest.raises(YtError):
+            alter_table_replica(replica_id, enabled=True, authenticated_user="u")
+
+        set("//tmp/dir/@acl", [make_ace("allow", "u", "write")])
+        alter_table_replica(replica_id, enabled=True, sauthenticated_user="u")
+
+        set("//tmp/dir/@acl", [make_ace("deny", "u", "write")])
+        with pytest.raises(YtError):
+            remove("#" + replica_id, authenticated_user="u")
+
+        set("//tmp/dir/@acl", [make_ace("allow", "u", "write")])
+        remove("#" + replica_id, authenticated_user="u")
 
 ##################################################################
 
@@ -1242,26 +1277,6 @@ class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
             {"key": 2, "value1": "test", "value2": 10}])
 
         wait(lambda: len(get("//tmp/t/@replicas/{}/errors".format(replica_id))) == 0)
-
-    def test_replica_permissions(self):
-        self._create_cells()
-        self._create_replicated_table("//tmp/t")
-
-        create_user("u")
-
-        set("//tmp/t/@acl", [make_ace("deny", "u", "write")])
-        with pytest.raises(YtError):
-            create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", authenticated_user="u")
-
-        set("//tmp/t/@acl", [make_ace("allow", "u", "write")])
-        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", authenticated_user="u")
-
-        set("//tmp/t/@acl", [make_ace("deny", "u", "write")])
-        with pytest.raises(YtError):
-            remove("#" + replica_id, authenticated_user="u")
-
-        set("//tmp/t/@acl", [make_ace("allow", "u", "write")])
-        remove("#" + replica_id, authenticated_user="u")
 
 ##################################################################
 

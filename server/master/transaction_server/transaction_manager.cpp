@@ -274,7 +274,7 @@ public:
             "SecondaryCellTags: %v, Timeout: %v, Deadline: %v, Title: %v)",
             transactionId,
             GetObjectId(parent),
-            MakeFormattableRange(transaction->PrerequisiteTransactions(), [] (auto* builder, const auto* prerequisiteTransaction) {
+            MakeFormattableView(transaction->PrerequisiteTransactions(), [] (auto* builder, const auto* prerequisiteTransaction) {
                 FormatValue(builder, prerequisiteTransaction->GetId(), TStringBuf());
             }),
             transaction->SecondaryCellTags(),

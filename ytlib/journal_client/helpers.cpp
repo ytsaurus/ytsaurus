@@ -24,7 +24,7 @@ using NChunkClient::TSessionId; // Suppress ambiguity with NProto::TSessionId.
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilder* builder, const TChunkReplicaDescriptor& replica, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, const TChunkReplicaDescriptor& replica, TStringBuf /*spec*/)
 {
     builder->AppendFormat("%v@%v", replica.NodeDescriptor, replica.MediumIndex);
 }

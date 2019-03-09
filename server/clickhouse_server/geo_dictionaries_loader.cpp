@@ -2,10 +2,7 @@
 
 #include "format_helpers.h"
 #include "type_helpers.h"
-#include "updates_tracker.h"
-
-#include <yt/server/clickhouse_server/auth_token.h>
-#include <yt/server/clickhouse_server/storage.h>
+#include "revision_tracker.h"
 
 #include <Common/Exception.h>
 
@@ -45,7 +42,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 void EnsureExists(
-    IStoragePtr storage,
+    TQueryContext* storage,
     IAuthorizationTokenPtr token,
     const std::string& path) {
 
@@ -62,7 +59,7 @@ class TRegionsHierarchyDataSource
     : public IRegionsHierarchyDataSource
 {
 private:
-    IStoragePtr Storage;
+    TQueryContext* Storage;
     IAuthorizationTokenPtr Token;
     std::string FilePath;
 
@@ -70,7 +67,7 @@ private:
 
 public:
     TRegionsHierarchyDataSource(
-        IStoragePtr storage,
+        TQueryContext* storage,
         IAuthorizationTokenPtr token,
         std::string path)
         : Storage(std::move(storage))
@@ -106,7 +103,7 @@ class TRegionsHierarchiesDataProvider
     : public IRegionsHierarchiesDataProvider
 {
 private:
-    IStoragePtr Storage;
+    TQueryContext* Storage;
     IAuthorizationTokenPtr Token;
     std::string DirectoryPath;
 
@@ -115,7 +112,7 @@ private:
 
 public:
     TRegionsHierarchiesDataProvider(
-        IStoragePtr storage,
+        TQueryContext* storage,
         IAuthorizationTokenPtr token,
         std::string directoryPath)
         : Storage(std::move(storage))
@@ -210,7 +207,7 @@ class TLanguageRegionsNamesDataSource
     : public ILanguageRegionsNamesDataSource
 {
 private:
-    IStoragePtr Storage;
+    TQueryContext* Storage;
     IAuthorizationTokenPtr Token;
     std::string FilePath;
     std::string Language;
@@ -219,7 +216,7 @@ private:
 
 public:
     TLanguageRegionsNamesDataSource(
-        IStoragePtr storage,
+        TQueryContext* storage,
         IAuthorizationTokenPtr token,
         std::string path,
         std::string language)
@@ -279,13 +276,13 @@ class TRegionsNamesDataProvider
     : public IRegionsNamesDataProvider
 {
 private:
-    IStoragePtr Storage;
+    TQueryContext* Storage;
     IAuthorizationTokenPtr Token;
     std::string DirectoryPath;
 
 public:
     TRegionsNamesDataProvider(
-        IStoragePtr storage,
+        TQueryContext* storage,
         IAuthorizationTokenPtr token,
         std::string directoryPath)
         : Storage(std::move(storage))
@@ -327,13 +324,13 @@ class TGeoDictionariesLoader
     : public IGeoDictionariesLoader
 {
 private:
-    IStoragePtr Storage;
+    TQueryContext* Storage;
     IAuthorizationTokenPtr Token;
     std::string GeodataPath;
 
 public:
     TGeoDictionariesLoader(
-        IStoragePtr storage,
+        TQueryContext* storage,
         IAuthorizationTokenPtr token,
         std::string geodataPath)
         : Storage(std::move(storage))
@@ -379,7 +376,7 @@ std::unique_ptr<RegionsNames> TGeoDictionariesLoader::reloadRegionsNames(
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IGeoDictionariesLoader> CreateGeoDictionariesLoader(
-    IStoragePtr storage,
+    TQueryContext* storage,
     IAuthorizationTokenPtr authToken,
     const std::string& geodataPath)
 {

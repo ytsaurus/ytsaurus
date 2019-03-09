@@ -2,7 +2,7 @@
 
 #include "format_helpers.h"
 
-#include <yt/server/clickhouse_server/clique_authorization_manager.h>
+#include "clique_authorization_manager.h"
 
 #include <Poco/Net/IPAddress.h>
 #include <Poco/Util/AbstractConfiguration.h>
@@ -17,6 +17,8 @@
 #include <common/logger_useful.h>
 
 #include <map>
+
+// TODO(max42): join with clique_authorization_manager.cpp.
 
 namespace DB
 {
@@ -139,12 +141,11 @@ class TSecurityManager
     : public DB::ISecurityManager
 {
 private:
-    mutable TUserRegistry Users;
-    std::string CliqueId;
+    mutable TUserRegistry Users_;
     ICliqueAuthorizationManagerPtr CliqueAuthorizationManager_;
 
 public:
-    TSecurityManager(std::string cliqueId, ICliqueAuthorizationManagerPtr cliqueAuthorizationManager);
+    TSecurityManager(ICliqueAuthorizationManagerPtr cliqueAuthorizationManager);
 
     void loadFromConfig(Poco::Util::AbstractConfiguration& config) override;
 
@@ -168,14 +169,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSecurityManager::TSecurityManager(std::string cliqueId, ICliqueAuthorizationManagerPtr cliqueAuthorizationManager)
-    : CliqueId(std::move(cliqueId))
-    , CliqueAuthorizationManager_(std::move(cliqueAuthorizationManager))
+TSecurityManager::TSecurityManager(ICliqueAuthorizationManagerPtr cliqueAuthorizationManager)
+    : CliqueAuthorizationManager_(std::move(cliqueAuthorizationManager))
 { }
 
 void TSecurityManager::loadFromConfig(Poco::Util::AbstractConfiguration& config)
 {
-    Users.Reload(config);
+    Users_.Reload(config);
 }
 
 UserPtr TSecurityManager::authorizeAndGetUser(
@@ -183,7 +183,7 @@ UserPtr TSecurityManager::authorizeAndGetUser(
     const String& password,
     const Poco::Net::IPAddress& address) const
 {
-    auto user = Users.GetOrRegisterNewUser(userName);
+    auto user = Users_.GetOrRegisterNewUser(userName);
     Authorize(user, password, address);
     LOG_DEBUG(GetLogger(), "User authorized: " << Quoted(userName) << " (address: " << address.toString() << ")");
     return user;
@@ -191,7 +191,7 @@ UserPtr TSecurityManager::authorizeAndGetUser(
 
 UserPtr TSecurityManager::getUser(const String& userName) const
 {
-    return Users.GetOrRegisterNewUser(userName);
+    return Users_.GetOrRegisterNewUser(userName);
 }
 
 bool TSecurityManager::hasAccessToDatabase(
@@ -222,10 +222,9 @@ void TSecurityManager::Authorize(
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<DB::ISecurityManager> CreateSecurityManager(
-    std::string cliqueId,
     ICliqueAuthorizationManagerPtr cliqueAuthorizationManager)
 {
-    return std::make_unique<TSecurityManager>(std::move(cliqueId), std::move(cliqueAuthorizationManager));
+    return std::make_unique<TSecurityManager>(std::move(cliqueAuthorizationManager));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
