@@ -117,30 +117,38 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
 
     context->SetRequestInfo();
 
+    TGetBasicAttributesContext getBasicAttributesContext;
     if (request->has_permission()) {
-        ValidateGetBasicAttributesPermissions(context);
+        getBasicAttributesContext.Permission = CheckedEnumCast<EPermission>(request->permission());
     }
+    if (request->has_columns()) {
+        getBasicAttributesContext.Columns = FromProto<std::vector<TString>>(request->columns().items());
+    }
+    getBasicAttributesContext.OmitInaccessibleColumns = request->omit_inaccessible_columns();
+    getBasicAttributesContext.PopulateSecurityTags = request->populate_security_tags();
+    getBasicAttributesContext.CellTag = CellTagFromId(GetId());
+
+    GetBasicAttributes(&getBasicAttributesContext);
 
     ToProto(response->mutable_object_id(), GetId());
-
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-    const auto& handler = objectManager->GetHandler(Object_);
-    auto replicationCellTags = handler->GetReplicationCellTags(Object_);
-    // TODO(babenko): this only works properly for chunk owners
-    response->set_cell_tag(replicationCellTags.empty() ? Bootstrap_->GetCellTag() : replicationCellTags[0]);
+    response->set_cell_tag(getBasicAttributesContext.CellTag);
+    if (getBasicAttributesContext.OmittedInaccessibleColumns) {
+        ToProto(response->mutable_omitted_inaccessible_columns()->mutable_items(), *getBasicAttributesContext.OmittedInaccessibleColumns);
+    }
+    if (getBasicAttributesContext.SecurityTags) {
+        ToProto(response->mutable_security_tags()->mutable_items(), getBasicAttributesContext.SecurityTags->Items);
+    }
 
     context->SetResponseInfo();
     context->Reply();
 }
 
-void TObjectProxyBase::ValidateGetBasicAttributesPermissions(const TCtxGetBasicAttributesPtr& context)
+void TObjectProxyBase::GetBasicAttributes(TGetBasicAttributesContext* context)
 {
-    const auto& request = context->Request();
-
-    auto permission =  CheckedEnumCast<EPermission>(request.permission());
-
     const auto& securityManager = Bootstrap_->GetSecurityManager();
-    securityManager->ValidatePermission(Object_, permission);
+    if (context->Permission != EPermission()) {
+        securityManager->ValidatePermission(Object_, context->Permission);
+    }
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)

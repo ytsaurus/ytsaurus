@@ -828,6 +828,23 @@ void TChunkOwnerNodeProxy::ValidateStorageParametersUpdate()
     ValidateNoTransaction();
 }
 
+void TChunkOwnerNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
+{
+    TObjectProxyBase::GetBasicAttributes(context);
+
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+    const auto& handler = objectManager->GetHandler(Object_);
+    auto replicationCellTags = handler->GetReplicationCellTags(Object_);
+    if (!replicationCellTags.empty()) {
+        context->CellTag = replicationCellTags[0];
+    }
+
+    if (context->PopulateSecurityTags) {
+        const auto* node = GetThisImpl<TChunkOwnerBase>();
+        context->SecurityTags = node->GetSecurityTags();
+    }
+}
+
 DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
 {
     DeclareNonMutating();
@@ -1091,7 +1108,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
 
     if (request->has_security_tags()) {
         TSecurityTags securityTags{
-            FromProto<std::vector<TString>>(request->security_tags().items())
+            FromProto<TSecurityTagsItems>(request->security_tags().items())
         };
         securityTags.Normalize();
 

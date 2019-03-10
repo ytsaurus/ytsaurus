@@ -1068,6 +1068,8 @@ private:
     void InitializeHistograms();
     void UpdateActualHistogram(const NJobTrackerClient::TStatistics& statistics);
 
+    void InitializeSecurityTags();
+
     virtual void OnExecNodesUpdated();
 
     void GetExecNodesInformation();

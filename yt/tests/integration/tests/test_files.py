@@ -239,28 +239,6 @@ class TestFiles(YTEnvSetup):
         write_file("//tmp/fcache5", "", compute_md5=True)
         assert get("//tmp/fcache5/@md5") == "d41d8cd98f00b204e9800998ecf8427e" == hashlib.md5("").hexdigest()
 
-    def test_write_with_security_tags(self):
-        create("file", "//tmp/f")
-
-        write_file("<security_tags=[tag1;tag2]>//tmp/f", "test")
-        assert_items_equal(get("//tmp/f/@security_tags"), ["tag1", "tag2"])
-
-        write_file("//tmp/f", "test")
-        assert_items_equal(get("//tmp/f/@security_tags"), [])
-
-        write_file("<security_tags=[tag3]>//tmp/f", "test")
-        assert_items_equal(get("//tmp/f/@security_tags"), ["tag3"])
-
-        write_file("<security_tags=[]>//tmp/f", "test")
-        assert_items_equal(get("//tmp/f/@security_tags"), [])
-
-    def test_write_with_security_tags_append(self):
-        create("file", "//tmp/f")
-
-        write_file("<security_tags=[tag1;tag2]>//tmp/f", "test")
-        write_file("<append=true>//tmp/f", "test")
-        assert_items_equal(get("//tmp/f/@security_tags"), ["tag1", "tag2"])
-
 ##################################################################
 
 class TestFilesMulticell(TestFiles):

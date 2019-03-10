@@ -489,6 +489,9 @@ public:
     //! failing the operation.
     bool OmitInaccessibleColumns;
 
+    //! These tags are propagated to all operation outputs (unless overridden).
+    std::vector<TString> AdditionalSecurityTags;
+
     TOperationSpecBase();
 
 private:

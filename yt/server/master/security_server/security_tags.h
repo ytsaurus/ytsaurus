@@ -1,20 +1,8 @@
 #pragma once
 
-#include "yt/server/master/cypress_server/public.h"
+#include "public.h"
 
-#include <yt/server/master/cell_master/public.h>
-
-#include <yt/server/master/object_server/object_detail.h>
-
-#include <yt/server/master/transaction_server/public.h>
-
-#include <yt/core/actions/signal.h>
-
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/ref_tracked.h>
-
-#include <util/generic/map.h>
+#include <yt/core/misc/small_vector.h>
 
 namespace NYT::NSecurityServer {
 
@@ -22,9 +10,11 @@ namespace NYT::NSecurityServer {
 
 struct TSecurityTags
 {
-    std::vector<TString> Items;
+    TSecurityTagsItems Items;
 
     void Normalize();
+
+    bool IsEmpty() const;
 
     operator size_t() const;
 

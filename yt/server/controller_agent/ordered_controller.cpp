@@ -951,7 +951,7 @@ private:
 
         // Erase output MUST be sorted.
         if (Spec_->SchemaInferenceMode != ESchemaInferenceMode::FromOutput) {
-            table->Options->ExplodeOnValidationError = true;
+            table->TableWriterOptions->ExplodeOnValidationError = true;
         }
 
         switch (Spec_->SchemaInferenceMode) {
