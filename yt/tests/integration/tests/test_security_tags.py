@@ -3,6 +3,8 @@ from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
 
+import pytest
+
 ##################################################################
 
 class TestSecurityTags(YTEnvSetup):
@@ -124,6 +126,68 @@ class TestSecurityTags(YTEnvSetup):
         assert_items_equal(get("//tmp/t_out1/@security_tags"), ["tag0", "tag1", "tag2"])
         assert_items_equal(get("//tmp/t_out2/@security_tags"), ["tag5"])
         assert_items_equal(get("//tmp/t_out3/@security_tags"), ["tag3", "tag6"])
+
+    def test_update_security_tags1(self):
+        create("table", "//tmp/t")
+        assert_items_equal(get("//tmp/t/@security_tags"), [])
+
+        set("//tmp/t/@security_tags", ["tag1", "tag2"])
+        assert_items_equal(get("//tmp/t/@security_tags"), ["tag1", "tag2"])
+
+    def test_update_security_tags2(self):
+        tx = start_transaction()
+
+        create("table", "//tmp/t", tx=tx)
+        assert_items_equal(get("//tmp/t/@security_tags", tx=tx), [])
+
+        set("//tmp/t/@security_tags", ["tag1", "tag2"], tx=tx)
+        assert_items_equal(get("//tmp/t/@security_tags", tx=tx), ["tag1", "tag2"])
+
+        commit_transaction(tx)
+
+        assert_items_equal(get("//tmp/t/@security_tags"), ["tag1", "tag2"])
+
+    def test_cannot_update_security_tags_in_append_mode(self):
+        create("table", "//tmp/t")
+
+        tx = start_transaction()
+        write_table("<append=%true>//tmp/t", [{"a": "b"}], tx=tx)
+        with pytest.raises(YtError):
+            set("//tmp/t/@security_tags", ["tag1", "tag2"], tx=tx)
+
+    def test_can_update_security_tags_in_overwrite_mode1(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", [{"a": "b"}])
+
+        tx = start_transaction()
+        write_table("//tmp/t", [{"a": "b"}], tx=tx)
+        set("//tmp/t/@security_tags", ["tag1", "tag2"], tx=tx)
+
+        commit_transaction(tx)
+        assert_items_equal(get("//tmp/t/@security_tags"), ["tag1", "tag2"])
+        assert_items_equal(read_table("//tmp/t"), [{"a": "b"}])
+
+    def test_can_update_security_tags_in_overwrite_mode2(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", [{"a": "b"}])
+
+        tx = start_transaction()
+        write_table("//tmp/t", [{"a": "b"}], tx=tx)
+        set("//tmp/t/@security_tags", ["tag1", "tag2"], tx=tx)
+        write_table("<append=%true>//tmp/t", [{"c": "d"}], tx=tx)
+
+        commit_transaction(tx)
+        assert_items_equal(get("//tmp/t/@security_tags"), ["tag1", "tag2"])
+        assert_items_equal(read_table("//tmp/t"), [{"a": "b"}, {"c": "d"}])
+
+    def test_update_security_tags_involves_exclusive_lock(self):
+        create("table", "//tmp/t")
+
+        tx = start_transaction()
+        lock("//tmp/t", mode="shared", tx=tx)
+
+        with pytest.raises(YtError):
+            set("//tmp/t/@security_tags", ["tag1", "tag2"])
 
 ##################################################################
 
