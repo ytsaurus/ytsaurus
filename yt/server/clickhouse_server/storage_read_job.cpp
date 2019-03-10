@@ -13,10 +13,6 @@
 
 #include <Interpreters/Context.h>
 
-#include <Poco/Logger.h>
-
-#include <common/logger_useful.h>
-
 namespace NYT::NClickHouseServer {
 
 using namespace DB;
@@ -31,8 +27,6 @@ private:
     const NamesAndTypesList Columns;
     const std::string JobSpec;
 
-    Poco::Logger* Logger;
-
 public:
     TStorageReadJob(
         TQueryContext* queryContext,
@@ -41,7 +35,6 @@ public:
         : QueryContext_(queryContext)
         , Columns(std::move(columns))
         , JobSpec(std::move(jobSpec))
-        , Logger(&Poco::Logger::get("StorageReadJob"))
     {
         setColumns(ColumnsDescription(Columns));
     }
@@ -84,8 +77,6 @@ BlockInputStreams TStorageReadJob::read(
     size_t /* maxBlockSize */,
     unsigned numStreams)
 {
-    LOG_DEBUG(Logger, "Columns requested in read job: " << JoinStrings(",", ToString(columnNames)));
-
     DB::Names physicalColumns;
     DB::Names virtualColumns;
     SplitColumns(columnNames, physicalColumns, virtualColumns);
