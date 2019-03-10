@@ -11,8 +11,6 @@
 #include <Interpreters/Cluster.h>
 #include <Interpreters/Context.h>
 
-#include <Poco/Logger.h>
-
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,24 +42,27 @@ private:
     const IExecutionClusterPtr Cluster;
     TClickHouseTableSchema Schema;
 
-    Poco::Logger* Logger;
-
 public:
     TStorageDistributed(
         IExecutionClusterPtr cluster,
-        TClickHouseTableSchema schema,
-        Poco::Logger* logger)
+        TClickHouseTableSchema schema)
         : Cluster(std::move(cluster))
         , Schema(std::move(schema))
-        , Logger(logger)
+    { }
+
+    virtual void startup() override
     {
+        if (Schema.Columns.empty()) {
+            THROW_ERROR_EXCEPTION("CHYT does not support tables without schema")
+                << TErrorAttribute("path", getTableName());
+        }
         setColumns(DB::ColumnsDescription(ListPhysicalColumns()));
     }
 
     // Database name
     std::string getName() const override
     {
-        return "YT";
+        return "YTStaticTable";
     }
 
     bool isRemote() const override
@@ -100,19 +101,9 @@ protected:
         const DB::ASTPtr& queryAst,
         const std::string& jobSpec) = 0;
 
-    const IExecutionClusterPtr& GetCluster() const
-    {
-        return Cluster;
-    }
-
     const TClickHouseTableSchema& GetSchema() const
     {
         return Schema;
-    }
-
-    Poco::Logger* GetLogger() const
-    {
-        return Logger;
     }
 
 private:

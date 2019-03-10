@@ -3,6 +3,7 @@
 #include "format_helpers.h"
 #include "type_helpers.h"
 #include "helpers.h"
+#include "query_context.h"
 
 #include <Common/Exception.h>
 #include <DataStreams/materializeBlock.h>
@@ -26,47 +27,29 @@ BlockInputStreams TStorageDistributed::read(
     size_t /* maxBlockSize */,
     unsigned /* numStreams */)
 {
-    LOG_DEBUG(
-        Logger,
-        "Requested columns " << JoinStrings(",", ToString(columnNames)) << " from table " << getTableName());
-
+    auto* queryContext = GetQueryContext(context);
+    const auto& Logger = queryContext->Logger;
 
     auto clusterNodes = Cluster->GetAvailableNodes();
-
-    LOG_DEBUG(
-        Logger,
-        "Available cluster nodes: " << std::to_string(clusterNodes.size()));
-
-    // Allocate table parts to nodes of execution cluster
-
-    LOG_DEBUG(Logger, "Allocating table parts to cluster nodes...");
-
     auto allocation = AllocateTablePartsToClusterNodes(clusterNodes, queryInfo, context);
 
-    LOG_DEBUG(Logger, "Prepering to subqueries execution...");
+    YT_LOG_INFO("Preparing query to YT table storage (ColumnNames: %v, TableName: %v, NodeCount: %v)",
+        columnNames,
+        getTableName(),
+        clusterNodes.size());
 
-    // Prepare settings and context for subqueries
+    // Prepare settings and context for subqueries.
 
     const auto& settings = context.getSettingsRef();
-
-    // Set processing stage
 
     processedStage = settings.distributed_group_by_no_merge
         ? QueryProcessingStage::Complete
         : QueryProcessingStage::WithMergeableState;
 
-    // Create new context for subqueries
-
     Context newContext(context);
     newContext.setSettings(PrepareLeafJobSettings(settings));
 
-    // Net throttling
-
     auto throttler = CreateNetThrottler(settings);
-
-    // Create block streams
-
-    LOG_DEBUG(Logger, "Creating subqueries input streams, number of parts = " << allocation.size());
 
     BlockInputStreams streams;
 
@@ -94,7 +77,7 @@ BlockInputStreams TStorageDistributed::read(
         streams.push_back(std::move(tablePartStream));
     }
 
-    LOG_DEBUG(Logger, "All block streams created");
+    YT_LOG_INFO("Finished query preparation");
 
     return streams;
 }

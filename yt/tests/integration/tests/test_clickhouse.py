@@ -66,7 +66,7 @@ class Clique(object):
         while True:
             state = self.op.get_state(verbose=False)
 
-            # Clickhouse operations should never complete by itself.
+            # ClickHouse operations should never complete by itself.
             assert state != "completed"
 
             if state == "aborted" or state == "failed":
@@ -99,7 +99,7 @@ class Clique(object):
         if clique_error is not None:
             if exc_type is not None:
                 original_error = exc_value
-                raise YtError("Clickhouse request failed and resulted in clique failure", inner_errors=[original_error, clique_error])
+                raise YtError("ClickHouse request failed and resulted in clique failure", inner_errors=[original_error, clique_error])
             else:
                 raise YtError("Clique failed", inner_errors=[clique_error])
 
@@ -135,13 +135,13 @@ class Clique(object):
         if verbose:
             print >>sys.stderr, output
         if return_code != 0:
-            raise YtError("Clickhouse query failed\n" + output)
+            raise YtError("ClickHouse query failed\n" + output)
 
         return json.loads(stdout)
 
 
 @require_ytserver_root_privileges
-class ClickhouseTestBase(YTEnvSetup):
+class ClickHouseTestBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -180,7 +180,7 @@ class ClickhouseTestBase(YTEnvSetup):
         Clique.base_config["cluster_connection"] = self.__class__.Env.configs["driver"]
 
 
-class TestClickhouseCommon(ClickhouseTestBase):
+class TestClickHouseCommon(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
@@ -255,7 +255,7 @@ class TestClickhouseCommon(ClickhouseTestBase):
             assert new_description["data"][0]["name"] == "b"
 
 
-class TestJobInput(ClickhouseTestBase):
+class TestJobInput(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
@@ -273,7 +273,7 @@ class TestJobInput(ClickhouseTestBase):
             self._expect_row_count(clique, 'select * from "//tmp/t" where 5 <= i and i <= 8', 4)
             self._expect_row_count(clique, 'select * from "//tmp/t" where i in (-1, 2, 8, 8, 15)', 2)
 
-class TestCompositeTypes(ClickhouseTestBase):
+class TestCompositeTypes(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
@@ -405,7 +405,7 @@ class TestCompositeTypes(ClickhouseTestBase):
         assert result["data"] == [{"a": None, "b": None, "c": None}]
 
 
-class TestYtDictionaries(ClickhouseTestBase):
+class TestYtDictionaries(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
@@ -521,3 +521,15 @@ class TestYtDictionaries(ClickhouseTestBase):
             write_table("//tmp/dict", [{"key": 42, "value": "z"}])
             time.sleep(7)
             assert clique.make_query("select dictGetString('dict', 'value', CAST(42 as UInt64)) as value")["data"][0]["value"] == "z"
+
+class TestClickHouseSchema(ClickHouseTestBase):
+    def setup(self):
+        self._setup()
+
+    def test_missing_schema(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", [{"key": 42, "value": "x"}])
+
+        with Clique(1) as clique:
+            with pytest.raises(YtError):
+                clique.make_query("select * from \"//tmp/t\"")
