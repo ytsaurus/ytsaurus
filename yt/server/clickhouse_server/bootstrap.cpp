@@ -9,7 +9,6 @@
 #include "logger.h"
 #include "query_context.h"
 #include "security_manager.h"
-#include "clique_authorization_manager.h"
 
 #include <yt/server/lib/admin/admin_service.h>
 
@@ -63,7 +62,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const auto& Logger = ServerLogger;
+static const auto& Logger = ServerLogger;
 const NLogging::TLogger EngineLogger("Engine");
 
 ////////////////////////////////////////////////////////////////////////////////

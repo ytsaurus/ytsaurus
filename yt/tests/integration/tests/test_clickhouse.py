@@ -106,7 +106,7 @@ class Clique(object):
         # Pass the error.
         return False
 
-    def make_query(self, query, verbose=True):
+    def make_query(self, query, user="root", verbose=True):
         instances = get("//sys/clickhouse/cliques/{0}".format(self.op.id), attributes=["host", "tcp_port"])
         assert len(instances) > 0
         instance = random.choice(instances.values())
@@ -118,7 +118,7 @@ class Clique(object):
                 "--port", port,
                 "-q", query,
                 "--format", "JSON",
-                "-u", "root",
+                "-u", user,
                 "--output_format_json_quote_64bit_integers", "0"]
         print >>sys.stderr, "Running '{0}'...".format(' '.join(args))
 
@@ -253,7 +253,6 @@ class TestClickHouseCommon(ClickHouseTestBase):
             write_table("//tmp/t", [{"b": 1}])
             new_description = clique.make_query('describe "//tmp/t"')
             assert new_description["data"][0]["name"] == "b"
-
 
 class TestJobInput(ClickHouseTestBase):
     def setup(self):
@@ -533,3 +532,31 @@ class TestClickHouseSchema(ClickHouseTestBase):
         with Clique(1) as clique:
             with pytest.raises(YtError):
                 clique.make_query("select * from \"//tmp/t\"")
+
+class TestClickHouseAccess(ClickHouseTestBase):
+    def setup(self):
+        self._setup()
+
+    def test_clique_access(self):
+        create_user("u")
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/t", [{"a": 1}])
+
+        with Clique(1, config_patch={"validate_operation_access": False}) as clique:
+            assert len(clique.make_query("select * from \"//tmp/t\"", user="u")["data"]) == 1
+
+        with Clique(1, config_patch={"validate_operation_access": True}) as clique:
+            with pytest.raises(YtError):
+                clique.make_query("select * from \"//tmp/t\"", user="u")
+
+        with Clique(1,
+                    config_patch={"validate_operation_access": True},
+                    spec={
+                        "acl": [{
+                            "subjects": ["u"],
+                            "action": "allow",
+                            "permissions": ["read"]
+                        }]
+                    }) as clique:
+            assert len(clique.make_query("select * from \"//tmp/t\"", user="u")["data"]) == 1
+

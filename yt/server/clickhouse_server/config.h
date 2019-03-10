@@ -234,7 +234,9 @@ public:
 
     TSlruCacheConfigPtr ClientCache;
 
-    bool ValidateOperationPermission;
+    //! Authorization settings.
+    bool ValidateOperationAccess;
+    TDuration OperationAclUpdatePeriod;
 
     TEngineConfigPtr Engine;
 
@@ -250,8 +252,10 @@ public:
         RegisterParameter("client_cache", ClientCache)
             .DefaultNew();
 
-        RegisterParameter("validate_operation_permission", ValidateOperationPermission)
+        RegisterParameter("validate_operation_access", ValidateOperationAccess)
             .Default(true);
+        RegisterParameter("operation_acl_update_period", OperationAclUpdatePeriod)
+            .Default(TDuration::Minutes(1));
 
         RegisterParameter("user", User)
             .Default("yt-clickhouse");
