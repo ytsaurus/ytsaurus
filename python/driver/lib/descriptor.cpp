@@ -35,6 +35,11 @@ Py::Object TCommandDescriptor::IsHeavy(Py::Tuple& args, Py::Dict& kwargs)
 
 void TCommandDescriptor::InitType()
 {
+    static bool Initialized_ = false;
+    if (Initialized_) {
+        return;
+    }
+
     behaviors().name("CommandDescriptor");
     behaviors().doc("Describe command properties");
     behaviors().supportGetattro();
@@ -46,6 +51,8 @@ void TCommandDescriptor::InitType()
     PYCXX_ADD_KEYWORDS_METHOD(is_heavy, IsHeavy, "Check that command is heavy");
 
     behaviors().readyType();
+
+    Initialized_ = true;
 }
 
 

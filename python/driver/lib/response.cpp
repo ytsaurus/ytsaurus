@@ -140,6 +140,11 @@ TDriverResponse::~TDriverResponse()
 
 void TDriverResponse::InitType()
 {
+    static bool Initialized_ = false;
+    if (Initialized_) {
+        return;
+    }
+
     behaviors().name("Response");
     behaviors().doc("Command response");
     behaviors().supportGetattro();
@@ -152,6 +157,8 @@ void TDriverResponse::InitType()
     PYCXX_ADD_KEYWORDS_METHOD(error, Error, "Return error of response (can be called only if response is set)");
 
     behaviors().readyType();
+
+    Initialized_ = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

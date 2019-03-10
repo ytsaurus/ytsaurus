@@ -11,11 +11,11 @@ namespace NYT::NPython {
 ////////////////////////////////////////////////////////////////////////////////
 
 #define PYCXX_DECLARE_DRIVER_METHODS(className) \
-    PYCXX_KEYWORDS_METHOD_DECL(TDriver, Execute) \
-    PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetCommandDescriptor) \
-    PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetCommandDescriptors) \
-    PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetConfig) \
-    PYCXX_KEYWORDS_METHOD_DECL(TDriver, Terminate)
+    PYCXX_KEYWORDS_METHOD_DECL(className, Execute) \
+    PYCXX_KEYWORDS_METHOD_DECL(className, GetCommandDescriptor) \
+    PYCXX_KEYWORDS_METHOD_DECL(className, GetCommandDescriptors) \
+    PYCXX_KEYWORDS_METHOD_DECL(className, GetConfig) \
+    PYCXX_KEYWORDS_METHOD_DECL(className, Terminate)
 
 #define PYCXX_ADD_DRIVER_METHODS \
     PYCXX_ADD_KEYWORDS_METHOD(execute, Execute, "Executes the request"); \
