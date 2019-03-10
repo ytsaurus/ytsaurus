@@ -461,7 +461,9 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
         .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ErasureCodec)
         .SetWritable(true));
-    descriptors->push_back(EInternedAttributeKey::SecurityTags);
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SecurityTags)
+        .SetWritable(true)
+        .SetReplicated(true));
 }
 
 bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
@@ -694,6 +696,31 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             if (!node->IsExternal()) {
                 chunkManager->ScheduleChunkRequisitionUpdate(node->GetChunkList());
             }
+            return true;
+        }
+
+        case EInternedAttributeKey::SecurityTags: {
+            auto* node = LockThisImpl<TChunkOwnerBase>();
+            if (node->GetUpdateMode() == EUpdateMode::Append) {
+                THROW_ERROR_EXCEPTION("Cannot change security tags of a node in %Qlv update mode",
+                    node->GetUpdateMode());
+            }
+
+            TSecurityTags securityTags{
+                ConvertTo<TSecurityTagsItems>(value)
+            };
+            securityTags.Normalize();
+
+            // TODO(babenko): audit
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Node security tags updated; node is switched to \"overwrite\" mode (NodeId: %v, OldSecurityTags: %v, NewSecurityTags: %v",
+                node->GetVersionedId(),
+                node->GetSecurityTags().Items,
+                securityTags.Items);
+
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            const auto& securityTagsRegistry = securityManager->GetSecurityTagsRegistry();
+            node->SnapshotSecurityTags() = securityTagsRegistry->Intern(std::move(securityTags));
+            node->SetUpdateMode(EUpdateMode::Overwrite);
             return true;
         }
 
@@ -956,7 +983,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                     IsRecovery(),
                     "Node is switched to \"append\" mode (NodeId: %v)",
                     lockedNode->GetId());
-
             } else {
                 auto* snapshotChunkList = lockedNode->GetChunkList();
 
@@ -981,7 +1007,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                     newChunkList->GetId(),
                     snapshotChunkList->GetId(),
                     deltaChunkList->GetId());
-
             }
             break;
         }
