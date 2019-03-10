@@ -69,8 +69,7 @@ TStorageTable::TStorageTable(
     IExecutionClusterPtr cluster)
     : TStorageDistributed(
         std::move(cluster),
-        TClickHouseTableSchema::From(*table),
-        &Poco::Logger::get("StorageTable"))
+        TClickHouseTableSchema::From(*table))
     , Table(std::move(table))
 {}
 
@@ -143,9 +142,12 @@ DB::StoragePtr CreateStorageTable(
     TClickHouseTablePtr table,
     IExecutionClusterPtr cluster)
 {
-    return std::make_shared<TStorageTable>(
+    auto storage = std::make_shared<TStorageTable>(
         std::move(table),
         std::move(cluster));
+    storage->startup();
+
+    return storage;
 }
 
 /////////////////////////////////////////////////////////////////////////////

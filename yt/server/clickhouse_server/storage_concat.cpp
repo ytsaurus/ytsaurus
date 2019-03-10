@@ -71,8 +71,7 @@ TStorageConcat::TStorageConcat(
     IExecutionClusterPtr cluster)
     : TStorageDistributed(
         std::move(cluster),
-        std::move(schema),
-        &Poco::Logger::get("StorageConcat"))
+        std::move(schema))
     , Tables(std::move(tables))
 {}
 
@@ -165,10 +164,13 @@ DB::StoragePtr CreateStorageConcat(
     auto representativeTable = tables.front();
     auto commonSchema = TClickHouseTableSchema::From(*representativeTable);
 
-    return std::make_shared<TStorageConcat>(
+    auto storage = std::make_shared<TStorageConcat>(
         std::move(tables),
         std::move(commonSchema),
         std::move(cluster));
+    storage->startup();
+
+    return storage;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
