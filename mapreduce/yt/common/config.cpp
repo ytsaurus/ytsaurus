@@ -29,7 +29,7 @@ namespace NYT {
 bool TConfig::GetBool(const char* var, bool defaultValue)
 {
     TString val = GetEnv(var, "");
-    if (val.Empty()) {
+    if (val.empty()) {
         return defaultValue;
     }
     return IsTrue(val);
@@ -39,7 +39,7 @@ int TConfig::GetInt(const char* var, int defaultValue)
 {
     int result = 0;
     TString val = GetEnv(var, "");
-    if (val.Empty()) {
+    if (val.empty()) {
         return defaultValue;
     }
     try {

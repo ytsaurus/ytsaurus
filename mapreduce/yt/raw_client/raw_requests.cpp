@@ -586,7 +586,7 @@ TMaybe<TYPath> GetFileFromCache(
     header.MergeParameters(SerializeParamsForGetFileFromCache(md5Signature, cachePath, options));
     auto responseInfo = RetryRequestWithPolicy(auth, header, "", retryPolicy);
     auto path = NodeFromYsonString(responseInfo.Response).AsString();
-    return path.Empty() ? Nothing() : TMaybe<TYPath>(path);
+    return path.empty() ? Nothing() : TMaybe<TYPath>(path);
 }
 
 TYPath PutFileToCache(

@@ -217,7 +217,7 @@ TVector<TString> TJobStatistics::GetCustomStatisticsNames() const
     TVector<TString> result;
     for (const auto& entry : Data_->Name2State2Type2Data) {
         if (entry.first.StartsWith(CustomStatisticsNamePrefix_)) {
-            result.push_back(entry.first.substr(CustomStatisticsNamePrefix_.Size()));
+            result.push_back(entry.first.substr(CustomStatisticsNamePrefix_.size()));
         }
     }
     return result;
@@ -298,14 +298,14 @@ void WriteCustomStatisticsAny(TStringBuf path, const T& value)
     size_t begin = 0;
     size_t end = 0;
     TVector<TString> items;
-    while (end <= path.Size()) {
-        if (end + 1 < path.Size() && path[end] == ESCAPE && path[end + 1] == PATH_DELIMITER) {
+    while (end <= path.size()) {
+        if (end + 1 < path.size() && path[end] == ESCAPE && path[end + 1] == PATH_DELIMITER) {
             end += 2;
             continue;
         }
         if (end == path.size() || path[end] == PATH_DELIMITER) {
             writer.OnBeginMap();
-            items.emplace_back(path.Data() + begin, end - begin);
+            items.emplace_back(path.data() + begin, end - begin);
             SubstGlobal(items.back(), "\\/", "/");
             writer.OnKeyedItem(TStringBuf(items.back()));
             ++depth;

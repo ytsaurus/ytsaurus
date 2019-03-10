@@ -53,7 +53,7 @@ private:
     {
         switch (DoReadCallCount_++) {
             case 0:
-                return Stream_.Read(buf, std::min(len, String_.Size() / 2));
+                return Stream_.Read(buf, std::min(len, String_.size() / 2));
             case 1:
                 ythrow yexception() << "Just wanted to test you";
             default:

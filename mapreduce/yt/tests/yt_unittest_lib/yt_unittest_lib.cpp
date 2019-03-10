@@ -37,10 +37,10 @@ namespace NTesting {
 
 IClientPtr CreateTestClient(TString proxy)
 {
-    if (proxy.Empty()) {
+    if (proxy.empty()) {
         proxy = GetEnv("YT_PROXY");
     }
-    Y_ENSURE(!proxy.Empty(), "YT_PROXY env variable must be set or 'proxy' argument nonempty");
+    Y_ENSURE(!proxy.empty(), "YT_PROXY env variable must be set or 'proxy' argument nonempty");
     auto client = CreateClient(proxy);
     client->Remove("//testing", TRemoveOptions().Recursive(true).Force(true));
     client->Create("//testing", ENodeType::NT_MAP, TCreateOptions());

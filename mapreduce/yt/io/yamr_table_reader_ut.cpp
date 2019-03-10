@@ -19,7 +19,7 @@ public:
     {
         TStringStream row;
         auto appendLenval = [&] (TStringBuf value) {
-            ui32 size = value.Size();
+            ui32 size = value.size();
             row.Write(&size, sizeof(size));
             row.Write(value);
         };
