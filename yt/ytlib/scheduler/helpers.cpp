@@ -513,69 +513,6 @@ void SaveJobFiles(NNative::IClientPtr client, TOperationId operationId, const st
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateOperationPermission(
-    const TString& user,
-    TOperationId operationId,
-    const IClientPtr& client,
-    EPermission permission,
-    const TLogger& logger,
-    const TString& subnodePath)
-{
-    const auto& Logger = logger;
-
-    YT_LOG_DEBUG("Validating operation permission (Permission: %v, User: %v, OperationId: %v, SubnodePath: %Qv)",
-        permission,
-        user,
-        operationId,
-        subnodePath);
-
-    auto path = GetOperationPath(operationId);
-    auto asyncResult = client->CheckPermission(user, path + subnodePath, permission);
-    auto resultOrError = WaitFor(asyncResult);
-    if (!resultOrError.IsOK()) {
-        THROW_ERROR_EXCEPTION("Error checking permission for operation %v",
-            operationId)
-            << resultOrError;
-    }
-
-    const auto& result = resultOrError.Value();
-    if (result.Action == ESecurityAction::Allow) {
-        YT_LOG_DEBUG("Operation permission successfully validated (Permission: %v, User: %v, OperationId: %v, SubnodePath: %Qv)",
-            permission,
-            user,
-            operationId,
-            subnodePath);
-        return;
-    }
-
-    THROW_ERROR_EXCEPTION(
-        NSecurityClient::EErrorCode::AuthorizationError,
-        "User %Qv has been denied access to operation %v",
-        user,
-        operationId);
-}
-
-void BuildOperationAce(
-    const std::vector<TString>& owners,
-    const TString& authenticatedUser,
-    EPermissionSet permissions,
-    TFluentList fluent)
-{
-    fluent
-        .Item().BeginMap()
-            .Item("action").Value(ESecurityAction::Allow)
-            .Item("subjects").BeginList()
-                .Item().Value(authenticatedUser)
-                .DoFor(owners, [] (TFluentList fluent, const TString& owner) {
-                    fluent.Item().Value(owner);
-                })
-            .EndList()
-            .Item("permissions").Value(permissions)
-        .EndMap();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void ValidateOperationAccess(
     const std::optional<TString>& user,
     TOperationId operationId,

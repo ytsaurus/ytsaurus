@@ -84,18 +84,6 @@ void SaveJobFiles(NApi::NNative::IClientPtr client, TOperationId operationId, co
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Validate that given user has permission to an operation node of a given operation.
-//! If needed, access to a certain subnode may be checked, not to the whole operation node.
-void ValidateOperationPermission(
-    const TString& user,
-    TOperationId operationId,
-    const NApi::IClientPtr& client,
-    NYTree::EPermission permission,
-    const NLogging::TLogger& logger,
-    const TString& subnodePath = "");
-
-////////////////////////////////////////////////////////////////////////////////
-
 void ValidateOperationAccess(
     const std::optional<TString>& user,
     TOperationId operationId,
