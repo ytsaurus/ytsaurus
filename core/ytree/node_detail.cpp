@@ -264,7 +264,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
 
         case NYPath::ETokenType::Literal: {
             auto key = tokenizer.GetLiteralValue();
-            if (key.Empty()) {
+            if (key.empty()) {
                 THROW_ERROR_EXCEPTION("Child key cannot be empty");
             }
 

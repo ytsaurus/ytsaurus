@@ -302,7 +302,7 @@ void TJsonConsumer::OnStringScalar(TStringBuf value)
     TStringBuf writeValue = value;
     bool incomplete = false;
     if (Config->AttributesMode != EJsonAttributesMode::Never) {
-        if (CheckLimit && Config->StringLengthLimit && value.Size() > *Config->StringLengthLimit) {
+        if (CheckLimit && Config->StringLengthLimit && value.size() > *Config->StringLengthLimit) {
             writeValue = value.substr(0, *Config->StringLengthLimit);
             incomplete = true;
         }
@@ -525,7 +525,7 @@ void TJsonConsumer::OnStringScalarWeightLimited(TStringBuf value, std::optional<
 {
     TStringBuf writeValue = value;
     bool incomplete = false;
-    if (CheckLimit && weightLimit && value.Size() > *weightLimit) {
+    if (CheckLimit && weightLimit && value.size() > *weightLimit) {
         writeValue = value.substr(0, *weightLimit);
         incomplete = true;
     }
@@ -535,7 +535,7 @@ void TJsonConsumer::OnStringScalarWeightLimited(TStringBuf value, std::optional<
 
 void TJsonConsumer::OnNodeWeightLimited(TStringBuf yson, std::optional<i64> weightLimit)
 {
-    if (CheckLimit && weightLimit && yson.Size() > *weightLimit) {
+    if (CheckLimit && weightLimit && yson.size() > *weightLimit) {
         WriteStringScalarWithAttributes("", "any", true);
         return;
     }
