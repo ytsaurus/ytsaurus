@@ -596,10 +596,7 @@ struct TFileWriterOptions
     : public TTransactionalOptions
     , public TPrerequisiteOptions
 {
-    bool Append = true;
     bool ComputeMD5 = false;
-    std::optional<NCompression::ECodec> CompressionCodec;
-    std::optional<NErasure::ECodec> ErasureCodec;
     TFileWriterConfigPtr Config;
 };
 
@@ -1093,7 +1090,7 @@ struct IClientBase
         const TFileReaderOptions& options = TFileReaderOptions()) = 0;
 
     virtual IFileWriterPtr CreateFileWriter(
-        const NYPath::TYPath& path,
+        const NYPath::TRichYPath& path,
         const TFileWriterOptions& options = TFileWriterOptions()) = 0;
 
     // Journals

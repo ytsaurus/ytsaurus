@@ -725,7 +725,7 @@ public:
     }
 
     virtual IFileWriterPtr CreateFileWriter(
-        const TYPath& path,
+        const TRichYPath& path,
         const TFileWriterOptions& options) override
     {
         return NNative::CreateFileWriter(this, path, options);

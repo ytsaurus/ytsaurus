@@ -12,7 +12,7 @@ namespace NYT::NApi::NNative {
 
 IFileWriterPtr CreateFileWriter(
     IClientPtr client,
-    const NYPath::TYPath& path,
+    const NYPath::TRichYPath& path,
     const TFileWriterOptions& options = TFileWriterOptions());
 
 ////////////////////////////////////////////////////////////////////////////////
