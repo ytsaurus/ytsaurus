@@ -404,7 +404,7 @@ TString ToString(const TNetworkAddress& address, bool withPort)
             } else if (typedAddr->sun_path[0] == 0) {
                 auto addressRef = TStringBuf(typedAddr->sun_path + 1, address.GetLength() - 1 - sizeof(sa_family_t));
                 auto quoted = Format("%Qv", addressRef);
-                return Format("unix://[%v]", quoted.substr(1, quoted.Size() - 2));
+                return Format("unix://[%v]", quoted.substr(1, quoted.size() - 2));
             } else {
                 return Format("unix://%v", typedAddr->sun_path);
             }

@@ -120,10 +120,10 @@ TString ParseAttributes(const TString& str, IAttributeDictionary* attributes)
     int spaceCount = 0;
     {
         size_t index = 0;
-        while (index < str.Size() && IsSpace(str[index])) {
+        while (index < str.size() && IsSpace(str[index])) {
             ++index;
         }
-        if (index == str.Size() || str[index] != TokenTypeToChar(NYson::ETokenType::LeftAngle)) {
+        if (index == str.size() || str[index] != TokenTypeToChar(NYson::ETokenType::LeftAngle)) {
             return str;
         }
         spaceCount = index;

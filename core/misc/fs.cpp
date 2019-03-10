@@ -140,7 +140,7 @@ TString GetRealPath(const TString& path)
             parts.pop_back();
         }
         curPath = GetDirectoryName(curPath);
-        if (curPath.Empty()) {
+        if (curPath.empty()) {
             break;
         }
     }
