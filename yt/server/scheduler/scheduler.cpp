@@ -531,7 +531,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        const auto& operation = WaitFor(BIND(&TImpl::GetOperationOrThrow, MakeStrong(this))
+        auto operation = WaitFor(BIND(&TImpl::GetOperationOrThrow, MakeStrong(this))
             .AsyncVia(GetControlInvoker(EControlQueue::Operation))
             .Run(operationId))
             .ValueOrThrow();
