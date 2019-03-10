@@ -78,6 +78,7 @@ void GetUserObjectBasicAttributes(
         auto req = TObjectYPathProxy::GetBasicAttributes(userObject->GetPath());
         req->set_permission(static_cast<int>(permission));
         req->set_omit_inaccessible_columns(options.OmitInaccessibleColumns);
+        req->set_populate_security_tags(options.PopulateSecurityTags);
         if (auto optionalColumns = userObject->Path.GetColumns()) {
             auto* protoColumns = req->mutable_columns();
             for (const auto& column : *optionalColumns) {
@@ -107,6 +108,9 @@ void GetUserObjectBasicAttributes(
         userObject->Type = TypeFromId(userObject->ObjectId);
         if (rsp->has_omitted_inaccessible_columns()) {
             userObject->OmittedInaccessibleColumns = FromProto<std::vector<TString>>(rsp->omitted_inaccessible_columns().items());
+        }
+        if (rsp->has_security_tags()) {
+            userObject->SecurityTags = FromProto<std::vector<TString>>(rsp->security_tags().items());
         }
     }
 }
@@ -595,6 +599,10 @@ void TUserObject::Persist(const TStreamPersistenceContext& context)
         Persist(context, Type);
         Persist(context, TransactionId);
         Persist(context, OmittedInaccessibleColumns);
+    }
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 300032) {
+        Persist(context, SecurityTags);
     }
 }
 

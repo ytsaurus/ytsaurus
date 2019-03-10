@@ -787,6 +787,8 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
 
         InitializeHistograms();
 
+        InitializeSecurityTags();
+
         YT_LOG_INFO("Tasks prepared (RowBufferCapacity: %v)", RowBuffer->GetCapacity());
 
         if (IsCompleted()) {
@@ -1706,7 +1708,7 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                         << TErrorAttribute("job_output_min_key", table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey);
                 }
 
-                if (cmp == 0 && table->Options->ValidateUniqueKeys) {
+                if (cmp == 0 && table->TableWriterOptions->ValidateUniqueKeys) {
                     THROW_ERROR_EXCEPTION("Output table %v contains duplicate keys: job outputs overlap with original table",
                         table->Path.GetPath())
                         << TErrorAttribute("table_max_key", table->LastKey)
@@ -1726,7 +1728,7 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                             << TErrorAttribute("next_range_min_key", next->first.AsBoundaryKeys().MinKey);
                     }
 
-                    if (cmp == 0 && table->Options->ValidateUniqueKeys) {
+                    if (cmp == 0 && table->TableWriterOptions->ValidateUniqueKeys) {
                         THROW_ERROR_EXCEPTION("Output table %v contains duplicate keys: job outputs have overlapping key ranges",
                             table->Path.GetPath())
                             << TErrorAttribute("current_range_max_key", current->first.AsBoundaryKeys().MaxKey)
@@ -1919,6 +1921,44 @@ void TOperationControllerBase::UpdateActualHistogram(const TStatistics& statisti
         auto dataWeight = FindNumericValue(statistics, "/data/input/data_weight");
         if (dataWeight && *dataWeight > 0) {
             InputDataSizeHistogram_->AddValue(*dataWeight);
+        }
+    }
+}
+
+void TOperationControllerBase::InitializeSecurityTags()
+{
+    std::vector<TString> inferredTags;
+    auto addTags = [&] (const auto& moreTags) {
+        inferredTags.insert(inferredTags.end(), moreTags.begin(), moreTags.end());
+    };
+    
+    addTags(Spec_->AdditionalSecurityTags);
+    
+    for (const auto& table : InputTables_) {
+        addTags(table->SecurityTags);
+    }
+    
+    for (const auto& [userJobSpec, files] : UserJobFiles_) {
+        for (const auto& file : files) {
+            addTags(file.SecurityTags);
+        }
+    }
+    
+    SortUnique(inferredTags);
+    
+    for (const auto& table : OutputTables_) {
+        if (auto explicitSecurityTags = table->Path.GetSecurityTags()) {
+            // TODO(babenko): audit
+            YT_LOG_INFO("Output table is assigned explicit security tags (Path: %v, InferredSecurityTags: %v, ExplicitSecurityTags: %v)",
+                table->Path.GetPath(),
+                inferredTags,
+                explicitSecurityTags);
+            table->TableUploadOptions.SecurityTags = *explicitSecurityTags;
+        } else {
+            YT_LOG_INFO("Output table is assigned automatically-inferred security tags (Path: %v, SecurityTags: %v)",
+                table->Path.GetPath(),
+                inferredTags);
+            table->TableUploadOptions.SecurityTags = inferredTags;
         }
     }
 }
@@ -4212,9 +4252,9 @@ void TOperationControllerBase::CreateLivePreviewTables()
             addRequest(
                 path,
                 table->CellTag,
-                table->Options->ReplicationFactor,
-                table->Options->CompressionCodec,
-                table->Options->Account,
+                table->TableWriterOptions->ReplicationFactor,
+                table->TableWriterOptions->CompressionCodec,
+                table->TableWriterOptions->Account,
                 "create_output",
                 table->EffectiveAcl,
                 table->TableUploadOptions.TableSchema);
@@ -4229,8 +4269,8 @@ void TOperationControllerBase::CreateLivePreviewTables()
         addRequest(
             path,
             StderrTable_->CellTag,
-            StderrTable_->Options->ReplicationFactor,
-            StderrTable_->Options->CompressionCodec,
+            StderrTable_->TableWriterOptions->ReplicationFactor,
+            StderrTable_->TableWriterOptions->CompressionCodec,
             std::nullopt /* account */,
             "create_stderr",
             StderrTable_->EffectiveAcl,
@@ -4473,6 +4513,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
 
     TGetUserObjectBasicAttributesOptions getUserObjectBasicAttributesOptions;
     getUserObjectBasicAttributesOptions.OmitInaccessibleColumns = Spec_->OmitInaccessibleColumns;
+    getUserObjectBasicAttributesOptions.PopulateSecurityTags = true;
     GetUserObjectBasicAttributes(
         InputClient,
         MakeUserObjectList(InputTables_),
@@ -4575,12 +4616,13 @@ void TOperationControllerBase::GetInputTablesAttributes()
                 // Validate that timestamp is correct.
                 ValidateDynamicTableTimestamp(table->Path, table->IsDynamic, table->Schema, *attributes);
             }
-            YT_LOG_INFO("Input table locked (Path: %v, ObjectId: %v, Schema: %v, Dynamic: %v, ChunkCount: %v)",
+            YT_LOG_INFO("Input table locked (Path: %v, ObjectId: %v, Schema: %v, Dynamic: %v, ChunkCount: %v, SecurityTags: %v)",
                 path,
                 table->ObjectId,
                 table->Schema,
                 table->IsDynamic,
-                table->ChunkCount);
+                table->ChunkCount,
+                table->SecurityTags);
 
             if (!table->ColumnRenameDescriptors.empty()) {
                 if (table->Path.GetTeleport()) {
@@ -4676,7 +4718,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
             table->Timestamp = GetTransactionForOutputTable(table)->GetStartTimestamp();
 
             // NB(psushin): This option must be set before PrepareOutputTables call.
-            table->Options->EvaluateComputedColumns = table->TableUploadOptions.TableSchema.HasComputedColumns();
+            table->TableWriterOptions->EvaluateComputedColumns = table->TableUploadOptions.TableSchema.HasComputedColumns();
 
             YT_LOG_DEBUG("Received output table schema (Path: %v, Schema: %v, SchemaMode: %v, LockMode: %v)",
                 path,
@@ -4786,26 +4828,26 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                 auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
                 if (table->TableUploadOptions.TableSchema.IsSorted()) {
-                    table->Options->ValidateSorted = true;
-                    table->Options->ValidateUniqueKeys = table->TableUploadOptions.TableSchema.GetUniqueKeys();
+                    table->TableWriterOptions->ValidateSorted = true;
+                    table->TableWriterOptions->ValidateUniqueKeys = table->TableUploadOptions.TableSchema.GetUniqueKeys();
                 } else {
-                    table->Options->ValidateSorted = false;
+                    table->TableWriterOptions->ValidateSorted = false;
                 }
 
-                table->Options->CompressionCodec = table->TableUploadOptions.CompressionCodec;
-                table->Options->ErasureCodec = table->TableUploadOptions.ErasureCodec;
-                table->Options->ReplicationFactor = attributes->Get<int>("replication_factor");
-                table->Options->MediumName = attributes->Get<TString>("primary_medium");
-                table->Options->Account = attributes->Get<TString>("account");
-                table->Options->ChunksVital = attributes->Get<bool>("vital");
-                table->Options->OptimizeFor = table->TableUploadOptions.OptimizeFor;
-                table->Options->EnableSkynetSharing = attributes->Get<bool>("enable_skynet_sharing", false);
+                table->TableWriterOptions->CompressionCodec = table->TableUploadOptions.CompressionCodec;
+                table->TableWriterOptions->ErasureCodec = table->TableUploadOptions.ErasureCodec;
+                table->TableWriterOptions->ReplicationFactor = attributes->Get<int>("replication_factor");
+                table->TableWriterOptions->MediumName = attributes->Get<TString>("primary_medium");
+                table->TableWriterOptions->Account = attributes->Get<TString>("account");
+                table->TableWriterOptions->ChunksVital = attributes->Get<bool>("vital");
+                table->TableWriterOptions->OptimizeFor = table->TableUploadOptions.OptimizeFor;
+                table->TableWriterOptions->EnableSkynetSharing = attributes->Get<bool>("enable_skynet_sharing", false);
 
                 // Workaround for YT-5827.
                 if (table->TableUploadOptions.TableSchema.Columns().empty() &&
                     table->TableUploadOptions.TableSchema.GetStrict())
                 {
-                    table->Options->OptimizeFor = EOptimizeFor::Lookup;
+                    table->TableWriterOptions->OptimizeFor = EOptimizeFor::Lookup;
                 }
 
                 table->EffectiveAcl = attributes->GetYson("effective_acl");
@@ -4813,7 +4855,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             }
             YT_LOG_INFO("Output table locked (Path: %v, Options: %v, UploadTransactionId: %v)",
                 path,
-                ConvertToYsonString(table->Options, EYsonFormat::Text).GetData(),
+                ConvertToYsonString(table->TableWriterOptions, EYsonFormat::Text).GetData(),
                 table->UploadTransactionId);
         }
     }
@@ -5139,6 +5181,8 @@ void TOperationControllerBase::GetUserFilesAttributes()
     YT_LOG_INFO("Getting user files attributes");
 
     for (auto& [userJobSpec, files] : UserJobFiles_) {
+        TGetUserObjectBasicAttributesOptions getUserObjectBasicAttributesOptions;
+        getUserObjectBasicAttributesOptions.PopulateSecurityTags = true;
         GetUserObjectBasicAttributes(
             Client,
             MakeUserObjectList(files),
@@ -5305,10 +5349,11 @@ void TOperationControllerBase::GetUserFilesAttributes()
                     }
                     file.ChunkCount = chunkCount;
 
-                    YT_LOG_INFO("User file locked (Path: %v, TaskTitle: %v, FileName: %v)",
+                    YT_LOG_INFO("User file locked (Path: %v, TaskTitle: %v, FileName: %v, SecurityTags: %v)",
                         path,
                         userJobSpec->TaskTitle,
-                        file.FileName);
+                        file.FileName,
+                        file.SecurityTags);
                 }
 
                 if (!file.Layer) {
@@ -6034,7 +6079,7 @@ void TOperationControllerBase::RegisterTeleportChunk(
     if (table->TableUploadOptions.TableSchema.IsSorted() && ShouldVerifySortedOutput()) {
         YCHECK(chunkSpec->BoundaryKeys());
         YCHECK(chunkSpec->GetRowCount() > 0);
-        YCHECK(chunkSpec->GetUniqueKeys() || !table->Options->ValidateUniqueKeys);
+        YCHECK(chunkSpec->GetUniqueKeys() || !table->TableWriterOptions->ValidateUniqueKeys);
 
         NScheduler::NProto::TOutputResult resultBoundaryKeys;
         resultBoundaryKeys.set_empty(false);
@@ -7108,7 +7153,7 @@ void TOperationControllerBase::AddStderrOutputSpecs(
 {
     auto* stderrTableSpec = jobSpec->mutable_stderr_table_spec();
     auto* outputSpec = stderrTableSpec->mutable_output_table_spec();
-    outputSpec->set_table_writer_options(ConvertToYsonString(StderrTable_->Options).GetData());
+    outputSpec->set_table_writer_options(ConvertToYsonString(StderrTable_->TableWriterOptions).GetData());
     ToProto(outputSpec->mutable_table_schema(), StderrTable_->TableUploadOptions.TableSchema);
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->StderrTableChunkListId);
 
@@ -7123,7 +7168,7 @@ void TOperationControllerBase::AddCoreOutputSpecs(
 {
     auto* coreTableSpec = jobSpec->mutable_core_table_spec();
     auto* outputSpec = coreTableSpec->mutable_output_table_spec();
-    outputSpec->set_table_writer_options(ConvertToYsonString(CoreTable_->Options).GetData());
+    outputSpec->set_table_writer_options(ConvertToYsonString(CoreTable_->TableWriterOptions).GetData());
     ToProto(outputSpec->mutable_table_schema(), CoreTable_->TableUploadOptions.TableSchema);
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->CoreTableChunkListId);
 
@@ -7136,13 +7181,13 @@ i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfi
 {
     i64 result = 0;
     for (const auto& outputTable : OutputTables_) {
-        if (outputTable->Options->ErasureCodec == NErasure::ECodec::None) {
+        if (outputTable->TableWriterOptions->ErasureCodec == NErasure::ECodec::None) {
             i64 maxBufferSize = std::max(
                 ioConfig->TableWriter->MaxRowWeight,
                 ioConfig->TableWriter->MaxBufferSize);
             result += GetOutputWindowMemorySize(ioConfig) + maxBufferSize;
         } else {
-            auto* codec = NErasure::GetCodec(outputTable->Options->ErasureCodec);
+            auto* codec = NErasure::GetCodec(outputTable->TableWriterOptions->ErasureCodec);
             double replicationFactor = (double) codec->GetTotalPartCount() / codec->GetDataPartCount();
             result += static_cast<i64>(ioConfig->TableWriter->DesiredChunkSize * replicationFactor);
         }

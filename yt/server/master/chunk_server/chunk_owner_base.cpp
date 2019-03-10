@@ -146,18 +146,14 @@ void TChunkOwnerBase::EndUpload(const TEndUploadContext& context)
             if (context.Statistics) {
                 DeltaStatistics_ = *context.Statistics;
             }
-            if (context.SecurityTags) {
-                DeltaSecurityTags_ = *context.SecurityTags;
-            }
+            DeltaSecurityTags_ = context.SecurityTags;
             break;
 
         case EUpdateMode::Overwrite:
             if (context.Statistics) {
                 SnapshotStatistics_ = *context.Statistics;
             }
-            if (context.SecurityTags) {
-                SnapshotSecurityTags_ = *context.SecurityTags;
-            }
+            SnapshotSecurityTags_ = context.SecurityTags;
             break;
 
         default:

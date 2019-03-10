@@ -65,7 +65,7 @@ public:
         NTableClient::ETableSchemaMode SchemaMode = NTableClient::ETableSchemaMode::Weak;
         std::optional<NTableClient::EOptimizeFor> OptimizeFor;
         std::optional<NCrypto::TMD5Hasher> MD5Hasher;
-        std::optional<NSecurityServer::TInternedSecurityTags> SecurityTags;
+        NSecurityServer::TInternedSecurityTags SecurityTags;
     };
 
     virtual void EndUpload(const TEndUploadContext& context);

@@ -56,6 +56,8 @@ struct TPermissionCheckResponse;
 
 struct TUserWorkload;
 
+constexpr int TypicalSecurityTagCount = 16;
+using TSecurityTagsItems = SmallVector<TString, TypicalSecurityTagCount>;
 struct TSecurityTags;
 using TInternedSecurityTags = TInternedObject<TSecurityTags>;
 using TSecurityTagsRegistry = TInternRegistry<TSecurityTags>;

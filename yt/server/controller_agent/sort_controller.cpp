@@ -2242,10 +2242,10 @@ private:
     {
         auto& table = OutputTables_[0];
         table->TableUploadOptions.LockMode = ELockMode::Exclusive;
-        table->Options->EvaluateComputedColumns = false;
+        table->TableWriterOptions->EvaluateComputedColumns = false;
 
         // Sort output MUST be sorted.
-        table->Options->ExplodeOnValidationError = true;
+        table->TableWriterOptions->ExplodeOnValidationError = true;
 
         if (table->TableUploadOptions.UpdateMode == EUpdateMode::Append &&
             table->TableUploadOptions.TableSchema.GetKeyColumns() != Spec->SortBy)

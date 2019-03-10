@@ -1,12 +1,18 @@
 #include "security_tags.h"
 
 #include <yt/core/misc/hash.h>
+#include <yt/core/misc/serialize.h>
 
 #include <util/generic/algorithm.h>
 
 namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+bool TSecurityTags::IsEmpty() const
+{
+    return Items.empty();
+}
 
 TSecurityTags::operator size_t() const
 {
@@ -41,6 +47,12 @@ void TSecurityTags::Normalize()
 
 TSecurityTags operator + (const TSecurityTags& a, const TSecurityTags& b)
 {
+    if (a.Items.empty()) {
+        return b;
+    }
+    if (b.Items.empty()) {
+        return a;
+    }
     TSecurityTags result;
     result.Items.reserve(a.Items.size() + b.Items.size());
     result.Items.insert(result.Items.end(), a.Items.begin(), a.Items.end());

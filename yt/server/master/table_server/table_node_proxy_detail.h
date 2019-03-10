@@ -31,9 +31,9 @@ public:
         TTableNode* trunkNode);
 
 protected:
-    typedef TCypressNodeProxyBase<TChunkOwnerNodeProxy, NYTree::IEntityNode, TTableNode> TBase;
+    using TBase = TCypressNodeProxyBase<TChunkOwnerNodeProxy, NYTree::IEntityNode, TTableNode>;
 
-    virtual void ValidateGetBasicAttributesPermissions(const TObjectProxyBase::TCtxGetBasicAttributesPtr& context) override;
+    virtual void GetBasicAttributes(TGetBasicAttributesContext* context) override;
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
