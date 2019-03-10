@@ -159,7 +159,6 @@ DB::StoragePtr CreateStorageConcat(
             DB::ErrorCodes::LOGICAL_ERROR);
     }
 
-    // TODO: too restrictive
     VerifyThatSchemasAreIdentical(tables);
     auto representativeTable = tables.front();
     auto commonSchema = TClickHouseTableSchema::From(*representativeTable);
