@@ -156,7 +156,7 @@ public:
         const NApi::TFileReaderOptions& options) override;
 
     virtual NApi::IFileWriterPtr CreateFileWriter(
-        const NYPath::TYPath& path,
+        const NYPath::TRichYPath& path,
         const NApi::TFileWriterOptions& options) override;
 
     virtual NApi::IJournalReaderPtr CreateJournalReader(

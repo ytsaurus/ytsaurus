@@ -583,7 +583,7 @@ TFuture<IFileReaderPtr> TTransaction::CreateFileReader(
 }
 
 IFileWriterPtr TTransaction::CreateFileWriter(
-    const TYPath& path,
+    const TRichYPath& path,
     const TFileWriterOptions& options)
 {
     ValidateActive();

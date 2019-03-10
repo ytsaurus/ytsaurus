@@ -437,7 +437,7 @@ public:
         const TFileReaderOptions& options),
         (path, options))
     DELEGATE_TRANSACTIONAL_METHOD(IFileWriterPtr, CreateFileWriter, (
-        const TYPath& path,
+        const TRichYPath& path,
         const TFileWriterOptions& options),
         (path, options))
 

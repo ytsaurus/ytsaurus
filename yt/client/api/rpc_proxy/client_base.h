@@ -130,7 +130,7 @@ public:
     }
 
     virtual NApi::IFileWriterPtr CreateFileWriter(
-        const NYPath::TYPath&,
+        const NYPath::TRichYPath&,
         const NApi::TFileWriterOptions&) override
     {
         ThrowUnimplemented("write_file");
