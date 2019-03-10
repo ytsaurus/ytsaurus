@@ -75,7 +75,7 @@ Y_UNIT_TEST_SUITE(FileIo)
         constexpr size_t offset = 42;
         constexpr size_t length = 1024 * 1024;
 
-        UNIT_ASSERT(offset + length < fileData.Size());
+        UNIT_ASSERT(offset + length < fileData.size());
         auto reader = client->CreateFileReader(
             testReaderFixture.GetWorkingDir() + "/file",
             TFileReaderOptions().Offset(offset).Length(length));

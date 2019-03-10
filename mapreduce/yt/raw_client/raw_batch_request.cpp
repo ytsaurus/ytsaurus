@@ -213,7 +213,7 @@ public:
     virtual void SetResponse(TMaybe<TNode> node) override
     {
         EnsureType(node, TNode::String);
-        if (node->AsString().Empty()) {
+        if (node->AsString().empty()) {
             Result.SetValue(Nothing());
         } else {
             Result.SetValue(node->AsString());

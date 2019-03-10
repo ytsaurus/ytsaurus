@@ -321,13 +321,13 @@ public:
         constexpr size_t md5Size = 32;
         TString result;
         result.ReserveAndResize(md5Size);
-        MD5::Data(reinterpret_cast<const unsigned char*>(Data_.Data()), Data_.Size(), result.Detach());
+        MD5::Data(reinterpret_cast<const unsigned char*>(Data_.data()), Data_.size(), result.Detach());
         return result;
     }
 
     THolder<IInputStream> CreateInputStream() const override
     {
-        return MakeHolder<TMemoryInput>(Data_.Data(), Data_.Size());
+        return MakeHolder<TMemoryInput>(Data_.data(), Data_.size());
     }
 
     TString GetDescription() const override
@@ -658,7 +658,7 @@ private:
         auto cachePath = UploadToCache(TDataToUpload(smallFile.Data, smallFile.FileName + " [generated-file]"));
         CachedFiles_.push_back(TRichYPath(cachePath).FileName(smallFile.FileName));
         if (ShouldMountSandbox()) {
-            TotalFileSize_ += RoundUpFileSize(smallFile.Data.Size());
+            TotalFileSize_ += RoundUpFileSize(smallFile.Data.size());
         }
     }
 };
@@ -685,8 +685,8 @@ TVector<TFailedJobInfo> GetFailedJobInfo(
         info.Error = TYtError(errorIt == jobMap.end() ? "unknown error" : errorIt->second);
         if (jobMap.count("stderr_size")) {
             info.Stderr = GetJobStderrWithRetries(auth, operationId, info.JobId);
-            if (info.Stderr.Size() > static_cast<size_t>(stderrTailSize)) {
-                info.Stderr = TString(info.Stderr.Data() + info.Stderr.Size() - stderrTailSize, stderrTailSize);
+            if (info.Stderr.size() > static_cast<size_t>(stderrTailSize)) {
+                info.Stderr = TString(info.Stderr.data() + info.Stderr.size() - stderrTailSize, stderrTailSize);
             }
         }
         result.push_back(std::move(info));
@@ -829,7 +829,7 @@ void BuildCommonOperationPart(const TOperationOptions& options, TFluentMap fluen
             .Item("command").List(properties->CommandLine)
             .Item("wrapper_version").Value(properties->ClientVersion)
         .EndMap()
-        .DoIf(!pool.Empty(), [&] (TFluentMap fluentMap) {
+        .DoIf(!pool.empty(), [&] (TFluentMap fluentMap) {
             fluentMap.Item("pool").Value(pool);
         })
         .DoIf(options.SecureVault_.Defined(), [&] (TFluentMap fluentMap) {
@@ -1771,7 +1771,7 @@ TOperationId ExecuteRemoteCopy(
         CreateOutputTable(preparer.GetAuth(), preparer.GetTransactionId(), output);
     }
 
-    Y_ENSURE_EX(!spec.ClusterName_.Empty(), TApiUsageError() << "ClusterName parameter is required");
+    Y_ENSURE_EX(!spec.ClusterName_.empty(), TApiUsageError() << "ClusterName parameter is required");
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()

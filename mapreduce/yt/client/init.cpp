@@ -88,7 +88,7 @@ private:
         const TString& logMessage)
     {
         std::function<void()> threadFun = [=] {
-            LOG_INFO("%s", logMessage.Data());
+            LOG_INFO("%s", logMessage.data());
             NDetail::TAbortableRegistry::Get()->AbortAllAndBlockForever();
         };
         TThread thread(TThread::TParams(Invoke, &threadFun).SetName("aborter"));

@@ -154,7 +154,7 @@ TString THttpHeader::GetHeader(const TString& hostName, const TString& requestId
     header << "Host: " << hostName << "\r\n";
     header << "User-Agent: " << TProcessState::Get()->ClientVersion << "\r\n";
 
-    if (!Token.Empty()) {
+    if (!Token.empty()) {
         header << "Authorization: OAuth " << Token << "\r\n";
     }
 
@@ -173,15 +173,15 @@ TString THttpHeader::GetHeader(const TString& hostName, const TString& requestId
         if (!value) {
             return;
         }
-        if (value.Size() <= maxHttpHeaderSize) {
+        if (value.size() <= maxHttpHeaderSize) {
             header << headerName << ": " << value << "\r\n";
             return;
         }
 
         TString encoded;
         Base64Encode(value, encoded);
-        auto ptr = encoded.Data();
-        auto finish = encoded.Data() + encoded.Size();
+        auto ptr = encoded.data();
+        auto finish = encoded.data() + encoded.size();
         size_t index = 0;
         do {
             auto end = Min(ptr + maxHttpHeaderSize, finish);
