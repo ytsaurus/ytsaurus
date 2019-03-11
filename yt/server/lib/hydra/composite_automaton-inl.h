@@ -15,6 +15,24 @@ namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline TEntitySerializationKey::TEntitySerializationKey()
+    : Index(-1)
+{ }
+
+inline TEntitySerializationKey::TEntitySerializationKey(int index)
+    : Index(index)
+{ }
+
+inline bool TEntitySerializationKey::operator == (TEntitySerializationKey rhs)
+{
+    return Index == rhs.Index;
+}
+
+inline bool TEntitySerializationKey::operator != (TEntitySerializationKey rhs)
+{
+    return !(*this == rhs);
+}
+
 inline void TEntitySerializationKey::Save(TSaveContext& context) const
 {
     NYT::Save(context, Index);
@@ -36,7 +54,7 @@ inline TEntitySerializationKey TSaveContext::GenerateSerializationKey()
 
 inline TEntitySerializationKey TLoadContext::RegisterEntity(void* entity)
 {
-    auto key = TEntitySerializationKey{static_cast<int>(Entities_.size())};
+    auto key = TEntitySerializationKey(static_cast<int>(Entities_.size()));
     Entities_.push_back(entity);
     return key;
 }
