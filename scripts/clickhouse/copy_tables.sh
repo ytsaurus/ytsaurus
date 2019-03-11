@@ -8,22 +8,40 @@ if [[ "${source_cluster}" == "" || "${destination_cluster}" == "" ]] ; then
     exit 1;
 fi
 
-function get_schema {
-    yt get --proxy ${source_cluster} //home/arivkin/choyt/demo/$1/@schema --format "<format=text>yson"
-}
-
 function create_table {
-    path=//home/arivkin/choyt/demo/$1
-    compression_codec=$(yt get --proxy ${source_cluster} ${path}/@compression_codec);
-    erasure_codec=$(yt get --proxy ${source_cluster} ${path}/@erasure_codec);
-    schema=$(yt get --proxy ${source_cluster} ${path}/@schema --format "<format=text>yson");
-    yt remove --proxy ${destination_cluster} ${path}
-    yt create --proxy ${destination_cluster} table ${path} --attributes "{compresion_codec=${compression_codec}; erasure_codec=${erasure_codec}; schema=${schema}; optimize_for=scan; primary_medium=chyt_ssd_test; replication_factor=1;}"
+    src=$1
+    dst=$2
+    echo "Creating table ${destination_cluster}:${dst} based on ${source_cluster}:${src}"
+    compression_codec=$(yt get --proxy ${source_cluster} ${src}/@compression_codec);
+    erasure_codec=$(yt get --proxy ${source_cluster} ${src}/@erasure_codec);
+    schema=$(yt get --proxy ${source_cluster} ${src}/@schema --format "<format=text>yson");
+    yt remove --proxy ${destination_cluster} ${dst}
+    yt create --proxy ${destination_cluster} table ${dst} --attributes "{compresion_codec=${compression_codec}; erasure_codec=${erasure_codec}; schema=${schema}; optimize_for=scan; primary_medium=chyt_ssd_test; replication_factor=1;}"
 }
 
-for name in mobile_sorted_small mobile_sorted_medium mobile_sorted_small_unixtime mobile_sorted_medium_unixtime ;
+function copy_table {
+    src=$1
+    dst=$2
+    echo "Copying ${source_cluster}:${src} -> ${destination_cluster}:${dst}"
+    yt remote-copy --proxy ${destination_cluster} --cluster ${source_cluster} --src $1 --dst $2 --spec '{job_io={table_writer={upload_replication_factor=1; min_upload_replication_factor=1}}}'
+}
+
+function merge_table {
+    src=$1
+    dst=$2
+    echo "Mergine ${source_cluster}:${src} -> ${destination_cluster}:${dst}"
+    yt merge --mode ordered --spec '{force_transform=%true}' --src ${src} --dst ${dst}
+}
+
+for name in mobile_sorted_small mobile_sorted_medium mobile_sorted_small_unixtime mobile_sorted_medium_unixtime;
 do 
-    echo "Copying ${name}"
-    create_table $name
-    yt remote-copy --proxy ${destination_cluster} --cluster ${source_cluster} --src //home/arivkin/choyt/demo/$name --dst //home/arivkin/choyt/demo/$name --spec '{job_io={table_writer={upload_replication_factor=1; min_upload_replication_factor=1}}}'
+    create_table //home/arivkin/choyt/demo/$name //home/arivkin/choyt/demo/$name
+    copy_table //home/arivkin/choyt/demo/$name //home/arivkin/choyt/demo/$name
 done
+
+create_table //home/arivkin/choyt/demo/mobile_sorted_small //home/arivkin/choyt/demo/mobile_sorted_small_uncompressed
+yt set --proxy ${destination_cluster} //home/arivkin/choyt/demo/mobile_sorted_small_uncompressed/@compression_codec none
+create_table //home/arivkin/choyt/demo/mobile_sorted_medium //home/arivkin/choyt/demo/mobile_sorted_medium_uncompressed
+yt set --proxy ${destination_cluster} //home/arivkin/choyt/demo/mobile_sorted_medium_uncompressed/@compression_codec none
+merge_table //home/arivkin/choyt/demo/mobile_sorted_small //home/arivkin/choyt/demo/mobile_sorted_small_uncompressed
+merge_table //home/arivkin/choyt/demo/mobile_sorted_medium //home/arivkin/choyt/demo/mobile_sorted_medium_uncompressed
