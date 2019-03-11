@@ -293,6 +293,31 @@ message TEnvVar {
     TEnvVarValue value = 2;
 }
 
+enum EContainerULimitType {
+    // address space 
+    EContainerULimit_AS = 0 [(NYT.NYson.NProto.enum_value_name) = "as"];
+
+    // core file size
+    EContainerULimit_CORE = 1 [(NYT.NYson.NProto.enum_value_name) = "core"];
+
+    // data seg size
+    EContainerULimit_DATA = 2 [(NYT.NYson.NProto.enum_value_name) = "data"];
+
+    // max locked memory
+    EContainerULimit_MEMLOCK = 3 [(NYT.NYson.NProto.enum_value_name) = "memlock"];
+
+    // stack size
+    EContainerULimit_STACK = 4 [(NYT.NYson.NProto.enum_value_name) = "stack"];
+
+    // file size
+    EcontainerULimit_FSIZE = 5 [(NYT.NYson.NProto.enum_value_name) = "fsize"];
+}
+
+message TUlimitSoft {
+    EContainerULimitType name = 1;
+    uint64 value = 2;
+}
+
 enum EWorkloadTargetState {
     EWorkloadTarget_ACTIVE = 0 [(NYT.NYson.NProto.enum_value_name) = "active"];
     EWorkloadTarget_REMOVED = 1 [(NYT.NYson.NProto.enum_value_name) = "removed"];
@@ -309,6 +334,9 @@ message TWorkload {
 
     //Переменные окружения - прокидываются во все контейнеры ворклода
     repeated TEnvVar env = 5;
+
+    //Soft лимиты окружения - прокидываются во все контейнеры ворклода
+    repeated TUlimitSoft ulimit_soft = 14;
 
     //Набор команд, запускаемых перед стартом основного процесса.
     //Гарантируется, что каждая отработает at least once.
