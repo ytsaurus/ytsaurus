@@ -116,13 +116,13 @@ class Clique(object):
         args = [CLICKHOUSE_CLIENT_BINARY, "client",
                 "-h", host,
                 "--port", port,
-                "-q", query,
                 "--format", "JSON",
                 "-u", user,
                 "--output_format_json_quote_64bit_integers", "0"]
-        print >>sys.stderr, "Running '{0}'...".format(' '.join(args))
+        print >>sys.stderr, "Running '{0}' with the following input:\n> {1}".format(' '.join(args), query)
 
-        process = psutil.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        process = psutil.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        process.stdin.write(query)
         stdout, stderr = process.communicate()
         return_code = process.returncode
 
@@ -532,6 +532,70 @@ class TestClickHouseSchema(ClickHouseTestBase):
         with Clique(1) as clique:
             with pytest.raises(YtError):
                 clique.make_query("select * from \"//tmp/t\"")
+
+    def test_common_schema_unsorted(self):
+        create("table", "//tmp/t1", attributes={"schema": [
+            {"name": "a", "type": "int64"},
+            {"name": "b", "type": "string"},
+            {"name": "c", "type": "double"},
+        ]})
+        create("table", "//tmp/t2", attributes={"schema": [
+            {"name": "a", "type": "int64"},
+            {"name": "d", "type": "double"},
+        ]})
+        create("table", "//tmp/t3", attributes={"schema": [
+            {"name": "a", "type": "string"}
+        ]})
+
+        write_table("//tmp/t1", {"a": 42, "b": "x", "c": 3.14})
+        write_table("//tmp/t2", {"a": 17, "d": 2.71})
+        write_table("//tmp/t3", {"a": "y"})
+
+        with Clique(1) as clique:
+            assert clique.make_query("describe concatYtTables(\"//tmp/t1\", \"//tmp/t2\")")["data"] == \
+                [{"name": "a", "type": "Int64", "default_type": "", "default_expression": ""}]
+            assert clique.make_query("select * from concatYtTables(\"//tmp/t1\", \"//tmp/t2\") order by a")["data"] == \
+                [{"a": 17}, {"a": 42}]
+
+            with pytest.raises(YtError):
+                clique.make_query("describe concatYtTables(\"//tmp/t1\", \"//tmp/t2\", \"//tmp/t3\")")
+
+    def test_common_schema_sorted(self):
+        create("table", "//tmp/t1", attributes={"schema": [
+            {"name": "a", "type": "int64", "sort_order": "ascending"},
+            {"name": "b", "type": "string", "sort_order": "ascending"},
+            {"name": "c", "type": "double"},
+        ]})
+        create("table", "//tmp/t2", attributes={"schema": [
+            {"name": "a", "type": "int64", "sort_order": "ascending"},
+            {"name": "d", "type": "double"},
+        ]})
+        create("table", "//tmp/t3", attributes={"schema": [
+            {"name": "a", "type": "int64"},
+            {"name": "d", "type": "double"},
+        ]})
+
+        write_table("//tmp/t1", {"a": 42, "b": "x", "c": 3.14})
+        write_table("//tmp/t2", {"a": 17, "d": 2.71})
+
+        with Clique(1) as clique:
+            with pytest.raises(YtError):
+                clique.make_query("describe concatYtTables(\"//tmp/t1\", \"//tmp/t2\")")
+            with pytest.raises(YtError):
+                clique.make_query("describe concatYtTables(\"//tmp/t2\", \"//tmp/t1\")")
+            with pytest.raises(YtError):
+                clique.make_query("describe concatYtTables(\"//tmp/t1\", \"//tmp/t3\")")
+
+            assert clique.make_query("describe concatYtTablesDropPrimaryKey(\"//tmp/t1\", \"//tmp/t2\")")["data"] == \
+                [{"name": "a", "type": "Int64", "default_type": "", "default_expression": ""}]
+            assert clique.make_query("select * from concatYtTablesDropPrimaryKey(\"//tmp/t1\", \"//tmp/t2\") order by a")["data"] == \
+                [{"a": 17}, {"a": 42}]
+
+            assert clique.make_query("describe concatYtTablesDropPrimaryKey(\"//tmp/t2\", \"//tmp/t1\")")["data"] == \
+                [{"name": "a", "type": "Int64", "default_type": "", "default_expression": ""}]
+            assert clique.make_query("select * from concatYtTablesDropPrimaryKey(\"//tmp/t2\", \"//tmp/t1\") order by a")["data"] == \
+                [{"a": 17}, {"a": 42}]
+
 
 class TestClickHouseAccess(ClickHouseTestBase):
     def setup(self):

@@ -1,5 +1,6 @@
 #include "storage_table.h"
 
+#include "db_helpers.h"
 #include "private.h"
 #include "format_helpers.h"
 #include "logging_helpers.h"
@@ -18,6 +19,7 @@
 #include <Parsers/ASTSelectQuery.h>
 #include <Parsers/ASTTablesInSelectQuery.h>
 #include <Parsers/queryToString.h>
+#include <DataTypes/DataTypeFactory.h>
 
 #include <common/logger_useful.h>
 
@@ -129,29 +131,95 @@ ASTPtr TStorageConcat::RewriteSelectQueryForTablePart(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void VerifyThatSchemasAreIdentical(const std::vector<TClickHouseTablePtr>& tables)
+TClickHouseTableSchema GetCommonSchema(const std::vector<TClickHouseTablePtr>& tables, bool dropPrimaryKey)
 {
-    if (tables.size() <= 1) {
-        return;
+    // TODO(max42): code below looks like a good programming contest code, but seems strange as a production code.
+    // Maybe rewrite it simpler?
+
+    THashMap<TString, TClickHouseColumn> nameToColumn;
+    THashMap<TString, int> nameToOccurrenceCount;
+    for (const auto& tableColumn : tables[0]->Columns) {
+        auto column = tableColumn;
+        if (dropPrimaryKey) {
+            column.DropSorted();
+        }
+        nameToColumn[column.Name] = column;
     }
 
-    auto representativeTable = tables.front();
+    auto validateColumnDrop = [&] (const TClickHouseColumn& column) {
+        if (column.IsSorted()) {
+            THROW_ERROR_EXCEPTION(
+                "Primary key column %v is not taken in the resulting schema; in order to force dropping primary "
+                "key columns, use 'concat...DropPrimaryKey' variant of the function", column.Name);
+        }
+    };
 
-    for (size_t i = 1; i < tables.size(); ++i) {
-        auto& table = tables[i];
+    for (const auto& table : tables) {
+        for (const auto& tableColumn : table->Columns) {
+            auto column = tableColumn;
+            if (dropPrimaryKey) {
+                column.DropSorted();
+            }
 
-        if (table->Columns != representativeTable->Columns) {
-            throw Exception(
-                "Cannot concatenate tables with different schemas: " +
-                Quoted(representativeTable->Name) + " and " + Quoted(table->Name),
-                DB::ErrorCodes::INCOMPATIBLE_COLUMNS);
+            bool columnTaken = false;
+            auto it = nameToColumn.find(column.Name);
+            if (it != nameToColumn.end()) {
+                if (it->second == column) {
+                    columnTaken = true;
+                } else {
+                    // There are at least two different variations of given column among provided tables,
+                    // so we are not going to take it.
+                }
+            }
+
+            if (columnTaken) {
+                ++nameToOccurrenceCount[column.Name];
+            } else {
+                validateColumnDrop(column);
+            }
         }
     }
+
+    for (const auto& [name, occurrenceCount] : nameToOccurrenceCount) {
+        if (occurrenceCount != static_cast<int>(tables.size())) {
+            auto it = nameToColumn.find(name);
+            YCHECK(it != nameToColumn.end());
+            validateColumnDrop(nameToColumn[name]);
+            nameToColumn.erase(it);
+        }
+    }
+
+    if (nameToColumn.empty()) {
+        THROW_ERROR_EXCEPTION("Requested tables do not have any common column");
+    }
+
+    std::vector<TClickHouseColumn> remainingColumns = tables[0]->Columns;
+    remainingColumns.erase(std::remove_if(remainingColumns.begin(), remainingColumns.end(), [&] (const TClickHouseColumn& column) {
+        return !nameToColumn.contains(column.Name);
+    }), remainingColumns.end());
+
+    // TODO(max42): extract as helper (there are two occurrences of this boilerplate code).
+    const auto& dataTypes = DB::DataTypeFactory::instance();
+    DB::NamesAndTypesList columns;
+    DB::NamesAndTypesList keyColumns;
+    DB::Names primarySortColumns;
+
+    for (const auto& column : remainingColumns) {
+        auto dataType = dataTypes.get(GetTypeName(column));
+        columns.emplace_back(column.Name, dataType);
+
+        if (column.IsSorted()) {
+            keyColumns.emplace_back(column.Name, dataType);
+            primarySortColumns.emplace_back(column.Name);
+        }
+    }
+    return TClickHouseTableSchema(std::move(columns), std::move(keyColumns), std::move(primarySortColumns));
 }
 
 DB::StoragePtr CreateStorageConcat(
     std::vector<TClickHouseTablePtr> tables,
-    IExecutionClusterPtr cluster)
+    IExecutionClusterPtr cluster,
+    bool dropPrimaryKey)
 {
     if (tables.empty()) {
         throw Exception(
@@ -159,9 +227,7 @@ DB::StoragePtr CreateStorageConcat(
             DB::ErrorCodes::LOGICAL_ERROR);
     }
 
-    VerifyThatSchemasAreIdentical(tables);
-    auto representativeTable = tables.front();
-    auto commonSchema = TClickHouseTableSchema::From(*representativeTable);
+    auto commonSchema = GetCommonSchema(tables, dropPrimaryKey);
 
     auto storage = std::make_shared<TStorageConcat>(
         std::move(tables),

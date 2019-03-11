@@ -122,17 +122,22 @@ class TConcatenateTablesList
 {
 private:
     IExecutionClusterPtr Cluster;
+    bool DropPrimaryKey;
 
 public:
-    TConcatenateTablesList(IExecutionClusterPtr cluster)
+    TConcatenateTablesList(IExecutionClusterPtr cluster, bool dropPrimaryKey)
         : Cluster(std::move(cluster))
+        , DropPrimaryKey(dropPrimaryKey)
     {}
 
-    static constexpr auto Name = "concatYtTables";
+    static std::string GetName()
+    {
+        return "concatYtTables";
+    }
 
     std::string getName() const override
     {
-        return Name;
+        return GetName();
     }
 
     StoragePtr executeImpl(
@@ -188,7 +193,8 @@ StoragePtr TConcatenateTablesList::Execute(
 
     return CreateStorageConcat(
         std::move(tables),
-        Cluster);
+        Cluster,
+        DropPrimaryKey);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -205,12 +211,16 @@ private:
 
     Poco::Logger* Logger;
 
+    bool DropPrimaryKey;
+
 public:
     TListFilterAndConcatenateTables(
         IExecutionClusterPtr cluster,
-        Poco::Logger* logger)
+        Poco::Logger* logger,
+        bool dropPrimaryKey)
         : Cluster(std::move(cluster))
         , Logger(logger)
+        , DropPrimaryKey(dropPrimaryKey)
     {}
 
     virtual StoragePtr executeImpl(const ASTPtr& functionAst, const Context& context) const override;
@@ -285,7 +295,7 @@ StoragePtr TListFilterAndConcatenateTables::CreateStorage(
         throw Exception("No tables found by " + getName(), ErrorCodes::CANNOT_SELECT);
     }
 
-    return CreateStorageConcat(tables, Cluster);
+    return CreateStorageConcat(tables, Cluster, DropPrimaryKey);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -295,17 +305,22 @@ class TConcatenateTablesRange
 {
 public:
     TConcatenateTablesRange(
-        IExecutionClusterPtr cluster)
+        IExecutionClusterPtr cluster,
+        bool dropPrimaryKey)
         : TListFilterAndConcatenateTables(
             std::move(cluster),
-            &Poco::Logger::get("ConcatYtTablesRange"))
+            &Poco::Logger::get("ConcatYtTablesRange"),
+            dropPrimaryKey)
     {}
 
-    static constexpr auto Name = "concatYtTablesRange";
+    static std::string GetName()
+    {
+        return "concatYtTablesRange";
+    }
 
     std::string getName() const override
     {
-        return Name;
+        return GetName();
     }
 
 private:
@@ -364,17 +379,21 @@ class TConcatenateTablesRegexp
     : public TListFilterAndConcatenateTables
 {
 public:
-    TConcatenateTablesRegexp(IExecutionClusterPtr cluster)
+    TConcatenateTablesRegexp(IExecutionClusterPtr cluster, bool dropPrimaryKey)
         : TListFilterAndConcatenateTables(
             std::move(cluster),
-            &Poco::Logger::get("ConcatYtTablesRegexp"))
+            &Poco::Logger::get("ConcatYtTablesRegexp"),
+            dropPrimaryKey)
     {}
 
-    static constexpr auto Name = "concatYtTablesRegexp";
+    static std::string GetName()
+    {
+        return "concatYtTablesRegexp";
+    }
 
     virtual std::string getName() const override
     {
-        return Name;
+        return GetName();
     }
 
 private:
@@ -412,17 +431,22 @@ class TConcatenateTablesLike
 {
 public:
     TConcatenateTablesLike(
-        IExecutionClusterPtr cluster)
+        IExecutionClusterPtr cluster,
+        bool dropPrimaryKey)
         : TListFilterAndConcatenateTables(
             std::move(cluster),
-            &Poco::Logger::get("ConcatYtTablesLike"))
+            &Poco::Logger::get("ConcatYtTablesLike"),
+            dropPrimaryKey)
     {}
 
-    static constexpr auto Name = "concatYtTablesLike";
+    static std::string GetName()
+    {
+        return "concatYtTablesLike";
+    }
 
     std::string getName() const override
     {
-        return Name;
+        return GetName();
     }
 
 private:
@@ -462,12 +486,15 @@ void RegisterConcatenatingTableFunctions(IExecutionClusterPtr cluster)
 
 #define REGISTER_TABLE_FUNCTION(TFunction) \
     factory.registerFunction( \
-        TFunction::Name, \
-        [=] { return std::make_shared<TFunction>(cluster); } \
+        TFunction::GetName(), \
+        [=] { return std::make_shared<TFunction>(cluster, false); } \
+        ); \
+    factory.registerFunction( \
+        TFunction::GetName() + "DropPrimaryKey", \
+        [=] { return std::make_shared<TFunction>(cluster, true); } \
         );
 
     REGISTER_TABLE_FUNCTION(TConcatenateTablesList);
-
     REGISTER_TABLE_FUNCTION(TConcatenateTablesRange);
     REGISTER_TABLE_FUNCTION(TConcatenateTablesRegexp);
     REGISTER_TABLE_FUNCTION(TConcatenateTablesLike);

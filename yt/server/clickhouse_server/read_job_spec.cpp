@@ -58,16 +58,13 @@ void TReadJobSpec::Validate() const
     for (size_t i = 1; i < dataSources.size(); ++i) {
         auto dataSource = dataSources[i];
 
-        if (*dataSource.Schema() != representativeDataSource.Schema()) {
-            THROW_ERROR_EXCEPTION("Invalid job specification: inconsistent schemas");
-        }
         if (dataSource.GetType() != representativeDataSource.GetType()) {
             THROW_ERROR_EXCEPTION("Invalid job specification: inconsistent data source types");
         }
     }
 
     if (DataSliceDescriptors.empty()) {
-        THROW_ERROR_EXCEPTION("Invalid job specification: empty data slice desciptors list");
+        THROW_ERROR_EXCEPTION("Invalid job specification: empty data slice descriptors list");
     }
 }
 
