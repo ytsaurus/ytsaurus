@@ -152,7 +152,7 @@ TFuture<std::optional<TString>> TSlotLocation::CreateSandboxDirectories(int slot
         if (options.DiskSpaceLimit ||  options.InodeLimit) {
             auto tmpPath = GetSandboxPath(slotIndex, ESandboxKind::Tmp);
             try {
-                auto properties = TJobDirectoryProperties{options.DiskSpaceLimit,  options.InodeLimit, userId};
+                auto properties = TJobDirectoryProperties{options.DiskSpaceLimit, options.InodeLimit, userId};
                 WaitFor(JobDirectoryManager_->ApplyQuota(tmpPath, properties))
                     .ThrowOnError();
             } catch (const std::exception& ex) {
