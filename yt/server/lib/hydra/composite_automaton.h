@@ -14,51 +14,21 @@ namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr int NullObjectSerializationIndex = -1;
-constexpr int DestroyedObjectSerializationIndex = -2;
-constexpr int InlineObjectSerializationIndex = -3;
-
 struct TEntitySerializationKey
 {
-    TEntitySerializationKey()
-        : Index(NullObjectSerializationIndex)
-    { }
+    TEntitySerializationKey();
+    explicit TEntitySerializationKey(int index);
 
-    explicit TEntitySerializationKey(int index)
-        : Index(index)
-    { }
-
-    static TEntitySerializationKey NullObjectKey()
-    {
-        return TEntitySerializationKey();
-    }
-
-    static TEntitySerializationKey DestroyedObjectKey()
-    {
-        return TEntitySerializationKey(DestroyedObjectSerializationIndex);
-    }
-
-    static TEntitySerializationKey InlineKey()
-    {
-        return TEntitySerializationKey(InlineObjectSerializationIndex);
-    }
-
-#define DEFINE_OPERATOR(op) \
-    bool operator op (TEntitySerializationKey other) const \
-    { \
-        return Index op other.Index; \
-    }
-
-    DEFINE_OPERATOR(==)
-    DEFINE_OPERATOR(!=)
-    DEFINE_OPERATOR(<)
-    DEFINE_OPERATOR(<=)
-    DEFINE_OPERATOR(>)
-    DEFINE_OPERATOR(>=)
-#undef DEFINE_OPERATOR
+    bool operator == (TEntitySerializationKey rhs);
+    bool operator != (TEntitySerializationKey rhs);
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
+
+    // Well-known constants.
+    static const TEntitySerializationKey Null;
+    static const TEntitySerializationKey Destroyed;
+    static const TEntitySerializationKey Inline;
 
     int Index;
 };

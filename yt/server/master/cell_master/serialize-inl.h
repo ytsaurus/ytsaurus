@@ -32,16 +32,16 @@ struct TNonversionedObjectRefSerializer
                 // Ephemeral ghosts aren't supposed to be a part of the
                 // persistent state. Weak ghosts are.
                 YCHECK(object->GetObjectWeakRefCounter() > 0);
-                auto key = NHydra::TEntitySerializationKey::DestroyedObjectKey();
+                auto key = NHydra::TEntitySerializationKey::Destroyed;
                 NYT::Save(context, key);
                 NYT::Save(context, object->GetId());
             } else {
                 auto key = object->GetDynamicData()->SerializationKey;
-                Y_ASSERT(key != NHydra::TEntitySerializationKey::NullObjectKey());
+                Y_ASSERT(key != NHydra::TEntitySerializationKey::Null);
                 NYT::Save(context, key);
             }
         } else {
-            NYT::Save(context, NHydra::TEntitySerializationKey::NullObjectKey());
+            NYT::Save(context, NHydra::TEntitySerializationKey::Null);
         }
     }
 
@@ -50,10 +50,10 @@ struct TNonversionedObjectRefSerializer
     {
         typedef typename std::remove_pointer<T>::type TObject;
         auto key = LoadSuspended<NHydra::TEntitySerializationKey>(context);
-        if (key == NHydra::TEntitySerializationKey::NullObjectKey()) {
+        if (key == NHydra::TEntitySerializationKey::Null) {
             object = nullptr;
             SERIALIZATION_DUMP_WRITE(context, "objref <null>");
-        } else if (key == NHydra::TEntitySerializationKey::DestroyedObjectKey()) {
+        } else if (key == NHydra::TEntitySerializationKey::Destroyed) {
             auto objectId = LoadSuspended<NObjectServer::TObjectId>(context);
             object = context.GetWeakGhostObject(objectId)->template As<TObject>();
             SERIALIZATION_DUMP_WRITE(context, "objref %v <destroyed>", objectId);
@@ -73,7 +73,7 @@ struct TVersionedObjectRefSerializer
     {
         auto key = object
             ? object->GetDynamicData()->SerializationKey
-            : NHydra::TEntitySerializationKey::NullObjectKey();
+            : NHydra::TEntitySerializationKey::Null;
         NYT::Save(context, key);
     }
 
@@ -82,7 +82,7 @@ struct TVersionedObjectRefSerializer
     {
         typedef typename std::remove_pointer<T>::type TObject;
         auto key = NYT::Load<NHydra::TEntitySerializationKey>(context);
-        if (key == NHydra::TEntitySerializationKey::NullObjectKey()) {
+        if (key == NHydra::TEntitySerializationKey::Null) {
             object = nullptr;
             SERIALIZATION_DUMP_WRITE(context, "objref <null>");
         } else {
@@ -103,7 +103,7 @@ struct TInternedObjectSerializer
 
         auto it = context.SavedInternedObjects().find(object.ToRaw());
         if (it == context.SavedInternedObjects().end()) {
-            Save(context, NHydra::TEntitySerializationKey::InlineKey());
+            Save(context, NHydra::TEntitySerializationKey::Inline);
             Save(context, *object);
             YCHECK(context.SavedInternedObjects().emplace(object.ToRaw(), context.GenerateSerializationKey()).second);
         } else {
@@ -117,7 +117,7 @@ struct TInternedObjectSerializer
         using NYT::Load;
 
         auto key = NYT::Load<NHydra::TEntitySerializationKey>(context);
-        if (key == NHydra::TEntitySerializationKey::InlineKey()) {
+        if (key == NHydra::TEntitySerializationKey::Inline) {
             T value;
             SERIALIZATION_DUMP_INDENT(context) {
                 Load(context, value);
