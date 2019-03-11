@@ -416,8 +416,8 @@ public:
         const TLinkNodeOptions& options),
         (srcPath, dstPath, options))
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<void>, ConcatenateNodes, (
-        const std::vector<TYPath>& srcPaths,
-        const TYPath& dstPath,
+        const std::vector<TRichYPath>& srcPaths,
+        const TRichYPath& dstPath,
         const TConcatenateNodesOptions& options),
         (srcPaths, dstPath, options))
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<bool>, NodeExists, (

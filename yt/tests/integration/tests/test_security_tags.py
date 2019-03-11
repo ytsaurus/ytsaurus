@@ -189,6 +189,60 @@ class TestSecurityTags(YTEnvSetup):
         with pytest.raises(YtError):
             set("//tmp/t/@security_tags", ["tag1", "tag2"])
 
+    def test_concatenate(self):
+        create("table", "//tmp/t1", attributes={
+                "security_tags": ["tag1", "tag2"]
+            })
+        write_table("<append=%true>//tmp/t1", {"key": "x"})
+
+        create("table", "//tmp/t2", attributes={
+                "security_tags": ["tag3"]
+            })
+        write_table("<append=%true>//tmp/t2", {"key": "y"})
+
+        create("table", "//tmp/union")
+
+        concatenate(["//tmp/t1", "//tmp/t2"], "//tmp/union")
+        assert read_table("//tmp/union") == [{"key": "x"}, {"key": "y"}]
+        assert_items_equal(get("//tmp/union/@security_tags"), ["tag1", "tag2", "tag3"])
+
+    def test_concatenate_append(self):
+        create("table", "//tmp/t1", attributes={
+                "security_tags": ["tag1", "tag2"]
+            })
+        write_table("<append=%true>//tmp/t1", {"key": "x"})
+
+        create("table", "//tmp/t2", attributes={
+                "security_tags": ["tag3"]
+            })
+        write_table("<append=%true>//tmp/t2", {"key": "y"})
+
+        create("table", "//tmp/union", attributes={
+                "security_tags": ["tag4"]
+            })
+        write_table("<append=%true>//tmp/union", {"key": "z"})
+
+        concatenate(["//tmp/t1", "//tmp/t2"], "<append=%true>//tmp/union")
+        assert read_table("//tmp/union") == [{"key": "z"}, {"key": "x"}, {"key": "y"}]
+        assert_items_equal(get("//tmp/union/@security_tags"), ["tag1", "tag2", "tag3", "tag4"])
+
+    def test_concatenate_override(self):
+        create("table", "//tmp/t1", attributes={
+                "security_tags": ["tag1", "tag2"]
+            })
+        write_table("<append=%true>//tmp/t1", {"key": "x"})
+
+        create("table", "//tmp/t2", attributes={
+                "security_tags": ["tag3"]
+            })
+        write_table("<append=%true>//tmp/t2", {"key": "y"})
+
+        create("table", "//tmp/union")
+
+        concatenate(["//tmp/t1", "//tmp/t2"], "<security_tags=[tag0]>//tmp/union")
+        assert read_table("//tmp/union") == [{"key": "x"}, {"key": "y"}]
+        assert_items_equal(get("//tmp/union/@security_tags"), ["tag0"])
+
 ##################################################################
 
 class TestSecurityTagsMulticell(TestSecurityTags):

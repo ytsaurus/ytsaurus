@@ -543,8 +543,8 @@ TFuture<TNodeId> TTransaction::LinkNode(
 }
 
 TFuture<void> TTransaction::ConcatenateNodes(
-    const std::vector<TYPath>& srcPaths,
-    const TYPath& dstPath,
+    const std::vector<TRichYPath>& srcPaths,
+    const TRichYPath& dstPath,
     const TConcatenateNodesOptions& options)
 {
     ValidateActive();

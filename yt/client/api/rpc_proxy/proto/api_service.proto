@@ -880,8 +880,6 @@ message TReqConcatenateNodes
     repeated string src_paths = 1; // YPath
     required string dst_path = 2; // YPath
 
-    optional bool append = 3 [default = false];
-
     optional TTransactionalOptions transactional_options = 100;
     // TODO(sandello): Prerequisite?
     optional TMutatingOptions mutating_options = 103;
