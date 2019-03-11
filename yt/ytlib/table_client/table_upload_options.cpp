@@ -26,7 +26,7 @@ void TTableUploadOptions::Persist(NPhoenix::TPersistenceContext& context)
     Persist(context, OptimizeFor);
     Persist(context, CompressionCodec);
     Persist(context, ErasureCodec);
-    // XXX(babenko)
+    // COMPAT(babenko)
     if (context.GetVersion() >= 300032) {
         Persist(context, SecurityTags);
     }
