@@ -1927,9 +1927,9 @@ void TOperationControllerBase::UpdateActualHistogram(const TStatistics& statisti
 
 void TOperationControllerBase::InitializeSecurityTags()
 {
-    std::vector<TString> inferredTags;
+    std::vector<TString> inferredSecurityTags;
     auto addTags = [&] (const auto& moreTags) {
-        inferredTags.insert(inferredTags.end(), moreTags.begin(), moreTags.end());
+        inferredSecurityTags.insert(inferredSecurityTags.end(), moreTags.begin(), moreTags.end());
     };
     
     addTags(Spec_->AdditionalSecurityTags);
@@ -1944,21 +1944,21 @@ void TOperationControllerBase::InitializeSecurityTags()
         }
     }
     
-    SortUnique(inferredTags);
+    SortUnique(inferredSecurityTags);
     
     for (const auto& table : OutputTables_) {
         if (auto explicitSecurityTags = table->Path.GetSecurityTags()) {
             // TODO(babenko): audit
             YT_LOG_INFO("Output table is assigned explicit security tags (Path: %v, InferredSecurityTags: %v, ExplicitSecurityTags: %v)",
                 table->Path.GetPath(),
-                inferredTags,
+                inferredSecurityTags,
                 explicitSecurityTags);
             table->TableUploadOptions.SecurityTags = *explicitSecurityTags;
         } else {
             YT_LOG_INFO("Output table is assigned automatically-inferred security tags (Path: %v, SecurityTags: %v)",
                 table->Path.GetPath(),
-                inferredTags);
-            table->TableUploadOptions.SecurityTags = inferredTags;
+                inferredSecurityTags);
+            table->TableUploadOptions.SecurityTags = inferredSecurityTags;
         }
     }
 }

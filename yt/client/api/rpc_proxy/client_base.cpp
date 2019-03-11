@@ -24,6 +24,8 @@
 
 #include <yt/client/table_client/wire_protocol.h>
 
+#include <yt/client/ypath/rich.h>
+
 namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -418,8 +420,8 @@ TFuture<NCypressClient::TNodeId> TClientBase::LinkNode(
 }
 
 TFuture<void> TClientBase::ConcatenateNodes(
-    const std::vector<TYPath>& srcPaths,
-    const TYPath& dstPath,
+    const std::vector<TRichYPath>& srcPaths,
+    const TRichYPath& dstPath,
     const TConcatenateNodesOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
@@ -428,8 +430,7 @@ TFuture<void> TClientBase::ConcatenateNodes(
     SetTimeoutOptions(*req, options);
 
     ToProto(req->mutable_src_paths(), srcPaths);
-    req->set_dst_path(dstPath);
-    req->set_append(options.Append);
+    ToProto(req->mutable_dst_path(), dstPath);
     ToProto(req->mutable_transactional_options(), options);
     // TODO(babenko)
     // ToProto(req->mutable_prerequisite_options(), options);

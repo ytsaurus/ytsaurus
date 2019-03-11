@@ -139,8 +139,8 @@ public:
         const NApi::TLinkNodeOptions& options) override;
 
     virtual TFuture<void> ConcatenateNodes(
-        const std::vector<NYPath::TYPath>& srcPaths,
-        const NYPath::TYPath& dstPath,
+        const std::vector<NYPath::TRichYPath>& srcPaths,
+        const NYPath::TRichYPath& dstPath,
         const NApi::TConcatenateNodesOptions& options) override;
 
     virtual TFuture<bool> NodeExists(

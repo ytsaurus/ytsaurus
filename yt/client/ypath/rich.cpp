@@ -630,6 +630,16 @@ void Deserialize(TRichYPath& richPath, INodePtr node)
     richPath.Attributes().MergeFrom(node->Attributes());
 }
 
+void ToProto(TString* protoPath, const TRichYPath& path)
+{
+    *protoPath = ToString(path);
+}
+
+void FromProto(TRichYPath* path, const TString& protoPath)
+{
+    *path = TRichYPath::Parse(protoPath);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYPath

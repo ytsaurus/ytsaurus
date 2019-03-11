@@ -1220,14 +1220,11 @@ private:
             return;
         }
 
-        auto srcPaths = FromProto<std::vector<TYPath>>(request->src_paths());
-        const auto& dstPath = request->dst_path();
+        auto srcPaths = FromProto<std::vector<TRichYPath>>(request->src_paths());
+        auto dstPath = FromProto<TRichYPath>(request->dst_path());
 
         TConcatenateNodesOptions options;
         SetTimeoutOptions(&options, context.Get());
-        if (request->has_append()) {
-            options.Append = request->append();
-        }
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }

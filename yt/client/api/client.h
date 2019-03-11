@@ -571,9 +571,7 @@ struct TConcatenateNodesOptions
     : public TTimeoutOptions
     , public TTransactionalOptions
     , public TMutatingOptions
-{
-    bool Append = false;
-};
+{ };
 
 struct TNodeExistsOptions
     : public TTimeoutOptions
@@ -1068,8 +1066,8 @@ struct IClientBase
         const TLinkNodeOptions& options = TLinkNodeOptions()) = 0;
 
     virtual TFuture<void> ConcatenateNodes(
-        const std::vector<NYPath::TYPath>& srcPaths,
-        const NYPath::TYPath& dstPath,
+        const std::vector<NYPath::TRichYPath>& srcPaths,
+        const NYPath::TRichYPath& dstPath,
         const TConcatenateNodesOptions& options = TConcatenateNodesOptions()) = 0;
 
     virtual TFuture<bool> NodeExists(
