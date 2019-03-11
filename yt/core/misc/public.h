@@ -114,6 +114,21 @@ extern const TString YTCoreNoteName;
 
 DECLARE_REFCOUNTED_STRUCT(ICoreDumper)
 
+template <class T>
+class TInternRegistry;
+
+template <class T>
+using TInternRegistryPtr = TIntrusivePtr<TInternRegistry<T>>;
+
+template <class T>
+class TInternedObjectData;
+
+template <class T>
+using TInternedObjectDataPtr = TIntrusivePtr<TInternedObjectData<T>>;
+
+template <class T>
+class TInternedObject;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EErrorCode,
