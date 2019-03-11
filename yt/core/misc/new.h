@@ -96,11 +96,11 @@ inline TIntrusivePtr<T> NewWithLocation(
 
 //! Enables calling #New and co for types with private ctors.
 #define DECLARE_NEW_FRIEND() \
-    template <class T, class... As> \
-    friend ::NYT::TIntrusivePtr<T> NYT::NDetail::NewImpl( \
+    template <class DECLARE_NEW_FRIEND_T, class... DECLARE_NEW_FRIEND_As> \
+    friend ::NYT::TIntrusivePtr<DECLARE_NEW_FRIEND_T> NYT::NDetail::NewImpl( \
         ::NYT::TRefCountedTypeCookie cookie, \
         size_t extraSpaceSize, \
-        As&& ... args)
+        DECLARE_NEW_FRIEND_As&& ... args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
