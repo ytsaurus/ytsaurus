@@ -189,7 +189,6 @@ public:
             Config_->NodeDirectorySynchronizer,
             MakeStrong(this),
             NodeDirectory_);
-        NodeDirectorySynchronizer_->Start();
     }
 
     // IConnection implementation.
@@ -318,11 +317,13 @@ public:
 
     virtual const TNodeDirectoryPtr& GetNodeDirectory() override
     {
+        NodeDirectorySynchronizer_->Start();
         return NodeDirectory_;
     }
 
     virtual const TNodeDirectorySynchronizerPtr& GetNodeDirectorySynchronizer() override
     {
+        NodeDirectorySynchronizer_->Start();
         return NodeDirectorySynchronizer_;
     }
 
