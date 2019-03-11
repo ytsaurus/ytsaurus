@@ -48,7 +48,7 @@ bool ValidateSnapshotVersion(int version)
         version == 824 || // savrus: Remove dynamic table attrs from static tables
         version == 825 || // shakurov: In TChunkReplication, replace array with SmallVector
         version == 826 || // babenko: columnar ACLs
-        version == 900 || // XXX(babenko): security tags
+        version == 827 || // babenko: security tags
         false;
 }
 

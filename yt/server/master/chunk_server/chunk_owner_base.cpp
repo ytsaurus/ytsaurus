@@ -64,8 +64,8 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, DeltaStatistics_);
     Load(context, CompressionCodec_);
     Load(context, ErasureCodec_);
-    // XXX(babenko): security tags
-    if (context.GetVersion() >= 900) {
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 827) {
         Load(context, SnapshotSecurityTags_);
         Load(context, DeltaSecurityTags_);
     }
