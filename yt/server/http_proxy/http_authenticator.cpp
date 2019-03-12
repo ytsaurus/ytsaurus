@@ -81,7 +81,7 @@ TErrorOr<TAuthenticationResult> THttpAuthenticator::Authenticate(
         }
 
         TTokenCredentials credentials;
-        credentials.Token = authorizationHeader->substr(prefix.Size());
+        credentials.Token = authorizationHeader->substr(prefix.size());
         if (!credentials.Token.empty()) {
             return WaitFor(TokenAuthenticator_->Authenticate(credentials));
         }

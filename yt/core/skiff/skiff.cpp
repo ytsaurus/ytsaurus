@@ -292,14 +292,14 @@ void TUncheckedSkiffWriter::WriteBoolean(bool value)
 
 void TUncheckedSkiffWriter::WriteString32(TStringBuf value)
 {
-    WriteSimple<ui32>(value.Size());
-    TUncheckedSkiffWriter::DoWrite(value.Data(), value.Size());
+    WriteSimple<ui32>(value.size());
+    TUncheckedSkiffWriter::DoWrite(value.data(), value.size());
 }
 
 void TUncheckedSkiffWriter::WriteYson32(TStringBuf value)
 {
-    WriteSimple<ui32>(value.Size());
-    TUncheckedSkiffWriter::DoWrite(value.Data(), value.Size());
+    WriteSimple<ui32>(value.size());
+    TUncheckedSkiffWriter::DoWrite(value.data(), value.size());
 }
 
 void TUncheckedSkiffWriter::WriteVariant8Tag(ui8 tag)
