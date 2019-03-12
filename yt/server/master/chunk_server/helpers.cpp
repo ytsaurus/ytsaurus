@@ -65,8 +65,17 @@ void AttachToChunkList(
 
     chunkList->IncrementVersion();
 
-    // Go upwards and apply delta.
-    AccumulateUniqueAncestorsStatistics(chunkList, statisticsDelta);
+    ++statisticsDelta.Rank;
+    chunkList->Statistics().Accumulate(statisticsDelta);
+
+    const auto& parents = chunkList->Parents();
+    if (!parents.Empty()) {
+        YCHECK(parents.Size() == 1);
+        chunkList = *parents.begin();
+
+        // Go upwards and apply delta.
+        AccumulateUniqueAncestorsStatistics(chunkList, statisticsDelta);
+    }
 }
 
 void DetachFromChunkList(
@@ -221,6 +230,12 @@ void AccumulateUniqueAncestorsStatistics(
         [&] (TChunkList* current) {
             ++mutableStatisticsDelta.Rank;
             current->Statistics().Accumulate(mutableStatisticsDelta);
+            if (current->HasCumulativeStatistics()) {
+                auto& cumulativeStatistics = current->CumulativeStatistics();
+                cumulativeStatistics.Update(
+                    cumulativeStatistics.Size() - 1,
+                    TCumulativeStatisticsEntry(mutableStatisticsDelta));
+            }
         });
 }
 
