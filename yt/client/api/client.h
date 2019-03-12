@@ -816,9 +816,6 @@ struct TListJobsOptions
     EDataSource DataSource = EDataSource::Auto;
 
     TDuration RunningJobsLookbehindPeriod = TDuration::Minutes(1);
-
-    TListJobsOptions()
-    { }
 };
 
 struct TStraceJobOptions
@@ -849,9 +846,6 @@ struct TGetOperationOptions
 {
     std::optional<THashSet<TString>> Attributes;
     bool IncludeRuntime = false;
-
-    TGetOperationOptions()
-    { }
 };
 
 struct TGetJobOptions
