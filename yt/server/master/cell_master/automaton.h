@@ -52,9 +52,10 @@ public:
 
     template <class T>
     const TInternRegistryPtr<T>& GetInternRegistry() const;
-    template <>
-    const NSecurityServer::TSecurityTagsRegistryPtr& GetInternRegistry<NSecurityServer::TSecurityTags>() const;
 };
+
+template <>
+const NSecurityServer::TSecurityTagsRegistryPtr& TLoadContext::GetInternRegistry<NSecurityServer::TSecurityTags>() const;
 
 ////////////////////////////////////////////////////////////////////////////////
 
