@@ -225,6 +225,8 @@ void TBootstrap::DoRun()
     FootprintUpdateExecutor->Start();
 
     MasterConnection = NApi::NNative::CreateConnection(Config->ClusterConnection);
+    // Force start node directory synchronizer.
+    MasterConnection->GetNodeDirectorySynchronizer()->Start();
 
     if (Config->TabletNode->ResourceLimits->Slots > 0) {
         // Requesting latest timestamp enables periodic background time synchronization.
