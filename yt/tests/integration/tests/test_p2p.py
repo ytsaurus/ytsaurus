@@ -49,8 +49,6 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
         create("table", "//tmp/t")
         set("//tmp/t/@replication_factor", 1)
         write_table("//tmp/t", [{"a": 1}])
-        # This forces lazy node directory synchronizer activation.
-        self._access()
         chunk_id = get_singular_chunk_id("//tmp/t")
         # Node that is the seed for the only existing chunk.
         self.seed = str(get("#{0}/@stored_replicas/0".format(chunk_id)))
@@ -68,6 +66,7 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
     @clear_everything_after_test
     def test_no_distribution(self):
         with ProfileMetric.at_node(self.seed, "data_node/p2p/distributed_block_size") as p:
+            # Keep number of tries in sync with min_request_count.
             self._access()
             self._access()
             time.sleep(2)
@@ -76,6 +75,11 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
     @clear_everything_after_test
     def test_simple_distribution(self):
         with ProfileMetric.at_node(self.seed, "data_node/p2p/distributed_block_size") as p:
+            # Must be greater than min_request_count in config.
+            self._access()
+            # Give node directory synchronizer time to sync.
+            time.sleep(0.5)
+            self._access()
             self._access()
             self._access()
             self._access()
