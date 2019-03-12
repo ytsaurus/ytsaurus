@@ -61,6 +61,12 @@ TNode SerializeParamsForLock(
     ELockMode mode,
     const TLockOptions& options);
 
+TNode SerializeParamsForConcatenate(
+    const TTransactionId& transactionId,
+    const TVector<TYPath>& sourcePaths,
+    const TYPath& destinationPath,
+    const TConcatenateOptions& options);
+
 TNode SerializeParamsForPingTx(
     const TTransactionId& transactionId);
 
@@ -104,6 +110,12 @@ TNode SerializeParametersForTrimRows(
 
 TNode SerializeParamsForParseYPath(
     const TRichYPath& path);
+
+TNode SerializeParamsForEnableTableReplica(
+    const TReplicaId& replicaId);
+
+TNode SerializeParamsForDisableTableReplica(
+    const TReplicaId& replicaId);
 
 TNode SerializeParamsForAlterTableReplica(
     const TReplicaId& replicaId,

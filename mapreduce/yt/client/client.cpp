@@ -157,21 +157,7 @@ void TClientBase::Concatenate(
     const TYPath& destinationPath,
     const TConcatenateOptions& options)
 {
-    THttpHeader header("POST", "concatenate");
-    header.AddTransactionId(TransactionId_);
-    header.AddMutationId();
-
-    TRichYPath path(AddPathPrefix(destinationPath));
-    path.Append(options.Append_);
-    header.MergeParameters(BuildYsonNodeFluently().BeginMap()
-        .Item("source_paths").DoListFor(sourcePaths,
-            [] (TFluentList fluent, const TYPath& thePath) {
-                fluent.Item().Value(AddPathPrefix(thePath));
-            })
-        .Item("destination_path").Value(path)
-    .EndMap());
-
-    RetryRequest(Auth_, header);
+    NRawClient::Concatenate(Auth_, TransactionId_, sourcePaths, destinationPath, options);
 }
 
 TRichYPath TClientBase::CanonizeYPath(const TRichYPath& path)
@@ -466,10 +452,7 @@ void TClientBase::AlterTable(
     const TYPath& path,
     const TAlterTableOptions& options)
 {
-    THttpHeader header("POST", "alter_table");
-    header.AddMutationId();
-    header.MergeParameters(SerializeParamsForAlterTable(TransactionId_, path, options));
-    RetryRequest(Auth_, header);
+    NRawClient::AlterTable(Auth_, TransactionId_, path, options);
 }
 
 ::TIntrusivePtr<TClientReader> TClientBase::CreateClientReader(
@@ -778,13 +761,7 @@ void TClient::DeleteRows(
     const TNode::TListType& keys,
     const TDeleteRowsOptions& options)
 {
-    THttpHeader header("PUT", "delete_rows");
-    header.SetInputFormat(TFormat::YsonBinary());
-    // TODO: use corresponding raw request
-    header.MergeParameters(NRawClient::SerializeParametersForDeleteRows(path, options));
-
-    auto body = NodeListToYsonString(keys);
-    RetryRequest(Auth_, header, TStringBuf(body), true);
+    return NRawClient::DeleteRows(Auth_, path, keys, options);
 }
 
 void TClient::TrimRows(
@@ -859,27 +836,19 @@ TNode::TListType TClient::SelectRows(
     return NodeFromYsonString(response, YT_LIST_FRAGMENT).AsList();
 }
 
-void TClient::EnableTableReplica(const TReplicaId& replicaid)
+void TClient::EnableTableReplica(const TReplicaId& replicaId)
 {
-    THttpHeader header("POST", "enable_table_replica");
-    header.AddParameter("replica_id", GetGuidAsString(replicaid));
-    RetryRequest(Auth_, header);
+    NRawClient::EnableTableReplica(Auth_, replicaId);
 }
 
-void TClient::DisableTableReplica(const TReplicaId& replicaid)
+void TClient::DisableTableReplica(const TReplicaId& replicaId)
 {
-    THttpHeader header("POST", "disable_table_replica");
-    header.AddParameter("replica_id", GetGuidAsString(replicaid));
-    RetryRequest(Auth_, header);
+    NRawClient::DisableTableReplica(Auth_, replicaId);
 }
 
 void TClient::AlterTableReplica(const TReplicaId& replicaId, const TAlterTableReplicaOptions& options)
 {
-    // TODO: use corresponding raw method
-    THttpHeader header("POST", "alter_table_replica");
-    header.AddMutationId();
-    header.MergeParameters(NRawClient::SerializeParamsForAlterTableReplica(replicaId, options));
-    RetryRequest(Auth_, header);
+    NRawClient::AlterTableReplica(Auth_, replicaId, options);
 }
 
 ui64 TClient::GenerateTimestamp()

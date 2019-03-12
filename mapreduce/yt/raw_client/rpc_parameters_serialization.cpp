@@ -222,6 +222,26 @@ TNode SerializeParamsForLock(
     return result;
 }
 
+TNode SerializeParamsForConcatenate(
+    const TTransactionId& transactionId,
+    const TVector<TYPath>& sourcePaths,
+    const TYPath& destinationPath,
+    const TConcatenateOptions& options)
+{
+    TNode result;
+    SetTransactionIdParam(&result, transactionId);
+    {
+        TRichYPath path(AddPathPrefix(destinationPath));
+        path.Append(options.Append_);
+        result["destination_path"] = PathToNode(path);
+    }
+    auto& sourcePathsNode = result["source_paths"];
+    for (const auto& path : sourcePaths) {
+        sourcePathsNode.Add(PathToNode(AddPathPrefix(path)));
+    }
+    return result;
+}
+
 TNode SerializeParamsForPingTx(
     const TTransactionId& transactionId)
 {
@@ -473,6 +493,22 @@ TNode SerializeParamsForParseYPath(const TRichYPath& path)
 {
     TNode result;
     result["path"] = PathToNode(path);
+    return result;
+}
+
+TNode SerializeParamsForEnableTableReplica(
+    const TReplicaId& replicaId)
+{
+    TNode result;
+    result["replica_id"] = GetGuidAsString(replicaId);
+    return result;
+}
+
+TNode SerializeParamsForDisableTableReplica(
+    const TReplicaId& replicaId)
+{
+    TNode result;
+    result["replica_id"] = GetGuidAsString(replicaId);
     return result;
 }
 
