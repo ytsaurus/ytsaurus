@@ -61,7 +61,10 @@ BlockInputStreams TStorageDistributed::read(
             queryInfo.query,
             ToStdString(tablePart.JobSpec));
 
-        auto tablePartStream = clusterNode->IsLocal()
+        bool isLocal = clusterNode->IsLocal();
+        // XXX(max42): weird workaround.
+        isLocal = false;
+        auto tablePartStream = isLocal
             ? CreateLocalStream(
                 subQueryAst,
                 newContext,
