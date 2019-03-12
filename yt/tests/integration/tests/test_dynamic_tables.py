@@ -839,8 +839,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         with pytest.raises(YtError):
             alter_table("//tmp/t2", schema=ordered_schema)
 
-    def test_disable_tablet_cells(self):
-        cell = sync_create_cells(1)[0]
+    def _disable_tablet_cells_on_peer(self, cell):
         peer = get("#{0}/@peers/0/address".format(cell))
         set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(peer), True)
         def check():
@@ -853,6 +852,10 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 return False
             return True
         wait(check)
+
+    def test_disable_tablet_cells(self):
+        cell = sync_create_cells(1)[0]
+        self._disable_tablet_cells_on_peer(cell)
 
     def test_tablet_slot_charges_cpu_resource_limit(self):
         get_cpu = lambda x: get("//sys/cluster_nodes/{0}/orchid/job_controller/resource_limits/cpu".format(x))
@@ -1098,6 +1101,33 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         remove("#{0}".format(cell), force=True)
         wait(lambda: not exists("#" + cell))
+
+    def test_cumulative_statistics(self):
+        cell = sync_create_cells(1)[0]
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", rows)
+        insert_rows("//tmp/t", rows)
+
+        self._disable_tablet_cells_on_peer(cell)
+
+        def check():
+            changelog = "//sys/tablet_cells/{0}/changelogs/000000001".format(cell)
+            if not exists(changelog):
+                return False
+            chunk_list = get(changelog + "/@chunk_list_id")
+            statistics = get("#{0}/@statistics".format(chunk_list))
+            if not statistics["sealed"]:
+                return False
+            cumulative_statistics = get("#{0}/@cumulative_statistics".format(chunk_list))
+            assert cumulative_statistics[-1]["row_count"] == statistics["row_count"]
+            assert cumulative_statistics[-1]["chunk_count"] == statistics["chunk_count"]
+            assert cumulative_statistics[-1]["data_size"] == statistics["uncompressed_data_size"]
+            return True
+
+        wait(check)
 
 ##################################################################
 

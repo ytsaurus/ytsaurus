@@ -11,7 +11,6 @@ namespace NYT::NChunkServer {
 namespace {
 
 using namespace NTesting;
-
 using namespace NChunkClient::NProto;
 using namespace NObjectClient;
 using namespace NTableClient;

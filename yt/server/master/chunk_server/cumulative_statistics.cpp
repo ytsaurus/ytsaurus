@@ -2,10 +2,14 @@
 
 #include <yt/server/master/cell_master/serialize.h>
 
+#include <yt/core/ytree/convert.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NObjectServer;
 using namespace NCellMaster;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,7 +63,17 @@ bool TCumulativeStatisticsEntry::operator==(const TCumulativeStatisticsEntry& ot
 
 TString ToString(const TCumulativeStatisticsEntry& entry)
 {
-    return Format("{row_count=%v,chunk_count=%v,data_size=%v}", entry.RowCount, entry.ChunkCount, entry.DataSize);
+    return ConvertToYsonString(entry, EYsonFormat::Text).GetData();
+}
+
+void Serialize(const TCumulativeStatisticsEntry& entry, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("row_count").Value(entry.RowCount)
+            .Item("chunk_count").Value(entry.ChunkCount)
+            .Item("data_size").Value(entry.DataSize)
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -187,9 +201,15 @@ void TCumulativeStatistics::EraseFromFront(int entriesCount)
 
 void TCumulativeStatistics::Update(int index, const TCumulativeStatisticsEntry& delta)
 {
-    auto& statistics = AsModifiable();
-    YCHECK(index < statistics.Size());
-    statistics.Increment(index, delta);
+    if (IsAppendable()) {
+        auto& statistics = AsAppendable();
+        YCHECK(index == statistics.size() - 1);
+        statistics[index] = statistics[index] + delta;
+    } else {
+        auto& statistics = AsModifiable();
+        YCHECK(index < statistics.Size());
+        statistics.Increment(index, delta);
+    }
 }
 
 bool TCumulativeStatistics::IsAppendable() const
@@ -224,6 +244,16 @@ const TCumulativeStatistics::TModifyableCumulativeStatistics& TCumulativeStatist
 {
     YCHECK(IsModifiable());
     return std::get<TModifyableCumulativeStatistics>(Statistics_);
+}
+
+void Serialize(const TCumulativeStatistics& statistics, IYsonConsumer* consumer)
+{
+    consumer->OnBeginList();
+    for (int index = 0; index < statistics.Size(); ++index) {
+        consumer->OnListItem();
+        Serialize(statistics[index], consumer);
+    }
+    consumer->OnEndList();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

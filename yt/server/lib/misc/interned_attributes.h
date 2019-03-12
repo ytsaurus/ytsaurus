@@ -57,6 +57,7 @@
     XX(ContentRevision, content_revision) \
     XX(CountByHealth, count_by_health) \
     XX(CreationTime, creation_time) \
+    XX(CumulativeStatistics, cumulative_statistics) \
     XX(CurrentCommitRevision, current_commit_revision) \
     XX(CurrentMountTransactionId, current_mount_transaction_id) \
     XX(DataCenter, data_center) \
