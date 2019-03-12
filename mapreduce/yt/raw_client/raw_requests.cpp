@@ -178,6 +178,21 @@ TLockId Lock(
     return ParseGuidFromResponse(RetryRequestWithPolicy(auth, header, "", retryPolicy).Response);
 }
 
+void Concatenate(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TVector<TYPath>& sourcePaths,
+    const TYPath& destinationPath,
+    const TConcatenateOptions& options,
+    IRetryPolicy* retryPolicy)
+{
+    THttpHeader header("POST", "concatenate");
+    header.AddMutationId();
+    header.AddTransactionId(transactionId);
+    header.MergeParameters(SerializeParamsForConcatenate(transactionId, sourcePaths, destinationPath, options));
+    RetryRequestWithPolicy(auth, header, "", retryPolicy);
+}
+
 void PingTx(
     const TAuth& auth,
     const TTransactionId& transactionId,
@@ -601,6 +616,68 @@ TYPath PutFileToCache(
     header.MergeParameters(SerializeParamsForPutFileToCache(filePath, md5Signature, cachePath, options));
     auto result = RetryRequestWithPolicy(auth, header, "", retryPolicy);
     return NodeFromYsonString(result.Response).AsString();
+}
+
+void AlterTable(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const TAlterTableOptions& options,
+    IRetryPolicy* retryPolicy)
+{
+    THttpHeader header("POST", "alter_table");
+    header.AddMutationId();
+    header.MergeParameters(SerializeParamsForAlterTable(transactionId, path, options));
+    RetryRequestWithPolicy(auth, header, "", retryPolicy);
+}
+
+void AlterTableReplica(
+    const TAuth& auth,
+    const TReplicaId& replicaId,
+    const TAlterTableReplicaOptions& options,
+    IRetryPolicy* retryPolicy)
+{
+    THttpHeader header("POST", "alter_table_replica");
+    header.AddMutationId();
+    header.MergeParameters(NRawClient::SerializeParamsForAlterTableReplica(replicaId, options));
+    RetryRequestWithPolicy(auth, header, "", retryPolicy);
+}
+
+void DeleteRows(
+    const TAuth& auth,
+    const TYPath& path,
+    const TNode::TListType& keys,
+    const TDeleteRowsOptions& options,
+    IRetryPolicy* retryPolicy)
+{
+    THttpHeader header("PUT", "delete_rows");
+    header.SetInputFormat(TFormat::YsonBinary());
+    header.MergeParameters(NRawClient::SerializeParametersForDeleteRows(path, options));
+
+    auto body = NodeListToYsonString(keys);
+    TRequestConfig requestConfig;
+    requestConfig.IsHeavy = true;
+    RetryRequestWithPolicy(auth, header, body, retryPolicy, requestConfig);
+}
+
+void EnableTableReplica(
+    const TAuth& auth,
+    const TReplicaId& replicaId,
+    IRetryPolicy* retryPolicy)
+{
+    THttpHeader header("POST", "enable_table_replica");
+    header.MergeParameters(SerializeParamsForEnableTableReplica(replicaId));
+    RetryRequestWithPolicy(auth, header, "", retryPolicy);
+}
+
+void DisableTableReplica(
+    const TAuth& auth,
+    const TReplicaId& replicaId,
+    IRetryPolicy* retryPolicy)
+{
+    THttpHeader header("POST", "disable_table_replica");
+    header.MergeParameters(SerializeParamsForDisableTableReplica(replicaId));
+    RetryRequestWithPolicy(auth, header, "", retryPolicy);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

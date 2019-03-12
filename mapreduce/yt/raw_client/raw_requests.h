@@ -98,6 +98,14 @@ TLockId Lock(
     const TLockOptions& options = TLockOptions(),
     IRetryPolicy* retryPolicy = nullptr);
 
+void Concatenate(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TVector<TYPath>& sourcePaths,
+    const TYPath& destinationPath,
+    const TConcatenateOptions& options,
+    IRetryPolicy* retryPolicy = nullptr);
+
 //
 // Transactions
 //
@@ -200,6 +208,40 @@ TYPath PutFileToCache(
     const TString& md5Signature,
     const TYPath& cachePath,
     const TPutFileToCacheOptions& options = TPutFileToCacheOptions(),
+    IRetryPolicy* retryPolicy = nullptr);
+
+//
+// Tables
+//
+
+void AlterTable(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const TAlterTableOptions& options,
+    IRetryPolicy* retryPolicy = nullptr);
+
+void AlterTableReplica(
+    const TAuth& auth,
+    const TReplicaId& replicaId,
+    const TAlterTableReplicaOptions& options,
+    IRetryPolicy* retryPolicy = nullptr);
+
+void DeleteRows(
+    const TAuth& auth,
+    const TYPath& path,
+    const TNode::TListType& keys,
+    const TDeleteRowsOptions& options,
+    IRetryPolicy* retryPolicy = nullptr);
+
+void EnableTableReplica(
+    const TAuth& auth,
+    const TReplicaId& replicaId,
+    IRetryPolicy* retryPolicy = nullptr);
+
+void DisableTableReplica(
+    const TAuth& auth,
+    const TReplicaId& replicaId,
     IRetryPolicy* retryPolicy = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
