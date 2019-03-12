@@ -188,7 +188,6 @@ void Concatenate(
 {
     THttpHeader header("POST", "concatenate");
     header.AddMutationId();
-    header.AddTransactionId(transactionId);
     header.MergeParameters(SerializeParamsForConcatenate(transactionId, sourcePaths, destinationPath, options));
     RetryRequestWithPolicy(auth, header, "", retryPolicy);
 }

@@ -371,6 +371,31 @@ Y_UNIT_TEST_SUITE(CypressClient) {
         }
     }
 
+    Y_UNIT_TEST(TestTxConcatenate)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        {
+            auto writer = client->CreateFileWriter(workingDir + "/file1");
+            *writer << "foo";
+            writer->Finish();
+        }
+        {
+            auto writer = client->CreateFileWriter(workingDir + "/file2");
+            *writer << "bar";
+            writer->Finish();
+        }
+        auto tx = client->StartTransaction();
+        tx->Create(workingDir + "/concat", NT_FILE);
+        tx->Concatenate({workingDir + "/file1", workingDir + "/file2"}, workingDir + "/concat");
+        {
+            auto reader = tx->CreateFileReader(workingDir + "/concat");
+            UNIT_ASSERT_VALUES_EQUAL(reader->ReadAll(), "foobar");
+        }
+        UNIT_ASSERT(!client->Exists(workingDir + "/concat"));
+    }
+
     Y_UNIT_TEST(TestRetries)
     {
         TConfig::Get()->UseAbortableResponse = true;
