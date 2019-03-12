@@ -168,7 +168,7 @@ private:
     {
         NApi::TGetOperationOptions options;
         options.IncludeRuntime = true;
-        options.Attributes = {"runtime_parameters"};
+        options.Attributes = THashSet<TString>{"runtime_parameters"};
         auto runtimeParametersYsonString = WaitFor(Bootstrap_->GetRootClient()->GetOperation(
             TGuid::FromString(CliqueId_),
             std::move(options)))
