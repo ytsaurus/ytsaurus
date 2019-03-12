@@ -10,8 +10,6 @@
 #include "table_commands.h"
 #include "transaction_commands.h"
 
-#include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
-
 #include <yt/client/api/transaction.h>
 #include <yt/client/api/connection.h>
 #include <yt/client/api/sticky_transaction_pool.h>
