@@ -114,6 +114,9 @@ void TBootstrap::DoRun()
     NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
     Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, connectionOptions);
+    
+    // Force start node directory synchronizer.
+    Connection_->GetNodeDirectorySynchronizer()->Start();
 
     TClientOptions clientOptions;
     clientOptions.PinnedUser = NSecurityClient::SchedulerUserName;

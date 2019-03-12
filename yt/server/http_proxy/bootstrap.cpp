@@ -37,6 +37,8 @@
 
 #include <yt/ytlib/auth/authentication_manager.h>
 
+#include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
+
 namespace NYT::NHttpProxy {
 
 using namespace NConcurrency;
@@ -96,6 +98,8 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     SetBuildAttributes(orchidRoot, "http_proxy");
 
     Connection_ = CreateConnection(ConvertTo<NNative::TConnectionConfigPtr>(Config_->Driver));
+    // Force-start node directory synchronizer.
+    Connection_->GetNodeDirectorySynchronizer()->Start();
     SetupClients();
 
     Coordinator_ = New<TCoordinator>(Config_, this);
