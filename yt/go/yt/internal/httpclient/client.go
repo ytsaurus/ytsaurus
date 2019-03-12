@@ -23,8 +23,11 @@ func decodeYTErrorFromHeaders(h http.Header) (ytErr *yt.Error, err error) {
 		return nil, nil
 	}
 
+	d := json.NewDecoder(bytes.NewBufferString(header))
+	d.UseNumber()
+
 	ytErr = &yt.Error{}
-	if decodeErr := json.Unmarshal([]byte(header), ytErr); decodeErr != nil {
+	if decodeErr := d.Decode(ytErr); decodeErr != nil {
 		err = xerrors.Errorf("yt: malformed 'X-YT-Error' header: %w", decodeErr)
 	}
 
@@ -137,11 +140,12 @@ func (c *httpClient) writeHTTPRequest(ctx context.Context, call *internal.Call, 
 
 // unexpectedStatusCode is last effort attempt to get useful error message from a failed request.
 func unexpectedStatusCode(rsp *http.Response) error {
-	if body, err := ioutil.ReadAll(rsp.Body); err == nil {
-		var ytErr yt.Error
-		if err = json.Unmarshal(body, &ytErr); err == nil {
-			return &ytErr
-		}
+	d := json.NewDecoder(rsp.Body)
+	d.UseNumber()
+
+	var ytErr yt.Error
+	if err := d.Decode(&ytErr); err == nil {
+		return &ytErr
 	}
 
 	return xerrors.Errorf("unexpected status code %d", rsp.StatusCode)
