@@ -32,7 +32,7 @@ TJsonCallbacksBuildingNodesImpl::TJsonCallbacksBuildingNodesImpl(
 
 void TJsonCallbacksBuildingNodesImpl::OnStringScalar(TStringBuf value)
 {
-    AccountMemory(value.Size());
+    AccountMemory(value.size());
     OnItemStarted();
     TreeBuilder_->OnStringScalar(Utf8Transcoder_.Decode(value));
     OnItemFinished();

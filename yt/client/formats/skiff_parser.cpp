@@ -309,7 +309,7 @@ public:
 
     void Read(TStringBuf data) override
     {
-        if (!data.Empty()) {
+        if (!data.empty()) {
             Parser_->Read(data);
         }
     }
