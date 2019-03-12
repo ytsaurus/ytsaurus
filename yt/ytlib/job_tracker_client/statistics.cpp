@@ -142,7 +142,7 @@ void TStatistics::AddSample(const NYPath::TYPath& path, const INodePtr& sample)
 
         case ENodeType::Map:
             for (auto& pair : sample->AsMap()->GetChildren()) {
-                if (pair.first.Empty()) {
+                if (pair.first.empty()) {
                     THROW_ERROR_EXCEPTION("Statistic cannot have an empty name")
                         << TErrorAttribute("path_prefix", path);
                 }

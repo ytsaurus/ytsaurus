@@ -33,9 +33,9 @@ class TRowParser
 {
 public:
     explicit TRowParser(TStringBuf strbuf)
-        : Begin_(strbuf.Data())
-        , End_(strbuf.Data() + strbuf.Size())
-        , Current_(strbuf.Data())
+        : Begin_(strbuf.data())
+        , End_(strbuf.data() + strbuf.size())
+        , Current_(strbuf.data())
     { }
 
     ui32 ReadVarUint32()

@@ -434,9 +434,9 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Tokenize(const TString& formula,
 
     auto extractSpecialToken = [&] () -> std::optional<EFormulaTokenType> {
         char first = formula[pos];
-        char second = pos + 1 < formula.Size() ? formula[pos + 1] : '\0';
+        char second = pos + 1 < formula.size() ? formula[pos + 1] : '\0';
         if (first == 'i' && second == 'n') {
-            char third = pos + 2 < formula.Size() ? formula[pos + 2] : '\0';
+            char third = pos + 2 < formula.size() ? formula[pos + 2] : '\0';
             if (IsSymbolAllowedInName(third, context, false)) {
                 return std::nullopt;
             } else {
@@ -533,10 +533,10 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Tokenize(const TString& formula,
         if (formula[pos] == '-') {
             ++pos;
         }
-        if (pos == formula.Size() || !std::isdigit(formula[pos])) {
+        if (pos == formula.size() || !std::isdigit(formula[pos])) {
             throwError(pos, "Expected digit");
         }
-        while (pos < formula.Size() && std::isdigit(formula[pos])) {
+        while (pos < formula.size() && std::isdigit(formula[pos])) {
             ++pos;
         }
         return IntFromString<i64, 10>(TStringBuf(formula, start, pos - start));
@@ -544,7 +544,7 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Tokenize(const TString& formula,
 
     auto extractVariable = [&] {
         TString name;
-        while (pos < formula.Size() && IsSymbolAllowedInName(formula[pos], context, name.empty())) {
+        while (pos < formula.size() && IsSymbolAllowedInName(formula[pos], context, name.empty())) {
             name += formula[pos++];
         }
         return name;
@@ -555,7 +555,7 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Tokenize(const TString& formula,
         ++pos;
 
         size_t start = pos;
-        while (pos < formula.Size() && std::isalpha(formula[pos])) {
+        while (pos < formula.size() && std::isalpha(formula[pos])) {
             ++pos;
         }
 
@@ -572,11 +572,11 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Tokenize(const TString& formula,
 
     bool expectBinaryOperator = false;
 
-    while (pos < formula.Size()) {
+    while (pos < formula.size()) {
         char c = formula[pos];
         if (std::isspace(c)) {
             skipWhitespace();
-            if (pos == formula.Size()) {
+            if (pos == formula.size()) {
                 break;
             }
             c = formula[pos];
@@ -684,7 +684,7 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Parse(
     }
 
     if (expectSubformula) {
-        throwError(formula.Size(), "Unfinished formula");
+        throwError(formula.size(), "Unfinished formula");
     }
     finishSubformula();
     if (!stack.empty()) {

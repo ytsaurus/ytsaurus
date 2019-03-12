@@ -34,13 +34,13 @@ using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDriver
-    : public Py::PythonClass<TDriver>
+class TDriverRpc
+    : public Py::PythonClass<TDriverRpc>
     , public TDriverBase
 {
 public:
-    TDriver(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
-        : Py::PythonClass<TDriver>::PythonClass(self, args, kwargs)
+    TDriverRpc(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
+        : Py::PythonClass<TDriverRpc>::PythonClass(self, args, kwargs)
     {
         auto configDict = ExtractArgument(args, kwargs, "config");
         ValidateArgumentsEmpty(args, kwargs);
@@ -90,7 +90,7 @@ public:
         : Py::ExtensionModule<TDriverRpcModule>("driver_rpc_lib")
     {
         TDriverModuleBase::Initialize(
-            [](){TDriver::InitType();},
+            [](){TDriverRpc::InitType();},
             [&](){initialize("Python RPC bindings for YT driver");},
             std::bind(&TDriverRpcModule::moduleDictionary, this),
             &TDriverRpcModule::add_keyword_method);

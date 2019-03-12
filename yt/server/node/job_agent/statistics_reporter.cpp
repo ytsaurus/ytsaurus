@@ -444,7 +444,7 @@ private:
             }
             if (statistics.FailContext()) {
                 if (GetSharedData()->GetOperationArchiveVersion() >= 23) {
-                    builder.AddValue(MakeUnversionedUint64Value(statistics.FailContext()->Size(), Table_.Index.FailContextSize));
+                    builder.AddValue(MakeUnversionedUint64Value(statistics.FailContext()->size(), Table_.Index.FailContextSize));
                 } else if (GetSharedData()->GetOperationArchiveVersion() >= 21) {
                     builder.AddValue(MakeUnversionedBooleanValue(statistics.FailContext().operator bool(), Table_.Index.HasFailContext));
                 }
@@ -667,7 +667,7 @@ private:
             builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[1], Table_.Index.OperationIdLo));
             builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[0], Table_.Index.JobIdHi));
             builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[1], Table_.Index.JobIdLo));
-            if (statistics.FailContext() && statistics.FailContext()->Size() <= MaxStringValueLength) {
+            if (statistics.FailContext() && statistics.FailContext()->size() <= MaxStringValueLength) {
                 builder.AddValue(MakeUnversionedStringValue(*statistics.FailContext(), Table_.Index.FailContext));
             }
 

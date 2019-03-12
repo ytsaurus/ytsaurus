@@ -128,9 +128,9 @@ size_t FloatToStringWithNanInf(double value, char* buf, size_t size)
     } else {
         str = negativeInfLiteral;
     }
-    YCHECK(str.Size() + 1 <= size);
-    ::memcpy(buf, str.Data(), str.Size() + 1);
-    return str.Size();
+    YCHECK(str.size() + 1 <= size);
+    ::memcpy(buf, str.data(), str.size() + 1);
+    return str.size();
 }
 
 
