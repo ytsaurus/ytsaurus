@@ -19,6 +19,10 @@ const (
 	NodeTable NodeType = "table"
 )
 
+func (n NodeType) String() string {
+	return string(n)
+}
+
 func (n NodeType) MarshalYSON(w *yson.Writer) error {
 	w.String(string(n))
 	return nil
