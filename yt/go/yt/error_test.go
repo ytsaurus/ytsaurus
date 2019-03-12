@@ -97,6 +97,14 @@ yt: Tablet not found:
     Cypress error
       zog: zog`,
 		},
+		{
+			err:   Err("Retry error", ErrorAttr{"foo", "bar"}, ErrorAttr{"a", "b"}),
+			brief: "yt: Retry error",
+			full: `
+yt: Retry error:
+      a:   b
+      foo: bar`,
+		},
 	} {
 		assert.Equal(t, testCase.brief, fmt.Sprintf("%v", testCase.err))
 		assert.Equal(t, testCase.full[1:], fmt.Sprintf("%+v", testCase.err))

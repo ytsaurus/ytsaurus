@@ -2,6 +2,8 @@ package yt
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 
 	"golang.org/x/xerrors"
 
@@ -81,12 +83,33 @@ func (yt *Error) FormatError(p xerrors.Printer) (next error) {
 	p.Printf("yt: %s", yt.Message)
 
 	printAttrs := func(e *Error) {
+		maxLen := 0
 		if e.Code != 1 {
-			p.Printf("  code: %d\n", e.Code)
+			maxLen = 4
 		}
 
-		for name, attr := range e.Attributes {
-			p.Printf("  %s: %v\n", name, attr)
+		for name := range e.Attributes {
+			if len(name) > maxLen {
+				maxLen = len(name)
+			}
+		}
+
+		padding := func(name string) string {
+			return strings.Repeat(" ", maxLen-len(name))
+		}
+
+		if e.Code != 1 {
+			p.Printf("  code: %s%d\n", padding("code"), e.Code)
+		}
+
+		var names []string
+		for name := range e.Attributes {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+
+		for _, name := range names {
+			p.Printf("  %s: %s%v\n", name, padding(name), e.Attributes[name])
 		}
 	}
 
