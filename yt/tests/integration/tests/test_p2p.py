@@ -39,10 +39,18 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
         }
     }
 
+    DELTA_DRIVER_CONFIG = {
+        "node_directory_synchronizer": {
+            "sync_period": 50 # To force NodeDirectorySynchronizer in tests
+        }
+    }
+
     def setup(self):
         create("table", "//tmp/t")
         set("//tmp/t/@replication_factor", 1)
         write_table("//tmp/t", [{"a": 1}])
+        # This forces lazy node directory synchronizer activation.
+        self._access()
         chunk_id = get_singular_chunk_id("//tmp/t")
         # Node that is the seed for the only existing chunk.
         self.seed = str(get("#{0}/@stored_replicas/0".format(chunk_id)))
