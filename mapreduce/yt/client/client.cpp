@@ -78,21 +78,14 @@ TNodeId TClientBase::Create(
     ENodeType type,
     const TCreateOptions& options)
 {
-    THttpHeader header("POST", "create");
-    header.AddMutationId();
-    // TODO: use corresponding function
-    header.MergeParameters(NRawClient::SerializeParamsForCreate(TransactionId_, path, type, options));
-    return ParseGuidFromResponse(RetryRequest(Auth_, header));
+    return NRawClient::Create(Auth_, TransactionId_, path, type, options);
 }
 
 void TClientBase::Remove(
     const TYPath& path,
     const TRemoveOptions& options)
 {
-    THttpHeader header("POST", "remove");
-    header.AddMutationId();
-    header.MergeParameters(SerializeParamsForRemove(TransactionId_, path, options));
-    RetryRequest(Auth_, header);
+    return NRawClient::Remove(Auth_, TransactionId_, path, options);
 }
 
 bool TClientBase::Exists(const TYPath& path)
@@ -127,10 +120,7 @@ TNodeId TClientBase::Copy(
     const TYPath& destinationPath,
     const TCopyOptions& options)
 {
-    THttpHeader header("POST", "copy");
-    header.AddMutationId();
-    header.MergeParameters(NRawClient::SerializeParamsForCopy(TransactionId_, sourcePath, destinationPath, options));
-    return ParseGuidFromResponse(RetryRequest(Auth_, header));
+    return NRawClient::Copy(Auth_, TransactionId_, sourcePath, destinationPath, options);
 }
 
 TNodeId TClientBase::Move(
