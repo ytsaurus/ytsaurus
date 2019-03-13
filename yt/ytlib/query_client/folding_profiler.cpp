@@ -1407,6 +1407,7 @@ size_t TQueryProfiler::Profile(
     Fold(static_cast<int>(EFoldingObjectType::NamedExpression));
 
     size_t resultId = TExpressionProfiler::Profile(namedExpression.Expression, schema, fragments);
+    Fold(resultId);
     ++fragments->Items[resultId].UseCount;
 
     return resultId;
