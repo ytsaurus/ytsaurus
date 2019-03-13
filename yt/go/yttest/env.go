@@ -33,14 +33,20 @@ func NewEnv(t testing.TB) (env *Env, cancel func()) {
 	}
 	config.Logger = &zap.Logger{L: zaptest.NewLogger(t)}
 
+	var cancelCtx func()
 	env = &Env{}
-	env.Ctx, cancel = context.WithCancel(context.Background())
+	env.Ctx, cancelCtx = context.WithCancel(context.Background())
 	env.YT, err = ythttp.NewClient(config)
 	if err != nil {
 		t.Fatalf("failed to create YT client: %+v", err)
 	}
 
 	env.MR = mapreduce.New(env.YT)
+
+	cancel = func() {
+		cancelCtx()
+		env.YT.Stop()
+	}
 	return
 }
 

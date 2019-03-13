@@ -45,6 +45,7 @@ type httpClient struct {
 	httpClient *http.Client
 	log        log.Logger
 	config     *yt.Config
+	stop       *internal.StopGroup
 
 	credentials yt.Credentials
 }
@@ -299,7 +300,11 @@ func (c *httpClient) doRead(ctx context.Context, call *internal.Call) (r io.Read
 }
 
 func (c *httpClient) Begin(ctx context.Context, options *yt.StartTxOptions) (yt.Tx, error) {
-	return internal.NewTx(ctx, c.Encoder, options)
+	return internal.NewTx(ctx, c.Encoder, c.stop, options)
+}
+
+func (c *httpClient) Stop() {
+	c.stop.Stop()
 }
 
 func NewHTTPClient(c *yt.Config) (yt.Client, error) {
@@ -314,6 +319,7 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 	client.config = c
 	client.clusterURL = yt.NormalizeProxyURL(c.Proxy)
 	client.httpClient = http.DefaultClient
+	client.stop = internal.NewStopGroup()
 
 	client.Encoder.Invoke = client.do
 	client.Encoder.InvokeRead = client.doRead
