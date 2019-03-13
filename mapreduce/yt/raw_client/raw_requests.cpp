@@ -117,6 +117,19 @@ TNodeId Create(
     return ParseGuidFromResponse(RetryRequestWithPolicy(auth, header, "", retryPolicy).Response);
 }
 
+TNodeId Copy(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& sourcePath,
+    const TYPath& destinationPath,
+    const TCopyOptions& options)
+{
+    THttpHeader header("POST", "copy");
+    header.AddMutationId();
+    header.MergeParameters(SerializeParamsForCopy(transactionId, sourcePath, destinationPath, options));
+    return ParseGuidFromResponse(RetryRequest(auth, header));
+}
+
 void Remove(
     const TAuth& auth,
     const TTransactionId& transactionId,

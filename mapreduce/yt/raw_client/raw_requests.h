@@ -68,6 +68,13 @@ TNodeId Create(
     const TCreateOptions& options = TCreateOptions(),
     IRetryPolicy* retryPolicy = nullptr);
 
+TNodeId Copy(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& sourcePath,
+    const TYPath& destinationPath,
+    const TCopyOptions& options);
+
 void Remove(
     const TAuth& auth,
     const TTransactionId& transactionId,
