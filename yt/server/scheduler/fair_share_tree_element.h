@@ -836,8 +836,8 @@ private:
 
     std::optional<EDeactivationReason> TryStartScheduleJob(
         NProfiling::TCpuInstant now,
-        const TJobResources& minNeededResources,
         const TFairShareContext& context,
+        TJobResources* precommittedResourcesOutput,
         TJobResources* availableResourcesOutput);
 
     void FinishScheduleJob(
