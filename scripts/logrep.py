@@ -1051,7 +1051,7 @@ def subcommand_grep(instance_list, args):
 
 
 def subcommand_pgrep(instance_list, args):
-    verify_at_least_one_instance(instance_list)
+    verify_at_least_one_instance(instance_list, False)
 
     if args.instance_limit and len(instance_list) > args.instance_limit:
         raise LogrepError(
