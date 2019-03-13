@@ -105,10 +105,12 @@ def prepare_python_source_tree(python_root, yt_root, prepare_binary_symlinks=Tru
 
     for package_name in CONTRIB_PYTHON_PACKAGE_LIST:
         logger.info("Preparing package %s", package_name)
-        files_to_copy = glob.glob(
-            "{yt_root}/contrib/python/{package_name}/{package_name}*.py".format(
-                yt_root=yt_root,
-                package_name=package_name))
+        # By some reason tqdm has both tqdm dir and tqdm.py file, second must be ignored.
+        if package_name != "tqdm":
+            files_to_copy = glob.glob(
+                "{yt_root}/contrib/python/{package_name}/{package_name}*.py".format(
+                    yt_root=yt_root,
+                    package_name=package_name))
         files_to_copy += glob.glob(
             "{yt_root}/contrib/python/{package_name}/{package_name}".format(
                 yt_root=yt_root,
