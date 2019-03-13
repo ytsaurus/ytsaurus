@@ -899,8 +899,8 @@ def add_start_clickhouse_clique_parser(add_parser):
     parser.add_argument("--cypress-ytserver-clickhouse-path")
     parser.add_argument("--host-ytserver-clickhouse-path")
     parser.add_argument("--cypress-base-config-path", default="//sys/clickhouse/config")
-    parser.add_argument("--cpu-limit", default=clickhouse.DEFAULT_CPU_LIMIT, type=int) 
-    parser.add_argument("--memory-limit", default=clickhouse.DEFAULT_MEMORY_LIMIT, type=int)
+    parser.add_argument("--cpu-limit", type=int)
+    parser.add_argument("--memory-limit", type=int)
     parser.add_argument("--enable-monitoring", action="store_true", default=False,
                         help="(only for development use) bind monitoring port to 10142")
     parser.add_argument("--enable-query-log", action="store_true", default=False,
