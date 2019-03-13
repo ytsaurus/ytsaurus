@@ -3,7 +3,7 @@ syntax = "proto3";
 package NYP.NClient.NApi.NProto;
 
 import "yt/core/yson/proto/protobuf_interop.proto";
-import "yt/core/ytree/proto/attributes.proto";
+import "yt_proto/yt/core/ytree/proto/attributes.proto";
 
 import "yp_proto/yp/client/api/proto/conditions.proto";
 import "yp_proto/yp/client/api/proto/data_model.proto";
@@ -96,8 +96,8 @@ message TResourceCache
     TResourceCacheMeta meta = 1;
     TResourceCacheSpec spec = 2;
     TResourceCacheStatus status = 3;
-    NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

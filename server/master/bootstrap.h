@@ -14,6 +14,8 @@
 
 #include <yp/server/accounting/public.h>
 
+#include <yt/client/node_tracker_client/public.h>
+
 #include <yt/ytlib/auth/public.h>
 
 #include <yt/core/concurrency/public.h>
@@ -44,6 +46,7 @@ public:
     const NAuth::ISecretVaultServicePtr& GetSecretVaultService();
 
     const TString& GetFqdn();
+    const NYT::NNodeTrackerClient::TAddressMap & GetInternalRpcAddresses();
     const TString& GetClientGrpcAddress();
     const TString& GetSecureClientGrpcAddress();
     const TString& GetClientHttpAddress();

@@ -416,7 +416,7 @@ private:
 
         context->SetRequestInfo("TransactionId: %v, Subrequests: %v",
             transactionId,
-            MakeFormattableView(MakeRange(subrequests), [] (auto* builder, const auto& subrequest) {
+            MakeFormattableView(subrequests, [] (auto* builder, const auto& subrequest) {
                 builder->AppendFormat("{ObjectType: %v}",
                     subrequest.Type);
             }));
@@ -444,7 +444,7 @@ private:
         }
 
         context->SetResponseInfo("ObjectIds: %v",
-            MakeFormattableView(MakeRange(objects), [] (auto* builder, auto* object) {
+            MakeFormattableView(objects, [] (auto* builder, auto* object) {
                 builder->AppendFormat("%v",
                     object->GetId());
             }));
@@ -456,7 +456,7 @@ private:
         Y_UNUSED(response);
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto objectType = static_cast<NObjects::EObjectType>(request->object_type());
+        auto objectType = CheckedEnumCast<NObjects::EObjectType>(request->object_type());
         auto objectId = FromProto<TObjectId>(request->object_id());
 
         context->SetRequestInfo("TransactionId: %v, ObjectType: %v, ObjectId: %v",
@@ -493,14 +493,14 @@ private:
         subrequests.reserve(request->subrequests_size());
         for (const auto& subrequest : request->subrequests()) {
             subrequests.push_back({
-                static_cast<NObjects::EObjectType>(subrequest.object_type()),
+                CheckedEnumCast<NObjects::EObjectType>(subrequest.object_type()),
                 FromProto<TObjectId>(subrequest.object_id())
             });
         }
 
         context->SetRequestInfo("TransactionId: %v, Subrequests: %v",
             transactionId,
-            MakeFormattableView(MakeRange(subrequests), [] (auto* builder, const auto& subrequest) {
+            MakeFormattableView(subrequests, [] (auto* builder, const auto& subrequest) {
                 builder->AppendFormat("{ObjectType: %v, ObjectId: %v}",
                     subrequest.Type,
                     subrequest.Id);
@@ -598,7 +598,7 @@ private:
 
         context->SetRequestInfo("TransactionId: %v, Subrequests: %v",
             transactionId,
-            MakeFormattableView(MakeRange(subrequests), [] (auto* builder, const auto& subrequest) {
+            MakeFormattableView(subrequests, [] (auto* builder, const auto& subrequest) {
                 builder->AppendFormat("{ObjectType: %v, ObjectId: %v, UpdateCount: %v}",
                     subrequest.Type,
                     subrequest.Id,
@@ -714,7 +714,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, SelectObjects)
     {
-        auto objectType = static_cast<EObjectType>(request->object_type());
+        auto objectType = CheckedEnumCast<EObjectType>(request->object_type());
         auto timestamp = request->timestamp();
 
         auto filter = request->has_filter()
@@ -863,17 +863,12 @@ private:
             auto objectType = CheckedEnumCast<NObjects::EObjectType>(subrequest.object_type());
             auto permission = CheckedEnumCast<NAccessControl::EAccessControlPermission>(
                 subrequest.permission());
-            auto objects = accessControlManager->GetUserAccessAllowedTo(
+            auto objectIds = accessControlManager->GetUserAccessAllowedTo(
                 transaction,
                 user,
                 objectType,
                 permission);
-            auto* subresponse = response->add_subresponses();
-            auto* object_ids = subresponse->mutable_object_ids();
-            object_ids->Reserve(objects.size());
-            for (auto* object : objects) {
-                *object_ids->Add() = object->GetId();
-            }
+            ToProto(response->add_subresponses()->mutable_object_ids(), objectIds);
         }
 
         context->Reply();

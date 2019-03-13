@@ -162,12 +162,14 @@ public:
         const TAttributeSelector& selector,
         const TSelectQueryOptions& options);
 
+    NYT::NApi::IUnversionedRowsetPtr SelectFields(
+        EObjectType objectType,
+        const std::vector<const TDBField*>& fields);
+
     TObject* GetObject(
         EObjectType type,
         const TObjectId& id,
         const TObjectId& parentId = {});
-
-    std::vector<TObject*> SelectObjects(EObjectType objectType);
 
     TSchema* GetSchema(EObjectType type);
 
@@ -193,6 +195,10 @@ public:
     TInternetAddress* GetInternetAddress(const TObjectId& id);
 
     TAccount* GetAccount(const TObjectId& id);
+
+    TUser* GetUser(const TObjectId& id);
+
+    TGroup* GetGroup(const TObjectId& id);
 
     TFuture<TTransactionCommitResult> Commit();
     void Abort();

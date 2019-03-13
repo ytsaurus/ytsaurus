@@ -472,7 +472,6 @@ class TestPods(object):
                 "node_id": node_id
             })
 
-
         allocations1 = yp_client.get_object("resource", hdd_resource_id, selectors=["/status/scheduled_allocations"])[0]
 
         def try_update(yp_client, pod_id):
@@ -533,13 +532,38 @@ class TestPods(object):
         volume_id3 = allocations3[0]["disk"]["volume_id"]
         volume_id4 = allocations3[1]["disk"]["volume_id"]
 
-        assert allocations1[0]["disk"] == {"exclusive": False, "volume_id": volume_id1, "capacity": YsonUint64(500)}
+        assert allocations1[0]["disk"] == {
+            "exclusive": False,
+            "volume_id": volume_id1,
+            "capacity": YsonUint64(500),
+            "bandwidth": YsonUint64(0),
+        }
 
-        assert allocations2[0]["disk"] == {"exclusive": False, "volume_id": volume_id1, "capacity": YsonUint64(500)}
-        assert allocations2[1]["disk"] == {"exclusive": False, "volume_id": volume_id2, "capacity": YsonUint64(100)}
+        assert allocations2[0]["disk"] == {
+            "exclusive": False,
+            "volume_id": volume_id1,
+            "capacity": YsonUint64(500),
+            "bandwidth": YsonUint64(0),
+        }
+        assert allocations2[1]["disk"] == {
+            "exclusive": False,
+            "volume_id": volume_id2,
+            "capacity": YsonUint64(100),
+            "bandwidth": YsonUint64(0),
+        }
 
-        assert allocations3[0]["disk"] == {"exclusive": False, "volume_id": volume_id3, "capacity": YsonUint64(555)}
-        assert allocations3[1]["disk"] == {"exclusive": False, "volume_id": volume_id4, "capacity": YsonUint64(100)}
+        assert allocations3[0]["disk"] == {
+            "exclusive": False,
+            "volume_id": volume_id3,
+            "capacity": YsonUint64(555),
+            "bandwidth": YsonUint64(0),
+        }
+        assert allocations3[1]["disk"] == {
+            "exclusive": False,
+            "volume_id": volume_id4,
+            "capacity": YsonUint64(100),
+            "bandwidth": YsonUint64(0),
+        }
 
     def test_disk_allocation_in_pod_status(self, yp_env):
         yp_client = yp_env.yp_client
@@ -842,3 +866,38 @@ class TestPods(object):
         pod_set_id = yp_client.create_object("pod_set")
         pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {})
         assert yp_client.get_object("pod", pod_id, selectors=["/meta/acl"])[0] == []
+
+    def test_dynamic_properties(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        pod_set_id = yp_client.create_object("pod_set")
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
+                "dynamic_attributes": {
+                    "labels": ["l1", "l2"],
+                    "annotations": ["a1", "a2"]
+                }
+            })
+
+        ts1 = yp_client.get_object("pod", pod_id, selectors=["/status/master_spec_timestamp"])[0]
+
+        yp_client.update_object("pod", pod_id, set_updates=[{"path": "/labels/l3", "value": 1}])
+        assert ts1 == yp_client.get_object("pod", pod_id, selectors=["/status/master_spec_timestamp"])[0]
+
+        yp_client.update_object("pod", pod_id, set_updates=[{"path": "/annotations/a3", "value": 1}])
+        assert ts1 == yp_client.get_object("pod", pod_id, selectors=["/status/master_spec_timestamp"])[0]
+
+        yp_client.update_object("pod", pod_id, set_updates=[{"path": "/labels/l1", "value": 2}])
+        ts2 = yp_client.get_object("pod", pod_id, selectors=["/status/master_spec_timestamp"])[0]
+        assert ts2 > ts1
+
+        yp_client.update_object("pod", pod_id, set_updates=[{"path": "/annotations/a1", "value": "hello"}])
+        ts3 = yp_client.get_object("pod", pod_id, selectors=["/status/master_spec_timestamp"])[0]
+        assert ts3 > ts2
+
+        assert yp_client.get_object("pod", pod_id, selectors=["/status/pod_dynamic_attributes"])[0] == \
+            {
+                "labels": {"l1": 2},
+                "annotations": {"a1": "hello"}
+            }
+        
+

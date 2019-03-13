@@ -107,15 +107,20 @@ const TScalarAttributeSchema<TPod, TPod::TSpec::TDynamicResourceSpec> TPod::TSpe
     [] (TPod* pod) { return &pod->Spec().DynamicResources(); }
 };
 
-const TScalarAttributeSchema<TPod, TPod::TSpec::TOther> TPod::TSpec::OtherSchema{
-    &PodsTable.Fields.Spec_Other,
-    [] (TPod* pod) { return &pod->Spec().Other(); }
-};
-
 const TManyToOneAttributeSchema<TPod, TAccount> TPod::TSpec::AccountSchema{
     &PodsTable.Fields.Spec_AccountId,
     [] (TPod* pod) { return &pod->Spec().Account(); },
     [] (TAccount* account) { return &account->Pods(); }
+};
+
+const TScalarAttributeSchema<TPod, TPod::TSpec::TDynamicAttributes> TPod::TSpec::DynamicAttributesSchema{
+    &PodsTable.Fields.Spec_DynamicAttributes,
+    [] (TPod* pod) { return &pod->Spec().DynamicAttributes(); }
+};
+
+const TScalarAttributeSchema<TPod, TPod::TSpec::TOther> TPod::TSpec::OtherSchema{
+    &PodsTable.Fields.Spec_Other,
+    [] (TPod* pod) { return &pod->Spec().Other(); }
 };
 
 TPod::TSpec::TSpec(TPod* pod)
@@ -126,8 +131,9 @@ TPod::TSpec::TSpec(TPod* pod)
     , Secrets_(pod, &SecretsSchema)
     , UpdateTimestamp_(pod, &UpdateTimestampSchema)
     , DynamicResources_(pod, &DynamicResourcesSchema)
-    , Other_(pod, &OtherSchema)
     , Account_(pod, &AccountSchema)
+    , DynamicAttributes_(pod, &DynamicAttributesSchema)
+    , Other_(pod, &OtherSchema)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -22,6 +22,54 @@ namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+struct TEmptyPathValidator
+{
+    static void Run(const TAttributeSchema* attribute, const NYPath::TYPath& path)
+    {
+        if (!path.empty()) {
+            THROW_ERROR_EXCEPTION("Attribute %v is scalar and does not support nested access",
+                attribute->GetPath());
+        }
+    }
+};
+
+template <class T, class = void>
+struct TScalarAttributePathValidator
+{
+    static void Run(const TScalarAttributeSchemaBase* schema, const TAttributeSchema* attribute, const NYPath::TYPath& path)
+    {
+        if (schema->Field->Type != NTableClient::EValueType::Any && !path.empty()) {
+            THROW_ERROR_EXCEPTION("Attribute %v is scalar and does not support nested access",
+                attribute->GetPath());
+        }
+    }
+};
+
+template <class T>
+struct TScalarAttributePathValidator<
+    T,
+    typename std::enable_if<NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>::Value>::type
+>
+{
+    static void Run(const TScalarAttributeSchemaBase* /*schema*/, const TAttributeSchema* attribute, const NYPath::TYPath& path)
+    {
+        const auto* protobufType = NYson::ReflectProtobufMessageType<T>();
+        try {
+            // NB: This is a mere validation; the result is ignored intentionally.
+            NYson::ResolveProtobufElementByYPath(protobufType, path);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error fetching field %v of attribute %v",
+                path,
+                attribute->GetPath())
+                << ex;
+        }
+    }
+};
+
+} // namespace
+
 template <class TTypedObject, class TTypedValue>
 TAttributeSchema* TAttributeSchema::SetSetter(std::function<void(
     TTransaction*,
@@ -63,6 +111,19 @@ TAttributeSchema* TAttributeSchema::SetControl(std::function<void(
                 THROW_ERROR_EXCEPTION("Partial updates are not supported");
             }
             control(transaction, object, value);
+        });
+    return this;
+}
+
+template <class TTypedObject>
+TAttributeSchema* TAttributeSchema::SetUpdatePrehandler(std::function<void(
+    TTransaction*,
+    TTypedObject*)> prehandler)
+{
+    UpdatePrehandlers_.push_back(
+        [=] (TTransaction* transaction, TObject* object) {
+            auto* typedObject = object->template As<TTypedObject>();
+            prehandler(transaction, typedObject);
         });
     return this;
 }
@@ -127,7 +188,9 @@ TAttributeSchema* TAttributeSchema::SetAttribute(const TScalarAttributeSchema<TT
     InitInitializer<TTypedObject, TTypedValue>(schema);
     InitRemover<TTypedObject, TTypedValue>(schema);
     InitPreloader<TTypedObject>(schema);
-    InitExpressionBuilder(schema.Field);
+    InitExpressionBuilder(
+        schema.Field,
+        std::bind(TScalarAttributePathValidator<TTypedValue>::Run, &schema, std::placeholders::_1, std::placeholders::_2));
     return this;
 }
 
@@ -177,7 +240,33 @@ TAttributeSchema* TAttributeSchema::SetAttribute(const TManyToOneAttributeSchema
             }
         };
 
-    InitExpressionBuilder(schema.Field);
+    Remover_ =
+        [=] (
+            TTransaction* /*transaction*/,
+            TObject* many,
+            const NYT::NYPath::TYPath& path)
+        {
+            if (!path.empty()) {
+                THROW_ERROR_EXCEPTION("Partial removes are not supported");
+            }
+
+            if (!schema.Nullable) {
+                THROW_ERROR_EXCEPTION("Cannot set null %v",
+                    GetLowercaseHumanReadableTypeName(TOne::Type));
+            }
+
+            auto* typedMany = many->As<TMany>();
+            auto* forwardAttribute = schema.ForwardAttributeGetter(typedMany);
+            auto* currentTypedOne = forwardAttribute->Load();
+            if (currentTypedOne) {
+                auto* inverseAttribute = schema.InverseAttributeGetter(currentTypedOne);
+                inverseAttribute->Remove(typedMany);
+            }
+        };
+
+    InitExpressionBuilder(
+        schema.Field,
+        TEmptyPathValidator::Run);
 
     return this;
 }

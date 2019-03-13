@@ -1,8 +1,17 @@
 from .conftest import ZERO_RESOURCE_REQUESTS
 
-from yp.common import YpClientError, YtResponseError, YpAuthorizationError
+from yp.common import (
+    YP_NO_SUCH_OBJECT_ERROR_CODE,
+    YpAuthorizationError,
+    YpClientError,
+    YpNoSuchObjectError,
+    YtResponseError,
+    validate_error_recursively,
+)
 
 from yt.environment.helpers import assert_items_equal
+
+from yt.packages.six.moves import xrange
 
 import pytest
 
@@ -252,6 +261,7 @@ class TestAcls(object):
         assert_items_equal(yp_client.get_user_access_allowed_to([]), [])
 
         yp_client.create_object("user", attributes=dict(meta=dict(id="u1")))
+        yp_env.sync_access_control()
 
         def create_network_project(acl, inherit_acl):
             return yp_client.create_object(
@@ -266,7 +276,6 @@ class TestAcls(object):
 
         # User is not granted the access. Superuser is always granted the access.
         # Different users / permissions in the one request.
-        yp_env.sync_access_control()
         assert_items_equal(
             yp_client.get_user_access_allowed_to([
                 dict(
@@ -300,7 +309,6 @@ class TestAcls(object):
         )
 
         # User is granted the access.
-        yp_env.sync_access_control()
         assert_items_equal(
             yp_client.get_user_access_allowed_to([
                 dict(
@@ -334,7 +342,6 @@ class TestAcls(object):
         )
 
         # Several objects in the response.
-        yp_env.sync_access_control()
         response = yp_client.get_user_access_allowed_to([
             dict(
                 user_id="u1",
@@ -389,6 +396,7 @@ class TestAcls(object):
             meta=dict(id="g1"),
             spec=dict(members=["u1"]),
         ))
+        yp_env.sync_access_control()
 
         yp_client.update_object("network_project", network_project_id2, set_updates=[
             dict(
@@ -401,7 +409,6 @@ class TestAcls(object):
         ])
 
         # User is not granted the access because of group ace with action = "deny".
-        yp_env.sync_access_control()
         assert_items_equal(
             yp_client.get_user_access_allowed_to([
                 dict(
@@ -413,6 +420,34 @@ class TestAcls(object):
             [
                 dict(object_ids=[network_project_id3]),
             ],
+        )
+
+        object_count = 100
+        object_ids = []
+        for _ in xrange(object_count):
+            object_ids.append(
+                yp_client.create_object(
+                    "account",
+                    attributes=dict(meta=dict(acl=[
+                        dict(
+                            action="allow",
+                            permissions=["read"],
+                            subjects=["u1"],
+                        )
+                    ])),
+                )
+            )
+        assert_items_equal(
+            set(
+                yp_client.get_user_access_allowed_to([
+                    dict(
+                        user_id="u1",
+                        object_type="account",
+                        permission="read",
+                    ),
+                ])[0]["object_ids"]
+            ),
+            set(object_ids),
         )
 
     def test_only_superuser_can_force_assign_pod1(self, yp_env):
@@ -530,6 +565,90 @@ class TestAcls(object):
 
             try_create()
 
+    def test_nonexistant_subject_in_acl(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        def with_error(callback, subject_id):
+            def validate_error(error):
+                return int(error.get("code", 0)) == YP_NO_SUCH_OBJECT_ERROR_CODE and \
+                    error.get("attributes", {}).get("object_id", None) == subject_id
+            with pytest.raises(YpNoSuchObjectError) as exception_info:
+                callback()
+            assert validate_error_recursively(exception_info.value.error, validate_error)
+
+        subject_name = "subject"
+        acl = [
+            dict(
+                action="allow",
+                subjects=["root", subject_name],
+                permissions=["read"]
+            ),
+            dict(
+                action="allow",
+                subjects=["superusers"],
+                permissions=["write"]
+            )
+        ]
+
+        with_error(
+            lambda: yp_client.create_object(
+                "pod_set",
+                attributes=dict(meta=dict(acl=acl)),
+            ),
+            subject_name
+        )
+
+        pod_set_id = yp_client.create_object("pod_set")
+
+        with_error(
+            lambda: yp_client.update_object(
+                "pod_set",
+                pod_set_id,
+                set_updates=[
+                    dict(
+                        path="/meta/acl",
+                        value=acl,
+                    )
+                ]
+            ),
+            subject_name
+        )
+
+        # Add ace with existant subject when acl already contains non-existant subject.
+        subject_name2 = "subject2"
+        yp_client.create_object("user", attributes=dict(meta=dict(id=subject_name)))
+        yp_client.create_object("user", attributes=dict(meta=dict(id=subject_name2)))
+        yp_env.sync_access_control()
+
+        yp_client.update_object(
+            "pod_set",
+            pod_set_id,
+            set_updates=[
+                dict(
+                    path="/meta/acl",
+                    value=acl,
+                )
+            ]
+        )
+
+        yp_client.remove_object("user", subject_name)
+        yp_env.sync_access_control()
+
+        yp_client.update_object(
+            "pod_set",
+            pod_set_id,
+            set_updates=[
+                dict(
+                    path="/meta/acl/end",
+                    value=dict(
+                        action="allow",
+                        permissions=["read"],
+                        subjects=[subject_name2]
+                    )
+                )
+            ]
+        )
+
 
 @pytest.mark.usefixtures("yp_env_configurable")
 class TestApiGetUserAccessAllowedTo(object):
@@ -544,11 +663,14 @@ class TestApiGetUserAccessAllowedTo(object):
     def test(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
 
+        u1 = yp_client.create_object("user")
+        yp_env_configurable.sync_access_control()
+
         # Method is not supported for the 'network_project' object type.
         try:
             yp_client.get_user_access_allowed_to([
                 dict(
-                    user_id="u1",
+                    user_id=u1,
                     object_type="network_project",
                     permission="create",
                 )
@@ -556,7 +678,6 @@ class TestApiGetUserAccessAllowedTo(object):
         except YtResponseError as error:
             assert error.contains_code(103) # No such method.
 
-        u1 = yp_client.create_object("user")
         pod_set_id = yp_client.create_object("pod_set", attributes=dict(meta=dict(
             acl=[
                 dict(
@@ -595,7 +716,6 @@ class TestApiGetUserAccessAllowedTo(object):
             ]
         )))
 
-        yp_env_configurable.sync_access_control()
         assert_items_equal(
             yp_client.get_user_access_allowed_to([
                 dict(

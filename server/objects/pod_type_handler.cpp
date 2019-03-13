@@ -12,6 +12,7 @@
 #include <yp/server/master/bootstrap.h>
 
 #include <yp/server/nodes/porto.h>
+#include <yp/server/nodes/helpers.h>
 
 #include <yp/server/scheduler/resource_manager.h>
 #include <yp/server/scheduler/helpers.h>
@@ -97,6 +98,11 @@ public:
                     ->SetAttribute(TPod::TStatus::DynamicResourcesSchema)
                     ->SetUpdatable(),
 
+                MakeAttributeSchema("pod_dynamic_attributes")
+                    ->SetOpaque()
+                    ->SetPreevaluator<TPod>(std::bind(&TPodTypeHandler::PreevaluatePodDynamicAttributes, this, _1, _2))
+                    ->SetEvaluator<TPod>(std::bind(&TPodTypeHandler::EvaluatePodDynamicAttributes, this, _1, _2, _3)),
+
                 MakeFallbackAttributeSchema()
                     ->SetAttribute(TPod::TStatus::OtherSchema)
             });
@@ -138,6 +144,10 @@ public:
                     ->SetAttribute(TPod::TSpec::DynamicResourcesSchema)
                     ->SetUpdatable(),
 
+                MakeAttributeSchema("dynamic_attributes")
+                    ->SetAttribute(TPod::TSpec::DynamicAttributesSchema)
+                    ->SetUpdatable(),
+
                 MakeFallbackAttributeSchema()
                     ->SetAttribute(TPod::TSpec::OtherSchema)
                     ->SetUpdatable()
@@ -150,6 +160,14 @@ public:
                 MakeAttributeSchema("acknowledge_eviction")
                     ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TAcknowledgeEviction>(std::bind(&TPodTypeHandler::AcknowledgeEviction, _1, _2, _3))
             });
+
+        LabelsAttributeSchema_
+            ->SetUpdatePrehandler<TPod>(std::bind(&TPodTypeHandler::BeforeLabelsUpdated, this, _1, _2))
+            ->SetUpdateHandler<TPod>(std::bind(&TPodTypeHandler::OnLabelsUpdated, this, _1, _2));
+
+        AnnotationsAttributeSchema_
+            ->SetUpdateHandler<TPod>(std::bind(&TPodTypeHandler::BeforeAnnotationsUpdated, this, _1, _2))
+            ->SetUpdateHandler<TPod>(std::bind(&TPodTypeHandler::OnAnnotationsUpdated, this, _1, _2));
     }
 
     virtual const NYson::TProtobufMessageType* GetRootProtobufType() override
@@ -160,6 +178,11 @@ public:
     virtual EObjectType GetParentType() override
     {
         return EObjectType::PodSet;
+    }
+
+    virtual TObject* GetParent(TObject* object) override
+    {
+        return object->As<TPod>()->PodSet().Load();
     }
 
     virtual const TDBField* GetIdField() override
@@ -180,11 +203,6 @@ public:
     virtual TChildrenAttributeBase* GetParentChildrenAttribute(TObject* parent) override
     {
         return &parent->As<TPodSet>()->Pods();
-    }
-
-    virtual TObject* GetAccessControlParent(TObject* object) override
-    {
-        return object->As<TPod>()->PodSet().Load();
     }
 
     virtual std::unique_ptr<TObject> InstantiateObject(
@@ -312,7 +330,7 @@ private:
 
         if (spec.Node().IsChanged()) {
             const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
-            accessControlManager->ValidateSuperuser();
+            accessControlManager->ValidateSuperuser(AsStringBuf("change /spec/node_id"));
         }
 
         if (spec.EnableScheduling().IsChanged() &&
@@ -397,7 +415,7 @@ private:
                 validateNetworkProject(request.network_id());
             } else {
                 const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
-                accessControlManager->ValidateSuperuser();
+                accessControlManager->ValidateSuperuser("configure IP6 subnet request without network id");
             }
         }
     }
@@ -405,6 +423,9 @@ private:
     void ValidateAccount(TTransaction* /*transaction*/, TPod* pod)
     {
         auto* account = pod->Spec().Account().Load();
+        if (!account) {
+            return;
+        }
         const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
         accessControlManager->ValidatePermission(account, EAccessControlPermission::Use);
     }
@@ -412,6 +433,74 @@ private:
     void OnAccountUpdated(TTransaction* transaction, TPod* pod)
     {
         transaction->ScheduleValidateAccounting(pod);
+    }
+
+
+    bool AreLabelsDynamicAttributesChanged(TPod* pod)
+    {
+        const auto& specDynamicAttributes = pod->Spec().DynamicAttributes().Load();
+
+        auto oldLabels = pod->Labels().LoadOld();
+        auto newLabels = pod->Labels().Load();
+        for (const auto& key : specDynamicAttributes.labels()) {
+            auto oldValue = oldLabels->FindChild(key);
+            auto newValue = newLabels->FindChild(key);
+            if (!AreNodesEqual(oldValue, newValue)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    void BeforeLabelsUpdated(TTransaction* /*transaction*/, TPod* pod)
+    {
+        pod->Spec().DynamicAttributes().ScheduleLoad();
+    }
+
+    void OnLabelsUpdated(TTransaction* /*transaction*/, TPod* pod)
+    {
+        if (AreLabelsDynamicAttributesChanged(pod)) {
+            pod->Spec().UpdateTimestamp().Touch();
+        }
+    }
+
+
+    bool AreAnnotationsDynamicAttributesChanged(TPod* pod)
+    {
+        const auto& specDynamicAttributes = pod->Spec().DynamicAttributes().Load();
+
+        for (const auto& key : specDynamicAttributes.annotations()) {
+            if (pod->Annotations().IsStoreScheduled(key)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    void BeforeAnnotationsUpdated(TTransaction* /*transaction*/, TPod* pod)
+    {
+        pod->Spec().DynamicAttributes().ScheduleLoad();
+    }
+
+    void OnAnnotationsUpdated(TTransaction* /*transaction*/, TPod* pod)
+    {
+        if (AreAnnotationsDynamicAttributesChanged(pod)) {
+            pod->Spec().UpdateTimestamp().Touch();
+        }
+    }
+
+
+    void PreevaluatePodDynamicAttributes(TTransaction* /*transaction*/, TPod* pod)
+    {
+        SchedulePodDynamicAttributesLoad(pod);
+    }
+
+    void EvaluatePodDynamicAttributes(TTransaction* /*transaction*/, TPod* pod, IYsonConsumer* consumer)
+    {
+        auto attributes = BuildPodDynamicAttributes(pod);
+        WriteProtobufMessage(consumer, attributes);
     }
 };
 

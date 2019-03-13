@@ -20,6 +20,7 @@ bool TLocalResourceAllocator::TryAllocate(
 
     THashMap<TObjectId, std::pair<const TResource*, const TAllocation*>> requestIdToAllocation;
 
+    // Cf. ComputeTotalAllocationStatistics.
     struct TPodStatistics
     {
         TAllocationStatistics Scheduled;

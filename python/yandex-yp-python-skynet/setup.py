@@ -1,4 +1,5 @@
-from yp_package import setup_package
+PACKAGE_NAME = "yandex-yp-skynet"
 
 if __name__ == "__main__":
-    setup_package("yandex-yp-skynet", ["yandex-yt-yson-bindings-skynet >= 0.3.11-3"])
+    from yp_package import setup_package
+    setup_package(PACKAGE_NAME, ["yandex-yt-yson-bindings-skynet >= 0.3.11-3"])

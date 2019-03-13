@@ -5,9 +5,19 @@
 #include "transaction.h"
 #include "db_schema.h"
 
+#include <yp/server/scheduler/helpers.h>
+
+#include <yt/core/ytree/fluent.h>
+
 namespace NYP::NServer::NObjects {
 
 using namespace NAccessControl;
+using namespace NScheduler;
+
+using namespace NYT::NYson;
+using namespace NYT::NYTree;
+
+using namespace std::placeholders;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,7 +43,15 @@ public:
                     ->SetAttribute(TResource::TStatus::ScheduledAllocationsSchema),
 
                 MakeAttributeSchema("actual_allocations")
-                    ->SetAttribute(TResource::TStatus::ActualAllocationsSchema)
+                    ->SetAttribute(TResource::TStatus::ActualAllocationsSchema),
+
+                MakeAttributeSchema("used")
+                    ->SetPreevaluator<TResource>(std::bind(&TResourceTypeHandler::PreevaluateUsedStatistics, this, _1, _2))
+                    ->SetEvaluator<TResource>(std::bind(&TResourceTypeHandler::EvaluateUsedStatistics, this, _1, _2, _3)),
+
+                MakeAttributeSchema("free")
+                    ->SetPreevaluator<TResource>(std::bind(&TResourceTypeHandler::PreevaluateFreeStatistics, this, _1, _2))
+                    ->SetEvaluator<TResource>(std::bind(&TResourceTypeHandler::EvaluateFreeStatistics, this, _1, _2, _3)),
             });
 
         SpecAttributeSchema_
@@ -50,6 +68,11 @@ public:
     virtual EObjectType GetParentType() override
     {
         return EObjectType::Node;
+    }
+
+    virtual TObject* GetParent(TObject* object) override
+    {
+        return object->As<TResource>()->Node().Load();
     }
 
     virtual const TDBTable* GetTable() override
@@ -70,11 +93,6 @@ public:
     virtual TChildrenAttributeBase* GetParentChildrenAttribute(TObject* parent) override
     {
         return &parent->As<TNode>()->Resources();
-    }
-
-    virtual TObject* GetAccessControlParent(TObject* object) override
-    {
-        return object->As<TResource>()->Node().Load();
     }
 
     virtual std::unique_ptr<TObject> InstantiateObject(
@@ -169,6 +187,46 @@ private:
             THROW_ERROR_EXCEPTION("Cannot remove resource %Qv since it is being used",
                 resource->GetId());
         }
+    }
+
+
+    void PreevaluateUsedStatistics(TTransaction* /*transaction*/, TResource* resource)
+    {
+        resource->Kind().ScheduleLoad();
+        resource->Status().ScheduledAllocations().ScheduleLoad();
+        resource->Status().ActualAllocations().ScheduleLoad();
+    }
+
+    void EvaluateUsedStatistics(TTransaction* /*transaction*/, TResource* resource, IYsonConsumer* consumer)
+    {
+        auto allocationStatistics = ComputeTotalAllocationStatistics(
+            resource->Status().ScheduledAllocations().Load(),
+            resource->Status().ActualAllocations().Load());
+        const auto& usedCapacities = allocationStatistics.Capacities;
+        auto usedStatistics = ResourceCapacitiesToStatistics(
+            usedCapacities,
+            resource->Kind().Load());
+        WriteProtobufMessage(consumer, usedStatistics);
+    }
+
+    void PreevaluateFreeStatistics(TTransaction* transaction, TResource* resource)
+    {
+        PreevaluateUsedStatistics(transaction, resource);
+        resource->Spec().ScheduleLoad();
+    }
+
+    void EvaluateFreeStatistics(TTransaction* /*transaction*/, TResource* resource, IYsonConsumer* consumer)
+    {
+        auto allocationStatistics = ComputeTotalAllocationStatistics(
+            resource->Status().ScheduledAllocations().Load(),
+            resource->Status().ActualAllocations().Load());
+        const auto& usedCapacities = allocationStatistics.Capacities;
+        auto totalCapacities = GetResourceCapacities(resource->Spec().Load());
+        auto freeCapacities = SubtractWithClamp(totalCapacities, usedCapacities);
+        auto freeStatistics = ResourceCapacitiesToStatistics(
+            freeCapacities,
+            resource->Kind().Load());
+        WriteProtobufMessage(consumer, freeStatistics);
     }
 };
 

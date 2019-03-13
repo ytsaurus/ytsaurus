@@ -87,7 +87,9 @@ def main(arguments):
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Stress test YP scheduler")
+    parser = argparse.ArgumentParser(
+        description="Stress test YP get-user-access-allowed-to Api method"
+    )
     parser.add_argument(
         "--cluster",
         type=str,

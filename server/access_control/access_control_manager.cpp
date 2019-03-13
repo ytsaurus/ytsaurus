@@ -5,12 +5,13 @@
 #include <yp/server/master/bootstrap.h>
 #include <yp/server/master/yt_connector.h>
 
-#include <yp/server/objects/type_handler.h>
+#include <yp/server/objects/db_schema.h>
+#include <yp/server/objects/helpers.h>
+#include <yp/server/objects/object.h>
+#include <yp/server/objects/object_manager.h>
 #include <yp/server/objects/transaction.h>
 #include <yp/server/objects/transaction_manager.h>
-#include <yp/server/objects/db_schema.h>
-#include <yp/server/objects/object.h>
-#include <yp/server/objects/helpers.h>
+#include <yp/server/objects/type_handler.h>
 
 #include <yt/client/api/rowset.h>
 
@@ -18,8 +19,9 @@
 
 #include <yt/ytlib/api/native/client.h>
 
-#include <yt/core/misc/property.h>
 #include <yt/core/misc/error.h>
+#include <yt/core/misc/property.h>
+#include <yt/core/misc/ref_tracked.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -33,6 +35,8 @@ using namespace NApi;
 using namespace NRpc;
 using namespace NTableClient;
 using namespace NConcurrency;
+
+using TAcl = NObjects::TObject::TAcl;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,7 +77,8 @@ void TAuthenticatedUserGuard::Release()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TClusterSnapshot)
+DECLARE_REFCOUNTED_CLASS(TClusterSubjectSnapshot)
+DECLARE_REFCOUNTED_CLASS(TClusterObjectSnapshot)
 class TSubject;
 class TUser;
 class TGroup;
@@ -102,9 +107,10 @@ public:
 
 class TUser
     : public TSubject
+    , public NYT::TRefTracked<TUser>
 {
 public:
-    explicit TUser(
+    TUser(
         TObjectId id,
         NClient::NApi::NProto::TUserSpec spec)
         : TSubject(std::move(id), EObjectType::User)
@@ -124,6 +130,7 @@ TUser* TSubject::AsUser()
 
 class TGroup
     : public TSubject
+    , public NYT::TRefTracked<TGroup>
 {
 public:
     DEFINE_BYREF_RW_PROPERTY(THashSet<TObjectId>, RecursiveUserIds);
@@ -149,6 +156,34 @@ TGroup* TSubject::AsGroup()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Represents object snapshot for the access control purpose.
+class TObject
+    : public NYT::TRefTracked<TObject>
+{
+public:
+    DEFINE_BYVAL_RO_PROPERTY(EObjectType, Type);
+    DEFINE_BYREF_RO_PROPERTY(TObjectId, Id);
+    DEFINE_BYREF_RO_PROPERTY(TObjectId, ParentId);
+    DEFINE_BYREF_RO_PROPERTY(TAcl, Acl);
+    DEFINE_BYVAL_RO_PROPERTY(bool, InheritAcl);
+
+public:
+    TObject(
+        EObjectType type,
+        TObjectId id,
+        TObjectId parentId,
+        TAcl acl,
+        bool inheritAcl)
+        : Type_(type)
+        , Id_(std::move(id))
+        , ParentId_(std::move(parentId))
+        , Acl_(std::move(acl))
+        , InheritAcl_(inheritAcl)
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 bool ContainsPermission(const NClient::NApi::NProto::TAccessControlEntry& ace, EAccessControlPermission permission)
@@ -164,11 +199,11 @@ bool ContainsPermission(const NClient::NApi::NProto::TAccessControlEntry& ace, E
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClusterSnapshot
+class TClusterSubjectSnapshot
     : public TRefCounted
 {
 public:
-    TClusterSnapshot()
+    TClusterSubjectSnapshot()
     {
         auto everyoneGroup = std::make_unique<TGroup>(EveryoneSubjectId);
         EveryoneGroup_ = everyoneGroup.get();
@@ -330,7 +365,227 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TClusterSnapshot)
+DEFINE_REFCOUNTED_TYPE(TClusterSubjectSnapshot)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TClusterObjectSnapshot
+    : public TRefCounted
+{
+public:
+    void AddObjects(std::vector<std::unique_ptr<TObject>> objects)
+    {
+        for (auto& object : objects) {
+            YCHECK(Objects_[object->GetType()].emplace(object->Id(), std::move(object)).second);
+        }
+    }
+
+    TObject* FindObject(EObjectType type, const TObjectId& id) const
+    {
+        auto it = Objects_[type].find(id);
+        if (it == Objects_[type].end()) {
+            return nullptr;
+        }
+        return it->second.get();
+    }
+
+    std::vector<TObject*> GetObjects(EObjectType type) const
+    {
+        std::vector<TObject*> result;
+        result.reserve(Objects_[type].size());
+        for (const auto& idAndObjectPair : Objects_[type]) {
+            result.push_back(idAndObjectPair.second.get());
+        }
+        return result;
+    }
+
+private:
+    TEnumIndexedVector<THashMap<TObjectId, std::unique_ptr<TObject>>, EObjectType> Objects_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TClusterObjectSnapshot)
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::unique_ptr<TObject>> SelectObjects(
+    const TTransactionPtr& transaction,
+    EObjectType type)
+{
+    std::vector<const TDBField*> fields{
+        &ObjectsTable.Fields.Meta_Id,
+        &ObjectsTable.Fields.Meta_Acl,
+        &ObjectsTable.Fields.Meta_InheritAcl,
+    };
+    auto* typeHandler = transaction->GetSession()->GetTypeHandler(type);
+    bool hasParentIdField = false;
+    if (typeHandler->GetParentType() != EObjectType::Null) {
+        auto parentIdField = typeHandler->GetParentIdField();
+        YCHECK(parentIdField);
+        fields.push_back(parentIdField);
+        hasParentIdField = true;
+    }
+    auto rowset = transaction->SelectFields(type, fields);
+    auto rows = rowset->GetRows();
+    std::vector<std::unique_ptr<TObject>> result;
+    result.reserve(rows.Size());
+    for (auto row : rows) {
+        TObjectId id;
+        TAcl acl;
+        bool inheritAcl;
+        TObjectId parentId;
+        if (hasParentIdField) {
+            FromUnversionedRow(
+                row,
+                &id,
+                &acl,
+                &inheritAcl,
+                &parentId);
+        } else {
+            FromUnversionedRow(
+                row,
+                &id,
+                &acl,
+                &inheritAcl);
+        }
+        result.push_back(std::make_unique<TObject>(
+            type,
+            std::move(id),
+            std::move(parentId),
+            std::move(acl),
+            inheritAcl));
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TClusterObjectSnapshotPtr BuildHierarchyObjectsSnapshot(
+    const TTransactionPtr& transaction,
+    EObjectType hierarchyLeafObjectType)
+{
+    auto snapshot = New<TClusterObjectSnapshot>();
+    auto objectType = hierarchyLeafObjectType;
+    while (objectType != EObjectType::Null) {
+        snapshot->AddObjects(SelectObjects(transaction, objectType));
+        auto* typeHandler = transaction->GetSession()->GetTypeHandler(objectType);
+        objectType = GetAccessControlParentType(typeHandler);
+    }
+    return snapshot;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTransactionAccessControlHiearchy
+{
+    template <class TFunction>
+    static void Invoke(NObjects::TObject* object, TFunction&& function)
+    {
+        while (object) {
+            if (!function(object)) {
+                break;
+            }
+
+            if (!object->InheritAcl().Load()) {
+                break;
+            }
+
+            auto* typeHandler = object->GetTypeHandler();
+            object = GetAccessControlParent(typeHandler, object);
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSnapshotAccessControlHierarchy
+{
+public:
+    TSnapshotAccessControlHierarchy(
+        TObjectManagerPtr objectManager,
+        TClusterObjectSnapshotPtr clusterObjectSnapshot)
+        : ObjectManager_(std::move(objectManager))
+        , ClusterObjectSnapshot_(std::move(clusterObjectSnapshot))
+    { }
+
+    template <class TFunction>
+    void Invoke(TObject* object, TFunction&& function) const
+    {
+        while (object) {
+            if (!function(object)) {
+                break;
+            }
+
+            if (!object->GetInheritAcl()) {
+                break;
+            }
+
+            object = GetAccessControlParent(object);
+        }
+    }
+
+private:
+    const TObjectManagerPtr ObjectManager_;
+    const TClusterObjectSnapshotPtr ClusterObjectSnapshot_;
+
+    TObject* GetAccessControlParent(TObject* object) const
+    {
+        auto typeHandler = ObjectManager_->GetTypeHandler(object->GetType());
+        auto accessControlParentType = GetAccessControlParentType(typeHandler);
+        if (accessControlParentType == EObjectType::Null) {
+            return nullptr;
+        }
+        auto accessControlParentId = GetAccessControlParentId(
+            typeHandler,
+            object->ParentId());
+        return ClusterObjectSnapshot_->FindObject(
+            accessControlParentType,
+            accessControlParentId);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Adapts NObjects::TObject and NAccessControl::TObject interfaces.
+template <class TObject>
+struct TObjectTraits;
+
+template <>
+struct TObjectTraits<TObject>
+{
+    static const TAcl& GetAcl(TObject* object)
+    {
+        return object->Acl();
+    }
+
+    static const TObjectId& GetId(TObject* object)
+    {
+        return object->Id();
+    }
+
+    static EObjectType GetType(TObject* object)
+    {
+        return object->GetType();
+    }
+};
+
+template <>
+struct TObjectTraits<NObjects::TObject>
+{
+    static const TAcl& GetAcl(NObjects::TObject* object)
+    {
+        return object->Acl().Load();
+    }
+
+    static const TObjectId& GetId(NObjects::TObject* object)
+    {
+        return object->GetId();
+    }
+
+    static EObjectType GetType(NObjects::TObject* object)
+    {
+        return object->GetType();
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -358,25 +613,26 @@ public:
 
     TPermissionCheckResult CheckPermission(
         const TObjectId& subjectId,
-        TObject* object,
+        NObjects::TObject* object,
         EAccessControlPermission permission)
     {
-        return CheckPermission(
+        return CheckPermissionImpl(
             subjectId,
             object,
             permission,
-            GetClusterSnapshot());
+            GetClusterSubjectSnapshot(),
+            TTransactionAccessControlHiearchy());
     }
 
     TUserIdList GetObjectAccessAllowedFor(
-        TObject* object,
+        NObjects::TObject* object,
         EAccessControlPermission permission)
     {
-        auto snapshot = GetClusterSnapshot();
+        auto snapshot = GetClusterSubjectSnapshot();
 
         THashSet<TObjectId> allowedForUserIds;
         THashSet<TObjectId> deniedForUserIds;
-        InvokeForAccessControlHierarchy(
+        TTransactionAccessControlHiearchy::Invoke(
             object,
             [&] (auto* object) {
                 const auto& acl = object->Acl().Load();
@@ -441,33 +697,43 @@ public:
         return result;
     }
 
-    std::vector<TObject*> GetUserAccessAllowedTo(
+    std::vector<TObjectId> GetUserAccessAllowedTo(
         const TTransactionPtr& transaction,
         NObjects::TObject* user,
         NObjects::EObjectType objectType,
         EAccessControlPermission permission)
     {
-        auto objects = transaction->SelectObjects(objectType);
-        auto snapshot = GetClusterSnapshot();
+        auto clusterObjectSnapshot = BuildHierarchyObjectsSnapshot(transaction, objectType);
+        auto objects = clusterObjectSnapshot->GetObjects(objectType);
+        auto snapshotAccessControlHierarchy = TSnapshotAccessControlHierarchy(
+            Bootstrap_->GetObjectManager(),
+            clusterObjectSnapshot);
+        auto clusterSubjectSnapshot = GetClusterSubjectSnapshot();
         objects.erase(
             std::remove_if(
                 objects.begin(),
                 objects.end(),
                 [&] (TObject* object) {
-                    auto permissionCheckResult = CheckPermission(
+                    auto permissionCheckResult = CheckPermissionImpl(
                         user->GetId(),
                         object,
                         permission,
-                        snapshot);
+                        clusterSubjectSnapshot,
+                        snapshotAccessControlHierarchy);
                     return permissionCheckResult.Action == EAccessControlAction::Deny;
                 }),
             objects.end());
-        return objects;
+        std::vector<TObjectId> objectIds;
+        objectIds.reserve(objects.size());
+        for (auto* object : objects) {
+            objectIds.push_back(object->Id());
+        }
+        return objectIds;
     }
 
     void SetAuthenticatedUser(const TObjectId& userId)
     {
-        auto snapshot = GetClusterSnapshot();
+        auto snapshot = GetClusterSubjectSnapshot();
         auto* subject = snapshot->FindSubject(userId);
         if (!subject) {
             THROW_ERROR_EXCEPTION(
@@ -514,7 +780,7 @@ public:
         return *userId;
     }
 
-    void ValidatePermission(TObject* object, EAccessControlPermission permission)
+    void ValidatePermission(NObjects::TObject* object, EAccessControlPermission permission)
     {
         auto userId = GetAuthenticatedUser();
         auto result = CheckPermission(userId, object, permission);
@@ -553,15 +819,16 @@ public:
         }
     }
 
-    void ValidateSuperuser()
+    void ValidateSuperuser(TStringBuf doWhat)
     {
         auto userId = GetAuthenticatedUser();
-        auto snapshot = GetClusterSnapshot();
+        auto snapshot = GetClusterSubjectSnapshot();
         if (!snapshot->IsSuperuser(userId)) {
             THROW_ERROR_EXCEPTION(
                 NClient::NApi::EErrorCode::AuthorizationError,
-                "User %Qv must be a superuser to do that",
-                userId)
+                "User %Qv must be a superuser to %v",
+                userId,
+                doWhat)
                 << TErrorAttribute("user_id", userId);
         }
     }
@@ -572,38 +839,25 @@ private:
 
     const TPeriodicExecutorPtr ClusterStateUpdateExecutor_;
 
-    TReaderWriterSpinLock ClusterSnapshotLock_;
-    TClusterSnapshotPtr ClusterSnapshot_;
+    TReaderWriterSpinLock ClusterSubjectSnapshotLock_;
+    TClusterSubjectSnapshotPtr ClusterSubjectSnapshot_;
 
     static NConcurrency::TFls<std::optional<TObjectId>> AuthenticatedUserId_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 private:
-    template <class F>
-    void InvokeForAccessControlHierarchy(
-        TObject* object,
-        F func)
-    {
-        while (object) {
-            if (!func(object)) {
-                break;
-            }
-
-            if (!object->InheritAcl().Load()) {
-                break;
-            }
-
-            auto* typeHandler = object->GetTypeHandler();
-            object = typeHandler->GetAccessControlParent(object);
-        }
-    }
-
-    TPermissionCheckResult CheckPermission(
+    template <
+        class TObject,
+        class TObjectTraits = TObjectTraits<TObject>,
+        class TAccessControlHierarchy
+    >
+    TPermissionCheckResult CheckPermissionImpl(
         const TObjectId& subjectId,
         TObject* object,
         EAccessControlPermission permission,
-        TClusterSnapshotPtr snapshot)
+        TClusterSubjectSnapshotPtr snapshot,
+        const TAccessControlHierarchy& hierarchy)
     {
         TPermissionCheckResult result;
         result.Action = EAccessControlAction::Deny;
@@ -613,14 +867,14 @@ private:
             return result;
         }
 
-        InvokeForAccessControlHierarchy(
+        hierarchy.Invoke(
             object,
             [&] (auto* object) {
-                const auto& acl = object->Acl().Load();
+                const auto& acl = TObjectTraits::GetAcl(object);
                 auto subresult = snapshot->ApplyAcl(acl, permission, subjectId);
                 if (subresult) {
-                    result.ObjectId = object->GetId();
-                    result.ObjectType = object->GetType();
+                    result.ObjectId = TObjectTraits::GetId(object);
+                    result.ObjectType = TObjectTraits::GetType(object);
                     result.SubjectId = std::get<1>(*subresult);
                     switch (std::get<0>(*subresult)) {
                         case EAccessControlAction::Allow:
@@ -642,21 +896,21 @@ private:
         return result;
     }
 
-    TClusterSnapshotPtr GetClusterSnapshot()
+    TClusterSubjectSnapshotPtr GetClusterSubjectSnapshot()
     {
-        TReaderGuard guard(ClusterSnapshotLock_);
-        if (!ClusterSnapshot_) {
+        TReaderGuard guard(ClusterSubjectSnapshotLock_);
+        if (!ClusterSubjectSnapshot_) {
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::Unavailable,
                 "Cluster access control state is not loaded yet");
         }
-        return ClusterSnapshot_;
+        return ClusterSubjectSnapshot_;
     }
 
-    void SetClusterSnapshot(TClusterSnapshotPtr snapshot)
+    void SetClusterSubjectSnapshot(TClusterSubjectSnapshotPtr snapshot)
     {
-        TWriterGuard guard(ClusterSnapshotLock_);
-        std::swap(ClusterSnapshot_, snapshot);
+        TWriterGuard guard(ClusterSubjectSnapshotLock_);
+        std::swap(ClusterSubjectSnapshot_, snapshot);
     }
 
     void OnConnected()
@@ -678,21 +932,21 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         try {
-            YT_LOG_DEBUG("Started loading cluster snapshot");
+            YT_LOG_DEBUG("Started loading cluster subject snapshot");
 
-            YT_LOG_DEBUG("Starting snapshot transaction");
+            YT_LOG_DEBUG("Starting cluster subject snapshot transaction");
 
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
             auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction())
                 .ValueOrThrow();
 
-            YT_LOG_DEBUG("Snapshot transaction started (Timestamp: %llx)",
+            YT_LOG_DEBUG("Cluster subject snapshot transaction started (Timestamp: %llx)",
                 transaction->GetStartTimestamp());
 
             int userCount = 0;
             int groupCount = 0;
 
-            auto snapshot = New<TClusterSnapshot>();
+            auto snapshot = New<TClusterSubjectSnapshot>();
 
             auto* session = transaction->GetSession();
 
@@ -733,13 +987,13 @@ private:
             }
 
             snapshot->Prepare();
-            SetClusterSnapshot(std::move(snapshot));
+            SetClusterSubjectSnapshot(std::move(snapshot));
 
-            YT_LOG_DEBUG("Finished loading cluster snapshot (UserCount: %v, GroupCount: %v)",
+            YT_LOG_DEBUG("Finished loading cluster subject snapshot (UserCount: %v, GroupCount: %v)",
                 userCount,
                 groupCount);
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Error loading cluster snapshot");
+            YT_LOG_WARNING(ex, "Error loading cluster subject snapshot");
         }
     }
 
@@ -765,7 +1019,7 @@ private:
             GroupsTable.Fields.Meta_RemovalTime.Name);
     }
 
-    void ParseUserFromRow(const TClusterSnapshotPtr& snapshot, TUnversionedRow row)
+    void ParseUserFromRow(const TClusterSubjectSnapshotPtr& snapshot, TUnversionedRow row)
     {
         TObjectId userId;
         NClient::NApi::NProto::TUserSpec spec;
@@ -778,7 +1032,7 @@ private:
         snapshot->AddSubject(std::move(user));
     }
 
-    void ParseGroupFromRow(const TClusterSnapshotPtr& snapshot, TUnversionedRow row)
+    void ParseGroupFromRow(const TClusterSubjectSnapshotPtr& snapshot, TUnversionedRow row)
     {
         TObjectId groupId;
         NClient::NApi::NProto::TGroupSpec spec;
@@ -809,7 +1063,7 @@ void TAccessControlManager::Initialize()
 
 TPermissionCheckResult TAccessControlManager::CheckPermission(
     const TObjectId& subjectId,
-    TObject* object,
+    NObjects::TObject* object,
     EAccessControlPermission permission)
 {
     return Impl_->CheckPermission(
@@ -819,7 +1073,7 @@ TPermissionCheckResult TAccessControlManager::CheckPermission(
 }
 
 TUserIdList TAccessControlManager::GetObjectAccessAllowedFor(
-    TObject* object,
+    NObjects::TObject* object,
     EAccessControlPermission permission)
 {
     return Impl_->GetObjectAccessAllowedFor(
@@ -827,7 +1081,7 @@ TUserIdList TAccessControlManager::GetObjectAccessAllowedFor(
         permission);
 }
 
-std::vector<TObject*> TAccessControlManager::GetUserAccessAllowedTo(
+std::vector<TObjectId> TAccessControlManager::GetUserAccessAllowedTo(
     const TTransactionPtr& transaction,
     NObjects::TObject* user,
     NObjects::EObjectType objectType,
@@ -860,14 +1114,58 @@ bool TAccessControlManager::HasAuthenticatedUser()
     return Impl_->HasAuthenticatedUser();
 }
 
-void TAccessControlManager::ValidatePermission(TObject* object, EAccessControlPermission permission)
+void TAccessControlManager::ValidatePermission(
+    NObjects::TObject* object,
+    EAccessControlPermission permission)
 {
     Impl_->ValidatePermission(object, permission);
 }
 
-void TAccessControlManager::ValidateSuperuser()
+void TAccessControlManager::ValidateSuperuser(TStringBuf doWhat)
 {
-    return Impl_->ValidateSuperuser();
+    return Impl_->ValidateSuperuser(doWhat);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool HasAccessControlParent(IObjectTypeHandler* typeHandler)
+{
+    // Assuming object is not internal (e.g. network module) or null because it has type handler.
+    return typeHandler->GetType() != EObjectType::Schema;
+}
+
+EObjectType GetAccessControlParentType(IObjectTypeHandler* typeHandler)
+{
+    if (!HasAccessControlParent(typeHandler)) {
+        return EObjectType::Null;
+    }
+    auto parentType = typeHandler->GetParentType();
+    if (parentType != EObjectType::Null) {
+        return parentType;
+    }
+    return EObjectType::Schema;
+}
+
+TObjectId GetAccessControlParentId(IObjectTypeHandler* typeHandler, const TObjectId& parentId)
+{
+    if (!HasAccessControlParent(typeHandler)) {
+        return TObjectId();
+    }
+    if (typeHandler->GetParentType() != EObjectType::Null) {
+        return parentId;
+    }
+    return typeHandler->GetSchemaObjectId();
+}
+
+NObjects::TObject* GetAccessControlParent(IObjectTypeHandler* typeHandler, NObjects::TObject* object)
+{
+    if (!HasAccessControlParent(typeHandler)) {
+        return nullptr;
+    }
+    if (typeHandler->GetParentType() != EObjectType::Null) {
+        return typeHandler->GetParent(object);
+    }
+    return typeHandler->GetSchemaObject(object);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

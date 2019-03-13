@@ -8,7 +8,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TDiskResourceTest, ExclusiveUsage)
+TEST(TDiskResourceTest, Exclusive)
 {
     TString storageClass;
 
@@ -19,10 +19,10 @@ TEST(TDiskResourceTest, ExclusiveUsage)
     TDiskResource diskResource1(
         storageClass,
         /* supportedPolicies */ allPolicies,
-        /* totalCapacities */ MakeDiskCapacities(10, 10),
+        /* totalCapacities */ MakeDiskCapacities(10, 10, 10),
         /* used */ false,
         /* usedExclusively */ false,
-        /* allocatedCapacities */ MakeDiskCapacities(0, 0));
+        /* allocatedCapacities */ MakeDiskCapacities(0, 0, 0));
 
     TDiskResource diskResource2(diskResource1);
 
@@ -31,26 +31,26 @@ TEST(TDiskResourceTest, ExclusiveUsage)
         /* exclusive */ true,
         storageClass,
         NClient::NApi::NProto::EDiskVolumePolicy::DVP_EXCLUSIVE,
-        MakeDiskCapacities(1, 1)));
+        MakeDiskCapacities(1, 1, 1)));
 
     EXPECT_FALSE(diskResource1.TryAllocate(
         /* exclusive */ false,
         storageClass,
         NClient::NApi::NProto::EDiskVolumePolicy::DVP_QUOTA,
-        MakeDiskCapacities(1, 1)));
+        MakeDiskCapacities(1, 1, 1)));
 
     // Exclusive after non-exclusive within disk2.
     EXPECT_TRUE(diskResource2.TryAllocate(
         /* exclusive */ false,
         storageClass,
         NClient::NApi::NProto::EDiskVolumePolicy::DVP_QUOTA,
-        MakeDiskCapacities(1, 1)));
+        MakeDiskCapacities(1, 1, 1)));
 
     EXPECT_FALSE(diskResource2.TryAllocate(
         /* exclusive */ true,
         storageClass,
         NClient::NApi::NProto::EDiskVolumePolicy::DVP_EXCLUSIVE,
-        MakeDiskCapacities(1, 1)));
+        MakeDiskCapacities(1, 1, 1)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -16,6 +16,7 @@ SET(YP_TEST_SRCS
     test_batch_methods.py
     test_cli.py
     test_client_discovery.py
+    test_disk_bandwidth_resource.py
     test_dns_record_set.py
     test_dynamic_resource.py
     test_endpoint_sets.py
@@ -40,7 +41,6 @@ SET(YP_TEST_SRCS
     test_scheduler.py
     test_schemas.py
     # test_secrets.py # TEMPORARY DISABLE
-    test_select_objects.py
     test_ssl.py
     test_sweep.py
     test_timestamps.py

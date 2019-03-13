@@ -1,5 +1,7 @@
 from yp.common import YtResponseError, YpAuthorizationError
 
+from yt.yson import YsonEntity
+
 import pytest
 
 MY_SECRET = {
@@ -111,3 +113,19 @@ class TestSecrets(object):
             ])
 
             yp_client1.update_object("pod", pod_id, set_updates=[{"path": "/spec/secrets/my_secret", "value": MY_SECRET}])
+
+    def test_secrets_are_opaque(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+
+        with yp_env.yp_instance.create_client(config={"user": "u"}) as yp_client1:
+            yp_env.sync_access_control()
+
+            pod_set_id = yp_client1.create_object("pod_set")
+            pod_id = yp_client1.create_object("pod", attributes={"meta": {"pod_set_id": pod_set_id}})
+            yp_client1.update_object("pod", pod_id, set_updates=[{"path": "/spec/secrets/my_secret", "value": MY_SECRET}])
+
+            assert yp_client1.get_object("pod", pod_id, selectors=["/spec"])[0]["secrets"] == YsonEntity()
+            yp_client1.select_objects("pod", selectors=["/spec"])[0][0]["secrets"] == YsonEntity()
+

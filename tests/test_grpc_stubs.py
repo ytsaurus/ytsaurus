@@ -124,7 +124,7 @@ class TestGrpcStubs(object):
         req.object_id = pod_id
         update = req.set_updates.add()
         pod_agent_payload = data_model_pb2.TPodSpec.TPodAgentPayload()
-        pod_agent_payload.spec.Id = "some_id"
+        pod_agent_payload.spec.id = "some_id"
         update.value_payload.protobuf = pod_agent_payload.SerializeToString()
         update.path = "/spec/pod_agent_payload"
         rsp = object_stub.UpdateObject(req)
@@ -146,7 +146,7 @@ class TestGrpcStubs(object):
         subreq.object_id = pod_id
         update = subreq.set_updates.add()
         pod_agent_payload = data_model_pb2.TPodSpec.TPodAgentPayload()
-        pod_agent_payload.spec.Id = "some_id"
+        pod_agent_payload.spec.id = "some_id"
         update.value_payload.protobuf = pod_agent_payload.SerializeToString()
         update.path = "/spec/pod_agent_payload"
         rsp = object_stub.UpdateObjects(req)

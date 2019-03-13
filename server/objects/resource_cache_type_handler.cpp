@@ -40,6 +40,11 @@ public:
         return EObjectType::ReplicaSet;
     }
 
+    virtual TObject* GetParent(TObject* object) override
+    {
+        return object->As<TResourceCache>()->ReplicaSet().Load();
+    }
+
     virtual const TDBField* GetIdField() override
     {
         return &ResourceCachesTable.Fields.Meta_Id;
@@ -58,11 +63,6 @@ public:
     virtual TChildrenAttributeBase* GetParentChildrenAttribute(TObject* parent) override
     {
         return &parent->As<TReplicaSet>()->ResourceCache();
-    }
-
-    virtual TObject* GetAccessControlParent(TObject* object) override
-    {
-        return object->As<TResourceCache>()->ReplicaSet().Load();
     }
 
     virtual std::unique_ptr<TObject> InstantiateObject(

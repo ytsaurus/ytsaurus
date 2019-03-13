@@ -118,23 +118,21 @@ public:
                 auto computeTotals = [&] (auto* totals, const auto& nodes) {
                     ui64 totalCpuCapacity = 0;
                     ui64 totalMemoryCapacity = 0;
-                    THashMap<TString, ui64> storageClassToTotalDiskCapacity;
+                    totals->mutable_disk_per_storage_class()->clear();
+                    auto& storageClassToDiskTotals = *totals->mutable_disk_per_storage_class();
                     for (auto* node : nodes) {
                         totalCpuCapacity += GetCpuCapacity(node->CpuResource().GetTotalCapacities());
                         totalMemoryCapacity += GetMemoryCapacity(node->MemoryResource().GetTotalCapacities());
                         for (const auto& diskResource : node->DiskResources()) {
-                            storageClassToTotalDiskCapacity[diskResource.GetStorageClass()] += GetDiskCapacity(diskResource.GetTotalCapacities());
+                            auto& diskTotals = storageClassToDiskTotals[diskResource.GetStorageClass()];
+                            diskTotals.set_capacity(diskTotals.capacity() + GetDiskCapacity(
+                                diskResource.GetTotalCapacities()));
+                            diskTotals.set_bandwidth(diskTotals.bandwidth() + GetDiskBandwidth(
+                                diskResource.GetTotalCapacities()));
                         }
                     }
-
                     totals->mutable_cpu()->set_capacity(totalCpuCapacity);
                     totals->mutable_memory()->set_capacity(totalMemoryCapacity);
-
-                    totals->mutable_disk_per_storage_class()->clear();
-                    for (const auto& pair : storageClassToTotalDiskCapacity) {
-                        auto& disk = (*totals->mutable_disk_per_storage_class())[pair.first];
-                        disk.set_capacity(pair.second);
-                    }
                 };
 
                 auto* status = transactionNodeSegment->Status().Get();
@@ -318,12 +316,23 @@ private:
                     if (deltaPerStorageClass.capacity() > 0 && usagePerStorageClass.capacity() > limitsPerStorageClass.capacity()) {
                         THROW_ERROR_EXCEPTION(
                             NClient::NApi::EErrorCode::AccountLimitExceeded,
-                            "Account %v is over disk limit in segment %Qv for storage class %Qv",
+                            "Account %v is over disk capacity limit in segment %Qv for storage class %Qv",
                             GetObjectDisplayName(currentAccount),
                             segmentId,
                             storageClass)
                             << TErrorAttribute("usage", usagePerStorageClass.capacity())
                             << TErrorAttribute("limit", limitsPerStorageClass.capacity());
+                    }
+
+                    if (deltaPerStorageClass.bandwidth() > 0 && usagePerStorageClass.bandwidth() > limitsPerStorageClass.bandwidth()) {
+                        THROW_ERROR_EXCEPTION(
+                            NClient::NApi::EErrorCode::AccountLimitExceeded,
+                            "Account %v is over disk bandwidth limit in segment %Qv for storage class %Qv",
+                            GetObjectDisplayName(currentAccount),
+                            segmentId,
+                            storageClass)
+                            << TErrorAttribute("usage", usagePerStorageClass.bandwidth())
+                            << TErrorAttribute("limit", limitsPerStorageClass.bandwidth());
                     }
                 }
             }

@@ -37,7 +37,8 @@ bool operator==(const TResourceStatus_TAllocation& lhs, const TResourceStatus_TA
     if (lhs.has_disk() &&
         (lhs.disk().capacity() != rhs.disk().capacity() ||
          lhs.disk().exclusive() != rhs.disk().exclusive() ||
-         lhs.disk().volume_id() != rhs.disk().volume_id()))
+         lhs.disk().volume_id() != rhs.disk().volume_id() ||
+         lhs.disk().bandwidth() != rhs.disk().bandwidth()))
     {
         return false;
     }
@@ -94,6 +95,15 @@ TResourceCapacities Max(const TResourceCapacities& a, const TResourceCapacities&
     return result;
 }
 
+TResourceCapacities SubtractWithClamp(const TResourceCapacities& lhs, const TResourceCapacities& rhs)
+{
+    TResourceCapacities result = {};
+    for (size_t index = 0; index < MaxResourceDimensions; ++index) {
+        result[index] = lhs[index] < rhs[index] ? 0 : lhs[index] - rhs[index];
+    }
+    return result;
+}
+
 bool IsHomogeneous(EResourceKind kind)
 {
     return
@@ -103,17 +113,17 @@ bool IsHomogeneous(EResourceKind kind)
 
 TResourceCapacities MakeCpuCapacities(ui64 capacity)
 {
-    return {{capacity, 0}};
+    return {{capacity, 0, 0}};
 }
 
 TResourceCapacities MakeMemoryCapacities(ui64 capacity)
 {
-    return {{capacity, 0}};
+    return {{capacity, 0, 0}};
 }
 
-TResourceCapacities MakeDiskCapacities(ui64 capacity, ui64 volumeSlots)
+TResourceCapacities MakeDiskCapacities(ui64 capacity, ui64 volumeSlots, ui64 bandwidth)
 {
-    return {{capacity, volumeSlots}};
+    return {{capacity, volumeSlots, bandwidth}};
 }
 
 ui64 GetHomogeneousCapacity(const TResourceCapacities& capacities)
@@ -136,6 +146,11 @@ ui64 GetDiskCapacity(const TResourceCapacities& capacities)
     return capacities[0];
 }
 
+ui64 GetDiskBandwidth(const TResourceCapacities& capacities)
+{
+    return capacities[2];
+}
+
 TResourceCapacities GetResourceCapacities(const NClient::NApi::NProto::TResourceSpec& spec)
 {
     if (spec.has_cpu()) {
@@ -143,7 +158,10 @@ TResourceCapacities GetResourceCapacities(const NClient::NApi::NProto::TResource
     } else if (spec.has_memory()) {
         return MakeMemoryCapacities(spec.memory().total_capacity());
     } else if (spec.has_disk()) {
-        return MakeDiskCapacities(spec.disk().total_capacity(), spec.disk().total_volume_slots());
+        return MakeDiskCapacities(
+            spec.disk().total_capacity(),
+            spec.disk().total_volume_slots(),
+            spec.disk().total_bandwidth());
     } else {
         THROW_ERROR_EXCEPTION("Malformed resource spec");
     }
@@ -156,7 +174,10 @@ TResourceCapacities GetAllocationCapacities(const NClient::NApi::NProto::TResour
     } else if (allocation.has_memory()) {
         return MakeMemoryCapacities(allocation.memory().capacity());
     } else if (allocation.has_disk()) {
-        return MakeDiskCapacities(allocation.disk().capacity(), 1);
+        return MakeDiskCapacities(
+            allocation.disk().capacity(),
+            /*volumeSlots*/ 1,
+            allocation.disk().bandwidth());
     } else {
         THROW_ERROR_EXCEPTION("Malformed resource allocation");
     }
@@ -230,6 +251,7 @@ void BuildProtoResourceAllocation(
             protoDisk->set_capacity(GetDiskCapacity(allocation.Capacities));
             protoDisk->set_exclusive(allocation.Exclusive);
             protoDisk->set_volume_id(allocation.RequestId);
+            protoDisk->set_bandwidth(GetDiskBandwidth(allocation.Capacities));
             break;
         }
 
@@ -238,13 +260,46 @@ void BuildProtoResourceAllocation(
     }
 }
 
+ui64 GetDiskVolumeRequestBandwidthGuarantee(
+    const NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest& request)
+{
+    if (request.has_quota_policy()) {
+        return request.quota_policy().bandwidth_guarantee();
+    } else if (request.has_exclusive_policy()) {
+        return request.exclusive_policy().min_bandwidth();
+    } else {
+        THROW_ERROR_EXCEPTION("Malformed disk volume request");
+    }
+}
+
+std::optional<ui64> GetDiskVolumeRequestOptionalBandwidthLimit(
+    const NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest& request)
+{
+    if (request.has_quota_policy()) {
+        if (request.quota_policy().has_bandwidth_limit()) {
+            return request.quota_policy().bandwidth_limit();
+        }
+        return std::nullopt;
+    } else if (request.has_exclusive_policy()) {
+        return std::nullopt;
+    } else {
+        THROW_ERROR_EXCEPTION("Malformed disk volume request");
+    }
+}
+
 TResourceCapacities GetDiskVolumeRequestCapacities(
     const NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest& request)
 {
     if (request.has_quota_policy()) {
-        return MakeDiskCapacities(request.quota_policy().capacity(), 1);
+        return MakeDiskCapacities(
+            request.quota_policy().capacity(),
+            /*volumeSlots*/ 1,
+            request.quota_policy().bandwidth_guarantee());
     } else if (request.has_exclusive_policy()) {
-        return MakeDiskCapacities(request.exclusive_policy().min_capacity(), 1);
+        return MakeDiskCapacities(
+            request.exclusive_policy().min_capacity(),
+            /*volumeSlots*/ 1,
+            request.exclusive_policy().min_bandwidth());
     } else {
         THROW_ERROR_EXCEPTION("Malformed disk volume request");
     }
@@ -266,6 +321,56 @@ NClient::NApi::NProto::EDiskVolumePolicy GetDiskVolumeRequestPolicy(
     } else {
         THROW_ERROR_EXCEPTION("Malformed disk volume request");
     }
+}
+
+NClient::NApi::NProto::TResourceStatus_TAllocationStatistics ResourceCapacitiesToStatistics(
+    const TResourceCapacities& capacities,
+    EResourceKind kind)
+{
+    NClient::NApi::NProto::TResourceStatus_TAllocationStatistics result;
+    switch (kind) {
+        case EResourceKind::Cpu:
+            result.mutable_cpu()->set_capacity(GetCpuCapacity(capacities));
+            break;
+        case EResourceKind::Disk:
+            result.mutable_disk()->set_capacity(GetDiskCapacity(capacities));
+            result.mutable_disk()->set_bandwidth(GetDiskBandwidth(capacities));
+            break;
+        case EResourceKind::Memory:
+            result.mutable_memory()->set_capacity(GetMemoryCapacity(capacities));
+            break;
+        default:
+            Y_UNREACHABLE();
+    }
+    return result;
+}
+
+TAllocationStatistics ComputeTotalAllocationStatistics(
+    const std::vector<NYP::NClient::NApi::NProto::TResourceStatus_TAllocation>& scheduledAllocations,
+    const std::vector<NYP::NClient::NApi::NProto::TResourceStatus_TAllocation>& actualAllocations)
+{
+    struct TPodStatistics
+    {
+        TAllocationStatistics Scheduled;
+        TAllocationStatistics Actual;
+    };
+
+    THashMap<TObjectId, TPodStatistics> podIdToStats;
+
+    for (const auto& allocation : scheduledAllocations) {
+        podIdToStats[allocation.pod_id()].Scheduled.Accumulate(allocation);
+    }
+
+    for (const auto& allocation : actualAllocations) {
+        podIdToStats[allocation.pod_id()].Actual.Accumulate(allocation);
+    }
+
+    TAllocationStatistics statistics;
+    for (const auto& pair : podIdToStats) {
+        const auto& podStatistics = pair.second;
+        statistics += Max(podStatistics.Scheduled, podStatistics.Actual);
+    }
+    return statistics;
 }
 
 std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
@@ -392,27 +497,39 @@ void UpdatePodDiskVolumeAllocations(
             YCHECK(it != idToAllocation.end());
             volumeAllocation->CopyFrom(*it->second);
         } else {
+            const auto& diskSpec = *response.Resource->ProtoDiskSpec;
             volumeAllocation->set_id(volumeRequest.id());
             volumeAllocation->set_capacity(GetDiskCapacity(request.Capacities));
             volumeAllocation->set_resource_id(response.Resource->Id);
             volumeAllocation->set_volume_id(request.AllocationId);
-            volumeAllocation->set_device(response.Resource->ProtoDiskSpec->device());
+            volumeAllocation->set_device(diskSpec.device());
+
+            auto volumeBandwidthGuarantee = GetDiskVolumeRequestBandwidthGuarantee(volumeRequest);
+            volumeAllocation->set_read_bandwidth_guarantee(
+                volumeBandwidthGuarantee * diskSpec.read_bandwidth_factor());
+            volumeAllocation->set_write_bandwidth_guarantee(
+                volumeBandwidthGuarantee * diskSpec.write_bandwidth_factor());
+            volumeAllocation->set_read_operation_rate_guarantee(
+                volumeBandwidthGuarantee * diskSpec.read_operation_rate_factor());
+            volumeAllocation->set_write_operation_rate_guarantee(
+                volumeBandwidthGuarantee * diskSpec.write_operation_rate_factor());
+
+            auto optionalVolumeBandwidthLimit = GetDiskVolumeRequestOptionalBandwidthLimit(volumeRequest);
+            if (optionalVolumeBandwidthLimit) {
+                auto volumeBandwidthLimit = *optionalVolumeBandwidthLimit;
+                volumeAllocation->set_read_bandwidth_limit(
+                    volumeBandwidthLimit * diskSpec.read_bandwidth_factor());
+                volumeAllocation->set_write_bandwidth_limit(
+                    volumeBandwidthLimit * diskSpec.write_bandwidth_factor());
+                volumeAllocation->set_read_operation_rate_limit(
+                    volumeBandwidthLimit * diskSpec.read_operation_rate_factor());
+                volumeAllocation->set_write_operation_rate_limit(
+                    volumeBandwidthLimit * diskSpec.write_operation_rate_factor());
+            }
         }
         volumeAllocation->mutable_labels()->CopyFrom(volumeRequest.labels());
     }
     allocations->Swap(&newAllocations);
-}
-
-void UpdatePodDiskVolumeAllocationLabels(
-    const google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest>& requests,
-    google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodStatus_TDiskVolumeAllocation>* allocations)
-{
-    if (requests.size() != allocations->size()) {
-        THROW_ERROR_EXCEPTION("Cannot update disk volume allocation labels: request vs allocation count mismatch");
-    }
-    for (int index = 0; index < requests.size(); ++index) {
-        (*allocations)[index].mutable_labels()->CopyFrom(requests[index].labels());
-    }
 }
 
 void UpdateScheduledResourceAllocations(
@@ -464,6 +581,7 @@ void UpdateScheduledResourceAllocations(
                     protoDisk->set_capacity(GetDiskCapacity(request.Capacities));
                     protoDisk->set_exclusive(request.Exclusive);
                     protoDisk->set_volume_id(request.AllocationId);
+                    protoDisk->set_bandwidth(GetDiskBandwidth(request.Capacities));
                     break;
                 }
                 default:

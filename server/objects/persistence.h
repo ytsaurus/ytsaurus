@@ -27,11 +27,12 @@ TRange<NYT::NTableClient::TUnversionedValue> CaptureCompositeObjectKey(
 struct TDBField
 {
     TString Name;
+    NTableClient::EValueType Type;
 };
 
 struct TDBTable
 {
-    explicit TDBTable(const TString& name)
+    TDBTable(const TString& name)
         : Name(name)
     { }
 
@@ -538,6 +539,7 @@ public:
     std::vector<std::pair<TString, NYT::NYson::TYsonString>> LoadAll() const;
 
     void Store(const TString& key, const std::optional<NYT::NYson::TYsonString>& value);
+    bool IsStoreScheduled(const TString& key) const;
 
 private:
     mutable THashSet<TString> ScheduledLoadKeys_;

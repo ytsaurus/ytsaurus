@@ -35,7 +35,7 @@ public:
                 MakeFallbackAttributeSchema()
                     ->SetAttribute(TReplicaSet::TSpec::OtherSchema)
                     ->SetUpdatable()
-                });
+            });
 
         StatusAttributeSchema_
             ->SetAttribute(TReplicaSet::StatusSchema)

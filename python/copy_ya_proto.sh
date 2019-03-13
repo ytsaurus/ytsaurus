@@ -10,8 +10,10 @@ YP_PROTOS="
     yp/client/api/proto/discovery_service.proto
     yp/client/api/proto/object_service.proto
     yp/client/api/proto/replica_set.proto
+    yp/client/api/proto/multi_cluster_replica_set.proto
     yp/client/api/proto/resource_cache.proto
     yp/client/api/proto/secrets.proto
+    yp/client/api/proto/dynamic_attributes.proto
 "
 
 PROTO_PATHS=""

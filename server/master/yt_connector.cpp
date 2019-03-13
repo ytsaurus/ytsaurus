@@ -202,35 +202,44 @@ private:
     {
         YT_LOG_INFO("Connecting to YT");
 
-        const auto& fqdn = Bootstrap_->GetFqdn();
-        auto instancePath = GetInstancesCypressPath() + "/" + ToYPathLiteral(fqdn);
-
         {
-            YT_LOG_INFO("Creating instance node");
+            YT_LOG_INFO("Creating instance nodes");
 
-            TCreateNodeOptions options;
-            options.Recursive = true;
-            options.Force = true;
-            auto attributes = CreateEphemeralAttributes();
-            attributes->Set("instance_tag", GetInstanceTag());
-            if (Bootstrap_->GetClientGrpcAddress()) {
-                attributes->Set("client_grpc_address", Bootstrap_->GetClientGrpcAddress());
+            {
+                TCreateNodeOptions options;
+                options.Recursive = true;
+                options.Force = true;
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("instance_tag", GetInstanceTag());
+                if (Bootstrap_->GetClientGrpcAddress()) {
+                    attributes->Set("client_grpc_address", Bootstrap_->GetClientGrpcAddress());
+                }
+                if (Bootstrap_->GetSecureClientGrpcAddress()) {
+                    attributes->Set("secure_client_grpc_address", Bootstrap_->GetSecureClientGrpcAddress());
+                }
+                if (Bootstrap_->GetClientHttpAddress()) {
+                    attributes->Set("client_http_address", Bootstrap_->GetClientHttpAddress());
+                }
+                if (Bootstrap_->GetSecureClientHttpAddress()) {
+                    attributes->Set("secure_client_http_address", Bootstrap_->GetSecureClientHttpAddress());
+                }
+                if (Bootstrap_->GetAgentGrpcAddress()) {
+                    attributes->Set("agent_grpc_address", Bootstrap_->GetAgentGrpcAddress());
+                }
+                options.Attributes = std::move(attributes);
+                WaitFor(Client_->CreateNode(GetInstanceCypressPath(), EObjectType::MapNode, options))
+                    .ThrowOnError();
             }
-            if (Bootstrap_->GetSecureClientGrpcAddress()) {
-                attributes->Set("secure_client_grpc_address", Bootstrap_->GetSecureClientGrpcAddress());
+            {
+                TCreateNodeOptions options;
+                options.Recursive = true;
+                options.Force = true;
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("remote_addresses", Bootstrap_->GetInternalRpcAddresses());
+                options.Attributes = std::move(attributes);
+                WaitFor(Client_->CreateNode(GetInstanceOrchidCypressPath(), EObjectType::Orchid, options))
+                    .ThrowOnError();
             }
-            if (Bootstrap_->GetClientHttpAddress()) {
-                attributes->Set("client_http_address", Bootstrap_->GetClientHttpAddress());
-            }
-            if (Bootstrap_->GetSecureClientHttpAddress()) {
-                attributes->Set("secure_client_http_address", Bootstrap_->GetSecureClientHttpAddress());
-            }
-            if (Bootstrap_->GetAgentGrpcAddress()) {
-                attributes->Set("agent_grpc_address", Bootstrap_->GetAgentGrpcAddress());
-            }
-            options.Attributes = std::move(attributes);
-            WaitFor(Client_->CreateNode(instancePath, EObjectType::MapNode, options))
-                .ThrowOnError();
 
             YT_LOG_INFO("Instance node created");
         }
@@ -241,7 +250,7 @@ private:
             TTransactionStartOptions options;
             options.Timeout = Config_->InstanceTransactionTimeout;
             auto attributes = CreateEphemeralAttributes();
-            attributes->Set("title", Format("Instance lock for %v", fqdn));
+            attributes->Set("title", Format("Instance lock for %v", Bootstrap_->GetFqdn()));
             options.Attributes = std::move(attributes);
             InstanceLockTransaction_ = WaitFor(Client_->StartTransaction(ETransactionType::Master, options))
                 .ValueOrThrow();
@@ -253,7 +262,7 @@ private:
         {
             YT_LOG_INFO("Taking instance lock");
 
-            WaitFor(InstanceLockTransaction_->LockNode(instancePath, ELockMode::Exclusive))
+            WaitFor(InstanceLockTransaction_->LockNode(GetInstanceCypressPath(), ELockMode::Exclusive))
                 .ThrowOnError();
         }
 
@@ -503,12 +512,22 @@ private:
 
     TYPath GetInstancesCypressPath()
     {
-        return GetRootPath() + "/instances";
+        return GetRootPath() + "/master/instances";
+    }
+
+    TYPath GetInstanceCypressPath()
+    {
+        return GetInstancesCypressPath() + "/" + ToYPathLiteral(Bootstrap_->GetFqdn());
+    }
+
+    TYPath GetInstanceOrchidCypressPath()
+    {
+        return GetInstanceCypressPath() + "/orchid";
     }
 
     TYPath GetLeaderCypressPath()
     {
-        return GetRootPath() + "/leader";
+        return GetRootPath() + "/master/leader";
     }
 };
 

@@ -8,6 +8,8 @@
 
 namespace NYP::NServer::NObjects {
 
+using namespace NAccessControl;
+
 using namespace NYT::NYTree;
 using namespace NYT::NYPath;
 using namespace NYT::NQueryClient::NAst;
@@ -197,13 +199,15 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
 
 TAttributeSchema* TAttributeSchema::SetParentAttribute()
 {
-    InitExpressionBuilder(TypeHandler_->GetParentIdField());
+    InitExpressionBuilder(
+        TypeHandler_->GetParentIdField(),
+        TEmptyPathValidator::Run);
     return this;
 }
 
 TAttributeSchema* TAttributeSchema::SetControlAttribute()
 {
-    Opaque_ = true;
+    Control_ = true;
     return this;
 }
 
@@ -219,9 +223,20 @@ bool TAttributeSchema::IsComposite() const
     return Composite_;
 }
 
+TAttributeSchema* TAttributeSchema::SetOpaque()
+{
+    Opaque_ = true;
+    return this;
+}
+
 bool TAttributeSchema::IsOpaque() const
 {
     return Opaque_;
+}
+
+bool TAttributeSchema::IsControl() const
+{
+    return Control_;
 }
 
 bool TAttributeSchema::IsAnnotationsAttribute() const
@@ -346,6 +361,15 @@ void TAttributeSchema::RunInitializer(
     Initializer_(transaction, object);
 }
 
+void TAttributeSchema::RunUpdatePrehandlers(
+    TTransaction* transaction,
+    TObject* object)
+{
+    for (const auto& prehandler : UpdatePrehandlers_) {
+        prehandler(transaction, object);
+    }
+}
+
 void TAttributeSchema::RunUpdateHandlers(
     TTransaction* transaction,
     TObject* object)
@@ -359,8 +383,16 @@ void TAttributeSchema::RunValidators(
     TTransaction* transaction,
     TObject* object)
 {
-    for (const auto& validator : Validators_) {
-        validator(transaction, object);
+    try {
+        for (const auto& validator : Validators_) {
+            validator(transaction, object);
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error validating %v for %v %v",
+            GetPath(),
+            GetLowercaseHumanReadableTypeName(object->GetType()),
+            GetObjectDisplayName(object))
+            << ex;
     }
 }
 
@@ -468,26 +500,30 @@ bool TAttributeSchema::IsFallback() const
     return Fallback_;
 }
 
-TAttributeSchema* TAttributeSchema::SetReadPermission(NAccessControl::EAccessControlPermission permission)
+TAttributeSchema* TAttributeSchema::SetReadPermission(EAccessControlPermission permission)
 {
+    if (permission != EAccessControlPermission::None) {
+        Opaque_ = true;
+    }
     ReadPermission_ = permission;
     return this;
 }
 
-NAccessControl::EAccessControlPermission TAttributeSchema::GetReadPermission() const
+EAccessControlPermission TAttributeSchema::GetReadPermission() const
 {
     return ReadPermission_;
 }
 
-void TAttributeSchema::InitExpressionBuilder(const TDBField* field)
+void TAttributeSchema::InitExpressionBuilder(const TDBField* field, TPathValidator pathValidator)
 {
     ExpressionBuilder_ =
         [=] (
             IQueryContext* context,
             const TYPath& path)
         {
-            auto expr = context->GetFieldExpression(field);
+            pathValidator(this, path);
 
+            auto expr = context->GetFieldExpression(field);
             if (!path.empty()) {
                 expr = New<TFunctionExpression>(
                     TSourceLocation(),

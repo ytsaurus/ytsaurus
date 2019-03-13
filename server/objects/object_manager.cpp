@@ -19,6 +19,7 @@
 #include "account_type_handler.h"
 #include "replica_set_type_handler.h"
 #include "dns_record_set_type_handler.h"
+#include "multi_cluster_replica_set_type_handler.h"
 #include "object.h"
 #include "db_schema.h"
 #include "transaction_manager.h"
@@ -88,6 +89,7 @@ public:
         RegisterTypeHandler(CreateReplicaSetTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateDnsRecordSetTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateResourceCacheTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateMultiClusterReplicaSetTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateDynamicResourceTypeHandler(Bootstrap_));
 
         const auto& ytConnector = Bootstrap_->GetYTConnector();

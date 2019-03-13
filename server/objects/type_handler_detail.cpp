@@ -45,7 +45,8 @@ TObjectTypeHandlerBase::TObjectTypeHandlerBase(
 
                     MakeAttributeSchema("acl")
                         ->SetAttribute(TObject::AclSchema)
-                        ->SetUpdatable(),
+                        ->SetUpdatable()
+                        ->SetValidator<TObject>(std::bind(&TObjectTypeHandlerBase::ValidateAcl, this, _1, _2)),
 
                     MakeFallbackAttributeSchema()
                         ->SetAttribute(TObject::MetaOtherSchema)
@@ -53,14 +54,15 @@ TObjectTypeHandlerBase::TObjectTypeHandlerBase(
                         ->SetValidator<TObject>(std::bind(&TObjectTypeHandlerBase::ValidateMetaOther, this, _1, _2))
                 }),
 
-            MakeAttributeSchema("labels")
-                ->SetAttribute(TObject::LabelsSchema)
-                ->SetUpdatable(),
 
             SpecAttributeSchema_ = MakeAttributeSchema("spec")
                 ->SetUpdatable(),
 
             StatusAttributeSchema_ = MakeAttributeSchema("status"),
+
+            LabelsAttributeSchema_ = MakeAttributeSchema("labels")
+                ->SetAttribute(TObject::LabelsSchema)
+                ->SetUpdatable(),
 
             AnnotationsAttributeSchema_ = MakeAttributeSchema("annotations")
                 ->SetAnnotationsAttribute(),
@@ -87,6 +89,11 @@ EObjectType TObjectTypeHandlerBase::GetParentType()
     return EObjectType::Null;
 }
 
+TObject* TObjectTypeHandlerBase::GetParent(TObject* /*object*/)
+{
+    return nullptr;
+}
+
 const TDBField* TObjectTypeHandlerBase::GetParentIdField()
 {
     return nullptr;
@@ -97,18 +104,26 @@ TChildrenAttributeBase* TObjectTypeHandlerBase::GetParentChildrenAttribute(TObje
     Y_UNREACHABLE();
 }
 
-TAttributeSchema* TObjectTypeHandlerBase::GetRootAttributeSchema()
+TObjectId TObjectTypeHandlerBase::GetSchemaObjectId()
 {
-    return RootAttributeSchema_;
+    if (Type_ == EObjectType::Schema) {
+        return TObjectId();
+    }
+    return SchemaId_;
 }
 
-TObject* TObjectTypeHandlerBase::GetAccessControlParent(TObject* object)
+TObject* TObjectTypeHandlerBase::GetSchemaObject(TObject* object)
 {
-    if (GetType() == EObjectType::Schema) {
+    if (Type_ == EObjectType::Schema) {
         return nullptr;
     }
     auto* session = object->GetSession();
     return session->GetObject(EObjectType::Schema, SchemaId_);
+}
+
+TAttributeSchema* TObjectTypeHandlerBase::GetRootAttributeSchema()
+{
+    return RootAttributeSchema_;
 }
 
 TAttributeSchema* TObjectTypeHandlerBase::GetIdAttributeSchema()
@@ -145,7 +160,7 @@ void TObjectTypeHandlerBase::BeforeObjectCreated(
         if (accessControlManager->HasAuthenticatedUser()) {
             ace.add_subjects(accessControlManager->GetAuthenticatedUser());
         }
-        object->Acl()->push_back(std::move(ace));        
+        object->Acl()->push_back(std::move(ace));
     }
 }
 
@@ -211,6 +226,31 @@ void TObjectTypeHandlerBase::ValidateMetaOther(TTransaction* /*transaction*/, TO
         THROW_ERROR_EXCEPTION("Cannot set /meta/name for %v objects",
             GetLowercaseHumanReadableTypeName(GetType()));
     }
+}
+
+void TObjectTypeHandlerBase::ValidateAcl(TTransaction* transaction, TObject* object)
+{
+    const auto& oldAcl = object->Acl().LoadOld();
+    const auto& acl = object->Acl().Load();
+
+    auto doPerSubject = [] (const auto& acl, const auto& callback) {
+        for (const auto& ace : acl) {
+            for (const auto& subjectId : ace.subjects()) {
+                callback(subjectId);
+            }
+        }
+    };
+
+    THashSet<TObjectId> oldSubjectIds;
+    doPerSubject(oldAcl, [&oldSubjectIds] (const TObjectId& subjectId) {
+        oldSubjectIds.insert(subjectId);
+    });
+
+    doPerSubject(acl, [&oldSubjectIds, transaction] (const TObjectId& subjectId) {
+        if (!oldSubjectIds.contains(subjectId)) {
+            ValidateSubjectExists(transaction, subjectId);
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

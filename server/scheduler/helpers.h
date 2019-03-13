@@ -26,23 +26,34 @@ TResourceCapacities& operator += (TResourceCapacities& lhs, const TResourceCapac
 TResourceCapacities operator + (const TResourceCapacities& lhs, const TResourceCapacities& rhs);
 bool Dominates(const TResourceCapacities& lhs, const TResourceCapacities& rhs);
 TResourceCapacities Max(const TResourceCapacities& a, const TResourceCapacities& b);
+TResourceCapacities SubtractWithClamp(const TResourceCapacities& lhs, const TResourceCapacities& rhs);
 
 bool IsHomogeneous(EResourceKind kind);
 
 TResourceCapacities MakeCpuCapacities(ui64 capacity);
 TResourceCapacities MakeMemoryCapacities(ui64 capacity);
-TResourceCapacities MakeDiskCapacities(ui64 capacity, ui64 volumeSlots);
+TResourceCapacities MakeDiskCapacities(ui64 capacity, ui64 volumeSlots, ui64 bandwidth);
 ui64 GetHomogeneousCapacity(const TResourceCapacities& capacities);
 ui64 GetCpuCapacity(const TResourceCapacities& capacities);
 ui64 GetMemoryCapacity(const TResourceCapacities& capacities);
 ui64 GetDiskCapacity(const TResourceCapacities& capacities);
+ui64 GetDiskBandwidth(const TResourceCapacities& capacities);
 
 TResourceCapacities GetResourceCapacities(const NClient::NApi::NProto::TResourceSpec& spec);
 TResourceCapacities GetAllocationCapacities(const NClient::NApi::NProto::TResourceStatus_TAllocation& allocation);
 bool GetAllocationExclusive(const NClient::NApi::NProto::TResourceStatus_TAllocation& allocation);
+ui64 GetDiskVolumeRequestBandwidthGuarantee(const NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest& request);
+std::optional<ui64> GetDiskVolumeRequestOptionalBandwidthLimit(const NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest& request);
 TResourceCapacities GetDiskVolumeRequestCapacities(const NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest& request);
 bool GetDiskVolumeRequestExclusive(const NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest& request);
 NClient::NApi::NProto::EDiskVolumePolicy GetDiskVolumeRequestPolicy(const NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest& request);
+
+NClient::NApi::NProto::TResourceStatus_TAllocationStatistics ResourceCapacitiesToStatistics(
+    const TResourceCapacities& capacities,
+    EResourceKind kind);
+TAllocationStatistics ComputeTotalAllocationStatistics(
+    const std::vector<NYP::NClient::NApi::NProto::TResourceStatus_TAllocation>& scheduledAllocations,
+    const std::vector<NYP::NClient::NApi::NProto::TResourceStatus_TAllocation>& actualAllocations);
 
 TLocalResourceAllocator::TResource BuildAllocatorResource(
     const TObjectId& resourceId,
@@ -60,10 +71,6 @@ void UpdatePodDiskVolumeAllocations(
     google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodStatus_TDiskVolumeAllocation>* allocations,
     const std::vector<TLocalResourceAllocator::TRequest>& allocatorRequests,
     const std::vector<TLocalResourceAllocator::TResponse>& allocatorResponses);
-
-void UpdatePodDiskVolumeAllocationLabels(
-    const google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest>& requests,
-    google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodStatus_TDiskVolumeAllocation>* allocations);
 
 void UpdateScheduledResourceAllocations(
     const TObjectId& podId,

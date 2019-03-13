@@ -17,6 +17,8 @@
 #include "private.h"
 #include "attribute_schema.h"
 #include "helpers.h"
+#include "user.h"
+#include "group.h"
 
 #include <yp/server/master/bootstrap.h>
 #include <yp/server/master/yt_connector.h>
@@ -41,7 +43,7 @@
 #include <yt/ytlib/query_client/ast.h>
 #include <yt/ytlib/query_client/query_preparer.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/core/ytree/node.h>
 
 #include <yt/core/ypath/tokenizer.h>
 
@@ -162,107 +164,6 @@ private:
     THashMap<const TDBField*, TExpressionPtr> FieldToExpression_;
     THashMap<TString, TExpressionPtr> AnnotationNameToExpression_;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-// Implements all needed stuff for processing object ids selection for
-// TTransaction::SelectObjects: query construction, rows parsing, response keeping.
-class TObjectIdsSelectionProcessor
-    : public NYT::TRefCounted
-{
-public:
-    explicit TObjectIdsSelectionProcessor(EObjectType objectType)
-        : ObjectType_(objectType)
-    {
-        Clear();
-    }
-
-    void Clear()
-    {
-        ParentIdWasQueried_ = false;
-        QueryString_.clear();
-        ObjectIdToParentIdMapping_.clear();
-    }
-
-    void Prepare(
-        IObjectTypeHandler* objectTypeHandler,
-        const NMaster::TYTConnectorPtr& ytConnector)
-    {
-        Clear();
-
-        const auto* idField = objectTypeHandler->GetIdField();
-        const auto* table = objectTypeHandler->GetTable();
-        YCHECK(idField);
-        YCHECK(table);
-
-        TStringBuilder queryBuilder;
-        queryBuilder.AppendFormat("[%v]", idField->Name);
-
-        if (objectTypeHandler->GetParentType() != EObjectType::Null) {
-            const auto* parentIdField = objectTypeHandler->GetParentIdField();
-            YCHECK(parentIdField);
-            queryBuilder.AppendFormat(", [%v]", parentIdField->Name);
-            ParentIdWasQueried_ = true;
-        }
-
-        queryBuilder.AppendFormat(" from [%v] where is_null([%v])",
-            ytConnector->GetTablePath(table),
-            ObjectsTable.Fields.Meta_RemovalTime.Name);
-
-        QueryString_ = queryBuilder.Flush();
-    }
-
-    EObjectType GetObjectType() const
-    {
-        return ObjectType_;
-    }
-
-    const TString& GetQueryString() const
-    {
-        return QueryString_;
-    }
-
-    void Reserve(size_t rowCount)
-    {
-        ObjectIdToParentIdMapping_.reserve(rowCount);
-    }
-
-    void ProcessRow(TUnversionedRow row)
-    {
-        TObjectId objectId;
-        TObjectId parentObjectId;
-        if (ParentIdWasQueried_) {
-            FromUnversionedRow(
-                row,
-                &objectId,
-                &parentObjectId);
-        } else {
-            FromUnversionedRow(
-                row,
-                &objectId);
-        }
-        YCHECK(ObjectIdToParentIdMapping_.emplace(
-            std::move(objectId),
-            std::move(parentObjectId)).second);
-    }
-
-    using TObjectIdToParentIdMapping = THashMap<TObjectId, TObjectId>;
-    DEFINE_BYREF_RO_PROPERTY(TObjectIdToParentIdMapping, ObjectIdToParentIdMapping);
-
-private:
-    const EObjectType ObjectType_;
-    TString QueryString_;
-    bool ParentIdWasQueried_;
-};
-
-DECLARE_REFCOUNTED_CLASS(TObjectIdsSelectionProcessor)
-DEFINE_REFCOUNTED_TYPE(TObjectIdsSelectionProcessor)
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TTransaction::TImpl
     : public TRefCounted
@@ -465,8 +366,8 @@ public:
         result.Objects.resize(ids.size());
 
         THashMap<TObjectId, std::vector<size_t>> objectIdToIndexes;
-        for (size_t i = 0; i < ids.size(); ++i) {
-            objectIdToIndexes[ids[i]].push_back(i);
+        for (size_t index = 0; index < ids.size(); ++index) {
+            objectIdToIndexes[ids[index]].push_back(index);
         }
 
         for (auto row : rows) {
@@ -486,7 +387,6 @@ public:
             auto& resultObject = result.Objects[indexes[0]];
             YCHECK(!resultObject.has_value());
             resultObject.emplace();
-
             for (auto& fetcher : fetchers) {
                 resultObject->Values.push_back(fetcher.Fetch(row));
             }
@@ -545,12 +445,7 @@ public:
             filter
             ? BuildFilterExpression(&queryContext, *filter)
             : nullptr,
-            New<TFunctionExpression>(
-                TSourceLocation(),
-                "is_null",
-                TExpressionList{
-                    New<TReferenceExpression>(TSourceLocation(), TReference(ObjectsTable.Fields.Meta_RemovalTime.Name, PrimaryTableAlias))
-                }));
+            BuildObjectFilterByRemovalTime());
         query->WherePredicate = {std::move(predicateExpr)};
 
         query->Limit = limit;
@@ -596,56 +491,41 @@ public:
         return result;
     }
 
+    IUnversionedRowsetPtr SelectFields(
+        EObjectType type,
+        const std::vector<const TDBField*>& fields)
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto* typeHandler = objectManager->GetTypeHandlerOrThrow(type);
+        auto query = MakeQuery(typeHandler);
+
+        TQueryContext queryContext(
+            Bootstrap_,
+            type,
+            query.get());
+
+        for (const auto* field : fields) {
+            auto fieldExpression = queryContext.GetFieldExpression(field);
+            query->SelectExprs->push_back(std::move(fieldExpression));
+        }
+
+        EnsureNonEmptySelectExpressions(query.get());
+
+        query->WherePredicate = {BuildObjectFilterByRemovalTime()};
+
+        auto queryString = FormatQuery(*query);
+
+        YT_LOG_DEBUG("Selecting objects (Type: %v, Query: %v)",
+            type,
+            queryString);
+
+        return RunSelect(queryString);
+    }
+
+
     TObject* GetObject(EObjectType type, const TObjectId& id, const TObjectId& parentId = {})
     {
         return Session_.GetObject(type, id, parentId);
-    }
-
-    std::vector<TObject*> SelectObjects(EObjectType objectType)
-    {
-        auto* objectTypeHandler = Bootstrap_->GetObjectManager()->GetTypeHandlerOrThrow(objectType);
-
-        auto objectIdsSelectionProcessor = New<TObjectIdsSelectionProcessor>(objectType);
-        objectIdsSelectionProcessor->Prepare(objectTypeHandler, Bootstrap_->GetYTConnector());
-
-        Session_.ScheduleLoad(
-            [processor = objectIdsSelectionProcessor, &Logger = Logger] (ILoadContext* context) {
-                auto queryString = processor->GetQueryString();
-                context->ScheduleSelect(
-                    std::move(queryString),
-                    [processor = std::move(processor), &Logger] (
-                        const NYT::NApi::IUnversionedRowsetPtr& rowset)
-                    {
-                        auto rows = rowset->GetRows();
-                        YT_LOG_DEBUG("Parsing object ids (ObjectType: %v, Count: %v)",
-                            processor->GetObjectType(),
-                            rows.Size());
-                        processor->Reserve(rows.Size());
-                        for (auto row : rows) {
-                            processor->ProcessRow(row);
-                        }
-                    });
-            });
-
-        YT_LOG_DEBUG("Flushing object ids select (ObjectType: %v)", objectType);
-        Session_.FlushLoads();
-
-        const auto& objectIdToParentIdMapping = objectIdsSelectionProcessor->ObjectIdToParentIdMapping();
-
-        YT_LOG_DEBUG("Selected object ids (ObjectType: %v, Count: %v)",
-            objectType,
-            objectIdToParentIdMapping.size());
-
-        std::vector<TObject*> objects;
-        objects.reserve(objectIdToParentIdMapping.size());
-        for (const auto& objectIdAndParentIdPair : objectIdToParentIdMapping) {
-            objects.push_back(GetObject(
-                objectType,
-                objectIdAndParentIdPair.first,
-                objectIdAndParentIdPair.second));
-        }
-
-        return objects;
     }
 
     TSchema* GetSchema(EObjectType type)
@@ -731,6 +611,18 @@ public:
     TAccount* GetAccount(const TObjectId& id)
     {
         return GetTypedObject<TAccount>(id);
+    }
+
+
+    TUser* GetUser(const TObjectId& id)
+    {
+        return GetTypedObject<TUser>(id);
+    }
+
+
+    TGroup* GetGroup(const TObjectId& id)
+    {
+        return GetTypedObject<TGroup>(id);
     }
 
 
@@ -1039,6 +931,8 @@ private:
 
                 auto nameTable = BuildNameTable(table);
 
+                // Versioned lookup is needed for the TTimestampAttribute support.
+                // For the sake of convenience we use versioned lookup for all attributes.
                 TVersionedLookupRowsOptions options;
                 options.Timestamp = Transaction_->StartTimestamp_;
                 options.KeepMissingRows = false;
@@ -2042,9 +1936,7 @@ private:
                     }
                     auto mapNode = node->AsMap();
                     auto* fallbackChild = schema->FindFallbackChild();
-                    for (const auto& pair : mapNode->GetChildren()) {
-                        const auto& key = pair.first;
-                        const auto& value = pair.second;
+                    for (const auto& [key, value] : mapNode->GetChildren()) {
                         auto* child = schema->FindChild(key);
                         if (child) {
                             DoMatch(value, child);
@@ -2195,9 +2087,12 @@ private:
         IUpdateContext* context)
     {
         for (auto* schema : attributes) {
+            schema->RunUpdatePrehandlers(Owner_, object);
+
             context->AddFinalizer([=] {
                 schema->RunUpdateHandlers(Owner_, object);
             });
+
             Validators_.push_back([=] {
                 schema->RunValidators(Owner_, object);
             });
@@ -2210,16 +2105,15 @@ private:
         TUpdateRequest Request;
     };
 
-    static const TYPath& GetRequestPath(const TUpdateRequest& request)
+    static TYPath GetRequestPath(const TUpdateRequest& request)
     {
-        switch (request.index()) {
-            case VariantIndexV<TSetUpdateRequest, TUpdateRequest>:
-                return std::get<TSetUpdateRequest>(request).Path;
-            case VariantIndexV<TRemoveUpdateRequest, TUpdateRequest>:
-                return std::get<TRemoveUpdateRequest>(request).Path;
-            default:
-                Y_UNREACHABLE();
-        }
+        return Visit(request,
+            [&] (const TSetUpdateRequest& typedRequest) {
+                return typedRequest.Path;
+            },
+            [&] (const TRemoveUpdateRequest& typedRequest) {
+                return typedRequest.Path;
+            });
     }
 
 
@@ -2227,16 +2121,13 @@ private:
         const TUpdateRequest& request,
         const TYPath& path)
     {
-        switch (request.index()) {
-            case VariantIndexV<TSetUpdateRequest, TUpdateRequest>: {
-                const auto& updateRequest = std::get<TSetUpdateRequest>(request);
-                return TSetUpdateRequest{path, updateRequest.Value, updateRequest.Recursive};
-            }
-            case VariantIndexV<TRemoveUpdateRequest, TUpdateRequest>:
+        return Visit(request,
+            [&] (const TSetUpdateRequest& typedRequest) -> TUpdateRequest {
+                return TSetUpdateRequest{path, typedRequest.Value, typedRequest.Recursive};
+            },
+            [&] (const TRemoveUpdateRequest&) -> TUpdateRequest {
                 return TRemoveUpdateRequest{path};
-            default:
-                Y_UNREACHABLE();
-        }
+            });
     }
 
     TAttributeUpdateMatch MatchAttributeUpdate(
@@ -2292,24 +2183,21 @@ private:
         const auto& request = match.Request;
 
         try {
-            switch (request.index()) {
-                case VariantIndexV<TSetUpdateRequest, TUpdateRequest>:
+            Visit(request,
+                [&] (const TSetUpdateRequest& typedRequest) {
                     ApplyAttributeSetUpdate(
                         transaction,
                         object,
                         match.Schema,
-                        std::get<TSetUpdateRequest>(request));
-                    break;
-                case VariantIndexV<TRemoveUpdateRequest, TUpdateRequest>:
+                        typedRequest);
+                },
+                [&] (const TRemoveUpdateRequest& typedRequest) {
                     ApplyAttributeRemoveUpdate(
                         transaction,
                         object,
                         match.Schema,
-                        std::get<TRemoveUpdateRequest>(request));
-                    break;
-                default:
-                    Y_UNREACHABLE();
-            }
+                        typedRequest);
+                });
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error updating attribute %v of %v %v",
                 match.Schema->GetPath(),
@@ -2319,22 +2207,71 @@ private:
         }
     }
 
+    void ApplyCompositeAttributeSetUpdate(
+        TTransaction* transaction,
+        TObject* object,
+        TAttributeSchema* schema,
+        const TSetUpdateRequest& request)
+    {
+        if (request.Value->GetType() != ENodeType::Map) {
+            THROW_ERROR_EXCEPTION("Attribute %v cannot be updated from %Qlv values",
+                schema->GetPath(),
+                request.Value->GetType());
+        }
+
+        auto mapValue = request.Value->AsMap();
+        auto* fallbackChild = schema->FindFallbackChild();
+        IMapNodePtr fallbackMapValue;
+        for (const auto& [key, childValue] : mapValue->GetChildren()) {
+            auto* child = schema->FindChild(key);
+            if (child) {
+                ApplyAttributeSetUpdate(
+                    transaction,
+                    object,
+                    child,
+                    TSetUpdateRequest{TYPath(), childValue});
+            } else if (fallbackChild) {
+                if (!fallbackMapValue) {
+                    fallbackMapValue = GetEphemeralNodeFactory()->CreateMap();
+                }
+                fallbackMapValue->AddChild(key, CloneNode(childValue));
+            } else {
+                THROW_ERROR_EXCEPTION("Attribute %v has no child with key %Qv",
+                    schema->GetPath(),
+                    key);
+            }
+        }
+
+        if (fallbackMapValue) {
+            ApplyAttributeSetUpdate(
+                transaction,
+                object,
+                fallbackChild,
+                TSetUpdateRequest{TYPath(), fallbackMapValue});
+        }
+    }
+
     void ApplyAttributeSetUpdate(
         TTransaction* transaction,
         TObject* object,
         TAttributeSchema* schema,
         const TSetUpdateRequest& request)
     {
-        YT_LOG_DEBUG("Applying set update (ObjectId: %v, Attribute: %v, Path: %v, Value: %v)",
-            object->GetId(),
-            schema->GetPath(),
-            request.Path,
-            ConvertToYsonString(request.Value, NYson::EYsonFormat::Text));
+        if (schema->IsComposite()) {
+            ApplyCompositeAttributeSetUpdate(transaction, object, schema, request);
+            return;
+        }
 
         if (!schema->HasSetter()) {
             THROW_ERROR_EXCEPTION("Attribute %v does not support set updates",
                 schema->GetPath());
         }
+
+        YT_LOG_DEBUG("Applying set update (ObjectId: %v, Attribute: %v, Path: %v, Value: %v)",
+            object->GetId(),
+            schema->GetPath(),
+            request.Path,
+            ConvertToYsonString(request.Value, NYson::EYsonFormat::Text));
 
         schema->RunSetter(transaction, object, request.Path, request.Value, request.Recursive);
     }
@@ -2345,19 +2282,42 @@ private:
         TAttributeSchema* schema,
         const TRemoveUpdateRequest& request)
     {
-        YT_LOG_DEBUG("Applying remove update (ObjectId: %v, Attribute: %v, Path: %v)",
-            object->GetId(),
-            schema->GetPath(),
-            request.Path);
-
         if (!schema->HasRemover()) {
             THROW_ERROR_EXCEPTION("Attribute %v does not support remove updates",
                 schema->GetPath());
         }
 
+        YT_LOG_DEBUG("Applying remove update (ObjectId: %v, Attribute: %v, Path: %v)",
+            object->GetId(),
+            schema->GetPath(),
+            request.Path);
+
         schema->RunRemover(transaction, object, request.Path);
     }
 
+
+    static TExpressionPtr BuildObjectFilterByRemovalTime()
+    {
+        return New<TFunctionExpression>(
+            TSourceLocation(),
+            "is_null",
+            TExpressionList{
+                New<TReferenceExpression>(
+                    TSourceLocation(),
+                    TReference(ObjectsTable.Fields.Meta_RemovalTime.Name, PrimaryTableAlias)
+                )
+            });
+    }
+
+    static void EnsureNonEmptySelectExpressions(TQuery* query)
+    {
+        if (query->SelectExprs->empty()) {
+            static const auto DummyExpr = New<TLiteralExpression>(
+                TSourceLocation(),
+                TLiteralValue(false));
+            query->SelectExprs->push_back(DummyExpr);
+        }
+    }
 
     std::unique_ptr<TQuery> MakeQuery(IObjectTypeHandler* typeHandler)
     {
@@ -2390,10 +2350,7 @@ private:
         }
 
         query->SelectExprs = fetcherContext->GetSelectExpressions();
-        if (query->SelectExprs->empty()) {
-            static const auto DummyExpr = New<TLiteralExpression>(TSourceLocation(), TLiteralValue(false));
-            query->SelectExprs->push_back(DummyExpr);
-        }
+        EnsureNonEmptySelectExpressions(query);
 
         return fetchers;
     }
@@ -2522,9 +2479,11 @@ TSelectQueryResult TTransaction::ExecuteSelectQuery(
         options);
 }
 
-std::vector<TObject*> TTransaction::SelectObjects(EObjectType type)
+IUnversionedRowsetPtr TTransaction::SelectFields(
+    EObjectType type,
+    const std::vector<const TDBField*>& fields)
 {
-    return Impl_->SelectObjects(type);
+    return Impl_->SelectFields(type, fields);
 }
 
 TNode* TTransaction::GetNode(const TObjectId& id)
@@ -2585,6 +2544,16 @@ TInternetAddress* TTransaction::GetInternetAddress(const TObjectId& id)
 TAccount* TTransaction::GetAccount(const TObjectId& id)
 {
     return Impl_->GetAccount(id);
+}
+
+TUser* TTransaction::GetUser(const TObjectId& id)
+{
+    return Impl_->GetUser(id);
+}
+
+TGroup* TTransaction::GetGroup(const TObjectId& id)
+{
+    return Impl_->GetGroup(id);
 }
 
 TFuture<TTransactionCommitResult> TTransaction::Commit()

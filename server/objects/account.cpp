@@ -2,6 +2,7 @@
 #include "pod.h"
 #include "pod_set.h"
 #include "replica_set.h"
+#include "multi_cluster_replica_set.h"
 #include "db_schema.h"
 
 namespace NYP::NServer::NObjects {
@@ -64,6 +65,14 @@ const TOneToManyAttributeSchema<TAccount, TReplicaSet> TAccount::ReplicaSetsSche
     [] (TReplicaSet* replicaSet) { return &replicaSet->Spec().Account(); },
 };
 
+const TOneToManyAttributeSchema<TAccount, TMultiClusterReplicaSet> TAccount::MultiClusterReplicaSetsSchema{
+    &AccountToMultiClusterReplicaSetsTable,
+    &AccountToMultiClusterReplicaSetsTable.Fields.AccountId,
+    &AccountToMultiClusterReplicaSetsTable.Fields.ReplicaSetId,
+    [] (TAccount* account) { return &account->MultiClusterReplicaSets(); },
+    [] (TMultiClusterReplicaSet* replicaSet) { return &replicaSet->Spec().Account(); },
+};
+
 TAccount::TAccount(
     const TObjectId& id,
     IObjectTypeHandler* typeHandler,
@@ -74,6 +83,7 @@ TAccount::TAccount(
     , PodSets_(this, &PodSetsSchema)
     , Pods_(this, &PodsSchema)
     , ReplicaSets_(this, &ReplicaSetsSchema)
+    , MultiClusterReplicaSets_(this, &MultiClusterReplicaSetsSchema)
 { }
 
 EObjectType TAccount::GetType() const

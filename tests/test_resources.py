@@ -112,7 +112,13 @@ class TestResources(object):
             node_id = yp_client.create_object("node", attributes={"labels": {"status": "good"}})
             yp_client.create_object("resource", attributes={"meta": {"node_id": node_id}, "spec": {"cpu": {"total_capacity": 1}}})
             yp_client.create_object("resource", attributes={"meta": {"node_id": node_id}, "spec": {"memory": {"total_capacity": 10}}})
-            yp_client.create_object("resource", attributes={"meta": {"node_id": node_id}, "spec": {"disk": {"total_capacity": 100, "storage_class": "hdd"}}})
+            yp_client.create_object(
+                "resource",
+                attributes={
+                    "meta": {"node_id": node_id},
+                    "spec": {"disk": {"total_capacity": 100, "storage_class": "hdd", "total_bandwidth": 3}}
+                }
+            )
             return node_id
 
         for _ in xrange(5):
@@ -132,7 +138,68 @@ class TestResources(object):
             return totals != YsonEntity() and \
                    totals["cpu"]["capacity"] == n and \
                    totals["memory"]["capacity"] == n * 10 and \
-                   totals["disk_per_storage_class"] == {"hdd": {"capacity": n * 100}}
+                   totals["disk_per_storage_class"] == {"hdd": {"capacity": n * 100, "bandwidth": n * 3}}
 
         wait(lambda: _check("total_resources", 10))
         wait(lambda: _check("schedulable_resources", 5))
+
+    def test_resource_used_free_status(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        node_id = yp_client.create_object("node")
+
+        cpu_resource_id = yp_client.create_object("resource", attributes={
+            "meta": {"node_id": node_id},
+            "spec": {
+                "cpu": {"total_capacity": 100}
+            }
+        })
+        memory_resource_id = yp_client.create_object("resource", attributes={
+            "meta": {"node_id": node_id},
+            "spec": {
+                "memory": {"total_capacity": 200}
+            }
+        })
+        disk_resource_id = yp_client.create_object("resource", attributes={
+            "meta": {"node_id": node_id},
+            "spec": {
+                "disk": {"total_capacity": 1000, "total_volume_slots": 10, "supported_policies": ["quota"],"storage_class": "hdd", "device": "/dev/null"}
+            }
+        })
+
+        assert yp_client.get_object("resource", cpu_resource_id, selectors=["/status/free/cpu/capacity", "/status/used/cpu/capacity"]) == [100, 0]
+        assert yp_client.get_object("resource", memory_resource_id, selectors=["/status/free/memory/capacity", "/status/used/memory/capacity"]) == [200, 0]
+        assert yp_client.get_object("resource", disk_resource_id, selectors=["/status/free/disk/capacity", "/status/used/disk/capacity"]) == [1000, 0]
+
+        pod_set_id = yp_client.create_object("pod_set")
+        pod_id = yp_client.create_object("pod", attributes={
+            "meta": {
+                "pod_set_id": pod_set_id
+            },
+            "spec": {
+                "node_id" : node_id,
+                "resource_requests": {
+                    "vcpu_guarantee": 30,
+                    "vcpu_limit": 40,
+                    "memory_guarantee": 10,
+                    "memory_limit": 20
+                },
+                "disk_volume_requests": [
+                    {
+                        "id": "hdd",
+                        "storage_class": "hdd",
+                        "quota_policy": {"capacity": 300}
+                    }
+                ]
+            }
+        })
+
+        assert yp_client.get_object("resource", cpu_resource_id, selectors=["/status/free/cpu/capacity", "/status/used/cpu/capacity"]) == [70, 30]
+        assert yp_client.get_object("resource", memory_resource_id, selectors=["/status/free/memory/capacity", "/status/used/memory/capacity"]) == [180, 20]
+        assert yp_client.get_object("resource", disk_resource_id, selectors=["/status/free/disk/capacity", "/status/used/disk/capacity"]) == [700, 300]
+
+        yp_client.remove_object("pod", pod_id)
+
+        wait(lambda: yp_client.get_object("resource", cpu_resource_id, selectors=["/status/free/cpu/capacity", "/status/used/cpu/capacity"]) == [100, 0] and \
+                     yp_client.get_object("resource", memory_resource_id, selectors=["/status/free/memory/capacity", "/status/used/memory/capacity"]) == [200, 0] and \
+                     yp_client.get_object("resource", disk_resource_id, selectors=["/status/free/disk/capacity", "/status/used/disk/capacity"]) == [1000, 0])

@@ -19,7 +19,7 @@ public:
     TGetUserAccessAllowedToConfig()
     {
         RegisterParameter("allowed_object_types", AllowedObjectTypes)
-            .Default({NObjects::EObjectType::NetworkProject});
+            .Default({NObjects::EObjectType::NetworkProject, NObjects::EObjectType::Account});
     }
 };
 

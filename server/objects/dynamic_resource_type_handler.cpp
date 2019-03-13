@@ -62,11 +62,6 @@ public:
         return &parent->As<TPodSet>()->DynamicResources();
     }
 
-    virtual TObject* GetAccessControlParent(TObject* object) override
-    {
-        return object->As<TDynamicResource>()->PodSet().Load();
-    }
-
     virtual std::unique_ptr<TObject> InstantiateObject(
         const TObjectId& id,
         const TObjectId& parentId,

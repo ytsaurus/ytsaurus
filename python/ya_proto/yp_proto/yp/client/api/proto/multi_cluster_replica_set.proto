@@ -1,0 +1,111 @@
+syntax = "proto3";
+
+package NYP.NClient.NApi.NProto;
+
+import "yt/core/yson/proto/protobuf_interop.proto";
+
+import "yt_proto/yt/core/ytree/proto/attributes.proto";
+
+import "yp_proto/yp/client/api/proto/conditions.proto";
+import "yp_proto/yp/client/api/proto/data_model.proto";
+import "yp_proto/yp/client/api/proto/object_type.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TMultiClusterReplicaSet
+{
+    TMultiClusterReplicaSetMeta meta = 1;
+    TMultiClusterReplicaSetSpec spec = 2;
+    TMultiClusterReplicaSetStatus status = 3;
+    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+message TMultiClusterReplicaSetMeta
+{
+    string id = 1;
+    string uuid = 2;
+    string name = 3;
+    NYP.NClient.NApi.NProto.EObjectType type = 4;
+    uint64 creation_time = 5;
+    bool inherit_acl = 6;
+    repeated NYP.NClient.NApi.NProto.TAccessControlEntry acl = 7;
+}
+
+message TMultiClusterReplicaSetSpec
+{
+    uint64 revision = 6;
+    string account_id = 2;
+
+    message TPodTemplateSpec
+    {
+        NYP.NClient.NApi.NProto.TPodSpec spec = 1;
+    }
+
+    TPodTemplateSpec pod_template_spec = 3;
+
+    message TConstraints
+    {
+        repeated NYP.NClient.NApi.NProto.TAntiaffinityConstraint antiaffinity_constraints = 1;
+    }
+
+    message TDeploymentStrategy
+    {
+        uint32 max_unavailable = 1;
+    }
+
+    TDeploymentStrategy deployment_strategy = 4;
+
+    message TReplicaSetSpecPreferences
+    {
+        uint32 replica_count = 1;
+        TConstraints constraints = 2;
+    }
+
+    message TClusterReplicaSetSpecPreferences
+    {
+        string cluster = 1;
+        TReplicaSetSpecPreferences spec = 2;
+    }
+
+    repeated TClusterReplicaSetSpecPreferences clusters = 5;
+}
+
+message TDeployProgress
+{
+    // Number of pods synced to up-to-date spec.
+    uint32 pods_ready = 1;
+    // Number of pods currently updating.
+    uint32 pods_in_progress = 2;
+    // Total number of pods.
+    uint32 pods_total = 3;
+}
+
+message TMultiClusterReplicaSetStatus
+{
+    message TControllerAttempt
+    {
+        map<string, NYP.NClient.NApi.NProto.TCondition> clusters_succeeded = 4 [(NYT.NYson.NProto.yson_map) = true];
+        NYP.NClient.NApi.NProto.TCondition multi_cluster_succeeded = 5;
+    }
+
+    message TControllerStatus
+    {
+        TControllerAttempt last_attempt = 1;
+    }
+
+    message TPodsSummary
+    {
+       TDeployProgress multi_cluster_progress = 1;
+       map<string, TDeployProgress> clusters_progress = 2 [(NYT.NYson.NProto.yson_map) = true];
+    }
+
+    uint64 revision = 3;
+    NYP.NClient.NApi.NProto.TCondition in_progress = 4;
+    NYP.NClient.NApi.NProto.TCondition ready = 5;
+    TPodsSummary total_summary = 6;
+    TPodsSummary current_revision_summary = 7;
+    map<uint64, TPodsSummary> revisions = 8;
+    TControllerStatus controller_status = 9;
+    uint32 pods_unavailable = 10;
+}

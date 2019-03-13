@@ -42,7 +42,7 @@ DECLARE_REFCOUNTED_CLASS(TPodNodeScoreConfig)
 DECLARE_REFCOUNTED_CLASS(TGlobalResourceAllocatorConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConfig)
 
-constexpr size_t MaxResourceDimensions = 2;
+constexpr size_t MaxResourceDimensions = 3;
 using TResourceCapacities = std::array<ui64, MaxResourceDimensions>;
 
 using NObjects::TObjectId;

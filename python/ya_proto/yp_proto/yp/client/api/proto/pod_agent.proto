@@ -1,6 +1,3 @@
-// IMPORTED FROM https://a.yandex-team.ru/arc/trunk/arcadia/infra/pod_agent/libs/service_iface/protos/pod_agent.proto
-// PLEASE SEND ALL CHANGES THERE FIRST
-
 syntax = "proto3";
 
 option java_package = "ru.yandex.yp.client.pods";
@@ -9,7 +6,6 @@ option java_outer_classname = "Pod";
 package NInfra.NPodAgent.API;
 
 import "google/protobuf/timestamp.proto";
-import "yp_proto/yp/client/api/proto/secrets.proto";
 import "yt/core/yson/proto/protobuf_interop.proto";
 
 option (NYT.NYson.NProto.derive_underscore_case_names) = true;
@@ -24,93 +20,77 @@ option (NYT.NYson.NProto.derive_underscore_case_names) = true;
 // NOTE: Валидация - на каждый Workload ссылается ровно один MutableWorkload, нет ссылок из MutableWorkload на несуществующие Workload
 message TPodAgentSpec {
     //pod revision, server-side монотонно возрастаюшая последовательность
-    uint32 Revision = 1;
+    uint32 revision = 1;
 
     //идентификатор пода
-    string Id = 2;
+    string id = 2;
 
     //Слои и ресурсы, которые необходимо скачать в рамках лимитов @see ResourceGang
-    TResourceGang Resources = 3;
+    TResourceGang resources = 3;
 
     //Все вольюмы
-    repeated TVolume Volumes = 4;
+    repeated TVolume volumes = 4;
 
     //Все workload, изменение любого поля приводит к рестарту @see MutableWorkloads
-    repeated TWorkload Workloads = 5;
+    repeated TWorkload workloads = 5;
 
     //Все окружения, в которых могут быть запущены Workloads
-    repeated TBox Boxes = 8;
+    repeated TBox boxes = 8;
 
     //Часть Workload, изменение которой не приведет к полной пересборке Workload
-    repeated TMutableWorkload MutableWorkloads = 9;
+    repeated TMutableWorkload mutable_workloads = 9;
 }
 
-// Конфигурация Пода, содержащая секреты
-// NOTE: В будущем Pod-agent будет принимать только это сообщение, сейчас он все еще принимает TPodAgentSpec отдельно для обратной совместимости
-// NOTE: Валидация - все alias секретов различны
-message TPodAgentRequest {
-    // Конфигурация Пода
-    TPodAgentSpec Spec = 1;
+// Кэш ресурсы, которые надо скачать на под
+// Хеш ресурса считается как hash(Url, Checksum), т.е. он не зависит от Id/Revision/Meta/CheckPeriodMs/..
+// Если в спеке пода окажется layer или ресурс, у которого совпал хеш с каким-то ресурсом из кэша,
+// то этот ресурс не будет закачиваться заново, а просто подставится из кэша
+// NOTE: Для всех TResource с одинаковым хешом выбирается минимальное из времен TVerification::CheckPeriodMs,
+// т.е. если в спеку пода придет TResource, который лежит в кэше, но его период верификации меньше
+// периода верификации кэш ресурса, этот ресурс начнет верифицироваться с меньшим периодом
+// NOTE: Валидация - сущности имеют уникальные в рамках пода идентификаторы (Пара Id, Revision)
+message TPodAgentResourceCacheSpec {
+    // Кэш слои
+    repeated TCacheLayer layers = 1;
 
-    // Секреты (raw, unencrypted)
-    repeated NYP.NClient.NApi.NProto.TSecret Secrets = 2;
+    // Кэш ресурсы
+    repeated TCacheResource static_resources = 2;
 }
 
 // Текущее состояние Пода, возвращаемое из Pod-agent
 message TPodAgentStatus {
     //последняя известная pod revision
-    uint32 Revision = 1;
+    uint32 revision = 1;
 
     //идентификатор пода
-    string Id = 2;
+    string id = 2;
 
     // Момент отправки сообщения с агента
-    uint64 HostTimestamp = 3;
+    uint64 host_timestamp = 3;
 
-    repeated TVolumeStatus Volumes = 4;
+    repeated TVolumeStatus volumes = 4;
 
-    TResourceGangStatus ResourceGang = 5;
+    TResourceGangStatus resource_gang = 5;
 
-    repeated TWorkloadStatus Workloads = 6;
+    repeated TWorkloadStatus workloads = 6;
 
-    repeated TBoxStatus Boxes = 7;
+    repeated TBoxStatus boxes = 7;
     // Если хотя бы один из Ready вложенных T*Status имеет Status == EConditionStatus_UNKNOWN,
     // обращается в EConditionStatus_UNKNOWN.
     // Иначе, если хотя бы один из них имеет Status == EConditionStatus_FALSE,
     // обращается в EConditionStatus_FALSE.
     // Иначе обращается в EConditionStatus_TRUE.
     // LastTransitionTime -- максимальное значение Ready.LastTransitionTime среди всех вложеных T*Status
-    TCondition Ready = 8;
+    TCondition ready = 8;
     // Если хотя бы один из InProgress вложенных T*Status имеет Status == EConditionStatus_UNKNOWN,
     // обращается в EConditionStatus_UNKNOWN.
     // Иначе, если хотя бы один из них имеет Status == EConditionStatus_TRUE,
     // обращается в EConditionStatus_TRUE.
     // Иначе обращается в EConditionStatus_FALSE.
     // LastTransitionTime -- максимальное значение InProgress.LastTransitionTime среди всех вложеных T*Status
-    TCondition InProgress = 9;
-}
+    TCondition in_progress = 9;
 
-// Спека для получения расширенного debug состояния pod_agent
-message TPodAgentDebugSpec {
-    repeated string WorkloadIds = 1;
-    repeated string LayerIds = 2;
-    repeated string VolumeIds = 3;
-    repeated string BoxIds = 4;
-    repeated string StaticResourceIds = 5;
-}
-
-// Расширенный debug status возвращаемый Pod-agent
-message TPodAgentDebugStatus {
-    // Состояние behavior tree для workloads в dot формате
-    map<string, string> WorkloadTreeDots = 1 [(NYT.NYson.NProto.yson_map) = true];
-    // Состояние behavior tree для layers в dot формате
-    map<string, string> LayerTreeDots = 2 [(NYT.NYson.NProto.yson_map) = true];
-    // Состояние behavior tree для volumes в dot формате
-    map<string, string> VolumeTreeDots = 3 [(NYT.NYson.NProto.yson_map) = true];
-    // Состояние behavior tree для boxes в dot формате
-    map<string, string> BoxTreeDots = 4 [(NYT.NYson.NProto.yson_map) = true];
-    // Состояние behavior tree для layers в dot формате
-    map<string, string> StaticResourcesTreeDots = 5 [(NYT.NYson.NProto.yson_map) = true];
+    TResourceGangStatus resource_cache = 10;
 }
 
 //============================== SPEC ==========================
@@ -118,77 +98,90 @@ message TComputeResources {
     reserved 1;
 
     // Ограничения по CPU, в виртуальных миллиядрах (vcpu). Тем самым, заказав vcpu = 1000, мы получим одно виртуальное ядро.
-    uint64 VCpuGuarantee = 2;
-    uint64 VCpuLimit = 3;
+    uint64 vcpu_guarantee = 2;
+    uint64 vcpu_limit = 3;
 
     // Ограничения по памяти, в байтах
-    uint64 MemoryGuarantee = 4;
-    uint64 MemoryLimit = 5;
-    uint64 AnonymousMemoryLimit = 6;
+    uint64 memory_guarantee = 4;
+    uint64 memory_limit = 5;
+    uint64 anonymous_memory_limit = 6;
+
+    // Если true иммигрирует кэш при незначительной ошибке страницы, по умолчанию: false.
+    bool recharge_on_pgfault = 7;
 }
 
 // Проверки целостности ресурса
 message TVerification {
     // Контрольная сумма, формат <схема>:<значение> Поддерживаемые схемы "MD5:", "EMPTY:"  "SHA256:" - case sensitive
-    string Checksum = 1;
+    string checksum = 1;
 
     // Периодичность проверки контрольной суммы. Первая проверка выполняется сразу после завершения скачивания.
     //TODO: добавить валидацию минимального значения периода проверки
-    uint64 CheckPeriodMs = 2;
+    uint64 check_period_ms = 2;
 }
 
 message TSandboxResource {
-    string TaskType = 1;
-    string TaskId = 2;
-    string ResourceType = 3;
-    string ResourceId = 4;
+    string task_type = 1;
+    string task_id = 2;
+    string resource_type = 3;
+    string resource_id = 4;
 }
 
 message TResourceMeta {
-    oneof Meta {
-        TSandboxResource SandboxResource = 2;
+    oneof meta {
+        TSandboxResource sandbox_resource = 2;
     }
 }
 
 message TResource {
-    string Id = 1; // Уникальное имя ресурса (в рамках pod'а). Должно состоять только из символов, разрешенных в имени porto контейнера. (a..z, A..Z, 0..9, _-@:.)
+    string id = 1; // Уникальное имя ресурса (в рамках pod'а). Должно состоять только из символов, разрешенных в имени porto контейнера. (a..z, A..Z, 0..9, _-@:.)
 
     //не нужно для Pod-agent
-    TResourceMeta Meta = 2; // Мета информация о ресурсе, необходимо для интеграции с CI/CD
+    TResourceMeta meta = 2; // Мета информация о ресурсе, необходимо для интеграции с CI/CD
 
     //@see TVerification
-    TVerification Verification = 3;
+    TVerification verification = 3;
 
     // URL для скачивания, протоколы: http, https, rbtorrent
     // Для записи строчки в файл URL должен быть равен "raw:<строка>"
-    string Url = 4;
+    string url = 4;
 
     //TODO: not implemented
-    oneof StorageRef {
-        bool DefaultStorage = 5;
-        string FileStorageRef = 6; //Указатель на файловый сторедж
+    oneof storage_ref {
+        bool default_storage = 5;
+        string file_storage_ref = 6; //Указатель на файловый сторедж
     }
 }
 
-message TLayer {
-    // Уникальный идентификатор (произвольная строка)
-    string Id = 1;
+message TCacheResource {
+    // Ревизия кэш ресурса
+    uint32 revision = 1;
 
-    // Мы хотим избавиться от вложенности TResource в TLayer https://st.yandex-team.ru/ISS-6264
-    // Поэтому в будующем это поле будет удалено
-    // Сейчас при наличии этого поля в спеке, информация будет браться из него, иначе из остальных полей
-    // Поле Verification.CheckPeriodMs игнорируется
-    TResource Resource = 2;
+    TResource resource = 2;
+}
+
+message TLayer {
+    reserved 2;
+
+    // Уникальный идентификатор (произвольная строка)
+    string id = 1;
 
     //не нужно для Pod-agent
-    TResourceMeta Meta = 3; // Мета информация о ресурсе, необходимо для интеграции с CI/CD
+    TResourceMeta meta = 3; // Мета информация о ресурсе, необходимо для интеграции с CI/CD
 
     // Контрольная сумма, формат <схема>:<значение> Поддерживаемые схемы "MD5:", "EMPTY:"  "SHA256:" - case sensitive
-    string Checksum = 4;
+    string checksum = 4;
 
     // URL для скачивания, протоколы: http, https, rbtorrent
     // Для записи строчки в файл URL должен быть равен "raw:<строка>"
-    string Url = 5;
+    string url = 5;
+}
+
+message TCacheLayer {
+    // Ревизия кэш слоя
+    uint32 revision = 1;
+
+    TLayer layer = 2;
 }
 
 enum EVolumeMountMode {
@@ -199,34 +192,34 @@ enum EVolumeMountMode {
 //Позволяет монитровать один вольюм в разные mountPoint
 message TMountedVolume {
     //id Volume который требуется подмонтировать
-    string VolumeRef = 1;
+    string volume_ref = 1;
     // точка монтирования
-    string MountPoint = 2;
+    string mount_point = 2;
     //ro, rw
-    EVolumeMountMode Mode = 3;
+    EVolumeMountMode mode = 3;
 }
 
 message TMountedStaticResource {
     // id Resource который требуется подмонтировать
-    string ResourceRef = 1;
+    string resource_ref = 1;
     // точка монтирования
-    string MountPoint = 2;
+    string mount_point = 2;
 }
 
 message TRootfsVolume {
     // Квота на размер
-    uint64 QuotaBytes = 1;
+    uint64 quota_bytes = 1;
 
     // Слои, из которых собирается volume
     // как и в porto, слои идут в порядке top-layer;...;bottom-layer
     //NOTE: Валидация ids в списке должны быть уникальные
-    repeated string LayerRefs = 4;
+    repeated string layer_refs = 4;
 }
 
 message TFileStorage {
     // Квота на размер
     // NOTE: не обрабатывается - porto не умеет во вложенные квоты по диску
-    uint64 QuotaBytes = 1;
+    uint64 quota_bytes = 1;
 }
 
 message TGenericVolume {
@@ -234,19 +227,19 @@ message TGenericVolume {
 
     // Квота на размер
     // NOTE: не обрабатывается - porto не умеет во вложенные квоты по диску
-    uint64 QuotaBytes = 5;
+    uint64 quota_bytes = 5;
 
     // Слои, из которых собирается volume
     //NOTE: Валидация ids в списке должны быть уникальные
-    repeated string LayerRefs = 4;
+    repeated string layer_refs = 4;
 }
 
 message TVolume {
-    string Id = 1; // Уникальный в рамках pod идентификатор Volume. Должен состоять только из символов, разрешенных в имени porto контейнера. (a..z, A..Z, 0..9, _-@:.)
+    string id = 1; // Уникальный в рамках pod идентификатор Volume. Должен состоять только из символов, разрешенных в имени porto контейнера. (a..z, A..Z, 0..9, _-@:.)
 
-    oneof Volume {
-        TFileStorage Storage = 3; // TODO: not implemented
-        TGenericVolume Generic = 4;
+    oneof volume {
+        TFileStorage storage = 3; // TODO: not implemented
+        TGenericVolume generic = 4;
     }
 }
 
@@ -260,44 +253,69 @@ message TVolume {
 // step считается с 0 и равен max(0, ConsecutiveFailuresCounter - 1) для workload stop
 // и max(0, ConsecutiveSuccessesCounter - 1) для всех остальных хуков
 message TTimeLimit {
-    uint64 InitialDelayMs = 1;
-    uint64 RestartPeriodScaleMs = 2;
-    uint64 RestartPeriodBackOff = 3;
+    uint64 initial_delay_ms = 1;
+    uint64 restart_period_scale_ms = 2;
+    uint64 restart_period_back_off = 3;
     // Следующие поля должны быть > 0
-    uint64 MaxRestartPeriodMs = 4;
-    uint64 MinRestartPeriodMs = 5;
-    uint64 MaxExecutionTimeMs = 6;
+    uint64 max_restart_period_ms = 4;
+    uint64 min_restart_period_ms = 5;
+    uint64 max_execution_time_ms = 6;
 }
 
 message TTimeLimitStatus {
-    google.protobuf.Timestamp LastCallTime = 1;
-    uint32 ConsecutiveSuccessesCounter = 2;
-    uint32 ConsecutiveFailuresCounter = 3;
+    google.protobuf.Timestamp last_call_time = 1;
+    uint32 consecutive_successes_counter = 2;
+    uint32 consecutive_failures_counter = 3;
 }
 
 // Id секрета из TPodAgentRequest.Secrets
 // Alias секрета из TPodAgentRequest.Secrets
 // В момент обработки спеки будет добавлена переменная окружения с значением равным value секрета
 message SecretEnvSelector {
-    string Id = 1;
+    string id = 1;
 
-    string Alias = 2;
+    string alias = 2;
 }
 
 message LiteralEnvSelector {
-    string Value = 1;
+    string value = 1;
 }
 
 message TEnvVarValue {
-    oneof Value {
-        SecretEnvSelector SecretEnv = 2;
-        LiteralEnvSelector LiteralEnv = 3;
+    oneof value {
+        SecretEnvSelector secret_env = 2;
+        LiteralEnvSelector literal_env = 3;
     }
 }
 
 message TEnvVar {
-    string Name = 1;
-    TEnvVarValue Value = 2;
+    string name = 1;
+    TEnvVarValue value = 2;
+}
+
+enum EContainerULimitType {
+    // address space 
+    EContainerULimit_AS = 0 [(NYT.NYson.NProto.enum_value_name) = "as"];
+
+    // core file size
+    EContainerULimit_CORE = 1 [(NYT.NYson.NProto.enum_value_name) = "core"];
+
+    // data seg size
+    EContainerULimit_DATA = 2 [(NYT.NYson.NProto.enum_value_name) = "data"];
+
+    // max locked memory
+    EContainerULimit_MEMLOCK = 3 [(NYT.NYson.NProto.enum_value_name) = "memlock"];
+
+    // stack size
+    EContainerULimit_STACK = 4 [(NYT.NYson.NProto.enum_value_name) = "stack"];
+
+    // file size
+    EcontainerULimit_FSIZE = 5 [(NYT.NYson.NProto.enum_value_name) = "fsize"];
+}
+
+message TUlimitSoft {
+    EContainerULimitType name = 1;
+    uint64 value = 2;
 }
 
 enum EWorkloadTargetState {
@@ -309,21 +327,24 @@ message TWorkload {
     reserved 2,4,10;
 
     // уникальный в рамках pod идентификатор Workload. Должeн состоять только из символов, разрешенных в имени porto контейнера. (a..z, A..Z, 0..9, _-@:.)
-    string Id = 1;
+    string id = 1;
 
     //Указатель на Box, в котором надо запускаться
-    string BoxRef = 8;
+    string box_ref = 8;
 
     //Переменные окружения - прокидываются во все контейнеры ворклода
-    repeated TEnvVar Env = 5;
+    repeated TEnvVar env = 5;
+
+    //Soft лимиты окружения - прокидываются во все контейнеры ворклода
+    repeated TUlimitSoft ulimit_soft = 14;
 
     //Набор команд, запускаемых перед стартом основного процесса.
     //Гарантируется, что каждая отработает at least once.
     //Если команда падает - она перезапускается до победного
-    repeated TUtilityContainer Init = 3;
+    repeated TUtilityContainer init = 3;
 
     // Описание основного процесса
-    TUtilityContainer Start = 11;
+    TUtilityContainer start = 11;
 
     //В случае возврата 0 - workload переходит в состояние ACTIVE, в других случаях SEMI_FAILED
     //Нет такого кода возврата status hook, при котором контейнер будет убит
@@ -333,22 +354,26 @@ message TWorkload {
     // Если это поведение поменять сделать миграцию автоматической будет сложнее
     // Если пользователь хочет пробпросить кастомный стуктурированный status, то рекомендуемое место для этого
     // stdout этого хука
-    TReadinessCheck ReadinessCheck = 6;
+    TReadinessCheck readiness_check = 6;
 
     //В случае ненулевого возврата - workload убивается и переходит в состояние DEACTIVATED_BY_LIVENESS
-    TLivenessCheck LivenessCheck = 9;
+    TLivenessCheck liveness_check = 9;
 
-    TStopPolicy StopPolicy = 7;
+    TStopPolicy stop_policy = 7;
 
-    TDestroyPolicy DestroyPolicy = 12;
+    TDestroyPolicy destroy_policy = 12;
+
+    //передавать/не передавать логи в yt при помощи push client
+    //описание: https://wiki.yandex-team.ru/users/aneporada/push-agent-config/
+    bool transmit_logs = 13;
 }
 
 // Mutable поля Workload
 message TMutableWorkload {
     // Ссылка на workload
-    string WorkloadRef = 1;
+    string workload_ref = 1;
 
-    EWorkloadTargetState TargetState = 2;
+    EWorkloadTargetState target_state = 2;
 }
 
 // При переводе TMutableWorkload.TargetState в состояние REMOVED или обновления ревизии workload или любой его зависимости
@@ -359,14 +384,16 @@ message TMutableWorkload {
 // Если stop hook выполняется при помощи контейнера и завершился с НУЛЕВЫМ кодом возврата, но start не в состоянии dead или stopped,
 // то start будет немедленно убит
 message TStopPolicy {
-    oneof Policy {
-        TUtilityContainer Stop = 1;
-        THttpGet HttpStop = 2;
+    oneof policy {
+        TUtilityContainer stop = 1;
+        THttpGet http_stop = 2;
+        TUtilityContainer container = 4;
+        THttpGet http_get = 5;
     }
 
     // Количестно попыток выполнить gracefully stop перед тем, как убить процесс
     // Должно быть > 0
-    uint32 MaxTries = 3;
+    uint32 max_tries = 3;
 }
 
 // При удалении workload из спеки
@@ -374,93 +401,98 @@ message TStopPolicy {
 // в случае если destroy hook завершится ненулевым кодом возврата, он будет перезапущен MaxTries раз
 // пока не завершится успехом
 message TDestroyPolicy {
-    oneof Policy {
-        TUtilityContainer Destroy = 1;
-        THttpGet HttpDestroy = 2;
+    oneof policy {
+        TUtilityContainer destroy = 1;
+        THttpGet http_destroy = 2;
+        TUtilityContainer container = 4;
+        THttpGet http_get = 5;
     }
 
     // Количестно попыток выполнить gracefully destroy перед тем, как убить процесс
     // Должно быть > 0
-    uint32 MaxTries = 3;
+    uint32 max_tries = 3;
 }
 
 // Обеспечивает изоляцию по диску и pidns
 // Сеть между боксами не изолирована - workloadы разных боксов могут общаться друг с другом по localhost
 message TBox {
     // уникальный в рамках pod идентификатор Box. Должен состоять только из символов, разрешенных в имени porto контейнера. (a..z, A..Z, 0..9, _-@:.)
-    string Id = 1;
+    string id = 1;
 
-    TRootfsVolume Rootfs = 2;
+    TRootfsVolume rootfs = 2;
 
     //TODO: валидация должна гарантировать, что не может быть двух вольюмов в этом списке, у которых совпадает mountPoint
     //TODO: валидация уникальности id в списке
-    repeated TMountedVolume Volumes = 8;
+    repeated TMountedVolume volumes = 8;
 
     // Процессы, запускаемые при подготовке Box после создания вольюмов
-    repeated TUtilityContainer Init = 9;
+    repeated TUtilityContainer init = 9;
 
     //TODO: валидация должна гарантировать, что не может быть двух ресурсов в этом списке, у которых совпадает mountPoint
     //TODO: валидация уникальности id в списке
-    repeated TMountedStaticResource StaticResources = 10;
+    repeated TMountedStaticResource static_resources = 10;
 }
 
+// Успешными кодами ответов считаются те, что лежат в полуинтервале [200, 300)
 message THttpGet {
-    uint32 Port = 1;
+    uint32 port = 1;
 
     // Путь к ручке, например: "/ping"
-    string Path = 2;
+    string path = 2;
     // Только для Readiness check и Liveness check
-    string ExpectedAnswer = 3;
+    string expected_answer = 3;
 
     //@see TimeLimit
-    TTimeLimit TimeLimit = 4;
+    TTimeLimit time_limit = 4;
 }
 
 // проверяет только, что connect по данному порту успешно завершился
 message TTcpCheck {
-    uint32 Port = 1;
+    uint32 port = 1;
 
     //@see TimeLimit
-    TTimeLimit TimeLimit = 2;
+    TTimeLimit time_limit = 2;
 }
 
 message TReadinessCheck {
-    oneof Check {
-        TUtilityContainer Container = 2;
-        TTcpCheck TcpCheck = 3;
-        THttpGet HttpCheck = 4;
+    oneof check {
+        TUtilityContainer container = 2;
+        TTcpCheck tcp_check = 3;
+        THttpGet http_check = 4;
+        THttpGet http_get = 5;
     }
 }
 
 message TLivenessCheck {
-    oneof Check {
-        TUtilityContainer Container = 1;
-        TTcpCheck TcpCheck = 2;
-        THttpGet HttpCheck = 3;
+    oneof check {
+        TUtilityContainer container = 1;
+        TTcpCheck tcp_check = 2;
+        THttpGet http_check = 3;
+        THttpGet http_get = 4;
     }
 }
 
 message TCoreDump {
     // porto property core_command
-    string CoreCommand = 1;
+    string core_command = 1;
 
     // porto property ulimit[core]
-    string CoreUlimit = 2;
+    string core_ulimit = 2;
 }
 
 //Наследует Env от TWorkload
 message TUtilityContainer {
     //атрибуты контейнера (по сути это сквозной проброс опций Porto)
     //Тут важно разделять интерфейс предоствляемый пользователю и внутренний между YP<->agent
-    TComputeResources ComputeResources = 2;
+    TComputeResources compute_resources = 2;
 
-    string CommandLine = 3;
+    string command_line = 3;
 
     //@see TimeLimit
-    TTimeLimit TimeLimit = 4;
+    TTimeLimit time_limit = 4;
 
     // параметры обработки корок
-    TCoreDump CoreDump = 5;
+    TCoreDump core_dump = 5;
 }
 
 //Позволяет выставить ограничение сверху на все закачки. Важным моментом является, что сумма лимитов
@@ -470,32 +502,39 @@ message TUtilityContainer {
 message TResourceGang {
     //Идея убрать произвольные ресурсы, а оставить слои в том, чтобы форсить пользователя готовить во вне воспроизводимое
     //окружение для своего сервиса. По сути это аналог деплоя готовых docker образов.
-    repeated TLayer Layers = 2;
+    repeated TLayer layers = 2;
 
-    repeated TResource StaticResources = 3;
+    repeated TResource static_resources = 3;
 }
 
 // ======================  STATUS ===================
 
 message TBoxStatus {
-    string Id = 1;
+    string id = 1;
 
-    EBoxState State = 2;
+    EBoxState state = 2;
 
-    repeated TContainerStatus Inits = 3;
+    repeated TContainerStatus inits = 3;
+
+    // Адрес из подсети c id 'boxes_subnet', выделенной на поде (см ip6_subnet_allocations)
+    // Пустая строка, если подсеть не выделена
+    string ip6_address = 10;
+
+    // Имя porto контейнера (относительно корневого контейнера пода)
+    string container_name = 11;
 
     // Неструктурированное описание последней ошибки
-    string FailReason = 5;
+    string fail_reason = 5;
 
-    TCondition Ready = 6;
+    TCondition ready = 6;
 
-    TCondition InProgress = 7;
+    TCondition in_progress = 7;
 
     // Ревизия к которой относится box
-    uint32 Revision = 8;
+    uint32 revision = 8;
 
     // Количество неудачных попыток собрать box
-    uint32 FailCounter = 9;
+    uint32 fail_counter = 9;
 }
 
 enum EBoxState {
@@ -602,29 +641,31 @@ message TContainerStatus {
     reserved 1, 2, 3, 4, 5, 7, 12, 13, 14;
 
     message TAttemptFeedback {
-        EContainerState State = 1;
+        EContainerState state = 1;
 
-        int32 ReturnCode = 2;
+        int32 return_code = 2;
 
-        string Stderr = 3;
+        // Последний 4KB stderr
+        string stderr = 3;
 
-        string Stdout = 4;
+        // Последние 4KB stdout
+        string stdout = 4;
 
         //Неструктурированное описание последней ошибки связанной c запуском контейнера
-        string FailReason = 5;
+        string fail_reason = 5;
     }
 
-    TAttemptFeedback Current = 16;
-    TAttemptFeedback Last = 17;
+    TAttemptFeedback current = 16;
+    TAttemptFeedback last = 17;
 
-    uint32 ZeroReturnCodeCounter = 6;
-    uint32 PositiveReturnCodeCounter = 18;
-    uint32 OomCounter = 8;
-    uint32 TimeoutCounter = 9;
-    uint32 KilledExternallyCounter = 10;
-    uint32 SystemFailureCounter = 11;
+    uint32 zero_return_code_counter = 6;
+    uint32 positive_return_code_counter = 18;
+    uint32 oom_counter = 8;
+    uint32 timeout_counter = 9;
+    uint32 killed_externally_counter = 10;
+    uint32 system_failure_counter = 11;
 
-    TTimeLimitStatus TimeLimit = 15;
+    TTimeLimitStatus time_limit = 15;
 }
 
 enum EConditionStatus {
@@ -634,42 +675,42 @@ enum EConditionStatus {
 }
 
 message TCondition {
-    EConditionStatus Status = 10; // True, False, Unknown
-    string Reason = 20; // One word (e.g. ProcessCrash) for computers and short summary
-    string Message = 30; // Some human readable message
-    google.protobuf.Timestamp LastTransitionTime = 40;
+    EConditionStatus status = 10; // True, False, Unknown
+    string reason = 20; // One word (e.g. ProcessCrash) for computers and short summary
+    string message = 30; // Some human readable message
+    google.protobuf.Timestamp last_transition_time = 40;
 }
 
 message TWorkloadStatus {
     reserved 5, 13;
 
     // уникальный в рамках pod идентификатор Workload
-    string Id = 1;
+    string id = 1;
 
-    EWorkloadState State = 2;
+    EWorkloadState state = 2;
 
-    repeated TContainerStatus Init = 3;
+    repeated TContainerStatus init = 3;
 
     //Добавить валидацию, что указан непустой start
-    TContainerStatus Start = 4;
+    TContainerStatus start = 4;
 
-    TStopStatus StopStatus = 14;
+    TStopStatus stop_status = 14;
 
-    TDestroyStatus DestroyStatus = 15;
+    TDestroyStatus destroy_status = 15;
 
-    TReadinessStatus ReadinessStatus = 6;
+    TReadinessStatus readiness_status = 6;
 
-    TLivenessStatus LivenessStatus = 10;
+    TLivenessStatus liveness_status = 10;
 
-    TCondition Ready = 7;
+    TCondition ready = 7;
 
-    TCondition InProgress = 8;
+    TCondition in_progress = 8;
 
     // mutalbe target state
-    EWorkloadTargetState TargetState = 11;
+    EWorkloadTargetState target_state = 11;
 
     // Ревизия к которой относится workload
-    uint32 Revision = 12;
+    uint32 revision = 12;
 }
 
 enum EHttpGetState {
@@ -704,60 +745,68 @@ message TTcpCheckStatus {
     reserved 1, 2, 3, 4, 6;
 
     message TAttemptFeedback {
-        ETcpCheckState State = 1;
-        string FailReason = 2;
+        ETcpCheckState state = 1;
+        string fail_reason = 2;
     }
 
-    TAttemptFeedback Current = 7;
-    TAttemptFeedback Last = 8;
+    TAttemptFeedback current = 7;
+    TAttemptFeedback last = 8;
 
-    TTimeLimitStatus TimeLimit = 5;
+    TTimeLimitStatus time_limit = 5;
 }
 
 message THttpGetStatus {
     reserved 1, 2, 3, 4, 6, 8;
 
     message TAttemptFeedback {
-        EHttpGetState State = 1;
-        string FailReason = 2;
-        string InnerFailReason = 3;
+        EHttpGetState state = 1;
+        string fail_reason = 2;
+        string inner_fail_reason = 3;
     }
 
-    TAttemptFeedback Current = 9;
-    TAttemptFeedback Last = 10;
+    TAttemptFeedback current = 9;
+    TAttemptFeedback last = 10;
 
-    uint32 RequestsCount = 7;
+    uint32 requests_count = 7;
 
-    TTimeLimitStatus TimeLimit = 5;
+    TTimeLimitStatus time_limit = 5;
 }
 
 message TStopStatus {
-    oneof Status {
-        TContainerStatus ContainerStatus = 1;
-        THttpGetStatus HttpStopStatus = 2;
+    reserved 2;
+
+    oneof status {
+        TContainerStatus container_status = 1;
+        THttpGetStatus http_get_status = 3;
     }
 }
 
 message TDestroyStatus {
-    oneof Status {
-        TContainerStatus ContainerStatus = 1;
-        THttpGetStatus HttpDestroyStatus = 2;
+    reserved 2;
+
+    oneof status {
+        TContainerStatus container_status = 1;
+        THttpGetStatus http_get_status = 3;
     }
 }
 
 message TReadinessStatus {
-    oneof Status {
-        TContainerStatus ContainerStatus = 1;
-        TTcpCheckStatus TcpCheckStatus = 2;
-        THttpGetStatus HttpCheckStatus = 3;
+    reserved 3;
+
+    oneof status {
+        TContainerStatus container_status = 1;
+        TTcpCheckStatus tcp_check_status = 2;
+        THttpGetStatus http_get_status = 4;
     }
 }
 
 message TLivenessStatus {
-    oneof Status {
-        TContainerStatus ContainerStatus = 1;
-        TTcpCheckStatus TcpCheckStatus = 2;
-        THttpGetStatus HttpCheckStatus = 3;
+    reserved 3;
+
+    oneof status {
+        TContainerStatus container_status = 1;
+        TTcpCheckStatus tcp_check_status = 2;
+        THttpGetStatus http_get_status = 4;
     }
 }
 
@@ -812,61 +861,61 @@ enum EStaticResourceState {
 
 //TODO: нужно придумать как сделать прогресс скачивания
 message TLayerStatus {
-    string Id = 1;
+    string id = 1;
 
-    ELayerState State = 2;
+    ELayerState state = 2;
 
     //NOTE: нет гарантии монотонно растущих счётчиков, т.к. их значения могут быть удалены на хосте
     //Количество попыток скачать ресурс
-    uint32 DownloadAttemptsCounter = 3;
+    uint32 download_attempts_counter = 3;
 
     //Количество попыток проверить контрольную сумму
-    uint32 VerificationAttemptsCounter = 4;
+    uint32 verification_attempts_counter = 4;
 
     //Общее количество ошибок связанное с ресурсом
-    uint32 FailCounter = 5;
+    uint32 fail_counter = 5;
 
     // Неструктурированное описание последней ошибки
-    string FailReason = 6;
+    string fail_reason = 6;
 
-    TCondition Ready = 7;
+    TCondition ready = 7;
 
-    TCondition InProgress = 8;
+    TCondition in_progress = 8;
 
     // Ревизия к которой относится layer
-    uint32 Revision = 9;
+    uint32 revision = 9;
 }
 
 message TStaticResourceStatus {
-    string Id = 1;
+    string id = 1;
 
-    EStaticResourceState State = 2;
+    EStaticResourceState state = 2;
 
     //NOTE: нет гарантии монотонно растущих счётчиков, т.к. их значения могут быть удалены на хосте
     //Количество попыток скачать ресурс
-    uint32 DownloadAttemptsCounter = 3;
+    uint32 download_attempts_counter = 3;
 
     //Количество попыток проверить контрольную сумму
-    uint32 VerificationAttemptsCounter = 4;
+    uint32 verification_attempts_counter = 4;
 
     //Общее количество ошибок связанное с ресурсом
-    uint32 FailCounter = 5;
+    uint32 fail_counter = 5;
 
     // Неструктурированное описание последней ошибки
-    string FailReason = 6;
+    string fail_reason = 6;
 
-    TCondition Ready = 7;
+    TCondition ready = 7;
 
-    TCondition InProgress = 8;
+    TCondition in_progress = 8;
 
     // Ревизия к которой относится layer
-    uint32 Revision = 9;
+    uint32 revision = 9;
 }
 
 message TResourceGangStatus {
-    repeated TLayerStatus Layers = 1;
+    repeated TLayerStatus layers = 1;
 
-    repeated TStaticResourceStatus StaticResources = 2;
+    repeated TStaticResourceStatus static_resources = 2;
 }
 
 enum EVolumeState {
@@ -892,20 +941,20 @@ enum EVolumeState {
 }
 
 message TVolumeStatus {
-    string Id = 1;
+    string id = 1;
 
-    EVolumeState State = 2;
+    EVolumeState state = 2;
 
     //Количество неудачных попыток собрать вольюм
-    uint32 FailCounter = 3;
+    uint32 fail_counter = 3;
 
     // Неструктурированное описание последней ошибки
-    string FailReason = 4;
+    string fail_reason = 4;
 
-    TCondition Ready = 5;
+    TCondition ready = 5;
 
-    TCondition InProgress = 6;
+    TCondition in_progress = 6;
 
     // Ревизия к которой относится volume
-    uint32 Revision = 7;
+    uint32 revision = 7;
 }

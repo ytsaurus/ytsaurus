@@ -2,6 +2,8 @@ package NYP.NServer.NObjects.NProto;
 
 import "yp/client/api/proto/data_model.proto";
 import "yp/client/api/proto/replica_set.proto";
+import "yp/client/api/proto/multi_cluster_replica_set.proto";
+
 import "yt/core/misc/proto/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,7 +74,7 @@ message TAccountSpecOther
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Cf. NYP.NClient.NApi.NProto.TAccountSpec
+// Cf. NYP.NClient.NApi.NProto.TReplicaSetSpec
 message TReplicaSetSpecOther
 {
     optional string revision_id = 1;
@@ -80,6 +82,19 @@ message TReplicaSetSpecOther
     optional NYP.NClient.NApi.NProto.TReplicaSetSpec.TPodTemplateSpec pod_template_spec = 3;
     optional NYP.NClient.NApi.NProto.TReplicaSetSpec.TDeploymentStrategy deployment_strategy = 4;
     optional NYP.NClient.NApi.NProto.TReplicaSetSpec.TConstraints constraints = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+
+// Cf. NYP.NClient.NApi.NProto.TMultiClusterReplicaSetSpec
+message TMultiClusterReplicaSetSpecOther
+{
+    optional string revision_id = 1;
+    optional string account_id = 2;
+    optional NYP.NClient.NApi.NProto.TMultiClusterReplicaSetSpec.TPodTemplateSpec pod_template_spec = 3;
+    optional NYP.NClient.NApi.NProto.TMultiClusterReplicaSetSpec.TDeploymentStrategy deployment_strategy = 4;
+    repeated NYP.NClient.NApi.NProto.TMultiClusterReplicaSetSpec.TClusterReplicaSetSpecPreferences clusters = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

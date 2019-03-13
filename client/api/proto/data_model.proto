@@ -4,6 +4,7 @@ package NYP.NClient.NApi.NProto;
 import "yp/client/api/proto/cluster_api.proto";
 import "yp/client/api/proto/pod_agent.proto";
 import "yp/client/api/proto/object_type.proto";
+import "yp/client/api/proto/dynamic_attributes.proto";
 import "yp/client/api/proto/conditions.proto";
 
 import "yt/core/yson/proto/protobuf_interop.proto";
@@ -118,6 +119,9 @@ message TPerSegmentResourceTotals
     {
         // In bytes.
         optional int64 capacity = 1;
+
+        // In bytes per second.
+        optional int64 bandwidth = 2;
     }
 
     message TInternetAddressTotals
@@ -256,6 +260,20 @@ message TResourceSpec
         optional string device = 4;
         // List of supported allocation policies.
         repeated EDiskVolumePolicy supported_policies = 5;
+        // Total provided bandwidth in bytes per second.
+        optional uint64 total_bandwidth = 6;
+        // Total provided read bandwidth is estimated
+        // using total_bandwidth and the following factor.
+        optional double read_bandwidth_factor = 7;
+        // Total provided write bandwidth is estimated
+        // using total_bandwidth and the following factor.
+        optional double write_bandwidth_factor = 8;
+        // Total provided read operations per second is estimated
+        // using total_bandwidth and the following factor.
+        optional double read_operation_rate_factor = 9;
+        // Total provided write operations per second is estimated
+        // using total_bandwidth and the following factor.
+        optional double write_operation_rate_factor = 10;
     }
 
     oneof concrete_spec
@@ -283,6 +301,7 @@ message TResourceStatus
         required uint64 capacity = 1;
         required bool exclusive = 2;
         required string volume_id = 3;
+        optional uint64 bandwidth = 4;
     }
 
     message TAllocation
@@ -299,6 +318,46 @@ message TResourceStatus
     }
     repeated TAllocation scheduled_allocations = 1;
     repeated TAllocation actual_allocations = 2;
+
+    message TCpuStatistics
+    {
+        // In VCPU units.
+        required uint64 capacity = 1;
+    }
+
+    message TMemoryStatistics
+    {
+        // In bytes.
+        required uint64 capacity = 1;
+    }
+
+    message TDiskStatistics
+    {
+        reserved 1;
+
+        // In bytes.
+        required uint64 capacity = 2;
+
+        // In bytes per second.
+        optional uint64 bandwidth = 3;
+    }
+
+    message TAllocationStatistics
+    {
+        oneof concrete_statisticss
+        {
+            TCpuStatistics cpu = 1;
+            TMemoryStatistics memory = 2;
+            TDiskStatistics disk = 3;
+        }
+    }
+
+    // Indicates free (unused) resource capacity.
+    // "free" and "used" (see below) are calculated taking both scheduled and actual resource
+    // allocations into account thus effectively simulating the scheduler's behaviour.
+    optional TAllocationStatistics free = 3;
+    // Indicated used capacity.
+    optional TAllocationStatistics used = 4;
 }
 
 message TResource
@@ -659,8 +718,14 @@ message TPodSpec
 
         message TQuotaPolicy
         {
-            // Quota limit for this volume.
+            // Guaranteed volume capacity.
             required uint64 capacity = 1;
+
+            // Guaranteed volume bandwidth in bytes per second.
+            optional uint64 bandwidth_guarantee = 2;
+
+            // Volume bandwidth limit in bytes per second.
+            optional uint64 bandwidth_limit = 3;
         }
 
         message TExclusivePolicy
@@ -668,6 +733,10 @@ message TPodSpec
             // Minimum capacity the disk must have.
             // The client, however, will be charged for the whole disk capacity.
             required uint64 min_capacity = 1;
+
+            // Minimum bandwidth in bytes per second the disk must provide.
+            // The client, however, will be charged for the whole disk bandwidth.
+            optional uint64 min_bandwidth = 2;
         }
 
         oneof concrete_policy
@@ -731,8 +800,20 @@ message TPodSpec
     // If given, overrides the podset's account.
     optional string account_id = 17;
 
-    // Dynamic resources for the pod
-    repeated TPodDynamicResourceSpec dynamic_resources = 18;
+    message TDynamicAttributes
+    {
+        // List of pod label keys to be delivered to the pod.
+        repeated string labels = 1;
+
+        // List of pod annotation keys to be delivered to the pod.
+        repeated string annotations = 2;
+    }
+
+    // Provides means to deliver certain parts of pod's metadata to the node.
+    optional TDynamicAttributes dynamic_attributes = 18;
+
+    // Dynamic resources for the pod.
+    repeated TPodDynamicResourceSpec dynamic_resources = 19;
 }
 
 enum EEvictionState
@@ -885,10 +966,10 @@ message TPodStatus
         // Copied from /pod/spec/disk_volume_requests/*/id.
         optional string id = 1;
 
-        // Copied from /pod/spec/ip6_subnet_requests/*/labels.
+        // Copied from /pod/spec/disk_volume_requests/*/labels.
         optional NYT.NYTree.NProto.TAttributeDictionary labels = 3;
 
-        // Total volume capacity.
+        // Total volume capacity in bytes.
         optional uint64 capacity = 4;
 
         // Id of disk resource where this volume will reside.
@@ -901,6 +982,30 @@ message TPodStatus
 
         // Copied from /resource/spec/disk/device.
         optional string device = 7;
+
+        // Guaranteed volume read bandwidth in bytes per second.
+        optional uint64 read_bandwidth_guarantee = 8;
+
+        // Volume read bandwidth limit in bytes per second.
+        optional uint64 read_bandwidth_limit = 9;
+
+        // Guaranteed volume write bandwidth in bytes per second.
+        optional uint64 write_bandwidth_guarantee = 10;
+
+        // Volume write bandwidth limit in bytes per second.
+        optional uint64 write_bandwidth_limit = 11;
+
+        // Guaranteed volume read operation rate in operations per second.
+        optional uint64 read_operation_rate_guarantee = 12;
+
+        // Volume read operation rate limit in operations per second.
+        optional uint64 read_operation_rate_limit = 13;
+
+        // Guaranteed volume write operation rate in operations per second.
+        optional uint64 write_operation_rate_guarantee = 14;
+
+        // Volume write operation rate limit in operations per second.
+        optional uint64 write_operation_rate_limit = 15;
     }
     repeated TDiskVolumeAllocation disk_volume_allocations = 14;
 
@@ -946,8 +1051,11 @@ message TPodStatus
     // Timestamp of the spec as reported by agent.
     optional uint64 agent_spec_timestamp = 12;
 
-    // List of dynamic resources currently present in pod
-    repeated TPodDynamicResourceStatus dynamic_resources = 13;
+    // Materialized view of dynamic attributes to be pushed to agent.
+    optional NYP.NClient.NApi.NProto.TDynamicAttributes pod_dynamic_attributes = 13;
+
+    // List of dynamic resources currently present in pod.
+    repeated TPodDynamicResourceStatus dynamic_resources = 15;
 }
 
 message TPodControl

@@ -104,13 +104,17 @@ public:
         static const TScalarAttributeSchema<TPod, TDynamicResourceSpec> DynamicResourcesSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TDynamicResourceSpec>, DynamicResources);
 
-        using TOther = NProto::TPodSpecOther;
-        static const TScalarAttributeSchema<TPod, TOther> OtherSchema;
-        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TOther>, Other);
-
         static const TManyToOneAttributeSchema<TPod, TAccount> AccountSchema;
         using TAccountAttribute = TManyToOneAttribute<TPod, TAccount>;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAccountAttribute, Account);
+
+        using TDynamicAttributes = NClient::NApi::NProto::TPodSpec_TDynamicAttributes;
+        static const TScalarAttributeSchema<TPod, TDynamicAttributes> DynamicAttributesSchema;
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TDynamicAttributes>, DynamicAttributes);
+
+        using TOther = NProto::TPodSpecOther;
+        static const TScalarAttributeSchema<TPod, TOther> OtherSchema;
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TOther>, Other);
     };
 
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TSpec, Spec);

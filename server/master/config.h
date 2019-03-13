@@ -91,7 +91,9 @@ class TMasterConfig
     : public NYT::TSingletonsConfig
 {
 public:
-    NHttp::TServerConfigPtr MonitoringServer;
+    NYT::NHttp::TServerConfigPtr MonitoringServer;
+    NYT::NBus::TTcpBusServerConfigPtr InternalBusServer;
+    NYT::NRpc::TServerConfigPtr InternalRpcServer;
     NYT::NRpc::NGrpc::TServerConfigPtr ClientGrpcServer;
     NYT::NRpc::NGrpc::TServerConfigPtr SecureClientGrpcServer;
     NYT::NRpc::NGrpc::TServerConfigPtr AgentGrpcServer;
@@ -112,7 +114,12 @@ public:
 
     TMasterConfig()
     {
-        RegisterParameter("monitoring_server", MonitoringServer);
+        RegisterParameter("monitoring_server", MonitoringServer)
+            .Optional();
+        RegisterParameter("internal_bus_server", InternalBusServer)
+            .Optional();
+        RegisterParameter("internal_rpc_server", InternalRpcServer)
+            .Optional();
         RegisterParameter("client_grpc_server", ClientGrpcServer)
             .Optional();
         RegisterParameter("secure_client_grpc_server", SecureClientGrpcServer)
@@ -149,6 +156,9 @@ public:
             .Default(8);
 
         RegisterPostprocessor([&] {
+            if (InternalBusServer && !InternalBusServer->Port) {
+                THROW_ERROR_EXCEPTION("Missing /internal_bus_server/port");
+            }
             if (ClientGrpcServer && ClientGrpcServer->Addresses.size() != 1) {
                 THROW_ERROR_EXCEPTION("Exactly one GRPC API server address must be given in \"client_grpc_server\"");
             }

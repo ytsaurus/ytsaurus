@@ -34,6 +34,8 @@
 
 #include <yt/ytlib/api/native/client.h>
 
+#include <yt/ytlib/orchid/orchid_service.h>
+
 #include <yt/core/http/server.h>
 
 #include <yt/core/https/server.h>
@@ -43,6 +45,10 @@
 #include <yt/core/rpc/grpc/server.h>
 
 #include <yt/core/rpc/server.h>
+
+#include <yt/core/rpc/bus/server.h>
+
+#include <yt/core/bus/tcp/server.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/thread_pool.h>
@@ -66,6 +72,7 @@ using namespace NYT::NConcurrency;
 using namespace NYT::NNet;
 using namespace NYT::NYTree;
 using namespace NYT::NAuth;
+using namespace NYT::NNodeTrackerClient;
 
 using namespace NServer::NObjects;
 using namespace NServer::NNet;
@@ -158,6 +165,11 @@ public:
         return Fqdn_;
     }
 
+    const TAddressMap& GetInternalRpcAddresses()
+    {
+        return InternalRpcAddresses_;
+    }
+
     const TString& GetClientGrpcAddress()
     {
         return ClientGrpcAddress_;
@@ -229,8 +241,11 @@ private:
     NRpc::IServerPtr ClientGrpcServer_;
     NRpc::IServerPtr SecureClientGrpcServer_;
     NRpc::IServerPtr AgentGrpcServer_;
+    NBus::IBusServerPtr InternalBusServer_;
+    NRpc::IServerPtr InternalRpcServer_;
 
     TString Fqdn_;
+    TAddressMap InternalRpcAddresses_;
     TString ClientGrpcAddress_;
     TString SecureClientGrpcAddress_;
     TString ClientHttpAddress_;
@@ -248,13 +263,20 @@ private:
 
     TString BuildHttpAddress(const NYT::NHttp::TServerConfigPtr& config)
     {
-        int httpPort = config->Port;
-        return BuildServiceAddress(Fqdn_, httpPort);
+        return BuildServiceAddress(Fqdn_, config->Port);
+    }
+
+    TString BuildInternalRpcAddress(const NYT::NBus::TTcpBusServerConfigPtr& config)
+    {
+        return BuildServiceAddress(Fqdn_, *config->Port);
     }
 
     void DoRun()
     {
         Fqdn_ = GetLocalHostName();
+        if (Config_->InternalBusServer) {
+            YCHECK(InternalRpcAddresses_.emplace(DefaultNetworkName, BuildInternalRpcAddress(Config_->InternalBusServer)).second);
+        }
         if (Config_->ClientGrpcServer) {
             ClientGrpcAddress_ = BuildGrpcAddress(Config_->ClientGrpcServer);
         }
@@ -326,18 +348,6 @@ private:
             orchidRoot,
             "/profiling",
             CreateVirtualNode(NProfiling::TProfileManager::Get()->GetService()));
-
-        HttpMonitoringServer_ = NHttp::CreateServer(
-            Config_->MonitoringServer,
-            HttpPoller_);
-        HttpMonitoringServer_->AddHandler(
-            "/orchid/",
-            NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
-
-        HttpMonitoringServer_->AddHandler(
-            "/health_check",
-            BIND(&TImpl::HealthCheckHandler, this));
-
         SetBuildAttributes(orchidRoot, "yp_master");
 
         ObjectService_ = NApi::CreateObjectService(Bootstrap_, Config_->ObjectService);
@@ -345,6 +355,31 @@ private:
         SecureClientDiscoveryService_ = NApi::CreateDiscoveryService(Bootstrap_, EMasterInterface::SecureClient);
         AgentDiscoveryService_ = NApi::CreateDiscoveryService(Bootstrap_, EMasterInterface::Agent);
         NodeTrackerService_ = NNodes::CreateNodeTrackerService(Bootstrap_, Config_->NodeTracker);
+
+        if (Config_->MonitoringServer) {
+            HttpMonitoringServer_ = NHttp::CreateServer(
+                Config_->MonitoringServer,
+                HttpPoller_);
+            HttpMonitoringServer_->AddHandler(
+                "/orchid/",
+                NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
+
+            HttpMonitoringServer_->AddHandler(
+                "/health_check",
+                BIND(&TImpl::HealthCheckHandler, this));
+        }
+
+        if (Config_->InternalBusServer) {
+            InternalBusServer_ = NYT::NBus::CreateTcpBusServer(Config_->InternalBusServer);
+        }
+
+        if (Config_->InternalRpcServer && InternalBusServer_) {
+            InternalRpcServer_ = NYT::NRpc::NBus::CreateBusServer(InternalBusServer_);
+            InternalRpcServer_->RegisterService(NYT::NOrchid::CreateOrchidService(
+                orchidRoot,
+                GetControlInvoker()));
+            InternalRpcServer_->Configure(Config_->InternalRpcServer);
+        }
 
         if (Config_->ClientHttpServer) {
             ClientHttpServer_ = NHttp::CreateServer(
@@ -385,22 +420,34 @@ private:
 
         YT_LOG_INFO("Listening for incoming connections");
 
+        if (HttpMonitoringServer_) {
+            HttpMonitoringServer_->Start();
+        }
+
+        if (InternalRpcServer_) {
+            InternalRpcServer_->Start();
+        }
+
         if (ClientHttpRpcServer_) {
             ClientHttpRpcServer_->Start();
         }
+
         if (SecureClientHttpRpcServer_) {
             SecureClientHttpRpcServer_->Start();
         }
+
         if (ClientGrpcServer_) {
             ClientGrpcServer_->Start();
         }
+
         if (SecureClientGrpcServer_) {
             SecureClientGrpcServer_->Start();
         }
+
         if (AgentGrpcServer_) {
             AgentGrpcServer_->Start();
         }
-        HttpMonitoringServer_->Start();
+
         MonitoringManager_->Start();
     }
 
@@ -490,6 +537,11 @@ const ISecretVaultServicePtr& TBootstrap::GetSecretVaultService()
 const TString& TBootstrap::GetFqdn()
 {
     return Impl_->GetFqdn();
+}
+
+const TAddressMap& TBootstrap::GetInternalRpcAddresses()
+{
+    return Impl_->GetInternalRpcAddresses();
 }
 
 const TString& TBootstrap::GetClientGrpcAddress()

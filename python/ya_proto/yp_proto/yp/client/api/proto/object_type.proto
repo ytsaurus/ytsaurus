@@ -59,7 +59,10 @@ enum EObjectType
     OT_RESOURCE_CACHE = 15
     [(NYT.NYson.NProto.enum_value_name) = "resource_cache"];
 
-    OT_DYNAMIC_RESOURCE = 16
+    OT_MULTI_CLUSTER_REPLICA_SET = 16
+    [(NYT.NYson.NProto.enum_value_name) = "multi_cluster_replica_set"];
+
+    OT_DYNAMIC_RESOURCE = 17
     [(NYT.NYson.NProto.enum_value_name) = "dynamic_resource"];
 
     OT_SCHEMA = 256

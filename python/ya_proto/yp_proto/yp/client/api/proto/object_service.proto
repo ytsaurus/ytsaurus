@@ -373,7 +373,7 @@ message TRspGetObjects
         // The result containing the requested attributes.
         optional TAttributeValueList result = 1;
     }
-
+ 
     // The i-th subresponse here contains the result for the i-th subrequest.
     repeated TSubresponse subresponses = 1;
 }

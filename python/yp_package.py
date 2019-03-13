@@ -1,20 +1,20 @@
-from helpers import get_version
-
-from setuptools import setup, find_packages
-
-import os
-import sys
-
-try:
-    from itertools import imap
-except ImportError:  # Python 3
-    imap = map
-
-def recursive(path):
-    prefix = path.strip("/").replace("/", ".")
-    return list(imap(lambda package: prefix + "." + package, find_packages(path))) + [prefix]
-
 def setup_package(name, python_dependent_requires):
+    from helpers import get_version
+
+    from setuptools import setup, find_packages
+
+    import os
+    import sys
+
+    try:
+        from itertools import imap
+    except ImportError:  # Python 3
+        imap = map
+
+    def recursive(path):
+        prefix = path.strip("/").replace("/", ".")
+        return list(imap(lambda package: prefix + "." + package, find_packages(path))) + [prefix]
+
     requires = [
         "yandex-yt >= 0.8.43",
         "yandex-yt-proto",

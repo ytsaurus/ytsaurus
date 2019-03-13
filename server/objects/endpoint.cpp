@@ -11,7 +11,6 @@ const TScalarAttributeSchema<TEndpoint, TEndpoint::TSpec> TEndpoint::SpecSchema{
     [] (TEndpoint* endpoint) { return &endpoint->Spec(); }
 };
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TEndpoint::TEndpoint(

@@ -22,7 +22,7 @@ using namespace NYT::NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TDBField DummyField{"dummy"};
+static const TDBField DummyField{"dummy", EValueType::Boolean};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -493,7 +493,7 @@ void TScalarAttributeBase::StoreToDB(IStoreContext* context)
     try {
         StoreNewValue(&value, context);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error storing value of [%v.%v] for %v %Qv",
+        THROW_ERROR_EXCEPTION("Error storing value of [%v.%v] for %v %v",
             table->Name,
             Schema_->Field->Name,
             GetLowercaseHumanReadableTypeName(Owner_->GetType()),
@@ -715,6 +715,11 @@ void TAnnotationsAttribute::Store(const TString& key, const std::optional<TYsonS
     KeyToValue_[key] = value;
     ScheduledStoreKeys_.insert(key);
     DoScheduleStore();
+}
+
+bool TAnnotationsAttribute::IsStoreScheduled(const TString& key) const
+{
+    return ScheduledStoreKeys_.contains(key);
 }
 
 void TAnnotationsAttribute::LoadFromDB(ILoadContext* context)

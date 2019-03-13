@@ -81,7 +81,7 @@ private:
     TTransaction* const Transaction_;
     TAttributeFetcherContext* const FetcherContext_;
     const int StartIndex_;
-    
+
     int CurrentIndex_;
 
     static EAttributeFetchMethod GetFetchMethod(const TResolveResult& resolveResult);
@@ -117,6 +117,10 @@ TString GetObjectDisplayName(const TObject* object);
 ////////////////////////////////////////////////////////////////////////////////
 
 TObjectId GenerateUuid();
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateSubjectExists(TTransaction* transaction, const TObjectId& subjectId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

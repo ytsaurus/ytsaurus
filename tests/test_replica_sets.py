@@ -99,3 +99,5 @@ class TestReplicaSets(object):
 
         result = yp_client.get_object("replica_set", rs_id, selectors=["/status"])[0]
         assert result == status
+
+

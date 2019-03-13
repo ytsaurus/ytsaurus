@@ -116,6 +116,19 @@ class TestCli(object):
 
         assert result == dict(user_ids=sorted(all_user_ids))
 
+    def test_get_user_access_allowed_to(self, yp_env):
+        cli = create_cli(yp_env)
+
+        result_str = cli.check_output([
+            "get-user-access-allowed-to",
+            "root",
+            "account",
+            "read"
+        ])
+        result = yson._loads_from_native_str(result_str)
+
+        assert result == dict(object_ids=["tmp"])
+
     def test_binary_data(self, yp_env):
         cli = create_cli(yp_env)
 

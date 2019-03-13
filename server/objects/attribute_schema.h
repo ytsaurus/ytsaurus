@@ -8,7 +8,7 @@
 // TODO(babenko): replace with public
 #include <yt/ytlib/query_client/ast.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/core/yson/protobuf_interop.h>
 
 #include <yt/core/ypath/public.h>
 
@@ -35,7 +35,11 @@ public:
         IObjectTypeHandler* typeHandler,
         const TString& name);
 
+    TAttributeSchema* SetOpaque();
     bool IsOpaque() const;
+
+    bool IsControl() const;
+
     const TString& GetName() const;
     TString GetPath() const;
 
@@ -108,6 +112,14 @@ public:
         TObject* object);
 
     template <class TTypedObject>
+    TAttributeSchema* SetUpdatePrehandler(std::function<void(
+        TTransaction*,
+        TTypedObject*)> prehandler);
+    void RunUpdatePrehandlers(
+        TTransaction* transaction,
+        TObject* object);
+
+    template <class TTypedObject>
     TAttributeSchema* SetUpdateHandler(std::function<void(
         TTransaction*,
         TTypedObject*)> handler);
@@ -172,6 +184,7 @@ private:
 
     std::function<void(TTransaction*, TObject*, const NYT::NYPath::TYPath&, const NYT::NYTree::INodePtr&, bool)> Setter_;
     std::function<void(TTransaction*, TObject*)> Initializer_;
+    std::vector<std::function<void(TTransaction*, TObject*)>> UpdatePrehandlers_;
     std::vector<std::function<void(TTransaction*, TObject*)>> UpdateHandlers_;
     std::vector<std::function<void(TTransaction*, TObject*)>> Validators_;
     std::function<void(TTransaction*, TObject*, const NYT::NYPath::TYPath&)> Remover_;
@@ -185,11 +198,15 @@ private:
     bool Updatable_ = false;
     bool Annotations_ = false;
     bool Opaque_ = false;
+    bool Control_ = false;
     bool Fallback_ = false;
     NAccessControl::EAccessControlPermission ReadPermission_ = NAccessControl::EAccessControlPermission::None;
 
+    using TPathValidator = std::function<void(
+        const TAttributeSchema*,
+        const NYPath::TYPath&)>;
+    void InitExpressionBuilder(const TDBField* field, TPathValidator pathValidtor);
 
-    void InitExpressionBuilder(const TDBField* field);
     template <class TTypedObject, class TTypedValue, class TSchema>
     void InitSetter(const TSchema& schema);
     template <class TTypedObject, class TTypedValue, class TSchema>

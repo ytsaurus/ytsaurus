@@ -1,5 +1,6 @@
 #include "node_tracker.h"
 #include "porto.h"
+#include "helpers.h"
 #include "private.h"
 
 #include <yp/server/objects/transaction.h>
@@ -97,14 +98,14 @@ public:
         THeartbeatHandler(
             TImpl* owner,
             TTransactionPtr transaction,
-            TNode* Node_,
+            TNode* node,
             TEpochId epochId,
             ui64 sequenceNumber,
             const TReqHeartbeat* request,
             TRspHeartbeat* response)
             : Owner_(owner)
             , Transaction_(std::move(transaction))
-            , Node_(Node_)
+            , Node_(node)
             , EpochId_(epochId)
             , SequenceNumber_(sequenceNumber)
             , Request_(request)
@@ -142,9 +143,13 @@ public:
 
             RequestSecrets();
 
-            for (auto& pair : PodsToUpdate_) {
-                auto* pod = pair.first;
-                PopulateBasicAgentSpec(&pair.second, pod);
+            for (auto& [pod, podSpec] : PodsToUpdate_) {
+                SchedulePodDynamicAttributesLoad(pod);
+            }
+
+            for (auto& [pod, podSpec] : PodsToUpdate_) {
+                PopulateBasicAgentSpec(&podSpec, pod);
+                PopulateDynamicAttributes(&podSpec, pod);
             }
 
             FillResponse();
@@ -176,7 +181,7 @@ public:
         void ScheduleUpdatePod(TPod* pod)
         {
             YCHECK(PodsToUpdate_.emplace(pod, NClient::NNodes::NProto::TPodSpec()).second);
-            PreprarePodUpdate(pod);
+            PreparePodUpdate(pod);
         }
 
         void ScheduleKeepPod(TPod* pod)
@@ -189,11 +194,12 @@ public:
             PodIdsToRemove_.push_back(std::move(podId));
         }
 
-        void PreprarePodUpdate(TPod* pod)
+        void PreparePodUpdate(TPod* pod)
         {
             pod->Spec().IssPayload().ScheduleLoad();
             pod->Spec().PodAgentPayload().ScheduleLoad();
             pod->Spec().Secrets().ScheduleLoad();
+            pod->Spec().DynamicAttributes().ScheduleLoad();
             pod->Spec().Other().ScheduleLoad();
             pod->Status().Agent().Other().ScheduleLoad();
         }
@@ -532,6 +538,13 @@ public:
             protoSpec->mutable_disk_volume_allocations()->CopyFrom(statusOther.disk_volume_allocations());
         }
 
+        void PopulateDynamicAttributes(
+            NClient::NNodes::NProto::TPodSpec* protoSpec,
+            TPod* pod)
+        {
+            *protoSpec->mutable_pod_dynamic_attributes() = BuildPodDynamicAttributes(pod);
+        }
+
         void FillResponse()
         {
             for (auto& pair : PodsToUpdate_) {
@@ -631,7 +644,10 @@ public:
             entry.Id,
             entry.Address);
 
-        AgentNotificationQueue_.emplace(std::move(entry));
+        {
+            auto guard = Guard(AgentNotificationQueueLock_);            
+            AgentNotificationQueue_.emplace(std::move(entry));
+        }
     }
 
 private:
@@ -648,16 +664,31 @@ private:
         TObjectId Id;
         TString Address;
     };
+
+    TSpinLock  AgentNotificationQueueLock_;
     std::queue<TAgentNotificationQueueEntry> AgentNotificationQueue_;
 
     const NLogging::TLogger& Logger = NNodes::Logger;
 
 
+    std::optional<TAgentNotificationQueueEntry> PeekAgentNotificationQueue()
+    {
+        auto guard = Guard(AgentNotificationQueueLock_);
+        if (AgentNotificationQueue_.empty()) {
+            return std::nullopt;
+        }
+        if (!AgentNotificationThrottler_->TryAcquire(1)) {
+            return std::nullopt;
+        }
+        auto entry = std::move(AgentNotificationQueue_.front());
+        AgentNotificationQueue_.pop();
+        return entry;
+    }
+
     void OnAgentNotificationTick()
     {
-        while (!AgentNotificationQueue_.empty() && AgentNotificationThrottler_->TryAcquire(1)) {
-            auto entry = std::move(AgentNotificationQueue_.front());
-            AgentNotificationQueue_.pop();
+        while (auto optionalEntry = PeekAgentNotificationQueue()) {
+            const auto& entry = *optionalEntry;
 
             YT_LOG_DEBUG("Sending agent notification (NodeId: %v, Address: %v)",
                 entry.Id,

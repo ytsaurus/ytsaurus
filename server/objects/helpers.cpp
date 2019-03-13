@@ -5,6 +5,8 @@
 #include "db_schema.h"
 #include "pod.h"
 #include "node.h"
+#include "user.h"
+#include "group.h"
 
 #include <yt/ytlib/query_client/ast.h>
 #include <yt/ytlib/query_client/query_preparer.h>
@@ -53,7 +55,6 @@ TResolveResult ResolveAttribute(
         }
     };
 
-    std::vector<EAccessControlPermission> readPermissions;
     auto* current = typeHandler->GetRootAttributeSchema();
     try {
         while (true) {
@@ -112,12 +113,12 @@ TExpressionPtr BuildCompositeGetter(
     TAttributeSchema* attribute)
 {
     TExpressionList args;
-    for (const auto& pair : attribute->KeyToChild()) {
-        const auto& key = pair.first;
-        auto* child = pair.second;
-        args.push_back(New<TLiteralExpression>(TSourceLocation(), key));
-        ValidateHasExpressionBuilder(child);
-        args.push_back(BuildSelector(context, child, TYPath()));
+    for (const auto& [key, childAttribute] : attribute->KeyToChild()) {
+        if (!childAttribute->IsOpaque() && !childAttribute->IsControl()) {
+            args.push_back(New<TLiteralExpression>(TSourceLocation(), key));
+            ValidateHasExpressionBuilder(childAttribute);
+            args.push_back(BuildSelector(context, childAttribute, TYPath()));
+        }
     }
 
     static const TString MakeMapName("make_map");
@@ -260,9 +261,8 @@ void TAttributeFetcher::DoPrepare(
     auto* attribute = resolveResult.Attribute;
     switch (GetFetchMethod(resolveResult)) {
         case EAttributeFetchMethod::Composite: {
-            for (const auto& pair : attribute->KeyToChild()) {
-                auto* childAttribute = pair.second;
-                if (!childAttribute->IsOpaque()) {
+            for (const auto& [key, childAttribute] : attribute->KeyToChild()) {
+                if (!childAttribute->IsOpaque() && !childAttribute->IsControl()) {
                     DoPrepare({childAttribute, {}}, queryContext);
                 }
             }
@@ -296,9 +296,8 @@ void TAttributeFetcher::DoPrefetch(
     auto* attribute = resolveResult.Attribute;
     switch (GetFetchMethod(resolveResult)) {
         case EAttributeFetchMethod::Composite: {
-            for (const auto& pair : attribute->KeyToChild()) {
-                auto* childAttribute = pair.second;
-                if (!childAttribute->IsOpaque()) {
+            for (const auto& [key, childAttribute] : attribute->KeyToChild()) {
+                if (!childAttribute->IsOpaque() && !childAttribute->IsControl()) {
                     DoPrefetch(row, {childAttribute, {}});
                 }
             }
@@ -334,11 +333,15 @@ void TAttributeFetcher::DoFetch(
     switch (GetFetchMethod(resolveResult)) {
         case EAttributeFetchMethod::Composite: {
             consumer->OnBeginMap();
-            for (const auto& pair : attribute->KeyToChild()) {
-                auto* childAttribute = pair.second;
-                if (!childAttribute->IsOpaque()) {
-                    consumer->OnKeyedItem(pair.first);
-                    DoFetch(row, { childAttribute, {}}, consumer);
+            for (const auto& [key, childAttribute] : attribute->KeyToChild()) {
+                if (childAttribute->IsControl()) {
+                    continue;
+                }
+                consumer->OnKeyedItem(key);
+                if (childAttribute->IsOpaque()) {
+                    consumer->OnEntity();
+                } else {
+                    DoFetch(row, {childAttribute, {}}, consumer);
                 }
             }
 
@@ -533,6 +536,8 @@ TStringBuf GetCapitalizedHumanReadableTypeName(EObjectType type)
             return AsStringBuf("DNS record set");
         case EObjectType::NetworkModule:
             return AsStringBuf("Network module");
+        case EObjectType::MultiClusterReplicaSet:
+            return AsStringBuf("Multi-cluster replica set");
         default:
             Y_UNREACHABLE();
     }
@@ -579,6 +584,8 @@ TStringBuf GetLowercaseHumanReadableTypeName(EObjectType type)
             return AsStringBuf("DNS record set");
         case EObjectType::NetworkModule:
             return AsStringBuf("network module");
+        case EObjectType::MultiClusterReplicaSet:
+            return AsStringBuf("multi-cluster replica set");
         default:
             Y_UNREACHABLE();
     }
@@ -596,6 +603,25 @@ TString GetObjectDisplayName(const TObject* object)
 TObjectId GenerateUuid()
 {
     return ToString(TGuid::Create());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateSubjectExists(TTransaction* transaction, const TObjectId& subjectId)
+{
+    auto* user = transaction->GetUser(subjectId);
+    if (user && user->DoesExist()) {
+        return;
+    }
+    auto* group = transaction->GetGroup(subjectId);
+    if (group && group->DoesExist()) {
+        return;
+    }
+    THROW_ERROR_EXCEPTION(
+        NClient::NApi::EErrorCode::NoSuchObject,
+        "Subject %Qv does not exist",
+        subjectId)
+        << TErrorAttribute("object_id", subjectId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -76,7 +76,7 @@ public:
         NObjects::TObject* object,
         EAccessControlPermission permission);
 
-    std::vector<NObjects::TObject*> GetUserAccessAllowedTo(
+    std::vector<NObjects::TObjectId> GetUserAccessAllowedTo(
         const NObjects::TTransactionPtr& transaction,
         NObjects::TObject* user,
         NObjects::EObjectType objectType,
@@ -90,7 +90,7 @@ public:
     void ValidatePermission(
         NObjects::TObject* object,
         EAccessControlPermission permission);
-    void ValidateSuperuser();
+    void ValidateSuperuser(TStringBuf doWhat);
 
 private:
     class TImpl;
@@ -98,6 +98,20 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TAccessControlManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool HasAccessControlParent(NObjects::IObjectTypeHandler* typeHandler);
+
+NObjects::EObjectType GetAccessControlParentType(NObjects::IObjectTypeHandler* typeHandler);
+
+NObjects::TObjectId GetAccessControlParentId(
+    NObjects::IObjectTypeHandler* typeHandler,
+    const NObjects::TObjectId& parentId);
+
+NObjects::TObject* GetAccessControlParent(
+    NObjects::IObjectTypeHandler* typeHandler,
+    NObjects::TObject* object);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,15 +1,16 @@
 from __future__ import print_function
 
 from yp.common import YtResponseError, wait
-from yp.local import YpInstance, ACTUAL_DB_VERSION, OBJECT_TYPES
+from yp.local import YpInstance, ACTUAL_DB_VERSION, OBJECT_TYPES, reset_yp
 from yp.logger import logger
 
 from yt.wrapper.common import generate_uuid
-from yt.wrapper.retries import run_with_retries
 
-from yt.common import update
+from yt.common import update, get_value
 
 import yt.subprocess_wrapper as subprocess
+
+from yt.packages.six.moves import xrange
 
 # TODO(ignat): avoid this hacks
 try:
@@ -39,18 +40,6 @@ if yatest_common is None:
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
 TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", TESTS_LOCATION + ".sandbox")
 
-def _build_order_of_object_type_removal():
-    result = [
-        "pod",
-        "pod_set",
-    ]
-    for object_type in OBJECT_TYPES:
-        if object_type not in result:
-            result.append(object_type)
-    return result
-
-ORDER_OF_OBJECT_TYPE_REMOVAL = _build_order_of_object_type_removal()
-
 ZERO_RESOURCE_REQUESTS = {
     "vcpu_guarantee": 0,
     "vcpu_limit": 0,
@@ -58,7 +47,113 @@ ZERO_RESOURCE_REQUESTS = {
     "memory_limit": 0
 }
 
+DEFAULT_ACCOUNT_ID = "tmp"
+
+DEFAULT_POD_SET_SPEC = dict(
+    account_id=DEFAULT_ACCOUNT_ID,
+    node_segment_id="default",
+)
+
 logger.setLevel(logging.DEBUG)
+
+
+def get_pod_scheduling_status(yp_client, pod_id):
+    return yp_client.get_object("pod", pod_id, selectors=["/status/scheduling"])[0]
+
+
+def is_assigned_pod_scheduling_status(scheduling_status):
+    return "error" not in scheduling_status and \
+        scheduling_status.get("state", None) == "assigned" and \
+        scheduling_status.get("node_id", "") != ""
+
+
+def is_error_pod_scheduling_status(scheduling_status):
+    return "error" in scheduling_status and \
+        scheduling_status.get("state", None) != "assigned" and \
+        scheduling_status.get("node_id", None) is None
+
+
+def create_pod_with_boilerplate(yp_client, pod_set_id, spec, pod_id=None, transaction_id=None):
+    meta = {
+        "pod_set_id": pod_set_id
+    }
+    if pod_id is not None:
+        meta["id"] = pod_id
+    merged_spec = update(
+        dict(resource_requests=ZERO_RESOURCE_REQUESTS),
+        spec,
+    )
+    return yp_client.create_object("pod", attributes={
+        "meta": meta,
+        "spec": merged_spec,
+    }, transaction_id=transaction_id)
+
+
+def create_nodes(
+        yp_env,
+        node_count,
+        rack_count=1,
+        hfsm_state="up",
+        cpu_total_capacity=100,
+        memory_total_capacity=1000000000,
+        disk_spec=None):
+    yp_client = yp_env.yp_client
+
+    disk_spec_defaults = dict(
+        total_capacity=10 ** 11,
+        total_volume_slots=10,
+        storage_class="hdd",
+        supported_policies=["quota", "exclusive"],
+    )
+    disk_spec = update(disk_spec_defaults, get_value(disk_spec, {}))
+
+    node_ids = []
+    for i in xrange(node_count):
+        node_id = yp_client.create_object("node", attributes={
+                "spec": {
+                    "ip6_subnets": [
+                        {"vlan_id": "backbone", "subnet": "1:2:3:4::/64"}
+                    ]
+                },
+                "labels" : {
+                    "topology": {
+                        "node": "node-{}".format(i),
+                        "rack": "rack-{}".format(i // (node_count // rack_count)),
+                        "dc": "butovo"
+                    }
+                }
+            })
+        yp_client.update_hfsm_state(node_id, hfsm_state, "Test")
+        node_ids.append(node_id)
+        yp_client.create_object("resource", attributes={
+                "meta": {
+                    "node_id": node_id
+                },
+                "spec": {
+                    "cpu": {
+                        "total_capacity": cpu_total_capacity,
+                    }
+                }
+            })
+        yp_client.create_object("resource", attributes={
+                "meta": {
+                    "node_id": node_id
+                },
+                "spec": {
+                    "memory": {
+                        "total_capacity": memory_total_capacity,
+                    }
+                }
+            })
+        yp_client.create_object("resource", attributes={
+                "meta": {
+                    "node_id": node_id
+                },
+                "spec": {
+                    "disk": disk_spec
+                }
+            })
+    return node_ids
 
 
 class Cli(object):
@@ -210,34 +305,9 @@ def test_method_setup(yp_env):
     print("\n", file=sys.stderr)
 
 def test_method_teardown(yp_env):
-    def cleanup_objects(yp_client):
-        for object_type in ORDER_OF_OBJECT_TYPE_REMOVAL:
-            if object_type == "schema":
-                continue
-
-            # Occasionally we may run into conflicts with the scheduler, see YP-284
-            def do():
-                object_ids = yp_client.select_objects(object_type, selectors=["/meta/id"])
-                for object_id_list in object_ids:
-                    object_id = object_id_list[0]
-                    if object_type == "user" and object_id == "root":
-                        continue
-                    if object_type == "group" and object_id == "superusers":
-                        continue
-                    if object_type == "account" and object_id == "tmp":
-                        continue
-                    if object_type == "node_segment" and object_id == "default":
-                        continue
-                    yp_client.remove_object(object_type, object_id)
-                yp_client.update_object("group", "superusers", set_updates=[
-                    {"path": "/spec/members", "value": ["root"]}
-                ])
-
-            run_with_retries(do, exceptions=(YtResponseError,))
-
     print("\n", file=sys.stderr)
     try:
-        cleanup_objects(yp_env.yp_client)
+        reset_yp(yp_env.yp_client)
     except:
         # Additional logging added due to https://github.com/pytest-dev/pytest/issues/2237
         logger.exception("test_method_teardown failed")

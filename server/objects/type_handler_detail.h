@@ -23,11 +23,14 @@ public:
         EObjectType type);
 
     virtual EObjectType GetType() override;
+
     virtual EObjectType GetParentType() override;
+    virtual TObject* GetParent(TObject* object) override;
     virtual const TDBField* GetParentIdField() override;
     virtual TChildrenAttributeBase* GetParentChildrenAttribute(TObject* parent) override;
 
-    virtual TObject* GetAccessControlParent(TObject* object) override;
+    virtual TObjectId GetSchemaObjectId() override;
+    virtual TObject* GetSchemaObject(TObject* object) override;
 
     virtual TAttributeSchema* GetRootAttributeSchema() override;
     virtual TAttributeSchema* GetIdAttributeSchema() override;
@@ -60,6 +63,7 @@ protected:
     TAttributeSchema* IdAttributeSchema_ = nullptr;
     TAttributeSchema* ParentIdAttributeSchema_ = nullptr;
     TAttributeSchema* MetaAttributeSchema_ = nullptr;
+    TAttributeSchema* LabelsAttributeSchema_ = nullptr;
     TAttributeSchema* SpecAttributeSchema_ = nullptr;
     TAttributeSchema* StatusAttributeSchema_ = nullptr;
     TAttributeSchema* AnnotationsAttributeSchema_ = nullptr;
@@ -74,6 +78,7 @@ protected:
 
 private:
     void ValidateMetaOther(TTransaction* transaction, TObject* object);
+    void ValidateAcl(TTransaction* transaction, TObject* object);
 
 };
 
