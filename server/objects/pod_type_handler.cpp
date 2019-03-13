@@ -78,7 +78,8 @@ public:
                             ->SetProtobufEvaluator<TPod, NClient::NApi::NClusterApiProto::HostCurrentState>(TPod::TStatus::TAgent::IssPayloadSchema),
 
                         MakeAttributeSchema("pod_agent_payload")
-                            ->SetAttribute(TPod::TStatus::TAgent::PodAgentPayloadSchema),
+                            ->SetAttribute(TPod::TStatus::TAgent::PodAgentPayloadSchema)
+                            ->SetUpdatable(),
 
                         MakeFallbackAttributeSchema()
                             ->SetAttribute(TPod::TStatus::TAgent::OtherSchema)
