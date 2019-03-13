@@ -355,6 +355,10 @@ class UserJobSpecBuilder(object):
     def port_count(self, port_count):
         return _set_spec_value(self, "port_count", port_count)
 
+    @spec_option("Force container cpu limit for user job; this option should not be normally set by user")
+    def set_container_cpu_limit(self, set_container_cpu_limit):
+        return _set_spec_value(self, "set_container_cpu_limit", set_container_cpu_limit)
+
     def environment_variable(self, key, value):
         self._spec.setdefault("environment", {})
         self._spec["environment"][key] = str(value)
