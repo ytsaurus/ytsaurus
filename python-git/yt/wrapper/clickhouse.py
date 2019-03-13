@@ -7,14 +7,48 @@ from .ypath import FilePath
 from .file_commands import smart_upload_file
 from .yson import dumps
 
+import yt.logger as logger
+
+from yt.packages.six import iteritems
+
 from tempfile import NamedTemporaryFile
 
-DEFAULT_CPU_LIMIT = 8
-DEFAULT_MEMORY_LIMIT = 15 * 2 ** 30
-MEMORY_FOOTPRINT = 16 * 2 ** 30
-DEFAULT_CYPRESS_BASE_CONFIG_PATH = "//sys/clickhouse/config"
+CYPRESS_DEFAqULTS_PATH = "//sys/clickhouse/defaults"
+BUNDLED_DEFAULTS = {
+    "memory_footprint": 16 * 1000**3,
+    "memory_limit": 15 * 1000**3,
+    "cypress_base_config_path": "//sys/clickhouse/config",
+    "cpu_limit": 8,
+    "enable_monitoring": False,
+    "clickhouse_config": {},
+}
 
 
+def get_kwargs_names(fn):
+    varnames = fn.func_code.co_varnames[:fn.func_code.co_argcount]
+    kwargs_len = len(fn.func_defaults)
+    varnames = varnames[-kwargs_len:]
+    return varnames
+
+
+def patch_defaults(fn):
+    kwargs_names = get_kwargs_names(fn)
+
+    def wrapped_fn(*args, **kwargs):
+        defaults_dict = kwargs.pop("defaults")
+        logger.debug("Applying following argument defaults: %s", defaults_dict)
+        for key, default_value in iteritems(defaults_dict):
+            if key in kwargs_names:
+                current_value = kwargs.get(key)
+                if current_value is None:
+                    kwargs[key] = default_value
+        logger.debug("Resulting arguments: %s", kwargs)
+        return fn(*args, **kwargs)
+
+    return wrapped_fn
+
+
+@patch_defaults
 def get_clickhouse_clique_spec_builder(instance_count,
                                        cypress_ytserver_clickhouse_path=None,
                                        host_ytserver_clickhouse_path=None,
@@ -45,18 +79,6 @@ def get_clickhouse_clique_spec_builder(instance_count,
 
     .. seealso::  :ref:`operation_parameters`.
     """
-
-    if cpu_limit is None:
-        cpu_limit = DEFAULT_CPU_LIMIT
-
-    if memory_limit is None:
-        memory_limit = DEFAULT_MEMORY_LIMIT
-
-    if memory_footprint is None:
-        memory_footprint = MEMORY_FOOTPRINT
-
-    if enable_monitoring is None:
-        enable_monitoring = False
 
     require(cypress_config_path is not None,
             lambda: YtError("Cypress config.yson path should be specified; consider using "
@@ -111,8 +133,13 @@ def get_clickhouse_clique_spec_builder(instance_count,
     return spec_builder
 
 
-def prepare_clickhouse_config(cypress_base_config_path=None, clickhouse_config=None, cpu_limit=None, memory_limit=None,
-                              enable_query_log=None, client=None):
+@patch_defaults
+def prepare_clickhouse_config(cypress_base_config_path=None,
+                              clickhouse_config=None,
+                              cpu_limit=None,
+                              memory_limit=None,
+                              enable_query_log=None,
+                              client=None):
     """Merges a document pointed by `config_template_cypress_path` and `config` and uploads the
     result as a config.yson file suitable for specifying as a config file for clickhouse clique.
 
@@ -125,18 +152,6 @@ def prepare_clickhouse_config(cypress_base_config_path=None, clickhouse_config=N
     :param enable_query_log: enable clickhouse query log.
     :type enable_query_log: bool or None
     """
-
-    if cpu_limit is None:
-        cpu_limit = DEFAULT_CPU_LIMIT
-
-    if memory_limit is None:
-        memory_limit = DEFAULT_MEMORY_LIMIT
-
-    if cypress_base_config_path is None:
-        cypress_base_config_path = DEFAULT_CYPRESS_BASE_CONFIG_PATH
-
-    if clickhouse_config is None:
-        clickhouse_config = {}
 
     require(cpu_limit is not None, lambda: YtError("Cpu limit should be set to prepare the ClickHouse config"))
     require(memory_limit is not None, lambda: YtError("Memory limit should be set to prepare the ClickHouse config"))
@@ -196,11 +211,14 @@ def start_clickhouse_clique(instance_count,
     .. seealso::  :ref:`operation_parameters`.
     """
 
+    defaults = get("//sys/clickhouse/defaults", client=client) if exists("//sys/clickhouse/defaults", client=client) else BUNDLED_DEFAULTS
+
     cypress_config_path = prepare_clickhouse_config(cypress_base_config_path=cypress_base_config_path,
                                                     clickhouse_config=clickhouse_config,
                                                     cpu_limit=cpu_limit,
                                                     memory_limit=memory_limit,
                                                     enable_query_log=enable_query_log,
+                                                    defaults=defaults,
                                                     client=client)
 
     op = run_operation(get_clickhouse_clique_spec_builder(instance_count,
@@ -210,6 +228,7 @@ def start_clickhouse_clique(instance_count,
                                                           memory_footprint=memory_footprint,
                                                           enable_monitoring=enable_monitoring,
                                                           cypress_geodata_path=cypress_geodata_path,
+                                                          defaults=defaults,
                                                           **kwargs),
                        client=client,
                        sync=False)
