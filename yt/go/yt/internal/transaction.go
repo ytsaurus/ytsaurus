@@ -17,6 +17,7 @@ type TxInterceptor struct {
 	sync.Mutex
 	committed, aborted bool
 	finished           chan struct{}
+	stop               *StopGroup
 
 	id     yt.TxID
 	ctx    context.Context
@@ -52,15 +53,24 @@ func (t *TxInterceptor) updateState(commit, abort bool) error {
 	return nil
 }
 
+func (t *TxInterceptor) abort() {
+	_ = t.Abort()
+	close(t.finished)
+}
+
 func (t *TxInterceptor) pinger() {
 	ticker := time.NewTicker(time.Second * 5)
 	defer ticker.Stop()
+	defer t.stop.Done()
 
 	for {
 		select {
+		case <-t.stop.C():
+			t.abort()
+			return
+
 		case <-t.ctx.Done():
-			_ = t.Abort()
-			close(t.finished)
+			t.abort()
 			return
 
 		case <-ticker.C:
@@ -74,18 +84,23 @@ func (t *TxInterceptor) pinger() {
 	}
 }
 
-func NewTx(ctx context.Context, e Encoder, options *yt.StartTxOptions) (*TxInterceptor, error) {
+func NewTx(ctx context.Context, e Encoder, stop *StopGroup, options *yt.StartTxOptions) (*TxInterceptor, error) {
 	txID, err := e.StartTx(ctx, options)
 	if err != nil {
 		return nil, err
 	}
 
-	tx := &TxInterceptor{Encoder: e, id: txID, ctx: ctx, client: e, finished: make(chan struct{})}
+	tx := &TxInterceptor{Encoder: e, id: txID, ctx: ctx, client: e, finished: make(chan struct{}), stop: stop}
 	tx.Encoder.Invoke = tx.Encoder.Invoke.Wrap(tx.Intercept)
 	tx.Encoder.InvokeRead = tx.Encoder.InvokeRead.Wrap(tx.Read)
 	tx.Encoder.InvokeWrite = tx.Encoder.InvokeWrite.Wrap(tx.Write)
 	tx.Encoder.InvokeReadRow = tx.Encoder.InvokeReadRow.Wrap(tx.ReadRow)
 	tx.Encoder.InvokeWriteRow = tx.Encoder.InvokeWriteRow.Wrap(tx.WriteRow)
+
+	if !stop.TryAdd() {
+		tx.abort()
+		return tx, xerrors.New("client is stopped")
+	}
 
 	go tx.pinger()
 
@@ -110,7 +125,7 @@ func (t *TxInterceptor) Begin(ctx context.Context, options *yt.StartTxOptions) (
 	}
 	options.ParentID = &t.id
 
-	return NewTx(ctx, t.client, options)
+	return NewTx(ctx, t.client, t.stop, options)
 }
 
 func (t *TxInterceptor) Abort() (err error) {

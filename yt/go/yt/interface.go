@@ -728,4 +728,9 @@ type Client interface {
 	LowLevelSchedulerClient
 
 	AdminClient
+
+	// Stop() cancels and waits for completion of all background activity associated with this client.
+	//
+	// All transactions tracked by this client are aborted.
+	Stop()
 }
