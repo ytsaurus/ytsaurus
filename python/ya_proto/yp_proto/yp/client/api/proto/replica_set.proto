@@ -7,6 +7,7 @@ import "yt_proto/yt/core/ytree/proto/attributes.proto";
 
 import "yp_proto/yp/client/api/proto/data_model.proto";
 import "yp_proto/yp/client/api/proto/object_type.proto";
+import "yp_proto/yp/client/api/proto/conditions.proto";
 
 import "google/protobuf/timestamp.proto";
 
@@ -58,6 +59,8 @@ message TReplicaSetSpec
 
 message TReplicaSetStatus
 {
+    // Deprecated fields start here. They will be removed after moving to new ReplicaSetStatus schema.
+
     message TCondition
     {
         string status = 1;
@@ -121,6 +124,17 @@ message TReplicaSetStatus
 
     map<string, TRevision> revisions = 3 [(NYT.NYson.NProto.yson_map) = true];
 
+    // New ReplicaSetStatus schema starts here.
+
+    message TDeployProgress {
+        // Number of pods synced to up-to-date spec.
+        uint32 pods_ready = 1;
+        // Number of pods currently updating.
+        uint32 pods_in_progress = 2;
+        // Total number of pods.
+        uint32 pods_total = 3;
+    }
+
     message TControllerAttempt
     {
         TCondition succeeded = 1;
@@ -133,6 +147,13 @@ message TReplicaSetStatus
     }
 
     TControllerStatus controller_status = 4;
+
+    string revision_id = 5;
+    NYP.NClient.NApi.NProto.TCondition in_progress_condition = 6;
+    NYP.NClient.NApi.NProto.TCondition ready_condition = 7;
+    TDeployProgress total_progress = 8;
+    TDeployProgress current_revision_progress = 9;
+    map<string, TDeployProgress> revisions_progress = 10 [(NYT.NYson.NProto.yson_map) = true];
 }
 
 message TReplicaSet
@@ -143,5 +164,4 @@ message TReplicaSet
     NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
     NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
 }
-
 ////////////////////////////////////////////////////////////////////////////////
