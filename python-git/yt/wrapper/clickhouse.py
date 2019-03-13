@@ -13,7 +13,7 @@ from yt.packages.six import iteritems
 
 from tempfile import NamedTemporaryFile
 
-CYPRESS_DEFAqULTS_PATH = "//sys/clickhouse/defaults"
+CYPRESS_DEFAULTS_PATH = "//sys/clickhouse/defaults"
 BUNDLED_DEFAULTS = {
     "memory_footprint": 16 * 1000**3,
     "memory_limit": 15 * 1000**3,
@@ -21,6 +21,7 @@ BUNDLED_DEFAULTS = {
     "cpu_limit": 8,
     "enable_monitoring": False,
     "clickhouse_config": {},
+    "use_exact_thread_count": True,
 }
 
 
@@ -58,6 +59,7 @@ def get_clickhouse_clique_spec_builder(instance_count,
                                        memory_limit=None,
                                        memory_footprint=None,
                                        enable_monitoring=None,
+                                       set_container_cpu_limit=None,
                                        cypress_geodata_path=None,
                                        spec=None):
     """Returns a spec builder for the clickhouse clique consisting of a given number of instances.
@@ -126,6 +128,7 @@ def get_clickhouse_clique_spec_builder(instance_count,
                 .memory_limit(memory_limit + memory_footprint) \
                 .cpu_limit(cpu_limit) \
                 .port_count(4) \
+                .set_container_cpu_limit(set_container_cpu_limit) \
             .end_task() \
             .max_failed_job_count(max_failed_job_count) \
             .spec(spec)
@@ -134,11 +137,13 @@ def get_clickhouse_clique_spec_builder(instance_count,
 
 
 @patch_defaults
-def prepare_clickhouse_config(cypress_base_config_path=None,
+def prepare_clickhouse_config(instance_count,
+                              cypress_base_config_path=None,
                               clickhouse_config=None,
                               cpu_limit=None,
                               memory_limit=None,
                               enable_query_log=None,
+                              use_exact_thread_count=None,
                               client=None):
     """Merges a document pointed by `config_template_cypress_path` and `config` and uploads the
     result as a config.yson file suitable for specifying as a config file for clickhouse clique.
@@ -156,10 +161,12 @@ def prepare_clickhouse_config(cypress_base_config_path=None,
     require(cpu_limit is not None, lambda: YtError("Cpu limit should be set to prepare the ClickHouse config"))
     require(memory_limit is not None, lambda: YtError("Memory limit should be set to prepare the ClickHouse config"))
 
+    thread_count = cpu_limit if use_exact_thread_count else 2 * max(cpu_limit, instance_count) + 1
+
     clickhouse_config["engine"] = clickhouse_config.get("engine", {})
     clickhouse_config["engine"]["settings"] = clickhouse_config["engine"].get("settings", {})
-    clickhouse_config["engine"]["settings"]["max_threads"] = cpu_limit
-    clickhouse_config["engine"]["settings"]["max_distributed_connections"] = cpu_limit
+    clickhouse_config["engine"]["settings"]["max_threads"] = thread_count
+    clickhouse_config["engine"]["settings"]["max_distributed_connections"] = thread_count
 
     clickhouse_config["engine"] = clickhouse_config.get("engine", {})
     clickhouse_config["engine"]["settings"] = clickhouse_config["engine"].get("settings", {})
@@ -213,7 +220,8 @@ def start_clickhouse_clique(instance_count,
 
     defaults = get("//sys/clickhouse/defaults", client=client) if exists("//sys/clickhouse/defaults", client=client) else BUNDLED_DEFAULTS
 
-    cypress_config_path = prepare_clickhouse_config(cypress_base_config_path=cypress_base_config_path,
+    cypress_config_path = prepare_clickhouse_config(instance_count,
+                                                    cypress_base_config_path=cypress_base_config_path,
                                                     clickhouse_config=clickhouse_config,
                                                     cpu_limit=cpu_limit,
                                                     memory_limit=memory_limit,
