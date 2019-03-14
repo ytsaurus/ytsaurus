@@ -2,6 +2,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import *
 from yt_helpers import ProfileMetric
 
+from flaky import flaky
 
 def clear_everything_after_test(func):
     def wrapped(*args, **kwargs):
@@ -49,8 +50,6 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
         create("table", "//tmp/t")
         set("//tmp/t/@replication_factor", 1)
         write_table("//tmp/t", [{"a": 1}])
-        # This forces lazy node directory synchronizer activation.
-        self._access()
         chunk_id = get_singular_chunk_id("//tmp/t")
         # Node that is the seed for the only existing chunk.
         self.seed = str(get("#{0}/@stored_replicas/0".format(chunk_id)))
@@ -68,14 +67,19 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
     @clear_everything_after_test
     def test_no_distribution(self):
         with ProfileMetric.at_node(self.seed, "data_node/p2p/distributed_block_size") as p:
+            # Keep number of tries in sync with min_request_count.
             self._access()
             self._access()
             time.sleep(2)
         assert p.differentiate() == 0
 
+    @flaky(max_runs=5)
     @clear_everything_after_test
     def test_simple_distribution(self):
         with ProfileMetric.at_node(self.seed, "data_node/p2p/distributed_block_size") as p:
+            # Must be greater than min_request_count in config.
+            self._access()
+            self._access()
             self._access()
             self._access()
             self._access()
@@ -122,12 +126,15 @@ class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSyn
         }
     }
 
+    # Test relies on timing of rpc calls and periods of node directory synchronizer and distribution iteration.
+    @flaky(max_runs=5)
     @clear_everything_after_test
     def test_wow_block_so_hot_such_many_requests(self):
         with ProfileMetric.at_node(self.seed, "data_node/block_cache/compressed_data/hit") as ps, \
             ProfileMetric.at_node(self.non_seeds[0], "data_node/block_cache/compressed_data/hit") as pns0, \
             ProfileMetric.at_node(self.non_seeds[1], "data_node/block_cache/compressed_data/hit") as pns1, \
             ProfileMetric.at_node(self.non_seeds[2], "data_node/block_cache/compressed_data/hit") as pns2:
+
             for i in range(300):
                 self._access()
         assert ps.differentiate() > 0
