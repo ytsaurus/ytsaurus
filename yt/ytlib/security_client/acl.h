@@ -27,6 +27,8 @@ struct TSerializableAccessControlEntry
 
     // Use only for deserialization.
     TSerializableAccessControlEntry();
+
+    void Persist(const TStreamPersistenceContext& context);
 };
 
 bool operator == (const TSerializableAccessControlEntry& lhs, const TSerializableAccessControlEntry& rhs);
@@ -38,6 +40,8 @@ void Deserialize(TSerializableAccessControlEntry& acl, NYTree::INodePtr node);
 struct TSerializableAccessControlList
 {
     std::vector<TSerializableAccessControlEntry> Entries;
+
+    void Persist(const TStreamPersistenceContext& context);
 };
 
 bool operator == (const TSerializableAccessControlList& lhs, const TSerializableAccessControlList& rhs);
