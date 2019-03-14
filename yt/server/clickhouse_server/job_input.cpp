@@ -315,6 +315,7 @@ private:
         auto removePredicate = [&] (const TInputDataSlicePtr& inputDataSlice) {
             const auto& chunk = inputDataSlice->GetSingleUnversionedChunkOrThrow();
             YCHECK(chunk->BoundaryKeys()->MinKey.GetCount() == chunk->BoundaryKeys()->MaxKey.GetCount());
+            YCHECK(chunk->BoundaryKeys()->MinKey.GetCount() >= KeyColumnCount_);
 
             Field minKey[KeyColumnCount_];
             Field maxKey[KeyColumnCount_];

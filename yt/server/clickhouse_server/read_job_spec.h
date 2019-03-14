@@ -43,9 +43,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TReadJobSpec* protoSpec, const TReadJobSpec& spec);
-void FromProto(TReadJobSpec* spec, const NProto::TReadJobSpec& protoSpec);
-
 void Serialize(const TReadJobSpec& spec, NYson::IYsonConsumer* consumer);
 void Deserialize(TReadJobSpec& spec, NYTree::INodePtr node);
 

@@ -208,7 +208,7 @@ TClickHouseTableSchema GetCommonSchema(const std::vector<TClickHouseTablePtr>& t
         auto dataType = dataTypes.get(GetTypeName(column));
         columns.emplace_back(column.Name, dataType);
 
-        if (column.IsSorted()) {
+        if (column.IsSorted() && !dropPrimaryKey) {
             keyColumns.emplace_back(column.Name, dataType);
             primarySortColumns.emplace_back(column.Name);
         }
