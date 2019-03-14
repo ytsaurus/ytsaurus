@@ -157,4 +157,6 @@ void Deserialize(TReadJobSpec& spec, INodePtr node)
     }
 }
 
+/////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NClickHouseServer

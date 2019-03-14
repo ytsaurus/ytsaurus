@@ -67,7 +67,7 @@ class Clique(object):
 
         print >>sys.stderr, "Waiting for clique {} to become ready".format(self.op.id)
 
-        MAX_COUNTER_VALUE = 210
+        MAX_COUNTER_VALUE = 600
         counter = 0
         while True:
             state = self.op.get_state(verbose=False)
