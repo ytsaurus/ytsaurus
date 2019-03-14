@@ -465,7 +465,7 @@ message TReadinessCheck {
 }
 
 message TLivenessCheck {
-    resreved 3;
+    reserved 3;
 
     oneof check {
         TUtilityContainer container = 1;
