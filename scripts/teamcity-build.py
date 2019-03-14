@@ -470,7 +470,7 @@ def share_packages(options, build_context):
         "yandex-yt-scheduler-dbg",
         "yandex-yt-controller-agent-dbg",
         "yandex-yt-clickhouse-dbg",
-        "yandex-yt-node-dbg"
+        "yandex-yt-node-dbg",
 
         "yandex-yt-python-skynet-driver",
         "yandex-yt-python-driver",
