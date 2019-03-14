@@ -322,7 +322,7 @@ private:
             ConvertToFieldRow(chunk->BoundaryKeys()->MinKey, minKey);
             ConvertToFieldRow(chunk->BoundaryKeys()->MaxKey, maxKey);
 
-            return !KeyCondition_->mayBeTrueInRange(KeyColumnCount_, minKey, maxKey, KeyColumnDataTypes_);
+            return !KeyCondition_->getMaskInRange(KeyColumnCount_, minKey, maxKey, KeyColumnDataTypes_).can_be_true;
         };
 
         DataSlices_.erase(std::remove_if(DataSlices_.begin(), DataSlices_.end(), removePredicate), DataSlices_.end());
