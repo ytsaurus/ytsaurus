@@ -20,6 +20,15 @@ import random
 CLICKHOUSE_CLIENT_BINARY = find_executable("clickhouse")
 YTSERVER_CLICKHOUSE_BINARY = find_executable("ytserver-clickhouse")
 
+DEFAULTS = {
+    "memory_footprint": 2 * 1000**3,
+    "memory_limit": 5 * 1000**3,
+    "host_ytserver_clickhouse_path": YTSERVER_CLICKHOUSE_BINARY,
+    "cpu_limit": 1,
+    "enable_monitoring": False,
+    "clickhouse_config": {},
+}
+
 
 class Clique(object):
     base_config = None
@@ -34,12 +43,9 @@ class Clique(object):
         write_file(filename, yson.dumps(config, yson_format="pretty"))
 
         spec_builder = get_clickhouse_clique_spec_builder(instance_count,
-                                                          host_ytserver_clickhouse_path=YTSERVER_CLICKHOUSE_BINARY,
                                                           cypress_config_path=filename,
                                                           max_failed_job_count=max_failed_job_count,
-                                                          cpu_limit=1,
-                                                          memory_limit=5*2**30,
-                                                          memory_footprint=2*2**30,
+                                                          defaults=DEFAULTS,
                                                           **kwargs)
         self.spec = simplify_structure(spec_builder.build())
         self.spec["tasks"]["clickhouse_servers"]["force_core_dump"] = True
