@@ -12,6 +12,7 @@ import yt.logger as logger
 from yt.packages.six import iteritems
 
 from tempfile import NamedTemporaryFile
+from inspect import getargspec
 
 CYPRESS_DEFAULTS_PATH = "//sys/clickhouse/defaults"
 BUNDLED_DEFAULTS = {
@@ -26,10 +27,10 @@ BUNDLED_DEFAULTS = {
 
 
 def get_kwargs_names(fn):
-    varnames = fn.func_code.co_varnames[:fn.func_code.co_argcount]
-    kwargs_len = len(fn.func_defaults)
-    varnames = varnames[-kwargs_len:]
-    return varnames
+    argspec = getargspec(fn)
+    kwargs_len = len(argspec.defaults)
+    kwargs_names = argspec.args[-kwargs_len:]
+    return kwargs_names
 
 
 def patch_defaults(fn):
@@ -45,6 +46,8 @@ def patch_defaults(fn):
                     kwargs[key] = default_value
         logger.debug("Resulting arguments: %s", kwargs)
         return fn(*args, **kwargs)
+
+    wrapped_fn.__doc__ = fn.__doc__
 
     return wrapped_fn
 
