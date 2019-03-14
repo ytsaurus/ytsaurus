@@ -472,16 +472,9 @@ message TLivenessCheck {
     }
 }
 
-message TCoreDump {
-    // porto property core_command
-    string core_command = 1;
-
-    // porto property ulimit[core]
-    string core_ulimit = 2;
-}
-
 //Наследует Env от TWorkload
 message TUtilityContainer {
+    reserved 5;
     //атрибуты контейнера (по сути это сквозной проброс опций Porto)
     //Тут важно разделять интерфейс предоствляемый пользователю и внутренний между YP<->agent
     TComputeResources compute_resources = 2;
@@ -492,7 +485,7 @@ message TUtilityContainer {
     TTimeLimit time_limit = 4;
 
     // параметры обработки корок
-    TCoreDump core_dump = 5;
+    string core_command = 6;
 }
 
 //Позволяет выставить ограничение сверху на все закачки. Важным моментом является, что сумма лимитов
