@@ -1,5 +1,8 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import java.util.Set;
+
+import ru.yandex.bolts.collection.Cf;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqCheckPermission;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
@@ -10,12 +13,16 @@ public class CheckPermission extends MutateNode<CheckPermission> {
     private final int permissions;
 
     public CheckPermission(String user, String path, int permissions) {
+        this(user, path, permissions, Cf.set());
+    }
+
+    public CheckPermission(String user, String path, int permissions, Set<String> columns) {
         this.user = user;
         this.path = path;
         this.permissions = permissions;
     }
 
-    public  TReqCheckPermission.Builder writeTo(TReqCheckPermission.Builder builder) {
+    public TReqCheckPermission.Builder writeTo(TReqCheckPermission.Builder builder) {
 
         if (transactionalOptions != null) {
             builder.setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
