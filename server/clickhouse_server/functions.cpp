@@ -34,7 +34,7 @@ namespace DB
 ////////////////////////////////////////////////////////////////////////////////
 
 template <>
-struct NearestFieldType<TString>
+struct NearestFieldTypeImpl<TString>
 {
     using Type = std::string;
 };

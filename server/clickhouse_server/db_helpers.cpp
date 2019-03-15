@@ -51,7 +51,7 @@ const char* GetTypeName(const TClickHouseColumn& column)
 
     throw Exception(
         "Invalid column type",
-        toString(static_cast<int>(column.Type)),
+        Exception(toString(static_cast<int>(column.Type)), ErrorCodes::UNKNOWN_TYPE),
         ErrorCodes::UNKNOWN_TYPE);
 }
 
@@ -105,7 +105,7 @@ void GetField(const TValue& value, std::vector<Field>& fields)
 
     throw Exception(
         "Invalid value type",
-        toString(static_cast<int>(value.Type)),
+        Exception(toString(static_cast<int>(value.Type)), ErrorCodes::UNKNOWN_TYPE),
         ErrorCodes::UNKNOWN_TYPE);
 }
 

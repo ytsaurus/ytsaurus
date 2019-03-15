@@ -42,7 +42,7 @@ public:
         return Poco::Timestamp::TIMEVAL_MAX;
     }
 
-    virtual Poco::AutoPtr<Poco::Util::AbstractConfiguration> load(const std::string& configFile) const override
+    virtual Poco::AutoPtr<Poco::Util::AbstractConfiguration> load(const std::string& configFile, const std::string & /* preprocessed_dir = "" */) const override
     {
         auto it = Dictionaries_.find(configFile);
         YCHECK(it != Dictionaries_.end());
@@ -90,7 +90,7 @@ public:
         Y_UNIMPLEMENTED();
     }
 
-    virtual Poco::AutoPtr<Poco::Util::AbstractConfiguration> load(const std::string& /* configFile */) const override
+    virtual Poco::AutoPtr<Poco::Util::AbstractConfiguration> load(const std::string& /* configFile */, const std::string & /* preprocessed_dir = "" */) const override
     {
         Y_UNIMPLEMENTED();
     }
