@@ -288,7 +288,8 @@
     XX(WithAlertsNodeCount, with_alerts_node_count) \
     XX(WriteQuorum, write_quorum) \
     XX(WriteRequestRateLimit, write_request_rate_limit) \
-    XX(WriteRequestTime, write_request_time)
+    XX(WriteRequestTime, write_request_time) \
+    XX(SecurityTags, security_tags)
 
 namespace NYT {
 

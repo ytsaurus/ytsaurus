@@ -2,15 +2,6 @@
 
 #include <Common/Exception.h>
 
-namespace DB {
-
-namespace ErrorCodes
-{
-    extern const int NO_ELEMENTS_IN_CONFIG;
-}
-
-}   // namespace DB
-
 namespace NYT::NClickHouseServer {
 
 using namespace DB;

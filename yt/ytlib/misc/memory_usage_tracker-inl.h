@@ -330,7 +330,7 @@ void TMemoryUsageTrackerGuard<ECategory>::SetSize(i64 size)
 {
     Y_ASSERT(Tracker_);
     Y_ASSERT(Size_ >= 0);
-    Y_ASSERT(size >= 0);
+    YCHECK(size >= 0);
     Size_ = size;
     if (std::abs(Size_ - AcquiredSize_) >= Granularity_) {
         if (Size_ > AcquiredSize_) {

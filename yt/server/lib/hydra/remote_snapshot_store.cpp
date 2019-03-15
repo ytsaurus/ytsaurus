@@ -11,6 +11,8 @@
 #include <yt/client/api/file_writer.h>
 #include <yt/client/api/transaction.h>
 
+#include <yt/client/ypath/rich.h>
+
 #include <yt/ytlib/hydra/hydra_manager.pb.h>
 #include <yt/ytlib/hydra/config.h>
 

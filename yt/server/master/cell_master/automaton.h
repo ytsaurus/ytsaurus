@@ -10,6 +10,8 @@
 
 #include <yt/server/master/object_server/public.h>
 
+#include <yt/server/master/security_server/public.h>
+
 #include <yt/ytlib/object_client/public.h>
 #include <yt/client/object_client/helpers.h>
 
@@ -25,6 +27,9 @@ class TSaveContext
 public:
     using TSavedSchemaMap = THashMap<NTableServer::TSharedTableSchema*, NObjectClient::TVersionedObjectId>;
     DEFINE_BYREF_RW_PROPERTY(TSavedSchemaMap, SavedSchemas);
+
+    using TSavedInternedObjectsMap = THashMap<const void*, NHydra::TEntitySerializationKey>;
+    DEFINE_BYREF_RW_PROPERTY(TSavedInternedObjectsMap, SavedInternedObjects);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,7 +49,13 @@ public:
     explicit TLoadContext(TBootstrap* bootstrap);
 
     NObjectServer::TObjectBase* GetWeakGhostObject(NObjectServer::TObjectId id) const;
+
+    template <class T>
+    const TInternRegistryPtr<T>& GetInternRegistry() const;
 };
+
+template <>
+const NSecurityServer::TSecurityTagsRegistryPtr& TLoadContext::GetInternRegistry<NSecurityServer::TSecurityTags>() const;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,7 +73,6 @@ private:
         ICheckpointableOutputStream* output) override;
     virtual std::unique_ptr<NHydra::TLoadContext> CreateLoadContext(
         ICheckpointableInputStream* input) override;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TMasterAutomaton)
@@ -82,7 +92,6 @@ protected:
 
     virtual bool ValidateSnapshotVersion(int version) override;
     virtual int GetCurrentSnapshotVersion() override;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TMasterAutomatonPart)

@@ -9,6 +9,7 @@
 #include "request_tracker.h"
 #include "user.h"
 #include "user_proxy.h"
+#include "security_tags.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/config_manager.h>
@@ -46,6 +47,7 @@
 #include <yt/core/erasure/codec.h>
 
 #include <yt/core/misc/optional.h>
+#include <yt/core/misc/intern_registry.h>
 
 #include <yt/core/logging/fluent_log.h>
 
@@ -813,7 +815,6 @@ public:
             .Item("member_name").Value(member->GetName());
     }
 
-
     void RenameSubject(TSubject* subject, const TString& newName)
     {
         ValidateSubjectName(newName);
@@ -892,6 +893,7 @@ public:
         return result;
     }
 
+
     void SetAuthenticatedUser(TUser* user)
     {
         *AuthenticatedUser_ = user;
@@ -926,91 +928,26 @@ public:
         return std::nullopt;
     }
 
-    static std::optional<EAceInheritanceMode> GetInheritedInheritanceMode(EAceInheritanceMode mode, int depth)
-    {
-        auto nothing = std::optional<EAceInheritanceMode>();
-        switch (mode) {
-            case EAceInheritanceMode::ObjectAndDescendants:
-                return EAceInheritanceMode::ObjectAndDescendants;
-            case EAceInheritanceMode::ObjectOnly:
-                return (depth == 0 ? EAceInheritanceMode::ObjectOnly : nothing);
-            case EAceInheritanceMode::DescendantsOnly:
-                return (depth > 0 ? EAceInheritanceMode::ObjectAndDescendants : nothing);
-            case EAceInheritanceMode::ImmediateDescendantsOnly:
-                return (depth == 1 ? EAceInheritanceMode::ObjectOnly : nothing);
-        }
-        Y_UNREACHABLE();
-    }
 
-    static bool CheckInheritanceMode(EAceInheritanceMode mode, int depth)
-    {
-        return GetInheritedInheritanceMode(mode, depth).operator bool();
-    }
-
-    bool IsUserRootOrSuperuser(const TUser* user)
-    {
-        // NB: This is also useful for migration when "superusers" is initially created.
-        if (user == RootUser_) {
-            return true;
-        }
-
-        if (user->RecursiveMemberOf().find(SuperusersGroup_) != user->RecursiveMemberOf().end()) {
-            return true;
-        }
-
-        return false;
-    }
-
-    bool FastChecksPassed(
-        TUser* user,
-        EPermission permission,
-        TPermissionCheckResult* result)
-    {
-        // Fast lane: "replicator", though being superuser, cannot write in safe mode.
-        if (user == ReplicatorUser_ &&
-            permission != EPermission::Read &&
-            Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode)
-        {
-            result->Action = ESecurityAction::Deny;
-            return true;
-        }
-
-        // Fast lane: "root" and "superusers" need no autorization.
-        if (IsUserRootOrSuperuser(user)) {
-            result->Action = ESecurityAction::Allow;
-            return true;
-        }
-
-        // Fast lane: banned users are denied any permission.
-        if (user->GetBanned()) {
-            result->Action = ESecurityAction::Deny;
-            return true;
-        }
-
-        // Fast lane: cluster is in safe mode.
-        if (permission != EPermission::Read &&
-            Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode)
-        {
-            result->Action = ESecurityAction::Deny;
-            return true;
-        }
-
-        return false;
-    }
-
-    TPermissionCheckResult CheckPermission(
+    TPermissionCheckResponse CheckPermission(
         TObjectBase* object,
         TUser* user,
-        EPermission permission)
+        EPermission permission,
+        const TPermissionCheckOptions& options = {})
     {
         if (IsVersionedType(object->GetType()) && object->IsForeign()) {
             YT_LOG_DEBUG_UNLESS(IsRecovery(), "Checking permission for a versioned foreign object (ObjectId: %v)",
                 object->GetId());
         }
-        
-        TPermissionCheckResult result;
-        if (FastChecksPassed(user, permission, &result)) {
-            return result;
+
+        TPermissionChecker checker(
+            this,
+            user,
+            permission,
+            options);
+
+        if (!checker.ShouldProceed()) {
+            return checker.GetResponse();
         }
 
         // Slow lane: check ACLs through the object hierarchy.
@@ -1028,33 +965,10 @@ public:
                     owner = acd->GetOwner();
                 }
 
-                for (const auto& ace : acd->Acl().Entries) {
-                    if (!CheckInheritanceMode(ace.InheritanceMode, depth)) {
-                        continue;
-                    }
-
-                    if (CheckPermissionMatch(ace.Permissions, permission)) {
-                        for (auto* subject : ace.Subjects) {
-                            auto* adjustedSubject = subject == GetOwnerUser() && owner
-                                ? owner
-                                : subject;
-                            if (CheckSubjectMatch(adjustedSubject, user)) {
-                                result.Action = ace.Action;
-                                result.Object = currentObject;
-                                result.Subject = subject;
-                                // At least one denying ACE is found, deny the request.
-                                if (result.Action == ESecurityAction::Deny) {
-                                    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: explicit denying ACE found "
-                                        "(CheckObjectId: %v, Permission: %v, User: %v, AclObjectId: %v, AclSubject: %v)",
-                                        object->GetId(),
-                                        permission,
-                                        user->GetName(),
-                                        result.Object->GetId(),
-                                        result.Subject->GetName());
-                                    return result;
-                                }
-                            }
-                        }
+                for (const auto& ace: acd->Acl().Entries) {
+                    checker.ProcessAce(ace, owner, currentObject, depth);
+                    if (!checker.ShouldProceed()) {
+                        break;
                     }
                 }
 
@@ -1068,116 +982,120 @@ public:
             ++depth;
         }
 
-        // No allowing ACE, deny the request.
-        if (result.Action == ESecurityAction::Undefined) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: no matching ACE found "
-                "(CheckObjectId: %v, Permission: %v, User: %v)",
-                object->GetId(),
-                permission,
-                user->GetName());
-            result.Action = ESecurityAction::Deny;
-            return result;
-        } else {
-            Y_ASSERT(result.Action == ESecurityAction::Allow);
-            YT_LOG_TRACE_UNLESS(IsRecovery(), "Permission check succeeded: explicit allowing ACE found "
-                "(CheckObjectId: %v, Permission: %v, User: %v, AclObjectId: %v, AclSubject: %v)",
-                object->GetId(),
-                permission,
-                user->GetName(),
-                result.Object->GetId(),
-                result.Subject->GetName());
-            return result;
-        }
+        return checker.GetResponse();
     }
 
-    TPermissionCheckResult CheckPermission(
+    TPermissionCheckResponse CheckPermission(
         TUser* user,
         EPermission permission,
-        const TAccessControlList& acl)
+        const TAccessControlList& acl,
+        const TPermissionCheckOptions& options = {})
     {
-        TPermissionCheckResult result;
-        if (FastChecksPassed(user, permission, &result)) {
-            return result;
+        TPermissionChecker checker(
+            this,
+            user,
+            permission,
+            options);
+
+        if (!checker.ShouldProceed()) {
+            return checker.GetResponse();
         }
 
         for (const auto& ace : acl.Entries) {
-            if (!CheckInheritanceMode(ace.InheritanceMode, 0)) {
-                continue;
-            }
-
-            if (CheckPermissionMatch(ace.Permissions, permission)) {
-                for (auto* subject : ace.Subjects) {
-                    if (CheckSubjectMatch(subject, user)) {
-                        result.Action = ace.Action;
-                        result.Subject = subject;
-                        // At least one denying ACE is found, deny the request.
-                        if (result.Action == ESecurityAction::Deny) {
-                            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: explicit denying ACE found "
-                                "(Permission: %v, User: %v, AclSubject: %v)",
-                                permission,
-                                user->GetName(),
-                                result.Subject->GetName());
-                            return result;
-                        }
-                    }
-                }
+            checker.ProcessAce(ace, nullptr, nullptr, 0);
+            if (!checker.ShouldProceed()) {
+                break;
             }
         }
 
-        // No allowing ACE, deny the request.
-        if (result.Action == ESecurityAction::Undefined) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: no matching ACE found "
-                "(Permission: %v, User: %v)",
-                permission,
-                user->GetName());
-            result.Action = ESecurityAction::Deny;
-            result.Subject = user;
-            return result;
-        } else {
-            Y_ASSERT(result.Action == ESecurityAction::Allow);
-            YT_LOG_TRACE_UNLESS(IsRecovery(), "Permission check succeeded: explicit allowing ACE found "
-                "(Permission: %v, User: %v, AclSubject: %v)",
-                permission,
-                user->GetName(),
-                result.Subject->GetName());
-            return result;
-        }
+        return checker.GetResponse();
     }
 
     void ValidatePermission(
         TObjectBase* object,
         TUser* user,
-        EPermission permission)
+        EPermission permission,
+        const TPermissionCheckOptions& options = {})
     {
         if (IsHiveMutation()) {
             return;
         }
 
-        auto result = CheckPermission(object, user, permission);
-        if (result.Action == ESecurityAction::Deny) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            TError error;
-            auto objectName = objectManager->GetHandler(object)->GetName(object);
-            if (Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode) {
-                error = TError(
-                    NSecurityClient::EErrorCode::AuthorizationError,
-                    "Access denied: cluster is in safe mode. "
-                    "Check for the announces before reporting any issues");
-            } else if (result.Object && result.Subject) {
-                const auto deniedBy = objectManager->GetHandler(result.Object)->GetName(result.Object);
+        YCHECK(!options.Columns);
+
+        auto response = CheckPermission(object, user, permission, options);
+        if (response.Action == ESecurityAction::Allow) {
+            return;
+        }
+
+        TPermissionCheckTarget target;
+        target.Object = object;
+        LogAndThrowAuthorizationError(
+            target,
+            user,
+            permission,
+            response);
+    }
+
+    void ValidatePermission(
+        TObjectBase* object,
+        EPermission permission,
+        const TPermissionCheckOptions& options = {})
+    {
+        ValidatePermission(
+            object,
+            GetAuthenticatedUser(),
+            permission,
+            options);
+    }
+
+    void LogAndThrowAuthorizationError(
+        const TPermissionCheckTarget& target,
+        TUser* user,
+        EPermission permission,
+        const TPermissionCheckResult& result)
+    {
+        if (result.Action != ESecurityAction::Deny) {
+            return;
+        }
+
+        auto objectName = GetPermissionCheckTargetName(target);
+
+        TError error;
+
+        if (Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode) {
+            error = TError(
+                NSecurityClient::EErrorCode::AuthorizationError,
+                "Access denied: cluster is in safe mode. "
+                "Check for the announces before reporting any issues");
+        } else {
+            auto event = LogStructuredEventFluently(Logger, ELogLevel::Info)
+                .Item("event").Value(EAccessControlEvent::AccessDenied)
+                .Item("user").Value(user->GetName())
+                .Item("permission").Value(permission)
+                .Item("object_name").Value(objectName);
+
+            if (target.Column) {
+                event = event
+                    .Item("object_column").Value(*target.Column);
+            }
+
+            if (result.Object && result.Subject) {
+                const auto& objectManager = Bootstrap_->GetObjectManager();
+                auto deniedBy = objectManager->GetHandler(result.Object)->GetName(result.Object);
+
                 error = TError(
                     NSecurityClient::EErrorCode::AuthorizationError,
                     "Access denied: %Qlv permission for %v is denied for %Qv by ACE at %v",
                     permission,
                     objectName,
                     result.Subject->GetName(),
-                    deniedBy);
-                LogStructuredEventFluently(Logger, ELogLevel::Info)
-                    .Item("event").Value(EAccessControlEvent::AccessDenied)
+                    deniedBy)
+                    << TErrorAttribute("denied_by", result.Object->GetId())
+                    << TErrorAttribute("denied_for", result.Subject->GetId());
+
+                event
                     .Item("reason").Value(EAccessDeniedReason::DeniedByAce)
-                    .Item("permission").Value(permission)
-                    .Item("object_name").Value(objectName)
-                    .Item("user").Value(user->GetName())
                     .Item("denied_for").Value(result.Subject->GetName())
                     .Item("denied_by").Value(deniedBy);
             } else {
@@ -1186,36 +1104,20 @@ public:
                     "Access denied: %Qlv permission for %v is not allowed by any matching ACE",
                     permission,
                     objectName);
-                LogStructuredEventFluently(Logger, ELogLevel::Info)
-                    .Item("event").Value(EAccessControlEvent::AccessDenied)
-                    .Item("reason").Value(EAccessDeniedReason::NoAllowingAce)
-                    .Item("permission").Value(permission)
-                    .Item("object_name").Value(objectName)
-                    .Item("user").Value(user->GetName());
+
+                event
+                    .Item("reason").Value(EAccessDeniedReason::NoAllowingAce);
             }
-            error.Attributes().Set("permission", permission);
-            error.Attributes().Set("user", user->GetName());
-            error.Attributes().Set("object", object->GetId());
-            if (result.Object) {
-                error.Attributes().Set("denied_by", result.Object->GetId());
-            }
-            if (result.Subject) {
-                error.Attributes().Set("denied_for", result.Subject->GetId());
-            }
-            THROW_ERROR(error);
         }
-    }
 
-    void ValidatePermission(
-        TObjectBase* object,
-        EPermission permission)
-    {
-        ValidatePermission(
-            object,
-            GetAuthenticatedUser(),
-            permission);
+        error.Attributes().Set("permission", permission);
+        error.Attributes().Set("user", user->GetName());
+        error.Attributes().Set("object_id", target.Object->GetId());
+        if (target.Column) {
+            error.Attributes().Set("object_column", target.Column);
+        }
+        THROW_ERROR(error);
     }
-
 
     void ValidateResourceUsageIncrease(
         TAccount* account,
@@ -1283,6 +1185,7 @@ public:
         }
     }
 
+
     void ValidateLifeStage(TAccount* account)
     {
         if (account->GetLifeStage() == EObjectLifeStage::CreationStarted) {
@@ -1327,6 +1230,7 @@ public:
         }
     }
 
+
     void ChargeUser(TUser* user, const TUserWorkload& workload)
     {
         RequestTracker_->ChargeUser(user, workload);
@@ -1338,7 +1242,7 @@ public:
         return RequestTracker_->ThrottleUserRequest(user, requestCount, workloadType);
     }
 
-    void SetUserReadRequestRateLimit(TUser* user, int limit, EUserWorkloadType type)
+    void SetUserRequestRateLimit(TUser* user, int limit, EUserWorkloadType type)
     {
         RequestTracker_->SetUserRequestRateLimit(user, limit, type);
     }
@@ -1347,6 +1251,7 @@ public:
     {
         RequestTracker_->SetUserRequestQueueSizeLimit(user, limit);
     }
+
 
     bool TryIncreaseRequestQueueSize(TUser* user)
     {
@@ -1357,6 +1262,13 @@ public:
     {
         RequestTracker_->DecreaseRequestQueueSize(user);
     }
+
+
+    const TSecurityTagsRegistryPtr& GetSecurityTagsRegistry() const
+    {
+        return SecurityTagsRegistry_;
+    }
+
 
     DEFINE_SIGNAL(void(TUser*, const TUserWorkload&), UserCharged);
 
@@ -1369,6 +1281,8 @@ private:
     const TSecurityManagerConfigPtr Config_;
 
     const TRequestTrackerPtr RequestTracker_;
+
+    const TSecurityTagsRegistryPtr SecurityTagsRegistry_ = New<TSecurityTagsRegistry>();
 
     TPeriodicExecutorPtr AccountStatisticsGossipExecutor_;
     TPeriodicExecutorPtr UserStatisticsGossipExecutor_;
@@ -1656,28 +1570,6 @@ private:
         }
 
         ValidatePermission(group, EPermission::Write);
-    }
-
-
-    static bool CheckSubjectMatch(TSubject* subject, TUser* user)
-    {
-        switch (subject->GetType()) {
-            case EObjectType::User:
-                return subject == user;
-
-            case EObjectType::Group: {
-                auto* subjectGroup = subject->AsGroup();
-                return user->RecursiveMemberOf().find(subjectGroup) != user->RecursiveMemberOf().end();
-            }
-
-            default:
-                Y_UNREACHABLE();
-        }
-    }
-
-    static bool CheckPermissionMatch(EPermissionSet permissions, EPermission requestedPermission)
-    {
-        return (permissions & requestedPermission) != NonePermissions;
     }
 
 
@@ -2463,6 +2355,298 @@ private:
             THROW_ERROR_EXCEPTION("Subject name cannot be empty");
         }
     }
+
+
+    class TPermissionChecker
+    {
+    public:
+        TPermissionChecker(
+            TImpl* impl,
+            TUser* user,
+            EPermission permission,
+            const TPermissionCheckOptions& options)
+            : Impl_(impl)
+            , User_(user)
+            , Permission_(permission)
+            , Options_(options)
+        {
+            auto fastAction = FastCheckPermission();
+            if (fastAction != ESecurityAction::Undefined) {
+                Response_ = MakeFastCheckPermissionResponse(fastAction, options);
+                Proceed_ = false;
+                return;
+            }
+
+            Response_.Action = ESecurityAction::Undefined;
+            if (Options_.Columns) {
+                for (const auto& column : *Options_.Columns) {
+                    // NB: Multiple occurrences are possible.
+                    Columns_.insert(column);
+                }
+            }
+            Proceed_ = true;
+        }
+
+        bool ShouldProceed() const
+        {
+            return Proceed_;
+        }
+
+        void ProcessAce(
+            const TAccessControlEntry& ace,
+            TSubject* owner,
+            TObjectBase* object,
+            int depth)
+        {
+            if (!Proceed_) {
+                return;
+            }
+
+            if (ace.Columns) {
+                for (const auto& column : *ace.Columns) {
+                    auto it = Columns_.find(column);
+                    if (it == Columns_.end()) {
+                        continue;
+                    }
+                    // NB: Multiple occurrences are possible.
+                    ColumnToResult_.emplace(*it, TPermissionCheckResult());
+                }
+            }
+
+            if (!CheckInheritanceMode(ace.InheritanceMode, depth)) {
+                return;
+            }
+
+            if (!CheckPermissionMatch(ace.Permissions, Permission_)) {
+                return;
+            }
+
+            for (auto* subject : ace.Subjects) {
+                auto* adjustedSubject = subject == Impl_->GetOwnerUser() && owner
+                    ? owner
+                    : subject;
+                if (!adjustedSubject) {
+                    continue;
+                }
+
+                if (!CheckSubjectMatch(adjustedSubject, User_)) {
+                    continue;
+                }
+
+                if (ace.Columns) {
+                    for (const auto& column : *ace.Columns) {
+                        auto it = ColumnToResult_.find(column);
+                        if (it == ColumnToResult_.end()) {
+                            continue;
+                        }
+                        ProcessMatchingAce(
+                            &it->second,
+                            ace,
+                            adjustedSubject,
+                            object);
+                    }
+                } else {
+                    ProcessMatchingAce(
+                        &Response_,
+                        ace,
+                        adjustedSubject,
+                        object);
+                    if (Response_.Action == ESecurityAction::Deny) {
+                        SetDeny(adjustedSubject, object);
+                        break;
+                    }
+                }
+
+                if (!Proceed_) {
+                    break;
+                }
+            }
+        }
+
+        TPermissionCheckResponse GetResponse()
+        {
+            if (Response_.Action == ESecurityAction::Undefined) {
+                SetDeny(nullptr, nullptr);
+            }
+
+            if (Response_.Action == ESecurityAction::Allow && Options_.Columns) {
+                Response_.Columns = std::vector<TPermissionCheckResult>(Options_.Columns->size());
+                for (size_t index = 0; index < Options_.Columns->size(); ++index) {
+                    const auto& column = (*Options_.Columns)[index];
+                    auto& result = (*Response_.Columns)[index];
+                    auto it = ColumnToResult_.find(column);
+                    if (it == ColumnToResult_.end()) {
+                        result = static_cast<const TPermissionCheckResult>(Response_);
+                    } else {
+                        result = it->second;
+                        if (result.Action == ESecurityAction::Undefined) {
+                            result.Action = ESecurityAction::Deny;
+                        }
+                    }
+                }
+            }
+
+            return std::move(Response_);
+        }
+
+    private:
+        TImpl* const Impl_;
+        TUser* const User_;
+        const EPermission Permission_;
+        const TPermissionCheckOptions& Options_;
+
+        THashSet<TStringBuf> Columns_;
+        THashMap<TStringBuf, TPermissionCheckResult> ColumnToResult_;
+
+        bool Proceed_;
+        TPermissionCheckResponse Response_;
+
+        ESecurityAction FastCheckPermission()
+        {
+            // "replicator", though being superuser, can only read in safe mode.
+            if (User_ == Impl_->ReplicatorUser_ &&
+                Permission_ != EPermission::Read &&
+                Impl_->Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode)
+            {
+                return ESecurityAction::Deny;
+            }
+
+            // "root" and "superusers" need no authorization.
+            if (IsUserRootOrSuperuser(User_)) {
+                return ESecurityAction::Allow;
+            }
+
+            // Banned users are denied any permission.
+            if (User_->GetBanned()) {
+                return ESecurityAction::Deny;
+            }
+
+            // Non-reads are forbidden in safe mode.
+            if (Permission_ != EPermission::Read &&
+                Impl_->Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode)
+            {
+                return ESecurityAction::Deny;
+            }
+
+            return ESecurityAction::Undefined;
+        }
+
+        bool IsUserRootOrSuperuser(const TUser* user)
+        {
+            // NB: This is also useful for migration when "superusers" is initially created.
+            if (user == Impl_->RootUser_) {
+                return true;
+            }
+
+            if (user->RecursiveMemberOf().find(Impl_->SuperusersGroup_) != user->RecursiveMemberOf().end()) {
+                return true;
+            }
+
+            return false;
+        }
+
+        static bool CheckSubjectMatch(TSubject* subject, TUser* user)
+        {
+            switch (subject->GetType()) {
+                case EObjectType::User:
+                    return subject == user;
+
+                case EObjectType::Group: {
+                    auto* subjectGroup = subject->AsGroup();
+                    return user->RecursiveMemberOf().find(subjectGroup) != user->RecursiveMemberOf().end();
+                }
+
+                default:
+                    Y_UNREACHABLE();
+            }
+        }
+
+        static bool CheckInheritanceMode(EAceInheritanceMode mode, int depth)
+        {
+            return GetInheritedInheritanceMode(mode, depth).has_value();
+        }
+
+        static bool CheckPermissionMatch(EPermissionSet permissions, EPermission requestedPermission)
+        {
+            return (permissions & requestedPermission) != NonePermissions;
+        }
+
+        static TPermissionCheckResponse MakeFastCheckPermissionResponse(ESecurityAction action, const TPermissionCheckOptions& options)
+        {
+            TPermissionCheckResponse response;
+            response.Action = action;
+            if (options.Columns) {
+                response.Columns = std::vector<TPermissionCheckResult>(options.Columns->size());
+                for (size_t index = 0; index < options.Columns->size(); ++index) {
+                    (*response.Columns)[index].Action = action;
+                }
+            }
+            return response;
+        }
+
+        void ProcessMatchingAce(
+            TPermissionCheckResult* result,
+            const TAccessControlEntry& ace,
+            TSubject* subject,
+            TObjectBase* object)
+        {
+            if (result->Action == ESecurityAction::Deny) {
+                return;
+            }
+
+            result->Action = ace.Action;
+            result->Object = object;
+            result->Subject = subject;
+        }
+
+        static void SetDeny(TPermissionCheckResult* result, TSubject* subject, TObjectBase* object)
+        {
+            result->Action = ESecurityAction::Deny;
+            result->Subject = subject;
+            result->Object = object;
+        }
+
+        void SetDeny(TSubject* subject, TObjectBase* object)
+        {
+            SetDeny(&Response_, subject, object);
+            if (Response_.Columns) {
+                for (auto& result : *Response_.Columns) {
+                    SetDeny(&result, subject, object);
+                }
+            }
+            Proceed_ = false;
+        }
+    };
+
+    static std::optional<EAceInheritanceMode> GetInheritedInheritanceMode(EAceInheritanceMode mode, int depth)
+    {
+        auto nothing = std::optional<EAceInheritanceMode>();
+        switch (mode) {
+            case EAceInheritanceMode::ObjectAndDescendants:
+                return EAceInheritanceMode::ObjectAndDescendants;
+            case EAceInheritanceMode::ObjectOnly:
+                return (depth == 0 ? EAceInheritanceMode::ObjectOnly : nothing);
+            case EAceInheritanceMode::DescendantsOnly:
+                return (depth > 0 ? EAceInheritanceMode::ObjectAndDescendants : nothing);
+            case EAceInheritanceMode::ImmediateDescendantsOnly:
+                return (depth == 1 ? EAceInheritanceMode::ObjectOnly : nothing);
+            default:
+                Y_UNREACHABLE();
+        }
+    }
+
+    TString GetPermissionCheckTargetName(const TPermissionCheckTarget& target)
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto name = objectManager->GetHandler(target.Object)->GetName(target.Object);
+        if (target.Column) {
+            return Format("column %Qv of %v",
+                *target.Column,
+                name);
+        } else {
+            return name;
+        }
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Account, TAccount, AccountMap_)
@@ -2754,46 +2938,67 @@ std::optional<TString> TSecurityManager::GetAuthenticatedUserName()
     return Impl_->GetAuthenticatedUserName();
 }
 
-TPermissionCheckResult TSecurityManager::CheckPermission(
+TPermissionCheckResponse TSecurityManager::CheckPermission(
     TObjectBase* object,
     TUser* user,
-    EPermission permission)
+    EPermission permission,
+    const TPermissionCheckOptions& options)
 {
     return Impl_->CheckPermission(
         object,
         user,
-        permission);
+        permission,
+        options);
 }
 
-TPermissionCheckResult TSecurityManager::CheckPermission(
+TPermissionCheckResponse TSecurityManager::CheckPermission(
     TUser* user,
     EPermission permission,
-    const TAccessControlList& acl)
+    const TAccessControlList& acl,
+    const TPermissionCheckOptions& options)
 {
     return Impl_->CheckPermission(
         user,
         permission,
-        acl);
+        acl,
+        options);
 }
 
 void TSecurityManager::ValidatePermission(
     TObjectBase* object,
     TUser* user,
-    EPermission permission)
+    EPermission permission,
+    const TPermissionCheckOptions& options)
 {
     Impl_->ValidatePermission(
         object,
         user,
-        permission);
+        permission,
+        options);
 }
 
 void TSecurityManager::ValidatePermission(
     TObjectBase* object,
-    EPermission permission)
+    EPermission permission,
+    const TPermissionCheckOptions& options)
 {
     Impl_->ValidatePermission(
         object,
-        permission);
+        permission,
+        options);
+}
+
+void TSecurityManager::LogAndThrowAuthorizationError(
+    const TPermissionCheckTarget& target,
+    TUser* user,
+    EPermission permission,
+    const TPermissionCheckResult& result)
+{
+    Impl_->LogAndThrowAuthorizationError(
+        target,
+        user,
+        permission,
+        result);
 }
 
 void TSecurityManager::ValidateResourceUsageIncrease(
@@ -2827,7 +3032,7 @@ TFuture<void> TSecurityManager::ThrottleUser(TUser* user, int requestCount, EUse
 
 void TSecurityManager::SetUserRequestRateLimit(TUser* user, int limit, EUserWorkloadType type)
 {
-    Impl_->SetUserReadRequestRateLimit(user, limit, type);
+    Impl_->SetUserRequestRateLimit(user, limit, type);
 }
 
 void TSecurityManager::SetUserRequestQueueSizeLimit(TUser* user, int limit)
@@ -2843,6 +3048,11 @@ bool TSecurityManager::TryIncreaseRequestQueueSize(TUser* user)
 void TSecurityManager::DecreaseRequestQueueSize(TUser* user)
 {
     Impl_->DecreaseRequestQueueSize(user);
+}
+
+const TSecurityTagsRegistryPtr& TSecurityManager::GetSecurityTagsRegistry() const
+{
+    return Impl_->GetSecurityTagsRegistry();
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Account, TAccount, *Impl_)

@@ -882,7 +882,8 @@ public:
     {
         return Location_->DisableOnError(BIND(&TImpl::DoOpenChangelog, MakeStrong(this), chunkId))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
-            .Run();
+            .Run()
+            .ToUncancelable();
     }
 
     TFuture<IChangelogPtr> CreateChangelog(
@@ -898,17 +899,20 @@ public:
                 enableMultiplexing,
                 workloadDescriptor))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker());
+
+        TFuture<IChangelogPtr> asyncChangelog;
         if (enableMultiplexing) {
             auto barrier = MultiplexedWriter_->RegisterBarrier();
-            return MultiplexedWriter_->WriteCreateRecord(chunkId)
+            asyncChangelog = MultiplexedWriter_->WriteCreateRecord(chunkId)
                 .Apply(creator)
                 .Apply(BIND([=] (const TErrorOr<IChangelogPtr>& result) mutable {
                     barrier.Set(result.IsOK() ? TError() : TError(result));
                     return result.ValueOrThrow();
                 }));
         } else {
-            return creator.Run();
+            asyncChangelog = creator.Run();
         }
+        return asyncChangelog.ToUncancelable();
     }
 
     TFuture<void> RemoveChangelog(
@@ -921,17 +925,20 @@ public:
                 MakeStrong(this),
                 chunk))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker());
+
+        TFuture<void> asyncResult;
         if (enableMultiplexing) {
             auto barrier = MultiplexedWriter_->RegisterBarrier();
-            return MultiplexedWriter_->WriteRemoveRecord(chunk->GetId())
+            asyncResult = MultiplexedWriter_->WriteRemoveRecord(chunk->GetId())
                 .Apply(remover)
                 .Apply(BIND([=] (const TError& result) mutable {
                     barrier.Set(result);
                     result.ThrowOnError();
                 }));
         } else {
-            return remover.Run();
+            asyncResult = remover.Run();
         }
+        return asyncResult.ToUncancelable();
     }
 
     TFuture<void> AppendMultiplexedRecord(
@@ -959,7 +966,8 @@ public:
     {
         return Location_->DisableOnError(BIND(&TImpl::DoSealChangelog, MakeStrong(this), chunk))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
-            .Run();
+            .Run()
+            .ToUncancelable();
     }
 
 private:

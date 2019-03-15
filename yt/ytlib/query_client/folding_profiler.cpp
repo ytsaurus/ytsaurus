@@ -152,7 +152,7 @@ struct TExpressionFragmentPrinter
     const std::vector<TCodegenFragmentInfo>& Expressions;
 
     TExpressionFragmentPrinter(
-        TStringBuilder* builder,
+        TStringBuilderBase* builder,
         const std::vector<TDebugInfo>& debugExpressions,
         const std::vector<TCodegenFragmentInfo>& expressions)
         : TBase(builder, false)
@@ -1407,6 +1407,7 @@ size_t TQueryProfiler::Profile(
     Fold(static_cast<int>(EFoldingObjectType::NamedExpression));
 
     size_t resultId = TExpressionProfiler::Profile(namedExpression.Expression, schema, fragments);
+    Fold(resultId);
     ++fragments->Items[resultId].UseCount;
 
     return resultId;

@@ -1,18 +1,16 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/public.h>
-
-#include <Interpreters/IRuntimeComponentsFactory.h>
+#include "private.h"
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<DB::IRuntimeComponentsFactory> CreateRuntimeComponentsFactory(
-    IStoragePtr storage,
-    std::string cliqueId,
-    IAuthorizationTokenPtr authToken,
-    std::string homePath,
-    ICliqueAuthorizationManagerPtr cliqueAuthorizationManager);
+    std::unique_ptr<DB::ISecurityManager> securityManager,
+    std::unique_ptr<DB::IExternalLoaderConfigRepository> dictionariesConfigRepository,
+    std::unique_ptr<IGeoDictionariesLoader> geoDictionariesLoader);
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer

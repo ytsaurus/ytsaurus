@@ -84,7 +84,7 @@ TOrderedDynamicStorePtr IStore::AsOrderedDynamic()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TStoreIdFormatter::operator()(TStringBuilder* builder, const IStorePtr& store) const
+void TStoreIdFormatter::operator()(TStringBuilderBase* builder, const IStorePtr& store) const
 {
     FormatValue(builder, store->GetId(), TStringBuf());
 }

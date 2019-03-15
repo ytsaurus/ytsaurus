@@ -378,7 +378,7 @@ private:
     {
         if (CurrentJob()->GetSliceCount() > 0) {
             if (Sampler_->Sample()) {
-                YT_LOG_DEBUG("Ordered job created (JobIndex: %v, BuiltJobCount: %v, RowCount: %v, SliceCount: %v)",
+                YT_LOG_DEBUG("Ordered job created (JobIndex: %v, BuiltJobCount: %v, PrimaryDataWeight: %v, RowCount: %v, SliceCount: %v)",
                     JobIndex_,
                     BuiltJobCount_,
                     CurrentJob()->GetPrimaryDataWeight(),
@@ -406,7 +406,7 @@ private:
 
                 Y_ASSERT(!CurrentJob_);
             } else {
-                YT_LOG_DEBUG("Ordered job skipped (JobIndex: %v, BuiltJobCount: %v, DataWeight: %v, RowCount: %v, SliceCount: %v)",
+                YT_LOG_DEBUG("Ordered job skipped (JobIndex: %v, BuiltJobCount: %v, PrimatyDataWeight: %v, DataWeight: %v, RowCount: %v, SliceCount: %v)",
                     JobIndex_,
                     BuiltJobCount_,
                     CurrentJob()->GetPrimaryDataWeight(),

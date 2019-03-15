@@ -29,7 +29,7 @@ class TestOrchid(YTEnvSetup):
         self._check_orchid("//sys/primary_masters", self.NUM_MASTERS, "master")
 
     def test_at_nodes(self):
-        self._check_orchid("//sys/nodes", self.NUM_NODES, "node")
+        self._check_orchid("//sys/cluster_nodes", self.NUM_NODES, "node")
 
     def test_at_scheduler(self):
         self._check_service("//sys/scheduler/orchid", "scheduler")
@@ -42,7 +42,7 @@ class TestOrchid(YTEnvSetup):
             peers = get("//sys/tablet_cells/" + cell + "/@peers")
             for peer in peers:
                 address = peer["address"]
-                peer_cells = ls("//sys/nodes/" + address + "/orchid/tablet_cells")
+                peer_cells = ls("//sys/cluster_nodes/" + address + "/orchid/tablet_cells")
                 assert cell in peer_cells
 
 ##################################################################

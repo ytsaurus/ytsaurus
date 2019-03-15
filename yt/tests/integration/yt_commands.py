@@ -9,13 +9,14 @@ from yt.test_helpers import wait
 from yt.test_helpers.job_events import JobEvents, TimeoutError
 
 import __builtin__
-import copy as pycopy
-
 import contextlib
+import copy as pycopy
 import decorator
 import os
+import random
 import re
 import stat
+import string
 import sys
 import tempfile
 import time
@@ -107,6 +108,25 @@ def init_drivers(clusters):
                 secondary_drivers.append(Driver(config=secondary_driver_config))
 
             clusters_drivers[instance._cluster_name] = [driver] + secondary_drivers
+
+def wait_assert(check_fn, *args, **kwargs):
+    last_exception = []
+    last_exc_info = []
+    def wrapper():
+        try:
+            check_fn(*args, **kwargs)
+        except AssertionError as e:
+            last_exception[:] = [e]
+            last_exc_info[:] = [sys.exc_info()]
+            return False
+        return True
+    try:
+        wait(wrapper)
+    except WaitFailed:
+        if not last_exception:
+            raise
+        tb = "\n".join(traceback.format_tb(last_exc_info[0][2]))
+        raise AssertionError("waited assertion failed\n{}{}".format(tb, last_exception[0]))
 
 def wait_drivers():
     for cluster in clusters_drivers.values():
@@ -703,7 +723,7 @@ class Operation(object):
     def get_job_phase(self, job_id):
         job_path = "//sys/scheduler/orchid/scheduler/jobs/{0}".format(job_id)
         node = get(job_path + "/address", verbose=False)
-        job_phase_path = "//sys/nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/job_phase".format(node, job_id)
+        job_phase_path = "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/job_phase".format(node, job_id)
         return get(job_phase_path, verbose=False)
 
     def ensure_running(self, timeout=2.0):
@@ -775,9 +795,9 @@ class Operation(object):
 
     def build_progress(self):
         try:
-            progress = get(self.get_path() + "/@brief_progress/jobs", verbose=False)
+            progress = get(self.get_path() + "/@brief_progress/jobs", verbose=False, verbose_error=False)
         except YtError:
-            return ""
+            return "(brief progress is not available yet)"
 
         result = {}
         for job_type in progress:
@@ -997,11 +1017,7 @@ def create_account(name, **kwargs):
     kwargs["attributes"]["name"] = name
     execute_command("create", kwargs)
     if atomic:
-        for _ in xrange(100):
-            if get("//sys/accounts/{0}/@life_stage".format(name)) == 'creation_committed':
-                return
-            time.sleep(0.3)
-        raise TimeoutError("Account \"{0}\" creation timed out".format(name))
+        wait(lambda: get("//sys/accounts/{0}/@life_stage".format(name)) == 'creation_committed')
 
 def remove_account(name, **kwargs):
     gc_collect(kwargs.get("driver"))
@@ -1013,6 +1029,9 @@ def create_user(name, **kwargs):
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
     execute_command("create", kwargs)
+
+def make_random_string(length=10):
+    return "".join(random.choice(string.letters) for _ in xrange(length))
 
 def create_test_tables(row_count=1, **kwargs):
     create("table", "//tmp/t_in", **kwargs)
@@ -1169,7 +1188,7 @@ def get_racks(driver=None):
     return ls("//sys/racks", driver=driver)
 
 def get_nodes(driver=None):
-    return ls("//sys/nodes", driver=driver)
+    return ls("//sys/cluster_nodes", driver=driver)
 
 def get_media(driver=None):
     return ls("//sys/media", driver=driver)
@@ -1200,19 +1219,22 @@ def set_account_disk_space_limit(account, limit, medium="default"):
 def get_chunk_replication_factor(chunk_id):
     return get("#{0}/@media/default/replication_factor".format(chunk_id))
 
-def make_ace(action, subjects, permissions, inheritance_mode="object_and_descendants"):
+def make_ace(action, subjects, permissions, inheritance_mode="object_and_descendants", columns=None):
     def _to_list(x):
         if isinstance(x, str):
             return [x]
         else:
             return x
 
-    return {
+    ace = {
         "action": action,
         "subjects": _to_list(subjects),
         "permissions": _to_list(permissions),
         "inheritance_mode": inheritance_mode
     }
+    if columns is not None:
+        ace["columns"] = _to_list(columns)
+    return ace
 
 #########################################
 
@@ -1281,29 +1303,23 @@ def check_all_stderrs(op, expected_content, expected_count, substring=False):
 def set_banned_flag(value, nodes=None):
     if value:
         flag = True
-        state = "offline"
+        expected_state = "offline"
     else:
         flag = False
-        state = "online"
+        expected_state = "online"
 
     if not nodes:
-        nodes = get("//sys/nodes").keys()
+        nodes = ls("//sys/cluster_nodes")
 
     for address in nodes:
-        set("//sys/nodes/{0}/@banned".format(address), flag)
+        set("//sys/cluster_nodes/{0}/@banned".format(address), flag)
 
-    for iter in xrange(50):
-        ok = True
+    def check():
         for address in nodes:
-            if get("//sys/nodes/{0}/@state".format(address)) != state:
-                ok = False
-                break
-        if ok:
-            for address in nodes:
-                print >>sys.stderr, "Node {0} is {1}".format(address, state)
-            break
-
-        time.sleep(0.1)
+            if get("//sys/cluster_nodes/{0}/@state".format(address)) != expected_state:
+                return False
+        return True
+    wait(check)
 
 ##################################################################
 
@@ -1321,19 +1337,19 @@ class PrepareTables(object):
 ##################################################################
 
 def set_node_banned(address, flag, driver=None):
-    set("//sys/nodes/%s/@banned" % address, flag, driver=driver)
+    set("//sys/cluster_nodes/%s/@banned" % address, flag, driver=driver)
     ban, state = ("banned", "offline") if flag else ("unbanned", "online")
     print >>sys.stderr, "Waiting for node %s to become %s..." % (address, ban)
-    wait(lambda: get("//sys/nodes/%s/@state" % address, driver=driver) == state)
+    wait(lambda: get("//sys/cluster_nodes/%s/@state" % address, driver=driver) == state)
 
 def set_node_decommissioned(address, flag, driver=None):
-    set("//sys/nodes/%s/@decommissioned" % address, flag, driver=driver)
+    set("//sys/cluster_nodes/%s/@decommissioned" % address, flag, driver=driver)
     print >>sys.stderr, "Node %s is %s" % (address, "decommissioned" if flag else "not decommissioned")
 
 def wait_for_nodes(driver=None):
     print >>sys.stderr, "Waiting for nodes to become online..."
     wait(lambda: all(n.attributes["state"] == "online"
-                     for n in ls("//sys/nodes", attributes=["state"], driver=driver)))
+                     for n in ls("//sys/cluster_nodes", attributes=["state"], driver=driver)))
 
 def wait_for_chunk_replicator(driver=None):
     print >>sys.stderr, "Waiting for chunk replicator to become enabled..."
@@ -1364,7 +1380,7 @@ def wait_for_cells(cell_ids=None, driver=None):
                 return False
             node = peer["address"]
             try:
-                if not exists("//sys/nodes/{0}/orchid/tablet_cells/{1}".format(node, cell.attributes["id"]), driver=driver):
+                if not exists("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}".format(node, cell.attributes["id"]), driver=driver):
                     return False
             except YtResponseError:
                 return False
@@ -1490,7 +1506,7 @@ def sync_alter_table_replica_mode(replica_id, mode, driver=None):
     addresses = [get_tablet_leader_address(tablet_id) for tablet_id in tablet_ids]
     def check():
         for tablet_id, cell_id, address in zip(tablet_ids, cell_ids, addresses):
-            actual_mode = get("//sys/nodes/{}/orchid/tablet_cells/{}/tablets/{}/replicas/{}/mode".format(address, cell_id, tablet_id, replica_id), driver=driver)
+            actual_mode = get("//sys/cluster_nodes/{}/orchid/tablet_cells/{}/tablets/{}/replicas/{}/mode".format(address, cell_id, tablet_id, replica_id), driver=driver)
             if actual_mode != mode:
                 return False
         return True

@@ -306,7 +306,7 @@ void AppendUdfDescriptors(
         functionBody.ChunkSpecs = chunks;
 
         YT_LOG_DEBUG("Appending UDF descriptor {%v}",
-            MakeFormattableRange(chunks, [] (TStringBuilder* builder, const NChunkClient::NProto::TChunkSpec& chunkSpec) {
+            MakeFormattableView(chunks, [] (TStringBuilderBase* builder, const NChunkClient::NProto::TChunkSpec& chunkSpec) {
                 builder->AppendFormat("%v", FromProto<TGuid>(chunkSpec.chunk_id()));
             }));
 
@@ -480,7 +480,7 @@ bool TFunctionImplKey::operator == (const TFunctionImplKey& other) const
 TString ToString(const TFunctionImplKey& key)
 {
     return Format("{%v}", JoinToString(key.ChunkSpecs, [] (
-        TStringBuilder* builder,
+        TStringBuilderBase* builder,
         const NChunkClient::NProto::TChunkSpec& chunkSpec)
     {
         builder->AppendFormat("%v", FromProto<TGuid>(chunkSpec.chunk_id()));
@@ -531,8 +531,8 @@ public:
             New<NApi::TFileReaderConfig>(),
             New<NChunkClient::TMultiChunkReaderOptions>(),
             client,
-            NNodeTrackerClient::TNodeDescriptor(),
-            std::nullopt,
+            /* localDescriptor */ {},
+            /* partitionTag */ std::nullopt,
             client->GetNativeConnection()->GetBlockCache(),
             std::move(nodeDirectory),
             blockReadOptions,
@@ -719,14 +719,9 @@ void Serialize(const TDescriptorType& value, NYson::IYsonConsumer* consumer)
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("tag").Value(static_cast<ETypeCategory>(value.Type.index()))
-            .DoIf(std::holds_alternative<TTypeArgument>(value.Type), [&] (TFluentMap fluent) {
-                fluent.Item("value").Value(std::get<TTypeArgument>(value.Type));
-            })
-            .DoIf(std::holds_alternative<TUnionType>(value.Type), [&] (TFluentMap fluent) {
-                fluent.Item("value").Value(std::get<TUnionType>(value.Type));
-            })
-            .DoIf(std::holds_alternative<EValueType>(value.Type), [&] (TFluentMap fluent) {
-                fluent.Item("value").Value(std::get<EValueType>(value.Type));
+            .Do([&] (TFluentMap fluent) {
+                Visit(value.Type,
+                    [&] (const auto& v) { fluent.Item("value").Value(v); });
             })
         .EndMap();
 }

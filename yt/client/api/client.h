@@ -246,7 +246,9 @@ struct TCheckPermissionOptions
     , public TMasterReadOptions
     , public TTransactionalOptions
     , public TPrerequisiteOptions
-{ };
+{
+    std::optional<std::vector<TString>> Columns;
+};
 
 struct TCheckPermissionResult
 {
@@ -257,6 +259,12 @@ struct TCheckPermissionResult
     std::optional<TString> ObjectName;
     NSecurityClient::TSubjectId SubjectId;
     std::optional<TString> SubjectName;
+};
+
+struct TCheckPermissionResponse
+    : public TCheckPermissionResult
+{
+    std::optional<std::vector<TCheckPermissionResult>> Columns;
 };
 
 struct TCheckPermissionByAclOptions
@@ -427,6 +435,8 @@ struct TSelectRowsOptions
     bool AllowJoinWithoutIndex = false;
     //! Path in Cypress with UDFs.
     std::optional<TString> UdfRegistryPath;
+    //! Memory limit per execution node
+    size_t MemoryLimitPerNode = std::numeric_limits<size_t>::max();
 };
 
 struct TGetNodeOptions
@@ -561,9 +571,7 @@ struct TConcatenateNodesOptions
     : public TTimeoutOptions
     , public TTransactionalOptions
     , public TMutatingOptions
-{
-    bool Append = false;
-};
+{ };
 
 struct TNodeExistsOptions
     : public TTimeoutOptions
@@ -586,10 +594,7 @@ struct TFileWriterOptions
     : public TTransactionalOptions
     , public TPrerequisiteOptions
 {
-    bool Append = true;
     bool ComputeMD5 = false;
-    std::optional<NCompression::ECodec> CompressionCodec;
-    std::optional<NErasure::ECodec> ErasureCodec;
     TFileWriterConfigPtr Config;
 };
 
@@ -632,6 +637,7 @@ struct TTableReaderOptions
     : public TTransactionalOptions
 {
     bool Unordered = false;
+    bool OmitInaccessibleColumns = false;
     NTableClient::TTableReaderConfigPtr Config;
 };
 
@@ -712,6 +718,22 @@ DEFINE_ENUM(EOperationSortDirection,
     ((Future) (2))
 );
 
+struct TListOperationsAccessFilter
+    : NYTree::TYsonSerializable
+{
+    TString Subject;
+    NYTree::EPermissionSet Permissions;
+
+    TListOperationsAccessFilter()
+    {
+        RegisterParameter("subject", Subject);
+        RegisterParameter("permissions", Permissions);
+    }
+};
+
+DECLARE_REFCOUNTED_TYPE(TListOperationsAccessFilter);
+DEFINE_REFCOUNTED_TYPE(TListOperationsAccessFilter);
+
 struct TListOperationsOptions
     : public TTimeoutOptions
     , public TMasterReadOptions
@@ -722,9 +744,7 @@ struct TListOperationsOptions
     EOperationSortDirection CursorDirection = EOperationSortDirection::Past;
     std::optional<TString> UserFilter;
 
-    // XXX(lesysotsky): OwnedBy filter is currently supported only
-    // for Cypress operations, so IncludeArchive must be |false|.
-    std::optional<TString> OwnedBy;
+    TListOperationsAccessFilterPtr AccessFilter;
 
     std::optional<NScheduler::EOperationState> StateFilter;
     std::optional<NScheduler::EOperationType> TypeFilter;
@@ -796,9 +816,6 @@ struct TListJobsOptions
     EDataSource DataSource = EDataSource::Auto;
 
     TDuration RunningJobsLookbehindPeriod = TDuration::Minutes(1);
-
-    TListJobsOptions()
-    { }
 };
 
 struct TStraceJobOptions
@@ -829,9 +846,6 @@ struct TGetOperationOptions
 {
     std::optional<THashSet<TString>> Attributes;
     bool IncludeRuntime = false;
-
-    TGetOperationOptions()
-    { }
 };
 
 struct TGetJobOptions
@@ -939,6 +953,8 @@ struct TListJobsResult
     std::optional<int> ArchiveJobCount;
 
     TListJobsStatistics Statistics;
+
+    std::vector<TError> Errors;
 };
 
 struct TGetFileFromCacheResult
@@ -990,8 +1006,7 @@ struct IClientBase
 
     virtual TFuture<ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,
-        const TTableReaderOptions& options = TTableReaderOptions(),
-        const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory = nullptr) = 0;
+        const TTableReaderOptions& options = TTableReaderOptions()) = 0;
 
     virtual TFuture<ITableWriterPtr> CreateTableWriter(
         const NYPath::TRichYPath& path,
@@ -1045,8 +1060,8 @@ struct IClientBase
         const TLinkNodeOptions& options = TLinkNodeOptions()) = 0;
 
     virtual TFuture<void> ConcatenateNodes(
-        const std::vector<NYPath::TYPath>& srcPaths,
-        const NYPath::TYPath& dstPath,
+        const std::vector<NYPath::TRichYPath>& srcPaths,
+        const NYPath::TRichYPath& dstPath,
         const TConcatenateNodesOptions& options = TConcatenateNodesOptions()) = 0;
 
     virtual TFuture<bool> NodeExists(
@@ -1067,7 +1082,7 @@ struct IClientBase
         const TFileReaderOptions& options = TFileReaderOptions()) = 0;
 
     virtual IFileWriterPtr CreateFileWriter(
-        const NYPath::TYPath& path,
+        const NYPath::TRichYPath& path,
         const TFileWriterOptions& options = TFileWriterOptions()) = 0;
 
     // Journals
@@ -1205,7 +1220,7 @@ struct IClient
         const TString& member,
         const TRemoveMemberOptions& options = TRemoveMemberOptions()) = 0;
 
-    virtual TFuture<TCheckPermissionResult> CheckPermission(
+    virtual TFuture<TCheckPermissionResponse> CheckPermission(
         const TString& user,
         const NYPath::TYPath& path,
         NYTree::EPermission permission,

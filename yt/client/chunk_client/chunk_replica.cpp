@@ -62,7 +62,7 @@ TChunkReplicaAddressFormatter::TChunkReplicaAddressFormatter(TNodeDirectoryPtr n
     : NodeDirectory_(std::move(nodeDirectory))
 { }
 
-void TChunkReplicaAddressFormatter::operator()(TStringBuilder* builder, TChunkReplica replica) const
+void TChunkReplicaAddressFormatter::operator()(TStringBuilderBase* builder, TChunkReplica replica) const
 {
     const auto* descriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
     if (descriptor) {

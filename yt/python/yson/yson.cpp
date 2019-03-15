@@ -254,9 +254,9 @@ public:
         Py::Object skiffRecordClass(TSkiffRecordPython::type());
         Py::Object skiffSchemaClass(TSkiffSchemaPython::type());
         Py::Object skiffTableSwitchClass(TSkiffTableSwitchPython::type());
-        moduleDict["SkiffRecord"] = skiffRecordClass;
-        moduleDict["SkiffSchema"] = skiffSchemaClass;
-        moduleDict["SkiffTableSwitch"] = skiffTableSwitchClass;
+        moduleDict.setItem("SkiffRecord", skiffRecordClass);
+        moduleDict.setItem("SkiffSchema", skiffSchemaClass);
+        moduleDict.setItem("SkiffTableSwitch", skiffTableSwitchClass);
     }
 
     Py::Object IsDebugBuild(const Py::Tuple& /*args_*/, const Py::Dict& /*kwargs_*/)

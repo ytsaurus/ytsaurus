@@ -45,7 +45,7 @@ struct TExpressionPrinter
     : TAbstractExpressionPrinter<TExpressionPrinter, TConstExpressionPtr>
 {
     using TBase = TAbstractExpressionPrinter<TExpressionPrinter, TConstExpressionPtr>;
-    TExpressionPrinter(TStringBuilder* builder, bool omitValues)
+    TExpressionPrinter(TStringBuilderBase* builder, bool omitValues)
         : TBase(builder, omitValues)
     { }
 };
@@ -63,13 +63,13 @@ TString InferName(TConstExpressionPtr expr, bool omitValues)
 
 TString InferName(TConstBaseQueryPtr query, bool omitValues)
 {
-    auto namedItemFormatter = [&] (TStringBuilder* builder, const TNamedItem& item) {
+    auto namedItemFormatter = [&] (TStringBuilderBase* builder, const TNamedItem& item) {
         builder->AppendFormat("%v AS %v",
             InferName(item.Expression, omitValues),
             item.Name);
     };
 
-    auto orderItemFormatter = [&] (TStringBuilder* builder, const TOrderItem& item) {
+    auto orderItemFormatter = [&] (TStringBuilderBase* builder, const TOrderItem& item) {
         builder->AppendFormat("%v %v",
             InferName(item.first, omitValues),
             item.second ? "DESC" : "ASC");
@@ -752,6 +752,7 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
     serialized->set_allow_full_scan(original.AllowFullScan);
     ToProto(serialized->mutable_read_session_id(), original.ReadSessionId);
     serialized->set_deadline(ToProto<ui64>(original.Deadline));
+    serialized->set_memory_limit_per_node(original.MemoryLimitPerNode);
 }
 
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
@@ -768,6 +769,11 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     original->ReadSessionId  = serialized.has_read_session_id()
         ? FromProto<NChunkClient::TReadSessionId>(serialized.read_session_id())
         : NChunkClient::TReadSessionId::Create();
+
+    if (serialized.has_memory_limit_per_node()) {
+        original->MemoryLimitPerNode = serialized.memory_limit_per_node();
+    }
+
     original->Deadline = serialized.has_deadline()
         ? FromProto<TInstant>(serialized.deadline())
         : TInstant::Max();

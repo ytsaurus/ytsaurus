@@ -9,7 +9,7 @@
 
 #include <yt/server/lib/hydra/entity_map.h>
 
-#include <yt/server/master/security_server/public.h>
+#include <yt/server/master/security_server/security_tags.h>
 
 #include <yt/server/master/transaction_server/public.h>
 
@@ -55,10 +55,21 @@ protected:
 
     NYTree::IAttributeDictionary* CustomAttributes_ = nullptr;
 
+    struct TGetBasicAttributesContext
+    {
+        NYTree::EPermission Permission = {};
+        TCellTag CellTag = NObjectClient::InvalidCellTag;
+        std::optional<std::vector<TString>> Columns;
+        bool OmitInaccessibleColumns = false;
+        std::optional<std::vector<TString>> OmittedInaccessibleColumns;
+        bool PopulateSecurityTags = false;
+        std::optional<NSecurityServer::TSecurityTags> SecurityTags;
+    };
 
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetBasicAttributes);
-    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, CheckPermission);
+    virtual void GetBasicAttributes(TGetBasicAttributesContext* context);
 
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, CheckPermission);
 
     //! Returns the full object id that coincides with #Id
     //! for non-versioned objects and additionally includes transaction id for
@@ -119,7 +130,7 @@ protected:
     virtual void ValidatePermission(
         NYTree::EPermissionCheckScope scope,
         NYTree::EPermission permission,
-        const TString& /* user */ = "") override;
+        const TString& /* user */ = {}) override;
 
     void ValidatePermission(
         TObjectBase* object,

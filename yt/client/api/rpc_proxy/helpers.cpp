@@ -360,6 +360,7 @@ void ToProto(
     }
 
     ToProto(proto->mutable_statistics(), result.Statistics);
+    NYT::ToProto(proto->mutable_errors(), result.Errors);
 }
 
 void FromProto(
@@ -385,6 +386,7 @@ void FromProto(
     }
 
     FromProto(&result->Statistics, proto.statistics());
+    NYT::FromProto(&result->Errors, proto.errors());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -493,6 +495,7 @@ void ToProto(
     protoStatistics->set_wait_on_ready_event_time(statistics.WaitOnReadyEventTime.GetValue());
     protoStatistics->set_incomplete_input(statistics.IncompleteInput);
     protoStatistics->set_incomplete_output(statistics.IncompleteOutput);
+    protoStatistics->set_memory_usage(statistics.MemoryUsage);
 
     NYT::ToProto(protoStatistics->mutable_inner_statistics(), statistics.InnerStatistics);
 }
@@ -513,6 +516,7 @@ void FromProto(
     statistics->WaitOnReadyEventTime = TDuration::FromValue(protoStatistics.wait_on_ready_event_time());
     statistics->IncompleteInput = protoStatistics.incomplete_input();
     statistics->IncompleteOutput = protoStatistics.incomplete_output();
+    statistics->MemoryUsage = protoStatistics.memory_usage();
 
     NYT::FromProto(&statistics->InnerStatistics, protoStatistics.inner_statistics());
 }

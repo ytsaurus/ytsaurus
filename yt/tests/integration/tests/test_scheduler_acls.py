@@ -15,7 +15,7 @@ from copy import deepcopy
 def _abort_op(**kwargs):
     abort_op(kwargs.pop("operation_id"), **kwargs)
 
-class TestOperationAcls(YTEnvSetup):
+class TestSchedulerAcls(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
     SINGLE_SETUP_TEARDOWN = True
 
@@ -37,10 +37,10 @@ class TestOperationAcls(YTEnvSetup):
             "alerts_update_period": 100,
             "operations_update_period": 100,
         },
+        "controller_agent": {
+            "watchers_update_period": 100,
+        },
     }
-
-    input_path = "//tmp/input"
-    output_path = "//tmp/output"
 
     operation_authenticated_user = "operation_authenticated_user"
     no_rights_user = "no_rights_user"
@@ -58,15 +58,11 @@ class TestOperationAcls(YTEnvSetup):
 
     @classmethod
     def setup_class(cls):
-        super(TestOperationAcls, cls).setup_class()
+        super(TestSchedulerAcls, cls).setup_class()
 
         # Init operations archive.
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(cls.Env.create_native_client())
-
-        create("table", cls.input_path)
-        write_table(cls.input_path, {"key": i for i in xrange(20)})
-        create("table", cls.output_path)
+        init_operation_archive.create_tables_latest_version(cls.Env.create_native_client(), override_tablet_cell_bundle="default")
 
         for user in [
             cls.operation_authenticated_user,
@@ -80,6 +76,14 @@ class TestOperationAcls(YTEnvSetup):
     @staticmethod
     def _random_string(length):
         return "".join(random.choice(string.letters) for _ in xrange(length))
+
+    def _create_tables(self):
+        input_path = "//tmp/input_" + self._random_string(5)
+        output_path = "//tmp/output_" + self._random_string(5)
+        create("table", input_path)
+        write_table(input_path, {"key": i for i in xrange(20)})
+        create("table", output_path)
+        return input_path, output_path
 
     @staticmethod
     def _validate_access(user, should_have_access, action, **action_args):
@@ -107,6 +111,7 @@ class TestOperationAcls(YTEnvSetup):
             raise AssertionError(message)
 
     def _run_and_fail_op(self, should_update_operation_parameters):
+        input_path, output_path = self._create_tables()
         breakpoint_name = "breakpoint_" + self._random_string(10)
         spec = deepcopy(self.spec)
         spec["job_count"] = 1
@@ -115,8 +120,8 @@ class TestOperationAcls(YTEnvSetup):
             del spec["acl"]
         op = map(
             dont_track=True,
-            in_=self.input_path,
-            out=self.output_path,
+            in_=input_path,
+            out=output_path,
             command=with_breakpoint("cat; echo SOME-STDERR >&2; BREAKPOINT; exit 1", breakpoint_name=breakpoint_name),
             authenticated_user=self.operation_authenticated_user,
             spec=spec,
@@ -131,6 +136,7 @@ class TestOperationAcls(YTEnvSetup):
 
     @contextmanager
     def _run_op_context_manager(self, should_update_operation_parameters=False, spec=None):
+        input_path, output_path = self._create_tables()
         breakpoint_name = "breakpoint_" + self._random_string(10)
         command = with_breakpoint("echo SOME-STDERR >&2; cat; BREAKPOINT;", breakpoint_name=breakpoint_name)
         if spec is None:
@@ -139,29 +145,32 @@ class TestOperationAcls(YTEnvSetup):
             saved_acl = spec.pop("acl")
         op = map(
             dont_track=True,
-            in_=self.input_path,
-            out=self.output_path,
+            in_=input_path,
+            out=output_path,
             command=command,
             authenticated_user=self.operation_authenticated_user,
             spec=spec,
         )
-        job_id, = wait_breakpoint(breakpoint_name=breakpoint_name)
-        if should_update_operation_parameters:
-            update_op_parameters(op.id, parameters={"acl": saved_acl})
-
-        yield op, job_id
-
-        release_breakpoint(breakpoint_name=breakpoint_name)
         try:
-            op.complete()
-        except YtError as e:
-            # TODO: Ensure it is "no such operation" error.
-            pass
-        try:
-            op.track()
-        except YtError as e:
-            # TODO: Ensure it is "no such operation" error or operation has failed or aborted.
-            pass
+            job_id, = wait_breakpoint(breakpoint_name=breakpoint_name)
+            if should_update_operation_parameters:
+                update_op_parameters(op.id, parameters={"acl": saved_acl})
+            wait(op.get_running_jobs)
+
+            yield op, job_id
+
+            release_breakpoint(breakpoint_name=breakpoint_name)
+        finally:
+            try:
+                op.complete()
+            except YtError as e:
+                # TODO: Ensure it is "no such operation" error.
+                pass
+            try:
+                op.track()
+            except YtError as e:
+                # TODO: Ensure it is "no such operation" error or operation has failed or aborted.
+                pass
 
 
     @pytest.mark.parametrize("should_update_operation_parameters", [False, True])
@@ -213,8 +222,7 @@ class TestOperationAcls(YTEnvSetup):
 
     @pytest.mark.parametrize("should_update_operation_parameters", [False, True])
     def test_manage_job_actions(self, should_update_operation_parameters):
-        def _signal_job(operation_id, job_id, **kwargs):
-            time.sleep(1.0) # give job proxy some time to send a heartbeat
+        def _signal_job(job_id, **kwargs):
             signal_job(job_id, "SIGURG", **kwargs)
 
         actions = [
@@ -225,11 +233,11 @@ class TestOperationAcls(YTEnvSetup):
 
         for action in actions:
             with self._run_op_context_manager(should_update_operation_parameters) as (op, job_id):
-                self._validate_access(self.no_rights_user, False, action, operation_id=op.id, job_id=job_id)
-                self._validate_access(self.read_only_user, False, action, operation_id=op.id, job_id=job_id)
-                self._validate_access(self.manage_only_user, True, action, operation_id=op.id, job_id=job_id)
+                self._validate_access(self.no_rights_user, False, action, job_id=job_id)
+                self._validate_access(self.read_only_user, False, action, job_id=job_id)
+                self._validate_access(self.manage_only_user, True, action, job_id=job_id)
             with self._run_op_context_manager(should_update_operation_parameters) as (op, job_id):
-                self._validate_access(self.manage_and_read_user, True, action, operation_id=op.id, job_id=job_id)
+                self._validate_access(self.manage_and_read_user, True, action, job_id=job_id)
 
     @pytest.mark.parametrize("should_update_operation_parameters", [False, True])
     def test_manage_and_read_job_actions(self, should_update_operation_parameters):
@@ -343,35 +351,56 @@ class TestOperationAcls(YTEnvSetup):
         flag_path = "//sys/controller_agents/config/allow_users_group_read_intermediate_data"
         try:
             set(flag_path, allow_access, recursive=True)
+            # Wait for controller agent config update.
+            time.sleep(0.5)
+
+            input_path, output_path = self._create_tables()
+            breakpoint_name = "breakpoint_" + self._random_string(10)
             op = map_reduce(
                 dont_track=True,
                 mapper_command="cat",
-                reducer_command="cat; sleep 1000",
-                in_=self.input_path,
-                out=self.output_path,
+                reducer_command=with_breakpoint("cat; BREAKPOINT", breakpoint_name=breakpoint_name),
+                in_=input_path,
+                out=output_path,
                 sort_by=["key"],
                 spec={
                     "acl": [make_ace("allow", self.manage_and_read_user, ["read", "manage"])],
                 },
             )
 
-            operation_path = op.get_path()
+            wait_breakpoint(breakpoint_name=breakpoint_name)
 
             def transaction_and_intermediate_exist():
-                if not exists(operation_path + "/@async_scheduler_transaction_id"):
+                if not exists(op.get_path() + "/@async_scheduler_transaction_id"):
                     return False
-                scheduler_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
-                return exists(operation_path + "/intermediate", tx=scheduler_transaction_id)
+                scheduler_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
+                return exists(op.get_path() + "/intermediate", tx=scheduler_transaction_id)
 
             wait(transaction_and_intermediate_exist)
 
-            scheduler_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
+            scheduler_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
             if allow_access:
-                read_table(operation_path + "/intermediate", tx=scheduler_transaction_id, authenticated_user=self.no_rights_user)
+                read_table(op.get_path() + "/intermediate", tx=scheduler_transaction_id, authenticated_user=self.no_rights_user)
             else:
                 with raises_with_codes(AuthorizationErrorCode):
-                    read_table(operation_path + "/intermediate", tx=scheduler_transaction_id, authenticated_user=self.no_rights_user)
-            op.complete()
+                    read_table(op.get_path() + "/intermediate", tx=scheduler_transaction_id, authenticated_user=self.no_rights_user)
+
+            release_breakpoint(breakpoint_name=breakpoint_name)
             op.track()
         finally:
             set(flag_path, False)
+            time.sleep(0.5)
+
+    @pytest.mark.parametrize("add_authenticated_user", [False, True])
+    def test_add_authenticated_user_to_acl(self, add_authenticated_user):
+        spec = {
+            "acl": [make_ace("allow", self.manage_and_read_user, ["manage", "read"])],
+            "add_authenticated_user_to_acl": add_authenticated_user,
+        }
+        with self._run_op_context_manager(spec=spec) as (op, job_id):
+            self._validate_access(
+                self.operation_authenticated_user,
+                add_authenticated_user,
+                _abort_op,
+                operation_id=op.id,
+            )

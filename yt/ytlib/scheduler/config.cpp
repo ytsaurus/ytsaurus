@@ -137,6 +137,8 @@ TJobIOConfig::TJobIOConfig()
     });
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TTestingOperationOptions::TTestingOperationOptions()
 {
     RegisterParameter("scheduling_delay", SchedulingDelay)
@@ -156,6 +158,8 @@ TTestingOperationOptions::TTestingOperationOptions()
     RegisterParameter("fail_get_job_spec", FailGetJobSpec)
         .Default(false);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TAutoMergeConfig::TAutoMergeConfig()
 {
@@ -189,6 +193,8 @@ TAutoMergeConfig::TAutoMergeConfig()
     });
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TSupportsSchedulingTagsConfig::TSupportsSchedulingTagsConfig()
 {
     RegisterParameter("scheduling_tag_filter", SchedulingTagFilter)
@@ -202,6 +208,8 @@ TSupportsSchedulingTagsConfig::TSupportsSchedulingTagsConfig()
         }
     });
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TTentativeTreeEligibilityConfig::TTentativeTreeEligibilityConfig()
 {
@@ -219,6 +227,8 @@ TTentativeTreeEligibilityConfig::TTentativeTreeEligibilityConfig()
     RegisterParameter("ignore_missing_pool_trees", IgnoreMissingPoolTrees)
         .Default(false);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TSamplingConfig::TSamplingConfig()
 {
@@ -242,6 +252,8 @@ TSamplingConfig::TSamplingConfig()
         }
     });
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TOperationSpecBase::TOperationSpecBase()
 {
@@ -369,6 +381,12 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("alias", Alias)
         .Default();
 
+    RegisterParameter("omit_inaccessible_columns", OmitInaccessibleColumns)
+        .Default(false);
+
+    RegisterParameter("additional_security_tags", AdditionalSecurityTags)
+        .Default();
+
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
@@ -389,7 +407,8 @@ TOperationSpecBase::TOperationSpecBase()
 
         constexpr int MaxAnnotationsYsonTextLength = 10_KB;
         if (ConvertToYsonString(Annotations, EYsonFormat::Text).GetData().size() > MaxAnnotationsYsonTextLength) {
-            THROW_ERROR_EXCEPTION("Length of annotations YSON text representation should not exceed %v", MaxAnnotationsYsonTextLength);
+            THROW_ERROR_EXCEPTION("Length of annotations YSON text representation should not exceed %v",
+                MaxAnnotationsYsonTextLength);
         }
 
         ValidateOperationAcl(Acl);
@@ -397,10 +416,10 @@ TOperationSpecBase::TOperationSpecBase()
     });
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TUserJobSpec::TUserJobSpec()
 {
-    RegisterParameter("command", Command)
-        .NonEmpty();
     RegisterParameter("task_title", TaskTitle)
         .Default();
     RegisterParameter("file_paths", FilePaths)
@@ -523,6 +542,28 @@ void TUserJobSpec::InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPt
     jobIOConfig->ControlAttributes->EnableTableIndex = *EnableInputTableIndex;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+TOptionalUserJobSpec::TOptionalUserJobSpec()
+{
+    RegisterParameter("command", Command)
+        .Default();
+}
+
+bool TOptionalUserJobSpec::IsNontrivial() const
+{
+    return Command != TString();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMandatoryUserJobSpec::TMandatoryUserJobSpec()
+{
+    RegisterParameter("command", Command);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TVanillaTaskSpec::TVanillaTaskSpec()
 {
     RegisterParameter("job_count", JobCount)
@@ -537,6 +578,8 @@ TVanillaTaskSpec::TVanillaTaskSpec()
     });
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TInputlyQueryableSpec::TInputlyQueryableSpec()
 {
     RegisterParameter("input_query", InputQuery)
@@ -550,6 +593,8 @@ TInputlyQueryableSpec::TInputlyQueryableSpec()
         }
     });
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TOperationWithUserJobSpec::TOperationWithUserJobSpec()
 {
@@ -581,6 +626,8 @@ TOperationWithUserJobSpec::TOperationWithUserJobSpec()
     });
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TSimpleOperationSpecBase::TSimpleOperationSpecBase()
 {
     RegisterParameter("data_weight_per_job", DataWeightPerJob)
@@ -599,6 +646,8 @@ TSimpleOperationSpecBase::TSimpleOperationSpecBase()
         .DefaultNew();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TUnorderedOperationSpecBase::TUnorderedOperationSpecBase()
 {
     RegisterParameter("input_table_paths", InputTablePaths)
@@ -612,6 +661,8 @@ TUnorderedOperationSpecBase::TUnorderedOperationSpecBase()
         InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
     });
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TMapOperationSpec::TMapOperationSpec()
 {
@@ -630,6 +681,8 @@ TMapOperationSpec::TMapOperationSpec()
     });
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TUnorderedMergeOperationSpec::TUnorderedMergeOperationSpec()
 {
     RegisterParameter("output_table_path", OutputTablePath);
@@ -644,6 +697,8 @@ TUnorderedMergeOperationSpec::TUnorderedMergeOperationSpec()
         OutputTablePath = OutputTablePath.Normalize();
     });
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TMergeOperationSpec::TMergeOperationSpec()
 {
@@ -667,6 +722,8 @@ TMergeOperationSpec::TMergeOperationSpec()
     });
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TEraseOperationSpec::TEraseOperationSpec()
 {
     RegisterParameter("table_path", TablePath);
@@ -679,6 +736,8 @@ TEraseOperationSpec::TEraseOperationSpec()
         TablePath = TablePath.Normalize();
     });
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TReduceOperationSpecBase::TReduceOperationSpecBase()
 {
@@ -706,6 +765,8 @@ TReduceOperationSpecBase::TReduceOperationSpecBase()
     });
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TReduceOperationSpec::TReduceOperationSpec()
 {
     RegisterParameter("join_by", JoinBy)
@@ -728,6 +789,8 @@ TReduceOperationSpec::TReduceOperationSpec()
     });
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TJoinReduceOperationSpec::TJoinReduceOperationSpec()
 {
     RegisterParameter("join_by", JoinBy)
@@ -746,6 +809,8 @@ TJoinReduceOperationSpec::TJoinReduceOperationSpec()
         }
     });
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TNewReduceOperationSpec::TNewReduceOperationSpec()
 {
@@ -778,6 +843,8 @@ TNewReduceOperationSpec::TNewReduceOperationSpec()
         }
     });
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TSortOperationSpecBase::TSortOperationSpecBase()
 {
@@ -822,6 +889,8 @@ TSortOperationSpecBase::TSortOperationSpecBase()
         InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
     });
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TSortOperationSpec::TSortOperationSpec()
 {
@@ -884,6 +953,8 @@ TSortOperationSpec::TSortOperationSpec()
         }
     });
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TMapReduceOperationSpec::TMapReduceOperationSpec()
 {
@@ -974,8 +1045,8 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
                 throwError(NTableClient::EControlAttribute::RangeIndex, jobType);
             }
         };
-        if (ForceReduceCombiners && !ReduceCombiner) {
-            THROW_ERROR_EXCEPTION("Found \"force_reduce_combiners\" without \"reduce_combiner\" in operation spec");
+        if (ForceReduceCombiners && !HasNontrivialReduceCombiner()) {
+            THROW_ERROR_EXCEPTION("Found \"force_reduce_combiners\" without nontrivial \"reduce_combiner\" in operation spec");
         }
         validateControlAttributes(MergeJobIO->ControlAttributes, "reduce");
         validateControlAttributes(SortJobIO->ControlAttributes, "reduce_combiner");
@@ -998,11 +1069,11 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
         InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
         OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
 
-        if (Mapper) {
+        if (HasNontrivialMapper()) {
             Mapper->InitEnableInputTableIndex(InputTablePaths.size(), PartitionJobIO);
             Mapper->TaskTitle = "Mapper";
         }
-        if (ReduceCombiner) {
+        if (HasNontrivialReduceCombiner()) {
             ReduceCombiner->TaskTitle = "Reduce combiner";
         }
         Reducer->TaskTitle = "Reducer";
@@ -1014,6 +1085,18 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
         }
     });
 }
+
+bool TMapReduceOperationSpec::HasNontrivialMapper() const
+{
+    return Mapper && Mapper->IsNontrivial();
+}
+
+bool TMapReduceOperationSpec::HasNontrivialReduceCombiner() const
+{
+    return ReduceCombiner && ReduceCombiner->IsNontrivial();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 TRemoteCopyOperationSpec::TRemoteCopyOperationSpec()
 {
@@ -1058,15 +1141,17 @@ TRemoteCopyOperationSpec::TRemoteCopyOperationSpec()
     });
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TVanillaOperationSpec::TVanillaOperationSpec()
 {
     RegisterParameter("tasks", Tasks)
         .NonEmpty();
 
     RegisterPostprocessor([&] {
-        for (auto& pair : Tasks) {
+        for (const auto& pair : Tasks) {
             const auto& taskName = pair.first;
-            auto& taskSpec = pair.second;
+            const auto& taskSpec = pair.second;
             if (taskName.empty()) {
                 THROW_ERROR_EXCEPTION("Empty task names are not allowed");
             }
@@ -1079,6 +1164,8 @@ TVanillaOperationSpec::TVanillaOperationSpec()
         }
     });
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TResourceLimitsConfig::TResourceLimitsConfig()
 {
@@ -1098,6 +1185,8 @@ TResourceLimitsConfig::TResourceLimitsConfig()
         .Default()
         .GreaterThanOrEqual(0);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TSchedulableConfig::TSchedulableConfig()
 {
@@ -1137,11 +1226,15 @@ TSchedulableConfig::TSchedulableConfig()
         .Default(true);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TExtendedSchedulableConfig::TExtendedSchedulableConfig()
 {
     RegisterParameter("pool", Pool)
         .Default();
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TPoolConfig::TPoolConfig()
 {
@@ -1193,6 +1286,8 @@ void TPoolConfig::Validate()
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TStrategyOperationSpec::TStrategyOperationSpec()
 {
     RegisterParameter("pool", Pool)
@@ -1215,7 +1310,11 @@ TStrategyOperationSpec::TStrategyOperationSpec()
         .Default(1000);
     RegisterParameter("custom_profiling_tag", CustomProfilingTag)
         .Default();
+    RegisterParameter("max_unpreemptable_job_count", MaxUnpreemptableRunningJobCount)
+        .Default();
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TOperationFairShareTreeRuntimeParameters::TOperationFairShareTreeRuntimeParameters()
 {
@@ -1226,6 +1325,8 @@ TOperationFairShareTreeRuntimeParameters::TOperationFairShareTreeRuntimeParamete
     RegisterParameter("resource_limits", ResourceLimits)
         .DefaultNew();
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TOperationRuntimeParameters::TOperationRuntimeParameters()
 {
@@ -1242,6 +1343,8 @@ TOperationRuntimeParameters::TOperationRuntimeParameters()
     });
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TOperationFairShareTreeRuntimeParametersUpdate::TOperationFairShareTreeRuntimeParametersUpdate()
 {
     RegisterParameter("weight", Weight)
@@ -1252,6 +1355,8 @@ TOperationFairShareTreeRuntimeParametersUpdate::TOperationFairShareTreeRuntimePa
     RegisterParameter("resource_limits", ResourceLimits)
         .Default();
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TOperationRuntimeParametersUpdate::TOperationRuntimeParametersUpdate()
 {
@@ -1280,6 +1385,8 @@ bool TOperationRuntimeParametersUpdate::ContainsPool() const
     }
     return result;
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TOperationFairShareTreeRuntimeParametersPtr UpdateFairShareTreeRuntimeParameters(
     const TOperationFairShareTreeRuntimeParametersPtr& origin,

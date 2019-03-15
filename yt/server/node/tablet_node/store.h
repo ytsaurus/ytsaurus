@@ -250,7 +250,7 @@ DEFINE_REFCOUNTED_TYPE(IOrderedStore)
 class TStoreIdFormatter
 {
 public:
-    void operator()(TStringBuilder* builder, const IStorePtr& store) const;
+    void operator()(TStringBuilderBase* builder, const IStorePtr& store) const;
 
 };
 

@@ -253,6 +253,8 @@ public:
 
     std::optional<TString> CustomProfilingTag;
 
+    std::optional<int> MaxUnpreemptableRunningJobCount;
+
     TStrategyOperationSpec();
 
 private:
@@ -483,6 +485,13 @@ public:
     //! (it should start with an asterisk).
     std::optional<TString> Alias;
 
+    //! If true, then omits columns that are inaccessible due to columnar ACL restriction instead of
+    //! failing the operation.
+    bool OmitInaccessibleColumns;
+
+    //! These tags are propagated to all operation outputs (unless overridden).
+    std::vector<TString> AdditionalSecurityTags;
+
     TOperationSpecBase();
 
 private:
@@ -565,8 +574,32 @@ DEFINE_REFCOUNTED_TYPE(TUserJobSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVanillaTaskSpec
+class TMandatoryUserJobSpec
     : public TUserJobSpec
+{
+public:
+    TMandatoryUserJobSpec();
+};
+
+DEFINE_REFCOUNTED_TYPE(TMandatoryUserJobSpec)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOptionalUserJobSpec
+    : public TUserJobSpec
+{
+public:
+    bool IsNontrivial() const;
+
+    TOptionalUserJobSpec();
+};
+
+DEFINE_REFCOUNTED_TYPE(TOptionalUserJobSpec)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVanillaTaskSpec
+    : public TMandatoryUserJobSpec
 {
 public:
     //! Number of jobs that will be run in this task. This field is mandatory.
@@ -666,7 +699,7 @@ class TMapOperationSpec
     , public TOperationWithUserJobSpec
 {
 public:
-    TUserJobSpecPtr Mapper;
+    TMandatoryUserJobSpecPtr Mapper;
     std::vector<NYPath::TRichYPath> OutputTablePaths;
     bool Ordered;
 
@@ -778,7 +811,7 @@ class TReduceOperationSpecBase
     , public TOperationWithUserJobSpec
 {
 public:
-    TUserJobSpecPtr Reducer;
+    TMandatoryUserJobSpecPtr Reducer;
     std::vector<NYPath::TRichYPath> InputTablePaths;
     std::vector<NYPath::TRichYPath> OutputTablePaths;
     NTableClient::TKeyColumns JoinBy;
@@ -957,9 +990,9 @@ public:
 
     std::vector<TString> ReduceBy;
 
-    TUserJobSpecPtr Mapper;
-    TUserJobSpecPtr ReduceCombiner;
-    TUserJobSpecPtr Reducer;
+    TOptionalUserJobSpecPtr Mapper;
+    TOptionalUserJobSpecPtr ReduceCombiner;
+    TMandatoryUserJobSpecPtr Reducer;
 
     bool ForceReduceCombiners;
 
@@ -971,6 +1004,9 @@ public:
     bool Ordered;
 
     TMapReduceOperationSpec();
+
+    bool HasNontrivialMapper() const;
+    bool HasNontrivialReduceCombiner() const;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMapReduceOperationSpec, 0x99837bbc);

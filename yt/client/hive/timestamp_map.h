@@ -22,7 +22,7 @@ struct TTimestampMap
 void ToProto(NProto::TTimestampMap* protoMap, const TTimestampMap& map);
 void FromProto(TTimestampMap* map, const NProto::TTimestampMap& protoMap);
 
-void FormatValue(TStringBuilder* builder, const TTimestampMap& map, TStringBuf spec);
+void FormatValue(TStringBuilderBase* builder, const TTimestampMap& map, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

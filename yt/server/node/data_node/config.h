@@ -204,6 +204,9 @@ public:
     //! starting from the eldest ones.
     i64 TrashCleanupWatermark;
 
+    //! Period between trash cleanups.
+    TDuration TrashCheckPeriod;
+
     //! Controls incoming location bandwidth used by repair jobs.
     NConcurrency::TThroughputThrottlerConfigPtr RepairInThrottler;
 
@@ -235,10 +238,14 @@ public:
             .GreaterThanOrEqual(0)
             .Default(1_GB);
         RegisterParameter("max_trash_ttl", MaxTrashTtl)
-            .Default(TDuration::Hours(1));
+            .Default(TDuration::Hours(1))
+            .GreaterThanOrEqual(TDuration::Zero());
         RegisterParameter("trash_cleanup_watermark", TrashCleanupWatermark)
             .GreaterThanOrEqual(0)
             .Default(4_GB);
+        RegisterParameter("trash_check_period", TrashCheckPeriod)
+            .GreaterThanOrEqual(TDuration::Zero())
+            .Default(TDuration::Seconds(10));
         RegisterParameter("repair_in_throttler", RepairInThrottler)
             .DefaultNew();
         RegisterParameter("replication_in_throttler", ReplicationInThrottler)
@@ -861,6 +868,7 @@ public:
 
             // Don't populate caches in chunk jobs.
             RepairReader->PopulateCache = false;
+            RepairReader->RetryTimeout = TDuration::Minutes(15);
             SealReader->PopulateCache = false;
         });
     }

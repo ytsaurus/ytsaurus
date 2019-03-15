@@ -17,16 +17,21 @@ TReaderWriterSpinLock& ForkLock()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TForkAwareSpinLock::Acquire()
+void TForkAwareSpinLock::Acquire() noexcept
 {
     ForkLock().AcquireReader();
     SpinLock_.Acquire();
 }
 
-void TForkAwareSpinLock::Release()
+void TForkAwareSpinLock::Release() noexcept
 {
     SpinLock_.Release();
     ForkLock().ReleaseReader();
+}
+
+bool TForkAwareSpinLock::IsLocked() noexcept
+{
+    return SpinLock_.IsLocked();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

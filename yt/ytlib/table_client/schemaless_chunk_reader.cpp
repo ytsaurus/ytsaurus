@@ -106,7 +106,8 @@ public:
         TNameTablePtr nameTable,
         const TClientBlockReadOptions& blockReadOptions,
         const TColumnFilter& columnFilter,
-        const TKeyColumns& keyColumns)
+        const TKeyColumns& keyColumns,
+        const std::vector<TString>& omittedInaccessibleColumns)
         : ChunkState_(chunkState)
         , ChunkSpec_(ChunkState_->ChunkSpec)
         , Config_(config)
@@ -114,6 +115,8 @@ public:
         , NameTable_(nameTable)
         , ColumnFilter_(columnFilter)
         , KeyColumns_(keyColumns)
+        , OmittedInaccessibleColumns_(omittedInaccessibleColumns)
+        , OmittedInaccessibleColumnSet_(OmittedInaccessibleColumns_.begin(), OmittedInaccessibleColumns_.end())
         , SystemColumnCount_(GetSystemColumnCount(options))
         , Logger(NLogging::TLogger(TableClientLogger)
             .AddTag("ChunkReaderId: %v", TGuid::Create())
@@ -136,7 +139,7 @@ public:
         return NameTable_;
     }
 
-    virtual TKeyColumns GetKeyColumns() const override
+    virtual const TKeyColumns& GetKeyColumns() const override
     {
         return KeyColumns_;
     }
@@ -162,6 +165,8 @@ protected:
 
     const TColumnFilter ColumnFilter_;
     TKeyColumns KeyColumns_;
+    const std::vector<TString> OmittedInaccessibleColumns_;
+    const THashSet<TStringBuf> OmittedInaccessibleColumnSet_; // strings are being owned by OmittedInaccessibleColumns_
 
     i64 RowIndex_ = 0;
     i64 RowCount_ = 0;
@@ -290,6 +295,7 @@ public:
         TNameTablePtr nameTable,
         const TClientBlockReadOptions& blockReadOptions,
         const TKeyColumns& keyColumns,
+        const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
         std::optional<int> partitionTag);
 
@@ -334,6 +340,7 @@ THorizontalSchemalessChunkReaderBase::THorizontalSchemalessChunkReaderBase(
     TNameTablePtr nameTable,
     const TClientBlockReadOptions& blockReadOptions,
     const TKeyColumns& keyColumns,
+    const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     std::optional<int> partitionTag)
     : TChunkReaderBase(
@@ -349,8 +356,9 @@ THorizontalSchemalessChunkReaderBase::THorizontalSchemalessChunkReaderBase(
         nameTable,
         blockReadOptions,
         columnFilter,
-        keyColumns)
-    , PartitionTag_(std::move(partitionTag))
+        keyColumns,
+        omittedInaccessibleColumns)
+    , PartitionTag_(partitionTag)
     , ChunkMeta_(chunkMeta)
 { }
 
@@ -386,31 +394,37 @@ void THorizontalSchemalessChunkReaderBase::DownloadChunkMeta(std::vector<int> ex
 
     const auto& chunkNameTable = ChunkMeta_->ChunkNameTable();
     IdMapping_.reserve(chunkNameTable->GetSize());
+    for (int chunkSchemaId = 0; chunkSchemaId < chunkNameTable->GetSize(); ++chunkSchemaId) {
+        IdMapping_.push_back({chunkSchemaId, -1});
+    }
 
-    if (ColumnFilter_.IsUniversal()) {
-        try {
-            for (int chunkNameId = 0; chunkNameId < chunkNameTable->GetSize(); ++chunkNameId) {
-                auto name = chunkNameTable->GetName(chunkNameId);
-                auto id = NameTable_->GetIdOrRegisterName(name);
-                IdMapping_.push_back({chunkNameId, id});
+    try {
+        if (ColumnFilter_.IsUniversal()) {
+            for (int chunkSchemaId = 0; chunkSchemaId < chunkNameTable->GetSize(); ++chunkSchemaId) {
+                auto name = chunkNameTable->GetName(chunkSchemaId);
+                if (OmittedInaccessibleColumnSet_.contains(name)) {
+                    continue;
+                }
+                auto readerSchemaId = NameTable_->GetIdOrRegisterName(name);
+                IdMapping_[chunkSchemaId].ReaderSchemaIndex = readerSchemaId;
             }
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Failed to update name table for schemaless chunk reader")
+        } else {
+            for (auto readerSchemaId : ColumnFilter_.GetIndexes()) {
+                auto name = NameTable_->GetName(readerSchemaId);
+                if (OmittedInaccessibleColumnSet_.contains(name)) {
+                    continue;
+                }
+                auto chunkSchemaId = chunkNameTable->FindId(name);
+                if (!chunkSchemaId) {
+                    continue;
+                }
+                IdMapping_[*chunkSchemaId].ReaderSchemaIndex = readerSchemaId;
+            }
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to update name table for schemaless chunk reader")
                 << TErrorAttribute("chunk_id", UnderlyingReader_->GetChunkId())
-                << ex;
-        }
-    } else {
-        for (int chunkNameId = 0; chunkNameId < chunkNameTable->GetSize(); ++chunkNameId) {
-            IdMapping_.push_back({chunkNameId, -1});
-        }
-
-        for (auto id : ColumnFilter_.GetIndexes()) {
-            auto name = NameTable_->GetName(id);
-            auto chunkNameId = chunkNameTable->FindId(name);
-            if (chunkNameId) {
-                IdMapping_[*chunkNameId] = {*chunkNameId, id};
-            }
-        }
+                    << ex;
     }
 }
 
@@ -437,6 +451,7 @@ public:
         TNameTablePtr nameTable,
         const TClientBlockReadOptions& blockReadOptions,
         const TKeyColumns& keyColumns,
+        const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
         const TReadRange& readRange,
         std::optional<int> partitionTag);
@@ -472,6 +487,7 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
     TNameTablePtr nameTable,
     const TClientBlockReadOptions& blockReadOptions,
     const TKeyColumns& keyColumns,
+    const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TReadRange& readRange,
     std::optional<int> partitionTag)
@@ -484,8 +500,9 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
         std::move(nameTable),
         blockReadOptions,
         keyColumns,
+        omittedInaccessibleColumns,
         columnFilter,
-        std::move(partitionTag))
+        partitionTag)
     , ReadRange_(readRange)
 {
     YT_LOG_DEBUG("Reading range %v", ReadRange_);
@@ -731,6 +748,7 @@ public:
         TNameTablePtr nameTable,
         const TClientBlockReadOptions& blockReadOptions,
         const TKeyColumns& keyColumns,
+        const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
         const TSharedRange<TKey>& keys,
         TChunkReaderPerformanceCountersPtr performanceCounters,
@@ -763,6 +781,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
     TNameTablePtr nameTable,
     const TClientBlockReadOptions& blockReadOptions,
     const TKeyColumns& keyColumns,
+    const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
     TChunkReaderPerformanceCountersPtr performanceCounters,
@@ -776,8 +795,9 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
         std::move(nameTable),
         blockReadOptions,
         keyColumns,
+        omittedInaccessibleColumns,
         columnFilter,
-        std::move(partitionTag))
+        partitionTag)
     , Keys_(keys)
     , PerformanceCounters_(std::move(performanceCounters))
     , KeyFilterTest_(Keys_.Size(), true)
@@ -949,6 +969,7 @@ public:
         TNameTablePtr nameTable,
         const TClientBlockReadOptions& blockReadOptions,
         const TKeyColumns& keyColumns,
+        const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
         const TReadRange& readRange)
         : TSchemalessChunkReaderBase(
@@ -959,7 +980,8 @@ public:
             nameTable,
             blockReadOptions,
             columnFilter,
-            keyColumns)
+            keyColumns,
+            omittedInaccessibleColumns)
         , TColumnarRangeChunkReaderBase(
             chunkMeta,
             config,
@@ -1028,7 +1050,7 @@ public:
                 RowIndex_ += deltaIndex;
 
                 // Rewind row column readers to proper row index.
-                for (auto& reader : RowColumnReaders_) {
+                for (const auto& reader : RowColumnReaders_) {
                     reader->SkipToRowIndex(RowIndex_);
                 }
                 if (SchemalessReader_) {
@@ -1054,7 +1076,7 @@ public:
                 }
             } else {
                 // We do not read keys, so we must skip rows for key readers.
-                for (auto& reader : KeyColumnReaders_) {
+                for (const auto& reader : KeyColumnReaders_) {
                     reader->SkipToRowIndex(RowIndex_ + rowLimit);
                 }
             }
@@ -1128,6 +1150,7 @@ private:
 
     TChunkedMemoryPool Pool_;
 
+
     void InitializeBlockSequence()
     {
         YCHECK(ChunkMeta_->GetChunkFormat() == ETableChunkFormat::UnversionedColumnar);
@@ -1147,23 +1170,26 @@ private:
             THROW_ERROR_EXCEPTION("Requested a sorted read for an unsorted chunk");
         }
 
+        const auto& chunkSchema = ChunkMeta_->ChunkSchema();
+        const auto& columnMeta = ChunkMeta_->ColumnMeta();
+
         ValidateKeyColumns(
             KeyColumns_,
-            ChunkMeta_->ChunkSchema().GetKeyColumns(),
+            chunkSchema.GetKeyColumns(),
             Options_->DynamicTable,
             /* validateColumnNames */ true);
 
         // Cannot read more key columns than stored in chunk, even if range keys are longer.
-        minKeyColumnCount = std::min(minKeyColumnCount, ChunkMeta_->ChunkSchema().GetKeyColumnCount());
+        minKeyColumnCount = std::min(minKeyColumnCount, chunkSchema.GetKeyColumnCount());
 
         TNameTablePtr chunkNameTable;
         if (Options_->DynamicTable) {
-            chunkNameTable = TNameTable::FromSchema(ChunkMeta_->ChunkSchema());
+            chunkNameTable = TNameTable::FromSchema(chunkSchema);
         } else {
             chunkNameTable = ChunkMeta_->ChunkNameTable();
             if (UpperLimit_.HasKey() || LowerLimit_.HasKey()) {
                 ChunkMeta_->InitBlockLastKeys(KeyColumns_.empty()
-                    ? ChunkMeta_->ChunkSchema().GetKeyColumns()
+                    ? chunkSchema.GetKeyColumns()
                     : KeyColumns_);
             }
         }
@@ -1175,32 +1201,36 @@ private:
         std::vector<int> schemaColumnIndexes;
         bool readSchemalessColumns = false;
         if (ColumnFilter_.IsUniversal()) {
-            for (int index = 0; index < ChunkMeta_->ChunkSchema().Columns().size(); ++index) {
+            for (int index = 0; index < chunkSchema.Columns().size(); ++index) {
+                const auto& columnSchema = chunkSchema.Columns()[index];
+                if (OmittedInaccessibleColumnSet_.contains(columnSchema.Name())) {
+                    continue;
+                }
                 schemaColumnIndexes.push_back(index);
             }
-
-            for (
-                int chunkColumnId = ChunkMeta_->ChunkSchema().Columns().size();
-                chunkColumnId < chunkNameTable->GetSize();
-                ++chunkColumnId)
-            {
+            for (int chunkColumnId = chunkSchema.Columns().size(); chunkColumnId < chunkNameTable->GetSize(); ++chunkColumnId) {
+                auto name = chunkNameTable->GetName(chunkColumnId);
+                if (OmittedInaccessibleColumnSet_.contains(name)) {
+                    continue;
+                }
                 readSchemalessColumns = true;
-                schemalessIdMapping[chunkColumnId].ChunkSchemaIndex = chunkColumnId;
-                schemalessIdMapping[chunkColumnId].ReaderSchemaIndex = NameTable_->GetIdOrRegisterName(
-                    chunkNameTable->GetName(chunkColumnId));
+                int nameTableIndex = NameTable_->GetIdOrRegisterName(name);
+                schemalessIdMapping[chunkColumnId] = {chunkColumnId, nameTableIndex};
             }
         } else {
-            auto filterIndexes = THashSet<int>(ColumnFilter_.GetIndexes().begin(), ColumnFilter_.GetIndexes().end());
+            THashSet<int> filterIndexes(ColumnFilter_.GetIndexes().begin(), ColumnFilter_.GetIndexes().end());
             for (int chunkColumnId = 0; chunkColumnId < chunkNameTable->GetSize(); ++chunkColumnId) {
-                auto nameTableIndex = NameTable_->GetIdOrRegisterName(chunkNameTable->GetName(chunkColumnId));
+                auto name = chunkNameTable->GetName(chunkColumnId);
+                if (OmittedInaccessibleColumnSet_.contains(name)) {
+                    continue;
+                }
+                auto nameTableIndex = NameTable_->GetIdOrRegisterName(name);
                 if (filterIndexes.contains(nameTableIndex)) {
-                    if (chunkColumnId < ChunkMeta_->ChunkSchema().Columns().size()) {
+                    if (chunkColumnId < chunkSchema.Columns().size()) {
                         schemaColumnIndexes.push_back(chunkColumnId);
                     } else {
                         readSchemalessColumns = true;
-                        schemalessIdMapping[chunkColumnId].ChunkSchemaIndex = chunkColumnId;
-                        schemalessIdMapping[chunkColumnId].ReaderSchemaIndex = nameTableIndex;
-
+                        schemalessIdMapping[chunkColumnId] = {chunkColumnId, nameTableIndex};
                     }
                 }
             }
@@ -1210,30 +1240,30 @@ private:
         for (int valueIndex = 0; valueIndex < schemaColumnIndexes.size(); ++valueIndex) {
             auto columnIndex = schemaColumnIndexes[valueIndex];
             auto columnReader = CreateUnversionedColumnReader(
-                ChunkMeta_->ChunkSchema().Columns()[columnIndex],
-                ChunkMeta_->ColumnMeta()->columns(columnIndex),
+                chunkSchema.Columns()[columnIndex],
+                columnMeta->columns(columnIndex),
                 valueIndex,
-                NameTable_->GetIdOrRegisterName(ChunkMeta_->ChunkSchema().Columns()[columnIndex].Name()));
-
+                NameTable_->GetIdOrRegisterName(chunkSchema.Columns()[columnIndex].Name()));
             RowColumnReaders_.emplace_back(columnReader.get());
+
             Columns_.emplace_back(std::move(columnReader), columnIndex);
         }
 
         if (readSchemalessColumns) {
             auto columnReader = CreateSchemalessColumnReader(
-                ChunkMeta_->ColumnMeta()->columns(ChunkMeta_->ChunkSchema().Columns().size()),
+                columnMeta->columns(chunkSchema.Columns().size()),
                 schemalessIdMapping);
             SchemalessReader_ = columnReader.get();
 
             Columns_.emplace_back(
                 std::move(columnReader),
-                ChunkMeta_->ChunkSchema().Columns().size());
+                chunkSchema.Columns().size());
         }
 
         for (int keyIndex = 0; keyIndex < minKeyColumnCount; ++keyIndex) {
             auto columnReader = CreateUnversionedColumnReader(
-                ChunkMeta_->ChunkSchema().Columns()[keyIndex],
-                ChunkMeta_->ColumnMeta()->columns(keyIndex),
+                chunkSchema.Columns()[keyIndex],
+                columnMeta->columns(keyIndex),
                 keyIndex,
                 keyIndex); // Column id doesn't really matter.
             KeyColumnReaders_.emplace_back(columnReader.get());
@@ -1379,6 +1409,7 @@ public:
         TNameTablePtr nameTable,
         const TClientBlockReadOptions& blockReadOptions,
         const TKeyColumns& keyColumns,
+        const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
         const TSharedRange<TKey>& keys,
         TChunkReaderPerformanceCountersPtr performanceCounters)
@@ -1390,7 +1421,8 @@ public:
             nameTable,
             blockReadOptions,
             columnFilter,
-            keyColumns)
+            keyColumns,
+            omittedInaccessibleColumns)
         , TColumnarLookupChunkReaderBase(
             chunkMeta,
             config,
@@ -1526,16 +1558,19 @@ private:
         if (!ChunkMeta_->Misc().sorted()) {
             THROW_ERROR_EXCEPTION("Requested a sorted read for an unsorted chunk");
         }
+        
+        const auto& chunkSchema = ChunkMeta_->ChunkSchema();
+        const auto& columnMeta = ChunkMeta_->ColumnMeta();
 
         ValidateKeyColumns(
             KeyColumns_,
-            ChunkMeta_->ChunkSchema().GetKeyColumns(),
+            chunkSchema.GetKeyColumns(),
             Options_->DynamicTable,
             /* validateColumnNames */ true);
 
         TNameTablePtr chunkNameTable;
         if (Options_->DynamicTable) {
-            chunkNameTable = TNameTable::FromSchema(ChunkMeta_->ChunkSchema());
+            chunkNameTable = TNameTable::FromSchema(chunkSchema);
         } else {
             chunkNameTable = ChunkMeta_->ChunkNameTable();
             ChunkMeta_->InitBlockLastKeys(KeyColumns_);
@@ -1543,17 +1578,17 @@ private:
 
         // Create key column readers.
         KeyColumnReaders_.resize(KeyColumns_.size());
-        for (int keyColumnIndex = 0; keyColumnIndex < ChunkMeta_->ChunkSchema().GetKeyColumnCount(); ++keyColumnIndex) {
+        for (int keyColumnIndex = 0; keyColumnIndex < chunkSchema.GetKeyColumnCount(); ++keyColumnIndex) {
             auto columnReader = CreateUnversionedColumnReader(
-                ChunkMeta_->ChunkSchema().Columns()[keyColumnIndex],
-                ChunkMeta_->ColumnMeta()->columns(keyColumnIndex),
+                chunkSchema.Columns()[keyColumnIndex],
+                columnMeta->columns(keyColumnIndex),
                 keyColumnIndex,
                 keyColumnIndex);
 
             KeyColumnReaders_[keyColumnIndex] = columnReader.get();
             Columns_.emplace_back(std::move(columnReader), keyColumnIndex);
         }
-        for (int keyColumnIndex = ChunkMeta_->ChunkSchema().GetKeyColumnCount(); keyColumnIndex < KeyColumns_.size(); ++keyColumnIndex) {
+        for (int keyColumnIndex = chunkSchema.GetKeyColumnCount(); keyColumnIndex < KeyColumns_.size(); ++keyColumnIndex) {
             auto columnReader = CreateUnversionedNullColumnReader(
                 keyColumnIndex,
                 keyColumnIndex);
@@ -1569,31 +1604,37 @@ private:
         std::vector<int> schemaColumnIndexes;
         bool readSchemalessColumns = false;
         if (ColumnFilter_.IsUniversal()) {
-            for (int index = 0; index < ChunkMeta_->ChunkSchema().Columns().size(); ++index) {
+            for (int index = 0; index < chunkSchema.Columns().size(); ++index) {
+                const auto& columnSchema = chunkSchema.Columns()[index];
+                if (OmittedInaccessibleColumnSet_.contains(columnSchema.Name())) {
+                    continue;
+                }
                 schemaColumnIndexes.push_back(index);
             }
 
-            for (
-                int chunkColumnId = ChunkMeta_->ChunkSchema().Columns().size();
-                chunkColumnId < chunkNameTable->GetSize();
-                ++chunkColumnId) {
+            for (int chunkColumnId = chunkSchema.Columns().size(); chunkColumnId < chunkNameTable->GetSize(); ++chunkColumnId) {
+                auto name = chunkNameTable->GetName(chunkColumnId);
+                if (OmittedInaccessibleColumnSet_.contains(name)) {
+                    continue;
+                }
                 readSchemalessColumns = true;
-                schemalessIdMapping[chunkColumnId].ChunkSchemaIndex = chunkColumnId;
-                schemalessIdMapping[chunkColumnId].ReaderSchemaIndex = NameTable_->GetIdOrRegisterName(
-                    chunkNameTable->GetName(chunkColumnId));
+                int nameTableIndex = NameTable_->GetIdOrRegisterName(name);
+                schemalessIdMapping[chunkColumnId] = {chunkColumnId, nameTableIndex};
             }
         } else {
             auto filterIndexes = THashSet<int>(ColumnFilter_.GetIndexes().begin(), ColumnFilter_.GetIndexes().end());
-            for (int chunkColumnId = 0; chunkColumnId < chunkNameTable->GetSize(); ++chunkColumnId) {
-                auto nameTableIndex = NameTable_->GetIdOrRegisterName(chunkNameTable->GetName(chunkColumnId));
+            for (int chunkColumnId = 0;chunkColumnId < chunkNameTable->GetSize(); ++chunkColumnId) {
+                auto name = chunkNameTable->GetName(chunkColumnId);
+                if (OmittedInaccessibleColumnSet_.contains(name)) {
+                    continue;
+                }
+                auto nameTableIndex = NameTable_->GetIdOrRegisterName(name);
                 if (filterIndexes.contains(nameTableIndex)) {
-                    if (chunkColumnId < ChunkMeta_->ChunkSchema().Columns().size()) {
+                    if (chunkColumnId < chunkSchema.Columns().size()) {
                         schemaColumnIndexes.push_back(chunkColumnId);
                     } else {
                         readSchemalessColumns = true;
-                        schemalessIdMapping[chunkColumnId].ChunkSchemaIndex = chunkColumnId;
-                        schemalessIdMapping[chunkColumnId].ReaderSchemaIndex = nameTableIndex;
-
+                        schemalessIdMapping[chunkColumnId] = {chunkColumnId, nameTableIndex};
                     }
                 }
             }
@@ -1602,14 +1643,14 @@ private:
         // Create column readers.
         for (int valueIndex = 0; valueIndex < schemaColumnIndexes.size(); ++valueIndex) {
             auto columnIndex = schemaColumnIndexes[valueIndex];
-            if (columnIndex < ChunkMeta_->ChunkSchema().GetKeyColumnCount()) {
+            if (columnIndex < chunkSchema.GetKeyColumnCount()) {
                 RowColumnReaders_.push_back(KeyColumnReaders_[columnIndex]);
             } else {
                 auto columnReader = CreateUnversionedColumnReader(
-                    ChunkMeta_->ChunkSchema().Columns()[columnIndex],
-                    ChunkMeta_->ColumnMeta()->columns(columnIndex),
+                    chunkSchema.Columns()[columnIndex],
+                    columnMeta->columns(columnIndex),
                     valueIndex,
-                    NameTable_->GetIdOrRegisterName(ChunkMeta_->ChunkSchema().Columns()[columnIndex].Name()));
+                    NameTable_->GetIdOrRegisterName(chunkSchema.Columns()[columnIndex].Name()));
 
                 RowColumnReaders_.emplace_back(columnReader.get());
                 Columns_.emplace_back(std::move(columnReader), columnIndex);
@@ -1618,13 +1659,13 @@ private:
 
         if (readSchemalessColumns) {
             auto columnReader = CreateSchemalessColumnReader(
-                ChunkMeta_->ColumnMeta()->columns(ChunkMeta_->ChunkSchema().Columns().size()),
+                columnMeta->columns(chunkSchema.Columns().size()),
                 schemalessIdMapping);
             SchemalessReader_ = columnReader.get();
 
             Columns_.emplace_back(
                 std::move(columnReader),
-                ChunkMeta_->ChunkSchema().Columns().size());
+                chunkSchema.Columns().size());
         }
 
         Initialize();
@@ -1646,6 +1687,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     TNameTablePtr nameTable,
     const TClientBlockReadOptions& blockReadOptions,
     const TKeyColumns& keyColumns,
+    const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TReadRange& readRange,
     std::optional<int> partitionTag)
@@ -1663,9 +1705,10 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 nameTable,
                 blockReadOptions,
                 keyColumns,
+                omittedInaccessibleColumns,
                 columnFilter,
                 readRange,
-                std::move(partitionTag));
+                partitionTag);
 
         case ETableChunkFormat::UnversionedColumnar:
             return New<TColumnarSchemalessRangeChunkReader>(
@@ -1677,6 +1720,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 nameTable,
                 blockReadOptions,
                 keyColumns,
+                omittedInaccessibleColumns,
                 columnFilter,
                 readRange);
 
@@ -1696,6 +1740,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     TNameTablePtr nameTable,
     const TClientBlockReadOptions& blockReadOptions,
     const TKeyColumns& keyColumns,
+    const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
     TChunkReaderPerformanceCountersPtr performanceCounters,
@@ -1715,10 +1760,11 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 std::move(nameTable),
                 blockReadOptions,
                 keyColumns,
+                omittedInaccessibleColumns,
                 columnFilter,
                 keys,
                 std::move(performanceCounters),
-                std::move(partitionTag));
+                partitionTag);
 
         case ETableChunkFormat::UnversionedColumnar:
             return New<TColumnarSchemalessLookupChunkReader>(
@@ -1730,6 +1776,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 std::move(nameTable),
                 blockReadOptions,
                 keyColumns,
+                omittedInaccessibleColumns,
                 columnFilter,
                 keys,
                 std::move(performanceCounters));
@@ -1742,6 +1789,8 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
 
 TChunkReaderConfigPtr PatchConfig(TChunkReaderConfigPtr config, i64 memoryEstimate)
 {
@@ -1783,7 +1832,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                 const auto& chunkSpec = dataSliceDescriptor.GetSingleChunk();
 
                 auto memoryEstimate = GetChunkReaderMemoryEstimate(chunkSpec, config);
-                auto createReader = [=] () {
+                auto createReader = [=] {
                     try {
                         auto remoteReader = CreateRemoteReader(
                             chunkSpec,
@@ -1798,7 +1847,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             bandwidthThrottler,
                             rpsThrottler);
 
-                        TReadRange range = {
+                        TReadRange range{
                             chunkSpec.has_lower_limit() ? TReadLimit(chunkSpec.lower_limit()) : TReadLimit(),
                             chunkSpec.has_upper_limit() ? TReadLimit(chunkSpec.upper_limit()) : TReadLimit()
                         };
@@ -1827,6 +1876,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             nameTable,
                             blockReadOptions,
                             keyColumns,
+                            dataSource.OmittedInaccessibleColumns(),
                             columnFilter.IsUniversal() ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
                             range,
                             partitionTag);
@@ -1843,8 +1893,9 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
 
             case EDataSourceType::VersionedTable: {
                 auto memoryEstimate = GetDataSliceDescriptorReaderMemoryEstimate(dataSliceDescriptor, config);
-                auto createReader = [=] () {
-
+                int dataSourceIndex = dataSliceDescriptor.GetDataSourceIndex();
+                const auto& dataSource = dataSourceDirectory->DataSources()[dataSourceIndex];
+                auto createReader = [=] {
                     return CreateSchemalessMergingMultiChunkReader(
                         config,
                         options,
@@ -1874,6 +1925,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
 
     return factories;
 }
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1905,14 +1958,11 @@ public:
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
 
     virtual i64 GetSessionRowIndex() const override;
-
     virtual i64 GetTotalRowCount() const override;
+    virtual i64 GetTableRowIndex() const override;
 
     virtual const TNameTablePtr& GetNameTable() const override;
-
-    virtual TKeyColumns GetKeyColumns() const override;
-
-    virtual i64 GetTableRowIndex() const override;
+    virtual const TKeyColumns& GetKeyColumns() const override;
 
     virtual void Interrupt() override;
 
@@ -2053,7 +2103,7 @@ const TNameTablePtr& TSchemalessMultiChunkReader<TBase>::GetNameTable() const
 }
 
 template <class TBase>
-TKeyColumns TSchemalessMultiChunkReader<TBase>::GetKeyColumns() const
+const TKeyColumns& TSchemalessMultiChunkReader<TBase>::GetKeyColumns() const
 {
     return KeyColumns_;
 }
@@ -2097,7 +2147,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
     NNative::IClientPtr client,
-    const TNodeDescriptor &localDescriptor,
+    const TNodeDescriptor& localDescriptor,
     std::optional<TNodeId> localNodeId,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
@@ -2106,7 +2156,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     TNameTablePtr nameTable,
     const TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter,
-    const TKeyColumns &keyColumns,
+    const TKeyColumns& keyColumns,
     std::optional<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
@@ -2141,7 +2191,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
     NNative::IClientPtr client,
-    const TNodeDescriptor &localDescriptor,
+    const TNodeDescriptor& localDescriptor,
     std::optional<TNodeId> localNodeId,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
@@ -2150,7 +2200,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     TNameTablePtr nameTable,
     const TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter,
-    const TKeyColumns &keyColumns,
+    const TKeyColumns& keyColumns,
     std::optional<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
@@ -2359,14 +2409,14 @@ public:
         return NameTable_;
     }
 
-    virtual TKeyColumns GetKeyColumns() const override
+    virtual const TKeyColumns& GetKeyColumns() const override
     {
         return KeyColumns_;
     }
 
     virtual i64 GetTableRowIndex() const override
     {
-        // Versioned data don't have table row index;
+        // Not supported for versioned data.
         return 0;
     }
 
@@ -2576,7 +2626,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
 
     YT_LOG_DEBUG("Create overlapping range reader (Boundaries: %v, Chunks: %v, ColumnFilter: %v)",
         boundaries,
-        MakeFormattableRange(chunkSpecs, [] (TStringBuilder* builder, const TChunkSpec& chunkSpec) {
+        MakeFormattableView(chunkSpecs, [] (TStringBuilderBase* builder, const TChunkSpec& chunkSpec) {
             FormatValue(builder, FromProto<TChunkId>(chunkSpec.chunk_id()), TStringBuf());
         }),
         columnFilter);

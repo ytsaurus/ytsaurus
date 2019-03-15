@@ -155,7 +155,7 @@ void TSchemafulDsvParser::SwitchTable(int newTableIndex)
 
 void TSchemafulDsvParser::Finish()
 {
-    if (NewRecordStarted_ || !CurrentToken_.Empty() || ExpectingEscapedChar_) {
+    if (NewRecordStarted_ || !CurrentToken_.empty() || ExpectingEscapedChar_) {
         THROW_ERROR_EXCEPTION("Row %v is not finished", RowIndex_);
     }
     CurrentToken_.clear();

@@ -109,7 +109,7 @@ TColumnFilter GetColumnFilter(const TTableSchema& desiredSchema, const TTableSch
 
 struct TRangeFormatter
 {
-    void operator()(TStringBuilder* builder, const TRowRange& source) const
+    void operator()(TStringBuilderBase* builder, const TRowRange& source) const
     {
         builder->AppendFormat("[%v .. %v]",
             source.first,
@@ -210,8 +210,8 @@ public:
     TTabletSnapshotCache(
         TSlotManagerPtr slotManager,
         const NLogging::TLogger& logger)
-        : SlotManager_(std::move(slotManager)),
-        Logger(logger)
+        : SlotManager_(std::move(slotManager))
+        , Logger(logger)
     { }
 
     void ValidateAndRegisterTabletSnapshot(
@@ -384,7 +384,7 @@ private:
             for (const auto& split : splits) {
                 YT_LOG_DEBUG("Ranges in split %v: %v",
                     split.Id,
-                    MakeFormattableRange(split.Ranges, TRangeFormatter()));
+                    MakeFormattableView(split.Ranges, TRangeFormatter()));
             }
         }
     }
@@ -1235,53 +1235,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTrackedMemoryChunkProvider
-    : public IMemoryChunkProvider
-{
-private:
-    struct THolder
-        : public TAllocationHolder
-    {
-        THolder(TMutableRef ref, TRefCountedTypeCookie cookie)
-            : TAllocationHolder(ref, cookie)
-        { }
-
-        NNodeTrackerClient::TNodeMemoryTrackerGuard MemoryTrackerGuard;
-    };
-
-public:
-    explicit TTrackedMemoryChunkProvider(
-        NNodeTrackerClient::EMemoryCategory mainCategory,
-        NNodeTrackerClient::TNodeMemoryTracker* memoryTracker = nullptr)
-        : MainCategory_(mainCategory)
-        , MemoryTracker_(memoryTracker)
-    { }
-
-    virtual std::unique_ptr<TAllocationHolder> Allocate(size_t size, TRefCountedTypeCookie cookie) override
-    {
-        std::unique_ptr<THolder> result(TAllocationHolder::Allocate<THolder>(size, cookie));
-
-        if (MemoryTracker_) {
-            auto guardOrError = NNodeTrackerClient::TNodeMemoryTrackerGuard::TryAcquire(
-                MemoryTracker_,
-                MainCategory_,
-                size);
-
-            result->MemoryTrackerGuard = std::move(guardOrError.ValueOrThrow());
-        }
-        YCHECK(result->GetRef().Size() != 0);
-
-        return result;
-    }
-
-private:
-    NNodeTrackerClient::EMemoryCategory MainCategory_;
-    NNodeTrackerClient::TNodeMemoryTracker* MemoryTracker_;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TQuerySubexecutor
     : public IQuerySubexecutor
 {
@@ -1297,9 +1250,7 @@ public:
         , Evaluator_(New<TEvaluator>(
             Config_,
             QueryAgentProfiler,
-            New<TTrackedMemoryChunkProvider>(
-                EMemoryCategory::Query,
-                Bootstrap_->GetMemoryUsageTracker())))
+            Bootstrap_->GetMemoryUsageTracker()))
         , ColumnEvaluatorCache_(Bootstrap_
             ->GetMasterClient()
             ->GetNativeConnection()

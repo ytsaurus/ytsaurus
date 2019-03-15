@@ -112,7 +112,7 @@ constexpr int ReplicationPriorityCount = 3;
 
 constexpr int LastSeenReplicaCount = 16;
 // Cf. #TChunk::LastSeenReplicas.
-static_assert(LastSeenReplicaCount >= NErasure::MaxTotalPartCount, "LastSeenReplicaCount < NErasure::MaxTotalPartCount");
+static_assert(LastSeenReplicaCount >= ::NErasure::MaxTotalPartCount, "LastSeenReplicaCount < NErasure::MaxTotalPartCount");
 
 DEFINE_BIT_ENUM(EChunkStatus,
     ((None)                    (0x0000))

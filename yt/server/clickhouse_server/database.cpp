@@ -1,12 +1,11 @@
 #include "database.h"
 
-#include "auth_token.h"
 #include "storage_table.h"
 #include "storage_stub.h"
 #include "type_helpers.h"
-
-#include <yt/server/clickhouse_server/storage.h>
-#include <yt/server/clickhouse_server/table.h>
+#include "helpers.h"
+#include "query_context.h"
+#include "table.h"
 
 #include <Common/Exception.h>
 #include <Common/LRUCache.h>
@@ -18,18 +17,10 @@
 #include <string>
 #include <vector>
 
-namespace DB {
-
-namespace ErrorCodes
-{
-    extern const int NOT_IMPLEMENTED;
-}
-
-}   // namespace DB
-
 namespace NYT::NClickHouseServer {
 
 using namespace DB;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,13 +28,11 @@ class TDatabase
     : public IDatabase
 {
 private:
-    const IStoragePtr Storage;
     const IExecutionClusterPtr Cluster;
 
 public:
-    TDatabase(IStoragePtr storage, IExecutionClusterPtr cluster)
-        : Storage(std::move(storage))
-        , Cluster(std::move(cluster))
+    TDatabase(IExecutionClusterPtr cluster)
+        : Cluster(std::move(cluster))
     {}
 
     std::string getEngineName() const override;
@@ -122,67 +111,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDatabaseIterator
-    : public IDatabaseIterator
-{
-private:
-    const std::vector<TTablePtr> Tables;
-
-    std::vector<TTablePtr>::const_iterator Current;
-
-    mutable std::string CurrentName;
-    mutable StoragePtr CurrentTable;
-
-public:
-    TDatabaseIterator(std::vector<TTablePtr> tables)
-        : Tables(std::move(tables))
-        , Current(Tables.begin())
-    {}
-
-    bool isValid() const override
-    {
-        return Current != Tables.end();
-    }
-
-    const std::string& name() const override
-    {
-        if (CurrentName.empty()) {
-            CurrentName = ToStdString((*Current)->Name);
-        }
-        return CurrentName;
-    }
-
-    StoragePtr& table() const override
-    {
-        if (!CurrentTable) {
-            CurrentTable = CreateStorageStub(*Current);
-        }
-        return CurrentTable;
-    }
-
-    void next() override
-    {
-        ++Current;
-        CurrentName.clear();
-        CurrentTable.reset();
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 StoragePtr TDatabase::GetTable(
     const Context& context,
-    const std::string& name) const
+    const std::string& path) const
 {
-    auto token = CreateAuthToken(*Storage, context);
-
-    auto table = Storage->GetTable(*token, ToString(name));
+    auto* queryContext = GetQueryContext(context);
+    auto table = FetchClickHouseTable(queryContext->Client(), TRichYPath::Parse(TString(path)), queryContext->Logger);
     if (!table) {
         // table not found
         return nullptr;
     }
 
-    return CreateStorageTable(Storage, std::move(table), Cluster);
+    return CreateStorageTable(std::move(table), Cluster);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -214,13 +154,34 @@ StoragePtr TDatabase::tryGetTable(
     return GetTable(context, name);
 }
 
-DatabaseIteratorPtr TDatabase::getIterator(const Context& context)
+DatabaseIteratorPtr TDatabase::getIterator(const Context& /* context */)
 {
-    auto token = CreateAuthToken(*Storage, context);
+    class TDummyIterator
+        : public IDatabaseIterator
+    {
+    public:
+        bool isValid() const override
+        {
+            return false;
+        }
 
-    auto tables = Storage->ListTables(*token);
+        virtual void next() override
+        {
+            Y_UNREACHABLE();
+        }
 
-    return std::make_unique<TDatabaseIterator>(std::move(tables));
+        virtual const String& name() const override
+        {
+            Y_UNREACHABLE();
+        }
+
+        virtual StoragePtr& table() const override
+        {
+            Y_UNREACHABLE();
+        }
+    };
+
+    return std::make_unique<TDummyIterator>();
 }
 
 bool TDatabase::empty(const Context& /* context */) const
@@ -338,13 +299,9 @@ void TDatabase::drop()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DatabasePtr CreateDatabase(
-    IStoragePtr storage,
-    IExecutionClusterPtr cluster)
+DatabasePtr CreateDatabase(IExecutionClusterPtr cluster)
 {
-    return std::make_shared<TDatabase>(
-        std::move(storage),
-        std::move(cluster));
+    return std::make_shared<TDatabase>(std::move(cluster));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

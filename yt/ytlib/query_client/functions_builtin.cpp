@@ -1028,6 +1028,16 @@ void RegisterBuiltinFunctions(
         EValueType::String,
         UDF_BC(any_to_yson_string),
         ECallingConvention::Simple);
+
+    builder.RegisterFunction(
+        "_yt_has_permissions",
+        "has_permissions",
+        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::vector<TType>{EValueType::Any, EValueType::String, EValueType::String},
+        EValueType::Null,
+        EValueType::Boolean,
+        UDF_BC(has_permissions),
+        GetCallingConvention(ECallingConvention::UnversionedValue));
 }
 
 } // namespace

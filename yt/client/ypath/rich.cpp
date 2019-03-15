@@ -120,10 +120,10 @@ TString ParseAttributes(const TString& str, IAttributeDictionary* attributes)
     int spaceCount = 0;
     {
         size_t index = 0;
-        while (index < str.Size() && IsSpace(str[index])) {
+        while (index < str.size() && IsSpace(str[index])) {
             ++index;
         }
-        if (index == str.Size() || str[index] != TokenTypeToChar(NYson::ETokenType::LeftAngle)) {
+        if (index == str.size() || str[index] != TokenTypeToChar(NYson::ETokenType::LeftAngle)) {
             return str;
         }
         spaceCount = index;
@@ -450,7 +450,7 @@ void TRichYPath::SetForeign(bool value)
 std::optional<std::vector<TString>> TRichYPath::GetColumns() const
 {
     if (Attributes().Contains("channel")) {
-        THROW_ERROR_EXCEPTION("Deprecated attribute 'channel' in YPath");
+        THROW_ERROR_EXCEPTION("Deprecated attribute \"channel\" in YPath");
     }
     return FindAttribute<std::vector<TString>>(*this, "columns");
 }
@@ -579,6 +579,11 @@ std::optional<NObjectClient::TTransactionId> TRichYPath::GetTransactionId() cons
     return FindAttribute<NObjectClient::TTransactionId>(*this, "transaction_id");
 }
 
+std::optional<std::vector<TString>> TRichYPath::GetSecurityTags() const
+{
+    return FindAttribute<std::vector<TString>>(*this, "security_tags");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString ToString(const TRichYPath& path)
@@ -623,6 +628,16 @@ void Deserialize(TRichYPath& richPath, INodePtr node)
     richPath.SetPath(node->GetValue<TString>());
     richPath.Attributes().Clear();
     richPath.Attributes().MergeFrom(node->Attributes());
+}
+
+void ToProto(TString* protoPath, const TRichYPath& path)
+{
+    *protoPath = ToString(path);
+}
+
+void FromProto(TRichYPath* path, const TString& protoPath)
+{
+    *path = TRichYPath::Parse(protoPath);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

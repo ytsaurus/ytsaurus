@@ -112,14 +112,13 @@ private:
 
         GetUserObjectBasicAttributes(
             Client_,
-            TMutableRange<TUserObject>(&userObject, 1),
+            {&userObject},
             Transaction_ ? Transaction_->GetId() : NullTransactionId,
             Logger,
             EPermission::Read);
 
-        const auto cellTag = userObject.CellTag;
-        const auto& objectId = userObject.ObjectId;
-
+        auto cellTag = userObject.CellTag;
+        auto objectId = userObject.ObjectId;
         auto objectIdPath = FromObjectId(objectId);
 
         if (userObject.Type != EObjectType::Journal) {
@@ -203,8 +202,8 @@ private:
                     options,
                     Client_,
                     NodeDirectory_,
-                    TNodeDescriptor(),
-                    std::nullopt,
+                    /* localDescriptor */ {},
+                    /* partitionTag */ std::nullopt,
                     chunkId,
                     replicas,
                     Client_->GetNativeConnection()->GetBlockCache());

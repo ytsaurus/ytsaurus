@@ -820,8 +820,8 @@ private:
                 dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
                     CachedSourcePath,
                     schema,
-                    columnFilter));
-
+                    columnFilter,
+                    /* omittedInaccessibleColumns */ {}));
                 for (const auto& chunkSpec : key.chunk_specs()) {
                     dataSliceDescriptors.push_back(TDataSliceDescriptor(chunkSpec));
                 }
@@ -833,6 +833,7 @@ private:
                     CachedSourcePath,
                     *schema,
                     columnFilter,
+                    /* omittedInaccessibleColumns */ {},
                     key.data_source().timestamp()));
                 dataSliceDescriptors.push_back(TDataSliceDescriptor(FromProto<std::vector<TChunkSpec>>(key.chunk_specs())));
                 break;
@@ -853,8 +854,8 @@ private:
             std::move(dataSliceDescriptors),
             nameTable,
             blockReadOptions,
-            TColumnFilter(),
-            TKeyColumns(),
+            /* columnFilter */ {},
+            /* keyColumns */ {},
             /* partitionTag */ std::nullopt,
             trafficMeter,
             Bootstrap_->GetArtifactCacheInThrottler(),

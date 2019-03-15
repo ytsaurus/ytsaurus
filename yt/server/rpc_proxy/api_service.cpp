@@ -9,6 +9,7 @@
 #include <yt/ytlib/auth/token_authenticator.h>
 
 #include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/client_cache.h>
 #include <yt/ytlib/api/native/connection.h>
 
 #include <yt/client/api/file_reader.h>
@@ -42,9 +43,9 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/serialize.h>
-#include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/cast.h>
+#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/serialize.h>
 
 #include <yt/core/rpc/service_detail.h>
 
@@ -71,175 +72,6 @@ using NYT::ToProto;
 
 struct TApiServiceBufferTag
 { };
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! A classic sliding window implementation.
-/*!
- *  Can defer up to #windowSize "packets" (abstract movable objects) and reorder
- *  them according to their sequence numbers.
- *
- *  Once a packet is received from the outside world, the user should call
- *  #SetPacket, providing packet's sequence number.
- *
- *  The #callback is called once for each packet when it's about to be popped
- *  out of the window. Specifically, the packets leaves the window when no
- *  packets preceding it are missing.
- *
- *  #callback mustn't throw.
- */
-template <typename T>
-class TSlidingWindow
-{
-public:
-    using TOnPacket = TCallback<void(T&&)>;
-
-    TSlidingWindow(
-        int windowSize,
-        const TOnPacket& callback)
-        : Callback_(callback)
-        , Window_(windowSize)
-    { }
-
-    //! Informs the window that the packet has been received.
-    /*!
-     *  May cause the #callback to be called for deferred packets (up to
-     *  #windowSize times).
-     *
-     *  Throws if a packet with the specified sequence number has already been
-     *  set.
-     *  Throws if the sequence number was already slid over (e.g. it's too
-     *  small).
-     *  Throws if setting this packet would exceed the window size (e.g. the
-     *  sequence number is too large).
-     */
-    void SetPacket(i64 sequenceNumber, T&& packet)
-    {
-        DoSetPacket(sequenceNumber, std::move(packet));
-        MaybeSlideWindow();
-    }
-
-private:
-    TOnPacket Callback_;
-    std::vector<std::optional<T>> Window_;
-    size_t NextPacketSequenceNumber_ = 0;
-    size_t NextPacketIndex_ = 0;
-    int DeferredPacketCount_ = 0;
-
-    void DoSetPacket(i64 sequenceNumber, T&& packet)
-    {
-        if (sequenceNumber < NextPacketSequenceNumber_) {
-            THROW_ERROR_EXCEPTION("Received a packet with an unexpectedly small sequence number")
-                << TErrorAttribute("sequence_number", sequenceNumber)
-                << TErrorAttribute("min_sequence_number", NextPacketSequenceNumber_)
-                << TErrorAttribute("max_sequence_number", NextPacketSequenceNumber_ + Window_.size() - 1);
-        }
-
-        if (sequenceNumber - NextPacketSequenceNumber_ >= Window_.size()) {
-            THROW_ERROR_EXCEPTION("Received a packet with an unexpectedly large sequence number")
-                << TErrorAttribute("sequence_number", sequenceNumber)
-                << TErrorAttribute("min_sequence_number", NextPacketSequenceNumber_)
-                << TErrorAttribute("max_sequence_number", NextPacketSequenceNumber_ + Window_.size() - 1);
-        }
-
-        const auto packetSlotIndex = (NextPacketIndex_ + sequenceNumber - NextPacketSequenceNumber_) % Window_.size();
-        auto& packetSlot = Window_[packetSlotIndex];
-
-        if (packetSlot) {
-            THROW_ERROR_EXCEPTION("Received a packet with same sequence number twice")
-                << TErrorAttribute("sequence_number", sequenceNumber);
-        }
-
-        packetSlot = std::move(packet);
-        ++DeferredPacketCount_;
-    }
-
-    void MaybeSlideWindow()
-    {
-        while (DeferredPacketCount_ > 0) {
-            auto& nextSlot = Window_[NextPacketIndex_];
-            if (!nextSlot) {
-                break;
-            }
-
-            Callback_(std::move(*nextSlot));
-            nextSlot.reset();
-            ++NextPacketSequenceNumber_;
-            if (++NextPacketIndex_ == Window_.size()) {
-                NextPacketIndex_ = 0;
-            }
-            --DeferredPacketCount_;
-        }
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_CLASS(TModifyRowsSlidingWindow)
-
-// "Modify rows" calls deferred in a sliding window to restore their ordering.
-class TModifyRowsSlidingWindow
-    : public TRefCounted
-{
-public:
-    TModifyRowsSlidingWindow(ITransaction* transaction)
-        : Transaction_(transaction)
-        , Window_(
-            NApi::NRpcProxy::MaxInFlightModifyRowsRequestCount,
-            BIND(&TModifyRowsSlidingWindow::DoModifyRows, Unretained(this)))
-    {
-        YCHECK(transaction);
-    }
-
-    void ModifyRows(
-        std::optional<i64> sequenceNumber,
-        const NYPath::TYPath& path,
-        NTableClient::TNameTablePtr nameTable,
-        TSharedRange<TRowModification> modifications,
-        const TModifyRowsOptions& options)
-    {
-        TModifyRows modifyRows{
-            std::move(path),
-            std::move(nameTable),
-            std::move(modifications),
-            std::move(options)};
-
-        if (sequenceNumber) {
-            auto guard = Guard(SpinLock_);
-            Window_.SetPacket(*sequenceNumber, std::move(modifyRows));
-        } else {
-            // Old clients don't send us the sequence number.
-            DoModifyRows(std::move(modifyRows));
-        }
-    }
-
-private:
-    struct TModifyRows
-    {
-        TString Path;
-        TNameTablePtr NameTable;
-        TSharedRange<TRowModification> Modifications;
-        TModifyRowsOptions Options;
-    };
-
-    TSpinLock SpinLock_;
-    // The transaction is supposed to outlive this window; no ownership is required.
-    ITransaction* Transaction_;
-    TSlidingWindow<TModifyRows> Window_;
-
-    void DoModifyRows(TModifyRows&& modifyRows)
-    {
-        Transaction_->ModifyRows(
-            std::move(modifyRows.Path),
-            std::move(modifyRows.NameTable),
-            std::move(modifyRows.Modifications),
-            std::move(modifyRows.Options));
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TModifyRowsSlidingWindow)
-
-////////////////////////////////////////////////////////////////////////////////
 
 namespace {
 
@@ -402,9 +234,14 @@ public:
             NullRealmId,
             bootstrap->GetRpcAuthenticator())
         , Bootstrap_(bootstrap)
+        , Config_(bootstrap->GetConfig()->ApiService)
         , Coordinator_(bootstrap->GetProxyCoordinator())
         , StickyTransactionPool_(CreateStickyTransactionPool(Logger))
     {
+        AuthenticatedClientCache_ = New<NApi::NNative::TClientCache>(
+            Config_->ClientCache,
+            Bootstrap_->GetNativeConnection());
+
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction));
@@ -469,6 +306,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfos));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyRows));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(BatchModifyRows));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(BuildSnapshot));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
@@ -507,31 +345,16 @@ public:
 
 private:
     const TBootstrap* Bootstrap_;
+    const TApiServiceConfigPtr Config_;
     const IProxyCoordinatorPtr Coordinator_;
 
     TSpinLock SpinLock_;
-    // TODO(sandello): Introduce expiration times for clients.
-    THashMap<TString, NNative::IClientPtr> AuthenticatedClients_;
+    NNative::TClientCachePtr AuthenticatedClientCache_;
     const IStickyTransactionPoolPtr StickyTransactionPool_;
-
-    THashMap<TTransactionId, TModifyRowsSlidingWindowPtr> TransactionToModifyRowsSlidingWindow_;
 
     NNative::IClientPtr GetOrCreateClient(const TString& user)
     {
-        auto guard = Guard(SpinLock_);
-
-        auto it = AuthenticatedClients_.find(user);
-        if (it == AuthenticatedClients_.end()) {
-            const auto& connection = Bootstrap_->GetNativeConnection();
-            auto client = connection->CreateNativeClient(TClientOptions(user));
-            YCHECK(AuthenticatedClients_.insert(std::make_pair(user, client)).second);
-
-            YT_LOG_DEBUG("Created native client (User: %v)", user);
-
-            return client;
-        }
-
-        return it->second;
+        return AuthenticatedClientCache_->GetClient(user);
     }
 
     TString ExtractIP(TString address)
@@ -564,38 +387,13 @@ private:
         const auto& user = context->GetUser();
 
         // Pretty-printing Protobuf requires a bunch of effort, so we make it conditional.
-        if (Bootstrap_->GetConfig()->ApiService->VerboseLogging) {
+        if (Config_->VerboseLogging) {
             YT_LOG_DEBUG("RequestId: %v, RequestBody: %v",
                 context->GetRequestId(),
                 request->ShortDebugString());
         }
 
         return GetOrCreateClient(user);
-    }
-
-    TModifyRowsSlidingWindowPtr GetOrCreateTransactionModifyRowsSlidingWindow(const ITransactionPtr& transaction)
-    {
-        TModifyRowsSlidingWindowPtr result;
-        {
-            auto guard = Guard(SpinLock_);
-            auto it = TransactionToModifyRowsSlidingWindow_.find(transaction->GetId());
-            if (it != TransactionToModifyRowsSlidingWindow_.end()) {
-                return it->second;
-            }
-
-            auto insertResult = TransactionToModifyRowsSlidingWindow_.emplace(
-                transaction->GetId(),
-                New<TModifyRowsSlidingWindow>(transaction.Get()));
-            YCHECK(insertResult.second);
-            result = insertResult.first->second;
-        }
-
-        // Clean up TransactionToModifyRowsSlidingWindow_. Subscribe outside of the lock
-        // to avoid deadlocking in case the callback is called (synchronously) right away.
-        transaction->SubscribeCommitted(BIND(&TApiService::OnStickyTransactionFinished, MakeWeak(this), transaction->GetId()));
-        transaction->SubscribeAborted(BIND(&TApiService::OnStickyTransactionFinished, MakeWeak(this), transaction->GetId()));
-
-        return result;
     }
 
     ITransactionPtr GetTransactionOrAbortContext(
@@ -622,12 +420,6 @@ private:
         }
 
         return transaction;
-    }
-
-    void OnStickyTransactionFinished(TTransactionId transactionId)
-    {
-        auto guard = Guard(SpinLock_);
-        TransactionToModifyRowsSlidingWindow_.erase(transactionId);
     }
 
     template <class T>
@@ -1449,14 +1241,11 @@ private:
             return;
         }
 
-        auto srcPaths = FromProto<std::vector<TYPath>>(request->src_paths());
-        const auto& dstPath = request->dst_path();
+        auto srcPaths = FromProto<std::vector<TRichYPath>>(request->src_paths());
+        auto dstPath = FromProto<TRichYPath>(request->dst_path());
 
         TConcatenateNodesOptions options;
         SetTimeoutOptions(&options, context.Get());
-        if (request->has_append()) {
-            options.Append = request->append();
-        }
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -2028,8 +1817,8 @@ private:
             options.UserFilter = request->user_filter();
         }
 
-        if (request->has_owned_by()) {
-            options.OwnedBy = request->owned_by();
+        if (request->has_access_filter()) {
+            options.AccessFilter = ConvertTo<TListOperationsAccessFilterPtr>(TYsonString(request->access_filter()));
         }
 
         if (request->has_state_filter()) {
@@ -2060,13 +1849,13 @@ private:
         options.EnableUIMode = request->enable_ui_mode();
 
         context->SetRequestInfo("IncludeArchive: %v, FromTime: %v, ToTime: %v, CursorTime: %v, UserFilter: %v, "
-            "OwnedBy: %v, StateFilter: %v, TypeFilter: %v, SubstrFilter: %v",
+            "AccessFilter: %v, StateFilter: %v, TypeFilter: %v, SubstrFilter: %v",
             options.IncludeArchive,
             options.FromTime,
             options.ToTime,
             options.CursorTime,
             options.UserFilter,
-            options.OwnedBy,
+            ConvertToYsonString(options.AccessFilter, EYsonFormat::Text),
             options.StateFilter,
             options.TypeFilter,
             options.SubstrFilter);
@@ -2639,6 +2428,9 @@ private:
         if (request->has_udf_registry_path()) {
             options.UdfRegistryPath = request->udf_registry_path();
         }
+        if (request->has_memory_limit_per_node()) {
+            options.MemoryLimitPerNode = request->memory_limit_per_node();
+        }
 
         context->SetRequestInfo("Query: %v, Timestamp: %llx",
             query,
@@ -2732,15 +2524,63 @@ private:
             });
     }
 
+    void DoModifyRows(
+        const NApi::NRpcProxy::NProto::TReqModifyRows& request,
+        const std::vector<TSharedRef>& attachments,
+        const ITransactionPtr& transaction)
+    {
+        const auto& path = request.path();
+
+        auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
+            request.rowset_descriptor(),
+            MergeRefsToRef<TApiServiceBufferTag>(attachments));
+
+        auto nameTable = TNameTable::FromSchema(rowset->Schema());
+
+        const auto& rowsetRows = rowset->GetRows();
+        auto rowsetSize = rowset->GetRows().Size();
+
+        if (rowsetSize != request.row_modification_types_size()) {
+            THROW_ERROR_EXCEPTION("Row count mismatch")
+                << TErrorAttribute("rowset_size", rowsetSize)
+                << TErrorAttribute("row_modification_types_size", request.row_modification_types_size());
+        }
+
+        std::vector<TRowModification> modifications;
+        modifications.reserve(rowsetSize);
+        for (size_t index = 0; index < rowsetSize; ++index) {
+            ui32 readLocks = index < request.row_read_locks_size() ? request.row_read_locks(index) : 0;
+
+            modifications.push_back({
+                CheckedEnumCast<ERowModificationType>(request.row_modification_types(index)),
+                rowsetRows[index].ToTypeErasedRow(),
+                readLocks
+            });
+        }
+
+        TModifyRowsOptions options;
+        if (request.has_require_sync_replica()) {
+            options.RequireSyncReplica = request.require_sync_replica();
+        }
+        if (request.has_upstream_replica_id()) {
+            FromProto(&options.UpstreamReplicaId, request.upstream_replica_id());
+        }
+
+        if (Config_->EnableModifyRowsRequestReordering &&
+            request.has_sequence_number())
+        {
+            options.SequenceNumber = request.sequence_number();
+        }
+
+        transaction->ModifyRows(
+            path,
+            std::move(nameTable),
+            MakeSharedRange(std::move(modifications), rowset),
+            options);
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ModifyRows)
     {
-        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        const auto& path = request->path();
-
-        context->SetRequestInfo("TransactionId: %v, Path: %v",
-            transactionId,
-            path);
-
         TTransactionAttachOptions attachOptions;
         attachOptions.Ping = false;
         attachOptions.PingAncestors = false;
@@ -2749,68 +2589,73 @@ private:
         auto transaction = GetTransactionOrAbortContext(
             context,
             request,
-            transactionId,
+            FromProto<TTransactionId>(request->transaction_id()),
             attachOptions);
         if (!transaction) {
             return;
         }
 
-        auto modifyRowsWindow = GetOrCreateTransactionModifyRowsSlidingWindow(transaction);
-
-        auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
-            request->rowset_descriptor(),
-            MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
-
-        auto nameTable = TNameTable::FromSchema(rowset->Schema());
-
-        const auto& rowsetRows = rowset->GetRows();
-        auto rowsetSize = rowset->GetRows().Size();
-
-        if (rowsetSize != request->row_modification_types_size()) {
-            THROW_ERROR_EXCEPTION("Row count mismatch")
-                << TErrorAttribute("rowset_size", rowsetSize)
-                << TErrorAttribute("row_modification_types_size", request->row_modification_types_size());
-        }
-
-        std::vector<TRowModification> modifications;
-        modifications.reserve(rowsetSize);
-        for (size_t index = 0; index < rowsetSize; ++index) {
-            ui32 readLocks = index < request->row_read_locks_size() ? request->row_read_locks(index) : 0;
-
-            modifications.push_back({
-                CheckedEnumCast<ERowModificationType>(request->row_modification_types(index)),
-                rowsetRows[index].ToTypeErasedRow(),
-                readLocks
-            });
-        }
-
-        TModifyRowsOptions options;
-        if (request->has_require_sync_replica()) {
-            options.RequireSyncReplica = request->require_sync_replica();
-        }
-        if (request->has_upstream_replica_id()) {
-            FromProto(&options.UpstreamReplicaId, request->upstream_replica_id());
-        }
-
-        std::optional<size_t> sequenceNumber;
-        if (Bootstrap_->GetConfig()->ApiService->EnableModifyRowsRequestReordering &&
-            request->has_sequence_number())
-        {
-            sequenceNumber = request->sequence_number();
-        }
-
-        modifyRowsWindow->ModifyRows(
-            sequenceNumber,
-            path,
-            std::move(nameTable),
-            MakeSharedRange(std::move(modifications), rowset),
-            options);
+        DoModifyRows(*request, request->Attachments(), transaction);
 
         context->SetRequestInfo(
             "Path: %v, ModificationCount: %v",
             request->path(),
             request->row_modification_types_size());
 
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, BatchModifyRows)
+    {
+        TTransactionAttachOptions attachOptions;
+        attachOptions.Ping = false;
+        attachOptions.PingAncestors = false;
+        attachOptions.Sticky = true; // XXX(sandello): Fix me!
+        auto transaction = GetTransactionOrAbortContext(
+            context,
+            request,
+            FromProto<TTransactionId>(request->transaction_id()),
+            attachOptions);
+        if (!transaction) {
+            return;
+        }
+
+        i64 attachmentCount = request->Attachments().size();
+        i64 expectedAttachmentCount = 0;
+        for (const auto& partCount: request->part_counts()) {
+            if (partCount < 0) {
+                THROW_ERROR_EXCEPTION("Received a negative part count")
+                    << TErrorAttribute("partCount", partCount);
+            }
+            if (partCount >= attachmentCount) {
+                THROW_ERROR_EXCEPTION("Part count is too large")
+                    << TErrorAttribute("partCount", partCount);
+            }
+
+            expectedAttachmentCount += partCount + 1;
+        }
+        if (attachmentCount != expectedAttachmentCount) {
+            THROW_ERROR_EXCEPTION("Attachment count mismatch")
+                << TErrorAttribute("attachment_count", attachmentCount)
+                << TErrorAttribute("expected_attachment_count", expectedAttachmentCount);
+        }
+
+        auto blobIndex = 0;
+        const auto attachmentsStart = request->Attachments().begin();
+        for (const auto& partCount: request->part_counts()) {
+            NApi::NRpcProxy::NProto::TReqModifyRows subrequest;
+            DeserializeProto(&subrequest, request->Attachments()[blobIndex]);
+            ++blobIndex;
+            std::vector<TSharedRef> attachments(
+                attachmentsStart + blobIndex,
+                attachmentsStart + blobIndex + partCount);
+            DoModifyRows(subrequest, attachments, transaction);
+            blobIndex += partCount;
+        }
+
+        context->SetRequestInfo("BatchSize: %v, TransactionId: %v",
+            request->part_counts_size(),
+            transaction->GetId());
         context->Reply();
     }
 
@@ -2949,11 +2794,14 @@ private:
             return;
         }
 
-        auto user = request->user();
-        auto path = request->path();
-        auto permission = static_cast<EPermission>(request->permission());
+        const auto& user = request->user();
+        const auto& path = request->path();
+        auto permission = CheckedEnumCast<EPermission>(request->permission());
 
         TCheckPermissionOptions options;
+        if (request->has_columns()) {
+            options.Columns = FromProto<std::vector<TString>>(request->columns().items());
+        }
         SetTimeoutOptions(&options, context.Get());
         if (request->has_master_read_options()) {
             FromProto(&options, request->master_read_options());
@@ -2973,9 +2821,12 @@ private:
         CompleteCallWith(
             context,
             client->CheckPermission(user, path, permission, options),
-            [] (const auto& context, const auto& result) {
+            [] (const auto& context, const auto& checkResponse) {
                 auto* response = &context->Response();
-                ToProto(response->mutable_result(), result);
+                ToProto(response->mutable_result(), checkResponse);
+                if (checkResponse.Columns) {
+                    ToProto(response->mutable_columns()->mutable_items(), *checkResponse.Columns);
+                }
             });
     }
 
@@ -3097,17 +2948,10 @@ private:
             return;
         }
 
-        auto path = request->path();
+        auto path = ConvertTo<NYPath::TRichYPath>(TYsonString(request->path()));
 
         TFileWriterOptions options;
-        options.Append = request->append();
         options.ComputeMD5 = request->compute_md5();
-        if (request->has_compression_codec()) {
-            options.CompressionCodec = CheckedEnumCast<NCompression::ECodec>(request->compression_codec());
-        }
-        if (request->has_erasure_codec()) {
-            options.ErasureCodec = CheckedEnumCast<NErasure::ECodec>(request->erasure_codec());
-        }
         if (request->has_config()) {
             options.Config = ConvertTo<TFileWriterConfigPtr>(TYsonString(request->config()));
         }
@@ -3120,12 +2964,9 @@ private:
         }
 
         context->SetRequestInfo(
-            "Path: %v, Append: %v, ComputeMD5: %v, CompressionCodec: %v, ErasureCodec: %v",
+            "Path: %v, ComputeMD5: %v",
             path,
-            options.Append,
-            options.ComputeMD5,
-            options.CompressionCodec,
-            options.ErasureCodec);
+            options.ComputeMD5);
 
         auto fileWriter = client->CreateFileWriter(path, options);
         WaitFor(fileWriter->Open()).ThrowOnError();

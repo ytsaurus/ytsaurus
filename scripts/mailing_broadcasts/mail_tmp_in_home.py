@@ -8,9 +8,7 @@ import smtplib
 
 import sys
 import json
-import re
 import yt.wrapper as yt
-
 
 
 MAIL_SERVER = "outbound-relay.yandex.net"

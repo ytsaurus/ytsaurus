@@ -31,8 +31,15 @@ namespace NYT::NChunkServer {
 struct TReplicationPolicy
 {
 public:
-    TReplicationPolicy();
-    TReplicationPolicy(int replicationFactor, bool dataPartsOnly);
+    constexpr TReplicationPolicy()
+        : ReplicationFactor_(0)
+        , DataPartsOnly_(false)
+    { }
+
+    constexpr TReplicationPolicy(int replicationFactor, bool dataPartsOnly)
+        : ReplicationFactor_(replicationFactor)
+        , DataPartsOnly_(dataPartsOnly)
+    { }
 
     void Clear();
 
@@ -68,7 +75,7 @@ static_assert(sizeof(TReplicationPolicy) == 1, "sizeof(TReplicationPolicy) != 1"
 bool operator==(TReplicationPolicy lhs, TReplicationPolicy rhs);
 bool operator!=(TReplicationPolicy lhs, TReplicationPolicy rhs);
 
-void FormatValue(TStringBuilder* builder, TReplicationPolicy policy, TStringBuf /*spec*/);
+void FormatValue(TStringBuilderBase* builder, TReplicationPolicy policy, TStringBuf /*spec*/);
 TString ToString(TReplicationPolicy policy);
 
 void Serialize(const TReplicationPolicy& policy, NYson::IYsonConsumer* consumer);
@@ -87,45 +94,104 @@ void Deserialize(TReplicationPolicy& policy, NYTree::INodePtr node);
  */
 class TChunkReplication
 {
+private:
+    struct TEntryComparator;
 public:
-    using TMediumReplicationPolicyArray = TPerMediumArray<TReplicationPolicy>;
+    class TEntry
+    {
+        // Entries are stored sorted by medium index, changing the index would
+        // break internal invariants.
+        DEFINE_BYVAL_RO_PROPERTY(ui16, MediumIndex);
+        DEFINE_BYREF_RW_PROPERTY(TReplicationPolicy, Policy);
 
-    using const_iterator = typename TMediumReplicationPolicyArray::const_iterator;
-    using iterator = typename TMediumReplicationPolicyArray::iterator;
+    public:
+        TEntry() = default;
+        TEntry(int mediumIndex, TReplicationPolicy policy);
+
+        void Save(NCellMaster::TSaveContext& context) const;
+        void Load(NCellMaster::TLoadContext& context);
+
+        bool operator==(const TEntry& rhs) const;
+
+    private:
+        friend struct TEntryComparator;
+    };
+
+private:
+    struct TEntryComparator
+    {
+        bool operator()(const TEntry& lhs, const TEntry& rhs) const;
+    };
+
+    // Leave some space for the replicator to manipulate replication policies.
+    static constexpr unsigned TypicalChunkMediumCount = 7;
+    using TEntries = SmallVector<TEntry, TypicalChunkMediumCount>;
+
+public:
+    using iterator = TEntries::iterator;
+    using const_iterator = TEntries::const_iterator;
 
     //! Constructs an 'empty' replication.
     /*!
      *  THE STATE CONSTRUCTED BY THE DEFAULT CTOR IS UNSAFE!
-     *  It has replication factors set to zero and thus doesn't represent a
-     *  sensible set of defaults for a chunk owner.
-     *
-     *  By default, 'data parts only' flags are set to |false| for all media.
-     *
-     *  If #clearForAggregating is |true|, these flags are set to |true|. Since these
-     *  flags are aggregated by ANDing, this makes the replication suitable for
-     *  aggregating via operator|=().
+     *  It has no entries and is thus effectively prescribes data removal.
+     *  Obviously, this doesn't represent a sensible set of defaults for a chunk owner.
      */
-    TChunkReplication(bool clearForAggregating = false);
+    TChunkReplication() = default;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
+
+    iterator begin();
+    iterator end();
 
     const_iterator begin() const;
     const_iterator end() const;
     const_iterator cbegin() const;
     const_iterator cend() const;
-    iterator begin();
-    iterator end();
 
-    const TReplicationPolicy& operator[](int mediumIndex) const;
-    TReplicationPolicy& operator[](int mediumIndex);
+    //! Removes entries for all media.
+    //! Does not affect the 'vital' flag.
+    void ClearEntries();
+
+    //! Returns true iff this replication has an entry for the specified medium.
+    bool Contains(int mediumIndex) const;
+
+    //! Removes the entry for the specified medium.
+    /*!
+     *  Since a missing policy is considered equivalent to an empty policy,
+     *  erasing an entry for a medium essentially prescribes removing data from
+     *  it (or not storing it in the first place).
+     */
+    bool Erase(int mediumIndex);
+
+    //! Sets or updates replication policy for a specific medium.
+    /*!
+     *  If eraseEmpty is true, setting a policy with zero RF is equivalent to
+     *  erasing the entry for the medium altogether. Otherwise, the empty policy
+     *  will actually be stored within this replication.
+     *
+     */
+    void Set(int mediumIndex, TReplicationPolicy policy, bool eraseEmpty = true);
+
+    //! Updates the entry for the specified medium by aggregating it with the
+    //! specified policy via #TReplicationPolicy::operator|=().
+    /*!
+     *  Unlike for Set, #policy must have positive RF.
+     *
+     *  If there's no entry for the medium, this is equivalent to calling Set().
+     */
+    void Aggregate(int mediumIndex, TReplicationPolicy policy);
+
+    //! Looks up the entry for the specified medium.
+    /*!
+     *  If no entry exists, returns an empty policy (with 0 RF and true 'data
+     *  parts only') but that policy is not added to this replication.
+     */
+    const TReplicationPolicy& Get(int mediumIndex) const;
 
     bool GetVital() const;
     void SetVital(bool vital);
-
-    //! Aggregates this with #rhs by ORing 'vital' flags and aggregating replication
-    //! policies for each medium (see #TReplicationPolicy::operator|=()).
-    TChunkReplication& operator|=(const TChunkReplication& rhs);
 
     //! Returns |true| iff this replication settings would not result in a data
     //! loss (i.e. on at least on medium, replication factor is non-zero and
@@ -133,20 +199,28 @@ public:
     bool IsValid() const;
 
 private:
-    TMediumReplicationPolicyArray MediumReplicationPolicies = {};
+    static constexpr const TReplicationPolicy EmptyReplicationPolicy = TReplicationPolicy(0, true);
+
+    TEntries Entries_;
     bool Vital_ = false;
 
-    static_assert(
-        sizeof(MediumReplicationPolicies) == MaxMediumCount * sizeof(TReplicationPolicy),
-        "sizeof(MediumReplicationPolicies) != MaxMediumCount * sizeof(TReplicationPolicy)");
+    std::pair<iterator, bool> Insert(int mediumIndex, TReplicationPolicy policy);
+
+    //! Looks up an entry for the specified medium.
+    const_iterator Find(int mediumIndex) const;
+    iterator Find(int mediumIndex);
+
+    // Implementation detail of the above. Works for both const and non-const entries.
+    template <class T>
+    static auto Find(T& entries, int mediumIndex) -> decltype(entries.begin());
 };
 
-static_assert(sizeof(TChunkReplication) == 8, "TChunkReplication's size is wrong");
+static_assert(sizeof(TChunkReplication) == 64, "TChunkReplication's size is wrong");
 
 bool operator==(const TChunkReplication& lhs, const TChunkReplication& rhs);
 bool operator!=(const TChunkReplication& lhs, const TChunkReplication& rhs);
 
-void FormatValue(TStringBuilder* builder, TChunkReplication replication, TStringBuf /*spec*/);
+void FormatValue(TStringBuilderBase* builder, const TChunkReplication& replication, TStringBuf /*spec*/);
 TString ToString(const TChunkReplication& replication);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -176,7 +250,7 @@ public:
 private:
     //! Media are sorted by name at serialization. This is by no means required,
     //! we're just being nice here.
-    std::map<TString, TReplicationPolicy> MediumReplicationPolicies_;
+    std::map<TString, TReplicationPolicy> Entries_;
 
     friend void Serialize(const TReplicationPolicy& serializer, NYson::IYsonConsumer* consumer);
     friend void Deserialize(TReplicationPolicy& serializer, NYTree::INodePtr node);
@@ -234,7 +308,7 @@ struct TRequisitionEntry
     size_t GetHash() const;
 };
 
-void FormatValue(TStringBuilder* builder, const TRequisitionEntry& entry, TStringBuf /*spec*/ = {});
+void FormatValue(TStringBuilderBase* builder, const TRequisitionEntry& entry, TStringBuf /*spec*/ = {});
 TString ToString(const TRequisitionEntry& entry);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -260,10 +334,10 @@ public:
     using TEntries = SmallVector<TRequisitionEntry, 4>;
     using const_iterator = TEntries::const_iterator;
 
-    //! Constructs an 'empty' requisition with no entries.
+    //! Constructs an empty requisition with no entries.
     TChunkRequisition() = default;
 
-    //! Constructs a requisition with a single entry.
+    //! Constructs a requisition with a single entry. RF within replicationPolicy must be positive.
     TChunkRequisition(
         NSecurityServer::TAccount* account,
         int mediumIndex,
@@ -289,6 +363,7 @@ public:
     bool GetVital() const;
     void SetVital(bool vital);
 
+    //! Sets the specified RF to all the entries. RF must be positive.
     void ForceReplicationFactor(int replicationFactor);
 
     //! Aggregates this with #rhs ORing vitalities and merging entries.
@@ -303,12 +378,6 @@ public:
     /*!
      *  By default, ONLY COMMITTED ENTRIES are taken into account. If, however
      *  there aren't any, non-committed ones are used.
-     *
-     *  For those media that aren't mentioned by the requisition, the resulting
-     *  replication will have RF set to zero. In particular, an empty
-     *  requisition produces a replication with RF == 0 for all media. For media
-     *  with RF == 0, the state of the 'data parts only' flag IS NOT SPECIFIED.
-     *
      */
     TChunkReplication ToReplication() const;
 
@@ -344,7 +413,7 @@ void ToProto(
     NProto::TReqUpdateChunkRequisition::TChunkRequisition* protoRequisition,
     const TChunkRequisition& requisition);
 
-void FormatValue(TStringBuilder* builder, const TChunkRequisition& requisition, TStringBuf /*spec*/ = {});
+void FormatValue(TStringBuilderBase* builder, const TChunkRequisition& requisition, TStringBuf /*spec*/ = {});
 TString ToString(const TChunkRequisition& requisition);
 
 ////////////////////////////////////////////////////////////////////////////////

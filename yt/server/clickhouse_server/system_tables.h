@@ -2,12 +2,6 @@
 
 #include "cluster_tracker.h"
 
-namespace DB {
-
-class IDatabase;
-
-}   // namespace DB;
-
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////

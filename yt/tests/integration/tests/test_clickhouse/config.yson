@@ -49,7 +49,7 @@
     };
     "rpc_port" = 32236;
     "monitoring_port" = 32238;
-    "validate_operation_permission" = %false;
+    "validate_operation_access" = %false;
     "user" = "root";
     "engine" = {
         "settings" = {

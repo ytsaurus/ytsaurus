@@ -151,8 +151,8 @@ class TestEventLog(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"a": "b"}])
 
-        for node in ls("//sys/nodes"):
-            set("//sys/nodes/{0}/@banned".format(node), True)
+        for node in ls("//sys/cluster_nodes"):
+            set("//sys/cluster_nodes/{0}/@banned".format(node), True)
 
         time.sleep(2)
         op = map(
@@ -162,8 +162,8 @@ class TestEventLog(YTEnvSetup):
             command="cat")
         time.sleep(2)
 
-        for node in ls("//sys/nodes"):
-            set("//sys/nodes/{0}/@banned".format(node), False)
+        for node in ls("//sys/cluster_nodes"):
+            set("//sys/cluster_nodes/{0}/@banned".format(node), False)
 
         op.track()
 
@@ -2291,10 +2291,10 @@ class TestSchedulingTags(YTEnvSetup):
         write_table("//tmp/t_in", {"foo": "bar"})
         create("table", "//tmp/t_out")
 
-        nodes = list(get("//sys/nodes"))
+        nodes = list(get("//sys/cluster_nodes"))
         self.node = nodes[0]
-        set("//sys/nodes/{0}/@user_tags".format(self.node), ["default", "tagA", "tagB"])
-        set("//sys/nodes/{0}/@user_tags".format(nodes[1]), ["tagC"])
+        set("//sys/cluster_nodes/{0}/@user_tags".format(self.node), ["default", "tagA", "tagB"])
+        set("//sys/cluster_nodes/{0}/@user_tags".format(nodes[1]), ["tagC"])
         # Wait for applying scheduling tags.
         time.sleep(0.5)
 
@@ -2323,7 +2323,7 @@ class TestSchedulingTags(YTEnvSetup):
             map(command="cat", in_="//tmp/t_in", out="//tmp/t_out",
                 spec={"scheduling_tag_filter": "tagA & !tagB"})
 
-        set("//sys/nodes/{0}/@user_tags".format(self.node), ["default"])
+        set("//sys/cluster_nodes/{0}/@user_tags".format(self.node), ["default"])
         time.sleep(1.0)
         with pytest.raises(YtError):
             map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagA"})
@@ -2340,7 +2340,7 @@ class TestSchedulingTags(YTEnvSetup):
         assert len(job_ids) == 1
         for job_id in job_ids:
             job_addr = get(op.get_path() + "/jobs/{}/@address".format(job_id))
-            assert "tagA" in get("//sys/nodes/{0}/@user_tags".format(job_addr))
+            assert "tagA" in get("//sys/cluster_nodes/{0}/@user_tags".format(job_addr))
 
         # We do not support detection of the fact that no node satisfies pool scheduling tag filter.
         #set("//sys/pools/test_pool/@scheduling_tag_filter", "tagC")
@@ -2359,7 +2359,7 @@ class TestSchedulingTags(YTEnvSetup):
         self._prepare()
         write_table("//tmp/t_in", [{"foo": "bar"} for _ in xrange(20)])
 
-        set("//sys/nodes/{0}/@user_tags".format(self.node), ["default", "tagB"])
+        set("//sys/cluster_nodes/{0}/@user_tags".format(self.node), ["default", "tagB"])
         time.sleep(1.2)
         op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagB", "job_count": 20})
         time.sleep(0.8)
@@ -2373,7 +2373,7 @@ class TestSchedulingTags(YTEnvSetup):
         self._prepare()
 
         custom_node = None
-        for node in ls("//sys/nodes", attributes=["user_tags"]):
+        for node in ls("//sys/cluster_nodes", attributes=["user_tags"]):
             if "tagC" in node.attributes["user_tags"]:
                 custom_node = str(node)
 
@@ -2395,7 +2395,7 @@ class TestSchedulingTags(YTEnvSetup):
 
         self.Env.kill_schedulers()
 
-        set("//sys/nodes/{0}/@user_tags".format(custom_node), [])
+        set("//sys/cluster_nodes/{0}/@user_tags".format(custom_node), [])
 
         self.Env.start_schedulers()
 
@@ -2410,7 +2410,7 @@ class TestSchedulingTags(YTEnvSetup):
         assert len(op.get_running_jobs()) == 0
         assert op.get_state() == "running"
 
-        set("//sys/nodes/{0}/@user_tags".format(custom_node), ["tagC"])
+        set("//sys/cluster_nodes/{0}/@user_tags".format(custom_node), ["tagC"])
         wait(lambda: len(op.get_running_jobs()) > 0)
 
 
@@ -2752,7 +2752,7 @@ class TestSchedulerGpu(YTEnvSetup):
             config["exec_agent"]["job_controller"]["test_gpu"] = True
 
     def test_job_count(self):
-        gpu_nodes = [node for node in ls("//sys/nodes") if get("//sys/nodes/{}/@resource_limits/gpu".format(node)) > 0]
+        gpu_nodes = [node for node in ls("//sys/cluster_nodes") if get("//sys/cluster_nodes/{}/@resource_limits/gpu".format(node)) > 0]
         assert len(gpu_nodes) == 1
         gpu_node = gpu_nodes[0]
 
@@ -3332,7 +3332,7 @@ class TestResourceLimitsOverrides(YTEnvSetup):
         job_id = jobs.keys()[0]
         address = jobs[job_id]["address"]
 
-        set("//sys/nodes/{0}/@resource_limits_overrides/cpu".format(address), 0)
+        set("//sys/cluster_nodes/{0}/@resource_limits_overrides/cpu".format(address), 0)
         op.track()
 
         assert get(op.get_path() + "/@progress/jobs/aborted/total") == 1
@@ -3356,7 +3356,7 @@ class TestResourceLimitsOverrides(YTEnvSetup):
         job_id = jobs.keys()[0]
         address = jobs[job_id]["address"]
 
-        set("//sys/nodes/{0}/@resource_limits_overrides/user_memory".format(address), 99 * 1024 * 1024)
+        set("//sys/cluster_nodes/{0}/@resource_limits_overrides/user_memory".format(address), 99 * 1024 * 1024)
         op.track()
 
         assert get(op.get_path() + "/@progress/jobs/aborted/total") == 1
@@ -3586,7 +3586,7 @@ class TestSchedulerOperationStorageArchivation(YTEnvSetup):
 
     def setup(self):
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(self.Env.create_native_client())
+        init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
 
     def teardown(self):
         remove("//sys/operations_archive")
@@ -4079,7 +4079,7 @@ class TestConnectToMaster(YTEnvSetup):
         return False
 
 
-class TestOperationAliasesBase(YTEnvSetup):
+class TestOperationAliases(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_NODES = 3
@@ -4111,7 +4111,7 @@ class TestOperationAliasesBase(YTEnvSetup):
         # Init operations archive.
         sync_create_cells(1)
 
-    def _test_aliases(self, is_native):
+    def test_aliases(self):
         with pytest.raises(YtError):
             # Alias should start with *.
             vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
@@ -4125,8 +4125,7 @@ class TestOperationAliasesBase(YTEnvSetup):
         assert ls("//sys/scheduler/orchid/scheduler/operations") == [op.id, "*my_op"]
         assert get("//sys/scheduler/orchid/scheduler/operations/" + op.id) == get("//sys/scheduler/orchid/scheduler/operations/\\*my_op")
         wait(lambda: op.get_state() == "running")
-        if is_native:
-            assert list_operations()["operations"][0]["brief_spec"]["alias"] == "*my_op"
+        assert list_operations()["operations"][0]["brief_spec"]["alias"] == "*my_op"
 
         # It is not allowed to use alias of already running operation.
         with pytest.raises(YtError):
@@ -4159,8 +4158,8 @@ class TestOperationAliasesBase(YTEnvSetup):
         complete_op("*my_op")
         assert get(op.get_path() + "/@state") == "completed"
 
-    def _test_get_operation_latest_archive_version(self):
-        init_operation_archive.create_tables_latest_version(self.Env.create_native_client())
+    def test_get_operation_latest_archive_version(self):
+        init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
 
         set("//sys/scheduler/config", {"operations_cleaner": {"enable": False}})
 
@@ -4203,24 +4202,11 @@ class TestOperationAliasesBase(YTEnvSetup):
         assert info["type"] == "vanilla"
 
 
-class TestOperationAliasesNative(TestOperationAliasesBase):
-    def test_aliases(self):
-        self._test_aliases(True)
 
-    def test_get_operation_latest_archive_version(self):
-        self._test_get_operation_latest_archive_version()
-
-
-class TestOperationAliasesRpc(TestOperationAliasesBase):
+class TestOperationAliasesRpcProxy(TestOperationAliases):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_PROXY = True
-
-    def test_aliases(self):
-        self._test_aliases(False)
-
-    def test_get_operation_latest_archive_version(self):
-        self._test_get_operation_latest_archive_version()
 
 
 class TestContainerCpuLimit(YTEnvSetup):
@@ -4238,3 +4224,4 @@ class TestContainerCpuLimit(YTEnvSetup):
         statistics = get(op.get_path() + "/@progress/job_statistics")
         cpu_usage = get_statistics(statistics, "user_job.cpu.user.$.completed.vanilla.max")
         assert cpu_usage < 2500
+

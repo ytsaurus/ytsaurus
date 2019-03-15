@@ -51,8 +51,6 @@ public:
 
     TInputChunkPtr GetSingleUnversionedChunkOrThrow() const;
 
-    using TChunkSignature = SmallVector<TInputChunkPtr, 1>;
-
     std::pair<TInputDataSlicePtr, TInputDataSlicePtr> SplitByRowIndex(i64 splitRow) const;
 
     TChunkSliceList ChunkSlices;

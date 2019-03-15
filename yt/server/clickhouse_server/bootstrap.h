@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/public.h>
+#include "private.h"
 
-#include <yt/server/clickhouse_server/server.h>
+#include "host.h"
 
 #include <yt/ytlib/api/public.h>
 #include <yt/ytlib/api/native/public.h>
@@ -25,8 +25,8 @@ namespace NYT::NClickHouseServer {
 class TBootstrap
 {
 private:
-    const TConfigPtr Config;
-    const NYTree::INodePtr ConfigNode;
+    const TClickHouseServerBootstrapConfigPtr Config_;
+    const NYTree::INodePtr ConfigNode_;
     TString InstanceId_;
     TString CliqueId_;
     ui16 RpcPort_;
@@ -34,26 +34,24 @@ private:
     ui16 TcpPort_;
     ui16 HttpPort_;
 
-    NConcurrency::TActionQueuePtr ControlQueue;
+    NConcurrency::TActionQueuePtr ControlQueue_;
 
-    NBus::IBusServerPtr BusServer;
-    NRpc::IServerPtr RpcServer;
-    NHttp::IServerPtr HttpServer;
-    NMonitoring::TMonitoringManagerPtr MonitoringManager;
-    ICoreDumperPtr CoreDumper;
+    NBus::IBusServerPtr BusServer_;
+    NRpc::IServerPtr RpcServer_;
+    NHttp::IServerPtr HttpServer_;
+    NMonitoring::TMonitoringManagerPtr MonitoringManager_;
+    ICoreDumperPtr CoreDumper_;
 
-    NApi::NNative::IConnectionPtr Connection;
-    INativeClientCachePtr NativeClientCache;
-    NConcurrency::IThroughputThrottlerPtr ScanThrottler;
+    NApi::NNative::IConnectionPtr Connection_;
+    NApi::NNative::TClientCachePtr ClientCache_;
+    NApi::NNative::IClientPtr RootClient_;
 
-    IStoragePtr Storage;
     ICoordinationServicePtr CoordinationService;
-    ICliqueAuthorizationManagerPtr CliqueAuthorizationManager;
-    std::unique_ptr<TServer> Server;
+    TClickHouseHostPtr ClickHouseHost_;
 
 public:
     TBootstrap(
-        TConfigPtr config,
+        TClickHouseServerBootstrapConfigPtr config,
         NYTree::INodePtr configNode,
         TString instanceId,
         TString cliqueId,
@@ -61,18 +59,17 @@ public:
         ui16 monitoringPort,
         ui16 tcpPort,
         ui16 httpPort);
-    ~TBootstrap();
 
-    void Initialize();
     void Run();
 
-    TConfigPtr GetConfig() const;
-    IInvokerPtr GetControlInvoker() const;
-    NApi::NNative::IConnectionPtr GetConnection() const;
-    NConcurrency::IThroughputThrottlerPtr GetScanThrottler() const;
+    const TClickHouseServerBootstrapConfigPtr& GetConfig() const;
+    const IInvokerPtr& GetControlInvoker() const;
+    const NApi::NNative::IConnectionPtr& GetConnection() const;
+    const NApi::NNative::TClientCachePtr& GetClientCache() const;
+    const NApi::NNative::IClientPtr& GetRootClient() const;
+    const TClickHouseHostPtr& GetHost() const;
 
 private:
-    void DoInitialize();
     void DoRun();
 };
 

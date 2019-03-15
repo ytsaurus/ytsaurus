@@ -724,9 +724,6 @@ public:
     //! Node-to-master connection.
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
-    //! Node directory synchronization.
-    NNodeTrackerClient::TNodeDirectorySynchronizerConfigPtr NodeDirectorySynchronizer;
-
     TControllerAgentConfigPtr ControllerAgent;
 
     //! Known scheduler addresses.
@@ -737,8 +734,6 @@ public:
     TControllerAgentBootstrapConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
-        RegisterParameter("node_directory_synchronizer", NodeDirectorySynchronizer)
-            .DefaultNew();
         RegisterParameter("controller_agent", ControllerAgent)
             .DefaultNew();
         RegisterParameter("addresses", Addresses)

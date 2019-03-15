@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include "table_schema.h"
 
@@ -32,7 +32,7 @@ public:
 
     NChunkClient::EDataSourceType GetCommonDataSourceType() const;
     NTableClient::TTableSchema GetCommonNativeSchema() const;
-    std::vector<TTablePtr> GetTables() const;
+    std::vector<TClickHouseTablePtr> GetTables() const;
 
 private:
     const std::vector<NChunkClient::TDataSource>& DataSources() const
@@ -42,9 +42,6 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-void ToProto(NProto::TReadJobSpec* protoSpec, const TReadJobSpec& spec);
-void FromProto(TReadJobSpec* spec, const NProto::TReadJobSpec& protoSpec);
 
 void Serialize(const TReadJobSpec& spec, NYson::IYsonConsumer* consumer);
 void Deserialize(TReadJobSpec& spec, NYTree::INodePtr node);

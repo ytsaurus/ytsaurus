@@ -369,7 +369,7 @@ TControllerAgentConfig::TControllerAgentConfig()
         .Default(TDuration::Seconds(15));
 
     RegisterParameter("operation_initialization_timeout", OperationInitializationTimeout)
-        .Default(TDuration::Seconds(60));
+        .Default(TDuration::Minutes(10));
     RegisterParameter("operation_transaction_timeout", OperationTransactionTimeout)
         .Default(TDuration::Minutes(300));
     RegisterParameter("operation_transaction_ping_period", OperationTransactionPingPeriod)

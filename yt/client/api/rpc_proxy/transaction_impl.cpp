@@ -187,6 +187,7 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
     YT_LOG_DEBUG("Committing transaction (TransactionId: %v)",
         Id_);
 
+    std::vector<TFuture<void>> asyncResults;
     {
         auto guard = Guard(SpinLock_);
         if (!Error_.IsOK()) {
@@ -211,6 +212,7 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
 
             case ETransactionState::Active:
                 State_ = ETransactionState::Committing;
+                asyncResults = std::move(AsyncResults_);
                 break;
 
             default:
@@ -218,17 +220,11 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
         }
     }
 
-    std::vector<TFuture<void>> asyncResults;
     {
-        auto guard = Guard(InFlightModifyRowsRequestsLock_);
-        asyncResults.reserve(InFlightModifyRowsRequests_.size());
-        std::transform(
-            InFlightModifyRowsRequests_.begin(),
-            InFlightModifyRowsRequests_.end(),
-            std::back_inserter(asyncResults),
-            [] (decltype(InFlightModifyRowsRequests_)::const_reference pair) {
-                return pair.second;
-            });
+        auto guard = Guard(BatchModifyRowsRequestLock_);
+        if (BatchModifyRowsRequest_) {
+            asyncResults.emplace_back(InvokeBatchModifyRowsRequest());
+        }
     }
 
     return Combine(asyncResults).Apply(
@@ -288,6 +284,7 @@ void TTransaction::ModifyRows(
     TSharedRange<TRowModification> modifications,
     const TModifyRowsOptions& options)
 {
+    ValidateActive();
     ValidateTabletTransaction(GetId());
 
     for (const auto& modification : modifications) {
@@ -305,26 +302,6 @@ void TTransaction::ModifyRows(
     req->SetTimeout(config->RpcTimeout);
 
     auto reqSequenceNumber = ModifyRowsRequestSequenceCounter_++;
-
-    while (true) {
-        TFuture<void> readyEvent;
-        {
-            auto guard = Guard(InFlightModifyRowsRequestsLock_);
-            if (InFlightModifyRowsRequestMinimalSequenceNumber_ == std::numeric_limits<size_t>::max() ||
-                reqSequenceNumber < InFlightModifyRowsRequestMinimalSequenceNumber_ + MaxInFlightModifyRowsRequestCount)
-            {
-                break;
-            }
-            readyEvent = InFlightModifyRowsRequests_[InFlightModifyRowsRequestMinimalSequenceNumber_];
-        }
-
-        if (readyEvent) {
-            // Sending this request would exceed proxy's window size.
-            // Wait until that window has been slid.
-            auto result = WaitFor(readyEvent);
-            Y_UNUSED(result); // to chunk clang up
-        }
-    }
 
     req->set_sequence_number(reqSequenceNumber);
 
@@ -347,32 +324,42 @@ void TTransaction::ModifyRows(
         MakeRange(rows),
         req->mutable_rowset_descriptor());
 
-    auto asyncResult = req->Invoke().As<void>();
+    TFuture<void> asyncResult;
+    if (config->ModifyRowsBatchCapacity == 0) {
+        asyncResult = req->Invoke().As<void>();
+    } else {
+        YT_LOG_DEBUG("Pushing a subrequest into a BatchModifyRows rows request (SubrequestAttachmentCount: 1+%v)",
+            req->Attachments().size());
 
-    {
-        auto guard = Guard(InFlightModifyRowsRequestsLock_);
-        InFlightModifyRowsRequests_.emplace(reqSequenceNumber, asyncResult);
+        auto guard = Guard(BatchModifyRowsRequestLock_);
+        if (!BatchModifyRowsRequest_) {
+            BatchModifyRowsRequest_ = CreateBatchModifyRowsRequest();
+        }
+        auto reqBody = SerializeProtoToRef(*req);
+        BatchModifyRowsRequest_->Attachments().push_back(reqBody);
+        BatchModifyRowsRequest_->Attachments().insert(
+            BatchModifyRowsRequest_->Attachments().end(),
+            req->Attachments().begin(),
+            req->Attachments().end());
+        BatchModifyRowsRequest_->add_part_counts(req->Attachments().size());
+        if (BatchModifyRowsRequest_->part_counts_size() == config->ModifyRowsBatchCapacity) {
+            asyncResult = InvokeBatchModifyRowsRequest();
+        }
     }
 
-    asyncResult
-        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
-            {
-                auto guard = Guard(InFlightModifyRowsRequestsLock_);
-                InFlightModifyRowsRequests_.erase(reqSequenceNumber);
-
-                InFlightModifyRowsRequestMinimalSequenceNumber_ = std::numeric_limits<size_t>::max();
-                for (const auto& pair : InFlightModifyRowsRequests_) {
-                    if (pair.first < InFlightModifyRowsRequestMinimalSequenceNumber_)
-                    {
-                        InFlightModifyRowsRequestMinimalSequenceNumber_ = pair.first;
-                    }
+    if (asyncResult) {
+        asyncResult
+            .Subscribe(BIND([=, this_ = MakeStrong(this)](const TError& error) {
+                if (!error.IsOK()) {
+                    OnFailure(error);
                 }
-            }
+            }));
 
-            if (!error.IsOK()) {
-                OnFailure(error);
-            }
-        }));
+        {
+            auto guard = Guard(SpinLock_);
+            AsyncResults_.emplace_back(std::move(asyncResult));
+        }
+    }
 }
 
 TFuture<ITransactionPtr> TTransaction::StartTransaction(
@@ -425,14 +412,12 @@ TFuture<TSelectRowsResult> TTransaction::SelectRows(
 
 TFuture<ITableReaderPtr> TTransaction::CreateTableReader(
     const TRichYPath& path,
-    const NApi::TTableReaderOptions& options,
-    const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory)
+    const NApi::TTableReaderOptions& options)
 {
     ValidateActive();
     return Client_->CreateTableReader(
         path,
-        PatchTransactionId(options),
-        nodeDirectory);
+        PatchTransactionId(options));
 }
 
 TFuture<ITableWriterPtr> TTransaction::CreateTableWriter(
@@ -558,8 +543,8 @@ TFuture<TNodeId> TTransaction::LinkNode(
 }
 
 TFuture<void> TTransaction::ConcatenateNodes(
-    const std::vector<TYPath>& srcPaths,
-    const TYPath& dstPath,
+    const std::vector<TRichYPath>& srcPaths,
+    const TRichYPath& dstPath,
     const TConcatenateNodesOptions& options)
 {
     ValidateActive();
@@ -598,7 +583,7 @@ TFuture<IFileReaderPtr> TTransaction::CreateFileReader(
 }
 
 IFileWriterPtr TTransaction::CreateFileWriter(
-    const TYPath& path,
+    const TRichYPath& path,
     const TFileWriterOptions& options)
 {
     ValidateActive();
@@ -814,6 +799,30 @@ void TTransaction::ValidateActive(TGuard<TSpinLock>&)
         THROW_ERROR_EXCEPTION("Transaction %v is not active",
             Id_);
     }
+}
+
+TApiServiceProxy::TReqBatchModifyRowsPtr TTransaction::CreateBatchModifyRowsRequest()
+{
+    const auto &config = Connection_->GetConfig();
+    auto proxy = CreateApiServiceProxy();
+    auto req = proxy.BatchModifyRows();
+    ToProto(req->mutable_transaction_id(), Id_);
+    req->SetTimeout(config->RpcTimeout);
+    return req;
+}
+
+TFuture<void> TTransaction::InvokeBatchModifyRowsRequest()
+{
+    VERIFY_SPINLOCK_AFFINITY(BatchModifyRowsRequestLock_);
+    YCHECK(BatchModifyRowsRequest_);
+    TApiServiceProxy::TReqBatchModifyRowsPtr batchRequest;
+    batchRequest.Swap(BatchModifyRowsRequest_);
+    if (batchRequest->part_counts_size() == 0) {
+        return VoidFuture;
+    }
+    YT_LOG_DEBUG("Invoking a batch modify rows request (Subrequests: %v)",
+        batchRequest->part_counts_size());
+    return batchRequest->Invoke().As<void>();
 }
 
 TTransactionStartOptions TTransaction::PatchTransactionId(const TTransactionStartOptions& options)

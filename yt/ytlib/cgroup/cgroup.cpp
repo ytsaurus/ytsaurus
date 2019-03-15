@@ -181,7 +181,7 @@ bool TNonOwningCGroup::IsRoot() const
 
 bool TNonOwningCGroup::IsNull() const
 {
-    return FullPath_.Empty();
+    return FullPath_.empty();
 }
 
 bool TNonOwningCGroup::Exists() const

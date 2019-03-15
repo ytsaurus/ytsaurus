@@ -10,6 +10,7 @@
 #include <yt/server/node/data_node/master_connector.h>
 
 #include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>
@@ -132,9 +133,9 @@ bool TPeerBlockDistributor::ShouldDistributeBlocks()
     i64 totalRequestedBlockSize = TotalRequestedBlockSize_;
 
     bool shouldDistributeBlocks =
-        outTraffic >= Config_->OutTrafficActivationThreshold * Config_->IterationPeriod.Seconds() ||
-        totalOutQueueSize >= Config_->OutQueueSizeActivationThreshold ||
-        totalRequestedBlockSize >= Config_->TotalRequestedBlockSizeActivationThreshold * Config_->IterationPeriod.Seconds();
+        outTraffic > Config_->OutTrafficActivationThreshold * Config_->IterationPeriod.MilliSeconds() / 1000.0 ||
+        totalOutQueueSize > Config_->OutQueueSizeActivationThreshold ||
+        totalRequestedBlockSize > Config_->TotalRequestedBlockSizeActivationThreshold * Config_->IterationPeriod.MilliSeconds()  / 1000.0;
 
     YT_LOG_DEBUG("Determining if blocks should be distributed (IterationPeriod: %v, OutTraffic: %v, "
         "OutTrafficActivationThreshold: %v, OutThrottlerQueueSize: %v, DefaultNetworkPendingOutBytes: %v, "
@@ -218,7 +219,7 @@ void TPeerBlockDistributor::DistributeBlocks()
 
         YT_LOG_DEBUG("Sending block to destination nodes (BlockId: %v, DestinationNodes: %v)",
             blockId,
-             MakeFormattableRange(destinationNodes, [] (TStringBuilder* builder, const std::pair<TNodeId, TNodeDescriptor>& pair) {
+            MakeFormattableView(destinationNodes, [] (TStringBuilderBase* builder, const std::pair<TNodeId, TNodeDescriptor>& pair) {
                  FormatValue(builder, pair.second, TStringBuf());
              }));
 
@@ -251,7 +252,7 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
     // First we filter the blocks requested during the considered window (`Config->WindowLength` from now) such that:
     // 1) Block was not recently distributed (within `Config_->ConsecutiveDistributionDelay` from now);
     // 2) Block does not have many peers (at most `Config_->MaxBlockPeerCount`);
-    // 3) Block has been requested at least `Config_->MinRequestConit`.
+    // 3) Block has been requested at least `Config_->MinRequestCount`.
     // These candidate blocks are sorted in a descending order of request count.
     // We iterate over the blocks forming a PopulateCache request of total size no more than
     // `Config_->MaxPopulateRequestSize`, and finally deliver each of them to no more than

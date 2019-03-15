@@ -114,6 +114,9 @@ void TBootstrap::DoRun()
     NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
     Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, connectionOptions);
+    
+    // Force start node directory synchronizer.
+    Connection_->GetNodeDirectorySynchronizer()->Start();
 
     TClientOptions clientOptions;
     clientOptions.PinnedUser = NSecurityClient::SchedulerUserName;
@@ -127,14 +130,6 @@ void TBootstrap::DoRun()
     Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
     Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
     HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
-
-    NodeDirectory_ = New<TNodeDirectory>();
-
-    NodeDirectorySynchronizer_ = New<TNodeDirectorySynchronizer>(
-        Config_->NodeDirectorySynchronizer,
-        Connection_,
-        NodeDirectory_);
-    NodeDirectorySynchronizer_->Start();
 
     ControllerAgent_ = New<TControllerAgent>(Config_->ControllerAgent, this);
 
@@ -232,7 +227,7 @@ const TControllerAgentPtr& TBootstrap::GetControllerAgent() const
 
 const TNodeDirectoryPtr& TBootstrap::GetNodeDirectory() const
 {
-    return NodeDirectory_;
+    return Connection_->GetNodeDirectory();
 }
 
 const ICoreDumperPtr& TBootstrap::GetCoreDumper() const

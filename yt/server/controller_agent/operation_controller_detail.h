@@ -410,7 +410,6 @@ protected:
     // Maps node ids to descriptors for job input chunks.
     NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory_;
 
-    TSpinLock TransactionsLock_;
     NApi::ITransactionPtr AsyncTransaction;
     NApi::ITransactionPtr InputTransaction;
     NApi::ITransactionPtr OutputTransaction;
@@ -1068,6 +1067,8 @@ private:
 
     void InitializeHistograms();
     void UpdateActualHistogram(const NJobTrackerClient::TStatistics& statistics);
+
+    void InitializeSecurityTags();
 
     virtual void OnExecNodesUpdated();
 

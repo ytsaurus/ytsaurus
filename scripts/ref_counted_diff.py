@@ -9,17 +9,30 @@ import itertools
 import json
 
 
+def get_statistics(result):
+    if "ref_counted" in result:
+        result = result["ref_counted"]
+    return result["statistics"]
+
+
 def load(filename, format_):
-    result = {}
+    file_data = open(filename).read()
     if format_ == "yson":
-        for obj in yson.loads(open(filename).read())["statistics"]:
-            result[obj["name"]] = obj
+        raw_results = yson.loads(file_data) 
     elif format_ == "json":
-        for obj in json.loads(open(filename).read())["statistics"]:
-            result[obj["name"]] = obj
+        raw_results = json.loads(file_data) 
     else:
         raise NotImplementedError("Unknown format '{}'".format(format_))
+    result = {}
+    for obj in get_statistics(raw_results):
+        result[obj["name"]] = obj
     return result
+
+
+def format_value(value, field_name):
+    if field_name.startswith("bytes"):
+        return "{} MB".format(round(value / 1024.0 / 1024.0, 3))
+    return str(value)
 
 
 def get_diff(stat1, stat2, name, field_name):
@@ -34,24 +47,32 @@ def main(arguments):
     for name in names:
         assert name not in diff
         diff[name] = get_diff(stat1, stat2, name, arguments.sort_field_name)
+    field_names = ("objects_alive", "bytes_alive", "objects_allocated", "bytes_allocated")
     for name, count in sorted(diff.items(), key=lambda item: -item[1]):
         if count == 0:
             continue
+        print(name)
+        for field_name in field_names:
+            print("    {}: {}".format(
+                field_name,
+                format_value(get_diff(stat1, stat2, name, field_name), field_name),
+            ))
+    print("\nTotal diff:")
+    for field_name in field_names:
         print(
-            name,
-            get_diff(stat1, stat2, name, "objects_alive"),
-            get_diff(stat1, stat2, name, "bytes_alive"),
+            field_name,
+            format_value(
+                sum(map(lambda name: get_diff(stat1, stat2, name, field_name), names)),
+                field_name,
+            )
         )
-    print("Total diff:")
-    for field_name in ("objects_alive", "bytes_alive"):
-        print(field_name, sum(map(lambda name: get_diff(stat1, stat2, name, field_name), names)))
 
 
 def parse_arguments():
     parser = argparse.ArgumentParser("Calculate difference between ref counted tracker statistics")
     parser.add_argument("first_file_path", type=str, default="ref_counted1")
     parser.add_argument("second_file_path", type=str, default="ref_counted2")
-    parser.add_argument("--format", type=str, default="yson")
+    parser.add_argument("--format", type=str, default="json")
     parser.add_argument("--sort-field-name", type=str, default="objects_alive")
     return parser.parse_args()
 

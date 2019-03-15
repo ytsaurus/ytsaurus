@@ -100,11 +100,11 @@ EValueType TColumnSchema::GetPhysicalType() const
 i64 TColumnSchema::GetMemoryUsage() const
 {
     return sizeof(TColumnSchema) +
-        Name_.Size() +
-        (Lock_ ? Lock_->Size() : 0) +
-        (Expression_ ? Expression_->Size() : 0) +
-        (Aggregate_ ? Aggregate_->Size() : 0) +
-        (Group_ ? Group_->Size() : 0);
+        Name_.size() +
+        (Lock_ ? Lock_->size() : 0) +
+        (Expression_ ? Expression_->size() : 0) +
+        (Aggregate_ ? Aggregate_->size() : 0) +
+        (Group_ ? Group_->size() : 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

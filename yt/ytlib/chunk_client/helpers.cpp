@@ -57,6 +57,64 @@ using NNodeTrackerClient::TNodeId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void GetUserObjectBasicAttributes(
+    const NApi::NNative::IClientPtr& client,
+    const std::vector<TUserObject*>& objects,
+    TTransactionId defaultTransactionId,
+    const NLogging::TLogger& logger,
+    EPermission permission,
+    const TGetUserObjectBasicAttributesOptions& options)
+{
+    const auto& Logger = logger;
+
+    YT_LOG_INFO("Getting basic attributes of user objects");
+
+    auto channel = client->GetMasterChannelOrThrow(options.ChannelKind);
+    TObjectServiceProxy proxy(channel);
+
+    auto batchReq = proxy.ExecuteBatch();
+
+    for (auto* userObject : objects) {
+        auto req = TObjectYPathProxy::GetBasicAttributes(userObject->GetPath());
+        req->set_permission(static_cast<int>(permission));
+        req->set_omit_inaccessible_columns(options.OmitInaccessibleColumns);
+        req->set_populate_security_tags(options.PopulateSecurityTags);
+        if (auto optionalColumns = userObject->Path.GetColumns()) {
+            auto* protoColumns = req->mutable_columns();
+            for (const auto& column : *optionalColumns) {
+                protoColumns->add_items(column);
+            }
+        }
+        auto transactionId = userObject->TransactionId.value_or(defaultTransactionId);
+        NCypressClient::SetTransactionId(req, transactionId);
+        NCypressClient::SetSuppressAccessTracking(req, options.SuppressAccessTracking);
+        batchReq->AddRequest(req, "get_basic_attributes");
+    }
+
+    auto batchRspOrError = NConcurrency::WaitFor(batchReq->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting basic attributes of user objects");
+    const auto& batchRsp = batchRspOrError.Value();
+
+    auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_basic_attributes");
+    for (size_t index = 0; index < objects.size(); ++index) {
+        auto* userObject = objects[index];
+        const auto& rspOrError = rspsOrError[index];
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes of user object %v",
+            userObject->Path.GetPath());
+        
+        const auto& rsp = rspOrError.Value();
+        userObject->ObjectId = NYT::FromProto<TObjectId>(rsp->object_id());
+        userObject->CellTag = rsp->cell_tag();
+        userObject->Type = TypeFromId(userObject->ObjectId);
+        if (rsp->has_omitted_inaccessible_columns()) {
+            userObject->OmittedInaccessibleColumns = FromProto<std::vector<TString>>(rsp->omitted_inaccessible_columns().items());
+        }
+        if (rsp->has_security_tags()) {
+            userObject->SecurityTags = FromProto<std::vector<TString>>(rsp->security_tags().items());
+        }
+    }
+}
+
 TSessionId CreateChunk(
     NNative::IClientPtr client,
     TCellTag cellTag,
@@ -148,7 +206,7 @@ void ProcessFetchResponse(
     }
 }
 
-void FetchChunkSpecs(
+std::vector<NProto::TChunkSpec> FetchChunkSpecs(
     const NNative::IClientPtr& client,
     const TNodeDirectoryPtr& nodeDirectory,
     TCellTag cellTag,
@@ -157,12 +215,12 @@ void FetchChunkSpecs(
     int chunkCount,
     int maxChunksPerFetch,
     int maxChunksPerLocateRequest,
-    const std::function<void(TChunkOwnerYPathProxy::TReqFetchPtr)> initializeFetchRequest,
+    const std::function<void(const TChunkOwnerYPathProxy::TReqFetchPtr&)> initializeFetchRequest,
     const NLogging::TLogger& logger,
-    std::vector<NProto::TChunkSpec>* chunkSpecs,
     bool skipUnavailableChunks)
 {
-    std::vector<int> rangeIndices;
+    std::vector<NProto::TChunkSpec> chunkSpecs;
+    chunkSpecs.reserve(static_cast<size_t>(chunkCount));
 
     auto channel = client->GetMasterChannelOrThrow(
         EMasterChannelKind::Follower,
@@ -170,6 +228,7 @@ void FetchChunkSpecs(
     TObjectServiceProxy proxy(channel);
     auto batchReq = proxy.ExecuteBatch();
 
+    std::vector<int> rangeIndices;
     for (int rangeIndex = 0; rangeIndex < static_cast<int>(ranges.size()); ++rangeIndex) {
         for (i64 index = 0; index < (chunkCount + maxChunksPerFetch - 1) / maxChunksPerFetch; ++index) {
             auto adjustedRange = ranges[rangeIndex];
@@ -194,7 +253,10 @@ void FetchChunkSpecs(
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching input table %v", path);
+    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError),
+        "Error fetching input table %v",
+        path);
+
     const auto& batchRsp = batchRspOrError.Value();
     auto rspsOrError = batchRsp->GetResponses<TChunkOwnerYPathProxy::TRspFetch>("fetch");
 
@@ -208,9 +270,11 @@ void FetchChunkSpecs(
             maxChunksPerLocateRequest,
             rangeIndices[resultIndex],
             logger,
-            chunkSpecs,
+            &chunkSpecs,
             skipUnavailableChunks);
     }
+
+    return chunkSpecs;
 }
 
 TChunkReplicaList AllocateWriteTargets(
@@ -281,7 +345,7 @@ TChunkReplicaList AllocateWriteTargets(
 
     YT_LOG_DEBUG("Write targets allocated (ChunkId: %v, Targets: %v)",
         sessionId,
-        MakeFormattableRange(replicas, TChunkReplicaAddressFormatter(nodeDirectory)));
+        MakeFormattableView(replicas, TChunkReplicaAddressFormatter(nodeDirectory)));
 
     return replicas;
 }
@@ -374,9 +438,9 @@ IChunkReaderPtr CreateRemoteReader(
         auto erasureCodecId = ECodec(chunkSpec.erasure_codec());
         YT_LOG_DEBUG("Creating erasure remote reader (Codec: %v)", erasureCodecId);
 
-        std::array<TNodeId, MaxTotalPartCount> partIndexToNodeId;
+        std::array<TNodeId, ::NErasure::MaxTotalPartCount> partIndexToNodeId;
         std::fill(partIndexToNodeId.begin(), partIndexToNodeId.end(), InvalidNodeId);
-        std::array<int, MaxTotalPartCount> partIndexToMediumIndex;
+        std::array<int, ::NErasure::MaxTotalPartCount> partIndexToMediumIndex;
         std::fill(partIndexToMediumIndex.begin(), partIndexToMediumIndex.end(), DefaultStoreMediumIndex);
         for (auto replica : replicas) {
             auto replicaIndex = replica.GetReplicaIndex();
@@ -439,7 +503,7 @@ IChunkReaderPtr CreateRemoteReader(
 }
 
 void LocateChunks(
-    NApi::NNative::IClientPtr client,
+    NNative::IClientPtr client,
     int maxChunksPerLocateRequest,
     const std::vector<NProto::TChunkSpec*> chunkSpecList,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
@@ -448,7 +512,7 @@ void LocateChunks(
 {
     const auto& Logger = logger;
 
-    THashMap<NObjectClient::TCellTag, std::vector<NProto::TChunkSpec*>> chunkMap;
+    THashMap<TCellTag, std::vector<NProto::TChunkSpec*>> chunkMap;
 
     for (auto* chunkSpec : chunkSpecList) {
         auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
@@ -530,6 +594,16 @@ void TUserObject::Persist(const TStreamPersistenceContext& context)
     Persist(context, Path);
     Persist(context, ObjectId);
     Persist(context, CellTag);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 300031) {
+        Persist(context, Type);
+        Persist(context, TransactionId);
+        Persist(context, OmittedInaccessibleColumns);
+    }
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 300032) {
+        Persist(context, SecurityTags);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

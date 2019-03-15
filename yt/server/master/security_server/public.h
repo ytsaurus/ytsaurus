@@ -49,9 +49,19 @@ class TAccessControlDescriptor;
 
 DECLARE_REFCOUNTED_STRUCT(TSerializableAccessControlEntry);
 
+struct TPermissionCheckTarget;
+struct TPermissionCheckOptions;
 struct TPermissionCheckResult;
+struct TPermissionCheckResponse;
 
 struct TUserWorkload;
+
+constexpr int TypicalSecurityTagCount = 16;
+using TSecurityTagsItems = SmallVector<TString, TypicalSecurityTagCount>;
+struct TSecurityTags;
+using TInternedSecurityTags = TInternedObject<TSecurityTags>;
+using TSecurityTagsRegistry = TInternRegistry<TSecurityTags>;
+using TSecurityTagsRegistryPtr = TInternRegistryPtr<TSecurityTags>;
 
 DECLARE_REFCOUNTED_CLASS(TSecurityManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TSecurityManager)

@@ -1,6 +1,6 @@
-#include <yt/core/test_framework/framework.h>
-
 #include <yt/server/clickhouse_server/poco_config.h>
+
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/core/ytree/fluent.h>
 

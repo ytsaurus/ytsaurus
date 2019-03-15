@@ -10,6 +10,7 @@ fi
 
 export YT_PROXY=$cluster
 yt create map_node //sys/clickhouse
+yt create map_node //sys/clickhouse/geodata
 yt create document //sys/clickhouse/config --attributes "{value={}}"
 yt set //sys/clickhouse/config <config.yson
 if [[ "$(yt exists //sys/@cluster_connection)" == "true" ]] ; then
@@ -28,3 +29,4 @@ yt set //sys/clickhouse/@acl/end '{permissions=[read;write;use;administer;remove
 yt set //sys/accounts/sys/@acl/end '{permissions=[use]; action=allow; subjects=[yt-clickhouse]}'
 
 echo "!!! Clickhouse is set up. Now run deploy.sh to deploy the latest CH release binary."
+

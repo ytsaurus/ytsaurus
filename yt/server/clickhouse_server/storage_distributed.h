@@ -1,16 +1,15 @@
 #pragma once
 
-#include "public_ch.h"
+#include "private.h"
+
 #include "cluster_tracker.h"
 #include "storage_with_virtual_columns.h"
 #include "table_schema.h"
 
-#include <yt/server/clickhouse_server/table_partition.h>
+#include "table_partition.h"
 
 #include <Interpreters/Cluster.h>
 #include <Interpreters/Context.h>
-
-#include <Poco/Logger.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -40,29 +39,30 @@ class TStorageDistributed
     : public IStorageWithVirtualColumns
 {
 private:
-    const IStoragePtr Storage;
     const IExecutionClusterPtr Cluster;
     TClickHouseTableSchema Schema;
 
-    Poco::Logger* Logger;
-
 public:
-    TStorageDistributed(IStoragePtr storage,
-                        IExecutionClusterPtr cluster,
-                        TClickHouseTableSchema schema,
-                        Poco::Logger* logger)
-        : Storage(std::move(storage))
-        , Cluster(std::move(cluster))
+    TStorageDistributed(
+        IExecutionClusterPtr cluster,
+        TClickHouseTableSchema schema)
+        : Cluster(std::move(cluster))
         , Schema(std::move(schema))
-        , Logger(logger)
+    { }
+
+    virtual void startup() override
     {
+        if (Schema.Columns.empty()) {
+            THROW_ERROR_EXCEPTION("CHYT does not support tables without schema")
+                << TErrorAttribute("path", getTableName());
+        }
         setColumns(DB::ColumnsDescription(ListPhysicalColumns()));
     }
 
     // Database name
     std::string getName() const override
     {
-        return "YT";
+        return "YTStaticTable";
     }
 
     bool isRemote() const override
@@ -101,25 +101,9 @@ protected:
         const DB::ASTPtr& queryAst,
         const std::string& jobSpec) = 0;
 
-protected:
-    const IStoragePtr& GetStorage() const
-    {
-        return Storage;
-    }
-
-    const IExecutionClusterPtr& GetCluster() const
-    {
-        return Cluster;
-    }
-
     const TClickHouseTableSchema& GetSchema() const
     {
         return Schema;
-    }
-
-    Poco::Logger* GetLogger() const
-    {
-        return Logger;
     }
 
 private:

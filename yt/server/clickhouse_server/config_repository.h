@@ -1,54 +1,19 @@
 #pragma once
 
-#include "config.h"
+#include "private.h"
 
-#include <yt/server/clickhouse_server/public.h>
-#include <yt/server/clickhouse_server/objects.h>
-
-#include <Poco/Util/LayeredConfiguration.h>
-#include <Poco/AutoPtr.h>
-
-#include <memory>
-#include <vector>
+#include <Interpreters/IExternalLoaderConfigRepository.h>
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IConfigPoller
-{
-public:
-    virtual ~IConfigPoller() = default;
+//! Config repository used for external models which are not supported in CHYT. Represents an empty set of configs.
+std::unique_ptr<DB::IExternalLoaderConfigRepository> CreateDummyConfigRepository();
 
-    virtual std::optional<TRevision> GetRevision() const = 0;
-};
-
-using IConfigPollerPtr = std::unique_ptr<IConfigPoller>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class IConfigRepository
-{
-public:
-    virtual ~IConfigRepository() = default;
-
-    virtual std::string GetAddress() const = 0;
-
-    virtual bool Exists(const std::string& name) const = 0;
-    virtual std::vector<std::string> List() const = 0;
-    virtual TObjectAttributes GetAttributes(const std::string& name) const = 0;
-
-    virtual IConfigPollerPtr CreatePoller(const std::string& name) const = 0;
-};
-
-using IConfigRepositoryPtr = std::shared_ptr<IConfigRepository>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-IConfigRepositoryPtr CreateConfigRepository(
-    IStoragePtr storage,
-    IAuthorizationTokenPtr token,
-    const std::string& path);
+//! Config repository representing loaded dictionaries.
+std::unique_ptr<DB::IExternalLoaderConfigRepository> CreateDictionaryConfigRepository(
+    const std::vector<TDictionaryConfigPtr>& dictionaries);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -7,6 +7,8 @@ from yt.yson import YsonUint64
 
 from distutils.spawn import find_executable
 
+from yt.common import update
+
 TEST_DIR = os.path.join(os.path.dirname(__file__))
 
 import json
@@ -18,42 +20,74 @@ import random
 CLICKHOUSE_CLIENT_BINARY = find_executable("clickhouse")
 YTSERVER_CLICKHOUSE_BINARY = find_executable("ytserver-clickhouse")
 
+DEFAULTS = {
+    "memory_footprint": 2 * 1000**3,
+    "memory_limit": 5 * 1000**3,
+    "host_ytserver_clickhouse_path": YTSERVER_CLICKHOUSE_BINARY,
+    "cpu_limit": 1,
+    "enable_monitoring": False,
+    "clickhouse_config": {},
+}
+
 
 class Clique(object):
-    def __init__(self, instance_count, max_failed_job_count=0, **kwargs):
+    base_config = None
+    clique_index = 0
+
+    def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, **kwargs):
+        config = update(Clique.base_config, config_patch) if config_patch is not None else Clique.base_config
+
+        filename = "//sys/clickhouse/config-{}.yson".format(Clique.clique_index)
+        Clique.clique_index += 1
+        create("file", filename)
+        write_file(filename, yson.dumps(config, yson_format="pretty"))
+
         spec_builder = get_clickhouse_clique_spec_builder(instance_count,
-                                                          host_ytserver_clickhouse_path=YTSERVER_CLICKHOUSE_BINARY,
-                                                          cypress_config_path="//sys/clickhouse/config.yson",
+                                                          cypress_config_path=filename,
                                                           max_failed_job_count=max_failed_job_count,
-                                                          cpu_limit=1,
-                                                          memory_limit=5*2**30,
+                                                          defaults=DEFAULTS,
                                                           **kwargs)
         self.spec = simplify_structure(spec_builder.build())
         self.spec["tasks"]["clickhouse_servers"]["force_core_dump"] = True
         self.instance_count = instance_count
+
+    def _get_active_instance_count(self):
+        if exists("//sys/clickhouse/cliques/{0}".format(self.op.id), verbose=False):
+            return len(get("//sys/clickhouse/cliques/{0}".format(self.op.id), verbose=False))
+        else:
+            return 0
+
+    def _print_progress(self):
+        print >>sys.stderr, self.op.build_progress(), "(active instance count: {})".format(self._get_active_instance_count())
 
     def __enter__(self):
         self.op = start_op("vanilla",
                            spec=self.spec,
                            dont_track=True)
 
+        print >>sys.stderr, "Waiting for clique {} to become ready".format(self.op.id)
+
+        MAX_COUNTER_VALUE = 600
         counter = 0
         while True:
             state = self.op.get_state(verbose=False)
 
-            # Clickhouse operations should never complete by itself.
+            # ClickHouse operations should never complete by itself.
             assert state != "completed"
 
             if state == "aborted" or state == "failed":
                 raise self.op.get_error()
-            elif state == "running" and \
-                    exists("//sys/clickhouse/cliques/{0}".format(self.op.id)) and \
-                    len(get("//sys/clickhouse/cliques/{0}".format(self.op.id))) == self.instance_count:
+            elif state == "running" and self._get_active_instance_count() == self.instance_count:
                 break
             elif counter % 30 == 0:
-                print >>sys.stderr, self.op.build_progress()
+                self._print_progress()
+            elif counter >= MAX_COUNTER_VALUE:
+                raise YtError("Clique did not start in time, clique directory: {}".format(get("//sys/clickhouse/cliques/{0}".format(self.op.id), verbose=False)))
+
             time.sleep(self.op._poll_frequency)
             counter += 1
+
+        self._print_progress()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -71,14 +105,14 @@ class Clique(object):
         if clique_error is not None:
             if exc_type is not None:
                 original_error = exc_value
-                raise YtError("Clickhouse request failed and resulted in clique failure", inner_errors=[original_error, clique_error])
+                raise YtError("ClickHouse request failed and resulted in clique failure", inner_errors=[original_error, clique_error])
             else:
                 raise YtError("Clique failed", inner_errors=[clique_error])
 
         # Pass the error.
         return False
 
-    def make_query(self, query, verbose=True):
+    def make_query(self, query, user="root", verbose=True):
         instances = get("//sys/clickhouse/cliques/{0}".format(self.op.id), attributes=["host", "tcp_port"])
         assert len(instances) > 0
         instance = random.choice(instances.values())
@@ -88,12 +122,13 @@ class Clique(object):
         args = [CLICKHOUSE_CLIENT_BINARY, "client",
                 "-h", host,
                 "--port", port,
-                "-q", query,
                 "--format", "JSON",
+                "-u", user,
                 "--output_format_json_quote_64bit_integers", "0"]
-        print >>sys.stderr, "Running '{0}'...".format(' '.join(args))
+        print >>sys.stderr, "Running '{0}' with the following input:\n> {1}".format(' '.join(args), query)
 
-        process = psutil.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        process = psutil.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        process.stdin.write(query)
         stdout, stderr = process.communicate()
         return_code = process.returncode
 
@@ -106,13 +141,13 @@ class Clique(object):
         if verbose:
             print >>sys.stderr, output
         if return_code != 0:
-            raise YtError("Clickhouse query failed\n" + output)
+            raise YtError("ClickHouse query failed\n" + output)
 
         return json.loads(stdout)
 
 
 @require_ytserver_root_privileges
-class ClickhouseTestBase(YTEnvSetup):
+class ClickHouseTestBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -147,13 +182,11 @@ class ClickhouseTestBase(YTEnvSetup):
         create("map_node", "//sys/clickhouse")
 
         # We need to inject cluster_connection into yson config.
-        config = yson.loads(self._read_local_config_file("config.yson"))
-        config["cluster_connection"] = self.__class__.Env.configs["driver"]
-        create("file", "//sys/clickhouse/config.yson")
-        write_file("//sys/clickhouse/config.yson", yson.dumps(config, yson_format="pretty"))
+        Clique.base_config = yson.loads(self._read_local_config_file("config.yson"))
+        Clique.base_config["cluster_connection"] = self.__class__.Env.configs["driver"]
 
 
-class TestClickhouseCommon(ClickhouseTestBase):
+class TestClickHouseCommon(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
@@ -227,8 +260,7 @@ class TestClickhouseCommon(ClickhouseTestBase):
             new_description = clique.make_query('describe "//tmp/t"')
             assert new_description["data"][0]["name"] == "b"
 
-
-class TestJobInput(ClickhouseTestBase):
+class TestJobInput(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
@@ -246,7 +278,7 @@ class TestJobInput(ClickhouseTestBase):
             self._expect_row_count(clique, 'select * from "//tmp/t" where 5 <= i and i <= 8', 4)
             self._expect_row_count(clique, 'select * from "//tmp/t" where i in (-1, 2, 8, 8, 15)', 2)
 
-class TestCompositeTypes(ClickhouseTestBase):
+class TestCompositeTypes(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
@@ -376,3 +408,225 @@ class TestCompositeTypes(ClickhouseTestBase):
             result = clique.make_query("select YPathString(NULL, NULL) as a, YPathString(NULL, '/x') as b, "
                                        "YPathString('{a=1}', NULL) as c")
         assert result["data"] == [{"a": None, "b": None, "c": None}]
+
+
+class TestYtDictionaries(ClickHouseTestBase):
+    def setup(self):
+        self._setup()
+
+    def test_int_key_flat(self):
+        create("table", "//tmp/dict", attributes={"schema": [{"name": "key", "type": "uint64"},
+                                                             {"name": "value_str", "type": "string"},
+                                                             {"name": "value_i64", "type": "int64"}]})
+        write_table("//tmp/dict", [
+            {"key": i, "value_str": "str" + str(i), "value_i64": i * i} for i in [1, 3, 5]
+        ])
+
+        with Clique(1, config_patch={
+            "engine": {"dictionaries": [
+                {
+                    "name": "dict",
+                    "layout": {"flat": {}},
+                    "structure": {
+                        "id": {"name": "key"},
+                        "attribute": [{"name": "value_str", "type": "String", "null_value": "n/a"},
+                                      {"name": "value_i64", "type": "Int64", "null_value": 42}]
+                    },
+                    "lifetime": 0,
+                    "source": {
+                        "yt": {
+                            "path": "//tmp/dict"
+                        }
+                    }
+                }
+            ]}}) as clique:
+            result = clique.make_query("select number, dictGetString('dict', 'value_str', number) as str, "
+                                       "dictGetInt64('dict', 'value_i64', number) as i64 from numbers(5)")
+        assert result["data"] == [
+            {"number": 0, "str": "n/a", "i64": 42},
+            {"number": 1, "str": "str1", "i64": 1},
+            {"number": 2, "str": "n/a", "i64": 42},
+            {"number": 3, "str": "str3", "i64": 9},
+            {"number": 4, "str": "n/a", "i64": 42},
+        ]
+
+    def test_composite_key_hashed(self):
+        create("table", "//tmp/dict", attributes={"schema": [{"name": "key", "type": "string"},
+                                                             {"name": "subkey", "type": "int64"},
+                                                             {"name": "value", "type": "string"}]})
+        write_table("//tmp/dict", [
+            {"key": "a", "subkey": 1, "value": "a1"},
+            {"key": "a", "subkey": 2, "value": "a2"},
+            {"key": "b", "subkey": 1, "value": "b1"},
+        ])
+
+        create("table", "//tmp/queries", attributes={"schema": [{"name": "key", "type": "string"},
+                                                                {"name": "subkey", "type": "int64"}]})
+        write_table("//tmp/queries", [{"key": "a", "subkey": 1},
+                                      {"key": "a", "subkey": 2},
+                                      {"key": "b", "subkey": 1},
+                                      {"key": "b", "subkey": 2}])
+
+        with Clique(1, config_patch={
+            "engine": {"dictionaries": [
+                {
+                    "name": "dict",
+                    "layout": {"complex_key_hashed": {}},
+                    "structure": {
+                        "key": {"attribute": [{"name": "key", "type": "String"},
+                                              {"name": "subkey", "type": "Int64"}]},
+                        "attribute": [{"name": "value", "type": "String", "null_value": "n/a"}]
+                    },
+                    "lifetime": 0,
+                    "source": {
+                        "yt": {
+                            "path": "//tmp/dict"
+                        }
+                    }
+                }
+            ]}}) as clique:
+            result = clique.make_query("select dictGetString('dict', 'value', tuple(key, subkey)) as value from \"//tmp/queries\"")
+        assert result["data"] == [{"value": "a1"}, {"value": "a2"}, {"value": "b1"}, {"value": "n/a"}]
+
+    def test_lifetime(self):
+        create("table", "//tmp/dict", attributes={"schema": [{"name": "key", "type": "uint64"},
+                                                             {"name": "value", "type": "string"}]})
+        write_table("//tmp/dict", [{"key": 42, "value": "x"}])
+
+        with Clique(1, config_patch={
+            "engine": {"dictionaries": [
+                {
+                    "name": "dict",
+                    "layout": {"flat": {}},
+                    "structure": {
+                        "id": {"name": "key"},
+                        "attribute": [{"name": "value", "type": "String", "null_value": "n/a"}]
+                    },
+                    "lifetime": 1,
+                    "source": {
+                        "yt": {
+                            "path": "//tmp/dict"
+                        }
+                    }
+                }
+            ]}}) as clique:
+            assert clique.make_query("select dictGetString('dict', 'value', CAST(42 as UInt64)) as value")["data"][0]["value"] == "x"
+
+            write_table("//tmp/dict", [{"key": 42, "value": "y"}])
+            # TODO(max42): make update time customizable in CH and reduce this constant.
+            time.sleep(7)
+            assert clique.make_query("select dictGetString('dict', 'value', CAST(42 as UInt64)) as value")["data"][0]["value"] == "y"
+
+            remove("//tmp/dict")
+            time.sleep(7)
+            assert clique.make_query("select dictGetString('dict', 'value', CAST(42 as UInt64)) as value")["data"][0]["value"] == "y"
+
+            create("table", "//tmp/dict", attributes={"schema": [{"name": "key", "type": "uint64"},
+                                                                 {"name": "value", "type": "string"}]})
+            write_table("//tmp/dict", [{"key": 42, "value": "z"}])
+            time.sleep(7)
+            assert clique.make_query("select dictGetString('dict', 'value', CAST(42 as UInt64)) as value")["data"][0]["value"] == "z"
+
+class TestClickHouseSchema(ClickHouseTestBase):
+    def setup(self):
+        self._setup()
+
+    def test_missing_schema(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", [{"key": 42, "value": "x"}])
+
+        with Clique(1) as clique:
+            with pytest.raises(YtError):
+                clique.make_query("select * from \"//tmp/t\"")
+
+    def test_common_schema_unsorted(self):
+        create("table", "//tmp/t1", attributes={"schema": [
+            {"name": "a", "type": "int64"},
+            {"name": "b", "type": "string"},
+            {"name": "c", "type": "double"},
+        ]})
+        create("table", "//tmp/t2", attributes={"schema": [
+            {"name": "a", "type": "int64"},
+            {"name": "d", "type": "double"},
+        ]})
+        create("table", "//tmp/t3", attributes={"schema": [
+            {"name": "a", "type": "string"}
+        ]})
+
+        write_table("//tmp/t1", {"a": 42, "b": "x", "c": 3.14})
+        write_table("//tmp/t2", {"a": 17, "d": 2.71})
+        write_table("//tmp/t3", {"a": "y"})
+
+        with Clique(1) as clique:
+            assert clique.make_query("describe concatYtTables(\"//tmp/t1\", \"//tmp/t2\")")["data"] == \
+                [{"name": "a", "type": "Int64", "default_type": "", "default_expression": ""}]
+            assert clique.make_query("select * from concatYtTables(\"//tmp/t1\", \"//tmp/t2\") order by a")["data"] == \
+                [{"a": 17}, {"a": 42}]
+
+            with pytest.raises(YtError):
+                clique.make_query("describe concatYtTables(\"//tmp/t1\", \"//tmp/t2\", \"//tmp/t3\")")
+
+    def test_common_schema_sorted(self):
+        create("table", "//tmp/t1", attributes={"schema": [
+            {"name": "a", "type": "int64", "sort_order": "ascending"},
+            {"name": "b", "type": "string", "sort_order": "ascending"},
+            {"name": "c", "type": "double"},
+        ]})
+        create("table", "//tmp/t2", attributes={"schema": [
+            {"name": "a", "type": "int64", "sort_order": "ascending"},
+            {"name": "d", "type": "double"},
+        ]})
+        create("table", "//tmp/t3", attributes={"schema": [
+            {"name": "a", "type": "int64"},
+            {"name": "d", "type": "double"},
+        ]})
+
+        write_table("//tmp/t1", {"a": 42, "b": "x", "c": 3.14})
+        write_table("//tmp/t2", {"a": 17, "d": 2.71})
+
+        with Clique(1) as clique:
+            with pytest.raises(YtError):
+                clique.make_query("describe concatYtTables(\"//tmp/t1\", \"//tmp/t2\")")
+            with pytest.raises(YtError):
+                clique.make_query("describe concatYtTables(\"//tmp/t2\", \"//tmp/t1\")")
+            with pytest.raises(YtError):
+                clique.make_query("describe concatYtTables(\"//tmp/t1\", \"//tmp/t3\")")
+
+            assert clique.make_query("describe concatYtTablesDropPrimaryKey(\"//tmp/t1\", \"//tmp/t2\")")["data"] == \
+                [{"name": "a", "type": "Int64", "default_type": "", "default_expression": ""}]
+            assert clique.make_query("select * from concatYtTablesDropPrimaryKey(\"//tmp/t1\", \"//tmp/t2\") order by a")["data"] == \
+                [{"a": 17}, {"a": 42}]
+
+            assert clique.make_query("describe concatYtTablesDropPrimaryKey(\"//tmp/t2\", \"//tmp/t1\")")["data"] == \
+                [{"name": "a", "type": "Int64", "default_type": "", "default_expression": ""}]
+            assert clique.make_query("select * from concatYtTablesDropPrimaryKey(\"//tmp/t2\", \"//tmp/t1\") order by a")["data"] == \
+                [{"a": 17}, {"a": 42}]
+
+
+class TestClickHouseAccess(ClickHouseTestBase):
+    def setup(self):
+        self._setup()
+
+    def test_clique_access(self):
+        create_user("u")
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/t", [{"a": 1}])
+
+        with Clique(1, config_patch={"validate_operation_access": False}) as clique:
+            assert len(clique.make_query("select * from \"//tmp/t\"", user="u")["data"]) == 1
+
+        with Clique(1, config_patch={"validate_operation_access": True}) as clique:
+            with pytest.raises(YtError):
+                clique.make_query("select * from \"//tmp/t\"", user="u")
+
+        with Clique(1,
+                    config_patch={"validate_operation_access": True},
+                    spec={
+                        "acl": [{
+                            "subjects": ["u"],
+                            "action": "allow",
+                            "permissions": ["read"]
+                        }]
+                    }) as clique:
+            assert len(clique.make_query("select * from \"//tmp/t\"", user="u")["data"]) == 1
+

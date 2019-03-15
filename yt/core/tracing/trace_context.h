@@ -27,7 +27,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TSpanId, ParentSpanId);
 };
 
-void FormatValue(TStringBuilder* builder, const TTraceContext& context, TStringBuf /*spec*/);
+void FormatValue(TStringBuilderBase* builder, const TTraceContext& context, TStringBuf /*spec*/);
 TString ToString(const TTraceContext& context);
 
 TTraceContext CreateChildTraceContext();

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include <yt/ytlib/chunk_client/public.h>
 #include <yt/ytlib/node_tracker_client/public.h>

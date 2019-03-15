@@ -32,7 +32,7 @@ class TPythonObjectBuilder
 {
 public:
     TPythonObjectBuilder();
-    explicit TPythonObjectBuilder(bool alwaysCreateAttributes, const std::optional<TString>& encoding);
+    TPythonObjectBuilder(bool alwaysCreateAttributes, const std::optional<TString>& encoding);
 
     virtual void OnStringScalar(TStringBuf value) override;
     virtual void OnInt64Scalar(i64 value) override;

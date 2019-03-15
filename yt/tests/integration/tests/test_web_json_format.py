@@ -191,7 +191,7 @@ class TestWebJsonFormat(YTEnvSetup):
 
         assert "incomplete_columns" in output and output["incomplete_columns"] == "true"
 
-    # NB! Expect to have |null| value in the output for every not presented in the data schema column.
+    # NB! Expect to have |null| value in the output for every schema column not presented in the data.
     @unix_only
     def test_read_table_schema_column_null_values(self):
         schema = get_schema(strict=False)

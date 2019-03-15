@@ -233,16 +233,6 @@ public:
         return Run(std::forward<TArgs>(args)...);
     }
 
-    R RunWithTuple(const std::tuple<TArgs...>& args) const
-    {
-        return NMpl::CallWithTuple<R>(
-            [&] (const TArgs&... args) {
-                return Run(args...);
-            },
-            args);
-    }
-
-
     TCallback Via(TIntrusivePtr<IInvoker> invoker) const;
 
     TCallback<typename TFutureTraits<R>::TWrapped(TArgs...)>

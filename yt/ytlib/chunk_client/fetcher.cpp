@@ -260,7 +260,7 @@ void TFetcherBase::StartFetchingRound()
                 Promise_.Set(TError(
                     "Unable to fetch info for chunk %v from any of nodes %v",
                     chunkId,
-                    MakeFormattableRange(replicas, TChunkReplicaAddressFormatter(NodeDirectory_))));
+                    MakeFormattableView(replicas, TChunkReplicaAddressFormatter(NodeDirectory_))));
                 return;
             }
         }

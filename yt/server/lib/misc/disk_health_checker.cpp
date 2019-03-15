@@ -89,8 +89,17 @@ void TDiskHealthChecker::DoRunCheck()
     try {
         PROFILE_TIMING("/disk_health_check/total") {
             PROFILE_TIMING("/disk_health_check/write") {
-                TFile file(fileName, CreateAlways | WrOnly | Seq | Direct);
-                file.Write(writeData.data(), Config_->TestSize);
+                try {
+                    TFile file(fileName, CreateAlways | WrOnly | Seq | Direct);
+                    file.Write(writeData.data(), Config_->TestSize);
+                } catch (const TSystemError& ex) {
+                    if (ex.Status() == ENOSPC) {
+                        YT_LOG_WARNING(ex, "Disk health check ignored");
+                        return;
+                    } else {
+                        throw;
+                    }
+                }
             }
             PROFILE_TIMING("/disk_health_check/read") {
                 TFile file(fileName, OpenExisting | RdOnly | Seq | Direct);

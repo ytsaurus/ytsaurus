@@ -2,7 +2,7 @@
 
 #include <yt/ytlib/hive/config.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/ytlib/node_tracker_client/config.h>
 
 #include <yt/ytlib/scheduler/config.h>
 
@@ -52,6 +52,8 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("block_cache", BlockCache)
         .DefaultNew();
     RegisterParameter("cluster_directory_synchronizer", ClusterDirectorySynchronizer)
+        .DefaultNew();
+    RegisterParameter("node_directory_synchronizer", NodeDirectorySynchronizer)
         .DefaultNew();
 
     RegisterParameter("query_evaluator", QueryEvaluator)

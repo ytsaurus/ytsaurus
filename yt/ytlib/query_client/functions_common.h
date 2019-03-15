@@ -106,7 +106,7 @@ private:
 
 };
 
-void FormatValue(TStringBuilder* builder, const TTypeSet& typeSet, TStringBuf spec);
+void FormatValue(TStringBuilderBase* builder, const TTypeSet& typeSet, TStringBuf spec);
 TString ToString(const TTypeSet& typeSet);
 
 ////////////////////////////////////////////////////////////////////////////////

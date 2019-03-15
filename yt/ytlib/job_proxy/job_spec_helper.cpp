@@ -94,7 +94,7 @@ public:
         }
     }
 
-    virtual bool IsReaderInterruptionSupported() const
+    virtual bool IsReaderInterruptionSupported() const override
     {
         switch (GetJobType()) {
             case NScheduler::EJobType::Map:

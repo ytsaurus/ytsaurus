@@ -112,8 +112,8 @@ public:
         const NApi::TLinkNodeOptions& options) override;
 
     virtual TFuture<void> ConcatenateNodes(
-        const std::vector<NYPath::TYPath>& srcPaths,
-        const NYPath::TYPath& dstPath,
+        const std::vector<NYPath::TRichYPath>& srcPaths,
+        const NYPath::TRichYPath& dstPath,
         const NApi::TConcatenateNodesOptions& options) override;
 
     // Objects
@@ -127,7 +127,7 @@ public:
         const NApi::TFileReaderOptions& options) override;
 
     virtual NApi::IFileWriterPtr CreateFileWriter(
-        const NYPath::TYPath& path,
+        const NYPath::TRichYPath& path,
         const NApi::TFileWriterOptions& options) override;
 
     // Journals
@@ -142,8 +142,7 @@ public:
     // Tables
     virtual TFuture<ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath&,
-        const NApi::TTableReaderOptions&,
-        const NNodeTrackerClient::TNodeDirectoryPtr&) override
+        const NApi::TTableReaderOptions&) override
     {
         ThrowUnimplemented("read_table");
     }

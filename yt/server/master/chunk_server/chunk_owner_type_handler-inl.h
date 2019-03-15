@@ -17,11 +17,16 @@
 
 #include <yt/server/master/object_server/object_manager.h>
 
+#include <yt/server/master/security_server/security_manager.h>
+#include <yt/server/master/security_server/security_tags.h>
+
 #include <yt/server/master/cell_master/hydra_facade.h>
 
 #include <yt/client/chunk_client/data_statistics.h>
 
 #include <yt/ytlib/chunk_client/helpers.h>
+
+#include <yt/core/ytree/interned_attributes.h>
 
 namespace NYT::NChunkServer {
 
@@ -61,11 +66,14 @@ bool TChunkOwnerTypeHandler<TChunkOwner>::HasBranchedChangesImpl(TChunkOwner* or
         return true;
     }
 
-    return branchedNode->GetUpdateMode() != NChunkClient::EUpdateMode::None ||
+    return
+        branchedNode->GetUpdateMode() != NChunkClient::EUpdateMode::None ||
         branchedNode->GetPrimaryMediumIndex() != originatingNode->GetPrimaryMediumIndex() ||
         branchedNode->Replication() != originatingNode->Replication() ||
         branchedNode->GetCompressionCodec() != originatingNode->GetCompressionCodec() ||
-        branchedNode->GetErasureCodec() != originatingNode->GetErasureCodec();
+        branchedNode->GetErasureCodec() != originatingNode->GetErasureCodec() ||
+        !branchedNode->DeltaSecurityTags()->IsEmpty() ||
+        !NSecurityServer::TInternedSecurityTags::RefEqual(branchedNode->SnapshotSecurityTags(), originatingNode->SnapshotSecurityTags());
 }
 
 template <class TChunkOwner>
@@ -81,11 +89,13 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
     NErasure::ECodec erasureCodec)
 {
     const auto& chunkManager = this->Bootstrap_->GetChunkManager();
-    const auto& objectManager = this->Bootstrap_->GetObjectManager();
 
     auto combinedAttributes = NYTree::OverlayAttributeDictionaries(explicitAttributes, inheritedAttributes);
+
     auto primaryMediumName = combinedAttributes.GetAndRemove<TString>("primary_medium", NChunkClient::DefaultStoreMediumName);
     auto* primaryMedium = chunkManager->GetMediumByNameOrThrow(primaryMediumName);
+
+    auto securityTags = combinedAttributes.FindAndRemove<NSecurityServer::TSecurityTagsItems>("security_tags");
 
     auto nodeHolder = TBase::DoCreate(
         id,
@@ -98,15 +108,25 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
 
     try {
         node->SetPrimaryMediumIndex(primaryMedium->GetIndex());
-        node->Replication()[primaryMedium->GetIndex()].SetReplicationFactor(replicationFactor);
+
+        node->Replication().Set(primaryMedium->GetIndex(), TReplicationPolicy(replicationFactor, false));
+
         node->SetCompressionCodec(compressionCodec);
         node->SetErasureCodec(erasureCodec);
+
+        if (securityTags) {
+            const auto& securityManager = this->Bootstrap_->GetSecurityManager();
+            const auto& securityTagsRegistry = securityManager->GetSecurityTagsRegistry();
+            node->SnapshotSecurityTags() = securityTagsRegistry->Intern({std::move(*securityTags)});
+        }
 
         if (!node->IsExternal()) {
             // Create an empty chunk list and reference it from the node.
             auto* chunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
             node->SetChunkList(chunkList);
             chunkList->AddOwningNode(node);
+
+            const auto& objectManager = this->Bootstrap_->GetObjectManager();
             objectManager->RefObject(chunkList);
         }
     } catch (const std::exception&) {
@@ -157,6 +177,16 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoBranch(
     branchedNode->SetPrimaryMediumIndex(originatingNode->GetPrimaryMediumIndex());
     branchedNode->Replication() = originatingNode->Replication();
     branchedNode->SnapshotStatistics() = originatingNode->ComputeTotalStatistics();
+
+    if (originatingNode->DeltaSecurityTags()->IsEmpty()) {
+        // Fast path.
+        branchedNode->SnapshotSecurityTags() = originatingNode->SnapshotSecurityTags();
+    } else {
+        // Slow path.
+        const auto& securityManager = TBase::Bootstrap_->GetSecurityManager();
+        const auto& securityTagsRegistry = securityManager->GetSecurityTagsRegistry();
+        branchedNode->SnapshotSecurityTags() = securityTagsRegistry->Intern(originatingNode->GetSecurityTags());
+    }
 }
 
 template <class TChunkOwner>
@@ -195,7 +225,6 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
 
     const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
     const auto& objectManager = TBase::Bootstrap_->GetObjectManager();
-
     auto* originatingChunkList = originatingNode->GetChunkList();
     auto* branchedChunkList = branchedNode->GetChunkList();
 
@@ -239,7 +268,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
     auto requisitionUpdateNeeded = topmostCommit || originatingNode->Replication() != branchedNode->Replication();
 
     // Below, chunk requisition update is scheduled no matter what (for non-external chunks,
-    // of course). If nothing else, this is necessary to  update 'committed' flags on chunks.
+    // of course). If nothing else, this is necessary to update 'committed' flags on chunks.
 
     if (branchedMode == NChunkClient::EUpdateMode::Overwrite) {
         if (!isExternal) {
@@ -257,8 +286,13 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
 
         originatingNode->SnapshotStatistics() = branchedNode->SnapshotStatistics();
         originatingNode->DeltaStatistics() = branchedNode->DeltaStatistics();
+        originatingNode->SnapshotSecurityTags() = branchedNode->SnapshotSecurityTags();
+        originatingNode->DeltaSecurityTags() = branchedNode->DeltaSecurityTags();
     } else {
         YCHECK(branchedMode == NChunkClient::EUpdateMode::Append);
+
+        const auto& securityManager = TBase::Bootstrap_->GetSecurityManager();
+        const auto& securityTagsRegistry = securityManager->GetSecurityTagsRegistry();
 
         TChunkTree* deltaTree = nullptr;
         TChunkList* newOriginatingChunkList = nullptr;
@@ -284,6 +318,8 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
             }
 
             originatingNode->DeltaStatistics() += branchedNode->DeltaStatistics();
+            originatingNode->DeltaSecurityTags() = securityTagsRegistry->Intern(
+                *originatingNode->DeltaSecurityTags() + *branchedNode->DeltaSecurityTags());
         } else {
             if (!isExternal) {
                 chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList);
@@ -296,8 +332,12 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
 
             if (newOriginatingMode == NChunkClient::EUpdateMode::Append) {
                 originatingNode->DeltaStatistics() += branchedNode->DeltaStatistics();
+                originatingNode->DeltaSecurityTags() = securityTagsRegistry->Intern(
+                    *originatingNode->DeltaSecurityTags() + *branchedNode->DeltaSecurityTags());
             } else {
                 originatingNode->SnapshotStatistics() += branchedNode->DeltaStatistics();
+                originatingNode->SnapshotSecurityTags() = securityTagsRegistry->Intern(
+                    *originatingNode->SnapshotSecurityTags() + *branchedNode->DeltaSecurityTags());
             }
         }
 
@@ -357,6 +397,8 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
     clonedNode->Replication() = sourceNode->Replication();
     clonedNode->SnapshotStatistics() = sourceNode->SnapshotStatistics();
     clonedNode->DeltaStatistics() = sourceNode->DeltaStatistics();
+    clonedNode->SnapshotSecurityTags() = sourceNode->SnapshotSecurityTags();
+    clonedNode->DeltaSecurityTags() = sourceNode->DeltaSecurityTags();
     clonedNode->SetCompressionCodec(sourceNode->GetCompressionCodec());
     clonedNode->SetErasureCodec(sourceNode->GetErasureCodec());
 

@@ -56,6 +56,7 @@ DEFINE_ENUM(EJobState,
     ((Waiting)    (0))
     ((Running)    (1))
     ((Aborting)   (2))
+    // |Completed| is used as sentinel in NJobTrackerClient::HasJobFinished.
     ((Completed)  (3))
     ((Failed)     (4))
     ((Aborted)    (5))

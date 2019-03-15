@@ -57,7 +57,7 @@ void TOutputTable::Persist(const TPersistenceContext& context)
 
     using NYT::Persist;
     Persist(context, TableUploadOptions);
-    Persist(context, Options);
+    Persist(context, TableWriterOptions);
     Persist(context, OutputType);
     Persist(context, Type);
     Persist(context, DataStatistics);
@@ -73,7 +73,7 @@ TEdgeDescriptor TOutputTable::GetEdgeDescriptorTemplate(int tableIndex)
     TEdgeDescriptor descriptor;
     descriptor.DestinationPool = ChunkPoolInput;
     descriptor.TableUploadOptions = TableUploadOptions;
-    descriptor.TableWriterOptions = CloneYsonSerializable(Options);
+    descriptor.TableWriterOptions = CloneYsonSerializable(TableWriterOptions);
     descriptor.TableWriterOptions->TableIndex = tableIndex;
     descriptor.TableWriterConfig = WriterConfig;
     descriptor.Timestamp = Timestamp;

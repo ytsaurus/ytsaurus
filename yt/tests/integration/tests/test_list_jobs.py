@@ -4,27 +4,18 @@ import yt.environment.init_operation_archive as init_operation_archive
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.common import uuid_hash_pair
 from yt.common import date_string_to_datetime
+from yt.test_helpers import WaitFailed
 
 from test_rpc_proxy import create_input_table
 
-from time import sleep
 from collections import defaultdict
 from datetime import datetime
+import sys
+import time
+import traceback
+import __builtin__
 
 import pytest
-
-def validate_address_filter(op, include_archive, include_cypress, include_runtime, ignore_states=None):
-    job_dict = defaultdict(list)
-    res = list_jobs(op.id, include_archive=include_archive, include_cypress=include_cypress, include_runtime=include_runtime, data_source="manual")["jobs"]
-    for job in res:
-        if ignore_states is not None and job["state"] in ignore_states:
-            continue
-        address = job["address"]
-        job_dict[address].append(job["id"])
-
-    for address in job_dict.keys():
-        res = list_jobs(op.id, include_archive=include_archive, include_cypress=include_cypress, include_runtime=include_runtime, data_source="manual", address=address)["jobs"]
-        assert sorted([job["id"] for job in res]) == sorted(job_dict[address])
 
 def get_stderr_from_table(operation_id, job_id):
     operation_hash = uuid_hash_pair(operation_id)
@@ -34,6 +25,7 @@ def get_stderr_from_table(operation_id, job_id):
     assert len(rows) == 1
     return remove_asan_warning(rows[0]["stderr"])
 
+
 def get_profile_from_table(operation_id, job_id):
     operation_hash = uuid_hash_pair(operation_id)
     job_hash = uuid_hash_pair(job_id)
@@ -42,7 +34,17 @@ def get_profile_from_table(operation_id, job_id):
     assert len(rows) == 1
     return rows[0]["profile_type"], rows[0]["profile_blob"]
 
+
+def checked_list_jobs(*args, **kwargs):
+    res = list_jobs(*args, **kwargs)
+    if res["errors"]:
+        raise YtError(message="list_jobs failed", inner_erros=res["errors"])
+    return res
+
+
 class TestListJobs(YTEnvSetup):
+    SINGLE_SETUP_TEARDOWN = True
+
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "statistics_reporter": {
@@ -50,12 +52,12 @@ class TestListJobs(YTEnvSetup):
                 "reporting_period": 10,
                 "min_repeat_delay": 10,
                 "max_repeat_delay": 10,
-            }
+            },
         },
         "scheduler_connector": {
-            "heartbeat_period": 100  # 100 msec
+            "heartbeat_period": 100,  # msec
         },
-        "job_proxy_heartbeat_period": 100,  # 100 msec
+        "job_proxy_heartbeat_period": 100,  # msec
     }
 
     DELTA_SCHEDULER_CONFIG = {
@@ -79,8 +81,8 @@ class TestListJobs(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "controller_static_orchid_update_period": 100
-        }
+            "controller_static_orchid_update_period": 100,
+        },
     }
 
     NUM_MASTERS = 1
@@ -88,303 +90,347 @@ class TestListJobs(YTEnvSetup):
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
-    def setup(self):
+    @classmethod
+    def setup_class(cls):
+        super(TestListJobs, cls).setup_class()
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(self.Env.create_native_client())
+        init_operation_archive.create_tables_latest_version(cls.Env.create_native_client(), override_tablet_cell_bundle="default")
+        cls._tmpdir = create_tmpdir("list_jobs")
 
-    def teardown(self):
-        remove("//sys/operations_archive")
-
-    @add_failed_operation_stderrs_to_error_message
-    def test_list_jobs(self):
-        create_input_table("//tmp/t1",
+    def _create_tables(self):
+        input_table = "//tmp/input_" + make_random_string()
+        output_table = "//tmp/output_" + make_random_string()
+        create_input_table(
+            input_table,
             [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}],
             [{"name": "foo", "type": "string"}],
-            driver_backend=self.DRIVER_BACKEND)
+            driver_backend=self.DRIVER_BACKEND,
+        )
+        create("table", output_table)
+        return input_table, output_table
 
-        create("table", "//tmp/t2")
+    @staticmethod
+    def _validate_address_filter(op, data_source):
+        address_to_job_ids = defaultdict(list)
+        jobs = checked_list_jobs(op.id, data_source=data_source)["jobs"]
+        for job in jobs:
+            address = job["address"]
+            address_to_job_ids[address].append(job["id"])
+        for address, job_ids in address_to_job_ids.iteritems():
+            actual_jobs_for_address = checked_list_jobs(op.id, data_source=data_source, address=address)["jobs"]
+            assert __builtin__.set(job["id"] for job in actual_jobs_for_address) == __builtin__.set(job_ids)
 
-        # Fake operation to check filtration by operation.
-        map(in_="//tmp/t1", out="//tmp/t2", command="cat")
+    @staticmethod
+    def _get_answers_for_filters_during_map(job_ids):
+        return {
+            ("job_state", "failed"): job_ids["failed_map"],
+            ("job_state", "aborted"): job_ids["aborted_map"],
+            ("job_state", "running"): job_ids["completed_map"],
+            ("job_state", "completed"): [],
 
+            ("job_type", "partition_map"): job_ids["map"],
+            ("job_type", "partition_reduce"): [],
+
+            ("with_stderr", True): job_ids["failed_map"] + job_ids["completed_map"],
+            ("with_stderr", False): job_ids["aborted_map"],
+
+            ("with_fail_context", True): job_ids["failed_map"],
+            ("with_fail_context", False): job_ids["aborted_map"] + job_ids["completed_map"],
+        }
+
+    @staticmethod
+    def _get_answers_for_filters_during_reduce(job_ids):
+        return {
+            ("job_state", "failed"): job_ids["failed_map"],
+            ("job_state", "aborted"): job_ids["aborted_map"],
+            ("job_state", "completed"): job_ids["completed_map"],
+            ("job_state", "running"): job_ids["reduce"],
+
+            ("job_type", "partition_map"): job_ids["map"],
+            ("job_type", "partition_reduce"): job_ids["reduce"],
+
+            ("with_stderr", True): job_ids["failed_map"] + job_ids["completed_map"] + job_ids["reduce"],
+            ("with_stderr", False): job_ids["aborted_map"],
+
+            ("with_fail_context", True): job_ids["failed_map"],
+            ("with_fail_context", False): job_ids["aborted_map"] + job_ids["completed_map"] + job_ids["reduce"],
+        }
+
+    @staticmethod
+    def _get_answers_for_filters_after_finish(job_ids):
+        return {
+            ("job_state", "failed"): job_ids["failed_map"],
+            ("job_state", "aborted"): job_ids["aborted_map"],
+            ("job_state", "completed"): job_ids["completed_map"] + job_ids["reduce"],
+            ("job_state", "running"): [],
+
+            ("job_type", "partition_map"): job_ids["map"],
+            ("job_type", "partition_reduce"): job_ids["reduce"],
+
+            ("with_stderr", True): job_ids["failed_map"] + job_ids["completed_map"] + job_ids["reduce"],
+            ("with_stderr", False): job_ids["aborted_map"],
+
+            ("with_fail_context", True): job_ids["failed_map"],
+            ("with_fail_context", False): job_ids["aborted_map"] + job_ids["completed_map"] + job_ids["reduce"],
+        }
+
+    @staticmethod
+    def _validate_filters(op, answers, data_source):
+        for (name, value), correct_job_ids in answers.iteritems():
+            jobs = checked_list_jobs(op.id, data_source=data_source, **{name: value})["jobs"]
+            assert \
+                __builtin__.set(job["id"] for job in jobs) == __builtin__.set(correct_job_ids), \
+                "Assertion for filter {}={} failed".format(name, repr(value))
+        TestListJobs._validate_address_filter(op, data_source=data_source)
+
+    @staticmethod
+    def _get_answers_for_sorting_during_map(job_ids):
+        return {
+            "type": [job_ids["map"]],
+            "state": [job_ids["aborted_map"], job_ids["failed_map"], job_ids["completed_map"]],
+            "start_time": [job_ids["map"]],
+            "finish_time": [job_ids["completed_map"], job_ids["failed_map"], job_ids["aborted_map"]],
+            "duration": [job_ids["failed_map"] + job_ids["aborted_map"], job_ids["completed_map"]],
+            "id": [[job_id] for job_id in sorted(job_ids["map"])],
+        }
+
+    @staticmethod
+    def _get_answers_for_sorting_during_reduce(job_ids):
+        return {
+            "type": [job_ids["map"], job_ids["reduce"]],
+            "state": [job_ids["aborted_map"], job_ids["completed_map"], job_ids["failed_map"], job_ids["reduce"]],
+            "start_time": [job_ids["map"], job_ids["reduce"]],
+            "finish_time": [job_ids["reduce"], job_ids["failed_map"], job_ids["aborted_map"], job_ids["completed_map"]],
+            "duration": [job_ids["map"] + job_ids["reduce"]],
+            "id": [[job_id] for job_id in sorted(job_ids["map"] + job_ids["reduce"])],
+        }
+
+    @staticmethod
+    def _get_answers_for_sorting_after_finish(job_ids):
+        return {
+            "type": [job_ids["map"], job_ids["reduce"]],
+            "state": [job_ids["aborted_map"], job_ids["completed_map"] + job_ids["reduce"], job_ids["failed_map"]],
+            "start_time": [job_ids["map"], job_ids["reduce"]],
+            "finish_time": [job_ids["failed_map"], job_ids["aborted_map"], job_ids["completed_map"], job_ids["reduce"]],
+            "duration": [job_ids["map"] + job_ids["reduce"]],
+            "id": [[job_id] for job_id in sorted(job_ids["map"] + job_ids["reduce"])],
+        }
+
+    @staticmethod
+    def _get_sorting_key(field_name):
+        if field_name in ["type", "state", "id"]:
+            return lambda job: job[field_name]
+        elif field_name in ["start_time", "finish_time"]:
+            def key(job):
+                time_str = job.get(field_name)
+                if time_str is not None:
+                    return date_string_to_datetime(time_str)
+                else:
+                    return datetime.min
+            return key
+        elif field_name == "finish_time":
+            return lambda job: date_string_to_datetime(job[field_name])
+        elif field_name == "duration":
+            def key(job):
+                finish_time_str = job.get("finish_time")
+                finish_time = date_string_to_datetime(finish_time_str) if finish_time_str is not None else datetime.now()
+                return finish_time - date_string_to_datetime(job["start_time"])
+            return key
+        else:
+            raise Exception("Unknown sorting key {}".format(field_name))
+
+    @staticmethod
+    def _validate_sorting(op, correct_answers, data_source):
+        for field_name, correct_job_ids in correct_answers.iteritems():
+            for sort_order in ["ascending", "descending"]:
+                jobs = checked_list_jobs(
+                    op.id,
+                    data_source=data_source,
+                    sort_field=field_name,
+                    sort_order=sort_order,
+                )["jobs"]
+
+                reverse = (sort_order == "descending")
+                assert \
+                    sorted(jobs, key=TestListJobs._get_sorting_key(field_name), reverse=reverse) == jobs, \
+                    "Assertion for sort_field={} and sort_order={} failed".format(field_name, sort_order)
+
+                if reverse:
+                    correct_job_ids = reversed(correct_job_ids)
+
+                group_start_idx = 0
+                for correct_group in correct_job_ids:
+                    group = jobs[group_start_idx : group_start_idx + len(correct_group)]
+                    assert \
+                        __builtin__.set(job["id"] for job in group) == __builtin__.set(correct_group), \
+                        "Assertion for sort_field={} and sort_order={} failed".format(field_name, sort_order)
+                    group_start_idx += len(correct_group)
+
+    @staticmethod
+    def _check_during_map(op, job_ids, data_source):
+        res = checked_list_jobs(op.id, data_source=data_source)
+        assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(job_ids["map"])
+        assert res["type_counts"] == {"partition_map": 5}
+        assert res["state_counts"] == {"running": 3, "failed": 1, "aborted": 1}
+
+        assert res["controller_agent_job_count"] == 3
+        assert res["scheduler_job_count"] == 3
+        if data_source == "runtime":
+            assert res["cypress_job_count"] == 2
+            assert res["archive_job_count"] == yson.YsonEntity()
+        else:
+            assert data_source == "archive"
+            assert res["cypress_job_count"] == yson.YsonEntity()
+            assert res["archive_job_count"] == 5
+
+        answers_for_filters = TestListJobs._get_answers_for_filters_during_map(job_ids)
+        TestListJobs._validate_filters(op, answers_for_filters, data_source=data_source)
+
+        answers_for_sorting = TestListJobs._get_answers_for_sorting_during_map(job_ids)
+        TestListJobs._validate_sorting(op, answers_for_sorting, data_source=data_source)
+
+    @staticmethod
+    def _check_during_reduce(op, job_ids, data_source):
+        res = checked_list_jobs(op.id, data_source=data_source)
+        assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(job_ids["reduce"] + job_ids["map"])
+        assert res["type_counts"] == {"partition_reduce": 1, "partition_map": 5}
+        assert res["state_counts"] == {"running": 1, "completed": 3, "failed": 1, "aborted": 1}
+
+        assert res["controller_agent_job_count"] == 1
+        assert res["scheduler_job_count"] == 1
+        if data_source == "runtime":
+            assert res["cypress_job_count"] == 5
+            assert res["archive_job_count"] == yson.YsonEntity()
+        else:
+            assert data_source == "archive"
+            assert res["cypress_job_count"] == yson.YsonEntity()
+            assert res["archive_job_count"] == 6
+
+        answers_for_filters = TestListJobs._get_answers_for_filters_during_reduce(job_ids)
+        TestListJobs._validate_filters(op, answers_for_filters, data_source=data_source)
+
+        answers_for_sorting = TestListJobs._get_answers_for_sorting_during_reduce(job_ids)
+        TestListJobs._validate_sorting(op, answers_for_sorting, data_source=data_source)
+
+    @staticmethod
+    def _check_after_finish(op, job_ids, data_source):
+        res = checked_list_jobs(op.id, data_source=data_source)
+        assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(job_ids["reduce"] + job_ids["map"])
+        assert res["type_counts"] == {"partition_reduce": 1, "partition_map": 5}
+        assert res["state_counts"] == {"completed": 4, "failed": 1, "aborted": 1}
+
+        assert res["controller_agent_job_count"] == 0
+        assert res["scheduler_job_count"] == 0
+        if data_source == "runtime":
+            assert res["cypress_job_count"] == 6
+            assert res["archive_job_count"] == yson.YsonEntity()
+        else:
+            assert data_source == "archive"
+            assert res["cypress_job_count"] == yson.YsonEntity()
+            assert res["archive_job_count"] == 6
+
+        answers_for_filters = TestListJobs._get_answers_for_filters_after_finish(job_ids)
+        TestListJobs._validate_filters(op, answers_for_filters, data_source=data_source)
+
+        answers_for_sorting = TestListJobs._get_answers_for_sorting_after_finish(job_ids)
+        TestListJobs._validate_sorting(op, answers_for_sorting, data_source=data_source)
+
+        res = checked_list_jobs(op.id, data_source=data_source, with_stderr=True)
+        job_id = res["jobs"][0]["id"]
+        assert get_stderr_from_table(op.id, job_id) == "STDERR-OUTPUT\n"
+        assert get_profile_from_table(op.id, job_id) == ("test", "foobar")
+
+    def _run_op_and_wait_mapper_breakpoint(self):
+        input_table, output_table = self._create_tables()
+        failed_job_id_fname = os.path.join(self._tmpdir, "failed_job_id")
+        # Write stderrs in jobs to ensure they will be saved.
+        mapper_command = with_breakpoint(
+            """echo STDERR-OUTPUT >&2 ; cat; printf 'test\\nfoobar' >&8; """
+            """test $YT_JOB_INDEX -eq "1" && echo $YT_JOB_ID > {failed_job_id_fname} && exit 1; """
+            """BREAKPOINT"""
+                .format(failed_job_id_fname=failed_job_id_fname),
+            breakpoint_name="mapper",
+        )
+        reducer_command = with_breakpoint(
+            """echo STDERR-OUTPUT >&2 ; cat; printf 'test\\nfoobar' >&8; BREAKPOINT""",
+            breakpoint_name="reducer",
+        )
         op = map_reduce(
             dont_track=True,
             label="list_jobs",
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            # Jobs write to stderr so they will be saved.
-            mapper_command=with_breakpoint("""echo foo >&2 ; cat;  python -c 'import os; os.write(8, "test\\nfoobar")'; test $YT_JOB_INDEX -eq "1" && exit 1 ; BREAKPOINT"""),
-            reducer_command="""echo foo >&2 ; cat; python -c 'import os; os.write(8, "test\\nfoobar")'""",
+            in_=input_table,
+            out=output_table,
+            mapper_command=mapper_command,
+            reducer_command=reducer_command,
             sort_by="foo",
             reduce_by="foo",
             spec={
                 "enable_profiling": True,
                 "mapper": {
                     "input_format": "json",
-                    "output_format": "json"
+                    "output_format": "json",
                 },
-                "map_job_count" : 3
-            })
+                "map_job_count" : 3,
+            },
+        )
+
+        job_ids = {}
+        job_ids["completed_map"] = wait_breakpoint(breakpoint_name="mapper", job_count=3)
 
         wait(lambda: op.get_job_count("failed") == 1)
+        wait(lambda: os.path.exists(failed_job_id_fname))
+        with open(failed_job_id_fname) as f:
+            job_ids["failed_map"] = [f.read().strip()]
 
-        job_ids = wait_breakpoint()
-        assert job_ids
+        wait(op.get_running_jobs)
+        job_ids["aborted_map"] = [job_ids["completed_map"].pop()]
+        abort_job(job_ids["aborted_map"][0])
 
-        wait(lambda: op.get_job_count("failed") == 1)
-
-        # We need to ignore failed jobs as they miss from runtime.
-        validate_address_filter(op, False, False, True, ignore_states=["failed"])
-
-        aborted_jobs = []
-
-        job_aborted = False
-        for job in job_ids:
-            if job in op.get_running_jobs():
-                abort_job(job)
-                aborted_jobs.append(job)
-                job_aborted = True
-                break
-        assert job_aborted
-
-        wait(lambda: op.get_job_count("running") > 0)
-
-        res = list_jobs(op.id, data_source="manual", include_cypress=True, include_controller_agent=False, include_archive=False, job_state="completed")["jobs"]
-        assert len(res) == 0
+        job_ids["completed_map"] = wait_breakpoint(breakpoint_name="mapper", job_count=4)
+        aborted_job_index = job_ids["completed_map"].index(job_ids["aborted_map"][0])
+        del job_ids["completed_map"][aborted_job_index]
 
         def check_running_jobs():
             jobs = op.get_running_jobs()
-            if aborted_jobs[0] in jobs:
-                return False
-            if len(jobs) < 3:
-                return False
-            return True
+            return job_ids["aborted_map"][0] not in jobs and len(jobs) >= 3
         wait(check_running_jobs)
 
-        res = list_jobs(op.id, data_source="manual", include_cypress=False, include_controller_agent=True, include_archive=False)["jobs"]
-        assert len(res) == 3
-        assert all(job["state"] == "running" for job in res)
-        assert all(job["type"] == "partition_map" for job in res)
+        job_ids["map"] = job_ids["completed_map"] + job_ids["failed_map"] + job_ids["aborted_map"]
+        return op, job_ids
 
-        release_breakpoint()
+    @add_failed_operation_stderrs_to_error_message
+    @pytest.mark.parametrize("data_source", ["runtime", "archive"])
+    def test_list_jobs(self, data_source):
+        op, job_ids = self._run_op_and_wait_mapper_breakpoint()
 
+        wait_assert(self._check_during_map, op, job_ids, data_source=data_source)
+
+        release_breakpoint(breakpoint_name="mapper")
+        job_ids["reduce"] = wait_breakpoint(breakpoint_name="reducer", job_count=1)
+
+        wait_assert(self._check_during_reduce, op, job_ids, data_source=data_source)
+
+        release_breakpoint(breakpoint_name="reducer")
         op.track()
 
-        # TODO(ignat): wait that all jobs are released on nodes.
-        time.sleep(5)
+        wait_assert(self._check_after_finish, op, job_ids, data_source=data_source)
 
-        jobs = get(op.get_path() + "/jobs", attributes=[
-            "job_type",
-            "state",
-            "start_time",
-            "finish_time",
-            "address",
-            "error",
-            "statistics",
-            "size",
-            "uncompressed_data_size",
-        ])
+        if data_source == "runtime":
+            return
 
-        completed_jobs = []
-        map_jobs = []
-        map_failed_jobs = []
-        reduce_jobs = []
-        jobs_with_stderr = []
-        jobs_without_stderr = []
-        jobs_with_fail_context = []
-        jobs_without_fail_context = []
-        fail_context_example = None
-
-        for job_id, job in jobs.iteritems():
-            if job.attributes["job_type"] == "partition_map":
-                map_jobs.append(job_id)
-                if job.attributes["state"] == "failed":
-                    map_failed_jobs.append(job_id)
-            if job.attributes["job_type"] == "partition_reduce":
-                reduce_jobs.append(job_id)
-            if job.attributes["state"] == "completed":
-                completed_jobs.append(job_id)
-            if "stderr" in job:
-                jobs_with_stderr.append(job_id)
-            else:
-                jobs_without_stderr.append(job_id)
-            if "fail_context" in job:
-                jobs_with_fail_context.append(job_id)
-                fail_context_example = (job_id, get_job_fail_context(op.id, job_id))
-                assert fail_context_example[1]
-            else:
-                jobs_without_fail_context.append(job_id)
-
-        manual_options = dict(data_source="manual", include_cypress=True, include_controller_agent=True, include_archive=False)
-        runtime_options = dict(data_source="runtime")
-        auto_options = dict(data_source="auto")
-        for options in (manual_options, runtime_options, auto_options):
-            res = list_jobs(op.id, **options)
-            assert res["cypress_job_count"] == 6
-            assert res["scheduler_job_count"] == 0
-            assert res["archive_job_count"] == yson.YsonEntity()
-
-            assert res["type_counts"] == {
-                "partition_reduce": 1,
-                "partition_map": 5,
-            }
-            assert res["state_counts"] == {
-                "completed": 4,
-                "failed": 1,
-                "aborted": 1,
-            }
-
-            res = list_jobs(op.id, type="partition_reduce", **options)
-            assert res["cypress_job_count"] == 6
-            assert res["scheduler_job_count"] == 0
-            assert res["controller_agent_job_count"] == 0
-            assert res["archive_job_count"] == yson.YsonEntity()
-
-            assert res["type_counts"] == {
-                "partition_reduce": 1,
-                "partition_map": 5,
-            }
-            assert res["state_counts"] == {
-                "completed": 1,
-            }
-
-            res = list_jobs(op.id, job_state="failed", **options)["jobs"]
-            assert sorted(map_failed_jobs) == sorted([job["id"] for job in res])
-
-            res = list_jobs(op.id, job_type="partition_map", **options)["jobs"]
-            assert sorted(map_jobs) == sorted([job["id"] for job in res])
-
-            res = list_jobs(op.id, job_type="partition_reduce", **options)["jobs"]
-            assert sorted(reduce_jobs) == sorted([job["id"] for job in res])
-
-            res = list_jobs(op.id, job_state="completed", **options)["jobs"]
-            assert sorted(completed_jobs) == sorted([job["id"] for job in res])
-
-            res = list_jobs(op.id,  with_stderr=True, **options)["jobs"]
-            assert sorted(jobs_with_stderr) == sorted([job["id"] for job in res])
-
-            res = list_jobs(op.id, with_stderr=False, **options)["jobs"]
-            assert sorted(jobs_without_stderr) == sorted([job["id"] for job in res])
-
-            res = list_jobs(op.id,  with_fail_context=True, **options)["jobs"]
-            assert sorted(jobs_with_fail_context) == sorted([job["id"] for job in res])
-            assert all(["fail_context_size" in job for job in res])
-
-            res = list_jobs(op.id, with_fail_context=False, **options)["jobs"]
-            assert sorted(jobs_without_fail_context) == sorted([job["id"] for job in res])
-            assert all(["fail_context_size" not in job for job in res])
-
-            validate_address_filter(op, False, True, False)
-
-        # Test stderrs from archive before clean.
-        archive_options = dict(data_source="manual", include_cypress=False, include_scheduler=False, include_archive=True)
-
-        res = list_jobs(op.id,  with_stderr=True, **archive_options)["jobs"]
-        assert sorted(jobs_with_stderr) == sorted([job["id"] for job in res])
-
-        job_id = sorted([job["id"] for job in res])[0]
-        res = get_stderr_from_table(op.id, job_id)
-        assert res == "foo\n"
-
-        profile_type, profile_blob = get_profile_from_table(op.id, job_id)
-        assert profile_type == "test"
-        assert profile_blob == "foobar"
-
-        res = list_jobs(op.id, with_stderr=False, **archive_options)["jobs"]
-        assert sorted(jobs_without_stderr) == sorted([job["id"] for job in res])
-
-        # All completed and failed jobs.
-        assert len(list_jobs(op.id, with_spec=True, **archive_options)["jobs"]) == 5
-
-        # Clean operations to archive.
         clean_operations()
-        sleep(1)  # statistics_reporter
 
-        manual_options = dict(data_source="manual", include_cypress=False, include_controller_agent=False, include_archive=True)
-        archive_options = dict(data_source="archive")
-        auto_options = dict(data_source="auto")
+        wait_assert(self._check_after_finish, op, job_ids, data_source=data_source)
 
-        # Test fail context download from archive.
-        assert fail_context_example[1] == get_job_fail_context(op.id, fail_context_example[0])
-
-        for options in (manual_options, archive_options, auto_options):
-            res = list_jobs(op.id, **options)
-            assert res["cypress_job_count"] == yson.YsonEntity()
-            assert res["scheduler_job_count"] == yson.YsonEntity()
-            assert res["controller_agent_job_count"] == yson.YsonEntity()
-            assert res["archive_job_count"] == 6
-
-            assert res["type_counts"] == {
-                "partition_reduce": 1,
-                "partition_map": 5,
-            }
-            assert res["state_counts"] == {
-                "completed": 4,
-                "failed": 1,
-                "aborted": 1,
-            }
-
-            res = res["jobs"]
-            assert sorted(jobs.keys()) == sorted([job["id"] for job in res])
-
-            res = list_jobs(op.id, offset=4, limit=3, sort_field="start_time", **options)["jobs"]
-            assert len(res) == 2
-            assert res == sorted(res, key=lambda item: item["start_time"])
-
-            res = list_jobs(op.id, offset=0, limit=2, sort_field="start_time", sort_order="descending", **options)["jobs"]
-            assert len(res) == 2
-            assert res == sorted(res, key=lambda item: item["start_time"], reverse=True)
-
-            res = list_jobs(op.id, offset=0, limit=2, sort_field="id", **options)["jobs"]
-            assert len(res) == 2
-            assert res == sorted(res, key=lambda item: item["id"])
-
-            res = list_jobs(op.id, job_state="completed", **options)["jobs"]
-            assert sorted(completed_jobs) == sorted([job["id"] for job in res])
-
-            res = list_jobs(op.id, job_state="aborted", **options)["jobs"]
-            assert sorted(aborted_jobs) == sorted([job["id"] for job in res])
-
-            res = list_jobs(op.id, job_type="partition_map", **options)["jobs"]
-            assert sorted(map_jobs) == sorted([job["id"] for job in res])
-
-            res = list_jobs(op.id, job_type="partition_reduce", **options)["jobs"]
-            assert sorted(reduce_jobs) == sorted([job["id"] for job in res])
-
-            res = list_jobs(op.id, job_state="failed", **options)["jobs"]
-            assert sorted(map_failed_jobs) == sorted([job["id"] for job in res])
-            assert all([job["has_spec"] for job in res])
-
-            res = list_jobs(op.id, with_stderr=True, **options)["jobs"]
-            assert sorted(jobs_with_stderr) == sorted([job["id"] for job in res])
-
-            res = list_jobs(op.id, with_stderr=False, **options)["jobs"]
-            assert sorted(jobs_without_stderr) == sorted([job["id"] for job in res])
-
-            res = list_jobs(op.id,  with_fail_context=True, **options)["jobs"]
-            assert sorted(jobs_with_fail_context) == sorted([job["id"] for job in res])
-            assert all(["fail_context_size" in job for job in res])
-
-            res = list_jobs(op.id, with_fail_context=False, **options)["jobs"]
-            assert sorted(jobs_without_fail_context) == sorted([job["id"] for job in res])
-            assert all(["fail_context_size" not in job for job in res])
-
-            validate_address_filter(op, True, False, False)
-
-    @pytest.mark.parametrize("data_source", ["manual", "archive"])
+    @pytest.mark.parametrize("data_source", ["runtime", "archive"])
     def test_running_jobs_stderr_size(self, data_source):
-        create_input_table("//tmp/input",
-            [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}],
-            [{"name": "foo", "type": "string"}],
-            driver_backend=self.DRIVER_BACKEND)
-
-        create("table", "//tmp/output")
-
+        input_table, output_table = self._create_tables()
         op = map(
             dont_track=True,
-            in_="//tmp/input",
-            out="//tmp/output",
-            command=with_breakpoint("echo MAPPER-STDERR-OUTPUT >&2 ; cat ; BREAKPOINT"))
+            in_=input_table,
+            out=output_table,
+            command=with_breakpoint("echo MAPPER-STDERR-OUTPUT >&2 ; cat ; BREAKPOINT"),
+        )
 
         expected_stderr_size = len("MAPPER-STDERR-OUTPUT\n")
 
@@ -393,42 +439,33 @@ class TestListJobs(YTEnvSetup):
             return get(op.get_path() + "/controller_orchid/running_jobs/{0}/stderr_size".format(jobs[0]))
         wait(lambda: get_stderr_size() == expected_stderr_size)
 
-        options = dict(data_source=data_source)
-        if data_source == "manual":
-            options.update(include_cypress=False, include_controller_agent=True, include_archive=False)
-
-        res = list_jobs(op.id, **options)
-        assert sorted(job["id"] for job in res["jobs"]) == sorted(jobs)
+        res = checked_list_jobs(op.id, data_source=data_source)
+        assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(jobs)
         for job in res["jobs"]:
             assert job["stderr_size"] == expected_stderr_size
 
-        res = list_jobs(op.id, with_stderr=True, **options)
+        res = checked_list_jobs(op.id, with_stderr=True, data_source=data_source)
         for job in res["jobs"]:
             assert job["stderr_size"] == expected_stderr_size
-        assert sorted(job["id"] for job in res["jobs"]) == sorted(jobs)
+        assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(jobs)
 
-        res = list_jobs(op.id, with_stderr=False, **options)
+        res = checked_list_jobs(op.id, with_stderr=False, data_source=data_source)
         assert res["jobs"] == []
 
         release_breakpoint()
         op.track()
 
-    def test_aborted_jobs(self):
-        create_input_table("//tmp/input",
-            [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}],
-            [{"name": "foo", "type": "string"}],
-            driver_backend=self.DRIVER_BACKEND)
-
-        create("table", "//tmp/output")
-
-        now = datetime.utcnow()
-
+    @pytest.mark.parametrize("data_source", ["runtime", "archive"])
+    def test_aborted_jobs(self, data_source):
+        input_table, output_table = self._create_tables()
+        before_start = datetime.utcnow()
         op = map(
             dont_track=True,
-            in_="//tmp/input",
-            out="//tmp/output",
+            in_=input_table,
+            out=output_table,
             command=with_breakpoint("echo MAPPER-STDERR-OUTPUT >&2 ; cat ; BREAKPOINT"),
-            spec={"job_count": 3})
+            spec={"job_count": 3},
+        )
 
         jobs = wait_breakpoint()
 
@@ -438,28 +475,22 @@ class TestListJobs(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-        options = dict(data_source="manual", include_cypress=True, include_controller_agent=True, include_archive=True)
-
-        res = list_jobs(op.id, **options)["jobs"]
+        res = checked_list_jobs(op.id, data_source=data_source)["jobs"]
         assert any(job["state"] == "aborted" for job in res)
-        assert all((date_string_to_datetime(job["start_time"]) > now) for job in res)
+        assert all((date_string_to_datetime(job["start_time"]) > before_start) for job in res)
         assert all((date_string_to_datetime(job["finish_time"]) >= date_string_to_datetime(job["start_time"])) for job in res)
 
     def test_running_aborted_jobs(self):
-        create_input_table("//tmp/input",
-            [{"foo": "bar"}],
-            [{"name": "foo", "type": "string"}],
-            driver_backend=self.DRIVER_BACKEND)
-        create("table", "//tmp/output")
-
+        input_table, output_table = self._create_tables()
         op = map(
             dont_track=True,
-            in_="//tmp/input",
-            out="//tmp/output",
-            command='if [ "$YT_JOB_INDEX" = "0" ]; then sleep 1000; fi;')
+            in_=input_table,
+            out=output_table,
+            command='if [ "$YT_JOB_INDEX" = "0" ]; then sleep 1000; fi;',
+        )
 
         wait(lambda: op.get_running_jobs())
-        wait(lambda: len(list_jobs(op.id, include_archive=True, include_cypress=False, include_controller_agent=False, data_source="manual")["jobs"]) == 1)
+        wait(lambda: len(checked_list_jobs(op.id, data_source="archive")["jobs"]) == 1)
 
         unmount_table("//sys/operations_archive/jobs")
         wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "unmounted")
@@ -477,27 +508,25 @@ class TestListJobs(YTEnvSetup):
         op.track()
 
         def check():
-            options = dict(data_source="manual", include_cypress=False, include_controller_agent=False, include_archive=True)
-            jobs = list_jobs(op.id, running_jobs_lookbehind_period=1000, **options)["jobs"]
+            jobs = checked_list_jobs(op.id, running_jobs_lookbehind_period=1000, data_source="archive")["jobs"]
             return len(jobs) == 1
         wait(check)
 
     def test_stderrs_and_hash_buckets_storage(self):
-        create_input_table("//tmp/input",
-            [{"foo": "bar"}],
-            [{"name": "foo", "type": "string"}],
-            driver_backend=self.DRIVER_BACKEND)
-        create("table", "//tmp/output")
-
+        input_table, output_table = self._create_tables()
         op = map(
             dont_track=True,
-            in_="//tmp/input",
-            out="//tmp/output",
+            in_=input_table,
+            out=output_table,
             command="echo foo >&2; false",
-            spec={"max_failed_job_count": 1, "testing": {"cypress_storage_mode": "hash_buckets"}})
+            spec={
+                "max_failed_job_count": 1,
+                "testing": {"cypress_storage_mode": "hash_buckets"},
+            },
+        )
 
         wait(lambda: get(op.get_path() + "/@state") == "failed")
-        jobs = list_jobs(op.id, data_source="auto")["jobs"]
+        jobs = checked_list_jobs(op.id, data_source="auto")["jobs"]
         assert len(jobs) == 1
         assert jobs[0]["stderr_size"] > 0
 
@@ -506,22 +535,39 @@ class TestListJobs(YTEnvSetup):
             "tasks": {
                 "task_a": {
                     "job_count": 1,
-                    "command": "false"
-                }
+                    "command": "false",
+                },
             },
-            "max_failed_job_count": 1
+            "max_failed_job_count": 1,
         }
 
         op = vanilla(spec=spec, dont_track=True)
-        try:
+        with pytest.raises(YtError):
             op.track()
-            assert False, "Operation should fail"
-        except YtError:
-            pass
 
         clean_operations()
-        jobs = list_jobs(op.id, data_source="archive")["jobs"]
+        jobs = checked_list_jobs(op.id, data_source="archive")["jobs"]
         assert len(jobs) == 1
+
+    def test_errors(self):
+        input_table, output_table = self._create_tables()
+        op = map(
+            dont_track=True,
+            in_=input_table,
+            out=output_table,
+            command=with_breakpoint("BREAKPOINT"),
+        )
+        wait_breakpoint()
+
+        unmount_table("//sys/operations_archive/jobs")
+        wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "unmounted")
+        try:
+            wait(lambda: len(list_jobs(op.id, data_source="archive")["errors"]) == 1)
+        finally:
+            mount_table("//sys/operations_archive/jobs")
+            wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "mounted")
+            release_breakpoint()
+            op.track()
 
 ##################################################################
 
@@ -529,4 +575,3 @@ class TestListJobsRpcProxy(TestListJobs):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_PROXY = True
-

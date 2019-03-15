@@ -45,7 +45,7 @@ TVersionedObjectId TVersionedObjectId::FromString(TStringBuf str)
     return TVersionedObjectId(objectId, transactionId);
 }
 
-void FormatValue(TStringBuilder* builder, const TVersionedObjectId& id, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, const TVersionedObjectId& id, TStringBuf /*spec*/)
 {
     builder->AppendFormat("%v:%v", id.ObjectId, id.TransactionId);
 }

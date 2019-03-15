@@ -9,11 +9,10 @@ namespace NYT {
 
 const TStringBuf DefaultJoinToStringDelimiter = AsStringBuf(", ");
 const TStringBuf DefaultKeyValueDelimiter = AsStringBuf(": ");
-const size_t TStringBuilder::MinBufferLength = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void UnderscoreCaseToCamelCase(TStringBuilder* builder, TStringBuf str)
+void UnderscoreCaseToCamelCase(TStringBuilderBase* builder, TStringBuf str)
 {
     bool first = true;
     bool upper = true;
@@ -41,7 +40,7 @@ TString UnderscoreCaseToCamelCase(TStringBuf str)
     return builder.Flush();
 }
 
-void CamelCaseToUnderscoreCase(TStringBuilder* builder, TStringBuf str)
+void CamelCaseToUnderscoreCase(TStringBuilderBase* builder, TStringBuf str)
 {
     bool first = true;
     for (char c : str) {

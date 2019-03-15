@@ -130,8 +130,6 @@ private:
     NBus::IBusServerPtr BusServer;
     NApi::NNative::IConnectionPtr MasterConnection;
     NApi::NNative::IClientPtr MasterClient;
-    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
-    NNodeTrackerClient::TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer;
     NRpc::IServerPtr RpcServer;
     std::vector<NRpc::IServicePtr> MasterCacheServices;
     NHttp::IServerPtr HttpServer;

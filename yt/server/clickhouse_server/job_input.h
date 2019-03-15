@@ -1,7 +1,7 @@
 #pragma once
 
 #include "table_partition.h"
-#include "public_ch.h"
+#include "private.h"
 
 #include <yt/server/controller_agent/chunk_pools/chunk_stripe.h>
 

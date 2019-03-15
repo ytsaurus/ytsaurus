@@ -1,5 +1,6 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+from yt.environment.helpers import assert_items_equal
 
 import pytest
 
@@ -96,7 +97,18 @@ def check_dynamic_tables():
     wait_for_cells()
     assert lookup_rows("//tmp/t", keys) == rows
 
-class TestSnapshot(YTEnvSetup):
+def check_security_tags():
+    for i in xrange(10):
+        create("table", "//tmp/t" + str(i), attributes={
+                "security_tags": ["atag" + str(i), "btag" + str(i)]
+            })
+
+    yield
+
+    for i in xrange(10):
+        assert_items_equal(get("//tmp/t" + str(i) + "/@security_tags"), ["atag" + str(i), "btag" + str(i)])
+
+class TestMasterSnapshots(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
     USE_DYNAMIC_TABLES = True
@@ -107,6 +119,7 @@ class TestSnapshot(YTEnvSetup):
             check_schema,
             check_forked_schema,
             check_dynamic_tables,
+            check_security_tags,
             check_removed_account # keep this item last as it's sensitive to timings
         ]
 

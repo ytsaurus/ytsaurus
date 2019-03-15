@@ -6,7 +6,6 @@
 
 #include <yt/ytlib/object_client/public.h>
 
-#include <yt/core/misc/public.h>
 #include <yt/core/misc/small_vector.h>
 
 namespace NYT::NCypressServer {
@@ -58,7 +57,6 @@ using TInt64NodeTypeHandler = TScalarNodeTypeHandler<i64>;
 using TUint64NodeTypeHandler = TScalarNodeTypeHandler<ui64>;
 using TDoubleNodeTypeHandler = TScalarNodeTypeHandler<double>;
 using TBooleanNodeTypeHandler = TScalarNodeTypeHandler<bool>;
-
 
 DECLARE_REFCOUNTED_CLASS(TCypressManagerConfig)
 

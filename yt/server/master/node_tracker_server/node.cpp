@@ -930,7 +930,7 @@ void TNode::ClearCellStatistics()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TNodePtrAddressFormatter::operator()(TStringBuilder* builder, TNode* node) const
+void TNodePtrAddressFormatter::operator()(TStringBuilderBase* builder, TNode* node) const
 {
     builder->AppendString(node->GetDefaultAddress());
 }

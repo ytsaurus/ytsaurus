@@ -12,11 +12,7 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TReaderWriterSpinLock::TReaderWriterSpinLock()
-    : Value_(0)
-{ }
-
-inline void TReaderWriterSpinLock::AcquireReader()
+inline void TReaderWriterSpinLock::AcquireReader() noexcept
 {
     for (int counter = 0; !TryAcquireReader(); ++counter) {
         if (counter > YieldThreshold) {
@@ -25,13 +21,13 @@ inline void TReaderWriterSpinLock::AcquireReader()
     }
 }
 
-inline void TReaderWriterSpinLock::ReleaseReader()
+inline void TReaderWriterSpinLock::ReleaseReader() noexcept
 {
     ui32 prevValue = Value_.fetch_sub(ReaderDelta, std::memory_order_release);
     Y_ASSERT((prevValue & ~WriterMask) != 0);
 }
 
-inline void TReaderWriterSpinLock::AcquireWriter()
+inline void TReaderWriterSpinLock::AcquireWriter() noexcept
 {
     for (int counter = 0; !TryAcquireWriter(); ++counter) {
         if (counter > YieldThreshold) {
@@ -40,10 +36,15 @@ inline void TReaderWriterSpinLock::AcquireWriter()
     }
 }
 
-inline void TReaderWriterSpinLock::ReleaseWriter()
+inline void TReaderWriterSpinLock::ReleaseWriter() noexcept
 {
     ui32 prevValue = Value_.fetch_and(~WriterMask, std::memory_order_release);
     Y_ASSERT(prevValue & WriterMask);
+}
+
+inline bool TReaderWriterSpinLock::IsLocked() noexcept
+{
+    return Value_.load() != 0;
 }
 
 inline bool TReaderWriterSpinLock::TryAcquireReader()

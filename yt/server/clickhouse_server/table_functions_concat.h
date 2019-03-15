@@ -1,16 +1,13 @@
 #pragma once
 
+#include "private.h"
 #include "cluster_tracker.h"
-
-#include <yt/server/clickhouse_server/public.h>
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RegisterConcatenatingTableFunctions(
-    IStoragePtr storage,
-    IExecutionClusterPtr cluster);
+void RegisterConcatenatingTableFunctions(IExecutionClusterPtr cluster);
 
 ////////////////////////////////////////////////////////////////////////////////
 
