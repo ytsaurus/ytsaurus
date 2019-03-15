@@ -1,8 +1,9 @@
 from .helpers import TEST_DIR, check, get_test_file_path, set_config_option
 
+from yt.wrapper.common import update
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.spec_builders import (ReduceSpecBuilder, MergeSpecBuilder, SortSpecBuilder,
-                                      MapReduceSpecBuilder, MapSpecBuilder)
+                                      MapReduceSpecBuilder, MapSpecBuilder, VanillaSpecBuilder)
 
 import yt.wrapper as yt
 
@@ -382,3 +383,24 @@ class TestSpecBuilders(object):
             ordered=False
         )
 
+    def test_vanilla_spec_builder(self):
+        vanilla_spec = VanillaSpecBuilder()\
+            .begin_task("sample")\
+                .command("cat")\
+                .job_count(1)\
+            .end_task()\
+            .spec({"tasks": {"sample": {"memory_limit": 666 * 1024}}, "weight": 2})
+
+        result_spec = vanilla_spec.build()
+        correct_spec = {
+            "tasks": {
+                "sample": {
+                    "command": "cat",
+                    "job_count": 1,
+                    "memory_limit": 666 * 1024,
+                }
+            },
+            "weight": 2,
+        }
+
+        assert update(result_spec, correct_spec) == result_spec
