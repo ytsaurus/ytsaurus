@@ -297,6 +297,47 @@ class TestSpecBuilders(object):
                 assert attributes["spec"]["mapper"]["environment"]["var2"] == "5"
                 assert attributes["spec"]["mapper"]["environment"]["var3"] == "6"
 
+    def test_user_job_spec_defaults(self):
+        input_table = TEST_DIR + "/input"
+        output_table = TEST_DIR + "/output"
+        yt.write_table(yt.TablePath(input_table, sorted_by=["x"]), [{"x": 1}, {"x": 2, "y": 2}])
+
+        user_job_spec_defaults = {
+            "environment": {
+                "MY_ENV": "value",
+            }
+        }
+
+        with set_config_option("user_job_spec_defaults", user_job_spec_defaults):
+            spec_builder = MapSpecBuilder() \
+                .begin_mapper() \
+                .command("cat") \
+                .format("json") \
+                .memory_limit(256 * 1024 * 1024) \
+                .end_mapper() \
+                .input_table_paths(input_table) \
+                .output_table_paths(output_table)
+            op = yt.run_operation(spec_builder)
+            attributes = op.get_attributes()
+            assert attributes["spec"]["mapper"]["memory_limit"] == 256 * 1024 * 1024
+            assert attributes["spec"]["mapper"]["environment"]["MY_ENV"] == "value"
+
+            spec_builder = ReduceSpecBuilder() \
+                .begin_reducer() \
+                .command("cat") \
+                .format("json") \
+                .memory_limit(256 * 1024 * 1024) \
+                .environment({"OTHER_ENV": "10"}) \
+                .end_reducer() \
+                .reduce_by(["x"]) \
+                .input_table_paths(input_table) \
+                .output_table_paths(output_table)
+            op = yt.run_operation(spec_builder)
+            attributes = op.get_attributes()
+            assert attributes["spec"]["reducer"]["memory_limit"] == 256 * 1024 * 1024
+            assert attributes["spec"]["reducer"]["environment"]["MY_ENV"] == "value"
+            assert attributes["spec"]["reducer"]["environment"]["OTHER_ENV"] == "10"
+
     def test_spec_deepcopy(self):
         def mapper(row):
             yield {"x": row["x"] + 5, "tag": row["tag"]}
