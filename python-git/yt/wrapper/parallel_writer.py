@@ -82,12 +82,12 @@ class ParallelWriter(object):
             output_objects.append(table)
             if len(output_objects) >= get_config(self._client)["write_parallel"]["concatenate_size"]:
                 concatenate(output_objects, self._path, client=self._client)
-                batch_apply(remove, output_objects)
+                batch_apply(remove, output_objects, client=self._client)
                 self._path.attributes["append"] = True
                 output_objects = []
         if output_objects:
             concatenate(output_objects, self._path, client=self._client)
-            batch_apply(remove, output_objects)
+            batch_apply(remove, output_objects, client=self._client)
 
         self._pool.close()
 
