@@ -27,6 +27,7 @@
 #include <yt/core/tools/tools.h>
 
 #include <util/system/fs.h>
+#include <util/folder/path.h>
 
 namespace NYT::NExecAgent {
 
@@ -98,9 +99,9 @@ TSlotLocation::TSlotLocation(
     DiskInfoUpdateExecutor_->Start();
 }
 
-TFuture<std::optional<TString>> TSlotLocation::CreateSandboxDirectories(int slotIndex, TUserSandboxOptions options, int userId)
+TFuture<std::vector<TString>> TSlotLocation::CreateSandboxDirectories(int slotIndex, TUserSandboxOptions options, int userId)
 {
-    return BIND([=, this_ = MakeStrong(this)] () -> std::optional<TString> {
+    return BIND([=, this_ = MakeStrong(this)] () -> std::vector<TString> {
          ValidateEnabled();
 
          YT_LOG_DEBUG("Making sandbox directiories (SlotIndex: %v)", slotIndex);
@@ -125,8 +126,8 @@ TFuture<std::optional<TString>> TSlotLocation::CreateSandboxDirectories(int slot
 
         auto shouldApplyQuota = [&] () {
              bool sandboxTmpfs = false;
-             if (options.TmpfsPath) {
-                 auto tmpfsPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, *options.TmpfsPath));
+             for (const auto& tmpfsVolume : options.TmpfsVolumes) {
+                 auto tmpfsPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, tmpfsVolume.Path));
                  sandboxTmpfs = (tmpfsPath == sandboxPath);
              }
 
@@ -149,7 +150,7 @@ TFuture<std::optional<TString>> TSlotLocation::CreateSandboxDirectories(int slot
         }
 
         // This tmp sandbox is a temporary workaround for nirvana. We apply the same quota as we do for usual sandbox.
-        if (options.DiskSpaceLimit ||  options.InodeLimit) {
+        if (options.DiskSpaceLimit || options.InodeLimit) {
             auto tmpPath = GetSandboxPath(slotIndex, ESandboxKind::Tmp);
             try {
                 auto properties = TJobDirectoryProperties{options.DiskSpaceLimit, options.InodeLimit, userId};
@@ -169,8 +170,10 @@ TFuture<std::optional<TString>> TSlotLocation::CreateSandboxDirectories(int slot
             YCHECK(OccupiedSlotToDiskLimit_.emplace(slotIndex, options.DiskSpaceLimit).second);
         }
 
-        if (options.TmpfsPath) {
-            auto tmpfsPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, *options.TmpfsPath));
+        std::vector<TString> result;
+
+        for (const auto& tmpfsVolume : options.TmpfsVolumes) {
+            auto tmpfsPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, tmpfsVolume.Path));
             try {
                 if (tmpfsPath != sandboxPath) {
                     // If we mount directory inside sandbox, it should not exist.
@@ -179,22 +182,21 @@ TFuture<std::optional<TString>> TSlotLocation::CreateSandboxDirectories(int slot
                 NFS::MakeDirRecursive(tmpfsPath);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Failed to create directory %Qv for tmpfs in sandbox %v",
-                    *options.TmpfsPath,
+                    tmpfsPath,
                     sandboxPath)
                     << ex;
             }
 
             if (!EnableTmpfs_) {
-                return std::nullopt;
+                continue;
             }
 
             try {
                 auto getTmpfsSize = [=] () {
-                    YCHECK(options.TmpfsSizeLimit);
                     if (tmpfsPath == sandboxPath && options.DiskSpaceLimit) {
-                        return std::min(*options.DiskSpaceLimit, *options.TmpfsSizeLimit);
+                        return std::min(*options.DiskSpaceLimit, tmpfsVolume.Size);
                     } else {
-                        return *options.TmpfsSizeLimit;
+                        return tmpfsVolume.Size;
                     }
                 };
 
@@ -204,17 +206,32 @@ TFuture<std::optional<TString>> TSlotLocation::CreateSandboxDirectories(int slot
 
                 YCHECK(TmpfsPaths_.insert(tmpfsPath).second);
 
-                return std::make_optional(tmpfsPath);
+                result.push_back(tmpfsPath);
             } catch (const std::exception& ex) {
                 // Job will be aborted.
-                auto error = TError(EErrorCode::SlotLocationDisabled, "Failed to mount tmpfs %v into sandbox %v", *options.TmpfsPath, sandboxPath)
+                auto error = TError(EErrorCode::SlotLocationDisabled, "Failed to mount tmpfs %v into sandbox %v", tmpfsPath, sandboxPath)
                     << ex;
                 Disable(error);
                 THROW_ERROR error;
             }
         }
 
-        return std::nullopt;
+        for (int i = 0; i < result.size(); ++i) {
+            for (int j = 0; j < result.size(); ++j) {
+                if (i == j) {
+                    continue;
+                }
+                auto lhsFsPath = TFsPath(result[i]);
+                auto rhsFsPath = TFsPath(result[j]);
+                if (lhsFsPath.IsSubpathOf(rhsFsPath)) {
+                    THROW_ERROR_EXCEPTION("Path of tmpfs volume %Qv is prefix of other tmpfs volume %Qv",
+                        result[i],
+                        result[j]);
+                }
+            }
+        }
+
+        return result;
     })
     .AsyncVia(LocationQueue_->GetInvoker())
     .Run();

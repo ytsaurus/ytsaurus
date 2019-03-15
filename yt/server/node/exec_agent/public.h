@@ -16,10 +16,15 @@ class TJobProxyResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTmpfsVolume
+{
+    TString Path;
+    i64 Size;
+};
+
 struct TUserSandboxOptions
 {
-    std::optional<TString> TmpfsPath;
-    std::optional<i64> TmpfsSizeLimit;
+    std::vector<TTmpfsVolume> TmpfsVolumes;
     std::optional<i64> InodeLimit;
     std::optional<i64> DiskSpaceLimit;
 };

@@ -697,6 +697,11 @@ protected:
                 : Controller->GetFinalSortJobType();
         }
 
+        virtual bool IsSimpleTask() const override
+        {
+            return false;
+        }
+
         virtual void Persist(const TPersistenceContext& context) override
         {
             TPartitionBoundTask::Persist(context);

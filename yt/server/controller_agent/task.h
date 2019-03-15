@@ -120,11 +120,14 @@ public:
 
     i64 GetInputDataSliceCount() const;
 
-    std::optional<i64> GetMaximumUsedTmpfsSize() const;
+    std::vector<std::optional<i64>> GetMaximumUsedTmpfsSizes() const;
 
     virtual void Persist(const TPersistenceContext& context) override;
 
     virtual NScheduler::TUserJobSpecPtr GetUserJobSpec() const;
+
+    // TODO(max42): eliminate necessity for this method (YT-10528).
+    virtual bool IsSimpleTask() const;
 
     ITaskHost* GetTaskHost();
     void AddLocalityHint(NNodeTrackerClient::TNodeId nodeId);
@@ -248,7 +251,7 @@ private:
     int CachedPendingJobCount_;
     int CachedTotalJobCount_;
 
-    std::optional<i64> MaximumUsedTmfpsSize_;
+    std::vector<std::optional<i64>> MaximumUsedTmpfsSizes_;
 
     TJobResources CachedTotalNeededResources_;
     mutable std::optional<NScheduler::TExtendedJobResources> CachedMinNeededResources_;
@@ -264,7 +267,7 @@ private:
 
     NScheduler::TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
 
-    void UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& statistics);
+    void UpdateMaximumUsedTmpfsSizes(const NJobTrackerClient::TStatistics& statistics);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTask)

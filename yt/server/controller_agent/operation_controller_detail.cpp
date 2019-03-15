@@ -1929,21 +1929,21 @@ void TOperationControllerBase::InitializeSecurityTags()
     auto addTags = [&] (const auto& moreTags) {
         inferredSecurityTags.insert(inferredSecurityTags.end(), moreTags.begin(), moreTags.end());
     };
-    
+
     addTags(Spec_->AdditionalSecurityTags);
-    
+
     for (const auto& table : InputTables_) {
         addTags(table->SecurityTags);
     }
-    
+
     for (const auto& [userJobSpec, files] : UserJobFiles_) {
         for (const auto& file : files) {
             addTags(file.SecurityTags);
         }
     }
-    
+
     SortUnique(inferredSecurityTags);
-    
+
     for (const auto& table : OutputTables_) {
         if (auto explicitSecurityTags = table->Path.GetSecurityTags()) {
             // TODO(babenko): audit
@@ -2148,11 +2148,11 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     UnregisterJoblet(joblet);
 
     auto finally = Finally(
-		[&] () {
-			ReleaseJobs({jobId});
-		},
+        [&] () {
+            ReleaseJobs({jobId});
+        },
         /* noUncaughtExceptions */ true
-	);
+    );
 
     // This failure case has highest priority for users. Therefore check must be performed as early as possible.
     if (Spec_->FailOnJobRestart) {
@@ -2902,52 +2902,76 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
         return;
     }
 
-    THashMap<EJobType, i64> maximumUsedTmpfsSizePerJobType;
+    THashMap<EJobType, std::vector<std::optional<i64>>> maximumUsedTmpfsSizesPerJobType;
     THashMap<EJobType, TUserJobSpecPtr> userJobSpecPerJobType;
 
     for (const auto& task : Tasks) {
-        const auto& userJobSpecPtr = task->GetUserJobSpec();
-        if (!userJobSpecPtr || !userJobSpecPtr->TmpfsPath || !userJobSpecPtr->TmpfsSize) {
-            continue;
-        }
-
-        auto maxUsedTmpfsSize = task->GetMaximumUsedTmpfsSize();
-        if (!maxUsedTmpfsSize) {
+        if (!task->IsSimpleTask()) {
             continue;
         }
 
         auto jobType = task->GetJobType();
-
-        auto it = maximumUsedTmpfsSizePerJobType.find(jobType);
-        if (it == maximumUsedTmpfsSizePerJobType.end()) {
-            maximumUsedTmpfsSizePerJobType[jobType] = *maxUsedTmpfsSize;
-        } else {
-            it->second = std::max(it->second, *maxUsedTmpfsSize);
+        const auto& userJobSpecPtr = task->GetUserJobSpec();
+        if (!userJobSpecPtr) {
+            continue;
         }
 
         userJobSpecPerJobType.insert(std::make_pair(jobType, userJobSpecPtr));
+
+        auto maxUsedTmpfsSizes = task->GetMaximumUsedTmpfsSizes();
+
+        YCHECK(userJobSpecPtr->TmpfsVolumes.size() == maxUsedTmpfsSizes.size());
+
+        auto it = maximumUsedTmpfsSizesPerJobType.find(jobType);
+        if (it == maximumUsedTmpfsSizesPerJobType.end()) {
+            it = maximumUsedTmpfsSizesPerJobType.emplace(jobType, std::vector<std::optional<i64>>(maxUsedTmpfsSizes.size())).first;
+        }
+        auto& knownMaxUsedTmpfsSizes = it->second;
+
+        for (int index = 0; index < maxUsedTmpfsSizes.size(); ++index) {
+            auto tmpfsSize = maxUsedTmpfsSizes[index];
+            if (tmpfsSize) {
+                if (!knownMaxUsedTmpfsSizes[index]) {
+                    knownMaxUsedTmpfsSizes[index] = 0;
+                }
+                knownMaxUsedTmpfsSizes[index] = std::max(*knownMaxUsedTmpfsSizes[index], *tmpfsSize);
+            }
+        }
     }
 
     std::vector<TError> innerErrors;
 
     double minUnusedSpaceRatio = 1.0 - Config->OperationAlerts->TmpfsAlertMaxUnusedSpaceRatio;
 
-    for (const auto& pair : maximumUsedTmpfsSizePerJobType) {
+    for (const auto& pair : maximumUsedTmpfsSizesPerJobType) {
         const auto& userJobSpecPtr = userJobSpecPerJobType[pair.first];
-        auto maxUsedTmpfsSize = pair.second;
+        auto maxUsedTmpfsSizes = pair.second;
 
-        bool minUnusedSpaceThresholdOvercome = *userJobSpecPtr->TmpfsSize - maxUsedTmpfsSize >
-            Config->OperationAlerts->TmpfsAlertMinUnusedSpaceThreshold;
-        bool minUnusedSpaceRatioViolated = maxUsedTmpfsSize <
-            minUnusedSpaceRatio * (*userJobSpecPtr->TmpfsSize);
+        YCHECK(userJobSpecPtr->TmpfsVolumes.size() == maxUsedTmpfsSizes.size());
 
-        if (minUnusedSpaceThresholdOvercome && minUnusedSpaceRatioViolated) {
-            TError error(
-                "Jobs of type %Qlv use less than %.1f%% of requested tmpfs size",
-                pair.first, minUnusedSpaceRatio * 100.0);
-            innerErrors.push_back(error
-                << TErrorAttribute("max_used_tmpfs_size", maxUsedTmpfsSize)
-                << TErrorAttribute("tmpfs_size", *userJobSpecPtr->TmpfsSize));
+        const auto& tmpfsVolumes = userJobSpecPtr->TmpfsVolumes;
+        for (int index = 0; index < tmpfsVolumes.size(); ++index) {
+            auto maxUsedTmpfsSize = maxUsedTmpfsSizes[index];
+            if (!maxUsedTmpfsSize) {
+                continue;
+            }
+
+            auto orderedTmpfsSize = tmpfsVolumes[index]->Size;
+            bool minUnusedSpaceThresholdOvercome = orderedTmpfsSize - *maxUsedTmpfsSize >
+                Config->OperationAlerts->TmpfsAlertMinUnusedSpaceThreshold;
+            bool minUnusedSpaceRatioViolated = *maxUsedTmpfsSize <
+                minUnusedSpaceRatio * orderedTmpfsSize;
+
+            if (minUnusedSpaceThresholdOvercome && minUnusedSpaceRatioViolated) {
+                auto error = TError(
+                    "Jobs of type %Qlv use less than %.1f%% of requested tmpfs size in volume %Qv",
+                    pair.first,
+                    minUnusedSpaceRatio * 100.0,
+                    tmpfsVolumes[index]->Path)
+                    << TErrorAttribute("max_used_tmpfs_size", *maxUsedTmpfsSize)
+                    << TErrorAttribute("tmpfs_size", orderedTmpfsSize);
+                innerErrors.push_back(error);
+            }
         }
     }
 
@@ -7003,10 +7027,13 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_port_count(config->PortCount);
     jobSpec->set_use_porto_memory_tracking(config->UsePortoMemoryTracking);
 
-    if (config->TmpfsPath && Config->EnableTmpfs) {
-        auto tmpfsSize = config->TmpfsSize.value_or(config->MemoryLimit);
-        jobSpec->set_tmpfs_size(tmpfsSize);
-        jobSpec->set_tmpfs_path(*config->TmpfsPath);
+    // COMPAT(ignat): remove after node update.
+    if (config->TmpfsVolumes.size() == 1) {
+        jobSpec->set_tmpfs_size(config->TmpfsVolumes[0]->Size);
+        jobSpec->set_tmpfs_path(config->TmpfsVolumes[0]->Path);
+    }
+    for (const auto& volume : config->TmpfsVolumes) {
+        ToProto(jobSpec->add_tmpfs_volumes(), *volume);
     }
 
     if (config->DiskSpaceLimit) {

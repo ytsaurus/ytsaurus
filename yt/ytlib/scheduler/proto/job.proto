@@ -49,6 +49,12 @@ message TTableBlobSpec
     required bytes blob_table_writer_config = 2;
 }
 
+message TTmpfsVolume
+{
+    required int64 size = 1;
+    required string path = 2;
+}
+
 // Specification for starting user code during a job.
 message TUserJobSpec
 {
@@ -90,6 +96,8 @@ message TUserJobSpec
 
     optional int64 tmpfs_size = 22;
     optional string tmpfs_path = 23;
+
+    repeated TTmpfsVolume tmpfs_volumes = 41;
 
     optional bool copy_files = 24 [default = false];
 
