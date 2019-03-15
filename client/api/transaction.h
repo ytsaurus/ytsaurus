@@ -107,12 +107,7 @@ struct ITransaction
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         TSharedRange<NTableClient::TKey> keys,
-        ui32 lockMask = 0);
-
-    void LockRows(
-        const NYPath::TYPath& path,
-        NTableClient::TNameTablePtr nameTable,
-        TSharedRange<NTableClient::TKey> keys);
+        ui32 lockMask = NTableClient::PrimaryLockMask);
 
     void LockRows(
         const NYPath::TYPath& path,
