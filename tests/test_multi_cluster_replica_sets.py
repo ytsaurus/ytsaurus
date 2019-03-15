@@ -38,12 +38,12 @@ class TestMultiClusterReplicaSets(object):
             object_type="multi_cluster_replica_set",
             attributes={
                 "spec": {
-                    "revision_id": "1"
+                    "revision": 1
                 }
             })
 
         yp_client.update_object("multi_cluster_replica_set", rs_id, set_updates=[
-            {"path": "/spec/revision_id", "value": "2"},
+            {"path": "/spec/revision", "value": 2},
         ])
 
-        assert yp_client.get_object("multi_cluster_replica_set", rs_id, selectors=["/spec/revision_id"])[0][0] == "2"
+        assert yp_client.get_object("multi_cluster_replica_set", rs_id, selectors=["/spec/revision"])[0] == 2

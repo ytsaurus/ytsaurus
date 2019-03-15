@@ -1,9 +1,6 @@
-from yp_proto.yp.client.api.proto.data_model_pb2 import TPodSetMeta
-from yp_proto.yp.client.api.proto.object_type_pb2 import EObjectType
 from yp_proto.yp.client.api.proto.object_service_pb2 import TReqCreateObject
 
-from yt_proto.yt.core.misc.proto.error_pb2 import TError
-from yt_proto.yt.core.ytree.proto.attributes_pb2 import TAttribute
+from yp.data_model import EObjectType, TPodSetMeta, TError, TAttribute
 
 try:
     from yt_yson_bindings import loads_proto, dumps_proto, loads, dumps
@@ -32,11 +29,11 @@ class TestYsonProto(object):
         meta = TPodSetMeta()
         meta.id = "1-1-1-1"
         meta.type = EObjectType.Value("OT_POD_SET")
-        meta.creation_time = 0
+        meta.creation_time = 123
         meta.id = "2-3-4-5"
 
         meta_dict = loads(dumps_proto(meta))
-        assert meta_dict == {"id": "1-1-1-1", "type": "pod_set", "creation_time": 0, "id": "2-3-4-5"}
+        assert meta_dict == {"id": "1-1-1-1", "type": "pod_set", "creation_time": 123, "id": "2-3-4-5"}
 
         meta_converted = loads_proto(dumps_proto(meta), TPodSetMeta)
         assert meta_converted.id == meta.id

@@ -3,7 +3,7 @@ package NYP.NClient.NApi.NProto;
 import "yt/core/yson/proto/protobuf_interop.proto";
 
 import "yp_proto/yp/client/api/proto/data_model.proto";
-import "yp_proto/yp/client/api/proto/object_type.proto";
+import "yp_proto/yp/client/api/proto/autogen.proto";
 
 option java_package = "ru.yandex.yp.client.api";
 option java_outer_classname = "Object";

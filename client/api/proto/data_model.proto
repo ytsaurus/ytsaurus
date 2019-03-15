@@ -3,16 +3,37 @@ package NYP.NClient.NApi.NProto;
 // COMPAT(babenko): will be dropped after switching to pod agent.
 import "yp/client/api/proto/cluster_api.proto";
 import "yp/client/api/proto/pod_agent.proto";
-import "yp/client/api/proto/object_type.proto";
 import "yp/client/api/proto/dynamic_attributes.proto";
 import "yp/client/api/proto/conditions.proto";
+import "yp/client/api/proto/enums.proto";
 
 import "yt/core/yson/proto/protobuf_interop.proto";
 import "yt/core/ytree/proto/attributes.proto";
 import "yt/core/misc/proto/error.proto";
 
+import "google/protobuf/descriptor.proto";
+
 option java_package = "ru.yandex.yp.client.api";
 option java_outer_classname = "DataModel";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TObjectTypeOption
+{
+    required string camel_case_name = 1;
+    required string snake_case_name = 2;
+    required int32 type_value = 3;
+}
+
+extend google.protobuf.FileOptions
+{
+    repeated TObjectTypeOption object_type = 30000;
+}
+
+extend google.protobuf.FieldOptions
+{
+    repeated bool other = 30000;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -130,7 +151,7 @@ message TPerSegmentResourceTotals
     }
 
     optional TMemoryTotals memory = 1;
-    optional TMemoryTotals cpu = 2;
+    optional TCpuTotals cpu = 2;
     map<string, TDiskTotals> disk_per_storage_class = 3 [(NYT.NYson.NProto.yson_map) = true];
     optional TInternetAddressTotals internet_address = 4;
 }
@@ -142,39 +163,208 @@ message TResourceTotals
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Most TXXXMeta messages are same (up to minor changes); here we only document
-// TSchemaMeta; these descriptions apply to all meta fields with matching names.
-message TSchemaMeta
+// We generate a bunch of TXXXMeta messages that "inherit" from TXXXMetaBase (if any).
+// Their shared fields are as follows.
+/*
+message TXXXMeta
 {
     // Object id; unique within its type.
     // Object is typically provided by the user upon object construction and can be reused.
     // Once assigned, object id cannot be changed.
-    optional string id = 1;
+    string id = 1;
 
     // Univerally unique id; assigned by YP master and is never reused.
     // Helpful to track object identity.
-    optional string uuid = 12;
+    string uuid = 12;
 
     // Optional descriptive name that is displayed in e.g. error messages or UI.
     // In contrast to id, YP master does not guarantee uniqueness of names.
     // Names can be changed at any time.
     // Not all object types support custom names; attempting to set this attribute for those lacking support
     // raises an error.
-    optional string name = 13;
+    string name = 13;
 
     // Type of the object.
-    optional EObjectType type = 2;
+    EObjectType type = 2;
 
     // The instant of time the object was constructed.
-    optional uint64 creation_time = 3;
+    uint64 creation_time = 3;
 
     // If true, the object inherits all ACEs from appropriate "parent".
     // For schemas this is assumed to be always false.
-    optional bool inherit_acl = 10;
+    bool inherit_acl = 10;
 
     // The list of ACEs comprising object's ACL.
     repeated TAccessControlEntry acl = 11;
 }
+*/
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "Node"
+    snake_case_name: "node"
+    type_value: 0
+};
+
+enum EHfsmState
+{
+    HS_UNKNOWN = 0
+    [(NYT.NYson.NProto.enum_value_name) = "unknown"];
+
+    HS_INITIAL = 100
+    [(NYT.NYson.NProto.enum_value_name) = "initial"];
+
+    HS_UP = 200
+    [(NYT.NYson.NProto.enum_value_name) = "up"];
+
+    HS_DOWN = 300
+    [(NYT.NYson.NProto.enum_value_name) = "down"];
+
+    HS_SUSPECTED = 400
+    [(NYT.NYson.NProto.enum_value_name) = "suspected"];
+
+    HS_PREPARE_MAINTENANCE = 500
+    [(NYT.NYson.NProto.enum_value_name) = "prepare_maintenance"];
+
+    HS_MAINTENANCE = 600
+    [(NYT.NYson.NProto.enum_value_name) = "maintenance"];
+
+    HS_PROBATION = 700
+    [(NYT.NYson.NProto.enum_value_name) = "probation"];
+}
+
+enum ENodeMaintenanceState
+{
+    NMS_NONE = 0
+    [(NYT.NYson.NProto.enum_value_name) = "none"];
+
+    NMS_REQUESTED = 100
+    [(NYT.NYson.NProto.enum_value_name) = "requested"];
+
+    NMS_ACKNOWLEDGED = 200
+    [(NYT.NYson.NProto.enum_value_name) = "acknowledged"];
+
+    NMS_IN_PROGRESS = 300
+    [(NYT.NYson.NProto.enum_value_name) = "in_progress"];
+}
+
+message TNodeSpec
+{
+    message TIP6Subnet
+    {
+        // IP6 /64-subnet, in textual form.
+        required string subnet = 1;
+
+        // E.g. backbone or fastbone.
+        required string vlan_id = 2;
+    }
+    // MTN subnets.
+    repeated TIP6Subnet ip6_subnets = 1;
+
+    message TIP6Address
+    {
+        // IP6 address, in textual form.
+        required string address = 1;
+
+        // E.g. backbone or fastbone.
+        required string vlan_id = 2;
+    }
+    // Host (dom0) IP6 addresses.
+    repeated TIP6Address ip6_addresses = 2;
+
+    // Used to construct /pod/status/transient_fqdn.
+    // Typically this is the first part of the node's FQDN, i.e.
+    // "sas1-3329" for "sas1-3329.search.yandex.net".
+    optional string short_name = 3;
+
+    message THfsm
+    {
+        // Setting this to false prevents automatic HFSM status updates.
+        optional bool enable_sync = 2;
+    }
+    // HFSM controls.
+    optional THfsm hfsm = 5;
+
+    // NOC module in "physical" network topology.
+    optional string network_module_id = 6;
+
+    // If true then YP Master instructs node agents to drop all unknown pods.
+    optional bool force_remove_unknown_pods = 7;
+}
+
+message TNodeStatus
+{
+    // Current epoch used for master-agent communication.
+    optional string epoch_id = 1;
+
+    // Timestamp of the last agent heartbeat.
+    optional uint64 last_seen_time = 2;
+
+    // Used for properly sequencing master-agent communication.
+    optional uint64 heartbeat_sequence_number = 3;
+
+    // Address of GPRC service at agent used for out-of-band notifications.
+    optional string agent_address = 4;
+
+    // Version of the agent running at this node (as reported during the last handshake).
+    optional string agent_version = 8 [(NYP.NClient.NApi.NProto.other) = true];
+
+    message THfsm
+    {
+        // Current HFSM state.
+        optional EHfsmState state = 1;
+
+        // Timestamp of last change.
+        optional uint64 last_updated = 2;
+
+        // Comment for the last change.
+        optional string message = 3;
+    }
+    // HFSM info.
+    optional THfsm hfsm = 5 [(NYP.NClient.NApi.NProto.other) = true];
+
+    message TMaintenance
+    {
+        // Current maintenance state.
+        optional ENodeMaintenanceState state = 1;
+
+        // Timestamp of last change.
+        optional uint64 last_updated = 2;
+
+        // Comment for the last change.
+        optional string message = 3;
+    }
+    // Maintenance workflow.
+    optional TMaintenance maintenance = 6 [(NYP.NClient.NApi.NProto.other) = true];
+
+    // Contains ids of pods that are reported to be present at the node
+    // but are neither known to exist nor were recently removed.
+    repeated string unknown_pod_ids = 7 [(NYP.NClient.NApi.NProto.other) = true];
+}
+
+message TNodeControl
+{
+    message TUpdateHfsmState
+    {
+        // New HFSM state.
+        optional EHfsmState state = 1;
+
+        // Comment for changing HFSM state.
+        optional string message = 2;
+    }
+
+    // Enables updating HFSM state.
+    optional TUpdateHfsmState update_hfsm_state = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "Schema"
+    snake_case_name: "schema"
+    type_value: 256
+};
 
 message TSchemaSpec
 { }
@@ -182,31 +372,13 @@ message TSchemaSpec
 message TSchemaStatus
 { }
 
-message TSchema
-{
-    optional TSchemaMeta meta = 1;
-    optional TSchemaSpec spec = 2;
-    optional TSchemaStatus status = 3;
-    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-enum EResourceKind
-{
-    RK_UNDEFINED = -1
-    [(NYT.NYson.NProto.enum_value_name) = "undefined"];
-
-    RK_CPU = 0
-    [(NYT.NYson.NProto.enum_value_name) = "cpu"];
-
-    RK_MEMORY = 1
-    [(NYT.NYson.NProto.enum_value_name) = "memory"];
-
-    RK_DISK = 2
-    [(NYT.NYson.NProto.enum_value_name) = "disk"];
-}
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "Resource"
+    snake_case_name: "resource"
+    type_value: 3
+};
 
 enum EDiskVolumePolicy
 {
@@ -217,17 +389,10 @@ enum EDiskVolumePolicy
     [(NYT.NYson.NProto.enum_value_name) = "exclusive"];
 }
 
-message TResourceMeta
+message TResourceMetaBase
 {
-    optional string id = 1;
-    optional string uuid = 12;
-    optional string name = 13;
-    optional EObjectType type = 2;
-    optional uint64 creation_time = 3;
-    required string node_id = 4;
-    required EResourceKind kind = 5;
-    optional bool inherit_acl = 10;
-    repeated TAccessControlEntry acl = 11;
+    optional string node_id = 4;
+    optional EResourceKind kind = 5;
 }
 
 message TResourceSpec
@@ -360,190 +525,13 @@ message TResourceStatus
     optional TAllocationStatistics used = 4;
 }
 
-message TResource
-{
-    optional TResourceMeta meta = 1;
-    optional TResourceSpec spec = 2;
-    optional TResourceStatus status = 3;
-    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-enum EHfsmState
-{
-    HS_UNKNOWN = 0
-    [(NYT.NYson.NProto.enum_value_name) = "unknown"];
-
-    HS_INITIAL = 100
-    [(NYT.NYson.NProto.enum_value_name) = "initial"];
-
-    HS_UP = 200
-    [(NYT.NYson.NProto.enum_value_name) = "up"];
-
-    HS_DOWN = 300
-    [(NYT.NYson.NProto.enum_value_name) = "down"];
-
-    HS_SUSPECTED = 400
-    [(NYT.NYson.NProto.enum_value_name) = "suspected"];
-
-    HS_PREPARE_MAINTENANCE = 500
-    [(NYT.NYson.NProto.enum_value_name) = "prepare_maintenance"];
-
-    HS_MAINTENANCE = 600
-    [(NYT.NYson.NProto.enum_value_name) = "maintenance"];
-
-    HS_PROBATION = 700
-    [(NYT.NYson.NProto.enum_value_name) = "probation"];
-}
-
-enum ENodeMaintenanceState
-{
-    NMS_NONE = 0
-    [(NYT.NYson.NProto.enum_value_name) = "none"];
-
-    NMS_REQUESTED = 100
-    [(NYT.NYson.NProto.enum_value_name) = "requested"];
-
-    NMS_ACKNOWLEDGED = 200
-    [(NYT.NYson.NProto.enum_value_name) = "acknowledged"];
-
-    NMS_IN_PROGRESS = 300
-    [(NYT.NYson.NProto.enum_value_name) = "in_progress"];
-}
-
-message TNodeMeta
-{
-    optional string id = 1;
-    optional string uuid = 12;
-    optional string name = 13;
-    optional EObjectType type = 2;
-    optional uint64 creation_time = 3;
-    optional bool inherit_acl = 10;
-    repeated TAccessControlEntry acl = 11;
-}
-
-message TNodeSpec
-{
-    message TIP6Subnet
-    {
-        // IP6 /64-subnet, in textual form.
-        required string subnet = 1;
-
-        // E.g. backbone or fastbone.
-        required string vlan_id = 2;
-    }
-    // MTN subnets.
-    repeated TIP6Subnet ip6_subnets = 1;
-
-    message TIP6Address
-    {
-        // IP6 address, in textual form.
-        required string address = 1;
-
-        // E.g. backbone or fastbone.
-        required string vlan_id = 2;
-    }
-    // Host (dom0) IP6 addresses.
-    repeated TIP6Address ip6_addresses = 2;
-
-    // Used to construct /pod/status/transient_fqdn.
-    // Typically this is the first part of the node's FQDN, i.e.
-    // "sas1-3329" for "sas1-3329.search.yandex.net".
-    optional string short_name = 3;
-
-    message THfsm
-    {
-        // Setting this to false prevents automatic HFSM status updates.
-        optional bool enable_sync = 2;
-    }
-    // HFSM controls.
-    optional THfsm hfsm = 5;
-
-    // NOC module in "physical" network topology.
-    optional string network_module_id = 6;
-
-    // If true then YP Master instructs node agents to drop all unknown pods.
-    optional bool force_remove_unknown_pods = 7;
-}
-
-message TNodeStatus
-{
-    // Current epoch used for master-agent communication.
-    optional string epoch_id = 1;
-
-    // Timestamp of the last agent heartbeat.
-    optional uint64 last_seen_time = 2;
-
-    // Used for properly sequencing master-agent communication.
-    optional uint64 heartbeat_sequence_number = 3;
-
-    // Address of GPRC service at agent used for out-of-band notifications.
-    optional string agent_address = 4;
-
-    // Version of the agent running at this node (as reported during the last handshake).
-    optional string agent_version = 8;
-
-    message THfsm
-    {
-        // Current HFSM state.
-        optional EHfsmState state = 1;
-
-        // Timestamp of last change.
-        optional uint64 last_updated = 2;
-
-        // Comment for the last change.
-        optional string message = 3;
-    }
-    // HFSM info.
-    optional THfsm hfsm = 5;
-
-    message TMaintenance
-    {
-        // Current maintenance state.
-        optional ENodeMaintenanceState state = 1;
-
-        // Timestamp of last change.
-        optional uint64 last_updated = 2;
-
-        // Comment for the last change.
-        optional string message = 3;
-    }
-    // Maintenance workflow.
-    optional TMaintenance maintenance = 6;
-
-    // Contains ids of pods that are reported to be present at the node
-    // but are neither known to exist nor were recently removed.
-    repeated string unknown_pod_ids = 7;
-}
-
-message TNodeControl
-{
-    message TUpdateHfsmState
-    {
-        // New HFSM state.
-        optional EHfsmState state = 1;
-
-        // Comment for changing HFSM state.
-        optional string message = 2;
-    }
-
-    // Enables updating HFSM state.
-    optional TUpdateHfsmState update_hfsm_state = 1;
-}
-
-message TNode
-{
-    optional TNodeMeta meta = 1;
-    optional TNodeSpec spec = 2;
-    optional TNodeStatus status = 3;
-    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
-    optional TNodeControl control = 6;
-}
-
-////////////////////////////////////////////////////////////////////////////////
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "Pod"
+    snake_case_name: "pod"
+    type_value: 1
+};
 
 enum EPodCurrentState
 {
@@ -579,25 +567,76 @@ enum EPodTargetState
     [(NYT.NYson.NProto.enum_value_name) = "active"];
 }
 
-message TPodMeta
+message TPodMetaBase
 {
-    optional string id = 1;
-    optional string uuid = 12;
-    optional string name = 13;
-    optional EObjectType type = 2;
-    optional uint64 creation_time = 3;
-    required string pod_set_id = 4;
-    optional bool inherit_acl = 10;
-    repeated TAccessControlEntry acl = 11;
+    optional string pod_set_id = 4;
 }
 
-enum EPodHostNameKind
+message TPodDynamicResourceSpec
 {
-    PHNK_TRANSIENT = 0
-    [(NYT.NYson.NProto.enum_value_name) = "transient"];
+    // Resource identifier.
+    optional string id = 1;
+    
+    // Desired revision of the resource.
+    optional uint64 revision = 2;
 
-    PHNK_PERSISTENT = 1
-    [(NYT.NYson.NProto.enum_value_name) = "persistent"];
+    message TStorageOptions
+    {
+        // Name of the box to download resource into.
+        optional string box_ref = 1;
+
+        // Filesystem path where the application should see the resource.
+        optional string destination = 2;
+
+        // Filesystem path where resource versions should be downloaded.
+        optional string storage_dir = 3;
+
+        // HTTP GET handle to notify.
+        // HTTP response codes from range 200-299 are considered to be success.
+        message THttpAction
+        {
+            // Url to call.
+            optional string url = 1;
+
+            // Expected HTTP response body.
+            optional string expected_answer = 2;
+        }
+
+        // Shell command to exec to notify.
+        message TExecAction
+        {
+            // Shell command to execute.
+            optional string command_line = 1;
+
+            // Stdout to accept, if empty, stdout is ignored.
+            optional string expected_answer = 2;
+        }
+
+        oneof Action
+        {
+            THttpAction http_action = 4;
+            TExecAction exec_action = 5;
+        }
+
+        message TVerification
+        {
+            // Checksum in the form: <scheme>:<value> Supported schemes are "MD5:", "EMPTY:", "SHA256:", all case sensitive.
+            optional string checksum = 1;
+
+            // Period of checksum check. First check is done right after download.
+            optional uint64 check_period_ms = 2;
+        }
+
+        // Rule how to check the resource.
+        optional TVerification verification = 6;
+    }
+
+    optional TStorageOptions storage_options = 3;
+
+    // url where to download the resource from
+    // supported protocols: http, https, rbtorrent, raw
+    // (for raw resources use raw:<raw string>)
+    optional string url = 4;
 }
 
 message TPodSpec
@@ -661,7 +700,7 @@ message TPodSpec
         optional uint64 dirty_memory_limit = 6;
     };
     // CPU and memory resources to allocate and configure for this pod upon assignment.
-    optional TResourceRequests resource_requests = 3;
+    optional TResourceRequests resource_requests = 3 [(NYP.NClient.NApi.NProto.other) = true];
 
     message TIP6AddressRequest
     {
@@ -687,7 +726,7 @@ message TPodSpec
         repeated string virtual_service_ids = 8;
     }
     // IP6 addresses to allocate for this pod upon assignment.
-    repeated TIP6AddressRequest ip6_address_requests = 5;
+    repeated TIP6AddressRequest ip6_address_requests = 5 [(NYP.NClient.NApi.NProto.other) = true];
 
     message TIP6SubnetRequest
     {
@@ -703,7 +742,7 @@ message TPodSpec
         optional NYT.NYTree.NProto.TAttributeDictionary labels = 2;
     }
     // IP6 subnets to allocate for this pod upon assignment.
-    repeated TIP6SubnetRequest ip6_subnet_requests = 6;
+    repeated TIP6SubnetRequest ip6_subnet_requests = 6 [(NYP.NClient.NApi.NProto.other) = true];
 
     message TDiskVolumeRequest
     {
@@ -746,14 +785,14 @@ message TPodSpec
         }
     }
     // Disk volumes to allocate for this pod upon assignment.
-    repeated TDiskVolumeRequest disk_volume_requests = 13;
+    repeated TDiskVolumeRequest disk_volume_requests = 13 [(NYP.NClient.NApi.NProto.other) = true];
 
     // If false then YP will not be scheduling this pod.
     optional bool enable_scheduling = 7;
 
     // If given, controls which nodes are eligible for this pod.
     // Filter is a query language predicate; it can only refer to node labels, not other attributes.
-    optional string node_filter = 8;
+    optional string node_filter = 8 [(NYP.NClient.NApi.NProto.other) = true];
 
     message THostDevice
     {
@@ -765,7 +804,7 @@ message TPodSpec
     }
     // Host devices to configure.
     // https://wiki.yandex-team.ru/porto/propertiesanddata/#resursy
-    repeated THostDevice host_devices = 10;
+    repeated THostDevice host_devices = 10 [(NYP.NClient.NApi.NProto.other) = true];
 
     message TSysctlProperty
     {
@@ -773,7 +812,7 @@ message TPodSpec
         required string value = 2;
     }
     // Sysctl properties to configure.
-    repeated TSysctlProperty sysctl_properties = 11;
+    repeated TSysctlProperty sysctl_properties = 11 [(NYP.NClient.NApi.NProto.other) = true];
 
     message TVirtualServiceOptions
     {
@@ -781,11 +820,11 @@ message TPodSpec
         optional uint32 ip6_mtu = 3;
         optional string decapsulator_anycast_address = 4;
     }
-    optional TVirtualServiceOptions virtual_service_options = 12;
+    optional TVirtualServiceOptions virtual_service_options = 12 [(NYP.NClient.NApi.NProto.other) = true];
 
     // Determines the kind of "hostname" Porto property: either
     // "persistent" or "transient" pod FQDN can be used.
-    optional EPodHostNameKind host_name_kind = 15;
+    optional EPodHostNameKind host_name_kind = 15 [(NYP.NClient.NApi.NProto.other) = true];
 
     message TSecret
     {
@@ -855,6 +894,24 @@ enum ESchedulingState
     [(NYT.NYson.NProto.enum_value_name) = "assigned"];
 }
 
+message TPodDynamicResourceStatus
+{
+    // Resource identifier.
+    optional string id = 1;
+
+    // Current resource revision in pod.
+    optional uint64 revision = 2;
+
+    // Resource is currently active.
+    optional TCondition ready = 3;
+
+    // Resource is currently being deployed.
+    optional TCondition in_progress = 4;
+
+    // Resource deploy failed with error.
+    optional TCondition error = 5;
+}
+
 message TPodStatus
 {
     // Node where this pod currently belongs to.
@@ -903,7 +960,7 @@ message TPodStatus
     {
         optional string resource_id = 1;
     }
-    repeated TResourceAllocation scheduled_resource_allocations = 4;
+    repeated TResourceAllocation scheduled_resource_allocations = 4 [(NYP.NClient.NApi.NProto.other) = true];
 
     message TIP6AddressAllocation
     {
@@ -946,7 +1003,7 @@ message TPodStatus
         // Virtual services assigned to this allocation.
         repeated TVirtualService virtual_services = 8;
     }
-    repeated TIP6AddressAllocation ip6_address_allocations = 5;
+    repeated TIP6AddressAllocation ip6_address_allocations = 5 [(NYP.NClient.NApi.NProto.other) = true];
 
     message TIP6SubnetAllocation
     {
@@ -959,7 +1016,7 @@ message TPodStatus
         // Copied from /node/spec/ip6_address_requests/*/labels
         optional NYT.NYTree.NProto.TAttributeDictionary labels = 3;
     }
-    repeated TIP6SubnetAllocation ip6_subnet_allocations = 6;
+    repeated TIP6SubnetAllocation ip6_subnet_allocations = 6 [(NYP.NClient.NApi.NProto.other) = true];
 
     message TDiskVolumeAllocation
     {
@@ -1007,7 +1064,7 @@ message TPodStatus
         // Volume write operation rate limit in operations per second.
         optional uint64 write_operation_rate_limit = 15;
     }
-    repeated TDiskVolumeAllocation disk_volume_allocations = 14;
+    repeated TDiskVolumeAllocation disk_volume_allocations = 14 [(NYP.NClient.NApi.NProto.other) = true];
 
     message TDns
     {
@@ -1021,7 +1078,7 @@ message TPodStatus
         // This FQDN changes each time pod gets reassigned to another node.
         optional string transient_fqdn = 8;
     }
-    optional TDns dns = 7;
+    optional TDns dns = 7 [(NYP.NClient.NApi.NProto.other) = true];
 
     message TEviction
     {
@@ -1030,7 +1087,7 @@ message TPodStatus
         optional uint64 last_updated = 3;
         optional string message = 4;
     }
-    optional TEviction eviction = 8;
+    optional TEviction eviction = 8 [(NYP.NClient.NApi.NProto.other) = true];
 
     message TScheduling
     {
@@ -1040,7 +1097,7 @@ message TPodStatus
         optional string message = 4;
         optional NYT.NProto.TError error = 5;
     }
-    optional TScheduling scheduling = 9;
+    optional TScheduling scheduling = 9 [(NYP.NClient.NApi.NProto.other) = true];
 
     // Increased each time the pod is being assigned to another node.
     optional uint64 generation_number = 10;
@@ -1072,27 +1129,13 @@ message TPodControl
     optional TAcknowledgeEviction acknowledge_eviction = 1;
 }
 
-message TPod
-{
-    optional TPodMeta meta = 1;
-    optional TPodSpec spec = 2;
-    optional TPodStatus status = 3;
-    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-message TPodSetMeta
-{
-    optional string id = 1;
-    optional string uuid = 12;
-    optional string name = 13;
-    optional EObjectType type = 2;
-    optional uint64 creation_time = 3;
-    optional bool inherit_acl = 10;
-    repeated TAccessControlEntry acl = 11;
-}
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "PodSet"
+    snake_case_name: "pod_set"
+    type_value: 2
+};
 
 message TPodSetSpec
 {
@@ -1109,27 +1152,17 @@ message TPodSetSpec
 message TPodSetStatus
 { }
 
-message TPodSet
-{
-    optional TPodSetMeta meta = 1;
-    optional TPodSetSpec spec = 2;
-    optional TPodSetStatus status = 3;
-    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-message TEndpointMeta
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "Endpoint"
+    snake_case_name: "endpoint"
+    type_value: 5
+};
+
+message TEndpointMetaBase
 {
-    optional string id = 1;
-    optional string uuid = 12;
-    optional string name = 13;
-    optional EObjectType type = 2;
-    optional uint64 creation_time = 3;
-    required string endpoint_set_id = 4;
-    optional bool inherit_acl = 10;
-    repeated TAccessControlEntry acl = 11;
+    optional string endpoint_set_id = 4;
 }
 
 message TEndpointSpec
@@ -1144,27 +1177,13 @@ message TEndpointSpec
 message TEndpointStatus
 { }
 
-message TEndpoint
-{
-    optional TEndpointMeta meta = 1;
-    optional TEndpointSpec spec = 2;
-    optional TEndpointStatus status = 3;
-    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-message TEndpointSetMeta
-{
-    optional string id = 1;
-    optional string uuid = 12;
-    optional string name = 13;
-    optional EObjectType type = 2;
-    optional uint64 creation_time = 3;
-    optional bool inherit_acl = 10;
-    repeated TAccessControlEntry acl = 11;
-}
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "EndpointSet"
+    snake_case_name: "endpoint_set"
+    type_value: 6
+};
 
 message TEndpointSetSpec
 {
@@ -1181,27 +1200,13 @@ message TEndpointSetSpec
 message TEndpointSetStatus
 { }
 
-message TEndpointSet
-{
-    optional TEndpointSetMeta meta = 1;
-    optional TEndpointSetSpec spec = 2;
-    optional TEndpointSetStatus status = 3;
-    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-message TNetworkProjectMeta
-{
-    optional string id = 1;
-    optional string uuid = 12;
-    optional string name = 13;
-    optional EObjectType type = 2;
-    optional uint64 creation_time = 3;
-    optional bool inherit_acl = 10;
-    repeated TAccessControlEntry acl = 11;
-}
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "NetworkProject"
+    snake_case_name: "network_project"
+    type_value: 4
+};
 
 message TNetworkProjectSpec
 {
@@ -1212,27 +1217,13 @@ message TNetworkProjectSpec
 message TNetworkProjectStatus
 { }
 
-message TNetworkProject
-{
-    optional TNetworkProjectMeta meta = 1;
-    optional TNetworkProjectSpec spec = 2;
-    optional TNetworkProjectStatus status = 3;
-    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-message TNodeSegmentMeta
-{
-    optional string id = 1;
-    optional string uuid = 12;
-    optional string name = 13;
-    optional EObjectType type = 2;
-    optional uint64 creation_time = 3;
-    optional bool inherit_acl = 10;
-    repeated TAccessControlEntry acl = 11;
-}
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "NodeSegment"
+    snake_case_name: "node_segment"
+    type_value: 7
+};
 
 message TNodeSegmentSpec
 {
@@ -1247,27 +1238,13 @@ message TNodeSegmentStatus
     optional TPerSegmentResourceTotals schedulable_resources = 2;
 }
 
-message TNodeSegment
-{
-    optional TNodeSegmentMeta meta = 1;
-    optional TNodeSegmentSpec spec = 2;
-    optional TNodeSegmentStatus status = 3;
-    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-message TVirtualServiceMeta
-{
-    optional string id = 1;
-    optional string uuid = 12;
-    optional string name = 13;
-    optional EObjectType type = 2;
-    optional uint64 creation_time = 3;
-    optional bool inherit_acl = 10;
-    repeated TAccessControlEntry acl = 11;
-}
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "VirtualService"
+    snake_case_name: "virtual_service"
+    type_value: 8
+};
 
 message TVirtualServiceSpec
 {
@@ -1280,27 +1257,13 @@ message TVirtualServiceSpec
 message TVirtualServiceStatus
 { }
 
-message TVirtualService
-{
-    optional TVirtualServiceMeta meta = 1;
-    optional TVirtualServiceSpec spec = 2;
-    optional TVirtualServiceStatus status = 3;
-    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-message TUserMeta
-{
-    optional string id = 1;
-    optional string uuid = 12;
-    optional string name = 13;
-    optional EObjectType type = 2;
-    optional uint64 creation_time = 3;
-    optional bool inherit_acl = 10;
-    repeated TAccessControlEntry acl = 11;
-}
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "User"
+    snake_case_name: "user"
+    type_value: 9
+};
 
 message TUserSpec
 {
@@ -1311,27 +1274,13 @@ message TUserSpec
 message TUserStatus
 { }
 
-message TUser
-{
-    optional TUserMeta meta = 1;
-    optional TUserSpec spec = 2;
-    optional TUserStatus status = 3;
-    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-message TGroupMeta
-{
-    optional string id = 1;
-    optional string uuid = 12;
-    optional string name = 13;
-    optional EObjectType type = 2;
-    optional uint64 creation_time = 3;
-    optional bool inherit_acl = 10;
-    repeated TAccessControlEntry acl = 11;
-}
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "Group"
+    snake_case_name: "group"
+    type_value: 10
+};
 
 message TGroupSpec
 {
@@ -1342,27 +1291,13 @@ message TGroupSpec
 message TGroupStatus
 { }
 
-message TGroup
-{
-    optional TGroupMeta meta = 1;
-    optional TGroupSpec spec = 2;
-    optional TGroupStatus status = 3;
-    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-message TInternetAddressMeta
-{
-    optional string id = 1;
-    optional string uuid = 12;
-    optional string name = 13;
-    optional EObjectType type = 2;
-    optional uint64 creation_time = 3;
-    optional bool inherit_acl = 10;
-    repeated TAccessControlEntry acl = 11;
-}
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "InternetAddress"
+    snake_case_name: "internet_address"
+    type_value: 11
+};
 
 message TInternetAddressSpec
 {
@@ -1375,25 +1310,13 @@ message TInternetAddressStatus
     optional string pod_id = 1;
 }
 
-message TInternetAddress
-{
-    optional TInternetAddressMeta meta = 1;
-    optional TInternetAddressSpec spec = 2;
-    optional TInternetAddressStatus status = 3;
-    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-message TDnsRecordSetMeta
-{
-    optional string id = 1;
-    optional EObjectType type = 2;
-    optional uint64 creation_time = 3;
-    optional bool inherit_acl = 10;
-    repeated TAccessControlEntry acl = 11;
-}
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "DnsRecordSet"
+    snake_case_name: "dns_record_set"
+    type_value: 14
+};
 
 message TDnsRecordSetSpec
 {
@@ -1421,34 +1344,20 @@ message TDnsRecordSetSpec
 }
 
 message TDnsRecordSetStatus
-{}
-
-message TDnsRecordSet
-{
-    optional TDnsRecordSetMeta meta = 1;
-    optional TDnsRecordSetSpec spec = 2;
-    optional TDnsRecordSetStatus status = 3;
-    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
-}
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TAccountMeta
-{
-    optional string id = 1;
-    optional string uuid = 12;
-    optional string name = 13;
-    optional EObjectType type = 2;
-    optional uint64 creation_time = 3;
-    optional bool inherit_acl = 10;
-    repeated TAccessControlEntry acl = 11;
-}
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "Account"
+    snake_case_name: "account"
+    type_value: 12
+};
 
 message TAccountSpec
 {
     optional string parent_id = 1;
-    optional TResourceTotals resource_limits = 2;
+    optional TResourceTotals resource_limits = 2 [(NYP.NClient.NApi.NProto.other) = true];
 }
 
 message TAccountStatus
@@ -1457,91 +1366,4 @@ message TAccountStatus
     optional TResourceTotals immediate_resource_usage = 2;
 }
 
-message TAccount
-{
-    optional TAccountMeta meta = 1;
-    optional TAccountSpec spec = 2;
-    optional TAccountStatus status = 3;
-    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
-
-message TPodDynamicResourceSpec {
-    // resource identifier
-    optional string id = 1;
-    
-    // desired revision of the resource
-    optional uint64 revision = 2;
-
-    message TStorageOptions {
-        // name of the box to download resource into
-        optional string box_ref = 1;
-
-        // filesystem path where the application should see the resource
-        optional string destination = 2;
-
-        // filesystem path where resource versions should be downloaded
-        optional string storage_dir = 3;
-
-        // HTTP GET handle to notify
-        // HTTP response codes from range 200-299 are considered to be success
-        message THttpAction {
-            // url to call
-            optional string url = 1;
-
-            // expected HTTP response body
-            optional string expected_answer = 2;
-        }
-
-        // Shell command to exec to notify
-        message TExecAction {
-            // shell command to exec
-            optional string command_line = 1;
-
-            // stdout to accept, if empty, stdout is ignored
-            optional string expected_answer = 2;
-        }
-
-        oneof Action {
-            THttpAction http_action = 4;
-            TExecAction exec_action = 5;
-        }
-
-        message TVerification {
-            // checksum in the form: <scheme>:<value> Supported schemes are "MD5:", "EMPTY:", "SHA256:", all case sensitive
-            optional string checksum = 1;
-
-            // period of checksum check. First check is done right after download
-            optional uint64 check_period_ms = 2;
-        }
-
-        // rule how to check the resource
-        optional TVerification verification = 6;
-    }
-
-    optional TStorageOptions storage_options = 3;
-
-    // url where to download the resource from
-    // supported protocols: http, https, rbtorrent, raw
-    // (for raw resources use raw:<raw string>)
-    optional string url = 4;
-}
-
-message TPodDynamicResourceStatus {
-    // resource identifier
-    optional string id = 1;
-
-    // current resource revision in pod
-    optional uint64 revision = 2;
-
-    // resource is currently active
-    optional TCondition ready = 3;
-
-    // resource is currently being deployed
-    optional TCondition in_progress = 4;
-
-    // resource deploy failed with error
-    optional TCondition error = 5;
-}

@@ -7,6 +7,7 @@
 #include <yp/server/objects/public.h>
 
 #include <yp/server/objects/proto/objects.pb.h>
+#include <yp/server/objects/proto/autogen.pb.h>
 
 namespace NYP::NServer::NAccounting {
 

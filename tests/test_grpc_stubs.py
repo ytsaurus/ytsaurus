@@ -1,6 +1,6 @@
 import yp_proto.yp.client.api.proto.object_service_pb2 as object_service_pb2
-import yp_proto.yp.client.api.proto.object_type_pb2 as object_type_pb2
-import yp_proto.yp.client.api.proto.data_model_pb2 as data_model_pb2
+
+import yp.data_model as data_model
 
 import yt.yson as yson
 
@@ -17,20 +17,20 @@ class TestGrpcStubs(object):
         object_stub = yp_client.create_grpc_object_stub()
 
         req = object_service_pb2.TReqCreateObject()
-        req.object_type = object_type_pb2.OT_POD_SET
+        req.object_type = data_model.OT_POD_SET
         rsp = object_stub.CreateObject(req)
 
         pod_set_id = rsp.object_id
 
         req = object_service_pb2.TReqCreateObject()
-        req.object_type = object_type_pb2.OT_POD
+        req.object_type = data_model.OT_POD
         req.attributes = yson.dumps({"meta": {"pod_set_id": pod_set_id}})
         rsp = object_stub.CreateObject(req)
 
         pod_id = rsp.object_id
 
         req = object_service_pb2.TReqGetObject()
-        req.object_type = object_type_pb2.OT_POD
+        req.object_type = data_model.OT_POD
         req.object_id = pod_id
         req.selector.paths[:] = ["/status/agent/state", "/meta/id", "/meta/pod_set_id"]
         rsp = object_stub.GetObject(req)
@@ -49,16 +49,16 @@ class TestGrpcStubs(object):
         object_stub = yp_client.create_grpc_object_stub()
 
         req = object_service_pb2.TReqCreateObject()
-        req.object_type = object_type_pb2.OT_POD_SET
+        req.object_type = data_model.OT_POD_SET
         rsp = object_stub.CreateObject(req)
         pod_set_id = rsp.object_id
 
-        pod = data_model_pb2.TPod()
+        pod = data_model.TPod()
         pod.spec.enable_scheduling = True
         pod.meta.pod_set_id = pod_set_id
 
         req = object_service_pb2.TReqCreateObject()
-        req.object_type = object_type_pb2.OT_POD
+        req.object_type = data_model.OT_POD
         req.attributes_payload.protobuf = pod.SerializeToString()
         rsp = object_stub.CreateObject(req)
 
@@ -78,14 +78,14 @@ class TestGrpcStubs(object):
 
         object_stub = yp_client.create_grpc_object_stub()
         req = object_service_pb2.TReqGetObject()
-        req.object_type = object_type_pb2.OT_POD
+        req.object_type = data_model.OT_POD
         req.object_id = pod_id
         req.format = object_service_pb2.PF_PROTOBUF
         req.selector.paths[:] = ["/meta"]
         rsp = object_stub.GetObject(req)
 
         assert len(rsp.result.value_payloads) == 1
-        meta = data_model_pb2.TPodMeta.FromString(rsp.result.value_payloads[0].protobuf)
+        meta = data_model.TPodMeta.FromString(rsp.result.value_payloads[0].protobuf)
         assert meta.id == pod_id
         assert meta.pod_set_id == pod_set_id
 
@@ -99,14 +99,14 @@ class TestGrpcStubs(object):
 
         object_stub = yp_client.create_grpc_object_stub()
         req = object_service_pb2.TReqSelectObjects()
-        req.object_type = object_type_pb2.OT_POD
+        req.object_type = data_model.OT_POD
         req.format = object_service_pb2.PF_PROTOBUF
         req.selector.paths[:] = ["/meta"]
         rsp = object_stub.SelectObjects(req)
 
         assert len(rsp.results) == 1
         assert len(rsp.results[0].value_payloads) == 1
-        meta = data_model_pb2.TPodMeta.FromString(rsp.results[0].value_payloads[0].protobuf)
+        meta = data_model.TPodMeta.FromString(rsp.results[0].value_payloads[0].protobuf)
         assert meta.id == pod_id
         assert meta.pod_set_id == pod_set_id
 
@@ -120,10 +120,10 @@ class TestGrpcStubs(object):
 
         object_stub = yp_client.create_grpc_object_stub()
         req = object_service_pb2.TReqUpdateObject()
-        req.object_type = object_type_pb2.OT_POD
+        req.object_type = data_model.OT_POD
         req.object_id = pod_id
         update = req.set_updates.add()
-        pod_agent_payload = data_model_pb2.TPodSpec.TPodAgentPayload()
+        pod_agent_payload = data_model.TPodSpec.TPodAgentPayload()
         pod_agent_payload.spec.id = "some_id"
         update.value_payload.protobuf = pod_agent_payload.SerializeToString()
         update.path = "/spec/pod_agent_payload"
@@ -142,10 +142,10 @@ class TestGrpcStubs(object):
         object_stub = yp_client.create_grpc_object_stub()
         req = object_service_pb2.TReqUpdateObjects()
         subreq = req.subrequests.add()
-        subreq.object_type = object_type_pb2.OT_POD
+        subreq.object_type = data_model.OT_POD
         subreq.object_id = pod_id
         update = subreq.set_updates.add()
-        pod_agent_payload = data_model_pb2.TPodSpec.TPodAgentPayload()
+        pod_agent_payload = data_model.TPodSpec.TPodAgentPayload()
         pod_agent_payload.spec.id = "some_id"
         update.value_payload.protobuf = pod_agent_payload.SerializeToString()
         update.path = "/spec/pod_agent_payload"

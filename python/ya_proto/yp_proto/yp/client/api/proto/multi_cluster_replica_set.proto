@@ -4,40 +4,23 @@ package NYP.NClient.NApi.NProto;
 
 import "yt/core/yson/proto/protobuf_interop.proto";
 
-import "yt_proto/yt/core/ytree/proto/attributes.proto";
-
 import "yp_proto/yp/client/api/proto/conditions.proto";
 import "yp_proto/yp/client/api/proto/data_model.proto";
-import "yp_proto/yp/client/api/proto/object_type.proto";
 
 option java_package = "ru.yandex.yp.client.api";
 option java_outer_classname = "MultiClusterReplicaSet";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TMultiClusterReplicaSet
-{
-    TMultiClusterReplicaSetMeta meta = 1;
-    TMultiClusterReplicaSetSpec spec = 2;
-    TMultiClusterReplicaSetStatus status = 3;
-    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
-    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
-}
-
-message TMultiClusterReplicaSetMeta
-{
-    string id = 1;
-    string uuid = 2;
-    string name = 3;
-    NYP.NClient.NApi.NProto.EObjectType type = 4;
-    uint64 creation_time = 5;
-    bool inherit_acl = 6;
-    repeated NYP.NClient.NApi.NProto.TAccessControlEntry acl = 7;
-}
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "MultiClusterReplicaSet"
+    snake_case_name: "multi_cluster_replica_set"
+    type_value: 16
+};
 
 message TMultiClusterReplicaSetSpec
 {
-    uint64 revision = 6;
+    uint64 revision = 6 [(NYP.NClient.NApi.NProto.other) = true];
     string account_id = 2;
 
     message TPodTemplateSpec
@@ -45,7 +28,7 @@ message TMultiClusterReplicaSetSpec
         NYP.NClient.NApi.NProto.TPodSpec spec = 1;
     }
 
-    TPodTemplateSpec pod_template_spec = 3;
+    TPodTemplateSpec pod_template_spec = 3 [(NYP.NClient.NApi.NProto.other) = true];
 
     message TConstraints
     {
@@ -57,7 +40,7 @@ message TMultiClusterReplicaSetSpec
         uint32 max_unavailable = 1;
     }
 
-    TDeploymentStrategy deployment_strategy = 4;
+    TDeploymentStrategy deployment_strategy = 4 [(NYP.NClient.NApi.NProto.other) = true];
 
     message TReplicaSetSpecPreferences
     {
@@ -71,7 +54,7 @@ message TMultiClusterReplicaSetSpec
         TReplicaSetSpecPreferences spec = 2;
     }
 
-    repeated TClusterReplicaSetSpecPreferences clusters = 5;
+    repeated TClusterReplicaSetSpecPreferences clusters = 5 [(NYP.NClient.NApi.NProto.other) = true];
 }
 
 message TDeployProgress

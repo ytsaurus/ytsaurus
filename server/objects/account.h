@@ -3,6 +3,7 @@
 #include "object.h"
 
 #include <yp/server/objects/proto/objects.pb.h>
+#include <yp/server/objects/proto/autogen.pb.h>
 
 #include <yp/client/api/proto/data_model.pb.h>
 

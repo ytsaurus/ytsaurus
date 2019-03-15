@@ -3,11 +3,9 @@ syntax = "proto3";
 package NYP.NClient.NApi.NProto;
 
 import "yt/core/yson/proto/protobuf_interop.proto";
-import "yt_proto/yt/core/ytree/proto/attributes.proto";
 
 import "yp_proto/yp/client/api/proto/conditions.proto";
 import "yp_proto/yp/client/api/proto/data_model.proto";
-import "yp_proto/yp/client/api/proto/object_type.proto";
 import "yp_proto/yp/client/api/proto/pod_agent.proto";
 
 option java_package = "ru.yandex.yp.client.api";
@@ -15,16 +13,15 @@ option java_outer_classname = "ResourceCache";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TResourceCacheMeta
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "ResourceCache"
+    snake_case_name: "resource_cache"
+    type_value: 15
+};
+
+message TResourceCacheMetaBase
 {
-    string id = 1;
-    string replica_set_id = 2;
-    string uuid = 3;
-    string name = 4;
-    EObjectType type = 5;
-    uint64 creation_time = 6;
-    bool inherit_acl = 7;
-    repeated TAccessControlEntry acl = 8;
+    string replica_set_id = 4;
 }
 
 message TResourceCacheSpec
@@ -89,15 +86,6 @@ message TResourceCacheStatus
     // Status for all cached resources in spec
     // id -> revisions to download
     repeated TCachedResourceStatus cached_resource_status = 6;
-}
-
-message TResourceCache
-{
-    TResourceCacheMeta meta = 1;
-    TResourceCacheSpec spec = 2;
-    TResourceCacheStatus status = 3;
-    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
-    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

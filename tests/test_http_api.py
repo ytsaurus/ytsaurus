@@ -1,5 +1,5 @@
 from yp_proto.yp.client.api.proto.object_service_pb2 import TReqCreateObject, TRspCreateObject
-from yp_proto.yp.client.api.proto.object_type_pb2 import EObjectType
+from yp.data_model import EObjectType
 
 import yt.yson as yson
 

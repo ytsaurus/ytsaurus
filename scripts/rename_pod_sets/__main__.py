@@ -4,7 +4,7 @@ import sys
 from yp.local import DbManager, get_db_version, backup_yp
 from yt.wrapper import YtClient
 
-from yp_proto.yp.client.api.proto.object_type_pb2 import EObjectType
+from yp.data_model import EObjectType
 
 
 def parse_args(argv):

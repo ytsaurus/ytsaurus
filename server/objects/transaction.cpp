@@ -191,6 +191,8 @@ public:
         SingleVersionRetentionConfig_->MinDataTtl = TDuration::Zero();
         SingleVersionRetentionConfig_->MinDataVersions = 1;
         SingleVersionRetentionConfig_->MaxDataVersions = 1;
+        // XXX(babenko): YP-777
+        SingleVersionRetentionConfig_->IgnoreMajorTimestamp = true;
     }
 
     ETransactionState GetState() const

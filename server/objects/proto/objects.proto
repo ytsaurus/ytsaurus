@@ -1,9 +1,5 @@
 package NYP.NServer.NObjects.NProto;
 
-import "yp/client/api/proto/data_model.proto";
-import "yp/client/api/proto/replica_set.proto";
-import "yp/client/api/proto/multi_cluster_replica_set.proto";
-
 import "yt/core/misc/proto/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,45 +11,6 @@ message TMetaOther
     optional string name = 13;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-// Cf. NYP.NClient.NApi.NProto.TNodeStatus
-message TNodeStatusOther
-{
-    optional NYP.NClient.NApi.NProto.TNodeStatus.THfsm hfsm = 5;
-    optional NYP.NClient.NApi.NProto.TNodeStatus.TMaintenance maintenance = 6;
-    repeated string unknown_pod_ids = 7;
-    optional string agent_version = 8;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Cf. NYP.NClient.NApi.NProto.TPodSpec
-message TPodSpecOther
-{
-    optional NYP.NClient.NApi.NProto.TPodSpec.TResourceRequests resource_requests = 3;
-    repeated NYP.NClient.NApi.NProto.TPodSpec.TIP6AddressRequest ip6_address_requests = 6;
-    repeated NYP.NClient.NApi.NProto.TPodSpec.TIP6SubnetRequest ip6_subnet_requests = 4;
-    repeated NYP.NClient.NApi.NProto.TPodSpec.TDiskVolumeRequest disk_volume_requests = 12;
-    optional string node_filter = 8;
-    repeated NYP.NClient.NApi.NProto.TPodSpec.THostDevice host_devices = 10;
-    repeated NYP.NClient.NApi.NProto.TPodSpec.TSysctlProperty sysctl_properties = 11;
-    optional NYP.NClient.NApi.NProto.TPodSpec.TVirtualServiceOptions virtual_service_options = 13;
-    optional NYP.NClient.NApi.NProto.EPodHostNameKind host_name_kind = 15;
-}
-
-// Cf. NYP.NClient.NApi.NProto.TPodStatus
-message TPodStatusOther
-{
-    repeated NYP.NClient.NApi.NProto.TPodStatus.TResourceAllocation scheduled_resource_allocations = 4;
-    repeated NYP.NClient.NApi.NProto.TPodStatus.TIP6AddressAllocation ip6_address_allocations = 5;
-    repeated NYP.NClient.NApi.NProto.TPodStatus.TIP6SubnetAllocation ip6_subnet_allocations = 6;
-    repeated NYP.NClient.NApi.NProto.TPodStatus.TDiskVolumeAllocation disk_volume_allocations = 10;
-    required NYP.NClient.NApi.NProto.TPodStatus.TDns dns = 7;
-    required NYP.NClient.NApi.NProto.TPodStatus.TEviction eviction = 8;
-    required NYP.NClient.NApi.NProto.TPodStatus.TScheduling scheduling = 9;
-}
-
 // Cf. NYP.NClient.NApi.NProto.TPodStatus.TAgent
 message TPodAgentStatusOther
 {
@@ -62,39 +19,6 @@ message TPodAgentStatusOther
     optional uint64 failed_install_attempt_spec_timestamp = 10;
     repeated string validation_failures = 8;
     optional uint64 last_heartbeat_time = 7;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Cf. NYP.NClient.NApi.NProto.TAccountSpec
-message TAccountSpecOther
-{
-    optional NYP.NClient.NApi.NProto.TResourceTotals resource_limits = 2;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Cf. NYP.NClient.NApi.NProto.TReplicaSetSpec
-message TReplicaSetSpecOther
-{
-    optional string revision_id = 1;
-    optional uint32 replica_count = 2;
-    optional NYP.NClient.NApi.NProto.TReplicaSetSpec.TPodTemplateSpec pod_template_spec = 3;
-    optional NYP.NClient.NApi.NProto.TReplicaSetSpec.TDeploymentStrategy deployment_strategy = 4;
-    optional NYP.NClient.NApi.NProto.TReplicaSetSpec.TConstraints constraints = 5;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-
-// Cf. NYP.NClient.NApi.NProto.TMultiClusterReplicaSetSpec
-message TMultiClusterReplicaSetSpecOther
-{
-    optional string revision_id = 1;
-    optional string account_id = 2;
-    optional NYP.NClient.NApi.NProto.TMultiClusterReplicaSetSpec.TPodTemplateSpec pod_template_spec = 3;
-    optional NYP.NClient.NApi.NProto.TMultiClusterReplicaSetSpec.TDeploymentStrategy deployment_strategy = 4;
-    repeated NYP.NClient.NApi.NProto.TMultiClusterReplicaSetSpec.TClusterReplicaSetSpecPreferences clusters = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

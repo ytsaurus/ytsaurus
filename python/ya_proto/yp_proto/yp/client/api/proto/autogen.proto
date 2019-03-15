@@ -1,0 +1,514 @@
+// AUTOMATICALLY GENERATED, DO NOT EDIT!
+
+syntax = "proto3";
+
+package NYP.NClient.NApi.NProto;
+
+option java_package = "ru.yandex.yp.client.api";
+option java_outer_classname = "Autogen";
+
+import "yp_proto/yp/client/api/proto/enums.proto";
+import "yt_proto/yt/core/ytree/proto/attributes.proto";
+import "yt/core/yson/proto/protobuf_interop.proto";
+
+import "yp_proto/yp/client/api/proto/data_model.proto";
+import "yp_proto/yp/client/api/proto/replica_set.proto";
+import "yp_proto/yp/client/api/proto/multi_cluster_replica_set.proto";
+import "yp_proto/yp/client/api/proto/resource_cache.proto";
+import "yp_proto/yp/client/api/proto/dynamic_resource.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+enum EObjectType
+{
+    OT_NODE = 0
+    [(NYT.NYson.NProto.enum_value_name) = "node"];
+
+    OT_SCHEMA = 256
+    [(NYT.NYson.NProto.enum_value_name) = "schema"];
+
+    OT_RESOURCE = 3
+    [(NYT.NYson.NProto.enum_value_name) = "resource"];
+
+    OT_POD = 1
+    [(NYT.NYson.NProto.enum_value_name) = "pod"];
+
+    OT_POD_SET = 2
+    [(NYT.NYson.NProto.enum_value_name) = "pod_set"];
+
+    OT_ENDPOINT = 5
+    [(NYT.NYson.NProto.enum_value_name) = "endpoint"];
+
+    OT_ENDPOINT_SET = 6
+    [(NYT.NYson.NProto.enum_value_name) = "endpoint_set"];
+
+    OT_NETWORK_PROJECT = 4
+    [(NYT.NYson.NProto.enum_value_name) = "network_project"];
+
+    OT_NODE_SEGMENT = 7
+    [(NYT.NYson.NProto.enum_value_name) = "node_segment"];
+
+    OT_VIRTUAL_SERVICE = 8
+    [(NYT.NYson.NProto.enum_value_name) = "virtual_service"];
+
+    OT_USER = 9
+    [(NYT.NYson.NProto.enum_value_name) = "user"];
+
+    OT_GROUP = 10
+    [(NYT.NYson.NProto.enum_value_name) = "group"];
+
+    OT_INTERNET_ADDRESS = 11
+    [(NYT.NYson.NProto.enum_value_name) = "internet_address"];
+
+    OT_DNS_RECORD_SET = 14
+    [(NYT.NYson.NProto.enum_value_name) = "dns_record_set"];
+
+    OT_ACCOUNT = 12
+    [(NYT.NYson.NProto.enum_value_name) = "account"];
+
+    OT_REPLICA_SET = 13
+    [(NYT.NYson.NProto.enum_value_name) = "replica_set"];
+
+    OT_MULTI_CLUSTER_REPLICA_SET = 16
+    [(NYT.NYson.NProto.enum_value_name) = "multi_cluster_replica_set"];
+
+    OT_RESOURCE_CACHE = 15
+    [(NYT.NYson.NProto.enum_value_name) = "resource_cache"];
+
+    OT_DYNAMIC_RESOURCE = 17
+    [(NYT.NYson.NProto.enum_value_name) = "dynamic_resource"];
+
+    OT_NULL = -1
+    [(NYT.NYson.NProto.enum_value_name) = "null"];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TNodeMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+}
+
+message TNode
+{
+    TNodeMeta meta = 1;
+    TNodeSpec spec = 2;
+    TNodeStatus status = 3;
+    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TSchemaMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+}
+
+message TSchema
+{
+    TSchemaMeta meta = 1;
+    TSchemaSpec spec = 2;
+    TSchemaStatus status = 3;
+    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TResourceMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+    // Custom fields:
+    string node_id = 4;
+    NYP.NClient.NApi.NProto.EResourceKind kind = 5;
+}
+
+message TResource
+{
+    TResourceMeta meta = 1;
+    TResourceSpec spec = 2;
+    TResourceStatus status = 3;
+    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TPodMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+    // Custom fields:
+    string pod_set_id = 4;
+}
+
+message TPod
+{
+    TPodMeta meta = 1;
+    TPodSpec spec = 2;
+    TPodStatus status = 3;
+    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TPodSetMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+}
+
+message TPodSet
+{
+    TPodSetMeta meta = 1;
+    TPodSetSpec spec = 2;
+    TPodSetStatus status = 3;
+    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TEndpointMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+    // Custom fields:
+    string endpoint_set_id = 4;
+}
+
+message TEndpoint
+{
+    TEndpointMeta meta = 1;
+    TEndpointSpec spec = 2;
+    TEndpointStatus status = 3;
+    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TEndpointSetMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+}
+
+message TEndpointSet
+{
+    TEndpointSetMeta meta = 1;
+    TEndpointSetSpec spec = 2;
+    TEndpointSetStatus status = 3;
+    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TNetworkProjectMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+}
+
+message TNetworkProject
+{
+    TNetworkProjectMeta meta = 1;
+    TNetworkProjectSpec spec = 2;
+    TNetworkProjectStatus status = 3;
+    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TNodeSegmentMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+}
+
+message TNodeSegment
+{
+    TNodeSegmentMeta meta = 1;
+    TNodeSegmentSpec spec = 2;
+    TNodeSegmentStatus status = 3;
+    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TVirtualServiceMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+}
+
+message TVirtualService
+{
+    TVirtualServiceMeta meta = 1;
+    TVirtualServiceSpec spec = 2;
+    TVirtualServiceStatus status = 3;
+    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TUserMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+}
+
+message TUser
+{
+    TUserMeta meta = 1;
+    TUserSpec spec = 2;
+    TUserStatus status = 3;
+    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TGroupMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+}
+
+message TGroup
+{
+    TGroupMeta meta = 1;
+    TGroupSpec spec = 2;
+    TGroupStatus status = 3;
+    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TInternetAddressMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+}
+
+message TInternetAddress
+{
+    TInternetAddressMeta meta = 1;
+    TInternetAddressSpec spec = 2;
+    TInternetAddressStatus status = 3;
+    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TDnsRecordSetMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+}
+
+message TDnsRecordSet
+{
+    TDnsRecordSetMeta meta = 1;
+    TDnsRecordSetSpec spec = 2;
+    TDnsRecordSetStatus status = 3;
+    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TAccountMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+}
+
+message TAccount
+{
+    TAccountMeta meta = 1;
+    TAccountSpec spec = 2;
+    TAccountStatus status = 3;
+    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReplicaSetMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+}
+
+message TReplicaSet
+{
+    TReplicaSetMeta meta = 1;
+    TReplicaSetSpec spec = 2;
+    TReplicaSetStatus status = 3;
+    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TMultiClusterReplicaSetMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+}
+
+message TMultiClusterReplicaSet
+{
+    TMultiClusterReplicaSetMeta meta = 1;
+    TMultiClusterReplicaSetSpec spec = 2;
+    TMultiClusterReplicaSetStatus status = 3;
+    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TResourceCacheMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+    // Custom fields:
+    string replica_set_id = 4;
+}
+
+message TResourceCache
+{
+    TResourceCacheMeta meta = 1;
+    TResourceCacheSpec spec = 2;
+    TResourceCacheStatus status = 3;
+    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TDynamicResourceMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+    // Custom fields:
+    string pod_set_id = 4;
+}
+
+message TDynamicResource
+{
+    TDynamicResourceMeta meta = 1;
+    TDynamicResourceSpec spec = 2;
+    TDynamicResourceStatus status = 3;
+    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////

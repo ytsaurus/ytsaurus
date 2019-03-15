@@ -384,9 +384,9 @@ message TMutableWorkload {
 // Если stop hook выполняется при помощи контейнера и завершился с НУЛЕВЫМ кодом возврата, но start не в состоянии dead или stopped,
 // то start будет немедленно убит
 message TStopPolicy {
+    reserved 1, 2;
+
     oneof policy {
-        TUtilityContainer stop = 1;
-        THttpGet http_stop = 2;
         TUtilityContainer container = 4;
         THttpGet http_get = 5;
     }
@@ -401,9 +401,9 @@ message TStopPolicy {
 // в случае если destroy hook завершится ненулевым кодом возврата, он будет перезапущен MaxTries раз
 // пока не завершится успехом
 message TDestroyPolicy {
+    reserved 1, 2;
+
     oneof policy {
-        TUtilityContainer destroy = 1;
-        THttpGet http_destroy = 2;
         TUtilityContainer container = 4;
         THttpGet http_get = 5;
     }
@@ -455,33 +455,28 @@ message TTcpCheck {
 }
 
 message TReadinessCheck {
+    reserved 4;
+
     oneof check {
         TUtilityContainer container = 2;
         TTcpCheck tcp_check = 3;
-        THttpGet http_check = 4;
         THttpGet http_get = 5;
     }
 }
 
 message TLivenessCheck {
+    reserved 3;
+
     oneof check {
         TUtilityContainer container = 1;
         TTcpCheck tcp_check = 2;
-        THttpGet http_check = 3;
         THttpGet http_get = 4;
     }
 }
 
-message TCoreDump {
-    // porto property core_command
-    string core_command = 1;
-
-    // porto property ulimit[core]
-    string core_ulimit = 2;
-}
-
 //Наследует Env от TWorkload
 message TUtilityContainer {
+    reserved 5;
     //атрибуты контейнера (по сути это сквозной проброс опций Porto)
     //Тут важно разделять интерфейс предоствляемый пользователю и внутренний между YP<->agent
     TComputeResources compute_resources = 2;
@@ -492,7 +487,7 @@ message TUtilityContainer {
     TTimeLimit time_limit = 4;
 
     // параметры обработки корок
-    TCoreDump core_dump = 5;
+    string core_command = 6;
 }
 
 //Позволяет выставить ограничение сверху на все закачки. Важным моментом является, что сумма лимитов

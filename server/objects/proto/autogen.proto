@@ -1,0 +1,81 @@
+// AUTOMATICALLY GENERATED, DO NOT EDIT!
+
+syntax = "proto3";
+
+package NYP.NServer.NObjects.NProto;
+
+import "yp/client/api/proto/enums.proto";
+
+import "yp/client/api/proto/data_model.proto";
+import "yp/client/api/proto/replica_set.proto";
+import "yp/client/api/proto/multi_cluster_replica_set.proto";
+import "yp/client/api/proto/resource_cache.proto";
+import "yp/client/api/proto/dynamic_resource.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TNodeStatusOther
+{
+    string agent_version = 8;
+    NYP.NClient.NApi.NProto.TNodeStatus.THfsm hfsm = 5;
+    NYP.NClient.NApi.NProto.TNodeStatus.TMaintenance maintenance = 6;
+    repeated string unknown_pod_ids = 7;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TPodSpecOther
+{
+    NYP.NClient.NApi.NProto.TPodSpec.TResourceRequests resource_requests = 3;
+    repeated NYP.NClient.NApi.NProto.TPodSpec.TIP6AddressRequest ip6_address_requests = 5;
+    repeated NYP.NClient.NApi.NProto.TPodSpec.TIP6SubnetRequest ip6_subnet_requests = 6;
+    repeated NYP.NClient.NApi.NProto.TPodSpec.TDiskVolumeRequest disk_volume_requests = 13;
+    string node_filter = 8;
+    repeated NYP.NClient.NApi.NProto.TPodSpec.THostDevice host_devices = 10;
+    repeated NYP.NClient.NApi.NProto.TPodSpec.TSysctlProperty sysctl_properties = 11;
+    NYP.NClient.NApi.NProto.TPodSpec.TVirtualServiceOptions virtual_service_options = 12;
+    NYP.NClient.NApi.NProto.EPodHostNameKind host_name_kind = 15;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TPodStatusOther
+{
+    repeated NYP.NClient.NApi.NProto.TPodStatus.TResourceAllocation scheduled_resource_allocations = 4;
+    repeated NYP.NClient.NApi.NProto.TPodStatus.TIP6AddressAllocation ip6_address_allocations = 5;
+    repeated NYP.NClient.NApi.NProto.TPodStatus.TIP6SubnetAllocation ip6_subnet_allocations = 6;
+    repeated NYP.NClient.NApi.NProto.TPodStatus.TDiskVolumeAllocation disk_volume_allocations = 14;
+    NYP.NClient.NApi.NProto.TPodStatus.TDns dns = 7;
+    NYP.NClient.NApi.NProto.TPodStatus.TEviction eviction = 8;
+    NYP.NClient.NApi.NProto.TPodStatus.TScheduling scheduling = 9;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TAccountSpecOther
+{
+    NYP.NClient.NApi.NProto.TResourceTotals resource_limits = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReplicaSetSpecOther
+{
+    string revision_id = 1;
+    uint32 replica_count = 2;
+    NYP.NClient.NApi.NProto.TReplicaSetSpec.TPodTemplateSpec pod_template_spec = 3;
+    NYP.NClient.NApi.NProto.TReplicaSetSpec.TDeploymentStrategy deployment_strategy = 4;
+    NYP.NClient.NApi.NProto.TReplicaSetSpec.TConstraints constraints = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TMultiClusterReplicaSetSpecOther
+{
+    uint64 revision = 6;
+    NYP.NClient.NApi.NProto.TMultiClusterReplicaSetSpec.TPodTemplateSpec pod_template_spec = 3;
+    NYP.NClient.NApi.NProto.TMultiClusterReplicaSetSpec.TDeploymentStrategy deployment_strategy = 4;
+    repeated NYP.NClient.NApi.NProto.TMultiClusterReplicaSetSpec.TClusterReplicaSetSpecPreferences clusters = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////

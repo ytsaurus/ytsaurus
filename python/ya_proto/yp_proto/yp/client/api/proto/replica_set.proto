@@ -3,10 +3,8 @@ syntax = "proto3";
 package NYP.NClient.NApi.NProto;
 
 import "yt/core/yson/proto/protobuf_interop.proto";
-import "yt_proto/yt/core/ytree/proto/attributes.proto";
 
 import "yp_proto/yp/client/api/proto/data_model.proto";
-import "yp_proto/yp/client/api/proto/object_type.proto";
 import "yp_proto/yp/client/api/proto/conditions.proto";
 
 import "google/protobuf/timestamp.proto";
@@ -16,28 +14,23 @@ option java_outer_classname = "ReplicaSet";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReplicaSetMeta
-{
-    string id = 1;
-    string uuid = 12;
-    string name = 13;
-    EObjectType type = 2;
-    uint64 creation_time = 3;
-    bool inherit_acl = 10;
-    repeated TAccessControlEntry acl = 11;
-}
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "ReplicaSet"
+    snake_case_name: "replica_set"
+    type_value: 13
+};
 
 message TReplicaSetSpec
 {
-    string revision_id = 1;
-    uint32 replica_count = 2;
+    string revision_id = 1 [(NYP.NClient.NApi.NProto.other) = true];
+    uint32 replica_count = 2 [(NYP.NClient.NApi.NProto.other) = true];
 
     message TPodTemplateSpec
     {
         TPodSpec spec = 1;
     }
 
-    TPodTemplateSpec pod_template_spec = 3;
+    TPodTemplateSpec pod_template_spec = 3 [(NYP.NClient.NApi.NProto.other) = true];
 
     message TDeploymentStrategy
     {
@@ -46,7 +39,7 @@ message TReplicaSetSpec
         uint32 max_surge = 3;
     }
 
-    TDeploymentStrategy deployment_strategy = 4;
+    TDeploymentStrategy deployment_strategy = 4 [(NYP.NClient.NApi.NProto.other) = true];
     string account_id = 5;
 
     message TConstraints
@@ -54,7 +47,7 @@ message TReplicaSetSpec
         repeated TAntiaffinityConstraint antiaffinity_constraints = 1;
     }
 
-    TConstraints constraints = 6;
+    TConstraints constraints = 6 [(NYP.NClient.NApi.NProto.other) = true];
 }
 
 message TReplicaSetStatus
@@ -126,7 +119,8 @@ message TReplicaSetStatus
 
     // New ReplicaSetStatus schema starts here.
 
-    message TDeployProgress {
+    message TDeployProgress
+    {
         // Number of pods synced to up-to-date spec.
         uint32 pods_ready = 1;
         // Number of pods currently updating.
@@ -156,12 +150,4 @@ message TReplicaSetStatus
     map<string, TDeployProgress> revisions_progress = 10 [(NYT.NYson.NProto.yson_map) = true];
 }
 
-message TReplicaSet
-{
-    TReplicaSetMeta meta = 1;
-    TReplicaSetSpec spec = 2;
-    TReplicaSetStatus status = 3;
-    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
-    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
-}
 ////////////////////////////////////////////////////////////////////////////////

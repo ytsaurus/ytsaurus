@@ -2,27 +2,24 @@ syntax = "proto3";
 
 package NYP.NClient.NApi.NProto;
 
-import "yp_proto/yp/client/api/proto/object_type.proto";
 import "yp_proto/yp/client/api/proto/data_model.proto";
 import "yp_proto/yp/client/api/proto/conditions.proto";
 
 import "yt/core/yson/proto/protobuf_interop.proto";
-import "yt_proto/yt/core/ytree/proto/attributes.proto";
 
 option java_package = "ru.yandex.yp.client.api";
 option java_outer_classname = "DynamicResource";
 
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "DynamicResource"
+    snake_case_name: "dynamic_resource"
+    type_value: 17
+};
+
 // for field descriptions see NYP.NClient.NApi.NProto.TSchemaMeta
-message TDynamicResourceMeta {
-    string id = 1;
-    EObjectType type = 2;
-    uint64 creation_time = 3;
+message TDynamicResourceMetaBase {
     // id of pod_set where to deploy the resource
     string pod_set_id = 4;
-    bool inherit_acl = 10;
-    repeated TAccessControlEntry acl = 11;
-    string uuid = 12;
-    string name = 13;
 };
 
 message TDynamicResourceSpec {
@@ -54,12 +51,4 @@ message TDynamicResourceStatus {
         TAggregatedCondition error = 4;
     }
     repeated TRevisionStatus revisions = 1;
-}
-
-message TDynamicResource {
-    TDynamicResourceMeta meta = 1;
-    TDynamicResourceSpec spec = 2;
-    TDynamicResourceStatus status = 3;
-    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
-    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
 }

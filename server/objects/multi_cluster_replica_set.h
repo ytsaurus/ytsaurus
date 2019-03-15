@@ -2,6 +2,8 @@
 
 #include "object.h"
 
+#include <yp/server/objects/proto/autogen.pb.h>
+
 #include <yp/client/api/proto/data_model.pb.h>
 #include <yp/client/api/proto/multi_cluster_replica_set.pb.h>
 
