@@ -923,7 +923,7 @@ public class ApiServiceClient implements TransactionalClient {
 
     /* Jobs */
 
-    CompletableFuture<YTreeNode> getJob(GUID operatioinId, GUID jobId) {
+    public CompletableFuture<YTreeNode> getJob(GUID operatioinId, GUID jobId) {
         RpcClientRequestBuilder<TReqGetJob.Builder, RpcClientResponse<TRspGetJob>>
             builder = service.getJob();
 
@@ -934,7 +934,7 @@ public class ApiServiceClient implements TransactionalClient {
         return RpcUtil.apply(invoke(builder), response -> parseByteString(response.body().getInfo()));
     }
 
-    CompletableFuture<YTreeNode> straceJob(GUID jobId) {
+    public CompletableFuture<YTreeNode> straceJob(GUID jobId) {
         RpcClientRequestBuilder<TReqStraceJob.Builder, RpcClientResponse<TRspStraceJob>>
             builder = service.straceJob();
 
@@ -944,7 +944,7 @@ public class ApiServiceClient implements TransactionalClient {
         return RpcUtil.apply(invoke(builder), response -> parseByteString(response.body().getTrace()));
     }
 
-    CompletableFuture<Void> dumpJobContext(GUID jobId) {
+    public CompletableFuture<Void> dumpJobContext(GUID jobId) {
         RpcClientRequestBuilder<TReqDumpJobContext.Builder, RpcClientResponse<TRspDumpJobContext>>
             builder = service.dumpJobContext();
 
@@ -954,7 +954,7 @@ public class ApiServiceClient implements TransactionalClient {
         return RpcUtil.apply(invoke(builder), response -> null);
     }
 
-    CompletableFuture<Void> signalJob(GUID jobId) {
+    public CompletableFuture<Void> signalJob(GUID jobId) {
         RpcClientRequestBuilder<TReqSignalJob.Builder, RpcClientResponse<TRspSignalJob>>
             builder = service.signalJob();
 
@@ -964,7 +964,7 @@ public class ApiServiceClient implements TransactionalClient {
         return RpcUtil.apply(invoke(builder), response -> null);
     }
 
-    CompletableFuture<Void> abandonJob(GUID jobId) {
+    public CompletableFuture<Void> abandonJob(GUID jobId) {
         RpcClientRequestBuilder<TReqAbandonJob.Builder, RpcClientResponse<TRspAbandonJob>>
             builder = service.abandonJob ();
 
@@ -974,7 +974,7 @@ public class ApiServiceClient implements TransactionalClient {
         return RpcUtil.apply(invoke(builder), response -> null);
     }
 
-    CompletableFuture<YTreeNode> pollJobShell(GUID jobId, YTreeNode parameters) {
+    public CompletableFuture<YTreeNode> pollJobShell(GUID jobId, YTreeNode parameters) {
         RpcClientRequestBuilder<TReqPollJobShell.Builder, RpcClientResponse<TRspPollJobShell>>
             builder = service.pollJobShell();
 
@@ -990,7 +990,7 @@ public class ApiServiceClient implements TransactionalClient {
         return RpcUtil.apply(invoke(builder), response -> parseByteString(response.body().getResult()));
     }
 
-    CompletableFuture<Void> abortJob(GUID jobId, Duration timeout) {
+    public CompletableFuture<Void> abortJob(GUID jobId, Duration timeout) {
         RpcClientRequestBuilder<TReqAbortJob.Builder, RpcClientResponse<TRspAbortJob>>
             builder = service.abortJob();
 
@@ -1003,7 +1003,7 @@ public class ApiServiceClient implements TransactionalClient {
 
     /* */
 
-    CompletableFuture<Void> addMember(String group, String member, MutatingOptions mo) {
+    public CompletableFuture<Void> addMember(String group, String member, MutatingOptions mo) {
         RpcClientRequestBuilder<TReqAddMember.Builder, RpcClientResponse<TRspAddMember>>
             builder = service.addMember();
 
@@ -1015,7 +1015,7 @@ public class ApiServiceClient implements TransactionalClient {
         return RpcUtil.apply(invoke(builder), response -> null);
     }
 
-    CompletableFuture<Void> removeMember(String group, String member, MutatingOptions mo) {
+    public CompletableFuture<Void> removeMember(String group, String member, MutatingOptions mo) {
         RpcClientRequestBuilder<TReqRemoveMember.Builder, RpcClientResponse<TRspRemoveMember>>
             builder = service.removeMember();
 
@@ -1027,7 +1027,7 @@ public class ApiServiceClient implements TransactionalClient {
         return RpcUtil.apply(invoke(builder), response -> null);
     }
 
-    CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req) {
+    public CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req) {
         RpcClientRequestBuilder<TReqCheckPermission.Builder, RpcClientResponse<TRspCheckPermission>>
             builder = service.checkPermission();
 
