@@ -69,10 +69,10 @@ protected:
 
     bool EqualValues(TStringBuf lhs, TStringBuf rhs) const
     {
-        if (!lhs.Data() && !rhs.Data()) {
+        if (!lhs.data() && !rhs.data()) {
             // Both are null.
             return true;
-        } else if (!lhs.Data() || !rhs.Data()) {
+        } else if (!lhs.data() || !rhs.data()) {
             // One is null, and the other is not.
             return false;
         } else {
@@ -149,7 +149,7 @@ protected:
         int dictionarySize = 0;
         ui32 dictionaryOffset = 0;
         for (const auto& value : Values_) {
-            if (!value.Data()) {
+            if (!value.data()) {
                 ids.push_back(0);
             } else {
                 auto it = Dictionary_.find(value);
@@ -159,7 +159,7 @@ protected:
                 if (it->second > dictionarySize) {
                     std::memcpy(
                         dictionaryData.Begin() + dictionaryOffset,
-                        value.Data(),
+                        value.data(),
                         value.length());
 
                     dictionaryOffset += value.length();
@@ -400,7 +400,7 @@ private:
         TAppendOnlyBitmap<ui64> nullBitmap(Values_.size());
 
         for (const auto& value : Values_) {
-            nullBitmap.Append(value.Data() == nullptr);
+            nullBitmap.Append(value.data() == nullptr);
         }
 
         return nullBitmap.Flush<TSegmentWriterTag>();
@@ -416,10 +416,10 @@ private:
 
         ui32 stringOffset = 0;
         for (auto rowIndex : RleRowIndexes_) {
-            nullBitmap.Append(Values_[rowIndex].Data() == nullptr);
+            nullBitmap.Append(Values_[rowIndex].data() == nullptr);
             std::memcpy(
                 stringData.Begin() + stringOffset,
-                Values_[rowIndex].Data(),
+                Values_[rowIndex].data(),
                 Values_[rowIndex].length());
             stringOffset += Values_[rowIndex].length();
             offsets.push_back(stringOffset);
@@ -459,7 +459,7 @@ private:
         ui32 dictionarySize = 0;
         for (auto rowIndex : RleRowIndexes_) {
             const auto& value = Values_[rowIndex];
-            if (!value.Data()) {
+            if (!value.data()) {
                 ids.push_back(0);
             } else {
                 auto it = Dictionary_.find(Values_[rowIndex]);
@@ -469,7 +469,7 @@ private:
                 if (it->second > dictionarySize) {
                     std::memcpy(
                         dictionaryData.Begin() + dictionaryOffset,
-                        Values_[rowIndex].Data(),
+                        Values_[rowIndex].data(),
                         Values_[rowIndex].length());
 
                     dictionaryOffset += Values_[rowIndex].length();

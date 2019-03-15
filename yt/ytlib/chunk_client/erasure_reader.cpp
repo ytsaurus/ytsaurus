@@ -21,7 +21,6 @@
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/erasure/codec.h>
-#include <yt/core/erasure/helpers.h>
 
 #include <numeric>
 
@@ -83,8 +82,8 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
                 client,
                 nodeDirectory,
                 // Locality doesn't matter, since we typically have only one replica.
-                TNodeDescriptor(),
-                std::nullopt,
+                /* localDescriptor */ {},
+                /* partitionTag */ std::nullopt,
                 partId,
                 partReplicas,
                 blockCache,

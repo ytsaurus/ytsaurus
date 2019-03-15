@@ -21,6 +21,8 @@
 #include <yt/ytlib/query_client/evaluator.h>
 #include <yt/ytlib/query_client/functions_cache.h>
 
+#include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
+
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/scheduler/scheduler_channel.h>
@@ -181,6 +183,12 @@ public:
 
         QueryEvaluator_ = New<TEvaluator>(Config_->QueryEvaluator);
         ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(Config_->ColumnEvaluatorCache);
+
+        NodeDirectory_ = New<TNodeDirectory>();
+        NodeDirectorySynchronizer_ = New<TNodeDirectorySynchronizer>(
+            Config_->NodeDirectorySynchronizer,
+            MakeStrong(this),
+            NodeDirectory_);
     }
 
     // IConnection implementation.
@@ -307,6 +315,18 @@ public:
         return CellDirectorySynchronizer_;
     }
 
+    virtual const TNodeDirectoryPtr& GetNodeDirectory() override
+    {
+        NodeDirectorySynchronizer_->Start();
+        return NodeDirectory_;
+    }
+
+    virtual const TNodeDirectorySynchronizerPtr& GetNodeDirectorySynchronizer() override
+    {
+        NodeDirectorySynchronizer_->Start();
+        return NodeDirectorySynchronizer_;
+    }
+
     virtual const TCellTrackerPtr& GetDownedCellTracker() override
     {
         return DownedCellTracker_;
@@ -354,6 +374,8 @@ public:
 
         CellDirectory_->Clear();
         CellDirectorySynchronizer_->Stop();
+
+        NodeDirectorySynchronizer_->Stop();
     }
 
     virtual bool IsTerminated() override
@@ -390,6 +412,9 @@ private:
 
     TClusterDirectoryPtr ClusterDirectory_;
     TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer_;
+
+    TNodeDirectoryPtr NodeDirectory_;
+    TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
 
     TThreadPoolPtr ThreadPool_;
 

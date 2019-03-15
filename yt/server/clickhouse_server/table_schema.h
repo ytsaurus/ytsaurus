@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/public.h>
+#include "private.h"
 
 #include <Core/NamesAndTypes.h>
 #include <Core/SortDescription.h>
@@ -29,7 +29,7 @@ public:
 
     DB::DataTypes GetKeyDataTypes() const;
 
-    static TClickHouseTableSchema From(const TTable& table);
+    static TClickHouseTableSchema From(const TClickHouseTable& table);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -106,13 +106,7 @@ public:
     TTableNode* GetTrunkNode();
     const TTableNode* GetTrunkNode() const;
 
-    virtual void BeginUpload(NChunkClient::EUpdateMode mode) override;
-    virtual void EndUpload(
-        const NChunkClient::NProto::TDataStatistics* statistics,
-        const TSharedTableSchemaPtr& schema,
-        NTableClient::ETableSchemaMode schemaMode,
-        std::optional<NTableClient::EOptimizeFor> optimizeFor,
-        const std::optional<NCrypto::TMD5Hasher>& md5Hasher) override;
+    virtual void EndUpload(const TEndUploadContext& context) override;
 
     virtual NSecurityServer::TClusterResources GetDeltaResourceUsage() const override;
     virtual NSecurityServer::TClusterResources GetTotalResourceUsage() const override;

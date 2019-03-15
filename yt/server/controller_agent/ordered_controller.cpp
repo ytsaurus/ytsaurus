@@ -23,6 +23,8 @@
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 
+#include <yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/ytlib/query_client/query.h>
@@ -30,6 +32,8 @@
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/table_upload_options.h>
+
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/client/table_client/unversioned_row.h>
 
@@ -48,6 +52,7 @@ using namespace NChunkClient;
 using namespace NChunkPools;
 using namespace NObjectClient;
 using namespace NCypressClient;
+using namespace NTransactionClient;
 using namespace NScheduler::NProto;
 using namespace NChunkClient::NProto;
 using namespace NJobTrackerClient::NProto;
@@ -946,7 +951,7 @@ private:
 
         // Erase output MUST be sorted.
         if (Spec_->SchemaInferenceMode != ESchemaInferenceMode::FromOutput) {
-            table->Options->ExplodeOnValidationError = true;
+            table->TableWriterOptions->ExplodeOnValidationError = true;
         }
 
         switch (Spec_->SchemaInferenceMode) {

@@ -18,6 +18,7 @@ struct TSerializableAccessControlEntry
     std::vector<TString> Subjects;
     NYTree::EPermissionSet Permissions;
     EAceInheritanceMode InheritanceMode = EAceInheritanceMode::ObjectAndDescendants;
+    std::optional<std::vector<TString>> Columns;
 
     TSerializableAccessControlEntry(
         ESecurityAction action,
@@ -32,8 +33,8 @@ struct TSerializableAccessControlEntry
 bool operator == (const TSerializableAccessControlEntry& lhs, const TSerializableAccessControlEntry& rhs);
 bool operator != (const TSerializableAccessControlEntry& lhs, const TSerializableAccessControlEntry& rhs);
 
-void Serialize(const TSerializableAccessControlEntry& acl, NYson::IYsonConsumer* consumer);
-void Deserialize(TSerializableAccessControlEntry& acl, NYTree::INodePtr node);
+void Serialize(const TSerializableAccessControlEntry& ace, NYson::IYsonConsumer* consumer);
+void Deserialize(TSerializableAccessControlEntry& ace, NYTree::INodePtr node);
 
 struct TSerializableAccessControlList
 {

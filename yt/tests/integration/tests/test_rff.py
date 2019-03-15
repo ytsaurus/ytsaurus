@@ -56,7 +56,7 @@ class TestRff(YTEnvSetup):
                    for c in ls("//sys/chunks", attributes=["replication_status"], read_from="follower"))
 
         assert all(n.attributes["state"] == "online"
-                   for n in ls("//sys/nodes", attributes=["state"], read_from="follower"))
+                   for n in ls("//sys/cluster_nodes", attributes=["state"], read_from="follower"))
 
         assert get("//sys/@chunk_replicator_enabled", read_from="follower")
 

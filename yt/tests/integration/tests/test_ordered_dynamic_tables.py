@@ -417,7 +417,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
             address = get_tablet_leader_address(tablet_id)
             trim_rows("//tmp/t", 0, trimmed_row_count)
             # NB: 21 == 20 (static stores) + 1 (dynamic store)
-            wait(lambda: len(get("//sys/nodes/{0}/orchid/tablet_cells/{1}/tablets/{2}/stores".format(address, cell_id, tablet_id))) == 21 - trimmed_row_count)
+            wait(lambda: len(get("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/tablets/{2}/stores".format(address, cell_id, tablet_id))) == 21 - trimmed_row_count)
             sync_unmount_table("//tmp/t")
 
         _check(20, 0, chunk_ids)

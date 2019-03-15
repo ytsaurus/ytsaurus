@@ -62,6 +62,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, BalanceTabletCells);
 
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ModifyRows);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, BatchModifyRows);
 
     // Operations
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, StartOperation);

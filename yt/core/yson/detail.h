@@ -637,7 +637,7 @@ protected:
                     ch);
         }
 
-        for (int i = 0; i < expectedString.Size(); ++i) {
+        for (int i = 0; i < expectedString.size(); ++i) {
             if (expectedString[i] != ch) {
                 THROW_ERROR_EXCEPTION("Incorrect %%-literal prefix \"%v%c\", expected %Qv",
                     expectedString.SubStr(0, i),
@@ -758,7 +758,7 @@ protected:
         PushBack(TBaseStream::template GetChar<AllowFinish>());
         TBaseStream::Advance(1);
         if (Buffer_[0] == trueString[0]) {
-            for (int i = 1; i < trueString.Size(); ++i) {
+            for (int i = 1; i < trueString.size(); ++i) {
                 PushBack(TBaseStream::template GetChar<AllowFinish>());
                 TBaseStream::Advance(1);
                 if (Buffer_.back() != trueString[i]) {
@@ -767,7 +767,7 @@ protected:
             }
             return true;
         } else if (Buffer_[0] == falseString[0]) {
-            for (int i = 1; i < falseString.Size(); ++i) {
+            for (int i = 1; i < falseString.size(); ++i) {
                 PushBack(TBaseStream::template GetChar<AllowFinish>());
                 TBaseStream::Advance(1);
                 if (Buffer_.back() != falseString[i]) {

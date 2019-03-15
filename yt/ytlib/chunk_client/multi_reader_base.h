@@ -64,11 +64,11 @@ protected:
 
     const TMultiChunkReaderConfigPtr Config_;
     const TMultiChunkReaderOptionsPtr Options_;
+    const std::vector<IReaderFactoryPtr> ReaderFactories_;
 
     const NLogging::TLogger Logger;
 
     TSession CurrentSession_;
-    std::vector<IReaderFactoryPtr> ReaderFactories_;
 
     TFuture<void> ReadyEvent_;
     TPromise<void> CompletionError_ = NewPromise<void>();

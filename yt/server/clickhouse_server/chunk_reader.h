@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include <yt/ytlib/api/native/public.h>
 #include <yt/ytlib/chunk_client/public.h>

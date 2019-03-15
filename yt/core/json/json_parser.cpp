@@ -149,10 +149,10 @@ public:
     {
         if (yajl_parse(
             YajlHandle_.get(),
-            reinterpret_cast<const unsigned char*>(data.Data()),
-            data.Size()) == yajl_status_error)
+            reinterpret_cast<const unsigned char*>(data.data()),
+            data.size()) == yajl_status_error)
         {
-            OnError(data.Data(), data.Size());
+            OnError(data.data(), data.size());
         }
     }
 

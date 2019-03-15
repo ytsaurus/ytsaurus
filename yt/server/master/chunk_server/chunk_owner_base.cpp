@@ -5,6 +5,7 @@
 #include <yt/server/master/cell_master/serialize.h>
 
 #include <yt/server/master/security_server/cluster_resources.h>
+#include <yt/server/master/security_server/security_tags.h>
 
 #include <yt/client/chunk_client/data_statistics.h>
 
@@ -18,6 +19,8 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NCypressClient;
 using namespace NCypressClient::NProto;
+using namespace NCypressServer;
+using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,9 +28,6 @@ TChunkOwnerBase::TChunkOwnerBase(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
 {
     Replication_.SetVital(true);
-    for (auto& policy : Replication_) {
-        policy.Clear();
-    }
     if (IsTrunk()) {
         CompressionCodec_.Set(NCompression::ECodec::None);
         ErasureCodec_.Set(NErasure::ECodec::None);
@@ -47,6 +47,8 @@ void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
     Save(context, DeltaStatistics_);
     Save(context, CompressionCodec_);
     Save(context, ErasureCodec_);
+    Save(context, SnapshotSecurityTags_);
+    Save(context, DeltaSecurityTags_);
 }
 
 void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
@@ -62,6 +64,11 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, DeltaStatistics_);
     Load(context, CompressionCodec_);
     Load(context, ErasureCodec_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 827) {
+        Load(context, SnapshotSecurityTags_);
+        Load(context, DeltaSecurityTags_);
+    }
 }
 
 const TChunkList* TChunkOwnerBase::GetSnapshotChunkList() const
@@ -105,41 +112,52 @@ const TChunkList* TChunkOwnerBase::GetDeltaChunkList() const
     }
 }
 
-void TChunkOwnerBase::BeginUpload(EUpdateMode mode)
+TSecurityTags TChunkOwnerBase::GetSecurityTags() const
 {
-    UpdateMode_ = mode;
+    return *SnapshotSecurityTags_ + *DeltaSecurityTags_;
 }
 
-void TChunkOwnerBase::EndUpload(
-    const TDataStatistics* statistics,
-    const NTableServer::TSharedTableSchemaPtr& /*sharedSchema*/,
-    NTableClient::ETableSchemaMode /*schemaMode*/,
-    std::optional<NTableClient::EOptimizeFor> /*optimizeFor*/,
-    const std::optional<TMD5Hasher>& /*md5Hasher*/)
+void TChunkOwnerBase::BeginUpload(const TBeginUploadContext& context)
 {
-    std::optional<TDataStatistics> updateStatistics;
+    UpdateMode_ = context.Mode;
+}
 
+void TChunkOwnerBase::EndUpload(const TEndUploadContext& context)
+{
+    if (context.CompressionCodec) {
+        SetCompressionCodec(*context.CompressionCodec);
+    }
+
+    if (context.ErasureCodec) {
+        SetErasureCodec(*context.ErasureCodec);
+    }
+
+    std::optional<TDataStatistics> updateStatistics;
     if (!IsExternal()) {
         updateStatistics = ComputeUpdateStatistics();
     }
 
-    if (statistics && updateStatistics) {
-        YCHECK(*statistics == *updateStatistics);
+    if (context.Statistics && updateStatistics) {
+        YCHECK(*context.Statistics == *updateStatistics);
     }
 
-    if (statistics) {
-        switch (UpdateMode_) {
-            case EUpdateMode::Append:
-                DeltaStatistics_ = *statistics;
-                break;
+    switch (UpdateMode_) {
+        case EUpdateMode::Append:
+            if (context.Statistics) {
+                DeltaStatistics_ = *context.Statistics;
+            }
+            DeltaSecurityTags_ = context.SecurityTags;
+            break;
 
-            case EUpdateMode::Overwrite:
-                SnapshotStatistics_ = *statistics;
-                break;
+        case EUpdateMode::Overwrite:
+            if (context.Statistics) {
+                SnapshotStatistics_ = *context.Statistics;
+            }
+            SnapshotSecurityTags_ = context.SecurityTags;
+            break;
 
-            default:
-                Y_UNREACHABLE();
-        }
+        default:
+            Y_UNREACHABLE();
     }
 }
 
@@ -210,9 +228,9 @@ NSecurityServer::TClusterResources TChunkOwnerBase::GetDeltaResourceUsage() cons
 NSecurityServer::TClusterResources TChunkOwnerBase::GetDiskUsage(const TDataStatistics& statistics) const
 {
     NSecurityServer::TClusterResources result;
-    for (auto mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
-        result.DiskSpace[mediumIndex] = CalculateDiskSpaceUsage(
-            Replication()[mediumIndex].GetReplicationFactor(),
+    for (const auto& entry : Replication()) {
+        result.DiskSpace[entry.GetMediumIndex()] = CalculateDiskSpaceUsage(
+            entry.Policy().GetReplicationFactor(),
             statistics.regular_disk_space(),
             statistics.erasure_disk_space());
     }

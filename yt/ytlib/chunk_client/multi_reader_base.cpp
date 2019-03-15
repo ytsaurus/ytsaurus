@@ -23,9 +23,9 @@ TMultiReaderBase::TMultiReaderBase(
     const std::vector<IReaderFactoryPtr>& readerFactories)
     : Config_(config)
     , Options_(options)
+    , ReaderFactories_(readerFactories)
     , Logger(NLogging::TLogger(ChunkClientLogger)
         .AddTag("MultiReaderId: %v", TGuid::Create()))
-    , ReaderFactories_(readerFactories)
     , FreeBufferSize_(Config_->MaxBufferSize)
 {
     CurrentSession_.Reset();

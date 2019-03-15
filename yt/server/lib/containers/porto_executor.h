@@ -28,6 +28,7 @@ const int ContainerErrorCodeBase = 12000;
 DEFINE_ENUM(EContainerErrorCode,
     ((InvalidState)           ((ContainerErrorCodeBase + ::rpc::EError::InvalidState)))
     ((ContainerDoesNotExist)  ((ContainerErrorCodeBase + ::rpc::EError::ContainerDoesNotExist)))
+    ((VolumeNotFound)         ((ContainerErrorCodeBase + ::rpc::EError::VolumeNotFound)))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

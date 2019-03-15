@@ -1,5 +1,7 @@
 #include "http_handler.h"
 
+#include "query_context.h"
+
 #include <server/HTTPHandler.h>
 #include <server/NotFoundHandler.h>
 #include <server/PingRequestHandler.h>
@@ -41,12 +43,14 @@ class THttpHandlerFactory
     : public Poco::Net::HTTPRequestHandlerFactory
 {
 private:
+    TBootstrap* Bootstrap_;
     IServer& Server;
     Poco::Logger* Log;
 
 public:
-    THttpHandlerFactory(IServer& server)
-        : Server(server)
+    THttpHandlerFactory(TBootstrap* bootstrap, IServer& server)
+        : Bootstrap_(bootstrap)
+        , Server(server)
         , Log(&Logger::get("HTTPHandlerFactory"))
     {}
 
@@ -59,6 +63,26 @@ public:
 Poco::Net::HTTPRequestHandler* THttpHandlerFactory::createRequestHandler(
     const Poco::Net::HTTPServerRequest& request)
 {
+    class THttpHandler
+        : public DB::HTTPHandler
+    {
+    public:
+        THttpHandler(TBootstrap* bootstrap, DB::IServer& server, TQueryId queryId)
+            : DB::HTTPHandler(server)
+            , Bootstrap_(bootstrap)
+            , QueryId_(queryId)
+        { }
+
+        virtual void customizeContext(DB::Context& context) override
+        {
+            SetupHostContext(Bootstrap_, context, QueryId_);
+        }
+
+    private:
+        TBootstrap* const Bootstrap_;
+        const TQueryId QueryId_;
+    };
+
     const Poco::URI uri(request.getURI());
 
     LOG_INFO(Log, "HTTP Request. "
@@ -77,12 +101,19 @@ Poco::Net::HTTPRequestHandler* THttpHandlerFactory::createRequestHandler(
         }
     }
 
+    auto ytRequestId = request.get("X-Yt-Request-Id", "");
+    TQueryId queryId;
+    if (!TQueryId::FromString(ytRequestId, &queryId)) {
+        queryId = TQueryId::Create();
+    }
+
     // Query execution
     // HTTPHandler executes query in read-only mode for GET requests
     if (IsGet(request) || IsPost(request)) {
         if ((uri.getPath() == "/") ||
             (uri.getPath() == "/query")) {
-            return new HTTPHandler(Server);
+            auto* handler = new THttpHandler(Bootstrap_, Server, queryId);
+            return handler;
         }
     }
 
@@ -91,9 +122,9 @@ Poco::Net::HTTPRequestHandler* THttpHandlerFactory::createRequestHandler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Poco::Net::HTTPRequestHandlerFactory::Ptr CreateHttpHandlerFactory(IServer& server)
+Poco::Net::HTTPRequestHandlerFactory::Ptr CreateHttpHandlerFactory(TBootstrap* bootstrap, IServer& server)
 {
-    return new THttpHandlerFactory(server);
+    return new THttpHandlerFactory(bootstrap, server);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

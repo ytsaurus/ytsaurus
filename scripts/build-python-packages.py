@@ -32,17 +32,6 @@ def cwd(dir):
     finally:
         os.chdir(prevdir)
 
-@contextlib.contextmanager
-def symlinked(src, dstdir):
-    dst = os.path.join(dstdir, os.path.basename(src))
-    if os.path.lexists(dst):
-        os.remove(dst)
-    os.symlink(src, dst)
-    try:
-        yield
-    finally:
-        os.remove(dst)
-
 def reset_debian_changelog():
     if not os.path.exists("debian"):
         os.mkdir("debian")
@@ -73,19 +62,10 @@ def dch(version, message, create_package=None):
 
 def main(args):
     args.install_dir = os.path.realpath(args.install_dir)
-    config_generator = os.path.join(args.install_dir, "build_python_packages_config_generator")
-    driver_lib_file = os.path.join(args.install_dir, "driver_lib.so")
-    yson_lib_file = os.path.join(args.install_dir, "yson_lib.so")
-    for fname in [driver_lib_file, yson_lib_file]:
-        if not os.path.exists(fname):
-            raise RuntimeError("File {basename} cannot be found inside install dir: {installdir}".format(
-                basename=os.path.basename(fname),
-                installdir=args.install_dir
-            ))
 
+    config_generator = os.path.join(args.install_dir, "build_python_packages_config_generator")
     config = json.loads(subprocess.check_output([config_generator]))
-    yt_version = config["yt_version"]
-    yt_rpc_proxy_protocol_version = config["yt_rpc_proxy_protocol_version"]
+
     source_directory = os.path.realpath(args.source_dir)
     output_directory = os.path.realpath(args.output_dir)
     work_directory = os.path.realpath(args.work_dir)
@@ -93,7 +73,7 @@ def main(args):
     if not os.path.exists(output_directory):
         os.mkdir(output_directory)
 
-    with inside_temporary_directory(dir=work_directory) as tmpdir:
+    with inside_temporary_directory(dir=work_directory):
         python_src_copy = os.path.realpath("python_src_copy")
 
         shutil.copytree(
@@ -101,25 +81,13 @@ def main(args):
             python_src_copy,
             symlinks=True)
 
-        # Create changelog for yandex-yt-python-driver
-        with inside_temporary_directory(dir=work_directory):
-            os.mkdir("debian")
-            shutil.copy(os.path.join(source_directory, "debian/changelog"), "debian/changelog")
-            dch(version=yt_version, message="Package version bump; no source changes.")
-            with open("debian/changelog") as inf:
-                text = inf.read()
-            with open(os.path.join(python_src_copy, "yandex-yt-python-driver/debian/changelog"), "w") as outf:
-                outf.write(text.replace("yandex-yt", "yandex-yt-python-driver"))
-
         with cwd(os.path.join(python_src_copy, "yandex-yt-python-proto")):
             reset_debian_changelog()
-            dch(version=yt_rpc_proxy_protocol_version,
+            dch(version=config["yt_rpc_proxy_protocol_version"],
                 message="Proto package release.",
                 create_package="yandex-yt-python-proto")
 
-        with symlinked(driver_lib_file, os.path.join(python_src_copy, "yt_driver_bindings")), \
-                symlinked(yson_lib_file, os.path.join(python_src_copy, "yt_yson_bindings")):
-            subprocess.check_call(["./build_proto.sh"], cwd=python_src_copy)
+        subprocess.check_call(["./build_proto.sh"], cwd=python_src_copy)
 
         package_list = glob.glob("yandex-yt-python*")
         if not package_list:

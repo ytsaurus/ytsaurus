@@ -48,13 +48,13 @@ public:
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         const std::vector<int>& blockIndexes,
-        const std::optional<i64>& estimatedSize) override;
+        std::optional<i64> estimatedSize) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         int firstBlockIndex,
         int blockCount,
-        const std::optional<i64>& estimatedSize) override;
+        std::optional<i64> estimatedSize) override;
 
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientBlockReadOptions& options,

@@ -145,13 +145,9 @@ void TArchiveOperationRequest::InitializeFromAttributes(const IAttributeDictiona
 
 namespace NDetail {
 
-std::vector<TString> GetPools(const TYsonString& runtimeParameters)
+std::vector<TString> GetPools(const IMapNodePtr& runtimeParameters)
 {
-    if (!runtimeParameters) {
-        return {};
-    }
-
-    auto schedulingOptionsNode = ConvertToNode(runtimeParameters)->AsMap()->FindChild("scheduling_options_per_pool_tree");
+    auto schedulingOptionsNode = runtimeParameters->FindChild("scheduling_options_per_pool_tree");
     if (!schedulingOptionsNode) {
         return {};
     }
@@ -220,7 +216,8 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
     }
 
     if (request.RuntimeParameters) {
-        auto pools = GetPools(request.RuntimeParameters);
+        auto runtimeParametersNode = ConvertToNode(request.RuntimeParameters)->AsMap();
+        auto pools = GetPools(runtimeParametersNode);
         parts.insert(parts.end(), pools.begin(), pools.end());
     }
 
@@ -303,7 +300,17 @@ TUnversionedRow BuildOrderedByStartTimeTableRow(
     auto state = FormatEnum(request.State);
     auto operationType = FormatEnum(request.OperationType);
     auto filterFactors = GetFilterFactors(request);
-    auto pools = ConvertToYsonString(GetPools(request.RuntimeParameters));
+
+    TYsonString pools;
+    TYsonString acl;
+
+    if (request.RuntimeParameters) {
+        auto runtimeParametersNode = ConvertToNode(request.RuntimeParameters)->AsMap();
+        pools = ConvertToYsonString(GetPools(runtimeParametersNode));
+        if (auto aclNode = runtimeParametersNode->FindChild("acl")) {
+            acl = ConvertToYsonString(aclNode);
+        }
+    }
 
     TUnversionedRowBuilder builder;
     builder.AddValue(MakeUnversionedInt64Value(request.StartTime.MicroSeconds(), index.StartTime));
@@ -321,6 +328,10 @@ TUnversionedRow BuildOrderedByStartTimeTableRow(
         if (request.BriefProgress) {
             builder.AddValue(MakeUnversionedBooleanValue(HasFailedJobs(request.BriefProgress), index.HasFailedJobs));
         }
+    }
+
+    if (version >= 30 && acl) {
+        builder.AddValue(MakeUnversionedAnyValue(acl.GetData(), index.Acl));
     }
 
     return rowBuffer->Capture(builder.GetRow());

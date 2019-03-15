@@ -340,7 +340,7 @@ private:
                 .ValueOrThrow();
 
             YT_LOG_INFO("Store chunks written (ChunkIds: %v)",
-                MakeFormattableRange(flushResult, [] (TStringBuilder* builder, const TAddStoreDescriptor& descriptor) {
+                MakeFormattableView(flushResult, [] (TStringBuilderBase* builder, const TAddStoreDescriptor& descriptor) {
                     FormatValue(builder, FromProto<TChunkId>(descriptor.store_id()), TStringBuf());
                 }));
 

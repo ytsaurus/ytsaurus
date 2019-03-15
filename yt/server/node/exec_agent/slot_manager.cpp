@@ -75,7 +75,10 @@ void TSlotManager::Initialize()
                 AliveLocations_.push_back(Locations_.back());
             }
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to initialize slot location (Path: %v)", locationConfig->Path);
+            auto alert = TError("Failed to initialize slot location %v", locationConfig->Path)
+                << ex;
+            YT_LOG_WARNING(alert);
+            Bootstrap_->GetMasterConnector()->RegisterAlert(alert);
         }
 
         ++locationIndex;

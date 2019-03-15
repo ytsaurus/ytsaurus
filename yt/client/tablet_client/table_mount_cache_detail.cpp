@@ -92,7 +92,7 @@ bool TTableMountCacheKey::operator == (const TTableMountCacheKey& other) const
     return Path == other.Path;
 }
 
-void FormatValue(TStringBuilder* builder, const TTableMountCacheKey& key, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, const TTableMountCacheKey& key, TStringBuf /*spec*/)
 {
     builder->AppendFormat("{%v %v %v}",
         key.Path,
@@ -156,7 +156,7 @@ std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TE
                         tabletInfo->TabletId,
                         tabletInfo->CellId,
                         tabletInfo->MountRevision,
-                        MakeFormattableRange(tabletInfo->Owners, [] (auto* builder, const auto& weakOwner) {
+                        MakeFormattableView(tabletInfo->Owners, [] (auto* builder, const auto& weakOwner) {
                             if (auto owner = weakOwner.Lock()) {
                                 FormatValue(builder, owner->Path, TStringBuf());
                             }

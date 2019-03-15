@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait
 from yt_commands import *
 
-class TestAnnotations(YTEnvSetup):
+class TestCypressAnnotations(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SECONDARY_MASTER_CELLS = 1
     NUM_NODES = 1
@@ -18,7 +18,8 @@ class TestAnnotations(YTEnvSetup):
     }
 
     DELTA_MASTER_CONFIG = {
-        "cypress_annotations" : { "whoami" : "master" }
+        "cypress_annotations" : { "whoami" : "master" },
+        "annotation_setter_period" : 100
     }
 
     DELTA_NODE_CONFIG = {
@@ -34,15 +35,8 @@ class TestAnnotations(YTEnvSetup):
     }
 
     def test_annotations(self):
-        n = ls("//sys/nodes")[0]
-        assert "node" == get("//sys/nodes/{0}/@annotations/whoami".format(n))
-
-        pm = ls("//sys/primary_masters")[0]
-        assert "master" == get("//sys/primary_masters/{0}/orchid/config/cypress_annotations/whoami".format(pm))
-
-        cell = ls("//sys/secondary_masters")[0]
-        sm = ls("//sys/secondary_masters/" + cell)[0]
-        assert "master" == get("//sys/secondary_masters/{0}/{1}/orchid/config/cypress_annotations/whoami".format(cell, sm))
+        n = ls("//sys/cluster_nodes")[0]
+        assert "node" == get("//sys/cluster_nodes/{0}/@annotations/whoami".format(n))
 
         s = ls("//sys/scheduler/instances")[0]
         assert "scheduler" == get("//sys/scheduler/instances/{0}/@annotations/whoami".format(s))
@@ -55,3 +49,12 @@ class TestAnnotations(YTEnvSetup):
 
         rp = ls("//sys/rpc_proxies")[0]
         assert "rpc_proxy" == get("//sys/rpc_proxies/{}/@annotations/whoami".format(rp))
+
+        pm = ls("//sys/primary_masters")[0]
+        wait(lambda: exists("//sys/primary_masters/{0}/@annotations".format(pm)))
+        assert "master" == get("//sys/primary_masters/{0}/@annotations/whoami".format(pm))
+
+        cell = ls("//sys/secondary_masters")[0]
+        sm = ls("//sys/secondary_masters/" + cell)[0]
+        wait(lambda: exists("//sys/secondary_masters/{0}/{1}/@annotations".format(cell, sm)))
+        assert "master" == get("//sys/secondary_masters/{0}/{1}/@annotations/whoami".format(cell, sm))

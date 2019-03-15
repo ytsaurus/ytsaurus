@@ -487,9 +487,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidatePermission(table, EPermission::Write);
-
         for (const auto* replica : table->Replicas()) {
             if (replica->GetClusterName() == clusterName &&
                 replica->GetReplicaPath() == replicaPath)
@@ -500,6 +497,14 @@ public:
                     replicaPath,
                     clusterName);
             }
+        }
+
+        if (!preserveTimestamps && atomicity == NTransactionClient::EAtomicity::None) {
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::InvalidTabletState,
+                "Cannot set atomicity %v with preserveTimestamps %v",
+                atomicity,
+                preserveTimestamps);
         }
 
         YCHECK(!startReplicationRowIndexes || startReplicationRowIndexes->size() == table->Tablets().size());
@@ -592,9 +597,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidatePermission(replica, EPermission::Write);
-        
         auto* table = replica->GetTable();
         auto state = replica->GetState();
 
@@ -632,6 +634,14 @@ public:
                         tablet->GetState());
                 }
             }
+        }
+
+        if (!preserveTimestamps && atomicity == NTransactionClient::EAtomicity::None) {
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::InvalidTabletState,
+                "Cannot set atomicity %v with preserveTimestamps %v",
+                atomicity,
+                preserveTimestamps);
         }
 
         if (mode && replica->GetMode() == *mode) {
@@ -1484,9 +1494,9 @@ public:
             default:
                 Y_UNREACHABLE();
         }
-        for (int mediumIndex = 0; mediumIndex < NChunkClient::MaxMediumCount; ++mediumIndex) {
-            tabletStatistics.DiskSpacePerMedium[mediumIndex] = CalculateDiskSpaceUsage(
-                table->Replication()[mediumIndex].GetReplicationFactor(),
+        for (const auto& entry : table->Replication()) {
+            tabletStatistics.DiskSpacePerMedium[entry.GetMediumIndex()] = CalculateDiskSpaceUsage(
+                entry.Policy().GetReplicationFactor(),
                 treeStatistics.RegularDiskSpace,
                 treeStatistics.ErasureDiskSpace);
         }
@@ -5166,8 +5176,8 @@ private:
             transaction->GetId(),
             table->GetId(),
             tabletId,
-            MakeFormattableRange(chunksToAttach, TObjectIdFormatter()),
-            MakeFormattableRange(chunksToDetach, TObjectIdFormatter()),
+            MakeFormattableView(chunksToAttach, TObjectIdFormatter()),
+            MakeFormattableView(chunksToDetach, TObjectIdFormatter()),
             attachedRowCount,
             detachedRowCount,
             retainedTimestamp);
@@ -5836,29 +5846,32 @@ private:
                 << ex;
         }
 
-        // Parse and prepare table writer config.
-        try {
-            *writerConfig = UpdateYsonSerializable(
-                Config_->ChunkWriter,
-                tableAttributes.FindYson(GetUninternedAttributeKey(EInternedAttributeKey::ChunkWriter)));
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing chunk writer config")
-                << ex;
-        }
-
         // Prepare tablet writer options.
         const auto& chunkReplication = table->Replication();
         auto primaryMediumIndex = table->GetPrimaryMediumIndex();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
         *writerOptions = New<TTableWriterOptions>();
-        (*writerOptions)->ReplicationFactor = chunkReplication[primaryMediumIndex].GetReplicationFactor();
+        (*writerOptions)->ReplicationFactor = chunkReplication.Get(primaryMediumIndex).GetReplicationFactor();
         (*writerOptions)->MediumName = primaryMedium->GetName();
         (*writerOptions)->Account = table->GetAccount()->GetName();
         (*writerOptions)->CompressionCodec = table->GetCompressionCodec();
         (*writerOptions)->ErasureCodec = table->GetErasureCodec();
         (*writerOptions)->ChunksVital = chunkReplication.GetVital();
         (*writerOptions)->OptimizeFor = table->GetOptimizeFor();
+
+        // Parse and prepare table writer config.
+        try {
+            auto config = CloneYsonSerializable(Config_->ChunkWriter);
+            config->PreferLocalHost = primaryMedium->Config()->PreferLocalHostForDynamicTables;
+
+            *writerConfig = UpdateYsonSerializable(
+                config,
+                tableAttributes.FindYson(GetUninternedAttributeKey(EInternedAttributeKey::ChunkWriter)));
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing chunk writer config")
+                << ex;
+        }
     }
 
     static TError TryParseTabletRange(

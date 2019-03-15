@@ -65,7 +65,7 @@ struct TOutputTable
     , public TLivePreviewTableBase
     , public TIntrinsicRefCounted
 {
-    NTableClient::TTableWriterOptionsPtr Options = New<NTableClient::TTableWriterOptions>();
+    NTableClient::TTableWriterOptionsPtr TableWriterOptions = New<NTableClient::TTableWriterOptions>();
     NTableClient::TTableUploadOptions TableUploadOptions;
     EOutputTableType OutputType = EOutputTableType::Output;
 

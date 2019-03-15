@@ -2,21 +2,12 @@
 
 #include "type_helpers.h"
 
-#include <yt/server/clickhouse_server/table.h>
-#include <yt/server/clickhouse_server/value.h>
+#include "table.h"
+#include "value.h"
 
 #include <DataTypes/DataTypeFactory.h>
 
 #include <IO/WriteHelpers.h>
-
-namespace DB {
-
-namespace ErrorCodes
-{
-    extern const int UNKNOWN_TYPE;
-}
-
-}   // namespace DB
 
 namespace NYT::NClickHouseServer {
 
@@ -24,7 +15,7 @@ using namespace DB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const char* GetTypeName(const TColumn& column)
+const char* GetTypeName(const TClickHouseColumn& column)
 {
     switch (column.Type) {
         /// Invalid type.
@@ -69,7 +60,7 @@ DB::DataTypePtr GetDataType(const std::string& name)
     return DB::DataTypeFactory::instance().get(name);
 }
 
-DB::NamesAndTypesList GetTableColumns(const TTable& table)
+DB::NamesAndTypesList GetTableColumns(const TClickHouseTable& table)
 {
     const auto& dataTypeFactory = DB::DataTypeFactory::instance();
 

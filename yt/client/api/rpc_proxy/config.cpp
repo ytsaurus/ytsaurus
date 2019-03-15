@@ -58,6 +58,11 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("enable_proxy_discovery", EnableProxyDiscovery)
         .Default(true);
 
+    RegisterParameter("modify_rows_batch_capacity", ModifyRowsBatchCapacity)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+
+
     RegisterPostprocessor([this] {
         if (!ClusterUrl && Addresses.empty()) {
             THROW_ERROR_EXCEPTION("Either \"cluster_url\" or \"addresses\" must be specified");

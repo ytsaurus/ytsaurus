@@ -16,10 +16,10 @@ namespace NYT::NCrypto {
 TMD5Hash MD5FromString(TStringBuf data)
 {
     TMD5Hash hash;
-    if (data.Size() != hash.size()) {
+    if (data.size() != hash.size()) {
         THROW_ERROR_EXCEPTION("Invalid MD5 hash size")
             << TErrorAttribute("expected", hash.size())
-            << TErrorAttribute("actual", data.Size());
+            << TErrorAttribute("actual", data.size());
     }
 
     std::copy(data.begin(), data.end(), hash.begin());
@@ -42,7 +42,7 @@ TMD5Hasher::TMD5Hasher(const TMD5State& data)
 
 TMD5Hasher& TMD5Hasher::Append(TStringBuf data)
 {
-    MD5_Update(reinterpret_cast<MD5_CTX*>(State_.data()), data.Data(), data.Size());
+    MD5_Update(reinterpret_cast<MD5_CTX*>(State_.data()), data.data(), data.size());
     return *this;
 }
 
@@ -89,10 +89,10 @@ const TMD5State& TMD5Hasher::GetState() const
 TSha1Hash Sha1FromString(TStringBuf data)
 {
     TSha1Hash hash;
-    if (data.Size() != hash.size()) {
+    if (data.size() != hash.size()) {
         THROW_ERROR_EXCEPTION("Invalid Sha1 hash size")
             << TErrorAttribute("expected", hash.size())
-            << TErrorAttribute("actual", data.Size());
+            << TErrorAttribute("actual", data.size());
     }
 
     std::copy(data.begin(), data.end(), hash.begin());
@@ -110,7 +110,7 @@ TSha1Hasher::TSha1Hasher()
 
 TSha1Hasher& TSha1Hasher::Append(TStringBuf data)
 {
-    SHA1_Update(reinterpret_cast<SHA_CTX*>(CtxStorage_.data()), data.Data(), data.Size());
+    SHA1_Update(reinterpret_cast<SHA_CTX*>(CtxStorage_.data()), data.data(), data.size());
     return *this;
 }
 

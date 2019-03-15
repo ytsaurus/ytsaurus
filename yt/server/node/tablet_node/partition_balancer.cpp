@@ -305,7 +305,7 @@ private:
         Logger.AddTag("CellId: %v, TabletId: %v, PartitionIds: %v",
             slot->GetCellId(),
             partition->GetTablet()->GetId(),
-            MakeFormattableRange(
+            MakeFormattableView(
                 MakeRange(
                     tablet->PartitionList().data() + firstPartitionIndex,
                     tablet->PartitionList().data() + lastPartitionIndex + 1),
@@ -526,6 +526,8 @@ private:
 
         WaitFor(samplesFetcher->Fetch())
             .ThrowOnError();
+
+        YT_LOG_DEBUG("Samples fetched");
 
         std::vector<TKey> samples;
         for (const auto& sample : samplesFetcher->GetSamples()) {

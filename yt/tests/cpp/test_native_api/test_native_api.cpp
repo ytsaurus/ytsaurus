@@ -6,6 +6,7 @@
 //%DELTA_MASTER_CONFIG={"object_service":{"timeout_backoff_lead_time":100}}
 
 #include "yt/tests/cpp/api_test_base.h"
+#include "yt/tests/cpp/modify_rows_test.h"
 
 #include <yt/client/api/rowset.h>
 #include <yt/client/api/transaction.h>
@@ -477,6 +478,77 @@ TEST_F(TVersionedWriteTestWithRequired, TestNoRequiredColumns)
         {"k0", "k1", "k2", "v3", "v4"},
         "<id=0> 40; <id=1> 40; <id=2> 40;",
         "<id=3;ts=2> 10; <id=3;ts=1> 20; <id=4;ts=1> 15");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TModifyRowsTest, TestNoSeqNumbers)
+{
+    WriteSimpleRow(0, 10);
+    WriteSimpleRow(1, 11);
+    WriteSimpleRow(0, 12);
+    WriteSimpleRow(1, 13);
+    WriteSimpleRow(0, 14);
+    WriteSimpleRow(1, 15);
+    SyncCommit();
+
+    CheckTableContents({{0, 14}, {1, 15}});
+}
+
+TEST_F(TModifyRowsTest, TestOrderedSeqNumbers)
+{
+    WriteSimpleRow(0, 10, 0);
+    WriteSimpleRow(1, 11, 1);
+    WriteSimpleRow(0, 12, 2);
+    WriteSimpleRow(1, 13, 3);
+    WriteSimpleRow(0, 14, 4);
+    WriteSimpleRow(1, 15, 5);
+    SyncCommit();
+
+    CheckTableContents({{0, 14}, {1, 15}});
+}
+
+TEST_F(TModifyRowsTest, TestShuffledSeqNumbers)
+{
+    WriteSimpleRow(0, 14, 4);
+    WriteSimpleRow(1, 13, 3);
+    WriteSimpleRow(0, 10, 0);
+    WriteSimpleRow(1, 15, 5);
+    WriteSimpleRow(0, 12, 2);
+    WriteSimpleRow(1, 11, 1);
+    SyncCommit();
+
+    CheckTableContents({{0, 14}, {1, 15}});
+}
+
+TEST_F(TModifyRowsTest, TestRepeatingSeqNumbers)
+{
+    WriteSimpleRow(0, 10, 0);
+    WriteSimpleRow(0, 11, 1);
+    EXPECT_THROW(WriteSimpleRow(0, 12, 1), TErrorException);
+    EXPECT_THROW(SyncCommit(), TErrorException);
+
+    CheckTableContents({});
+}
+
+TEST_F(TModifyRowsTest, TestMissingSeqNumbers)
+{
+    WriteSimpleRow(1, 11, 0);
+    WriteSimpleRow(0, 12, 1);
+    WriteSimpleRow(1, 13, 2);
+    WriteSimpleRow(0, 14, 4);
+    WriteSimpleRow(1, 15, 5);
+    EXPECT_THROW(SyncCommit(), TErrorException);
+
+    CheckTableContents({});
+}
+
+TEST_F(TModifyRowsTest, TestNegativeSeqNumbers)
+{
+    EXPECT_THROW(WriteSimpleRow(0, 10, -1), TErrorException);
+    EXPECT_THROW(SyncCommit(), TErrorException);
+
+    CheckTableContents({});
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -69,7 +69,7 @@ public:
                 std::move(dataSliceDescriptors),
                 nameTable,
                 BlockReadOptions_,
-                TColumnFilter(),
+                /* columnFilter */ {},
                 keyColumns,
                 /* partitionTag */ std::nullopt,
                 Host_->GetTrafficMeter(),

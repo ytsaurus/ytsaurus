@@ -36,7 +36,7 @@ public:
         IConnectionPtr directoryConnection,
         TNodeDirectoryPtr nodeDirectory)
         : Config_(config)
-        , DirectoryClient_(directoryConnection->CreateClient(TClientOptions(NSecurityClient::RootUserName)))
+        , Connection_(directoryConnection)
         , NodeDirectory_(nodeDirectory)
         , SyncExecutor_(New<TPeriodicExecutor>(
             NRpc::TDispatcher::Get()->GetLightInvoker(),
@@ -56,7 +56,7 @@ public:
 
 private:
     const TNodeDirectorySynchronizerConfigPtr Config_;
-    const IClientPtr DirectoryClient_;
+    const TWeakPtr<IConnection> Connection_;
     const TNodeDirectoryPtr NodeDirectory_;
 
     const TPeriodicExecutorPtr SyncExecutor_;
@@ -64,6 +64,13 @@ private:
     void DoSync()
     {
         try {
+            auto connection = Connection_.Lock();
+            if (!connection) {
+                return;
+            }
+
+            auto client = connection->CreateClient(TClientOptions(NSecurityClient::RootUserName));
+
             YT_LOG_DEBUG("Started updating node directory");
 
             TGetClusterMetaOptions options;
@@ -72,7 +79,7 @@ private:
 
             // Request may block for prolonged periods of time;
             // handle cancelation requests (induced by stopping the executor) immediately.
-            auto meta = WaitFor(DirectoryClient_->GetClusterMeta(options).ToImmediatelyCancelable())
+            auto meta = WaitFor(client->GetClusterMeta(options).ToImmediatelyCancelable())
                 .ValueOrThrow();
 
             NodeDirectory_->MergeFrom(*meta.NodeDirectory);

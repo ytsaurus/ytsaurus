@@ -148,24 +148,14 @@ const TTableNode* TTableNode::GetTrunkNode() const
     return TrunkNode_->As<TTableNode>();
 }
 
-void TTableNode::BeginUpload(EUpdateMode mode)
+void TTableNode::EndUpload(const TEndUploadContext& context)
 {
-    TChunkOwnerBase::BeginUpload(mode);
-}
-
-void TTableNode::EndUpload(
-    const TDataStatistics* statistics,
-    const TSharedTableSchemaPtr& sharedSchema,
-    ETableSchemaMode schemaMode,
-    std::optional<NTableClient::EOptimizeFor> optimizeFor,
-    const std::optional<TMD5Hasher>& md5Hasher)
-{
-    SchemaMode_ = schemaMode;
-    SharedTableSchema() = sharedSchema;
-    if (optimizeFor) {
-        OptimizeFor_.Set(*optimizeFor);
+    SchemaMode_ = context.SchemaMode;
+    SharedTableSchema() = context.Schema;
+    if (context.OptimizeFor) {
+        OptimizeFor_.Set(*context.OptimizeFor);
     }
-    TChunkOwnerBase::EndUpload(statistics, sharedSchema, schemaMode, optimizeFor, md5Hasher);
+    TChunkOwnerBase::EndUpload(context);
 }
 
 TClusterResources TTableNode::GetDeltaResourceUsage() const

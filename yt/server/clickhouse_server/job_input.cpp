@@ -21,6 +21,8 @@
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
@@ -149,9 +151,9 @@ private:
             }
         }
 
-        GetUserObjectBasicAttributes<TInputTable>(
+        GetUserObjectBasicAttributes(
             Client,
-            InputTables_,
+            MakeUserObjectList(InputTables_),
             NullTransactionId,
             Logger,
             EPermission::Read);
@@ -159,7 +161,7 @@ private:
         for (const auto& table : InputTables_) {
             if (table.Type != EObjectType::Table) {
                 THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
-                    table.GetPath(),
+                    table.Path.GetPath(),
                     EObjectType::Table,
                     table.Type);
             }
@@ -227,18 +229,16 @@ private:
         const auto& representativeTable = InputTables_.front();
         for (size_t i = 1; i < InputTables_.size(); ++i) {
             const auto& table = InputTables_[i];
-            if (table.Schema != representativeTable.Schema) {
-                THROW_ERROR_EXCEPTION(
-                    "YT schema mismatch: %Qlv and %Qlv", representativeTable.GetPath(), table.GetPath());
-            }
             if (table.IsDynamic != representativeTable.IsDynamic) {
                 THROW_ERROR_EXCEPTION(
-                    "Table types mismatch: %Qlv and %Qlv", representativeTable.GetPath(), table.GetPath());
+                    "Table dynamic flag mismatch: %v and %v",
+                    representativeTable.Path.GetPath(),
+                    table.Path.GetPath());
             }
         }
 
         KeyColumnCount_ = representativeTable.Schema.GetKeyColumnCount();
-        KeyColumnDataTypes_ = TClickHouseTableSchema::From(*CreateTable("", representativeTable.Schema)).GetKeyDataTypes();
+        KeyColumnDataTypes_ = TClickHouseTableSchema::From(*CreateClickHouseTable("", representativeTable.Schema)).GetKeyDataTypes();
     }
 
     void LogStatistics(const TStringBuf& stage)
@@ -254,35 +254,35 @@ private:
         for (const auto& inputTable : InputTables_) {
             totalChunkCount += inputTable.ChunkCount;
         }
-        YT_LOG_INFO("Fetching data slices (InputTableCount: %v, TotalChunkCount: %v)", InputTables_.size(), totalChunkCount);
+        YT_LOG_INFO("Fetching data slices (InputTableCount: %v, TotalChunkCount: %v)",
+            InputTables_.size(),
+            totalChunkCount);
 
         for (size_t tableIndex = 0; tableIndex < InputTables_.size(); ++tableIndex) {
             auto& table = InputTables_[tableIndex];
     
             if (table.IsDynamic) {
                 THROW_ERROR_EXCEPTION("Dynamic tables are not supported yet (YT-9404)")
-                    << TErrorAttribute("table", table.GetPath());
+                    << TErrorAttribute("table", table.Path.GetPath());
             }
     
             auto dataSource = MakeUnversionedDataSource(
-                table.GetPath(),
+                table.Path.GetPath(),
                 table.Schema,
-                std::nullopt);
+                /* columns */ std::nullopt,
+                // TODO(max42): YT-10402, omitted inaccessible columns
+                {});
     
             DataSourceDirectory_->DataSources().push_back(std::move(dataSource));
     
-            YT_LOG_DEBUG("Fetching input table (Path: %v)", table.GetPath());
+            YT_LOG_DEBUG("Fetching input table (Path: %v)",
+                table.Path.GetPath());
 
-            std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
-            chunkSpecs.reserve(table.ChunkCount);
-    
-            auto objectIdPath = FromObjectId(table.ObjectId);
-    
-            FetchChunkSpecs(
+            auto chunkSpecs = FetchChunkSpecs(
                 Client,
                 NodeDirectory_,
                 table.CellTag,
-                objectIdPath,
+                FromObjectId(table.ObjectId),
                 table.Path.GetRanges(),
                 table.ChunkCount,
                 100000, // MaxChunksPerFetch
@@ -294,8 +294,7 @@ private:
                     SetTransactionId(req, NullTransactionId);
                     SetSuppressAccessTracking(req, true);
                 },
-                Logger,
-                &chunkSpecs);
+                Logger);
     
             for (int i = 0; i < static_cast<int>(chunkSpecs.size()); ++i) {
                 auto& chunk = chunkSpecs[i];
@@ -316,6 +315,7 @@ private:
         auto removePredicate = [&] (const TInputDataSlicePtr& inputDataSlice) {
             const auto& chunk = inputDataSlice->GetSingleUnversionedChunkOrThrow();
             YCHECK(chunk->BoundaryKeys()->MinKey.GetCount() == chunk->BoundaryKeys()->MaxKey.GetCount());
+            YCHECK(chunk->BoundaryKeys()->MinKey.GetCount() >= KeyColumnCount_);
 
             Field minKey[KeyColumnCount_];
             Field maxKey[KeyColumnCount_];

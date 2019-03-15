@@ -149,8 +149,8 @@ void TSkynetColumnEvaluator::ValidateAndComputeHashes(
             SkynetPartSize / 1_MB);
     }
 
-    LastDataSize_ = data.Size();
-    *dataSize = MakeUnversionedInt64Value(data.Size(), DataSizeId_);
+    LastDataSize_ = data.size();
+    *dataSize = MakeUnversionedInt64Value(data.size(), DataSizeId_);
 
     HashState_->Update(data);
 

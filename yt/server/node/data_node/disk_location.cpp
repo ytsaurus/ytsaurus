@@ -47,7 +47,7 @@ void TDiskLocation::ValidateLockFile() const
     TFileInput fileInput(file);
 
     auto errorData = fileInput.ReadAll();
-    if (errorData.Empty()) {
+    if (errorData.empty()) {
         THROW_ERROR_EXCEPTION("Empty lock file found");
     }
 

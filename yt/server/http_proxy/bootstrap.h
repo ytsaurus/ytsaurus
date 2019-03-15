@@ -9,9 +9,9 @@
 #include <yt/ytlib/api/public.h>
 #include <yt/ytlib/api/native/public.h>
 
-#include <yt/ytlib/driver/public.h>
-
 #include <yt/ytlib/monitoring/public.h>
+
+#include <yt/client/driver/public.h>
 
 #include <yt/core/bus/public.h>
 

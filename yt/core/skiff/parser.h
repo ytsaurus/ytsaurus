@@ -3,6 +3,7 @@
 #include "skiff_schema.h"
 
 #include <yt/core/concurrency/coroutine.h>
+#include <yt/core/misc/coro_pipe.h>
 
 #include <util/generic/buffer.h>
 
@@ -29,12 +30,10 @@ public:
     ui64 GetReadBytesCount();
 
 private:
-    using TParserCoroutine = NConcurrency::TCoroutine<void(TStringBuf)>;
-
     class TImpl;
     std::unique_ptr<TImpl> ParserImpl_;
 
-    TParserCoroutine ParserCoroutine_;
+    TCoroPipe ParserCoroPipe_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

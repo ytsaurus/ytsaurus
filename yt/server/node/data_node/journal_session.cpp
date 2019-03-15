@@ -115,7 +115,7 @@ TFuture<void> TJournalSession::DoPutBlocks(
     }
 
     if (lastAppendResult) {
-        LastAppendResult_ = lastAppendResult.ToUncancelable();
+        LastAppendResult_ = lastAppendResult;
     }
 
     return VoidFuture;

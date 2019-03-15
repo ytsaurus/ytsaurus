@@ -202,6 +202,11 @@ TBufferedStreamWrap::~TBufferedStreamWrap()
 
 void TBufferedStreamWrap::InitType()
 {
+    static bool Initialized_ = false;
+    if (Initialized_) {
+        return;
+    }
+
     behaviors().name("BufferedStream");
     behaviors().doc("Buffered stream to perform read and download asynchronously");
     behaviors().supportGetattro();
@@ -211,6 +216,8 @@ void TBufferedStreamWrap::InitType()
     PYCXX_ADD_KEYWORDS_METHOD(empty, Empty, "Check wether the stream is empty");
 
     behaviors().readyType();
+
+    Initialized_ = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

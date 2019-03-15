@@ -57,12 +57,15 @@ struct TLocationPerformanceCounters
     NProfiling::TAggregateGauge BlobBlockReadSize;
     NProfiling::TAggregateGauge BlobBlockReadTime;
     NProfiling::TAggregateGauge BlobBlockReadThroughput;
+    NProfiling::TMonotonicCounter BlobBlockReadBytes;
     NProfiling::TAggregateGauge BlobBlockWriteSize;
     NProfiling::TAggregateGauge BlobBlockWriteTime;
     NProfiling::TAggregateGauge BlobBlockWriteThroughput;
+    NProfiling::TMonotonicCounter BlobBlockWriteBytes;
     NProfiling::TAggregateGauge JournalBlockReadSize;
     NProfiling::TAggregateGauge JournalBlockReadTime;
     NProfiling::TAggregateGauge JournalBlockReadThroughput;
+    NProfiling::TMonotonicCounter JournalBlockReadBytes;
     NProfiling::TAggregateGauge JournalChunkCreateTime;
     NProfiling::TAggregateGauge JournalChunkOpenTime;
     NProfiling::TAggregateGauge JournalChunkRemoveTime;

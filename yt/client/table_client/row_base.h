@@ -56,7 +56,7 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(ELogicalValueType, ui32,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline EValueType GetPhysicalType(ELogicalValueType type)
+inline constexpr EValueType GetPhysicalType(ELogicalValueType type)
 {
     switch (type) {
         case ELogicalValueType::Null:
@@ -86,7 +86,7 @@ inline EValueType GetPhysicalType(ELogicalValueType type)
     }
 }
 
-inline ELogicalValueType GetLogicalType(EValueType type)
+inline constexpr ELogicalValueType GetLogicalType(EValueType type)
 {
     switch (type) {
         case EValueType::Null:
@@ -103,27 +103,27 @@ inline ELogicalValueType GetLogicalType(EValueType type)
     }
 }
 
-inline bool IsIntegralType(EValueType type)
+inline constexpr bool IsIntegralType(EValueType type)
 {
     return type == EValueType::Int64 || type == EValueType::Uint64;
 }
 
-inline bool IsArithmeticType(EValueType type)
+inline constexpr bool IsArithmeticType(EValueType type)
 {
     return IsIntegralType(type) || type == EValueType::Double;
 }
 
-inline bool IsStringLikeType(EValueType type)
+inline constexpr bool IsStringLikeType(EValueType type)
 {
     return type == EValueType::String || type == EValueType::Any;
 }
 
-inline bool IsComparableType(EValueType type)
+inline constexpr bool IsComparableType(EValueType type)
 {
     return IsArithmeticType(type) || type == EValueType::String || type == EValueType::Boolean;
 }
 
-inline bool IsValueType(EValueType type)
+inline constexpr bool IsValueType(EValueType type)
 {
     return
         type == EValueType::Int64 ||
@@ -134,7 +134,7 @@ inline bool IsValueType(EValueType type)
         type == EValueType::Any;
 }
 
-inline bool IsSentinelType(EValueType type)
+inline constexpr bool IsSentinelType(EValueType type)
 {
     return type == EValueType::Min || type == EValueType::Max;
 }

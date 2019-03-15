@@ -404,7 +404,7 @@ TString ToString(const TNetworkAddress& address, bool withPort)
             } else if (typedAddr->sun_path[0] == 0) {
                 auto addressRef = TStringBuf(typedAddr->sun_path + 1, address.GetLength() - 1 - sizeof(sa_family_t));
                 auto quoted = Format("%Qv", addressRef);
-                return Format("unix://[%v]", quoted.substr(1, quoted.Size() - 2));
+                return Format("unix://[%v]", quoted.substr(1, quoted.size() - 2));
             } else {
                 return Format("unix://%v", typedAddr->sun_path);
             }
@@ -675,7 +675,7 @@ bool TIP6Address::FromString(TStringBuf str, TIP6Address* address)
     return true;
 }
 
-void FormatValue(TStringBuilder* builder, const TIP6Address& address, TStringBuf spec)
+void FormatValue(TStringBuilderBase* builder, const TIP6Address& address, TStringBuf spec)
 {
     const auto* parts = reinterpret_cast<const ui16*>(address.GetRawBytes());
     std::pair<int, int> maxRun = {-1, -1};
@@ -838,7 +838,7 @@ bool TIP6Network::FromString(TStringBuf str, TIP6Network* network)
     return true;
 }
 
-void FormatValue(TStringBuilder* builder, const TIP6Network& network, TStringBuf spec)
+void FormatValue(TStringBuilderBase* builder, const TIP6Network& network, TStringBuf spec)
 {
     builder->AppendFormat("%v/%v",
         network.GetAddress(),

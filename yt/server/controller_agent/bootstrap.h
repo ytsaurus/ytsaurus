@@ -53,8 +53,6 @@ private:
     NApi::NNative::IConnectionPtr Connection_;
     NApi::NNative::IClientPtr Client_;
     TControllerAgentPtr ControllerAgent_;
-    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
-    NNodeTrackerClient::TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
     ICoreDumperPtr CoreDumper_;
 
     void DoRun();

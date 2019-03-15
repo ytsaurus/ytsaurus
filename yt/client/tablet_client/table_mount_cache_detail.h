@@ -41,7 +41,7 @@ struct TTableMountCacheKey
     bool operator == (const TTableMountCacheKey& other) const;
 };
 
-void FormatValue(TStringBuilder* builder, const TTableMountCacheKey& key, TStringBuf /*spec*/);
+void FormatValue(TStringBuilderBase* builder, const TTableMountCacheKey& key, TStringBuf /*spec*/);
 TString ToString(const TTableMountCacheKey& key);
 
 ///////////////////////////////////////////////////////////////////////////////

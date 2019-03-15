@@ -3,7 +3,7 @@
 #include "column_builder.h"
 #include "db_helpers.h"
 
-#include <yt/server/clickhouse_server/table_reader.h>
+#include "table_reader.h"
 
 #include <Core/Block.h>
 #include <DataStreams/IProfilingBlockInputStream.h>
@@ -48,7 +48,7 @@ private:
 
 std::string TStorageInputStream::getName() const
 {
-    const std::vector<TTablePtr>& tables = TableReader->GetTables();
+    const std::vector<TClickHouseTablePtr>& tables = TableReader->GetTables();
     if (tables.size() == 1) {
         return tables.front()->Name;
     } else {

@@ -86,8 +86,7 @@ public:
         const TColumnFilter& columnFilter,
         bool unordered,
         IThroughputThrottlerPtr bandwidthThrottler,
-        IThroughputThrottlerPtr rpsThrottler,
-        TNodeDirectoryPtr nodeDirectory)
+        IThroughputThrottlerPtr rpsThrottler)
         : Config_(std::move(config))
         , Options_(std::move(options))
         , Client_(std::move(client))
@@ -98,7 +97,6 @@ public:
         , BandwidthThrottler_(std::move(bandwidthThrottler))
         , RpsThrottler_(std::move(rpsThrottler))
         , TransactionId_(Transaction_ ? Transaction_->GetId() : NullTransactionId)
-        , NodeDirectory_(std::move(nodeDirectory))
     {
         YCHECK(Config_);
         YCHECK(Client_);
@@ -110,10 +108,8 @@ public:
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
-        if (ReadDeadline_) {
-            if (TInstant::Now() >= ReadDeadline_) {
-                THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::ReaderDeadlineExpired, "Reader deadline expired");
-            }
+        if (NProfiling::GetCpuInstant() > ReadDeadline_) {
+            THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::ReaderDeadlineExpired, "Reader deadline expired");
         }
 
         rows->clear();
@@ -126,8 +122,8 @@ public:
             return true;
         }
 
-        YCHECK(UnderlyingReader_);
-        return UnderlyingReader_->Read(rows);
+        YCHECK(OpenResult_);
+        return OpenResult_->Reader->Read(rows);
     }
 
     virtual TFuture<void> GetReadyEvent() override
@@ -140,38 +136,44 @@ public:
             return MakeFuture(GetAbortError());
         }
 
-        YCHECK(UnderlyingReader_);
-        return UnderlyingReader_->GetReadyEvent();
+        YCHECK(OpenResult_);
+        return OpenResult_->Reader->GetReadyEvent();
     }
 
     i64 GetTableRowIndex() const
     {
-        YCHECK(UnderlyingReader_);
-        return UnderlyingReader_->GetTableRowIndex();
+        YCHECK(OpenResult_);
+        return OpenResult_->Reader->GetTableRowIndex();
     }
 
     virtual i64 GetTotalRowCount() const override
     {
-        YCHECK(UnderlyingReader_);
-        return UnderlyingReader_->GetTotalRowCount();
+        YCHECK(OpenResult_);
+        return OpenResult_->Reader->GetTotalRowCount();
     }
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
-        YCHECK(UnderlyingReader_);
-        return UnderlyingReader_->GetDataStatistics();
+        YCHECK(OpenResult_);
+        return OpenResult_->Reader->GetDataStatistics();
     }
 
     virtual const TNameTablePtr& GetNameTable() const override
     {
-        YCHECK(UnderlyingReader_);
-        return UnderlyingReader_->GetNameTable();
+        YCHECK(OpenResult_);
+        return OpenResult_->Reader->GetNameTable();
     }
 
-    virtual TKeyColumns GetKeyColumns() const override
+    virtual const TKeyColumns& GetKeyColumns() const override
     {
-        YCHECK(UnderlyingReader_);
-        return UnderlyingReader_->GetKeyColumns();
+        YCHECK(OpenResult_);
+        return OpenResult_->Reader->GetKeyColumns();
+    }
+
+    virtual const std::vector<TString>& GetOmittedInaccessibleColumns() const override
+    {
+        YCHECK(OpenResult_);
+        return OpenResult_->OmittedInaccessibleColumns;
     }
 
 private:
@@ -187,35 +189,28 @@ private:
     const TTransactionId TransactionId_;
     const TNodeDirectoryPtr NodeDirectory_;
 
-    TClientBlockReadOptions BlockReadOptions_;
-
     TFuture<void> ReadyEvent_;
-
-    ISchemalessMultiChunkReaderPtr UnderlyingReader_;
-
-    NLogging::TLogger Logger = ApiLogger;
-
-    TInstant ReadDeadline_;
+    std::optional<TSchemalessMultiChunkReaderCreateResult> OpenResult_;
+    NProfiling::TCpuInstant ReadDeadline_ = Max<NProfiling::TCpuInstant>();
 
     void DoOpen()
     {
-        UnderlyingReader_ = WaitFor(CreateSchemalessMultiChunkReader(
+        OpenResult_ = WaitFor(CreateSchemalessMultiChunkReader(
             Client_,
             RichPath_,
             Options_,
             NameTable_,
             ColumnFilter_,
             BandwidthThrottler_,
-            RpsThrottler_,
-            NodeDirectory_))
+            RpsThrottler_))
             .ValueOrThrow();
-
+        
         if (Transaction_) {
             StartListenTransaction(Transaction_);
         }
 
         if (Config_->MaxReadDuration) {
-            ReadDeadline_ = TInstant::Now() + *Config_->MaxReadDuration;
+            ReadDeadline_ = NProfiling::GetCpuInstant() + NProfiling::DurationToCpuDuration(*Config_->MaxReadDuration);
         }
     }
 };
@@ -227,7 +222,6 @@ TFuture<ITableReaderPtr> CreateTableReader(
     const NYPath::TRichYPath& path,
     const TTableReaderOptions& options,
     TNameTablePtr nameTable,
-    TNodeDirectoryPtr nodeDirectory,
     const TColumnFilter& columnFilter,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler)
@@ -250,8 +244,7 @@ TFuture<ITableReaderPtr> CreateTableReader(
         columnFilter,
         options.Unordered,
         bandwidthThrottler,
-        rpsThrottler,
-        nodeDirectory);
+        rpsThrottler);
 
     return reader->GetReadyEvent().Apply(BIND([=] () -> ITableReaderPtr {
         return reader;
@@ -274,8 +267,8 @@ public:
         const std::optional<TString>& partIndexColumnName,
         const std::optional<TString>& dataColumnName,
         i64 startPartIndex,
-        const std::optional<i64>& offset,
-        const std::optional<i64>& partSize)
+        std::optional<i64> offset,
+        std::optional<i64> partSize)
         : Reader_(std::move(reader))
         , PartIndexColumnName_(partIndexColumnName ? *partIndexColumnName : TBlobTableSchema::PartIndexColumn)
         , DataColumnName_(dataColumnName ? *dataColumnName : TBlobTableSchema::DataColumn)
@@ -423,8 +416,8 @@ IAsyncZeroCopyInputStreamPtr CreateBlobTableReader(
     const std::optional<TString>& partIndexColumnName,
     const std::optional<TString>& dataColumnName,
     i64 startPartIndex,
-    const std::optional<i64>& offset,
-    const std::optional<i64>& partSize)
+    std::optional<i64> offset,
+    std::optional<i64> partSize)
 {
     return New<TBlobTableReader>(
         std::move(reader),
@@ -437,51 +430,53 @@ IAsyncZeroCopyInputStreamPtr CreateBlobTableReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
-    IClientPtr client,
+TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReader(
+    const IClientPtr& client,
     const NYPath::TRichYPath& richPath,
     const TTableReaderOptions& options,
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler,
-    TNodeDirectoryPtr nodeDirectory)
+    NConcurrency::IThroughputThrottlerPtr rpsThrottler)
 {
-    auto Logger = ApiLogger;
-
     const auto& path = richPath.GetPath();
     auto readSessionId = TReadSessionId::Create();
-    Logger.AddTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
-        path,
-        options.TransactionId,
-        readSessionId);
+
+    auto Logger = NLogging::TLogger(ApiLogger)
+        .AddTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
+            path,
+            options.TransactionId,
+            readSessionId);
 
     YT_LOG_INFO("Opening table reader");
 
-    TUserObject userObject;
-    userObject.Path = path;
+    auto userObject = std::make_unique<TUserObject>();
+    userObject->Path = richPath;
 
     auto config = options.Config ? options.Config : New<TTableReaderConfig>();
 
+    TGetUserObjectBasicAttributesOptions getUserObjectBasicAttributesOptions;
+    getUserObjectBasicAttributesOptions.SuppressAccessTracking = config->SuppressAccessTracking;
+    getUserObjectBasicAttributesOptions.OmitInaccessibleColumns = options.OmitInaccessibleColumns;
     GetUserObjectBasicAttributes(
         client,
-        TMutableRange<TUserObject>(&userObject, 1),
+        {userObject.get()},
         options.TransactionId,
         Logger,
         EPermission::Read,
-        config->SuppressAccessTracking);
+        getUserObjectBasicAttributesOptions);
 
-    const auto& objectId = userObject.ObjectId;
-    const auto tableCellTag = userObject.CellTag;
+    auto objectId = userObject->ObjectId;
+    auto tableCellTag = userObject->CellTag;
 
     TYPath objectIdPath;
     if (objectId) {
         objectIdPath = FromObjectId(objectId);
-        if (userObject.Type != EObjectType::Table) {
+        if (userObject->Type != EObjectType::Table) {
             THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
                 path,
                 EObjectType::Table,
-                userObject.Type);
+                userObject->Type);
         }
     } else {
         YT_LOG_INFO("Table is virtual, performing further operations with its original path rather with its object id");
@@ -529,25 +524,21 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
         ValidateDynamicTableTimestamp(richPath, dynamic, schema, *attributes);
     }
 
-    if (!nodeDirectory) {
-        nodeDirectory = New<TNodeDirectory>();
-    }
-
     std::vector<TChunkSpec> chunkSpecs;
 
     {
         YT_LOG_INFO("Fetching table chunks");
 
-        FetchChunkSpecs(
+        chunkSpecs = FetchChunkSpecs(
             client,
-            nodeDirectory,
+            client->GetNativeConnection()->GetNodeDirectory(),
             tableCellTag,
             objectIdPath,
             richPath.GetRanges(),
             chunkCount,
             config->MaxChunksPerFetch,
             config->MaxChunksPerLocateRequest,
-            [&] (TChunkOwnerYPathProxy::TReqFetchPtr req) {
+            [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
                 req->set_fetch_all_meta_extensions(false);
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                 req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
@@ -556,7 +547,6 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
                 SetSuppressAccessTracking(req, config->SuppressAccessTracking);
             },
             Logger,
-            &chunkSpecs,
             config->UnavailableChunkStrategy == EUnavailableChunkStrategy::Skip /* skipUnavailableChunks */);
 
         CheckUnavailableChunks(config->UnavailableChunkStrategy, &chunkSpecs);
@@ -582,9 +572,10 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
             path,
             schema,
             richPath.GetColumns(),
+            userObject->OmittedInaccessibleColumns,
             timestamp.value_or(AsyncLastCommittedTimestamp)));
 
-        auto dataSliceDescriptor = TDataSliceDescriptor(std::move(chunkSpecs));
+        TDataSliceDescriptor dataSliceDescriptor(std::move(chunkSpecs));
 
         const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];
         auto adjustedColumnFilter = columnFilter.IsUniversal()
@@ -595,11 +586,10 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
             config,
             internalOptions,
             client,
-            // HTTP proxy doesn't have a node descriptor.
-            TNodeDescriptor(),
-            std::nullopt,
+            /* localDescriptor */ {},
+            /* partitionTag */ std::nullopt,
             client->GetNativeConnection()->GetBlockCache(),
-            nodeDirectory,
+            client->GetNativeConnection()->GetNodeDirectory(),
             dataSourceDirectory,
             dataSliceDescriptor,
             nameTable,
@@ -612,10 +602,11 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
         dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
             path,
             schema,
-            richPath.GetColumns()));
+            richPath.GetColumns(),
+            userObject->OmittedInaccessibleColumns));
 
         std::vector<TDataSliceDescriptor> dataSliceDescriptors;
-        for (auto& chunkSpec : chunkSpecs) {
+        for (const auto& chunkSpec : chunkSpecs) {
             dataSliceDescriptors.emplace_back(chunkSpec);
         }
 
@@ -626,11 +617,11 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
             config,
             internalOptions,
             client,
-            // HTTP proxy doesn't have a node descriptor.
-            TNodeDescriptor(),
+            // Client doesn't have a node descriptor.
+            /* localDescriptor */ {},
             std::nullopt,
             client->GetNativeConnection()->GetBlockCache(),
-            nodeDirectory,
+            client->GetNativeConnection()->GetNodeDirectory(),
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
             nameTable,
@@ -644,10 +635,15 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
     }
 
     return reader->GetReadyEvent()
-        .Apply(BIND([=] {
-            return reader;
+        .Apply(BIND([=, userObject = std::move(userObject)] {
+            return TSchemalessMultiChunkReaderCreateResult{
+                reader,
+                userObject->OmittedInaccessibleColumns
+            };
         }));
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative
 

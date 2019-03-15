@@ -23,6 +23,12 @@ using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TEntitySerializationKey TEntitySerializationKey::Null;
+const TEntitySerializationKey TEntitySerializationKey::Destroyed(-2);
+const TEntitySerializationKey TEntitySerializationKey::Inline(-3);
+
+////////////////////////////////////////////////////////////////////////////////
+
 static const size_t SnapshotLoadBufferSize = 64_KB;
 static const size_t SnapshotSaveBufferSize = 64_KB;
 static const size_t SnapshotPrefetchWindowSize = 64_MB;

@@ -747,13 +747,13 @@ public:
         for (auto it = tokens.rbegin(); it != tokens.rend(); ++it) {
             auto token = *it;
             builder.AppendChar('/');
-            if (const auto* stringBuf = std::get_if<TStringBuf>(&token)) {
-                builder.AppendString(*stringBuf);
-            } else if (const auto* integer = std::get_if<int>(&token)) {
-                builder.AppendFormat("%v", *integer);
-            } else {
-                Y_UNREACHABLE();
-            }
+            Visit(token,
+                [&] (const TStringBuf& stringBuf) {
+                    builder.AppendString(stringBuf);
+                },
+                [&] (int integer) {
+                    builder.AppendFormat("%v", integer);
+                });
         }
 
         return builder.Flush();
@@ -939,9 +939,13 @@ public:
         auto maybeRemoveLock = [&] (TLock* lock) {
             Y_ASSERT(lock->GetTrunkNode() == trunkNode);
             if (isLockRelevant(lock) && (!explicitOnly || !lock->GetImplicit())) {
-                DoRemoveLock(lock);
+                DoRemoveLock(lock, false /*resetEmptyLockingState*/);
             }
         };
+
+        if (trunkNode->LockingState().IsEmpty()) {
+            return;
+        }
 
         auto& acquiredLocks = trunkNode->MutableLockingState()->AcquiredLocks;
         for (auto it = acquiredLocks.begin(); it != acquiredLocks.end(); ) {
@@ -2128,7 +2132,7 @@ private:
             {
                 DoPromoteLock(lock);
             } else {
-                DoRemoveLock(lock);
+                DoRemoveLock(lock, true /*resetEmptyLockingState*/);
             }
         }
 
@@ -2181,7 +2185,7 @@ private:
             parentTransaction->GetId());
     }
 
-    void DoRemoveLock(TLock* lock)
+    void DoRemoveLock(TLock* lock, bool resetEmptyLockingState)
     {
         auto* transaction = lock->GetTransaction();
         auto* trunkNode = lock->GetTrunkNode();
@@ -2221,7 +2225,9 @@ private:
                     Y_UNREACHABLE();
             }
 
-            trunkNode->ResetLockingStateIfEmpty();
+            if (resetEmptyLockingState) {
+                trunkNode->ResetLockingStateIfEmpty();
+            }
             lock->SetTrunkNode(nullptr);
         }
         lock->SetTransaction(nullptr);

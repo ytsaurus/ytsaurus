@@ -76,6 +76,7 @@ class TSkipList;
 
 class TBlobOutput;
 
+class TStringBuilderBase;
 class TStringBuilder;
 
 struct ICheckpointableInputStream;
@@ -112,6 +113,21 @@ const ui32 YTCoreNoteType = 0x5f59545f; // = hex("_YT_") ;)
 extern const TString YTCoreNoteName;
 
 DECLARE_REFCOUNTED_STRUCT(ICoreDumper)
+
+template <class T>
+class TInternRegistry;
+
+template <class T>
+using TInternRegistryPtr = TIntrusivePtr<TInternRegistry<T>>;
+
+template <class T>
+class TInternedObjectData;
+
+template <class T>
+using TInternedObjectDataPtr = TIntrusivePtr<TInternedObjectData<T>>;
+
+template <class T>
+class TInternedObject;
 
 ////////////////////////////////////////////////////////////////////////////////
 

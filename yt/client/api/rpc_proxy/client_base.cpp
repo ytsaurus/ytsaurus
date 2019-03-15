@@ -28,6 +28,8 @@
 
 #include <yt/client/table_client/wire_protocol.h>
 
+#include <yt/client/ypath/rich.h>
+
 namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -423,8 +425,8 @@ TFuture<NCypressClient::TNodeId> TClientBase::LinkNode(
 }
 
 TFuture<void> TClientBase::ConcatenateNodes(
-    const std::vector<TYPath>& srcPaths,
-    const TYPath& dstPath,
+    const std::vector<TRichYPath>& srcPaths,
+    const TRichYPath& dstPath,
     const TConcatenateNodesOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
@@ -433,8 +435,7 @@ TFuture<void> TClientBase::ConcatenateNodes(
     SetTimeoutOptions(*req, options);
 
     ToProto(req->mutable_src_paths(), srcPaths);
-    req->set_dst_path(dstPath);
-    req->set_append(options.Append);
+    ToProto(req->mutable_dst_path(), dstPath);
     ToProto(req->mutable_transactional_options(), options);
     // TODO(babenko)
     // ToProto(req->mutable_prerequisite_options(), options);
@@ -491,7 +492,7 @@ TFuture<NApi::IFileReaderPtr> TClientBase::CreateFileReader(
 }
 
 NApi::IFileWriterPtr TClientBase::CreateFileWriter(
-    const NYPath::TYPath& path,
+    const NYPath::TRichYPath& path,
     const NApi::TFileWriterOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
@@ -501,16 +502,9 @@ NApi::IFileWriterPtr TClientBase::CreateFileWriter(
     auto req = proxy.CreateFileWriter();
     req->SetTimeout(config->DefaultStreamTimeout);
 
-    req->set_path(path);
+    req->set_path(ConvertToYsonString(path).GetData());
 
-    req->set_append(options.Append);
     req->set_compute_md5(options.ComputeMD5);
-    if (options.CompressionCodec) {
-        req->set_compression_codec(static_cast<int>(*options.CompressionCodec));
-    }
-    if (options.ErasureCodec) {
-        req->set_erasure_codec(static_cast<int>(*options.ErasureCodec));
-    }
     if (options.Config) {
         req->set_config(ConvertToYsonString(*options.Config).GetData());
     }
@@ -672,6 +666,7 @@ TFuture<TSelectRowsResult> TClientBase::SelectRows(
     if (options.UdfRegistryPath) {
         req->set_udf_registry_path(*options.UdfRegistryPath);
     }
+    req->set_memory_limit_per_node(options.MemoryLimitPerNode);
 
     return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspSelectRowsPtr>& rspOrError) {
         const auto& rsp = rspOrError.ValueOrThrow();

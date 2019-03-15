@@ -225,6 +225,8 @@ void TBootstrap::DoRun()
     FootprintUpdateExecutor->Start();
 
     MasterConnection = NApi::NNative::CreateConnection(Config->ClusterConnection);
+    // Force start node directory synchronizer.
+    MasterConnection->GetNodeDirectorySynchronizer()->Start();
 
     if (Config->TabletNode->ResourceLimits->Slots > 0) {
         // Requesting latest timestamp enables periodic background time synchronization.
@@ -234,14 +236,6 @@ void TBootstrap::DoRun()
     }
 
     MasterClient = MasterConnection->CreateNativeClient(TClientOptions(NSecurityClient::RootUserName));
-
-    NodeDirectory = New<TNodeDirectory>();
-
-    NodeDirectorySynchronizer = New<TNodeDirectorySynchronizer>(
-        Config->NodeDirectorySynchronizer,
-        MasterConnection,
-        NodeDirectory);
-    NodeDirectorySynchronizer->Start();
 
     LookupThreadPool = New<TThreadPool>(
         Config->QueryAgent->LookupThreadPoolSize,
@@ -827,7 +821,7 @@ const TMasterConnectorPtr& TBootstrap::GetMasterConnector() const
 
 const TNodeDirectoryPtr& TBootstrap::GetNodeDirectory() const
 {
-    return NodeDirectory;
+    return MasterConnection->GetNodeDirectory();
 }
 
 const IQuerySubexecutorPtr& TBootstrap::GetQueryExecutor() const

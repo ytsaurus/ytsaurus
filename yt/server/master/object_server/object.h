@@ -246,7 +246,7 @@ public:
 
 struct TObjectIdFormatter
 {
-    void operator()(TStringBuilder* builder, const TObjectBase* object) const;
+    void operator()(TStringBuilderBase* builder, const TObjectBase* object) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

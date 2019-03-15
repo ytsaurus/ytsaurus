@@ -177,9 +177,9 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
                 flag = False
                 state = "online"
 
-            address = get("//sys/nodes", driver=self.remote_driver).keys()[0]
-            set("//sys/nodes/%s/@banned" % address, flag, driver=self.remote_driver)
-            wait(lambda: get("//sys/nodes/%s/@state" % address, driver=self.remote_driver) == state)
+            address = get("//sys/cluster_nodes", driver=self.remote_driver).keys()[0]
+            set("//sys/cluster_nodes/%s/@banned" % address, flag, driver=self.remote_driver)
+            wait(lambda: get("//sys/cluster_nodes/%s/@state" % address, driver=self.remote_driver) == state)
 
         create("table", "//tmp/t1", driver=self.remote_driver)
         set("//tmp/t1/@erasure_codec", "reed_solomon_6_3", driver=self.remote_driver)

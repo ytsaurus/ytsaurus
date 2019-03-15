@@ -296,7 +296,7 @@ void TBlockFetcher::RequestBlocks(
     i64 uncompressedSize)
 {
     YT_LOG_DEBUG("Requesting block group (Blocks: %v, UncompressedSize: %v)",
-        MakeShrunkFormattableRange(blockIndexes, TDefaultFormatter(), 3),
+        MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3),
         uncompressedSize);
 
     TotalRemainingSize_ -= uncompressedSize;
@@ -312,7 +312,7 @@ void TBlockFetcher::RequestBlocks(
     }
 
     YT_LOG_DEBUG("Got block group (Blocks: %v)",
-        MakeShrunkFormattableRange(blockIndexes, TDefaultFormatter(), 3));
+        MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3));
 
     CompressionInvoker_->Invoke(BIND(
         &TBlockFetcher::DecompressBlocks,

@@ -40,37 +40,8 @@ struct IUserJobIOFactory
         const NTableClient::TTableSchema& tableSchema,
         const NTableClient::TChunkTimestamps& chunkTimestamps) = 0;
 };
+
 DEFINE_REFCOUNTED_TYPE(IUserJobIOFactory)
-
-struct TUserJobIOFactoryBase
-    : public IUserJobIOFactory
-{
-    TUserJobIOFactoryBase(
-        IJobSpecHelperPtr jobSpecHelper,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-        NChunkClient::TTrafficMeterPtr trafficMeter,
-        NConcurrency::IThroughputThrottlerPtr inBandwidthThrottler,
-        NConcurrency::IThroughputThrottlerPtr outBandwidthThrottler,
-        NConcurrency::IThroughputThrottlerPtr outRpsThrottler);
-
-
-    virtual NTableClient::ISchemalessMultiChunkWriterPtr CreateWriter(
-        NApi::NNative::IClientPtr client,
-        NTableClient::TTableWriterConfigPtr config,
-        NTableClient::TTableWriterOptionsPtr options,
-        NChunkClient::TChunkListId chunkListId,
-        NTransactionClient::TTransactionId transactionId,
-        const NTableClient::TTableSchema& tableSchema,
-        const NTableClient::TChunkTimestamps& chunkTimestamps) override;
-
-protected:
-    const IJobSpecHelperPtr JobSpecHelper_;
-    const NChunkClient::TClientBlockReadOptions BlockReadOptions_;
-    const NChunkClient::TTrafficMeterPtr TrafficMeter_;
-    const NConcurrency::IThroughputThrottlerPtr InBandwidthThrottler_;
-    const NConcurrency::IThroughputThrottlerPtr OutBandwidthThrottler_;
-    const NConcurrency::IThroughputThrottlerPtr OutRpsThrottler_;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -117,7 +117,7 @@ void TYamrDelimitedBaseParser::ProcessTableSwitch(TStringBuf tableIndex)
          value = FromString<i64>(tableIndex);
     } catch (const std::exception& ex) {
         TString tableIndexString(tableIndex);
-        if (tableIndex.Size() > ContextBufferSize) {
+        if (tableIndex.size() > ContextBufferSize) {
             tableIndexString = TString(tableIndex.SubStr(0, ContextBufferSize)) + "...truncated...";
         }
         THROW_ERROR_EXCEPTION("YAMR line %Qv cannot be parsed as a table switch; did you forget a record separator?",

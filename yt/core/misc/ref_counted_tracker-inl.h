@@ -9,112 +9,150 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Never destroyed.
-extern TRefCountedTracker* RefCountedTrackerInstance;
-
-Y_FORCE_INLINE TRefCountedTracker* TRefCountedTracker::Get()
-{
-    static struct TInitializer
-    {
-        TInitializer()
-        {
-            RefCountedTrackerInstance = new TRefCountedTracker();
-        }
-
-    } initializer;
-    return RefCountedTrackerInstance;
-}
+#define ENUMERATE_SLOT_FIELDS() \
+    XX(ObjectsAllocated) \
+    XX(ObjectsFreed) \
+    XX(TagObjectsAllocated) \
+    XX(TagObjectsFreed) \
+    XX(SpaceSizeAllocated) \
+    XX(SpaceSizeFreed)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TRefCountedTracker::TLocalSlot
+{
+    #define XX(name) size_t name = 0;
+    ENUMERATE_SLOT_FIELDS()
+    #undef XX
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRefCountedTracker::TGlobalSlot
+{
+    #define XX(name) std::atomic<size_t> name = {0};
+    ENUMERATE_SLOT_FIELDS()
+    #undef XX
+
+    TGlobalSlot() = default;
+
+    TGlobalSlot(TGlobalSlot&& other)
+    {
+        #define XX(name) name = other.name.load();
+        ENUMERATE_SLOT_FIELDS()
+        #undef XX
+    }
+
+    TGlobalSlot& operator += (const TLocalSlot& rhs)
+    {
+        #define XX(name) name += rhs.name;
+        ENUMERATE_SLOT_FIELDS()
+        #undef XX
+        return *this;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRefCountedTracker::TNamedSlot
+{
+public:
+    TNamedSlot(const TKey& key, size_t objectSize);
+
+    TRefCountedTypeKey GetTypeKey() const;
+    const TSourceLocation& GetLocation() const;
+
+    TString GetTypeName() const;
+    TString GetFullName() const;
+
+    size_t GetObjectsAllocated() const;
+    size_t GetObjectsFreed() const;
+    size_t GetObjectsAlive() const;
+
+    size_t GetBytesAllocated() const;
+    size_t GetBytesFreed() const;
+    size_t GetBytesAlive() const;
+
+    TRefCountedTrackerStatistics::TNamedSlotStatistics GetStatistics() const;
+
+    TNamedSlot& operator += (const TLocalSlot& rhs)
+    {
+        #define XX(name) name ## _ += rhs.name;
+        ENUMERATE_SLOT_FIELDS()
+        #undef XX
+        return *this;
+    }
+
+    TNamedSlot& operator += (const TGlobalSlot& rhs)
+    {
+        #define XX(name) name ## _ += rhs.name.load();
+        ENUMERATE_SLOT_FIELDS()
+        #undef XX
+        return *this;
+    }
+
+private:
+    TKey Key_;
+    size_t ObjectSize_;
+
+    size_t ObjectsAllocated_ = 0;
+    size_t ObjectsFreed_ = 0;
+    size_t TagObjectsAllocated_ = 0;
+    size_t TagObjectsFreed_ = 0;
+    size_t SpaceSizeAllocated_ = 0;
+    size_t SpaceSizeFreed_ = 0;
+
+    static size_t ClampNonnegative(size_t allocated, size_t freed);
+};
+
+#undef ENUMERATE_SLOT_FIELDS
+
+////////////////////////////////////////////////////////////////////////////////
+
+Y_FORCE_INLINE TRefCountedTracker* TRefCountedTracker::Get()
+{
+    return ImmortalSingleton<TRefCountedTracker>();
+}
+
+#define INCREMENT_COUNTER(fallback, name, delta) \
+    Y_ASSERT(cookie >= 0); \
+    if (Y_UNLIKELY(cookie >= LocalSlotsSize)) { \
+        Get()->fallback; \
+    } else { \
+        LocalSlotsBegin[cookie].name += delta; \
+    }
+
 Y_FORCE_INLINE void TRefCountedTracker::AllocateInstance(TRefCountedTypeCookie cookie)
 {
-    GetPerThreadSlot(cookie)->AllocateInstance();
+    INCREMENT_COUNTER(AllocateInstanceSlow(cookie), ObjectsAllocated, 1)
 }
 
 Y_FORCE_INLINE void TRefCountedTracker::FreeInstance(TRefCountedTypeCookie cookie)
 {
-    GetPerThreadSlot(cookie)->FreeInstance();
+    INCREMENT_COUNTER(FreeInstanceSlow(cookie), ObjectsFreed, 1)
 }
 
 Y_FORCE_INLINE void TRefCountedTracker::AllocateTagInstance(TRefCountedTypeCookie cookie)
 {
-    GetPerThreadSlot(cookie)->AllocateTagInstance();
+    INCREMENT_COUNTER(AllocateTagInstanceSlow(cookie), TagObjectsAllocated, 1)
 }
 
 Y_FORCE_INLINE void TRefCountedTracker::FreeTagInstance(TRefCountedTypeCookie cookie)
 {
-    GetPerThreadSlot(cookie)->FreeTagInstance();
+    INCREMENT_COUNTER(FreeTagInstanceSlow(cookie), TagObjectsFreed, 1)
 }
 
 Y_FORCE_INLINE void TRefCountedTracker::AllocateSpace(TRefCountedTypeCookie cookie, size_t space)
 {
-    GetPerThreadSlot(cookie)->AllocateSpace(space);
+    INCREMENT_COUNTER(AllocateSpaceSlow(cookie, space), SpaceSizeAllocated, space)
 }
 
 Y_FORCE_INLINE void TRefCountedTracker::FreeSpace(TRefCountedTypeCookie cookie, size_t space)
 {
-    GetPerThreadSlot(cookie)->FreeSpace(space);
+    INCREMENT_COUNTER(FreeSpaceSlow(cookie, space), SpaceSizeFreed, space)
 }
 
-Y_FORCE_INLINE void TRefCountedTracker::ReallocateSpace(TRefCountedTypeCookie cookie, size_t spaceFreed, size_t spaceAllocated)
-{
-    GetPerThreadSlot(cookie)->ReallocateSpace(spaceFreed, spaceAllocated);
-}
-
-Y_FORCE_INLINE TRefCountedTracker::TAnonymousSlot* TRefCountedTracker::GetPerThreadSlot(TRefCountedTypeCookie cookie)
-{
-    Y_ASSERT(cookie >= 0);
-    if (cookie >= CurrentThreadStatisticsSize) {
-        PreparePerThreadSlot(cookie);
-    }
-    return CurrentThreadStatisticsBegin + cookie;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-Y_FORCE_INLINE void TRefCountedTracker::TAnonymousSlot::IncreaseRelaxed(std::atomic<size_t>& counter, size_t delta)
-{
-    counter.store(
-        counter.load(std::memory_order_relaxed) + delta,
-        std::memory_order_relaxed);
-}
-
-Y_FORCE_INLINE void TRefCountedTracker::TAnonymousSlot::AllocateInstance()
-{
-    IncreaseRelaxed(ObjectsAllocated_, 1);
-}
-
-Y_FORCE_INLINE void TRefCountedTracker::TAnonymousSlot::FreeInstance()
-{
-    IncreaseRelaxed(ObjectsFreed_, 1);
-}
-
-Y_FORCE_INLINE void TRefCountedTracker::TAnonymousSlot::AllocateTagInstance()
-{
-    IncreaseRelaxed(TagObjectsAllocated_, 1);
-}
-
-Y_FORCE_INLINE void TRefCountedTracker::TAnonymousSlot::FreeTagInstance()
-{
-    IncreaseRelaxed(TagObjectsFreed_, 1);
-}
-
-Y_FORCE_INLINE void TRefCountedTracker::TAnonymousSlot::AllocateSpace(size_t size)
-{
-    IncreaseRelaxed(SpaceSizeAllocated_, size);
-}
-
-Y_FORCE_INLINE void TRefCountedTracker::TAnonymousSlot::FreeSpace(size_t size)
-{
-    IncreaseRelaxed(SpaceSizeFreed_, size);
-}
-
-Y_FORCE_INLINE void TRefCountedTracker::TAnonymousSlot::ReallocateSpace(size_t sizeFreed, size_t sizeAllocated)
-{
-    IncreaseRelaxed(SpaceSizeFreed_, sizeFreed);
-    IncreaseRelaxed(SpaceSizeAllocated_, sizeAllocated);
-}
+#undef INCREMENT_COUNTER
 
 ////////////////////////////////////////////////////////////////////////////////
 

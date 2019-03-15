@@ -28,12 +28,12 @@ namespace NYT::NJobAgent {
 
 struct TJobEvent
 {
-    TJobEvent(NJobTrackerClient::EJobState state)
+    explicit TJobEvent(NJobTrackerClient::EJobState state)
         : Timestamp_(Now())
         , State_(state)
     { }
 
-    TJobEvent(NJobTrackerClient::EJobPhase phase)
+    explicit TJobEvent(NJobTrackerClient::EJobPhase phase)
         : Timestamp_(Now())
         , Phase_(phase)
     { }

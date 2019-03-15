@@ -43,7 +43,7 @@ TYsonString SpawnTool(const TString& toolName, const TYsonString& serializedArgu
     auto serializedResultOrError = TString(result.Output.Begin(), result.Output.End());
 
     // Treat empty string as OK
-    if (serializedResultOrError.Empty()) {
+    if (serializedResultOrError.empty()) {
         return ConvertToYsonString(TError(), NYson::EYsonFormat::Text);
     }
 

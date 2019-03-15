@@ -58,16 +58,13 @@ void TReadJobSpec::Validate() const
     for (size_t i = 1; i < dataSources.size(); ++i) {
         auto dataSource = dataSources[i];
 
-        if (*dataSource.Schema() != representativeDataSource.Schema()) {
-            THROW_ERROR_EXCEPTION("Invalid job specification: inconsistent schemas");
-        }
         if (dataSource.GetType() != representativeDataSource.GetType()) {
             THROW_ERROR_EXCEPTION("Invalid job specification: inconsistent data source types");
         }
     }
 
     if (DataSliceDescriptors.empty()) {
-        THROW_ERROR_EXCEPTION("Invalid job specification: empty data slice desciptors list");
+        THROW_ERROR_EXCEPTION("Invalid job specification: empty data slice descriptors list");
     }
 }
 
@@ -85,17 +82,17 @@ NTableClient::TTableSchema TReadJobSpec::GetCommonNativeSchema() const
     return *representative.Schema();
 }
 
-std::vector<TTablePtr> TReadJobSpec::GetTables() const
+std::vector<TClickHouseTablePtr> TReadJobSpec::GetTables() const
 {
     auto nativeSchema = GetCommonNativeSchema();
 
     const auto& dataSources = DataSources();
 
-    std::vector<TTablePtr> tables;
+    std::vector<TClickHouseTablePtr> tables;
     tables.reserve(dataSources.size());
     for (auto dataSource : dataSources) {
         tables.push_back(
-            CreateTable(*dataSource.GetPath(), nativeSchema));
+            CreateClickHouseTable(*dataSource.GetPath(), nativeSchema));
     }
     return tables;
 }
@@ -159,5 +156,7 @@ void Deserialize(TReadJobSpec& spec, INodePtr node)
         spec.NodeDirectory = ConvertTo<TNodeDirectoryPtr>(node);
     }
 }
+
+/////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer

@@ -27,12 +27,7 @@ public:
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
 
-    virtual void EndUpload(
-        const NChunkClient::NProto::TDataStatistics* statistics,
-        const NTableServer::TSharedTableSchemaPtr& sharedSchema,
-        NTableClient::ETableSchemaMode schemaMode,
-        std::optional<NTableClient::EOptimizeFor> optimizeFor,
-        const std::optional<NCrypto::TMD5Hasher>& md5Hasher) override;
+    virtual void EndUpload(const TEndUploadContext& context) override;
     virtual void GetUploadParams(std::optional<NCrypto::TMD5Hasher>* md5Hasher) override;
 };
 

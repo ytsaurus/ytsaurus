@@ -1298,10 +1298,24 @@ class TestAccounts(YTEnvSetup):
                 "tablet_static_memory": 0
             })
 
+        # A cleanup from preceding tests may still be happening in background. Wait until totals have stabilized.
         resource_usage = get("//sys/accounts/@total_resource_usage")
         committed_resource_usage = get("//sys/accounts/@total_committed_resource_usage")
-
-        multicell_sleep()
+        stable_iteration_count = 0
+        for i in xrange(0, 30):
+            sleep(0.3)
+            new_resource_usage = get("//sys/accounts/@total_resource_usage")
+            new_committed_resource_usage = get("//sys/accounts/@total_committed_resource_usage")
+            if (resources_equal(resource_usage, new_resource_usage) and
+                resources_equal(committed_resource_usage, new_committed_resource_usage)):
+                stable_iteration_count += 1
+                if stable_iteration_count == 10:
+                    # Totals have been stable long enough, continue.
+                    break
+            else:
+                resource_usage = new_resource_usage
+                committed_resource_usage = new_committed_resource_usage
+                stable_iteration_count = 0
 
         assert resources_equal(get("//sys/accounts/@total_resource_limits"), total_resource_limits)
 

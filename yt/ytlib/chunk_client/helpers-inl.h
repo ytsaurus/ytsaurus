@@ -5,100 +5,33 @@
 #include "helpers.h"
 #endif
 
-#include "private.h"
-
-#include <yt/ytlib/api/native/client.h>
-
-#include <yt/ytlib/cypress_client/rpc_helpers.h>
-
-#include <yt/ytlib/object_client/public.h>
-#include <yt/client/object_client/helpers.h>
-#include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/object_client/object_ypath_proxy.h>
-
-#include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/checksum.h>
-
-#include <yt/core/ytree/permission.h>
 
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class T>
-struct TDefaultUnwrapper
+std::vector<TUserObject*> MakeUserObjectList(std::vector<T>& vector)
 {
-    static T& Unwrap(T& value) { return value; }
-};
-
-template <class T>
-struct TDefaultUnwrapper<TIntrusivePtr<T>>
-{
-    static T& Unwrap(const TIntrusivePtr<T>& value) { return *value; }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NDetail
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T, class U = NDetail::TDefaultUnwrapper<T>>
-void GetUserObjectBasicAttributes(
-    NApi::NNative::IClientPtr client,
-    TMutableRange<T> objects,
-    NObjectClient::TTransactionId defaultTransactionId,
-    const NLogging::TLogger& logger,
-    NYTree::EPermission permission,
-    bool suppressAccessTracking = false,
-    bool readFromCache = false)
-{
-    const auto& Logger = logger;
-
-    YT_LOG_INFO("Getting basic attributes of user objects");
-
-    auto channel = client->GetMasterChannelOrThrow(readFromCache
-        ? NApi::EMasterChannelKind::Cache
-        : NApi::EMasterChannelKind::Follower);
-    NObjectClient::TObjectServiceProxy proxy(channel);
-
-    auto batchReq = proxy.ExecuteBatch();
-
-    for (auto iterator = objects.Begin(); iterator != objects.End(); ++iterator) {
-        const auto& userObject = U::Unwrap(*iterator);
-        auto req = NObjectClient::TObjectYPathProxy::GetBasicAttributes(userObject.GetPath());
-        req->set_permissions(static_cast<ui32>(permission));
-        auto transactionId = userObject.TransactionId.value_or(defaultTransactionId);
-        NCypressClient::SetTransactionId(req, transactionId);
-        NCypressClient::SetSuppressAccessTracking(req, suppressAccessTracking);
-        batchReq->AddRequest(req, "get_basic_attributes");
+    std::vector<TUserObject*> result;
+    result.reserve(vector.size());
+    for (auto& element : vector) {
+        result.push_back(&element);
     }
-
-    auto batchRspOrError = NConcurrency::WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting basic attributes of user objects");
-    const auto& batchRsp = batchRspOrError.Value();
-
-    auto rspsOrError = batchRsp->GetResponses<NObjectClient::TObjectYPathProxy::TRspGetBasicAttributes>("get_basic_attributes");
-    for (auto iterator = objects.Begin(); iterator != objects.End(); ++iterator) {
-        auto& userObject = U::Unwrap(*iterator);
-        const auto& path = userObject.GetPath();
-        const auto& rspOrError = rspsOrError[iterator - objects.Begin()];
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes of user object %v",
-            path);
-        const auto& rsp = rspOrError.Value();
-
-        userObject.ObjectId = NYT::FromProto<NObjectClient::TObjectId>(rsp->object_id());
-        userObject.CellTag = rsp->cell_tag();
-
-        userObject.Type = NObjectClient::TypeFromId(userObject.ObjectId);
-    }
+    return result;
 }
 
-////////////////////////////////////////////////////////////////////////////////
+template <class T>
+std::vector<TUserObject*> MakeUserObjectList(std::vector<TIntrusivePtr<T>>& vector)
+{
+    std::vector<TUserObject*> result;
+    result.reserve(vector.size());
+    for (const auto& element : vector) {
+        result.push_back(element.Get());
+    }
+    return result;
+}
 
 template <class TRpcPtr>
 std::vector<TBlock> GetRpcAttachedBlocks(const TRpcPtr& rpc, bool validateChecksums)

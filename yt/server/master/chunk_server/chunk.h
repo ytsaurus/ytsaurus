@@ -181,16 +181,11 @@ public:
      *  If there're no owners at all, the returned value is the most recent
      *  non-empty aggregated replication.
      */
-    TChunkReplication GetAggregatedReplication(const TChunkRequisitionRegistry* registry) const;
+    const TChunkReplication& GetAggregatedReplication(const TChunkRequisitionRegistry* registry) const;
 
     //! Returns the replication factor for the specified medium aggregated from
     //! the local and the external values. See #GetAggregatedReplication().
     int GetAggregatedReplicationFactor(int mediumIndex, const TChunkRequisitionRegistry* registry) const;
-
-    //! Returns the replication factors for all media aggregated from the local and
-    //! the external values. See #GetAggregatedReplication().
-    //! NB: most of the time, most of the elements of the returned array will be zero.
-    TPerMediumIntArray GetAggregatedReplicationFactors(const TChunkRequisitionRegistry* registry) const;
 
     int GetReadQuorum() const;
     void SetReadQuorum(int value);

@@ -227,7 +227,7 @@ bool operator != (const TQuery& lhs, const TQuery& rhs)
     return !(lhs == rhs);
 }
 
-void FormatLiteralValue(TStringBuilder* builder, const TLiteralValue& value)
+void FormatLiteralValue(TStringBuilderBase* builder, const TLiteralValue& value)
 {
     switch (value.index()) {
         case VariantIndexV<TNullLiteralValue, TLiteralValue>:
@@ -287,7 +287,7 @@ bool IsValidId(TStringBuf str)
     return true;
 }
 
-void FormatId(TStringBuilder* builder, TStringBuf id, bool isFinal = false)
+void FormatId(TStringBuilderBase* builder, TStringBuf id, bool isFinal = false)
 {
     if (isFinal || IsValidId(id)) {
         builder->AppendString(id);
@@ -299,7 +299,7 @@ void FormatId(TStringBuilder* builder, TStringBuf id, bool isFinal = false)
     }
 }
 
-void FormatReference(TStringBuilder* builder, const TReference& ref, bool isFinal = false)
+void FormatReference(TStringBuilderBase* builder, const TReference& ref, bool isFinal = false)
 {
     if (ref.TableName) {
         builder->AppendString(*ref.TableName);
@@ -308,7 +308,7 @@ void FormatReference(TStringBuilder* builder, const TReference& ref, bool isFina
     FormatId(builder, ref.ColumnName, isFinal);
 }
 
-void FormatTableDescriptor(TStringBuilder* builder, const TTableDescriptor& descriptor)
+void FormatTableDescriptor(TStringBuilderBase* builder, const TTableDescriptor& descriptor)
 {
     FormatId(builder, descriptor.Path);
     if (descriptor.Alias) {
@@ -317,13 +317,13 @@ void FormatTableDescriptor(TStringBuilder* builder, const TTableDescriptor& desc
     }
 }
 
-void FormatExpressions(TStringBuilder* builder, const TExpressionList& exprs, bool expandAliases);
-void FormatExpression(TStringBuilder* builder, const TExpression& expr, bool expandAliases, bool isFinal = false);
-void FormatExpression(TStringBuilder* builder, const TExpressionList& expr, bool expandAliases);
+void FormatExpressions(TStringBuilderBase* builder, const TExpressionList& exprs, bool expandAliases);
+void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, bool expandAliases, bool isFinal = false);
+void FormatExpression(TStringBuilderBase* builder, const TExpressionList& expr, bool expandAliases);
 
-void FormatExpression(TStringBuilder* builder, const TExpression& expr, bool expandAliases, bool isFinal)
+void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, bool expandAliases, bool isFinal)
 {
-    auto printTuple = [] (TStringBuilder* builder, const TLiteralValueTuple& tuple) {
+    auto printTuple = [] (TStringBuilderBase* builder, const TLiteralValueTuple& tuple) {
         bool needParens = tuple.size() > 1;
         if (needParens) {
             builder->AppendChar('(');
@@ -332,7 +332,7 @@ void FormatExpression(TStringBuilder* builder, const TExpression& expr, bool exp
             builder,
             tuple.begin(),
             tuple.end(),
-            [] (TStringBuilder* builder, const TLiteralValue& value) {
+            [] (TStringBuilderBase* builder, const TLiteralValue& value) {
                 builder->AppendString(FormatLiteralValue(value));
             });
         if (needParens) {
@@ -340,7 +340,7 @@ void FormatExpression(TStringBuilder* builder, const TExpression& expr, bool exp
         }
     };
 
-    auto printTuples = [&] (TStringBuilder* builder, const TLiteralValueTupleList& list) {
+    auto printTuples = [&] (TStringBuilderBase* builder, const TLiteralValueTupleList& list) {
         JoinToString(
             builder,
             list.begin(),
@@ -348,12 +348,12 @@ void FormatExpression(TStringBuilder* builder, const TExpression& expr, bool exp
             printTuple);
     };
 
-    auto printRanges = [&] (TStringBuilder* builder, const TLiteralValueRangeList& list) {
+    auto printRanges = [&] (TStringBuilderBase* builder, const TLiteralValueRangeList& list) {
         JoinToString(
             builder,
             list.begin(),
             list.end(),
-            [&] (TStringBuilder* builder, const std::pair<TLiteralValueTuple, TLiteralValueTuple>& range) {
+            [&] (TStringBuilderBase* builder, const std::pair<TLiteralValueTuple, TLiteralValueTuple>& range) {
                 printTuple(builder, range.first);
                 builder->AppendString(" AND ");
                 printTuple(builder, range.second);
@@ -432,7 +432,7 @@ void FormatExpression(TStringBuilder* builder, const TExpression& expr, bool exp
     }
 }
 
-void FormatExpression(TStringBuilder* builder, const TExpressionList& exprs, bool expandAliases)
+void FormatExpression(TStringBuilderBase* builder, const TExpressionList& exprs, bool expandAliases)
 {
     YCHECK(exprs.size() > 0);
     if (exprs.size() > 1) {
@@ -444,18 +444,18 @@ void FormatExpression(TStringBuilder* builder, const TExpressionList& exprs, boo
     }
 }
 
-void FormatExpressions(TStringBuilder* builder, const TExpressionList& exprs, bool expandAliases)
+void FormatExpressions(TStringBuilderBase* builder, const TExpressionList& exprs, bool expandAliases)
 {
     JoinToString(
         builder,
         exprs.begin(),
         exprs.end(),
-        [&] (TStringBuilder* builder, const TExpressionPtr& expr) {
+        [&] (TStringBuilderBase* builder, const TExpressionPtr& expr) {
             FormatExpression(builder, *expr, expandAliases);
         });
 }
 
-void FormatJoin(TStringBuilder* builder, const TJoin& join)
+void FormatJoin(TStringBuilderBase* builder, const TJoin& join)
 {
     if (join.IsLeft) {
         builder->AppendString(" LEFT");
@@ -474,7 +474,7 @@ void FormatJoin(TStringBuilder* builder, const TJoin& join)
             builder,
             join.Fields.begin(),
             join.Fields.end(),
-            [] (TStringBuilder* builder, const TReferenceExpressionPtr& referenceExpr) {
+            [] (TStringBuilderBase* builder, const TReferenceExpressionPtr& referenceExpr) {
                  FormatReference(builder, referenceExpr->Reference);
             });
     }
@@ -484,14 +484,14 @@ void FormatJoin(TStringBuilder* builder, const TJoin& join)
     }
 }
 
-void FormatQuery(TStringBuilder* builder, const TQuery& query)
+void FormatQuery(TStringBuilderBase* builder, const TQuery& query)
 {
     if (query.SelectExprs) {
         JoinToString(
             builder,
             query.SelectExprs->begin(),
             query.SelectExprs->end(),
-            [] (TStringBuilder* builder, const TExpressionPtr& expr) {
+            [] (TStringBuilderBase* builder, const TExpressionPtr& expr) {
                 FormatExpression(builder, *expr, true);
             });
     } else {
@@ -533,7 +533,7 @@ void FormatQuery(TStringBuilder* builder, const TQuery& query)
             builder,
             query.OrderExpressions.begin(),
             query.OrderExpressions.end(),
-            [] (TStringBuilder* builder, const std::pair<TExpressionList, bool>& pair) {
+            [] (TStringBuilderBase* builder, const std::pair<TExpressionList, bool>& pair) {
                 FormatExpression(builder, pair.first, true);
                 if (pair.second) {
                     builder->AppendString(" DESC");

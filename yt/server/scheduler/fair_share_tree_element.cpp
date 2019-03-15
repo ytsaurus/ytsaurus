@@ -2171,8 +2171,8 @@ std::optional<TJobResources> TOperationElementSharedState::RemoveJob(TJobId jobI
 
 std::optional<EDeactivationReason> TOperationElement::TryStartScheduleJob(
     NProfiling::TCpuInstant now,
-    const TJobResources& minNeededResources,
     const TFairShareContext& context,
+    TJobResources* precommittedResourcesOutput,
     TJobResources* availableResourcesOutput)
 {
     auto blocked = Controller_->IsBlocked(
@@ -2182,6 +2182,8 @@ std::optional<EDeactivationReason> TOperationElement::TryStartScheduleJob(
     if (blocked) {
         return EDeactivationReason::IsBlocked;
     }
+
+    auto minNeededResources = Controller_->GetAggregatedMinNeededJobResources();
 
     auto nodeFreeResources = context.SchedulingContext->GetNodeFreeResourcesWithDiscount();
     if (!Dominates(nodeFreeResources, minNeededResources)) {
@@ -2208,6 +2210,7 @@ std::optional<EDeactivationReason> TOperationElement::TryStartScheduleJob(
 
     Controller_->IncreaseConcurrentScheduleJobCalls();
 
+    *precommittedResourcesOutput = minNeededResources;
     *availableResourcesOutput = Min(availableResourceLimits, nodeFreeResources);
     return std::nullopt;
 }
@@ -2491,15 +2494,14 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
         return false;
     }
 
-    auto minNeededResources = Controller_->GetAggregatedMinNeededJobResources();
+    TJobResources precommittedResources;
     TJobResources availableResources;
 
-    auto deactivationReason = TryStartScheduleJob(now, minNeededResources, *context, &availableResources);
+    auto deactivationReason = TryStartScheduleJob(now, *context, &precommittedResources, &availableResources);
     if (deactivationReason) {
         disableOperationElement(*deactivationReason);
         return false;
     }
-    auto precommittedResources = minNeededResources;
 
     NProfiling::TWallTimer timer;
     auto scheduleJobResult = DoScheduleJob(context, availableResources, &precommittedResources);
@@ -2643,7 +2645,11 @@ void TOperationElement::CheckForStarvation(TInstant now)
 bool TOperationElement::IsPreemptionAllowed(const TFairShareContext& context, const TFairShareStrategyTreeConfigPtr& config) const
 {
     int jobCount = GetRunningJobCount();
-    if (jobCount <= config->MaxUnpreemptableRunningJobCount) {
+    int maxUnpreemptableJobCount = config->MaxUnpreemptableRunningJobCount;
+    if (Spec_->MaxUnpreemptableRunningJobCount) {
+        maxUnpreemptableJobCount = std::min(maxUnpreemptableJobCount, *Spec_->MaxUnpreemptableRunningJobCount);
+    }
+    if (jobCount <= maxUnpreemptableJobCount) {
         OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceLowJobCount);
         return false;
     }

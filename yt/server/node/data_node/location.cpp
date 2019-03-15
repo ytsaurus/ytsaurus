@@ -45,7 +45,6 @@ using namespace NYson;
 
 // Others must not be able to list chunk store and chunk cache directories.
 static const int ChunkFilesPermissions = 0751;
-static const auto TrashCheckPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,12 +78,14 @@ TLocation::TLocation(
     PerformanceCounters_.BlobBlockReadSize = {"/blob_block_read_size", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.BlobBlockReadTime = {"/blob_block_read_time", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.BlobBlockReadThroughput = {"/blob_block_read_throughput", {}, NProfiling::EAggregateMode::All};
+    PerformanceCounters_.BlobBlockReadBytes = {"/blob_block_read_bytes"};
     PerformanceCounters_.BlobBlockWriteSize = {"/blob_block_write_size", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.BlobBlockWriteTime = {"/blob_block_write_time", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.BlobBlockWriteThroughput = {"/blob_block_write_throughput", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.JournalBlockReadSize = {"/journal_block_read_size", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.JournalBlockReadTime = {"/journal_block_read_time", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.JournalBlockReadThroughput = {"/journal_block_read_throughput", {}, NProfiling::EAggregateMode::All};
+    PerformanceCounters_.JournalBlockReadBytes = {"/journal_block_read_bytes"};
     PerformanceCounters_.JournalChunkCreateTime = {"/journal_chunk_create_time", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.JournalChunkOpenTime = {"/journal_chunk_open_time", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.JournalChunkOpenTime = {"/journal_chunk_remove_time", {}, NProfiling::EAggregateMode::All};
@@ -693,7 +694,7 @@ TStoreLocation::TStoreLocation(
     , TrashCheckExecutor_(New<TPeriodicExecutor>(
         TrashCheckQueue_->GetInvoker(),
         BIND(&TStoreLocation::OnCheckTrash, MakeWeak(this)),
-        TrashCheckPeriod,
+        Config_->TrashCheckPeriod,
         EPeriodicExecutorMode::Automatic))
 {
     auto throttlersProfiler = GetProfiler().AppendPath("/location");
@@ -772,7 +773,7 @@ IThroughputThrottlerPtr TStoreLocation::GetInThrottler(const TWorkloadDescriptor
 
 void TStoreLocation::RemoveChunkFiles(TChunkId chunkId, bool force)
 {
-    if (force) {
+    if (force || Config_->MaxTrashTtl == TDuration::Zero()) {
         RemoveChunkFilesPermanently(chunkId);
     } else {
         MoveChunkFilesToTrash(chunkId);

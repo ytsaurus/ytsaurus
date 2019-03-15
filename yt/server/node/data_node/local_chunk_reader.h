@@ -22,8 +22,7 @@ NChunkClient::IChunkReaderPtr CreateLocalChunkReader(
     IChunkPtr chunk,
     TChunkBlockManagerPtr chunkBlockManager,
     NChunkClient::IBlockCachePtr blockCache,
-    NTableClient::TBlockMetaCachePtr blockMetaCache,
-    TClosure failureHandler = TClosure());
+    NTableClient::TBlockMetaCachePtr blockMetaCache);
 
 ////////////////////////////////////////////////////////////////////////////////
 

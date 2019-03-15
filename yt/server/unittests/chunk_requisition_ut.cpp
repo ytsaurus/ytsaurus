@@ -131,9 +131,8 @@ TEST(TChunkRequisitionTest, AggregateWithReplication)
     ASSERT_FALSE(requisition.GetVital());
 
     TChunkReplication replication;
-    replication[4].SetReplicationFactor(8);
-    replication[6].SetReplicationFactor(7);
-    replication[6].SetDataPartsOnly(true);
+    replication.Set(4, TReplicationPolicy(8, false));
+    replication.Set(6, TReplicationPolicy(7, true));
 
     requisition.AggregateWith(replication, account2.get(), true);
 
@@ -165,7 +164,12 @@ TEST(TChunkRequisitionTest, RequisitionReplicationEquivalency)
     auto replication1 = requisition1.ToReplication();
     auto replication2 = requisition2.ToReplication();
 
-    ASSERT_EQ((requisition1 |= requisition2).ToReplication(), replication1 |= replication2);
+    auto aggregatedReplication = replication1;
+    for (const auto& entry : replication2) {
+        aggregatedReplication.Aggregate(entry.GetMediumIndex(), entry.Policy());
+    }
+
+    ASSERT_EQ((requisition1 |= requisition2).ToReplication(), aggregatedReplication);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

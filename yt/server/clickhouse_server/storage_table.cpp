@@ -1,12 +1,11 @@
 #include "storage_table.h"
 
-#include "auth_token.h"
 #include "query_helpers.h"
 #include "storage_distributed.h"
 #include "virtual_columns.h"
-#include "public_ch.h"
+#include "private.h"
 
-#include <yt/server/clickhouse_server/storage.h>
+#include "query_context.h"
 
 #include <Common/Exception.h>
 #include <Common/typeid_cast.h>
@@ -19,15 +18,6 @@
 
 #include <common/logger_useful.h>
 
-namespace DB {
-
-namespace ErrorCodes
-{
-    extern const int LOGICAL_ERROR;
-}
-
-}   // namespace DB
-
 namespace NYT::NClickHouseServer {
 
 using namespace DB;
@@ -38,12 +28,11 @@ class TStorageTable final
     : public TStorageDistributed
 {
 private:
-    TTablePtr Table;
+    TClickHouseTablePtr Table;
 
 public:
     TStorageTable(
-        IStoragePtr storage,
-        TTablePtr table,
+        TClickHouseTablePtr table,
         IExecutionClusterPtr cluster);
 
     std::string getTableName() const override
@@ -75,14 +64,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStorageTable::TStorageTable(IStoragePtr storage,
-                             TTablePtr table,
-                             IExecutionClusterPtr cluster)
+TStorageTable::TStorageTable(
+    TClickHouseTablePtr table,
+    IExecutionClusterPtr cluster)
     : TStorageDistributed(
-        std::move(storage),
         std::move(cluster),
-        TClickHouseTableSchema::From(*table),
-        &Poco::Logger::get("StorageTable"))
+        TClickHouseTableSchema::From(*table))
     , Table(std::move(table))
 {}
 
@@ -92,12 +79,9 @@ TTablePartList TStorageTable::GetTableParts(
     const KeyCondition* keyCondition,
     size_t maxParts)
 {
-    auto& storage = GetStorage();
+    auto* queryContext = GetQueryContext(context);
 
-    auto authToken = CreateAuthToken(*storage, context);
-
-    return storage->GetTableParts(
-        *authToken,
+    return queryContext->GetTableParts(
         Table->Name,
         keyCondition,
         maxParts);
@@ -155,14 +139,17 @@ ASTPtr TStorageTable::RewriteSelectQueryForTablePart(
 ////////////////////////////////////////////////////////////////////////////////
 
 DB::StoragePtr CreateStorageTable(
-    IStoragePtr storage,
-    TTablePtr table,
+    TClickHouseTablePtr table,
     IExecutionClusterPtr cluster)
 {
-    return std::make_shared<TStorageTable>(
-        std::move(storage),
+    auto storage = std::make_shared<TStorageTable>(
         std::move(table),
         std::move(cluster));
+    storage->startup();
+
+    return storage;
 }
+
+/////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer

@@ -109,9 +109,9 @@ class TestMedia(YTEnvSetup):
 
     def _ban_nodes(self, nodes):
         banned = False
-        for node in ls("//sys/nodes"):
+        for node in ls("//sys/cluster_nodes"):
             if node in nodes:
-                set("//sys/nodes/{0}/@banned".format(node), True)
+                set("//sys/cluster_nodes/{0}/@banned".format(node), True)
                 banned = True
         assert banned
 
@@ -244,8 +244,8 @@ class TestMedia(YTEnvSetup):
         empty_tbl_media = {"default": {"replication_factor": 0, "data_parts_only": False}}
         with pytest.raises(YtError): set("//tmp/t5/@media", empty_tbl_media)
 
-        partity_loss_tbl_media = {"default": {"replication_factor": 3, "data_parts_only": True}}
-        with pytest.raises(YtError): set("//tmp/t5/@media", partity_loss_tbl_media)
+        parity_loss_tbl_media = {"default": {"replication_factor": 3, "data_parts_only": True}}
+        with pytest.raises(YtError): set("//tmp/t5/@media", parity_loss_tbl_media)
 
     def test_write_to_non_default_medium(self):
         create("table", "//tmp/t6")
@@ -429,7 +429,7 @@ class TestMedia(YTEnvSetup):
         chunk2_nodes = get("#{0}/@stored_replicas".format(chunk2))
 
         for node in chunk1_nodes + chunk2_nodes:
-            set("//sys/nodes/{0}/@banned".format(node), True)
+            set("//sys/cluster_nodes/{0}/@banned".format(node), True)
 
         set("//sys/@config/chunk_manager/enable_chunk_replicator", True)
         wait(lambda: get("//sys/@chunk_replicator_enabled"))

@@ -170,7 +170,8 @@ void TBlob::Reallocate(size_t newCapacity)
     memcpy(newBegin, Begin_, Size_);
     NYTAlloc::Free(Buffer_);
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    TRefCountedTrackerFacade::ReallocateSpace(TagCookie_, Capacity_, newCapacity);
+    TRefCountedTrackerFacade::AllocateSpace(TagCookie_, newCapacity);
+    TRefCountedTrackerFacade::FreeSpace(TagCookie_, Capacity_);
 #endif
     Buffer_ = newBuffer;
     Begin_ = newBegin;

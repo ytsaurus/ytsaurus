@@ -42,6 +42,7 @@
 #include <yt/client/api/config.h>
 
 #include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/client/ypath/rich.h>
 
@@ -1585,6 +1586,9 @@ private:
             req->set_optimize_for(static_cast<int>(TableUploadOptions_.OptimizeFor));
             req->set_compression_codec(static_cast<int>(TableUploadOptions_.CompressionCodec));
             req->set_erasure_codec(static_cast<int>(TableUploadOptions_.ErasureCodec));
+            if (TableUploadOptions_.SecurityTags) {
+                ToProto(req->mutable_security_tags()->mutable_items(), *TableUploadOptions_.SecurityTags);
+            }
 
             SetTransactionId(req, UploadTransaction_);
             GenerateMutationId(req);
@@ -1615,25 +1619,25 @@ IUnversionedWriterPtr DoCreateSchemalessTableWriter(
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
-    auto Logger = TableClientLogger;
+    auto transactionId = transaction ? transaction->GetId() : NullTransactionId;
 
-    TTransactionId transactionId = transaction ? transaction->GetId() : NullTransactionId;
+    auto Logger = NLogging::TLogger(TableClientLogger)
+        .AddTag("Path: %v, TransactionId: %v",
+            richPath.GetPath(),
+            transactionId);
 
-    Logger.AddTag("Path: %v, TransactionId: %v",
-        richPath.GetPath(),
-        transactionId);
-
-    TTableWriterConfigPtr writerConfig = CloneYsonSerializable(config);
+    auto writerConfig = CloneYsonSerializable(config);
 
     writerConfig->WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", richPath.GetPath()));
 
     const auto& path = richPath.GetPath();
-        TUserObject userObject;
-        userObject.Path = path;
+
+    TUserObject userObject;
+    userObject.Path = path;
 
     GetUserObjectBasicAttributes(
         client,
-        TMutableRange<TUserObject>(&userObject, 1),
+        {&userObject},
         transaction ? transaction->GetId() : NullTransactionId,
         Logger,
         EPermission::Write);
@@ -1645,8 +1649,8 @@ IUnversionedWriterPtr DoCreateSchemalessTableWriter(
             userObject.Type);
     }
 
-    TObjectId objectId = userObject.ObjectId;
-    TCellTag cellTag = userObject.CellTag;
+    auto objectId = userObject.ObjectId;
+    auto cellTag = userObject.CellTag;
 
     auto uploadMasterChannel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
     auto objectIdPath = FromObjectId(objectId);

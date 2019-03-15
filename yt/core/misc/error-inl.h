@@ -231,7 +231,7 @@ const T& TErrorOr<T>::Value() const &
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void FormatValue(TStringBuilder* builder, const TErrorOr<T>& error, TStringBuf spec)
+void FormatValue(TStringBuilderBase* builder, const TErrorOr<T>& error, TStringBuf spec)
 {
     FormatValue(builder, static_cast<const TError&>(error), spec);
 }
