@@ -7,11 +7,12 @@
 #include "timestamp_provider.h"
 #include "credentials_injecting_channel.h"
 #include "dynamic_channel_pool.h"
-#include "job_input_reader.h"
 
 #include <yt/core/net/address.h>
 
 #include <yt/core/misc/small_set.h>
+
+#include <yt/core/rpc/stream.h>
 
 #include <yt/core/ytree/convert.h>
 
@@ -726,11 +727,12 @@ TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> TClient::GetJobInput(
     const auto& config = connection->GetConfig();
 
     auto req = proxy.GetJobInput();
-    req->SetTimeout(config->DefaultStreamTimeout);
+    auto timeout = options.Timeout.value_or(config->DefaultStreamTimeout);
+    req->SetTimeout(timeout);
 
     ToProto(req->mutable_job_id(), jobId);
 
-    return CreateRpcJobInputReader(req);
+    return CreateInputStreamAdapter(req);
 }
 
 TFuture<NYson::TYsonString> TClient::GetJobInputPaths(

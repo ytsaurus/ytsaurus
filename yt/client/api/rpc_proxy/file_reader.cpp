@@ -1,7 +1,5 @@
 #include "file_reader.h"
 
-#include <yt/client/api/file_reader.h>
-
 #include <yt/core/rpc/stream.h>
 
 namespace NYT::NApi::NRpcProxy {
@@ -16,9 +14,9 @@ class TRpcFileReader
 public:
     TRpcFileReader(
         IAsyncZeroCopyInputStreamPtr underlying,
-        ui64 revision):
-        Underlying_(std::move(underlying)),
-        Revision_(revision)
+        ui64 revision)
+        : Underlying_(std::move(underlying))
+        , Revision_(revision)
     {
         YCHECK(Underlying_);
     }
@@ -57,3 +55,4 @@ TFuture<IFileReaderPtr> CreateRpcFileReader(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NRpcProxy
+

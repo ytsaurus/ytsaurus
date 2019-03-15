@@ -1,7 +1,5 @@
 #include "journal_reader.h"
 
-#include <yt/client/api/journal_reader.h>
-
 #include <yt/core/rpc/stream.h>
 
 namespace NYT::NApi::NRpcProxy {
@@ -15,16 +13,17 @@ class TRpcJournalReader
 {
 public:
     TRpcJournalReader(
-        TApiServiceProxy::TReqCreateJournalReaderPtr request):
-        Request_(request)
+        TApiServiceProxy::TReqCreateJournalReaderPtr request)
+        : Request_(std::move(request))
+        , LastReadResult_(MakeFuture(std::vector<TSharedRef>()))
     {
         YCHECK(Request_);
-        LastReadResult_ = MakeFuture(std::vector<TSharedRef>());
     }
 
     virtual TFuture<void> Open() override
     {
         auto guard = Guard(SpinLock_);
+
         if (!OpenResult_) {
             OpenResult_ = NRpc::CreateInputStreamAdapter(Request_)
                 .Apply(BIND([=, this_ = MakeStrong(this)] (const IAsyncZeroCopyInputStreamPtr& inputStream) {
@@ -40,7 +39,6 @@ public:
         ValidateOpened();
 
         auto guard = Guard(SpinLock_);
-
         LastReadResult_ = LastReadResult_.Apply(
             BIND([=, this_ = MakeStrong(this)] (const std::vector<TSharedRef>&) {
                 return DoRead();
@@ -60,7 +58,7 @@ private:
     void ValidateOpened()
     {
         auto guard = Guard(SpinLock_);
-        if (!OpenResult_.IsSet()) {
+        if (!OpenResult_ || !OpenResult_.IsSet()) {
             THROW_ERROR_EXCEPTION("Can't read from an unopened journal reader");
         }
         OpenResult_.Get().ThrowOnError();
@@ -89,3 +87,4 @@ IJournalReaderPtr CreateRpcJournalReader(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NRpcProxy
+
