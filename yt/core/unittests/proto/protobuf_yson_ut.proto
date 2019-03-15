@@ -21,7 +21,12 @@ message TNestedMessage
 
 message TMessage
 {
-    optional int32 int32_field_xxx = 1 [(NYT.NYson.NProto.field_name) = "int32_field"];
+    optional int32 int32_field_xxx = 1
+    [
+        (NYT.NYson.NProto.field_name) = "int32_field",
+        (NYT.NYson.NProto.field_name_alias) = "int32_field_alias1",
+        (NYT.NYson.NProto.field_name_alias) = "int32_field_alias2"
+    ];
     optional uint32 uint32_field = 2;
     optional sint32 sint32_field = 3;
     optional int64 int64_field = 4;

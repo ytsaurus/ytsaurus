@@ -5,6 +5,7 @@ import "google/protobuf/descriptor.proto";
 extend google.protobuf.FieldOptions
 {
     optional string field_name = 3000;
+    repeated string field_name_alias = 3003;
     optional bool yson_string = 3001;
     optional bool yson_map = 3002;
 }
