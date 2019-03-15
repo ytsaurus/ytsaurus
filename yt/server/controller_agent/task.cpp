@@ -71,6 +71,12 @@ void TTask::Initialize()
     TentativeTreeEligibility_.Initialize(operationId, taskTitle);
 
     SetupCallbacks();
+
+    if (IsSimpleTask()) {
+        if (auto userJobSpec = GetUserJobSpec()) {
+            MaximumUsedTmpfsSizes_.resize(userJobSpec->TmpfsVolumes.size());
+        }
+    }
 }
 
 TString TTask::GetTitle() const
@@ -109,9 +115,9 @@ int TTask::GetTotalJobCountDelta()
     return newValue - oldValue;
 }
 
-std::optional<i64> TTask::GetMaximumUsedTmpfsSize() const
+std::vector<std::optional<i64>> TTask::GetMaximumUsedTmpfsSizes() const
 {
-    return MaximumUsedTmfpsSize_;
+    return MaximumUsedTmpfsSizes_;
 }
 
 const TProgressCounterPtr& TTask::GetJobCounter() const
@@ -483,6 +489,11 @@ bool TTask::CanLoseJobs() const
     return false;
 }
 
+bool TTask::IsSimpleTask() const
+{
+    return true;
+}
+
 TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
 {
     YCHECK(jobSummary.Statistics);
@@ -545,7 +556,7 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
     TaskHost_->RegisterStderr(joblet, jobSummary);
     TaskHost_->RegisterCores(joblet, jobSummary);
 
-    UpdateMaximumUsedTmpfsSize(statistics);
+    UpdateMaximumUsedTmpfsSizes(statistics);
 
     return result;
 }
@@ -577,7 +588,7 @@ TJobFinishedResult TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary
     TaskHost_->RegisterCores(joblet, jobSummary);
 
     YCHECK(jobSummary.Statistics);
-    UpdateMaximumUsedTmpfsSize(*jobSummary.Statistics);
+    UpdateMaximumUsedTmpfsSizes(*jobSummary.Statistics);
 
     ReinstallJob(joblet, BIND([=] {GetChunkPoolOutput()->Failed(joblet->OutputCookie);}));
 
@@ -837,18 +848,25 @@ TJobResources TTask::ApplyMemoryReserve(const TExtendedJobResources& jobResource
     return result;
 }
 
-void TTask::UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& statistics)
+void TTask::UpdateMaximumUsedTmpfsSizes(const NJobTrackerClient::TStatistics& statistics)
 {
-    auto maxUsedTmpfsSize = FindNumericValue(
-        statistics,
-        "/user_job/max_tmpfs_size");
-
-    if (!maxUsedTmpfsSize) {
+    auto userJobSpec = GetUserJobSpec();
+    if (!userJobSpec) {
         return;
     }
 
-    if (!MaximumUsedTmfpsSize_ || *MaximumUsedTmfpsSize_ < *maxUsedTmpfsSize) {
-        MaximumUsedTmfpsSize_ = *maxUsedTmpfsSize;
+    for (int index = 0; index < userJobSpec->TmpfsVolumes.size(); ++index) {
+        auto maxUsedTmpfsSize = FindNumericValue(
+            statistics,
+            Format("/user_job/tmpfs_volumes/%v/max_size", index));
+        if (!maxUsedTmpfsSize) {
+            continue;
+        }
+
+        auto& maxTmpfsSize = MaximumUsedTmpfsSizes_[index];
+        if (!maxTmpfsSize || *maxTmpfsSize < *maxUsedTmpfsSize) {
+            maxTmpfsSize = *maxUsedTmpfsSize;
+        }
     }
 }
 

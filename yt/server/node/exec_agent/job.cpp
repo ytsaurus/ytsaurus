@@ -684,7 +684,7 @@ private:
     std::vector<TGpuManager::TGpuSlotPtr> GpuSlots_;
 
     ISlotPtr Slot_;
-    std::optional<TString> TmpfsPath_;
+    std::vector<TString> TmpfsPaths_;
 
     struct TArtifact
     {
@@ -1126,7 +1126,7 @@ private:
 
         auto proxyConfig = Bootstrap_->BuildJobProxyConfig();
         proxyConfig->BusServer = Slot_->GetBusServerConfig();
-        proxyConfig->TmpfsPath = TmpfsPath_;
+        proxyConfig->TmpfsPaths = TmpfsPaths_;
         proxyConfig->SlotIndex = Slot_->GetSlotIndex();
         if (RootVolume_) {
             proxyConfig->RootPath = RootVolume_->GetPath();
@@ -1150,9 +1150,11 @@ private:
 
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
-            if (userJobSpec.has_tmpfs_path()) {
-                options.TmpfsSizeLimit = userJobSpec.tmpfs_size();
-                options.TmpfsPath = userJobSpec.tmpfs_path();
+            for (auto tmpfsVolumeProto : userJobSpec.tmpfs_volumes()) {
+                TTmpfsVolume tmpfsVolume;
+                tmpfsVolume.Size = tmpfsVolumeProto.size();
+                tmpfsVolume.Path = tmpfsVolumeProto.path();
+                options.TmpfsVolumes.push_back(tmpfsVolume);
             }
 
             if (userJobSpec.has_inode_limit()) {
@@ -1164,7 +1166,7 @@ private:
             }
         }
 
-        TmpfsPath_ = WaitFor(Slot_->CreateSandboxDirectories(options))
+        TmpfsPaths_ = WaitFor(Slot_->CreateSandboxDirectories(options))
             .ValueOrThrow();
     }
 

@@ -33,8 +33,8 @@ public:
         int slotCount);
 
     //! Make ./sandbox, ./home/, ./udf and other directories.
-    //! Returns tmpfs path if any.
-    TFuture<std::optional<TString>> CreateSandboxDirectories(
+    //! Returns list of tmpfs paths.
+    TFuture<std::vector<TString>> CreateSandboxDirectories(
         int slotIndex,
         TUserSandboxOptions options,
         int userId);
