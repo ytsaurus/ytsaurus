@@ -7455,6 +7455,10 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
         Persist(context, BannedNodeIds_);
     }
     Persist(context, PathToOutputTable_);
+    // COMPAT(levysotsky)
+    if (context.GetVersion() >= 300031) {
+        Persist(context, Acl);
+    }
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already intialized.
