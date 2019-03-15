@@ -285,3 +285,4 @@ class TestConcatenate(YTEnvSetup):
 
 class TestConcatenateMulticell(TestConcatenate):
     NUM_SECONDARY_MASTER_CELLS = 2
+
