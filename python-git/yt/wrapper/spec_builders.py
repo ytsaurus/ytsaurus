@@ -262,6 +262,7 @@ class UserJobSpecBuilder(object):
         self._spec = {}
         if spec:
             self._spec = spec
+
         self._spec_patch = {}
 
         self._spec_builder = spec_builder
@@ -545,8 +546,11 @@ class UserJobSpecBuilder(object):
     def build(self, input_tables, output_tables, operation_type, requires_command, requires_format, job_io_spec,
               local_files_to_remove=None, uploaded_files=None, group_by=None, client=None):
         require(self._spec_builder is None, lambda: YtError("The job spec builder is incomplete"))
-        spec = update(self._spec_patch, self._deepcopy_spec())
+
+        spec = get_config(client)["user_job_spec_defaults"]
+        spec = update(spec, self._spec_patch)
         self._spec_patch = {}
+        spec = update(spec, self._deepcopy_spec())
 
         if job_io_spec is not None:
             enable_key_switch = job_io_spec.get("control_attributes", {}).get("enable_key_switch")
