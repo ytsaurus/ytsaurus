@@ -20,7 +20,6 @@
 #include <yt/client/api/rowset.h>
 #include <yt/client/api/sticky_transaction_pool.h>
 
-#include <yt/client/api/rpc_proxy/public.h>
 #include <yt/client/api/rpc_proxy/api_service_proxy.h>
 #include <yt/client/api/rpc_proxy/helpers.h>
 

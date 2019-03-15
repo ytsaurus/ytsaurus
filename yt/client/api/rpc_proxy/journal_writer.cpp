@@ -1,6 +1,4 @@
-#include "journal_reader.h"
-
-#include <yt/client/api/journal_writer.h>
+#include "journal_writer.h"
 
 #include <yt/core/rpc/stream.h>
 
@@ -15,8 +13,8 @@ class TRpcJournalWriter
 {
 public:
     TRpcJournalWriter(
-        TApiServiceProxy::TReqCreateJournalWriterPtr request):
-        Request_(request)
+        TApiServiceProxy::TReqCreateJournalWriterPtr request)
+        : Request_(std::move(request))
     {
         YCHECK(Request_);
     }
@@ -39,6 +37,7 @@ public:
     virtual TFuture<void> Write(TRange<TSharedRef> rows) override
     {
         ValidateOpened();
+        ValidateNotClosed();
 
         auto guard = Guard(SpinLock_);
         if (rows.Empty()) {
@@ -61,13 +60,13 @@ private:
     TApiServiceProxy::TReqCreateJournalWriterPtr Request_;
     IAsyncZeroCopyOutputStreamPtr Underlying_;
     TFuture<void> OpenResult_;
-    std::atomic<bool> Closed_{false};
+    std::atomic<bool> Closed_ = {false};
     TSpinLock SpinLock_;
 
     void ValidateOpened()
     {
         auto guard = Guard(SpinLock_);
-        if (!OpenResult_.IsSet()) {
+        if (!OpenResult_ || !OpenResult_.IsSet()) {
             THROW_ERROR_EXCEPTION("Can't write into an unopened journal writer");
         }
         OpenResult_.Get().ThrowOnError();
@@ -76,7 +75,7 @@ private:
     void ValidateNotClosed()
     {
         if (Closed_) {
-            THROW_ERROR_EXCEPTION("File writer is closed");
+            THROW_ERROR_EXCEPTION("Journal writer is closed");
         }
     }
 };
@@ -90,3 +89,4 @@ IJournalWriterPtr CreateRpcJournalWriter(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NRpcProxy
+

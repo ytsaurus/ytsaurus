@@ -1,9 +1,5 @@
 #include "file_writer.h"
 
-#include <yt/client/api/file_writer.h>
-
-#include <yt/core/concurrency/async_stream.h>
-
 #include <yt/core/rpc/stream.h>
 
 namespace NYT::NApi::NRpcProxy {
@@ -17,8 +13,8 @@ class TRpcFileWriter
 {
 public:
     TRpcFileWriter(
-        TApiServiceProxy::TReqCreateFileWriterPtr request):
-        Request_(request)
+        TApiServiceProxy::TReqCreateFileWriterPtr request)
+        : Request_(std::move(request))
     {
         YCHECK(Request_);
     }
@@ -66,14 +62,14 @@ private:
     TApiServiceProxy::TReqCreateFileWriterPtr Request_;
     IAsyncZeroCopyOutputStreamPtr Underlying_;
     TFuture<void> OpenResult_;
-    std::atomic<bool> Closed_{false};
+    std::atomic<bool> Closed_ = {false};
 
     TSpinLock SpinLock_;
 
     void ValidateOpened()
     {
         auto guard = Guard(SpinLock_);
-        if (!OpenResult_.IsSet()) {
+        if (!OpenResult_ || !OpenResult_.IsSet()) {
             THROW_ERROR_EXCEPTION("Can't write into an unopened file writer");
         }
         OpenResult_.Get().ThrowOnError();
@@ -96,3 +92,4 @@ IFileWriterPtr CreateRpcFileWriter(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NRpcProxy
+

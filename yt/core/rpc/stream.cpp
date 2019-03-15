@@ -88,6 +88,7 @@ void TAttachmentsInputStream::DoEnqueuePayload(
         return;
     }
 
+    // XXX(kiselyovp) if we decide to use a complicated bus, this check could fail due to reordering
     if (payload.SequenceNumber != SequenceNumber_) {
         THROW_ERROR_EXCEPTION("Invalid attachments stream sequence number: expected %v, got %v",
             SequenceNumber_,

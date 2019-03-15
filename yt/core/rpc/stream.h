@@ -173,3 +173,8 @@ void HandleOutputStreamingRequest(
 /////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NRpc
+
+#define STREAM_INL_H_
+#include "stream-inl.h"
+#undef STREAM_INL_H_
+
