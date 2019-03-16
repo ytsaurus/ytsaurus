@@ -551,6 +551,18 @@ test_operation_and_job_commands()
     unset YT_TABULAR_DATA_FORMAT
 }
 
+test_check_permissions()
+{
+    $YT create user --attribute '{name=test_user}'
+
+    local table="//home/wrapper_test/table"
+    $YT create table "$table" --attributes '{schema=[{name=a;type=string;};{name=b;type=string;}];acl=[{action=allow;subjects=[test_user];permissions=[read]}]}'
+    echo -ne "a=10\tb=20\n" | $YT write-table "$table" --format "dsv"
+
+    $YT check-permission test_user read "//home/wrapper_test/table" | grep allow
+    $YT check-permission test_user read "//home/wrapper_test/table" --columns '[a]' | grep allow
+}
+
 tear_down
 run_test test_cypress_commands
 run_test test_list_long_format
@@ -576,3 +588,4 @@ run_test test_brotli_write
 run_test test_vanilla_operations
 run_test test_ping_ancestor_transactions_in_operations
 run_test test_operation_and_job_commands
+run_test test_check_permissions
