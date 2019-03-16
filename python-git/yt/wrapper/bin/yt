@@ -1090,6 +1090,8 @@ def add_check_permission_parser(add_parser):
     add_hybrid_argument(parser, "user")
     add_hybrid_argument(parser, "permission", help="one of read, write, administer, create, use")
     add_ypath_argument(parser, "path", hybrid=True)
+    add_read_from_argument(parser)
+    add_structured_argument(parser, "--columns")
     add_structured_format_argument(parser, default=output_format)
 
 def member_args(parser):
