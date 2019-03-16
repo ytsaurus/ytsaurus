@@ -595,13 +595,10 @@ void TUserObject::Persist(const TStreamPersistenceContext& context)
     Persist(context, ObjectId);
     Persist(context, CellTag);
     // COMPAT(babenko)
-    if (context.GetVersion() >= 300031) {
+    if (context.GetVersion() >= 300100) {
         Persist(context, Type);
         Persist(context, TransactionId);
         Persist(context, OmittedInaccessibleColumns);
-    }
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 300032) {
         Persist(context, SecurityTags);
     }
 }
