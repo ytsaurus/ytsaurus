@@ -45,9 +45,7 @@ void TTentativeTreeEligibility::Persist(const TPersistenceContext& context)
     Persist(context, MinJobDuration_);
 
     Persist(context, StartedJobsPerPoolTree_);
-    if (context.GetVersion() >= 300024) {
-        Persist(context, LastStartJobTimePerPoolTree_);
-    }
+    Persist(context, LastStartJobTimePerPoolTree_);
     Persist(context, FinishedJobsPerStatePerPoolTree_);
     Persist(context, BannedTrees_);
 }
