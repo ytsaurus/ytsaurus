@@ -268,14 +268,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return LeaderRecovered_ && LeaderLease_->IsValid();
+        return DecoratedAutomaton_->GetState() == EPeerState::Leading && LeaderRecovered_ && LeaderLease_->IsValid();
     }
 
     virtual bool IsActiveFollower() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return FollowerRecovered_;
+        return DecoratedAutomaton_->GetState() == EPeerState::Following && FollowerRecovered_;
     }
 
     virtual TCancelableContextPtr GetControlCancelableContext() const override
