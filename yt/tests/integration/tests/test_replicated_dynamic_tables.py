@@ -908,6 +908,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         for i in xrange(4):
             wait(lambda: select_rows("key, value1 from [//tmp/r{0}]".format(i), driver=self.replica_driver) == rows[i:])
 
+    @flaky(max_runs=5)
     @pytest.mark.parametrize("mode", ["sync", "async"])
     def test_replication_trim(self, mode):
         self._create_cells()
@@ -932,7 +933,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert get("//tmp/t/@tablets/0/flushed_row_count") == 1
         assert get("//tmp/t/@tablets/0/trimmed_row_count") == 0
 
-        set("//tmp/t/@min_replication_log_ttl", 1000)
+        set("//tmp/t/@min_replication_log_ttl", 3000)
         sync_mount_table("//tmp/t")
 
         sleep(5.0)
