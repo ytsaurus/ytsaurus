@@ -140,7 +140,7 @@ private:
         Block block { jobSpec, dataWeight, rowCount };
 
         auto storage = StorageMemory::create(tableName + "_parts", ColumnsDescription{block.getNamesAndTypesList()});
-        storage->write(nullptr, context.getSettingsRef())->write(block);
+        storage->write(nullptr, context)->write(block);
 
         return storage;
     }

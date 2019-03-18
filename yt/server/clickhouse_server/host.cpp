@@ -77,7 +77,7 @@ std::string GetCanonicalPath(std::string path)
 {
     Poco::trimInPlace(path);
     if (path.empty()) {
-        throw Exception("path configuration parameter is empty");
+        throw Exception("path configuration parameter is empty", DB::ErrorCodes::METRIKA_OTHER_ERROR);
     }
     if (path.back() != '/') {
         path += '/';
@@ -311,7 +311,7 @@ private:
         auto storageHomePath = Config_->Engine->CypressRootPath;
 
         auto cliqueAuthorizationManager = CreateCliqueAuthorizationManager(
-            Bootstrap_->GetRootClient(), 
+            Bootstrap_->GetRootClient(),
             CliqueId_,
             Config_->ValidateOperationPermission);
         auto securityManager = CreateSecurityManager(std::move(cliqueAuthorizationManager));

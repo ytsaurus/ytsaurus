@@ -270,7 +270,7 @@ std::string TListFilterAndConcatenateTables::GetDirectoryRequiredArgument(
     if (arguments.empty()) {
         throw Exception(
             "Table function " + getName() + " expected at least one argument: directory path",
-            ErrorCodes::TOO_LESS_ARGUMENTS_FOR_FUNCTION);
+            ErrorCodes::TOO_FEW_ARGUMENTS_FOR_FUNCTION);
     }
 
     return EvaluateIdentifierArgument(arguments[0], context);

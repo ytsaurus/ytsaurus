@@ -94,14 +94,6 @@ void ITransaction::LockRows(
 void ITransaction::LockRows(
     const NYPath::TYPath& path,
     NTableClient::TNameTablePtr nameTable,
-    TSharedRange<NTableClient::TKey> keys)
-{
-    LockRows(path, std::move(nameTable), std::move(keys), NTableClient::PrimaryLockMask);
-}
-
-void ITransaction::LockRows(
-    const NYPath::TYPath& path,
-    NTableClient::TNameTablePtr nameTable,
     TSharedRange<NTableClient::TKey> keys,
     const std::vector<TString>& locks)
 {
