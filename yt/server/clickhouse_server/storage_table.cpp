@@ -130,7 +130,7 @@ ASTPtr TStorageTable::RewriteSelectQueryForTablePart(
     }
 
     if (!anyTableFunction) {
-        throw Exception("Invalid SelectQuery, no table function produced", queryToString(queryAst), ErrorCodes::LOGICAL_ERROR);
+        throw Exception("Invalid SelectQuery, no table function produced", Exception(queryToString(queryAst), ErrorCodes::LOGICAL_ERROR), ErrorCodes::LOGICAL_ERROR);
     }
 
     return modifiedQueryAst;

@@ -60,7 +60,7 @@ public:
         , CliqueId_(std::move(cliqueId))
     { }
 
-    void loadFromConfig(Poco::Util::AbstractConfiguration& config) override
+    void loadFromConfig(const Poco::Util::AbstractConfiguration& config) override
     {
         auto guard = TWriterGuard(SpinLock_);
 
