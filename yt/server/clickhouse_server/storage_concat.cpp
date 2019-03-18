@@ -119,7 +119,7 @@ ASTPtr TStorageConcat::RewriteSelectQueryForTablePart(
     }
 
     if (!tableFunction) {
-        throw Exception("Invalid SelectQuery", queryToString(queryAst), ErrorCodes::LOGICAL_ERROR);
+        throw Exception("Invalid SelectQuery", DB::Exception(queryToString(queryAst), ErrorCodes::LOGICAL_ERROR), ErrorCodes::LOGICAL_ERROR);
     }
 
     tableExpression->table_function = std::move(tableFunction);

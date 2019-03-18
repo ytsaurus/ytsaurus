@@ -76,7 +76,7 @@ std::string GetCanonicalPath(std::string path)
 {
     Poco::trimInPlace(path);
     if (path.empty()) {
-        throw Exception("path configuration parameter is empty");
+        throw Exception("path configuration parameter is empty", DB::ErrorCodes::METRIKA_OTHER_ERROR);
     }
     if (path.back() != '/') {
         path += '/';

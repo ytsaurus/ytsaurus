@@ -80,6 +80,7 @@ public:
         const Context& context,
         const std::string& name,
         const ColumnsDescription & columns,
+        const IndicesDescription & indices,
         const ASTModifier& engineModifier) override;
 
     time_t getTableMetadataModificationTime(
@@ -241,6 +242,7 @@ void TDatabase::alterTable(
     const Context& /* context */,
     const std::string& /* name */,
     const ColumnsDescription & /* columns */,
+    const IndicesDescription & /* indices */,
     const ASTModifier& /* engineModifier */)
 {
     throw Exception(
