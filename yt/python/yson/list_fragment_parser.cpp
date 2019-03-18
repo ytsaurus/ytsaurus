@@ -4,8 +4,6 @@
 
 #include <yt/core/ytree/node.h>
 
-#include <yt/core/misc/finally.h>
-
 namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////

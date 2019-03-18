@@ -486,7 +486,7 @@ def share_packages(options, build_context):
         for pkg in upload_packages:
             path = "{0}/{1}_{2}_amd64.deb".format(dir, pkg, version)
             if not os.path.exists(path):
-                teamcity_message("Failed to find package {0} ({1}) ".format(pkg, path), "WARNING")
+                raise StepFailedWithNonCriticalError("Failed to find package {0} ({1})".format(pkg, path))
             else:
                 torrent_id = sky_share(os.path.basename(path), os.path.dirname(path))
                 sandbox_ctx = {
@@ -525,7 +525,7 @@ def share_packages(options, build_context):
         yt_wrapper.insert_rows("//sys/admin/skynet/packages", rows)
 
     except Exception as err:
-        teamcity_message("Failed to share packages via locke and sandbox - {0}".format(err), "WARNING")
+        raise StepFailedWithNonCriticalError("Failed to share packages via locke and sandbox - {0}".format(err))
 
 
 @build_step
@@ -864,7 +864,7 @@ def run_sandbox_upload(options, build_context):
     ))
     if yt_binary_upload_list - processed_files:
         missing_file_string = ", ".join(yt_binary_upload_list - processed_files)
-        teamcity_message("Missing files in sandbox upload: {0}".format(missing_file_string), "WARNING")
+        raise StepFailedWithNonCriticalError("Missing files in sandbox upload: {0}".format(missing_file_string))
 
     # Also, inject python libraries and bindings as debs
     artifacts_directory = os.path.join(options.working_directory, "./ARTIFACTS")
@@ -875,8 +875,7 @@ def run_sandbox_upload(options, build_context):
     for pkg in inject_packages:
         paths = glob.glob("{0}/{1}_*.deb".format(artifacts_directory, pkg))
         if len(paths) != 1:
-            teamcity_message("Failed to find package {0}, found files {1}".format(pkg, paths), "WARNING")
-            continue
+            raise StepFailedWithNonCriticalError("Failed to find package {0}, found files {1}".format(pkg, paths))
         destination_path = os.path.join(binary_distribution_folder, os.path.basename(paths[0]))
         os.symlink(paths[0], destination_path)
 
