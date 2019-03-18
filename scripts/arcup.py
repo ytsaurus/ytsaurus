@@ -267,6 +267,7 @@ class ReplaceSvnStuffStep(Step):
                     "--threads=0",
                     "--checkout",
                     "--thin",
+                    "--keep-going",
                 ] + additional_args, env=env)
 
             #
