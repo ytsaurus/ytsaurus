@@ -147,7 +147,7 @@ class TestJournals(YTEnvSetup):
 
         set("//sys/@config/chunk_manager/enable_chunk_sealer", True, recursive=True)
 
-        wait_until_sealed("//tmp/j1") # TODOKETE i fail here
+        wait_until_sealed("//tmp/j1")
 
         def replicator_has_done_well():
             try:

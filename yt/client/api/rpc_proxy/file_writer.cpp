@@ -43,7 +43,7 @@ public:
             return VoidFuture;
         }
 
-        // data can be rewritten after returned future is set, and that can happen prematurely
+        // data can be rewritten after returned future is set, which can happen prematurely
         struct TRpcFileWriterTag { };
         auto dataCopy = TSharedMutableRef::MakeCopy<TRpcFileWriterTag>(data);
         return Underlying_->Write(dataCopy);

@@ -1,31 +1,13 @@
-import pytest
-import time
-
 from yt_env_setup import YTEnvSetup, require_ytserver_root_privileges, unix_only, wait
 from yt_commands import *
+
+from yt.wrapper import JsonFormat
 
 from copy import deepcopy
 from random import shuffle
 
-from test_get_job_input import wait_for_data_in_job_archive
-
-import yt.environment.init_operation_archive as init_operation_archive
-
-# for launching other tests with RPC backend
-def create_input_table(path, data, dynamic_schema, driver_backend, authenticated_user=None):
-    if driver_backend == "rpc":
-        create("table", path,
-            authenticated_user=authenticated_user,
-            attributes={
-                "schema": dynamic_schema,
-                "dynamic": True
-            })
-        sync_mount_table(path)
-        insert_rows(path, data, authenticated_user=authenticated_user)
-        sync_unmount_table(path)
-    else:
-        create("table", path, authenticated_user=authenticated_user)
-        write_table(path, data, authenticated_user=authenticated_user)
+import pytest
+import time
 
 ##################################################################
 
@@ -38,8 +20,6 @@ class TestRpcProxy(YTEnvSetup):
         wait(lambda: not exists("//sys/transactions/" + tx))
 
 ##################################################################
-
-# TODO(kiselyovp) tests for file caching (when read_file is implemented)
 
 class TestRpcProxyBase(YTEnvSetup):
     NUM_MASTERS = 1
@@ -107,12 +87,6 @@ class TestRpcProxyBase(YTEnvSetup):
     def _remove_simple_tables(self):
         remove("//tmp/t_in", recursive=True)
         remove("//tmp/t_out", recursive=True)
-
-    # TODOKETE
-    def _write_file_crutch(self, path, data):
-        # cmd = "echo \"{0}\" > {1}".format(data, path)
-        # self._start_simple_operation(cmd).track()
-        write_file(path, data, driver=get_native_driver()) # TODOKETE
 
 ##################################################################
 
@@ -233,7 +207,7 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
 ##################################################################
 
 @require_ytserver_root_privileges
-class TestSchedulerRpcProxy(TestRpcProxyBase):
+class TestDumpJobContextRpcProxy(TestRpcProxyBase):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "statistics_reporter": {
@@ -253,127 +227,23 @@ class TestSchedulerRpcProxy(TestRpcProxyBase):
         }
     }
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            # Force snapshot never happen
-            "snapshot_period": 10**9,
-        }
-    }
-
-    def setup(self):
-        sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
-
-    def teardown(self):
-        remove("//sys/operations_archive")
-
-    def _get_job_ids(self, op):
-        return op.get_running_jobs().keys()
-
-    def _get_first_job_id(self, op):
-        return self._get_job_ids(op)[0]
-
-    def test_abandon_job(self):
-        def check_result_length(cmd_with_breakpoint, func, length):
-            op = self._start_simple_operation_with_breakpoint(cmd_with_breakpoint)
-            events_on_fs().wait_breakpoint()
-
-            wait(lambda: exists(op.get_path()))
-            wait(lambda: get(op.get_path() + "/@brief_progress/jobs/running") == 1)
-
-            job_id = self._get_first_job_id(op)
-            func(job_id)
-
-            wait(lambda: get(op.get_path() + "/@brief_progress/jobs/running") == 0)
-
-            events_on_fs().release_breakpoint()
-            op.track()
-
-            self._prepare_output_table()
-
-            assert len(select_rows("* from [//tmp/t_out]")) == length
-
-            self._remove_simple_tables()
-            reset_events_on_fs()
-
-        check_result_length("BREAKPOINT ; cat", abandon_job, 0)
-        check_result_length("cat; BREAKPOINT", abandon_job, 0)
-
-    # XXX(kiselyovp) All tests below are basically copypasta.
-    # XXX(kiselyovp) Delete them when {read|write}_{table|file|journal} methods are supported in RPC proxy.
-    def test_abort_job(self):
-        op = self._start_simple_operation_with_breakpoint("BREAKPOINT ; cat")
-        events_on_fs().wait_breakpoint()
-
-        wait(lambda: exists(op.get_path()))
-        wait(lambda: get(op.get_path() + "/@brief_progress/jobs/running") == 1)
-
-        job_id = self._get_first_job_id(op)
-        abort_job(job_id)
-
-        events_on_fs().release_breakpoint()
-        op.track()
-
-        self._prepare_output_table()
-        assert len(select_rows("* from [//tmp/t_out]")) == 1
-
-        assert get(op.get_path() + "/@progress/jobs/aborted/total") == 1
-        assert get(op.get_path() + "/@progress/jobs/failed") == 0
-
-    def test_strace_job(self):
-        op = self._start_simple_operation("{notify_running} ; sleep 5000".
-                                          format(notify_running=events_on_fs().notify_event_cmd("job_is_running")))
-
-        events_on_fs().wait_event("job_is_running")
-        time.sleep(1.0) # give job proxy some time to send a heartbeat
-        result = strace_job(self._get_first_job_id(op))
-
-        assert len(result) > 0
-        for pid, trace in result["traces"].iteritems():
-            assert trace["trace"].startswith("Process {0} attached".format(pid))
-            assert "process_command_line" in trace
-            assert "process_name" in trace
-
-    def _poll_until_prompt(self, job_id, shell_id):
-        output = ""
-        while len(output) < 4 or output[-4:] != ":~$ ":
-            r = poll_job_shell(job_id, operation="poll", shell_id=shell_id)
-            output += r["output"]
-        return output
-
-    def test_poll_job_shell(self):
-        op = self._start_simple_operation(with_breakpoint("BREAKPOINT ; cat"))
-        job_id = wait_breakpoint()[0]
-
-        r = poll_job_shell(job_id, operation="spawn", term="screen-256color", height=50, width=132)
-        shell_id = r["shell_id"]
-        self._poll_until_prompt(job_id, shell_id)
-
-        command = "echo $TERM; tput lines; tput cols; env | grep -c YT_OPERATION_ID\r"
-        poll_job_shell(
-            job_id,
-            operation="update",
-            shell_id=shell_id,
-            keys=command.encode("hex"),
-            input_offset=0)
-        output = self._poll_until_prompt(job_id, shell_id)
-
-        expected = "{0}\nscreen-256color\r\n50\r\n132\r\n1".format(command)
-        assert output.startswith(expected)
-
-        poll_job_shell(job_id, operation="terminate", shell_id=shell_id)
-        with pytest.raises(YtError):
-            self._poll_until_prompt(job_id, shell_id)
-
-        abandon_job(job_id)
-
-        op.track()
-        self._prepare_output_table()
-
-        assert len(select_rows("* from [//tmp/t_out]")) == 0
-
     def test_dump_job_context(self):
-        op = self._start_simple_operation(with_breakpoint("cat ; BREAKPOINT"))
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"foo": "bar"})
+
+        op = map(
+            dont_track=True,
+            label="dump_job_context",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("cat ; BREAKPOINT"),
+            spec={
+                "mapper": {
+                    "input_format": "json",
+                    "output_format": "json"
+                }
+            })
 
         jobs = wait_breakpoint()
         # Wait till job starts reading input
@@ -381,123 +251,12 @@ class TestSchedulerRpcProxy(TestRpcProxyBase):
 
         dump_job_context(jobs[0], "//tmp/input_context")
 
-        events_on_fs().release_breakpoint()
-        op.track()
-
-        # XXX(kiselyovp) read_file is not implemented in RPC proxy yet
-        '''context = read_file("//tmp/input_context")
-        assert get("//tmp/input_context/@description/type") == "input_context"
-        assert JsonFormat().loads_row(context)["foo"] == "bar"'''
-
-        assert exists("//tmp/input_context")
-        assert get("//tmp/input_context/@uncompressed_data_size") > 0
-
-    @unix_only
-    def test_signal_job_with_no_job_restart(self):
-        op = self._start_simple_operation_with_breakpoint(
-            # XXX(kiselyovp) magic constants galore
-            """(trap "echo '{"'"index": 242, "str": "SIGUSR1"}'"'" USR1 ; trap "echo '{"'"index": 243, "str": "SIGUSR2"}'"'" USR2 ; cat ; BREAKPOINT)""",
-            spec={
-                "mapper": {
-                    "input_format": "json",
-                    "output_format": "json"
-                },
-                "max_failed_job_count": 1
-            })
-
-        jobs = events_on_fs().wait_breakpoint()
-
-        time.sleep(1.0) # give job proxy some time to send a heartbeat
-        signal_job(jobs[0], "SIGUSR1")
-        signal_job(jobs[0], "SIGUSR2")
-
-        events_on_fs().release_breakpoint()
-        op.track()
-
-        assert get(op.get_path() + "/@progress/jobs/aborted/total") == 0
-        assert get(op.get_path() + "/@progress/jobs/failed") == 0
-
-        op.track()
-        self._prepare_output_table()
-
-        assert select_rows("* from [//tmp/t_out] LIMIT 5") ==\
-               [{"index": self._sample_index, "str": self._sample_text},
-                {"index": self._sample_index + 1, "str": "SIGUSR1"},
-                {"index": self._sample_index + 2, "str": "SIGUSR2"}]
-
-    @unix_only
-    def test_signal_job_with_job_restart(self):
-        op = self._start_simple_operation_with_breakpoint(
-            # XXX(kiselyovp) magic constants galore
-            """(trap "echo '{"'"index": 242, "str": "SIGUSR1"}'"'"" ; echo stderr >&2 ; exit 1" USR1; cat; BREAKPOINT)""",
-            spec={
-                "mapper": {
-                    "input_format": "json",
-                    "output_format": "json"
-                },
-                "max_failed_job_count": 1
-            })
-
-        jobs = wait_breakpoint()
-
-        time.sleep(1.0) # give job proxy some time to send a heartbeat
-        signal_job(jobs[0], "SIGUSR1")
         release_breakpoint()
-
         op.track()
 
-        assert get(op.get_path() + "/@progress/jobs/aborted/total") == 1
-        assert get(op.get_path() + "/@progress/jobs/aborted/scheduled/user_request") == 1
-        assert get(op.get_path() + "/@progress/jobs/aborted/scheduled/other") == 0
-        assert get(op.get_path() + "/@progress/jobs/failed") == 0
-
-        self._prepare_output_table()
-        assert select_rows("* from [//tmp/t_out]") == [self._sample_line]
-        # XXX(kiselyovp) read_file is not implemented in RPC proxy yet
-        # check_all_stderrs(op, "stderr\n", 1, substring=True)
-
-    def test_map_input_paths(self):
-        tmpdir = create_tmpdir("inputs")
-        self._create_simple_table(
-            "//tmp/in1",
-            [{"index": i+j, "str": "foo"} for i in xrange(0, 5, 2) for j in xrange(2)],
-            sorted=False)
-
-        self._create_simple_table(
-            "//tmp/in2",
-            [{"index": (i+j) / 4, "str": "bar"} for i in xrange(3, 24, 2) for j in xrange(2)],
-            sorted=True)
-
-        create("table", "//tmp/out")
-        in2 = '//tmp/in2[1:4,5:6]'
-        op = map(
-            dont_track=True,
-            in_=["//tmp/in1", in2],
-            out="//tmp/out",
-            command="cat > {0}/$YT_JOB_ID && exit 1".format(tmpdir),
-            spec={
-                "mapper": {
-                    "format": "dsv"
-                },
-                "job_count": 1,
-                "max_failed_job_count": 1
-            })
-        with pytest.raises(YtError):
-            op.track()
-
-        job_ids = os.listdir(tmpdir)
-        assert job_ids
-        wait_for_data_in_job_archive(op.id, job_ids)
-
-        assert len(job_ids) == 1
-        expected = yson.loads("""[
-            <ranges=[{lower_limit={row_index=0};upper_limit={row_index=6}}]>"//tmp/in1";
-            <ranges=[
-                {lower_limit={key=[1]};upper_limit={key=[4]}};
-                {lower_limit={key=[5]};upper_limit={key=[6]}}
-            ]>"//tmp/in2"]""")
-        actual = yson.loads(get_job_input_paths(job_ids[0]))
-        assert expected == actual
+        context = read_file("//tmp/input_context")
+        assert get("//tmp/input_context/@description/type") == "input_context"
+        assert JsonFormat().loads_row(context)["foo"] == "bar"
 
 ##################################################################
 

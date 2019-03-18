@@ -3,9 +3,8 @@ import pytest
 from io import TextIOBase
 
 from yt.common import YtError
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, skip_if_rpc_driver_backend
 from yt_commands import *
-from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
@@ -162,6 +161,7 @@ class TestFiles(YTEnvSetup):
 
         assert read_file("//tmp/f") == content
 
+    @skip_if_rpc_driver_backend # TODO(kiselyovp) wait for YT-10519
     def test_concatenate(self):
         create("file", "//tmp/fa")
         write_file("//tmp/fa", "a")
@@ -286,7 +286,8 @@ class TestFileErrorsRpcProxy(YTEnvSetup):
         create("file", "//tmp/file")
         write_file("//tmp/file", "abacaba", file_writer={"upload_transaction_timeout": 1000})
         with pytest.raises(YtError):
-            write_file("<append=true>//tmp/file",
+            write_file(
+                "<append=true>//tmp/file",
                 None,
                 input_stream=self.FaultyStringStream("dabacaba", client_error=True),
                 file_writer={"upload_transaction_timeout": 1000})
