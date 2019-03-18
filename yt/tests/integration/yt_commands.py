@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from yt.environment.yt_env import set_environment_driver_logging_config
 
 import yt.yson as yson
@@ -239,8 +241,8 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
             if is_text_yson(pretty_parameters.get(key, None)):
                 pretty_parameters.pop(key)
 
-        print >>sys.stderr
-        print >>sys.stderr, str(datetime.now()), command_name, pretty_parameters
+        print(file=sys.stderr)
+        print(str(datetime.now()), command_name, pretty_parameters, file=sys.stderr)
 
     response = driver.execute(
         Request(command_name=command_name,
@@ -260,19 +262,20 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
 
     if response_parameters is not None:
         response_params = response.response_parameters()
-        print >>sys.stderr, response_params
+        print(response_params, file=sys.stderr)
         response_parameters.update(response_params)
 
     if not response.is_ok():
+        # TODO(ignat): it build empty error with response.error() as inner error. Fix it!
         error = YtResponseError(response.error())
         if verbose_error:
-            print >>sys.stderr, str(error)
+            print(str(error), file=sys.stderr)
             # NB: we want to see inner errors in teamcity.
         raise error
     if isinstance(output_stream, OutputType):
         result = output_stream.getvalue()
         if verbose:
-            print >>sys.stderr, result
+            print(result, file=sys.stderr)
         return result
 
 def execute_command_with_output_format(command_name, kwargs, input_stream=None):
@@ -439,19 +442,24 @@ def read_blob_table(path, **kwargs):
     execute_command("read_blob_table", kwargs, output_stream=output)
     return output.getvalue()
 
-def write_table(path, value, is_raw=False, **kwargs):
-    if not is_raw:
-        if not isinstance(value, list):
-            value = [value]
-        value = yson.dumps(value)
-        # remove surrounding [ ]
-        value = value[1:-1]
+def write_table(path, value=None, is_raw=False, **kwargs):
+    if "input_stream" in kwargs:
+        input_stream = kwargs.pop("input_stream")
+    else:
+        assert value is not None
+        if not is_raw:
+            if not isinstance(value, list):
+                value = [value]
+            value = yson.dumps(value)
+            # remove surrounding [ ]
+            value = value[1:-1]
+        input_stream = StringIO(value)
 
     attributes = {}
     if "sorted_by" in kwargs:
         attributes["sorted_by"] = flatten(kwargs["sorted_by"])
     kwargs["path"] = yson.to_yson_type(path, attributes=attributes)
-    return execute_command("write_table", kwargs, input_stream=StringIO(value))
+    return execute_command("write_table", kwargs, input_stream=input_stream)
 
 def locate_skynet_share(path, **kwargs):
     kwargs["path"] = path
@@ -702,7 +710,7 @@ class Operation(object):
         return get(job_phase_path, verbose=False)
 
     def ensure_running(self, timeout=2.0):
-        print >>sys.stderr, "Waiting for operation %s to become running" % self.id
+        print("Waiting for operation %s to become running" % self.id, file=sys.stderr)
 
         state = self.get_state(verbose=False)
         while state != "running" and timeout > 0:
@@ -788,11 +796,12 @@ class Operation(object):
             state = self.get_state(verbose=False)
             message = "Operation {0} {1}".format(self.id, state)
             if counter % 30 == 0 or state in ["failed", "aborted", "completed"]:
-                print >>sys.stderr, message,
+                print(message, file=sys.stderr)
                 if state == "running":
-                    print >>sys.stderr, self.build_progress()
+                    print(self.build_progress(), file=sys.stderr)
+                    print(file=sys.stderr)
                 else:
-                    print >>sys.stderr
+                    print(file=sys.stderr)
             if state == "failed" or state == "aborted":
                 raise self.get_error()
             if state == "completed":
@@ -1314,20 +1323,20 @@ class PrepareTables(object):
 def set_node_banned(address, flag, driver=None):
     set("//sys/cluster_nodes/%s/@banned" % address, flag, driver=driver)
     ban, state = ("banned", "offline") if flag else ("unbanned", "online")
-    print >>sys.stderr, "Waiting for node %s to become %s..." % (address, ban)
+    print("Waiting for node %s to become %s..." % (address, ban), file=sys.stderr)
     wait(lambda: get("//sys/cluster_nodes/%s/@state" % address, driver=driver) == state)
 
 def set_node_decommissioned(address, flag, driver=None):
     set("//sys/cluster_nodes/%s/@decommissioned" % address, flag, driver=driver)
-    print >>sys.stderr, "Node %s is %s" % (address, "decommissioned" if flag else "not decommissioned")
+    print("Node %s is %s" % (address, "decommissioned" if flag else "not decommissioned"), file=sys.stderr)
 
 def wait_for_nodes(driver=None):
-    print >>sys.stderr, "Waiting for nodes to become online..."
+    print("Waiting for nodes to become online...", file=sys.stderr)
     wait(lambda: all(n.attributes["state"] == "online"
                      for n in ls("//sys/cluster_nodes", attributes=["state"], driver=driver)))
 
 def wait_for_chunk_replicator(driver=None):
-    print >>sys.stderr, "Waiting for chunk replicator to become enabled..."
+    print("Waiting for chunk replicator to become enabled...", file=sys.stderr)
     wait(lambda: get("//sys/@chunk_replicator_enabled", driver=driver))
 
 def get_cluster_drivers(primary_driver=None):
@@ -1339,7 +1348,7 @@ def get_cluster_drivers(primary_driver=None):
     raise "Failed to get cluster drivers"
 
 def wait_for_cells(cell_ids=None, driver=None):
-    print >>sys.stderr, "Waiting for tablet cells to become healthy..."
+    print("Waiting for tablet cells to become healthy...", file=sys.stderr)
 
     def get_cells(driver):
         cells = ls("//sys/tablet_cells", attributes=["health", "id", "peers"], driver=driver)
@@ -1385,7 +1394,7 @@ def wait_until_sealed(path, driver=None):
     wait(lambda: get(path + "/@sealed", driver=driver))
 
 def wait_for_tablet_state(path, state, **kwargs):
-    print >>sys.stderr, "Waiting for tablets to become %s..." % (state)
+    print("Waiting for tablets to become %s..." % (state), file=sys.stderr)
     driver = kwargs.pop("driver", None)
     if kwargs.get("first_tablet_index", None) == None and kwargs.get("last_tablet_index", None) == None:
         wait(lambda: get(path + "/@tablet_state", driver=driver) == state)
@@ -1442,10 +1451,10 @@ def sync_compact_table(path, driver=None):
     set(path + "/@forced_compaction_revision", 1, driver=driver)
     sync_mount_table(path, driver=driver)
 
-    print >>sys.stderr, "Waiting for tablets to become compacted..."
+    print("Waiting for tablets to become compacted...", file=sys.stderr)
     wait(lambda: len(chunk_ids.intersection(__builtin__.set(get(path + "/@chunk_ids", driver=driver)))) == 0)
 
-    print >>sys.stderr, "Waiting for tablets to become stable..."
+    print("Waiting for tablets to become stable...", file=sys.stderr)
     def check_stable():
         chunk_ids1 = get(path + "/@chunk_ids", driver=driver)
         time.sleep(3.0)
@@ -1456,13 +1465,13 @@ def sync_compact_table(path, driver=None):
 def sync_enable_table_replica(replica_id, driver=None):
     alter_table_replica(replica_id, enabled=True, driver=driver)
 
-    print >>sys.stderr, "Waiting for replica to become enabled..."
+    print("Waiting for replica to become enabled...", file=sys.stderr)
     wait(lambda: get("#{0}/@state".format(replica_id), driver=driver) == "enabled")
 
 def sync_disable_table_replica(replica_id, driver=None):
     alter_table_replica(replica_id, enabled=False, driver=driver)
 
-    print >>sys.stderr, "Waiting for replica to become disabled..."
+    print("Waiting for replica to become disabled...", file=sys.stderr)
     wait(lambda: get("#{0}/@state".format(replica_id), driver=driver) == "disabled")
 
 def get_tablet_leader_address(tablet_id):
@@ -1474,7 +1483,7 @@ def get_tablet_leader_address(tablet_id):
 def sync_alter_table_replica_mode(replica_id, mode, driver=None):
     alter_table_replica(replica_id, mode=mode, driver = driver)
 
-    print >>sys.stderr, "Waiting for replica mode to become {}...".format(mode)
+    print("Waiting for replica mode to become {}...".format(mode), file=sys.stderr)
     tablets = get("#{}/@tablets".format(replica_id), driver=driver)
     tablet_ids = [x["tablet_id"] for x in tablets]
     cell_ids = [get("#{}/@cell_id".format(tablet_id), driver=driver) for tablet_id in tablet_ids]
@@ -1496,7 +1505,7 @@ def create_dynamic_table(path, **attributes):
     create_table_with_attributes(path, **attributes)
 
 def sync_control_chunk_replicator(enabled):
-    print >>sys.stderr, "Setting chunk replicator state to", enabled
+    print("Setting chunk replicator state to", enabled, file=sys.stderr)
     set("//sys/@config/chunk_manager/enable_chunk_replicator", enabled, recursive=True)
     wait(lambda: all(get("//sys/@chunk_replicator_enabled", driver=driver) == enabled for driver in clusters_drivers["primary"]))
 
