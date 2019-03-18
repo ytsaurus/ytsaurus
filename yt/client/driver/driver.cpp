@@ -401,7 +401,6 @@ private:
                 executeCallback.Run(context);
             } catch (const std::exception& ex) {
                 result = TError(ex);
-                result = TError(ex);
             }
         }
 
