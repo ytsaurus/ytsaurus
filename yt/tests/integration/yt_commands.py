@@ -26,7 +26,7 @@ from cStringIO import StringIO, OutputType
 ###########################################################################
 
 clusters_drivers = {}
-_native_driver = None # TODOKETE
+_native_driver = None
 is_multicell = None
 path_to_run_tests = None
 _zombie_responses = []
@@ -66,7 +66,7 @@ def get_driver(cell_index=0, cluster="primary"):
 
     return clusters_drivers[cluster][cell_index]
 
-def get_native_driver(): # TODOKETE
+def get_native_driver():
     return _native_driver
 
 def _get_driver(driver):
@@ -75,7 +75,9 @@ def _get_driver(driver):
     else:
         return driver
 
-def force_native_driver(func): # TODOKETE
+# TODO(kiselyovp) remove this _native_driver crutch when
+# read_table and write_table are supported via RPC proxy
+def force_native_driver(func):
     def wrapper(func, self, *args, **kwargs):
         kwargs["driver"] = get_native_driver()
         return func(self, *args, **kwargs)
@@ -101,7 +103,7 @@ def init_drivers(clusters):
                 else:
                     native_config = pycopy.deepcopy(instance.configs["driver"])
                     native_config["connection_type"] = "native"
-                    _native_driver = Driver(config=native_config) # TODOKETE
+                    _native_driver = Driver(config=native_config)
 
             secondary_drivers = []
             for secondary_driver_config in secondary_driver_configs:

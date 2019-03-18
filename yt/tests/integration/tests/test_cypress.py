@@ -826,7 +826,6 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/t1")
         assert get("//tmp/t2&/@broken")
 
-    @skip_if_rpc_driver_backend
     def test_link4(self):
         set("//tmp/t1", 1)
         link("//tmp/t1", "//tmp/t2")
@@ -1058,7 +1057,6 @@ class TestCypress(YTEnvSetup):
         c2 = get("//tmp/@access_counter")
         assert c1 == c2
 
-    @skip_if_rpc_driver_backend
     def test_access_stat_suppress3(self):
         time.sleep(1)
         create("table", "//tmp/t")
@@ -1068,7 +1066,6 @@ class TestCypress(YTEnvSetup):
         c2 = get("//tmp/t/@access_counter")
         assert c1 == c2
 
-    @skip_if_rpc_driver_backend
     def test_access_stat_suppress4(self):
         time.sleep(1)
         create("file", "//tmp/f")

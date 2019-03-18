@@ -57,7 +57,7 @@ private:
 
 TError CheckWriterFeedback(
     const TSharedRef& ref,
-    EWriterFeedback feedback)
+    EWriterFeedback expectedFeedback)
 {
     NProto::TWriterFeedback protoFeedback;
     if (!TryDeserializeProto(&protoFeedback, ref)) {
@@ -71,9 +71,9 @@ TError CheckWriterFeedback(
         return ex.Error();
     }
 
-    if (actualFeedback != feedback) {
+    if (actualFeedback != expectedFeedback) {
         return TError("Received the wrong kind of writer feedback")
-            << TErrorAttribute("expected_feedback", feedback)
+            << TErrorAttribute("expected_feedback", expectedFeedback)
             << TErrorAttribute("actual_feedback", actualFeedback);
     }
 
@@ -124,7 +124,7 @@ public:
                     }
 
                     writeResult.Subscribe(
-                        BIND(&TRpcOutputStreamAdapter::Abort, MakeWeak(this)));
+                        BIND(&TRpcOutputStreamAdapter::AbortOnError, MakeWeak(this)));
 
                     return promise.ToFuture();
                 }
@@ -152,7 +152,7 @@ private:
 
     TError Error_;
 
-    void Abort(const TError& error) {
+    void AbortOnError(const TError& error) {
         if (error.IsOK()) {
             return;
         }
@@ -186,7 +186,7 @@ private:
     {
         YCHECK(FeedbackStrategy_ != EWriterFeedbackStrategy::NoFeedback);
 
-        TError error = refOrError;
+        auto error = static_cast<TError>(refOrError);
         if (error.IsOK()) {
             auto ref = refOrError.Value();
             if (!ref) {
@@ -214,7 +214,7 @@ private:
 
             if (!error.IsOK()) {
                 guard.Release();
-                Abort(error);
+                AbortOnError(error);
                 return;
             }
 
@@ -240,8 +240,8 @@ TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateInputStreamAdapter(
     auto invokeResult = request->Invoke().template As<void>();
 
     return request->GetResponseAttachmentsStream()->Read()
-        .Apply(BIND([=] (const TSharedRef& ref) {
-            return New<TRpcInputStreamAdapter>(request, invokeResult, ref);
+        .Apply(BIND([=] (const TSharedRef& firstReadResult) {
+            return New<TRpcInputStreamAdapter>(request, invokeResult, firstReadResult);
         })).template As<NConcurrency::IAsyncZeroCopyInputStreamPtr>();
 }
 
@@ -255,8 +255,8 @@ TFuture<NConcurrency::IAsyncZeroCopyOutputStreamPtr> CreateOutputStreamAdapter(
         feedbackStrategy == EWriterFeedbackStrategy::NoFeedback
         ? ExpectEndOfStream(request->GetResponseAttachmentsStream())
         : request->GetResponseAttachmentsStream()->Read()
-            .Apply(BIND([] (const TSharedRef& ref) {
-                CheckWriterFeedback(ref, EWriterFeedback::Handshake)
+            .Apply(BIND([] (const TSharedRef& feedback) {
+                CheckWriterFeedback(feedback, EWriterFeedback::Handshake)
                     .ThrowOnError();
             }));
 

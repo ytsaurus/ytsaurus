@@ -6,8 +6,6 @@ from yt.common import YT_DATETIME_FORMAT_STRING
 
 import pytest
 
-from time import sleep
-
 
 def pytest_generate_tests(metafunc):
     if "read_from" in metafunc.fixturenames:

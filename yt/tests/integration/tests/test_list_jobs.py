@@ -4,16 +4,9 @@ import yt.environment.init_operation_archive as init_operation_archive
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.common import uuid_hash_pair
 from yt.common import date_string_to_datetime
-from yt.test_helpers import WaitFailed
-
-from test_rpc_proxy import create_input_table
 
 from collections import defaultdict
 from datetime import datetime
-import sys
-import time
-import traceback
-import __builtin__
 
 import pytest
 
@@ -100,13 +93,9 @@ class TestListJobs(YTEnvSetup):
     def _create_tables(self):
         input_table = "//tmp/input_" + make_random_string()
         output_table = "//tmp/output_" + make_random_string()
-        create_input_table(
-            input_table,
-            [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}],
-            [{"name": "foo", "type": "string"}],
-            driver_backend=self.DRIVER_BACKEND,
-        )
+        create("table", input_table)
         create("table", output_table)
+        write_table(input_table, [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
         return input_table, output_table
 
     @staticmethod
@@ -575,3 +564,4 @@ class TestListJobsRpcProxy(TestListJobs):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_PROXY = True
+

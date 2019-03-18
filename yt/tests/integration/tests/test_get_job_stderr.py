@@ -1,8 +1,6 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
-from test_rpc_proxy import create_input_table
-
 import yt.environment.init_operation_archive as init_operation_archive
 
 import pytest
@@ -59,13 +57,9 @@ class TestGetJobStderr(YTEnvSetup):
         remove("//sys/operations_archive")
 
     def test_get_job_stderr(self):
-        create_input_table(
-            "//tmp/t1",
-            [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}],
-            [{"name": "foo", "type": "string"}],
-            driver_backend=self.DRIVER_BACKEND)
-
+        create("table", "//tmp/t1")
         create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
         op = map(
             dont_track=True,
@@ -101,13 +95,9 @@ class TestGetJobStderr(YTEnvSetup):
         set("//sys/operations/@inherit_acl", False)
 
         try:
-            create_input_table("//tmp/t1",
-                [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}, {"foo": "lev"}],
-                [{"name": "foo", "type": "string"}],
-                driver_backend=self.DRIVER_BACKEND,
-                authenticated_user="u")
-
+            create("table", "//tmp/t1", authenticated_user="u")
             create("table", "//tmp/t2", authenticated_user="u")
+            write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}, {"foo": "lev"}], authenticated_user="u")
 
             op = map(
                 dont_track=True,
