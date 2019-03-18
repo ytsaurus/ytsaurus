@@ -465,9 +465,10 @@ protected:
     virtual bool IsJobInterruptible() const override
     {
         // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
+        auto totalJobCount = GetDataFlowGraph()->GetTotalJobCounter()->GetTotal();
         return !IsExplicitJobCount_ &&
-               2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter->GetTotal() * GetOutputTablePaths().size() &&
-               2 * Options_->MaxJobCount > JobCounter->GetTotal() &&
+               2 * Options_->MaxOutputTablesTimesJobsCount > totalJobCount * GetOutputTablePaths().size() &&
+               2 * Options_->MaxJobCount > totalJobCount &&
                TOperationControllerBase::IsJobInterruptible();
     }
 };
