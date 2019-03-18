@@ -135,7 +135,7 @@ IColumnBuilderPtr CreateColumnBuilder(
 
     throw Exception(
         "Invalid column data type",
-        toString(static_cast<int>(type)),
+        Exception(toString(static_cast<int>(type)), ErrorCodes::UNKNOWN_TYPE),
         ErrorCodes::UNKNOWN_TYPE);
 }
 

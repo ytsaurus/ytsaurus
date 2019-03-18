@@ -63,7 +63,7 @@ private:
 public:
     UserPtr GetOrRegisterNewUser(const String& userName);
 
-    void Reload(Poco::Util::AbstractConfiguration& config);
+    void Reload(const Poco::Util::AbstractConfiguration& config);
 
 private:
     UserPtr CreateNewUserFromTemplate(const String& userName);
@@ -101,7 +101,7 @@ UserPtr TUserRegistry::GetOrRegisterNewUser(const String& userName)
     }
 }
 
-void TUserRegistry::Reload(Poco::Util::AbstractConfiguration& config)
+void TUserRegistry::Reload(const Poco::Util::AbstractConfiguration& config)
 {
     TWriteGuard writerLock(RWMutex);
 
@@ -147,7 +147,7 @@ private:
 public:
     TSecurityManager(ICliqueAuthorizationManagerPtr cliqueAuthorizationManager);
 
-    void loadFromConfig(Poco::Util::AbstractConfiguration& config) override;
+    void loadFromConfig(const Poco::Util::AbstractConfiguration & config) override;
 
     UserPtr authorizeAndGetUser(
         const String& userName,
@@ -173,7 +173,7 @@ TSecurityManager::TSecurityManager(ICliqueAuthorizationManagerPtr cliqueAuthoriz
     : CliqueAuthorizationManager_(std::move(cliqueAuthorizationManager))
 { }
 
-void TSecurityManager::loadFromConfig(Poco::Util::AbstractConfiguration& config)
+void TSecurityManager::loadFromConfig(const Poco::Util::AbstractConfiguration& config)
 {
     Users_.Reload(config);
 }
