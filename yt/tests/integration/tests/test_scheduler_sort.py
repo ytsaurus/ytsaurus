@@ -1,5 +1,6 @@
 import pytest
 
+from copy import deepcopy
 from random import shuffle
 from yt_env_setup import YTEnvSetup
 from yt.environment.helpers import assert_items_equal
@@ -675,6 +676,50 @@ class TestSchedulerSortCommands(YTEnvSetup):
             sort(in_="//tmp/input",
                 out="//tmp/output",
                 sort_by="key")
+
+    def test_complex_types_schema_validation(self):
+        input_schema = make_schema([
+            {"name": "index", "type_v2": "int64"},
+            {"name": "value", "type_v2": optional_type(optional_type("string"))},
+        ], unique_keys=False, strict=True)
+        output_schema = make_schema([
+            {"name": "index", "type_v2": "int64", "sort_order": "ascending"},
+            {"name": "value", "type_v2": list_type(optional_type("string"))},
+        ], unique_keys=False, strict=True)
+
+        create("table", "//tmp/input", attributes={"schema": input_schema})
+        create("table", "//tmp/output", attributes={"schema": output_schema})
+        write_table("//tmp/input", [
+            {"index": 1, "value": [None]},
+            {"index": 2, "value": ["foo"]},
+        ])
+
+        # We check that yson representation of types are compatible with each other
+        write_table("//tmp/output", read_table("//tmp/input"))
+
+        with pytest.raises(YtError):
+            sort(
+                in_="//tmp/input",
+                out="//tmp/output",
+                sort_by="index",
+                spec={"schema_inference_mode": "auto"},
+            )
+        sort(
+            in_="//tmp/input",
+            out="//tmp/output",
+            sort_by="index",
+            spec={"schema_inference_mode": "from_output"},
+        )
+        assert normalize_schema_v2(output_schema) == normalize_schema_v2(get("//tmp/output/@schema"))
+        sort(
+            in_="//tmp/input",
+            out="//tmp/output",
+            sort_by="index",
+            spec={"schema_inference_mode": "from_input"},
+        )
+        input_sorted_schema = deepcopy(input_schema)
+        input_sorted_schema[0]["sort_order"] = "ascending"
+        assert normalize_schema_v2(input_sorted_schema) == normalize_schema_v2(get("//tmp/output/@schema"))
 
     def test_unique_keys_validation(self):
         create("table", "//tmp/input")

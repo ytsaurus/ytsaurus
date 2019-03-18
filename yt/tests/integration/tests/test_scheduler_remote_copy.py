@@ -90,6 +90,39 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
                 out="//tmp/t3",
                 spec={"cluster_name": self.REMOTE_CLUSTER_NAME, "schema_inference_mode" : "from_output"})
 
+    def test_schema_validation_complex_types(self):
+        input_schema = make_schema([
+            {"name": "index", "type_v2": "int64"},
+            {"name": "value", "type_v2": optional_type(optional_type("string"))},
+        ], unique_keys=False, strict=True)
+        output_schema = make_schema([
+            {"name": "index", "type_v2": "int64"},
+            {"name": "value", "type_v2": list_type(optional_type("string"))},
+        ], unique_keys=False, strict=True)
+
+        create("table", "//tmp/input", attributes={"schema": input_schema}, driver=self.remote_driver)
+        create("table", "//tmp/output", attributes={"schema": output_schema})
+        write_table("//tmp/input", [
+            {"index": 1, "value": [None]},
+            {"index": 2, "value": ["foo"]},
+        ], driver=self.remote_driver)
+
+        # We check that yson representation of types are compatible with each other
+        write_table("//tmp/output", read_table("//tmp/input", driver=self.remote_driver))
+
+        with pytest.raises(YtError):
+            remote_copy(
+                in_="//tmp/input",
+                out="//tmp/output",
+                spec={"cluster_name": self.REMOTE_CLUSTER_NAME, "schema_inference_mode": "auto"},
+            )
+        remote_copy(
+            in_="//tmp/input",
+            out="//tmp/output",
+            spec={"cluster_name": self.REMOTE_CLUSTER_NAME, "schema_inference_mode": "from_input"},
+        )
+        assert normalize_schema_v2(input_schema) == normalize_schema_v2(get("//tmp/output/@schema"))
+
     def test_cluster_connection_config(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
         write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)

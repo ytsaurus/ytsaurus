@@ -36,6 +36,7 @@ _events_on_fs = None
 default_api_version = 4
 
 # TODO(levysotsky): Move error codes to separate file in python repo.
+SchemaViolation = 307
 AuthorizationErrorCode = 901
 
 # See transaction_client/public.h
@@ -1325,6 +1326,45 @@ def normalize_schema(schema):
         if "type_v2" in column:
             del column["type_v2"]
     return result
+
+def normalize_schema_v2(schema):
+    "Remove (old) 'type' and 'required' fields from schema, useful for schema comparison."""
+    result = pycopy.deepcopy(schema)
+    for column in result:
+        for f in ["type", "required"]:
+            if f in column:
+                del column[f]
+    return result
+
+def optional_type(element_type):
+    return {
+        "metatype": "optional",
+        "element": element_type,
+    }
+
+def struct_type(fields):
+    """
+    Create yson description of struct type.
+    fields is a list of (name, type) pairs.
+    """
+    result = {
+        "metatype": "struct",
+        "fields": [
+        ],
+    }
+    for name, type in fields:
+        result["fields"].append({
+            "name": name,
+            "type": type,
+        })
+
+    return result
+
+def list_type(element_type):
+    return {
+        "metatype": "list",
+        "element": element_type,
+    }
 
 ##################################################################
 
