@@ -1,8 +1,11 @@
 #include "helpers.h"
 
 #include <yt/core/misc/proc.h>
+#include <yt/core/misc/finally.h>
 
 namespace Py {
+
+using namespace NYT;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,6 +75,12 @@ std::string Repr(const Object& obj)
     return obj.repr().as_std_string("utf-8", "replace");
 }
 
+TString Str(const Object& obj)
+{
+    auto stdString = obj.str().as_std_string("utf-8", "replace");
+    return TString(stdString.begin(), stdString.end());
+}
+
 Object CreateIterator(const Object& obj)
 {
     PyObject* iter = PyObject_GetIter(obj.ptr());
@@ -79,6 +88,45 @@ Object CreateIterator(const Object& obj)
         throw Py::Exception();
     }
     return Object(iter, true);
+}
+
+TError BuildErrorFromPythonException()
+{
+    PyObject* errorTypeRaw;
+    PyObject* errorValueRaw;
+    PyObject* errorBacktraceRaw;
+    PyErr_Fetch(&errorTypeRaw, &errorValueRaw, &errorBacktraceRaw);
+
+    Py::Object errorType;
+    if (errorTypeRaw) {
+        errorType = errorTypeRaw;
+    }
+    Py::Object errorValue;
+    if (errorValueRaw) {
+        errorValue = errorValueRaw;
+    }
+    Py::Object errorBacktrace;
+    if (errorBacktraceRaw) {
+        errorBacktrace = errorBacktraceRaw;
+    }
+
+    auto restoreGuard = Finally([&] () { PyErr_Restore(errorType.ptr(), errorValue.ptr(), errorBacktrace.ptr()); });
+
+    if (errorType.isNone()) {
+        return TError();
+    }
+
+    TString message = errorValue.isNone()
+        ? "No message"
+        : Str(errorValue);
+    auto error = TError(message)
+        << TErrorAttribute("exception_type", Str(errorType));
+
+    if (!errorBacktrace.isNone()) {
+        error.Attributes().Set("backtrace", Str(errorBacktrace));
+    }
+
+    return error;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
