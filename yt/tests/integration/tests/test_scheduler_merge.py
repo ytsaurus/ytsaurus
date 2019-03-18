@@ -1025,6 +1025,61 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 out="//tmp/output",
                 spec={"schema_inference_mode" : "from_output"})
 
+    @pytest.mark.parametrize("mode", ["unordered", "ordered", "sorted"])
+    def test_schema_validation_complex_types(self, mode):
+        first_column = {"name": "index", "type_v2": "int64"}
+        if mode == "sorted":
+            first_column["sort_order"] = "ascending"
+
+        input_schema = make_schema([
+            first_column,
+            {"name": "value", "type_v2": optional_type(optional_type("string"))},
+        ], unique_keys=False, strict=True)
+        output_schema = make_schema([
+            first_column,
+            {"name": "value", "type_v2": list_type(optional_type("string"))},
+        ], unique_keys=False, strict=True)
+
+        create("table", "//tmp/input", attributes={"schema": input_schema})
+        create("table", "//tmp/output", attributes={"schema": output_schema})
+        write_table("//tmp/input", [
+            {"index": 1, "value": [None]},
+            {"index": 2, "value": ["foo"]},
+        ])
+
+        # We check that yson representation of types are compatible with each other
+        write_table("//tmp/output", read_table("//tmp/input"))
+
+        merge_by_args = {}
+        if mode == "sorted":
+            merge_by_args["merge_by"] = "index"
+
+        with pytest.raises(YtError):
+            merge(
+                mode=mode,
+                in_="//tmp/input",
+                out="//tmp/output",
+                spec={"schema_inference_mode": "auto"},
+                **merge_by_args
+            )
+        merge(
+            mode=mode,
+            in_="//tmp/input",
+            out="//tmp/output",
+            spec={"schema_inference_mode": "from_output"},
+            **merge_by_args
+        )
+        assert normalize_schema_v2(output_schema) == normalize_schema_v2(get("//tmp/output/@schema"))
+        merge(
+            mode=mode,
+            in_="//tmp/input",
+            out="//tmp/output",
+            spec={"schema_inference_mode": "from_input"},
+            **merge_by_args
+        )
+        assert normalize_schema_v2(input_schema) == normalize_schema_v2(get("//tmp/output/@schema"))
+
+
     @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_sorted_merge_on_dynamic_table(self, external, optimize_for):

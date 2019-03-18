@@ -852,11 +852,6 @@ void ValidateColumnSchema(
             columnSchema.LogicalType()->Validate(descriptor);
         }
 
-        if (!columnSchema.SimplifiedLogicalType()) {
-            THROW_ERROR_EXCEPTION("Bad type %Qlv, complex types are not allowed yet",
-                *columnSchema.LogicalType());
-        }
-
         if (columnSchema.SimplifiedLogicalType() == ESimpleLogicalValueType::Any && columnSchema.Required()) {
             THROW_ERROR_EXCEPTION("Column of type %Qlv cannot be required",
                 ESimpleLogicalValueType::Any);
@@ -930,7 +925,7 @@ void ValidateDynamicTableConstraints(const TTableSchema& schema)
         try {
             if (column.SortOrder() && column.GetPhysicalType() == EValueType::Any) {
                 THROW_ERROR_EXCEPTION("Dynamic table cannot have key column of type: %Qv",
-                    column.GetPhysicalType());
+                    *column.LogicalType());
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error validating column %Qv in dynamic table schema",
