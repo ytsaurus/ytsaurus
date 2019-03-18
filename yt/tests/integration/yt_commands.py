@@ -266,6 +266,7 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
         response_parameters.update(response_params)
 
     if not response.is_ok():
+        # TODO(ignat): it build empty error with response.error() as inner error. Fix it!
         error = YtResponseError(response.error())
         if verbose_error:
             print(str(error), file=sys.stderr)
@@ -441,19 +442,24 @@ def read_blob_table(path, **kwargs):
     execute_command("read_blob_table", kwargs, output_stream=output)
     return output.getvalue()
 
-def write_table(path, value, is_raw=False, **kwargs):
-    if not is_raw:
-        if not isinstance(value, list):
-            value = [value]
-        value = yson.dumps(value)
-        # remove surrounding [ ]
-        value = value[1:-1]
+def write_table(path, value=None, is_raw=False, **kwargs):
+    if "input_stream" in kwargs:
+        input_stream = kwargs.pop("input_stream")
+    else:
+        assert value is not None
+        if not is_raw:
+            if not isinstance(value, list):
+                value = [value]
+            value = yson.dumps(value)
+            # remove surrounding [ ]
+            value = value[1:-1]
+        input_stream = StringIO(value)
 
     attributes = {}
     if "sorted_by" in kwargs:
         attributes["sorted_by"] = flatten(kwargs["sorted_by"])
     kwargs["path"] = yson.to_yson_type(path, attributes=attributes)
-    return execute_command("write_table", kwargs, input_stream=StringIO(value))
+    return execute_command("write_table", kwargs, input_stream=input_stream)
 
 def locate_skynet_share(path, **kwargs):
     kwargs["path"] = path

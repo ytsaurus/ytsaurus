@@ -1,5 +1,6 @@
 #include "stream.h"
 #include "helpers.h"
+#include "error.h"
 
 #include <yt/core/misc/blob_output.h>
 
@@ -19,9 +20,10 @@ class TInputStreamForwarder
     : public IInputStream
 {
 public:
-    explicit TInputStreamForwarder(const Py::Object& inputStream)
+    explicit TInputStreamForwarder(const Py::Object& inputStream, bool wrapPythonExceptions)
         : InputStream_(inputStream)
         , ReadFunction_(InputStream_.getAttr("read"))
+        , WrapPythonExceptions_(wrapPythonExceptions)
     { }
 
     virtual ~TInputStreamForwarder() noexcept = default;
@@ -31,11 +33,25 @@ public:
         TGilGuard guard;
 
         auto args = Py::TupleN(Py::Long(static_cast<long>(len)));
-        Py::Object result = ReadFunction_.apply(args);
+        Py::Object result;
+
+        try {
+             result = ReadFunction_.apply(args);
+        } catch (const std::exception& ex) { \
+            if (WrapPythonExceptions_) {
+                THROW_ERROR Py::BuildErrorFromPythonException();
+            } else {
+                throw;
+            }
+        }
 
         PyObject* exception = PyErr_Occurred();
         if (exception) {
-            throw Py::Exception();
+            if (WrapPythonExceptions_) {
+                THROW_ERROR Py::BuildErrorFromPythonException();
+            } else {
+                throw Py::Exception();
+            }
         }
 
 #if PY_MAJOR_VERSION < 3
@@ -58,19 +74,21 @@ public:
 private:
     Py::Object InputStream_;
     Py::Callable ReadFunction_;
+
+    const bool WrapPythonExceptions_;
 };
 
-std::unique_ptr<IInputStream> CreateInputStreamWrapper(const Py::Object& pythonInputStream)
+std::unique_ptr<IInputStream> CreateInputStreamWrapper(const Py::Object& pythonInputStream, bool wrapPythonExceptions)
 {
 #if PY_MAJOR_VERSION < 3
     if (PyFile_Check(pythonInputStream.ptr())) {
         FILE* file = PyFile_AsFile(pythonInputStream.ptr());
         return std::make_unique<TFileInput>(Duplicate(file));
     } else {
-        return std::make_unique<TInputStreamForwarder>(pythonInputStream);
+        return std::make_unique<TInputStreamForwarder>(pythonInputStream, wrapPythonExceptions);
     }
 #else
-    return std::make_unique<TInputStreamForwarder>(pythonInputStream);
+    return std::make_unique<TInputStreamForwarder>(pythonInputStream, wrapPythonExceptions);
 #endif
 }
 
