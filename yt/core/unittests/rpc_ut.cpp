@@ -9,7 +9,7 @@
 
 #include <yt/core/crypto/config.h>
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/delayed_executor.h>
 
 #include <yt/core/misc/error.h>
@@ -236,6 +236,9 @@ public:
     {
         context->SetRequestInfo();
 
+        bool delayed = request->delayed();
+        std::vector<TSharedRef> receivedData;
+
         ssize_t totalSize = 0;
         while (true) {
             auto data = WaitFor(request->GetAttachmentsStream()->Read())
@@ -244,8 +247,20 @@ public:
                 break;
             }
             totalSize += data.size();
-            WaitFor(response->GetAttachmentsStream()->Write(data))
-                .ThrowOnError();
+
+            if (delayed) {
+                receivedData.push_back(data);
+            } else {
+                WaitFor(response->GetAttachmentsStream()->Write(data))
+                    .ThrowOnError();
+            }
+        }
+
+        if (delayed) {
+            for (const auto& data : receivedData) {
+                WaitFor(response->GetAttachmentsStream()->Write(data))
+                    .ThrowOnError();
+            }
         }
         
         WaitFor(response->GetAttachmentsStream()->Close())
@@ -321,9 +336,9 @@ public:
     virtual void SetUp() override final
     {
         Server_ = CreateServer();
-        Queue_ = New<TActionQueue>();
+        WorkerPool_ = New<TThreadPool>(4, "Worker");
         bool secure = TImpl::Secure;
-        Service_ = New<TMyService>(Queue_->GetInvoker(), secure);
+        Service_ = New<TMyService>(WorkerPool_->GetInvoker(), secure);
         Server_->RegisterService(Service_);
         Server_->Start();
     }
@@ -367,7 +382,7 @@ public:
     }
 
 protected:
-    TActionQueuePtr Queue_;
+    NConcurrency::TThreadPoolPtr WorkerPool_;
     TIntrusivePtr<TMyService> Service_;
     IServerPtr Server_;
 };
@@ -680,12 +695,9 @@ TYPED_TEST(TNotGrpcTest, SendSimple)
 TYPED_TEST(TNotGrpcTest, StreamingEcho)
 {
     TMyProxy proxy(this->CreateChannel());
-    auto req = proxy.StreamingEcho();
-    req->SetRequestCodec(NCompression::ECodec::Lz4);
-    req->SetResponseCodec(NCompression::ECodec::QuickLz);
-    req->SetEnableLegacyRpcCodecs(false);
-    
-    auto asyncInvokeResult = req->Invoke();
+    proxy.SetDefaultRequestCodec(NCompression::ECodec::Lz4);
+    proxy.SetDefaultResponseCodec(NCompression::ECodec::QuickLz);
+    proxy.SetDefaultEnableLegacyRpcCodecs(false);
 
     const int AttachmentCount = 30;
     const size_t AttachmentSize = 2_MB;
@@ -693,34 +705,65 @@ TYPED_TEST(TNotGrpcTest, StreamingEcho)
     std::mt19937 randomGenerator;
     std::uniform_int_distribution<char> distribution(std::numeric_limits<char>::min(), std::numeric_limits<char>::max());
 
+    std::vector<TSharedRef> attachments;
+
     for (int i = 0; i < AttachmentCount; ++i) {
-        auto sentData = TSharedMutableRef::Allocate(AttachmentSize);
+        auto data = TSharedMutableRef::Allocate(AttachmentSize);
         for (size_t j = 0; j < AttachmentSize; ++j) {
-            sentData[j] = distribution(randomGenerator);
+            data[j] = distribution(randomGenerator);
+        }
+        attachments.push_back(std::move(data));
+    }
+
+    for (bool delayed : {false, true}) {
+        auto req = proxy.StreamingEcho();
+        req->set_delayed(delayed);
+        req->SetHeavy(true);
+        auto asyncInvokeResult = req->Invoke();
+
+        std::vector<TSharedRef> receivedAttachments;
+
+        for (const auto& sentData : attachments) {
+            WaitFor(req->GetRequestAttachmentsStream()->Write(sentData))
+                .ThrowOnError();
+
+            if (!delayed) {
+                auto receivedData = WaitFor(req->GetResponseAttachmentsStream()->Read())
+                    .ValueOrThrow();
+                receivedAttachments.push_back(std::move(receivedData));
+            }
         }
 
-        WaitFor(req->GetRequestAttachmentsStream()->Write(sentData))
-            .ThrowOnError();
-
-        auto receivedData = WaitFor(req->GetResponseAttachmentsStream()->Read())
-            .ValueOrThrow();
-    }
-
-    {
         auto asyncCloseResult = req->GetRequestAttachmentsStream()->Close();
         EXPECT_FALSE(asyncCloseResult.IsSet());
-        auto receivedData = WaitFor(req->GetResponseAttachmentsStream()->Read())
-            .ValueOrThrow();
-        EXPECT_FALSE(receivedData);
+
+        if (delayed) {
+            for (int i = 0; i < AttachmentCount; ++i) {
+                auto receivedData = WaitFor(req->GetResponseAttachmentsStream()->Read())
+                    .ValueOrThrow();
+                ASSERT_TRUE(receivedData);
+                receivedAttachments.push_back(std::move(receivedData));
+            }
+        }
+
+        {
+            auto receivedData = WaitFor(req->GetResponseAttachmentsStream()->Read())
+                .ValueOrThrow();
+            ASSERT_FALSE(receivedData);
+        }
+
+        for (int i = 0; i < AttachmentCount; ++i) {
+            EXPECT_TRUE(TRef::AreBitwiseEqual(attachments[i], receivedAttachments[i]));
+        }
+
         WaitFor(asyncCloseResult)
             .ThrowOnError();
+
+        auto rsp = WaitFor(asyncInvokeResult)
+            .ValueOrThrow();
+
+        EXPECT_EQ(AttachmentCount * AttachmentSize, rsp->total_size());
     }
-
-
-    auto rsp = WaitFor(asyncInvokeResult)
-        .ValueOrThrow();
-
-    EXPECT_EQ(AttachmentCount * AttachmentSize, rsp->total_size());
 }
 
 TYPED_TEST(TNotGrpcTest, ClientStreamsAborted)
@@ -1108,12 +1151,25 @@ TEST_F(TAttachmentsInputStreamTest, CloseBeforeRead)
     EXPECT_EQ(8, stream->GetFeedback().ReadPosition);
 }
 
-TEST_F(TAttachmentsInputStreamTest, WrongSequenceNumber)
+TEST_F(TAttachmentsInputStreamTest, Reordering)
 {
     auto stream = CreateStream();
-    EXPECT_THROW({
-        stream->EnqueuePayload(MakePayload(1, {TSharedRef()}));
-    }, TErrorException);
+
+    auto payload1 = TSharedRef::FromString("payload1");
+    auto payload2 = TSharedRef::FromString("payload2");
+
+    stream->EnqueuePayload(MakePayload(1, {payload2}));
+    stream->EnqueuePayload(MakePayload(0, {payload1}));
+
+    auto future1 = stream->Read();
+    EXPECT_TRUE(future1.IsSet());
+    EXPECT_TRUE(TRef::AreBitwiseEqual(payload1, future1.Get().ValueOrThrow()));
+    EXPECT_EQ(8, stream->GetFeedback().ReadPosition);
+
+    auto future2 = stream->Read();
+    EXPECT_TRUE(future2.IsSet());
+    EXPECT_TRUE(TRef::AreBitwiseEqual(payload2, future2.Get().ValueOrThrow()));
+    EXPECT_EQ(16, stream->GetFeedback().ReadPosition);
 }
 
 TEST_F(TAttachmentsInputStreamTest, EmptyAttachmentReadPosition)

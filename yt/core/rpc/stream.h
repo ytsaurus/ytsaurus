@@ -6,6 +6,7 @@
 
 #include <yt/core/misc/ref.h>
 #include <yt/core/misc/ring_queue.h>
+#include <yt/core/misc/sliding_window.h>
 
 #include <yt/core/actions/future.h>
 
@@ -40,6 +41,12 @@ private:
     const TClosure ReadCallback_;
     const IInvokerPtr CompressionInvoker_;
 
+    struct TWindowPacket
+    {
+        TStreamingPayload Payload;
+        std::vector<TSharedRef> DecompressedAttachments;
+    };
+
     struct TQueueEntry
     {
         TSharedRef Attachment;
@@ -47,7 +54,7 @@ private:
     };
 
     TSpinLock Lock_;
-    int SequenceNumber_ = 0;
+    TSlidingWindow<TWindowPacket> Window_;
     TRingQueue<TQueueEntry> Queue_;
     TError Error_;
     TPromise<TSharedRef> Promise_;
@@ -92,6 +99,12 @@ private:
     const IInvokerPtr CompressionInvoker_;
     const TClosure PullCallback_;
 
+    struct TWindowPacket
+    {
+        TSharedRef Data;
+        TPromise<void> Promise;
+    };
+
     struct TConfirmationEntry
     {
         ssize_t Position;
@@ -99,6 +112,8 @@ private:
     };
 
     TSpinLock Lock_;
+    std::atomic<size_t> CompressionSequenceNumber_ = {0};
+    TSlidingWindow<TWindowPacket> Window_;
     TError Error_;
     TRingQueue<TSharedRef> DataQueue_;
     TRingQueue<TConfirmationEntry> ConfirmationQueue_;
@@ -107,9 +122,9 @@ private:
     ssize_t WritePosition_ = 0;
     ssize_t SentPosition_ = 0;
     ssize_t ReadPosition_ = 0;
-    int SequenceNumber_ = 0;
+    int PayloadSequenceNumber_ = 0;
 
-    TFuture<void> DoWrite(const TSharedRef& data);
+    void OnWindowPacketReady(TWindowPacket&& packet, TGuard<TSpinLock>& guard);
     void MaybeInvokePullCallback(TGuard<TSpinLock>& guard);
     bool CanPullMore(bool first) const;
     void DoAbort(TGuard<TSpinLock>& guard, const TError& error);

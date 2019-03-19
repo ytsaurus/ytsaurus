@@ -149,6 +149,10 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("idle_channel_ttl", IdleChannelTtl)
         .Default(TDuration::Minutes(30));
 
+    RegisterParameter("max_request_window_size", MaxRequestWindowSize)
+        .GreaterThan(0)
+        .Default(65536);
+
     RegisterPreprocessor([&] () {
         FunctionImplCache->Capacity = 100;
     });

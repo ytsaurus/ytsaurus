@@ -306,7 +306,9 @@ public:
             .DefaultNew();
         RegisterParameter("tablet_action_manager", TabletActionManager)
             .DefaultNew();
-        RegisterParameter("multicell_gossip_config", MulticellGossipConfig)
+        RegisterParameter("multicell_gossip", MulticellGossipConfig)
+            // COMPAT(babenko)
+            .Alias("multicell_gossip_config")
             .DefaultNew();
 
         RegisterPreprocessor([&] () {

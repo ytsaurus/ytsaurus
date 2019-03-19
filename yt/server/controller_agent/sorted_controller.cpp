@@ -565,9 +565,10 @@ protected:
 
     virtual bool IsJobInterruptible() const override
     {
+        auto totalJobCount = GetDataFlowGraph()->GetTotalJobCounter()->GetTotal();
         return
-            2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter->GetTotal() * GetOutputTablePaths().size() &&
-            2 * Options_->MaxJobCount > JobCounter->GetTotal() &&
+            2 * Options_->MaxOutputTablesTimesJobsCount > totalJobCount * GetOutputTablePaths().size() &&
+            2 * Options_->MaxJobCount > totalJobCount &&
             TOperationControllerBase::IsJobInterruptible();
     }
 

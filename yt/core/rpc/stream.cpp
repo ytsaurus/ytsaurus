@@ -6,6 +6,10 @@ namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr ssize_t MaxWindowSize = 16384;
+
+////////////////////////////////////////////////////////////////////////////////
+
 size_t GetStreamingAttachmentSize(TRef attachment)
 {
     if (!attachment || attachment.Size() == 0) {
@@ -22,6 +26,7 @@ TAttachmentsInputStream::TAttachmentsInputStream(
     IInvokerPtr compressionInvoker)
     : ReadCallback_(std::move(readCallback))
     , CompressionInvoker_(std::move(compressionInvoker))
+    , Window_(MaxWindowSize)
 { }
 
 TFuture<TSharedRef> TAttachmentsInputStream::Read()
@@ -29,7 +34,9 @@ TFuture<TSharedRef> TAttachmentsInputStream::Read()
     auto guard = Guard(Lock_);
 
     // Failure here indicates an attempt to read past EOSs.
-    YCHECK(!Closed_);
+    if (Closed_) {
+        return MakeFuture<TSharedRef>(TError("Stream is already closed"));
+    }
 
     if (!Error_.IsOK()) {
         return MakeFuture<TSharedRef>(Error_);
@@ -87,35 +94,35 @@ void TAttachmentsInputStream::DoEnqueuePayload(
         return;
     }
 
-    if (payload.SequenceNumber != SequenceNumber_) {
-        THROW_ERROR_EXCEPTION("Invalid attachments stream sequence number: expected %v, got %v",
-            SequenceNumber_,
-            payload.SequenceNumber);
-    }
+    Window_.AddPacket(
+        payload.SequenceNumber,
+        {
+            payload,
+            decompressedAttachments,
+        },
+        [&] (auto&& packet) {
+            for (size_t index = 0; index < packet.Payload.Attachments.size(); ++index) {
+                Queue_.push({
+                    packet.DecompressedAttachments[index],
+                    GetStreamingAttachmentSize(packet.Payload.Attachments[index])
+                });
+            }
+        });
 
-    ++SequenceNumber_;
-
-    for (size_t index = 0; index < payload.Attachments.size(); ++index) {
-        if (!Promise_ || index > 0) {
-            Queue_.push({
-                decompressedAttachments[index],
-                GetStreamingAttachmentSize(payload.Attachments[index])
-            });
-        }
-    }
-
-    if (Promise_) {
+    if (Promise_ && !Queue_.empty()) {
+        auto entry = std::move(Queue_.front());
+        Queue_.pop();
         auto promise = std::move(Promise_);
         Promise_.Reset();
-        const auto& compressedAttachment = payload.Attachments[0];
-        const auto& decompressedAttachment = decompressedAttachments[0];
-        ReadPosition_ += GetStreamingAttachmentSize(compressedAttachment);
-        if (!decompressedAttachment) {
+        ReadPosition_ += entry.CompressedSize;
+        if (!entry.Attachment) {
             YCHECK(!Closed_);
             Closed_ = true;
         }
+
         guard.Release();
-        promise.Set(decompressedAttachment);
+
+        promise.Set(std::move(entry.Attachment));
         ReadCallback_();
     }
 }
@@ -176,53 +183,66 @@ TAttachmentsOutputStream::TAttachmentsOutputStream(
     , Codec_(codec)
     , CompressionInvoker_(std::move(compressisonInvoker))
     , PullCallback_(std::move(pullCallback))
+    , Window_(std::numeric_limits<ssize_t>::max())
 { }
-
 
 TFuture<void> TAttachmentsOutputStream::Write(const TSharedRef& data)
 {
     YCHECK(data);
+    auto promise = NewPromise<void>();
     if (Codec_ == NCompression::ECodec::None) {
-        return DoWrite(data);
+        auto guard = Guard(Lock_);
+        OnWindowPacketReady({data, promise}, guard);
     } else {
-        return BIND([=, this_ = MakeStrong(this)] {
+        auto sequenceNumber = CompressionSequenceNumber_++;
+        CompressionInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] {
             auto* codec = NCompression::GetCodec(Codec_);
             auto compressedData = codec->Compress(data);
-            return DoWrite(compressedData);
-        })
-            .AsyncVia(CompressionInvoker_)
-            .Run();
+            auto guard = Guard(Lock_);
+            Window_.AddPacket(
+                sequenceNumber,
+                {compressedData, promise},
+                [&] (auto&& packet) {
+                    OnWindowPacketReady(std::move(packet), guard);
+                });
+        }));
     }
+    return promise.ToFuture();
 }
 
-TFuture<void> TAttachmentsOutputStream::DoWrite(const TSharedRef& data)
+void TAttachmentsOutputStream::OnWindowPacketReady(TWindowPacket&& packet, TGuard<TSpinLock>& guard)
 {
-    auto guard = Guard(Lock_);
-
-    // Failure here indicates an attempt to write into a closed stream.
-    YCHECK(!ClosePromise_);
-
+    if (ClosePromise_) {
+        guard.Release();
+        packet.Promise.Set(TError("Stream is already closed"));
+        return;
+    }
     if (!Error_.IsOK()) {
-        return MakeFuture(Error_);
+        guard.Release();
+        packet.Promise.Set(Error_);
+        return;
     }
 
-    DataQueue_.push(data);
+    WritePosition_ += GetStreamingAttachmentSize(packet.Data);
+    DataQueue_.push(std::move(packet.Data));
 
-    WritePosition_ += GetStreamingAttachmentSize(data);
-
-    TPromise<void> promise;
-    if (WritePosition_ - ReadPosition_ > Parameters_.WindowSize) {
-        promise = NewPromise<void>();
+    TPromise<void> promiseToSet;
+    if (WritePosition_ - ReadPosition_ <= Parameters_.WindowSize) {
+        promiseToSet = std::move(packet.Promise);
     }
 
     ConfirmationQueue_.push({
         WritePosition_,
-        promise
+        std::move(packet.Promise)
     });
 
     MaybeInvokePullCallback(guard);
 
-    return promise ? promise.ToFuture() : VoidFuture;
+    guard.Release();
+
+    if (promiseToSet) {
+        promiseToSet.Set();
+    }
 }
 
 TFuture<void> TAttachmentsOutputStream::Close()
@@ -366,7 +386,7 @@ std::optional<TStreamingPayload> TAttachmentsOutputStream::TryPull()
         return std::nullopt;
     }
 
-    result.SequenceNumber = SequenceNumber_++;
+    result.SequenceNumber = PayloadSequenceNumber_++;
     return result;
 }
 
