@@ -330,7 +330,7 @@ class TestBigFilesRpcProxy(YTEnvSetup):
         contents = read_file("//tmp/abacaba", verbose=False)
         assert contents == data
 
-@pytest.mark.skip(reason = "waiting for YT-10487") # XXX(kiselyovp)
+@pytest.mark.skipif("True", reason = "waiting for YT-10487") # XXX(kiselyovp)
 class TestBigFilesWithCompressionRpcProxy(TestBigFilesRpcProxy):
     DELTA_DRIVER_CONFIG = {
         "request_codec": "lz4",
