@@ -19,7 +19,7 @@ def build_bindings(build_dir):
         "-DUSE_SYSTEM_PYTHON=2.7", "-DPYTHON_CONFIG=python2.7-config", "-DPYTHON_BIN=python2.7",
         "-C", "tools/fix_elf",
         "-C", "yt/{}/yt/python/yson_shared".format(YT_ABI),
-        "-C", "yt/{}/yt/python/driver_shared".format(YT_ABI)
+        "-C", "yt/{}/yt/python/driver/native_shared".format(YT_ABI)
     ])
 
 def prepare_python_packages():
@@ -53,7 +53,7 @@ def run_pytest():
             os.path.join(yatest.common.source_path(), "yt", YT_ABI, "yt", "python", "yt_yson_bindings"),
             os.path.join(yatest.common.source_path(), "yt", YT_ABI, "yt", "python", "yt_driver_bindings"),
             os.path.join(bindings_build_dir, "yt", YT_ABI, "yt", "python", "yson_shared"),
-            os.path.join(bindings_build_dir, "yt", YT_ABI, "yt", "python", "driver_shared")
+            os.path.join(bindings_build_dir, "yt", YT_ABI, "yt", "python", "driver", "native_shared")
         ]),
         "TESTS_SANDBOX": sandbox_dir,
         "TESTS_JOB_CONTROL": "1",

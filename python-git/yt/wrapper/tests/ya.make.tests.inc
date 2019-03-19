@@ -7,6 +7,7 @@ SET(YT_TEST_SRCS
     conftest.py
     helpers.py
     test_acl_commands.py
+    test_authentication.py
     test_batch_execution.py
     test_client.py
     test_command_params.py
@@ -38,7 +39,8 @@ PEERDIR(
     ${YT_PYTHON_ROOT}/python/yt/yson
     ${YT_PYTHON_ROOT}/python/yt/local
     ${YT_PYTHON_ROOT}/python/yt/environment/arcadia_interop
-    ${YT_PYTHON_ROOT}/python/yt_driver_bindings
+    ${YT_ROOT}/yt/python/yt_driver_bindings
+    ${YT_ROOT}/yt/python/yt_driver_rpc_bindings
     ${YT_YSON_BINDINGS_ROOT}/yt_yson_bindings
 
     contrib/python/flaky
