@@ -1,6 +1,7 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/server/http_proxy/helpers.h>
+#include <yt/server/http_proxy/compression.h>
 
 #include <yt/ytlib/auth/cookie_authenticator.h>
 
@@ -53,6 +54,57 @@ TEST(TTestCsrfToken, Sample)
     auto token = SignCsrfToken("prime", "abcd", now);
     CheckCsrfToken(token, "prime", "abcd", now - TDuration::Minutes(1))
         .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTestOutputStream
+    : public NConcurrency::IAsyncOutputStream
+{
+    std::exception_ptr Exception;
+    TError Error;
+
+    TFuture<void> Return()
+    {
+        if (Exception) {
+            std::rethrow_exception(Exception);
+        }
+
+        return MakeFuture(Error);
+    }
+
+    virtual TFuture<void> Write(const TSharedRef& buffer) override
+    {
+        return Return();
+    }
+
+    virtual TFuture<void> Close() override
+    {
+        return Return();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTestOutputStream)
+
+TEST(TCompression, Segfault)
+{
+    auto out = New<TTestOutputStream>();
+    auto compression = CreateCompressingAdapter(out, "br");
+
+    out->Error = TError("Write failed");
+    try {
+        compression->Write(TSharedRef::FromString("hello"));
+        compression->Close();
+    } catch (const std::exception& ) {
+    }
+
+    for (;;) {
+        try {
+            compression->Write(TSharedRef::FromString("hello"));
+        } catch (const std::exception& ) {
+            break;
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
