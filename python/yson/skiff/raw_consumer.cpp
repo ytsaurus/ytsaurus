@@ -2,8 +2,6 @@
 
 #include <yt/core/ytree/convert.h>
 
-#include <yt/core/misc/finally.h>
-
 namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////

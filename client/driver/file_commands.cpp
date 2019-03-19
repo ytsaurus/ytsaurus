@@ -81,24 +81,9 @@ void TWriteFileCommand::DoExecute(ICommandContextPtr context)
     Options.Config = UpdateYsonSerializable(
         context->GetConfig()->FileWriter,
         FileWriter);
-    Options.Append = Path.GetAppend();
     Options.ComputeMD5 = ComputeMD5;
 
-    if (Path.GetAppend() && Path.GetCompressionCodec()) {
-        THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"compression_codec\" are not compatible")
-            << TErrorAttribute("path", Path);
-    }
-    Options.CompressionCodec = Path.GetCompressionCodec();
-
-    if (Path.GetAppend() && Path.GetErasureCodec()) {
-        THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"erasure_codec\" are not compatible")
-            << TErrorAttribute("path", Path);
-    }
-    Options.ErasureCodec = Path.GetErasureCodec();
-
-    auto writer = context->GetClient()->CreateFileWriter(
-        Path.GetPath(),
-        Options);
+    auto writer = context->GetClient()->CreateFileWriter(Path, Options);
 
     WaitFor(writer->Open())
         .ThrowOnError();

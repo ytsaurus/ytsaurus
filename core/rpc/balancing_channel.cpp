@@ -54,20 +54,34 @@ public:
             .EndMap()))
         , ServiceName_(serviceName)
         , DiscoverRequestHook_(std::move(discoverRequestHook))
+        , Logger(NLogging::TLogger(RpcClientLogger)
+            .AddTag("ChannelId: %v, Endpoint: %v, Service: %v",
+                TGuid::Create(),
+                EndpointDescription_,
+                ServiceName_))
     {
         AddPeers(Config_->Addresses);
-
-        Logger = RpcClientLogger;
-        Logger.AddTag("ChannelId: %v, Endpoint: %v, Service: %v",
-            TGuid::Create(),
-            EndpointDescription_,
-            ServiceName_);
     }
 
     TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& request)
     {
         auto channel = PickViableChannel(request);
-        return channel ? MakeFuture(std::move(channel)) : RunDiscoverySession();
+        if (channel) {
+            return MakeFuture(channel);
+        }
+
+        auto sessionOrError = RunDiscoverySession();
+        if (!sessionOrError.IsOK()) {
+            return MakeFuture<IChannelPtr>(TError(sessionOrError));
+        }
+
+        const auto& session = sessionOrError.Value();
+        const auto& balancingExt = request->Header().GetExtension(NProto::TBalancingExt::balancing_ext);
+        auto future = balancingExt.enable_stickness()
+            ? session->GetFinished()
+            : session->GetFirstPeerDiscovered();
+        return future.Apply(
+            BIND(&TBalancingChannelSubprovider::GetChannelAfterDiscovery, MakeStrong(this), request));
     }
 
     TFuture<void> Terminate(const TError& error)
@@ -93,6 +107,9 @@ public:
     }
 
 private:
+    class TDiscoverySession;
+    using TDiscoverySessionPtr = TIntrusivePtr<TDiscoverySession>;
+
     const TBalancingChannelConfigPtr Config_;
     const IChannelFactoryPtr ChannelFactory_;
     const TString EndpointDescription_;
@@ -100,9 +117,11 @@ private:
     const TString ServiceName_;
     const TDiscoverRequestHook DiscoverRequestHook_;
 
+    const NLogging::TLogger Logger;
+
     mutable TReaderWriterSpinLock SpinLock_;
     bool Terminated_ = false;
-    TFuture<IChannelPtr> CurrentDiscoverySessionResult_;
+    TDiscoverySessionPtr CurrentDiscoverySession_;
     TDelayedExecutorCookie RediscoveryCookie_;
     TError TerminationError_;
 
@@ -119,8 +138,6 @@ private:
     std::vector<TViablePeer> ViablePeers_;
     std::map<std::pair<size_t, TString>, IChannelPtr> HashToViableChannel_;
 
-    NLogging::TLogger Logger;
-
 
     struct TTooManyConcurrentRequests { };
     struct TNoMorePeers { };
@@ -134,45 +151,59 @@ private:
         : public TRefCounted
     {
     public:
-        explicit TDiscoverySession(TBalancingChannelSubproviderPtr owner)
-            : Owner_(std::move(owner))
-            , Logger(Owner_->Logger)
+        explicit TDiscoverySession(TBalancingChannelSubprovider* owner)
+            : Owner_(owner)
+            , Logger(owner->Logger)
         { }
 
-        TFuture<IChannelPtr> GetResult()
+        TFuture<void> GetFirstPeerDiscovered()
         {
-            return Promise_;
+            return FirstPeerDiscoveredPromise_;
+        }
+
+        TFuture<void> GetFinished()
+        {
+            return FinishedPromise_;
         }
 
         void Run()
         {
             YT_LOG_DEBUG("Starting peer discovery");
-
             DoRun();
         }
 
     private:
-        const TBalancingChannelSubproviderPtr Owner_;
+        const TWeakPtr<TBalancingChannelSubprovider> Owner_;
+        const NLogging::TLogger Logger;
 
-        TPromise<IChannelPtr> Promise_ = NewPromise<IChannelPtr>();
+        TPromise<void> FirstPeerDiscoveredPromise_ = NewPromise<void>();
+        TPromise<void> FinishedPromise_ = NewPromise<void>();
+        std::atomic_flag Finished_ = ATOMIC_FLAG_INIT;
+        std::atomic<bool> Success_ = {false};
 
         TSpinLock SpinLock_;
         THashSet<TString> RequestedAddresses_;
         THashSet<TString> RequestingAddresses_;
-        std::vector<TError> InnerErrors_;
-
-        NLogging::TLogger Logger;
+        std::vector<TError> DiscoveryErrors_;
 
         void DoRun()
         {
             while (true) {
-                auto pickResult = PickPeer();
-
                 auto mustBreak = false;
+                auto pickResult = PickPeer();
                 Visit(pickResult,
-                    [&] (TTooManyConcurrentRequests) { mustBreak = true; },
-                    [&] (TNoMorePeers) { OnFinished(); mustBreak = true; },
-                    [&] (const TString& address) { QueryPeer(address); });
+                    [&] (TTooManyConcurrentRequests) {
+                        mustBreak = true;
+                    },
+                    [&] (TNoMorePeers) {
+                        if (!HasOutstandingQueries()) {
+                            OnFinished();
+                        }
+                        mustBreak = true;
+                    },
+                    [&] (const TString& address) {
+                        QueryPeer(address);
+                    });
 
                 if (mustBreak) {
                     break;
@@ -182,19 +213,24 @@ private:
 
         void QueryPeer(const TString& address)
         {
+            auto owner = Owner_.Lock();
+            if (!owner) {
+                return;
+            }
+
             YT_LOG_DEBUG("Querying peer (Address: %v)", address);
 
-            auto channel = Owner_->ChannelFactory_->CreateChannel(address);
+            auto channel = owner->ChannelFactory_->CreateChannel(address);
 
             TGenericProxy proxy(
                 channel,
-                TServiceDescriptor(Owner_->ServiceName_)
+                TServiceDescriptor(owner->ServiceName_)
                     .SetProtocolVersion(GenericProtocolVersion));
-            proxy.SetDefaultTimeout(Owner_->Config_->DiscoverTimeout);
+            proxy.SetDefaultTimeout(owner->Config_->DiscoverTimeout);
 
             auto req = proxy.Discover();
-            if (Owner_->DiscoverRequestHook_) {
-                Owner_->DiscoverRequestHook_.Run(req.Get());
+            if (owner->DiscoverRequestHook_) {
+                owner->DiscoverRequestHook_.Run(req.Get());
             }
 
             req->Invoke().Subscribe(BIND(
@@ -209,7 +245,10 @@ private:
             const IChannelPtr& channel,
             const TGenericProxy::TErrorOrRspDiscoverPtr& rspOrError)
         {
-            OnPeerQueried(address);
+            auto owner = Owner_.Lock();
+            if (!owner) {
+                return;
+            }
 
             if (rspOrError.IsOK()) {
                 const auto& rsp = rspOrError.Value();
@@ -220,34 +259,39 @@ private:
                     YT_LOG_DEBUG("Peers suggested (SuggestorAddress: %v, SuggestedAddresses: %v)",
                         address,
                         suggestedAddresses);
-                    Owner_->AddPeers(suggestedAddresses);
+                    owner->AddPeers(suggestedAddresses);
                 }
 
                 if (up) {
                     AddViablePeer(address, channel);
+                    Success_.store(true);
+                    FirstPeerDiscoveredPromise_.TrySet();
                 } else {
                     YT_LOG_DEBUG("Peer is down (Address: %v)", address);
-                    auto error = TError("Peer %v is down", address)
-                         << *Owner_->EndpointAttributes_;
-                    BanPeer(address, error, Owner_->Config_->SoftBackoffTime);
+                    auto error = owner->MakePeerDownError(address);
+                    BanPeer(address, error, owner->Config_->SoftBackoffTime);
                     InvalidatePeer(address);
                 }
             } else {
-                auto error = TError("Discovery request failed for peer %v", address)
-                    << *Owner_->EndpointAttributes_
-                    << rspOrError;
-                YT_LOG_DEBUG(error);
-                BanPeer(address, error, Owner_->Config_->HardBackoffTime);
+                YT_LOG_DEBUG(rspOrError, "Peer discovery request failed (Address: %v)", address);
+                auto error = owner->MakePeerDiscoveryFailedError(address, rspOrError);
+                BanPeer(address, error, owner->Config_->HardBackoffTime);
                 InvalidatePeer(address);
             }
 
+            OnPeerQueried(address);
             DoRun();
         }
 
         TPickPeerResult PickPeer()
         {
+            auto owner = Owner_.Lock();
+            if (!owner) {
+                return TNoMorePeers();
+            }
+
             TGuard<TSpinLock> guard(SpinLock_);
-            return Owner_->PickPeer(&RequestingAddresses_, &RequestedAddresses_);
+            return owner->PickPeer(&RequestingAddresses_, &RequestedAddresses_);
         }
 
         void OnPeerQueried(const TString& address)
@@ -256,44 +300,73 @@ private:
             YCHECK(RequestingAddresses_.erase(address) == 1);
         }
 
+        bool HasOutstandingQueries()
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            return !RequestingAddresses_.empty();
+        }
+
         void BanPeer(const TString& address, const TError& error, TDuration backoffTime)
         {
+            auto owner = Owner_.Lock();
+            if (!owner) {
+                return;
+            }
+
             {
                 TGuard<TSpinLock> guard(SpinLock_);
                 YCHECK(RequestedAddresses_.erase(address) == 1);
-                InnerErrors_.push_back(error);
+                DiscoveryErrors_.push_back(error);
             }
 
-            Owner_->BanPeer(address, backoffTime);
+            owner->BanPeer(address, backoffTime);
+        }
+
+        std::vector<TError> GetDiscoveryErrors()
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            return DiscoveryErrors_;
         }
 
         void AddViablePeer(const TString& address, const IChannelPtr& channel)
         {
-            auto wrappedChannel = Owner_->AddViablePeer(address, channel);
-            TrySetResult(wrappedChannel);
+            auto owner = Owner_.Lock();
+            if (!owner) {
+                return;
+            }
+
+            owner->AddViablePeer(address, channel);
         }
 
         void InvalidatePeer(const TString& address)
         {
-            Owner_->InvalidatePeer(address);
+            auto owner = Owner_.Lock();
+            if (!owner) {
+                return;
+            }
+
+            owner->InvalidatePeer(address);
         }
 
         void OnFinished()
         {
-            TError result;
-            {
-                TGuard<TSpinLock> guard(SpinLock_);
-                result = TError(NRpc::EErrorCode::Unavailable, "No alive peers left")
-                    << *Owner_->EndpointAttributes_
-                    << InnerErrors_;
+            auto owner = Owner_.Lock();
+            if (!owner) {
+                return;
             }
-            TrySetResult(result);
-        }
 
-        void TrySetResult(const TErrorOr<IChannelPtr>& result)
-        {
-            if (Promise_.TrySet(result)) {
-                Owner_->OnDiscoverySessionFinished();
+            if (Finished_.test_and_set()) {
+                return;
+            }
+
+            if (Success_.load()) {
+                Y_ASSERT(FirstPeerDiscoveredPromise_.IsSet());
+                FinishedPromise_.Set();
+            } else {
+                auto error = owner->MakeNoAlivePeersError()
+                    << GetDiscoveryErrors();
+                FirstPeerDiscoveredPromise_.Set(error);
+                FinishedPromise_.Set(error);
             }
         }
     };
@@ -359,38 +432,67 @@ private:
     }
 
 
-    TFuture<IChannelPtr> RunDiscoverySession()
-    {
-        TIntrusivePtr<TDiscoverySession> session;
-        {
-            TWriterGuard guard(SpinLock_);
-
-            if (Terminated_) {
-                return MakeFuture<IChannelPtr>(TError(
-                    NRpc::EErrorCode::TransportError,
-                    "Channel terminated")
-                    << *EndpointAttributes_
-                    << TerminationError_);
-            }
-
-            if (CurrentDiscoverySessionResult_) {
-                return CurrentDiscoverySessionResult_;
-            }
-
-            session = New<TDiscoverySession>(this);
-            CurrentDiscoverySessionResult_ = session->GetResult();
-        }
-
-        session->Run();
-        return session->GetResult();
-    }
-
-    void OnDiscoverySessionFinished()
+    TErrorOr<TDiscoverySessionPtr> RunDiscoverySession()
     {
         TWriterGuard guard(SpinLock_);
 
-        YCHECK(CurrentDiscoverySessionResult_);
-        CurrentDiscoverySessionResult_.Reset();
+        if (Terminated_) {
+            return TError(
+                NRpc::EErrorCode::TransportError,
+                "Channel terminated")
+                << *EndpointAttributes_
+                << TerminationError_;
+        }
+
+        if (CurrentDiscoverySession_) {
+            return CurrentDiscoverySession_;
+        }
+
+        auto session = CurrentDiscoverySession_ = New<TDiscoverySession>(this);
+        session->GetFinished().Subscribe(
+            BIND(&TBalancingChannelSubprovider::OnDiscoverySessionFinished, MakeWeak(this)));
+
+        guard.Release();
+
+        session->Run();
+        return session;
+    }
+
+    TError MakeNoAlivePeersError()
+    {
+        return TError(NRpc::EErrorCode::Unavailable, "No alive peers found")
+            << *EndpointAttributes_;
+    }
+
+    TError MakePeerDownError(const TString& address)
+    {
+        return TError("Peer %v is down", address)
+            << *EndpointAttributes_;
+    }
+
+    TError MakePeerDiscoveryFailedError(const TString& address, const TError&  error)
+    {
+        return TError("Discovery request failed for peer %v", address)
+            << *EndpointAttributes_
+            << error;
+    }
+
+    IChannelPtr GetChannelAfterDiscovery(const IClientRequestPtr& request)
+    {
+        auto channel = PickViableChannel(request);
+        if (!channel) {
+            // Not very likely but possible in theory.
+            THROW_ERROR MakeNoAlivePeersError();
+        }
+        return channel;
+    }
+
+    void OnDiscoverySessionFinished(const TError& /*error*/)
+    {
+        TWriterGuard guard(SpinLock_);
+
+        YCHECK(CurrentDiscoverySession_);
+        CurrentDiscoverySession_.Reset();
 
         TDelayedExecutor::CancelAndClear(RediscoveryCookie_);
         RediscoveryCookie_ = TDelayedExecutor::Submit(
@@ -437,17 +539,15 @@ private:
         candidates.reserve(ActiveAddresses_.size());
 
         for (const auto& address : ActiveAddresses_) {
-            if (requestedAddresses->find(address) == requestedAddresses->end()) {
+            if (requestingAddresses->find(address) == requestingAddresses->end() &&
+                requestedAddresses->find(address) == requestedAddresses->end())
+            {
                 candidates.push_back(address);
             }
         }
 
         if (candidates.empty()) {
-            if (requestedAddresses->empty()) {
-                return TNoMorePeers();
-            } else {
-                return TTooManyConcurrentRequests();
-            }
+            return TNoMorePeers();
         }
 
         const auto& result = candidates[RandomNumber(candidates.size())];
@@ -503,7 +603,7 @@ private:
     }
 
 
-    IChannelPtr AddViablePeer(const TString& address, const IChannelPtr& channel)
+    void AddViablePeer(const TString& address, const IChannelPtr& channel)
     {
         auto wrappedChannel = CreateFailureDetectingChannel(
             channel,
@@ -518,8 +618,6 @@ private:
         YT_LOG_DEBUG("Peer is viable (Address: %v, Updated: %v)",
             address,
             updated);
-
-        return wrappedChannel;
     }
 
     void InvalidatePeer(const TString& address)

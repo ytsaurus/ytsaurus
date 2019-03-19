@@ -62,6 +62,7 @@ struct TOrderedByStartTimeTableDescriptor
         const int Pool;
         const int Pools;
         const int HasFailedJobs;
+        const int Acl;
     };
 
     const NTableClient::TNameTablePtr NameTable;

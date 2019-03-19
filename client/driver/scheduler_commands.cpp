@@ -127,7 +127,7 @@ TListOperationsCommand::TListOperationsCommand()
         .Optional();
     RegisterParameter("user", Options.UserFilter)
         .Optional();
-    RegisterParameter("owned_by", Options.OwnedBy)
+    RegisterParameter("access", Options.AccessFilter)
         .Optional();
     RegisterParameter("state", Options.StateFilter)
         .Optional();

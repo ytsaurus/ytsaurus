@@ -579,6 +579,11 @@ std::optional<NObjectClient::TTransactionId> TRichYPath::GetTransactionId() cons
     return FindAttribute<NObjectClient::TTransactionId>(*this, "transaction_id");
 }
 
+std::optional<std::vector<TString>> TRichYPath::GetSecurityTags() const
+{
+    return FindAttribute<std::vector<TString>>(*this, "security_tags");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString ToString(const TRichYPath& path)
@@ -623,6 +628,16 @@ void Deserialize(TRichYPath& richPath, INodePtr node)
     richPath.SetPath(node->GetValue<TString>());
     richPath.Attributes().Clear();
     richPath.Attributes().MergeFrom(node->Attributes());
+}
+
+void ToProto(TString* protoPath, const TRichYPath& path)
+{
+    *protoPath = ToString(path);
+}
+
+void FromProto(TRichYPath* path, const TString& protoPath)
+{
+    *path = TRichYPath::Parse(protoPath);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -325,6 +325,10 @@ public:
     void DecreaseRequestQueueSize(TUser* user);
 
 
+    //! Returns the interned security tags registry.
+    const TSecurityTagsRegistryPtr& GetSecurityTagsRegistry() const;
+
+
     //! Raised each time #ChargeUser is called.
     DECLARE_SIGNAL(void(TUser*, const TUserWorkload&), UserCharged);
 

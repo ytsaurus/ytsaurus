@@ -81,6 +81,8 @@ std::vector<TExecNodePtr> CreateExecNodes(const std::vector<TNodeGroupConfigPtr>
             node->Tags() = nodeGroupConfig->Tags;
             node->SetResourceLimits(GetNodeResourceLimit(nodeGroupConfig->ResourceLimits));
             node->SetDiskInfo(diskResources);
+            node->SetMasterState(NNodeTrackerClient::ENodeState::Online);
+            node->SetSchedulerState(NScheduler::ENodeState::Online);
             execNodes.push_back(node);
         }
     }

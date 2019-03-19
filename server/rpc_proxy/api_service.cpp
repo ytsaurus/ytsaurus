@@ -1220,14 +1220,11 @@ private:
             return;
         }
 
-        auto srcPaths = FromProto<std::vector<TYPath>>(request->src_paths());
-        const auto& dstPath = request->dst_path();
+        auto srcPaths = FromProto<std::vector<TRichYPath>>(request->src_paths());
+        auto dstPath = FromProto<TRichYPath>(request->dst_path());
 
         TConcatenateNodesOptions options;
         SetTimeoutOptions(&options, context.Get());
-        if (request->has_append()) {
-            options.Append = request->append();
-        }
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -1799,8 +1796,8 @@ private:
             options.UserFilter = request->user_filter();
         }
 
-        if (request->has_owned_by()) {
-            options.OwnedBy = request->owned_by();
+        if (request->has_access_filter()) {
+            options.AccessFilter = ConvertTo<TListOperationsAccessFilterPtr>(TYsonString(request->access_filter()));
         }
 
         if (request->has_state_filter()) {
@@ -1831,13 +1828,13 @@ private:
         options.EnableUIMode = request->enable_ui_mode();
 
         context->SetRequestInfo("IncludeArchive: %v, FromTime: %v, ToTime: %v, CursorTime: %v, UserFilter: %v, "
-            "OwnedBy: %v, StateFilter: %v, TypeFilter: %v, SubstrFilter: %v",
+            "AccessFilter: %v, StateFilter: %v, TypeFilter: %v, SubstrFilter: %v",
             options.IncludeArchive,
             options.FromTime,
             options.ToTime,
             options.CursorTime,
             options.UserFilter,
-            options.OwnedBy,
+            ConvertToYsonString(options.AccessFilter, EYsonFormat::Text),
             options.StateFilter,
             options.TypeFilter,
             options.SubstrFilter);

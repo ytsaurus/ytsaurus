@@ -34,6 +34,8 @@ struct TCumulativeStatisticsEntry
 
 TString ToString(const TCumulativeStatisticsEntry& entry);
 
+void Serialize(const TCumulativeStatisticsEntry& entry, NYson::IYsonConsumer* consumer);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Holds cumulative statistics for children of a chunk tree.
@@ -98,6 +100,8 @@ private:
 
     const TModifyableCumulativeStatistics& AsModifiable() const;
 };
+
+void Serialize(const TCumulativeStatistics& statistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

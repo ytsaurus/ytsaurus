@@ -11,16 +11,6 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChunkList::TCumulativeStatisticsEntry::Persist(NCellMaster::TPersistenceContext& context)
-{
-    using NYT::Persist;
-    Persist(context, RowCount);
-    Persist(context, ChunkCount);
-    Persist(context, DataSize);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TChunkList::TChunkList(TChunkListId id)
     : TChunkTree(id)
 {
@@ -77,6 +67,49 @@ void TChunkList::Save(NCellMaster::TSaveContext& context) const
     Save(context, PivotKey_);
 }
 
+void TChunkList::LoadCumulativeStatisticsCompat(NCellMaster::TLoadContext& context)
+{
+    struct TDummyStatisticsEntry
+    {
+        i64 RowCount;
+        i64 ChunkCount;
+        i64 DataSize;
+
+        void Load(NCellMaster::TLoadContext& context)
+        {
+            using NYT::Load;
+            Load(context, RowCount);
+            Load(context, ChunkCount);
+            Load(context, DataSize);
+        }
+    };
+
+    auto dummyStatistics = NYT::Load<std::vector<TDummyStatisticsEntry>>(context);
+
+    if (Children_.empty() || !HasAppendableCumulativeStatistics()) {
+        return;
+    }
+
+    dummyStatistics.push_back(TDummyStatisticsEntry{
+        Statistics_.LogicalRowCount,
+        Statistics_.LogicalChunkCount,
+        Statistics_.UncompressedDataSize});
+
+    CumulativeStatistics_.Clear();
+    CumulativeStatistics_.DeclareAppendable();
+
+    TCumulativeStatisticsEntry previousSum;
+    for (const auto& entry : dummyStatistics) {
+        TCumulativeStatisticsEntry currentSum{
+            entry.RowCount,
+            entry.ChunkCount,
+            entry.DataSize
+        };
+        CumulativeStatistics_.PushBack(currentSum - previousSum);
+        previousSum = currentSum;
+    }
+}
+
 void TChunkList::Load(NCellMaster::TLoadContext& context)
 {
     TChunkTree::Load(context);
@@ -87,7 +120,14 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     Load(context, TrunkOwningNodes_);
     Load(context, BranchedOwningNodes_);
     Load(context, Statistics_);
-    Load(context, CumulativeStatistics_);
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() < 828) {
+        LoadCumulativeStatisticsCompat(context);
+    } else {
+        Load(context, CumulativeStatistics_);
+    }
+
     Load(context, Kind_);
     Load(context, TrimmedChildCount_);
     Load(context, PivotKey_);
@@ -166,6 +206,21 @@ void TChunkList::SetKind(EChunkListKind kind)
 bool TChunkList::IsOrdered() const
 {
     return Kind_ == EChunkListKind::Static || Kind_ == EChunkListKind::OrderedDynamicTablet;
+}
+
+bool TChunkList::HasCumulativeStatistics() const
+{
+    return HasAppendableCumulativeStatistics() || HasModifyableCumulativeStatistics();
+}
+
+bool TChunkList::HasAppendableCumulativeStatistics() const
+{
+    return Kind_ == EChunkListKind::Static || Kind_ == EChunkListKind::OrderedDynamicTablet;
+}
+
+bool TChunkList::HasModifyableCumulativeStatistics() const
+{
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,6 +4,8 @@
 
 #include <util/stream/str.h>
 
+#include <util/system/compiler.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,6 +19,10 @@ TString CreateYTVersion(int major, int minor, int patch, TStringBuf branch)
 
 #if !defined(NDEBUG)
     out << "debug";
+#endif
+
+#if defined(_asan_enabled_)
+    out << "-asan";
 #endif
 
     TString commit = ARCADIA_SOURCE_REVISION;

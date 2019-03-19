@@ -880,8 +880,6 @@ message TReqConcatenateNodes
     repeated string src_paths = 1; // YPath
     required string dst_path = 2; // YPath
 
-    optional bool append = 3 [default = false];
-
     optional TTransactionalOptions transactional_options = 100;
     // TODO(sandello): Prerequisite?
     optional TMutatingOptions mutating_options = 103;
@@ -1283,7 +1281,7 @@ message TReqListOperations
     optional EOperationSortDirection cursor_direction = 4 [default = OSD_PAST];
     optional string user_filter = 5;
 
-    optional string owned_by = 6;
+    reserved 6; // deprecated
 
     optional EOperationState state_filter = 7;
     optional EOperationType type_filter = 8;
@@ -1297,6 +1295,8 @@ message TReqListOperations
     optional TAttributeKeys attributes = 15;
 
     optional bool enable_ui_mode = 16 [default = false];
+
+    optional bytes access_filter = 17; // YSON
 
     optional TMasterReadOptions master_read_options = 102;
 }

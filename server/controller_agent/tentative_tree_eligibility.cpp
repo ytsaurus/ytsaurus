@@ -45,9 +45,7 @@ void TTentativeTreeEligibility::Persist(const TPersistenceContext& context)
     Persist(context, MinJobDuration_);
 
     Persist(context, StartedJobsPerPoolTree_);
-    if (context.GetVersion() >= 300024) {
-        Persist(context, LastStartJobTimePerPoolTree_);
-    }
+    Persist(context, LastStartJobTimePerPoolTree_);
     Persist(context, FinishedJobsPerStatePerPoolTree_);
     Persist(context, BannedTrees_);
 }
@@ -174,9 +172,21 @@ TDuration TTentativeTreeEligibility::GetTentativeTreeAverageJobDuration(const TS
             tentativeCount += 1;
             tentativeDurationSum += TInstant::Now() - it->second;
         }
-    }
+        return tentativeDurationSum / tentativeCount;
+    } else {
+        int completedJobCount = FinishedJobsPerStatePerPoolTree_.Value(treeId, THashMap<EJobState, int>()).Value(EJobState::Completed, 0);
+        if (completedJobCount == tentativeCount) {
+            return tentativeDurationSum / tentativeCount;
+        } else { // Consider last job separately.
+            auto it = LastStartJobTimePerPoolTree_.find(treeId);
+            YCHECK(it != LastStartJobTimePerPoolTree_.end());
+            auto lastJobDuration = TInstant::Now() - it->second;
 
-    return tentativeDurationSum / tentativeCount;
+            // Weight average duration with last job duration as if we run only sample jobs.
+            tentativeDurationSum = (tentativeDurationSum / tentativeCount) * SampleJobCount_ + lastJobDuration;
+            return tentativeDurationSum / (SampleJobCount_ + 1);
+        }
+    }
 }
 
 bool TTentativeTreeEligibility::IsSlow(const TString& treeId) const

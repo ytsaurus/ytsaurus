@@ -21,6 +21,7 @@ struct TTableUploadOptions
     EOptimizeFor OptimizeFor;
     NCompression::ECodec CompressionCodec;
     NErasure::ECodec ErasureCodec;
+    std::optional<std::vector<TString>> SecurityTags;
 
     void Persist(NPhoenix::TPersistenceContext& context);
 };

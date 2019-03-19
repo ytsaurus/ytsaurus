@@ -98,7 +98,7 @@ void TSingleShotCallbackList<TResult(TArgs...)>::Subscribe(const TCallback& call
     NConcurrency::TWriterGuard guard(SpinLock_);
     if (Fired_) {
         guard.Release();
-        callback.RunWithTuple(Args_);
+        std::apply(callback, Args_);
         return;
     }
     Callbacks_.push_back(callback);
@@ -148,7 +148,7 @@ bool TSingleShotCallbackList<TResult(TArgs...)>::Fire(TCallArgs&&... args)
     }
 
     for (const auto& callback : Callbacks_) {
-        callback.RunWithTuple(Args_);
+        std::apply(callback, Args_);
     }
 
     Callbacks_.clear();

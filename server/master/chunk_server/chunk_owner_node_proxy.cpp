@@ -19,6 +19,9 @@
 
 #include <yt/server/master/table_server/shared_table_schema.h>
 
+#include <yt/server/master/security_server/security_manager.h>
+#include <yt/server/master/security_server/security_tags.h>
+
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 
@@ -55,6 +58,7 @@ using namespace NNodeTrackerServer;
 using namespace NNodeTrackerClient;
 using namespace NObjectServer;
 using namespace NTransactionServer;
+using namespace NSecurityServer;
 using namespace NYson;
 using namespace NYTree;
 using namespace NTableClient;
@@ -457,6 +461,9 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
         .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ErasureCodec)
         .SetWritable(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SecurityTags)
+        .SetWritable(true)
+        .SetReplicated(true));
 }
 
 bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
@@ -553,6 +560,11 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
         case EInternedAttributeKey::ErasureCodec:
             BuildYsonFluently(consumer)
                 .Value(node->GetErasureCodec());
+            return true;
+
+        case EInternedAttributeKey::SecurityTags:
+            BuildYsonFluently(consumer)
+                .Value(node->GetSecurityTags().Items);
             return true;
 
         default:
@@ -687,6 +699,31 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             return true;
         }
 
+        case EInternedAttributeKey::SecurityTags: {
+            auto* node = LockThisImpl<TChunkOwnerBase>();
+            if (node->GetUpdateMode() == EUpdateMode::Append) {
+                THROW_ERROR_EXCEPTION("Cannot change security tags of a node in %Qlv update mode",
+                    node->GetUpdateMode());
+            }
+
+            TSecurityTags securityTags{
+                ConvertTo<TSecurityTagsItems>(value)
+            };
+            securityTags.Normalize();
+
+            // TODO(babenko): audit
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Node security tags updated; node is switched to \"overwrite\" mode (NodeId: %v, OldSecurityTags: %v, NewSecurityTags: %v",
+                node->GetVersionedId(),
+                node->GetSecurityTags().Items,
+                securityTags.Items);
+
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            const auto& securityTagsRegistry = securityManager->GetSecurityTagsRegistry();
+            node->SnapshotSecurityTags() = securityTagsRegistry->Intern(std::move(securityTags));
+            node->SetUpdateMode(EUpdateMode::Overwrite);
+            return true;
+        }
+
         default:
             break;
     }
@@ -818,6 +855,23 @@ void TChunkOwnerNodeProxy::ValidateStorageParametersUpdate()
     ValidateNoTransaction();
 }
 
+void TChunkOwnerNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
+{
+    TObjectProxyBase::GetBasicAttributes(context);
+
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+    const auto& handler = objectManager->GetHandler(Object_);
+    auto replicationCellTags = handler->GetReplicationCellTags(Object_);
+    if (!replicationCellTags.empty()) {
+        context->CellTag = replicationCellTags[0];
+    }
+
+    if (context->PopulateSecurityTags) {
+        const auto* node = GetThisImpl<TChunkOwnerBase>();
+        context->SecurityTags = node->GetSecurityTags();
+    }
+}
+
 DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
 {
     DeclareNonMutating();
@@ -852,15 +906,14 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 {
     DeclareMutating();
 
-    auto updateMode = EUpdateMode(request->update_mode());
-    if (updateMode != EUpdateMode::Append && updateMode != EUpdateMode::Overwrite) {
-        THROW_ERROR_EXCEPTION("Invalid update mode for a chunk owner node")
-            << TErrorAttribute("update_mode", updateMode);
+    TChunkOwnerBase::TBeginUploadContext uploadContext;
+    uploadContext.Mode = CheckedEnumCast<EUpdateMode>(request->update_mode());
+    if (uploadContext.Mode != EUpdateMode::Append && uploadContext.Mode != EUpdateMode::Overwrite) {
+        THROW_ERROR_EXCEPTION("Invalid update mode %Qlv for a chunk owner node",
+            uploadContext.Mode);
     }
 
-    auto lockMode = ELockMode(request->lock_mode());
-    YCHECK(lockMode == ELockMode::Shared ||
-           lockMode == ELockMode::Exclusive);
+    auto lockMode = CheckedEnumCast<ELockMode>(request->lock_mode());
 
     auto uploadTransactionTitle = request->has_upload_transaction_title()
         ? std::make_optional(request->upload_transaction_title())
@@ -892,7 +945,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     context->SetRequestInfo(
         "UpdateMode: %v, LockMode: %v, "
         "Title: %v, Timeout: %v, SecondaryCellTags: %v",
-        updateMode,
+        uploadContext.Mode,
         lockMode,
         uploadTransactionTitle,
         uploadTransactionTimeout,
@@ -923,14 +976,13 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         ->LockNode(TrunkNode, uploadTransaction, lockMode, false, true)
         ->As<TChunkOwnerBase>();
 
-    switch (updateMode) {
+    switch (uploadContext.Mode) {
         case EUpdateMode::Append: {
             if (node->IsExternal() || node->GetType() == EObjectType::Journal) {
                 YT_LOG_DEBUG_UNLESS(
                     IsRecovery(),
                     "Node is switched to \"append\" mode (NodeId: %v)",
                     lockedNode->GetId());
-
             } else {
                 auto* snapshotChunkList = lockedNode->GetChunkList();
 
@@ -955,7 +1007,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                     newChunkList->GetId(),
                     snapshotChunkList->GetId(),
                     deltaChunkList->GetId());
-
             }
             break;
         }
@@ -989,7 +1040,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
             Y_UNREACHABLE();
     }
 
-    lockedNode->BeginUpload(updateMode);
+    lockedNode->BeginUpload(uploadContext);
 
     const auto& uploadTransactionId = uploadTransaction->GetId();
     ToProto(response->mutable_upload_transaction_id(), uploadTransactionId);
@@ -1000,7 +1051,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
     if (node->IsExternal()) {
         auto replicationRequest = TChunkOwnerYPathProxy::BeginUpload(FromObjectId(GetId()));
-        replicationRequest->set_update_mode(static_cast<int>(updateMode));
+        replicationRequest->set_update_mode(static_cast<int>(uploadContext.Mode));
         replicationRequest->set_lock_mode(static_cast<int>(lockMode));
         ToProto(replicationRequest->mutable_upload_transaction_id(), uploadTransactionId);
         if (uploadTransactionTitle) {
@@ -1059,44 +1110,54 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     ValidateTransaction();
     ValidateInUpdate();
 
-    auto schemaMode = ETableSchemaMode(request->schema_mode());
-    const auto* statistics = request->has_statistics() ? &request->statistics() : nullptr;
+    TChunkOwnerBase::TEndUploadContext uploadContext;
 
-    auto* node = GetThisImpl<TChunkOwnerBase>();
-    YCHECK(node->GetTransaction() == Transaction);
+    uploadContext.SchemaMode = CheckedEnumCast<ETableSchemaMode>(request->schema_mode());
 
-    std::optional<EOptimizeFor> optimizeFor;
+    if (request->has_statistics()) {
+        uploadContext.Statistics = &request->statistics();
+    }
+
     if (request->has_optimize_for()) {
-        optimizeFor = EOptimizeFor(request->optimize_for());
+        uploadContext.OptimizeFor = CheckedEnumCast<EOptimizeFor>(request->optimize_for());
+    }
+
+    if (request->has_md5_hasher()) {
+        uploadContext.MD5Hasher = FromProto<std::optional<TMD5Hasher>>(request->md5_hasher());
+    }
+
+    if (request->has_table_schema()) {
+        const auto& registry = Bootstrap_->GetCypressManager()->GetSharedTableSchemaRegistry();
+        uploadContext.Schema = registry->GetSchema(FromProto<TTableSchema>(request->table_schema()));
+    }
+
+    if (request->has_security_tags()) {
+        TSecurityTags securityTags{
+            FromProto<TSecurityTagsItems>(request->security_tags().items())
+        };
+        securityTags.Normalize();
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityTagsRegistry = securityManager->GetSecurityTagsRegistry();
+        uploadContext.SecurityTags = securityTagsRegistry->Intern(std::move(securityTags));
     }
 
     if (request->has_compression_codec()) {
-        node->SetCompressionCodec(CheckedEnumCast<NCompression::ECodec>(request->compression_codec()));
+        uploadContext.CompressionCodec = CheckedEnumCast<NCompression::ECodec>(request->compression_codec());
     }
 
     if (request->has_erasure_codec()) {
-        node->SetErasureCodec(NErasure::ECodec(request->erasure_codec()));
+        uploadContext.ErasureCodec = CheckedEnumCast<NErasure::ECodec>(request->erasure_codec());
     }
+
+    auto* node = GetThisImpl<TChunkOwnerBase>();
+    YCHECK(node->GetTransaction() == Transaction);
 
     if (node->IsExternal()) {
         PostToMaster(context, node->GetExternalCellTag());
     }
 
-    if (request->has_md5_hasher()) {
-        YCHECK(node->GetType() == EObjectType::File);
-    }
-
-    std::optional<TMD5Hasher> md5Hasher;
-    if (request->has_md5_hasher()) {
-        FromProto(&md5Hasher, request->md5_hasher());
-    }
-
-    const auto& registry = Bootstrap_->GetCypressManager()->GetSharedTableSchemaRegistry();
-    NTableServer::TSharedTableSchemaPtr sharedSchema = request->has_table_schema()
-        ? registry->GetSchema(FromProto<TTableSchema>(request->table_schema()))
-        : nullptr;
-
-    node->EndUpload(statistics, sharedSchema, schemaMode, optimizeFor, md5Hasher);
+    node->EndUpload(uploadContext);
 
     SetModified();
 

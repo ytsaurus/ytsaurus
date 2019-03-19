@@ -1,19 +1,9 @@
 #include "storage_with_virtual_columns.h"
 
 #include "format_helpers.h"
+#include "private.h"
 
 #include <Common/Exception.h>
-
-namespace DB
-{
-
-namespace ErrorCodes
-{
-    extern const int NO_SUCH_COLUMN_IN_TABLE;
-    extern const int ILLEGAL_COLUMN;
-}
-
-}
 
 namespace NYT::NClickHouseServer {
 

@@ -26,6 +26,10 @@ void TTableUploadOptions::Persist(NPhoenix::TPersistenceContext& context)
     Persist(context, OptimizeFor);
     Persist(context, CompressionCodec);
     Persist(context, ErasureCodec);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 300100) {
+        Persist(context, SecurityTags);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,8 +66,8 @@ static void ValidateAppendKeyColumns(const TKeyColumns& keyColumns, const TTable
 
     if (!areKeyColumnsCompatible) {
         THROW_ERROR_EXCEPTION("Key columns mismatch while trying to append sorted data into a non-empty table")
-                << TErrorAttribute("append_key_columns", keyColumns)
-                << TErrorAttribute("current_key_columns", tableKeyColumns);
+            << TErrorAttribute("append_key_columns", keyColumns)
+            << TErrorAttribute("current_key_columns", tableKeyColumns);
     }
 }
 
@@ -152,14 +156,14 @@ TTableUploadOptions GetTableUploadOptions(
     } else {
         // Do not use Y_UNREACHABLE here, since this code is executed inside scheduler.
         THROW_ERROR_EXCEPTION("Failed to define upload parameters")
-                << TErrorAttribute("path", path)
-                << TErrorAttribute("schema_mode", schemaMode)
-                << TErrorAttribute("schema", schema);
+            << TErrorAttribute("path", path)
+            << TErrorAttribute("schema_mode", schemaMode)
+            << TErrorAttribute("schema", schema);
     }
 
     if (path.GetAppend() && path.GetOptimizeFor()) {
         THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"optimize_for\" are not compatible")
-                << TErrorAttribute("path", path);
+            << TErrorAttribute("path", path);
     }
 
     if (path.GetOptimizeFor()) {
@@ -170,7 +174,7 @@ TTableUploadOptions GetTableUploadOptions(
 
     if (path.GetAppend() && path.GetCompressionCodec()) {
         THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"compression_codec\" are not compatible")
-                << TErrorAttribute("path", path);
+            << TErrorAttribute("path", path);
     }
 
     if (path.GetCompressionCodec()) {
@@ -181,7 +185,7 @@ TTableUploadOptions GetTableUploadOptions(
 
     if (path.GetAppend() && path.GetErasureCodec()) {
         THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"erasure_codec\" are not compatible")
-                << TErrorAttribute("path", path);
+            << TErrorAttribute("path", path);
     }
 
     if (path.GetErasureCodec()) {
@@ -190,9 +194,12 @@ TTableUploadOptions GetTableUploadOptions(
         result.ErasureCodec = erasureCodec;
     }
 
+    result.SecurityTags = path.GetSecurityTags();
+
     return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT::NTableClient
+

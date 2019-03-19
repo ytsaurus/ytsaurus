@@ -9,6 +9,7 @@
 #include "request_tracker.h"
 #include "user.h"
 #include "user_proxy.h"
+#include "security_tags.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/config_manager.h>
@@ -46,6 +47,7 @@
 #include <yt/core/erasure/codec.h>
 
 #include <yt/core/misc/optional.h>
+#include <yt/core/misc/intern_registry.h>
 
 #include <yt/core/logging/fluent_log.h>
 
@@ -1261,6 +1263,13 @@ public:
         RequestTracker_->DecreaseRequestQueueSize(user);
     }
 
+
+    const TSecurityTagsRegistryPtr& GetSecurityTagsRegistry() const
+    {
+        return SecurityTagsRegistry_;
+    }
+
+
     DEFINE_SIGNAL(void(TUser*, const TUserWorkload&), UserCharged);
 
 private:
@@ -1272,6 +1281,8 @@ private:
     const TSecurityManagerConfigPtr Config_;
 
     const TRequestTrackerPtr RequestTracker_;
+
+    const TSecurityTagsRegistryPtr SecurityTagsRegistry_ = New<TSecurityTagsRegistry>();
 
     TPeriodicExecutorPtr AccountStatisticsGossipExecutor_;
     TPeriodicExecutorPtr UserStatisticsGossipExecutor_;
@@ -3037,6 +3048,11 @@ bool TSecurityManager::TryIncreaseRequestQueueSize(TUser* user)
 void TSecurityManager::DecreaseRequestQueueSize(TUser* user)
 {
     Impl_->DecreaseRequestQueueSize(user);
+}
+
+const TSecurityTagsRegistryPtr& TSecurityManager::GetSecurityTagsRegistry() const
+{
+    return Impl_->GetSecurityTagsRegistry();
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Account, TAccount, *Impl_)

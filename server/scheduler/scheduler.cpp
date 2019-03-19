@@ -531,21 +531,22 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        const auto& operation = WaitFor(BIND(&TImpl::GetOperationOrThrow, MakeStrong(this))
+        auto doValidateOperationAccess = BIND([=, this_ = MakeStrong(this)] {
+            auto operation = GetOperationOrThrow(operationId);
+            NScheduler::ValidateOperationAccess(
+                user,
+                operationId,
+                TJobId(),
+                permissions,
+                operation->GetAcl(),
+                GetMasterClient(),
+                Logger);
+        });
+
+        WaitFor(doValidateOperationAccess
             .AsyncVia(GetControlInvoker(EControlQueue::Operation))
-            .Run(operationId))
-            .ValueOrThrow();
-
-        NScheduler::ValidateOperationAccess(
-            user,
-            operationId,
-            TJobId(),
-            permissions,
-            operation->GetAcl(),
-            GetMasterClient(),
-            Logger);
-
-        ValidateConnected();
+            .Run())
+            .ThrowOnError();
     }
 
     TFuture<TOperationPtr> StartOperation(

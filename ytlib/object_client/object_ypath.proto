@@ -34,26 +34,33 @@ message TPrerequisitesExt
 
 message TReqGetBasicAttributes
 {
-    optional int32 permission = 1; // EPermission
-
     message TColumns
     {
         repeated string items = 1;
     }
+
+    optional int32 permission = 1; // EPermission
     optional TColumns columns = 2;
     optional bool omit_inaccessible_columns = 3;
+    optional bool populate_security_tags = 4;
 }
 
 message TRspGetBasicAttributes
 {
-    required NYT.NProto.TGuid object_id = 1;
-    required int32 cell_tag = 2;
-
     message TColumns
     {
         repeated string items = 1;
     }
+
+    message TSecurityTags
+    {
+        repeated string items = 1;
+    }
+
+    required NYT.NProto.TGuid object_id = 1;
+    optional int32 cell_tag = 2;
     optional TColumns omitted_inaccessible_columns = 3;
+    optional TSecurityTags security_tags = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
