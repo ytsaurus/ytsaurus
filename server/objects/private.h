@@ -8,7 +8,7 @@ namespace NYP::NServer::NObjects {
 
 extern const NYT::NLogging::TLogger Logger;
 
-static constexpr int DBVersion = 22;
+static constexpr int DBVersion = 23;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -116,3 +116,61 @@ class TestResourceCache(object):
         yp_client.remove_object("replica_set", replica_set_id)
         assert yp_client.select_objects("replica_set", selectors=["/meta/id"]) == []
         assert yp_client.select_objects("resource_cache", selectors=["/meta/id"]) == []
+
+    def test_pod_with_resource_cache(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        pod_set_id = yp_client.create_object(object_type="pod_set", attributes={})
+        pod_id = yp_client.create_object(
+            object_type="pod",
+            attributes={
+                "meta": {
+                    "pod_set_id": pod_set_id,
+                },
+                "spec": {
+                },
+            }
+        )
+
+        resource_cache_spec = {
+            "spec": {
+                "layers": [
+                    {
+                        "revision": 1,
+                        "layer": {
+                            "id": "my_layer"
+                        }
+                    }
+                ],
+                "static_resources": [
+                    {
+                        "revision": 1,
+                        "resource": {
+                            "id": "my_static_resource"
+                        }
+                    }
+
+                ]
+            }
+        }
+
+        result = yp_client.get_object(
+            "pod", pod_id,
+            selectors=["/meta", "/spec/resource_cache"]
+        )
+        assert result[0]['id'] == pod_id
+        assert result[1] == {}
+
+        yp_client.update_object(
+            "pod", pod_id,
+            set_updates=[
+                {"path": "/spec/resource_cache", "value": resource_cache_spec},
+            ]
+        )
+
+        result = yp_client.get_object(
+            "pod", pod_id,
+            selectors=["/meta", "/spec/resource_cache"]
+        )
+        assert result[0]['id'] == pod_id
+        assert result[1] == resource_cache_spec

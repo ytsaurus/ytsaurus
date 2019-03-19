@@ -160,6 +160,7 @@ extern const struct TPodsTable
         TDBField Spec_Other{"spec.other", NTableClient::EValueType::Any};
         TDBField Spec_AccountId{"spec.account_id", NTableClient::EValueType::String};
         TDBField Spec_DynamicResources{"spec.dynamic_resources", NTableClient::EValueType::Any};
+        TDBField Spec_ResourceCache{"spec.resource_cache", NTableClient::EValueType::Any};
         TDBField Spec_DynamicAttributes{"spec.dynamic_attributes", NTableClient::EValueType::Any};
     } Fields;
 } PodsTable;

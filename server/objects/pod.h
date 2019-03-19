@@ -105,6 +105,10 @@ public:
         static const TScalarAttributeSchema<TPod, TDynamicResourceSpec> DynamicResourcesSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TDynamicResourceSpec>, DynamicResources);
 
+        using TResourceCache = NClient::NApi::NProto::TPodSpec_TPodAgentResourceCache;
+        static const TScalarAttributeSchema<TPod, TResourceCache> ResourceCacheSchema;
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TResourceCache>, ResourceCache);
+
         static const TManyToOneAttributeSchema<TPod, TAccount> AccountSchema;
         using TAccountAttribute = TManyToOneAttribute<TPod, TAccount>;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAccountAttribute, Account);

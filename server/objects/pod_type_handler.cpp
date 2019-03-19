@@ -145,6 +145,10 @@ public:
                     ->SetAttribute(TPod::TSpec::DynamicResourcesSchema)
                     ->SetUpdatable(),
 
+                MakeAttributeSchema("resource_cache")
+                    ->SetAttribute(TPod::TSpec::ResourceCacheSchema)
+                    ->SetUpdatable(),
+
                 MakeAttributeSchema("dynamic_attributes")
                     ->SetAttribute(TPod::TSpec::DynamicAttributesSchema)
                     ->SetUpdatable(),

@@ -107,6 +107,11 @@ const TScalarAttributeSchema<TPod, TPod::TSpec::TDynamicResourceSpec> TPod::TSpe
     [] (TPod* pod) { return &pod->Spec().DynamicResources(); }
 };
 
+const TScalarAttributeSchema<TPod, TPod::TSpec::TResourceCache> TPod::TSpec::ResourceCacheSchema{
+    &PodsTable.Fields.Spec_ResourceCache,
+    [] (TPod* pod) { return &pod->Spec().ResourceCache(); }
+};
+
 const TManyToOneAttributeSchema<TPod, TAccount> TPod::TSpec::AccountSchema{
     &PodsTable.Fields.Spec_AccountId,
     [] (TPod* pod) { return &pod->Spec().Account(); },
@@ -131,6 +136,7 @@ TPod::TSpec::TSpec(TPod* pod)
     , Secrets_(pod, &SecretsSchema)
     , UpdateTimestamp_(pod, &UpdateTimestampSchema)
     , DynamicResources_(pod, &DynamicResourcesSchema)
+    , ResourceCache_(pod, &ResourceCacheSchema)
     , Account_(pod, &AccountSchema)
     , DynamicAttributes_(pod, &DynamicAttributesSchema)
     , Other_(pod, &OtherSchema)

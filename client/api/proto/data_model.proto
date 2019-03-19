@@ -853,6 +853,14 @@ message TPodSpec
 
     // Dynamic resources for the pod.
     repeated TPodDynamicResourceSpec dynamic_resources = 19;
+
+    message TPodAgentResourceCache
+    {
+        optional NInfra.NPodAgent.API.TPodAgentResourceCacheSpec spec = 1;
+    }
+
+    // Resource cache for the pod
+    optional TPodAgentResourceCache resource_cache = 20;
 }
 
 enum EEvictionState
