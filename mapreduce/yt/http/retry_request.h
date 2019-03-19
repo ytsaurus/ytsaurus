@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mapreduce/yt/interface/fwd.h>
+#include <mapreduce/yt/interface/retry_policy.h>
 
 #include <util/datetime/base.h>
 #include <util/generic/string.h>
@@ -12,20 +13,6 @@ class THttpHeader;
 class TErrorResponse;
 
 namespace NDetail {
-
-////////////////////////////////////////////////////////////////////
-
-struct IRetryPolicy
-{
-    virtual ~IRetryPolicy() = default;
-
-    virtual void NotifyNewAttempt() = 0;
-
-    // Return Nothing() if retries must not be continued.
-    virtual TMaybe<TDuration> GetRetryInterval(const yexception& e) const = 0;
-    virtual TMaybe<TDuration> GetRetryInterval(const TErrorResponse& e) const = 0;
-    virtual TString GetAttemptDescription() const = 0;
-};
 
 ////////////////////////////////////////////////////////////////////
 

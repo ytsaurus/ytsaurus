@@ -55,7 +55,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPingRetryPolicy
-    :   public NDetail::IRetryPolicy
+    :   public IRetryPolicy
 {
 public:
     TPingRetryPolicy(ui32 attemptCount = 0);
