@@ -570,6 +570,89 @@ TEST_F(TChunkTreeTraversingTest, OrderedDynamic)
     }
 }
 
+TEST_F(TChunkTreeTraversingTest, StartIndex)
+{
+    //         root            //
+    //      /    |    \        //
+    //     /     |     \       //
+    // chunk1  chunk2  chunk3  //
+
+    auto chunk1 = CreateChunk(1, 1, 1, 1);
+    auto chunk2 = CreateChunk(1, 2, 2, 2);
+    auto chunk3 = CreateChunk(1, 3, 3, 3);
+
+    auto root = CreateChunkList(EChunkListKind::Static);
+
+    AttachToChunkList(root, std::vector<TChunkTree*>{chunk1, chunk2, chunk3});
+
+    root->Statistics().Sealed = false;
+    auto callbacks = GetNonpreemptableChunkTraverserCallbacks();
+
+    {
+        auto visitor = New<TTestChunkVisitor>();
+
+        TReadLimit lowerLimit;
+        lowerLimit.SetRowIndex(0);
+
+        TReadLimit upperLimit;
+        upperLimit.SetRowIndex(1);
+
+        TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
+
+        std::set<TChunkInfo> correctResult;
+        correctResult.insert(TChunkInfo(
+            chunk1,
+            0,
+            TReadLimit(),
+            TReadLimit()));
+
+        EXPECT_EQ(correctResult, visitor->GetChunkInfos());
+    }
+    {
+        auto visitor = New<TTestChunkVisitor>();
+
+        TReadLimit lowerLimit;
+        lowerLimit.SetRowIndex(1);
+
+        TReadLimit upperLimit;
+        upperLimit.SetRowIndex(2);
+
+        TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
+
+        std::set<TChunkInfo> correctResult;
+        correctResult.insert(TChunkInfo(
+            chunk2,
+            1,
+            TReadLimit(),
+            TReadLimit()));
+
+        EXPECT_EQ(correctResult, visitor->GetChunkInfos());
+    }
+    {
+        auto visitor = New<TTestChunkVisitor>();
+
+        TReadLimit lowerLimit;
+        lowerLimit.SetRowIndex(2);
+
+        TReadLimit upperLimit;
+        upperLimit.SetRowIndex(3);
+
+        TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
+
+        TReadLimit upperLimitResult;
+        upperLimitResult.SetRowIndex(1);
+
+        std::set<TChunkInfo> correctResult;
+        correctResult.insert(TChunkInfo(
+            chunk3,
+            2,
+            TReadLimit(),
+            upperLimitResult));
+
+        EXPECT_EQ(correctResult, visitor->GetChunkInfos());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

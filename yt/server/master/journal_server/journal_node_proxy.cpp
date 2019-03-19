@@ -112,7 +112,9 @@ private:
 
                 auto* chunk = chunkList->Children().back()->AsChunk();
                 const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
-                i64 penultimateRowCount = cumulativeStatistics.empty() ? 0 : cumulativeStatistics.back().RowCount;
+                i64 penultimateRowCount = cumulativeStatistics.Size() == 1
+                    ? 0
+                    : cumulativeStatistics[cumulativeStatistics.Size() - 2].RowCount;
 
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 return chunkManager

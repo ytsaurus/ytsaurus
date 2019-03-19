@@ -86,6 +86,16 @@ void Deserialize(TSerializableAccessControlEntry& ace, NYTree::INodePtr node)
     }
 }
 
+void TSerializableAccessControlEntry::Persist(const TStreamPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, Action);
+    Persist(context, Subjects);
+    Persist(context, Permissions);
+    Persist(context, InheritanceMode);
+}
+
 bool operator == (const TSerializableAccessControlList& lhs, const TSerializableAccessControlList& rhs)
 {
     return lhs.Entries == rhs.Entries;
@@ -104,6 +114,11 @@ void Serialize(const TSerializableAccessControlList& acl, NYson::IYsonConsumer* 
 void Deserialize(TSerializableAccessControlList& acl, NYTree::INodePtr node)
 {
     NYTree::Deserialize(acl.Entries, node);
+}
+
+void TSerializableAccessControlList::Persist(const TStreamPersistenceContext& context)
+{
+    NYT::Persist(context, Entries);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
