@@ -109,6 +109,8 @@ public:
 
     TDuration IdleChannelTtl;
 
+    ssize_t MaxRequestWindowSize;
+
     TConnectionConfig();
 };
 

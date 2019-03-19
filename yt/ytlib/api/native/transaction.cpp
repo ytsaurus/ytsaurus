@@ -36,6 +36,8 @@
 
 #include <yt/core/misc/sliding_window.h>
 
+#include <functional>
+
 namespace NYT::NApi::NNative {
 
 using namespace NYPath;
@@ -49,6 +51,8 @@ using namespace NQueryClient;
 using namespace NYson;
 using namespace NConcurrency;
 using namespace NRpc;
+
+using std::placeholders::_1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,7 +81,8 @@ public:
             GetId(),
             Client_->GetConnection()->GetCellTag()))
         , OrderedRequestsSlidingWindow_(
-            BIND(&TTransaction::DoEnqueueModificationRequest, Unretained(this)))
+            std::bind(&TTransaction::DoEnqueueModificationRequest, this, _1),
+            Client_->GetNativeConnection()->GetConfig()->MaxRequestWindowSize)
     { }
 
 
@@ -1447,7 +1452,7 @@ private:
     {
         bool clusterDirectorySynced = false;
 
-        if (!OrderedRequestsSlidingWindow_.Empty()) {
+        if (!OrderedRequestsSlidingWindow_.IsEmpty()) {
             THROW_ERROR_EXCEPTION("Cannot prepare transaction %v since sequence number %v is missing",
                 GetId(),
                 OrderedRequestsSlidingWindow_.GetNextSequenceNumber());
