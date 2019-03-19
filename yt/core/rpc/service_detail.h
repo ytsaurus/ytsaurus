@@ -484,7 +484,7 @@ protected:
         //! If |true| then Bus is expected to be generating checksums for the whole response content,
         //! including attachments (unless the connection is local or the checksums are explicitly disabled).
         //! If |false| then Bus will only be generating such checksums for RPC header and response body
-        //! but not attachements.
+        //! but not attachments.
         bool GenerateAttachmentChecksums = true;
 
         //! If |true| then the method supports attachments streaming.
