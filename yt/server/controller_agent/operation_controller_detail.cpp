@@ -206,7 +206,6 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableInvokerPool(TransformInvokerPool(
         SuspendableInvokerPool,
         BIND(&TCancelableContext::CreateInvoker, CancelableContext)))
-    , JobCounter(New<TProgressCounter>(0))
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , MemoryTag_(operation->GetMemoryTag())
     , PoolTreeToSchedulingTagFilter_(operation->PoolTreeToSchedulingTagFilter())
@@ -974,7 +973,6 @@ void TOperationControllerBase::AbortAllJoblets()
 {
     for (const auto& pair : JobletMap) {
         auto joblet = pair.second;
-        JobCounter->Aborted(1, EAbortReason::Scheduler);
         const auto& jobId = pair.first;
         auto jobSummary = TAbortedJobSummary(jobId, EAbortReason::Scheduler);
         joblet->Task->OnJobAborted(joblet, jobSummary);
@@ -2024,8 +2022,6 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         ExtractInterruptDescriptor(*jobSummary);
     }
 
-    JobCounter->Completed(1, jobSummary->InterruptReason);
-
     auto joblet = GetJoblet(jobId);
 
     ParseStatistics(jobSummary.get(), joblet->StatisticsYson);
@@ -2129,8 +2125,6 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     auto error = FromProto<TError>(result.error());
 
-    JobCounter->Failed(1);
-
     ParseStatistics(jobSummary.get(), joblet->StatisticsYson);
 
     FinalizeJoblet(joblet, jobSummary.get());
@@ -2175,7 +2169,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         return;
     }
 
-    int failedJobCount = JobCounter->GetFailed();
+    int failedJobCount = GetDataFlowGraph()->GetTotalJobCounter()->GetFailed();
     int maxFailedJobCount = Spec_->MaxFailedJobCount;
     if (failedJobCount >= maxFailedJobCount) {
         OnOperationFailed(TError("Failed jobs limit exceeded")
@@ -2208,8 +2202,6 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     }
 
     YT_LOG_DEBUG("Job aborted (JobId: %v)", jobId);
-
-    JobCounter->Aborted(1, abortReason);
 
     auto joblet = GetJoblet(jobId);
 
@@ -2626,7 +2618,6 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
     completedJob->DestinationPool->Suspend(completedJob->InputCookie);
 
     if (completedJob->Restartable) {
-        JobCounter->Lost(1);
         completedJob->SourceTask->GetChunkPoolOutput()->Lost(completedJob->OutputCookie);
         completedJob->SourceTask->OnJobLost(completedJob);
         AddTaskPendingHint(completedJob->SourceTask);
@@ -2986,7 +2977,7 @@ void TOperationControllerBase::AnalyzeInputStatistics()
 void TOperationControllerBase::AnalyzeIntermediateJobsStatistics()
 {
     TError error;
-    if (JobCounter->GetLost() > 0) {
+    if (GetDataFlowGraph()->GetTotalJobCounter()->GetLost() > 0) {
         error = TError(
             "Some intermediate outputs were lost and will be regenerated; "
             "operation will take longer than usual");
@@ -3183,15 +3174,16 @@ void TOperationControllerBase::AnalyzeJobsDuration()
 void TOperationControllerBase::AnalyzeOperationDuration()
 {
     TError error;
+    const auto& jobCounter = GetDataFlowGraph()->GetTotalJobCounter();
     for (const auto& task : Tasks) {
         if (!task->GetUserJobSpec()) {
             continue;
         }
-        i64 completedAndRunning = JobCounter->GetCompletedTotal() + JobCounter->GetRunning();
+        i64 completedAndRunning = jobCounter->GetCompletedTotal() + jobCounter->GetRunning();
         if (completedAndRunning == 0) {
             continue;
         }
-        i64 pending = JobCounter->GetPending();
+        i64 pending = jobCounter->GetPending();
         TDuration wallTime = GetInstant() - StartTime;
         TDuration estimatedDuration = (wallTime / completedAndRunning) * pending;
 
@@ -3303,7 +3295,6 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     DoScheduleJob(context, jobLimits, treeId, scheduleJobResult.Get());
     if (scheduleJobResult->StartDescriptor) {
         AvailableExecNodesObserved_ = true;
-        JobCounter->Start(1);
     }
     scheduleJobResult->Duration = timer.GetElapsedTime();
 
@@ -3366,12 +3357,13 @@ void TOperationControllerBase::UpdateTask(TTaskPtr task)
     int newPendingJobCount = CachedPendingJobCount + task->GetPendingJobCountDelta();
     CachedPendingJobCount = newPendingJobCount;
 
-    int oldTotalJobCount = JobCounter->GetTotal();
-    JobCounter->Increment(task->GetTotalJobCountDelta());
-    int newTotalJobCount = JobCounter->GetTotal();
+    int oldTotalJobCount = CachedTotalJobCount;
+    int newTotalJobCount = CachedTotalJobCount + task->GetTotalJobCountDelta();
+    CachedTotalJobCount = newTotalJobCount;
 
     IncreaseNeededResources(task->GetTotalNeededResourcesDelta());
 
+    // TODO(max42): move this logging into pools.
     YT_LOG_DEBUG_IF(
         newPendingJobCount != oldPendingJobCount || newTotalJobCount != oldTotalJobCount,
         "Task updated (Task: %v, PendingJobCount: %v -> %v, TotalJobCount: %v -> %v, NeededResources: %v)",
@@ -5765,16 +5757,17 @@ bool TOperationControllerBase::IsLocalityEnabled() const
 
 TString TOperationControllerBase::GetLoggingProgress() const
 {
+    const auto& jobCounter = GetDataFlowGraph()->GetTotalJobCounter();
     return Format(
         "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
         "UnavailableInputChunks: %v",
-        JobCounter->GetTotal(),
-        JobCounter->GetRunning(),
-        JobCounter->GetCompletedTotal(),
+        jobCounter->GetTotal(),
+        jobCounter->GetRunning(),
+        jobCounter->GetCompletedTotal(),
         GetPendingJobCount(),
-        JobCounter->GetFailed(),
-        JobCounter->GetAbortedTotal(),
-        JobCounter->GetInterruptedTotal(),
+        jobCounter->GetFailed(),
+        jobCounter->GetAbortedTotal(),
+        jobCounter->GetInterruptedTotal(),
         GetUnavailableInputChunkCount());
 }
 
@@ -6504,7 +6497,6 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
 
     fluent
         .Item("build_time").Value(TInstant::Now())
-        .Item("jobs").Value(JobCounter)
         .Item("ready_job_count").Value(GetPendingJobCount())
         .Item("job_statistics").Value(JobStatistics)
         .Item("estimated_input_statistics").BeginMap()
@@ -6528,6 +6520,7 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
         .EndMap()
         .DoIf(DataFlowGraph_.operator bool(), [=] (TFluentMap fluent) {
             fluent
+                .Item("jobs").Value(DataFlowGraph_->GetTotalJobCounter())
                 .Item("data_flow_graph").BeginMap()
                     .Do(BIND(&TDataFlowGraph::BuildLegacyYson, DataFlowGraph_))
                 .EndMap();
@@ -6549,12 +6542,9 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
 
 void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
 {
-    if (!IsPrepared()) {
-        return;
+    if (IsPrepared() && DataFlowGraph_) {
+        fluent.Item("jobs").Do(BIND(&SerializeBriefVersion, DataFlowGraph_->GetTotalJobCounter()));
     }
-
-    fluent
-        .Item("jobs").Do(BIND(&SerializeBriefVersion, JobCounter));
 }
 
 void TOperationControllerBase::BuildAndSaveProgress()
@@ -6975,7 +6965,7 @@ int TOperationControllerBase::GetTotalJobCount() const
         return 0;
     }
 
-    return JobCounter->GetTotal();
+    return GetDataFlowGraph()->GetTotalJobCounter()->GetTotal();
 }
 
 i64 TOperationControllerBase::GetDataSliceCount() const
@@ -7412,7 +7402,10 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, TotalEstimatedInputDataWeight);
     Persist(context, UnavailableInputChunkCount);
     Persist(context, UnavailableIntermediateChunkCount);
-    Persist(context, JobCounter);
+    if (context.GetVersion() < 300101 && context.IsLoad()) {
+        TProgressCounterPtr unused;
+        Persist(context, unused);
+    }
     Persist(context, InputNodeDirectory_);
     Persist(context, InputTables_);
     Persist(context, OutputTables_);
@@ -7600,9 +7593,9 @@ void TOperationControllerBase::ReleaseIntermediateStripeList(const NChunkPools::
     }
 }
 
-TDataFlowGraph* TOperationControllerBase::GetDataFlowGraph()
+const TDataFlowGraphPtr& TOperationControllerBase::GetDataFlowGraph() const
 {
-    return DataFlowGraph_.Get();
+    return DataFlowGraph_;
 }
 
 void TOperationControllerBase::TLivePreviewChunkDescriptor::Persist(const TPersistenceContext& context)

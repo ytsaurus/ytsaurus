@@ -224,14 +224,15 @@ public:
 
     virtual TString GetLoggingProgress() const override
     {
+        const auto& jobCounter = GetDataFlowGraph()->GetTotalJobCounter();
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v}, ",
-            JobCounter->GetTotal(),
-            JobCounter->GetRunning(),
-            JobCounter->GetCompletedTotal(),
+            jobCounter->GetTotal(),
+            jobCounter->GetRunning(),
+            jobCounter->GetCompletedTotal(),
             GetPendingJobCount(),
-            JobCounter->GetFailed(),
-            JobCounter->GetAbortedTotal());
+            jobCounter->GetFailed(),
+            jobCounter->GetAbortedTotal());
     }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const
@@ -338,9 +339,10 @@ public:
         for (const auto& pair : Spec_->Tasks) {
             expectedJobCount += pair.second->JobCount;
         }
-        int startedJobCount = JobCounter->GetRunning() + JobCounter->GetCompletedTotal();
+        const auto& jobCounter = GetDataFlowGraph()->GetTotalJobCounter();
+        int startedJobCount = jobCounter->GetRunning() + jobCounter->GetCompletedTotal();
 
-        if (expectedJobCount != JobCounter->GetRunning()) {
+        if (expectedJobCount != jobCounter->GetRunning()) {
             THROW_ERROR_EXCEPTION(
                 NScheduler::EErrorCode::OperationFailedOnJobRestart,
                 "Cannot revive operation when spec option fail_on_job_restart is set and not "
