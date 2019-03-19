@@ -116,9 +116,11 @@ private:
                 return true;
             }
 
-            case EInternedAttributeKey::Config:
-                medium->Config() = ConvertTo<TMediumConfigPtr>(value);
+            case EInternedAttributeKey::Config: {
+                auto config = ConvertTo<TMediumConfigPtr>(value);
+                chunkManager->SetMediumConfig(medium, std::move(config));
                 return true;
+            }
 
             default:
                 break;
