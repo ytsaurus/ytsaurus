@@ -78,6 +78,8 @@ void TPingTransactionCommand::DoExecute(ICommandContextPtr context)
         return;
     }
 
+    Options.EnableRetries = context->GetConfig()->EnablePingRetries;
+
     auto transaction = AttachTransaction(context, true);
     WaitFor(transaction->Ping())
         .ThrowOnError();
