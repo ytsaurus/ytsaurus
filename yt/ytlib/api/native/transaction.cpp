@@ -36,8 +36,6 @@
 
 #include <yt/core/misc/sliding_window.h>
 
-#include <functional>
-
 namespace NYT::NApi::NNative {
 
 using namespace NYPath;
@@ -51,8 +49,6 @@ using namespace NQueryClient;
 using namespace NYson;
 using namespace NConcurrency;
 using namespace NRpc;
-
-using std::placeholders::_1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,7 +77,6 @@ public:
             GetId(),
             Client_->GetConnection()->GetCellTag()))
         , OrderedRequestsSlidingWindow_(
-            std::bind(&TTransaction::DoEnqueueModificationRequest, this, _1),
             Client_->GetNativeConnection()->GetConfig()->MaxRequestWindowSize)
     { }
 
@@ -1395,7 +1390,9 @@ private:
                     << TErrorAttribute("sequence_number", *sequenceNumber);
             }
             // this may call DoEnqueueModificationRequest right away
-            OrderedRequestsSlidingWindow_.AddPacket(*sequenceNumber, request.get());
+            OrderedRequestsSlidingWindow_.AddPacket(*sequenceNumber, request.get(), [&] (TModificationRequest* request) {
+                DoEnqueueModificationRequest(request);
+            });
         } else {
             DoEnqueueModificationRequest(request.get());
         }
