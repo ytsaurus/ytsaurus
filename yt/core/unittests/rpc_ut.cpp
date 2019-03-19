@@ -1151,12 +1151,25 @@ TEST_F(TAttachmentsInputStreamTest, CloseBeforeRead)
     EXPECT_EQ(8, stream->GetFeedback().ReadPosition);
 }
 
-TEST_F(TAttachmentsInputStreamTest, WrongSequenceNumber)
+TEST_F(TAttachmentsInputStreamTest, Reordering)
 {
     auto stream = CreateStream();
-    EXPECT_THROW({
-        stream->EnqueuePayload(MakePayload(1, {TSharedRef()}));
-    }, TErrorException);
+
+    auto payload1 = TSharedRef::FromString("payload1");
+    auto payload2 = TSharedRef::FromString("payload2");
+
+    stream->EnqueuePayload(MakePayload(1, {payload2}));
+    stream->EnqueuePayload(MakePayload(0, {payload1}));
+
+    auto future1 = stream->Read();
+    EXPECT_TRUE(future1.IsSet());
+    EXPECT_TRUE(TRef::AreBitwiseEqual(payload1, future1.Get().ValueOrThrow()));
+    EXPECT_EQ(8, stream->GetFeedback().ReadPosition);
+
+    auto future2 = stream->Read();
+    EXPECT_TRUE(future2.IsSet());
+    EXPECT_TRUE(TRef::AreBitwiseEqual(payload2, future2.Get().ValueOrThrow()));
+    EXPECT_EQ(16, stream->GetFeedback().ReadPosition);
 }
 
 TEST_F(TAttachmentsInputStreamTest, EmptyAttachmentReadPosition)
