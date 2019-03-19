@@ -78,10 +78,11 @@ void TPingTransactionCommand::DoExecute(ICommandContextPtr context)
         return;
     }
 
-    Options.EnableRetries = context->GetConfig()->EnablePingRetries;
+    NApi::TTransactionPingOptions options;
+    options.EnableRetries = context->GetConfig()->EnablePingRetries;
 
     auto transaction = AttachTransaction(context, true);
-    WaitFor(transaction->Ping())
+    WaitFor(transaction->Ping(options))
         .ThrowOnError();
 
     ProduceEmptyOutput(context);
