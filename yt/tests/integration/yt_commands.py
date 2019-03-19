@@ -79,7 +79,8 @@ def _get_driver(driver):
 # read_table and write_table are supported via RPC proxy
 def force_native_driver(func):
     def wrapper(func, self, *args, **kwargs):
-        kwargs["driver"] = get_native_driver()
+        if "driver" not in kwargs:
+            kwargs["driver"] = get_native_driver()
         return func(self, *args, **kwargs)
 
     return decorator.decorate(func, wrapper)
