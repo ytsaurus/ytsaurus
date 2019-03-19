@@ -909,6 +909,16 @@ private:
 
             YCHECK(attributes.Contains("runtime_parameters"));
             TOperationRuntimeParametersPtr runtimeParams = attributes.Get<TOperationRuntimeParametersPtr>("runtime_parameters");
+            if (spec->AddAuthenticatedUserToAcl) {
+                TSerializableAccessControlEntry ace(
+                    ESecurityAction::Allow,
+                    std::vector<TString>{user},
+                    EPermissionSet(EPermission::Read | EPermission::Manage));
+                auto it = std::find(runtimeParams->Acl.Entries.begin(), runtimeParams->Acl.Entries.end(), ace);
+                if (it == runtimeParams->Acl.Entries.end()) {
+                    runtimeParams->Acl.Entries.push_back(std::move(ace));
+                }
+            }
 
             auto operation = New<TOperation>(
                 operationId,

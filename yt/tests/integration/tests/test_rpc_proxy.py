@@ -324,16 +324,6 @@ class TestPessimisticQuotaCheckMulticellRpcProxy(TestPessimisticQuotaCheckRpcPro
 
 ##################################################################
 
-class TestAclsRpcProxy(TestRpcProxyBase):
-    def test_check_permission_by_acl(self):
-        create_user("u1")
-        create_user("u2")
-        assert check_permission_by_acl("u1", "remove", [{"subjects": ["u1"], "permissions": ["remove"], "action": "allow"}])["action"] == "allow"
-        assert check_permission_by_acl("u1", "remove", [{"subjects": ["u2"], "permissions": ["remove"], "action": "allow"}])["action"] == "deny"
-        assert check_permission_by_acl(None, "remove", [{"subjects": ["u2"], "permissions": ["remove"], "action": "allow"}])["action"] == "allow"
-
-##################################################################
-
 class TestModifyRowsRpcProxy(TestRpcProxyBase):
     BATCH_CAPACITY = 10
     DELTA_DRIVER_CONFIG = {"modify_rows_batch_capacity": BATCH_CAPACITY}

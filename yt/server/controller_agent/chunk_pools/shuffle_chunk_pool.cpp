@@ -150,12 +150,7 @@ public:
         Persist(context, Outputs);
         Persist(context, InputStripes);
         Persist(context, ElementaryStripes);
-
-        if (context.IsSave() || context.GetVersion() >= 300019) {
-            Persist(context, ChunkSliceThreshold);
-        } else {
-            ChunkSliceThreshold = std::numeric_limits<i64>::max();
-        }
+        Persist(context, ChunkSliceThreshold);
     }
 
 private:
