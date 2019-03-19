@@ -94,6 +94,16 @@ public:
             descriptor->options().GetExtension(NYT::NYson::NProto::field_name));
     }
 
+    std::vector<TStringBuf> GetYsonNameAliases(const FieldDescriptor* descriptor)
+    {
+        std::vector<TStringBuf> aliases;
+        auto extensions = descriptor->options().GetRepeatedExtension(NYT::NYson::NProto::field_name_alias);
+        for (const auto& alias : extensions) {
+            aliases.push_back(InternString(alias));
+        }
+        return aliases;
+    }
+
     TStringBuf GetYsonLiteral(const EnumValueDescriptor* descriptor)
     {
         return GetYsonNameFromDescriptor(
@@ -142,6 +152,7 @@ public:
     TProtobufField(TProtobufTypeRegistry* registry, const FieldDescriptor* descriptor)
         : Underlying_(descriptor)
         , YsonName_(registry->GetYsonName(descriptor))
+        , YsonNameAliases_(registry->GetYsonNameAliases(descriptor))
         , MessageType_(descriptor->type() == FieldDescriptor::TYPE_MESSAGE ? registry->ReflectMessageType(
             descriptor->message_type()) : nullptr)
         , EnumType_(descriptor->type() == FieldDescriptor::TYPE_ENUM ? registry->ReflectEnumType(
@@ -178,6 +189,11 @@ public:
     TStringBuf GetYsonName() const
     {
         return YsonName_;
+    }
+
+    const std::vector<TStringBuf>& GetYsonNameAliases() const
+    {
+        return YsonNameAliases_;
     }
 
     int GetNumber() const
@@ -237,6 +253,7 @@ public:
 private:
     const FieldDescriptor* const Underlying_;
     const TStringBuf YsonName_;
+    const std::vector<TStringBuf> YsonNameAliases_;
     const TProtobufMessageType* MessageType_;
     const TProtobufEnumType* EnumType_;
     const bool YsonString_;
@@ -263,8 +280,12 @@ public:
             if (field->IsRequired()) {
                 RequiredFieldNumbers_.push_back(field->GetNumber());
             }
-            YCHECK(NameToField_.emplace(field->GetYsonName(), std::move(fieldHolder)).second);
+            YCHECK(NameToField_.emplace(field->GetYsonName(), field).second);
+            for (auto name : field->GetYsonNameAliases()) {
+                YCHECK(NameToField_.emplace(name, field).second);
+            }
             YCHECK(NumberToField_.emplace(field->GetNumber(), field).second);
+            Fields_.push_back(std::move(fieldHolder));
         }
     }
 
@@ -291,7 +312,7 @@ public:
     const TProtobufField* FindFieldByName(TStringBuf name) const
     {
         auto it = NameToField_.find(name);
-        return it == NameToField_.end() ? nullptr : it->second.get();
+        return it == NameToField_.end() ? nullptr : it->second;
     }
 
     const TProtobufField* FindFieldByNumber(int number) const
@@ -323,8 +344,9 @@ private:
     const Descriptor* const Underlying_;
     const bool AttributeDictionary_;
 
+    std::vector<std::unique_ptr<TProtobufField>> Fields_;
     std::vector<int> RequiredFieldNumbers_;
-    THashMap<TStringBuf, std::unique_ptr<TProtobufField>> NameToField_;
+    THashMap<TStringBuf, const TProtobufField*> NameToField_;
     THashMap<int, const TProtobufField*> NumberToField_;
 };
 
@@ -1799,7 +1821,6 @@ private:
 
     bool ParseAttributeDictionary()
     {
-        // XXX
         auto throwUnexpectedWireType = [&] (WireFormatLite::WireType actualWireType) {
             THROW_ERROR_EXCEPTION("Invalid wire type %v while parsing attribute dictionary %v",
                 static_cast<int>(actualWireType),

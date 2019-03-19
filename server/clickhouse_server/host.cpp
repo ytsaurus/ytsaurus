@@ -17,7 +17,6 @@
 #include "security_manager.h"
 #include "poco_config.h"
 #include "config.h"
-#include "clique_authorization_manager.h"
 
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/profiling/profile_manager.h>
@@ -310,11 +309,7 @@ private:
 
         auto storageHomePath = Config_->Engine->CypressRootPath;
 
-        auto cliqueAuthorizationManager = CreateCliqueAuthorizationManager(
-            Bootstrap_->GetRootClient(),
-            CliqueId_,
-            Config_->ValidateOperationPermission);
-        auto securityManager = CreateSecurityManager(std::move(cliqueAuthorizationManager));
+        auto securityManager = CreateSecurityManager(Bootstrap_, CliqueId_);
         auto dictionariesConfigRepository = CreateDictionaryConfigRepository(Config_->Engine->Dictionaries);
         auto geoDictionariesLoader = std::make_unique<GeoDictionariesLoader>();
         auto runtimeComponentsFactory = CreateRuntimeComponentsFactory(

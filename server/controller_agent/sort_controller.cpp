@@ -2242,10 +2242,10 @@ private:
     {
         auto& table = OutputTables_[0];
         table->TableUploadOptions.LockMode = ELockMode::Exclusive;
-        table->Options->EvaluateComputedColumns = false;
+        table->TableWriterOptions->EvaluateComputedColumns = false;
 
         // Sort output MUST be sorted.
-        table->Options->ExplodeOnValidationError = true;
+        table->TableWriterOptions->ExplodeOnValidationError = true;
 
         if (table->TableUploadOptions.UpdateMode == EUpdateMode::Append &&
             table->TableUploadOptions.TableSchema.GetKeyColumns() != Spec->SortBy)
@@ -2792,6 +2792,7 @@ private:
 
     virtual TString GetLoggingProgress() const override
     {
+        const auto& jobCounter = GetDataFlowGraph()->GetTotalJobCounter();
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v}, "
             "Partitions = {T: %v, C: %v}, "
@@ -2802,13 +2803,13 @@ private:
             "UnorderedMergeJobs = %v, "
             "UnavailableInputChunks: %v",
             // Jobs
-            JobCounter->GetTotal(),
-            JobCounter->GetRunning(),
-            JobCounter->GetCompletedTotal(),
+            jobCounter->GetTotal(),
+            jobCounter->GetRunning(),
+            jobCounter->GetCompletedTotal(),
             GetPendingJobCount(),
-            JobCounter->GetFailed(),
-            JobCounter->GetAbortedTotal(),
-            JobCounter->GetLost(),
+            jobCounter->GetFailed(),
+            jobCounter->GetAbortedTotal(),
+            jobCounter->GetLost(),
             // Partitions
             Partitions.size(),
             CompletedPartitionCount,
@@ -3454,6 +3455,7 @@ private:
 
     virtual TString GetLoggingProgress() const override
     {
+        const auto& jobCounter = GetDataFlowGraph()->GetTotalJobCounter();
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v}, "
             "Partitions = {T: %v, C: %v}, "
@@ -3463,13 +3465,13 @@ private:
             "SortedReduceJobs = %v, "
             "UnavailableInputChunks: %v",
             // Jobs
-            JobCounter->GetTotal(),
-            JobCounter->GetRunning(),
-            JobCounter->GetCompletedTotal(),
+            jobCounter->GetTotal(),
+            jobCounter->GetRunning(),
+            jobCounter->GetCompletedTotal(),
             GetPendingJobCount(),
-            JobCounter->GetFailed(),
-            JobCounter->GetAbortedTotal(),
-            JobCounter->GetLost(),
+            jobCounter->GetFailed(),
+            jobCounter->GetAbortedTotal(),
+            jobCounter->GetLost(),
             // Partitions
             Partitions.size(),
             CompletedPartitionCount,

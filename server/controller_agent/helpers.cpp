@@ -86,9 +86,7 @@ void TUserFile::Persist(const TPersistenceContext& context)
     Persist(context, Format);
     Persist(context, Schema);
     Persist(context, Dynamic);
-    if (context.GetVersion() >= 202000) {
-        Persist(context, Layer);
-    }
+    Persist(context, Layer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

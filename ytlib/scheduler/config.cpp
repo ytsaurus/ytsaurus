@@ -384,6 +384,9 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("omit_inaccessible_columns", OmitInaccessibleColumns)
         .Default(false);
 
+    RegisterParameter("additional_security_tags", AdditionalSecurityTags)
+        .Default();
+
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
@@ -404,7 +407,8 @@ TOperationSpecBase::TOperationSpecBase()
 
         constexpr int MaxAnnotationsYsonTextLength = 10_KB;
         if (ConvertToYsonString(Annotations, EYsonFormat::Text).GetData().size() > MaxAnnotationsYsonTextLength) {
-            THROW_ERROR_EXCEPTION("Length of annotations YSON text representation should not exceed %v", MaxAnnotationsYsonTextLength);
+            THROW_ERROR_EXCEPTION("Length of annotations YSON text representation should not exceed %v",
+                MaxAnnotationsYsonTextLength);
         }
 
         ValidateOperationAcl(Acl);

@@ -57,6 +57,7 @@
     XX(ContentRevision, content_revision) \
     XX(CountByHealth, count_by_health) \
     XX(CreationTime, creation_time) \
+    XX(CumulativeStatistics, cumulative_statistics) \
     XX(CurrentCommitRevision, current_commit_revision) \
     XX(CurrentMountTransactionId, current_mount_transaction_id) \
     XX(DataCenter, data_center) \
@@ -288,7 +289,8 @@
     XX(WithAlertsNodeCount, with_alerts_node_count) \
     XX(WriteQuorum, write_quorum) \
     XX(WriteRequestRateLimit, write_request_rate_limit) \
-    XX(WriteRequestTime, write_request_time)
+    XX(WriteRequestTime, write_request_time) \
+    XX(SecurityTags, security_tags)
 
 namespace NYT {
 

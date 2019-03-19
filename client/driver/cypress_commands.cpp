@@ -386,17 +386,9 @@ TConcatenateCommand::TConcatenateCommand()
 
 void TConcatenateCommand::DoExecute(ICommandContextPtr context)
 {
-    std::vector<TYPath> sourcePaths;
-    for (const auto& path : SourcePaths) {
-        sourcePaths.push_back(path.GetPath());
-    }
-
-    Options.Append = DestinationPath.GetAppend();
-    auto destinationPath = DestinationPath.GetPath();
-
     auto asyncResult = context->GetClient()->ConcatenateNodes(
-        sourcePaths,
-        DestinationPath.GetPath(),
+        SourcePaths,
+        DestinationPath,
         Options);
 
     WaitFor(asyncResult)

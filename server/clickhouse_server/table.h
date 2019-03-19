@@ -73,6 +73,7 @@ struct TClickHouseColumn
     bool IsNullable() const;
 
     void SetSorted();
+    void DropSorted();
     void SetNullable();
 };
 

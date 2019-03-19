@@ -60,19 +60,18 @@ class ListOperationsSetup(YTEnvSetup):
             mapper_command="exit 1",
             reducer_command="exit 0",
             user="user3",
-            owners=["group2"],
             can_fail=True,
             sort_by="key",
             title="op3 title",
-            spec={"max_failed_job_count": 2},
+            spec={
+                "max_failed_job_count": 2,
+                "acl": [
+                    make_ace("allow", "group2", ["manage", "read"]),
+                    make_ace("allow", "large_group", "read"),
+                ],
+            },
         )
 
-        op4_spec = {
-            "pool_trees": ["default", "other"],
-            "scheduling_options_per_pool_tree": {
-                "other": {"pool": "some_pool"},
-            },
-        }
         cls.op4 = cls._create_operation(
             "reduce",
             command="sleep 1000",
@@ -80,7 +79,12 @@ class ListOperationsSetup(YTEnvSetup):
             owners=["large_group"],
             reduce_by="key",
             abort=True,
-            spec=op4_spec,
+            spec={
+                "pool_trees": ["default", "other"],
+                "scheduling_options_per_pool_tree": {
+                    "other": {"pool": "some_pool"},
+                },
+            },
         )
 
         cls.op5 = cls._create_operation("sort", user="user4", sort_by="key")
@@ -154,13 +158,16 @@ class _TestListOperationsBase(ListOperationsSetup):
 
     # The following tests expect five operations to be present
     # in Cypress (and/or in the archive if |self.include_archive| is |True|):
-    #     TYPE       -    STATE   - USER  -   POOLS            - FAILED JOBS - OWNERS          - ANNOTATIONS
-    #  1. map        - completed  - user1 -  user1             - False       - []              - {key=[annotation1;annotation2]}
-    #  2. map        - completed  - user2 -  user2             - False       - [group1, user3] - {}
-    #  3. map_reduce - failed     - user3 -  user3             - True        - [group2]        - {}
-    #  4. reduce     - aborted    - user3 - [user3, some_pool] - False       - [large_group]   - {}
-    #  5. sort       - completed  - user4 -  user4             - False       - []              - {}
-    #  6. sort       - pending    - user5 -  pool_no_running   - False       - []              - {}
+    #     TYPE       -    STATE   - USER  -   POOLS          - FAILED JOBS - READ_ACCESS   - WRITE_ACCESS    - ANNOTATIONS
+    #  1. map        - completed  - user1 -  user1           - False       - []            - []              - {key=[annotation1;annotation2]}
+    #  2. map        - completed  - user2 -  user2           - False       - [group1,      - [group1, user3] - {}
+    #                                                                          user3]
+    #  3. map_reduce - failed     - user3 -  user3           - True        - [group2,      - [group2]        - {}
+    #                                                                         large_group]
+    #  4. reduce     - aborted    - user3 - [user3,          - False       - [large_group] - [large_group]   - {}
+    #                                        some_pool]
+    #  5. sort       - completed  - user4 -  user4           - False       - []            - []              - {}
+    #  6. sort       - pending    - user5 -  pool_no_running - False       - []            - []              - {}
     # Moreover, |self.op3| is expected to have title "op3 title".
 
     def test_invalid_arguments(self):
@@ -358,6 +365,42 @@ class _TestListOperationsBase(ListOperationsSetup):
         assert [op["id"] for op in res["operations"]] == [self.op3.id, self.op2.id, self.op1.id]
         assert all(sorted(op.keys()) == sorted(attributes) for op in res["operations"])
 
+    def test_access_filter(self, read_from):
+        access = {"subject": "user3", "permissions": ["read", "manage"]}
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        assert res["pool_counts"] == {"user2": 1, "user3": 2, "some_pool": 1}
+        assert res["user_counts"] == {"user2": 1, "user3": 2}
+        assert res["state_counts"] == {"completed": 1, "failed": 1, "aborted": 1}
+        assert res["type_counts"] == {"map": 1, "map_reduce": 1, "reduce": 1}
+        if self.check_failed_jobs_count:
+            assert res["failed_jobs_count"] == 1
+        assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id, self.op2.id]
+
+        access = {"subject": "user1", "permissions": ["read"]}
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id, self.op2.id, self.op1.id]
+
+        access = {"subject": "user1", "permissions": ["read", "manage"]}
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op2.id, self.op1.id]
+
+        access = {"subject": "user2", "permissions": ["read"]}
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id, self.op2.id]
+
+        access = {"subject": "user2", "permissions": ["read", "manage"]}
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id, self.op2.id]
+
+        access = {"subject": "user4", "permissions": ["read"]}
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        assert [op["id"] for op in res["operations"]] == [self.op5.id, self.op4.id, self.op3.id, self.op2.id, self.op1.id]
+
+        access = {"subject": "user4", "permissions": ["read", "manage"]}
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        assert [op["id"] for op in res["operations"]] == [self.op5.id, self.op4.id, self.op3.id, self.op2.id, self.op1.id]
+
+
 class TestListOperationsCypressOnly(_TestListOperationsBase):
     USE_DYNAMIC_TABLES = False
 
@@ -388,25 +431,6 @@ class TestListOperationsCypressOnly(_TestListOperationsBase):
         assert res["failed_jobs_count"] == 1
         assert [op["id"] for op in res["operations"]] == [self.op6.id, self.op5.id, self.op4.id, self.op3.id, self.op2.id, self.op1.id]
 
-    def test_owned_by_filter(self, read_from):
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, owned_by="user3", read_from=read_from)
-        assert res["pool_counts"] == {"user2": 1, "user3": 2, "some_pool": 1}
-        assert res["user_counts"] == {"user2": 1, "user3": 2}
-        assert res["state_counts"] == {"completed": 1, "failed": 1, "aborted": 1}
-        assert res["type_counts"] == {"map": 1, "map_reduce": 1, "reduce": 1}
-        if self.check_failed_jobs_count:
-            assert res["failed_jobs_count"] == 1
-        assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id, self.op2.id]
-
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, owned_by="user1", read_from=read_from)
-        assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op2.id, self.op1.id]
-
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, owned_by="user2", read_from=read_from)
-        assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id, self.op2.id]
-
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, owned_by="user4", read_from=read_from)
-        assert [op["id"] for op in res["operations"]] == [self.op5.id, self.op4.id, self.op3.id, self.op2.id, self.op1.id]
-
     def test_has_failed_jobs_with_pending(self, read_from):
         res = list_operations(include_archive=self.include_archive, with_failed_jobs=True, read_from=read_from)
         assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1, "some_pool": 1, "pool_no_running": 1}
@@ -436,10 +460,6 @@ class TestListOperationsCypressArchive(_TestListOperationsBase):
         with pytest.raises(YtError):
             list_operations(include_archive=True, from_time=self.op1.before_start_time)
 
-    def test_owned_by_filter_is_not_supported(self):
-        with pytest.raises(YtError):
-            list_operations(include_archive=True, owned_by="root")
-
 
 class TestListOperationsArchiveOnly(_TestListOperationsBase):
     USE_DYNAMIC_TABLES = True
@@ -467,10 +487,6 @@ class TestListOperationsArchiveOnly(_TestListOperationsBase):
     def setup_class(cls):
         super(TestListOperationsArchiveOnly, cls).setup_class()
         wait(lambda: not operation_nodes_exist())
-
-    def test_owned_by_filter_is_not_supported(self):
-        with pytest.raises(YtError):
-            list_operations(include_archive=True, owned_by="root")
 
 ##################################################################
 

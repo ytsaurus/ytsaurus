@@ -52,11 +52,6 @@ TFuture<NYson::TYsonString> GetMulticellOwningNodes(
     NCellMaster::TBootstrap* bootstrap,
     TChunkTree* chunkTree);
 
-
-bool IsEmpty(const TChunkList* chunkList);
-bool IsEmpty(const TChunkTree* chunkTree);
-
-
 bool IsEmpty(const TChunkList* chunkList);
 bool IsEmpty(const TChunkTree* chunkTree);
 

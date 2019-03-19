@@ -33,8 +33,11 @@ TString ConvertStringObjectToString(const Object& obj);
 Object GetAttr(const Object& obj, const std::string& fieldName);
 i64 ConvertToLongLong(const Object& obj);
 std::string Repr(const Object& obj);
+TString Str(const Object& obj);
 
 Object CreateIterator(const Object& object);
+
+NYT::TError BuildErrorFromPythonException();
 
 ////////////////////////////////////////////////////////////////////////////////
 

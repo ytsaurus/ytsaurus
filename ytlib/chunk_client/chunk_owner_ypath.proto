@@ -59,6 +59,12 @@ message TReqEndUpload
     optional int32 compression_codec = 9; // NCompression::ECodec
     optional int32 erasure_codec = 10; // NErasure::ECodec
     optional NYT.NCrypto.NProto.TMD5Hasher md5_hasher = 11;
+
+    message TSecurityTags
+    {
+        repeated string items = 1;
+    }
+    optional TSecurityTags security_tags = 12;
 }
 
 message TRspEndUpload

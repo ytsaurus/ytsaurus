@@ -543,8 +543,8 @@ TFuture<TNodeId> TTransaction::LinkNode(
 }
 
 TFuture<void> TTransaction::ConcatenateNodes(
-    const std::vector<TYPath>& srcPaths,
-    const TYPath& dstPath,
+    const std::vector<TRichYPath>& srcPaths,
+    const TRichYPath& dstPath,
     const TConcatenateNodesOptions& options)
 {
     ValidateActive();
@@ -583,7 +583,7 @@ TFuture<IFileReaderPtr> TTransaction::CreateFileReader(
 }
 
 IFileWriterPtr TTransaction::CreateFileWriter(
-    const TYPath& path,
+    const TRichYPath& path,
     const TFileWriterOptions& options)
 {
     ValidateActive();

@@ -3,6 +3,7 @@ import pytest
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
@@ -237,7 +238,6 @@ class TestFiles(YTEnvSetup):
 
         write_file("//tmp/fcache5", "", compute_md5=True)
         assert get("//tmp/fcache5/@md5") == "d41d8cd98f00b204e9800998ecf8427e" == hashlib.md5("").hexdigest()
-
 
 ##################################################################
 

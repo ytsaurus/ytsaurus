@@ -138,6 +138,7 @@ struct TUserObject
     NObjectClient::TCellTag CellTag;
     NObjectClient::EObjectType Type = NObjectClient::EObjectType::Null;
     std::vector<TString> OmittedInaccessibleColumns;
+    std::vector<TString> SecurityTags;
 
     virtual ~TUserObject() = default;
 
@@ -154,6 +155,7 @@ struct TGetUserObjectBasicAttributesOptions
     bool SuppressAccessTracking = false;
     NApi::EMasterChannelKind ChannelKind = NApi::EMasterChannelKind::Follower;
     bool OmitInaccessibleColumns = false;
+    bool PopulateSecurityTags = false;
 };
 
 void GetUserObjectBasicAttributes(

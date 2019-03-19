@@ -13,7 +13,8 @@ namespace NYT::NClickHouseServer {
 
 DB::StoragePtr CreateStorageConcat(
     std::vector<TClickHouseTablePtr> tables,
-    IExecutionClusterPtr cluster);
+    IExecutionClusterPtr cluster,
+    bool dropPrimaryKey);
 
 ////////////////////////////////////////////////////////////////////////////////
 

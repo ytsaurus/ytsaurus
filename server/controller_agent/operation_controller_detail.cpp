@@ -206,7 +206,6 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableInvokerPool(TransformInvokerPool(
         SuspendableInvokerPool,
         BIND(&TCancelableContext::CreateInvoker, CancelableContext)))
-    , JobCounter(New<TProgressCounter>(0))
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , MemoryTag_(operation->GetMemoryTag())
     , PoolTreeToSchedulingTagFilter_(operation->PoolTreeToSchedulingTagFilter())
@@ -787,6 +786,8 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
 
         InitializeHistograms();
 
+        InitializeSecurityTags();
+
         YT_LOG_INFO("Tasks prepared (RowBufferCapacity: %v)", RowBuffer->GetCapacity());
 
         if (IsCompleted()) {
@@ -972,7 +973,6 @@ void TOperationControllerBase::AbortAllJoblets()
 {
     for (const auto& pair : JobletMap) {
         auto joblet = pair.second;
-        JobCounter->Aborted(1, EAbortReason::Scheduler);
         const auto& jobId = pair.first;
         auto jobSummary = TAbortedJobSummary(jobId, EAbortReason::Scheduler);
         joblet->Task->OnJobAborted(joblet, jobSummary);
@@ -1706,7 +1706,7 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                         << TErrorAttribute("job_output_min_key", table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey);
                 }
 
-                if (cmp == 0 && table->Options->ValidateUniqueKeys) {
+                if (cmp == 0 && table->TableWriterOptions->ValidateUniqueKeys) {
                     THROW_ERROR_EXCEPTION("Output table %v contains duplicate keys: job outputs overlap with original table",
                         table->Path.GetPath())
                         << TErrorAttribute("table_max_key", table->LastKey)
@@ -1726,7 +1726,7 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                             << TErrorAttribute("next_range_min_key", next->first.AsBoundaryKeys().MinKey);
                     }
 
-                    if (cmp == 0 && table->Options->ValidateUniqueKeys) {
+                    if (cmp == 0 && table->TableWriterOptions->ValidateUniqueKeys) {
                         THROW_ERROR_EXCEPTION("Output table %v contains duplicate keys: job outputs have overlapping key ranges",
                             table->Path.GetPath())
                             << TErrorAttribute("current_range_max_key", current->first.AsBoundaryKeys().MaxKey)
@@ -1801,6 +1801,9 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
             req->set_optimize_for(static_cast<int>(table->TableUploadOptions.OptimizeFor));
             req->set_compression_codec(static_cast<int>(table->TableUploadOptions.CompressionCodec));
             req->set_erasure_codec(static_cast<int>(table->TableUploadOptions.ErasureCodec));
+            if (table->TableUploadOptions.SecurityTags) {
+                ToProto(req->mutable_security_tags()->mutable_items(), *table->TableUploadOptions.SecurityTags);
+            }
 
             SetTransactionId(req, table->UploadTransactionId);
             GenerateMutationId(req);
@@ -1808,8 +1811,7 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
         }
 
         if (table->OutputType == EOutputTableType::Stderr || table->OutputType == EOutputTableType::Core) {
-            auto attributesPath = path + "/@part_size";
-            auto req = TYPathProxy::Set(attributesPath);
+            auto req = TYPathProxy::Set(path + "/@part_size");
             SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
             req->set_value(ConvertToYsonString(GetPartSize(table->OutputType)).GetData());
             batchReq->AddRequest(req, "set_part_size");
@@ -1921,6 +1923,44 @@ void TOperationControllerBase::UpdateActualHistogram(const TStatistics& statisti
     }
 }
 
+void TOperationControllerBase::InitializeSecurityTags()
+{
+    std::vector<TString> inferredSecurityTags;
+    auto addTags = [&] (const auto& moreTags) {
+        inferredSecurityTags.insert(inferredSecurityTags.end(), moreTags.begin(), moreTags.end());
+    };
+    
+    addTags(Spec_->AdditionalSecurityTags);
+    
+    for (const auto& table : InputTables_) {
+        addTags(table->SecurityTags);
+    }
+    
+    for (const auto& [userJobSpec, files] : UserJobFiles_) {
+        for (const auto& file : files) {
+            addTags(file.SecurityTags);
+        }
+    }
+    
+    SortUnique(inferredSecurityTags);
+    
+    for (const auto& table : OutputTables_) {
+        if (auto explicitSecurityTags = table->Path.GetSecurityTags()) {
+            // TODO(babenko): audit
+            YT_LOG_INFO("Output table is assigned explicit security tags (Path: %v, InferredSecurityTags: %v, ExplicitSecurityTags: %v)",
+                table->Path.GetPath(),
+                inferredSecurityTags,
+                explicitSecurityTags);
+            table->TableUploadOptions.SecurityTags = *explicitSecurityTags;
+        } else {
+            YT_LOG_INFO("Output table is assigned automatically-inferred security tags (Path: %v, SecurityTags: %v)",
+                table->Path.GetPath(),
+                inferredSecurityTags);
+            table->TableUploadOptions.SecurityTags = inferredSecurityTags;
+        }
+    }
+}
+
 void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
@@ -1981,8 +2021,6 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     if (jobSummary->InterruptReason != EInterruptReason::None) {
         ExtractInterruptDescriptor(*jobSummary);
     }
-
-    JobCounter->Completed(1, jobSummary->InterruptReason);
 
     auto joblet = GetJoblet(jobId);
 
@@ -2087,8 +2125,6 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     auto error = FromProto<TError>(result.error());
 
-    JobCounter->Failed(1);
-
     ParseStatistics(jobSummary.get(), joblet->StatisticsYson);
 
     FinalizeJoblet(joblet, jobSummary.get());
@@ -2133,7 +2169,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         return;
     }
 
-    int failedJobCount = JobCounter->GetFailed();
+    int failedJobCount = GetDataFlowGraph()->GetTotalJobCounter()->GetFailed();
     int maxFailedJobCount = Spec_->MaxFailedJobCount;
     if (failedJobCount >= maxFailedJobCount) {
         OnOperationFailed(TError("Failed jobs limit exceeded")
@@ -2166,8 +2202,6 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     }
 
     YT_LOG_DEBUG("Job aborted (JobId: %v)", jobId);
-
-    JobCounter->Aborted(1, abortReason);
 
     auto joblet = GetJoblet(jobId);
 
@@ -2584,7 +2618,6 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
     completedJob->DestinationPool->Suspend(completedJob->InputCookie);
 
     if (completedJob->Restartable) {
-        JobCounter->Lost(1);
         completedJob->SourceTask->GetChunkPoolOutput()->Lost(completedJob->OutputCookie);
         completedJob->SourceTask->OnJobLost(completedJob);
         AddTaskPendingHint(completedJob->SourceTask);
@@ -2944,7 +2977,7 @@ void TOperationControllerBase::AnalyzeInputStatistics()
 void TOperationControllerBase::AnalyzeIntermediateJobsStatistics()
 {
     TError error;
-    if (JobCounter->GetLost() > 0) {
+    if (GetDataFlowGraph()->GetTotalJobCounter()->GetLost() > 0) {
         error = TError(
             "Some intermediate outputs were lost and will be regenerated; "
             "operation will take longer than usual");
@@ -3141,15 +3174,16 @@ void TOperationControllerBase::AnalyzeJobsDuration()
 void TOperationControllerBase::AnalyzeOperationDuration()
 {
     TError error;
+    const auto& jobCounter = GetDataFlowGraph()->GetTotalJobCounter();
     for (const auto& task : Tasks) {
         if (!task->GetUserJobSpec()) {
             continue;
         }
-        i64 completedAndRunning = JobCounter->GetCompletedTotal() + JobCounter->GetRunning();
+        i64 completedAndRunning = jobCounter->GetCompletedTotal() + jobCounter->GetRunning();
         if (completedAndRunning == 0) {
             continue;
         }
-        i64 pending = JobCounter->GetPending();
+        i64 pending = jobCounter->GetPending();
         TDuration wallTime = GetInstant() - StartTime;
         TDuration estimatedDuration = (wallTime / completedAndRunning) * pending;
 
@@ -3261,7 +3295,6 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     DoScheduleJob(context, jobLimits, treeId, scheduleJobResult.Get());
     if (scheduleJobResult->StartDescriptor) {
         AvailableExecNodesObserved_ = true;
-        JobCounter->Start(1);
     }
     scheduleJobResult->Duration = timer.GetElapsedTime();
 
@@ -3324,12 +3357,13 @@ void TOperationControllerBase::UpdateTask(TTaskPtr task)
     int newPendingJobCount = CachedPendingJobCount + task->GetPendingJobCountDelta();
     CachedPendingJobCount = newPendingJobCount;
 
-    int oldTotalJobCount = JobCounter->GetTotal();
-    JobCounter->Increment(task->GetTotalJobCountDelta());
-    int newTotalJobCount = JobCounter->GetTotal();
+    int oldTotalJobCount = CachedTotalJobCount;
+    int newTotalJobCount = CachedTotalJobCount + task->GetTotalJobCountDelta();
+    CachedTotalJobCount = newTotalJobCount;
 
     IncreaseNeededResources(task->GetTotalNeededResourcesDelta());
 
+    // TODO(max42): move this logging into pools.
     YT_LOG_DEBUG_IF(
         newPendingJobCount != oldPendingJobCount || newTotalJobCount != oldTotalJobCount,
         "Task updated (Task: %v, PendingJobCount: %v -> %v, TotalJobCount: %v -> %v, NeededResources: %v)",
@@ -4210,9 +4244,9 @@ void TOperationControllerBase::CreateLivePreviewTables()
             addRequest(
                 path,
                 table->CellTag,
-                table->Options->ReplicationFactor,
-                table->Options->CompressionCodec,
-                table->Options->Account,
+                table->TableWriterOptions->ReplicationFactor,
+                table->TableWriterOptions->CompressionCodec,
+                table->TableWriterOptions->Account,
                 "create_output",
                 table->EffectiveAcl,
                 table->TableUploadOptions.TableSchema);
@@ -4227,8 +4261,8 @@ void TOperationControllerBase::CreateLivePreviewTables()
         addRequest(
             path,
             StderrTable_->CellTag,
-            StderrTable_->Options->ReplicationFactor,
-            StderrTable_->Options->CompressionCodec,
+            StderrTable_->TableWriterOptions->ReplicationFactor,
+            StderrTable_->TableWriterOptions->CompressionCodec,
             std::nullopt /* account */,
             "create_stderr",
             StderrTable_->EffectiveAcl,
@@ -4471,6 +4505,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
 
     TGetUserObjectBasicAttributesOptions getUserObjectBasicAttributesOptions;
     getUserObjectBasicAttributesOptions.OmitInaccessibleColumns = Spec_->OmitInaccessibleColumns;
+    getUserObjectBasicAttributesOptions.PopulateSecurityTags = true;
     GetUserObjectBasicAttributes(
         InputClient,
         MakeUserObjectList(InputTables_),
@@ -4573,12 +4608,13 @@ void TOperationControllerBase::GetInputTablesAttributes()
                 // Validate that timestamp is correct.
                 ValidateDynamicTableTimestamp(table->Path, table->IsDynamic, table->Schema, *attributes);
             }
-            YT_LOG_INFO("Input table locked (Path: %v, ObjectId: %v, Schema: %v, Dynamic: %v, ChunkCount: %v)",
+            YT_LOG_INFO("Input table locked (Path: %v, ObjectId: %v, Schema: %v, Dynamic: %v, ChunkCount: %v, SecurityTags: %v)",
                 path,
                 table->ObjectId,
                 table->Schema,
                 table->IsDynamic,
-                table->ChunkCount);
+                table->ChunkCount,
+                table->SecurityTags);
 
             if (!table->ColumnRenameDescriptors.empty()) {
                 if (table->Path.GetTeleport()) {
@@ -4674,7 +4710,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
             table->Timestamp = GetTransactionForOutputTable(table)->GetStartTimestamp();
 
             // NB(psushin): This option must be set before PrepareOutputTables call.
-            table->Options->EvaluateComputedColumns = table->TableUploadOptions.TableSchema.HasComputedColumns();
+            table->TableWriterOptions->EvaluateComputedColumns = table->TableUploadOptions.TableSchema.HasComputedColumns();
 
             YT_LOG_DEBUG("Received output table schema (Path: %v, Schema: %v, SchemaMode: %v, LockMode: %v)",
                 path,
@@ -4784,26 +4820,26 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                 auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
                 if (table->TableUploadOptions.TableSchema.IsSorted()) {
-                    table->Options->ValidateSorted = true;
-                    table->Options->ValidateUniqueKeys = table->TableUploadOptions.TableSchema.GetUniqueKeys();
+                    table->TableWriterOptions->ValidateSorted = true;
+                    table->TableWriterOptions->ValidateUniqueKeys = table->TableUploadOptions.TableSchema.GetUniqueKeys();
                 } else {
-                    table->Options->ValidateSorted = false;
+                    table->TableWriterOptions->ValidateSorted = false;
                 }
 
-                table->Options->CompressionCodec = table->TableUploadOptions.CompressionCodec;
-                table->Options->ErasureCodec = table->TableUploadOptions.ErasureCodec;
-                table->Options->ReplicationFactor = attributes->Get<int>("replication_factor");
-                table->Options->MediumName = attributes->Get<TString>("primary_medium");
-                table->Options->Account = attributes->Get<TString>("account");
-                table->Options->ChunksVital = attributes->Get<bool>("vital");
-                table->Options->OptimizeFor = table->TableUploadOptions.OptimizeFor;
-                table->Options->EnableSkynetSharing = attributes->Get<bool>("enable_skynet_sharing", false);
+                table->TableWriterOptions->CompressionCodec = table->TableUploadOptions.CompressionCodec;
+                table->TableWriterOptions->ErasureCodec = table->TableUploadOptions.ErasureCodec;
+                table->TableWriterOptions->ReplicationFactor = attributes->Get<int>("replication_factor");
+                table->TableWriterOptions->MediumName = attributes->Get<TString>("primary_medium");
+                table->TableWriterOptions->Account = attributes->Get<TString>("account");
+                table->TableWriterOptions->ChunksVital = attributes->Get<bool>("vital");
+                table->TableWriterOptions->OptimizeFor = table->TableUploadOptions.OptimizeFor;
+                table->TableWriterOptions->EnableSkynetSharing = attributes->Get<bool>("enable_skynet_sharing", false);
 
                 // Workaround for YT-5827.
                 if (table->TableUploadOptions.TableSchema.Columns().empty() &&
                     table->TableUploadOptions.TableSchema.GetStrict())
                 {
-                    table->Options->OptimizeFor = EOptimizeFor::Lookup;
+                    table->TableWriterOptions->OptimizeFor = EOptimizeFor::Lookup;
                 }
 
                 table->EffectiveAcl = attributes->GetYson("effective_acl");
@@ -4811,7 +4847,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             }
             YT_LOG_INFO("Output table locked (Path: %v, Options: %v, UploadTransactionId: %v)",
                 path,
-                ConvertToYsonString(table->Options, EYsonFormat::Text).GetData(),
+                ConvertToYsonString(table->TableWriterOptions, EYsonFormat::Text).GetData(),
                 table->UploadTransactionId);
         }
     }
@@ -5137,6 +5173,8 @@ void TOperationControllerBase::GetUserFilesAttributes()
     YT_LOG_INFO("Getting user files attributes");
 
     for (auto& [userJobSpec, files] : UserJobFiles_) {
+        TGetUserObjectBasicAttributesOptions getUserObjectBasicAttributesOptions;
+        getUserObjectBasicAttributesOptions.PopulateSecurityTags = true;
         GetUserObjectBasicAttributes(
             Client,
             MakeUserObjectList(files),
@@ -5303,10 +5341,11 @@ void TOperationControllerBase::GetUserFilesAttributes()
                     }
                     file.ChunkCount = chunkCount;
 
-                    YT_LOG_INFO("User file locked (Path: %v, TaskTitle: %v, FileName: %v)",
+                    YT_LOG_INFO("User file locked (Path: %v, TaskTitle: %v, FileName: %v, SecurityTags: %v)",
                         path,
                         userJobSpec->TaskTitle,
-                        file.FileName);
+                        file.FileName,
+                        file.SecurityTags);
                 }
 
                 if (!file.Layer) {
@@ -5718,16 +5757,17 @@ bool TOperationControllerBase::IsLocalityEnabled() const
 
 TString TOperationControllerBase::GetLoggingProgress() const
 {
+    const auto& jobCounter = GetDataFlowGraph()->GetTotalJobCounter();
     return Format(
         "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
         "UnavailableInputChunks: %v",
-        JobCounter->GetTotal(),
-        JobCounter->GetRunning(),
-        JobCounter->GetCompletedTotal(),
+        jobCounter->GetTotal(),
+        jobCounter->GetRunning(),
+        jobCounter->GetCompletedTotal(),
         GetPendingJobCount(),
-        JobCounter->GetFailed(),
-        JobCounter->GetAbortedTotal(),
-        JobCounter->GetInterruptedTotal(),
+        jobCounter->GetFailed(),
+        jobCounter->GetAbortedTotal(),
+        jobCounter->GetInterruptedTotal(),
         GetUnavailableInputChunkCount());
 }
 
@@ -6032,7 +6072,7 @@ void TOperationControllerBase::RegisterTeleportChunk(
     if (table->TableUploadOptions.TableSchema.IsSorted() && ShouldVerifySortedOutput()) {
         YCHECK(chunkSpec->BoundaryKeys());
         YCHECK(chunkSpec->GetRowCount() > 0);
-        YCHECK(chunkSpec->GetUniqueKeys() || !table->Options->ValidateUniqueKeys);
+        YCHECK(chunkSpec->GetUniqueKeys() || !table->TableWriterOptions->ValidateUniqueKeys);
 
         NScheduler::NProto::TOutputResult resultBoundaryKeys;
         resultBoundaryKeys.set_empty(false);
@@ -6457,7 +6497,6 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
 
     fluent
         .Item("build_time").Value(TInstant::Now())
-        .Item("jobs").Value(JobCounter)
         .Item("ready_job_count").Value(GetPendingJobCount())
         .Item("job_statistics").Value(JobStatistics)
         .Item("estimated_input_statistics").BeginMap()
@@ -6481,6 +6520,7 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
         .EndMap()
         .DoIf(DataFlowGraph_.operator bool(), [=] (TFluentMap fluent) {
             fluent
+                .Item("jobs").Value(DataFlowGraph_->GetTotalJobCounter())
                 .Item("data_flow_graph").BeginMap()
                     .Do(BIND(&TDataFlowGraph::BuildLegacyYson, DataFlowGraph_))
                 .EndMap();
@@ -6502,12 +6542,9 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
 
 void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
 {
-    if (!IsPrepared()) {
-        return;
+    if (IsPrepared() && DataFlowGraph_) {
+        fluent.Item("jobs").Do(BIND(&SerializeBriefVersion, DataFlowGraph_->GetTotalJobCounter()));
     }
-
-    fluent
-        .Item("jobs").Do(BIND(&SerializeBriefVersion, JobCounter));
 }
 
 void TOperationControllerBase::BuildAndSaveProgress()
@@ -6928,7 +6965,7 @@ int TOperationControllerBase::GetTotalJobCount() const
         return 0;
     }
 
-    return JobCounter->GetTotal();
+    return GetDataFlowGraph()->GetTotalJobCounter()->GetTotal();
 }
 
 i64 TOperationControllerBase::GetDataSliceCount() const
@@ -7106,7 +7143,7 @@ void TOperationControllerBase::AddStderrOutputSpecs(
 {
     auto* stderrTableSpec = jobSpec->mutable_stderr_table_spec();
     auto* outputSpec = stderrTableSpec->mutable_output_table_spec();
-    outputSpec->set_table_writer_options(ConvertToYsonString(StderrTable_->Options).GetData());
+    outputSpec->set_table_writer_options(ConvertToYsonString(StderrTable_->TableWriterOptions).GetData());
     ToProto(outputSpec->mutable_table_schema(), StderrTable_->TableUploadOptions.TableSchema);
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->StderrTableChunkListId);
 
@@ -7121,7 +7158,7 @@ void TOperationControllerBase::AddCoreOutputSpecs(
 {
     auto* coreTableSpec = jobSpec->mutable_core_table_spec();
     auto* outputSpec = coreTableSpec->mutable_output_table_spec();
-    outputSpec->set_table_writer_options(ConvertToYsonString(CoreTable_->Options).GetData());
+    outputSpec->set_table_writer_options(ConvertToYsonString(CoreTable_->TableWriterOptions).GetData());
     ToProto(outputSpec->mutable_table_schema(), CoreTable_->TableUploadOptions.TableSchema);
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->CoreTableChunkListId);
 
@@ -7134,13 +7171,13 @@ i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfi
 {
     i64 result = 0;
     for (const auto& outputTable : OutputTables_) {
-        if (outputTable->Options->ErasureCodec == NErasure::ECodec::None) {
+        if (outputTable->TableWriterOptions->ErasureCodec == NErasure::ECodec::None) {
             i64 maxBufferSize = std::max(
                 ioConfig->TableWriter->MaxRowWeight,
                 ioConfig->TableWriter->MaxBufferSize);
             result += GetOutputWindowMemorySize(ioConfig) + maxBufferSize;
         } else {
-            auto* codec = NErasure::GetCodec(outputTable->Options->ErasureCodec);
+            auto* codec = NErasure::GetCodec(outputTable->TableWriterOptions->ErasureCodec);
             double replicationFactor = (double) codec->GetTotalPartCount() / codec->GetDataPartCount();
             result += static_cast<i64>(ioConfig->TableWriter->DesiredChunkSize * replicationFactor);
         }
@@ -7365,7 +7402,10 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, TotalEstimatedInputDataWeight);
     Persist(context, UnavailableInputChunkCount);
     Persist(context, UnavailableIntermediateChunkCount);
-    Persist(context, JobCounter);
+    if (context.GetVersion() < 300101 && context.IsLoad()) {
+        TProgressCounterPtr unused;
+        Persist(context, unused);
+    }
     Persist(context, InputNodeDirectory_);
     Persist(context, InputTables_);
     Persist(context, OutputTables_);
@@ -7403,11 +7443,12 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, JobSplitter_);
     Persist(context, DataFlowGraph_);
     Persist(context, AvailableExecNodesObserved_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 300015) {
-        Persist(context, BannedNodeIds_);
-    }
+    Persist(context, BannedNodeIds_);
     Persist(context, PathToOutputTable_);
+    // COMPAT(levysotsky)
+    if (context.GetVersion() >= 300031) {
+        Persist(context, Acl);
+    }
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already intialized.
@@ -7419,9 +7460,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
         InitializeOrchid();
     }
 
-    if (context.GetVersion() >= 300020) {
-        Persist(context, BannedTreeIds_);
-    }
+    Persist(context, BannedTreeIds_);
 }
 
 void TOperationControllerBase::InitAutoMergeJobSpecTemplates()
@@ -7554,9 +7593,9 @@ void TOperationControllerBase::ReleaseIntermediateStripeList(const NChunkPools::
     }
 }
 
-TDataFlowGraph* TOperationControllerBase::GetDataFlowGraph()
+const TDataFlowGraphPtr& TOperationControllerBase::GetDataFlowGraph() const
 {
-    return DataFlowGraph_.Get();
+    return DataFlowGraph_;
 }
 
 void TOperationControllerBase::TLivePreviewChunkDescriptor::Persist(const TPersistenceContext& context)

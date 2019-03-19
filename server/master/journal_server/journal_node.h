@@ -25,7 +25,7 @@ public:
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
 
-    virtual void BeginUpload(NChunkClient::EUpdateMode mode) override;
+    virtual void BeginUpload(const TBeginUploadContext& context) override;
 
     NChunkServer::TChunk* GetTrailingChunk() const;
 

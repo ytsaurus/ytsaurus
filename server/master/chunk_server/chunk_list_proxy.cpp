@@ -54,6 +54,9 @@ private:
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::OwningNodes)
             .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CumulativeStatistics)
+            .SetPresent(chunkList->HasCumulativeStatistics())
+            .SetOpaque(true));
     }
 
     void TraverseTree(const TChunkTree* chunkTree, NYson::IYsonConsumer* consumer)
@@ -127,6 +130,14 @@ private:
             case EInternedAttributeKey::Statistics: {
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 Serialize(chunkList->Statistics(), consumer, chunkManager);
+                return true;
+            }
+            case EInternedAttributeKey::CumulativeStatistics: {
+                if (!chunkList->HasCumulativeStatistics()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(chunkList->CumulativeStatistics());
                 return true;
             }
 

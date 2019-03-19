@@ -46,6 +46,8 @@ protected:
     virtual void ValidateBeginUpload();
     virtual void ValidateStorageParametersUpdate() override;
 
+    virtual void GetBasicAttributes(TGetBasicAttributesContext* context) override;
+
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Fetch);
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, BeginUpload);
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, GetUploadParams);

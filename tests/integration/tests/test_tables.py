@@ -1175,6 +1175,57 @@ class TestTables(YTEnvSetup):
         with pytest.raises(YtError):
             read_table("//tmp/table", table_reader={"max_read_duration": 0})
 
+    def _print_chunk_list_recursive(self, chunk_list):
+        result = []
+        def recursive(chunk_list, level):
+            t = get("#{0}/@type".format(chunk_list))
+            result.append([level, chunk_list, t, None, None])
+            if t == "chunk":
+                r = get("#{0}/@row_count".format(chunk_list))
+                u = get("#{0}/@uncompressed_data_size".format(chunk_list))
+                result[-1][3] = {"row_count": r, "data_size": u}
+            if t == "chunk_list":
+                s = get("#{0}/@statistics".format(chunk_list))
+                cs = get("#{0}/@cumulative_statistics".format(chunk_list))
+                result[-1][3] = s
+                result[-1][4] = cs
+                for c in get("#{0}/@child_ids".format(chunk_list)):
+                    recursive(c, level + 1)
+        recursive(chunk_list, 0)
+        for r in result:
+            print "%s%s %s %s %s" % ("   " * r[0], r[1], r[2], r[3], r[4])
+
+    def test_cumulative_statistics(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a": "hello"})
+        write_table("<append=true>//tmp/t", [{"c": "hello"}, {"d": "hello"}])
+
+        chunk_list = get("//tmp/t/@chunk_list_id")
+        statistics = get("#{0}/@cumulative_statistics".format(chunk_list))
+        assert len(statistics) == 1
+        assert statistics[0]["row_count"] == 3
+        assert statistics[0]["chunk_count"] == 2
+
+        chunk_list = get("#{0}/@child_ids".format(chunk_list))[0]
+        statistics = get("#{0}/@cumulative_statistics".format(chunk_list))
+        assert len(statistics) == 2
+        assert statistics[0]["row_count"] == 1
+        assert statistics[1]["row_count"] == 3
+
+        write_table(
+            "//tmp/t",
+            [{"key": str(i)} for i in xrange(0, 2)],
+            max_row_buffer_size=1,
+            table_writer={"desired_chunk_size": 1})
+
+        chunk_list = get("//tmp/t/@chunk_list_id")
+        statistics = get("#{0}/@cumulative_statistics".format(chunk_list))
+        assert len(statistics) == 2
+        assert statistics[0]["row_count"] == 1
+        assert statistics[1]["row_count"] == 2
+        assert statistics[0]["chunk_count"] == 1
+        assert statistics[1]["chunk_count"] == 2
+
 ##################################################################
 
 def check_multicell_statistics(path, chunk_count_map):
@@ -1303,3 +1354,4 @@ class TestTablesMulticell(TestTables):
             write_table("<append=%true>//tmp/input", [
                 {"foo": float("nan"), "bar": "e"},
             ])
+

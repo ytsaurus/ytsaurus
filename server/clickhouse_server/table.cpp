@@ -29,6 +29,11 @@ void TClickHouseColumn::SetSorted()
     Flags |= static_cast<int>(EColumnFlags::Sorted);
 }
 
+void TClickHouseColumn::DropSorted()
+{
+    Flags &= 0x03 ^ static_cast<int>(EColumnFlags::Sorted);
+}
+
 void TClickHouseColumn::SetNullable()
 {
     Flags |= static_cast<int>(EColumnFlags::Nullable);

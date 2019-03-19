@@ -86,18 +86,14 @@ TTableNodeProxy::TTableNodeProxy(
         trunkNode)
 { }
 
-void TTableNodeProxy::ValidateGetBasicAttributesPermissions(const TCtxGetBasicAttributesPtr& context)
+void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
 {
-    const auto& request = context->Request();
-    auto& response = context->Response();
-
-    auto permission =  CheckedEnumCast<EPermission>(request.permission());
-    bool omitInaccessibleColumns = request.omit_inaccessible_columns();
+    TBase::GetBasicAttributes(context);
 
     TPermissionCheckOptions checkOptions;
     auto* table = GetThisImpl();
-    if (request.has_columns()) {
-        checkOptions.Columns = FromProto<std::vector<TString>>(request.columns().items());
+    if (context->Columns) {
+        checkOptions.Columns = std::move(context->Columns);
     } else {
         const auto& tableSchema = table->GetTableSchema();
         checkOptions.Columns.emplace();
@@ -121,7 +117,7 @@ void TTableNodeProxy::ValidateGetBasicAttributesPermissions(const TCtxGetBasicAt
         securityManager->LogAndThrowAuthorizationError(
             target,
             user,
-            permission,
+            context->Permission,
             checkResponse);
     }
 
@@ -130,9 +126,8 @@ void TTableNodeProxy::ValidateGetBasicAttributesPermissions(const TCtxGetBasicAt
             const auto& column = (*checkOptions.Columns)[index];
             const auto& result = (*checkResponse.Columns)[index];
             if (result.Action == ESecurityAction::Deny) {
-                if (omitInaccessibleColumns) {
-                    auto* protoColumns = response.mutable_omitted_inaccessible_columns();
-                    protoColumns->add_items(column);
+                if (context->OmitInaccessibleColumns) {
+                    context->OmittedInaccessibleColumns.emplace().push_back(column);
                 } else {
                     TPermissionCheckTarget target;
                     target.Object = Object_;

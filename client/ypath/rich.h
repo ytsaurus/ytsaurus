@@ -109,6 +109,9 @@ public:
     // "transaction_id"
     std::optional<NObjectClient::TTransactionId> GetTransactionId() const;
 
+    // "security_tags"
+    std::optional<std::vector<TString>> GetSecurityTags() const;
+
 private:
     TYPath Path_;
     std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;
@@ -124,6 +127,9 @@ std::vector<TRichYPath> Normalize(const std::vector<TRichYPath>& paths);
 
 void Serialize(const TRichYPath& richPath, NYson::IYsonConsumer* consumer);
 void Deserialize(TRichYPath& richPath, NYTree::INodePtr node);
+
+void ToProto(TString* protoPath, const TRichYPath& path);
+void FromProto(TRichYPath* path, const TString& protoPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 

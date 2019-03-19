@@ -229,12 +229,6 @@ private:
         const auto& representativeTable = InputTables_.front();
         for (size_t i = 1; i < InputTables_.size(); ++i) {
             const auto& table = InputTables_[i];
-            if (table.Schema != representativeTable.Schema) {
-                THROW_ERROR_EXCEPTION(
-                    "YT schema mismatch: %v and %v",
-                    representativeTable.Path.GetPath(),
-                    table.Path.GetPath());
-            }
             if (table.IsDynamic != representativeTable.IsDynamic) {
                 THROW_ERROR_EXCEPTION(
                     "Table dynamic flag mismatch: %v and %v",
@@ -321,6 +315,7 @@ private:
         auto removePredicate = [&] (const TInputDataSlicePtr& inputDataSlice) {
             const auto& chunk = inputDataSlice->GetSingleUnversionedChunkOrThrow();
             YCHECK(chunk->BoundaryKeys()->MinKey.GetCount() == chunk->BoundaryKeys()->MaxKey.GetCount());
+            YCHECK(chunk->BoundaryKeys()->MinKey.GetCount() >= KeyColumnCount_);
 
             Field minKey[KeyColumnCount_];
             Field maxKey[KeyColumnCount_];

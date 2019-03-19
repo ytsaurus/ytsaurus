@@ -219,7 +219,7 @@ public:
             std::bind(&TDriverModule::moduleDictionary, this),
             &TDriverModule::add_keyword_method);
 
-        moduleDictionary()["Driver"] = TDriver::type();
+        moduleDictionary().setItem("Driver", TDriver::type());
     }
 
     virtual ~TDriverModule() = default;

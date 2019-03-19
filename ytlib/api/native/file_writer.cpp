@@ -62,7 +62,7 @@ class TFileWriter
 public:
     TFileWriter(
         IClientPtr client,
-        const TYPath& path,
+        const TRichYPath& path,
         const TFileWriterOptions& options)
         : Client_(client)
         , Path_(path)
@@ -70,7 +70,7 @@ public:
         , Config_(options.Config ? options.Config : New<TFileWriterConfig>())
         , Logger(NLogging::TLogger(ApiLogger)
             .AddTag("Path: %v, TransactionId: %v",
-                Path_,
+                Path_.GetPath(),
                 Options_.TransactionId))
     { }
 
@@ -109,7 +109,7 @@ public:
 
 private:
     const IClientPtr Client_;
-    const TYPath Path_;
+    const TRichYPath Path_;
     const TFileWriterOptions Options_;
     const TFileWriterConfigPtr Config_;
 
@@ -128,6 +128,16 @@ private:
 
     void DoOpen()
     {
+        if (Path_.GetAppend() && Path_.GetCompressionCodec()) {
+            THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"compression_codec\" are not compatible")
+                << TErrorAttribute("path", Path_);
+        }
+
+        if (Path_.GetAppend() && Path_.GetErasureCodec()) {
+            THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"erasure_codec\" are not compatible")
+                << TErrorAttribute("path", Path_);
+        }
+
         if (Options_.TransactionId) {
             Transaction_ = Client_->AttachTransaction(Options_.TransactionId);
             StartListenTransaction(Transaction_);
@@ -150,7 +160,7 @@ private:
 
         if (userObject.Type != EObjectType::File) {
             THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
-                Path_,
+                Path_.GetPath(),
                 EObjectType::File,
                 userObject.Type);
         }
@@ -178,27 +188,18 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(
                 rspOrError,
                 "Error requesting extended attributes of file %v",
-                Path_);
+                Path_.GetPath());
 
             auto rsp = rspOrError.Value();
             auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+            auto attributesCompressionCodec = attributes->Get<NCompression::ECodec>("compression_codec");
+            auto attributesErasureCodec = attributes->Get<NErasure::ECodec>("erasure_codec");
+
             writerOptions->ReplicationFactor = attributes->Get<int>("replication_factor");
             writerOptions->MediumName = attributes->Get<TString>("primary_medium");
             writerOptions->Account = attributes->Get<TString>("account");
-
-            if (Options_.CompressionCodec) {
-                writerOptions->CompressionCodec = *Options_.CompressionCodec;
-            } else {
-                writerOptions->CompressionCodec = attributes->Get<NCompression::ECodec>("compression_codec");
-            }
-
-            if (Options_.ErasureCodec) {
-                writerOptions->ErasureCodec = *Options_.ErasureCodec;
-            } else {
-                writerOptions->ErasureCodec = attributes->Get<NErasure::ECodec>(
-                    "erasure_codec",
-                    NErasure::ECodec::None);
-            }
+            writerOptions->CompressionCodec = Path_.GetCompressionCodec().value_or(attributesCompressionCodec);
+            writerOptions->ErasureCodec = Path_.GetErasureCodec().value_or(attributesErasureCodec);
 
             YT_LOG_INFO("Extended file attributes received (Account: %v)",
                 writerOptions->Account);
@@ -221,12 +222,13 @@ private:
             }
 
             {
+                bool append = Path_.GetAppend();
                 auto req = TFileYPathProxy::BeginUpload(objectIdPath);
-                auto updateMode = Options_.Append ? EUpdateMode::Append : EUpdateMode::Overwrite;
+                auto updateMode = append ? EUpdateMode::Append : EUpdateMode::Overwrite;
                 req->set_update_mode(static_cast<int>(updateMode));
-                auto lockMode = (Options_.Append && !Options_.ComputeMD5) ? ELockMode::Shared : ELockMode::Exclusive;
+                auto lockMode = (append && !Options_.ComputeMD5) ? ELockMode::Shared : ELockMode::Exclusive;
                 req->set_lock_mode(static_cast<int>(lockMode));
-                req->set_upload_transaction_title(Format("Upload to %v", Path_));
+                req->set_upload_transaction_title(Format("Upload to %v", Path_.GetPath()));
                 req->set_upload_transaction_timeout(ToProto<i64>(Config_->UploadTransactionTimeout));
                 GenerateMutationId(req);
                 SetTransactionId(req, Transaction_);
@@ -237,7 +239,7 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(
                 GetCumulativeError(batchRspOrError),
                 "Error starting upload to file %v",
-                Path_);
+                Path_.GetPath());
             const auto& batchRsp = batchRspOrError.Value();
 
             {
@@ -271,22 +273,22 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(
                 rspOrError,
                 "Error requesting upload parameters for file %v",
-                Path_);
+                Path_.GetPath());
 
             const auto& rsp = rspOrError.Value();
             chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
 
             if (Options_.ComputeMD5) {
-                if (Options_.Append) {
+                if (Path_.GetAppend()) {
                     FromProto(&MD5Hasher_, rsp->md5_hasher());
                     if (!MD5Hasher_) {
                         THROW_ERROR_EXCEPTION(
                             "Non-empty file %v has no computed MD5 hash thus "
                             "cannot append data and update the hash simultaneously",
-                            Path_);
+                            Path_.GetPath());
                     }
                 } else {
-                    MD5Hasher_ = TMD5Hasher();
+                    MD5Hasher_.emplace();
                 }
             }
 
@@ -339,12 +341,16 @@ private:
             *req->mutable_statistics() = Writer_->GetDataStatistics();
             ToProto(req->mutable_md5_hasher(), MD5Hasher_);
 
-            if (Options_.CompressionCodec) {
-                req->set_compression_codec(static_cast<int>(*Options_.CompressionCodec));
+            if (auto compressionCodec = Path_.GetCompressionCodec()) {
+                req->set_compression_codec(static_cast<int>(*compressionCodec));
             }
 
-            if (Options_.ErasureCodec) {
-                req->set_erasure_codec(static_cast<int>(*Options_.ErasureCodec));
+            if (auto erasureCodec = Path_.GetErasureCodec()) {
+                req->set_erasure_codec(static_cast<int>(*erasureCodec));
+            }
+
+            if (auto securityTags = Path_.GetSecurityTags()) {
+                ToProto(req->mutable_security_tags()->mutable_items(), *securityTags);
             }
 
             SetTransactionId(req, UploadTransaction_);
@@ -356,7 +362,7 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(
             GetCumulativeError(batchRspOrError),
             "Error finishing upload to file %v",
-            Path_);
+            Path_.GetPath());
 
         UploadTransaction_->Detach();
 
@@ -367,7 +373,7 @@ private:
 
 IFileWriterPtr CreateFileWriter(
     IClientPtr client,
-    const TYPath& path,
+    const TRichYPath& path,
     const TFileWriterOptions& options)
 {
     return New<TFileWriter>(client, path, options);

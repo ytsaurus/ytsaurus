@@ -7,9 +7,119 @@ from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
-class TestCypressAcls(YTEnvSetup):
+class CheckPermissionBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
+
+    def test_descendants_only_inheritance(self):
+        create("map_node", "//tmp/m", attributes={"acl": [make_ace("allow", "guest", "remove", "descendants_only")]})
+        create("map_node", "//tmp/m/s")
+        create("map_node", "//tmp/m/s/r")
+        assert check_permission("guest", "remove", "//tmp/m/s/r")["action"] == "allow"
+        assert check_permission("guest", "remove", "//tmp/m/s")["action"] == "allow"
+        assert check_permission("guest", "remove", "//tmp/m")["action"] == "deny"
+
+    def test_object_only_inheritance(self):
+        create("map_node", "//tmp/m", attributes={"acl": [make_ace("allow", "guest", "remove", "object_only")]})
+        create("map_node", "//tmp/m/s")
+        assert check_permission("guest", "remove", "//tmp/m/s")["action"] == "deny"
+        assert check_permission("guest", "remove", "//tmp/m")["action"] == "allow"
+
+    def test_immediate_descendants_only_inheritance(self):
+        create("map_node", "//tmp/m", attributes={"acl": [make_ace("allow", "guest", "remove", "immediate_descendants_only")]})
+        create("map_node", "//tmp/m/s")
+        create("map_node", "//tmp/m/s/r")
+        assert check_permission("guest", "remove", "//tmp/m/s/r")["action"] == "deny"
+        assert check_permission("guest", "remove", "//tmp/m/s")["action"] == "allow"
+        assert check_permission("guest", "remove", "//tmp/m")["action"] == "deny"
+
+    def test_banned_user_permission(self):
+        create_user("u")
+        set("//sys/users/u/@banned", True)
+        assert check_permission("u", "read", "//tmp")["action"] == "deny"
+
+    def test_check_permission_for_virtual_maps(self):
+        assert check_permission("guest", "read", "//sys/chunks")["action"] == "allow"
+
+    def test_owner_user(self):
+        create("map_node", "//tmp/x")
+        create_user("u1")
+        create_user("u2")
+        create("table", "//tmp/x/1", authenticated_user="u1")
+        create("table", "//tmp/x/2", authenticated_user="u2")
+        assert get("//tmp/x/1/@owner") == "u1"
+        assert get("//tmp/x/2/@owner") == "u2"
+        set("//tmp/x/@inherit_acl", False)
+        set("//tmp/x/@acl", [make_ace("allow", "owner", "remove")])
+        assert check_permission("u2", "remove", "//tmp/x/1")["action"] == "deny"
+        assert check_permission("u1", "remove", "//tmp/x/2")["action"] == "deny"
+        assert check_permission("u1", "remove", "//tmp/x/1")["action"] == "allow"
+        assert check_permission("u2", "remove", "//tmp/x/2")["action"] == "allow"
+
+    def test_owner_group(self):
+        create("map_node", "//tmp/x")
+        create_user("u1")
+        create_user("u2")
+        create_group("g")
+        add_member("u1", "g")
+        create("table", "//tmp/x/1")
+        set("//tmp/x/1/@owner", "g")
+        assert get("//tmp/x/1/@owner") == "g"
+        set("//tmp/x/@inherit_acl", False)
+        set("//tmp/x/@acl", [make_ace("allow", "owner", "remove")])
+        assert check_permission("u1", "remove", "//tmp/x/1")["action"] == "allow"
+        assert check_permission("u2", "remove", "//tmp/x/1")["action"] == "deny"
+
+    def test_check_permission_by_acl(self):
+        create_user("u1")
+        create_user("u2")
+        assert check_permission_by_acl("u1", "remove", [{"subjects": ["u1"], "permissions": ["remove"], "action": "allow"}])["action"] == "allow"
+        assert check_permission_by_acl("u1", "remove", [{"subjects": ["u2"], "permissions": ["remove"], "action": "allow"}])["action"] == "deny"
+        assert check_permission_by_acl(None, "remove", [{"subjects": ["u2"], "permissions": ["remove"], "action": "allow"}])["action"] == "allow"
+
+    @pytest.mark.parametrize("acl_path", ["//tmp/dir/t", "//tmp/dir"])
+    def test_check_permission_for_columnar_acl(self, acl_path):
+        create_user("u1")
+        create_user("u2")
+        create_user("u3")
+        create_user("u4")
+
+        create("table", "//tmp/dir/t", attributes={
+            "schema": [
+                {"name": "a", "type": "string"},
+                {"name": "b", "type": "string"},
+                {"name": "c", "type": "string"}
+            ]},
+               recursive=True)
+
+        set(acl_path + "/@acl", [
+            make_ace("deny", "u1", "read", columns="a"),
+            make_ace("allow", "u2", "read", columns="b"),
+            make_ace("deny", "u4", "read")
+        ])
+
+        response1 = check_permission("u1", "read", "//tmp/dir/t", columns=["a", "b", "c"])
+        assert response1["action"] == "allow"
+        assert response1["columns"][0]["action"] == "deny"
+        assert response1["columns"][1]["action"] == "deny"
+        assert response1["columns"][2]["action"] == "allow"
+
+        response2 = check_permission("u2", "read", "//tmp/dir/t", columns=["a", "b", "c"])
+        assert response2["action"] == "allow"
+        assert response2["columns"][0]["action"] == "deny"
+        assert response2["columns"][1]["action"] == "allow"
+        assert response2["columns"][2]["action"] == "allow"
+
+        response3 = check_permission("u3", "read", "//tmp/dir/t", columns=["a", "b", "c"])
+        assert response3["action"] == "allow"
+        assert response3["columns"][0]["action"] == "deny"
+        assert response3["columns"][1]["action"] == "deny"
+        assert response3["columns"][2]["action"] == "allow"
+
+        response4 = check_permission("u4", "read", "//tmp/dir/t", columns=["a", "b", "c"])
+        assert response4["action"] == "deny"
+
+class TestCypressAcls(CheckPermissionBase):
     NUM_SCHEDULERS = 1
 
     def test_empty_names_fail(self):
@@ -606,71 +716,12 @@ class TestCypressAcls(YTEnvSetup):
         create("map_node", "//tmp/m", attributes={"acl": [make_ace("allow", "guest", "remove")]})
         assert get("//tmp/m/@acl/0/inheritance_mode") == "object_and_descendants"
 
-    def test_descendants_only_inheritance(self):
-        create("map_node", "//tmp/m", attributes={"acl": [make_ace("allow", "guest", "remove", "descendants_only")]})
-        create("map_node", "//tmp/m/s")
-        create("map_node", "//tmp/m/s/r")
-        assert check_permission("guest", "remove", "//tmp/m/s/r")["action"] == "allow"
-        assert check_permission("guest", "remove", "//tmp/m/s")["action"] == "allow"
-        assert check_permission("guest", "remove", "//tmp/m")["action"] == "deny"
-
-    def test_object_only_inheritance(self):
-        create("map_node", "//tmp/m", attributes={"acl": [make_ace("allow", "guest", "remove", "object_only")]})
-        create("map_node", "//tmp/m/s")
-        assert check_permission("guest", "remove", "//tmp/m/s")["action"] == "deny"
-        assert check_permission("guest", "remove", "//tmp/m")["action"] == "allow"
-
-    def test_immediate_descendants_only_inheritance(self):
-        create("map_node", "//tmp/m", attributes={"acl": [make_ace("allow", "guest", "remove", "immediate_descendants_only")]})
-        create("map_node", "//tmp/m/s")
-        create("map_node", "//tmp/m/s/r")
-        assert check_permission("guest", "remove", "//tmp/m/s/r")["action"] == "deny"
-        assert check_permission("guest", "remove", "//tmp/m/s")["action"] == "allow"
-        assert check_permission("guest", "remove", "//tmp/m")["action"] == "deny"
-
-    def test_banned_user_permission(self):
-        create_user("u")
-        set("//sys/users/u/@banned", True)
-        assert check_permission("u", "read", "//tmp")["action"] == "deny"
-
     def test_read_from_cache(self):
         create_user("u")
         set("//tmp/a", "b")
         set("//tmp/a/@acl/end", make_ace("deny", "u", "read"))
         with pytest.raises(YtError): get("//tmp/a", authenticated_user="u")
         with pytest.raises(YtError): get("//tmp/a", authenticated_user="u", read_from="cache")
-
-    def test_check_permission_for_virtual_maps(self):
-        assert check_permission("guest", "read", "//sys/chunks")["action"] == "allow"
-
-    def test_owner_user(self):
-        create("map_node", "//tmp/x")
-        create_user("u1")
-        create_user("u2")
-        create("table", "//tmp/x/1", authenticated_user="u1")
-        create("table", "//tmp/x/2", authenticated_user="u2")
-        assert get("//tmp/x/1/@owner") == "u1"
-        assert get("//tmp/x/2/@owner") == "u2"
-        set("//tmp/x/@inherit_acl", False)
-        set("//tmp/x/@acl", [make_ace("allow", "owner", "remove")])
-        assert check_permission("u2", "remove", "//tmp/x/1")["action"] == "deny"
-        assert check_permission("u1", "remove", "//tmp/x/2")["action"] == "deny"
-        assert check_permission("u1", "remove", "//tmp/x/1")["action"] == "allow"
-        assert check_permission("u2", "remove", "//tmp/x/2")["action"] == "allow"
-
-    def test_owner_group(self):
-        create("map_node", "//tmp/x")
-        create_user("u1")
-        create_user("u2")
-        create_group("g")
-        add_member("u1", "g")
-        create("table", "//tmp/x/1")
-        set("//tmp/x/1/@owner", "g")
-        assert get("//tmp/x/1/@owner") == "g"
-        set("//tmp/x/@inherit_acl", False)
-        set("//tmp/x/@acl", [make_ace("allow", "owner", "remove")])
-        assert check_permission("u1", "remove", "//tmp/x/1")["action"] == "allow"
-        assert check_permission("u2", "remove", "//tmp/x/1")["action"] == "deny"
 
     def test_no_owner_auth(self):
         with pytest.raises(YtError): get("//tmp", authenticated_user="owner")
@@ -694,13 +745,6 @@ class TestCypressAcls(YTEnvSetup):
             create("table", "//tmp/t2", authenticated_user="u")
         with pytest.raises(YtError):
             start_transaction(authenticated_user="u")
-
-    def test_check_permission_by_acl(self):
-        create_user("u1")
-        create_user("u2")
-        assert check_permission_by_acl("u1", "remove", [{"subjects": ["u1"], "permissions": ["remove"], "action": "allow"}])["action"] == "allow"
-        assert check_permission_by_acl("u1", "remove", [{"subjects": ["u2"], "permissions": ["remove"], "action": "allow"}])["action"] == "deny"
-        assert check_permission_by_acl(None, "remove", [{"subjects": ["u2"], "permissions": ["remove"], "action": "allow"}])["action"] == "allow"
 
     def test_effective_acl(self):
         create_user("u")
@@ -902,49 +946,13 @@ class TestCypressAcls(YTEnvSetup):
         do("//tmp/t_in", public_row, True)
         do("//tmp/t_in{secret}", {}, True)
 
-    @pytest.mark.parametrize("acl_path", ["//tmp/dir/t", "//tmp/dir"])
-    def test_check_permission_for_columnar_acl(self, acl_path):
-        create_user("u1")
-        create_user("u2")
-        create_user("u3")
-        create_user("u4")
-
-        create("table", "//tmp/dir/t", attributes={
-                   "schema": [
-                       {"name": "a", "type": "string"},
-                       {"name": "b", "type": "string"},
-                       {"name": "c", "type": "string"}
-                   ]},
-               recursive=True)
-
-        set(acl_path + "/@acl", [
-             make_ace("deny", "u1", "read", columns="a"),
-             make_ace("allow", "u2", "read", columns="b"),
-             make_ace("deny", "u4", "read")
-        ])
-
-        response1 = check_permission("u1", "read", "//tmp/dir/t", columns=["a", "b", "c"])
-        assert response1["action"] == "allow"
-        assert response1["columns"][0]["action"] == "deny"
-        assert response1["columns"][1]["action"] == "deny"
-        assert response1["columns"][2]["action"] == "allow"
-
-        response2 = check_permission("u2", "read", "//tmp/dir/t", columns=["a", "b", "c"])
-        assert response2["action"] == "allow"
-        assert response2["columns"][0]["action"] == "deny"
-        assert response2["columns"][1]["action"] == "allow"
-        assert response2["columns"][2]["action"] == "allow"
-
-        response3 = check_permission("u3", "read", "//tmp/dir/t", columns=["a", "b", "c"])
-        assert response3["action"] == "allow"
-        assert response3["columns"][0]["action"] == "deny"
-        assert response3["columns"][1]["action"] == "deny"
-        assert response3["columns"][2]["action"] == "allow"
-
-        response4 = check_permission("u4", "read", "//tmp/dir/t", columns=["a", "b", "c"])
-        assert response4["action"] == "deny"
-
 ##################################################################
 
 class TestCypressAclsMulticell(TestCypressAcls):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+class TestCheckPermissionRpcProxy(CheckPermissionBase):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_PROXY = True
+    ENABLE_RPC_PROXY = True
+

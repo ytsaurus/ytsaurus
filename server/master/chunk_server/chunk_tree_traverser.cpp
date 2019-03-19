@@ -33,9 +33,9 @@ using namespace NTableClient;
 
 static const int MaxChunksPerStep = 1000;
 
-static const auto RowCountMember = &TChunkList::TCumulativeStatisticsEntry::RowCount;
-static const auto ChunkCountMember = &TChunkList::TCumulativeStatisticsEntry::ChunkCount;
-static const auto DataSizeMember = &TChunkList::TCumulativeStatisticsEntry::DataSize;
+static const auto RowCountMember = &TCumulativeStatisticsEntry::RowCount;
+static const auto ChunkCountMember = &TCumulativeStatisticsEntry::ChunkCount;
+static const auto DataSizeMember = &TCumulativeStatisticsEntry::DataSize;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -203,16 +203,20 @@ protected:
         const auto& statistics = chunkList->Statistics();
         auto* child = chunkList->Children()[entry->ChildIndex];
 
-        auto fetchPrevSum = [&] (i64 TChunkList::TCumulativeStatisticsEntry::* member) -> i64 {
+        auto fetchPrevSum = [&] (i64 TCumulativeStatisticsEntry::* member) -> i64 {
             return entry->ChildIndex == 0
                 ? 0
                 : chunkList->CumulativeStatistics()[entry->ChildIndex - 1].*member;
         };
 
-        auto fetchCurrentSum = [&] (i64 TChunkList::TCumulativeStatisticsEntry::* member, i64 fallback) {
+        auto fetchCurrentSumWithFallback = [&] (i64 TCumulativeStatisticsEntry::* member, i64 fallback) {
             return entry->ChildIndex == chunkList->Children().size() - 1
                 ? fallback
                 : chunkList->CumulativeStatistics()[entry->ChildIndex].*member;
+        };
+
+        auto fetchCurrentSum = [&] (i64 TCumulativeStatisticsEntry::* member) {
+            return chunkList->CumulativeStatistics()[entry->ChildIndex].*member;
         };
 
         TReadLimit childLowerBound;
@@ -231,7 +235,7 @@ protected:
                 }
                 childLowerBound.SetRowIndex(childLimit);
                 i64 totalRowCount = statistics.Sealed ? statistics.LogicalRowCount : std::numeric_limits<i64>::max();
-                childUpperBound.SetRowIndex(fetchCurrentSum(RowCountMember, totalRowCount));
+                childUpperBound.SetRowIndex(fetchCurrentSumWithFallback(RowCountMember, totalRowCount));
             } else if (entry->LowerBound.HasRowIndex()) {
                 childLowerBound.SetRowIndex(childLimit);
             }
@@ -246,7 +250,7 @@ protected:
                     return;
                 }
                 childLowerBound.SetChunkIndex(childLimit);
-                childUpperBound.SetChunkIndex(fetchCurrentSum(ChunkCountMember, statistics.LogicalChunkCount));
+                childUpperBound.SetChunkIndex(fetchCurrentSum(ChunkCountMember));
             } else if (entry->LowerBound.HasChunkIndex()) {
                 childLowerBound.SetChunkIndex(childLimit);
             }
@@ -261,7 +265,7 @@ protected:
                     return;
                 }
                 childLowerBound.SetOffset(childLimit);
-                childUpperBound.SetOffset(fetchCurrentSum(DataSizeMember, statistics.UncompressedDataSize));
+                childUpperBound.SetOffset(fetchCurrentSum(DataSizeMember));
             } else if (entry->LowerBound.HasOffset()) {
                 childLowerBound.SetOffset(childLimit);
             }
@@ -493,17 +497,16 @@ protected:
         int result = 0;
         const auto& statistics = chunkList->Statistics();
 
-        auto adjustResult = [&] (i64 TChunkList::TCumulativeStatisticsEntry::* member, i64 limit, i64 total) {
+        auto adjustResult = [&] (i64 TCumulativeStatisticsEntry::* member, i64 limit, i64 total) {
             const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
             if (limit < total) {
-                auto it = std::upper_bound(
-                    cumulativeStatistics.begin(),
-                    cumulativeStatistics.end(),
-                    limit,
-                    [&] (i64 lhs, const TChunkList::TCumulativeStatisticsEntry& rhs) {
-                        return lhs < rhs.*member;
-                    });
-                result = std::max(result, static_cast<int>(it - cumulativeStatistics.begin()));
+                // We should not take the last chunk into account because it may be unsealed
+                // and so have incorrect cumulative statistics.
+                result = std::max(
+                    result,
+                    std::min<int>(
+                        cumulativeStatistics.UpperBound(limit, member),
+                        chunkList->Children().size() - 1));
             } else {
                 result = chunkList->Children().size();
             }

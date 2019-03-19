@@ -92,6 +92,7 @@
 #include <yt/client/scheduler/operation_id_or_alias.h>
 
 #include <yt/ytlib/security_client/group_ypath_proxy.h>
+#include <yt/ytlib/security_client/helpers.h>
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/schema_inferer.h>
@@ -700,8 +701,8 @@ public:
         const TLinkNodeOptions& options),
         (srcPath, dstPath, options))
     IMPLEMENT_METHOD(void, ConcatenateNodes, (
-        const std::vector<TYPath>& srcPaths,
-        const TYPath& dstPath,
+        const std::vector<TRichYPath>& srcPaths,
+        const TRichYPath& dstPath,
         const TConcatenateNodesOptions& options),
         (srcPaths, dstPath, options))
     IMPLEMENT_METHOD(bool, NodeExists, (
@@ -724,7 +725,7 @@ public:
     }
 
     virtual IFileWriterPtr CreateFileWriter(
-        const TYPath& path,
+        const TRichYPath& path,
         const TFileWriterOptions& options) override
     {
         return NNative::CreateFileWriter(this, path, options);
@@ -3221,8 +3222,8 @@ private:
     }
 
     void DoConcatenateNodes(
-        const std::vector<TYPath>& srcPaths,
-        const TYPath& dstPath,
+        const std::vector<TRichYPath>& srcPaths,
+        const TRichYPath& dstPath,
         TConcatenateNodesOptions options)
     {
         if (options.Retry) {
@@ -3231,6 +3232,15 @@ private:
 
         using NChunkClient::NProto::TDataStatistics;
 
+        std::vector<TString> simpleSrcPaths;
+        for (const auto& path : srcPaths) {
+            simpleSrcPaths.push_back(path.GetPath());
+        }
+
+        const auto& simpleDstPath = dstPath.GetPath();
+
+        bool append = dstPath.GetAppend();
+
         try {
             // Get objects ids.
             std::vector<TObjectId> srcIds;
@@ -3238,17 +3248,20 @@ private:
             TObjectId dstId;
             TCellTag dstCellTag;
             std::unique_ptr<NTableClient::IOutputSchemaInferer> outputSchemaInferer;
+            std::vector<TString> inferredSecurityTags;
             {
                 auto proxy = CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
                 auto batchReq = proxy->ExecuteBatch();
 
                 for (const auto& path : srcPaths) {
-                    auto req = TObjectYPathProxy::GetBasicAttributes(path);
+                    auto req = TObjectYPathProxy::GetBasicAttributes(path.GetPath());
+                    req->set_populate_security_tags(true);
                     SetTransactionId(req, options, true);
                     batchReq->AddRequest(req, "get_src_attributes");
                 }
+
                 {
-                    auto req = TObjectYPathProxy::GetBasicAttributes(dstPath);
+                    auto req = TObjectYPathProxy::GetBasicAttributes(simpleDstPath);
                     SetTransactionId(req, options, true);
                     batchReq->AddRequest(req, "get_dst_attributes");
                 }
@@ -3281,24 +3294,48 @@ private:
                     auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_src_attributes");
                     for (int srcIndex = 0; srcIndex < srcPaths.size(); ++srcIndex) {
                         const auto& srcPath = srcPaths[srcIndex];
-                        THROW_ERROR_EXCEPTION_IF_FAILED(rspsOrError[srcIndex], "Error getting attributes of %v", srcPath);
+                        THROW_ERROR_EXCEPTION_IF_FAILED(rspsOrError[srcIndex], "Error getting attributes of %v",
+                            srcPath.GetPath());
                         const auto& rsp = rspsOrError[srcIndex].Value();
 
                         auto id = FromProto<TObjectId>(rsp->object_id());
                         srcIds.push_back(id);
-                        srcCellTags.push_back(rsp->cell_tag());
-                        checkType(TypeFromId(id), srcPath);
+
+                        auto cellTag = rsp->cell_tag();
+                        srcCellTags.push_back(cellTag);
+
+                        auto securityTags = FromProto<std::vector<TString>>(rsp->security_tags().items());
+                        inferredSecurityTags.insert(inferredSecurityTags.end(), securityTags.begin(), securityTags.end());
+
+                        YT_LOG_DEBUG("Source table attributes received (Path: %v, ObjectId: %v, CellTag: %v, SecurityTags: %v)",
+                            srcPath.GetPath(),
+                            id,
+                            cellTag,
+                            securityTags);
+
+                        checkType(TypeFromId(id), srcPath.GetPath());
                     }
                 }
 
+                SortUnique(inferredSecurityTags);
+                YT_LOG_DEBUG("Security tags inferred (SecurityTags: %v)",
+                    inferredSecurityTags);
+
                 {
                     auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_dst_attributes");
-                    THROW_ERROR_EXCEPTION_IF_FAILED(rspsOrError[0], "Error getting attributes of %v", dstPath);
+                    THROW_ERROR_EXCEPTION_IF_FAILED(rspsOrError[0], "Error getting attributes of %v",
+                        simpleDstPath);
                     const auto& rsp = rspsOrError[0].Value();
 
                     dstId = FromProto<TObjectId>(rsp->object_id());
                     dstCellTag = rsp->cell_tag();
-                    checkType(TypeFromId(dstId), dstPath);
+
+                    YT_LOG_DEBUG("Destination table attributes received (Path: %v, ObjectId: %v, CellTag: %v)",
+                        simpleDstPath,
+                        dstId,
+                        dstCellTag);
+
+                    checkType(TypeFromId(dstId), simpleDstPath);
                 }
 
                 // Check table schemas.
@@ -3334,7 +3371,8 @@ private:
                         const auto& rspOrErrorList = getSchemasRsp->GetResponses<TYPathProxy::TRspGet>("get_dst_schema");
                         YCHECK(rspOrErrorList.size() == 1);
                         const auto& rspOrError = rspOrErrorList[0];
-                        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching schema for %v", dstPath);
+                        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching schema for %v",
+                            simpleDstPath);
 
                         const auto& rsp = rspOrError.Value();
                         const auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
@@ -3344,14 +3382,14 @@ private:
                             case ETableSchemaMode::Strong:
                                 if (schema.IsSorted()) {
                                     THROW_ERROR_EXCEPTION("Destination path %v has sorted schema, concatenation into sorted table is not supported",
-                                        dstPath);
+                                        simpleDstPath);
                                 }
-                                outputSchemaInferer = CreateSchemaCompatibilityChecker(dstPath, schema);
+                                outputSchemaInferer = CreateSchemaCompatibilityChecker(simpleDstPath, schema);
                                 break;
                             case ETableSchemaMode::Weak:
                                 outputSchemaInferer = CreateOutputSchemaInferer();
-                                if (options.Append) {
-                                    outputSchemaInferer->AddInputTableSchema(dstPath, schema, schemaMode);
+                                if (append) {
+                                    outputSchemaInferer->AddInputTableSchema(simpleDstPath, schema, schemaMode);
                                 }
                                 break;
                             default:
@@ -3365,13 +3403,14 @@ private:
                         for (size_t i = 0; i < rspOrErrorList.size(); ++i) {
                             const auto& path = srcPaths[i];
                             const auto& rspOrError = rspOrErrorList[i];
-                            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching schema for %v", path);
+                            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching schema for %v",
+                                path.GetPath());
 
                             const auto& rsp = rspOrError.Value();
                             const auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
                             const auto schema = attributes->Get<TTableSchema>("schema");
                             const auto schemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
-                            outputSchemaInferer->AddInputTableSchema(path, schema, schemaMode);
+                            outputSchemaInferer->AddInputTableSchema(path.GetPath(), schema, schemaMode);
                         }
                     }
                 }
@@ -3410,7 +3449,8 @@ private:
                         int srcIndex = srcIndexes[localIndex];
                         const auto& rspOrError = rspsOrError[localIndex];
                         const auto& path = srcPaths[srcIndex];
-                        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching %v", path);
+                        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching %v",
+                            path.GetPath());
                         const auto& rsp = rspOrError.Value();
 
                         for (const auto& chunk : rsp->chunks()) {
@@ -3427,11 +3467,11 @@ private:
                 auto proxy = CreateWriteProxy<TObjectServiceProxy>();
 
                 auto req = TChunkOwnerYPathProxy::BeginUpload(dstIdPath);
-                req->set_update_mode(static_cast<int>(options.Append ? EUpdateMode::Append : EUpdateMode::Overwrite));
-                req->set_lock_mode(static_cast<int>(options.Append ? ELockMode::Shared : ELockMode::Exclusive));
+                req->set_update_mode(static_cast<int>(append ? EUpdateMode::Append : EUpdateMode::Overwrite));
+                req->set_lock_mode(static_cast<int>(append ? ELockMode::Shared : ELockMode::Exclusive));
                 req->set_upload_transaction_title(Format("Concatenating %v to %v",
-                    srcPaths,
-                    dstPath));
+                    simpleSrcPaths,
+                    simpleDstPath));
                 // NB: Replicate upload transaction to each secondary cell since we have
                 // no idea as of where the chunks we're about to attach may come from.
                 ToProto(req->mutable_upload_transaction_secondary_cell_tags(), Connection_->GetSecondaryMasterCellTags());
@@ -3440,7 +3480,8 @@ private:
                 SetTransactionId(req, options, true);
 
                 auto rspOrError = WaitFor(proxy->Execute(req));
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error starting upload to %v", dstPath);
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error starting upload to %v",
+                    simpleDstPath);
                 const auto& rsp = rspOrError.Value();
 
                 uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
@@ -3483,7 +3524,8 @@ private:
                 NCypressClient::SetTransactionId(req, uploadTransactionId);
 
                 auto rspOrError = WaitFor(proxy->Execute(req));
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting upload parameters for %v", dstPath);
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting upload parameters for %v",
+                    simpleDstPath);
                 const auto& rsp = rspOrError.Value();
 
                 chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
@@ -3504,7 +3546,8 @@ private:
                 req->set_request_statistics(true);
 
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
-                THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error attaching chunks to %v", dstPath);
+                THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error attaching chunks to %v",
+                    simpleDstPath);
                 const auto& batchRsp = batchRspOrError.Value();
 
                 const auto& rsp = batchRsp->attach_chunk_trees_subresponses(0);
@@ -3521,16 +3564,34 @@ private:
                     ToProto(req->mutable_table_schema(), outputSchemaInferer->GetOutputTableSchema());
                     req->set_schema_mode(static_cast<int>(outputSchemaInferer->GetOutputTableSchemaMode()));
                 }
+
+                std::vector<TString> securityTags;
+                if (auto explicitSecurityTags = dstPath.GetSecurityTags()) {
+                    // TODO(babenko): audit
+                    YT_LOG_INFO("Destination table is assigned explicit security tags (Path: %v, InferredSecurityTags: %v, ExplicitSecurityTags: %v)",
+                        simpleDstPath,
+                        inferredSecurityTags,
+                        explicitSecurityTags);
+                    securityTags = *explicitSecurityTags;
+                } else {
+                    YT_LOG_INFO("Destination table is assigned automatically-inferred security tags (Path: %v, SecurityTags: %v)",
+                        simpleDstPath,
+                        inferredSecurityTags);
+                    securityTags = inferredSecurityTags;
+                }
+
+                ToProto(req->mutable_security_tags()->mutable_items(), securityTags);
                 NCypressClient::SetTransactionId(req, uploadTransactionId);
                 NRpc::GenerateMutationId(req);
 
                 auto rspOrError = WaitFor(proxy->Execute(req));
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error finishing upload to %v", dstPath);
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error finishing upload to %v",
+                    simpleDstPath);
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error concatenating %v to %v",
-                srcPaths,
-                dstPath)
+                simpleSrcPaths,
+                simpleDstPath)
                 << ex;
         }
     }
@@ -5403,7 +5464,8 @@ private:
     void DoListOperationsFromCypress(
         TInstant deadline,
         TCountingFilter& countingFilter,
-        const std::optional<THashSet<TString>>& transitiveClosureOfOwnedBy,
+        const TListOperationsAccessFilterPtr& accessFilter,
+        const std::optional<THashSet<TString>>& transitiveClosureOfSubject,
         const TListOperationsOptions& options,
         THashMap<NScheduler::TOperationId, TOperation>* idToOperation)
     {
@@ -5453,25 +5515,6 @@ private:
                 return LightAttributes.contains(attribute);
             });
 
-        auto checkPermissions = [] (
-            const THashSet<TString>& transitiveClosureOfSubject,
-            EPermissionSet permissions,
-            const TSerializableAccessControlList& acl)
-        {
-            for (const auto& ace : acl.Entries) {
-                YCHECK(ace.Action == ESecurityAction::Allow);
-                if ((permissions & ace.Permissions) != permissions) {
-                    continue;
-                }
-                for (const auto& subject : ace.Subjects) {
-                    if (transitiveClosureOfSubject.contains(subject)) {
-                        return ESecurityAction::Allow;
-                    }
-                }
-            }
-            return ESecurityAction::Deny;
-        };
-
         TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
         auto listBatchReq = proxy.ExecuteBatch();
         SetBalancingHeader(listBatchReq, options);
@@ -5516,11 +5559,15 @@ private:
                     continue;
                 }
 
-                if (transitiveClosureOfOwnedBy && operation.Acl) {
-                    auto action = checkPermissions(
-                        *transitiveClosureOfOwnedBy,
-                        EPermissionSet(EPermission::Read | EPermission::Manage),
-                        ConvertTo<TSerializableAccessControlList>(operation.Acl));
+                if (accessFilter) {
+                    YCHECK(transitiveClosureOfSubject);
+                    if (!operation.Acl) {
+                        continue;
+                    }
+                    auto action = CheckPermissionsByAclAndSubjectClosure(
+                        ConvertTo<TSerializableAccessControlList>(operation.Acl),
+                        *transitiveClosureOfSubject,
+                        accessFilter->Permissions);
                     if (action != ESecurityAction::Allow) {
                         continue;
                     }
@@ -5611,6 +5658,8 @@ private:
     THashMap<NScheduler::TOperationId, TOperation> DoListOperationsFromArchive(
         TInstant deadline,
         TCountingFilter& countingFilter,
+        const TListOperationsAccessFilterPtr& accessFilter,
+        const std::optional<THashSet<TString>>& transitiveClosureOfSubject,
         const TListOperationsOptions& options)
     {
         if (!options.FromTime) {
@@ -5620,6 +5669,32 @@ private:
         if (!options.ToTime) {
             THROW_ERROR_EXCEPTION("Missing required parameter \"to_time\"");
         }
+
+        if (accessFilter) {
+            constexpr int requiredVersion = 30;
+            if (DoGetOperationsArchiveVersion() < requiredVersion) {
+                THROW_ERROR_EXCEPTION("\"access\" filter is not supported in operations archive of version < %v",
+                    requiredVersion);
+            }
+        }
+
+        auto addCommonWhereConjuncts = [&] (NQueryClient::TQueryBuilder* builder) {
+            builder->AddWhereConjunct(Format("start_time > %v AND start_time <= %v",
+                (*options.FromTime).MicroSeconds(),
+                (*options.ToTime).MicroSeconds()));
+
+            if (options.SubstrFilter) {
+                builder->AddWhereConjunct(
+                    Format("is_substr(%Qv, filter_factors)", to_lower(*options.SubstrFilter)));
+            }
+
+            if (accessFilter) {
+                YCHECK(transitiveClosureOfSubject);
+                builder->AddWhereConjunct(Format("NOT is_null(acl) AND _yt_has_permissions(acl, %Qv, %Qv)",
+                    ConvertToYsonString(*transitiveClosureOfSubject, EYsonFormat::Text),
+                    ConvertToYsonString(accessFilter->Permissions, EYsonFormat::Text)));
+            }
+        };
 
         if (options.IncludeCounters) {
             NQueryClient::TQueryBuilder builder;
@@ -5632,14 +5707,7 @@ private:
             auto poolIndex = builder.AddSelectExpression("pool");
             auto countIndex = builder.AddSelectExpression("sum(1)", "count");
 
-            builder.AddWhereConjunct(Format("start_time > %v AND start_time <= %v",
-                (*options.FromTime).MicroSeconds(),
-                (*options.ToTime).MicroSeconds()));
-
-            if (options.SubstrFilter) {
-                builder.AddWhereConjunct(
-                    Format("is_substr(%Qv, filter_factors)", to_lower(*options.SubstrFilter)));
-            }
+            addCommonWhereConjuncts(&builder);
 
             builder.AddGroupByExpression("any_to_yson_string(pools)", "pools_str");
             builder.AddGroupByExpression("authenticated_user");
@@ -5679,14 +5747,7 @@ private:
         builder.AddSelectExpression("id_hi");
         builder.AddSelectExpression("id_lo");
 
-        builder.AddWhereConjunct(Format("start_time > %v AND start_time <= %v",
-            (*options.FromTime).MicroSeconds(),
-            (*options.ToTime).MicroSeconds()));
-
-        if (options.SubstrFilter) {
-            builder.AddWhereConjunct(
-                Format("is_substr(%Qv, filter_factors)", to_lower(*options.SubstrFilter)));
-        }
+        addCommonWhereConjuncts(&builder);
 
         std::optional<EOrderByDirection> orderByDirection;
 
@@ -5890,6 +5951,39 @@ private:
         return idToOperation;
     }
 
+    THashSet<TString> GetSubjectClosure(
+        const TString& subject,
+        TObjectServiceProxy& proxy,
+        const TMasterReadOptions& options)
+    {
+        auto batchReq = proxy.ExecuteBatch();
+        SetBalancingHeader(batchReq, options);
+        for (const auto& path : {GetUserPath(subject), GetGroupPath(subject)}) {
+            auto req = TYPathProxy::Get(path + "/@member_of_closure");
+            SetCachingHeader(req, options);
+            batchReq->AddRequest(req);
+        }
+
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+
+        for (const auto& rspOrError : batchRsp->GetResponses<TYPathProxy::TRspGet>()) {
+            if (rspOrError.IsOK()) {
+                auto res = ConvertTo<THashSet<TString>>(TYsonString(rspOrError.Value()->value()));
+                res.insert(subject);
+                return res;
+            } else if (!rspOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
+                THROW_ERROR_EXCEPTION(
+                    "Failed to get \"member_of_closure\" attribute for subject %Qv",
+                    subject)
+                    << rspOrError;
+            }
+        }
+        THROW_ERROR_EXCEPTION(
+            "Unrecognized subject %Qv",
+            subject);
+    }
+
     // XXX(levysotsky): The counters may be incorrect if |options.IncludeArchive| is |true|
     // and an operation is in both Cypress and archive.
     // XXX(levysotsky): The "failed_jobs_count" counter is incorrect if corresponding failed operations
@@ -5917,31 +6011,38 @@ private:
                 MaxLimit);
         }
 
-        if (options.OwnedBy && options.IncludeArchive) {
-            THROW_ERROR_EXCEPTION("Archive can not be included with \"owned_by\" filter");
+        auto accessFilter = options.AccessFilter;
+        std::optional<THashSet<TString>> transitiveClosureOfSubject;
+        if (accessFilter) {
+            TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
+            transitiveClosureOfSubject = GetSubjectClosure(
+                accessFilter->Subject,
+                proxy,
+                options);
+            if (accessFilter->Subject == RootUserName || transitiveClosureOfSubject->contains(SuperusersGroupName)) {
+                accessFilter.Reset();
+            }
         }
 
         TCountingFilter countingFilter(options);
 
         THashMap<NScheduler::TOperationId, TOperation> idToOperation;
         if (options.IncludeArchive && DoesOperationsArchiveExist()) {
-            idToOperation = DoListOperationsFromArchive(deadline, countingFilter, options);
+            idToOperation = DoListOperationsFromArchive(
+                deadline,
+                countingFilter,
+                accessFilter,
+                transitiveClosureOfSubject,
+                options);
         }
 
-        std::optional<THashSet<TString>> transitiveClosureOfOwnedBy;
-        if (options.OwnedBy) {
-            TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
-            auto req = TYPathProxy::Get(GetUserPath(*options.OwnedBy) + "/@member_of_closure");
-            auto rsp = WaitFor(proxy.Execute(req))
-                .ValueOrThrow();
-            auto closure = ConvertTo<THashSet<TString>>(TYsonString(rsp->value()));
-            closure.insert(*options.OwnedBy);
-            if (*options.OwnedBy != RootUserName && !closure.contains(SuperusersGroupName)) {
-                transitiveClosureOfOwnedBy = std::move(closure);
-            } // Else the filter is empty, because the user has unlimited access.
-        }
-
-        DoListOperationsFromCypress(deadline, countingFilter, transitiveClosureOfOwnedBy, options, &idToOperation);
+        DoListOperationsFromCypress(
+            deadline,
+            countingFilter,
+            accessFilter,
+            transitiveClosureOfSubject,
+            options,
+            &idToOperation);
 
         std::vector<TOperation> operations;
         operations.reserve(idToOperation.size());

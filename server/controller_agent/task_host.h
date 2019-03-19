@@ -119,7 +119,7 @@ struct ITaskHost
         NChunkPools::TChunkStripeKey key,
         int tableIndex) = 0;
 
-    virtual TDataFlowGraph* GetDataFlowGraph() = 0;
+    virtual const TDataFlowGraphPtr& GetDataFlowGraph() const = 0;
 
     virtual void RegisterLivePreviewChunk(
         const TDataFlowGraph::TVertexDescriptor& vertexDescriptor,

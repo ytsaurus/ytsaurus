@@ -209,6 +209,18 @@ TEST(TYsonToProtobufYsonTest, Success)
     EXPECT_EQ(3, message.nested_message_map().at("world").nested_message_map().at("test").repeated_int32_field(2));
 }
 
+TEST(TYsonToProtobufYsonTest, Aliases)
+{
+    TEST_PROLOGUE(TMessage)
+        .BeginMap()
+            .Item("int32_field_alias1").Value(10000)
+        .EndMap();
+
+
+    TEST_EPILOGUE(TMessage)
+    EXPECT_EQ(10000, message.int32_field_xxx());
+}
+
 TEST(TYsonToProtobufTest, TypeConversions)
 {
     TEST_PROLOGUE(TMessage)
