@@ -1148,6 +1148,15 @@ public:
         medium->SetPriority(priority);
     }
 
+    void SetMediumConfig(TMedium* medium, TMediumConfigPtr newConfig)
+    {
+        auto oldMaxReplicationFactor = medium->Config()->MaxReplicationFactor;
+        medium->Config() = std::move(newConfig);
+        if (medium->Config()->MaxReplicationFactor != oldMaxReplicationFactor) {
+            ChunkReplicator_->ScheduleGlobalChunkRefresh(AllChunks_.GetFront(), AllChunks_.GetSize());
+        }
+    }
+
     TMedium* FindMediumByName(const TString& name) const
     {
         auto it = NameToMediumMap_.find(name);
@@ -3416,6 +3425,11 @@ void TChunkManager::RenameMedium(TMedium* medium, const TString& newName)
 void TChunkManager::SetMediumPriority(TMedium* medium, int newPriority)
 {
     Impl_->SetMediumPriority(medium, newPriority);
+}
+
+void TChunkManager::SetMediumConfig(TMedium* medium, TMediumConfigPtr newConfig)
+{
+    Impl_->SetMediumConfig(medium, newConfig);
 }
 
 TMedium* TChunkManager::FindMediumByName(const TString& name) const
