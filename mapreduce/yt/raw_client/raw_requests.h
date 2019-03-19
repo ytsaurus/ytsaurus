@@ -11,9 +11,6 @@ namespace NYT {
 class IRetryPolicy;
 struct TAuth;
 struct TExecuteBatchOptions;
-namespace NDetail {
-    struct IRetryPolicy;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

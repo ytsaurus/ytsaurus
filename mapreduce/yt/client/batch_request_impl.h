@@ -18,7 +18,6 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IRetryPolicy;
 struct TResponseInfo;
 class TClient;
 using TClientPtr = ::TIntrusivePtr<TClient>;

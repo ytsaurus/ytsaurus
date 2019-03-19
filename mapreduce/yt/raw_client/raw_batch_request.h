@@ -3,6 +3,7 @@
 #include <mapreduce/yt/interface/batch_request.h>
 #include <mapreduce/yt/interface/fwd.h>
 #include <mapreduce/yt/interface/node.h>
+#include <mapreduce/yt/interface/retry_policy.h>
 
 #include <mapreduce/yt/http/requests.h>
 
@@ -14,7 +15,6 @@
 #include <exception>
 
 namespace NYT::NDetail {
-    struct IRetryPolicy;
     struct TResponseInfo;
 }
 
