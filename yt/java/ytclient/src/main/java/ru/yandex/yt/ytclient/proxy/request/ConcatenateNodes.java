@@ -10,7 +10,6 @@ import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 public class ConcatenateNodes extends MutateNode<ConcatenateNodes> {
     private final String [] from;
     private final String to;
-    private boolean append = false;
 
     public ConcatenateNodes(String [] from, String to) {
         this.from = from;
@@ -21,18 +20,12 @@ public class ConcatenateNodes extends MutateNode<ConcatenateNodes> {
         this((String[])source.stream().map(YPath::toString).toArray(), dest.toString());
     }
 
-    public ConcatenateNodes setAppend(boolean append) {
-        this.append = append;
-        return this;
-    }
-
     public TReqConcatenateNodes.Builder writeTo(TReqConcatenateNodes.Builder builder) {
         for (int i = 0; i < from.length; ++i) {
             builder.addSrcPaths(from[i]);
         }
 
-        builder.setDstPath(to)
-                .setAppend(append);
+        builder.setDstPath(to);
 
         if (transactionalOptions != null) {
             builder.setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
