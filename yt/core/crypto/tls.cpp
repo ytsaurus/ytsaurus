@@ -53,11 +53,27 @@ struct TSslContextImpl
 
     TSslContextImpl()
     {
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+        Ctx = SSL_CTX_new(TLS_method());
+        if (!Ctx) {
+            THROW_ERROR_EXCEPTION("SSL_CTX_new(TLS_method()) failed")
+                << GetLastSslError();
+        }
+        if (SSL_CTX_set_min_proto_version(Ctx, TLS1_2_VERSION) == 0) {
+            THROW_ERROR_EXCEPTION("SSL_CTX_set_min_proto_version failed")
+                << GetLastSslError();
+        }
+        if (SSL_CTX_set_max_proto_version(Ctx, TLS1_2_VERSION) == 0) {
+            THROW_ERROR_EXCEPTION("SSL_CTX_set_max_proto_version failed")
+                << GetLastSslError();
+        }
+#else
         Ctx = SSL_CTX_new(TLSv1_2_method());
         if (!Ctx) {
             THROW_ERROR_EXCEPTION("SSL_CTX_new(TLSv1_2_method()) failed")
                 << GetLastSslError();
         }
+#endif
     }
 
     ~TSslContextImpl()
