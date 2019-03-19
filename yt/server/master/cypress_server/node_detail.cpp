@@ -226,10 +226,6 @@ bool TCompositeNodeBase::TAttributes::AreEmpty() const
 #undef XX
 }
 
-TCompositeNodeBase::TCompositeNodeBase(const TVersionedNodeId& id)
-    : TCypressNodeBase(id)
-{ }
-
 void TCompositeNodeBase::Save(NCellMaster::TSaveContext& context) const
 {
     TCypressNodeBase::Save(context);
@@ -640,10 +636,6 @@ bool TListNodeTypeHandler::HasBranchedChangesImpl(TListNode* originatingNode, TL
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TLinkNode::TLinkNode(const TVersionedNodeId& id)
-    : TCypressNodeBase(id)
-{ }
 
 ENodeType TLinkNode::GetNodeType() const
 {
