@@ -899,8 +899,8 @@ def add_start_clickhouse_clique_parser(add_parser):
     parser.add_argument("--cypress-ytserver-clickhouse-path")
     parser.add_argument("--host-ytserver-clickhouse-path")
     parser.add_argument("--cypress-base-config-path", default="//sys/clickhouse/config")
-    parser.add_argument("--cpu-limit", default=clickhouse.DEFAULT_CPU_LIMIT, type=int) 
-    parser.add_argument("--memory-limit", default=clickhouse.DEFAULT_MEMORY_LIMIT, type=int)
+    parser.add_argument("--cpu-limit", type=int)
+    parser.add_argument("--memory-limit", type=int)
     parser.add_argument("--enable-monitoring", action="store_true", default=False,
                         help="(only for development use) bind monitoring port to 10142")
     parser.add_argument("--enable-query-log", action="store_true", default=False,
@@ -1090,6 +1090,8 @@ def add_check_permission_parser(add_parser):
     add_hybrid_argument(parser, "user")
     add_hybrid_argument(parser, "permission", help="one of read, write, administer, create, use")
     add_ypath_argument(parser, "path", hybrid=True)
+    add_read_from_argument(parser)
+    add_structured_argument(parser, "--columns")
     add_structured_format_argument(parser, default=output_format)
 
 def member_args(parser):

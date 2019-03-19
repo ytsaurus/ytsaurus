@@ -396,6 +396,10 @@ default_config = {
     "table_writer": {
     },
 
+    # Defaults that will be passed to all user job specs with the highest priority.
+    "user_job_spec_defaults": {
+    },
+
     # TODO(ignat): rename to attached_operaion_mode = false
     # If detached False all operations run under special transaction. It causes operation abort if client died.
     "detached": True,
@@ -544,5 +548,5 @@ def get_default_config():
     """Returns default configuration of python API."""
     return VerifiedDict(
         template_dict=deepcopy(default_config),
-        keys_to_ignore=["spec_defaults", "spec_overrides", "table_writer"],
+        keys_to_ignore=["spec_defaults", "spec_overrides", "table_writer", "user_job_spec_defaults"],
         transform_func=transform_value)

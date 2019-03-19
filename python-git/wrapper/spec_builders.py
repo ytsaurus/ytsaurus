@@ -17,15 +17,12 @@ from .local_mode import is_local_mode, enable_local_files_usage_in_job
 
 import yt.logger as logger
 
-from yt.packages.six.moves import zip as izip
+from yt.packages.six.moves import xrange, zip as izip
 
 import functools
 import os
 import shutil
 from copy import deepcopy
-
-TMPFS_SIZE_MULTIPLIER = 1.01
-TMPFS_SIZE_ADDEND = 1024 * 1024
 
 def _check_columns(columns, type):
     if len(columns) == 1 and "," in columns:
@@ -265,7 +262,10 @@ class UserJobSpecBuilder(object):
         self._spec = {}
         if spec:
             self._spec = spec
+
         self._spec_patch = {}
+
+        self._user_spec = {}
 
         self._spec_builder = spec_builder
         self._job_type = job_type
@@ -358,6 +358,10 @@ class UserJobSpecBuilder(object):
     def port_count(self, port_count):
         return _set_spec_value(self, "port_count", port_count)
 
+    @spec_option("Force container cpu limit for user job; this option should not be normally set by user")
+    def set_container_cpu_limit(self, set_container_cpu_limit):
+        return _set_spec_value(self, "set_container_cpu_limit", set_container_cpu_limit)
+
     def environment_variable(self, key, value):
         self._spec.setdefault("environment", {})
         self._spec["environment"][key] = str(value)
@@ -366,6 +370,10 @@ class UserJobSpecBuilder(object):
     def add_file_path(self, path):
         self._spec.setdefault("file_paths", [])
         self._spec["file_paths"].append(path)
+        return self
+
+    def spec(self, spec):
+        self._user_spec = deepcopy(spec)
         return self
 
     def _deepcopy_spec(self):
@@ -544,8 +552,11 @@ class UserJobSpecBuilder(object):
     def build(self, input_tables, output_tables, operation_type, requires_command, requires_format, job_io_spec,
               local_files_to_remove=None, uploaded_files=None, group_by=None, client=None):
         require(self._spec_builder is None, lambda: YtError("The job spec builder is incomplete"))
-        spec = update(self._spec_patch, self._deepcopy_spec())
+
+        spec = get_config(client)["user_job_spec_defaults"]
+        spec = update(spec, self._spec_patch)
         self._spec_patch = {}
+        spec = update(spec, self._deepcopy_spec())
 
         if job_io_spec is not None:
             enable_key_switch = job_io_spec.get("control_attributes", {}).get("enable_key_switch")
@@ -585,6 +596,7 @@ class UserJobSpecBuilder(object):
                         get_config(client)["yamr_mode"]["check_input_fully_consumed"])
         spec = self._prepare_tmpfs(spec, tmpfs_size, client)
         spec = self._prepare_memory_limit(spec, client)
+        spec = update(spec, self._user_spec)
         return spec
 
 class TaskSpecBuilder(UserJobSpecBuilder):
@@ -633,7 +645,7 @@ class SpecBuilder(object):
 
         self.operation_type = operation_type
 
-        self._user_job_scripts = get_value(user_job_scripts, set())
+        self._user_job_scripts = get_value(user_job_scripts, [])
         self._job_io_types = get_value(job_io_types, [])
 
         self._local_files_to_remove = []
@@ -645,6 +657,10 @@ class SpecBuilder(object):
         self._user_spec = {}
 
         self._prepared_spec = None
+
+        for index in xrange(len(self._user_job_scripts)):
+            if not isinstance(self._user_job_scripts[index], (list, tuple)):
+                self._user_job_scripts[index] = [self._user_job_scripts[index]]
 
         self.run_with_start_op = False
 
@@ -808,20 +824,33 @@ class SpecBuilder(object):
         return spec
 
     def _apply_spec_patches(self, spec, spec_patches):
-        for user_job_script in self._user_job_scripts:
-            if user_job_script in spec_patches:
-                spec.setdefault(user_job_script, UserJobSpecBuilder(job_type=user_job_script))
+        for user_job_script_path in self._user_job_scripts:
+            parent_spec_dict = spec
+            parent_spec_patches_dict = spec_patches
 
-                user_job_spec = None
-                if isinstance(spec_patches[user_job_script], UserJobSpecBuilder):
-                    user_job_spec = spec_patches[user_job_script]._spec
-                else:
-                    user_job_spec = spec_patches[user_job_script]
+            skip_patch = False
+            for part in user_job_script_path[:-1]:
+                # If part is not presented in spec, than regular update will apply this patch successfully later.
+                if part not in parent_spec_patches_dict or part not in parent_spec_dict:
+                    skip_patch = True
+                    break
+                parent_spec_patches_dict = parent_spec_patches_dict[part]
+                parent_spec_dict = parent_spec_dict[part]
 
-                if isinstance(spec[user_job_script], UserJobSpecBuilder):
-                    spec[user_job_script]._apply_spec_patch(user_job_spec)
-                else:
-                    spec[user_job_script] = update(user_job_spec, spec[user_job_script])
+            user_job_script_name = user_job_script_path[-1]
+            if skip_patch or user_job_script_name not in parent_spec_patches_dict or user_job_script_name not in parent_spec_dict:
+                continue
+
+            user_job_spec = None
+            if isinstance(parent_spec_patches_dict[user_job_script_name], UserJobSpecBuilder):
+                user_job_spec = parent_spec_patches_dict[user_job_script_name]._spec
+            else:
+                user_job_spec = parent_spec_patches_dict[user_job_script_name]
+
+            if isinstance(parent_spec_dict[user_job_script_name], UserJobSpecBuilder):
+                parent_spec_dict[user_job_script_name]._apply_spec_patch(user_job_spec)
+            else:
+                parent_spec_dict[user_job_script_name] = update(user_job_spec, spec[user_job_script_name])
 
         for job_io_type in self._job_io_types:
             if job_io_type in spec_patches:
@@ -1610,12 +1639,12 @@ class VanillaSpecBuilder(SpecBuilder):
         return self
 
     def task(self, name, task):
-        self._user_job_scripts.add(name)
+        self._user_job_scripts.append(("tasks", name))
         self._spec["tasks"][name] = task
         return self
 
     def begin_task(self, name):
-        self._user_job_scripts.add(name)
+        self._user_job_scripts.append(("tasks", name))
         return TaskSpecBuilder(name, self)
 
     def prepare(self, client=None):
@@ -1630,7 +1659,10 @@ class VanillaSpecBuilder(SpecBuilder):
             self.prepare(client)
         spec = self._prepared_spec
 
-        for task in self._user_job_scripts:
+        for task_path in self._user_job_scripts:
+            assert len(task_path) == 2
+            assert task_path[0] == "tasks"
+            task = task_path[-1]
             spec["tasks"] = self._build_user_job_spec(spec=spec["tasks"],
                                                       job_type=task,
                                                       job_io_type=None,
