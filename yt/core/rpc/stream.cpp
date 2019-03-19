@@ -4,6 +4,8 @@
 
 namespace NYT::NRpc {
 
+using namespace NConcurrency;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr ssize_t MaxWindowSize = 16384;
@@ -23,9 +25,11 @@ size_t GetStreamingAttachmentSize(TRef attachment)
 
 TAttachmentsInputStream::TAttachmentsInputStream(
     TClosure readCallback,
-    IInvokerPtr compressionInvoker)
+    IInvokerPtr compressionInvoker,
+    std::optional<TDuration> timeout)
     : ReadCallback_(std::move(readCallback))
     , CompressionInvoker_(std::move(compressionInvoker))
+    , Timeout_(timeout)
     , Window_(MaxWindowSize)
 { }
 
@@ -47,6 +51,11 @@ TFuture<TSharedRef> TAttachmentsInputStream::Read()
 
     if (Queue_.empty()) {
         Promise_ = NewPromise<TSharedRef>();
+        if (Timeout_) {
+            TimeoutCookie_ = TDelayedExecutor::Submit(
+                BIND(&TAttachmentsInputStream::OnTimeout, MakeWeak(this)),
+                *Timeout_);
+        }
         return Promise_.ToFuture();
     } else {
         auto entry = std::move(Queue_.front());
@@ -122,6 +131,7 @@ void TAttachmentsInputStream::DoEnqueuePayload(
 
         guard.Release();
 
+        TDelayedExecutor::CancelAndClear(TimeoutCookie_);
         promise.Set(std::move(entry.Attachment));
         ReadCallback_();
     }
@@ -163,6 +173,12 @@ void TAttachmentsInputStream::DoAbort(TGuard<TSpinLock>& guard, const TError& er
     }
 }
 
+void TAttachmentsInputStream::OnTimeout()
+{
+    Abort(TError(NYT::EErrorCode::Timeout, "Attachments stream read timed out")
+        << TErrorAttribute("timeout", *Timeout_));
+}
+
 TStreamingFeedback TAttachmentsInputStream::GetFeedback() const
 {
     return TStreamingFeedback{
@@ -173,16 +189,18 @@ TStreamingFeedback TAttachmentsInputStream::GetFeedback() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TAttachmentsOutputStream::TAttachmentsOutputStream(
-    const TStreamingParameters& parameters,
     EMemoryZone memoryZone,
     NCompression::ECodec codec,
     IInvokerPtr compressisonInvoker,
-    TClosure pullCallback)
-    : Parameters_(parameters)
-    , MemoryZone_(memoryZone)
+    TClosure pullCallback,
+    ssize_t windowSize,
+    std::optional<TDuration> timeout)
+    : MemoryZone_(memoryZone)
     , Codec_(codec)
     , CompressionInvoker_(std::move(compressisonInvoker))
     , PullCallback_(std::move(pullCallback))
+    , WindowSize_(windowSize)
+    , Timeout_(timeout)
     , Window_(std::numeric_limits<ssize_t>::max())
 { }
 
@@ -190,9 +208,15 @@ TFuture<void> TAttachmentsOutputStream::Write(const TSharedRef& data)
 {
     YCHECK(data);
     auto promise = NewPromise<void>();
+    TDelayedExecutorCookie timeoutCookie;
+    if (Timeout_) {
+        timeoutCookie = TDelayedExecutor::Submit(
+            BIND(&TAttachmentsOutputStream::OnTimeout, MakeWeak(this)),
+            *Timeout_);
+    }
     if (Codec_ == NCompression::ECodec::None) {
         auto guard = Guard(Lock_);
-        OnWindowPacketReady({data, promise}, guard);
+        OnWindowPacketReady({data, promise, std::move(timeoutCookie)}, guard);
     } else {
         auto sequenceNumber = CompressionSequenceNumber_++;
         CompressionInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] {
@@ -201,7 +225,7 @@ TFuture<void> TAttachmentsOutputStream::Write(const TSharedRef& data)
             auto guard = Guard(Lock_);
             Window_.AddPacket(
                 sequenceNumber,
-                {compressedData, promise},
+                {compressedData, promise, std::move(timeoutCookie)},
                 [&] (auto&& packet) {
                     OnWindowPacketReady(std::move(packet), guard);
                 });
@@ -214,11 +238,14 @@ void TAttachmentsOutputStream::OnWindowPacketReady(TWindowPacket&& packet, TGuar
 {
     if (ClosePromise_) {
         guard.Release();
+        TDelayedExecutor::CancelAndClear(packet.TimeoutCookie);
         packet.Promise.Set(TError("Stream is already closed"));
         return;
     }
+
     if (!Error_.IsOK()) {
         guard.Release();
+        TDelayedExecutor::CancelAndClear(packet.TimeoutCookie);
         packet.Promise.Set(Error_);
         return;
     }
@@ -227,13 +254,15 @@ void TAttachmentsOutputStream::OnWindowPacketReady(TWindowPacket&& packet, TGuar
     DataQueue_.push(std::move(packet.Data));
 
     TPromise<void> promiseToSet;
-    if (WritePosition_ - ReadPosition_ <= Parameters_.WindowSize) {
+    if (WritePosition_ - ReadPosition_ <= WindowSize_) {
+        TDelayedExecutor::CancelAndClear(packet.TimeoutCookie);
         promiseToSet = std::move(packet.Promise);
     }
 
     ConfirmationQueue_.push({
         WritePosition_,
-        std::move(packet.Promise)
+        std::move(packet.Promise),
+        std::move(packet.TimeoutCookie)
     });
 
     MaybeInvokePullCallback(guard);
@@ -265,6 +294,7 @@ TFuture<void> TAttachmentsOutputStream::Close()
 
     ConfirmationQueue_.push({
         WritePosition_,
+        {},
         {}
     });
 
@@ -303,7 +333,9 @@ void TAttachmentsOutputStream::DoAbort(TGuard<TSpinLock>& guard, const TError& e
 
     std::vector<TPromise<void>> promises;
     while (!ConfirmationQueue_.empty()) {
-        promises.push_back(std::move(ConfirmationQueue_.front().Promise));
+        auto& entry = ConfirmationQueue_.front();
+        TDelayedExecutor::CancelAndClear(entry.TimeoutCookie);
+        promises.push_back(std::move(entry.Promise));
         ConfirmationQueue_.pop();
     }
 
@@ -318,6 +350,12 @@ void TAttachmentsOutputStream::DoAbort(TGuard<TSpinLock>& guard, const TError& e
             promise.Set(error);
         }
     }
+}
+
+void TAttachmentsOutputStream::OnTimeout()
+{
+    Abort(TError(NYT::EErrorCode::Timeout, "Attachments stream write timed out")
+        << TErrorAttribute("timeout", *Timeout_));
 }
 
 void TAttachmentsOutputStream::HandleFeedback(const TStreamingFeedback& feedback)
@@ -342,7 +380,7 @@ void TAttachmentsOutputStream::HandleFeedback(const TStreamingFeedback& feedback
 
     std::vector<TPromise<void>> promises;
     while (!ConfirmationQueue_.empty() &&
-            ConfirmationQueue_.front().Position <= ReadPosition_ + Parameters_.WindowSize)
+            ConfirmationQueue_.front().Position <= ReadPosition_ + WindowSize_)
     {
         promises.push_back(std::move(ConfirmationQueue_.front().Promise));
         ConfirmationQueue_.pop();
@@ -404,7 +442,7 @@ bool TAttachmentsOutputStream::CanPullMore(bool first) const
         return false;
     }
 
-    if (SentPosition_ - ReadPosition_ + GetStreamingAttachmentSize(DataQueue_.front()) <= Parameters_.WindowSize) {
+    if (SentPosition_ - ReadPosition_ + GetStreamingAttachmentSize(DataQueue_.front()) <= WindowSize_) {
         return true;
     }
 
