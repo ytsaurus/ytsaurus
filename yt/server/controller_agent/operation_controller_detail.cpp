@@ -5781,7 +5781,11 @@ bool TOperationControllerBase::IsLocalityEnabled() const
 
 TString TOperationControllerBase::GetLoggingProgress() const
 {
-    const auto& jobCounter = GetDataFlowGraph()->GetTotalJobCounter();
+    if (!DataFlowGraph_) {
+        return "Cannot obtain progress: dataflow graph is not initialized.";
+    }
+
+    const auto& jobCounter = DataFlowGraph_->GetTotalJobCounter();
     return Format(
         "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
         "UnavailableInputChunks: %v",
