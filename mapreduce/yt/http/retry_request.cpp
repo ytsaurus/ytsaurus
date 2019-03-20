@@ -25,7 +25,7 @@ void TAttemptLimitedRetryPolicy::NotifyNewAttempt()
     ++Attempt_;
 }
 
-TMaybe<TDuration> TAttemptLimitedRetryPolicy::GetRetryInterval(const yexception& /*e*/) const
+TMaybe<TDuration> TAttemptLimitedRetryPolicy::OnGenericError(const yexception& /*e*/)
 {
     if (IsAttemptLimitExceeded()) {
         return Nothing();
@@ -33,12 +33,17 @@ TMaybe<TDuration> TAttemptLimitedRetryPolicy::GetRetryInterval(const yexception&
     return TConfig::Get()->RetryInterval;
 }
 
-TMaybe<TDuration> TAttemptLimitedRetryPolicy::GetRetryInterval(const TErrorResponse& e) const
+TMaybe<TDuration> TAttemptLimitedRetryPolicy::OnRetriableError(const TErrorResponse& e)
 {
-    if (IsAttemptLimitExceeded() || !IsRetriable(e)) {
+    if (IsAttemptLimitExceeded()) {
         return Nothing();
     }
     return NYT::NDetail::GetRetryInterval(e);
+}
+
+void TAttemptLimitedRetryPolicy::OnIgnoredError(const TErrorResponse& /*e*/)
+{
+    --Attempt_;
 }
 
 TString TAttemptLimitedRetryPolicy::GetAttemptDescription() const
@@ -57,7 +62,7 @@ TResponseInfo RetryRequestWithPolicy(
     const TAuth& auth,
     THttpHeader& header,
     TStringBuf body,
-    IRetryPolicy* retryPolicy,
+    IRequestRetryPolicy* retryPolicy,
     const TRequestConfig& config)
 {
     header.SetToken(auth.Token);
@@ -106,7 +111,11 @@ TResponseInfo RetryRequestWithPolicy(
             LogRequestError(requestId, header, e.GetError().GetMessage(), retryPolicy->GetAttemptDescription());
             retryWithSameMutationId = false;
 
-            auto maybeRetryTimeout = retryPolicy->GetRetryInterval(e);
+            if (!NDetail::IsRetriable(e)) {
+                throw;
+            }
+
+            auto maybeRetryTimeout = retryPolicy->OnRetriableError(e);
             if (maybeRetryTimeout) {
                 TWaitProxy::Get()->Sleep(*maybeRetryTimeout);
             } else {
@@ -116,7 +125,7 @@ TResponseInfo RetryRequestWithPolicy(
             LogRequestError(requestId, header, e.what(), retryPolicy->GetAttemptDescription());
             retryWithSameMutationId = true;
 
-            auto maybeRetryTimeout = retryPolicy->GetRetryInterval(e);
+            auto maybeRetryTimeout = retryPolicy->OnGenericError(e);
             if (maybeRetryTimeout) {
                 TWaitProxy::Get()->Sleep(*maybeRetryTimeout);
             } else {

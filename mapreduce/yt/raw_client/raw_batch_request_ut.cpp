@@ -2,7 +2,7 @@
 
 #include <mapreduce/yt/interface/client_method_options.h>
 #include <mapreduce/yt/interface/errors.h>
-#include <mapreduce/yt/http/retry_request.h>
+#include <mapreduce/yt/interface/retry_policy.h>
 
 #include <library/unittest/registar.h>
 
@@ -12,21 +12,24 @@ using namespace NYT::NDetail::NRawClient;
 
 
 class TTestRetryPolicy
-    : public IRetryPolicy
+    : public IRequestRetryPolicy
 {
 private:
-    static constexpr int RetriableCode = 500;
+    static constexpr int RetriableCode = 904;
 
 public:
     virtual void NotifyNewAttempt() override
     { }
 
-    virtual TMaybe<TDuration> GetRetryInterval(const yexception& /*e*/) const override
+    virtual TMaybe<TDuration> OnGenericError(const yexception& /*e*/) override
     {
         return TDuration::Seconds(42);
     }
 
-    virtual TMaybe<TDuration> GetRetryInterval(const TErrorResponse& e) const override
+    virtual void OnIgnoredError(const TErrorResponse& /*e*/) override
+    { }
+
+    virtual TMaybe<TDuration> OnRetriableError(const TErrorResponse& e) override
     {
         if (e.GetError().GetCode() == RetriableCode) {
             return TDuration::Seconds(e.GetError().GetAttributes().at("retry_interval").AsUint64());
@@ -102,7 +105,7 @@ Y_UNIT_TEST_SUITE(BatchRequestImpl) {
                 .Add(TNode()("error",
                         TTestRetryPolicy::GenerateRetriableError(TDuration::Seconds(5)))),
                 "<no-request-id>",
-                testRetryPolicy,
+                &testRetryPolicy,
                 &retryBatch,
                 now);
 

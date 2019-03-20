@@ -510,7 +510,7 @@ void TRawBatchRequest::FillParameterList(size_t maxSize, TNode* result, TInstant
 
 void TRawBatchRequest::ParseResponse(
     const TResponseInfo& requestResult,
-    const IRetryPolicy& retryPolicy,
+    IRequestRetryPolicy* retryPolicy,
     TRawBatchRequest* retryBatch,
     TInstant now)
 {
@@ -521,7 +521,7 @@ void TRawBatchRequest::ParseResponse(
 void TRawBatchRequest::ParseResponse(
     TNode node,
     const TString& requestId,
-    const IRetryPolicy& retryPolicy,
+    IRequestRetryPolicy* retryPolicy,
     TRawBatchRequest* retryBatch,
     TInstant now)
 {
@@ -549,7 +549,7 @@ void TRawBatchRequest::ParseResponse(
                 } else {
                     TErrorResponse error(400, requestId);
                     error.SetError(TYtError(errorIt->second));
-                    if (auto curInterval = retryPolicy.GetRetryInterval(error)) {
+                    if (auto curInterval = IsRetriable(error) ? retryPolicy->OnRetriableError(error) : Nothing()) {
                         LOG_INFO(
                             "Batch subrequest (%s) failed, will retry, error: %s",
                             RequestInfo(BatchItemList_[i].Parameters).data(),

@@ -17,15 +17,16 @@ namespace NDetail {
 ////////////////////////////////////////////////////////////////////
 
 class TAttemptLimitedRetryPolicy
-    : public IRetryPolicy
+    : public IRequestRetryPolicy
 {
 public:
     TAttemptLimitedRetryPolicy(ui32 attemptLimit);
 
     virtual void NotifyNewAttempt() override;
 
-    virtual TMaybe<TDuration> GetRetryInterval(const yexception& e) const override;
-    virtual TMaybe<TDuration> GetRetryInterval(const TErrorResponse& e) const override;
+    virtual TMaybe<TDuration> OnGenericError(const yexception& e) override;
+    virtual TMaybe<TDuration> OnRetriableError(const TErrorResponse& e) override;
+    virtual void OnIgnoredError(const TErrorResponse& e) override;
     virtual TString GetAttemptDescription() const override;
 
     bool IsAttemptLimitExceeded() const;
@@ -59,7 +60,7 @@ TResponseInfo RetryRequestWithPolicy(
     const TAuth& auth,
     THttpHeader& header,
     TStringBuf body,
-    IRetryPolicy* retryPolicy = nullptr,
+    IRequestRetryPolicy* retryPolicy = nullptr,
     const TRequestConfig& config = TRequestConfig());
 
 bool IsRetriable(const TErrorResponse& errorResponse);
