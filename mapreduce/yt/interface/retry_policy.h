@@ -14,11 +14,11 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 // IRequestRetryPolicy class controls retries of single request.
-class IRetryPolicy
+class IRequestRetryPolicy
     : public virtual TThrRefBase
 {
 public:
-    virtual ~IRetryPolicy() = default;
+    virtual ~IRequestRetryPolicy() = default;
 
     // Helper function that returns text description of current attempt, e.g.
     //   "attempt 3 / 10"
@@ -29,10 +29,11 @@ public:
     virtual void NotifyNewAttempt() = 0;
 
     // Return Nothing() if retries must not be continued.
-    virtual TMaybe<TDuration> GetRetryInterval(const yexception& e) const = 0;
-    virtual TMaybe<TDuration> GetRetryInterval(const TErrorResponse& e) const = 0;
+    virtual TMaybe<TDuration> OnGenericError(const yexception& e) = 0;
+    virtual TMaybe<TDuration> OnRetriableError(const TErrorResponse& e) = 0;
+    virtual void OnIgnoredError(const TErrorResponse& /*e*/) = 0;
 };
-using IRetryPolicyPtr = ::TIntrusivePtr<IRetryPolicy>;
+using IRequestRetryPolicyPtr = ::TIntrusivePtr<IRequestRetryPolicy>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -30,7 +30,7 @@ void TPingRetryPolicy::NotifyNewAttempt()
     ++Attempt_;
 }
 
-TMaybe<TDuration> TPingRetryPolicy::GetRetryInterval(const yexception& /*e*/) const
+TMaybe<TDuration> TPingRetryPolicy::OnGenericError(const yexception& /*e*/)
 {
     if (AttemptCount_ && Attempt_ >= AttemptCount_) {
         return Nothing();
@@ -38,7 +38,12 @@ TMaybe<TDuration> TPingRetryPolicy::GetRetryInterval(const yexception& /*e*/) co
     return TConfig::Get()->PingTimeout;
 }
 
-TMaybe<TDuration> TPingRetryPolicy::GetRetryInterval(const TErrorResponse& e) const
+void TPingRetryPolicy::OnIgnoredError(const NYT::TErrorResponse& /*e*/)
+{
+    --Attempt_;
+}
+
+TMaybe<TDuration> TPingRetryPolicy::OnRetriableError(const TErrorResponse& e)
 {
     if (AttemptCount_ && Attempt_ >= AttemptCount_) {
         return Nothing();

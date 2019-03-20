@@ -55,14 +55,15 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPingRetryPolicy
-    :   public IRetryPolicy
+    :   public IRequestRetryPolicy
 {
 public:
     TPingRetryPolicy(ui32 attemptCount = 0);
 
     void NotifyNewAttempt() override;
-    TMaybe<TDuration> GetRetryInterval(const yexception& e) const override;
-    TMaybe<TDuration> GetRetryInterval(const TErrorResponse& e) const override;
+    TMaybe<TDuration> OnGenericError(const yexception& e) override;
+    TMaybe<TDuration> OnRetriableError(const TErrorResponse& e) override;
+    void OnIgnoredError(const TErrorResponse& e) override;
     TString GetAttemptDescription() const override;
 
 private:

@@ -488,9 +488,9 @@ private:
     {
     public:
         using TAttemptLimitedRetryPolicy::TAttemptLimitedRetryPolicy;
-        using TAttemptLimitedRetryPolicy::GetRetryInterval;
+        using TAttemptLimitedRetryPolicy::OnGenericError;
 
-        TMaybe<TDuration> GetRetryInterval(const TErrorResponse& e) const override
+        TMaybe<TDuration> OnRetriableError(const TErrorResponse& e) override
         {
             if (IsAttemptLimitExceeded()) {
                 return Nothing();
@@ -498,7 +498,7 @@ private:
             if (e.IsConcurrentTransactionLockConflict()) {
                 return TConfig::Get()->RetryInterval;
             }
-            return TAttemptLimitedRetryPolicy::GetRetryInterval(e);
+            return TAttemptLimitedRetryPolicy::OnRetriableError(e);
         }
     };
 
@@ -2289,7 +2289,7 @@ TTransactionId TOperationPreparer::GetTransactionId() const
 }
 
 class TStartOperationRetryPolicy
-    : public IRetryPolicy
+    : public IRequestRetryPolicy
 {
 public:
     TStartOperationRetryPolicy(
@@ -2321,7 +2321,12 @@ public:
         ++Attempt_;
     }
 
-    TMaybe<TDuration> GetRetryInterval(const yexception&) const override
+    void OnIgnoredError(const TErrorResponse& /*e*/) override
+    {
+        --Attempt_;
+    }
+
+    TMaybe<TDuration> OnGenericError(const yexception&) override
     {
         if (IsAttemptLimitExceeded()) {
             return Nothing();
@@ -2329,9 +2334,9 @@ public:
         return TConfig::Get()->StartOperationRetryInterval;
     }
 
-    TMaybe<TDuration> GetRetryInterval(const TErrorResponse& e) const override
+    TMaybe<TDuration> OnRetriableError(const TErrorResponse& e) override
     {
-        if (IsAttemptLimitExceeded() || !IsRetriable(e)) {
+        if (IsAttemptLimitExceeded()) {
             return Nothing();
         }
         return NYT::NDetail::GetRetryInterval(e);
