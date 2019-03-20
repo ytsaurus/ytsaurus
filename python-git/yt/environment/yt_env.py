@@ -681,20 +681,25 @@ class YTInstance(object):
                     break
 
     def _configure_driver_logging(self):
+        yt_driver_bindings = None
         try:
             import yt_driver_bindings
         except ImportError:
-            guessed_version = list(self._binaries.items())[0][1].literal
-            raise YtError("YT driver bindings not found. Make sure you have installed "
-                          "yandex-yt-python-driver package (appropriate version: {0})"
-                          .format(guessed_version))
+            pass
 
-        yt_driver_bindings.configure_logging(
-            get_environment_driver_logging_config(self.driver_logging_config)
-        )
+        if yt_driver_bindings is None:
+            try:
+                import yt_driver_rpc_bindings as yt_driver_bindings
+            except ImportError:
+                pass
 
-        import yt.wrapper.native_driver as native_driver
-        native_driver.logging_configured = True
+        if yt_driver_bindings is not None:
+            yt_driver_bindings.configure_logging(
+                get_environment_driver_logging_config(self.driver_logging_config)
+            )
+
+            import yt.wrapper.native_driver as native_driver
+            native_driver.logging_configured = True
 
     def _write_environment_info_to_file(self):
         info = {}
