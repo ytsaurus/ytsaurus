@@ -13,7 +13,7 @@ message TColumnSchema
     // but old tables might miss `logical_type' field.
     //
     // `type' contains value of enumeration NTableClient::EValueType.
-    // `logical_type' contains value of enumeration NTableClient::ELogicalValueType.
+    // `logical_type' contains value of enumeration NTableClient::ESimpleLogicalValueType.
     required int32 type = 2;
     optional int32 logical_type = 8;
 

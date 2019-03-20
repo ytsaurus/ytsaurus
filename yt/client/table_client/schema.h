@@ -31,7 +31,7 @@ class TColumnSchema
 public:
     // Keep in sync with hasher below.
     DEFINE_BYREF_RO_PROPERTY(TString, Name);
-    DEFINE_BYREF_RO_PROPERTY(ELogicalValueType, LogicalType, ELogicalValueType::Null);
+    DEFINE_BYREF_RO_PROPERTY(ESimpleLogicalValueType, LogicalType, ESimpleLogicalValueType::Null);
     DEFINE_BYREF_RO_PROPERTY(std::optional<ESortOrder>, SortOrder);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Lock);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Expression);
@@ -47,7 +47,7 @@ public:
         std::optional<ESortOrder> SortOrder = std::nullopt);
     TColumnSchema(
         const TString& name,
-        ELogicalValueType type,
+        ESimpleLogicalValueType type,
         std::optional<ESortOrder> SortOrder = std::nullopt);
 
     TColumnSchema(const TColumnSchema&) = default;
@@ -57,7 +57,7 @@ public:
     TColumnSchema& operator=(TColumnSchema&&) = default;
 
     TColumnSchema& SetName(const TString& name);
-    TColumnSchema& SetLogicalType(ELogicalValueType valueType);
+    TColumnSchema& SetLogicalType(ESimpleLogicalValueType valueType);
     TColumnSchema& SetSortOrder(const std::optional<ESortOrder>& value);
     TColumnSchema& SetLock(const std::optional<TString>& value);
     TColumnSchema& SetExpression(const std::optional<TString>& value);
@@ -212,7 +212,7 @@ bool operator != (const TTableSchema& lhs, const TTableSchema& rhs);
 //! Returns true if #lhs type is subtype of #rhs type.
 //! We say that #lhs type is subtype of #rhs type
 //! iff every value that belongs to #lhs type also belongs to #rhs type.
-bool IsSubtypeOf(ELogicalValueType lhs, ELogicalValueType rhs);
+bool IsSubtypeOf(ESimpleLogicalValueType lhs, ESimpleLogicalValueType rhs);
 
 void ValidateKeyColumns(const TKeyColumns& keyColumns);
 

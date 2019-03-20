@@ -153,7 +153,7 @@ void ValidateNoRequiredColumnsAdded(const TTableSchema& oldSchema, const TTableS
     }
 }
 
-static bool IsPhysicalType(ELogicalValueType logicalType)
+static bool IsPhysicalType(ESimpleLogicalValueType logicalType)
 {
     return static_cast<ui32>(logicalType) == static_cast<ui32>(GetPhysicalType(logicalType));
 }
