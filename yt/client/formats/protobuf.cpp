@@ -355,9 +355,7 @@ void TProtobufFormatDescription::InitFromProtobufSchema(const TProtobufFormatCon
 {
     if (config->Enumerations) {
         const auto& enumerationConfigMap = config->Enumerations;
-        for (const auto& entry : enumerationConfigMap->GetChildren()) {
-            const auto& name = entry.first;
-            const auto& node = entry.second;
+        for (const auto& [name, node] : enumerationConfigMap->GetChildren()) {
             if (node->GetType() != NYTree::ENodeType::Map) {
                 THROW_ERROR_EXCEPTION(R"(Invalid enumeration specification type, expected "map" found %Qv)",
                     node->GetType());

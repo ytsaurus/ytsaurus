@@ -685,6 +685,121 @@ TEST(TProtobufFormat, TestWriteEnumerationString)
     }
 }
 
+TEST(TProtobufFormat, TestWriteEnumerationInt)
+{
+    auto config = BuildYsonNodeFluently()
+        .BeginAttributes()
+            .Item("tables")
+            .BeginList()
+                .Item()
+                .BeginMap()
+                    .Item("columns")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("Enum")
+                            .Item("field_number").Value(16)
+                            .Item("proto_type").Value("enum_int")
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+        .EndAttributes()
+        .Value("protobuf");
+
+    auto nameTable = New<TNameTable>();
+    auto enumId = nameTable->RegisterName("Enum");
+
+    auto writeAndParseRow = [&] (TUnversionedRow row, NProtobufFormatTest::TMessage* message) {
+        TString result;
+        TStringOutput resultStream(result);
+        auto writer = CreateSchemalessWriterForProtobuf(
+            config->Attributes(),
+            nameTable,
+            CreateAsyncAdapter(&resultStream),
+            true,
+            New<TControlAttributesConfig>(),
+            0);
+        writer->Write({row});
+        writer->Close()
+            .Get()
+            .ThrowOnError();
+
+        TStringInput si(result);
+        TLenvalParser parser(&si);
+        auto protoRow = parser.Next();
+        ASSERT_TRUE(protoRow);
+
+        ASSERT_TRUE(message->ParseFromString(protoRow->RowData));
+
+        auto nextProtoRow = parser.Next();
+        ASSERT_FALSE(nextProtoRow);
+    };
+
+    {
+        NProtobufFormatTest::TMessage message;
+        writeAndParseRow(
+            MakeRow({
+                MakeUnversionedInt64Value(-42, enumId),
+            }).Get(),
+            &message);
+        ASSERT_EQ(message.enum_field(), NProtobufFormatTest::EEnum::minus_forty_two);
+    }
+    {
+        NProtobufFormatTest::TMessage message;
+        writeAndParseRow(
+            MakeRow({
+                MakeUnversionedInt64Value(std::numeric_limits<i32>::max(), enumId),
+            }).Get(),
+            &message);
+        ASSERT_EQ(message.enum_field(), NProtobufFormatTest::EEnum::max_int32);
+    }
+    {
+        NProtobufFormatTest::TMessage message;
+        writeAndParseRow(
+            MakeRow({
+                MakeUnversionedUint64Value(std::numeric_limits<i32>::max(), enumId),
+            }).Get(),
+            &message);
+        ASSERT_EQ(message.enum_field(), NProtobufFormatTest::EEnum::max_int32);
+    }
+    {
+        NProtobufFormatTest::TMessage message;
+        writeAndParseRow(
+            MakeRow({
+                MakeUnversionedInt64Value(std::numeric_limits<i32>::min(), enumId),
+            }).Get(),
+            &message);
+        ASSERT_EQ(message.enum_field(), NProtobufFormatTest::EEnum::min_int32);
+    }
+
+    NProtobufFormatTest::TMessage message;
+    ASSERT_THROW(
+        writeAndParseRow(
+            MakeRow({
+                MakeUnversionedInt64Value(static_cast<i64>(std::numeric_limits<i32>::max()) + 1, enumId),
+            }).Get(),
+            &message),
+        TErrorException);
+
+    ASSERT_THROW(
+        writeAndParseRow(
+            MakeRow({
+                MakeUnversionedInt64Value(static_cast<i64>(std::numeric_limits<i32>::min()) - 1, enumId),
+            }).Get(),
+            &message),
+        TErrorException);
+
+    ASSERT_THROW(
+        writeAndParseRow(
+            MakeRow({
+                MakeUnversionedUint64Value(static_cast<i64>(std::numeric_limits<i32>::max()) + 1, enumId),
+            }).Get(),
+            &message),
+        TErrorException);
+}
+
+
 TEST(TProtobufFormat, TestWriteZeroColumns)
 {
     auto config = BuildYsonNodeFluently()

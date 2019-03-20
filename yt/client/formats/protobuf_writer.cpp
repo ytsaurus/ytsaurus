@@ -185,6 +185,8 @@ private:
     {
         auto* stream = GetOutputStream();
 
+        std::vector<i32> enumValues;
+
         int rowCount = static_cast<int>(rows.Size());
         for (int index = 0; index < rowCount; ++index) {
             auto row = rows[index];
@@ -197,7 +199,7 @@ private:
 
             OtherColumnsWriter_.OnBeginRow();
 
-            std::vector<i64> enumValues;
+            enumValues.clear();
             size_t enumIndex = 0;
 
             int size = 0;
@@ -277,23 +279,38 @@ private:
                             size += 1;
                             break;
                         case EProtobufType::EnumInt:
-                        case EProtobufType::EnumString:
-                            if (value.Type == EValueType::Uint64) {
-                                size += WireFormatLite::UInt32Size(value.Data.Uint64);
-                            } else if (value.Type == EValueType::String) {
-                                auto enumString = TStringBuf(value.Data.String, value.Length);
-                                if (!fieldDescription->EnumerationDescription) {
-                                    THROW_ERROR_EXCEPTION("Cannot serialize enumeration value %Qv since enumeration description is missing",
-                                        enumString);
+                        case EProtobufType::EnumString: {
+                            i32 enumValue;
+                            switch (value.Type) {
+                                case EValueType::Uint64: {
+                                    auto inRange = TryIntegralCast<i32>(value.Data.Uint64, &enumValue);
+                                    if (Y_UNLIKELY(!inRange)) {
+                                        THROW_ERROR_EXCEPTION("uint64 value out of range for protobuf enumeration");
+                                    }
+                                    break;
                                 }
-                                auto enumValue = fieldDescription->EnumerationDescription->GetValue(enumString);
-
-                                enumValues.push_back(enumValue);
-                                size += WireFormatLite::Int32Size(enumValue);
-                            } else {
-                                THROW_ERROR_EXCEPTION("Protobuf enums can be stored only in \"uint64\" or \"string\" column");
+                                case EValueType::Int64: {
+                                    auto inRange = TryIntegralCast<i32>(value.Data.Int64, &enumValue);
+                                    if (Y_UNLIKELY(!inRange)) {
+                                        THROW_ERROR_EXCEPTION("int64 value out of range for protobuf enumeration");
+                                    }
+                                    break;
+                                }
+                                case EValueType::String: {
+                                    auto enumString = TStringBuf(value.Data.String, value.Length);
+                                    YCHECK(fieldDescription->EnumerationDescription);
+                                    enumValue = fieldDescription->EnumerationDescription->GetValue(enumString);
+                                    enumValues.push_back(enumValue);
+                                    break;
+                                }
+                                default:
+                                    THROW_ERROR_EXCEPTION("Cannot parse protobuf enumeration %Qv from value of type %Qv",
+                                        fieldDescription->EnumerationDescription->GetEnumerationName(),
+                                        FormatEnum(value.Type));
                             }
+                            size += WireFormatLite::Int32Size(enumValue);
                             break;
+                        }
                         case EProtobufType::Message:
                             ValidateType(value, EValueType::String);
                             size += WireFormatLite::UInt32Size(value.Length);
@@ -387,18 +404,26 @@ private:
                         WritePod(*stream, static_cast<ui8>(value.Data.Boolean));
                         break;
                     case EProtobufType::EnumInt:
-                    case EProtobufType::EnumString:
-                        if (value.Type == EValueType::Int64) {
-                            WriteVarUint64(stream, value.Data.Int64);
-                        } else if (value.Type == EValueType::Uint64) {
-                            WriteVarUint64(stream, value.Data.Uint64);
-                        } else if (value.Type == EValueType::String) {
-                            WriteVarUint64(stream, enumValues[enumIndex]);
-                            ++enumIndex;
-                        } else {
-                            Y_UNREACHABLE();
+                    case EProtobufType::EnumString: {
+                        i32 enumValue;
+                        switch (value.Type) {
+                            case EValueType::Uint64:
+                                enumValue = static_cast<i32>(value.Data.Uint64);
+                                break;
+                            case EValueType::Int64:
+                                enumValue = static_cast<i32>(value.Data.Int64);
+                                break;
+                            case EValueType::String:
+                                enumValue = enumValues[enumIndex];
+                                ++enumIndex;
+                                break;
+                            default:
+                                // Must have thrown in the previous loop.
+                                Y_UNREACHABLE();
                         }
+                        WriteVarUint64(stream, enumValue); // No zigzag int32.
                         break;
+                    }
                     case EProtobufType::Message:
                         WriteVarUint32(stream, value.Length);
                         stream->Write(value.Data.String, value.Length);

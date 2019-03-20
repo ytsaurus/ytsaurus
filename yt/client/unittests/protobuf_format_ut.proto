@@ -7,6 +7,9 @@ enum EEnum
     three = 3;
 
     minus_forty_two = -42;
+
+    min_int32 = -2147483648;
+    max_int32 = 2147483647;
 }
 
 message TEmbeddedMessage
