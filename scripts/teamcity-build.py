@@ -656,23 +656,6 @@ def perform_python_packaging(options, packages_path, args, configurations):
         ]
         run(run_args, cwd=options.working_directory)
 
-def perform_python_packaging(options, packages_path, args, configurations):
-    for build_type, python_type, platform, library_path, package_path, package_name in configurations:
-        if python_type == "2" and not options.build_enable_python_2_7:
-            continue
-        if python_type == "3" and not options.build_enable_python_3_4:
-            continue
-        # NB: skynet enabled by default.
-
-        run_args = args + [
-            "--build-type", build_type,
-            "--python-type", python_type,
-            "--platform", platform,
-            "--library-path", os.path.join(options.working_directory, library_path),
-            "--package-path", os.path.join(packages_path, package_path),
-            "--package-name", package_name,
-        ]
-        run(run_args, cwd=options.working_directory)
 
 @build_step
 @only_for_projects("yt")
@@ -821,7 +804,8 @@ def run_sandbox_upload(options, build_context):
         return
 
     # Share individual deb packages first (it is used in chef deployment).
-    share_packages(options, build_context)
+    if "yt" in options.build_project:
+        share_packages(options, build_context)
 
     build_context["sandbox_upload_root"] = os.path.join(options.working_directory, "sandbox_upload")
     sandbox_ctx = {"upload_urls": {}}
@@ -848,36 +832,42 @@ def run_sandbox_upload(options, build_context):
         processed_files.add(filename)
 
     yt_binary_upload_list = set((
-        "ytserver-job-proxy",
-        "ytserver-scheduler",
-        "ytserver-controller-agent",
-        "ytserver-clickhouse",
-        "ytserver-master",
-        "ytserver-core-forwarder",
-        "ytserver-exec",
-        "ytserver-node",
-        "ytserver-proxy",
-        "ytserver-tools",
         "ypserver-master",
-        "ytserver-skynet-manager",
-        "ytserver-http-proxy",
     ))
+
+    if "yt" in options.build_project:
+        yt_binary_upload_list.update(set((
+            "ytserver-job-proxy",
+            "ytserver-scheduler",
+            "ytserver-controller-agent",
+            "ytserver-clickhouse",
+            "ytserver-master",
+            "ytserver-core-forwarder",
+            "ytserver-exec",
+            "ytserver-node",
+            "ytserver-proxy",
+            "ytserver-tools",
+            "ytserver-skynet-manager",
+            "ytserver-http-proxy",
+        )))
+
     if yt_binary_upload_list - processed_files:
         missing_file_string = ", ".join(yt_binary_upload_list - processed_files)
         raise StepFailedWithNonCriticalError("Missing files in sandbox upload: {0}".format(missing_file_string))
 
-    # Also, inject python libraries and bindings as debs
-    artifacts_directory = os.path.join(options.working_directory, "./ARTIFACTS")
-    inject_packages = [
-        "yandex-yt-python-skynet-driver",
-        "yandex-yt-python-driver",
-    ]
-    for pkg in inject_packages:
-        paths = glob.glob("{0}/{1}_*.deb".format(artifacts_directory, pkg))
-        if len(paths) != 1:
-            raise StepFailedWithNonCriticalError("Failed to find package {0}, found files {1}".format(pkg, paths))
-        destination_path = os.path.join(binary_distribution_folder, os.path.basename(paths[0]))
-        os.symlink(paths[0], destination_path)
+    if "yt" in options.build_project:
+        # Also, inject python libraries and bindings as debs
+        artifacts_directory = os.path.join(options.working_directory, "./ARTIFACTS")
+        inject_packages = [
+            "yandex-yt-python-skynet-driver",
+            "yandex-yt-python-driver",
+        ]
+        for pkg in inject_packages:
+            paths = glob.glob("{0}/{1}_*.deb".format(artifacts_directory, pkg))
+            if len(paths) != 1:
+                raise StepFailedWithNonCriticalError("Failed to find package {0}, found files {1}".format(pkg, paths))
+            destination_path = os.path.join(binary_distribution_folder, os.path.basename(paths[0]))
+            os.symlink(paths[0], destination_path)
 
     rbtorrent = sky_share(
         os.path.basename(binary_distribution_folder),
