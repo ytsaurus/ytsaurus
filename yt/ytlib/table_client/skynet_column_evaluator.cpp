@@ -49,7 +49,7 @@ private:
 void ValidateSkynetSchema(const TTableSchema& schema)
 {
     std::vector<TError> validationErrors;
-    auto checkColumn = [&] (const TString& name, ELogicalValueType type, const TString& group) {
+    auto checkColumn = [&] (const TString& name, ESimpleLogicalValueType type, const TString& group) {
         auto columnSchema = schema.FindColumn(name);
         if (!columnSchema) {
             validationErrors.push_back(TError("Table is missing %Qv column", name));
@@ -71,13 +71,13 @@ void ValidateSkynetSchema(const TTableSchema& schema)
         }
     };
 
-    checkColumn("filename", ELogicalValueType::String, "meta");
-    checkColumn("part_index", ELogicalValueType::Int64, "meta");
-    checkColumn("sha1", ELogicalValueType::String, "meta");
-    checkColumn("md5", ELogicalValueType::String, "meta");
-    checkColumn("data_size", ELogicalValueType::Int64, "meta");
+    checkColumn("filename", ESimpleLogicalValueType::String, "meta");
+    checkColumn("part_index", ESimpleLogicalValueType::Int64, "meta");
+    checkColumn("sha1", ESimpleLogicalValueType::String, "meta");
+    checkColumn("md5", ESimpleLogicalValueType::String, "meta");
+    checkColumn("data_size", ESimpleLogicalValueType::Int64, "meta");
 
-    checkColumn("data", ELogicalValueType::String, "data");
+    checkColumn("data", ESimpleLogicalValueType::String, "data");
 
     if (!validationErrors.empty()) {
         THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation, "Invalid schema for Skynet shared table")

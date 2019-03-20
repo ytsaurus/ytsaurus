@@ -333,7 +333,7 @@ protected:
                     continue;
                 }
                 const auto& column = table->Schema.GetColumnOrThrow(columnName);
-                if (column.LogicalType() == ELogicalValueType::Any) {
+                if (column.LogicalType() == ESimpleLogicalValueType::Any) {
                     continue;
                 }
                 if (referenceColumn) {

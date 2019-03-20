@@ -1018,7 +1018,7 @@ void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& colu
     if (value.Type == EValueType::Null) {
         if (columnSchema.Required()) {
             // Any column can't be required.
-            YCHECK(columnSchema.LogicalType() != ELogicalValueType::Any);
+            YCHECK(columnSchema.LogicalType() != ESimpleLogicalValueType::Any);
             THROW_ERROR_EXCEPTION(
                 EErrorCode::SchemaViolation,
                 "Required column %Qv cannot have %Qlv value",
@@ -1030,7 +1030,7 @@ void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& colu
     }
 
     if (columnSchema.GetPhysicalType() != value.Type) {
-        if (columnSchema.LogicalType() == ELogicalValueType::Any && typeAnyAcceptsAllValues) {
+        if (columnSchema.LogicalType() == ESimpleLogicalValueType::Any && typeAnyAcceptsAllValues) {
             return;
         }
         THROW_ERROR_EXCEPTION(
@@ -1043,25 +1043,25 @@ void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& colu
     }
 
     switch (columnSchema.LogicalType()) {
-        case ELogicalValueType::Int8:
+        case ESimpleLogicalValueType::Int8:
             ValidateIntegerRange<i8>(value, columnSchema.Name());
             break;
-        case ELogicalValueType::Int16:
+        case ESimpleLogicalValueType::Int16:
             ValidateIntegerRange<i16>(value, columnSchema.Name());
             break;
-        case ELogicalValueType::Int32:
+        case ESimpleLogicalValueType::Int32:
             ValidateIntegerRange<i32>(value, columnSchema.Name());
             break;
-        case ELogicalValueType::Uint8:
+        case ESimpleLogicalValueType::Uint8:
             ValidateIntegerRange<ui8>(value, columnSchema.Name());
             break;
-        case ELogicalValueType::Uint16:
+        case ESimpleLogicalValueType::Uint16:
             ValidateIntegerRange<ui16>(value, columnSchema.Name());
             break;
-        case ELogicalValueType::Uint32:
+        case ESimpleLogicalValueType::Uint32:
             ValidateIntegerRange<ui32>(value, columnSchema.Name());
             break;
-        case ELogicalValueType::Utf8:
+        case ESimpleLogicalValueType::Utf8:
             ValidateUtf8(value, columnSchema.Name());
         default:
             break;

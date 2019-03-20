@@ -422,7 +422,7 @@ void FromProto(NTableClient::TColumnSchema* schema, const NProto::TColumnSchema&
 {
     schema->SetName(protoSchema.name());
     if (protoSchema.has_logical_type()) {
-        schema->SetLogicalType(CheckedEnumCast<ELogicalValueType>(protoSchema.logical_type()));
+        schema->SetLogicalType(CheckedEnumCast<ESimpleLogicalValueType>(protoSchema.logical_type()));
         YCHECK(schema->GetPhysicalType() == CheckedEnumCast<EValueType>(protoSchema.type()));
     } else {
         schema->SetLogicalType(GetLogicalType(CheckedEnumCast<EValueType>(protoSchema.type())));
@@ -1296,9 +1296,9 @@ TTableSchema DeserializeRowsetSchema(
             columns[i].SetName(descriptor.columns(i).name());
         }
         if (descriptor.columns(i).has_logical_type()) {
-            columns[i].SetLogicalType(CheckedEnumCast<NTableClient::ELogicalValueType>(descriptor.columns(i).logical_type()));
+            columns[i].SetLogicalType(CheckedEnumCast<NTableClient::ESimpleLogicalValueType>(descriptor.columns(i).logical_type()));
         } else if (descriptor.columns(i).has_type()) {
-            columns[i].SetLogicalType(CheckedEnumCast<NTableClient::ELogicalValueType>(descriptor.columns(i).type()));
+            columns[i].SetLogicalType(CheckedEnumCast<NTableClient::ESimpleLogicalValueType>(descriptor.columns(i).type()));
         }
     }
     return TTableSchema(std::move(columns));

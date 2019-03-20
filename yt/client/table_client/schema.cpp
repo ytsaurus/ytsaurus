@@ -23,7 +23,7 @@ using NYT::FromProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 TColumnSchema::TColumnSchema()
-    : LogicalType_(ELogicalValueType::Null)
+    : LogicalType_(ESimpleLogicalValueType::Null)
 { }
 
 TColumnSchema::TColumnSchema(
@@ -37,7 +37,7 @@ TColumnSchema::TColumnSchema(
 
 TColumnSchema::TColumnSchema(
     const TString& name,
-    ELogicalValueType type,
+    ESimpleLogicalValueType type,
     std::optional<ESortOrder> SortOrder)
     : Name_(name)
     , LogicalType_(type)
@@ -80,7 +80,7 @@ TColumnSchema& TColumnSchema::SetAggregate(const std::optional<TString>& value)
     return *this;
 }
 
-TColumnSchema& TColumnSchema::SetLogicalType(ELogicalValueType valueType)
+TColumnSchema& TColumnSchema::SetLogicalType(ESimpleLogicalValueType valueType)
 {
     LogicalType_ = valueType;
     return *this;
@@ -139,9 +139,9 @@ struct TSerializableColumnSchema
 
             try {
                 // Required
-                if (LogicalType() == ELogicalValueType::Any && Required()) {
+                if (LogicalType() == ESimpleLogicalValueType::Any && Required()) {
                     THROW_ERROR_EXCEPTION("Column of type %Qlv cannot be \"required\"",
-                        ELogicalValueType::Any);
+                        ESimpleLogicalValueType::Any);
                 }
 
                 // Lock
@@ -205,7 +205,7 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
 {
     schema->SetName(protoSchema.name());
     if (protoSchema.has_logical_type()) {
-        schema->SetLogicalType(static_cast<ELogicalValueType>(protoSchema.logical_type()));
+        schema->SetLogicalType(static_cast<ESimpleLogicalValueType>(protoSchema.logical_type()));
         YCHECK(schema->GetPhysicalType() == static_cast<EValueType>(protoSchema.type()));
     } else {
         schema->SetLogicalType(GetLogicalType(static_cast<EValueType>(protoSchema.type())));
@@ -397,7 +397,7 @@ TTableSchema TTableSchema::FromKeyColumns(const TKeyColumns& keyColumns)
     TTableSchema schema;
     for (const auto& columnName : keyColumns) {
         schema.Columns_.push_back(
-            TColumnSchema(columnName, ELogicalValueType::Any)
+            TColumnSchema(columnName, ESimpleLogicalValueType::Any)
                 .SetSortOrder(ESortOrder::Ascending));
     }
     schema.KeyColumnCount_ = keyColumns.size();
@@ -411,9 +411,9 @@ TTableSchema TTableSchema::ToQuery() const
         return *this;
     } else {
         std::vector<TColumnSchema> columns {
-            TColumnSchema(TabletIndexColumnName, ELogicalValueType::Int64)
+            TColumnSchema(TabletIndexColumnName, ESimpleLogicalValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema(RowIndexColumnName, ELogicalValueType::Int64)
+            TColumnSchema(RowIndexColumnName, ESimpleLogicalValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
         };
         columns.insert(columns.end(), Columns_.begin(), Columns_.end());
@@ -431,7 +431,7 @@ TTableSchema TTableSchema::ToWrite() const
             }
         }
     } else {
-        columns.push_back(TColumnSchema(TabletIndexColumnName, ELogicalValueType::Int64)
+        columns.push_back(TColumnSchema(TabletIndexColumnName, ESimpleLogicalValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending));
         for (const auto& column : Columns_) {
             if (column.Name() != TimestampColumnName) {
@@ -448,7 +448,7 @@ TTableSchema TTableSchema::WithTabletIndex() const
         return *this;
     } else {
         auto columns = Columns_;
-        columns.push_back(TColumnSchema(TabletIndexColumnName, ELogicalValueType::Int64));
+        columns.push_back(TColumnSchema(TabletIndexColumnName, ESimpleLogicalValueType::Int64));
 
         return TTableSchema(std::move(columns), Strict_, UniqueKeys_);
     }
@@ -562,9 +562,9 @@ TTableSchema TTableSchema::ToSorted(const TKeyColumns& keyColumns) const
 TTableSchema TTableSchema::ToReplicationLog() const
 {
     std::vector<TColumnSchema> columns;
-    columns.push_back(TColumnSchema(TimestampColumnName, ELogicalValueType::Uint64));
+    columns.push_back(TColumnSchema(TimestampColumnName, ESimpleLogicalValueType::Uint64));
     if (IsSorted()) {
-        columns.push_back(TColumnSchema(TReplicationLogTable::ChangeTypeColumnName, ELogicalValueType::Int64));
+        columns.push_back(TColumnSchema(TReplicationLogTable::ChangeTypeColumnName, ESimpleLogicalValueType::Int64));
         for (const auto& column : Columns_) {
             if (column.SortOrder()) {
                 columns.push_back(
@@ -573,7 +573,7 @@ TTableSchema TTableSchema::ToReplicationLog() const
                 columns.push_back(
                     TColumnSchema(TReplicationLogTable::ValueColumnNamePrefix + column.Name(), column.LogicalType()));
                 columns.push_back(
-                    TColumnSchema(TReplicationLogTable::FlagsColumnNamePrefix + column.Name(), ELogicalValueType::Uint64));
+                    TColumnSchema(TReplicationLogTable::FlagsColumnNamePrefix + column.Name(), ESimpleLogicalValueType::Uint64));
             }
         }
     } else {
@@ -581,7 +581,7 @@ TTableSchema TTableSchema::ToReplicationLog() const
             columns.push_back(
                 TColumnSchema(TReplicationLogTable::ValueColumnNamePrefix + column.Name(), column.LogicalType()));
         }
-        columns.push_back(TColumnSchema(TReplicationLogTable::ValueColumnNamePrefix + TabletIndexColumnName, ELogicalValueType::Int64));
+        columns.push_back(TColumnSchema(TReplicationLogTable::ValueColumnNamePrefix + TabletIndexColumnName, ESimpleLogicalValueType::Int64));
     }
     return TTableSchema(std::move(columns), true, false);
 }
@@ -700,12 +700,12 @@ bool operator!=(const TTableSchema& lhs, const TTableSchema& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsSubtypeOf(ELogicalValueType lhs, ELogicalValueType rhs)
+bool IsSubtypeOf(ESimpleLogicalValueType lhs, ESimpleLogicalValueType rhs)
 {
     if (lhs == rhs) {
         return true;
     }
-    if (rhs == ELogicalValueType::Any) {
+    if (rhs == ESimpleLogicalValueType::Any) {
         return true;
     }
 
@@ -716,15 +716,15 @@ bool IsSubtypeOf(ELogicalValueType lhs, ELogicalValueType rhs)
     }
 
     if (leftPhysicalType == EValueType::Uint64 || leftPhysicalType == EValueType::Int64) {
-        static const std::vector<ELogicalValueType> order = {
-            ELogicalValueType::Uint8,
-            ELogicalValueType::Int8,
-            ELogicalValueType::Uint16,
-            ELogicalValueType::Int16,
-            ELogicalValueType::Uint32,
-            ELogicalValueType::Int32,
-            ELogicalValueType::Uint64,
-            ELogicalValueType::Int64,
+        static const std::vector<ESimpleLogicalValueType> order = {
+            ESimpleLogicalValueType::Uint8,
+            ESimpleLogicalValueType::Int8,
+            ESimpleLogicalValueType::Uint16,
+            ESimpleLogicalValueType::Int16,
+            ESimpleLogicalValueType::Uint32,
+            ESimpleLogicalValueType::Int32,
+            ESimpleLogicalValueType::Uint64,
+            ESimpleLogicalValueType::Int64,
         };
 
         auto lit = std::find(order.begin(), order.end(), lhs);
@@ -736,9 +736,9 @@ bool IsSubtypeOf(ELogicalValueType lhs, ELogicalValueType rhs)
     }
 
     if (leftPhysicalType == EValueType::String) {
-        static const std::vector<ELogicalValueType> order = {
-            ELogicalValueType::Utf8,
-            ELogicalValueType::String,
+        static const std::vector<ESimpleLogicalValueType> order = {
+            ESimpleLogicalValueType::Utf8,
+            ESimpleLogicalValueType::String,
         };
         auto lit = std::find(order.begin(), order.end(), lhs);
         auto rit = std::find(order.begin(), order.end(), rhs);
@@ -813,9 +813,9 @@ void ValidateColumnSchema(
                 MaxColumnNameLength);
         }
 
-        if (columnSchema.LogicalType() == ELogicalValueType::Any && columnSchema.Required()) {
+        if (columnSchema.LogicalType() == ESimpleLogicalValueType::Any && columnSchema.Required()) {
             THROW_ERROR_EXCEPTION("Column of type %Qlv cannot be required",
-                ELogicalValueType::Any);
+                ESimpleLogicalValueType::Any);
         }
 
         if (columnSchema.Lock()) {
@@ -957,7 +957,7 @@ void ValidateTimestampColumn(const TTableSchema& schema)
             TimestampColumnName);
     }
 
-    if (column->LogicalType() != ELogicalValueType::Uint64) {
+    if (column->LogicalType() != ESimpleLogicalValueType::Uint64) {
         THROW_ERROR_EXCEPTION("%Qv column must have %Qlv type",
             TimestampColumnName,
             EValueType::Uint64);
