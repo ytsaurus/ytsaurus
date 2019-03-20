@@ -338,7 +338,7 @@ class YtStuff(object):
                 "start",
                 "--sync",
                 "--id", self.yt_id,
-                "--path", self.yt_work_dir,
+                "--path", os.path.abspath(self.yt_work_dir),
                 "--fqdn", self.config.fqdn,
                 "--rpc-proxy",
             ]
