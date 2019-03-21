@@ -321,75 +321,34 @@ def prepare(options, build_context):
     teamcity_message(pprint.pformat(options.__dict__))
 
 @build_step
-def configure(options, build_context):
-    if options.build_system == "cmake":
-        run([
-                "cmake",
-                "-DCMAKE_INSTALL_PREFIX=/usr",
-                "-DCMAKE_BUILD_TYPE={0}".format(options.type),
-                "-DCMAKE_COLOR_MAKEFILE:BOOL=OFF",
-                "-DYT_BUILD_ENABLE_EXPERIMENTS:BOOL=ON",
-                "-DYT_BUILD_ENABLE_TESTS:BOOL=ON",
-                "-DYT_BUILD_ENABLE_GDB_INDEX:BOOL=ON",
-                "-DYT_BUILD_ENABLE_YP:BOOL=ON",
-                "-DYT_BUILD_BRANCH={0}".format(options.branch),
-                "-DYT_BUILD_NUMBER={0}".format(options.build_number),
-                "-DYT_BUILD_VCS_NUMBER={0}".format(options.build_vcs_number[0:10]),
-                "-DYT_BUILD_USERNAME=",  # Empty string is used intentionally to suppress username in version identifier.
-                "-DYT_BUILD_ENABLE_PYTHON_2_7={0}".format(format_yes_no(options.build_enable_python_2_7)),
-                "-DYT_BUILD_ENABLE_PYTHON_3_4={0}".format(format_yes_no(options.build_enable_python_3_4)),
-                "-DYT_BUILD_ENABLE_PYTHON_SKYNET={0}".format(format_yes_no(options.build_enable_python_skynet)),
-                "-DYT_BUILD_ENABLE_PERL={0}".format(format_yes_no(options.build_enable_perl)),
-                "-DYT_USE_ASAN={0}".format(format_yes_no(options.use_asan)),
-                "-DYT_USE_TSAN={0}".format(format_yes_no(options.use_tsan)),
-                "-DYT_USE_MSAN={0}".format(format_yes_no(options.use_msan)),
-                "-DYT_USE_LTO={0}".format(format_yes_no(options.use_lto)),
-                "-DCMAKE_CXX_COMPILER={0}".format(options.cxx),
-                "-DCMAKE_C_COMPILER={0}".format(options.cc),
-                "-DBUILD_SHARED_LIBS=OFF",
-                options.checkout_directory,
-            ],
-            cwd=options.working_directory,
-        )
-    else:
-        assert options.build_system == "ya"
-        teamcity_message("Ya build doesn't require configuration")
-
-
-@build_step
 def build(options, build_context):
-    cpus = int(os.sysconf("SC_NPROCESSORS_ONLN"))
-    if options.build_system == "cmake":
-        run(["make", "-j", str(cpus)], cwd=options.working_directory, silent_stdout=True)
-    else:
-        assert options.build_system == "ya"
-        env = ya_make_env(options)
-        yall = os.path.join(options.checkout_directory, "yall")
-        args = [
-            yall,
-            "-T",
-            "--yall-cmake-like-install", options.working_directory,
-            "--yall-python-version-list", ",".join(iter_enabled_python_versions(options, enable_skynet=True)),
-            "--yall-python-platform-list", ",".join(iter_enabled_python_platforms(options)),
+    env = ya_make_env(options)
+    yall = os.path.join(options.checkout_directory, "yall")
+    args = [
+        yall,
+        "-T",
+        "--yall-cmake-like-install", options.working_directory,
+        "--yall-python-version-list", ",".join(iter_enabled_python_versions(options, enable_skynet=True)),
+        "--yall-python-platform-list", ",".join(iter_enabled_python_platforms(options)),
+    ]
+    args += ya_make_args(options)
+    args += ya_make_definition_args(options)
+    if options.build_enable_ya_yt_store:
+        env["YT_TOKEN"] = os.environ["TEAMCITY_YT_TOKEN"]
+        args += [
+            "--yall-enable-dist-cache",
+            "--yall-dist-cache-put",
+            "--yall-dist-cache-no-auto-token",
         ]
-        args += ya_make_args(options)
-        args += ya_make_definition_args(options)
-        if options.build_enable_ya_yt_store:
-            env["YT_TOKEN"] = os.environ["TEAMCITY_YT_TOKEN"]
-            args += [
-                "--yall-enable-dist-cache",
-                "--yall-dist-cache-put",
-                "--yall-dist-cache-no-auto-token",
-            ]
-        if options.build_enable_dist_build:
-            args += [
-                "--yall-enable-dist-build"
-            ]
-        if options.use_asan:
-            args += [
-                "--yall-asan-build",
-            ]
-        run(args, env=env, cwd=options.checkout_directory)
+    if options.build_enable_dist_build:
+        args += [
+            "--yall-enable-dist-build"
+        ]
+    if options.use_asan:
+        args += [
+            "--yall-asan-build",
+        ]
+    run(args, env=env, cwd=options.checkout_directory)
 
 
 @build_step
@@ -555,59 +514,55 @@ def package(options, build_context):
         return
 
     with cwd(options.working_directory):
-        if options.build_system == "cmake":
-            run(["make", "-j", "8", "package"])
-            run(["make", "-j", "8", "python-package"])
-            run(["make", "version"])
-        else:
-            PACKAGE_LIST = [
-                "yandex-yt-controller-agent.json",
-                "yandex-yt-clickhouse.json",
-                "yandex-yt-http-proxy.json",
-                "yandex-yt-master.json",
-                "yandex-yt-node.json",
-                "yandex-yt-proxy.json",
-                "yandex-yt-perl.json",
-                "yandex-yt-perl-abi.json",
-                "yandex-yt-scheduler.json",
-                "yandex-yt-src.json",
-            ]
-            artifacts_dir = get_artifacts_dir(options)
-            with cwd(artifacts_dir):
-                tasks = []
-                package_names = []
-                for package_file in PACKAGE_LIST:
-                    package_file = os.path.join(get_bin_dir(options), package_file)
-                    with open(package_file) as inf:
-                        try:
-                            package_name = json.load(inf)["meta"]["name"]
-                        except KeyError:
-                            raise RuntimeError("Bad package file {0}, cannot find /meta/name key".format(package_file))
-                        except ValueError:
-                            raise RuntimeError("Bad package file {0}".format(package_file))
-                    args = [
-                        get_ya(options), "package", package_file,
-                        "--custom-version", build_context["yt_version"],
-                        "--debian", "--strip", "--create-dbg",
-                        "-zlow",
-                    ]
-                    args += ya_make_args(options)
-                    if options.use_asan:
-                        args += ["--sanitize=address"]
-                    tasks.append(dict(
-                        args=args,
-                        env=ya_make_env(options),
-                    ))
-                    package_names.append(package_name)
-                run_parallel(tasks, parallelism=len(tasks), timeout=PACKAGING_TIMEOUT)
-                for package_name in package_names:
-                    expected_tar = "{}.{}.tar.gz".format(
-                        package_name,
-                        build_context["yt_version"])
-                    teamcity_message("Extracting archive {}".format(expected_tar))
-                    with tarfile.open(expected_tar) as tarf:
-                        tarf.extractall(path=artifacts_dir)
-                    teamcity_message("Archive {} is extracted".format(expected_tar))
+        PACKAGE_LIST = [
+            "yandex-yt-controller-agent.json",
+            "yandex-yt-clickhouse.json",
+            "yandex-yt-http-proxy.json",
+            "yandex-yt-master.json",
+            "yandex-yt-node.json",
+            "yandex-yt-proxy.json",
+            "yandex-yt-perl.json",
+            "yandex-yt-perl-abi.json",
+            "yandex-yt-scheduler.json",
+            "yandex-yt-src.json",
+        ]
+        artifacts_dir = get_artifacts_dir(options)
+        with cwd(artifacts_dir):
+            tasks = []
+            package_names = []
+            for package_file in PACKAGE_LIST:
+                package_file = os.path.join(get_bin_dir(options), package_file)
+                with open(package_file) as inf:
+                    try:
+                        package_name = json.load(inf)["meta"]["name"]
+                    except KeyError:
+                        raise RuntimeError("Bad package file {0}, cannot find /meta/name key".format(package_file))
+                    except ValueError:
+                        raise RuntimeError("Bad package file {0}".format(package_file))
+                args = [
+                    get_ya(options), "package", package_file,
+                    "--custom-version", build_context["yt_version"],
+                    "--debian", "--strip", "--create-dbg",
+                    "-zlow",
+                ]
+                args += ya_make_args(options)
+                if options.use_asan:
+                    args += ["--sanitize=address"]
+                tasks.append(dict(
+                    args=args,
+                    env=ya_make_env(options),
+                ))
+                package_names.append(package_name)
+            run_parallel(tasks, parallelism=len(tasks), timeout=PACKAGING_TIMEOUT)
+            for package_name in package_names:
+                expected_tar = "{}.{}.tar.gz".format(
+                    package_name,
+                    build_context["yt_version"])
+                teamcity_message("Extracting archive {}".format(expected_tar))
+                with tarfile.open(expected_tar) as tarf:
+                    tarf.extractall(path=artifacts_dir)
+                teamcity_message("Archive {} is extracted".format(expected_tar))
+
         teamcity_message("We have built a package")
         teamcity_interact("setParameter", name="yt.package_built", value=1)
         teamcity_interact("setParameter", name="yt.package_version", value=build_context["yt_version"])
@@ -631,11 +586,8 @@ def package_yp(options, build_context):
         teamcity_message("Building yandex-yp-package is disabled")
         return
 
-    if options.build_system == "cmake":
-        run(["make", "-j", "8", "python-yp-package"])
-    else:
-        run(["./resign.sh"], cwd=os.path.join(options.checkout_directory, "yp", "python", "yandex-yp-python"))
-        run(["./build_yandex_yp.sh"], cwd=os.path.join(options.checkout_directory, "yp", "python"))
+    run(["./resign.sh"], cwd=os.path.join(options.checkout_directory, "yp", "python", "yandex-yp-python"))
+    run(["./build_yandex_yp.sh"], cwd=os.path.join(options.checkout_directory, "yp", "python"))
 
 
 def perform_python_packaging(options, packages_path, args, configurations):
@@ -1273,7 +1225,7 @@ def main():
         type=parse_bool, action="store", default=True)
     parser.add_argument(
         "--build_system",
-        choices=["cmake", "ya"], default="cmake")
+        choices=["ya"], default="ya")
 
     parser.add_argument(
         "--clear-system-tmp",
