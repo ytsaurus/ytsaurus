@@ -1,6 +1,6 @@
 #include "row_helpers.h"
 
-#include <yt/ytlib/unittests/protobuf_format_ut.pb.h>
+#include <yt/client/unittests/protobuf_format_ut.pb.h>
 
 #include <yt/core/test_framework/framework.h>
 
