@@ -34,6 +34,7 @@ public:
     TDuration DefaultTransactionTimeout;
     TDuration DefaultSelectRowsTimeout;
     TDuration DefaultStreamTimeout;
+    std::optional<TDuration> DefaultStallTimeout;
     TDuration DefaultPingPeriod;
     NBus::TTcpBusConfigPtr BusClient;
     NHttp::TClientConfigPtr HttpClient;
