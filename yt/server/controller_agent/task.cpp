@@ -896,8 +896,12 @@ TJobResources TTask::ApplyMemoryReserve(const TExtendedJobResources& jobResource
 
 void TTask::UpdateMaximumUsedTmpfsSizes(const NJobTrackerClient::TStatistics& statistics)
 {
+    if (!IsSimpleTask()) {
+        return;
+    }
+
     auto userJobSpec = GetUserJobSpec();
-    if (!userJobSpec || !IsSimpleTask()) {
+    if (!userJobSpec) {
         return;
     }
 
