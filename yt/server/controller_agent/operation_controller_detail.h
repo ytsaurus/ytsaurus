@@ -349,6 +349,8 @@ public:
 
     virtual TOutputTablePtr RegisterOutputTable(const NYPath::TRichYPath& outputTablePath) override;
 
+    virtual void AbortJobViaScheduler(TJobId jobId, EAbortReason abortReason) override;
+
 protected:
     const IOperationControllerHostPtr Host;
     TControllerAgentConfigPtr Config;
@@ -1144,6 +1146,8 @@ private:
 
     bool IsTreeTentative(const TString& treeId) const;
     void MaybeBanInTentativeTree(const TString& treeId, bool shouldBan);
+
+    void RegisterTestingSpeculativeJobIfNeeded(const TTaskPtr& task, TJobId jobId);
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink

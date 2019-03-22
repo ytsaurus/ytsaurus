@@ -1182,7 +1182,8 @@ protected:
                 Controller->Host->AbortJob(
                     joblet->JobId,
                     TError("Job is aborted due to chunk mapping invalidation")
-                        << error);
+                        << error
+                        << TErrorAttribute("abort_reason", EAbortReason::ChunkMappingInvalidated));
                 InvalidatedJoblets_.insert(joblet);
             }
             for (const auto& jobOutput : JobOutputs_) {

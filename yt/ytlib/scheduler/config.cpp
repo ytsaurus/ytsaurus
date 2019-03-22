@@ -158,6 +158,8 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default(EControllerFailureType::None);
     RegisterParameter("fail_get_job_spec", FailGetJobSpec)
         .Default(false);
+    RegisterParameter("register_speculative_job_on_job_scheduled", RegisterSpeculativeJobOnJobScheduled)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

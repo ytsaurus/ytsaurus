@@ -340,6 +340,8 @@ public:
 
     bool FailGetJobSpec;
 
+    bool RegisterSpeculativeJobOnJobScheduled;
+
     TTestingOperationOptions();
 };
 
