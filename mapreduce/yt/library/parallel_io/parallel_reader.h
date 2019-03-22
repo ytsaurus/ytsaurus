@@ -39,6 +39,12 @@ struct TParallelTableReaderOptions
 template <typename T>
 TTableReaderPtr<T> CreateParallelTableReader(
     const IClientBasePtr& client,
+    const TVector<TRichYPath>& paths,
+    const TParallelTableReaderOptions& options = TParallelTableReaderOptions());
+
+template <typename T>
+TTableReaderPtr<T> CreateParallelTableReader(
+    const IClientBasePtr& client,
     const TRichYPath& path,
     const TParallelTableReaderOptions& options = TParallelTableReaderOptions());
 
