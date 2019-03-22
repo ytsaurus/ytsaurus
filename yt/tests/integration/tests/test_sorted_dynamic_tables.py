@@ -2474,6 +2474,17 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_flush_table("//tmp/t")
         wait(lambda: len(self._find_tablet_orchid(address, tablet_id)["partitions"]) > 0)
 
+    def test_lookup_rich_ypath(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        assert list(lookup_rows("//tmp/t", [{"key": 1}])) == []
+        with pytest.raises(YtError):
+            lookup_rows("//tmp/t[1:2]", [{"key": 1}])
+        with pytest.raises(YtError):
+            lookup_rows("//tmp/t{key}", [{"key": 1}])
+
 ##################################################################
 
 class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
