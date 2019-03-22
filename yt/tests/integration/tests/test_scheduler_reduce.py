@@ -606,7 +606,7 @@ echo {v = 2} >&7
         jobs_path = op.get_path() + "/jobs"
         job_ids = ls(jobs_path)
         assert len(job_ids) == 1
-        stderr_bytes = remove_asan_warning(read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0])))
+        stderr_bytes = read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0]))
 
         assert stderr_bytes.encode("hex") == \
             "010000006100000000" \
