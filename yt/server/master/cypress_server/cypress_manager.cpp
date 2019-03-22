@@ -966,6 +966,38 @@ public:
         trunkNode->ResetLockingStateIfEmpty();
     }
 
+    // Returns the mode of the strongest lock among all of the descendants
+    // (branches, subbranches, subsubbranches...) of the node.
+    // NB: doesn't distinguish ELockMode::None and ELockMode::Snapshot - returns
+    // the latter even if there're no locks at all.
+    // (This is because snapshot locks may lie arbitrarily deep without
+    // affecting ancestors, and we want to avoid traversing the whole subtree.)
+    ELockMode GetStrongestLockModeOfNestedTransactions(TCypressNodeBase* trunkNode, TTransaction* transaction)
+    {
+        YCHECK(transaction);
+
+        auto result = ELockMode::Snapshot;
+        for (auto* nestedTransaction : transaction->NestedTransactions()) {
+            auto* versionedNode = FindNode(TVersionedNodeId{trunkNode->GetId(), nestedTransaction->GetId()});
+            if (!versionedNode) {
+                continue;
+            }
+
+            auto lockMode = versionedNode->GetLockMode();
+            YCHECK(lockMode != ELockMode::None);
+
+            if (result < lockMode) {
+                result = lockMode;
+
+                if (result == ELockMode::Exclusive) {
+                    break; // as strong as it gets
+                }
+            }
+        }
+
+        return result;
+    }
+
     void UnbranchOrUpdateNodesAfterUnlock(
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction,
@@ -977,28 +1009,7 @@ public:
         auto mustUnbranchAboveNodes = strongestLockModeAfter <= ELockMode::Snapshot && strongestLockModeBefore > ELockMode::Snapshot;
         auto mustUpdateAboveNodes = strongestLockModeAfter > ELockMode::Snapshot;
 
-        // The mode of the strongest lock among all of the descendants
-        // (branches, subbranches, subsubbranches...) of the node being unlocked.
-        // NB: ELockMode::None and ELockMode::Snapshot are indistinguishable
-        // because snapshot locks may lie arbitrarily deep without affecting ancestors.
-        auto strongestLockModeBelow = ELockMode::None;
-        for (auto* nestedTransaction : transaction->NestedTransactions()) {
-            auto* versionedNode = FindNode(TVersionedNodeId{trunkNode->GetId(), nestedTransaction->GetId()});
-            if (!versionedNode) {
-                continue;
-            }
-
-            auto lockMode = versionedNode->GetLockMode();
-            YCHECK(lockMode != ELockMode::None);
-
-            if (strongestLockModeBelow < lockMode) {
-                strongestLockModeBelow = lockMode;
-
-                if (strongestLockModeBelow == ELockMode::Exclusive) {
-                    break; // as strong as it gets
-                }
-            }
-        }
+        auto strongestLockModeBelow = GetStrongestLockModeOfNestedTransactions(trunkNode, transaction);
 
         auto* branchedNode = GetNode(TVersionedNodeId{trunkNode->GetId(), transaction->GetId()});
         YCHECK(branchedNode->GetLockMode() != ELockMode::None);
@@ -1798,6 +1809,42 @@ private:
 
         // New snapshot lock.
         if (request.Mode == ELockMode::Snapshot) {
+            if (transaction) {
+                // Check if a non-snapshot lock is already taken by this transaction.
+                if (transactionToExclusiveLocks.find(transaction) != transactionToExclusiveLocks.end()) {
+                    return TError(
+                        NCypressClient::EErrorCode::SameTransactionLockConflict,
+                        "Cannot take %Qlv lock for node %v since %Qlv lock is already taken by same transaction %v",
+                        request.Mode,
+                        GetNodePath(trunkNode, transaction),
+                        ELockMode::Exclusive,
+                        transaction->GetId());
+                }
+                for (const auto& pair : transactionAndKeyToSharedLocks) {
+                    const auto& lockTransaction = pair.first.first;
+                    if (transaction == lockTransaction) {
+                        return TError(
+                            NCypressClient::EErrorCode::SameTransactionLockConflict,
+                            "Cannot take %Qlv lock for node %v since %Qlv lock is already taken by same transaction %v",
+                            request.Mode,
+                            GetNodePath(trunkNode, transaction),
+                            ELockMode::Shared,
+                            transaction->GetId());
+                    }
+                }
+
+                // Check if any nested transaction has taken a non-snapshot lock.
+                auto lockModeBelow = GetStrongestLockModeOfNestedTransactions(trunkNode, transaction);
+                if (lockModeBelow > ELockMode::Snapshot) {
+                    return TError(
+                        NCypressClient::EErrorCode::DescendantTransactionLockConflict,
+                        "Cannot take %Qlv lock for node %v since %Qlv lock is already taken by a descendant transaction",
+                        request.Mode,
+                        GetNodePath(trunkNode, transaction),
+                        lockModeBelow);
+                }
+            }
+
             return TError();
         }
 
