@@ -312,7 +312,8 @@ type StartTxOptions struct {
 	Ping          bool `http:"ping"`
 	PingAncestors bool `http:"ping_ancestor_transactions"`
 
-	Sticky bool `http:"sticky"`
+	Type   *string `http:"type,omitnil"`
+	Sticky bool    `http:"sticky"`
 
 	PrerequisiteTransactionIDs []TxID `http:"prerequisite_transaction_ids,omitnil"`
 
@@ -326,12 +327,16 @@ type PingTxOptions struct {
 }
 
 type AbortTxOptions struct {
+	Sticky bool `http:"sticky"`
+
 	*TransactionOptions
 	*MutatingOptions
 	*PrerequisiteOptions
 }
 
 type CommitTxOptions struct {
+	Sticky bool `http:"sticky"`
+
 	*MutatingOptions
 	*PrerequisiteOptions
 	*TransactionOptions
@@ -678,41 +683,68 @@ type Tx interface {
 	Begin(ctx context.Context, options *StartTxOptions) (tx Tx, err error)
 }
 
-//type LookupRowsOptions struct{}
-//type WriteRowsOptions struct{}
-//type RemoveRowsOptions struct{}
-//type SelectRowsOptions struct{}
-//
-//type Rowset struct{}
-//
-//type SQLClient interface {
-//	LookupRows(
-//		ctx context.Context,
-//		path ypath.Path,
-//		keys [][]interface{},
-//		options *LookupRowsOptions,
-//	) (rowset *Rowset, err error)
-//
-//	WriteRows(
-//		ctx context.Context,
-//		path ypath.Path,
-//		rows [][]interface{},
-//		options *WriteRowsOptions,
-//	) (err error)
-//
-//	RemoveRows(
-//		ctx context.Context,
-//		path ypath.Path,
-//		keys [][]interface{},
-//		options *RemoveRowsOptions,
-//	) (err error)
-//
-//	SelectRows(
-//		ctx context.Context,
-//		query string,
-//		options *SelectRowsOptions,
-//	) (rowset *Rowset, err error)
-//}
+type LookupRowsOptions struct {
+	*TransactionOptions
+}
+
+type InsertRowsOptions struct {
+	*TransactionOptions
+}
+
+type DeleteRowsOptions struct {
+	*TransactionOptions
+}
+
+type SelectRowsOptions struct{}
+
+type StartTabletTxOptions struct{}
+
+type TabletClient interface {
+	// http:verb:"select_rows"
+	// http:params:"query"
+	SelectRows(
+		ctx context.Context,
+		query string,
+		options *SelectRowsOptions,
+	) (r TableReader, err error)
+
+	// http:verb:"lookup_rows"
+	// http:params:"path"
+	// http:extra
+	LookupRows(
+		ctx context.Context,
+		path ypath.Path,
+		keys []interface{},
+		options *LookupRowsOptions,
+	) (r TableReader, err error)
+
+	// http:verb:"insert_rows"
+	// http:params:"path"
+	// http:extra
+	InsertRows(
+		ctx context.Context,
+		path ypath.Path,
+		rows []interface{},
+		options *InsertRowsOptions,
+	) (err error)
+
+	// http:verb:"delete_rows"
+	// http:params:"path"
+	// http:extra
+	DeleteRows(
+		ctx context.Context,
+		path ypath.Path,
+		keys []interface{},
+		options *DeleteRowsOptions,
+	) (err error)
+}
+
+type TabletTx interface {
+	TabletClient
+
+	Commit() error
+	Abort() error
+}
 
 type Client interface {
 	CypressClient
@@ -723,6 +755,10 @@ type Client interface {
 	//
 	// Tx lifetime is bound to ctx. Tx is automatically aborted when ctx is canceled.
 	Begin(ctx context.Context, options *StartTxOptions) (tx Tx, err error)
+
+	BeginTablet(ctx context.Context, options *StartTabletTxOptions) (tx TabletTx, err error)
+
+	TabletClient
 
 	LowLevelTxClient
 	LowLevelSchedulerClient

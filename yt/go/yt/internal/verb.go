@@ -34,11 +34,19 @@ const (
 
 	VerbLock   Verb = "lock"
 	VerbUnlock Verb = "unlock"
+
+	VerbInsertRows Verb = "insert_rows"
+	VerbLookupRows Verb = "lookup_rows"
+	VerbDeleteRows Verb = "delete_rows"
+	VerbSelectRows Verb = "select_rows"
 )
 
 func (v Verb) hasInput() bool {
 	switch v {
 	case VerbSet, VerbWriteFile, VerbWriteTable:
+		return true
+
+	case VerbInsertRows, VerbDeleteRows, VerbLookupRows:
 		return true
 	}
 
@@ -49,6 +57,9 @@ func (v Verb) IsHeavy() bool {
 	switch v {
 	case VerbReadFile, VerbWriteFile, VerbReadTable, VerbWriteTable:
 		return true
+
+	case VerbLookupRows, VerbDeleteRows, VerbSelectRows, VerbInsertRows:
+		return true
 	}
 
 	return false
@@ -57,6 +68,9 @@ func (v Verb) IsHeavy() bool {
 func (v Verb) volatile() bool {
 	switch v {
 	case VerbGet, VerbList, VerbExists, VerbReadFile, VerbReadTable, VerbGetOperation, VerbGetFileFromCache:
+		return false
+
+	case VerbSelectRows, VerbLookupRows:
 		return false
 	}
 

@@ -31,6 +31,12 @@ func (r *MutationRetrier) Intercept(ctx context.Context, call *Call, invoke Call
 				return
 			}
 
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			default:
+			}
+
 			(*mut).Retry = true
 
 			backoff := r.Backoff.Backoff(i)

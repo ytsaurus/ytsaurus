@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"bytes"
 	"context"
 	"io"
 
@@ -408,4 +409,83 @@ func (e *Encoder) ReadTable(
 ) (r yt.TableReader, err error) {
 	call := e.newCall(NewReadTableParams(path, options))
 	return e.InvokeReadRow(ctx, call)
+}
+
+func marhsalKeys(keys []interface{}) ([]byte, error) {
+	var rows bytes.Buffer
+
+	ys := yson.NewWriterConfig(&rows, yson.WriterConfig{Kind: yson.StreamListFragment, Format: yson.FormatBinary})
+	for _, key := range keys {
+		ys.Any(key)
+	}
+	if err := ys.Finish(); err != nil {
+		return nil, err
+	}
+
+	return rows.Bytes(), nil
+}
+
+func (e *Encoder) LookupRows(
+	ctx context.Context,
+	path ypath.Path,
+	keys []interface{},
+	options *yt.LookupRowsOptions,
+) (r yt.TableReader, err error) {
+	call := e.newCall(NewLookupRowsParams(path, options))
+
+	call.YSONValue, err = marhsalKeys(keys)
+	if err != nil {
+		return nil, err
+	}
+
+	return e.InvokeReadRow(ctx, call)
+}
+
+func (e *Encoder) SelectRows(
+	ctx context.Context,
+	query string,
+	options *yt.SelectRowsOptions,
+) (r yt.TableReader, err error) {
+	call := e.newCall(NewSelectRowsParams(query, options))
+	return e.InvokeReadRow(ctx, call)
+}
+
+func (e *Encoder) writeRows(w yt.TableWriter, rows []interface{}) error {
+	for _, row := range rows {
+		if err := w.Write(row); err != nil {
+			return err
+		}
+	}
+
+	return w.Close()
+}
+
+func (e *Encoder) InsertRows(
+	ctx context.Context,
+	path ypath.Path,
+	rows []interface{},
+	options *yt.InsertRowsOptions,
+) (err error) {
+	call := e.newCall(NewInsertRowsParams(path, options))
+	w, err := e.InvokeWriteRow(ctx, call)
+	if err != nil {
+		return err
+	}
+
+	return e.writeRows(w, rows)
+}
+
+func (e *Encoder) DeleteRows(
+	ctx context.Context,
+	path ypath.Path,
+	keys []interface{},
+	options *yt.DeleteRowsOptions,
+) (err error) {
+	call := e.newCall(NewDeleteRowsParams(path, options))
+	w, err := e.InvokeWriteRow(ctx, call)
+	if err != nil {
+		return err
+	}
+
+	return e.writeRows(w, keys)
 }

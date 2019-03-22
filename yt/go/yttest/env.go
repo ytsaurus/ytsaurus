@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"testing"
 
+	"a.yandex-team.ru/library/go/core/xerrors"
+
 	"go.uber.org/zap/zaptest"
 
 	"a.yandex-team.ru/library/go/core/log/zap"
@@ -55,17 +57,25 @@ func (e *Env) TmpPath() ypath.Path {
 	return ypath.Path("//tmp").Child(uid.String())
 }
 
-func (e *Env) UploadSlice(path ypath.YPath, slice interface{}) error {
-	_, err := e.YT.CreateNode(e.Ctx, path, yt.NodeTable, &yt.CreateNodeOptions{
-		Attributes: map[string]interface{}{
-			"schema": schema.MustInfer(reflect.New(reflect.ValueOf(slice).Type().Elem()).Interface()),
-		},
+func UploadSlice(ctx context.Context, c yt.Client, path ypath.YPath, slice interface{}) error {
+	sliceType := reflect.TypeOf(slice)
+	if sliceType.Kind() != reflect.Slice {
+		return xerrors.Errorf("type %T is not a slice", slice)
+	}
+
+	tableSchema, err := schema.Infer(reflect.New(sliceType.Elem()).Interface())
+	if err != nil {
+		return err
+	}
+
+	_, err = c.CreateNode(ctx, path, yt.NodeTable, &yt.CreateNodeOptions{
+		Attributes: map[string]interface{}{"schema": tableSchema},
 	})
 	if err != nil {
 		return err
 	}
 
-	w, err := e.YT.WriteTable(e.Ctx, path, nil)
+	w, err := c.WriteTable(ctx, path, nil)
 	if err != nil {
 		return err
 	}
@@ -80,10 +90,14 @@ func (e *Env) UploadSlice(path ypath.YPath, slice interface{}) error {
 	return w.Close()
 }
 
-func (e *Env) DownloadSlice(path ypath.YPath, value interface{}) error {
+func (e *Env) UploadSlice(path ypath.YPath, slice interface{}) error {
+	return UploadSlice(e.Ctx, e.YT, path, slice)
+}
+
+func DownloadSlice(ctx context.Context, c yt.Client, path ypath.YPath, value interface{}) error {
 	sliceValue := reflect.ValueOf(value).Elem()
 
-	r, err := e.YT.ReadTable(e.Ctx, path, nil)
+	r, err := c.ReadTable(ctx, path, nil)
 	if err != nil {
 		return err
 	}
@@ -101,4 +115,8 @@ func (e *Env) DownloadSlice(path ypath.YPath, value interface{}) error {
 
 	reflect.ValueOf(value).Elem().Set(sliceValue)
 	return nil
+}
+
+func (e *Env) DownloadSlice(path ypath.YPath, value interface{}) error {
+	return DownloadSlice(e.Ctx, e.YT, path, value)
 }
