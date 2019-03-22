@@ -790,7 +790,7 @@ class Operation(object):
                 result[job_type] = progress[job_type]
         return "({0})".format(", ".join("{0}={1}".format(key, result[key]) for key in result))
 
-    def track(self):
+    def track(self, raise_on_failed=True, raise_on_aborted=True):
         counter = 0
         while True:
             state = self.get_state(verbose=False)
@@ -802,9 +802,11 @@ class Operation(object):
                     print(file=sys.stderr)
                 else:
                     print(file=sys.stderr)
-            if state == "failed" or state == "aborted":
+            if state == "failed" and raise_on_failed:
                 raise self.get_error()
-            if state == "completed":
+            if state == "aborted" and raise_on_aborted:
+                raise self.get_error()
+            if state in ["failed", "aborted", "completed"]:
                 break
             counter += 1
             time.sleep(self._poll_frequency)
