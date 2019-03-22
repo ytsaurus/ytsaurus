@@ -1578,6 +1578,7 @@ protected:
             options.Task = PartitionTask->GetTitle();
             options.MaxTotalSliceCount = Config->MaxTotalSliceCount;
             options.EnablePeriodicYielder = true;
+            options.ShouldSliceByRowIndices = true;
 
             PartitionPool = CreateOrderedChunkPool(
                 std::move(options),
