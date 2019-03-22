@@ -38,6 +38,7 @@ class ITableReaderFactory
 {
 public:
     virtual TTableReaderPtr<T> GetReader() = 0;
+    virtual ui32 GetTableIndex() const = 0;
     virtual bool IsValid() const = 0;
     virtual void Next() = 0;
 };
@@ -54,29 +55,39 @@ class TEqualRangeTableReaderFactory
     : public ITableReaderFactory<T>
 {
 public:
+    // NB: `paths` must be canonized.
     TEqualRangeTableReaderFactory(
         IClientBasePtr client,
-        const TRichYPath& path,
+        const TVector<TRichYPath>& paths,
         size_t rangeSize,
         bool ordered,
         const TTableReaderOptions& options)
         : Client_(std::move(client))
-        , Path_(Client_->CanonizeYPath(path))
+        , Paths_(paths)
         , Options_(options)
     {
-        Y_ENSURE(!Path_.Ranges_.empty());
-        for (const auto& range : Path_.Ranges_) {
-            Y_ENSURE(range.LowerLimit_.RowIndex_.Defined(), "Lower limit must be specified as row index");
-            Y_ENSURE(range.UpperLimit_.RowIndex_.Defined(), "Upper limit must be specified as row index");
-            i64 lowerLimit = *range.LowerLimit_.RowIndex_;
-            while (lowerLimit < *range.UpperLimit_.RowIndex_) {
-                i64 upperLimit = std::min<i64>(lowerLimit + rangeSize, *range.UpperLimit_.RowIndex_);
-                Ranges_.emplace_back(lowerLimit, upperLimit);
-                lowerLimit = upperLimit;
+
+        for (ui32 tableIndex = 0; tableIndex < paths.size(); ++tableIndex) {
+            const auto& path = Paths_[tableIndex];
+            Y_ENSURE(!path.Ranges_.empty());
+            for (const auto& range : path.Ranges_) {
+                Y_ENSURE(range.LowerLimit_.RowIndex_.Defined(), "Lower limit must be specified as row index");
+                Y_ENSURE(range.UpperLimit_.RowIndex_.Defined(), "Upper limit must be specified as row index");
+                i64 lowerLimit = *range.LowerLimit_.RowIndex_;
+                while (lowerLimit < *range.UpperLimit_.RowIndex_) {
+                    i64 upperLimit = std::min<i64>(lowerLimit + rangeSize, *range.UpperLimit_.RowIndex_);
+                    TRange range;
+                    range.LowerLimit = lowerLimit;
+                    range.UpperLimit = upperLimit;
+                    range.TableIndex = tableIndex;
+
+                    Ranges_.push_back(range);
+                    lowerLimit = upperLimit;
+                }
             }
         }
         if (!ordered) {
-            // Shuffle range to facilitate reading
+            // Shuffle ranges to facilitate reading
             // from different chunks and thus from different nodes.
             Shuffle(Ranges_.begin(), Ranges_.end());
         }
@@ -87,9 +98,14 @@ public:
     {
         CheckValidity();
 
-        auto path = Path_;
-        path.Ranges_.assign(1, TReadRange::FromRowIndices(RangeIter_->first, RangeIter_->second));
+        auto path = Paths_[RangeIter_->TableIndex];
+        path.Ranges_.assign(1, TReadRange::FromRowIndices(RangeIter_->LowerLimit, RangeIter_->UpperLimit));
         return Client_->CreateTableReader<T>(path, Options_);
+    }
+
+    ui32 GetTableIndex() const override
+    {
+        return RangeIter_->TableIndex;
     }
 
     bool IsValid() const override
@@ -105,9 +121,17 @@ public:
 
 private:
     const IClientBasePtr Client_;
-    TRichYPath Path_;
-    TVector<std::pair<i64, i64>> Ranges_;
-    TVector<std::pair<i64, i64>>::const_iterator RangeIter_;
+    TVector<TRichYPath> Paths_;
+
+    struct TRange
+    {
+        i64 LowerLimit;
+        i64 UpperLimit;
+        ui32 TableIndex;
+    };
+
+    TVector<TRange> Ranges_;
+    typename TVector<TRange>::const_iterator RangeIter_;
     const TTableReaderOptions Options_;
 
 private:
@@ -123,6 +147,7 @@ template <typename T>
 struct TReaderBuffer
 {
     TVector<T> Rows;
+    ui32 TableIndex = 0;
     ui64 FirstRowIndex = 0;
     size_t SequenceNumber = 0;
 };
@@ -152,7 +177,7 @@ public:
 
     ui32 GetTableIndex() const override
     {
-        Y_FAIL("Not implemented as this reader is intended for use on client");
+        Y_FAIL("Not implemented");
     }
 
     ui64 GetRowIndex() const override
@@ -163,7 +188,7 @@ public:
 
     void NextKey() override
     {
-        Y_FAIL("Not implemented as this reader is intended for use on client");
+        Y_FAIL("Not implemented");
     }
 
 protected:
@@ -251,6 +276,7 @@ public:
     {
         if (Factory_->IsValid()) {
             CurrentReader_ = Factory_->GetReader();
+            CurrentTableIndex_ = Factory_->GetTableIndex();
             Factory_->Next();
         }
 
@@ -268,17 +294,10 @@ public:
             if (!Factory_->IsValid()) {
                 break;
             }
-            auto reader = Factory_->GetReader();
-            Factory_->Next();
             TReaderBuffer<TRowType> buffer;
             buffer.Rows.reserve(bufferSize);
-            buffer.SequenceNumber = NextInputSequenceNumber_++;
-            if (reader->IsValid()) {
-                buffer.FirstRowIndex = reader->GetRowIndex();
-            }
-            Tasks_.Push({reader, std::move(buffer)});
+            PrepareNextTask(&buffer);
         }
-
     }
 
     ~TParallelTableReaderBase()
@@ -309,15 +328,7 @@ public:
         CurrentReader_.Reset();
 
         if (CurrentBuffer_ && Factory_->IsValid()) {
-            // Buffer is freed, prepare the next task.
-            auto reader = Factory_->GetReader();
-            Factory_->Next();
-            CurrentBuffer_->SequenceNumber = NextInputSequenceNumber_++;
-            if (reader->IsValid()) {
-                CurrentBuffer_->FirstRowIndex = reader->GetRowIndex();
-            }
-            bool pushed = Tasks_.Push({std::move(reader), std::move(*CurrentBuffer_)});
-            Y_ENSURE(pushed, "Task queue can be stopped only by the main thread");
+            PrepareNextTask(CurrentBuffer_.Get());
             CurrentBuffer_.Clear();
         }
 
@@ -334,7 +345,7 @@ public:
 
     ui32 GetTableIndex() const override
     {
-        Y_FAIL("Not implemented as this reader is intended for use on client");
+        return CurrentTableIndex_;
     }
 
     ui64 GetRowIndex() const override
@@ -363,6 +374,7 @@ private:
 private:
     const bool Ordered_ = true;
     TMaybe<TReaderBuffer<TRowType>> CurrentBuffer_;
+    ui32 CurrentTableIndex_;
     TVector<THolder<TThread>> Threads_;
     int RunningThreadCount_ = 0;
 
@@ -384,10 +396,24 @@ private:
     TMaybe<yexception> Exception_;
 
 private:
+    void PrepareNextTask(TReaderBuffer<TRowType>* buffer)
+    {
+        auto reader = Factory_->GetReader();
+        buffer->SequenceNumber = NextInputSequenceNumber_++;
+        if (reader->IsValid()) {
+            buffer->FirstRowIndex = reader->GetRowIndex();
+            buffer->TableIndex = Factory_->GetTableIndex();
+        }
+        bool pushed = Tasks_.Push({reader, std::move(*buffer)});
+        Y_ENSURE(pushed, "Task queue can be stopped only by the main thread");
+        Factory_->Next();
+    }
+
     void UnorderedNext()
     {
         if (FilledBuffers_.Empty() && Factory_->IsValid()) {
             CurrentReader_ = Factory_->GetReader();
+            CurrentTableIndex_ = Factory_->GetTableIndex();
             Factory_->Next();
             return;
         }
@@ -400,6 +426,7 @@ private:
             }
             return;
         }
+        CurrentTableIndex_ = CurrentBuffer_->TableIndex;
         auto bufferReader = ::MakeIntrusive<TBufferTableReader<TRowType>>(&*CurrentBuffer_);
         CurrentReader_.Reset(new TTableReader<TRowType>(std::move(bufferReader)));
     }
@@ -431,6 +458,7 @@ private:
         }
         ++NextOutputSequenceNumber_;
 
+        CurrentTableIndex_ = CurrentBuffer_->TableIndex;
         auto bufferReader = ::MakeIntrusive<TBufferTableReader<TRowType>>(&*CurrentBuffer_);
         CurrentReader_.Reset(new TTableReader<TRowType>(std::move(bufferReader)));
     }
@@ -529,38 +557,74 @@ public:
 template <typename T>
 TTableReaderPtr<T> CreateParallelTableReader(
     const IClientBasePtr& client,
-    const TRichYPath& path,
+    const TVector<TRichYPath>& paths,
     const TParallelTableReaderOptions& options)
 {
-    IClientBasePtr rangeReaderClient;
-    auto rangeReaderPath = path;
+    auto canonizePaths = [&] (TVector<TRichYPath>* paths) {
+        auto batchRequest = client->CreateBatchRequest();
+        for (auto& path : *paths) {
+            batchRequest
+                ->CanonizeYPath(path)
+                .Subscribe([&] (const NThreading::TFuture<TRichYPath>& future) {
+                    path = future.GetValueSync();
+                });
+        }
+        batchRequest->ExecuteBatch();
+    };
 
+    auto lockPaths = [&] (const IClientBasePtr& client, TVector<TRichYPath>* paths) {
+        auto batchRequest = client->CreateBatchRequest();
+        for (auto& path : *paths) {
+            batchRequest
+                ->Lock(path.Path_, ELockMode::LM_SNAPSHOT)
+                .Subscribe([&] (const NThreading::TFuture<ILockPtr>& future) {
+                    path.Path("#" + GetGuidAsString(future.GetValueSync()->GetLockedNodeId()));
+                });
+        }
+        batchRequest->ExecuteBatch();
+    };
+
+    auto getMissingRanges = [&] (const IClientBasePtr& client, TVector<TRichYPath>* paths) {
+        auto batchRequest = client->CreateBatchRequest();
+        for (auto& path : *paths) {
+            if (path.Ranges_.empty()) {
+                batchRequest
+                    ->Get(path.Path_ + "/@row_count")
+                    .Subscribe([&] (const NThreading::TFuture<TNode>& future) {
+                        auto rowCount = future.GetValueSync().AsInt64();
+                        path.Ranges_.push_back(
+                            TReadRange()
+                                .LowerLimit(TReadLimit().RowIndex(0))
+                                .UpperLimit(TReadLimit().RowIndex(rowCount)));
+                    });
+            }
+        }
+        batchRequest->ExecuteBatch();
+    };
+
+    auto rangeReaderPaths = paths;
+    canonizePaths(&rangeReaderPaths);
+
+    IClientBasePtr rangeReaderClient;
     if (options.CreateTransaction_) {
-        auto tx = client->StartTransaction();
-        auto lock = tx->Lock(path.Path_, ELockMode::LM_SNAPSHOT);
-        rangeReaderPath.Path("#" + GetGuidAsString(lock->GetLockedNodeId()));
-        rangeReaderClient = std::move(tx);
+        rangeReaderClient = client->StartTransaction();
+        lockPaths(rangeReaderClient, &rangeReaderPaths);
     } else {
         rangeReaderClient = client;
     }
 
-    if (rangeReaderPath.Ranges_.empty()) {
-        auto rowCount = rangeReaderClient->Get(rangeReaderPath.Path_ + "/@row_count").AsInt64();
-        rangeReaderPath.Ranges_.push_back(
-            TReadRange()
-                .LowerLimit(TReadLimit().RowIndex(0))
-                .UpperLimit(TReadLimit().RowIndex(rowCount)));
-    }
+    getMissingRanges(rangeReaderClient, &rangeReaderPaths);
 
-    auto rangeReaderOptions = TTableReaderOptions().CreateTransaction(false);
-    rangeReaderOptions.Config_ = options.Config_;
+    auto rangeReaderOptions = TTableReaderOptions()
+        .CreateTransaction(false);
     rangeReaderOptions.FormatHints_ = options.FormatHints_;
+    rangeReaderOptions.Config_ = options.Config_;
 
     Y_ENSURE_EX(options.ThreadCount_ >= 1, TApiUsageError() << "ThreadCount can not be zero");
     auto rangeSize = options.BufferedRowCountLimit_ / options.ThreadCount_;
     auto factory = ::MakeIntrusive<NDetail::TEqualRangeTableReaderFactory<T>>(
         std::move(rangeReaderClient),
-        std::move(rangeReaderPath),
+        std::move(rangeReaderPaths),
         rangeSize,
         options.Ordered_,
         rangeReaderOptions);
@@ -571,6 +635,15 @@ TTableReaderPtr<T> CreateParallelTableReader(
             std::move(factory),
             options.ThreadCount_,
             rangeSize));
+}
+
+template <typename T>
+TTableReaderPtr<T> CreateParallelTableReader(
+    const IClientBasePtr& client,
+    const TRichYPath& path,
+    const TParallelTableReaderOptions& options)
+{
+    return CreateParallelTableReader<T>(client, TVector<TRichYPath>{path}, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -18,7 +18,8 @@ using namespace NYT::NTesting;
     UNIT_TEST(SimpleProtobuf); \
     UNIT_TEST(EmptyTable); \
     UNIT_TEST(SmallTable); \
-    UNIT_TEST(ReadRanges); \
+    UNIT_TEST(RangesSingleTable); \
+    UNIT_TEST(RangesSeveralTables); \
     UNIT_TEST(NetworkProblemsFullOutage); \
     UNIT_TEST(NetworkProblemsRetriableOutage); \
     UNIT_TEST_SUITE_END()
@@ -57,6 +58,7 @@ public:
         TestReader(
             "//testing/table",
             rows,
+            /* ranges */ {{0, rowCount}},
             TParallelTableReaderOptions()
                 .Ordered(Ordered)
                 .ThreadCount(10)
@@ -68,6 +70,7 @@ public:
         TestReader(
             "//testing/table",
             TVector<TNode>{},
+            /* ranges */ {{0,0}},
             TParallelTableReaderOptions()
                 .Ordered(Ordered)
                 .ThreadCount(10)
@@ -84,52 +87,21 @@ public:
         TestReader(
             "//testing/table",
             rows,
+            /* ranges */ {{0, rows.size()}},
             TParallelTableReaderOptions()
                 .Ordered(Ordered)
                 .ThreadCount(2)
                 .BufferedRowCountLimit(2000));
     }
 
-    void ReadRanges()
+    void RangesSingleTable()
     {
-        TVector<TNode> writtenRows;
-        constexpr size_t rowCount = 100;
-        writtenRows.reserve(rowCount);
-        for (size_t i = 0; i != rowCount; ++i) {
-            writtenRows.push_back(TNode()("x", i));
-        }
+        TestRanges(1);
+    }
 
-        TVector<std::pair<size_t, size_t>> ranges = {{3, 27}, {33, 59}, {66, 67}, {67, 98}, {99, 100}};
-        TVector<TReadRange> pathRanges;
-        for (const auto& range : ranges) {
-            pathRanges.push_back(TReadRange()
-                .LowerLimit(TReadLimit().RowIndex(range.first))
-                .UpperLimit(TReadLimit().RowIndex(range.second)));
-        }
-        TRichYPath path("//testing/table");
-        path.Ranges_ = pathRanges;
-
-        auto result = WriteAndRead(
-            path,
-            writtenRows,
-            TParallelTableReaderOptions()
-                .Ordered(Ordered)
-                .BufferedRowCountLimit(10)
-                .ThreadCount(5));
-        if (!Ordered) {
-            SortBy(result, [] (const auto& p) { return p.first; });
-        }
-
-        auto it = result.begin();
-        for (const auto& range : ranges) {
-            for (size_t i = range.first; i != range.second; ++i) {
-                UNIT_ASSERT_UNEQUAL(it, result.end());
-                UNIT_ASSERT_VALUES_EQUAL(it->first, i);
-                UNIT_ASSERT_VALUES_EQUAL(it->second["x"].AsUint64(), i);
-                ++it;
-            }
-        }
-        UNIT_ASSERT_EQUAL(it, result.end());
+    void RangesSeveralTables()
+    {
+        TestRanges(3);
     }
 
     void NetworkProblemsFullOutage()
@@ -150,47 +122,142 @@ public:
 
 private:
     template <typename T>
-    TVector<std::pair<ui64, T>> WriteAndRead(
-        const TRichYPath& path,
-        const TVector<T>& writtenRows,
-        const TParallelTableReaderOptions& options)
+    struct TRowWithInfo
     {
-        auto client = CreateTestClient();
-        {
-            auto writer = client->CreateTableWriter<T>(path);
-            for (const auto& row : writtenRows) {
+        ui32 TableIndex;
+        ui64 RowIndex;
+        T Row;
+    };
+
+    template <typename T>
+    friend bool operator < (const TRowWithInfo<T>& lhs, const TRowWithInfo<T>& rhs)
+    {
+        return std::tie(lhs.TableIndex, lhs.RowIndex) < std::tie(rhs.TableIndex, rhs.RowIndex);
+    }
+
+    template <typename T>
+    void WriteRows(
+        const IClientBasePtr& client,
+        const TVector<TRichYPath>& paths,
+        const TVector<TVector<T>>& writtenRows)
+    {
+        Y_ENSURE(paths.size() == writtenRows.size());
+        for (size_t tableIndex = 0; tableIndex < paths.size(); ++tableIndex) {
+            auto writer = client->CreateTableWriter<T>(paths[tableIndex]);
+            for (const auto& row : writtenRows[tableIndex]) {
                 writer->AddRow(row);
             };
             writer->Finish();
         }
+    }
 
-        TVector<std::pair<ui64, T>> result;
+    template <typename T>
+    TVector<TRowWithInfo<T>> ReadInParallel(
+        const IClientBasePtr& client,
+        const TVector<TRichYPath>& paths,
+        const TParallelTableReaderOptions& options)
+    {
+        TVector<TRowWithInfo<T>> result;
         {
-            auto reader = CreateParallelTableReader<T>(client, path, options);
+            auto reader = CreateParallelTableReader<T>(client, paths, options);
             for (; reader->IsValid(); reader->Next()) {
-                result.emplace_back(reader->GetRowIndex(), reader->MoveRow());
+                TRowWithInfo<T> row;
+                row.TableIndex = reader->GetTableIndex();
+                row.RowIndex = reader->GetRowIndex();
+                row.Row = reader->MoveRow();
+                result.push_back(std::move(row));
             }
         }
         return result;
     }
 
+
     template <typename T>
     void TestReader(
-        const TRichYPath& path,
-        const TVector<T>& rows,
+        TVector<TRichYPath> paths,
+        const TVector<TVector<T>>& rows,
+        const TVector<std::pair<size_t, size_t>>& ranges,
         const TParallelTableReaderOptions& options)
     {
-        auto result = WriteAndRead(path, rows, options);
-        UNIT_ASSERT_VALUES_EQUAL(result.size(), rows.size());
-        if (!options.Ordered_) {
-            SortBy(result, [] (const auto& p) { return p.first; });
+        Y_ENSURE(!ranges.empty());
+
+        auto client = CreateTestClient();
+        WriteRows(client, paths, rows);
+
+        if (!ranges.empty()) {
+            for (auto& path : paths) {
+                Y_ENSURE(path.Ranges_.empty());
+                for (const auto& range : ranges) {
+                    path.AddRange(TReadRange()
+                        .LowerLimit(TReadLimit().RowIndex(range.first))
+                        .UpperLimit(TReadLimit().RowIndex(range.second)));
+                }
+            }
         }
 
-        for (size_t i = 0; i != rows.size(); ++i) {
-            const auto& [resultRowIndex, resultRow] = result[i];
-            UNIT_ASSERT_VALUES_EQUAL(resultRowIndex, i);
-            UNIT_ASSERT_VALUES_EQUAL(resultRow, rows[i]);
+        auto result = ReadInParallel<T>(client, paths, options);
+        if (!options.Ordered_) {
+            Sort(result);
         }
+
+        TVector<std::pair<size_t, size_t>> actualRanges = ranges;
+        if (actualRanges.empty()) {
+            actualRanges.emplace_back(0, rows.front().size());
+        }
+
+        auto resultIt = result.begin();
+        for (size_t tableIndex = 0; tableIndex != paths.size(); ++tableIndex) {
+            const auto& tableRows = rows[tableIndex];
+            for (const auto& range : actualRanges) {
+                for (size_t rowIndex = range.first; rowIndex != range.second; ++rowIndex) {
+                    LOG_DEBUG("tableIdx = %d, rowIdx = %d", tableIndex, rowIndex);
+                    UNIT_ASSERT_VALUES_EQUAL(resultIt->TableIndex, tableIndex);
+                    UNIT_ASSERT_VALUES_EQUAL(resultIt->RowIndex, rowIndex);
+                    UNIT_ASSERT_VALUES_EQUAL(resultIt->Row, tableRows[rowIndex]);
+                    ++resultIt;
+                }
+            }
+        }
+        UNIT_ASSERT_EQUAL(resultIt, result.end());
+    }
+
+    template <typename T>
+    void TestReader(
+        const TRichYPath& paths,
+        const TVector<T>& rows,
+        const TVector<std::pair<size_t, size_t>>& ranges,
+        const TParallelTableReaderOptions& options)
+    {
+        TestReader<T>(TVector<TRichYPath>{paths}, TVector<TVector<T>>{rows}, ranges, options);
+    }
+
+    void TestRanges(int tableCount)
+    {
+        constexpr size_t rowCount = 100;
+
+        TVector<TRichYPath> paths;
+        for (int i = 0; i != tableCount; ++i) {
+            paths.push_back(TStringBuilder() << "//testing/table_" << i);
+        }
+
+        TVector<std::pair<size_t, size_t>> ranges = {{3, 27}, {33, 59}, {66, 67}, {67, 98}, {99, 100}};
+        TVector<TVector<TNode>> writtenRows;
+        for (size_t tableIndex = 0; tableIndex != paths.size(); ++tableIndex) {
+            writtenRows.emplace_back();
+            writtenRows.back().reserve(rowCount);
+            for (size_t i = 0; i != rowCount; ++i) {
+                writtenRows.back().push_back(TNode()("x", rowCount * tableIndex + i));
+            }
+        }
+
+        TestReader(
+            paths,
+            writtenRows,
+            ranges,
+            TParallelTableReaderOptions()
+                .Ordered(Ordered)
+                .BufferedRowCountLimit(10)
+                .ThreadCount(5));
     }
 
     void TestNodeReader(ENodeReaderFormat format)
@@ -210,6 +277,7 @@ private:
                     .AddColumn(TColumnSchema().Name("x").Type(EValueType::VT_UINT64))
                     .AddColumn(TColumnSchema().Name("y").Type(EValueType::VT_UINT64))),
             rows,
+            /* ranges */ {{0, rowCount}},
             TParallelTableReaderOptions()
                 .Ordered(Ordered)
                 .ThreadCount(10)
