@@ -785,7 +785,7 @@ class Operation(object):
             raise
 
     def read_stderr(self, job_id):
-        return remove_asan_warning(read_file(self.get_path() + "/jobs/{}/stderr".format(job_id)))
+        return read_file(self.get_path() + "/jobs/{}/stderr".format(job_id))
 
     def get_error(self):
         state = self.get_state(verbose=False)
@@ -1287,16 +1287,6 @@ def get_statistics(statistics, complex_key):
 
 ##################################################################
 
-_ASAN_WARNING_PATTERN = re.compile(
-    r"==\d+==WARNING: ASan is ignoring requested __asan_handle_no_return: " +
-    r"stack top: 0x[0-9a-f]+; bottom 0x[0-9a-f]+; size: 0x[0-9a-f]+ \(\d+\)\n" +
-    r"False positive error reports may follow\n" +
-    r"For details see https://github.com/google/sanitizers/issues/189\n")
-
-def remove_asan_warning(string):
-    """ Removes ASAN warning of form "==129647==WARNING: ASan is ignoring requested __asan_handle_no_return..." """
-    return re.sub(_ASAN_WARNING_PATTERN, '', string)
-
 def check_all_stderrs(op, expected_content, expected_count, substring=False):
     jobs_path = op.get_path() + "/jobs"
     assert get(jobs_path + "/@count") == expected_count
@@ -1304,13 +1294,12 @@ def check_all_stderrs(op, expected_content, expected_count, substring=False):
         stderr_path = "{0}/{1}/stderr".format(jobs_path, job_id)
         if is_multicell:
             assert get(stderr_path + "/@external")
-        actual_content = read_file(stderr_path)
-        assert get(stderr_path + "/@uncompressed_data_size") == len(actual_content)
-        content_without_warning = remove_asan_warning(actual_content)
+        content = read_file(stderr_path)
+        assert get(stderr_path + "/@uncompressed_data_size") == len(content)
         if substring:
-            assert expected_content in content_without_warning
+            assert expected_content in content
         else:
-            assert content_without_warning == expected_content
+            assert content == expected_content
 
 ##################################################################
 
