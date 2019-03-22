@@ -17,6 +17,8 @@
 #include <yt/ytlib/security_client/public.h>
 #include <yt/ytlib/security_client/acl.h>
 
+#include <yt/ytlib/scheduler/proto/job.pb.h>
+
 #include <yt/client/ypath/rich.h>
 
 #include <yt/core/rpc/config.h>
@@ -363,6 +365,23 @@ DEFINE_REFCOUNTED_TYPE(TAutoMergeConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTmpfsVolumeConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    i64 Size;
+    TString Path;
+
+    TTmpfsVolumeConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TTmpfsVolumeConfig)
+
+void ToProto(NScheduler::NProto::TTmpfsVolume* protoTmpfsVolume, const TTmpfsVolumeConfig& tmpfsVolumeConfig);
+void FromProto(TTmpfsVolumeConfig* tmpfsVolumeConfig, const NScheduler::NProto::TTmpfsVolume& protoTmpfsVolume);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperationSpecBase
     : public TStrategyOperationSpec
 {
@@ -544,6 +563,8 @@ public:
 
     std::optional<i64> TmpfsSize;
     std::optional<TString> TmpfsPath;
+
+    std::vector<TTmpfsVolumeConfigPtr> TmpfsVolumes;
 
     std::optional<i64> DiskSpaceLimit;
     std::optional<i64> InodeLimit;

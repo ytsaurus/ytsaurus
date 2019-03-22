@@ -129,22 +129,22 @@ const NProto::TRequestHeader& TClientRequest::Header() const
 
 const TStreamingParameters& TClientRequest::RequestAttachmentsStreamingParameters() const
 {
-    return RequestAttachmentStreamingParameters_;
+    return RequestAttachmentsStreamingParameters_;
 }
 
 TStreamingParameters& TClientRequest::RequestAttachmentsStreamingParameters()
 {
-    return RequestAttachmentStreamingParameters_;
+    return RequestAttachmentsStreamingParameters_;
 }
 
 const TStreamingParameters& TClientRequest::ResponseAttachmentsStreamingParameters() const
 {
-    return ResponseAttachmentStreamingParameters_;
+    return ResponseAttachmentsStreamingParameters_;
 }
 
 TStreamingParameters& TClientRequest::ResponseAttachmentsStreamingParameters()
 {
-    return ResponseAttachmentStreamingParameters_;
+    return ResponseAttachmentsStreamingParameters_;
 }
 
 NConcurrency::IAsyncZeroCopyOutputStreamPtr TClientRequest::GetRequestAttachmentsStream() const
@@ -270,14 +270,16 @@ TClientContextPtr TClientRequest::CreateClientContext()
 
     if (StreamingEnabled_) {
         RequestAttachmentsStream_ = New<TAttachmentsOutputStream>(
-            RequestAttachmentStreamingParameters_,
             MemoryZone_,
             RequestCodec_,
             GetInvoker(),
-            BIND(&TClientRequest::OnPullRequestAttachmentsStream, MakeWeak(this)));
+            BIND(&TClientRequest::OnPullRequestAttachmentsStream, MakeWeak(this)),
+            RequestAttachmentsStreamingParameters_.WindowSize,
+            RequestAttachmentsStreamingParameters_.WriteTimeout);
         ResponseAttachmentsStream_ = New<TAttachmentsInputStream>(
             BIND(&TClientRequest::OnResponseAttachmentsStreamRead, MakeWeak(this)),
-            GetInvoker());
+            GetInvoker(),
+            ResponseAttachmentsStreamingParameters_.ReadTimeout);
     }
 
     return New<TClientContext>(
@@ -403,7 +405,7 @@ void TClientRequest::SetStreamingParametersInHeader()
         return;
     }
 
-    ToProto(Header_.mutable_response_attachments_streaming_parameters(), ResponseAttachmentStreamingParameters_);
+    ToProto(Header_.mutable_response_attachments_streaming_parameters(), ResponseAttachmentsStreamingParameters_);
 }
 
 const TSharedRefArray& TClientRequest::GetSerializedData() const

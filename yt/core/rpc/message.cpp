@@ -11,6 +11,9 @@ namespace NYT::NRpc {
 
 using namespace NBus;
 
+using NYT::ToProto;
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #pragma pack(push, 1)
@@ -184,6 +187,12 @@ void ToProto(
     const TStreamingParameters& parameters)
 {
     protoParameters->set_window_size(parameters.WindowSize);
+    if (parameters.ReadTimeout) {
+        protoParameters->set_read_timeout(ToProto<i64>(*parameters.ReadTimeout));
+    }
+    if (parameters.WriteTimeout) {
+        protoParameters->set_write_timeout(ToProto<i64>(*parameters.WriteTimeout));
+    }
 }
 
 void FromProto(
@@ -192,6 +201,12 @@ void FromProto(
 {
     if (protoParameters.has_window_size()) {
         parameters->WindowSize = parameters->WindowSize;
+    }
+    if (protoParameters.has_read_timeout()) {
+        parameters->ReadTimeout = FromProto<TDuration>(protoParameters.read_timeout());
+    }
+    if (protoParameters.has_write_timeout()) {
+        parameters->WriteTimeout = FromProto<TDuration>(protoParameters.write_timeout());
     }
 }
 

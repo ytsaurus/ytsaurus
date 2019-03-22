@@ -270,6 +270,11 @@ public:
         return TopologicalOrdering_.GetOrdering();
     }
 
+    const TProgressCounterPtr& GetTotalJobCounter() const
+    {
+        return TotalJobCounter_;
+    }
+
     void Persist(const TPersistenceContext& context)
     {
         using NYT::Persist;
@@ -454,6 +459,11 @@ void TDataFlowGraph::UnregisterLivePreviewChunk(const TVertexDescriptor& descrip
 void TDataFlowGraph::BuildLegacyYson(TFluentMap fluent) const
 {
     Impl_->BuildLegacyYson(fluent);
+}
+
+const TProgressCounterPtr& TDataFlowGraph::GetTotalJobCounter() const
+{
+    return Impl_->GetTotalJobCounter();
 }
 
 /////////////////////////////////////////////////////////////////////////////////

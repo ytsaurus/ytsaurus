@@ -162,8 +162,8 @@ protected:
     EMultiplexingBand MultiplexingBand_ = EMultiplexingBand::Default;
     bool FirstTimeSerialization_ = true;
 
-    TStreamingParameters RequestAttachmentStreamingParameters_;
-    TStreamingParameters ResponseAttachmentStreamingParameters_;
+    TStreamingParameters RequestAttachmentsStreamingParameters_;
+    TStreamingParameters ResponseAttachmentsStreamingParameters_;
 
     TAttachmentsOutputStreamPtr RequestAttachmentsStream_;
     TAttachmentsInputStreamPtr ResponseAttachmentsStream_;

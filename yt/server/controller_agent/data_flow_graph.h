@@ -84,6 +84,8 @@ public:
 
     void BuildLegacyYson(NYTree::TFluentMap fluent) const;
 
+    const TProgressCounterPtr& GetTotalJobCounter() const;
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

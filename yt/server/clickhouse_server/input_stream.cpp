@@ -6,7 +6,7 @@
 #include "table_reader.h"
 
 #include <Core/Block.h>
-#include <DataStreams/IProfilingBlockInputStream.h>
+#include <DataStreams/IBlockInputStream.h>
 #include <DataTypes/DataTypeFactory.h>
 
 #include <sstream>
@@ -20,7 +20,7 @@ using namespace DB;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStorageInputStream
-    : public IProfilingBlockInputStream
+    : public IBlockInputStream
 {
 private:
     const ITableReaderPtr TableReader;

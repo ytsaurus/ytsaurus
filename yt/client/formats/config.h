@@ -354,6 +354,9 @@ DEFINE_ENUM(EProtobufType,
     (EnumString)
 
     (Message)
+
+    (Any)
+    (OtherColumns)
 );
 
 class TProtobufColumnConfig
@@ -386,6 +389,18 @@ public:
     TProtobufTableConfig()
     {
         RegisterParameter("columns", Columns);
+
+        RegisterPostprocessor([&] {
+            bool hasOtherColumns = false;
+            for (const auto& column: Columns) {
+                if (column->ProtoType == EProtobufType::OtherColumns) {
+                    if (hasOtherColumns) {
+                        THROW_ERROR_EXCEPTION("Multiple \"other_columns\" in protobuf config are not allowed");
+                    }
+                    hasOtherColumns = true;
+                }
+            }
+        });
     }
 };
 DEFINE_REFCOUNTED_TYPE(TProtobufTableConfig)

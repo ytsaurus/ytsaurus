@@ -1,10 +1,13 @@
 #include "protobuf_parser.h"
 
+#include "helpers.h"
 #include "protobuf.h"
 #include "parser.h"
+#include "yson_map_to_unversioned_value.h"
 
-#include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/table_consumer.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/client/table_client/value_consumer.h>
 
@@ -163,6 +166,8 @@ static WireFormatLite::WireType GetWireTypeForProtobufType(EProtobufType type)
             return WireFormatLite::WIRETYPE_VARINT;
         case EProtobufType::String:
         case EProtobufType::Bytes:
+        case EProtobufType::Any:
+        case EProtobufType::OtherColumns:
             return WireFormatLite::WIRETYPE_LENGTH_DELIMITED;
 
         case EProtobufType::EnumInt:
@@ -208,12 +213,12 @@ public:
         , Description_(description)
         , Fields_(MinHashTag_)
         , TableIndex_(tableIndex)
+        , OtherColumnsConsumer_(valueConsumer)
     {
+        AnyColumnConsumer_.SetValueConsumer(valueConsumer);
+
         auto nameTable = ValueConsumer_->GetNameTable();
-
-        const auto& tableDescription = Description_->GetTableDescription(tableIndex);
-
-        for (const auto& pair : tableDescription.Columns) {
+        for (const auto& pair : Description_->GetTableDescription(tableIndex).Columns) {
             const auto& column = pair.second;
             auto& field = GetField(column.GetFieldNumber());
             field.ProtobufType = column.Type;
@@ -329,6 +334,23 @@ private:
                     ValueConsumer_->OnValue(MakeUnversionedStringValue(value, columnId));
                     break;
                 }
+                case EProtobufType::Any: {
+                    auto value = rowParser.ReadLengthDelimited();
+                    AnyColumnConsumer_.SetColumnIndex(columnId);
+                    ParseYsonStringBuffer(
+                        value,
+                        NYson::EYsonType::Node,
+                        &AnyColumnConsumer_);
+                    break;
+                }
+                case EProtobufType::OtherColumns: {
+                    auto value = rowParser.ReadLengthDelimited();
+                    ParseYsonStringBuffer(
+                        value,
+                        NYson::EYsonType::Node,
+                        &OtherColumnsConsumer_);
+                    break;
+                }
                 case EProtobufType::Uint64: {
                     auto value = rowParser.ReadVarUint64();
                     ValueConsumer_->OnValue(MakeUnversionedUint64Value(value, columnId));
@@ -426,6 +448,9 @@ private:
     THashMap<ui32, TFieldInfo> HashFields_;
     const ui32 TableIndex_;
     static constexpr size_t MinHashTag_ = 256;
+
+    TYsonToUnversionedValueConverter AnyColumnConsumer_;
+    TYsonMapToUnversionedValueConverter OtherColumnsConsumer_;
 
     EState State_ = EState::InsideLength;
     union

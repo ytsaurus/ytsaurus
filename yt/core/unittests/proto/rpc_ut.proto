@@ -122,6 +122,7 @@ message TRspNoReply
 
 message TReqStreamingEcho
 {
+    optional bool delayed = 1 [default = false];
 }
 
 message TRspStreamingEcho

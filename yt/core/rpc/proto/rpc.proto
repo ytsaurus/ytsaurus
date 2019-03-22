@@ -11,6 +11,8 @@ import "yt/core/misc/proto/error.proto";
 message TStreamingParameters
 {
     optional int64 window_size = 1;
+    optional int64 read_timeout = 2;
+    optional int64 write_timeout = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

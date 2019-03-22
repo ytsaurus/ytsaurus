@@ -206,7 +206,6 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableInvokerPool(TransformInvokerPool(
         SuspendableInvokerPool,
         BIND(&TCancelableContext::CreateInvoker, CancelableContext)))
-    , JobCounter(New<TProgressCounter>(0))
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , MemoryTag_(operation->GetMemoryTag())
     , PoolTreeToSchedulingTagFilter_(operation->PoolTreeToSchedulingTagFilter())
@@ -974,7 +973,6 @@ void TOperationControllerBase::AbortAllJoblets()
 {
     for (const auto& pair : JobletMap) {
         auto joblet = pair.second;
-        JobCounter->Aborted(1, EAbortReason::Scheduler);
         const auto& jobId = pair.first;
         auto jobSummary = TAbortedJobSummary(jobId, EAbortReason::Scheduler);
         joblet->Task->OnJobAborted(joblet, jobSummary);
@@ -1931,21 +1929,21 @@ void TOperationControllerBase::InitializeSecurityTags()
     auto addTags = [&] (const auto& moreTags) {
         inferredSecurityTags.insert(inferredSecurityTags.end(), moreTags.begin(), moreTags.end());
     };
-    
+
     addTags(Spec_->AdditionalSecurityTags);
-    
+
     for (const auto& table : InputTables_) {
         addTags(table->SecurityTags);
     }
-    
+
     for (const auto& [userJobSpec, files] : UserJobFiles_) {
         for (const auto& file : files) {
             addTags(file.SecurityTags);
         }
     }
-    
+
     SortUnique(inferredSecurityTags);
-    
+
     for (const auto& table : OutputTables_) {
         if (auto explicitSecurityTags = table->Path.GetSecurityTags()) {
             // TODO(babenko): audit
@@ -2023,8 +2021,6 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     if (jobSummary->InterruptReason != EInterruptReason::None) {
         ExtractInterruptDescriptor(*jobSummary);
     }
-
-    JobCounter->Completed(1, jobSummary->InterruptReason);
 
     auto joblet = GetJoblet(jobId);
 
@@ -2129,8 +2125,6 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     auto error = FromProto<TError>(result.error());
 
-    JobCounter->Failed(1);
-
     ParseStatistics(jobSummary.get(), joblet->StatisticsYson);
 
     FinalizeJoblet(joblet, jobSummary.get());
@@ -2154,11 +2148,11 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     UnregisterJoblet(joblet);
 
     auto finally = Finally(
-		[&] () {
-			ReleaseJobs({jobId});
-		},
+        [&] () {
+            ReleaseJobs({jobId});
+        },
         /* noUncaughtExceptions */ true
-	);
+    );
 
     // This failure case has highest priority for users. Therefore check must be performed as early as possible.
     if (Spec_->FailOnJobRestart) {
@@ -2175,7 +2169,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         return;
     }
 
-    int failedJobCount = JobCounter->GetFailed();
+    int failedJobCount = GetDataFlowGraph()->GetTotalJobCounter()->GetFailed();
     int maxFailedJobCount = Spec_->MaxFailedJobCount;
     if (failedJobCount >= maxFailedJobCount) {
         OnOperationFailed(TError("Failed jobs limit exceeded")
@@ -2208,8 +2202,6 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     }
 
     YT_LOG_DEBUG("Job aborted (JobId: %v)", jobId);
-
-    JobCounter->Aborted(1, abortReason);
 
     auto joblet = GetJoblet(jobId);
 
@@ -2626,7 +2618,6 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
     completedJob->DestinationPool->Suspend(completedJob->InputCookie);
 
     if (completedJob->Restartable) {
-        JobCounter->Lost(1);
         completedJob->SourceTask->GetChunkPoolOutput()->Lost(completedJob->OutputCookie);
         completedJob->SourceTask->OnJobLost(completedJob);
         AddTaskPendingHint(completedJob->SourceTask);
@@ -2911,52 +2902,76 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
         return;
     }
 
-    THashMap<EJobType, i64> maximumUsedTmpfsSizePerJobType;
+    THashMap<EJobType, std::vector<std::optional<i64>>> maximumUsedTmpfsSizesPerJobType;
     THashMap<EJobType, TUserJobSpecPtr> userJobSpecPerJobType;
 
     for (const auto& task : Tasks) {
-        const auto& userJobSpecPtr = task->GetUserJobSpec();
-        if (!userJobSpecPtr || !userJobSpecPtr->TmpfsPath || !userJobSpecPtr->TmpfsSize) {
-            continue;
-        }
-
-        auto maxUsedTmpfsSize = task->GetMaximumUsedTmpfsSize();
-        if (!maxUsedTmpfsSize) {
+        if (!task->IsSimpleTask()) {
             continue;
         }
 
         auto jobType = task->GetJobType();
-
-        auto it = maximumUsedTmpfsSizePerJobType.find(jobType);
-        if (it == maximumUsedTmpfsSizePerJobType.end()) {
-            maximumUsedTmpfsSizePerJobType[jobType] = *maxUsedTmpfsSize;
-        } else {
-            it->second = std::max(it->second, *maxUsedTmpfsSize);
+        const auto& userJobSpecPtr = task->GetUserJobSpec();
+        if (!userJobSpecPtr) {
+            continue;
         }
 
         userJobSpecPerJobType.insert(std::make_pair(jobType, userJobSpecPtr));
+
+        auto maxUsedTmpfsSizes = task->GetMaximumUsedTmpfsSizes();
+
+        YCHECK(userJobSpecPtr->TmpfsVolumes.size() == maxUsedTmpfsSizes.size());
+
+        auto it = maximumUsedTmpfsSizesPerJobType.find(jobType);
+        if (it == maximumUsedTmpfsSizesPerJobType.end()) {
+            it = maximumUsedTmpfsSizesPerJobType.emplace(jobType, std::vector<std::optional<i64>>(maxUsedTmpfsSizes.size())).first;
+        }
+        auto& knownMaxUsedTmpfsSizes = it->second;
+
+        for (int index = 0; index < maxUsedTmpfsSizes.size(); ++index) {
+            auto tmpfsSize = maxUsedTmpfsSizes[index];
+            if (tmpfsSize) {
+                if (!knownMaxUsedTmpfsSizes[index]) {
+                    knownMaxUsedTmpfsSizes[index] = 0;
+                }
+                knownMaxUsedTmpfsSizes[index] = std::max(*knownMaxUsedTmpfsSizes[index], *tmpfsSize);
+            }
+        }
     }
 
     std::vector<TError> innerErrors;
 
     double minUnusedSpaceRatio = 1.0 - Config->OperationAlerts->TmpfsAlertMaxUnusedSpaceRatio;
 
-    for (const auto& pair : maximumUsedTmpfsSizePerJobType) {
+    for (const auto& pair : maximumUsedTmpfsSizesPerJobType) {
         const auto& userJobSpecPtr = userJobSpecPerJobType[pair.first];
-        auto maxUsedTmpfsSize = pair.second;
+        auto maxUsedTmpfsSizes = pair.second;
 
-        bool minUnusedSpaceThresholdOvercome = *userJobSpecPtr->TmpfsSize - maxUsedTmpfsSize >
-            Config->OperationAlerts->TmpfsAlertMinUnusedSpaceThreshold;
-        bool minUnusedSpaceRatioViolated = maxUsedTmpfsSize <
-            minUnusedSpaceRatio * (*userJobSpecPtr->TmpfsSize);
+        YCHECK(userJobSpecPtr->TmpfsVolumes.size() == maxUsedTmpfsSizes.size());
 
-        if (minUnusedSpaceThresholdOvercome && minUnusedSpaceRatioViolated) {
-            TError error(
-                "Jobs of type %Qlv use less than %.1f%% of requested tmpfs size",
-                pair.first, minUnusedSpaceRatio * 100.0);
-            innerErrors.push_back(error
-                << TErrorAttribute("max_used_tmpfs_size", maxUsedTmpfsSize)
-                << TErrorAttribute("tmpfs_size", *userJobSpecPtr->TmpfsSize));
+        const auto& tmpfsVolumes = userJobSpecPtr->TmpfsVolumes;
+        for (int index = 0; index < tmpfsVolumes.size(); ++index) {
+            auto maxUsedTmpfsSize = maxUsedTmpfsSizes[index];
+            if (!maxUsedTmpfsSize) {
+                continue;
+            }
+
+            auto orderedTmpfsSize = tmpfsVolumes[index]->Size;
+            bool minUnusedSpaceThresholdOvercome = orderedTmpfsSize - *maxUsedTmpfsSize >
+                Config->OperationAlerts->TmpfsAlertMinUnusedSpaceThreshold;
+            bool minUnusedSpaceRatioViolated = *maxUsedTmpfsSize <
+                minUnusedSpaceRatio * orderedTmpfsSize;
+
+            if (minUnusedSpaceThresholdOvercome && minUnusedSpaceRatioViolated) {
+                auto error = TError(
+                    "Jobs of type %Qlv use less than %.1f%% of requested tmpfs size in volume %Qv",
+                    pair.first,
+                    minUnusedSpaceRatio * 100.0,
+                    tmpfsVolumes[index]->Path)
+                    << TErrorAttribute("max_used_tmpfs_size", *maxUsedTmpfsSize)
+                    << TErrorAttribute("tmpfs_size", orderedTmpfsSize);
+                innerErrors.push_back(error);
+            }
         }
     }
 
@@ -2986,7 +3001,7 @@ void TOperationControllerBase::AnalyzeInputStatistics()
 void TOperationControllerBase::AnalyzeIntermediateJobsStatistics()
 {
     TError error;
-    if (JobCounter->GetLost() > 0) {
+    if (GetDataFlowGraph()->GetTotalJobCounter()->GetLost() > 0) {
         error = TError(
             "Some intermediate outputs were lost and will be regenerated; "
             "operation will take longer than usual");
@@ -3183,15 +3198,16 @@ void TOperationControllerBase::AnalyzeJobsDuration()
 void TOperationControllerBase::AnalyzeOperationDuration()
 {
     TError error;
+    const auto& jobCounter = GetDataFlowGraph()->GetTotalJobCounter();
     for (const auto& task : Tasks) {
         if (!task->GetUserJobSpec()) {
             continue;
         }
-        i64 completedAndRunning = JobCounter->GetCompletedTotal() + JobCounter->GetRunning();
+        i64 completedAndRunning = jobCounter->GetCompletedTotal() + jobCounter->GetRunning();
         if (completedAndRunning == 0) {
             continue;
         }
-        i64 pending = JobCounter->GetPending();
+        i64 pending = jobCounter->GetPending();
         TDuration wallTime = GetInstant() - StartTime;
         TDuration estimatedDuration = (wallTime / completedAndRunning) * pending;
 
@@ -3303,7 +3319,6 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     DoScheduleJob(context, jobLimits, treeId, scheduleJobResult.Get());
     if (scheduleJobResult->StartDescriptor) {
         AvailableExecNodesObserved_ = true;
-        JobCounter->Start(1);
     }
     scheduleJobResult->Duration = timer.GetElapsedTime();
 
@@ -3366,12 +3381,13 @@ void TOperationControllerBase::UpdateTask(TTaskPtr task)
     int newPendingJobCount = CachedPendingJobCount + task->GetPendingJobCountDelta();
     CachedPendingJobCount = newPendingJobCount;
 
-    int oldTotalJobCount = JobCounter->GetTotal();
-    JobCounter->Increment(task->GetTotalJobCountDelta());
-    int newTotalJobCount = JobCounter->GetTotal();
+    int oldTotalJobCount = CachedTotalJobCount;
+    int newTotalJobCount = CachedTotalJobCount + task->GetTotalJobCountDelta();
+    CachedTotalJobCount = newTotalJobCount;
 
     IncreaseNeededResources(task->GetTotalNeededResourcesDelta());
 
+    // TODO(max42): move this logging into pools.
     YT_LOG_DEBUG_IF(
         newPendingJobCount != oldPendingJobCount || newTotalJobCount != oldTotalJobCount,
         "Task updated (Task: %v, PendingJobCount: %v -> %v, TotalJobCount: %v -> %v, NeededResources: %v)",
@@ -5765,16 +5781,21 @@ bool TOperationControllerBase::IsLocalityEnabled() const
 
 TString TOperationControllerBase::GetLoggingProgress() const
 {
+    if (!DataFlowGraph_) {
+        return "Cannot obtain progress: dataflow graph is not initialized.";
+    }
+
+    const auto& jobCounter = DataFlowGraph_->GetTotalJobCounter();
     return Format(
         "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
         "UnavailableInputChunks: %v",
-        JobCounter->GetTotal(),
-        JobCounter->GetRunning(),
-        JobCounter->GetCompletedTotal(),
+        jobCounter->GetTotal(),
+        jobCounter->GetRunning(),
+        jobCounter->GetCompletedTotal(),
         GetPendingJobCount(),
-        JobCounter->GetFailed(),
-        JobCounter->GetAbortedTotal(),
-        JobCounter->GetInterruptedTotal(),
+        jobCounter->GetFailed(),
+        jobCounter->GetAbortedTotal(),
+        jobCounter->GetInterruptedTotal(),
         GetUnavailableInputChunkCount());
 }
 
@@ -6504,7 +6525,6 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
 
     fluent
         .Item("build_time").Value(TInstant::Now())
-        .Item("jobs").Value(JobCounter)
         .Item("ready_job_count").Value(GetPendingJobCount())
         .Item("job_statistics").Value(JobStatistics)
         .Item("estimated_input_statistics").BeginMap()
@@ -6528,6 +6548,7 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
         .EndMap()
         .DoIf(DataFlowGraph_.operator bool(), [=] (TFluentMap fluent) {
             fluent
+                .Item("jobs").Value(DataFlowGraph_->GetTotalJobCounter())
                 .Item("data_flow_graph").BeginMap()
                     .Do(BIND(&TDataFlowGraph::BuildLegacyYson, DataFlowGraph_))
                 .EndMap();
@@ -6549,12 +6570,9 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
 
 void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
 {
-    if (!IsPrepared()) {
-        return;
+    if (IsPrepared() && DataFlowGraph_) {
+        fluent.Item("jobs").Do(BIND(&SerializeBriefVersion, DataFlowGraph_->GetTotalJobCounter()));
     }
-
-    fluent
-        .Item("jobs").Do(BIND(&SerializeBriefVersion, JobCounter));
 }
 
 void TOperationControllerBase::BuildAndSaveProgress()
@@ -6975,7 +6993,7 @@ int TOperationControllerBase::GetTotalJobCount() const
         return 0;
     }
 
-    return JobCounter->GetTotal();
+    return GetDataFlowGraph()->GetTotalJobCounter()->GetTotal();
 }
 
 i64 TOperationControllerBase::GetDataSliceCount() const
@@ -7013,10 +7031,13 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_port_count(config->PortCount);
     jobSpec->set_use_porto_memory_tracking(config->UsePortoMemoryTracking);
 
-    if (config->TmpfsPath && Config->EnableTmpfs) {
-        auto tmpfsSize = config->TmpfsSize.value_or(config->MemoryLimit);
-        jobSpec->set_tmpfs_size(tmpfsSize);
-        jobSpec->set_tmpfs_path(*config->TmpfsPath);
+    // COMPAT(ignat): remove after node update.
+    if (config->TmpfsVolumes.size() == 1) {
+        jobSpec->set_tmpfs_size(config->TmpfsVolumes[0]->Size);
+        jobSpec->set_tmpfs_path(config->TmpfsVolumes[0]->Path);
+    }
+    for (const auto& volume : config->TmpfsVolumes) {
+        ToProto(jobSpec->add_tmpfs_volumes(), *volume);
     }
 
     if (config->DiskSpaceLimit) {
@@ -7412,7 +7433,10 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, TotalEstimatedInputDataWeight);
     Persist(context, UnavailableInputChunkCount);
     Persist(context, UnavailableIntermediateChunkCount);
-    Persist(context, JobCounter);
+    if (context.GetVersion() < 300101 && context.IsLoad()) {
+        TProgressCounterPtr unused;
+        Persist(context, unused);
+    }
     Persist(context, InputNodeDirectory_);
     Persist(context, InputTables_);
     Persist(context, OutputTables_);
@@ -7600,9 +7624,9 @@ void TOperationControllerBase::ReleaseIntermediateStripeList(const NChunkPools::
     }
 }
 
-TDataFlowGraph* TOperationControllerBase::GetDataFlowGraph()
+const TDataFlowGraphPtr& TOperationControllerBase::GetDataFlowGraph() const
 {
-    return DataFlowGraph_.Get();
+    return DataFlowGraph_;
 }
 
 void TOperationControllerBase::TLivePreviewChunkDescriptor::Persist(const TPersistenceContext& context)

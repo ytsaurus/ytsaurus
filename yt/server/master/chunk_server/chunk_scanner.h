@@ -44,7 +44,10 @@ public:
 
     //! Must be called exactly once upon initialization.
     //! Schedules #chunkCount chunks starting from #frontChunk for the global scan.
-    void Start(TChunk* frontChunk, int chunkCont);
+    void Start(TChunk* frontChunk, int chunkCount);
+
+    //! Schedules #chunkCount chunks starting from #frontChunk for the global scan.
+    void ScheduleGlobalScan(TChunk* frontChunk, int chunkCount);
 
     //! Notifies the scanner that a certain #chunk is dead.
     //! Enables advancing global iterator to avoid pointing to dead chunks.

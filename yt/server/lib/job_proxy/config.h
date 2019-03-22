@@ -63,7 +63,7 @@ public:
     // Job-specific parameters.
     int SlotIndex = -1;
 
-    std::optional<TString> TmpfsPath;
+    std::vector<TString> TmpfsPaths;
     std::vector<NExecAgent::TBindConfigPtr> Binds;
 
     std::vector<TString> GpuDevices;
@@ -99,7 +99,7 @@ public:
     {
         RegisterParameter("slot_index", SlotIndex);
 
-        RegisterParameter("tmpfs_path", TmpfsPath)
+        RegisterParameter("tmpfs_paths", TmpfsPaths)
             .Default();
 
         RegisterParameter("root_path", RootPath)

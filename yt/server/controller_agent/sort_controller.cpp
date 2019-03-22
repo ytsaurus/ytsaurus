@@ -697,6 +697,11 @@ protected:
                 : Controller->GetFinalSortJobType();
         }
 
+        virtual bool IsSimpleTask() const override
+        {
+            return false;
+        }
+
         virtual void Persist(const TPersistenceContext& context) override
         {
             TPartitionBoundTask::Persist(context);
@@ -2792,6 +2797,7 @@ private:
 
     virtual TString GetLoggingProgress() const override
     {
+        const auto& jobCounter = GetDataFlowGraph()->GetTotalJobCounter();
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v}, "
             "Partitions = {T: %v, C: %v}, "
@@ -2802,13 +2808,13 @@ private:
             "UnorderedMergeJobs = %v, "
             "UnavailableInputChunks: %v",
             // Jobs
-            JobCounter->GetTotal(),
-            JobCounter->GetRunning(),
-            JobCounter->GetCompletedTotal(),
+            jobCounter->GetTotal(),
+            jobCounter->GetRunning(),
+            jobCounter->GetCompletedTotal(),
             GetPendingJobCount(),
-            JobCounter->GetFailed(),
-            JobCounter->GetAbortedTotal(),
-            JobCounter->GetLost(),
+            jobCounter->GetFailed(),
+            jobCounter->GetAbortedTotal(),
+            jobCounter->GetLost(),
             // Partitions
             Partitions.size(),
             CompletedPartitionCount,
@@ -3454,6 +3460,7 @@ private:
 
     virtual TString GetLoggingProgress() const override
     {
+        const auto& jobCounter = GetDataFlowGraph()->GetTotalJobCounter();
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v}, "
             "Partitions = {T: %v, C: %v}, "
@@ -3463,13 +3470,13 @@ private:
             "SortedReduceJobs = %v, "
             "UnavailableInputChunks: %v",
             // Jobs
-            JobCounter->GetTotal(),
-            JobCounter->GetRunning(),
-            JobCounter->GetCompletedTotal(),
+            jobCounter->GetTotal(),
+            jobCounter->GetRunning(),
+            jobCounter->GetCompletedTotal(),
             GetPendingJobCount(),
-            JobCounter->GetFailed(),
-            JobCounter->GetAbortedTotal(),
-            JobCounter->GetLost(),
+            jobCounter->GetFailed(),
+            jobCounter->GetAbortedTotal(),
+            jobCounter->GetLost(),
             // Partitions
             Partitions.size(),
             CompletedPartitionCount,
