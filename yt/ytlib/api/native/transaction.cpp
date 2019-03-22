@@ -77,7 +77,7 @@ public:
             GetId(),
             Client_->GetConnection()->GetCellTag()))
         , OrderedRequestsSlidingWindow_(
-            BIND(&TTransaction::DoEnqueueModificationRequest, Unretained(this)))
+            Client_->GetNativeConnection()->GetConfig()->MaxRequestWindowSize)
     { }
 
 
@@ -1390,7 +1390,9 @@ private:
                     << TErrorAttribute("sequence_number", *sequenceNumber);
             }
             // this may call DoEnqueueModificationRequest right away
-            OrderedRequestsSlidingWindow_.AddPacket(*sequenceNumber, request.get());
+            OrderedRequestsSlidingWindow_.AddPacket(*sequenceNumber, request.get(), [&] (TModificationRequest* request) {
+                DoEnqueueModificationRequest(request);
+            });
         } else {
             DoEnqueueModificationRequest(request.get());
         }
@@ -1447,7 +1449,7 @@ private:
     {
         bool clusterDirectorySynced = false;
 
-        if (!OrderedRequestsSlidingWindow_.Empty()) {
+        if (!OrderedRequestsSlidingWindow_.IsEmpty()) {
             THROW_ERROR_EXCEPTION("Cannot prepare transaction %v since sequence number %v is missing",
                 GetId(),
                 OrderedRequestsSlidingWindow_.GetNextSequenceNumber());

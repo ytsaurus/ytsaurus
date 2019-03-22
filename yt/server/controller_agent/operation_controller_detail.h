@@ -404,9 +404,6 @@ protected:
     int UnavailableInputChunkCount = 0;
     int UnavailableIntermediateChunkCount = 0;
 
-    // Job counters.
-    TProgressCounterPtr JobCounter = New<TProgressCounter>();
-
     // Maps node ids to descriptors for job input chunks.
     NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory_;
 
@@ -852,7 +849,7 @@ protected:
     NTableClient::TTableWriterOptionsPtr GetIntermediateTableWriterOptions() const;
     TEdgeDescriptor GetIntermediateEdgeDescriptorTemplate() const;
 
-    virtual TDataFlowGraph* GetDataFlowGraph() override;
+    virtual const TDataFlowGraphPtr& GetDataFlowGraph() const override;
 
     virtual void RegisterLivePreviewChunk(
         const TDataFlowGraph::TVertexDescriptor& vertexDescriptor,
@@ -904,6 +901,7 @@ private:
     THashMap<NObjectClient::TCellTag, int> CellTagToRequiredDebugChunkLists_;
 
     std::atomic<int> CachedPendingJobCount = {0};
+    int CachedTotalJobCount = 0;
 
     NConcurrency::TReaderWriterSpinLock CachedNeededResourcesLock;
     TJobResources CachedNeededResources;

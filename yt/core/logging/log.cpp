@@ -33,7 +33,9 @@ void TMessageStringBuilder::DoPreallocate(size_t newLength)
     auto oldBuffer = std::move(Buffer_);
     Buffer_ = context->Chunk.Slice(context->ChunkOffset, context->ChunkOffset + newLength);
     context->ChunkOffset += newLength;
-    ::memcpy(Buffer_.Begin(), Begin_, oldLength);
+    if (oldLength > 0) {
+        ::memcpy(Buffer_.Begin(), Begin_, oldLength);
+    }
     Begin_ = Buffer_.Begin();
     End_ = Begin_ + newLength;
 }

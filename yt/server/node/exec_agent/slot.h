@@ -43,7 +43,7 @@ struct ISlot
         TOperationId operationId) = 0;
 
     //! Returns tmpfs path if any.
-    virtual TFuture<std::optional<TString>> CreateSandboxDirectories(TUserSandboxOptions options) = 0;
+    virtual TFuture<std::vector<TString>> CreateSandboxDirectories(TUserSandboxOptions options) = 0;
 
     virtual TFuture<void> MakeLink(
         ESandboxKind sandboxKind,

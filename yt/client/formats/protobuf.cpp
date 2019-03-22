@@ -149,6 +149,10 @@ static TEnumerationDescription CreateEnumerationMap(const TString& enumName, con
 
         case EProtobufType::Message:
             return FieldDescriptor::TYPE_MESSAGE;
+
+        case EProtobufType::Any:
+        case EProtobufType::OtherColumns:
+            return FieldDescriptor::TYPE_BYTES;
     }
     Y_UNREACHABLE();
 }

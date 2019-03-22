@@ -704,7 +704,7 @@ private:
             requestControl->ProfileRequest(requestMessage);
 
             YT_LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v, TrackingLevel: %v, "
-                "ChecksummedPartCount: %v, MultiplexingBand: %v, Endpoint: %v, AttachmentSize: %v)",
+                "ChecksummedPartCount: %v, MultiplexingBand: %v, Endpoint: %v, BodySize: %v, AttachmentSize: %v)",
                 requestId,
                 requestControl->GetService(),
                 requestControl->GetMethod(),
@@ -713,6 +713,7 @@ private:
                 busOptions.ChecksummedPartCount,
                 options.MultiplexingBand,
                 bus->GetEndpointDescription(),
+                GetMessageBodySize(requestMessage),
                 GetTotalMessageAttachmentSize(requestMessage));
         }
 

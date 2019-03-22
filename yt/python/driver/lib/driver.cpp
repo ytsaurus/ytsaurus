@@ -118,7 +118,7 @@ Py::Object TDriverBase::Execute(Py::Tuple& args, Py::Dict& kwargs)
 
     auto inputStreamObj = GetAttr(pyRequest, "input_stream");
     if (!inputStreamObj.isNone()) {
-        auto inputStreamHolder = CreateInputStreamWrapper(inputStreamObj);
+        auto inputStreamHolder = CreateInputStreamWrapper(inputStreamObj, /* wrapPythonExceptions */ true);
         request.InputStream = CreateAsyncAdapter(inputStreamHolder.get());
         holder->HoldInputStream(std::move(inputStreamHolder));
     }

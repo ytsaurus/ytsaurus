@@ -72,6 +72,11 @@ public:
         Holder_ = buffer;
 
         CreateCompressor();
+
+        if (Finished_) {
+            THROW_ERROR_EXCEPTION("Attempting write to closed compression stream");
+        }
+        
         Compressor_->Write(buffer.Begin(), buffer.Size());
         return VoidFuture;
     }

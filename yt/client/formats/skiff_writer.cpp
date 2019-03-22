@@ -16,6 +16,10 @@
 
 #include <yt/core/yson/writer.h>
 
+#include <util/generic/buffer.h>
+
+#include <util/stream/buffer.h>
+
 namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -427,9 +431,13 @@ private:
                 SkiffWriter_->WriteVariant16Tag(EndOfSequenceTag<ui16>());
             }
             if (hasOtherColumns) {
-                YsonBuffer_.clear();
-                TStringOutput out(YsonBuffer_);
-                NYson::TYsonWriter writer(&out);
+                YsonBuffer_.Clear();
+                TBufferOutput out(YsonBuffer_);
+                NYson::TYsonWriter writer(
+                    &out,
+                    NYson::EYsonFormat::Binary,
+                    NYson::EYsonType::Node,
+                    /* enableRaw */ true);
                 writer.OnBeginMap();
                 for (const auto otherValueIndex : OtherValueIndexes_) {
                     const auto& value = row[otherValueIndex];
@@ -437,7 +445,7 @@ private:
                     WriteYsonValue(&writer, value);
                 }
                 writer.OnEndMap();
-                SkiffWriter_->WriteYson32(YsonBuffer_);
+                SkiffWriter_->WriteYson32(TStringBuf(YsonBuffer_.Data(), YsonBuffer_.Size()));
             }
             SkiffWriter_->Flush();
             TryFlushBuffer(false);
@@ -469,12 +477,12 @@ private:
                 SkiffWriter_->WriteString32(TStringBuf(value.Data.String, value.Length));
                 break;
             case EWireType::Yson32: {
-                YsonBuffer_.clear();
-                TStringOutput out(YsonBuffer_);
+                YsonBuffer_.Clear();
+                TBufferOutput out(YsonBuffer_);
 
                 NYson::TYsonWriter writer(&out);
                 WriteYsonValue(&writer, value);
-                SkiffWriter_->WriteYson32(YsonBuffer_);
+                SkiffWriter_->WriteYson32(TStringBuf(YsonBuffer_.Data(), YsonBuffer_.Size()));
                 break;
             }
             default:
@@ -511,7 +519,7 @@ private:
     i64 RowIndex_ = -1;
 
     // Buffer that we are going to reuse in order to reduce memory allocations.
-    TString YsonBuffer_;
+    TBuffer YsonBuffer_;
 
     const TUnversionedRow* CurrentRow_ = nullptr;
 };

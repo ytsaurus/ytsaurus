@@ -28,6 +28,7 @@
 #include <Common/getMultipleKeysFromConfig.h>
 #include <Common/getNumberOfPhysicalCPUCores.h>
 #include <Databases/DatabaseMemory.h>
+#include <Dictionaries/registerDictionaries.h>
 #include <Functions/registerFunctions.h>
 #include <IO/HTTPCommon.h>
 #include <Interpreters/AsynchronousMetrics.h>
@@ -76,7 +77,7 @@ std::string GetCanonicalPath(std::string path)
 {
     Poco::trimInPlace(path);
     if (path.empty()) {
-        throw Exception("path configuration parameter is empty");
+        throw Exception("path configuration parameter is empty", DB::ErrorCodes::METRIKA_OTHER_ERROR);
     }
     if (path.back() != '/') {
         path += '/';
@@ -329,6 +330,7 @@ private:
         registerAggregateFunctions();
         registerTableFunctions();
         registerStorageMemory(StorageFactory::instance());
+        registerDictionaries();
 
         RegisterFunctions();
         RegisterTableFunctions();

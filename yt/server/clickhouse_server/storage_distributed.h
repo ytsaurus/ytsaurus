@@ -75,7 +75,7 @@ public:
         return Schema.HasPrimaryKey();
     }
 
-    virtual bool mayBenefitFromIndexForIn(const DB::ASTPtr& /* leftInOperand */) const override
+    virtual bool mayBenefitFromIndexForIn(const DB::ASTPtr & /* left_in_operand */, const DB::Context & /* query_context */) const override
     {
         return supportsIndexForIn();
     }

@@ -48,7 +48,7 @@ KeyCondition CreateKeyCondition(
         schema.KeyColumns,
         context);
 
-    return KeyCondition(queryInfo, context, schema.Columns, schema.PrimarySortColumns, std::move(pkExpression));
+    return KeyCondition(queryInfo, context, schema.PrimarySortColumns, std::move(pkExpression));
 }
 
 void ConvertToFieldRow(const NTableClient::TUnversionedRow& row, DB::Field* field)

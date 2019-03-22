@@ -22,9 +22,14 @@ TChunkScanner::TChunkScanner(
 void TChunkScanner::Start(TChunk* frontChunk, int chunkCount)
 {
     YCHECK(!GlobalIterator_);
-    GlobalIterator_ = frontChunk;
-
     YCHECK(GlobalCount_ < 0);
+
+    ScheduleGlobalScan(frontChunk, chunkCount);
+}
+
+void TChunkScanner::ScheduleGlobalScan(TChunk* frontChunk, int chunkCount)
+{
+    GlobalIterator_ = frontChunk;
     GlobalCount_ = chunkCount;
 
     YT_LOG_INFO("Global chunk scan started (ChunkCount: %v)",

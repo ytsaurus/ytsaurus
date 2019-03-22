@@ -80,7 +80,7 @@ extern const int INCOMPATIBLE_COLUMNS;
 extern const int LOGICAL_ERROR;
 extern const int NOT_IMPLEMENTED;
 extern const int NUMBER_OF_ARGUMENTS_DOESNT_MATCH;
-extern const int TOO_LESS_ARGUMENTS_FOR_FUNCTION;
+extern const int TOO_FEW_ARGUMENTS_FOR_FUNCTION;
 extern const int TOO_MANY_ARGUMENTS_FOR_FUNCTION;
 extern const int UNKNOWN_TYPE;
 extern const int IP_ADDRESS_NOT_ALLOWED;
