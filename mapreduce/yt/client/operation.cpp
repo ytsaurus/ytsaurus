@@ -564,9 +564,9 @@ private:
 
     TString UploadToCache(const IItemToUpload& itemToUpload) const
     {
-        LOG_DEBUG("Uploading file (FileName: %s)", itemToUpload.GetDescription().c_str());
+        LOG_INFO("Uploading file (FileName: %s)", itemToUpload.GetDescription().c_str());
         TFinallyGuard g([&] {
-            LOG_DEBUG("Complete uploading file (FileName: %s)", itemToUpload.GetDescription().c_str());
+            LOG_INFO("Complete uploading file (FileName: %s)", itemToUpload.GetDescription().c_str());
         });
         switch (Options_.FileCacheMode_) {
             case TOperationOptions::EFileCacheMode::ApiCommandBased:
