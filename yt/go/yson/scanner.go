@@ -101,9 +101,11 @@ func (s *scanner) reset(kind StreamKind) {
 	case StreamNode:
 	case StreamMapFragment:
 		s.fragment = true
+		s.endTop = true
 		s.pushParseState(parseMapKey)
 	case StreamListFragment:
 		s.fragment = true
+		s.endTop = true
 		s.pushParseState(parseListValue)
 	}
 }
@@ -228,6 +230,7 @@ func stateBeginValue(s *scanner, c byte) opcode {
 	}
 
 	if c == '<' {
+		s.endTop = false
 		s.step = stateBeginAttrs
 		s.pushParseState(parseAttrKey)
 		return scanBeginAttrs
@@ -241,6 +244,7 @@ func stateBeginValueNoAttrs(s *scanner, c byte) opcode {
 		return scanSkipSpace
 	}
 
+	s.endTop = false
 	switch c {
 	case '{':
 		s.step = stateBeginMap

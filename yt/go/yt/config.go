@@ -16,19 +16,30 @@ type Config struct {
 	Logger log.Logger
 }
 
-func NormalizeProxyURL(proxy string) string {
+type ClusterURL struct {
+	URL              string
+	DisableDiscovery bool
+}
+
+func NormalizeProxyURL(proxy string) ClusterURL {
 	const prefix = "http://"
 	const suffix = ".yt.yandex.net"
 
+	var url ClusterURL
 	if !strings.Contains(proxy, ".") && !strings.Contains(proxy, ":") && !strings.Contains(proxy, "localhost") {
 		proxy += suffix
+	}
+
+	if strings.ContainsAny(proxy, "0123456789") {
+		url.DisableDiscovery = true
 	}
 
 	if !strings.HasPrefix(proxy, prefix) {
 		proxy = prefix + proxy
 	}
 
-	return proxy
+	url.URL = proxy
+	return url
 }
 
 func ClusterFromEnv() (*Config, error) {
@@ -39,5 +50,4 @@ func ClusterFromEnv() (*Config, error) {
 
 	token := os.Getenv("YT_TOKEN")
 	return &Config{Proxy: proxy, Token: token}, nil
-
 }

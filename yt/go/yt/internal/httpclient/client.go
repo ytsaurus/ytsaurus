@@ -41,7 +41,7 @@ type httpClient struct {
 	mutationRetrier *internal.MutationRetrier
 	readRetrier     *internal.ReadRetrier
 
-	clusterURL string
+	clusterURL yt.ClusterURL
 	httpClient *http.Client
 	log        log.Logger
 	config     *yt.Config
@@ -51,7 +51,11 @@ type httpClient struct {
 }
 
 func (c *httpClient) pickHeavyProxy(ctx context.Context) (string, error) {
-	req, err := http.NewRequest("GET", c.clusterURL+"/hosts", nil)
+	if c.clusterURL.DisableDiscovery {
+		return c.clusterURL.URL, nil
+	}
+
+	req, err := http.NewRequest("GET", c.clusterURL.URL+"/hosts", nil)
 	if err != nil {
 		return "", err
 	}
@@ -105,12 +109,16 @@ func (c *httpClient) writeParams(h http.Header, call *internal.Call) error {
 }
 
 func (c *httpClient) writeHTTPRequest(ctx context.Context, call *internal.Call, body io.Reader) (req *http.Request, err error) {
-	url := c.clusterURL
-	if call.Params.HTTPVerb().IsHeavy() {
+	var url string
+	if call.ProxyURL != "" {
+		url = call.ProxyURL
+	} else if call.Params.HTTPVerb().IsHeavy() {
 		url, err = c.pickHeavyProxy(ctx)
 		if err != nil {
 			return nil, err
 		}
+	} else {
+		url = c.clusterURL.URL
 	}
 
 	if body == nil {

@@ -22,6 +22,7 @@ type Call struct {
 	CallID guid.GUID
 
 	YSONValue []byte
+	ProxyURL  string
 }
 
 type CallResult struct {

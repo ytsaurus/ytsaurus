@@ -24,3 +24,13 @@ func TestReadListFragment(t *testing.T) {
 		require.NoError(t, err)
 	}
 }
+
+func TestReadEmpty(t *testing.T) {
+	for _, input := range []string{"", "   "} {
+		r := NewReaderKindFromBytes([]byte(input), StreamListFragment)
+
+		ok, err := r.NextListItem()
+		require.NoError(t, err)
+		require.False(t, ok)
+	}
+}

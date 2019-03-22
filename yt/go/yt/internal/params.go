@@ -269,6 +269,10 @@ func writeStartTxOptions(w *yson.Writer, o *yt.StartTxOptions) {
 	w.Any(o.Ping)
 	w.MapKeyString("ping_ancestor_transactions")
 	w.Any(o.PingAncestors)
+	if o.Type != nil {
+		w.MapKeyString("type")
+		w.Any(o.Type)
+	}
 	w.MapKeyString("sticky")
 	w.Any(o.Sticky)
 	if o.PrerequisiteTransactionIDs != nil {
@@ -293,6 +297,8 @@ func writeAbortTxOptions(w *yson.Writer, o *yt.AbortTxOptions) {
 	if o == nil {
 		return
 	}
+	w.MapKeyString("sticky")
+	w.Any(o.Sticky)
 	writeTransactionOptions(w, o.TransactionOptions)
 	writeMutatingOptions(w, o.MutatingOptions)
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
@@ -302,6 +308,8 @@ func writeCommitTxOptions(w *yson.Writer, o *yt.CommitTxOptions) {
 	if o == nil {
 		return
 	}
+	w.MapKeyString("sticky")
+	w.Any(o.Sticky)
 	writeMutatingOptions(w, o.MutatingOptions)
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 	writeTransactionOptions(w, o.TransactionOptions)
@@ -492,6 +500,39 @@ func writeUnlockNodeOptions(w *yson.Writer, o *yt.UnlockNodeOptions) {
 	}
 	writeTransactionOptions(w, o.TransactionOptions)
 	writeMutatingOptions(w, o.MutatingOptions)
+}
+
+func writeLookupRowsOptions(w *yson.Writer, o *yt.LookupRowsOptions) {
+	if o == nil {
+		return
+	}
+	writeTransactionOptions(w, o.TransactionOptions)
+}
+
+func writeInsertRowsOptions(w *yson.Writer, o *yt.InsertRowsOptions) {
+	if o == nil {
+		return
+	}
+	writeTransactionOptions(w, o.TransactionOptions)
+}
+
+func writeDeleteRowsOptions(w *yson.Writer, o *yt.DeleteRowsOptions) {
+	if o == nil {
+		return
+	}
+	writeTransactionOptions(w, o.TransactionOptions)
+}
+
+func writeSelectRowsOptions(w *yson.Writer, o *yt.SelectRowsOptions) {
+	if o == nil {
+		return
+	}
+}
+
+func writeStartTabletTxOptions(w *yson.Writer, o *yt.StartTabletTxOptions) {
+	if o == nil {
+		return
+	}
 }
 
 type CreateNodeParams struct {
@@ -1925,4 +1966,156 @@ func (p *UnlockNodeParams) TransactionOptions() **yt.TransactionOptions {
 
 func (p *UnlockNodeParams) MutatingOptions() **yt.MutatingOptions {
 	return &p.options.MutatingOptions
+}
+
+type LookupRowsParams struct {
+	verb    Verb
+	path    ypath.Path
+	options *yt.LookupRowsOptions
+}
+
+func NewLookupRowsParams(
+	path ypath.Path,
+	options *yt.LookupRowsOptions,
+) *LookupRowsParams {
+	if options == nil {
+		options = &yt.LookupRowsOptions{}
+	}
+	return &LookupRowsParams{
+		Verb("lookup_rows"),
+		path,
+		options,
+	}
+}
+
+func (p *LookupRowsParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *LookupRowsParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("path", p.path),
+	}
+}
+
+func (p *LookupRowsParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("path")
+	w.Any(p.path)
+	writeLookupRowsOptions(w, p.options)
+}
+
+func (p *LookupRowsParams) TransactionOptions() **yt.TransactionOptions {
+	return &p.options.TransactionOptions
+}
+
+type InsertRowsParams struct {
+	verb    Verb
+	path    ypath.Path
+	options *yt.InsertRowsOptions
+}
+
+func NewInsertRowsParams(
+	path ypath.Path,
+	options *yt.InsertRowsOptions,
+) *InsertRowsParams {
+	if options == nil {
+		options = &yt.InsertRowsOptions{}
+	}
+	return &InsertRowsParams{
+		Verb("insert_rows"),
+		path,
+		options,
+	}
+}
+
+func (p *InsertRowsParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *InsertRowsParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("path", p.path),
+	}
+}
+
+func (p *InsertRowsParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("path")
+	w.Any(p.path)
+	writeInsertRowsOptions(w, p.options)
+}
+
+func (p *InsertRowsParams) TransactionOptions() **yt.TransactionOptions {
+	return &p.options.TransactionOptions
+}
+
+type DeleteRowsParams struct {
+	verb    Verb
+	path    ypath.Path
+	options *yt.DeleteRowsOptions
+}
+
+func NewDeleteRowsParams(
+	path ypath.Path,
+	options *yt.DeleteRowsOptions,
+) *DeleteRowsParams {
+	if options == nil {
+		options = &yt.DeleteRowsOptions{}
+	}
+	return &DeleteRowsParams{
+		Verb("delete_rows"),
+		path,
+		options,
+	}
+}
+
+func (p *DeleteRowsParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *DeleteRowsParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("path", p.path),
+	}
+}
+
+func (p *DeleteRowsParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("path")
+	w.Any(p.path)
+	writeDeleteRowsOptions(w, p.options)
+}
+
+func (p *DeleteRowsParams) TransactionOptions() **yt.TransactionOptions {
+	return &p.options.TransactionOptions
+}
+
+type SelectRowsParams struct {
+	verb    Verb
+	query   string
+	options *yt.SelectRowsOptions
+}
+
+func NewSelectRowsParams(
+	query string,
+	options *yt.SelectRowsOptions,
+) *SelectRowsParams {
+	if options == nil {
+		options = &yt.SelectRowsOptions{}
+	}
+	return &SelectRowsParams{
+		Verb("select_rows"),
+		query,
+		options,
+	}
+}
+
+func (p *SelectRowsParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *SelectRowsParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("query", p.query),
+	}
+}
+
+func (p *SelectRowsParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("query")
+	w.Any(p.query)
+	writeSelectRowsOptions(w, p.options)
 }
