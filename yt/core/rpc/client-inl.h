@@ -107,6 +107,14 @@ TIntrusivePtr<T> TProxyBase::CreateRequest(const TMethodDescriptor& methodDescri
     request->SetResponseCodec(DefaultResponseCodec_);
     request->SetEnableLegacyRpcCodecs(DefaultEnableLegacyRpcCodecs_);
     request->SetMultiplexingBand(methodDescriptor.MultiplexingBand);
+
+    if (methodDescriptor.StreamingEnabled) {
+        request->RequestAttachmentsStreamingParameters() =
+            DefaultRequestAttachmentsStreamingParameters_;
+        request->ResponseAttachmentsStreamingParameters() =
+            DefaultResponseAttachmentsStreamingParameters_;
+    }
+
     return request;
 }
 

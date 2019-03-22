@@ -402,6 +402,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, DefaultResponseCodec, NCompression::ECodec::None);
     DEFINE_BYVAL_RW_PROPERTY(bool, DefaultEnableLegacyRpcCodecs, true);
 
+    DEFINE_BYREF_RW_PROPERTY(TStreamingParameters, DefaultRequestAttachmentsStreamingParameters);
+    DEFINE_BYREF_RW_PROPERTY(TStreamingParameters, DefaultResponseAttachmentsStreamingParameters);
+
 protected:
     const IChannelPtr Channel_;
     const TServiceDescriptor ServiceDescriptor_;
