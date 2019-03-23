@@ -1814,6 +1814,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert lookup_rows("//tmp/t", [{"key": 1}], versioned=True, timestamp=ts) == []
 
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    @skip_if_rpc_driver_backend
     def test_versioned_lookup_early_timestamp_after_alter(self, optimize_for):
         sync_create_cells(1)
 
