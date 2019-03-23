@@ -68,13 +68,9 @@ void TAsyncReaderWriterLock::ReleaseWriter()
                         promise.Set();
                     }
                 };
-                if (TryGetCurrentScheduler()) {
-                    // Promise subscribers must be synchronous to avoid hanging on some reader.
-                    TForbidContextSwitchGuard contextSwitchGuard;
-                    setPromises();
-                } else {
-                    setPromises();
-                }
+                // Promise subscribers must be synchronous to avoid hanging on some reader.
+                TForbidContextSwitchGuard contextSwitchGuard;
+                setPromises();
             }
         }
     } else {
