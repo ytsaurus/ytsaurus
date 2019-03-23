@@ -151,6 +151,18 @@ public:
         Persist(context, InputStripes);
         Persist(context, ElementaryStripes);
         Persist(context, ChunkSliceThreshold);
+
+        Persist(context, TotalJobCount);
+    }
+
+    virtual i64 GetTotalDataSliceCount() const override
+    {
+        return ElementaryStripes.size();
+    }
+
+    virtual i64 GetTotalJobCount() const override
+    {
+        return TotalJobCount;
     }
 
 private:
@@ -163,6 +175,7 @@ private:
 
     i64 DataWeightThreshold;
     i64 ChunkSliceThreshold;
+    i64 TotalJobCount = 0;
 
     class TOutput
         : public TChunkPoolOutputWithCountersBase
@@ -459,6 +472,7 @@ private:
             run.ElementaryIndexBegin = Runs.empty() ? 0 : Runs.back().ElementaryIndexEnd;
             run.ElementaryIndexEnd = run.ElementaryIndexBegin;
             Runs.push_back(run);
+            ++Owner->TotalJobCount;
         }
 
         TRun* FindRun(int elementaryIndex)

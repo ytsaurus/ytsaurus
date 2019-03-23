@@ -511,6 +511,18 @@ protected:
             Controller->CheckSortStartThreshold();
             Controller->CheckMergeStartThreshold();
 
+            if (Controller->ShufflePool->GetTotalDataSliceCount() > Controller->Spec->MaxShuffleDataSliceCount) {
+                Controller->OnOperationFailed(TError("Too many data slices in shuffle pool, try to decrease size of intermediate data or split operation into several smaller ones")
+                    << TErrorAttribute("shuffle_data_slice_count", Controller->ShufflePool->GetTotalDataSliceCount())
+                    << TErrorAttribute("max_shuffle_data_slice_count", Controller->Spec->MaxShuffleDataSliceCount));
+            }
+
+            if (Controller->ShufflePool->GetTotalJobCount() > Controller->Spec->MaxShuffleJobCount) {
+                Controller->OnOperationFailed(TError("Too many shuffle jobs, try to decrease size of intermediate data or split operation into several smaller ones")
+                      << TErrorAttribute("shuffle_job_count", Controller->ShufflePool->GetTotalJobCount())
+                      << TErrorAttribute("max_shuffle_job_count", Controller->Spec->MaxShuffleJobCount));
+            }
+
             return result;
         }
 
@@ -578,6 +590,7 @@ protected:
                     }
                     if (partition->UnorderedMergeTask) {
                         partition->UnorderedMergeTask->FinishInput();
+                        Controller->ValidateMergeDataSliceLimit();
                     }
                 }
             }
@@ -900,6 +913,7 @@ protected:
             // Kick-start the corresponding merge task.
             if (Controller->IsSortedMergeNeeded(Partition)) {
                 Partition->SortedMergeTask->FinishInput();
+                Controller->ValidateMergeDataSliceLimit();
             }
         }
 
@@ -2162,6 +2176,26 @@ protected:
         TotalOutputRowCount += GetTotalOutputDataStatistics(*statistics).row_count();
     }
 
+    void ValidateMergeDataSliceLimit()
+    {
+        i64 dataSliceCount = 0;
+        for (const auto& partition: Partitions) {
+            if (partition->SortedMergeTask) {
+                dataSliceCount += partition->SortedMergeTask->GetInputDataSliceCount();
+            }
+
+            if (partition->UnorderedMergeTask) {
+                dataSliceCount += partition->UnorderedMergeTask->GetInputDataSliceCount();
+            }
+        }
+
+        if (dataSliceCount > Spec->MaxMergeDataSliceCount) {
+            OnOperationFailed(TError("Too many data slices in merge pools, try to decrease size of intermediate data or split operation into several smaller ones")
+                << TErrorAttribute("merge_data_slice_count", dataSliceCount)
+                << TErrorAttribute("max_merge_data_slice_count", Spec->MaxMergeDataSliceCount));
+        }
+    }
+
     virtual bool IsJobInterruptible() const override
     {
         return false;
@@ -2299,6 +2333,12 @@ private:
 
         if (TotalEstimatedInputDataWeight == 0)
             return;
+
+        if (TotalEstimatedInputDataWeight > Spec->MaxInputDataWeight) {
+            THROW_ERROR_EXCEPTION("Failed to initialize sort operation, input data weight is too large")
+                << TErrorAttribute("estimated_input_data_weight", TotalEstimatedInputDataWeight)
+                << TErrorAttribute("max_input_data_weight", Spec->MaxInputDataWeight);
+        }
 
         TSamplesFetcherPtr samplesFetcher;
 
