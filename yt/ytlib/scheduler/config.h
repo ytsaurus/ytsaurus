@@ -956,6 +956,15 @@ public:
 
     int ShuffleNetworkLimit;
 
+    //! Hard limit on the number of data slices in shuffle pool.
+    int MaxShuffleDataSliceCount;
+
+    //! Hard limit on the number of shuffle jobs.
+    int MaxShuffleJobCount;
+
+    //! Hard limit on the total number of data slices in all merge pool.
+    int MaxMergeDataSliceCount;
+
     std::vector<TString> SortBy;
 
     //! If |true| then the scheduler attempts to distribute partition jobs evenly
@@ -991,6 +1000,9 @@ public:
     int SamplesPerPartition;
 
     ESchemaInferenceMode SchemaInferenceMode;
+
+    //! Hard limit on the size of allowed input data weight.
+    i64 MaxInputDataWeight;
 
     TSortOperationSpec();
 
