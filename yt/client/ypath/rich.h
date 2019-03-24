@@ -16,6 +16,8 @@
 
 #include <yt/client/transaction_client/public.h>
 
+#include <yt/client/security_client/public.h>
+
 namespace NYT::NYPath {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,7 +112,7 @@ public:
     std::optional<NObjectClient::TTransactionId> GetTransactionId() const;
 
     // "security_tags"
-    std::optional<std::vector<TString>> GetSecurityTags() const;
+    std::optional<std::vector<NSecurityClient::TSecurityTag>> GetSecurityTags() const;
 
 private:
     TYPath Path_;

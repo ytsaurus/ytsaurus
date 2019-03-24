@@ -12,9 +12,11 @@
 
 #include <yt/ytlib/job_tracker_client/public.h>
 
+#include <yt/ytlib/transaction_client/public.h>
+
 #include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/transaction_client/public.h>
+#include <yt/client/security_client/public.h>
 
 #include <yt/client/ypath/rich.h>
 
@@ -138,7 +140,7 @@ struct TUserObject
     NObjectClient::TCellTag CellTag;
     NObjectClient::EObjectType Type = NObjectClient::EObjectType::Null;
     std::vector<TString> OmittedInaccessibleColumns;
-    std::vector<TString> SecurityTags;
+    std::vector<NSecurityClient::TSecurityTag> SecurityTags;
 
     virtual ~TUserObject() = default;
 
