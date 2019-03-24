@@ -40,10 +40,22 @@ public:
 
 private:
     const IUserJobSynchronizerClientPtr JobControl_;
+    bool SatellitePrepared_ = false;
+    bool ExecutorPrepared_ = false;
 
     DECLARE_RPC_SERVICE_METHOD(NJobProxy::NProto, SatellitePrepared)
     {
         Y_UNUSED(response);
+
+        // This is a workaround for porto container resurrection on core command.
+        // YT-10547
+        if (SatellitePrepared_) {
+            context->Reply(TError("Satellite has already prepared"));
+            return;
+        }
+
+        SatellitePrepared_ = true;
+
         auto error = FromProto<TError>(request->error());
         if (error.IsOK()) {
             auto rss = FromProto<i64>(request->rss());
@@ -58,6 +70,16 @@ private:
     {
         Y_UNUSED(request);
         Y_UNUSED(response);
+
+        // This is a workaround for porto container resurrection on core command.
+        // YT-10547
+        if (ExecutorPrepared_) {
+            context->Reply(TError("Executor has already prepared"));
+            return;
+        }
+
+        ExecutorPrepared_ = true;
+
         JobControl_->NotifyExecutorPrepared();
         context->Reply();
     }
