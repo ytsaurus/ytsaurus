@@ -84,6 +84,12 @@ DEFINE_ENUM(ESessionType,
     ((Repair)                   (2))
 );
 
+DEFINE_ENUM(EUpdateMode,
+    ((None)                     (0))
+    ((Append)                   (1))
+    ((Overwrite)                (2))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TRemoteReaderOptions)

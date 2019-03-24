@@ -511,7 +511,7 @@ public:
     bool OmitInaccessibleColumns;
 
     //! These tags are propagated to all operation outputs (unless overridden).
-    std::vector<TString> AdditionalSecurityTags;
+    std::vector<NSecurityClient::TSecurityTag> AdditionalSecurityTags;
 
     TOperationSpecBase();
 

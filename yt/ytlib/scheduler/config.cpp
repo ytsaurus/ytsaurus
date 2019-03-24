@@ -1,12 +1,13 @@
 #include "config.h"
 
 #include <yt/ytlib/security_client/acl.h>
+#include <yt/ytlib/security_client/helpers.h>
+
+#include <yt/client/scheduler/operation_id_or_alias.h>
 
 #include <yt/core/ytree/convert.h>
 
 #include <yt/core/misc/fs.h>
-
-#include <yt/client/scheduler/operation_id_or_alias.h>
 
 #include <util/string/split.h>
 #include <util/string/iterator.h>
@@ -436,6 +437,7 @@ TOperationSpecBase::TOperationSpecBase()
 
         ValidateOperationAcl(Acl);
         ProcessAclAndOwnersParameters(&Acl, &Owners);
+        ValidateSecurityTags(AdditionalSecurityTags);
     });
 }
 

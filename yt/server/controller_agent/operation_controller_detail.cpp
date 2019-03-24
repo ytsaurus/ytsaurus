@@ -1925,7 +1925,7 @@ void TOperationControllerBase::UpdateActualHistogram(const TStatistics& statisti
 
 void TOperationControllerBase::InitializeSecurityTags()
 {
-    std::vector<TString> inferredSecurityTags;
+    std::vector<TSecurityTag> inferredSecurityTags;
     auto addTags = [&] (const auto& moreTags) {
         inferredSecurityTags.insert(inferredSecurityTags.end(), moreTags.begin(), moreTags.end());
     };

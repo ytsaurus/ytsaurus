@@ -95,7 +95,12 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
     auto primaryMediumName = combinedAttributes.GetAndRemove<TString>("primary_medium", NChunkClient::DefaultStoreMediumName);
     auto* primaryMedium = chunkManager->GetMediumByNameOrThrow(primaryMediumName);
 
-    auto securityTags = combinedAttributes.FindAndRemove<NSecurityServer::TSecurityTagsItems>("security_tags");
+    std::optional<NSecurityServer::TSecurityTags> securityTags;
+    auto securityTagItems = combinedAttributes.FindAndRemove<NSecurityServer::TSecurityTagsItems>("security_tags");
+    if (securityTagItems) {
+        securityTags = NSecurityServer::TSecurityTags{std::move(*securityTagItems)};
+        securityTags->Validate();
+    }
 
     auto nodeHolder = TBase::DoCreate(
         id,
@@ -117,7 +122,7 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
         if (securityTags) {
             const auto& securityManager = this->Bootstrap_->GetSecurityManager();
             const auto& securityTagsRegistry = securityManager->GetSecurityTagsRegistry();
-            node->SnapshotSecurityTags() = securityTagsRegistry->Intern({std::move(*securityTags)});
+            node->SnapshotSecurityTags() = securityTagsRegistry->Intern(std::move(*securityTags));
         }
 
         if (!node->IsExternal()) {

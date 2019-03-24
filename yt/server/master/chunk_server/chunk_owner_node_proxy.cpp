@@ -710,6 +710,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
                 ConvertTo<TSecurityTagsItems>(value)
             };
             securityTags.Normalize();
+            securityTags.Validate();
 
             // TODO(babenko): audit
             YT_LOG_DEBUG_UNLESS(IsRecovery(), "Node security tags updated; node is switched to \"overwrite\" mode (NodeId: %v, OldSecurityTags: %v, NewSecurityTags: %v",
@@ -1136,6 +1137,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
             FromProto<TSecurityTagsItems>(request->security_tags().items())
         };
         securityTags.Normalize();
+        securityTags.Validate();
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         const auto& securityTagsRegistry = securityManager->GetSecurityTagsRegistry();
