@@ -5,6 +5,8 @@
 #include "client.h"
 #endif
 
+#include <yt/core/rpc/stream.h>
+
 namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,7 +30,16 @@ TFuture<typename TResponse::TResult> TTypedClientRequest<TRequestMessage, TRespo
     auto promise = response->GetPromise();
     auto requestControl = Send(std::move(response));
     if (requestControl) {
-        promise.OnCanceled(BIND(&IClientRequestControl::Cancel, std::move(requestControl)));
+        auto abortHandler = BIND(&IClientRequestControl::Cancel, MakeWeak(requestControl));
+        auto subscribeToStreamAbort = [&] (const auto& stream) {
+            if (stream) {
+                stream->SubscribeAborted(abortHandler);
+            }
+        };
+        subscribeToStreamAbort(context->GetRequestAttachmentsStream());
+        subscribeToStreamAbort(context->GetResponseAttachmentsStream());
+        // NB: This is the last use of abortHandler; time to move!
+        promise.OnCanceled(std::move(abortHandler));
     }
     return promise.ToFuture();
 }

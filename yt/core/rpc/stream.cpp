@@ -171,6 +171,8 @@ void TAttachmentsInputStream::DoAbort(TGuard<TSpinLock>& guard, const TError& er
     if (promise) {
         promise.Set(error);
     }
+
+    Aborted_.Fire();
 }
 
 void TAttachmentsInputStream::OnTimeout()
@@ -356,6 +358,8 @@ void TAttachmentsOutputStream::DoAbort(TGuard<TSpinLock>& guard, const TError& e
             promise.Set(error);
         }
     }
+
+    Aborted_.Fire();
 }
 
 void TAttachmentsOutputStream::OnTimeout()
