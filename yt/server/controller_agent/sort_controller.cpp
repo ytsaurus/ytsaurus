@@ -3367,12 +3367,12 @@ private:
         }
     }
 
-    virtual bool IsOutputLivePreviewSupported() const override
+    virtual bool DoCheckOutputLivePreviewSupported() const override
     {
         return Spec->EnableLegacyLivePreview;
     }
 
-    virtual bool IsIntermediateLivePreviewSupported() const override
+    virtual bool DoCheckIntermediateLivePreviewSupported() const override
     {
         return Spec->EnableLegacyLivePreview;
     }

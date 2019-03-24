@@ -38,6 +38,14 @@ DEFINE_ENUM(ESchemaSerializationMethod,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDynamicTableLock::Persist(NCellMaster::TPersistenceContext& context)
+{
+    using ::NYT::Persist;
+    Persist(context, PendingTabletCount);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTableNode::TDynamicTableAttributes::TDynamicTableAttributes()
     : TabletBalancerConfig(New<TTabletBalancerConfig>())
 { }
@@ -64,6 +72,8 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, PrimaryLastMountTransactionId);
     Save(context, CurrentMountTransactionId);
     Save(context, *TabletBalancerConfig);
+    Save(context, DynamicTableLocks);
+    Save(context, UnconfirmedDynamicTableLockCount);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
@@ -121,6 +131,11 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= EMasterSnapshotVersion::PerTableTabletBalancerConfig) {
         Load(context, *TabletBalancerConfig);
+    }
+    // COMPAT(savrus)
+    if (context.GetVersion() >= EMasterSnapshotVersion::BulkInsert) {
+        Load(context, DynamicTableLocks);
+        Load(context, UnconfirmedDynamicTableLockCount);
     }
 
     // COMPAT(savrus)
@@ -618,6 +633,33 @@ std::optional<int> TTableNode::GetDesiredTabletCount() const
 void TTableNode::SetDesiredTabletCount(std::optional<int> value)
 {
     MutableTabletBalancerConfig()->DesiredTabletCount = value;
+}
+
+void TTableNode::AddDynamicTableLock(TTransactionId transactionId, TTimestamp timestamp, int pending)
+{
+    YT_VERIFY(MutableDynamicTableLocks().insert(std::make_pair(transactionId, TDynamicTableLock{timestamp, pending})).second);
+    SetUnconfirmedDynamicTableLockCount(GetUnconfirmedDynamicTableLockCount() + 1);
+}
+
+void TTableNode::ConfirmDynamicTableLock(TTransactionId transactionId)
+{
+    if (auto it = MutableDynamicTableLocks().find(transactionId)) {
+        YT_VERIFY(it->second.PendingTabletCount > 0);
+        --it->second.PendingTabletCount;
+        if (it->second.PendingTabletCount == 0) {
+            SetUnconfirmedDynamicTableLockCount(GetUnconfirmedDynamicTableLockCount() - 1);
+        }
+    }
+}
+
+void TTableNode::RemoveDynamicTableLock(TTransactionId transactionId)
+{
+    if (auto it = MutableDynamicTableLocks().find(transactionId)) {
+        if (it->second.PendingTabletCount > 0) {
+            SetUnconfirmedDynamicTableLockCount(GetUnconfirmedDynamicTableLockCount() - 1);
+        }
+        MutableDynamicTableLocks().erase(it);
+    }
 }
 
 DEFINE_EXTRA_PROPERTY_HOLDER(TTableNode, TTableNode::TDynamicTableAttributes, DynamicTableAttributes);

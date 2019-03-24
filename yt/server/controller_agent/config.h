@@ -706,6 +706,11 @@ public:
 
     NObjectClient::TReqExecuteBatchWithRetriesConfigPtr LockInputTablesRetries;
 
+    int DynamicTableLockCheckingAttemptCountLimit;
+    double DynamicTableLockCheckingIntervalScale;
+    TDuration DynamicTableLockCheckingIntervalDurationMin;
+    TDuration DynamicTableLockCheckingIntervalDurationMax;
+
     TControllerAgentConfig();
 
 private:

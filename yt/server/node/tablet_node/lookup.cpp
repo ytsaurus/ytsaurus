@@ -334,6 +334,8 @@ void LookupRows(
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
 {
+    tabletSnapshot->WaitOnLocks(timestamp);
+
     NTableClient::NProto::TReqLookupRows req;
     reader->ReadMessage(&req);
 
@@ -377,6 +379,8 @@ void VersionedLookupRows(
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
 {
+    tabletSnapshot->WaitOnLocks(timestamp);
+
     NTableClient::NProto::TReqVersionedLookupRows req;
     reader->ReadMessage(&req);
 

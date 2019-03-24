@@ -252,6 +252,9 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp);
 
+    using TUnconfirmedDynamicTableLocksSet = THashSet<NTransactionClient::TTransactionId>;
+    DEFINE_BYREF_RW_PROPERTY(TUnconfirmedDynamicTableLocksSet, UnconfirmedDynamicTableLocks);
+
     DECLARE_BYVAL_RW_PROPERTY(ETabletState, State);
     DECLARE_BYVAL_RW_PROPERTY(ETabletState, ExpectedState);
     DECLARE_BYVAL_RW_PROPERTY(NTableServer::TTableNode*, Table);

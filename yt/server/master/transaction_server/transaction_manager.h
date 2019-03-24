@@ -135,6 +135,11 @@ public:
     std::unique_ptr<NHydra::TMutation> CreateRegisterTransactionActionsMutation(
         TCtxRegisterTransactionActionsPtr context);
 
+    void CreateOrRefTimestampHolder(TTransactionId transactionId);
+    void SetTimestampHolderTimestamp(TTransactionId transactionId, TTimestamp timestamp);
+    TTimestamp GetTimestampHolderTimestamp(TTransactionId transactionId);
+    void UnrefTimestampHolder(TTransactionId transactionId);
+
 private:
     class TImpl;
     class TTransactionTypeHandler;

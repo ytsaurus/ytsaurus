@@ -138,6 +138,7 @@ public:
             Bootstrap_->GetBlockCache(),
             NChunkClient::NProto::TChunkSpec(),
             nullptr,
+            NullTimestamp,
             nullptr,
             nullptr,
             nullptr);

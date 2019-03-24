@@ -97,6 +97,13 @@ struct TOutputTable
     //! Corresponding sink.
     NChunkPools::IChunkPoolInput* ChunkPoolInput = nullptr;
 
+    bool IsDynamic = false;
+    std::vector<NTableClient::TOwningKey> PivotKeys;
+    std::vector<NChunkClient::TChunkListId> TabletChunkListIds;
+
+    std::vector<NChunkClient::TInputChunkPtr> OutputChunks;
+    int ChunkCount;
+
     TEdgeDescriptor GetEdgeDescriptorTemplate(int tableIndex = -1);
 
     bool IsBeginUploadCompleted() const;

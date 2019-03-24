@@ -461,6 +461,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, Errors_);
     Save(context, ErrorCount_);
     Save(context, ExpectedState_);
+    Save(context, UnconfirmedDynamicTableLocks_);
 }
 
 void TTablet::Load(TLoadContext& context)
@@ -489,6 +490,10 @@ void TTablet::Load(TLoadContext& context)
     } else {
         // This will be fixed in TTabletManager::TImpl::OnAfterSnapshotLoaded.
         ExpectedState_ = ETabletState::Unmounted;
+    }
+    // COMPAT(savrus)
+    if (context.GetVersion() >= EMasterSnapshotVersion::BulkInsert) {
+        Load(context, UnconfirmedDynamicTableLocks_);
     }
 }
 

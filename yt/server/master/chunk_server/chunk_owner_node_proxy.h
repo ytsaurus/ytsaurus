@@ -31,14 +31,14 @@ protected:
 
     virtual bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
 
-    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
-
     struct TFetchContext
     {
         NNodeTrackerClient::EAddressType AddressType = NNodeTrackerClient::EAddressType::InternalRpc;
         bool FetchParityReplicas = false;
         std::vector<NChunkClient::TReadRange> Ranges;
     };
+
+    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
     virtual void ValidateFetch(TFetchContext* context);
 

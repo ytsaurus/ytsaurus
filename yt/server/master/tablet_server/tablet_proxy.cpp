@@ -78,6 +78,8 @@ private:
             .SetPresent(tablet->GetAction()));
         descriptors->push_back(EInternedAttributeKey::RetainedTimestamp);
         descriptors->push_back(EInternedAttributeKey::UnflushedTimestamp);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UnconfirmedDynamicTableLocks)
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Errors)
             .SetOpaque(true));
     }
@@ -216,6 +218,11 @@ private:
             case EInternedAttributeKey::UnflushedTimestamp:
                 BuildYsonFluently(consumer)
                     .Value(static_cast<TTimestamp>(tablet->NodeStatistics().unflushed_timestamp()));
+                return true;
+
+            case EInternedAttributeKey::UnconfirmedDynamicTableLocks:
+                BuildYsonFluently(consumer)
+                    .Value(tablet->UnconfirmedDynamicTableLocks());
                 return true;
 
             case EInternedAttributeKey::Errors:

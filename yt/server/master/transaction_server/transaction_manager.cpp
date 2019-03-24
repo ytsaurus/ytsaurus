@@ -358,6 +358,8 @@ public:
         transaction->ExportedObjects().clear();
         transaction->ImportedObjects().clear();
 
+        SetTimestampHolderTimestamp(transaction->GetId(), commitTimestamp);
+
         FinishTransaction(transaction);
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %llx)",
@@ -650,13 +652,61 @@ public:
         LeaseTracker_->PingTransaction(transactionId, pingAncestors);
     }
 
+    void CreateOrRefTimestampHolder(TTransactionId transactionId)
+    {
+        if (auto it = TimestampHolderMap_.find(transactionId)) {
+            ++it->second.RefCount;
+        }
+        TimestampHolderMap_.emplace(transactionId, TTimestampHolder{});
+    }
+
+    void SetTimestampHolderTimestamp(TTransactionId transactionId, TTimestamp timestamp)
+    {
+        if (auto it = TimestampHolderMap_.find(transactionId)) {
+            it->second.Timestamp = timestamp;
+        }
+    }
+
+    TTimestamp GetTimestampHolderTimestamp(TTransactionId transactionId)
+    {
+        if (auto it = TimestampHolderMap_.find(transactionId)) {
+            return it->second.Timestamp;
+        }
+        return NullTimestamp;
+    }
+
+    void UnrefTimestampHolder(TTransactionId transactionId)
+    {
+        if (auto it = TimestampHolderMap_.find(transactionId)) {
+            --it->second.RefCount;
+            if (it->second.RefCount == 0) {
+                TimestampHolderMap_.erase(it);
+            }
+        }
+    }
+
 private:
+    struct TTimestampHolder
+    {
+        TTimestamp Timestamp = NullTimestamp;
+        i64 RefCount = 1;
+
+        void Persist(NCellMaster::TPersistenceContext& context)
+        {
+            using ::NYT::Persist;
+            Persist(context, Timestamp);
+            Persist(context, RefCount);
+        }
+    };
+
     friend class TTransactionTypeHandler;
 
     const TTransactionManagerConfigPtr Config_;
     const TTransactionLeaseTrackerPtr LeaseTracker_;
 
     NHydra::TEntityMap<TTransaction> TransactionMap_;
+
+    THashMap<TTransactionId, TTimestampHolder> TimestampHolderMap_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(TrackerThread);
@@ -863,6 +913,7 @@ private:
     void SaveValues(NCellMaster::TSaveContext& context)
     {
         TransactionMap_.SaveValues(context);
+        Save(context, TimestampHolderMap_);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -877,6 +928,11 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TransactionMap_.LoadValues(context);
+
+        // COMPAT(savrus)
+        if (context.GetVersion() >= EMasterSnapshotVersion::BulkInsert) {
+            Load(context, TimestampHolderMap_);
+        }
     }
 
 
@@ -1164,6 +1220,26 @@ void TTransactionManager::PingTransaction(
     bool pingAncestors)
 {
     Impl_->PingTransaction(transactionId, pingAncestors);
+}
+
+void TTransactionManager::CreateOrRefTimestampHolder(TTransactionId transactionId)
+{
+    Impl_->CreateOrRefTimestampHolder(transactionId);
+}
+
+void TTransactionManager::SetTimestampHolderTimestamp(TTransactionId transactionId, TTimestamp timestamp)
+{
+    Impl_->SetTimestampHolderTimestamp(transactionId, timestamp);
+}
+
+TTimestamp TTransactionManager::GetTimestampHolderTimestamp(TTransactionId transactionId)
+{
+    return Impl_->GetTimestampHolderTimestamp(transactionId);
+}
+
+void TTransactionManager::UnrefTimestampHolder(TTransactionId transactionId)
+{
+    Impl_->UnrefTimestampHolder(transactionId);
 }
 
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *Impl_);

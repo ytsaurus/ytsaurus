@@ -358,6 +358,7 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
             GetNullBlockCache(),
             NChunkClient::NProto::TChunkSpec(),
             nullptr,
+            NullTimestamp,
             nullptr,
             nullptr,
             nullptr);

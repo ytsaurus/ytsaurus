@@ -17,6 +17,10 @@
 
 #include <yt/server/lib/chunk_pools/helpers.h>
 
+#include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+
+#include <yt/server/lib/tablet_node/public.h>
+
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/ytlib/chunk_client/chunk_teleporter.h>
@@ -51,9 +55,13 @@
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schema.h>
 
+#include <yt/client/tablet_client/table_mount_cache.h>
+
 #include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/transaction_client/action.h>
 
 #include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/transaction.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
@@ -66,6 +74,8 @@
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/table_consumer.h>
 
+#include <yt/client/tablet_client/public.h>
+
 #include <yt/client/api/transaction.h>
 
 #include <yt/core/concurrency/action_queue.h>
@@ -73,12 +83,13 @@
 
 #include <yt/core/erasure/codec.h>
 
-#include <yt/core/misc/fs.h>
-#include <yt/core/misc/finally.h>
+#include <yt/core/misc/algorithm_helpers.h>
 #include <yt/core/misc/chunked_input_stream.h>
 #include <yt/core/misc/collection_helpers.h>
-#include <yt/core/misc/numeric_helpers.h>
 #include <yt/core/misc/crash_handler.h>
+#include <yt/core/misc/finally.h>
+#include <yt/core/misc/fs.h>
+#include <yt/core/misc/numeric_helpers.h>
 
 #include <yt/core/profiling/timing.h>
 #include <yt/core/profiling/profiler.h>
@@ -120,6 +131,7 @@ using namespace NScheduler;
 using namespace NEventLog;
 using namespace NLogging;
 using namespace NYTAlloc;
+using namespace NTabletClient;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -1638,11 +1650,150 @@ void TOperationControllerBase::SafeCommit()
     CommitOutputCompletionTransaction();
     CommitDebugCompletionTransaction();
     SleepInCommitStage(EDelayInsideOperationCommitStage::Stage6);
+    LockDynamicTables();
     CommitTransactions();
 
     CancelableContext->Cancel();
 
     YT_LOG_INFO("Results committed");
+}
+
+void TOperationControllerBase::LockDynamicTables()
+{
+    THashMap<TCellTag, std::vector<TOutputTablePtr>> cellTagToTables;
+    for (auto& table : UpdatingTables_) {
+        if (table->IsDynamic) {
+            cellTagToTables[table->ExternalCellTag].push_back(table);
+        }
+    }
+
+    if (cellTagToTables.empty()) {
+        return;
+    }
+
+    YT_LOG_INFO("Locking dynamic tables");
+
+    std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
+    std::vector<TTagId> cellTags;
+
+    for (const auto& [cellTag, tables] : cellTagToTables) {
+        auto channel = OutputClient->GetMasterChannelOrThrow(
+            EMasterChannelKind::Leader,
+            cellTag);
+        TObjectServiceProxy proxy(channel);
+        auto batchReq = proxy.ExecuteBatch();
+
+        for (const auto& table : tables) {
+            auto objectIdPath = FromObjectId(table->ObjectId);
+            auto req = TTableYPathProxy::LockDynamicTable(objectIdPath);
+            SetTransactionId(req, OutputTransaction->GetId());
+            GenerateMutationId(req);
+
+            batchReq->AddRequest(req, "lock_dynamic_table");
+        }
+
+        asyncResults.push_back(batchReq->Invoke());
+        cellTags.push_back(cellTag);
+    }
+
+    auto combinedResultOrError = WaitFor(CombineAll(asyncResults));
+    THROW_ERROR_EXCEPTION_IF_FAILED(combinedResultOrError, "Error locking output dynamic tables");
+    auto& combinedResult = combinedResultOrError.Value();
+
+    for (int cellIndex = 0; cellIndex < cellTags.size(); ++cellIndex) {
+        auto& batchRspOrError = combinedResult[cellIndex];
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking output dynamic tables");
+    }
+
+    YT_LOG_INFO("Waiting for dynamic tables lock to complete");
+
+    std::vector<TError> innerErrors;
+    auto sleepDuration = Config->DynamicTableLockCheckingIntervalDurationMin;
+    for (int attempt = 0; attempt < Config->DynamicTableLockCheckingAttemptCountLimit; ++attempt) {
+        asyncResults.clear();
+        cellTags.clear();
+        innerErrors.clear();
+
+        for (const auto& pair : cellTagToTables) {
+            auto cellTag = pair.first;
+            const auto& tables = pair.second;
+
+            auto channel = OutputClient->GetMasterChannelOrThrow(
+                EMasterChannelKind::Follower,
+                cellTag);
+            TObjectServiceProxy proxy(channel);
+            auto batchReq = proxy.ExecuteBatch();
+
+            for (const auto& table : tables) {
+                auto objectIdPath = FromObjectId(table->ObjectId);
+                auto req = TTableYPathProxy::CheckDynamicTableLock(objectIdPath);
+                SetTransactionId(req, OutputTransaction->GetId());
+                batchReq->AddRequest(req, "check_lock");
+            }
+
+            asyncResults.push_back(batchReq->Invoke());
+            cellTags.push_back(cellTag);
+        }
+
+        auto combinedResultOrError = WaitFor(CombineAll(asyncResults));
+        if (!combinedResultOrError.IsOK()) {
+            innerErrors.push_back(combinedResultOrError);
+            continue;
+        }
+        auto& combinedResult = combinedResultOrError.Value();
+
+        for (int cellIndex = 0; cellIndex < cellTags.size(); ++cellIndex) {
+            auto& batchRspOrError = combinedResult[cellIndex];
+            auto error = GetCumulativeError(batchRspOrError);
+            if (!error.IsOK()) {
+                innerErrors.push_back(error);
+                YT_LOG_DEBUG(error, "Error while checking dynamic table lock");
+                continue;
+            }
+
+            const auto& batchRsp = batchRspOrError.Value();
+            auto checkLockRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspCheckDynamicTableLock>("check_lock");
+
+            auto& tables = cellTagToTables[cellTags[cellIndex]];
+            std::vector<TOutputTablePtr> pendingTables;
+
+            for (int index = 0; index < tables.size(); ++index) {
+                const auto& rspOrError = checkLockRspsOrError[index];
+
+                if (!rspOrError.IsOK()) {
+                    innerErrors.push_back(rspOrError);
+                    YT_LOG_DEBUG(error, "Error while checking dynamic table lock");
+                }
+
+                if (!rspOrError.IsOK() || !rspOrError.Value()->confirmed()) {
+                    pendingTables.push_back(tables[index]);
+                }
+            }
+
+            tables = std::move(pendingTables);
+            if (tables.empty()) {
+                cellTagToTables.erase(cellTags[cellIndex]);
+            }
+        }
+
+        if (cellTagToTables.empty()) {
+            break;
+        }
+
+        TDelayedExecutor::WaitForDuration(sleepDuration);
+
+        sleepDuration = std::min(
+            sleepDuration * Config->DynamicTableLockCheckingIntervalScale,
+            Config->DynamicTableLockCheckingIntervalDurationMax);
+    }
+
+    if (!cellTagToTables.empty()) {
+        auto error = TError("Could not lock output dynamic tables");
+        error.InnerErrors() = std::move(innerErrors);
+        error.ThrowOnError();
+    }
+
+    YT_LOG_INFO("Dynamic tables locking completed");
 }
 
 void TOperationControllerBase::CommitTransactions()
@@ -1704,6 +1855,70 @@ void TOperationControllerBase::TeleportOutputChunks()
         .ThrowOnError();
 }
 
+void TOperationControllerBase::VerifySortedOutput(TOutputTablePtr table)
+{
+    const auto& path = table->Path.GetPath();
+    YT_LOG_DEBUG("Sorting output chunk tree ids by boundary keys (ChunkTreeCount: %v, Table: %v)",
+        table->OutputChunkTreeIds.size(),
+        path);
+
+    std::stable_sort(
+        table->OutputChunkTreeIds.begin(),
+        table->OutputChunkTreeIds.end(),
+        [&] (const auto& lhs, const auto& rhs) -> bool {
+            auto lhsBoundaryKeys = lhs.first.AsBoundaryKeys();
+            auto rhsBoundaryKeys = rhs.first.AsBoundaryKeys();
+            auto minKeyResult = CompareRows(lhsBoundaryKeys.MinKey, rhsBoundaryKeys.MinKey);
+            if (minKeyResult != 0) {
+                return minKeyResult < 0;
+            }
+            return lhsBoundaryKeys.MaxKey < rhsBoundaryKeys.MaxKey;
+        });
+
+    if (!table->OutputChunkTreeIds.empty() && table->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
+        int cmp = CompareRows(
+            table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey,
+            table->LastKey,
+            table->TableUploadOptions.TableSchema.GetKeyColumnCount());
+
+        if (cmp < 0) {
+            THROW_ERROR_EXCEPTION("Output table %v is not sorted: job outputs overlap with original table",
+                table->GetPath())
+                << TErrorAttribute("table_max_key", table->LastKey)
+                << TErrorAttribute("job_output_min_key", table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey);
+        }
+
+        if (cmp == 0 && table->TableWriterOptions->ValidateUniqueKeys) {
+            THROW_ERROR_EXCEPTION("Output table %v contains duplicate keys: job outputs overlap with original table",
+                table->GetPath())
+                << TErrorAttribute("table_max_key", table->LastKey)
+                << TErrorAttribute("job_output_min_key", table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey);
+        }
+    }
+
+    for (auto current = table->OutputChunkTreeIds.begin(); current != table->OutputChunkTreeIds.end(); ++current) {
+        auto next = current + 1;
+        if (next != table->OutputChunkTreeIds.end()) {
+            int cmp = CompareRows(next->first.AsBoundaryKeys().MinKey, current->first.AsBoundaryKeys().MaxKey);
+
+            if (cmp < 0) {
+                THROW_ERROR_EXCEPTION("Output table %v is not sorted: job outputs have overlapping key ranges",
+                    table->GetPath())
+                    << TErrorAttribute("current_range_max_key", current->first.AsBoundaryKeys().MaxKey)
+                    << TErrorAttribute("next_range_min_key", next->first.AsBoundaryKeys().MinKey);
+            }
+
+            if (cmp == 0 && table->TableWriterOptions->ValidateUniqueKeys) {
+                THROW_ERROR_EXCEPTION("Output table %v contains duplicate keys: job outputs have overlapping key ranges",
+                    table->GetPath())
+                    << TErrorAttribute("current_range_max_key", current->first.AsBoundaryKeys().MaxKey)
+                    << TErrorAttribute("next_range_min_key", next->first.AsBoundaryKeys().MinKey);
+            }
+        }
+    }
+}
+
+
 void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTablePtr>& tableList)
 {
     for (const auto& table : tableList) {
@@ -1732,7 +1947,9 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                 const auto& batchRsp = batchRspOrError.Value();
                 const auto& rsp = batchRsp->attach_chunk_trees_subresponses(0);
                 if (requestStatistics) {
-                    table->DataStatistics = rsp.statistics();
+                    // NB: For a static table statistics are requested only once at the end.
+                    // For a dynamic table statistics are requested for each tablet separately.
+                    table->DataStatistics += rsp.statistics();
                 }
             }
 
@@ -1752,6 +1969,9 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                 batchReq->set_suppress_upstream_sync(true);
                 req = batchReq->add_attach_chunk_trees_subrequests();
                 ToProto(req->mutable_parent_id(), table->OutputChunkListId);
+                if (table->IsDynamic) {
+                    ToProto(req->mutable_transaction_id(), table->UploadTransactionId);
+                }
             }
 
             ToProto(req->add_child_ids(), chunkTreeId);
@@ -1759,64 +1979,45 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
 
         if (table->TableUploadOptions.TableSchema.IsSorted() && ShouldVerifySortedOutput()) {
             // Sorted output generated by user operation requires rearranging.
-            YT_LOG_DEBUG("Sorting output chunk tree ids by boundary keys (ChunkTreeCount: %v, Table: %v)",
-                table->OutputChunkTreeIds.size(),
-                path);
-            std::stable_sort(
-                table->OutputChunkTreeIds.begin(),
-                table->OutputChunkTreeIds.end(),
-                [&] (const auto& lhs, const auto& rhs) -> bool {
-                    auto lhsBoundaryKeys = lhs.first.AsBoundaryKeys();
-                    auto rhsBoundaryKeys = rhs.first.AsBoundaryKeys();
-                    auto minKeyResult = CompareRows(lhsBoundaryKeys.MinKey, rhsBoundaryKeys.MinKey);
-                    if (minKeyResult != 0) {
-                        return minKeyResult < 0;
-                    }
-                    return lhsBoundaryKeys.MaxKey < rhsBoundaryKeys.MaxKey;
-                });
 
-            if (!table->OutputChunkTreeIds.empty() && table->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
-                int cmp = CompareRows(
-                    table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey,
-                    table->LastKey,
-                    table->TableUploadOptions.TableSchema.GetKeyColumnCount());
+            VerifySortedOutput(table);
 
-                if (cmp < 0) {
-                    THROW_ERROR_EXCEPTION("Output table %v is not sorted: job outputs overlap with original table",
-                        table->GetPath())
-                        << TErrorAttribute("table_max_key", table->LastKey)
-                        << TErrorAttribute("job_output_min_key", table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey);
+            if (!table->IsDynamic) {
+                for (auto& pair : table->OutputChunkTreeIds) {
+                    addChunkTree(pair.second);
                 }
+            } else {
+                std::vector<std::vector<TChunkTreeId>> tabletChunks(table->PivotKeys.size());
+                std::vector<std::vector<NChunkClient::NProto::TChunkSpec>> tabletChunkSpecs(table->PivotKeys.size());
+                for (const auto& chunk : table->OutputChunks) {
+                    auto chunkId  = chunk->ChunkId();
+                    auto& minKey = chunk->BoundaryKeys()->MinKey;
+                    auto& maxKey = chunk->BoundaryKeys()->MaxKey;
 
-                if (cmp == 0 && table->TableWriterOptions->ValidateUniqueKeys) {
-                    THROW_ERROR_EXCEPTION("Output table %v contains duplicate keys: job outputs overlap with original table",
-                        table->GetPath())
-                        << TErrorAttribute("table_max_key", table->LastKey)
-                        << TErrorAttribute("job_output_min_key", table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey);
-                }
-            }
+                    auto start = LowerBound(0, tabletChunks.size() - 1, [&] (size_t index) {
+                        return CompareRows(minKey, table->PivotKeys[index]) < 0;
+                    });
 
-            for (auto current = table->OutputChunkTreeIds.begin(); current != table->OutputChunkTreeIds.end(); ++current) {
-                auto next = current + 1;
-                if (next != table->OutputChunkTreeIds.end()) {
-                    int cmp = CompareRows(next->first.AsBoundaryKeys().MinKey, current->first.AsBoundaryKeys().MaxKey);
+                    auto end = LowerBound(0, tabletChunks.size() - 1, [&] (size_t index) {
+                        return CompareRows(table->PivotKeys[index], maxKey) <= 0;
+                    });
 
-                    if (cmp < 0) {
-                        THROW_ERROR_EXCEPTION("Output table %v is not sorted: job outputs have overlapping key ranges",
-                            table->GetPath())
-                            << TErrorAttribute("current_range_max_key", current->first.AsBoundaryKeys().MaxKey)
-                            << TErrorAttribute("next_range_min_key", next->first.AsBoundaryKeys().MinKey);
+                    if (CompareRows(table->PivotKeys[end], maxKey) <= 0) {
+                        ++end;
                     }
 
-                    if (cmp == 0 && table->TableWriterOptions->ValidateUniqueKeys) {
-                        THROW_ERROR_EXCEPTION("Output table %v contains duplicate keys: job outputs have overlapping key ranges",
-                            table->GetPath())
-                            << TErrorAttribute("current_range_max_key", current->first.AsBoundaryKeys().MaxKey)
-                            << TErrorAttribute("next_range_min_key", next->first.AsBoundaryKeys().MinKey);
+                    for (int index = start; index < end; ++index) {
+                        tabletChunks[index].push_back(chunkId);
                     }
                 }
 
-                addChunkTree(current->second);
+                for (int index = 0; index < tabletChunks.size(); ++index) {
+                    table->OutputChunkListId = table->TabletChunkListIds[index];
+                    for (auto& chunkTree : tabletChunks[index]) {
+                        addChunkTree(chunkTree);
+                    }
+                    flushCurrentReq(true);
+                }
             }
         } else if (auto outputOrder = GetOutputOrder()) {
             YT_LOG_DEBUG("Sorting output chunk tree ids according to a given output order (ChunkTreeCount: %v, Table: %v)",
@@ -2787,10 +2988,32 @@ bool TOperationControllerBase::AreForeignTablesSupported() const
 
 bool TOperationControllerBase::IsOutputLivePreviewSupported() const
 {
-    return false;
+    for (const auto& table : OutputTables_) {
+        if (table->IsDynamic) {
+            return false;
+        }
+    }
+
+    return DoCheckOutputLivePreviewSupported();
 }
 
 bool TOperationControllerBase::IsIntermediateLivePreviewSupported() const
+{
+    for (const auto& table : OutputTables_) {
+        if (table->IsDynamic) {
+            return false;
+        }
+    }
+
+    return DoCheckIntermediateLivePreviewSupported();
+}
+
+bool TOperationControllerBase::DoCheckOutputLivePreviewSupported() const
+{
+    return false;
+}
+
+bool TOperationControllerBase::DoCheckIntermediateLivePreviewSupported() const
 {
     return false;
 }
@@ -4832,15 +5055,23 @@ void TOperationControllerBase::GetOutputTablesSchema()
             const auto& rsp = getOutAttributesRspsOrError[index].Value();
             auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
-            if (attributes->Get<bool>("dynamic")) {
-                THROW_ERROR_EXCEPTION("Output to dynamic table is not supported")
-                    << TErrorAttribute("table_path", path);
-            }
-
+            table->IsDynamic = attributes->Get<bool>("dynamic");
             table->TableUploadOptions = GetTableUploadOptions(
                 path,
                 *attributes,
                 0); // Here we assume zero row count, we will do additional check later.
+
+            if (table->IsDynamic) {
+                if (table->TableUploadOptions.UpdateMode != EUpdateMode::Append) {
+                    THROW_ERROR_EXCEPTION("Dynamic table can be updated only in update mode")
+                        << TErrorAttribute("table_path", path);
+                }
+
+                if (!table->TableUploadOptions.TableSchema.IsSorted()) {
+                    THROW_ERROR_EXCEPTION("Only sorted dynamic table can be updated")
+                        << TErrorAttribute("table_path", path);
+                }
+            }
 
             // TODO(savrus) I would like to see commit ts here. But as for now, start ts suffices.
             table->Timestamp = GetTransactionForOutputTable(table)->GetStartTimestamp();
@@ -4958,6 +5189,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                 "row_count",
                 "vital",
                 "enable_skynet_sharing",
+                "tablet_state",
             };
             ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
             SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
@@ -4977,6 +5209,15 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             {
                 const auto& rsp = getOutAttributesRspsOrError[index].Value();
                 auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+
+                if (table->IsDynamic) {
+                    auto tabletState = attributes->Get<ETabletState>("tablet_state");
+                    if (tabletState != ETabletState::Mounted && tabletState != ETabletState::Frozen) {
+                        THROW_ERROR_EXCEPTION("Output table %v tablet state %Qv does not allow to write into it",
+                            path,
+                            tabletState);
+                    }
+                }
 
                 if (table->TableUploadOptions.TableSchema.IsSorted()) {
                     table->TableWriterOptions->ValidateSorted = true;
@@ -5079,7 +5320,10 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
                 auto req = TTableYPathProxy::GetUploadParams(table->GetObjectIdPath());
                 SetTransactionId(req, table->UploadTransactionId);
                 req->Tag() = table;
-                if (table->TableUploadOptions.TableSchema.IsSorted() && table->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
+                if (table->TableUploadOptions.TableSchema.IsSorted() &&
+                    !table->IsDynamic &&
+                    table->TableUploadOptions.UpdateMode == EUpdateMode::Append)
+                {
                     req->set_fetch_last_key(true);
                 }
                 batchReq->AddRequest(req);
@@ -5100,9 +5344,15 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
             for (const auto& rspOrError : batchRsp->GetResponses<TTableYPathProxy::TRspGetUploadParams>()) {
                 const auto& rsp = rspOrError.Value();
                 auto table = std::any_cast<TOutputTablePtr>(rsp->Tag());
-                table->OutputChunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
-                if (table->TableUploadOptions.TableSchema.IsSorted() && table->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
-                    table->LastKey = FromProto<TOwningKey>(rsp->last_key());
+
+                if (table->IsDynamic) {
+                    table->PivotKeys = FromProto<std::vector<TOwningKey>>(rsp->pivot_keys());
+                    table->TabletChunkListIds = FromProto<std::vector<TChunkListId>>(rsp->tablet_chunk_list_ids());
+                } else {
+                    table->OutputChunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
+                    if (table->TableUploadOptions.TableSchema.IsSorted() && table->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
+                        table->LastKey = FromProto<TOwningKey>(rsp->last_key());
+                    }
                 }
 
                 YT_LOG_INFO("Upload parameters of output table received (Path: %v, ChunkListId: %v)",
@@ -7965,12 +8215,21 @@ IChunkPoolInput::TCookie TOperationControllerBase::TSink::AddWithKey(TChunkStrip
         Controller_->AttachToLivePreview(chunkListId, table->LivePreviewTableId);
     }
     table->OutputChunkTreeIds.emplace_back(key, chunkListId);
+    table->ChunkCount += stripe->GetStatistics().ChunkCount;
 
     const auto& Logger = Controller_->Logger;
-    YT_LOG_DEBUG("Output stripe registered (Table: %v, ChunkListId: %v, Key: %v)",
+    YT_LOG_DEBUG("Output stripe registered (Table: %v, ChunkListId: %v, Key: %v, ChunkCount: %v)",
         OutputTableIndex_,
         chunkListId,
-        key);
+        key,
+        stripe->GetStatistics().ChunkCount);
+
+    if (table->IsDynamic) {
+        for (auto& slice : stripe->DataSlices) {
+            YT_VERIFY(slice->ChunkSlices.size() == 1);
+            table->OutputChunks.push_back(slice->ChunkSlices[0]->GetInputChunk());
+        }
+    }
 
     return IChunkPoolInput::NullCookie;
 }

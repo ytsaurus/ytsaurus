@@ -147,6 +147,8 @@ private:
             tabletSnapshot->WriterOptions->MediumName,
             tabletSnapshot->Config->InMemoryMode);
 
+        tabletSnapshot->WaitOnLocks(0); // XXX fix timestamp
+
         auto* requestCodec = NCompression::GetCodec(requestCodecId);
         auto requestData = requestCodec->Decompress(request->Attachments()[0]);
         struct TWriteBufferTag { };

@@ -8,6 +8,8 @@
 #include <yt/server/master/security_server/account.h>
 #include <yt/server/master/security_server/subject.h>
 
+#include <yt/server/master/table_server/table_node.h>
+
 #include <yt/core/misc/string.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -63,6 +65,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, PrerequisiteTransactions_);
     Save(context, DependentTransactions_);
     Save(context, Deadline_);
+    Save(context, LockedDynamicTables_);
 }
 
 void TTransaction::Load(NCellMaster::TLoadContext& context)
@@ -96,6 +99,10 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     // COMPAT(ignat)
     if (context.GetVersion() >= EMasterSnapshotVersion::PersistTransactionDeadline) {
         Load(context, Deadline_);
+    }
+    // COMPAT(savrus)
+    if (context.GetVersion() >= EMasterSnapshotVersion::BulkInsert) {
+        Load(context, LockedDynamicTables_);
     }
 }
 

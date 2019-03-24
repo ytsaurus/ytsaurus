@@ -75,6 +75,8 @@
 
 #include <yt/ytlib/tablet_client/config.h>
 
+#include <yt/ytlib/transaction_client/helpers.h>
+
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/throughput_throttler.h>
 
@@ -114,6 +116,7 @@ using namespace NTabletClient;
 using namespace NTabletNode::NProto;
 using namespace NTabletServer::NProto;
 using namespace NTransactionServer;
+using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
@@ -193,6 +196,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraOnTableReplicaEnabled, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTableReplicaDisabled, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletTrimmedRowCount, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraOnTabletLocked, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraCreateTabletAction, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraDestroyTabletActions, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraKickOrphanedTabletActions, Unretained(this)));
@@ -228,6 +232,7 @@ public:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->SubscribeTransactionCommitted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
         transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
+        transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionAborted, MakeWeak(this)));
         transactionManager->RegisterTransactionActionHandlers(
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUpdateTabletStores, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUpdateTabletStores, MakeStrong(this))),
@@ -1467,6 +1472,56 @@ public:
         }
     }
 
+    void MergeTableNodes(TChunkOwnerBase* originatingChunkOwner, TChunkOwnerBase* branchedChunkOwner)
+    {
+        YT_VERIFY(originatingChunkOwner->GetType() == EObjectType::Table);
+        YT_VERIFY(branchedChunkOwner->GetType() == EObjectType::Table);
+        YT_VERIFY(originatingChunkOwner->IsTrunk());
+
+        auto* originatingNode = static_cast<TTableNode*>(originatingChunkOwner);
+        auto* branchedNode = static_cast<TTableNode*>(branchedChunkOwner);
+        auto* originatingChunkList = originatingNode->GetChunkList();
+        auto* branchedChunkList = branchedNode->GetChunkList();
+        auto* transaction = branchedNode->GetTransaction();
+
+        YT_VERIFY(originatingNode->IsPhysicallySorted());
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+
+        transaction->LockedDynamicTables().erase(originatingNode);
+
+        for (int index = 0; index < branchedChunkList->Children().size(); ++index) {
+            auto* appendChunkList = branchedChunkList->Children()[index];
+            auto* tabletChunkList = originatingChunkList->Children()[index]->AsChunkList();
+            //ResetChunkTreeParent(branchedChunkList, appendChunkList);
+            
+            chunkManager->AttachToChunkList(tabletChunkList, static_cast<TChunkTree*>(appendChunkList));
+
+            auto* tablet = originatingNode->Tablets()[index];
+            if (tablet->GetState() == ETabletState::Unmounted) {
+                continue;
+            }
+
+            TReqUnlockTablet req;
+            ToProto(req.mutable_tablet_id(), tablet->GetId());
+            ToProto(req.mutable_transaction_id(), transaction->GetId());
+            auto chunksOrViews = EnumerateChunksAndChunkViewsInChunkTree(appendChunkList->AsChunkList());
+            auto storeType = originatingNode->IsPhysicallySorted() ? EStoreType::SortedChunk : EStoreType::OrderedChunk;
+            i64 startingRowIndex = 0;
+
+            for (const auto* chunkOrView : chunksOrViews) {
+                auto* descriptor = req.add_stores_to_add();
+                FillStoreDescriptor(chunkOrView, storeType, descriptor, &startingRowIndex);
+            }
+
+            auto* mailbox = hiveManager->GetMailbox(tablet->GetCell()->GetId());
+            hiveManager->PostMessage(mailbox, req);
+        }
+
+        chunkManager->ClearChunkList(branchedChunkList);
+    }
+
     const TTabletCellSet* FindAssignedTabletCells(const TString& address) const
     {
         auto it = AddressToCell_.find(address);
@@ -1851,24 +1906,14 @@ public:
                 i64 startingRowIndex = chunkListStatistics.LogicalRowCount - chunkListStatistics.RowCount;
                 for (const auto* chunkOrView : chunksOrViews) {
                     auto* descriptor = req.add_stores();
-                    descriptor->set_store_type(static_cast<int>(storeType));
-                    ToProto(descriptor->mutable_store_id(), chunkOrView->GetId());
+                    FillStoreDescriptor(chunkOrView, storeType, descriptor, &startingRowIndex);
+                }
 
-                    const TChunk* chunk;
-                    if (chunkOrView->GetType() == EObjectType::ChunkView) {
-                        auto* chunkView = chunkOrView->AsChunkView();
-                        chunk = chunkView->GetUnderlyingChunk();
-                        auto* viewDescriptor = descriptor->mutable_chunk_view_descriptor();
-                        ToProto(viewDescriptor->mutable_chunk_view_id(), chunkView->GetId());
-                        ToProto(viewDescriptor->mutable_underlying_chunk_id(), chunk->GetId());
-                        ToProto(viewDescriptor->mutable_read_range(), chunkView->ReadRange());
-                    } else {
-                        chunk = chunkOrView->AsChunk();
-                    }
-
-                    descriptor->mutable_chunk_meta()->CopyFrom(chunk->ChunkMeta());
-                    descriptor->set_starting_row_index(startingRowIndex);
-                    startingRowIndex += chunk->MiscExt().row_count();
+                for (const auto& pair : table->DynamicTableLocks()) {
+                    auto* lock = req.add_locks();
+                    lock->mutable_transaction_id();
+                    ToProto(lock->mutable_transaction_id(), pair.first);
+                    lock->set_timestamp(static_cast<i64>(pair.second.Timestamp));
                 }
 
                 YT_LOG_DEBUG_UNLESS(IsRecovery(), "Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
@@ -2329,6 +2374,17 @@ public:
             }
             replicatedTable->Replicas().clear();
         }
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+
+        for (auto& pair : table->DynamicTableLocks()) {
+            auto* transaction = transactionManager->FindTransaction(pair.first);
+            if (!IsObjectAlive(transaction)) {
+                continue;
+            }
+
+            transaction->LockedDynamicTables().erase(table);
+        }
     }
 
     void PrepareReshardTable(
@@ -2360,6 +2416,10 @@ public:
         if (newTabletCount > MaxTabletCount) {
             THROW_ERROR_EXCEPTION("Tablet count cannot exceed the limit of %v",
                 MaxTabletCount);
+        }
+
+        if (table->DynamicTableLocks().size() > 0) {
+            THROW_ERROR_EXCEPTION("Dynamic table is locked by some bulk insert");
         }
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -3120,12 +3180,128 @@ public:
 
         table->SetLastCommitTimestamp(NullTimestamp);
 
-        const auto& securityManager = this->Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->UpdateTabletResourceUsage(table, -tabletResourceUsage);
         ScheduleTableStatisticsUpdate(table, false);
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table is switched to static mode (TableId: %v)",
             table->GetId());
+    }
+
+    void LockDynamicTable(
+        TTableNode* table,
+        TTransaction* transaction)
+    {
+        Y_ASSUME(table->IsTrunk());
+
+        if (!GetDynamicConfig()->EnableBulkInsert) {
+            THROW_ERROR_EXCEPTION("Bulk insert is disabled");
+        }
+
+        if (table->DynamicTableLocks().contains(transaction->GetId())) {
+            THROW_ERROR_EXCEPTION("Dynamic table is already locked by this transaction")
+                << TErrorAttribute("transaction_id", transaction->GetId());
+        }
+
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        const auto* mutationContext = GetCurrentMutationContext();
+        auto mutationTimestamp = InstantToTimestamp(mutationContext->GetTimestamp()).first;
+        int pendingTabletCount = 0;
+
+        for (auto* tablet : table->Tablets()) {
+            if (tablet->GetState() == ETabletState::Unmounted) {
+                continue;
+            }
+
+            ++pendingTabletCount;
+            YT_VERIFY(tablet->UnconfirmedDynamicTableLocks().emplace(transaction->GetId()).second);
+
+            auto* cell = tablet->GetCell();
+            auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+            TReqLockTablet req;
+            ToProto(req.mutable_tablet_id(), tablet->GetId());
+            ToProto(req.mutable_lock()->mutable_transaction_id(), transaction->GetId());
+            req.mutable_lock()->set_timestamp(static_cast<i64>(mutationTimestamp));
+            hiveManager->PostMessage(mailbox, req);
+        }
+
+        transaction->LockedDynamicTables().insert(table);
+        table->AddDynamicTableLock(transaction->GetId(), mutationTimestamp, pendingTabletCount);
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Waiting for tablet lock confirmation (TableId: %v, TransactionId: %v, PendingTabletCount: %v)",
+            table->GetId(),
+            transaction->GetId(),
+            pendingTabletCount);
+
+    }
+
+    void HydraOnTabletLocked(TRspLockTablet* response)
+    {
+        auto tabletId = FromProto<TTabletId>(response->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!IsObjectAlive(tablet)) {
+            return;
+        }
+
+        auto transactionIds = FromProto<std::vector<TTransactionId>>(response->transaction_ids());
+        auto* table = tablet->GetTable();
+
+        for (auto transactionId : transactionIds) {
+            if (auto it = tablet->UnconfirmedDynamicTableLocks().find(transactionId)) {
+                tablet->UnconfirmedDynamicTableLocks().erase(it);
+                table->ConfirmDynamicTableLock(transactionId);
+            }
+
+            int pendingTabletCount = 0;
+            if (auto it = table->DynamicTableLocks().find(transactionId)) {
+                pendingTabletCount = it->second.PendingTabletCount;
+            }
+
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Confirmed tablet locks (TabletId: %v, TableId: %v, TransactionId: %v, PendingTabletCount: %v)",
+                tabletId,
+                table->GetId(),
+                transactionId,
+                pendingTabletCount);
+        }
+    }
+
+    void CheckDynamicTableLock(
+        TTableNode* table,
+        TTransaction* transaction,
+        NTableClient::NProto::TRspCheckDynamicTableLock* response)
+    {
+        Y_ASSUME(table->IsTrunk());
+
+        auto it = table->DynamicTableLocks().find(transaction->GetId());
+        response->set_confirmed(it && it->second.PendingTabletCount == 0);
+    }
+
+    void OnTransactionAborted(TTransaction* transaction)
+    {
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+
+        for (auto* table : transaction->LockedDynamicTables()) {
+            if (!IsObjectAlive(table)) {
+                continue;
+            }
+
+            for (auto* tablet : table->Tablets()) {
+                if (tablet->GetState() == ETabletState::Unmounted) {
+                    continue;
+                }
+
+                tablet->UnconfirmedDynamicTableLocks().erase(transaction->GetId());
+
+                auto* cell = tablet->GetCell();
+                auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+                TReqUnlockTablet req;
+                ToProto(req.mutable_tablet_id(), tablet->GetId());
+                ToProto(req.mutable_transaction_id(), transaction->GetId());
+                hiveManager->PostMessage(mailbox, req);
+            }
+        }
+
+        transaction->LockedDynamicTables().clear();
     }
 
     const TBundleNodeTrackerPtr& GetBundleNodeTracker()
@@ -4986,6 +5162,11 @@ private:
             replicaInfo.SetState(ETableReplicaState::None);
             CheckTransitioningReplicaTablets(replica);
         }
+
+        for (const auto& transactionId : tablet->UnconfirmedDynamicTableLocks()) {
+            table->ConfirmDynamicTableLock(transactionId);
+        }
+        tablet->UnconfirmedDynamicTableLocks().clear();
     }
 
     void CopyChunkListIfShared(
@@ -6345,13 +6526,45 @@ private:
         cell->SetConfigVersion(request->config_version());
     }
 
+    void FillStoreDescriptor(
+        const TChunkTree* chunkOrView,
+        EStoreType storeType,
+        NTabletNode::NProto::TAddStoreDescriptor* descriptor,
+        i64* startingRowIndex)
+    {
+        descriptor->set_store_type(static_cast<int>(storeType));
+        ToProto(descriptor->mutable_store_id(), chunkOrView->GetId());
+
+        const TChunk* chunk;
+        if (chunkOrView->GetType() == EObjectType::ChunkView) {
+            auto* chunkView = chunkOrView->AsChunkView();
+            chunk = chunkView->GetUnderlyingChunk();
+            auto* viewDescriptor = descriptor->mutable_chunk_view_descriptor();
+            ToProto(viewDescriptor->mutable_chunk_view_id(), chunkView->GetId());
+            ToProto(viewDescriptor->mutable_underlying_chunk_id(), chunk->GetId());
+            ToProto(viewDescriptor->mutable_read_range(), chunkView->ReadRange());
+
+            auto& transactionManager = Bootstrap_->GetTransactionManager();
+            auto timestamp = transactionManager->GetTimestampHolderTimestamp(chunkView->GetTransactionId());
+            if (timestamp) {
+                viewDescriptor->set_timestamp(timestamp);
+            }
+        } else {
+            chunk = chunkOrView->AsChunk();
+        }
+
+        descriptor->mutable_chunk_meta()->CopyFrom(chunk->ChunkMeta());
+        descriptor->set_starting_row_index(*startingRowIndex); 
+        *startingRowIndex += chunk->MiscExt().row_count();
+    }
+
+
     static void ValidateTabletCellBundleName(const TString& name)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Tablet cell bundle name cannot be empty");
         }
     }
-
 
     static void PopulateTableReplicaDescriptor(TTableReplicaDescriptor* descriptor, const TTableReplica* replica, const TTableReplicaInfo& info)
     {
@@ -6629,6 +6842,21 @@ void TTabletManager::MakeTableStatic(TTableNode* table)
     Impl_->MakeTableStatic(table);
 }
 
+void TTabletManager::LockDynamicTable(
+    TTableNode* table,
+    TTransaction* transaction)
+{
+    Impl_->LockDynamicTable(table, transaction);
+}
+    
+void TTabletManager::CheckDynamicTableLock(
+    TTableNode* table,
+    TTransaction* transaction,
+    NTableClient::NProto::TRspCheckDynamicTableLock* response)
+{
+    Impl_->CheckDynamicTableLock(table, transaction, response);
+}
+
 const TBundleNodeTrackerPtr& TTabletManager::GetBundleNodeTracker()
 {
     return Impl_->GetBundleNodeTracker();
@@ -6792,6 +7020,11 @@ TTabletAction* TTabletManager::CreateTabletAction(
 void TTabletManager::DestroyTabletAction(TTabletAction* action)
 {
     Impl_->DestroyTabletAction(action);
+}
+
+void TTabletManager::MergeTableNodes(TChunkOwnerBase* originatingChunkOwniner, TChunkOwnerBase* branchedChunkOwner)
+{
+    Impl_->MergeTableNodes(originatingChunkOwniner, branchedChunkOwner);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletCellBundle, TTabletCellBundle, *Impl_)
