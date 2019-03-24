@@ -26,6 +26,8 @@ template <class TRequestMessage, class TResponse>
 TFuture<typename TResponse::TResult> TTypedClientRequest<TRequestMessage, TResponse>::Invoke()
 {
     auto context = CreateClientContext();
+    auto requestAttachmentsStream = context->GetRequestAttachmentsStream();
+    auto responseAttachmentsStream = context->GetResponseAttachmentsStream();
     auto response = NYT::New<TResponse>(std::move(context));
     auto promise = response->GetPromise();
     auto requestControl = Send(std::move(response));
@@ -36,8 +38,8 @@ TFuture<typename TResponse::TResult> TTypedClientRequest<TRequestMessage, TRespo
                 stream->SubscribeAborted(abortHandler);
             }
         };
-        subscribeToStreamAbort(context->GetRequestAttachmentsStream());
-        subscribeToStreamAbort(context->GetResponseAttachmentsStream());
+        subscribeToStreamAbort(requestAttachmentsStream);
+        subscribeToStreamAbort(responseAttachmentsStream);
         // NB: This is the last use of abortHandler; time to move!
         promise.OnCanceled(std::move(abortHandler));
     }
