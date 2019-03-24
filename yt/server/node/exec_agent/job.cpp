@@ -929,6 +929,22 @@ private:
             &TJob::OnJobProxyFinished,
             MakeWeak(this))
         .Via(Invoker_));
+
+        TDelayedExecutor::Submit(BIND(&TJob::OnJobProxyPreparationTimeout, MakeStrong(this))
+           .Via(Invoker_), Config_->JobProxyPreparationTimeout);
+    }
+
+    void OnJobProxyPreparationTimeout()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        GuardedAction([&] {
+            if (JobPhase_ == EJobPhase::PreparingProxy) {
+                THROW_ERROR_EXCEPTION(
+                    EErrorCode::JobProxyPreparationTimeout,
+                    "Failed to prepare job proxy within timeout, aborting job");
+            }
+        });
     }
 
     void OnJobProxyFinished(const TError& error)
@@ -1387,7 +1403,8 @@ private:
             resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed) ||
             resultError.FindMatching(NContainers::EErrorCode::FailedToStartContainer) ||
             resultError.FindMatching(EProcessErrorCode::CannotResolveBinary) ||
-            resultError.FindMatching(NNet::EErrorCode::ResolveTimedOut))
+            resultError.FindMatching(NNet::EErrorCode::ResolveTimedOut) ||
+            resultError.FindMatching(NExecAgent::EErrorCode::JobProxyPreparationTimeout))
         {
             return EAbortReason::Other;
         }
