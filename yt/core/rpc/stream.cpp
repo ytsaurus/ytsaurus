@@ -382,7 +382,9 @@ void TAttachmentsOutputStream::HandleFeedback(const TStreamingFeedback& feedback
     while (!ConfirmationQueue_.empty() &&
             ConfirmationQueue_.front().Position <= ReadPosition_ + WindowSize_)
     {
-        promises.push_back(std::move(ConfirmationQueue_.front().Promise));
+        auto& entry = ConfirmationQueue_.front();
+        TDelayedExecutor::CancelAndClear(entry.TimeoutCookie);
+        promises.push_back(std::move(entry.Promise));
         ConfirmationQueue_.pop();
     }
 
