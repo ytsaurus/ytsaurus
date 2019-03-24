@@ -287,6 +287,12 @@ TFuture<void> TAttachmentsOutputStream::Close()
     }
 
     auto promise = ClosePromise_ = NewPromise<void>();
+    TDelayedExecutorCookie timeoutCookie;
+    if (Timeout_) {
+        timeoutCookie = TDelayedExecutor::Submit(
+            BIND(&TAttachmentsOutputStream::OnTimeout, MakeWeak(this)),
+            *Timeout_);
+    }
 
     TSharedRef nullAttachment;
     DataQueue_.push(nullAttachment);
@@ -295,7 +301,7 @@ TFuture<void> TAttachmentsOutputStream::Close()
     ConfirmationQueue_.push({
         WritePosition_,
         {},
-        {}
+        std::move(timeoutCookie)
     });
 
     MaybeInvokePullCallback(guard);
