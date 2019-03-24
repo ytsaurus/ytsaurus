@@ -504,7 +504,6 @@ protected:
 
             default:
                 Y_UNREACHABLE();
-
         }
     }
 

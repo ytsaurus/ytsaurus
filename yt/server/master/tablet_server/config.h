@@ -437,6 +437,8 @@ public:
     //! Dynamic tables multicell gossip config.
     TDynamicTablesMulticellGossipConfigPtr MulticellGossipConfig;
 
+    bool EnableBulkInsert;
+
     TDynamicTabletManagerConfig()
     {
         RegisterParameter("tablet_cells_cleanup_period", TabletCellsCleanupPeriod)
@@ -453,6 +455,8 @@ public:
             .Optional();
         RegisterParameter("multicell_gossip_config", MulticellGossipConfig)
             .Optional();
+        RegisterParameter("enable_bulk_insert", EnableBulkInsert)
+            .Default(false);
     }
 };
 

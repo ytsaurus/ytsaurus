@@ -23,6 +23,8 @@ class TChunkView
     //! Lower bound inclusive, upper bound exclusive.
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::TReadRange, ReadRange);
 
+    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TTransactionId, TransactionId);
+
     using TParents = SmallVector<TChunkList*, TypicalChunkParentCount>;
     DEFINE_BYREF_RO_PROPERTY(TParents, Parents);
 

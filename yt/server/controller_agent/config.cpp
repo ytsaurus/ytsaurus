@@ -622,6 +622,15 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("lock_input_tables_retries", LockInputTablesRetries)
         .Default(nullptr);
 
+    RegisterParameter("dynamic_table_lock_checking_attempt_count_limit", DynamicTableLockCheckingAttemptCountLimit)
+        .Default(10);
+    RegisterParameter("dynamic_table_lock_checking_interval_scale", DynamicTableLockCheckingIntervalScale)
+        .Default(1.5);
+    RegisterParameter("dynamic_table_lock_checking_interval_duration_min", DynamicTableLockCheckingIntervalDurationMin)
+        .Default(TDuration::Seconds(1));
+    RegisterParameter("dynamic_table_lock_checking_interval_duration_max", DynamicTableLockCheckingIntervalDurationMax)
+        .Default(TDuration::Seconds(30));
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

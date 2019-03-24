@@ -66,6 +66,11 @@ void TOutputTable::Persist(const TPersistenceContext& context)
     Persist(context, EffectiveAcl);
     Persist(context, WriterConfig);
     Persist(context, ChunkPoolInput);
+    Persist(context, IsDynamic);
+    Persist(context, PivotKeys);
+    Persist(context, TabletChunkListIds);
+    Persist(context, OutputChunks);
+    Persist(context, ChunkCount);
 }
 
 TEdgeDescriptor TOutputTable::GetEdgeDescriptorTemplate(int tableIndex)

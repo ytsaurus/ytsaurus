@@ -2012,6 +2012,7 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
             GetNullBlockCache(),
             chunkSpec,
             nullptr,
+            NullTimestamp,
             nullptr,
             New<TChunkReaderPerformanceCounters>(),
             nullptr);

@@ -81,6 +81,7 @@ DEFINE_ENUM(EMasterSnapshotVersion,
     ((YT_10639_CumulativeStatisticsInDynamicTables)                  (839))  // ifsmirnov
     ((PortalsInitial)                                                (900))  // babenko
     ((CypressShards)                                                 (901))  // babenko
+    ((BulkInsert)                                                    (902))  // savrus
 );
 
 ////////////////////////////////////////////////////////////////////////////////

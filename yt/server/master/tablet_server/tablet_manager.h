@@ -22,6 +22,7 @@
 #include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/table_ypath.pb.h>
 
 #include <yt/core/misc/small_vector.h>
 
@@ -146,6 +147,16 @@ public:
         std::optional<NTransactionClient::EAtomicity> atomicity,
         std::optional<bool> preserveTimestamps);
 
+    void LockDynamicTable(
+        NTableServer::TTableNode* table,
+        NTransactionServer::TTransaction* transaction);
+        
+    void CheckDynamicTableLock(
+        NTableServer::TTableNode* table,
+        NTransactionServer::TTransaction* transaction,
+        NTableClient::NProto::TRspCheckDynamicTableLock* response);
+
+
     std::vector<TTabletActionId> SyncBalanceCells(
         TTabletCellBundle* bundle,
         const std::optional<std::vector<NTableServer::TTableNode*>>& tables,
@@ -154,6 +165,8 @@ public:
     std::vector<TTabletActionId> SyncBalanceTablets(NTableServer::TTableNode* table, bool keepActions);
 
     const TBundleNodeTrackerPtr& GetBundleNodeTracker();
+
+    void MergeTableNodes(NChunkServer::TChunkOwnerBase* originatingNode, NChunkServer::TChunkOwnerBase* branchedNode);
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCellBundle, TTabletCellBundle);
     TTabletCellBundle* FindTabletCellBundleByName(const TString& name);

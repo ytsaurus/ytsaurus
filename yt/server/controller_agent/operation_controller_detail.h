@@ -108,7 +108,7 @@ class TOperationControllerBase
     // In order to make scheduler more stable, we do not allow
     // pure YT_VERIFY to be executed from the controller code (directly
     // or indirectly). Thus, all interface methods of IOperationController
-    // are divided into two groups: those that involve YCHECKs
+    // are divided into two groups: those that involve YT_VERIFYs
     // to make assertions essential for further execution, and pure ones.
 
     // All potentially faulty controller interface methods are
@@ -197,7 +197,7 @@ private: \
 #undef IMPLEMENT_SAFE_METHOD
 
 public:
-    // These are "pure" interface methods, i. e. those that do not involve YCHECKs.
+    // These are "pure" interface methods, i. e. those that do not involve YT_VERIFYs.
     // If some of these methods still fails due to unnoticed YT_VERIFY, consider
     // moving it to the section above.
 
@@ -609,8 +609,10 @@ protected:
     void BeginUploadOutputTables(const std::vector<TOutputTablePtr>& tables);
     void AttachOutputChunks(const std::vector<TOutputTablePtr>& tableList);
     void EndUploadOutputTables(const std::vector<TOutputTablePtr>& tables);
+    void LockDynamicTables();
     void CommitTransactions();
     virtual void CustomCommit();
+    void VerifySortedOutput(TOutputTablePtr table);
 
     void StartOutputCompletionTransaction();
     void CommitOutputCompletionTransaction();
@@ -732,8 +734,11 @@ protected:
         const NChunkClient::TChunkReplicaList& replicas,
         TInputChunkDescriptor* descriptor);
 
-    virtual bool IsOutputLivePreviewSupported() const;
-    virtual bool IsIntermediateLivePreviewSupported() const;
+    bool IsOutputLivePreviewSupported() const;
+    bool IsIntermediateLivePreviewSupported() const;
+
+    virtual bool DoCheckOutputLivePreviewSupported() const;
+    virtual bool DoCheckIntermediateLivePreviewSupported() const;
     virtual bool IsInputDataSizeHistogramSupported() const;
     virtual bool AreForeignTablesSupported() const;
 

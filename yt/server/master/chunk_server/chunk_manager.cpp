@@ -732,13 +732,13 @@ public:
         ScheduleChunkRefresh(chunk);
     }
 
-    TChunkView* CreateChunkView(TChunkTree* underlyingTree, NChunkClient::TReadRange readRange)
+    TChunkView* CreateChunkView(TChunkTree* underlyingTree, NChunkClient::TReadRange readRange, TTransactionId transactionId = NullTransactionId)
     {
         switch (underlyingTree->GetType()) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk: {
                 auto* underlyingChunk = underlyingTree->As<TChunk>();
-                auto* chunkView = DoCreateChunkView(underlyingChunk, std::move(readRange));
+                auto* chunkView = DoCreateChunkView(underlyingChunk, std::move(readRange), transactionId);
                 YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk view created (Id: %v, ChunkId: %v)",
                     chunkView->GetId(),
                     underlyingChunk->GetId());
@@ -747,7 +747,7 @@ public:
 
             case EObjectType::ChunkView: {
                 auto* underlyingChunkView = underlyingTree->As<TChunkView>();
-                auto* chunkView = DoCreateChunkView(underlyingChunkView, std::move(readRange));
+                auto* chunkView = DoCreateChunkView(underlyingChunkView, std::move(readRange), transactionId);
                 YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk view created (Id: %v, ChunkId: %v, BaseChunkViewId: %v)",
                     chunkView->GetId(),
                     underlyingChunkView->GetUnderlyingChunk()->GetId(),
@@ -1639,7 +1639,7 @@ private:
     }
 
 
-    TChunkView* DoCreateChunkView(TChunk* underlyingChunk, NChunkClient::TReadRange readRange)
+    TChunkView* DoCreateChunkView(TChunk* underlyingChunk, NChunkClient::TReadRange readRange, TTransactionId transactionId)
     {
         ++ChunkViewsCreated_;
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1650,14 +1650,19 @@ private:
         underlyingChunk->AddParent(chunkView);
         chunkView->SetReadRange(std::move(readRange));
         Bootstrap_->GetObjectManager()->RefObject(underlyingChunk);
+        if (transactionId) {
+            auto& transactionManager = Bootstrap_->GetTransactionManager();
+            transactionManager->CreateOrRefTimestampHolder(transactionId);
+            chunkView->SetTransactionId(transactionId);
+        }
         return chunkView;
     }
 
-    TChunkView* DoCreateChunkView(TChunkView* underlyingChunkView, NChunkClient::TReadRange readRange)
+    TChunkView* DoCreateChunkView(TChunkView* underlyingChunkView, NChunkClient::TReadRange readRange, TTransactionId transactionId)
     {
         readRange.LowerLimit() = underlyingChunkView->GetAdjustedLowerReadLimit(readRange.LowerLimit());
         readRange.UpperLimit() = underlyingChunkView->GetAdjustedUpperReadLimit(readRange.UpperLimit());
-        return DoCreateChunkView(underlyingChunkView->GetUnderlyingChunk(), readRange);
+        return DoCreateChunkView(underlyingChunkView->GetUnderlyingChunk(), readRange, transactionId);
     }
 
     void DestroyChunkView(TChunkView* chunkView)
@@ -1668,6 +1673,9 @@ private:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         underlyingChunk->RemoveParent(chunkView);
         objectManager->UnrefObject(underlyingChunk);
+
+        auto& transactionManager = Bootstrap_->GetTransactionManager();
+        transactionManager->UnrefTimestampHolder(chunkView->GetTransactionId());
 
         ++ChunkViewsDestroyed_;
     }
@@ -2437,13 +2445,23 @@ private:
     {
         auto parentId = FromProto<TTransactionId>(subrequest->parent_id());
         auto* parent = GetChunkListOrThrow(parentId);
+        auto transactionId = subrequest->has_transaction_id()
+            ? FromProto<TTransactionId>(subrequest->transaction_id())
+            : NullTransactionId;
 
         std::vector<TChunkTree*> children;
         children.reserve(subrequest->child_ids_size());
         for (const auto& protoChildId : subrequest->child_ids()) {
             auto childId = FromProto<TChunkTreeId>(protoChildId);
             auto* child = GetChunkTreeOrThrow(childId);
-            children.push_back(child);
+            if (parent->GetKind() == EChunkListKind::SortedDynamicSubtablet) {
+                YT_VERIFY(child->GetType() == EObjectType::Chunk);
+
+                auto chunkView = CreateChunkView(child->AsChunk(), NChunkClient::TReadRange(), transactionId);
+                children.push_back(chunkView);
+            } else {
+                children.push_back(child);
+            }
             // YT-6542: Make sure we never attach a chunk list to its parent more than once.
             if (child->GetType() == EObjectType::ChunkList) {
                 auto* chunkListChild = child->AsChunkList();
@@ -2463,11 +2481,11 @@ private:
             *subresponse->mutable_statistics() = parent->Statistics().ToDataStatistics();
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk trees attached (ParentId: %v, ChildIds: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk trees attached (ParentId: %v, ChildIds: %v, TransactionId: %v)",
             parentId,
-            MakeFormattableView(children, TObjectIdFormatter()));
+            MakeFormattableView(children, TObjectIdFormatter()),
+            transactionId);
     }
-
 
     void SaveKeys(NCellMaster::TSaveContext& context) const
     {

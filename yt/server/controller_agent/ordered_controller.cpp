@@ -782,7 +782,7 @@ private:
         }
     }
 
-    virtual bool IsOutputLivePreviewSupported() const override
+    virtual bool DoCheckOutputLivePreviewSupported() const override
     {
         return Spec_->EnableLegacyLivePreview;
     }

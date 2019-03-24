@@ -35,6 +35,12 @@ message TTableReplicaDescriptor
     optional int32 atomicity = 8; // EAtomicity
 }
 
+message TLockDescriptor
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required int64 timestamp = 2;
+}
+
 message TReqMountTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
@@ -55,6 +61,7 @@ message TReqMountTablet
     repeated TTableReplicaDescriptor replicas = 14;
     optional NYT.NProto.TGuid upstream_replica_id = 18;
     optional string path = 19;
+    repeated TLockDescriptor locks = 20;
 }
 
 message TReqUnmountTablet
@@ -80,6 +87,20 @@ message TReqFreezeTablet
 message TReqUnfreezeTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
+}
+
+message TReqLockTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required TLockDescriptor lock = 2;
+}
+
+message TReqUnlockTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NProto.TGuid transaction_id = 2;
+    required int64 mount_revision = 3;
+    repeated NTabletNode.NProto.TAddStoreDescriptor stores_to_add = 4;
 }
 
 message TReqSetTabletState

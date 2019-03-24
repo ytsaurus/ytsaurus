@@ -145,6 +145,7 @@ TOrderedChunkStore::TOrderedChunkStore(
         config,
         id /*storeId*/,
         id /*chunkId*/,
+        NullTimestamp,
         tablet,
         blockCache,
         chunkRegistry,
@@ -228,6 +229,7 @@ ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
         GetBlockCache(),
         NChunkClient::NProto::TChunkSpec(),
         nullptr,
+        NullTimestamp,
         nullptr,
         nullptr,
         nullptr);

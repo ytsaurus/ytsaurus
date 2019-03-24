@@ -14,6 +14,8 @@
 #include <yt/server/master/security_server/cluster_resources.h>
 #include <yt/server/master/security_server/public.h>
 
+#include <yt/server/master/table_server/public.h>
+
 #include <yt/server/lib/hive/transaction_detail.h>
 
 #include <yt/ytlib/cypress_client/public.h>
@@ -62,6 +64,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TBranchedNodeList, BranchedNodes);
     typedef std::vector<NCypressServer::TCypressNode*> TStagedNodeList;
     DEFINE_BYREF_RW_PROPERTY(TStagedNodeList, StagedNodes);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<NTableServer::TTableNode*>, LockedDynamicTables);
 
     // Security Manager stuff
     typedef THashMap<NSecurityServer::TAccount*, NSecurityServer::TClusterResources> TAccountResourcesMap;
