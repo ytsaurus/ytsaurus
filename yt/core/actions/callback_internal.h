@@ -41,7 +41,6 @@ struct TBindStateBase
 #endif
     );
 
-    NTracing::TTraceContextPtr TraceContext;
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
     TSourceLocation Location;
 #endif

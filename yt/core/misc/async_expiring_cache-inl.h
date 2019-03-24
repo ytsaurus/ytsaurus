@@ -212,9 +212,8 @@ void TAsyncExpiringCache<TKey, TValue>::SetResult(const TWeakPtr<TEntry>& weakEn
     }
 
     if (valueOrError.IsOK() && Config_->RefreshTime) {
-        NTracing::TNullTraceContextGuard guard;
         entry->ProbationCookie = NConcurrency::TDelayedExecutor::Submit(
-            BIND(&TAsyncExpiringCache::InvokeGet, MakeWeak(this), MakeWeak(entry), key, true),
+            BIND_DONT_CAPTURE_TRACE_CONTEXT(&TAsyncExpiringCache::InvokeGet, MakeWeak(this), MakeWeak(entry), key, true),
             *Config_->RefreshTime);
     }
 }

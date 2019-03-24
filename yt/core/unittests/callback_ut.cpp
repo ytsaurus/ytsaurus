@@ -21,7 +21,12 @@ struct TFakeInvoker
 
 namespace NDetail {
 
-template <class TRunnable, class TSignature, class TBoundArgs>
+template <
+    bool CaptureTraceContext,
+    class TRunnable,
+    class TSignature,
+    class TBoundArgs
+>
 struct TBindState;
 
 // White-box injection into a #TCallback<> object for checking
@@ -30,28 +35,32 @@ struct TBindState;
 // chance of colliding with another instantiation and breaking the
 // one-definition-rule.
 template <>
-struct TBindState<void(), void(), void(TFakeInvoker)>
+struct TBindState<true, void(), void(), void(TFakeInvoker)>
     : public TBindStateBase
 {
 public:
     typedef TFakeInvoker TInvokerType;
-#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
     TBindState()
-        : TBindStateBase(FROM_HERE)
-    { }
+        : TBindStateBase(
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
+            FROM_HERE
 #endif
+        )
+    { }
 };
 
 template <>
-struct TBindState<void(), void(), void(TFakeInvoker, TFakeInvoker)>
+struct TBindState<true, void(), void(), void(TFakeInvoker, TFakeInvoker)>
     : public TBindStateBase
 {
     typedef TFakeInvoker TInvokerType;
-#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
     TBindState()
-        : TBindStateBase(FROM_HERE)
-    { }
+        : TBindStateBase(
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
+            FROM_HERE
 #endif
+        )
+    { }
 };
 
 } // namespace NDetail
@@ -62,9 +71,9 @@ namespace {
 
 // TODO(sandello): Implement accurate check on the number of Ref() and Unref()s.
 
-typedef NDetail::TBindState<void(), void(), void(TFakeInvoker)>
+typedef NDetail::TBindState<true, void(), void(), void(TFakeInvoker)>
     TFakeBindState1;
-typedef NDetail::TBindState<void(), void(), void(TFakeInvoker, TFakeInvoker)>
+typedef NDetail::TBindState<true, void(), void(), void(TFakeInvoker, TFakeInvoker)>
     TFakeBindState2;
 
 class TCallbackTest
