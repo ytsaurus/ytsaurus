@@ -1418,7 +1418,7 @@ TEST_F(TAttachmentsOutputStreamTest, WriteTimeout)
     EXPECT_TRUE(future1.Get().IsOK());
 
     auto future2 = stream->Write(payload);
-    EXPECT_FALSE(future1.IsSet());
+    EXPECT_FALSE(future2.IsSet());
     auto error = future2.Get();
     EXPECT_FALSE(error.IsOK());
     EXPECT_EQ(NYT::EErrorCode::Timeout, error.GetCode());
