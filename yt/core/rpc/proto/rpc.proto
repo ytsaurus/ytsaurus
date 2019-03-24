@@ -53,7 +53,7 @@ message TRequestHeader
 
     optional int32 response_memory_zone = 32; // EMemoryZone
 
-    optional TStreamingParameters response_attachments_streaming_parameters = 33;
+    optional TStreamingParameters server_attachments_streaming_parameters = 33;
 
     extensions 100 to max;
 }
