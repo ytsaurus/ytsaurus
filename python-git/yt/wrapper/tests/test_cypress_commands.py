@@ -515,15 +515,18 @@ class TestCypressCommands(object):
             yt.abort_transaction(tx)
 
         tx = yt.start_transaction(timeout=2000)
-        yt.config.COMMAND_PARAMS["transaction_id"] = tx
         client = yt.YtClient(config=yt.config.config)
+        client.COMMAND_PARAMS["transaction_id"] = tx
         try:
-            assert yt.lock(dir) != "0-0-0-0"
+            lock_result = client.lock(dir, waitable=True, wait_for=4000)
+            lock_id = lock_result["lock_id"] if yt.config["api_version"] == "v4" else lock_result
+            assert lock_id != "0-0-0-0"
             with client.Transaction():
-                assert client.lock(dir, waitable=True, wait_for=4000) != "0-0-0-0"
+                lock_result = client.lock(dir, waitable=True, wait_for=4000)
+                lock_id = lock_result["lock_id"] if yt.config["api_version"] == "v4" else lock_result
+                assert lock_id != "0-0-0-0"
         finally:
-            yt.config.COMMAND_PARAMS["transaction_id"] = "0-0-0-0"
-            yt.abort_transaction(tx)
+            client.abort_transaction(tx)
 
     def test_shared_key_attribute_locks(self):
         dir = TEST_DIR + "/dir"
