@@ -17,9 +17,11 @@ namespace NYT::NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EJobMetricName,
-    (UserJobIOReads)
-    (UserJobIOWrites)
-    (UserJobIOTotal)
+    // We use Io instead of IO in enum values since we want to have 'io'
+    // in FormatEnum representation.
+    (UserJobIoReads)
+    (UserJobIoWrites)
+    (UserJobIoTotal)
     (UserJobBytesRead)
     (UserJobBytesWritten)
 
