@@ -34,86 +34,6 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const THashMap<TString, TString> V2CommandMapping = {
-    {"read", "read_table"},
-    {"write", "write_table"},
-    {"download", "read_file"},
-    {"upload", "write_file"},
-};
-
-static const THashSet<TString> V2CommandWhitelist = {
-    "abort_tx",
-    "add_member",
-    "get_version",
-    "remove_member",
-    "ping_tx",
-    "reduce",
-    "check_permission",
-    "commit_tx",
-    "lock",
-    "remote_copy",
-    "list_operations",
-    "exists",
-    "map_reduce",
-    "set",
-    "list",
-    "resume_op",
-    "concatenate",
-    "sort",
-    "merge",
-    "remove",
-    "link",
-    "create",
-    "get_in_sync_replicas",
-    "locate_skynet_share",
-    "erase",
-    "start_op",
-    "map",
-    "start_tx",
-    "suspend_op",
-    "copy",
-    "parse_ypath",
-    "abort_op",
-    "get",
-    "move",
-    "read",
-    "write",
-    "download",
-    "upload",
-};
-
-std::optional<TString> CommandNameV2ToV3(TString commandName)
-{
-    if (V2CommandWhitelist.find(commandName) == V2CommandWhitelist.end()) {
-        return {};
-    }
-
-    auto it = V2CommandMapping.find(commandName);
-    if (it != V2CommandMapping.end()) {
-        commandName = it->second;
-    }
-
-    return commandName;
-}
-
-std::optional<TString> CommandNameV3ToV2(TString commandName)
-{
-    for (const auto& patch : V2CommandMapping) {
-        if (commandName == patch.second) {
-            commandName = patch.first;
-            break;
-        }
-    }
-
-    if (V2CommandWhitelist.find(commandName) == V2CommandWhitelist.end()) {
-        return {};
-    }
-
-    return commandName;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TContext::TContext(
     const TApiPtr& api,
     const IRequestPtr& req,
@@ -176,7 +96,6 @@ bool TContext::TryParseCommandName()
         DispatchJson([&] (auto consumer) {
             BuildYsonFluently(consumer)
                 .BeginList()
-                    .Item().Value("v2")
                     .Item().Value("v3")
                     .Item().Value("v4")
                 .EndList();
@@ -184,9 +103,7 @@ bool TContext::TryParseCommandName()
         return false;
     }
 
-    if (versionedName.StartsWith("/api/v2")) {
-        ApiVersion_ = 2;
-    } else if (versionedName.StartsWith("/api/v3")) {
+    if (versionedName.StartsWith("/api/v3")) {
         ApiVersion_ = 3;
     } else if (versionedName.StartsWith("/api/v4")) {
         ApiVersion_ = 4;
@@ -197,23 +114,7 @@ bool TContext::TryParseCommandName()
     TStringBuf commandName = versionedName;
     commandName.Skip(7);
     if (commandName == "" || commandName == "/") {
-        if (*ApiVersion_ == 2) {
-            Response_->SetStatus(EStatusCode::OK);
-            DispatchJson([this] (auto consumer) {
-                BuildYsonFluently(consumer)
-                    .DoList([this] (auto fluent) {
-                        for (auto descriptor : Api_->GetDriverV3()->GetCommandDescriptors()) {
-                            auto renamed = CommandNameV3ToV2(descriptor.CommandName);
-                            if (!renamed) {
-                                continue;
-                            }
-
-                            descriptor.CommandName = *renamed;
-                            fluent.Item().Value(descriptor);
-                        }
-                    });
-            });
-        } else if (*ApiVersion_ == 3) {
+        if (*ApiVersion_ == 3) {
             Response_->SetStatus(EStatusCode::OK);
             DispatchJson([this] (auto consumer) {
                 BuildYsonFluently(consumer)
@@ -291,7 +192,7 @@ bool TContext::TryParseUser()
 
 bool TContext::TryGetDescriptor()
 {
-    if (*ApiVersion_ == 2 || *ApiVersion_ == 3) {
+    if (*ApiVersion_ == 3) {
         Descriptor_ = Api_->GetDriverV3()->FindCommandDescriptor(DriverRequest_.CommandName);
     } else {
         Descriptor_ = Api_->GetDriverV4()->FindCommandDescriptor(DriverRequest_.CommandName);
