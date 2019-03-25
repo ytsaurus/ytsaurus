@@ -359,11 +359,20 @@ public:
         if (!HoldsAlternative<TJobBinaryDefault>(Spec_.GetJobBinary())) {
             jobBinary = Spec_.GetJobBinary();
         }
+        TString binaryPathInsideJob;
         if (HoldsAlternative<TJobBinaryDefault>(jobBinary)) {
             if (GetInitStatus() != EInitStatus::FullInitialization) {
                 ythrow yexception() << "NYT::Initialize() must be called prior to any operation";
             }
-            jobBinary = TJobBinaryLocalPath{GetExecPath()};
+            jobBinary = TJobBinaryLocalPath{GetPersistentExecPath()};
+
+            if (UseLocalModeOptimization(OperationPreparer_.GetAuth())) {
+                binaryPathInsideJob = GetExecPath();
+            }
+        } else if (HoldsAlternative<TJobBinaryLocalPath>(jobBinary)) {
+            if (UseLocalModeOptimization(OperationPreparer_.GetAuth())) {
+                binaryPathInsideJob = TFsPath(::Get<TJobBinaryLocalPath>(jobBinary).Path).RealPath();
+            }
         }
         Y_ASSERT(!HoldsAlternative<TJobBinaryDefault>(jobBinary));
 
@@ -383,12 +392,10 @@ public:
             UploadSmallFile(smallFile);
         }
 
-        TString binaryPathInsideJob;
-        if (UseLocalModeOptimization(OperationPreparer_.GetAuth()) && HoldsAlternative<TJobBinaryLocalPath>(jobBinary)) {
-            binaryPathInsideJob = TFsPath(::Get<TJobBinaryLocalPath>(jobBinary).Path).RealPath();
-        } else {
-            UploadBinary(jobBinary);
+        // binaryPathInsideJob is only set when LocalModeOptimization option is on, so upload is not needed
+        if (!binaryPathInsideJob) {
             binaryPathInsideJob = "./cppbinary";
+            UploadBinary(jobBinary);
         }
 
         TString jobCommandPrefix = options.JobCommandPrefix_;
