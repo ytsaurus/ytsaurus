@@ -446,6 +446,7 @@ protected:
             rules = [
                 {
                     "min_level" = "info";
+                    "max_level" = "info";
                     "writers" = [ "info" ];
                 };
             ];

@@ -34,6 +34,33 @@ private:
 
 };
 
+/////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+class TSingleProducerSingleConsumerQueue
+    : private TNonCopyable
+{
+public:
+    TSingleProducerSingleConsumerQueue();
+    ~TSingleProducerSingleConsumerQueue();
+
+    void Push(T&& element);
+
+    bool Pop(T* element);
+
+    bool IsEmpty() const;
+
+private:
+    static constexpr size_t BufferSize = 128;
+
+    struct TNode;
+
+    TNode* Head_;
+    TNode* Tail_;
+    std::atomic<size_t> Count_ = {0};
+    size_t Offset_ = 0;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

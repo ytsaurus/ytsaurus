@@ -132,4 +132,88 @@ bool TMultipleProducerSingleConsumerLockFreeStack<T>::IsEmpty() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+struct TSingleProducerSingleConsumerQueue<T>::TNode
+{
+    std::atomic<TNode*> Next = {nullptr};
+    size_t Offset = 0;
+    T Data[BufferSize];
+};
+
+template <class T>
+TSingleProducerSingleConsumerQueue<T>::TSingleProducerSingleConsumerQueue()
+{
+    auto initialNode = new TNode();
+    Head_ = initialNode;
+    Tail_ = initialNode;
+}
+
+template <class T>
+TSingleProducerSingleConsumerQueue<T>::~TSingleProducerSingleConsumerQueue()
+{
+    auto current = Head_;
+    while (current) {
+        auto next = current->Next.load();
+        delete current;
+        current = next;
+    }
+}
+
+template <class T>
+void TSingleProducerSingleConsumerQueue<T>::Push(T&& element)
+{
+    auto count = Count_.load();
+    size_t position = count - Tail_->Offset;
+
+    if (position == BufferSize) {
+        auto oldTail = Tail_;
+        Tail_ = new TNode();
+        Tail_->Offset = count;
+        oldTail->Next.store(Tail_);
+        position = 0;
+    }
+
+    Tail_->Data[position] = std::move(element);
+    Count_ = count + 1;
+}
+
+template <class T>
+bool TSingleProducerSingleConsumerQueue<T>::Pop(T* element)
+{
+    auto count = Count_.load();
+
+    if (Offset_ >= count) {
+        return false;
+    }
+
+    auto position = Offset_ - Head_->Offset;
+
+    if (position == BufferSize) {
+        auto next = Head_->Next.load();
+
+        if (!next) {
+            return false;
+        }
+
+        delete Head_;
+        Head_ = next;
+        position = 0;
+    }
+
+    *element = std::move(Head_->Data[position]);
+    ++Offset_;
+    return true;
+
+}
+
+template <class T>
+bool TSingleProducerSingleConsumerQueue<T>::IsEmpty() const
+{
+    auto count = Count_.load();
+    Y_ASSERT(Offset_ <= count);
+    return Offset_ == count;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

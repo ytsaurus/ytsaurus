@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/core/misc/shutdownable.h>
+#include <yt/core/misc/singleton.h>
 
 #include <yt/core/tracing/public.h>
 
@@ -27,6 +28,8 @@ class TLogManager
     : public IShutdownable
 {
 public:
+    friend struct TLocalQueueReclaimer;
+
     ~TLogManager();
 
     static TLogManager* Get();
@@ -48,9 +51,6 @@ public:
 
     void Reopen();
 
-    void SetPerThreadBatchingPeriod(TDuration value);
-    TDuration GetPerThreadBatchingPeriod() const;
-
     void SuppressTrace(NTracing::TTraceId traceId);
 
     void Synchronize(TInstant deadline = TInstant::Max());
@@ -58,7 +58,7 @@ public:
 private:
     TLogManager();
 
-    Y_DECLARE_SINGLETON_FRIEND();
+    DECLARE_IMMORTAL_SINGLETON_FRIEND();
 
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

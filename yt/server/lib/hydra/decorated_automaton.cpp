@@ -1174,9 +1174,6 @@ void TDecoratedAutomaton::StartEpoch(TEpochContextPtr epochContext)
 {
     YCHECK(!EpochContext_);
     EpochContext_ = std::move(epochContext);
-
-    // Enable batching for log messages.
-    NLogging::TLogManager::Get()->SetPerThreadBatchingPeriod(Config_->AutomatonThreadLogBatchingPeriod);
 }
 
 void TDecoratedAutomaton::CancelSnapshot()
@@ -1213,9 +1210,6 @@ void TDecoratedAutomaton::StopEpoch()
     CancelSnapshot();
     RecoveryRecordCount_ = 0;
     RecoveryDataSize_ = 0;
-
-    // Disable batching for log messages.
-    NLogging::TLogManager::Get()->SetPerThreadBatchingPeriod(TDuration::Zero());
 }
 
 void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
