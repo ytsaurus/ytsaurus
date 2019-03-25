@@ -535,7 +535,7 @@ public:
     //! Cf. TTcpDispatcherStatistics::PendingOutBytes
     i64 NetOutThrottlingLimit;
 
-    TDuration NetOutThrottleCounterInterval
+    TDuration NetOutThrottleCounterInterval;
 
     //! Write requests are throttled when the number of bytes queued for write exceeds this limit.
     //! This is a per-location limit.
