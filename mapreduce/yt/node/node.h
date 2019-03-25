@@ -1,6 +1,7 @@
 #pragma once
 
 #include <util/generic/bt_exception.h>
+#include <util/generic/cast.h>
 #include <util/generic/hash.h>
 #include <util/generic/variant.h>
 #include <util/generic/vector.h>
@@ -145,12 +146,12 @@ public:
     TListType& UncheckedAsList() noexcept;
     TMapType& UncheckedAsMap() noexcept;
 
-    // ui64 <-> i64
+    // integer types cast
     // makes overflow checks
     template<typename T>
     T IntCast() const;
 
-    // ui64 <-> i64 <-> double <-> string
+    // integers <-> double <-> string
     // makes overflow checks
     template<typename T>
     T ConvertTo() const;
@@ -225,42 +226,50 @@ bool GetBool(const TNode& node);
 
 template<typename T>
 inline T TNode::IntCast() const {
-    static_assert(sizeof(T) != sizeof(T), "implemented only for ui64/i64");
-}
-
-template<>
-inline ui64 TNode::IntCast<ui64>() const {
-    switch (GetType()) {
-        case TNode::Uint64:
-            return AsUint64();
-        case TNode::Int64:
-            if (AsInt64() < 0) {
-                ythrow TTypeError() << AsInt64() << " can't be converted to ui64";
+    if constexpr (std::is_integral<T>::value) {
+        try {
+            switch (GetType()) {
+                case TNode::Uint64:
+                    return SafeIntegerCast<T>(AsUint64());
+                case TNode::Int64:
+                    return SafeIntegerCast<T>(AsInt64());
+                default:
+                    ythrow TTypeError() << "IntCast() called for type " << GetType();
             }
-            return AsInt64();
-        default:
-            ythrow TTypeError() << "IntCast() called for type " << GetType();
-    }
-}
-
-template<>
-inline i64 TNode::IntCast<i64>() const {
-    switch (GetType()) {
-        case TNode::Uint64:
-            if (AsUint64() > (ui64)std::numeric_limits<i64>::max()) {
-                ythrow TTypeError() << AsUint64() << " can't be converted to i64";
-            }
-            return AsUint64();
-        case TNode::Int64:
-            return AsInt64();
-        default:
-            ythrow TTypeError() << "IntCast() called for type " << GetType();
+        } catch(TBadCastException& exc) {
+            ythrow TTypeError() << "TBadCastException during IntCast(): " << exc.what();
+        }
+    } else {
+        static_assert(sizeof(T) != sizeof(T), "implemented only for std::is_integral types");
     }
 }
 
 template<typename T>
 inline T TNode::ConvertTo() const {
-    static_assert(sizeof(T) != sizeof(T), "should have template specialization");
+    if constexpr (std::is_integral<T>::value) {
+        switch (GetType()) {
+            case NYT::TNode::String:
+                return ::FromString(AsString());
+            case NYT::TNode::Int64:
+            case NYT::TNode::Uint64:
+                return IntCast<T>();
+            case NYT::TNode::Double:
+                // >= because of (1<<sizeof(T)) + 1
+                if (AsDouble() < std::numeric_limits<T>::min() || AsDouble() >= std::numeric_limits<T>::max() || !std::isfinite(AsDouble())) {
+                    ythrow TTypeError() << AsDouble() << " can't be converted to " << TypeName<T>();
+                }
+                return AsDouble();
+            case NYT::TNode::Bool:
+                return AsBool();
+            case NYT::TNode::List:
+            case NYT::TNode::Map:
+            case NYT::TNode::Null:
+            case NYT::TNode::Undefined:
+                ythrow TTypeError() << "ConvertTo<" << TypeName<T>() << ">() called for type " << GetType();
+        };
+    } else {
+        static_assert(sizeof(T) != sizeof(T), "should have template specialization");
+    }
 }
 
 template<>
@@ -281,54 +290,6 @@ inline TString TNode::ConvertTo<TString>() const {
         case NYT::TNode::Null:
         case NYT::TNode::Undefined:
             ythrow TTypeError() << "ConvertTo<TString>() called for type " << GetType();
-    }
-}
-
-template<>
-inline ui64 TNode::ConvertTo<ui64>() const {
-    switch (GetType()) {
-        case NYT::TNode::String:
-            return ::FromString(AsString());
-        case NYT::TNode::Int64:
-        case NYT::TNode::Uint64:
-            return IntCast<ui64>();
-        case NYT::TNode::Double:
-            // >= because of (1<<64) + 1
-            if (AsDouble() < std::numeric_limits<ui64>::min() || AsDouble() >= std::numeric_limits<ui64>::max() || !std::isfinite(AsDouble())) {
-                ythrow TTypeError() << AsDouble() << " can't be converted to ui64";
-            }
-            return AsDouble();
-        case NYT::TNode::Bool:
-            return AsBool();
-        case NYT::TNode::List:
-        case NYT::TNode::Map:
-        case NYT::TNode::Null:
-        case NYT::TNode::Undefined:
-            ythrow TTypeError() << "ConvertTo<ui64>() called for type " << GetType();
-    }
-}
-
-template<>
-inline i64 TNode::ConvertTo<i64>() const {
-    switch (GetType()) {
-        case NYT::TNode::String:
-            return ::FromString(AsString());
-        case NYT::TNode::Int64:
-        case NYT::TNode::Uint64:
-            return IntCast<i64>();
-        case NYT::TNode::Double:
-            // >= because of (1<<63) + 1
-            if (AsDouble() < std::numeric_limits<i64>::min() || AsDouble() >= std::numeric_limits<i64>::max() || !std::isfinite(AsDouble())) {
-                ythrow TTypeError() << AsDouble() << " can't be converted to i64";
-            }
-            return AsDouble();
-        case NYT::TNode::Bool:
-            return AsBool();
-        case NYT::TNode::List:
-        case NYT::TNode::Map:
-        case NYT::TNode::Null:
-        case NYT::TNode::Undefined:
-            ythrow TTypeError() << "ConvertTo<i64>() called for type " << GetType();
     }
 }
 
