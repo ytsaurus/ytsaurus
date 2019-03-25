@@ -399,6 +399,8 @@ public:
     //! (If not initialized then indicates to occupy all available space on drive).
     std::optional<i64> Quota;
 
+    bool LocationIsAbsolute;
+
     TLayerLocationConfig()
     {
         RegisterParameter("low_watermark", LowWatermark)
@@ -407,6 +409,9 @@ public:
 
         RegisterParameter("quota", Quota)
             .Default();
+
+        RegisterParameter("location_is_absolute", LocationIsAbsolute)
+            .Default(true);
     }
 };
 
@@ -530,7 +535,7 @@ public:
     //! Cf. TTcpDispatcherStatistics::PendingOutBytes
     i64 NetOutThrottlingLimit;
 
-    TDuration NetOutThrottleCounterInterval;
+    TDuration NetOutThrottleCounterInterval
 
     //! Write requests are throttled when the number of bytes queued for write exceeds this limit.
     //! This is a per-location limit.
