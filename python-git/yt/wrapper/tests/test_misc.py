@@ -7,6 +7,7 @@ from yt.wrapper.errors import YtRetriableError
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.mappings import VerifiedDict, FrozenDict
 from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
+from yt.wrapper.http_helpers import get_api_version
 from yt.wrapper.retries import run_with_retries, Retrier
 from yt.wrapper.ypath import ypath_join, ypath_dirname, ypath_split
 from yt.common import makedirp
@@ -183,7 +184,8 @@ class TestMutations(object):
         self.check_command(lambda: yt.move(test_dir, test_dir2))
 
     def test_scheduler_mutation_id(self):
-        def abort(operation_id):
+        def abort(operation_response):
+            operation_id = operation_response["operation_id"] if get_api_version() == "v4" else operation_response
             yt.abort_operation(operation_id)
             time.sleep(1.0) # Wait for aborting transactions
 
@@ -209,13 +211,15 @@ class TestMutations(object):
                 "input_table_paths": [table],
                 "output_table_paths": [other_table]
             },
-            "output_format": "json"
+            "output_format": "yson",
+            "operation_type": "map"
         }
 
         operations_count = get_operation_count()
 
+        command_name = "start_operation" if get_api_version() == "v4" else "start_op"
         self.check_command(
-            lambda: yson.loads(yt.driver.make_request("map", params, decode_content=False)),
+            lambda: yson.loads(yt.driver.make_request(command_name, params, decode_content=False)),
             None,
             lambda: get_operation_count() == operations_count + 1,
             abort)
@@ -722,10 +726,13 @@ class TestExecuteBatch(object):
                 {"command": "list", "parameters": {"path": "//tmp/missing"}},
             ],
             concurrency=concurrency)
-
-        assert "test_dir" in rsp[0]["output"]
-
-        assert rsp[1]["output"] == []
+        if get_api_version() == "v4":
+            rsp = rsp["results"]
+            assert "test_dir" in rsp[0]["output"]["value"]
+            assert rsp[1]["output"]["value"] == []
+        else:
+            assert "test_dir" in rsp[0]["output"]
+            assert rsp[1]["output"] == []
 
         err = yt.YtResponseError(rsp[2]["error"])
         assert err.is_resolve_error()

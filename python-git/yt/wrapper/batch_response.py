@@ -13,7 +13,8 @@ class BatchResponse(object):
 
         for function, include_error in self._output_transformation_functions:
             if not include_error:
-                self._output = function(self._output)
+                if self._error is None:
+                    self._output = function(self._output)
             else:
                 self._output, self._error = function(self._output, self._error)
 

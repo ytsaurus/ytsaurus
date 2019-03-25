@@ -249,8 +249,12 @@ def init_environment_for_test_session(mode, **kwargs):
         config["backend"] = "native"
     elif mode == "rpc":
         config["backend"] = "rpc"
+    elif mode in ("native_multicell", "yamr", "job_archive"):
+        config["backend"] = "http"
+        config["api_version"] = "v4"
     else:
         config["backend"] = "http"
+        config["api_version"] = mode
 
     environment = YtTestEnvironment(
         "TestYtWrapper" + mode.capitalize(),
@@ -265,13 +269,13 @@ def init_environment_for_test_session(mode, **kwargs):
 
     return environment
 
-@pytest.fixture(scope="session", params=["v3", "native"])
+@pytest.fixture(scope="session", params=["v3", "v4", "native"])
 def test_environment(request):
     environment = init_environment_for_test_session(request.param)
     request.addfinalizer(lambda: environment.cleanup())
     return environment
 
-@pytest.fixture(scope="session", params=["v3", "native", "rpc"])
+@pytest.fixture(scope="session", params=["v3", "v4", "native", "rpc"])
 def test_environment_with_rpc(request):
     environment = init_environment_for_test_session(request.param)
     request.addfinalizer(lambda: environment.cleanup())

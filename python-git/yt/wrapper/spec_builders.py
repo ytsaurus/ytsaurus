@@ -666,8 +666,6 @@ class SpecBuilder(object):
             if not isinstance(self._user_job_scripts[index], (list, tuple)):
                 self._user_job_scripts[index] = [self._user_job_scripts[index]]
 
-        self.run_with_start_op = False
-
     @spec_option("The name of the pool in which the operation will work")
     def pool(self, pool_name):
         return _set_spec_value(self, "pool", pool_name)
@@ -1633,7 +1631,6 @@ class EraseSpecBuilder(SpecBuilder):
 class VanillaSpecBuilder(SpecBuilder):
     def __init__(self):
         super(VanillaSpecBuilder, self).__init__(operation_type="vanilla")
-        self.run_with_start_op = True
         self._spec["tasks"] = {}
 
     @spec_option("The description of task", nested_spec_builder=TaskSpecBuilder)

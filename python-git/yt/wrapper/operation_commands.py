@@ -2,13 +2,14 @@ from .common import ThreadPoolHelper, set_param, datetime_to_string
 from .config import get_config
 from .errors import YtOperationFailedError, YtResponseError
 from .driver import make_request, make_formatted_request
-from .http_helpers import get_proxy_url, get_retriable_errors
+from .http_helpers import get_proxy_url, get_retriable_errors, get_api_version
 from .exceptions_catcher import ExceptionCatcher
 from .cypress_commands import exists, get, list
 from .ypath import ypath_join
 from .file_commands import read_file
 from .job_commands import list_jobs, get_job_stderr
 from .local_mode import is_local_mode, get_local_mode_proxy_address
+from .batch_response import apply_function_to_result
 from . import yson
 
 import yt.logger as logger
@@ -44,21 +45,24 @@ def abort_operation(operation, reason=None, client=None):
         return
     params = {"operation_id": operation}
     set_param(params, "abort_reason", reason)
-    make_request("abort_op", params, client=client)
+    command_name = "abort_operation" if get_api_version(client) == "v4" else "abort_op"
+    make_request(command_name, params, client=client)
 
 def suspend_operation(operation, client=None):
     """Suspends operation.
 
     :param str operation: operation id.
     """
-    return make_request("suspend_op", {"operation_id": operation}, client=client)
+    command_name = "suspend_operation" if get_api_version(client) == "v4" else "suspend_op"
+    return make_request(command_name, {"operation_id": operation}, client=client)
 
 def resume_operation(operation, client=None):
     """Continues operation after suspending.
 
     :param str operation: operation id.
     """
-    return make_request("resume_op", {"operation_id": operation}, client=client)
+    command_name = "resume_operation" if get_api_version(client) == "v4" else "resume_op"
+    return make_request(command_name, {"operation_id": operation}, client=client)
 
 def complete_operation(operation, client=None):
     """Completes operation.
@@ -71,7 +75,8 @@ def complete_operation(operation, client=None):
     """
     if get_operation_state(operation, client=client).is_finished():
         return
-    return make_request("complete_op", {"operation_id": operation}, client=client)
+    command_name = "complete_operation" if get_api_version(client) == "v4" else "complete_op"
+    return make_request(command_name, {"operation_id": operation}, client=client)
 
 def get_operation(operation_id, attributes=None, include_scheduler=None, format=None, client=None):
     """Get operation attributes through API.
@@ -127,8 +132,9 @@ def list_operations(user=None, state=None, type=None, filter=None, pool=None, wi
 
 def update_operation_parameters(operation_id, parameters, client=None):
     """Updates operation runtime parameters."""
+    command_name = "update_operation_parameters" if get_api_version(client) == "v4" else "update_op_parameters"
     return make_request(
-        "update_op_parameters",
+        command_name,
         {"operation_id": operation_id, "parameters": parameters},
         client=client)
 
