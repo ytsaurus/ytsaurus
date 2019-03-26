@@ -16,6 +16,17 @@ type Config struct {
 	Logger log.Logger
 }
 
+func NewConfigFromEnv() (*Config, error) {
+	var c Config
+	c.Proxy = os.Getenv("YT_PROXY")
+	if c.Proxy == "" {
+		return nil, xerrors.New("YT_PROXY environment variable is not set")
+	}
+
+	c.Token = os.Getenv("YT_TOKEN")
+	return &c, nil
+}
+
 type ClusterURL struct {
 	URL              string
 	DisableDiscovery bool
@@ -40,14 +51,4 @@ func NormalizeProxyURL(proxy string) ClusterURL {
 
 	url.URL = proxy
 	return url
-}
-
-func ClusterFromEnv() (*Config, error) {
-	proxy := os.Getenv("YT_PROXY")
-	if proxy == "" {
-		return nil, xerrors.New("YT_PROXY environment variable is not set")
-	}
-
-	token := os.Getenv("YT_TOKEN")
-	return &Config{Proxy: proxy, Token: token}, nil
 }

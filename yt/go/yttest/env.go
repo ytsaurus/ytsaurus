@@ -29,7 +29,7 @@ type Env struct {
 func NewEnv(t testing.TB) (env *Env, cancel func()) {
 	var err error
 
-	config, err := yt.ClusterFromEnv()
+	config, err := yt.NewConfigFromEnv()
 	if err != nil {
 		t.Fatalf("failed to get cluster from env: %+v", err)
 	}
