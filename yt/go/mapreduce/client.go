@@ -2,6 +2,7 @@ package mapreduce
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -13,21 +14,66 @@ import (
 	"a.yandex-team.ru/yt/go/yt"
 )
 
+type Client interface {
+	Map(mapper Job, spec *spec.Spec) (Operation, error)
+
+	Reduce(reducer Job, spec *spec.Spec) (Operation, error)
+
+	JoinReduce(reducer Job, spec *spec.Spec) (Operation, error)
+
+	MapReduce(mapper Job, reducer Job, spec *spec.Spec) (Operation, error)
+
+	MapCombineReduce(mapper Job, combiner Job, reducer Job, spec *spec.Spec) (Operation, error)
+
+	Sort(spec *spec.Spec) (Operation, error)
+
+	Merge(spec *spec.Spec) (Operation, error)
+
+	Erase(spec *spec.Spec) (Operation, error)
+
+	RemoteCopy(spec *spec.Spec) (Operation, error)
+
+	Vanilla(spec *spec.Spec) (Operation, error)
+}
+
+func New(yc yt.Client, options ...Option) Client {
+	mr := &client{
+		yc:     yc,
+		ctx:    context.Background(),
+		config: DefaultConfig(),
+	}
+
+	for _, option := range options {
+		switch o := option.(type) {
+		case *contextOption:
+			mr.ctx = o.ctx
+		case *configOption:
+			mr.config = o.config
+		default:
+			panic(fmt.Sprintf("received unsupported option of type %T", o))
+		}
+	}
+
+	return mr
+}
+
 type client struct {
 	m sync.Mutex
 
-	c yt.Client
+	yc     yt.Client
+	ctx    context.Context
+	config *Config
 
 	binaryPath ypath.Path
 }
 
-func (c *client) uploadSelf(ctx context.Context) error {
+func (mr *client) uploadSelf(ctx context.Context) error {
 	// TODO(prime@): this is broken with respect to context cancellation
 
-	c.m.Lock()
-	defer c.m.Unlock()
+	mr.m.Lock()
+	defer mr.m.Unlock()
 
-	if c.binaryPath != "" {
+	if mr.binaryPath != "" {
 		return nil
 	}
 
@@ -39,12 +85,12 @@ func (c *client) uploadSelf(ctx context.Context) error {
 
 	tmpPath := ypath.Path("//tmp").Child(guid.New().String())
 
-	_, err = c.c.CreateNode(ctx, tmpPath, yt.NodeFile, nil)
+	_, err = mr.yc.CreateNode(ctx, tmpPath, yt.NodeFile, nil)
 	if err != nil {
 		return err
 	}
 
-	w, err := c.c.WriteFile(ctx, tmpPath, nil)
+	w, err := mr.yc.WriteFile(ctx, tmpPath, nil)
 	if err != nil {
 		return err
 	}
@@ -57,22 +103,22 @@ func (c *client) uploadSelf(ctx context.Context) error {
 		return err
 	}
 
-	c.binaryPath = tmpPath
+	mr.binaryPath = tmpPath
 	return nil
 }
 
-func (c *client) Run(ctx context.Context, spec *spec.Spec) (Operation, error) {
-	if err := c.uploadSelf(ctx); err != nil {
+func (mr *client) start(spec *spec.Spec) (Operation, error) {
+	if err := mr.uploadSelf(mr.ctx); err != nil {
 		return nil, err
 	}
 
 	spec = spec.Clone()
-	spec.PatchUserBinary(c.binaryPath)
+	spec.PatchUserBinary(mr.binaryPath)
 
-	id, err := c.c.StartOperation(ctx, spec.Type, spec, nil)
+	id, err := mr.yc.StartOperation(mr.ctx, spec.Type, spec, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return &operation{c: c.c, ctx: ctx, opID: id}, nil
+	return &operation{c: mr.yc, ctx: mr.ctx, opID: id}, nil
 }

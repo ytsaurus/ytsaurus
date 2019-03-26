@@ -38,7 +38,7 @@ func jobName(o Job) string {
 
 	key := t.PkgPath() + "." + t.Name()
 	if _, ok := registry[key]; !ok {
-		panic(fmt.Sprintf("operation %T is not registered", o))
+		panic(fmt.Sprintf("job %T is not registered", o))
 	}
 
 	return key

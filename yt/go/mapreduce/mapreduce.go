@@ -2,59 +2,88 @@
 package mapreduce
 
 import (
-	"context"
 	"fmt"
 
 	"a.yandex-team.ru/yt/go/mapreduce/spec"
-	"a.yandex-team.ru/yt/go/yt"
 )
 
-type Reader interface {
-	TableIndex() int
-	Scan(value interface{}) error
-	Next() bool
+func jobCommand(job Job, outputPipes int) string {
+	return fmt.Sprintf("./go-binary -job %s -output-pipes %d", jobName(job), outputPipes)
 }
 
-type Writer interface {
-	Write(value interface{}) error
-}
-
-type JobContext interface {
-}
-
-type Job interface {
-	Do(ctx JobContext, in Reader, out []Writer) error
-}
-
-func Map(job Job, baseSpec *spec.Spec) *spec.Spec {
-	s := baseSpec.Clone()
-
-	env := map[string]string{}
-	if s.Mapper != nil && s.Mapper.Environment != nil {
-		for k, v := range s.Mapper.Environment {
-			env[k] = v
-		}
+func (mr *client) Map(mapper Job, s *spec.Spec) (Operation, error) {
+	s = s.Clone()
+	if s.Mapper == nil {
+		s.Mapper = &spec.UserScript{}
 	}
+	s.Mapper.Command = jobCommand(mapper, len(s.OutputTablePaths))
+	return mr.start(s)
+}
 
-	env["YT_INSIDE_JOB"] = "1"
-
-	s.Type = yt.OperationMap
-	s.Mapper = &spec.UserScript{
-		Command:     fmt.Sprintf("./go-binary -job %s -output-pipes %d", jobName(job), len(s.OutputTablePaths)),
-		Environment: env,
+func (mr *client) Reduce(reducer Job, s *spec.Spec) (Operation, error) {
+	s = s.Clone()
+	if s.Reducer == nil {
+		s.Reducer = &spec.UserScript{}
 	}
-
-	return s
+	s.Reducer.Command = jobCommand(reducer, len(s.OutputTablePaths))
+	return mr.start(s)
 }
 
-type Operation interface {
-	Wait() error
+func (mr *client) JoinReduce(reducer Job, s *spec.Spec) (Operation, error) {
+	s = s.Clone()
+	if s.Reducer == nil {
+		s.Reducer = &spec.UserScript{}
+	}
+	s.Reducer.Command = jobCommand(reducer, len(s.OutputTablePaths))
+	return mr.start(s)
 }
 
-type Client interface {
-	Run(ctx context.Context, spec *spec.Spec) (Operation, error)
+func (mr *client) MapReduce(mapper, reducer Job, s *spec.Spec) (Operation, error) {
+	s = s.Clone()
+	if s.Mapper != nil {
+		s.Mapper = &spec.UserScript{}
+	}
+	s.Mapper.Command = jobCommand(mapper, 1+s.MapperOutputTableCount)
+	if s.Reducer == nil {
+		s.Reducer = &spec.UserScript{}
+	}
+	s.Reducer.Command = jobCommand(reducer, len(s.OutputTablePaths)-s.MapperOutputTableCount)
+	return mr.start(s)
 }
 
-func New(c yt.Client) Client {
-	return &client{c: c}
+func (mr *client) MapCombineReduce(mapper, combiner, reducer Job, s *spec.Spec) (Operation, error) {
+	s = s.Clone()
+	if s.Mapper != nil {
+		s.Mapper = &spec.UserScript{}
+	}
+	s.Mapper.Command = jobCommand(mapper, 1+s.MapperOutputTableCount)
+	if s.ReduceCombiner != nil {
+		s.ReduceCombiner = &spec.UserScript{}
+	}
+	s.ReduceCombiner.Command = jobCommand(combiner, 1)
+	if s.Reducer == nil {
+		s.Reducer = &spec.UserScript{}
+	}
+	s.Reducer.Command = jobCommand(reducer, len(s.OutputTablePaths)-s.MapperOutputTableCount)
+	return mr.start(s)
+}
+
+func (mr *client) Sort(s *spec.Spec) (Operation, error) {
+	return mr.start(s)
+}
+
+func (mr *client) Merge(s *spec.Spec) (Operation, error) {
+	return mr.start(s)
+}
+
+func (mr *client) Erase(s *spec.Spec) (Operation, error) {
+	return mr.start(s)
+}
+
+func (mr *client) RemoteCopy(s *spec.Spec) (Operation, error) {
+	return mr.start(s)
+}
+
+func (mr *client) Vanilla(s *spec.Spec) (Operation, error) {
+	return mr.start(s)
 }

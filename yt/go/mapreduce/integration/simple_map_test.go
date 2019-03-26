@@ -11,7 +11,6 @@ import (
 
 	"a.yandex-team.ru/yt/go/mapreduce"
 	"a.yandex-team.ru/yt/go/mapreduce/spec"
-	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yttest"
 )
@@ -34,7 +33,7 @@ func DumpFDs() {
 }
 
 type TestRow struct {
-	A int    `yson:"a"`
+	A int    `yson:"a,key"`
 	B string `yson:"b"`
 }
 
@@ -79,16 +78,10 @@ func TestMap(t *testing.T) {
 	}
 	require.NoError(t, env.UploadSlice(inputPath, input))
 
-	_, err := env.YT.CreateNode(env.Ctx, outputPath, yt.NodeTable, nil)
+	_, err := yt.CreateTable(env.Ctx, env.YT, outputPath)
 	require.NoError(t, err)
 
-	op, err := env.MR.Run(env.Ctx,
-		mapreduce.Map(job,
-			&spec.Spec{
-				InputTablePaths:  []ypath.YPath{inputPath},
-				OutputTablePaths: []ypath.YPath{outputPath},
-			},
-		))
+	op, err := env.MR.Map(job, spec.Map().AddInput(inputPath).AddOutput(outputPath))
 
 	require.NoError(t, err)
 	require.NoError(t, op.Wait())
@@ -96,12 +89,4 @@ func TestMap(t *testing.T) {
 	var output []TestRow
 	require.NoError(t, env.DownloadSlice(outputPath, &output))
 	require.Equal(t, input, output)
-}
-
-func TestMain(m *testing.M) {
-	if mapreduce.InsideJob() {
-		os.Exit(mapreduce.JobMain())
-	}
-
-	os.Exit(m.Run())
 }

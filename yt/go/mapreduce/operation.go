@@ -7,11 +7,21 @@ import (
 	"a.yandex-team.ru/yt/go/yt"
 )
 
+type Operation interface {
+	ID() yt.OperationID
+
+	Wait() error
+}
+
 type operation struct {
 	c   yt.Client
 	ctx context.Context
 
 	opID yt.OperationID
+}
+
+func (o *operation) ID() yt.OperationID {
+	return o.opID
 }
 
 func (o *operation) Wait() error {

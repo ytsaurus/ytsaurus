@@ -3,5 +3,5 @@
 package mapreduce
 
 func (c *jobContext) initPipes(nOutputPipes int) error {
-	panic("This should never be called on windows")
+	panic("this should never be called on windows")
 }

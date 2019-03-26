@@ -13,7 +13,7 @@ import (
 )
 
 func (c *jobContext) initPipes(nOutputPipes int) error {
-	c.in = newReader(os.Stdin)
+	c.in = newReader(os.Stdin, c)
 
 	// Hide stdin from user code, just in case.
 	os.Stdin = nil
@@ -38,6 +38,7 @@ func (c *jobContext) initPipes(nOutputPipes int) error {
 
 		c.out = append(c.out, &writer{
 			out: pipe,
+			ctx: c,
 			writer: yson.NewWriterConfig(pipe, yson.WriterConfig{
 				Format: yson.FormatBinary,
 				Kind:   yson.StreamListFragment,
