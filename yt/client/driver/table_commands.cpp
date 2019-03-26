@@ -728,7 +728,7 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
     auto nameTable = valueConsumer.GetNameTable();
 
     if (static_cast<bool>(Path.GetColumns())) {
-        THROW_ERROR_EXCEPTION("Columns cannot be specified with the table path, use \"column_names\" instead")
+        THROW_ERROR_EXCEPTION("Columns cannot be specified with table path, use \"column_names\" instead")
             << TErrorAttribute("rich_ypath", Path);
     }
 
