@@ -249,12 +249,12 @@ const THashMap<TString, int>& TOperation::GetSlotIndices() const
     return TreeIdToSlotIndex_;
 }
 
-const std::vector<TString>& TOperation::GetOwners() const
+std::vector<TString> TOperation::GetOwners() const
 {
     return RuntimeParameters_->Owners;
 }
 
-const NSecurityClient::TSerializableAccessControlList& TOperation::GetAcl() const
+NSecurityClient::TSerializableAccessControlList TOperation::GetAcl() const
 {
     return RuntimeParameters_->Acl;
 }
