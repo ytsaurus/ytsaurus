@@ -8,13 +8,27 @@ import (
 	"path/filepath"
 	"strings"
 
+	"a.yandex-team.ru/yt/go/mapreduce"
+
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yt/internal/httpclient"
 	"golang.org/x/xerrors"
 )
 
+func checkNotInsideJob() error {
+	if mapreduce.InsideJob() {
+		return xerrors.New("requests to cluster from jobs are forbidden")
+	}
+
+	return nil
+}
+
 // NewClient creates new client from config.
 func NewClient(c *yt.Config) (yt.Client, error) {
+	if err := checkNotInsideJob(); err != nil {
+		return nil, err
+	}
+
 	return httpclient.NewHTTPClient(c)
 }
 
@@ -28,7 +42,7 @@ func NewClientFromEnv() (yt.Client, error) {
 		return nil, err
 	}
 
-	return httpclient.NewHTTPClient(c)
+	return NewClient(c)
 }
 
 // NewClientCli creates YT client configured for use in cli application.

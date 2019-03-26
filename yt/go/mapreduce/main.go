@@ -8,7 +8,7 @@ import (
 
 // InsideJob determines whether current process is running inside a mapreduce job.
 func InsideJob() bool {
-	return os.Getenv("YT_INSIDE_JOB") != ""
+	return os.Getenv("YT_JOB_ID") != ""
 }
 
 type jobArgs struct {
@@ -39,6 +39,11 @@ func JobMain() int {
 	}
 
 	var ctx jobContext
+	if err = ctx.initEnv(); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
+		return 5
+	}
+
 	if err = ctx.initPipes(args.nOutputPipes); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
 		return 3

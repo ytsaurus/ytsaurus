@@ -94,6 +94,35 @@ type Schema struct {
 	Columns []Column `yson:",value"`
 }
 
+func (s Schema) Copy() Schema {
+	if s.Strict != nil {
+		strict := *s.Strict
+		s.Strict = &strict
+	}
+
+	columns := s.Columns
+	s.Columns = make([]Column, len(columns))
+	for i, column := range columns {
+		s.Columns[i] = column
+	}
+
+	return s
+}
+
+func (s Schema) SortedBy(keyColumns ...string) Schema {
+	s = s.Copy()
+
+	for _, keyName := range keyColumns {
+		for i := range s.Columns {
+			if s.Columns[i].Name == keyName {
+				s.Columns[i].SortOrder = SortAscending
+			}
+		}
+	}
+
+	return s
+}
+
 // WithUniqueKeys returns copy of schema with UniqueKeys attribute set.
 func (s Schema) WithUniqueKeys() Schema {
 	out := s

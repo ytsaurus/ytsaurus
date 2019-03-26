@@ -44,7 +44,15 @@ var _ yson.StreamMarhsaler = NodeType("")
 type OperationType string
 
 const (
-	OperationMap OperationType = "map"
+	OperationMap        OperationType = "map"
+	OperationReduce     OperationType = "reduce"
+	OperationMapReduce  OperationType = "map_reduce"
+	OperationJoinReduce OperationType = "join_reduce"
+	OperationSort       OperationType = "sort"
+	OperationMerge      OperationType = "merge"
+	OperationErase      OperationType = "erase"
+	OperationRemoteCopy OperationType = "remote_copy"
+	OperationVanilla    OperationType = "vanilla"
 )
 
 func (o OperationType) MarshalYSON(w *yson.Writer) error {

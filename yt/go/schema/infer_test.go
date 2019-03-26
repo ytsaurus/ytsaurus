@@ -124,3 +124,20 @@ func TestInferTags(t *testing.T) {
 		},
 	})
 }
+
+type keyStruct struct {
+	A int `yson:"a,key"`
+	B int `yson:"b"`
+}
+
+func TestInferKeyColumns(t *testing.T) {
+	s, err := Infer(&keyStruct{})
+	require.NoError(t, err)
+
+	require.Equal(t, s, Schema{
+		Columns: []Column{
+			{Name: "a", Type: TypeInt64, Required: true, SortOrder: SortAscending},
+			{Name: "b", Type: TypeInt64, Required: true},
+		},
+	})
+}

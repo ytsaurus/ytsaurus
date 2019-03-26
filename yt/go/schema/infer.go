@@ -71,6 +71,12 @@ func parseTag(fieldName string, typ reflect.Type, tag string) (c *Column, err er
 
 		c.Name = parts[0]
 
+		for _, option := range parts[1:] {
+			switch option {
+			case "key":
+				c.SortOrder = SortAscending
+			}
+		}
 	} else {
 		c.Name = fieldName
 	}
