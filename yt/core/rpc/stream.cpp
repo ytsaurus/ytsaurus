@@ -172,6 +172,8 @@ void TAttachmentsInputStream::DoAbort(TGuard<TSpinLock>& guard, const TError& er
     if (promise) {
         promise.Set(error);
     }
+
+    Aborted_.Fire();
 }
 
 void TAttachmentsInputStream::OnTimeout()
@@ -288,6 +290,12 @@ TFuture<void> TAttachmentsOutputStream::Close()
     }
 
     auto promise = ClosePromise_ = NewPromise<void>();
+    TDelayedExecutorCookie timeoutCookie;
+    if (Timeout_) {
+        timeoutCookie = TDelayedExecutor::Submit(
+            BIND(&TAttachmentsOutputStream::OnTimeout, MakeWeak(this)),
+            *Timeout_);
+    }
 
     TSharedRef nullAttachment;
     DataQueue_.push(nullAttachment);
@@ -296,7 +304,7 @@ TFuture<void> TAttachmentsOutputStream::Close()
     ConfirmationQueue_.push({
         WritePosition_,
         {},
-        {}
+        std::move(timeoutCookie)
     });
 
     MaybeInvokePullCallback(guard);
@@ -351,6 +359,8 @@ void TAttachmentsOutputStream::DoAbort(TGuard<TSpinLock>& guard, const TError& e
             promise.Set(error);
         }
     }
+
+    Aborted_.Fire();
 }
 
 void TAttachmentsOutputStream::OnTimeout()
@@ -383,7 +393,9 @@ void TAttachmentsOutputStream::HandleFeedback(const TStreamingFeedback& feedback
     while (!ConfirmationQueue_.empty() &&
             ConfirmationQueue_.front().Position <= ReadPosition_ + WindowSize_)
     {
-        promises.push_back(std::move(ConfirmationQueue_.front().Promise));
+        auto& entry = ConfirmationQueue_.front();
+        TDelayedExecutor::CancelAndClear(entry.TimeoutCookie);
+        promises.push_back(std::move(entry.Promise));
         ConfirmationQueue_.pop();
     }
 

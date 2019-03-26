@@ -7,6 +7,7 @@
 #include "serialize.h"
 #include "data_flow_graph.h"
 #include "input_chunk_mapping.h"
+#include "competitive_job_manager.h"
 
 #include <yt/server/controller_agent/chunk_pools/chunk_stripe_key.h>
 #include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
@@ -91,6 +92,9 @@ public:
         bool treeIsTentative,
         NScheduler::TScheduleJobResult* scheduleJobResult);
 
+    void RegisterSpeculativeJob(const TJobletPtr& joblet);
+    std::optional<EAbortReason> ShouldAbortJob(const TJobletPtr& joblet);
+
     virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary);
     virtual TJobFinishedResult OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary);
     virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary);
@@ -138,7 +142,6 @@ public:
 
     virtual void SetupCallbacks();
 
-
     virtual NScheduler::TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const = 0;
 
     virtual NChunkPools::IChunkPoolInput* GetChunkPoolInput() const = 0;
@@ -175,14 +178,14 @@ protected:
 
     virtual void OnTaskCompleted();
 
-    virtual void PrepareJoblet(TJobletPtr joblet);
-
     virtual void OnJobStarted(TJobletPtr joblet);
 
     //! True if task supports lost jobs.
     virtual bool CanLoseJobs() const;
 
-    void ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie, bool waitForSnapshot = false);
+    void ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie);
+
+    void ReleaseJobletResources(TJobletPtr joblet, bool waitForSnapshot);
 
     std::unique_ptr<NNodeTrackerClient::TNodeDirectoryBuilder> MakeNodeDirectoryBuilder(
         NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpec);
@@ -265,9 +268,13 @@ private:
 
     TInputChunkMappingPtr InputChunkMapping_;
 
+    TCompetitiveJobManager CompetitiveJobManager_;
+
     NScheduler::TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
 
     void UpdateMaximumUsedTmpfsSizes(const NJobTrackerClient::TStatistics& statistics);
+
+    void AbortJobViaScheduler(TJobId jobId, EAbortReason reason);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTask)

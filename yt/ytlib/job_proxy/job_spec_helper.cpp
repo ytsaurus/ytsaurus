@@ -105,6 +105,7 @@ public:
             case NScheduler::EJobType::PartitionReduce:
             case NScheduler::EJobType::SortedMerge:
             case NScheduler::EJobType::OrderedMerge:
+            case NScheduler::EJobType::UnorderedMerge:
                 return true;
             default:
                 return false;

@@ -10,6 +10,7 @@
 #include <yt/core/misc/sliding_window.h>
 #include <yt/core/misc/memory_zone.h>
 
+#include <yt/core/actions/signal.h>
 #include <yt/core/actions/future.h>
 
 #include <yt/core/compression/public.h>
@@ -38,6 +39,8 @@ public:
     void Abort(const TError& error);
     void AbortUnlessClosed(const TError& error);
     TStreamingFeedback GetFeedback() const;
+
+    DEFINE_SIGNAL(void(), Aborted);
 
 private:
     const TClosure ReadCallback_;
@@ -98,6 +101,8 @@ public:
     void AbortUnlessClosed(const TError& error);
     void HandleFeedback(const TStreamingFeedback& feedback);
     std::optional<TStreamingPayload> TryPull();
+
+    DEFINE_SIGNAL(void(), Aborted);
 
 private:
     const EMemoryZone MemoryZone_;

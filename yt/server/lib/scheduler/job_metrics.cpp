@@ -66,11 +66,11 @@ TJobMetrics TJobMetrics::FromJobTrackerStatistics(
 {
     TJobMetrics metrics;
 
-    metrics.Values()[EJobMetricName::UserJobIOReads] =
+    metrics.Values()[EJobMetricName::UserJobIoReads] =
         FindNumericValue(statistics, "/user_job/block_io/io_read").value_or(0);
-    metrics.Values()[EJobMetricName::UserJobIOWrites] =
+    metrics.Values()[EJobMetricName::UserJobIoWrites] =
         FindNumericValue(statistics, "/user_job/block_io/io_write").value_or(0);
-    metrics.Values()[EJobMetricName::UserJobIOTotal] =
+    metrics.Values()[EJobMetricName::UserJobIoTotal] =
         FindNumericValue(statistics, "/user_job/block_io/io_total").value_or(0);
     metrics.Values()[EJobMetricName::UserJobBytesRead] =
         FindNumericValue(statistics, "/user_job/block_io/bytes_read").value_or(0);

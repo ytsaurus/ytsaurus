@@ -1,11 +1,15 @@
 #include "security_tags.h"
 
+#include <yt/ytlib/security_client/helpers.h>
+
 #include <yt/core/misc/hash.h>
 #include <yt/core/misc/serialize.h>
 
 #include <util/generic/algorithm.h>
 
 namespace NYT::NSecurityServer {
+
+using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,6 +47,13 @@ void TSecurityTags::Persist(TStreamPersistenceContext& context)
 void TSecurityTags::Normalize()
 {
     SortUnique(Items);
+}
+
+void TSecurityTags::Validate()
+{
+    for (const auto& tag : Items) {
+        ValidateSecurityTag(tag);
+    }
 }
 
 TSecurityTags operator + (const TSecurityTags& a, const TSecurityTags& b)

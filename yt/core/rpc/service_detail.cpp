@@ -741,7 +741,7 @@ private:
         auto guard = Guard(StreamsLock_);
 
         if (!RequestAttachmentsStream_) {
-            auto parameters = FromProto<TStreamingParameters>(RequestHeader_->response_attachments_streaming_parameters());
+            auto parameters = FromProto<TStreamingParameters>(RequestHeader_->server_attachments_streaming_parameters());
             RequestAttachmentsStream_ =  New<TAttachmentsInputStream>(
                 BIND(&TServiceContext::OnRequestAttachmentsStreamRead, MakeWeak(this)),
                 GetInvoker(),
@@ -762,7 +762,7 @@ private:
         auto guard = Guard(StreamsLock_);
 
         if (!ResponseAttachmentsStream_) {
-            auto parameters = FromProto<TStreamingParameters>(RequestHeader_->response_attachments_streaming_parameters());
+            auto parameters = FromProto<TStreamingParameters>(RequestHeader_->server_attachments_streaming_parameters());
             ResponseAttachmentsStream_ = New<TAttachmentsOutputStream>(
                 ResponseMemoryZone_,
                 ResponseCodec_,

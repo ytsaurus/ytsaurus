@@ -31,6 +31,9 @@ extern const TString SuperusersGroupName;
 extern const TString ReplicatorUserName;
 extern const TString OwnerUserName;
 
+using TSecurityTag = TString;
+constexpr int MaxSecurityTagLength = 128;
+
 DEFINE_ENUM(ESecurityAction,
     ((Undefined)(0))  // Intermediate state, used internally.
     ((Allow)    (1))  // Let'em go!

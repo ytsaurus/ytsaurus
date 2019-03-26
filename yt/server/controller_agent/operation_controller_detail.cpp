@@ -1925,7 +1925,7 @@ void TOperationControllerBase::UpdateActualHistogram(const TStatistics& statisti
 
 void TOperationControllerBase::InitializeSecurityTags()
 {
-    std::vector<TString> inferredSecurityTags;
+    std::vector<TSecurityTag> inferredSecurityTags;
     auto addTags = [&] (const auto& moreTags) {
         inferredSecurityTags.insert(inferredSecurityTags.end(), moreTags.begin(), moreTags.end());
     };
@@ -1986,8 +1986,6 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         return;
     }
 
-    YT_LOG_DEBUG("Job completed (JobId: %v)", jobId);
-
     const auto& result = jobSummary->Result;
 
     const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
@@ -2018,11 +2016,20 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         }
     }
 
+    auto joblet = GetJoblet(jobId);
+
+    auto maybeAbortReason = joblet->Task->ShouldAbortJob(joblet);
+    if (maybeAbortReason) {
+        YT_LOG_DEBUG("Job is considered aborted since its competitor has already completed (JobId: %v)", jobId);
+        OnJobAborted(std::make_unique<TAbortedJobSummary>(*jobSummary, *maybeAbortReason), /* byScheduler */ false);
+        return;
+    }
+
+    YT_LOG_DEBUG("Job completed (JobId: %v)", jobId);
+
     if (jobSummary->InterruptReason != EInterruptReason::None) {
         ExtractInterruptDescriptor(*jobSummary);
     }
-
-    auto joblet = GetJoblet(jobId);
 
     ParseStatistics(jobSummary.get(), joblet->StatisticsYson);
 
@@ -2261,6 +2268,11 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
     if (!byScheduler) {
         ReleaseJobs({jobId});
+    }
+
+    if (IsCompleted()) {
+        OnOperationCompleted(/* interrupted */ false);
+        return;
     }
 }
 
@@ -3634,6 +3646,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
 
             bestTask->ScheduleJob(context, jobLimits, treeId, IsTreeTentative(treeId), scheduleJobResult);
             if (scheduleJobResult->StartDescriptor) {
+                RegisterTestingSpeculativeJobIfNeeded(bestTask, scheduleJobResult->StartDescriptor->Id);
                 UpdateTask(bestTask);
                 break;
             }
@@ -3760,6 +3773,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
 
                 task->ScheduleJob(context, jobLimits, treeId, IsTreeTentative(treeId), scheduleJobResult);
                 if (scheduleJobResult->StartDescriptor) {
+                    RegisterTestingSpeculativeJobIfNeeded(task, scheduleJobResult->StartDescriptor->Id);
                     UpdateTask(task);
                     return;
                 }
@@ -7744,6 +7758,23 @@ TOutputTablePtr TOperationControllerBase::RegisterOutputTable(const TRichYPath& 
     OutputTables_.emplace_back(table);
     PathToOutputTable_[outputTablePath.GetPath()] = table;
     return table;
+}
+
+void TOperationControllerBase::AbortJobViaScheduler(TJobId jobId, EAbortReason abortReason)
+{
+    Host->AbortJob(
+        jobId,
+        TError("Job is aborted by controller") << TErrorAttribute("abort_reason", abortReason));
+}
+
+void TOperationControllerBase::RegisterTestingSpeculativeJobIfNeeded(const TTaskPtr& task, TJobId jobId)
+{
+    if (Spec_->TestingOperationOptions->RegisterSpeculativeJobOnJobScheduled) {
+        const auto& joblet = JobletMap[jobId];
+        if (!joblet->Speculative) {
+            task->RegisterSpeculativeJob(joblet);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -340,6 +340,8 @@ public:
 
     bool FailGetJobSpec;
 
+    bool RegisterSpeculativeJobOnJobScheduled;
+
     TTestingOperationOptions();
 };
 
@@ -432,6 +434,7 @@ public:
 
     //! ACL for operation.
     //! It can consist of "allow"-only ACE-s with "read" and "manage" permissions.
+    NYTree::INodePtr AclNode;
     NSecurityClient::TSerializableAccessControlList Acl;
 
     //! Add the "read" and "manage" rights for the authenticated_user to |Acl|.
@@ -509,7 +512,7 @@ public:
     bool OmitInaccessibleColumns;
 
     //! These tags are propagated to all operation outputs (unless overridden).
-    std::vector<TString> AdditionalSecurityTags;
+    std::vector<NSecurityClient::TSecurityTag> AdditionalSecurityTags;
 
     TOperationSpecBase();
 
@@ -954,6 +957,15 @@ public:
 
     int ShuffleNetworkLimit;
 
+    //! Hard limit on the number of data slices in shuffle pool.
+    int MaxShuffleDataSliceCount;
+
+    //! Hard limit on the number of shuffle jobs.
+    int MaxShuffleJobCount;
+
+    //! Hard limit on the total number of data slices in all merge pool.
+    int MaxMergeDataSliceCount;
+
     std::vector<TString> SortBy;
 
     //! If |true| then the scheduler attempts to distribute partition jobs evenly
@@ -989,6 +1001,9 @@ public:
     int SamplesPerPartition;
 
     ESchemaInferenceMode SchemaInferenceMode;
+
+    //! Hard limit on the size of allowed input data weight.
+    i64 MaxInputDataWeight;
 
     TSortOperationSpec();
 

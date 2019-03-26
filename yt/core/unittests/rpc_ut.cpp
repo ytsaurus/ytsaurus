@@ -1407,7 +1407,7 @@ TEST_F(TAttachmentsOutputStreamTest, Close2)
     EXPECT_TRUE(future2.Get().IsOK());
 }
 
-TEST_F(TAttachmentsOutputStreamTest, Timeout)
+TEST_F(TAttachmentsOutputStreamTest, WriteTimeout)
 {
     auto stream = CreateStream(5, TDuration::MilliSeconds(100));
 
@@ -1418,7 +1418,19 @@ TEST_F(TAttachmentsOutputStreamTest, Timeout)
     EXPECT_TRUE(future1.Get().IsOK());
 
     auto future2 = stream->Write(payload);
+    EXPECT_FALSE(future2.IsSet());
     auto error = future2.Get();
+    EXPECT_FALSE(error.IsOK());
+    EXPECT_EQ(NYT::EErrorCode::Timeout, error.GetCode());
+}
+
+TEST_F(TAttachmentsOutputStreamTest, CloseTimeout)
+{
+    auto stream = CreateStream(5, TDuration::MilliSeconds(100));
+
+    auto future = stream->Close();
+    EXPECT_FALSE(future.IsSet());
+    auto error = future.Get();
     EXPECT_FALSE(error.IsOK());
     EXPECT_EQ(NYT::EErrorCode::Timeout, error.GetCode());
 }
