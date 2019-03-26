@@ -144,22 +144,22 @@ NRpc::NProto::TRequestHeader& TYPathRequest::Header()
     return Header_;
 }
 
-const NRpc::TStreamingParameters& TYPathRequest::RequestAttachmentsStreamingParameters() const
+const NRpc::TStreamingParameters& TYPathRequest::ClientAttachmentsStreamingParameters() const
 {
     Y_UNREACHABLE();
 }
 
-NRpc::TStreamingParameters& TYPathRequest::RequestAttachmentsStreamingParameters()
+NRpc::TStreamingParameters& TYPathRequest::ClientAttachmentsStreamingParameters()
 {
     Y_UNREACHABLE();
 }
 
-const NRpc::TStreamingParameters& TYPathRequest::ResponseAttachmentsStreamingParameters() const
+const NRpc::TStreamingParameters& TYPathRequest::ServerAttachmentsStreamingParameters() const
 {
     Y_UNREACHABLE();
 }
 
-NRpc::TStreamingParameters& TYPathRequest::ResponseAttachmentsStreamingParameters()
+NRpc::TStreamingParameters& TYPathRequest::ServerAttachmentsStreamingParameters()
 {
     Y_UNREACHABLE();
 }

@@ -28,6 +28,7 @@
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/traffic_meter.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
 
 #include <yt/ytlib/job_prober_client/public.h>
 #include <yt/ytlib/job_prober_client/job_probe.h>
@@ -161,8 +162,9 @@ public:
             Slot_ = slotManager->AcquireSlot(diskSpaceLimit);
 
             SetJobPhase(EJobPhase::PreparingNodeDirectory);
+            // This is a heavy part of preparation, offload it to compression invoker.
             BIND(&TJob::PrepareNodeDirectory, MakeWeak(this))
-                .AsyncVia(Invoker_)
+                .AsyncVia(TDispatcher::Get()->GetCompressionPoolInvoker())
                 .Run()
                 .Subscribe(
                     BIND(&TJob::OnNodeDirectoryPrepared, MakeWeak(this))
@@ -927,6 +929,22 @@ private:
             &TJob::OnJobProxyFinished,
             MakeWeak(this))
         .Via(Invoker_));
+
+        TDelayedExecutor::Submit(BIND(&TJob::OnJobProxyPreparationTimeout, MakeStrong(this))
+           .Via(Invoker_), Config_->JobProxyPreparationTimeout);
+    }
+
+    void OnJobProxyPreparationTimeout()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        GuardedAction([&] {
+            if (JobPhase_ == EJobPhase::PreparingProxy) {
+                THROW_ERROR_EXCEPTION(
+                    EErrorCode::JobProxyPreparationTimeout,
+                    "Failed to prepare job proxy within timeout, aborting job");
+            }
+        });
     }
 
     void OnJobProxyFinished(const TError& error)
@@ -978,8 +996,14 @@ private:
         FinishTime_ = TInstant::Now();
         SetJobPhase(EJobPhase::Cleanup);
 
-        auto* schedulerJobSpecExt = JobSpec_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        schedulerJobSpecExt->clear_input_node_directory();
+        // NodeDirectory can be really huge, we better offload its cleanup.
+        WaitFor(BIND([this_ = MakeStrong(this), this] () {
+            auto* schedulerJobSpecExt = JobSpec_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+            schedulerJobSpecExt->clear_input_node_directory();
+        })
+            .AsyncVia(TDispatcher::Get()->GetCompressionPoolInvoker())
+            .Run())
+            .ThrowOnError();
 
         if (Slot_) {
             try {
@@ -1048,8 +1072,6 @@ private:
     // Preparation.
     void PrepareNodeDirectory()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
         auto* schedulerJobSpecExt = JobSpec_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
         if (schedulerJobSpecExt->has_input_node_directory()) {
@@ -1381,7 +1403,8 @@ private:
             resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed) ||
             resultError.FindMatching(NContainers::EErrorCode::FailedToStartContainer) ||
             resultError.FindMatching(EProcessErrorCode::CannotResolveBinary) ||
-            resultError.FindMatching(NNet::EErrorCode::ResolveTimedOut))
+            resultError.FindMatching(NNet::EErrorCode::ResolveTimedOut) ||
+            resultError.FindMatching(NExecAgent::EErrorCode::JobProxyPreparationTimeout))
         {
             return EAbortReason::Other;
         }

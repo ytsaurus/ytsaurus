@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/ytlib/chunk_client/chunk_owner_ypath.pb.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -11,12 +13,6 @@
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EUpdateMode,
-    (None)
-    (Append)
-    (Overwrite)
-);
 
 struct TChunkOwnerYPathProxy
     : public NCypressClient::TCypressYPathProxy

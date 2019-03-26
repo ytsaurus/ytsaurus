@@ -407,6 +407,7 @@ TRefCountedTracker::TLocalSlot* TRefCountedTracker::GetLocalSlot(TRefCountedType
     Y_STATIC_THREAD(TLocalSlotsHolder) Holder;
     auto& slots = Holder.Get().Slots;
     if (cookie >= static_cast<int>(slots.size())) {
+        TGuard<TForkAwareSpinLock> guard(SpinLock_);
         slots.resize(std::max(static_cast<size_t>(cookie + 1), slots.size() * 2));
     }
 

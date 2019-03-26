@@ -34,6 +34,8 @@ using NYTree::EPermissionSet;
 using NSecurityClient::ESecurityAction;
 using NSecurityClient::EAceInheritanceMode;
 
+using NSecurityClient::TSecurityTag;
+
 DECLARE_ENTITY_TYPE(TAccount, TAccountId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TUser, TUserId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TGroup, TGroupId, NObjectClient::TDirectObjectIdHash)
@@ -57,7 +59,7 @@ struct TPermissionCheckResponse;
 struct TUserWorkload;
 
 constexpr int TypicalSecurityTagCount = 16;
-using TSecurityTagsItems = SmallVector<TString, TypicalSecurityTagCount>;
+using TSecurityTagsItems = SmallVector<TSecurityTag, TypicalSecurityTagCount>;
 struct TSecurityTags;
 using TInternedSecurityTags = TInternedObject<TSecurityTags>;
 using TSecurityTagsRegistry = TInternRegistry<TSecurityTags>;

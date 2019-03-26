@@ -1,12 +1,13 @@
 #include "config.h"
 
 #include <yt/ytlib/security_client/acl.h>
+#include <yt/ytlib/security_client/helpers.h>
+
+#include <yt/client/scheduler/operation_id_or_alias.h>
 
 #include <yt/core/ytree/convert.h>
 
 #include <yt/core/misc/fs.h>
-
-#include <yt/client/scheduler/operation_id_or_alias.h>
 
 #include <util/string/split.h>
 #include <util/string/iterator.h>
@@ -157,6 +158,8 @@ TTestingOperationOptions::TTestingOperationOptions()
     RegisterParameter("controller_failure", ControllerFailure)
         .Default(EControllerFailureType::None);
     RegisterParameter("fail_get_job_spec", FailGetJobSpec)
+        .Default(false);
+    RegisterParameter("register_speculative_job_on_job_scheduled", RegisterSpeculativeJobOnJobScheduled)
         .Default(false);
 }
 
@@ -333,7 +336,7 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("owners", Owners)
         .Default();
 
-    RegisterParameter("acl", Acl)
+    RegisterParameter("acl", AclNode)
         .Default();
 
     RegisterParameter("add_authenticated_user_to_acl", AddAuthenticatedUserToAcl)
@@ -432,8 +435,17 @@ TOperationSpecBase::TOperationSpecBase()
                 MaxAnnotationsYsonTextLength);
         }
 
+        if (AclNode) {
+            try {
+                Acl = ConvertTo<NSecurityClient::TSerializableAccessControlList>(AclNode);
+            } catch (const TErrorException& error) {
+                // Intentionally do nothing for backward compatibility.
+            }
+        }
+
         ValidateOperationAcl(Acl);
         ProcessAclAndOwnersParameters(&Acl, &Owners);
+        ValidateSecurityTags(AdditionalSecurityTags);
     });
 }
 
@@ -942,6 +954,15 @@ TSortOperationSpecBase::TSortOperationSpecBase()
         .Default(TDuration::Seconds(5));
     RegisterParameter("shuffle_network_limit", ShuffleNetworkLimit)
         .Default(0);
+    RegisterParameter("max_shuffle_data_slice_count", MaxShuffleDataSliceCount)
+        .GreaterThan(0)
+        .Default(10000000);
+    RegisterParameter("max_shuffle_job_count", MaxShuffleJobCount)
+        .GreaterThan(0)
+        .Default(200000);
+    RegisterParameter("max_merge_data_slice_count", MaxMergeDataSliceCount)
+        .GreaterThan(0)
+        .Default(10000000);
     RegisterParameter("sort_by", SortBy)
         .NonEmpty();
     RegisterParameter("enable_partitioned_data_balancing", EnablePartitionedDataBalancing)
@@ -987,6 +1008,10 @@ TSortOperationSpec::TSortOperationSpec()
         .Default(TDuration::Seconds(5));
     RegisterParameter("merge_locality_timeout", MergeLocalityTimeout)
         .Default(TDuration::Minutes(1));
+
+    RegisterParameter("max_input_data_weight", MaxInputDataWeight)
+        .GreaterThan(0)
+        .Default(500 * 1_PB);
 
     RegisterParameter("schema_inference_mode", SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);

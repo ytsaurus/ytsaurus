@@ -3248,7 +3248,7 @@ private:
             TObjectId dstId;
             TCellTag dstCellTag;
             std::unique_ptr<NTableClient::IOutputSchemaInferer> outputSchemaInferer;
-            std::vector<TString> inferredSecurityTags;
+            std::vector<TSecurityTag> inferredSecurityTags;
             {
                 auto proxy = CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
                 auto batchReq = proxy->ExecuteBatch();
@@ -3304,7 +3304,7 @@ private:
                         auto cellTag = rsp->cell_tag();
                         srcCellTags.push_back(cellTag);
 
-                        auto securityTags = FromProto<std::vector<TString>>(rsp->security_tags().items());
+                        auto securityTags = FromProto<std::vector<TSecurityTag>>(rsp->security_tags().items());
                         inferredSecurityTags.insert(inferredSecurityTags.end(), securityTags.begin(), securityTags.end());
 
                         YT_LOG_DEBUG("Source table attributes received (Path: %v, ObjectId: %v, CellTag: %v, SecurityTags: %v)",
@@ -3565,7 +3565,7 @@ private:
                     req->set_schema_mode(static_cast<int>(outputSchemaInferer->GetOutputTableSchemaMode()));
                 }
 
-                std::vector<TString> securityTags;
+                std::vector<TSecurityTag> securityTags;
                 if (auto explicitSecurityTags = dstPath.GetSecurityTags()) {
                     // TODO(babenko): audit
                     YT_LOG_INFO("Destination table is assigned explicit security tags (Path: %v, InferredSecurityTags: %v, ExplicitSecurityTags: %v)",

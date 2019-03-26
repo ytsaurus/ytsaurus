@@ -95,6 +95,8 @@ private:
     virtual void DoExecute(ICommandContextPtr context) override;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TOptions>
 class TTabletCommandBase
     : public TTypedCommand<TOptions>
@@ -189,6 +191,8 @@ public:
 private:
     virtual void DoExecute(ICommandContextPtr context) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TAlterTableCommand
     : public TTypedCommand<NApi::TAlterTableOptions>

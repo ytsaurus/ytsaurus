@@ -35,6 +35,11 @@ constexpr i64 operator"" _TB(unsigned long long value) noexcept
     return value * 1024_GB;
 }
 
+constexpr i64 operator"" _PB(unsigned long long value) noexcept
+{
+    return value * 1024_TB;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

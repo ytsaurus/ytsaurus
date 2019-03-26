@@ -23,6 +23,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NChunkClient;
 using namespace NTableClient;
+using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -579,9 +580,9 @@ std::optional<NObjectClient::TTransactionId> TRichYPath::GetTransactionId() cons
     return FindAttribute<NObjectClient::TTransactionId>(*this, "transaction_id");
 }
 
-std::optional<std::vector<TString>> TRichYPath::GetSecurityTags() const
+std::optional<std::vector<TSecurityTag>> TRichYPath::GetSecurityTags() const
 {
-    return FindAttribute<std::vector<TString>>(*this, "security_tags");
+    return FindAttribute<std::vector<TSecurityTag>>(*this, "security_tags");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

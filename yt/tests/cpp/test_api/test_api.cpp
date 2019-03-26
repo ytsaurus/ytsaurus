@@ -650,6 +650,51 @@ TEST_F(TLookupFilterTest, TestLookupDuplicateKeyColumns)
             .ValueOrThrow(), TErrorException);
 }
 
+TEST_F(TLookupFilterTest, YT_10159)
+{
+    WriteUnversionedRow(
+        {"k0", "k1", "k2", "v3"},
+        "<id=0> 1; <id=1> 1; <id=2> 1; <id=3> 1",
+        7);
+    WriteUnversionedRow(
+        {"k0", "k1", "k2", "v3"},
+        "<id=0> 99; <id=1> 99; <id=2> 99; <id=3> 22",
+        8);
+
+    auto preparedKey = PrepareUnversionedRow(
+        {"k0", "k1", "k2"},
+        "<id=0> 99; <id=1> 99; <id=2> 99");
+
+    for (int iter = 0; iter < 2; ++iter) {
+        TVersionedLookupRowsOptions options;
+
+        {
+            options.Timestamp = CommitTimestamps_[7];
+            auto res = WaitFor(Client_->VersionedLookupRows(
+                Table_,
+                std::get<1>(preparedKey),
+                std::get<0>(preparedKey),
+                options)).ValueOrThrow();
+            EXPECT_EQ(0, res->GetRows().Size());
+        }
+
+        {
+            options.Timestamp = CommitTimestamps_[8];
+            auto res = WaitFor(Client_->VersionedLookupRows(
+                Table_,
+                std::get<1>(preparedKey),
+                std::get<0>(preparedKey),
+                options)).ValueOrThrow();
+            EXPECT_EQ(1, res->GetRows().Size());
+        }
+
+        if (iter == 0) {
+            SyncUnmountTable(Table_);
+            SyncMountTable(Table_);
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOrderedDynamicTablesTest

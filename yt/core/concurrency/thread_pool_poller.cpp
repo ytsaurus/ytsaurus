@@ -90,11 +90,12 @@ public:
     // IPoller implementation.
     virtual void Shutdown() override
     {
-        YT_LOG_INFO("Thread pool shutdown started");
-
         std::vector<IPollablePtr> pollables;
         {
             auto guard = Guard(SpinLock_);
+            if (ShutdownStarted_.load()) {
+                return;
+            }
             ShutdownStarted_.store(true);
             for (const auto& [pollable, entry]: Pollables_) {
                 pollables.push_back(pollable);

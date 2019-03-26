@@ -1,5 +1,4 @@
 #include "helpers.h"
-
 #include "acl.h"
 
 #include <yt/core/misc/error.h>
@@ -28,6 +27,26 @@ ESecurityAction CheckPermissionsByAclAndSubjectClosure(
     return (actualPermissions & permissions) == permissions
         ? ESecurityAction::Allow
         : ESecurityAction::Deny;
+}
+
+void ValidateSecurityTag(const TSecurityTag& tag)
+{
+    if (tag.empty()) {
+        THROW_ERROR_EXCEPTION("Security tag cannot be empty");
+    }
+    if (tag.length() > MaxSecurityTagLength) {
+        THROW_ERROR_EXCEPTION("Security tag %Qv is too long: %v > %v",
+            tag,
+            tag.length(),
+            MaxSecurityTagLength);
+    }
+}
+
+void ValidateSecurityTags(const std::vector<TSecurityTag>& tags)
+{
+    for (const auto& tag : tags) {
+        ValidateSecurityTag(tag);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
