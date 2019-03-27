@@ -106,6 +106,11 @@ public:
         return UnderlyingReader_->GetKeyColumns();
     }
 
+    virtual const TTableSchema& GetTableSchema() const override
+    {
+        Y_UNREACHABLE();
+    }
+
     virtual const std::vector<TString>& GetOmittedInaccessibleColumns() const override
     {
         Y_UNREACHABLE();

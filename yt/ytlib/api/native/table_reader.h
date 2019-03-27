@@ -27,6 +27,7 @@ struct TSchemalessMultiChunkReaderCreateResult
 {
     NTableClient::ISchemalessMultiChunkReaderPtr Reader;
     std::vector<TString> OmittedInaccessibleColumns;
+    NTableClient::TTableSchema TableSchema;
 };
 
 TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReader(
