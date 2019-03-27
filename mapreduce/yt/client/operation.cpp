@@ -2295,18 +2295,19 @@ TTransactionId TOperationPreparer::GetTransactionId() const
     return TransactionId_;
 }
 
-class TStartOperationRetryPolicy
+class TCacheTouchingRetryPolicy
     : public IRequestRetryPolicy
 {
 public:
-    TStartOperationRetryPolicy(
+    TCacheTouchingRetryPolicy(
+        IRequestRetryPolicyPtr baseRetryPolicy,
         const TAuth& auth,
         const TVector<TString>& md5Signatures,
         const TYPath& cachePath)
-        : Auth_(auth)
+        : BasePolicy_(baseRetryPolicy)
+        , Auth_(auth)
         , Signatures_(md5Signatures)
         , CachePath_(cachePath)
-        , AttemptLimit_(TConfig::Get()->StartOperationRetryCount)
     { }
 
     void NotifyNewAttempt() override
@@ -2325,44 +2326,34 @@ public:
             future.GetValueSync();
         }
 
-        ++Attempt_;
+        BasePolicy_->NotifyNewAttempt();
     }
 
-    void OnIgnoredError(const TErrorResponse& /*e*/) override
+    void OnIgnoredError(const TErrorResponse& e) override
     {
-        --Attempt_;
+        BasePolicy_->OnIgnoredError(e);
     }
 
-    TMaybe<TDuration> OnGenericError(const yexception&) override
+    TMaybe<TDuration> OnGenericError(const yexception& e) override
     {
-        if (IsAttemptLimitExceeded()) {
-            return Nothing();
-        }
-        return TConfig::Get()->StartOperationRetryInterval;
+        return BasePolicy_->OnGenericError(e);
     }
 
     TMaybe<TDuration> OnRetriableError(const TErrorResponse& e) override
     {
-        if (IsAttemptLimitExceeded()) {
-            return Nothing();
-        }
-        return NYT::NDetail::GetRetryInterval(e);
+        return BasePolicy_->OnRetriableError(e);
     }
 
     TString GetAttemptDescription() const override
     {
-        return TStringBuilder() << "attempt " << Attempt_ << " of " << AttemptLimit_;
+        return BasePolicy_->GetAttemptDescription();
     }
 
-    bool IsAttemptLimitExceeded() const
-    {
-        return Attempt_ >= AttemptLimit_;
-    }
+private:
+    IRequestRetryPolicyPtr BasePolicy_;
     const TAuth& Auth_;
     const TVector<TString>& Signatures_;
     TYPath CachePath_;
-    const int AttemptLimit_;
-    int Attempt_ = 0;
 };
 
 TOperationId TOperationPreparer::StartOperation(
@@ -2379,7 +2370,8 @@ TOperationId TOperationPreparer::StartOperation(
     header.AddTransactionId(TransactionId_);
     header.AddMutationId();
 
-    TStartOperationRetryPolicy retryPolicy(
+    TCacheTouchingRetryPolicy retryPolicy(
+        MakeIntrusive<TAttemptLimitedRetryPolicy>(static_cast<ui32>(TConfig::Get()->StartOperationRetryCount)),
         GetAuth(),
         LockedFileSignatures_,
         CachePath_);
