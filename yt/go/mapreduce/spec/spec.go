@@ -31,6 +31,18 @@ type UserScript struct {
 	JobCount int `yson:"job_count,omitempty"`
 }
 
+type ControlAttributes struct {
+	EnableTableIndex bool `yson:"enable_table_index"`
+	EnableRowIndex   bool `yson:"enable_row_index"`
+	EnableRangeIndex bool `yson:"enable_range_index"`
+	EnableKeySwitch  bool `yson:"enable_key_switch"`
+}
+
+type JobIO struct {
+	TableReader       interface{}        `yson:"table_reader,omitempty"`
+	ControlAttributes *ControlAttributes `yson:"control_attributes,omitempty"`
+}
+
 type Spec struct {
 	Type yt.OperationType `yson:"-"`
 
@@ -49,6 +61,7 @@ type Spec struct {
 
 	InputTablePaths        []ypath.YPath `yson:"input_table_paths,omitempty"`
 	OutputTablePaths       []ypath.YPath `yson:"output_table_paths,omitempty"`
+	OutputTablePath        ypath.YPath   `yson:"output_table_path,omitempty"`
 	MapperOutputTableCount int           `yson:"mapper_output_table_count"`
 
 	Ordered   bool            `yson:"ordered,omitempty"`
@@ -68,6 +81,10 @@ type Spec struct {
 	Reducer        *UserScript            `yson:"reducer,omitempty"`
 	ReduceCombiner *UserScript            `yson:"reduce_combiner,omitempty"`
 	Tasks          map[string]*UserScript `yson:"tasks,omitempty"`
+
+	JobIO       *JobIO `yson:"job_io,omitempty"`
+	MapJobIO    *JobIO `yson:"map_job_io,omitempty"`
+	ReduceJobIO *JobIO `yson:"reduce_job_io,omitempty"`
 }
 
 func (s *Spec) ReduceByColumns(columns ...string) *Spec {
@@ -87,6 +104,11 @@ func (s *Spec) AddInput(path ypath.YPath) *Spec {
 
 func (s *Spec) AddOutput(path ypath.YPath) *Spec {
 	s.OutputTablePaths = append(s.OutputTablePaths, path)
+	return s
+}
+
+func (s *Spec) SetOutput(path ypath.YPath) *Spec {
+	s.OutputTablePath = path
 	return s
 }
 
