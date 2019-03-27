@@ -15,6 +15,7 @@ SET(YT_ARCADIA_CXXFLAGS
   -Wno-type-limits
   -Wno-missing-braces
   -Wno-missing-field-initializers
+  -Wunused-result
   -DYT_IN_ARCADIA
 )
 

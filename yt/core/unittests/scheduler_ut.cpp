@@ -518,7 +518,7 @@ TEST_F(TSchedulerTest, PropagateFiberCancelationToFuture)
     auto f1 = p1.ToFuture();
 
     auto a = BIND([=] () mutable {
-        WaitFor(f1);
+        Y_UNUSED(WaitFor(f1));
     });
 
     auto f2 = a.AsyncVia(Queue1->GetInvoker()).Run();
@@ -572,7 +572,8 @@ TEST_F(TSchedulerTest, YieldToFromCanceledFiber)
         BIND([=] () {
             NYT::NConcurrency::GetCurrentFiberCanceler().Run();
         }).AsyncVia(invoker2).Run().Get();
-        WaitFor(promise.ToFuture(), invoker2);
+        WaitFor(promise.ToFuture(), invoker2)
+            .ThrowOnError();
     }).AsyncVia(invoker1).Run();
 
     promise.Set();
@@ -656,8 +657,10 @@ TEST_F(TSchedulerTest, SerializedDoubleWaitFor)
     auto promise = NewPromise<void>();
 
     BIND([&] () {
-        WaitFor(VoidFuture);
-        WaitFor(VoidFuture);
+        WaitFor(VoidFuture)
+            .ThrowOnError();
+        WaitFor(VoidFuture)
+            .ThrowOnError();
         promise.Set();
 
         Sleep(SleepQuantum);
@@ -730,9 +733,11 @@ TEST_F(TSuspendableInvokerTest, SuspendableDoubleWaitFor)
     auto promise = NewPromise<void>();
 
     auto setFlagFuture = BIND([&] () {
-        WaitFor(VoidFuture);
+        WaitFor(VoidFuture)
+            .ThrowOnError();
         Sleep(SleepQuantum);
-        WaitFor(VoidFuture);
+        WaitFor(VoidFuture)
+            .ThrowOnError();
         promise.Set();
 
         Sleep(SleepQuantum * 10);
@@ -805,7 +810,7 @@ TEST_F(TSuspendableInvokerTest, AllowSuspendOnContextSwitch)
 
     auto setFlagFuture = BIND([&] () {
         Sleep(SleepQuantum);
-        WaitFor(future);
+        Y_UNUSED(WaitFor(future));
         flag = true;
     })
     .AsyncVia(suspendableInvoker)

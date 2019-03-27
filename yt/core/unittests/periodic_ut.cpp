@@ -166,7 +166,8 @@ TEST_W(TPeriodicTest, ParallelOnExecuted2)
     {
         auto future1 = executor->GetExecutedEvent();
         auto future2 = executor->GetExecutedEvent();
-        WaitFor(Combine(std::vector<TFuture<void>>({future1, future2})));
+        WaitFor(Combine(std::vector<TFuture<void>>({future1, future2})))
+            .ThrowOnError();
     }
     EXPECT_EQ(2, count);
 

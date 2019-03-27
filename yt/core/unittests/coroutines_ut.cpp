@@ -133,7 +133,8 @@ TEST_F(TCoroutineTest, Binary)
 void Coroutine3(TCoroutine<void()>& self)
 {
     for (int i = 0; i < 10; ++i) {
-        WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(1)));
+        WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(1)))
+            .ThrowOnError();
         self.Yield();
     }
 }

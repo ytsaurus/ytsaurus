@@ -639,7 +639,8 @@ void TContext::Run()
     }
 
     if (MemoryOutput_) {
-        DriverRequest_.OutputStream->Close();
+        WaitFor(DriverRequest_.OutputStream->Close())
+            .ThrowOnError();
         Response_->GetHeaders()->Remove("Trailer");
         WaitFor(Response_->WriteBody(MergeRefsToRef<TDefaultSharedBlobTag>(MemoryOutput_->GetRefs())))
             .ThrowOnError();
