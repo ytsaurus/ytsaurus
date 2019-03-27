@@ -28,7 +28,7 @@ public:
     TJobSplitter() = default;
 
     TJobSplitter(TJobSplitterConfigPtr config, TOperationId operationId)
-        : Config_(std::move(config))
+        : Config_(config)
         , Statistics_(std::move(config))
         , OperationId_(operationId)
         , Logger(NLogging::TLogger(ControllerLogger)
