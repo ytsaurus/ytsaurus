@@ -281,7 +281,7 @@ static TError CheckErrors(const TUsage& stats, const Args&... args)
             if (error.IsOK()) {
                 error = stats[field];
             } else {
-                error << stats[field];
+                error = error << stats[field];
             }
         }
     }

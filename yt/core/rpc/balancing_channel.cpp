@@ -506,7 +506,7 @@ private:
             return;
         }
 
-        RunDiscoverySession();
+        Y_UNUSED(RunDiscoverySession());
     }
 
     void AddPeers(const std::vector<TString>& addresses)

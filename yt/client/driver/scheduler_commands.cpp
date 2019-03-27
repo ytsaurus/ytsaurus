@@ -50,17 +50,7 @@ void TGetJobInputCommand::DoExecute(ICommandContextPtr context)
         .ValueOrThrow();
 
     auto output = context->Request().OutputStream;
-
-    while (true) {
-        auto block = WaitFor(jobInputReader->Read())
-            .ValueOrThrow();
-
-        if (!block)
-            break;
-
-        WaitFor(output->Write(block))
-            .ThrowOnError();
-    }
+    PipeInputToOutput(jobInputReader, context->Request().OutputStream);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,7 +83,8 @@ void TGetJobStderrCommand::DoExecute(ICommandContextPtr context)
         .ValueOrThrow();
 
     auto output = context->Request().OutputStream;
-    output->Write(result);
+    WaitFor(output->Write(result))
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,7 +101,8 @@ void TGetJobFailContextCommand::DoExecute(ICommandContextPtr context)
         .ValueOrThrow();
 
     auto output = context->Request().OutputStream;
-    output->Write(result);
+    WaitFor(output->Write(result))
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
