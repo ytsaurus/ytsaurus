@@ -26,6 +26,14 @@ func parseJobArgs(args []string) (job jobArgs, err error) {
 	return
 }
 
+// JobMain runs user code inside mapreduce job.
+//
+// Binary that wishes to run mapreduce operations must place the following code
+// at the beginning of the main() function.
+//
+//     if mapreduce.InsideJob() {
+//         os.Exit(mapreduce.JobMain())
+//     }
 func JobMain() int {
 	args, err := parseJobArgs(os.Args[1:])
 	if err != nil {

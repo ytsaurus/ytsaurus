@@ -7,14 +7,25 @@ import (
 
 var registry = map[string]reflect.Type{}
 
-func Register(o Job) {
-	t := reflect.TypeOf(o)
+// Register registers job type.
+//
+// Value of job is irrelevant.
+//
+// User must register all job types during initialisation.
+//
+//     type MyJob struct{}
+//
+//     func init() {
+//         mapreduce.Register(&MyJob{})
+//     }
+func Register(job Job) {
+	t := reflect.TypeOf(job)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
 
 	if t.Kind() != reflect.Struct {
-		panic(fmt.Sprintf("job type must be pointer to a struct, but got %T", o))
+		panic(fmt.Sprintf("job type must be pointer to a struct, but got %T", job))
 	}
 
 	key := t.PkgPath() + "." + t.Name()
