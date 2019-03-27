@@ -170,6 +170,11 @@ public:
         return OpenResult_->Reader->GetKeyColumns();
     }
 
+    virtual const TTableSchema& GetTableSchema() const override
+    {
+        return OpenResult_->TableSchema;
+    }
+
     virtual const std::vector<TString>& GetOmittedInaccessibleColumns() const override
     {
         YCHECK(OpenResult_);
@@ -461,7 +466,8 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
         .Apply(BIND([=, userObject = std::move(userObject)] {
             return TSchemalessMultiChunkReaderCreateResult{
                 reader,
-                userObject->OmittedInaccessibleColumns
+                userObject->OmittedInaccessibleColumns,
+                schema
             };
         }));
 }
