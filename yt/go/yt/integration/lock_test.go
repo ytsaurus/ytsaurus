@@ -21,10 +21,10 @@ func TestLocks(t *testing.T) {
 		_, err := env.YT.CreateNode(env.Ctx, name, yt.NodeMap, nil)
 		require.NoError(t, err)
 
-		tx0, err = env.YT.Begin(env.Ctx, nil)
+		tx0, err = env.YT.BeginTx(env.Ctx, nil)
 		require.NoError(t, err)
 
-		tx1, err = env.YT.Begin(env.Ctx, nil)
+		tx1, err = env.YT.BeginTx(env.Ctx, nil)
 		require.NoError(t, err)
 
 		return

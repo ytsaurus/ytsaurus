@@ -307,7 +307,7 @@ func (c *httpClient) doRead(ctx context.Context, call *internal.Call) (r io.Read
 	return
 }
 
-func (c *httpClient) Begin(ctx context.Context, options *yt.StartTxOptions) (yt.Tx, error) {
+func (c *httpClient) BeginTx(ctx context.Context, options *yt.StartTxOptions) (yt.Tx, error) {
 	return internal.NewTx(ctx, c.Encoder, c.stop, options)
 }
 

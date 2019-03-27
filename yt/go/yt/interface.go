@@ -1,4 +1,4 @@
-// Package yt defines interfaces of different YT services.
+// package yt defines interfaces of different YT services.
 //
 // All API methods follow the same conventions:
 //   - First argument is context.Context.
@@ -27,6 +27,7 @@
 //   - FileClient              - file operations
 //   - TableClient             - table operations
 //   - AdminClient             - misc administrative commands
+//   - TabletClient            - dynamic tables
 //
 // Finally, yt.Client and yt.Tx provide high level api for transactions and embed interfaces of different subsystems.
 package yt
@@ -660,10 +661,10 @@ type LockClient interface {
 
 // Tx is high level API for master transactions.
 //
-// Create new tx by calling Begin() method on Client or other Tx.
+// Create new tx by calling BeginTx() method on Client or other Tx.
 //
 // Cleanup of started tx is responsibility of the user. Tx is terminated, either by calling Commit() or Abort(),
-// or by canceling ctx passed to Begin().
+// or by canceling ctx passed to BeginTx().
 //
 // Unterminated tx will result in goroutine leak.
 type Tx interface {
@@ -679,8 +680,8 @@ type Tx interface {
 	// Finished returns a channel that is closed when transaction finishes, either because it was committed or aborted.
 	Finished() <-chan struct{}
 
-	// Begin creates nested transaction.
-	Begin(ctx context.Context, options *StartTxOptions) (tx Tx, err error)
+	// BeginTx creates nested transaction.
+	BeginTx(ctx context.Context, options *StartTxOptions) (tx Tx, err error)
 }
 
 type LookupRowsOptions struct {
@@ -751,12 +752,12 @@ type Client interface {
 	FileClient
 	TableClient
 
-	// Begin creates new tx.
+	// BeginTx creates new tx.
 	//
 	// Tx lifetime is bound to ctx. Tx is automatically aborted when ctx is canceled.
-	Begin(ctx context.Context, options *StartTxOptions) (tx Tx, err error)
+	BeginTx(ctx context.Context, options *StartTxOptions) (tx Tx, err error)
 
-	BeginTablet(ctx context.Context, options *StartTabletTxOptions) (tx TabletTx, err error)
+	BeginTabletTx(ctx context.Context, options *StartTabletTxOptions) (tx TabletTx, err error)
 
 	TabletClient
 
