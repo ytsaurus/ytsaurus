@@ -30,6 +30,7 @@ public:
     bool OnJobAborted(const TJobletPtr& joblet, EAbortReason reason);
     bool OnJobFailed(const TJobletPtr& joblet);
 
+    // If competitive job of this joblet completed we should abort the joblet even if it has completed.
     std::optional<EAbortReason> ShouldAbortJob(const TJobletPtr& joblet) const;
 
     i64 GetPendingCandidatesDataWeight() const;
