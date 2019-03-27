@@ -14,7 +14,17 @@ import (
 //     }
 //
 type Reader interface {
+	// TableIndex returns table index of the current row.
 	TableIndex() int
+
+	// KeySwitch returns true, if current row is the first row with the current key.
+	KeySwitch() bool
+
+	// RowIndex returns row index of the current row.
+	RowIndex() int64
+
+	// RangeIndex returns range index of the current row.
+	RangeIndex() int
 
 	// Scan decodes current value from the input stream.
 	//
@@ -36,16 +46,25 @@ type reader struct {
 	reader *yson.Reader
 	ctx    *jobContext
 
-	err            error
-	eof            bool
-	hasValue       bool
+	err      error
+	eof      bool
+	hasValue bool
+
 	lastTableIndex int
-	value          valueWithControlAttrs
+	lastKeySwitch  bool
+	lastRowIndex   int64
+	lastRangeIndex int
+
+	value valueWithControlAttrs
 }
 
 type valueWithControlAttrs struct {
-	TableIndex int           `yson:"table_index,attr"`
-	Value      yson.RawValue `yson:",value"`
+	TableIndex *int   `yson:"table_index,attr"`
+	KeySwitch  *bool  `yson:"key_switch,attr"`
+	RowIndex   *int64 `yson:"row_index,attr"`
+	RangeIndex *int   `yson:"range_index,attr"`
+
+	Value yson.RawValue `yson:",value"`
 }
 
 func (r *reader) TableIndex() int {
@@ -54,6 +73,30 @@ func (r *reader) TableIndex() int {
 	}
 
 	return r.lastTableIndex
+}
+
+func (r *reader) KeySwitch() bool {
+	if !r.hasValue {
+		panic("KeySwitch() called out of sequence")
+	}
+
+	return r.lastKeySwitch
+}
+
+func (r *reader) RowIndex() int64 {
+	if !r.hasValue {
+		panic("RowIndex() called out of sequence")
+	}
+
+	return r.lastRowIndex
+}
+
+func (r *reader) RangeIndex() int {
+	if !r.hasValue {
+		panic("RangeIndex() called out of sequence")
+	}
+
+	return r.lastRangeIndex
 }
 
 func (r *reader) Scan(value interface{}) error {
@@ -82,22 +125,50 @@ func (r *reader) Next() bool {
 		return false
 	}
 
-	var ok bool
-	ok, r.err = r.reader.NextListItem()
-	r.eof = !ok
-	if r.eof || r.err != nil {
-		return false
-	}
+	r.lastKeySwitch = false
+	var rowIndexUpdated bool
 
-	d := yson.Decoder{R: r.reader}
-	r.err = d.Decode(&r.value)
-	if r.err != nil {
-		return false
-	}
+	for {
+		var ok bool
+		ok, r.err = r.reader.NextListItem()
+		r.eof = !ok
+		if r.eof || r.err != nil {
+			return false
+		}
 
-	r.hasValue = true
-	r.lastTableIndex = r.value.TableIndex
-	return true
+		d := yson.Decoder{R: r.reader}
+		r.err = d.Decode(&r.value)
+		if r.err != nil {
+			return false
+		}
+
+		if r.value.KeySwitch != nil {
+			r.lastKeySwitch = true
+			continue
+		}
+
+		if r.value.TableIndex != nil {
+			r.lastTableIndex = *r.value.TableIndex
+			continue
+		}
+
+		if r.value.RowIndex != nil {
+			r.lastRowIndex = *r.value.RowIndex
+			rowIndexUpdated = true
+			continue
+		}
+
+		if r.value.RangeIndex != nil {
+			r.lastRangeIndex = *r.value.RangeIndex
+			continue
+		}
+
+		r.hasValue = true
+		if !rowIndexUpdated {
+			r.lastRowIndex++
+		}
+		return true
+	}
 }
 
 func newReader(r io.Reader, ctx *jobContext) *reader {

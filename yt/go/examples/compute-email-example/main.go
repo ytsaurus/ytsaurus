@@ -64,21 +64,16 @@ func main() {
 		fatal(err)
 	}
 
-	ctx := context.Background()
-
 	mr := mapreduce.New(yc)
 	inputTable := ypath.Path("//home/ermolovd/yt-tutorial/staff_unsorted")
 	outputTable := ypath.Path("//tmp/" + guid.New().String())
 
-	_, err = yt.CreateTable(ctx, yc, outputTable, yt.WithInferredSchema(&EmailRow{}))
+	_, err = yt.CreateTable(context.Background(), yc, outputTable, yt.WithInferredSchema(&EmailRow{}))
 	if err != nil {
 		fatal(err)
 	}
 
-	op, err := mr.Start(ctx, mapreduce.Map(&ComputeEmailJob{}, &spec.Spec{
-		InputTablePaths:  []ypath.YPath{inputTable},
-		OutputTablePaths: []ypath.YPath{outputTable},
-	}))
+	op, err := mr.Map(&ComputeEmailJob{}, spec.Map().AddInput(inputTable).AddOutput(outputTable))
 
 	if err != nil {
 		fatal(err)

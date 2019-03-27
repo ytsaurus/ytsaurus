@@ -7,9 +7,23 @@ func Map() *Spec {
 	return spec.Map()
 }
 
+func enableControlAttributes(io **JobIO) {
+	if *io == nil {
+		*io = &JobIO{}
+	}
+
+	(*io).ControlAttributes = &ControlAttributes{
+		EnableTableIndex: true,
+		EnableRowIndex:   true,
+		EnableRangeIndex: true,
+		EnableKeySwitch:  true,
+	}
+}
+
 func (base *Spec) Map() *Spec {
 	s := base.Clone()
 	s.Type = yt.OperationMap
+	enableControlAttributes(&s.JobIO)
 	return s
 }
 
@@ -21,6 +35,7 @@ func Reduce() *Spec {
 func (base *Spec) Reduce() *Spec {
 	s := base.Clone()
 	s.Type = yt.OperationReduce
+	enableControlAttributes(&s.JobIO)
 	return s
 }
 
@@ -32,23 +47,26 @@ func MapReduce() *Spec {
 func (base *Spec) MapReduce() *Spec {
 	s := base.Clone()
 	s.Type = yt.OperationMapReduce
+	enableControlAttributes(&s.MapJobIO)
+	enableControlAttributes(&s.ReduceJobIO)
 	return s
 }
 
 func JoinReduce() *Spec {
 	spec := &Spec{}
-	return spec.Reduce()
+	return spec.JoinReduce()
 }
 
 func (base *Spec) JoinReduce() *Spec {
 	s := base.Clone()
 	s.Type = yt.OperationJoinReduce
+	enableControlAttributes(&s.JobIO)
 	return s
 }
 
 func Sort() *Spec {
 	spec := &Spec{}
-	return spec.Reduce()
+	return spec.Sort()
 }
 
 func (base *Spec) Sort() *Spec {
@@ -59,7 +77,7 @@ func (base *Spec) Sort() *Spec {
 
 func Merge() *Spec {
 	spec := &Spec{}
-	return spec.Reduce()
+	return spec.Merge()
 }
 
 func (base *Spec) Merge() *Spec {
@@ -70,7 +88,7 @@ func (base *Spec) Merge() *Spec {
 
 func Erase() *Spec {
 	spec := &Spec{}
-	return spec.Reduce()
+	return spec.Erase()
 }
 
 func (base *Spec) Erase() *Spec {
@@ -81,7 +99,7 @@ func (base *Spec) Erase() *Spec {
 
 func Vanilla() *Spec {
 	spec := &Spec{}
-	return spec.Reduce()
+	return spec.Vanilla()
 }
 
 func (base *Spec) Vanilla() *Spec {
