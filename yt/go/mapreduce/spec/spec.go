@@ -24,7 +24,7 @@ type UserScript struct {
 	Environment map[string]string `yson:"environment,omitempty"`
 	FilePaths   []File            `yson:"file_paths,omitempty"`
 
-	CpuLimit    int   `yson:"cpu_limit,omitempty"`
+	CPULimit    int   `yson:"cpu_limit,omitempty"`
 	MemoryLimit int64 `yson:"memory_limit,omitempty"`
 
 	// JobCount is used only in vanilla operations
