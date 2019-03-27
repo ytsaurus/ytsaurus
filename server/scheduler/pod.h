@@ -2,8 +2,8 @@
 
 #include "object.h"
 
-#include <yp/server/objects/proto/objects.pb.h>
 #include <yp/server/objects/proto/autogen.pb.h>
+#include <yp/server/objects/proto/objects.pb.h>
 
 #include <yp/client/api/proto/data_model.pb.h>
 
@@ -22,19 +22,19 @@ public:
     TPod(
         const TObjectId& id,
         TPodSet* podSet,
-        NServer::NObjects::NProto::TMetaOther metaOther,
+        NServer::NObjects::NProto::TMetaEtc metaEtc,
         TNode* node,
-        NServer::NObjects::NProto::TPodSpecOther specOther,
+        NServer::NObjects::NProto::TPodSpecEtc specEtc,
         TAccount* account,
-        NServer::NObjects::NProto::TPodStatusOther statusOther,
+        NServer::NObjects::NProto::TPodStatusEtc statusEtc,
         NYT::NYson::TYsonString labels);
 
     DEFINE_BYVAL_RO_PROPERTY(TPodSet*, PodSet);
-    DEFINE_BYREF_RO_PROPERTY(NServer::NObjects::NProto::TMetaOther, MetaOther);
+    DEFINE_BYREF_RO_PROPERTY(NServer::NObjects::NProto::TMetaEtc, MetaEtc);
     DEFINE_BYVAL_RO_PROPERTY(TNode*, Node);
-    DEFINE_BYREF_RO_PROPERTY(NServer::NObjects::NProto::TPodSpecOther, SpecOther);
+    DEFINE_BYREF_RO_PROPERTY(NServer::NObjects::NProto::TPodSpecEtc, SpecEtc);
     DEFINE_BYVAL_RO_PROPERTY(TAccount*, Account);
-    DEFINE_BYREF_RO_PROPERTY(NServer::NObjects::NProto::TPodStatusOther, StatusOther);
+    DEFINE_BYREF_RO_PROPERTY(NServer::NObjects::NProto::TPodStatusEtc, StatusEtc);
 
     TAccount* GetEffectiveAccount() const;
 };

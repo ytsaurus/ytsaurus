@@ -22,10 +22,10 @@ TString SortedProps(const TString& s)
 
 THashMap<TString, TString> BuildProps(
     const NClient::NApi::NProto::TResourceSpec_TCpuSpec& cpuSpec,
-    const NProto::TPodSpecOther& podSpecOther,
-    const NProto::TPodStatusOther& podStatusOther)
+    const NProto::TPodSpecEtc& podSpecEtc,
+    const NProto::TPodStatusEtc& podStatusEtc)
 {
-    const auto builtProperties = BuildPortoProperties(cpuSpec, podSpecOther, podStatusOther);
+    const auto builtProperties = BuildPortoProperties(cpuSpec, podSpecEtc, podStatusEtc);
     THashMap<TString, TString> props(builtProperties.begin(), builtProperties.end());
     EXPECT_EQ(props.size(), builtProperties.size());
     return props;
@@ -34,31 +34,31 @@ THashMap<TString, TString> BuildProps(
 TEST(BuildPortoProperties, TestCpuToVcpuFactor)
 {
     NClient::NApi::NProto::TResourceSpec_TCpuSpec cpuSpec;
-    NProto::TPodSpecOther podSpecOther;
+    NProto::TPodSpecEtc podSpecEtc;
 
     cpuSpec.set_cpu_to_vcpu_factor(2.0);
 
-    podSpecOther.mutable_resource_requests()->set_vcpu_guarantee(2000);
-    podSpecOther.mutable_resource_requests()->set_vcpu_limit(4000);
+    podSpecEtc.mutable_resource_requests()->set_vcpu_guarantee(2000);
+    podSpecEtc.mutable_resource_requests()->set_vcpu_limit(4000);
 
-    const auto props = BuildProps(cpuSpec, podSpecOther, {});
+    const auto props = BuildProps(cpuSpec, podSpecEtc, {});
     EXPECT_EQ("1.000c", props.at("cpu_guarantee"));
     EXPECT_EQ("2.000c", props.at("cpu_limit"));
 }
 
 TEST(BuildPortoProperties, TestInternetAddresses)
 {
-    NProto::TPodSpecOther podSpecOther;
-    NProto::TPodStatusOther podStatusOther;
+    NProto::TPodSpecEtc podSpecEtc;
+    NProto::TPodStatusEtc podStatusEtc;
 
-    auto* resourceRequest = podSpecOther.mutable_resource_requests();
+    auto* resourceRequest = podSpecEtc.mutable_resource_requests();
     resourceRequest->set_vcpu_guarantee(1000);
 
-    auto* alloc1 = podStatusOther.add_ip6_address_allocations();
+    auto* alloc1 = podStatusEtc.add_ip6_address_allocations();
     alloc1->set_vlan_id("fastbone");
     alloc1->set_address("2a02:6b8:fc08:aa7:10c:ba05:0:1bee");
 
-    auto* alloc2 = podStatusOther.add_ip6_address_allocations();
+    auto* alloc2 = podStatusEtc.add_ip6_address_allocations();
     alloc2->set_vlan_id("backbone");
     alloc2->set_address("2a02:6b8:c0c:aa7:10c:ba05:0:1bee");
 
@@ -66,7 +66,7 @@ TEST(BuildPortoProperties, TestInternetAddresses)
     inetAddr->set_id("42");
     inetAddr->set_ip4_address("95.108.129.55");
 
-    const auto props = BuildProps({}, podSpecOther, podStatusOther);
+    const auto props = BuildProps({}, podSpecEtc, podStatusEtc);
 
     EXPECT_EQ("L3 veth;ipip6 ip_ext_tun0 2a02:6b8:b010:a0ff::1 2a02:6b8:c0c:aa7:10c:ba05:0:1bee;MTU ip_ext_tun0 1400", props.at("net"));
     EXPECT_EQ(
@@ -77,19 +77,19 @@ TEST(BuildPortoProperties, TestInternetAddresses)
 TEST(BuildPortoProperties, TestTunnelProperties)
 {
     NClient::NApi::NProto::TResourceSpec_TCpuSpec cpuSpec;
-    NProto::TPodSpecOther podSpecOther;
-    NProto::TPodStatusOther podStatusOther;
+    NProto::TPodSpecEtc podSpecEtc;
+    NProto::TPodStatusEtc podStatusEtc;
 
     cpuSpec.set_cpu_to_vcpu_factor(1);
 
-    auto* resourceRequest = podSpecOther.mutable_resource_requests();
+    auto* resourceRequest = podSpecEtc.mutable_resource_requests();
     resourceRequest->set_vcpu_guarantee(1000);
 
-    auto* alloc1 = podStatusOther.add_ip6_address_allocations();
+    auto* alloc1 = podStatusEtc.add_ip6_address_allocations();
     alloc1->set_vlan_id("backbone");
     alloc1->set_address("5678");
 
-    auto* dns = podStatusOther.mutable_dns();
+    auto* dns = podStatusEtc.mutable_dns();
     dns->set_transient_fqdn("hello_world.yandex.net");
 
     auto* vsStatus1 = alloc1->add_virtual_services();
@@ -97,7 +97,7 @@ TEST(BuildPortoProperties, TestTunnelProperties)
     vsStatus1->add_ip4_addresses("1.2.3.4");
 
     {
-        auto props = BuildProps(cpuSpec, podSpecOther, podStatusOther);
+        auto props = BuildProps(cpuSpec, podSpecEtc, podStatusEtc);
 
         EXPECT_EQ("1.000c", props.at("cpu_guarantee"));
         EXPECT_EQ("hello_world.yandex.net", props.at("hostname"));
@@ -112,12 +112,12 @@ TEST(BuildPortoProperties, TestTunnelProperties)
         auto* vsStatus2 = alloc1->add_virtual_services();
         vsStatus2->add_ip4_addresses("2.3.4.5");
 
-        auto props = BuildProps(cpuSpec, podSpecOther, podStatusOther);
+        auto props = BuildProps(cpuSpec, podSpecEtc, podStatusEtc);
 
         EXPECT_EQ("L3 veth;ipip6 tun0 2a02:6b8:0:3400::aaaa 5678;MTU tun0 1450;MTU ip6tnl0 1450", props.at("net"));
         EXPECT_EQ("veth 5678;ip6tnl0 1234;tun0 1.2.3.4;tun0 2.3.4.5", props.at("ip"));
 
-        auto* alloc2 = podStatusOther.add_ip6_address_allocations();
+        auto* alloc2 = podStatusEtc.add_ip6_address_allocations();
         alloc2->set_vlan_id("42bone");
         alloc2->set_address("42:42:42:42");
 
@@ -128,7 +128,7 @@ TEST(BuildPortoProperties, TestTunnelProperties)
     }
 
     {
-        auto props = BuildProps(cpuSpec, podSpecOther, podStatusOther);
+        auto props = BuildProps(cpuSpec, podSpecEtc, podStatusEtc);
 
         EXPECT_EQ("L3 veth;ipip6 tun0 2a02:6b8:0:3400::aaaa 5678;ipip6 tun0 2a02:6b8:0:3400::aaaa 42:42:42:42;MTU tun0 1450;MTU ip6tnl0 1450", props.at("net"));
         EXPECT_EQ(
@@ -140,12 +140,12 @@ TEST(BuildPortoProperties, TestTunnelProperties)
 TEST(BuildPortoProperties, Limits)
 {
     NClient::NApi::NProto::TResourceSpec_TCpuSpec cpuSpec;
-    NProto::TPodSpecOther podSpecOther;
-    NProto::TPodStatusOther podStatusOther;
+    NProto::TPodSpecEtc podSpecEtc;
+    NProto::TPodStatusEtc podStatusEtc;
 
     cpuSpec.set_cpu_to_vcpu_factor(1);
 
-    auto* resourceRequest = podSpecOther.mutable_resource_requests();
+    auto* resourceRequest = podSpecEtc.mutable_resource_requests();
     resourceRequest->set_vcpu_guarantee(1000);
     resourceRequest->set_vcpu_limit(2000);
     resourceRequest->set_memory_guarantee(2048);
@@ -153,10 +153,10 @@ TEST(BuildPortoProperties, Limits)
     resourceRequest->set_anonymous_memory_limit(8192);
     resourceRequest->set_dirty_memory_limit(9999);
 
-    auto dns = podStatusOther.mutable_dns();
+    auto dns = podStatusEtc.mutable_dns();
     dns->set_transient_fqdn("limits.yandex.net");
 
-    const auto props = BuildProps(cpuSpec, podSpecOther, podStatusOther);
+    const auto props = BuildProps(cpuSpec, podSpecEtc, podStatusEtc);
 
     EXPECT_EQ("1.000c", props.at("cpu_guarantee"));
     EXPECT_EQ("2.000c", props.at("cpu_limit"));
@@ -171,18 +171,18 @@ TEST(BuildPortoProperties, Limits)
 TEST(BuildPortoProperties, TestSubnetsPortoProperties)
 {
     NClient::NApi::NProto::TResourceSpec_TCpuSpec cpuSpec;
-    NProto::TPodSpecOther podSpecOther;
-    NProto::TPodStatusOther podStatusOther;
+    NProto::TPodSpecEtc podSpecEtc;
+    NProto::TPodStatusEtc podStatusEtc;
 
-    auto* alloc1 = podStatusOther.add_ip6_subnet_allocations();
+    auto* alloc1 = podStatusEtc.add_ip6_subnet_allocations();
     alloc1->set_vlan_id("fastbone");
     alloc1->set_subnet("2a02:6b8:fc08:aa7:10c:ba05:0:0/112");
 
-    auto* alloc2 = podStatusOther.add_ip6_subnet_allocations();
+    auto* alloc2 = podStatusEtc.add_ip6_subnet_allocations();
     alloc2->set_vlan_id("backbone");
     alloc2->set_subnet("2a02:6b8:c0c:aa7:10c:ba05:1:0/112");
 
-    const auto props = BuildProps(cpuSpec, podSpecOther, podStatusOther);
+    const auto props = BuildProps(cpuSpec, podSpecEtc, podStatusEtc);
 
     EXPECT_EQ("L3 veth", props.at("net"));
     EXPECT_EQ(

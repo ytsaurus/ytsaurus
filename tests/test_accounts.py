@@ -1,8 +1,15 @@
-from yp.common import YtResponseError
+from .conftest import (
+    ZERO_RESOURCE_REQUESTS,
+    create_nodes,
+    create_pod_with_boilerplate,
+)
+
+from yp.common import YtResponseError, wait
+from yp.local import set_account_infinite_resource_limits
 
 from yt.environment.helpers import assert_items_equal
 
-from .conftest import ZERO_RESOURCE_REQUESTS
+from yt.packages.six.moves import zip
 
 import pytest
 
@@ -122,3 +129,61 @@ class TestAccounts(object):
                     "account_id": ""
                 }
             })
+
+    def test_hierarchical_accounting(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        parent_account_id = "parent_account"
+        child_account_ids = ("first_child_account", "second_child_account")
+
+        yp_client.create_object("account", attributes=dict(meta=dict(id=parent_account_id)))
+        for child_account_id in child_account_ids:
+            yp_client.create_object(
+                "account",
+                attributes=dict(
+                    meta=dict(id=child_account_id),
+                    spec=dict(parent_id=parent_account_id),
+                ),
+            )
+
+        for account_id in (parent_account_id, ) + child_account_ids:
+            set_account_infinite_resource_limits(yp_client, account_id)
+
+        pod_set_ids = ("first_pod_set", "second_pod_set")
+        assert len(pod_set_ids) == len(child_account_ids)
+        for pod_set_id, child_account_id in zip(pod_set_ids, child_account_ids):
+            yp_client.create_object(
+                "pod_set",
+                attributes=dict(
+                    meta=dict(id=pod_set_id),
+                    spec=dict(account_id=child_account_id, node_segment_id="default"),
+                ),
+            )
+
+        def get_account_cpu_usage(account_id):
+            return yp_client.get_object(
+                "account",
+                account_id,
+                selectors=["/status/resource_usage"],
+            )[0].get("per_segment", {}).get("default", {}).get("cpu", {}).get("capacity", 0)
+
+        cpu_guarantee = 100
+        pod_spec = dict(enable_scheduling=True, resource_requests=dict(vcpu_guarantee=cpu_guarantee))
+
+        create_nodes(yp_client, 1)
+
+        wait(lambda: get_account_cpu_usage(parent_account_id) == 0)
+        assert get_account_cpu_usage(child_account_ids[0]) == 0
+        assert get_account_cpu_usage(child_account_ids[1]) == 0
+
+        create_pod_with_boilerplate(yp_client, pod_set_ids[0], pod_spec)
+
+        wait(lambda: get_account_cpu_usage(parent_account_id) == cpu_guarantee)
+        assert get_account_cpu_usage(child_account_ids[0]) == cpu_guarantee
+        assert get_account_cpu_usage(child_account_ids[1]) == 0
+
+        create_pod_with_boilerplate(yp_client, pod_set_ids[1], pod_spec)
+
+        wait(lambda: get_account_cpu_usage(parent_account_id) == 2 * cpu_guarantee)
+        assert get_account_cpu_usage(child_account_ids[0]) == cpu_guarantee
+        assert get_account_cpu_usage(child_account_ids[1]) == cpu_guarantee

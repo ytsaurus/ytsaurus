@@ -136,6 +136,17 @@ private:
         return TAuthenticatedUserGuard(Bootstrap_->GetAccessControlManager(), context->GetUser());
     }
 
+    // COMPAT(babenko): YP-752
+    template <class T>
+    EObjectType CheckedEnumCastToObjectType(T type)
+    {
+        if (type == NClient::NApi::NProto::OT_NODE2) {
+            type = NClient::NApi::NProto::OT_NODE;
+        }
+        return CheckedEnumCast<EObjectType>(type);
+    }
+
+
 
     template <class TContextPtr>
     void LogDeprecatedPayloadFormat(const TContextPtr& context)
@@ -348,7 +359,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, CreateObject)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto objectType = CheckedEnumCast<NObjects::EObjectType>(request->object_type());
+        auto objectType = CheckedEnumCastToObjectType(request->object_type());
 
         context->SetRequestInfo("TransactionId: %v, ObjectType: %v",
             transactionId,
@@ -396,7 +407,7 @@ private:
         subrequests.reserve(request->subrequests_size());
         for (const auto& protoSubrequest : request->subrequests()) {
             TSubrequest subrequest;
-            subrequest.Type = CheckedEnumCast<NObjects::EObjectType>(protoSubrequest.object_type());
+            subrequest.Type = CheckedEnumCastToObjectType(protoSubrequest.object_type());
             if (protoSubrequest.has_attributes()) {
                 if (!deprecatedPayloadFormatLogged) {
                     LogDeprecatedPayloadFormat(context);
@@ -456,7 +467,7 @@ private:
         Y_UNUSED(response);
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto objectType = CheckedEnumCast<NObjects::EObjectType>(request->object_type());
+        auto objectType = CheckedEnumCastToObjectType(request->object_type());
         auto objectId = FromProto<TObjectId>(request->object_id());
 
         context->SetRequestInfo("TransactionId: %v, ObjectType: %v, ObjectId: %v",
@@ -493,7 +504,7 @@ private:
         subrequests.reserve(request->subrequests_size());
         for (const auto& subrequest : request->subrequests()) {
             subrequests.push_back({
-                CheckedEnumCast<NObjects::EObjectType>(subrequest.object_type()),
+                CheckedEnumCastToObjectType(subrequest.object_type()),
                 FromProto<TObjectId>(subrequest.object_id())
             });
         }
@@ -534,7 +545,7 @@ private:
         Y_UNUSED(response);
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto objectType = CheckedEnumCast<NObjects::EObjectType>(request->object_type());
+        auto objectType = CheckedEnumCastToObjectType(request->object_type());
         auto objectId = FromProto<TObjectId>(request->object_id());
 
         bool deprecatedPayloadFormatLogged = false;
@@ -583,7 +594,7 @@ private:
         std::vector<TSubrequest> subrequests;
         subrequests.reserve(request->subrequests_size());
         for (const auto& subrequest : request->subrequests()) {
-            auto objectType = CheckedEnumCast<NObjects::EObjectType>(subrequest.object_type());
+            auto objectType = CheckedEnumCastToObjectType(subrequest.object_type());
             auto objectId = FromProto<TObjectId>(subrequest.object_id());
             std::vector<TUpdateRequest> updates;
             updates.reserve(subrequest.set_updates_size() + subrequest.remove_updates_size());
@@ -632,7 +643,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, GetObject)
     {
         auto objectId = FromProto<TObjectId>(request->object_id());
-        auto objectType = CheckedEnumCast<EObjectType>(request->object_type());
+        auto objectType = CheckedEnumCastToObjectType(request->object_type());
         auto timestamp = request->timestamp();
         TAttributeSelector selector{
             FromProto<std::vector<TString>>(request->selector().paths())
@@ -669,7 +680,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, GetObjects)
     {
-        auto objectType = CheckedEnumCast<EObjectType>(request->object_type());
+        auto objectType = CheckedEnumCastToObjectType(request->object_type());
         auto timestamp = request->timestamp();
         TAttributeSelector selector{
             FromProto<std::vector<TString>>(request->selector().paths())
@@ -714,7 +725,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, SelectObjects)
     {
-        auto objectType = CheckedEnumCast<EObjectType>(request->object_type());
+        auto objectType = CheckedEnumCastToObjectType(request->object_type());
         auto timestamp = request->timestamp();
 
         auto filter = request->has_filter()
@@ -781,7 +792,7 @@ private:
 
         std::vector<TObject*> objects;
         for (const auto& subrequest : request->subrequests()) {
-            auto objectType = CheckedEnumCast<EObjectType>(subrequest.object_type());
+            auto objectType = CheckedEnumCastToObjectType(subrequest.object_type());
             const auto& objectId = subrequest.object_id();
             objects.push_back(transaction->GetObject(objectType, objectId));
         }
@@ -818,7 +829,7 @@ private:
 
         std::vector<TObject*> objects;
         for (const auto& subrequest : request->subrequests()) {
-            auto objectType = CheckedEnumCast<EObjectType>(subrequest.object_type());
+            auto objectType = CheckedEnumCastToObjectType(subrequest.object_type());
             const auto& objectId = subrequest.object_id();
             objects.push_back(transaction->GetObject(objectType, objectId));
         }
@@ -842,14 +853,14 @@ private:
 
         const auto& allowedObjectTypes = Config_->GetUserAccessAllowedTo->AllowedObjectTypes;
         for (const auto& subrequest : request->subrequests()) {
-            auto objectType = CheckedEnumCast<NObjects::EObjectType>(subrequest.object_type());
+            auto objectType = CheckedEnumCastToObjectType(subrequest.object_type());
             if (std::find(allowedObjectTypes.begin(), allowedObjectTypes.end(), objectType) ==
                 allowedObjectTypes.end())
             {
                 THROW_ERROR_EXCEPTION(
                     NRpc::EErrorCode::NoSuchMethod,
-                    "GetUserAccessAllowedTo method is not supported for the given %Qv object type",
-                    GetLowercaseHumanReadableTypeName(objectType));
+                    "GetUserAccessAllowedTo method is not supported for %Qlv object type",
+                    objectType);
             }
         }
 
@@ -859,8 +870,8 @@ private:
 
         const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
         for (const auto& subrequest : request->subrequests()) {
-            auto* user = transaction->GetObject(NObjects::EObjectType::User, subrequest.user_id());
-            auto objectType = CheckedEnumCast<NObjects::EObjectType>(subrequest.object_type());
+            auto* user = transaction->GetObject(EObjectType::User, subrequest.user_id());
+            auto objectType = CheckedEnumCastToObjectType(subrequest.object_type());
             auto permission = CheckedEnumCast<NAccessControl::EAccessControlPermission>(
                 subrequest.permission());
             auto objectIds = accessControlManager->GetUserAccessAllowedTo(

@@ -2,9 +2,8 @@
 
 #include "public.h"
 
-#include <yp/server/objects/proto/objects.pb.h>
-#include <yp/server/objects/proto/autogen.pb.h>
 #include <yp/server/objects/public.h>
+#include <yp/server/objects/proto/autogen.pb.h>
 
 #include <yp/client/api/public.h>
 
@@ -17,8 +16,8 @@ void ValidateSysctlProperty(const NClient::NApi::NProto::TPodSpec_TSysctlPropert
 
 std::vector<std::pair<TString, TString>> BuildPortoProperties(
     const NClient::NApi::NProto::TResourceSpec_TCpuSpec& cpuSpec,
-    const NObjects::NProto::TPodSpecOther& podSpecOther,
-    const NObjects::NProto::TPodStatusOther& podStatusOther);
+    const NObjects::NProto::TPodSpecEtc& podSpecEtc,
+    const NObjects::NProto::TPodStatusEtc& podStatusEtc);
 
 ////////////////////////////////////////////////////////////////////////////////
 

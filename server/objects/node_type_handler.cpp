@@ -48,9 +48,9 @@ public:
                 MakeAttributeSchema("heartbeat_sequence_number")
                     ->SetAttribute(TNode::TStatus::HeartbeatSequenceNumberSchema),
 
-                MakeFallbackAttributeSchema()
+                MakeEtcAttributeSchema()
                     ->SetUpdatable()
-                    ->SetAttribute(TNode::TStatus::OtherSchema)
+                    ->SetAttribute(TNode::TStatus::EtcSchema)
             });
 
         ControlAttributeSchema_

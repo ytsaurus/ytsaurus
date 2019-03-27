@@ -23,15 +23,15 @@ option (NYP.NClient.NApi.NProto.object_type) = {
 
 message TReplicaSetSpec
 {
-    string revision_id = 1 [(NYP.NClient.NApi.NProto.other) = true];
-    uint32 replica_count = 2 [(NYP.NClient.NApi.NProto.other) = true];
+    string revision_id = 1 [(NYP.NClient.NApi.NProto.etc) = true];
+    uint32 replica_count = 2 [(NYP.NClient.NApi.NProto.etc) = true];
 
     message TPodTemplateSpec
     {
         TPodSpec spec = 1;
     }
 
-    TPodTemplateSpec pod_template_spec = 3 [(NYP.NClient.NApi.NProto.other) = true];
+    TPodTemplateSpec pod_template_spec = 3 [(NYP.NClient.NApi.NProto.etc) = true];
 
     message TDeploymentStrategy
     {
@@ -40,7 +40,7 @@ message TReplicaSetSpec
         uint32 max_surge = 3;
     }
 
-    TDeploymentStrategy deployment_strategy = 4 [(NYP.NClient.NApi.NProto.other) = true];
+    TDeploymentStrategy deployment_strategy = 4 [(NYP.NClient.NApi.NProto.etc) = true];
     string account_id = 5;
 
     message TConstraints
@@ -48,7 +48,7 @@ message TReplicaSetSpec
         repeated TAntiaffinityConstraint antiaffinity_constraints = 1;
     }
 
-    TConstraints constraints = 6 [(NYP.NClient.NApi.NProto.other) = true];
+    TConstraints constraints = 6 [(NYP.NClient.NApi.NProto.etc) = true];
 }
 
 message TReplicaSetStatus

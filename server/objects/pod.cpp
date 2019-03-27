@@ -33,16 +33,16 @@ const TScalarAttributeSchema<TPod, TPod::TStatus::TDynamicResourceStatus> TPod::
     [] (TPod* pod) { return &pod->Status().DynamicResources(); }
 };
 
-const TScalarAttributeSchema<TPod, TPod::TStatus::TAgent::TOther> TPod::TStatus::TAgent::OtherSchema{
-    &PodsTable.Fields.Status_Agent_Other,
-    [] (TPod* pod) { return &pod->Status().Agent().Other(); }
+const TScalarAttributeSchema<TPod, TPod::TStatus::TAgent::TEtc> TPod::TStatus::TAgent::EtcSchema{
+    &PodsTable.Fields.Status_Agent_Etc,
+    [] (TPod* pod) { return &pod->Status().Agent().Etc(); }
 };
 
 TPod::TStatus::TStatus::TAgent::TAgent(TPod* pod)
     : State_(pod, &StateSchema)
     , IssPayload_(pod, &IssPayloadSchema)
     , PodAgentPayload_(pod, &PodAgentPayloadSchema)
-    , Other_(pod, &OtherSchema)
+    , Etc_(pod, &EtcSchema)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,9 +57,9 @@ const TScalarAttributeSchema<TPod, NTransactionClient::TTimestamp> TPod::TStatus
     [] (TPod* pod) { return &pod->Status().AgentSpecTimestamp(); }
 };
 
-const TScalarAttributeSchema<TPod, TPod::TStatus::TOther> TPod::TStatus::OtherSchema{
-    &PodsTable.Fields.Status_Other,
-    [] (TPod* pod) { return &pod->Status().Other(); }
+const TScalarAttributeSchema<TPod, TPod::TStatus::TEtc> TPod::TStatus::EtcSchema{
+    &PodsTable.Fields.Status_Etc,
+    [] (TPod* pod) { return &pod->Status().Etc(); }
 };
 
 TPod::TStatus::TStatus(TPod* pod)
@@ -67,7 +67,7 @@ TPod::TStatus::TStatus(TPod* pod)
     , GenerationNumber_(pod, &GenerationNumberSchema)
     , AgentSpecTimestamp_(pod, &AgentSpecTimestampSchema)
     , DynamicResources_(pod, &DynamicResourcesSchema)
-    , Other_(pod, &OtherSchema)
+    , Etc_(pod, &EtcSchema)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -123,9 +123,9 @@ const TScalarAttributeSchema<TPod, TPod::TSpec::TDynamicAttributes> TPod::TSpec:
     [] (TPod* pod) { return &pod->Spec().DynamicAttributes(); }
 };
 
-const TScalarAttributeSchema<TPod, TPod::TSpec::TOther> TPod::TSpec::OtherSchema{
-    &PodsTable.Fields.Spec_Other,
-    [] (TPod* pod) { return &pod->Spec().Other(); }
+const TScalarAttributeSchema<TPod, TPod::TSpec::TEtc> TPod::TSpec::EtcSchema{
+    &PodsTable.Fields.Spec_Etc,
+    [] (TPod* pod) { return &pod->Spec().Etc(); }
 };
 
 TPod::TSpec::TSpec(TPod* pod)
@@ -139,7 +139,7 @@ TPod::TSpec::TSpec(TPod* pod)
     , ResourceCache_(pod, &ResourceCacheSchema)
     , Account_(pod, &AccountSchema)
     , DynamicAttributes_(pod, &DynamicAttributesSchema)
-    , Other_(pod, &OtherSchema)
+    , Etc_(pod, &EtcSchema)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -165,7 +165,7 @@ void TPod::UpdateEvictionStatus(
     EEvictionReason reason,
     const TString& message)
 {
-    auto* eviction = Status().Other()->mutable_eviction();
+    auto* eviction = Status().Etc()->mutable_eviction();
     eviction->set_state(static_cast<NClient::NApi::NProto::EEvictionState>(state));
     eviction->set_reason(static_cast<NClient::NApi::NProto::EEvictionReason>(reason));
     eviction->set_message(message);
@@ -177,7 +177,7 @@ void TPod::UpdateSchedulingStatus(
     const TString& message,
     const TObjectId& nodeId)
 {
-    auto* scheduling = Status().Other()->mutable_scheduling();
+    auto* scheduling = Status().Etc()->mutable_scheduling();
     scheduling->set_state(static_cast<NClient::NApi::NProto::ESchedulingState>(state));
     scheduling->set_message(message);
     if (nodeId) {

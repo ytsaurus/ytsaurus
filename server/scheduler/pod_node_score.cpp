@@ -29,7 +29,7 @@ TNodeResourceCapacities& operator += (TNodeResourceCapacities& lhs, const TNodeR
 
 TNodeResourceCapacities GetPodResourceRequestCapacities(TPod* pod)
 {
-    const auto& resourceRequests = pod->SpecOther().resource_requests();
+    const auto& resourceRequests = pod->SpecEtc().resource_requests();
     return {
         MakeCpuCapacities(resourceRequests.vcpu_guarantee()),
         MakeMemoryCapacities(resourceRequests.memory_limit())

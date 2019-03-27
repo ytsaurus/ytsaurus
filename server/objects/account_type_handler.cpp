@@ -30,8 +30,8 @@ public:
                     ->SetAttribute(TAccount::TSpec::ParentSchema)
                     ->SetUpdatable(),
 
-                MakeFallbackAttributeSchema()
-                    ->SetAttribute(TAccount::TSpec::OtherSchema)
+                MakeEtcAttributeSchema()
+                    ->SetAttribute(TAccount::TSpec::EtcSchema)
                     ->SetUpdatable()
             });
     }
@@ -57,6 +57,17 @@ public:
         ISession* session) override
     {
         return std::make_unique<TAccount>(id, this, session);
+    }
+
+    virtual void BeforeObjectCreated(
+        TTransaction* transaction,
+        TObject* object) override
+    {
+        TObjectTypeHandlerBase::BeforeObjectCreated(transaction, object);
+
+        auto* account = object->As<TAccount>();
+        account->Status()->mutable_resource_usage();
+        account->Status()->mutable_immediate_resource_usage();
     }
 
     virtual void BeforeObjectRemoved(

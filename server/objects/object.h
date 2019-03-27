@@ -2,9 +2,9 @@
 
 #include "persistence.h"
 
-#include <yp/server/objects/proto/objects.pb.h>
-
 #include <yp/client/api/proto/data_model.pb.h>
+
+#include <yp/server/objects/proto/objects.pb.h>
 
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/small_vector.h>
@@ -45,9 +45,9 @@ public:
     static const TScalarAttributeSchema<TObject, TInstant> CreationTimeSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TInstant>, CreationTime);
 
-    using TMetaOther = NProto::TMetaOther;
-    static const TScalarAttributeSchema<TObject, TMetaOther> MetaOtherSchema;
-    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TMetaOther>, MetaOther);
+    using TMetaEtc = NProto::TMetaEtc;
+    static const TScalarAttributeSchema<TObject, TMetaEtc> MetaEtcSchema;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TMetaEtc>, MetaEtc);
 
     static const TScalarAttributeSchema<TObject, NYT::NYTree::IMapNodePtr> LabelsSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<NYT::NYTree::IMapNodePtr>, Labels);

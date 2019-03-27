@@ -4,17 +4,21 @@ syntax = "proto3";
 
 package NYP.NServer.NObjects.NProto;
 
-import "yp/client/api/proto/enums.proto";
 
 import "yp/client/api/proto/data_model.proto";
 import "yp/client/api/proto/replica_set.proto";
 import "yp/client/api/proto/multi_cluster_replica_set.proto";
 import "yp/client/api/proto/resource_cache.proto";
 import "yp/client/api/proto/dynamic_resource.proto";
+import "yt/core/misc/proto/error.proto";
+import "yt/core/ytree/proto/attributes.proto";
+import "yt/core/yson/proto/protobuf_interop.proto";
+import "yp/client/api/proto/enums.proto";
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TNodeStatusOther
+message TNodeStatusEtc
 {
     string agent_version = 8;
     NYP.NClient.NApi.NProto.TNodeStatus.THfsm hfsm = 5;
@@ -24,7 +28,7 @@ message TNodeStatusOther
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TPodSpecOther
+message TPodSpecEtc
 {
     NYP.NClient.NApi.NProto.TPodSpec.TResourceRequests resource_requests = 3;
     repeated NYP.NClient.NApi.NProto.TPodSpec.TIP6AddressRequest ip6_address_requests = 5;
@@ -39,7 +43,7 @@ message TPodSpecOther
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TPodStatusOther
+message TPodStatusEtc
 {
     repeated NYP.NClient.NApi.NProto.TPodStatus.TResourceAllocation scheduled_resource_allocations = 4;
     repeated NYP.NClient.NApi.NProto.TPodStatus.TIP6AddressAllocation ip6_address_allocations = 5;
@@ -52,14 +56,25 @@ message TPodStatusOther
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TAccountSpecOther
+message TPodAgentStatusEtc
+{
+    NYT.NProto.TError execution_error = 6;
+    NYT.NProto.TError install_error = 9;
+    uint64 failed_install_attempt_spec_timestamp = 10;
+    repeated string validation_failures = 8;
+    uint64 last_heartbeat_time = 7;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TAccountSpecEtc
 {
     NYP.NClient.NApi.NProto.TResourceTotals resource_limits = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReplicaSetSpecOther
+message TReplicaSetSpecEtc
 {
     string revision_id = 1;
     uint32 replica_count = 2;
@@ -70,7 +85,7 @@ message TReplicaSetSpecOther
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TMultiClusterReplicaSetSpecOther
+message TMultiClusterReplicaSetSpecEtc
 {
     uint64 revision = 6;
     NYP.NClient.NApi.NProto.TMultiClusterReplicaSetSpec.TPodTemplateSpec pod_template_spec = 3;

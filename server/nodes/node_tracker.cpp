@@ -81,7 +81,7 @@ public:
         Node_->Status().LastSeenTime() = Now();
         Node_->Status().EpochId() = TEpochId::Create();
         Node_->Status().HeartbeatSequenceNumber() = 0;
-        Node_->Status().Other()->set_agent_version(version);
+        Node_->Status().Etc()->set_agent_version(version);
 
         YT_LOG_DEBUG("Handshake received (NodeId: %v, Address: %v, Version: %v, EpochId: %v)",
             nodeId,
@@ -129,7 +129,7 @@ public:
 
             CheckUnknownPods();
 
-            if (Node_->Status().Other()->unknown_pod_ids_size() > 0 &&
+            if (Node_->Status().Etc()->unknown_pod_ids_size() > 0 &&
                 !Node_->Spec().Load().force_remove_unknown_pods())
             {
                 return;
@@ -200,8 +200,8 @@ public:
             pod->Spec().PodAgentPayload().ScheduleLoad();
             pod->Spec().Secrets().ScheduleLoad();
             pod->Spec().DynamicAttributes().ScheduleLoad();
-            pod->Spec().Other().ScheduleLoad();
-            pod->Status().Agent().Other().ScheduleLoad();
+            pod->Spec().Etc().ScheduleLoad();
+            pod->Status().Agent().Etc().ScheduleLoad();
         }
 
         void SkipPodUpdate(TPod* pod)
@@ -266,14 +266,14 @@ public:
 
         void CheckUnknownPods()
         {
-            Node_->Status().Other()->clear_unknown_pod_ids();
+            Node_->Status().Etc()->clear_unknown_pod_ids();
             for (const auto& podEntry : Request_->pods()) {
                 auto podId = FromProto<TObjectId>(podEntry.pod_id());
                 auto* pod = Transaction_->GetPod(podId);
                 if (!pod->DoesExist() && !pod->IsTombstone()) {
                     YT_LOG_DEBUG("Unknown pod reported by agent (PodId: %v)",
                         podId);
-                    Node_->Status().Other()->add_unknown_pod_ids(podId);
+                    Node_->Status().Etc()->add_unknown_pod_ids(podId);
                 }
             }
         }
@@ -355,15 +355,15 @@ public:
                         }
 
                         if (podEntry.status().execution_error().code() != NYT::EErrorCode::OK) {
-                            *pod->Status().Agent().Other()->mutable_execution_error() = podEntry.status().execution_error();
+                            *pod->Status().Agent().Etc()->mutable_execution_error() = podEntry.status().execution_error();
                         } else {
-                            pod->Status().Agent().Other()->clear_execution_error();
+                            pod->Status().Agent().Etc()->clear_execution_error();
                         }
 
-                        *pod->Status().Agent().Other()->mutable_validation_failures() = podEntry.status().validation_failures();
+                        *pod->Status().Agent().Etc()->mutable_validation_failures() = podEntry.status().validation_failures();
                     }
 
-                    pod->Status().Agent().Other()->set_last_heartbeat_time(ToProto<ui64>(Now()));
+                    pod->Status().Agent().Etc()->set_last_heartbeat_time(ToProto<ui64>(Now()));
 
                     pod->Status().AgentSpecTimestamp() = agentTimestamp;
                 }
@@ -387,7 +387,7 @@ public:
         void AnalyzePodInstallErrors()
         {
             SkipPodUpdateIf([&] (auto* pod) {
-                const auto& other = pod->Status().Agent().Other().Load();
+                const auto& other = pod->Status().Agent().Etc().Load();
                 if (other.has_install_error() &&
                     other.failed_install_attempt_spec_timestamp() == pod->Spec().UpdateTimestamp().Load())
                 {
@@ -408,14 +408,14 @@ public:
             }
             YT_LOG_DEBUG(error, "Pod install failed (PodId: %v)",
                 pod->GetId());
-            auto* other = pod->Status().Agent().Other().Get();
+            auto* other = pod->Status().Agent().Etc().Get();
             ToProto(other->mutable_install_error(), error);
             other->set_failed_install_attempt_spec_timestamp(pod->Spec().UpdateTimestamp().Load());
         }
 
         void ResetPodInstallFailure(TPod* pod)
         {
-            auto* other = pod->Status().Agent().Other().Get();
+            auto* other = pod->Status().Agent().Etc().Get();
             other->clear_install_error();
             other->clear_failed_install_attempt_spec_timestamp();
         }
@@ -507,8 +507,8 @@ public:
             auto* cpuResource = Node_->GetCpuResourceOrThrow();
             auto properties = BuildPortoProperties(
                 cpuResource->Spec().Load().cpu(),
-                pod->Spec().Other().Load(),
-                pod->Status().Other().Load());
+                pod->Spec().Etc().Load(),
+                pod->Status().Etc().Load());
             for (const auto& pair : properties) {
                 auto* protoProperty = protoSpec->add_porto_properties();
                 protoProperty->set_key(pair.first);
@@ -528,14 +528,15 @@ public:
             }
 
             // Copy some fields from pod status/spec.
-            const auto& specOther = pod->Spec().Other().Load();
-            const auto& statusOther = pod->Status().Other().Load();
-            protoSpec->mutable_ip6_address_requests()->CopyFrom(specOther.ip6_address_requests());
-            protoSpec->mutable_ip6_subnet_requests()->CopyFrom(specOther.ip6_subnet_requests());
-            protoSpec->mutable_ip6_address_allocations()->CopyFrom(statusOther.ip6_address_allocations());
-            protoSpec->mutable_ip6_subnet_allocations()->CopyFrom(statusOther.ip6_subnet_allocations());
-            protoSpec->mutable_dns()->CopyFrom(statusOther.dns());
-            protoSpec->mutable_disk_volume_allocations()->CopyFrom(statusOther.disk_volume_allocations());
+            const auto& specEtc = pod->Spec().Etc().Load();
+            const auto& statusEtc = pod->Status().Etc().Load();
+            protoSpec->mutable_resource_requests()->CopyFrom(specEtc.resource_requests());
+            protoSpec->mutable_ip6_address_requests()->CopyFrom(specEtc.ip6_address_requests());
+            protoSpec->mutable_ip6_subnet_requests()->CopyFrom(specEtc.ip6_subnet_requests());
+            protoSpec->mutable_ip6_address_allocations()->CopyFrom(statusEtc.ip6_address_allocations());
+            protoSpec->mutable_ip6_subnet_allocations()->CopyFrom(statusEtc.ip6_subnet_allocations());
+            protoSpec->mutable_dns()->CopyFrom(statusEtc.dns());
+            protoSpec->mutable_disk_volume_allocations()->CopyFrom(statusEtc.disk_volume_allocations());
         }
 
         void PopulateDynamicAttributes(

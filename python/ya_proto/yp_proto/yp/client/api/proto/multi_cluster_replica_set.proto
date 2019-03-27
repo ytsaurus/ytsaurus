@@ -21,7 +21,7 @@ option (NYP.NClient.NApi.NProto.object_type) = {
 
 message TMultiClusterReplicaSetSpec
 {
-    uint64 revision = 6 [(NYP.NClient.NApi.NProto.other) = true];
+    uint64 revision = 6 [(NYP.NClient.NApi.NProto.etc) = true];
     string account_id = 2;
 
     message TPodTemplateSpec
@@ -29,7 +29,7 @@ message TMultiClusterReplicaSetSpec
         NYP.NClient.NApi.NProto.TPodSpec spec = 1;
     }
 
-    TPodTemplateSpec pod_template_spec = 3 [(NYP.NClient.NApi.NProto.other) = true];
+    TPodTemplateSpec pod_template_spec = 3 [(NYP.NClient.NApi.NProto.etc) = true];
 
     message TConstraints
     {
@@ -41,7 +41,7 @@ message TMultiClusterReplicaSetSpec
         uint32 max_unavailable = 1;
     }
 
-    TDeploymentStrategy deployment_strategy = 4 [(NYP.NClient.NApi.NProto.other) = true];
+    TDeploymentStrategy deployment_strategy = 4 [(NYP.NClient.NApi.NProto.etc) = true];
 
     message TReplicaSetSpecPreferences
     {
@@ -55,7 +55,7 @@ message TMultiClusterReplicaSetSpec
         TReplicaSetSpecPreferences spec = 2;
     }
 
-    repeated TClusterReplicaSetSpecPreferences clusters = 5 [(NYP.NClient.NApi.NProto.other) = true];
+    repeated TClusterReplicaSetSpecPreferences clusters = 5 [(NYP.NClient.NApi.NProto.etc) = true];
 }
 
 message TDeployProgress

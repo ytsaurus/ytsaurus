@@ -18,7 +18,7 @@ class TestDiskBandwidthResource(object):
     def test(self, yp_env):
         yp_client = yp_env.yp_client
 
-        create_nodes(yp_env, 1)
+        create_nodes(yp_client, 1)
 
         pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
 
@@ -50,7 +50,7 @@ class TestDiskBandwidthResource(object):
         read_operation_rate_factor = 1.0 / (10 ** 6)
 
         def create_node(total_bandwidth):
-            node_ids = create_nodes(yp_env, 1, disk_spec=dict(
+            node_ids = create_nodes(yp_client, 1, disk_spec=dict(
                 total_bandwidth=total_bandwidth,
                 read_bandwidth_factor=read_bandwidth_factor,
                 write_bandwidth_factor=write_bandwidth_factor,

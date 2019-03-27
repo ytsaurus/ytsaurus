@@ -16,8 +16,8 @@ namespace NYP::NServer::NObjects {
 
 namespace NProto {
 
-class TPodSpecOther;
-class TPodStatusOther;
+class TPodSpecEtc;
+class TPodStatusEtc;
 
 } // namespace NProto
 
@@ -198,6 +198,7 @@ DEFINE_ENUM(ESchedulingState,
 );
 
 constexpr int TypicalDiskResourceCountPerNode = 16;
+constexpr int TypicalColumnCountPerDBTable = 16;
 
 using NClient::NApi::TObjectId;
 using NClient::NApi::TTransactionId;

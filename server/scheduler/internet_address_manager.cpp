@@ -46,7 +46,7 @@ void TInternetAddressManager::AssignInternetAddressesToPod(
     NObjects::TPod* pod,
     NObjects::TNode* node)
 {
-    const auto& ip6AddressRequests = pod->Spec().Other().Load().ip6_address_requests();
+    const auto& ip6AddressRequests = pod->Spec().Etc().Load().ip6_address_requests();
 
     for (int addressIndex = 0; addressIndex < ip6AddressRequests.size(); ++addressIndex) {
         const auto& ip6AddressRequest = ip6AddressRequests[addressIndex];
@@ -65,7 +65,7 @@ void TInternetAddressManager::AssignInternetAddressesToPod(
         auto* internetAddress = transaction->GetInternetAddress(*scheduledInternetAddressId);
         internetAddress->ValidateExists();
 
-        auto* ip6Address = pod->Status().Other()->mutable_ip6_address_allocations(addressIndex);
+        auto* ip6Address = pod->Status().Etc()->mutable_ip6_address_allocations(addressIndex);
         auto* statusInternetAddress = ip6Address->mutable_internet_address();
 
         statusInternetAddress->set_id(internetAddress->GetId());
@@ -79,8 +79,8 @@ void TInternetAddressManager::RevokeInternetAddressesFromPod(
     const NObjects::TTransactionPtr& transaction,
     NObjects::TPod* pod)
 {
-    auto& podStatusOther = pod->Status().Other();
-    for (auto& allocation : *podStatusOther->mutable_ip6_address_allocations()) {
+    auto& podStatusEtc = pod->Status().Etc();
+    for (auto& allocation : *podStatusEtc->mutable_ip6_address_allocations()) {
         if (allocation.has_internet_address()) {
             auto* internetAddress = transaction->GetInternetAddress(allocation.internet_address().id());
             internetAddress->Status()->Clear();

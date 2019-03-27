@@ -42,9 +42,7 @@ using std::placeholders::_3;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto DefaultVcpuLimit = 1000;
 static constexpr auto DefaultVcpuGuarantee = 1000;
-static constexpr auto DefaultMemoryLimit = 100_MB;
 static constexpr auto DefaultMemoryGuarantee = 100_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,8 +79,8 @@ public:
                             ->SetAttribute(TPod::TStatus::TAgent::PodAgentPayloadSchema)
                             ->SetUpdatable(),
 
-                        MakeFallbackAttributeSchema()
-                            ->SetAttribute(TPod::TStatus::TAgent::OtherSchema)
+                        MakeEtcAttributeSchema()
+                            ->SetAttribute(TPod::TStatus::TAgent::EtcSchema)
                     }),
 
                 MakeAttributeSchema("generation_number")
@@ -104,8 +102,8 @@ public:
                     ->SetPreevaluator<TPod>(std::bind(&TPodTypeHandler::PreevaluatePodDynamicAttributes, this, _1, _2))
                     ->SetEvaluator<TPod>(std::bind(&TPodTypeHandler::EvaluatePodDynamicAttributes, this, _1, _2, _3)),
 
-                MakeFallbackAttributeSchema()
-                    ->SetAttribute(TPod::TStatus::OtherSchema)
+                MakeEtcAttributeSchema()
+                    ->SetAttribute(TPod::TStatus::EtcSchema)
             });
 
         SpecAttributeSchema_
@@ -153,8 +151,8 @@ public:
                     ->SetAttribute(TPod::TSpec::DynamicAttributesSchema)
                     ->SetUpdatable(),
 
-                MakeFallbackAttributeSchema()
-                    ->SetAttribute(TPod::TSpec::OtherSchema)
+                MakeEtcAttributeSchema()
+                    ->SetAttribute(TPod::TSpec::EtcSchema)
                     ->SetUpdatable()
             })
             ->SetUpdateHandler<TPod>(std::bind(&TPodTypeHandler::OnSpecUpdated, this, _1, _2))
@@ -226,14 +224,8 @@ public:
 
         auto* pod = object->As<TPod>();
 
-        auto* resourceRequests = pod->Spec().Other()->mutable_resource_requests();
-        resourceRequests->set_vcpu_limit(DefaultVcpuLimit);
-        resourceRequests->set_vcpu_guarantee(DefaultVcpuGuarantee);
-        resourceRequests->set_memory_limit(DefaultMemoryLimit);
-        resourceRequests->set_memory_guarantee(DefaultMemoryGuarantee);
-
         const auto& netManager = Bootstrap_->GetNetManager();
-        pod->Status().Other()->mutable_dns()->set_persistent_fqdn(netManager->BuildPersistentPodFqdn(pod));
+        pod->Status().Etc()->mutable_dns()->set_persistent_fqdn(netManager->BuildPersistentPodFqdn(pod));
 
         pod->UpdateEvictionStatus(EEvictionState::None, EEvictionReason::None, "Pod created");
 
@@ -247,6 +239,23 @@ public:
         TObjectTypeHandlerBase::AfterObjectCreated(transaction, object);
 
         auto* pod = object->As<TPod>();
+
+        auto* resourceRequests = pod->Spec().Etc()->mutable_resource_requests();
+        
+        if (!resourceRequests->has_vcpu_limit() && !resourceRequests->has_vcpu_guarantee()) {
+            resourceRequests->set_vcpu_limit(DefaultVcpuGuarantee);
+            resourceRequests->set_vcpu_guarantee(DefaultVcpuGuarantee);
+        } else if (!resourceRequests->has_vcpu_limit() && resourceRequests->has_vcpu_guarantee()) {
+            resourceRequests->set_vcpu_limit(resourceRequests->vcpu_guarantee());
+        }
+
+        if (!resourceRequests->has_memory_limit() && !resourceRequests->has_memory_guarantee()) {
+            resourceRequests->set_memory_limit(DefaultMemoryGuarantee);
+            resourceRequests->set_memory_guarantee(DefaultMemoryGuarantee);
+        } else if (!resourceRequests->has_memory_limit() && resourceRequests->has_memory_guarantee()) {
+            resourceRequests->set_memory_limit(resourceRequests->memory_guarantee());
+        }
+
         const auto* node = pod->Spec().Node().Load();
 
         if (pod->Spec().EnableScheduling().Load()) {
@@ -314,14 +323,14 @@ private:
     {
         const auto& spec = pod->Spec();
 
-        if (spec.Other().IsChanged() ||
+        if (spec.Etc().IsChanged() ||
             spec.Node().IsChanged() ||
             spec.EnableScheduling().IsChanged())
         {
             transaction->ScheduleUpdatePodSpec(pod);
         }
 
-        if (spec.Other().IsChanged()) {
+        if (spec.Etc().IsChanged()) {
             transaction->ScheduleValidateAccounting(pod);
         }
 
@@ -331,7 +340,7 @@ private:
     void ValidateSpec(TTransaction* transaction, TPod* pod)
     {
         const auto& spec = pod->Spec();
-        const auto& specOther = pod->Spec().Other();
+        const auto& specEtc = pod->Spec().Etc();
 
         if (spec.Node().IsChanged()) {
             const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
@@ -348,12 +357,12 @@ private:
                 spec.Node().Load()->GetId());
         }
 
-        if (specOther.IsChanged()) {
-            for (const auto& spec : specOther.Load().host_devices()) {
+        if (specEtc.IsChanged()) {
+            for (const auto& spec : specEtc.Load().host_devices()) {
                 ValidateHostDeviceSpec(spec);
             }
 
-            for (const auto& spec : specOther.Load().sysctl_properties()) {
+            for (const auto& spec : specEtc.Load().sysctl_properties()) {
                 ValidateSysctlProperty(spec);
             }
 
@@ -368,7 +377,7 @@ private:
         TPod* pod,
         const NClient::NApi::NProto::TPodControl_TAcknowledgeEviction& control)
     {
-        if (pod->Status().Other().Load().eviction().state() != NClient::NApi::NProto::ES_REQUESTED) {
+        if (pod->Status().Etc().Load().eviction().state() != NClient::NApi::NProto::ES_REQUESTED) {
             THROW_ERROR_EXCEPTION("No eviction is currently requested for pod %Qv",
                 pod->GetId());
         }
@@ -388,7 +397,7 @@ private:
     static void ValidateDiskVolumeRequests(TPod* pod)
     {
         THashSet<TString> ids;
-        const auto& requests = pod->Spec().Other().Load().disk_volume_requests();
+        const auto& requests = pod->Spec().Etc().Load().disk_volume_requests();
         for (const auto& request : requests) {
             if (!ids.insert(request.id()).second) {
                 THROW_ERROR_EXCEPTION("Duplicate disk volume request %Qv",
@@ -411,11 +420,11 @@ private:
             accessControlManager->ValidatePermission(networkProject, EAccessControlPermission::Use);
         };
 
-        for (const auto& request : pod->Spec().Other().Load().ip6_address_requests()) {
+        for (const auto& request : pod->Spec().Etc().Load().ip6_address_requests()) {
             validateNetworkProject(request.network_id());
         }
 
-        for (const auto& request : pod->Spec().Other().Load().ip6_subnet_requests()) {
+        for (const auto& request : pod->Spec().Etc().Load().ip6_subnet_requests()) {
             if (request.has_network_id()) {
                 validateNetworkProject(request.network_id());
             } else {

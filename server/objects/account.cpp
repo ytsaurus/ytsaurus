@@ -23,15 +23,15 @@ const TOneToManyAttributeSchema<TAccount, TAccount> TAccount::TSpec::ChildrenSch
     [] (TAccount* account) { return &account->Spec().Parent(); },
 };
 
-const TScalarAttributeSchema<TAccount, TAccount::TSpec::TOther> TAccount::TSpec::OtherSchema{
-    &AccountsTable.Fields.Spec_Other,
-    [] (TAccount* account) { return &account->Spec().Other(); }
+const TScalarAttributeSchema<TAccount, TAccount::TSpec::TEtc> TAccount::TSpec::EtcSchema{
+    &AccountsTable.Fields.Spec_Etc,
+    [] (TAccount* account) { return &account->Spec().Etc(); }
 };
 
 TAccount::TSpec::TSpec(TAccount* account)
     : Parent_(account, &ParentSchema)
     , Children_(account, &ChildrenSchema)
-    , Other_(account, &OtherSchema)
+    , Etc_(account, &EtcSchema)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

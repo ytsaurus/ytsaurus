@@ -55,8 +55,8 @@ public:
     TAttributeSchema* SetUpdatable();
     bool GetUpdatable() const;
 
-    TAttributeSchema* SetFallback();
-    bool IsFallback() const;
+    TAttributeSchema* SetEtc();
+    bool IsEtc() const;
 
     TAttributeSchema* SetReadPermission(NAccessControl::EAccessControlPermission permission);
     NAccessControl::EAccessControlPermission GetReadPermission() const;
@@ -64,7 +64,7 @@ public:
     void AddChild(TAttributeSchema* child);
     TAttributeSchema* AddChildren(const std::vector<TAttributeSchema*>& children);
     TAttributeSchema* FindChild(const TString& key) const;
-    TAttributeSchema* FindFallbackChild() const;
+    TAttributeSchema* FindEtcChild() const;
     TAttributeSchema* GetChildOrThrow(const TString& key) const;
     const THashMap<TString, TAttributeSchema*>& KeyToChild() const;
 
@@ -179,7 +179,7 @@ private:
     const TString Name_;
 
     THashMap<TString, TAttributeSchema*> KeyToChild_;
-    TAttributeSchema* FallbackChild_ = nullptr;
+    TAttributeSchema* EtcChild_ = nullptr;
     TAttributeSchema* Parent_ = nullptr;
 
     std::function<void(TTransaction*, TObject*, const NYT::NYPath::TYPath&, const NYT::NYTree::INodePtr&, bool)> Setter_;
@@ -199,7 +199,7 @@ private:
     bool Annotations_ = false;
     bool Opaque_ = false;
     bool Control_ = false;
-    bool Fallback_ = false;
+    bool Etc_ = false;
     NAccessControl::EAccessControlPermission ReadPermission_ = NAccessControl::EAccessControlPermission::None;
 
     using TPathValidator = std::function<void(

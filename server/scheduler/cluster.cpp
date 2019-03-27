@@ -560,7 +560,7 @@ private:
             "[%v], [%v], [%v], [%v] from [%v] where is_null([%v])",
             NodesTable.Fields.Meta_Id.Name,
             NodesTable.Fields.Labels.Name,
-            NodesTable.Fields.Status_Other.Name,
+            NodesTable.Fields.Status_Etc.Name,
             NodesTable.Fields.Spec.Name,
             ytConnector->GetTablePath(&NodesTable),
             ObjectsTable.Fields.Meta_RemovalTime.Name);
@@ -570,13 +570,13 @@ private:
     {
         TObjectId nodeId;
         TYsonString labels;
-        NProto::TNodeStatusOther statusOther;
+        NProto::TNodeStatusEtc statusEtc;
         NClient::NApi::NProto::TNodeSpec spec;
         FromUnversionedRow(
             row,
             &nodeId,
             &labels,
-            &statusOther,
+            &statusEtc,
             &spec);
 
         auto labelMap = ConvertTo<IMapNodePtr>(labels);
@@ -586,9 +586,9 @@ private:
             nodeId,
             std::move(labels),
             std::move(topologyZones),
-            static_cast<EHfsmState>(statusOther.hfsm().state()),
-            static_cast<ENodeMaintenanceState>(statusOther.maintenance().state()),
-            statusOther.unknown_pod_ids_size(),
+            static_cast<EHfsmState>(statusEtc.hfsm().state()),
+            static_cast<ENodeMaintenanceState>(statusEtc.maintenance().state()),
+            statusEtc.unknown_pod_ids_size(),
             std::move(spec));
         YCHECK(NodeMap_.emplace(node->GetId(), std::move(node)).second);
     }
@@ -715,11 +715,11 @@ private:
             "[%v], [%v], [%v], [%v], [%v], [%v], [%v], [%v] from [%v] where is_null([%v]) and [%v] = true",
             PodsTable.Fields.Meta_Id.Name,
             PodsTable.Fields.Meta_PodSetId.Name,
-            PodsTable.Fields.Meta_Other.Name,
+            PodsTable.Fields.Meta_Etc.Name,
             PodsTable.Fields.Spec_NodeId.Name,
-            PodsTable.Fields.Spec_Other.Name,
+            PodsTable.Fields.Spec_Etc.Name,
             PodsTable.Fields.Spec_AccountId.Name,
-            PodsTable.Fields.Status_Other.Name,
+            PodsTable.Fields.Status_Etc.Name,
             PodsTable.Fields.Labels.Name,
             ytConnector->GetTablePath(&PodsTable),
             ObjectsTable.Fields.Meta_RemovalTime.Name,
@@ -730,21 +730,21 @@ private:
     {
         TObjectId podId;
         TObjectId podSetId;
-        NServer::NObjects::NProto::TMetaOther metaOther;
+        NServer::NObjects::NProto::TMetaEtc metaEtc;
         TObjectId nodeId;
-        NServer::NObjects::NProto::TPodSpecOther specOther;
+        NServer::NObjects::NProto::TPodSpecEtc specEtc;
         TObjectId accountId;
-        NServer::NObjects::NProto::TPodStatusOther statusOther;
+        NServer::NObjects::NProto::TPodStatusEtc statusEtc;
         TYsonString labels;
         FromUnversionedRow(
             row,
             &podId,
             &podSetId,
-            &metaOther,
+            &metaEtc,
             &nodeId,
-            &specOther,
+            &specEtc,
             &accountId,
-            &statusOther,
+            &statusEtc,
             &labels);
 
         auto* podSet = FindPodSet(podSetId);
@@ -774,11 +774,11 @@ private:
         auto pod = std::make_unique<TPod>(
             podId,
             podSet,
-            std::move(metaOther),
+            std::move(metaEtc),
             node,
-            std::move(specOther),
+            std::move(specEtc),
             account,
-            std::move(statusOther),
+            std::move(statusEtc),
             std::move(labels));
         YCHECK(PodMap_.emplace(pod->GetId(), std::move(pod)).second);
     }

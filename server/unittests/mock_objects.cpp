@@ -1,9 +1,8 @@
 #include "mock_objects.h"
 
 #include <yp/server/objects/helpers.h>
-#include <yp/server/scheduler/helpers.h>
 
-#include <yp/server/objects/proto/objects.pb.h>
+#include <yp/server/scheduler/helpers.h>
 
 namespace NYP::NServer::NScheduler::NTests {
 
@@ -25,21 +24,21 @@ TObjectId GenerateUniqueId()
 
 std::unique_ptr<TPod> CreateMockPod(ui64 cpuCapacity, ui64 memoryCapacity)
 {
-    NServer::NObjects::NProto::TMetaOther metaOther;
-    metaOther.set_uuid(NYP::NServer::NObjects::GenerateUuid());
+    NServer::NObjects::NProto::TMetaEtc metaEtc;
+    metaEtc.set_uuid(NYP::NServer::NObjects::GenerateUuid());
 
-    NServer::NObjects::NProto::TPodSpecOther specOther;
-    specOther.mutable_resource_requests()->set_vcpu_guarantee(cpuCapacity);
-    specOther.mutable_resource_requests()->set_memory_limit(memoryCapacity);
+    NServer::NObjects::NProto::TPodSpecEtc specEtc;
+    specEtc.mutable_resource_requests()->set_vcpu_guarantee(cpuCapacity);
+    specEtc.mutable_resource_requests()->set_memory_limit(memoryCapacity);
 
     return std::make_unique<TPod>(
         GenerateUniqueId(),
         /* podSet */ nullptr,
-        std::move(metaOther),
+        std::move(metaEtc),
         /* node */ nullptr,
-        specOther,
+        specEtc,
         /* node */ nullptr,
-        NObjects::NProto::TPodStatusOther(),
+        NObjects::NProto::TPodStatusEtc(),
         /* labels */ NYT::NYson::TYsonString());
 }
 

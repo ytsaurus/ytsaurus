@@ -10,12 +10,12 @@ using namespace NObjects;
 
 namespace {
 
-ui64 GetCpuCapacityFromSpec(const NServer::NObjects::NProto::TPodSpecOther& spec)
+ui64 GetCpuCapacityFromSpec(const NServer::NObjects::NProto::TPodSpecEtc& spec)
 {
     return spec.resource_requests().vcpu_guarantee();
 }
 
-ui64 GetMemoryCapacityFromSpec(const NServer::NObjects::NProto::TPodSpecOther& spec)
+ui64 GetMemoryCapacityFromSpec(const NServer::NObjects::NProto::TPodSpecEtc& spec)
 {
     return spec.resource_requests().memory_limit();
 }
@@ -44,7 +44,7 @@ ui64 GetDiskBandwidthFromRequest(const NClient::NApi::NProto::TPodSpec::TDiskVol
     }
 }
 
-ui64 GetInternetAddressCapacityFromSpec(const NServer::NObjects::NProto::TPodSpecOther& spec)
+ui64 GetInternetAddressCapacityFromSpec(const NServer::NObjects::NProto::TPodSpecEtc& spec)
 {
     ui64 result = 0;
     for (const auto& request : spec.ip6_address_requests()) {
@@ -58,7 +58,7 @@ ui64 GetInternetAddressCapacityFromSpec(const NServer::NObjects::NProto::TPodSpe
 } // namespace
 
 TResourceTotals ResourceUsageFromPodSpec(
-    const NServer::NObjects::NProto::TPodSpecOther& spec,
+    const NServer::NObjects::NProto::TPodSpecEtc& spec,
     const TObjectId& segmentId)
 {
     TResourceTotals usage;

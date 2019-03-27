@@ -104,8 +104,8 @@ public:
 
     void PrepareUpdatePodAddresses(TPod* pod)
     {
-        pod->Spec().Other().ScheduleLoad();
-        pod->Status().Other().ScheduleLoad();
+        pod->Spec().Etc().ScheduleLoad();
+        pod->Status().Etc().ScheduleLoad();
     }
 
     void UpdatePodAddresses(
@@ -181,8 +181,8 @@ private:
             return false;
         }
 
-        const auto& ip6AddressRequests = pod->Spec().Other().Load().ip6_address_requests();
-        const auto& ip6AddressAllocations = pod->Status().Other().Load().ip6_address_allocations();
+        const auto& ip6AddressRequests = pod->Spec().Etc().Load().ip6_address_requests();
+        const auto& ip6AddressAllocations = pod->Status().Etc().Load().ip6_address_allocations();
         if (ip6AddressRequests.size() != ip6AddressAllocations.size()) {
             return true;
         }
@@ -220,8 +220,8 @@ private:
             }
         }
 
-        const auto& ip6SubnetRequests = pod->Spec().Other().Load().ip6_subnet_requests();
-        const auto& ip6SubnetAllocations = pod->Status().Other().Load().ip6_subnet_allocations();
+        const auto& ip6SubnetRequests = pod->Spec().Etc().Load().ip6_subnet_requests();
+        const auto& ip6SubnetAllocations = pod->Status().Etc().Load().ip6_subnet_allocations();
         if (ip6SubnetRequests.size() != ip6SubnetAllocations.size()) {
             return true;
         }
@@ -286,8 +286,8 @@ private:
 
     void RegisterDnsRecords(const TTransactionPtr& transaction, TPod* pod)
     {
-        const auto& ip6AddressRequests = pod->Spec().Other().Load().ip6_address_requests();
-        const auto& ip6AddressAllocations = pod->Status().Other().Load().ip6_address_allocations();
+        const auto& ip6AddressRequests = pod->Spec().Etc().Load().ip6_address_requests();
+        const auto& ip6AddressAllocations = pod->Status().Etc().Load().ip6_address_allocations();
 
         THashMap<TString, NClient::NApi::NProto::TDnsRecordSetSpec> records;
 
@@ -319,7 +319,7 @@ private:
 
     void UnregisterDnsRecords(const TTransactionPtr& transaction, TPod* pod)
     {
-        const auto& allocations = pod->Status().Other().Load().ip6_address_allocations();
+        const auto& allocations = pod->Status().Etc().Load().ip6_address_allocations();
         for (const auto& allocation : allocations) {
             if (allocation.has_persistent_fqdn()) {
                 {
@@ -349,8 +349,8 @@ private:
     {
         const auto* node = pod->Spec().Node().LoadOld();
 
-        auto* ip6AddressAllocations = pod->Status().Other()->mutable_ip6_address_allocations();
-        auto* ip6SubnetAllocations = pod->Status().Other()->mutable_ip6_subnet_allocations();
+        auto* ip6AddressAllocations = pod->Status().Etc()->mutable_ip6_address_allocations();
+        auto* ip6SubnetAllocations = pod->Status().Etc()->mutable_ip6_subnet_allocations();
 
         if (!node) {
             if (!ip6AddressAllocations->empty()) {
@@ -402,8 +402,8 @@ private:
         }
 
         size_t nonceCount =
-            pod->Spec().Other().Load().ip6_address_requests().size() +
-            pod->Spec().Other().Load().ip6_subnet_requests().size();
+            pod->Spec().Etc().Load().ip6_address_requests().size() +
+            pod->Spec().Etc().Load().ip6_subnet_requests().size();
         auto nonces = GenerateNonces(
             transaction,
             node,
@@ -449,7 +449,7 @@ private:
         };
 
         google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodStatus_TIP6AddressAllocation> ip6AddressAllocations;
-        for (const auto& request : pod->Spec().Other().Load().ip6_address_requests()) {
+        for (const auto& request : pod->Spec().Etc().Load().ip6_address_requests()) {
             const auto& vlanId = request.vlan_id();
             auto projectId = getProjectId(request.network_id());
             auto hostSubnet = getHostSubnetForVlan(vlanId);
@@ -472,7 +472,7 @@ private:
         }
 
         google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodStatus_TIP6SubnetAllocation> ip6SubnetAllocations;
-        for (const auto& request : pod->Spec().Other().Load().ip6_subnet_requests()) {
+        for (const auto& request : pod->Spec().Etc().Load().ip6_subnet_requests()) {
             const auto& vlanId = request.vlan_id();
             const auto& networkId = request.network_id();
             auto projectId = networkId ? getProjectId(networkId) : 0;
@@ -492,8 +492,8 @@ private:
                 subnet);
         }
 
-        pod->Status().Other()->mutable_ip6_address_allocations()->Swap(&ip6AddressAllocations);
-        pod->Status().Other()->mutable_ip6_subnet_allocations()->Swap(&ip6SubnetAllocations);
+        pod->Status().Etc()->mutable_ip6_address_allocations()->Swap(&ip6AddressAllocations);
+        pod->Status().Etc()->mutable_ip6_subnet_allocations()->Swap(&ip6SubnetAllocations);
 
         for (auto nonce : nonces) {
             RegisterIP6Nonce(transaction, node, nonce, pod);
@@ -502,8 +502,8 @@ private:
 
     void UpdateVirtualServiceTunnel(const TTransactionPtr& transaction, TPod* pod)
     {
-        const auto& ip6AddressRequests = pod->Spec().Other().Load().ip6_address_requests();
-        auto* ip6AddressAllocations = pod->Status().Other()->mutable_ip6_address_allocations();
+        const auto& ip6AddressRequests = pod->Spec().Etc().Load().ip6_address_requests();
+        auto* ip6AddressAllocations = pod->Status().Etc()->mutable_ip6_address_allocations();
         Y_ASSERT(ip6AddressRequests.size() == ip6AddressAllocations->size());
 
         for (int index = 0; index < ip6AddressRequests.size(); ++index) {
@@ -517,8 +517,8 @@ private:
 
     void UpdateFqdns(TPod* pod)
     {
-        const auto& ip6AddressRequests = pod->Spec().Other().Load().ip6_address_requests();
-        auto* ip6AddressAllocations = pod->Status().Other()->mutable_ip6_address_allocations();
+        const auto& ip6AddressRequests = pod->Spec().Etc().Load().ip6_address_requests();
+        auto* ip6AddressAllocations = pod->Status().Etc()->mutable_ip6_address_allocations();
         Y_ASSERT(ip6AddressRequests.size() == ip6AddressAllocations->size());
         for (int index = 0; index < ip6AddressRequests.size(); ++index) {
             UpdateIP6AddressFqdns(pod, ip6AddressRequests[index], &(*ip6AddressAllocations)[index]);

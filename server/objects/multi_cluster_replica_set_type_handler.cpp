@@ -32,8 +32,8 @@ public:
                     ->SetUpdatable()
                     ->SetValidator<TMultiClusterReplicaSet>(std::bind(&TMultiClusterReplicaSetTypeHandler::ValidateAccount, this, _1, _2)),
 
-                MakeFallbackAttributeSchema()
-                    ->SetAttribute(TMultiClusterReplicaSet::TSpec::OtherSchema)
+                MakeEtcAttributeSchema()
+                    ->SetAttribute(TMultiClusterReplicaSet::TSpec::EtcSchema)
                     ->SetUpdatable()
             });
 

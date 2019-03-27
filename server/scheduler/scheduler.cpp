@@ -164,7 +164,7 @@ private:
 
                 auto pods = Owner_->Cluster_->GetPods();
                 for (auto* pod : pods) {
-                    if (pod->StatusOther().eviction().state() == NClient::NApi::NProto::ES_REQUESTED) {
+                    if (pod->StatusEtc().eviction().state() == NClient::NApi::NProto::ES_REQUESTED) {
                         continue;
                     }
 
@@ -202,7 +202,7 @@ private:
         {
             auto pods = Owner_->Cluster_->GetPods();
             for (auto* pod : pods) {
-                if (pod->StatusOther().eviction().state() == NClient::NApi::NProto::ES_ACKNOWLEDGED) {
+                if (pod->StatusEtc().eviction().state() == NClient::NApi::NProto::ES_ACKNOWLEDGED) {
                     YT_LOG_DEBUG("Pod eviction acknowledged (PodId: %v, NodeId: %v)",
                         pod->GetId(),
                         pod->GetNode()->GetId());
@@ -218,7 +218,7 @@ private:
                 auto* node = resource->GetNode();
                 for (const auto& allocation : resource->ScheduledAllocations()) {
                     auto* pod = Owner_->Cluster_->FindPod(allocation.pod_id());
-                    if (!pod || pod->MetaOther().uuid() != allocation.pod_uuid()) {
+                    if (!pod || pod->MetaEtc().uuid() != allocation.pod_uuid()) {
                         changedNodes.push_back(node);
                         break;
                     } else if (pod) {
@@ -498,7 +498,7 @@ private:
                         continue;
                     }
 
-                    ToProto(transactionPod->Status().Other()->mutable_scheduling()->mutable_error(), failure.Error);
+                    ToProto(transactionPod->Status().Etc()->mutable_scheduling()->mutable_error(), failure.Error);
                 }
                 WaitFor(transaction->Commit())
                     .ThrowOnError();

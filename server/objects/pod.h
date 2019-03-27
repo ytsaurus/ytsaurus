@@ -2,7 +2,6 @@
 
 #include "object.h"
 
-#include <yp/server/objects/proto/objects.pb.h>
 #include <yp/server/objects/proto/autogen.pb.h>
 
 #include <yp/client/api/proto/data_model.pb.h>
@@ -51,9 +50,9 @@ public:
             static const TScalarAttributeSchema<TPod, TPodAgentPayload> PodAgentPayloadSchema;
             DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TPodAgentPayload>, PodAgentPayload);
 
-            using TOther = NProto::TPodAgentStatusOther;
-            static const TScalarAttributeSchema<TPod, TOther> OtherSchema;
-            DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TOther>, Other);
+            using TEtc = NProto::TPodAgentStatusEtc;
+            static const TScalarAttributeSchema<TPod, TEtc> EtcSchema;
+            DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TEtc>, Etc);
         };
 
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAgent, Agent);
@@ -68,9 +67,9 @@ public:
         static const TScalarAttributeSchema<TPod, TDynamicResourceStatus> DynamicResourcesSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TDynamicResourceStatus>, DynamicResources);
 
-        using TOther = NProto::TPodStatusOther;
-        static const TScalarAttributeSchema<TPod, TOther> OtherSchema;
-        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TOther>, Other);
+        using TEtc = NProto::TPodStatusEtc;
+        static const TScalarAttributeSchema<TPod, TEtc> EtcSchema;
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TEtc>, Etc);
     };
 
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TStatus, Status);
@@ -117,9 +116,9 @@ public:
         static const TScalarAttributeSchema<TPod, TDynamicAttributes> DynamicAttributesSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TDynamicAttributes>, DynamicAttributes);
 
-        using TOther = NProto::TPodSpecOther;
-        static const TScalarAttributeSchema<TPod, TOther> OtherSchema;
-        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TOther>, Other);
+        using TEtc = NProto::TPodSpecEtc;
+        static const TScalarAttributeSchema<TPod, TEtc> EtcSchema;
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TEtc>, Etc);
     };
 
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TSpec, Spec);

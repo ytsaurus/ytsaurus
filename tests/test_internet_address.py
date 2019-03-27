@@ -181,8 +181,7 @@ class TestInternetAddresses(object):
                 "resource_limits": {
                     "per_segment": {
                         "default": {
-                            "memory": { "capacity": 1000000000 },
-                            "cpu": { "capacity": 100},
+                            "cpu": { "capacity": 100 }
                         }
                     }
                 }
@@ -195,7 +194,7 @@ class TestInternetAddresses(object):
         for i in xrange(3):
             self._create_inet_addr(yp_client, "netmodule1", "1.2.3.{}".format(i))
 
-        pod_id1 = self._create_pod(yp_client, pod_set_id, enable_internet=True, resource_request={"vcpu_guarantee": 10})
+        pod_id1 = self._create_pod(yp_client, pod_set_id, enable_internet=True, resource_request={"vcpu_guarantee": 10, "memory_limit": 0})
         self._wait_scheduled_state(yp_client, [pod_id1], "assigned")
         assert yp_client.get_object("pod", pod_id1, selectors=["/status/scheduling/node_id"])[0] == node_id
         assert yp_client.get_object("account", account_id, selectors=["/status/resource_usage/per_segment/default/internet_address/capacity"])[0] == 1
@@ -209,11 +208,11 @@ class TestInternetAddresses(object):
         with pytest.raises(YtResponseError):
             self._create_pod(yp_client, pod_set_id, enable_internet=True)
 
-        pod_id_without_address1 = self._create_pod(yp_client, pod_set_id, enable_internet=False, resource_request={"vcpu_guarantee": 10})
+        pod_id_without_address1 = self._create_pod(yp_client, pod_set_id, enable_internet=False, resource_request={"vcpu_guarantee": 10, "memory_limit": 0})
         self._wait_scheduled_state(yp_client, [pod_id_without_address1], "assigned")
 
         with pytest.raises(YtResponseError):
-            pod_id_without_address2 = self._create_pod(yp_client, pod_set_id, enable_internet=False, resource_request={"vcpu_guarantee": 81})
+            pod_id_without_address2 = self._create_pod(yp_client, pod_set_id, enable_internet=False, resource_request={"vcpu_guarantee": 81, "memory_limit": 0})
 
         yp_client.remove_object("pod", pod_id1)
         wait(lambda: yp_client.get_object("account", account_id, selectors=["/status/resource_usage/per_segment/default/internet_address/capacity"])[0] != 1)

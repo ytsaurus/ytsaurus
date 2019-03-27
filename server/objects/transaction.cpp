@@ -19,6 +19,7 @@
 #include "helpers.h"
 #include "user.h"
 #include "group.h"
+#include "geometric_2d_set_cover.h"
 
 #include <yp/server/master/bootstrap.h>
 #include <yp/server/master/yt_connector.h>
@@ -164,6 +165,16 @@ private:
     THashMap<const TDBField*, TExpressionPtr> FieldToExpression_;
     THashMap<TString, TExpressionPtr> AnnotationNameToExpression_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ETransactionTableLookupSessionState,
+    (Initialized)
+    (Requested)
+    (ParsedResults)
+);
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TTransaction::TImpl
     : public TRefCounted
@@ -868,11 +879,12 @@ private:
             TRange<const TDBField*> fields,
             std::function<void(const std::optional<TRange<NYT::NTableClient::TVersionedValue>>&)> handler) override
         {
-            LookupRequests_[std::make_pair(table, CaptureKey(key))].Subrequests.push_back(TLookupSubrequest{
-                SmallVector<const TDBField*, 2>(fields.begin(), fields.end()),
-                SmallVector<int, 2>(),
-                handler
-            });
+            LookupRequestsPerTable_[table].push_back(TLookupRequest{
+                CaptureKey(key),
+                SmallVector<const TDBField*, TypicalFieldCountPerLookupRequest>(
+                    fields.begin(),
+                    fields.end()),
+                std::move(handler)});
         }
 
         virtual void ScheduleSelect(
@@ -887,7 +899,7 @@ private:
 
         void RunReads()
         {
-            if (SelectRequests_.empty() && LookupRequests_.empty()) {
+            if (SelectRequests_.empty() && LookupRequestsPerTable_.empty()) {
                 return;
             }
 
@@ -896,7 +908,6 @@ private:
             YT_LOG_DEBUG("Running reads");
 
             std::vector<TFuture<void>> asyncResults;
-            std::vector<TFuture<IVersionedRowsetPtr>> asyncLookupResults;
 
             for (auto& request : SelectRequests_) {
                 request.Tag = Format("Query: %v",
@@ -919,70 +930,15 @@ private:
                 asyncResults.push_back(asyncResult.As<void>());
             }
 
-            THashMap<const TDBField*, int> fieldToId;
-            SmallVector<const TDBField*, 64> idToField;
+            THashMap<const TDBTable*, TTableLookupSession> tableLookupSessions;
 
-            for (auto& pair : LookupRequests_) {
-                const auto* table = pair.first.first;
-                auto& request = pair.second;
-
-                auto key = pair.first.second;
-                auto keys = MakeSharedRange(std::vector<TKey>{key}, RowBuffer_);
-
-                auto path = GetTablePath(table);
-
-                auto nameTable = BuildNameTable(table);
-
-                // Versioned lookup is needed for the TTimestampAttribute support.
-                // For the sake of convenience we use versioned lookup for all attributes.
-                TVersionedLookupRowsOptions options;
-                options.Timestamp = Transaction_->StartTimestamp_;
-                options.KeepMissingRows = false;
-                options.RetentionConfig = Transaction_->SingleVersionRetentionConfig_;
-                TColumnFilter::TIndexes filterIndexes;
-
-                idToField.clear();
-                fieldToId.clear();
-                int currentFieldId = 0;
-                for (auto& subrequest : request.Subrequests) {
-                    for (const auto* field : subrequest.Fields) {
-                        int resultId;
-                        auto it = fieldToId.find(field);
-                        if (it == fieldToId.end()) {
-                            int filterId = nameTable->RegisterName(field->Name);
-                            filterIndexes.push_back(filterId);
-                            idToField.push_back(field);
-                            resultId = currentFieldId++;
-                            YCHECK(fieldToId.emplace(field, resultId).second);
-                        } else {
-                            resultId = it->second;
-                        }
-                        subrequest.ResultColumnIds.push_back(resultId);
-                    }
-                }
-                options.ColumnFilter = TColumnFilter(std::move(filterIndexes));
-
-                request.Tag = Format("Path: %v, Columns: %v, Keys: %v",
-                    path,
-                    MakeFormattableView(idToField, [] (TStringBuilderBase* builder, const auto* field) {
-                        FormatValue(builder, field->Name, TStringBuf());
-                    }),
-                    keys);
-
-                YT_LOG_DEBUG("Executing lookup (%v)",
-                    request.Tag);
-
-                auto asyncResult = Transaction_->Client_->VersionedLookupRows(
-                    path,
-                    nameTable,
-                    keys,
-                    options);
-
-                request.AsyncResult = asyncResult.Apply(BIND([] (const TErrorOr<IVersionedRowsetPtr>& rowsetOrError) {
-                    THROW_ERROR_EXCEPTION_IF_FAILED(rowsetOrError, "Error fetching data from DB");
-                    return rowsetOrError.Value();
-                }));
-                asyncResults.push_back(asyncResult.As<void>());
+            for (const auto& [table, lookupRequests] : LookupRequestsPerTable_) {
+                auto [it, emplaced] = tableLookupSessions.emplace(
+                    table,
+                    TTableLookupSession{this, table, Logger});
+                YCHECK(emplaced);
+                auto& tableLookupSession = it->second;
+                asyncResults.push_back(tableLookupSession.ExecuteRequests(lookupRequests));
             }
 
             WaitFor(Combine(asyncResults))
@@ -1009,84 +965,25 @@ private:
                 });
             }
 
-            SmallVector<TVersionedValue, 16> lookupRowValues;
-            SmallVector<TVersionedValue, 16> lookupHandlerValues;
-            for (const auto& pair : LookupRequests_) {
-                const auto& request = pair.second;
-                const auto& result = request.AsyncResult.Get().Value();
-                auto rows = result->GetRows();
-                Y_ASSERT(rows.Size() <= 1);
+            for (auto& [table, lookupSession] : tableLookupSessions) {
+                lookupSession.ParseResults();
+            }
 
-                auto invokeHandlersWithNull = [&] () {
-                    for (const auto& subrequest : request.Subrequests) {
-                        subrequest.Handler(std::nullopt);
-                    }
-                };
+            for (const auto& [table, lookupRequests] : LookupRequestsPerTable_) {
+                auto it = tableLookupSessions.find(table);
+                YCHECK(it != tableLookupSessions.end());
+                const auto& lookupSession = it->second;
 
-                auto invokeHandlersWithRows = [&] () {
-                    for (const auto& subrequest : request.Subrequests) {
-                        lookupHandlerValues.clear();
-                        for (auto id : subrequest.ResultColumnIds) {
-                            lookupHandlerValues.push_back(lookupRowValues[id]);
+                for (const auto& lookupRequest : lookupRequests) {
+                    auto optionalHandlerValues = lookupSession.GetResult(lookupRequest);
+                    guardedRun([&] {
+                        if (optionalHandlerValues) {
+                            lookupRequest.Handler(MakeRange(*optionalHandlerValues));
+                        } else {
+                            lookupRequest.Handler(std::nullopt);
                         }
-                        guardedRun([&] {
-                            subrequest.Handler(MakeRange(lookupHandlerValues));
-                        });
-                    }
-                };
-
-                if (rows.Empty()) {
-                    YT_LOG_DEBUG("No rows found (%v)",
-                        request.Tag);
-                    invokeHandlersWithNull();
-                    continue;
+                    });
                 }
-
-                auto row = rows[0];
-
-                auto maxWriteTimestamp = (row.BeginWriteTimestamps() == row.EndWriteTimestamps())
-                    ? MinTimestamp
-                    : row.BeginWriteTimestamps()[0];
-                auto maxDeleteTimestamp = (row.BeginDeleteTimestamps() == row.EndDeleteTimestamps())
-                    ? MinTimestamp
-                    : row.BeginDeleteTimestamps()[0];
-                if (maxWriteTimestamp <= maxDeleteTimestamp) {
-                    YT_LOG_DEBUG("Got dead lookup row (%v, Row: %v)",
-                        request.Tag,
-                        row);
-                    invokeHandlersWithNull();
-                    continue;
-                }
-
-                int maxId = -1;
-                for (const auto& subrequest : request.Subrequests) {
-                    for (auto id : subrequest.ResultColumnIds) {
-                        maxId = std::max(maxId, id);
-                    }
-                }
-
-                for (int index = 0; index < maxId + 1; ++index) {
-                    lookupRowValues.push_back(MakeVersionedSentinelValue(EValueType::Null, NullTimestamp));
-                }
-
-                for (const auto* key = row.BeginKeys(); key != row.EndKeys(); ++key) {
-                    TVersionedValue value;
-                    static_cast<TUnversionedValue&>(value) = *key;
-                    lookupRowValues[value.Id] = value;
-                }
-
-                // TODO(babenko)
-                THashSet<int> seenIds;
-                for (const auto* value = row.BeginValues(); value != row.EndValues(); ++value) {
-                    if (seenIds.insert(value->Id).second) {
-                        lookupRowValues[value->Id] = *value;
-                    }
-                }
-
-                YT_LOG_DEBUG("Got lookup row (%v, Row: %v)",
-                    request.Tag,
-                    row);
-                invokeHandlersWithRows();
             }
 
             YT_LOG_DEBUG("Results parsed");
@@ -1098,6 +995,8 @@ private:
         }
 
     private:
+        static constexpr int TypicalFieldCountPerLookupRequest = 4;
+
         struct TSelectRequest
         {
             TString Query;
@@ -1108,21 +1007,273 @@ private:
 
         std::vector<TSelectRequest> SelectRequests_;
 
-        struct TLookupSubrequest
+        struct TLookupRequest
         {
-            SmallVector<const TDBField*, 4> Fields;
-            SmallVector<int, 4> ResultColumnIds;
+            TKey Key;
+            SmallVector<const TDBField*, TypicalFieldCountPerLookupRequest> Fields;
             std::function<void(const std::optional<TRange<NYT::NTableClient::TVersionedValue>>&)> Handler;
         };
 
-        struct TLookupRequest
-        {
-            std::vector<TLookupSubrequest> Subrequests;
-            TFuture<IVersionedRowsetPtr> AsyncResult;
-            TString Tag;
-        };
+        THashMap<const TDBTable*, std::vector<TLookupRequest>> LookupRequestsPerTable_;
 
-        THashMap<std::pair<const TDBTable*, TKey>, TLookupRequest> LookupRequests_;
+
+        class TTableLookupSession
+        {
+        public:
+            TTableLookupSession(
+                TLoadContext* owner,
+                const TDBTable* table,
+                const NYT::NLogging::TLogger& logger)
+                : Owner_(owner)
+                , Table_(table)
+                , TablePath_(Owner_->GetTablePath(Table_))
+                , Logger(logger)
+            { }
+
+            TFuture<void> ExecuteRequests(const std::vector<TLookupRequest>& requests)
+            {
+                YCHECK(State_ == ETransactionTableLookupSessionState::Initialized);
+                State_ = ETransactionTableLookupSessionState::Requested;
+
+                auto transaction = Owner_->Transaction_;
+
+                YT_LOG_DEBUG("Building rectangle lookup requests (Path: %v)", TablePath_);
+
+                FieldNameTable_ = transaction->BuildNameTable(Table_);
+
+                std::vector<NGeometric2DSetCover::TRectangle<TKey>> rectangles;
+                {
+                    std::vector<NGeometric2DSetCover::TPoint<TKey>> points;
+                    for (const auto& request : requests) {
+                        for (const auto* field : request.Fields) {
+                            auto fieldId = FieldNameTable_->GetIdOrRegisterName(field->Name);
+                            points.emplace_back(request.Key, fieldId);
+                        }
+                    }
+                    rectangles = NGeometric2DSetCover::BuildPerColumnSetCovering(
+                        points,
+                        transaction->Config_->MaxKeysPerLookupRequest);
+                }
+
+                RectangleRequests_.reserve(rectangles.size());
+                for (auto& rectangle : rectangles) {
+                    auto& rectangleRequest = RectangleRequests_.emplace_back();
+                    rectangleRequest.Keys = std::move(rectangle.Rows);
+                    rectangleRequest.FieldIds = std::move(rectangle.Columns);
+                }
+
+                std::vector<TFuture<void>> asyncResults;
+                for (auto& rectangleRequest : RectangleRequests_) {
+                    // Versioned lookup is needed for the TTimestampAttribute support.
+                    // For the sake of convenience we use versioned lookup for all attributes.
+                    TVersionedLookupRowsOptions options;
+                    options.Timestamp = transaction->StartTimestamp_;
+                    options.KeepMissingRows = true;
+                    options.RetentionConfig = transaction->SingleVersionRetentionConfig_;
+                    options.ColumnFilter = TColumnFilter(rectangleRequest.FieldIds);
+
+                    auto keysRange = MakeSharedRange(rectangleRequest.Keys, Owner_->GetRowBuffer());
+
+                    YT_LOG_DEBUG("Executing rectangle lookup request (%v)",
+                        FormatRectangleRequest(rectangleRequest));
+
+                    auto asyncResult = transaction->Client_->VersionedLookupRows(
+                        TablePath_,
+                        FieldNameTable_,
+                        std::move(keysRange),
+                        options);
+
+                    rectangleRequest.AsyncResult = asyncResult.Apply(
+                        BIND([] (const TErrorOr<IVersionedRowsetPtr>& rowsetOrError) {
+                            THROW_ERROR_EXCEPTION_IF_FAILED(rowsetOrError, "Error fetching data from DB");
+                            return rowsetOrError.Value();
+                        }));
+
+                    asyncResults.push_back(asyncResult.As<void>());
+                }
+
+                return Combine(std::move(asyncResults));
+            }
+
+            void ParseResults()
+            {
+                YCHECK(State_ == ETransactionTableLookupSessionState::Requested);
+                State_ = ETransactionTableLookupSessionState::ParsedResults;
+
+                YT_LOG_DEBUG("Parsing lookup session results (Path: %v)", TablePath_);
+
+                for (const auto& rectangleRequest : RectangleRequests_) {
+                    YCHECK(rectangleRequest.AsyncResult.IsSet());
+                    const auto& result = rectangleRequest.AsyncResult.Get().Value();
+
+                    auto rows = result->GetRows();
+                    YCHECK(rows.Size() == rectangleRequest.Keys.size());
+
+                    // Value.Id is actually a position in the rectangle request column filter.
+                    auto getFieldIdByValueId = [&rectangleRequest] (int valueId) {
+                        YCHECK(0 <= valueId &&
+                            valueId < static_cast<int>(rectangleRequest.FieldIds.size()));
+                        return rectangleRequest.FieldIds[valueId];
+                    };
+
+                    for (size_t keyIndex = 0;
+                        keyIndex < rectangleRequest.Keys.size();
+                        ++keyIndex)
+                    {
+                        auto key = rectangleRequest.Keys[keyIndex];
+                        auto tag = FormatRectangleRequestForKey(rectangleRequest, key);
+
+                        auto row = rows[keyIndex];
+                        if (!row) {
+                            YT_LOG_DEBUG("Got missing lookup row (%v)", tag);
+                            continue;
+                        }
+
+                        auto maxWriteTimestamp =
+                            (row.BeginWriteTimestamps() == row.EndWriteTimestamps())
+                            ? MinTimestamp
+                            : row.BeginWriteTimestamps()[0];
+
+                        auto maxDeleteTimestamp =
+                            (row.BeginDeleteTimestamps() == row.EndDeleteTimestamps())
+                            ? MinTimestamp
+                            : row.BeginDeleteTimestamps()[0];
+
+                        if (maxWriteTimestamp <= maxDeleteTimestamp) {
+                            YT_LOG_DEBUG("Got dead lookup row (%v, Row: %v)", tag, row);
+                            continue;
+                        }
+
+                        auto& rowResult = GetOrEmplaceRowResult(key);
+
+                        for (const auto* key = row.BeginKeys(); key != row.EndKeys(); ++key) {
+                            TVersionedValue value;
+                            static_cast<TUnversionedValue&>(value) = *key;
+                            auto fieldId = getFieldIdByValueId(value.Id);
+                            // NB! Reinitialization is possible even for the key field because
+                            //     one row can be contained in the several rectangles.
+                            if (!rowResult[fieldId]) {
+                                rowResult[fieldId] = value;
+                            }
+                        }
+
+                        for (const auto* value = row.BeginValues();
+                            value != row.EndValues();
+                            ++value)
+                        {
+                            auto fieldId = getFieldIdByValueId(value->Id);
+                            // NB! Only initialize result with last written value.
+                            if (!rowResult[fieldId]) {
+                                rowResult[fieldId] = *value;
+                            }
+                        }
+
+                        YT_LOG_DEBUG("Got lookup row (%v, Row: %v)", tag, row);
+                    }
+                }
+            }
+
+            std::optional<SmallVector<TVersionedValue, TypicalFieldCountPerLookupRequest>> GetResult(
+                const TLookupRequest& request) const
+            {
+                YCHECK(State_ == ETransactionTableLookupSessionState::ParsedResults);
+
+                auto resultIt = Results_.find(request.Key);
+                if (resultIt == Results_.end()) {
+                    return std::nullopt;
+                }
+
+                SmallVector<TVersionedValue, TypicalFieldCountPerLookupRequest> result;
+                result.reserve(request.Fields.size());
+
+                const auto& rowResult = resultIt->second;
+                for (const auto* field : request.Fields) {
+                    auto fieldId = FieldNameTable_->GetId(field->Name);
+                    const auto& optionalValue = rowResult[fieldId];
+                    if (optionalValue) {
+                        result.push_back(*optionalValue);
+                    } else {
+                        result.push_back(MakeVersionedSentinelValue(
+                            EValueType::Null, NullTimestamp));
+                    }
+                }
+
+                return result;
+            }
+
+        private:
+            TLoadContext* const Owner_;
+            const TDBTable* const Table_;
+            const TString TablePath_;
+            const NYT::NLogging::TLogger& Logger;
+
+            ETransactionTableLookupSessionState State_
+                = ETransactionTableLookupSessionState::Initialized;
+
+            TNameTablePtr FieldNameTable_;
+
+            struct TRectangleRequest
+            {
+                std::vector<TKey> Keys;
+                std::vector<int> FieldIds;
+                TFuture<IVersionedRowsetPtr> AsyncResult;
+            };
+
+            std::vector<TRectangleRequest> RectangleRequests_;
+
+            // The following matrix is indexed by (key, fieldId).
+            // NB! It stores non-owning versioned values:
+            //     holders are stored in the rectangle requests async results.
+            using TRowResult = SmallVector<
+                std::optional<TVersionedValue>,
+                TypicalColumnCountPerDBTable
+            >;
+            THashMap<TKey, TRowResult> Results_;
+
+            TRowResult& GetOrEmplaceRowResult(TKey key)
+            {
+                auto it = Results_.find(key);
+                if (it == Results_.end()) {
+                    it = Results_.emplace(key, TRowResult()).first;
+                    auto& rowResult = it->second;
+                    rowResult.assign(FieldNameTable_->GetSize(), std::nullopt);
+                }
+                return it->second;
+            }
+
+            TString FormatRectangleRequestForKey(
+                const TRectangleRequest& request,
+                TKey key) const
+            {
+                return Format("Path: %v, Columns: %v, Key: %v",
+                    TablePath_,
+                    MakeFormattableView(
+                        request.FieldIds,
+                        [this] (auto* builder, int fieldId) {
+                            FormatValue(
+                                builder,
+                                FieldNameTable_->GetName(fieldId),
+                                TStringBuf());
+                        }),
+                    key);
+            }
+
+            TString FormatRectangleRequest(const TRectangleRequest& request) const
+            {
+                return Format("Path: %v, Columns: %v, KeyCount: %v, Keys: %v",
+                    TablePath_,
+                    MakeFormattableView(
+                        request.FieldIds,
+                        [this] (auto* builder, int fieldId) {
+                            FormatValue(
+                                builder,
+                                FieldNameTable_->GetName(fieldId),
+                                TStringBuf());
+                        }),
+                    request.Keys.size(),
+                    request.Keys);
+            }
+        };
     };
 
     class TStoreContext
@@ -1937,14 +2088,14 @@ private:
                             node->GetType());
                     }
                     auto mapNode = node->AsMap();
-                    auto* fallbackChild = schema->FindFallbackChild();
+                    auto* etcChild = schema->FindEtcChild();
                     for (const auto& [key, value] : mapNode->GetChildren()) {
                         auto* child = schema->FindChild(key);
                         if (child) {
                             DoMatch(value, child);
-                        } else if (fallbackChild) {
+                        } else if (etcChild) {
                             AddMatch({
-                                fallbackChild,
+                                etcChild,
                                 TSetUpdateRequest{"/" + ToYPathLiteral(key), value}
                             });
                         } else {
@@ -2222,8 +2373,8 @@ private:
         }
 
         auto mapValue = request.Value->AsMap();
-        auto* fallbackChild = schema->FindFallbackChild();
-        IMapNodePtr fallbackMapValue;
+        auto* etcChild = schema->FindEtcChild();
+        IMapNodePtr etcMapValue;
         for (const auto& [key, childValue] : mapValue->GetChildren()) {
             auto* child = schema->FindChild(key);
             if (child) {
@@ -2232,11 +2383,11 @@ private:
                     object,
                     child,
                     TSetUpdateRequest{TYPath(), childValue});
-            } else if (fallbackChild) {
-                if (!fallbackMapValue) {
-                    fallbackMapValue = GetEphemeralNodeFactory()->CreateMap();
+            } else if (etcChild) {
+                if (!etcMapValue) {
+                    etcMapValue = GetEphemeralNodeFactory()->CreateMap();
                 }
-                fallbackMapValue->AddChild(key, CloneNode(childValue));
+                etcMapValue->AddChild(key, CloneNode(childValue));
             } else {
                 THROW_ERROR_EXCEPTION("Attribute %v has no child with key %Qv",
                     schema->GetPath(),
@@ -2244,12 +2395,12 @@ private:
             }
         }
 
-        if (fallbackMapValue) {
+        if (etcMapValue) {
             ApplyAttributeSetUpdate(
                 transaction,
                 object,
-                fallbackChild,
-                TSetUpdateRequest{TYPath(), fallbackMapValue});
+                etcChild,
+                TSetUpdateRequest{TYPath(), etcMapValue});
         }
     }
 

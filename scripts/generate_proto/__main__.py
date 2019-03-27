@@ -21,6 +21,19 @@ def get_modules():
     ]
 
 
+def get_types(module):
+    types = []
+
+    def traverse(type):
+        types.append(type)
+        for nested_type in type.nested_type:
+            traverse(nested_type)
+    descriptor = protobuf_descriptor_pb2.FileDescriptorProto.FromString(module.DESCRIPTOR.serialized_pb)
+    for type in descriptor.message_type:
+        traverse(type)
+    return types
+
+
 def print_field(field):
     if field.label == protobuf_descriptor_pb2.FieldDescriptorProto.LABEL_REQUIRED:
         raise Exception("Required fields are not supported")
@@ -34,6 +47,10 @@ def print_field(field):
     if field.type == protobuf_descriptor_pb2.FieldDescriptorProto.TYPE_MESSAGE or \
        field.type == protobuf_descriptor_pb2.FieldDescriptorProto.TYPE_ENUM:
         field_type = field.type_name[1:]
+        PYTHON_PREFIX = "NYtPython."
+        YT_PREFIX = "NYT."
+        if field_type.startswith(PYTHON_PREFIX):
+            field_type = YT_PREFIX + field_type[len(PYTHON_PREFIX):]
     elif field.type == protobuf_descriptor_pb2.FieldDescriptorProto.TYPE_STRING:
         field_type = "string"
     elif field.type == protobuf_descriptor_pb2.FieldDescriptorProto.TYPE_UINT32:
@@ -53,6 +70,12 @@ def print_imports():
         if not name.startswith(PREFIX):
             raise Exception("Module name {} does not start with {}".format(name, PREFIX))
         print "import \"{}\";".format(name[len(PREFIX):])
+    print """\
+import "yt/core/misc/proto/error.proto";
+import "yt/core/ytree/proto/attributes.proto";
+import "yt/core/yson/proto/protobuf_interop.proto";
+import "yp/client/api/proto/enums.proto";
+"""
 
 
 def print_separator():
@@ -82,9 +105,6 @@ package NYP.NClient.NApi.NProto;
 option java_package = "ru.yandex.yp.client.api";
 option java_outer_classname = "Autogen";
 
-import "yp/client/api/proto/enums.proto";
-import "yt/core/ytree/proto/attributes.proto";
-import "yt/core/yson/proto/protobuf_interop.proto";
 """
     print_imports()
     print ""
@@ -98,6 +118,8 @@ import "yt/core/yson/proto/protobuf_interop.proto";
         print ""
     print "    OT_NULL = -1"
     print "    [(NYT.NYson.NProto.enum_value_name) = \"null\"];"
+    print "    OT_NODE2 = 18"
+    print "    [(NYT.NYson.NProto.enum_value_name) = \"node2\"];"
     print "}"
     print ""
     print_separator()
@@ -140,22 +162,23 @@ syntax = "proto3";
 
 package NYP.NServer.NObjects.NProto;
 
-import "yp/client/api/proto/enums.proto";
 """
     print_imports()
     print ""
     print_separator()
     for module in get_modules():
-        descriptor = protobuf_descriptor_pb2.FileDescriptorProto.FromString(module.DESCRIPTOR.serialized_pb)
-        for message_type in descriptor.message_type:
-            other_fields = list([field for field in message_type.field if field.options.Extensions[data_model_pb2.other] == [True]])
-            if len(other_fields) == 0:
+        for message_type in get_types(module):
+            etc_type_name = message_type.options.Extensions[data_model_pb2.etc_type_name]
+            if len(etc_type_name) == 0:
+                etc_type_name = message_type.name + "Etc"
+            etc_fields = list([field for field in message_type.field if field.options.Extensions[data_model_pb2.etc] == [True]])
+            if len(etc_fields) == 0:
                 continue
 
             print ""
-            print "message {}Other".format(message_type.name)
+            print "message {}".format(etc_type_name)
             print "{"
-            for field in other_fields:
+            for field in etc_fields:
                 print_field(field)
             print "}"
             print ""

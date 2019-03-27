@@ -36,6 +36,7 @@ class TTransactionManagerConfig
 public:
     i64 InputRowLimit;
     i64 OutputRowLimit;
+    int MaxKeysPerLookupRequest;
 
     TTransactionManagerConfig()
     {
@@ -43,6 +44,9 @@ public:
             .Default(10000000);
         RegisterParameter("output_row_limit", OutputRowLimit)
             .Default(10000000);
+        RegisterParameter("max_keys_per_lookup_request", MaxKeysPerLookupRequest)
+            .GreaterThan(0)
+            .Default(100);
     }
 };
 

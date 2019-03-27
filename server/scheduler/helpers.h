@@ -3,7 +3,6 @@
 #include "local_resource_allocator.h"
 
 #include <yp/server/objects/public.h>
-#include <yp/server/objects/proto/objects.pb.h>
 
 #include <yp/client/api/proto/data_model.pb.h>
 
@@ -63,8 +62,8 @@ TLocalResourceAllocator::TResource BuildAllocatorResource(
 
 std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
     const TObjectId& podId,
-    const NObjects::NProto::TPodSpecOther& spec,
-    const NObjects::NProto::TPodStatusOther& status,
+    const NObjects::NProto::TPodSpecEtc& spec,
+    const NObjects::NProto::TPodStatusEtc& status,
     const std::vector<TLocalResourceAllocator::TResource>& resources);
 
 void UpdatePodDiskVolumeAllocations(

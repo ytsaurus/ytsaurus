@@ -32,8 +32,8 @@ public:
                     ->SetUpdatable()
                     ->SetValidator<TReplicaSet>(std::bind(&TReplicaSetTypeHandler::ValidateAccount, this, _1, _2)),
 
-                MakeFallbackAttributeSchema()
-                    ->SetAttribute(TReplicaSet::TSpec::OtherSchema)
+                MakeEtcAttributeSchema()
+                    ->SetAttribute(TReplicaSet::TSpec::EtcSchema)
                     ->SetUpdatable()
             });
 

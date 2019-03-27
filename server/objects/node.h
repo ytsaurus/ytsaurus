@@ -2,7 +2,6 @@
 
 #include "object.h"
 
-#include <yp/server/objects/proto/objects.pb.h>
 #include <yp/server/objects/proto/autogen.pb.h>
 
 #include <yp/server/nodes/public.h>
@@ -50,9 +49,9 @@ public:
         static const TScalarAttributeSchema<TNode, ui64> HeartbeatSequenceNumberSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<ui64>, HeartbeatSequenceNumber);
 
-        using TOther = NProto::TNodeStatusOther;
-        static const TScalarAttributeSchema<TNode, TOther> OtherSchema;
-        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TOther>, Other);
+        using TEtc = NProto::TNodeStatusEtc;
+        static const TScalarAttributeSchema<TNode, TEtc> EtcSchema;
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TEtc>, Etc);
     };
 
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TStatus, Status);

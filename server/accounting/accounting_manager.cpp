@@ -50,7 +50,7 @@ public:
 
     void PrepareValidateAccounting(NObjects::TPod* pod)
     {
-        pod->Spec().Other().ScheduleLoad();
+        pod->Spec().Etc().ScheduleLoad();
         pod->Spec().Account().ScheduleLoad();
     }
 
@@ -64,7 +64,7 @@ public:
             if (pod->DidExist()) {
                 const auto* oldAccount = GetOldPodAccount(pod);
                 const auto* oldSegment = GetOldPodSegment(pod);
-                const auto& oldSpec = pod->Spec().Other().LoadOld();
+                const auto& oldSpec = pod->Spec().Etc().LoadOld();
                 if (oldSegment) {
                     accountToUsageDelta[oldAccount] -= ResourceUsageFromPodSpec(oldSpec, oldSegment->GetId());
                 }
@@ -73,7 +73,7 @@ public:
             if (pod->DoesExist()) {
                 const auto* newAccount = GetNewPodAccount(pod);
                 const auto* newSegment = GetNewPodSegment(pod);
-                const auto& newSpec = pod->Spec().Other().Load();
+                const auto& newSpec = pod->Spec().Etc().Load();
                 if (newSegment) {
                     accountToUsageDelta[newAccount] += ResourceUsageFromPodSpec(newSpec, newSegment->GetId());
                 }
@@ -174,7 +174,7 @@ public:
                 NClient::NApi::NProto::TResourceTotals usage;
                 for (auto* pod : account->Pods()) {
                     auto* nodeSegment = pod->GetPodSet()->GetNodeSegment();
-                    usage += ResourceUsageFromPodSpec(pod->SpecOther(), nodeSegment->GetId());
+                    usage += ResourceUsageFromPodSpec(pod->SpecEtc(), nodeSegment->GetId());
                 }
                 accountToImmediateUsage[account] = std::move(usage);
             }
@@ -186,8 +186,7 @@ public:
                     ComputeRecursiveAccountUsage(
                         account,
                         &accountToUsage,
-                        accountToImmediateUsage,
-                        {});
+                        accountToImmediateUsage);
                 }
             }
 
@@ -217,11 +216,10 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(SchedulerThread);
 
 
-    void ComputeRecursiveAccountUsage(
+    NClient::NApi::NProto::TResourceTotals ComputeRecursiveAccountUsage(
         TAccount* currentAccount,
         THashMap<TAccount*, NClient::NApi::NProto::TResourceTotals>* accountToUsage,
-        const THashMap<TAccount*, NClient::NApi::NProto::TResourceTotals>& accountToImmediateUsage,
-        const NClient::NApi::NProto::TResourceTotals& accumulatedUsage)
+        const THashMap<TAccount*, NClient::NApi::NProto::TResourceTotals>& accountToImmediateUsage)
     {
         auto pair = accountToUsage->emplace(currentAccount, accountToImmediateUsage.at(currentAccount));
         if (!pair.second) {
@@ -229,19 +227,18 @@ private:
                 "Account visited at least twice during recursive traversal; "
                 "this indicates cyclic dependencies in accounts hierarchy (AccountId: %v)",
                 currentAccount->GetId());
-            return;
+            return {};
         }
 
         auto& currentUsage = pair.first->second;
-        currentUsage += accumulatedUsage;
-
         for (auto* childAccount : currentAccount->Children()) {
-            ComputeRecursiveAccountUsage(
+            currentUsage += ComputeRecursiveAccountUsage(
                 childAccount,
                 accountToUsage,
-                accountToImmediateUsage,
-                currentUsage);
+                accountToImmediateUsage);
         }
+
+        return currentUsage;
     }
 
     void ValidateAccountUsageIncrease(const NObjects::TAccount* account, const TResourceTotals& usageDelta)
@@ -255,7 +252,7 @@ private:
             }
 
             auto usage = account->Status().Load().resource_usage() + usageDelta;
-            const auto& limits = account->Spec().Other().Load().resource_limits();
+            const auto& limits = account->Spec().Etc().Load().resource_limits();
 
             for (const auto& perSegmentPair : usage.per_segment()) {
                 const auto& segmentId = perSegmentPair.first;

@@ -74,9 +74,9 @@ TResolveResult ResolveAttribute(
             if (child) {
                 current = child;
             } else {
-                auto* fallbackChild = current->FindFallbackChild();
-                if (fallbackChild) {
-                    return {fallbackChild, TYPath(remainingPath)};
+                auto* etcChild = current->FindEtcChild();
+                if (etcChild) {
+                    return {etcChild, TYPath(remainingPath)};
                 } else {
                     THROW_ERROR_EXCEPTION("Attribute %v has no child with key %Qv",
                         current->GetPath(),
@@ -267,9 +267,9 @@ void TAttributeFetcher::DoPrepare(
                 }
             }
 
-            auto* fallbackChild = attribute->FindFallbackChild();
-            if (fallbackChild) {
-                DoPrepare({fallbackChild, {}}, queryContext);
+            auto* etcChild = attribute->FindEtcChild();
+            if (etcChild) {
+                DoPrepare({etcChild, {}}, queryContext);
             }
             break;
         }
@@ -302,9 +302,9 @@ void TAttributeFetcher::DoPrefetch(
                 }
             }
 
-            auto* fallbackChild = attribute->FindFallbackChild();
-            if (fallbackChild) {
-                DoPrefetch(row, {fallbackChild, {}});
+            auto* etcChild = attribute->FindEtcChild();
+            if (etcChild) {
+                DoPrefetch(row, {etcChild, {}});
             }
             break;
         }
@@ -345,8 +345,8 @@ void TAttributeFetcher::DoFetch(
                 }
             }
 
-            auto* fallbackChild = attribute->FindFallbackChild();
-            if (fallbackChild) {
+            auto* etcChild = attribute->FindEtcChild();
+            if (etcChild) {
                 class TUnwrappingConsumer
                     : public TForwardingYsonConsumer
                 {
@@ -369,7 +369,7 @@ void TAttributeFetcher::DoFetch(
                 private:
                     IYsonConsumer* const Underlying_;
                 } unwrappingConsumer(consumer);
-                DoFetch(row, {fallbackChild, {}}, &unwrappingConsumer);
+                DoFetch(row, {etcChild, {}}, &unwrappingConsumer);
             }
 
             consumer->OnEndMap();
@@ -593,8 +593,8 @@ TStringBuf GetLowercaseHumanReadableTypeName(EObjectType type)
 
 TString GetObjectDisplayName(const TObject* object)
 {
-    return object->MetaOther().Load().has_name()
-        ? Format("%Qv (id %Qv)", object->MetaOther().Load().name(), object->GetId())
+    return object->MetaEtc().Load().has_name()
+        ? Format("%Qv (id %Qv)", object->MetaEtc().Load().name(), object->GetId())
         : Format("%Qv", object->GetId());
 }
 

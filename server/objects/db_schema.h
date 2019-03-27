@@ -14,7 +14,7 @@ extern const struct TObjectTableBase
     struct TFields
     {
         TDBField Meta_Id{"meta.id", NTableClient::EValueType::String};
-        TDBField Meta_Other{"meta.other", NTableClient::EValueType::Any};
+        TDBField Meta_Etc{"meta.other", NTableClient::EValueType::Any};
         TDBField Meta_CreationTime{"meta.creation_time", NTableClient::EValueType::Uint64};
         TDBField Meta_RemovalTime{"meta.removal_time", NTableClient::EValueType::Uint64};
         TDBField Meta_InheritAcl{"meta.inherit_acl", NTableClient::EValueType::Boolean};
@@ -100,7 +100,7 @@ extern const struct TNodesTable
         TDBField Status_EpochId{"status.epoch_id", NTableClient::EValueType::String};
         TDBField Status_LastSeenTime{"status.last_seen_time", NTableClient::EValueType::Uint64};
         TDBField Status_HeartbeatSequenceNumber{"status.heartbeat_sequence_number", NTableClient::EValueType::Uint64};
-        TDBField Status_Other{"status.other", NTableClient::EValueType::Any};
+        TDBField Status_Etc{"status.other", NTableClient::EValueType::Any};
     } Fields;
 } NodesTable;
 
@@ -149,15 +149,15 @@ extern const struct TPodsTable
         TDBField Status_Agent_IssPayload{"status.agent.iss_payload", NTableClient::EValueType::String};
         TDBField Status_Agent_PodAgentPayload{"status.agent.pod_agent_payload", NTableClient::EValueType::Any};
         TDBField Status_DynamicResources{"status.dynamic_resources", NTableClient::EValueType::Any};
-        TDBField Status_Agent_Other{"status.agent.other", NTableClient::EValueType::Any};
-        TDBField Status_Other{"status.other", NTableClient::EValueType::Any};
+        TDBField Status_Agent_Etc{"status.agent.other", NTableClient::EValueType::Any};
+        TDBField Status_Etc{"status.other", NTableClient::EValueType::Any};
         TDBField Spec_NodeId{"spec.node_id", NTableClient::EValueType::String};
         TDBField Spec_IssPayload{"spec.iss_payload", NTableClient::EValueType::String};
         TDBField Spec_PodAgentPayload{"spec.pod_agent_payload", NTableClient::EValueType::Any};
         TDBField Spec_EnableScheduling{"spec.enable_scheduling", NTableClient::EValueType::Boolean};
         TDBField Spec_Secrets{"spec.secrets", NTableClient::EValueType::Any};
         TDBField Spec_UpdateTag{"spec.update_tag", NTableClient::EValueType::Boolean};
-        TDBField Spec_Other{"spec.other", NTableClient::EValueType::Any};
+        TDBField Spec_Etc{"spec.other", NTableClient::EValueType::Any};
         TDBField Spec_AccountId{"spec.account_id", NTableClient::EValueType::String};
         TDBField Spec_DynamicResources{"spec.dynamic_resources", NTableClient::EValueType::Any};
         TDBField Spec_ResourceCache{"spec.resource_cache", NTableClient::EValueType::Any};
@@ -241,7 +241,7 @@ extern const struct TReplicaSetsTable
         : public TObjectTableBase::TFields
     {
         TDBField Spec_AccountId{"spec.account_id", NTableClient::EValueType::String};
-        TDBField Spec_Other{"spec.other", NTableClient::EValueType::Any};
+        TDBField Spec_Etc{"spec.other", NTableClient::EValueType::Any};
         TDBField Status{"status", NTableClient::EValueType::Any};
     } Fields;
 } ReplicaSetsTable;
@@ -535,7 +535,7 @@ extern const struct TAccountsTable
         : public TObjectTableBase::TFields
     {
         TDBField Spec_ParentId{"spec.parent_id", NTableClient::EValueType::String};
-        TDBField Spec_Other{"spec.other", NTableClient::EValueType::Any};
+        TDBField Spec_Etc{"spec.other", NTableClient::EValueType::Any};
         TDBField Status{"status", NTableClient::EValueType::Any};
     } Fields;
 } AccountsTable;
@@ -651,7 +651,7 @@ extern const struct TMultiClusterReplicaSetsTable
         : public TObjectTableBase::TFields
     {
         TDBField Spec_AccountId{"spec.account_id", NTableClient::EValueType::String};
-        TDBField Spec_Other{"spec.other", NTableClient::EValueType::Any};
+        TDBField Spec_Etc{"spec.other", NTableClient::EValueType::Any};
         TDBField Status{"status", NTableClient::EValueType::Any};
     } Fields;
 } MultiClusterReplicaSetsTable;

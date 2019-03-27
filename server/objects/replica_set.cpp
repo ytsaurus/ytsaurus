@@ -13,14 +13,14 @@ const TManyToOneAttributeSchema<TReplicaSet, TAccount> TReplicaSet::TSpec::Accou
     [] (TAccount* account) { return &account->ReplicaSets(); }
 };
 
-const TScalarAttributeSchema<TReplicaSet, TReplicaSet::TSpec::TOther> TReplicaSet::TSpec::OtherSchema{
-    &ReplicaSetsTable.Fields.Spec_Other,
-    [] (TReplicaSet* replicaSet) { return &replicaSet->Spec().Other(); }
+const TScalarAttributeSchema<TReplicaSet, TReplicaSet::TSpec::TEtc> TReplicaSet::TSpec::EtcSchema{
+    &ReplicaSetsTable.Fields.Spec_Etc,
+    [] (TReplicaSet* replicaSet) { return &replicaSet->Spec().Etc(); }
 };
 
 TReplicaSet::TSpec::TSpec(TReplicaSet* replicaSet)
     : Account_(replicaSet, &AccountSchema)
-    , Other_(replicaSet, &OtherSchema)
+    , Etc_(replicaSet, &EtcSchema)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

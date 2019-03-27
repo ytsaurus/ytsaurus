@@ -7,15 +7,17 @@ package NYP.NClient.NApi.NProto;
 option java_package = "ru.yandex.yp.client.api";
 option java_outer_classname = "Autogen";
 
-import "yp_proto/yp/client/api/proto/enums.proto";
-import "yt_proto/yt/core/ytree/proto/attributes.proto";
-import "yt/core/yson/proto/protobuf_interop.proto";
 
 import "yp_proto/yp/client/api/proto/data_model.proto";
 import "yp_proto/yp/client/api/proto/replica_set.proto";
 import "yp_proto/yp/client/api/proto/multi_cluster_replica_set.proto";
 import "yp_proto/yp/client/api/proto/resource_cache.proto";
 import "yp_proto/yp/client/api/proto/dynamic_resource.proto";
+import "yt_proto/yt/core/misc/proto/error.proto";
+import "yt_proto/yt/core/ytree/proto/attributes.proto";
+import "yt/core/yson/proto/protobuf_interop.proto";
+import "yp_proto/yp/client/api/proto/enums.proto";
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,6 +82,8 @@ enum EObjectType
 
     OT_NULL = -1
     [(NYT.NYson.NProto.enum_value_name) = "null"];
+    OT_NODE2 = 18
+    [(NYT.NYson.NProto.enum_value_name) = "node2"];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -12,14 +12,14 @@ const TManyToOneAttributeSchema<TMultiClusterReplicaSet, TAccount> TMultiCluster
     [] (TAccount* account) { return &account->MultiClusterReplicaSets(); }
 };
 
-const TScalarAttributeSchema<TMultiClusterReplicaSet, TMultiClusterReplicaSet::TSpec::TOther> TMultiClusterReplicaSet::TSpec::OtherSchema{
-    &MultiClusterReplicaSetsTable.Fields.Spec_Other,
-    [] (TMultiClusterReplicaSet* replicaSet) { return &replicaSet->Spec().Other(); }
+const TScalarAttributeSchema<TMultiClusterReplicaSet, TMultiClusterReplicaSet::TSpec::TEtc> TMultiClusterReplicaSet::TSpec::EtcSchema{
+    &MultiClusterReplicaSetsTable.Fields.Spec_Etc,
+    [] (TMultiClusterReplicaSet* replicaSet) { return &replicaSet->Spec().Etc(); }
 };
 
 TMultiClusterReplicaSet::TSpec::TSpec(TMultiClusterReplicaSet* MultiClusterReplicaSet)
     : Account_(MultiClusterReplicaSet, &AccountSchema)
-    , Other_(MultiClusterReplicaSet, &OtherSchema)
+    , Etc_(MultiClusterReplicaSet, &EtcSchema)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

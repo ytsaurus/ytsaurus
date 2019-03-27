@@ -45,6 +45,7 @@ SET(YP_TEST_SRCS
     test_sweep.py
     test_timestamps.py
     test_transactions.py
+    test_update_objects.py
     test_users.py
     test_virtual_services.py
     test_yson_proto.py

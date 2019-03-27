@@ -6,7 +6,6 @@
 
 #include <yp/server/objects/public.h>
 
-#include <yp/server/objects/proto/objects.pb.h>
 #include <yp/server/objects/proto/autogen.pb.h>
 
 namespace NYP::NServer::NAccounting {
@@ -17,7 +16,7 @@ using TPerSegmentResourceTotals = NClient::NApi::NProto::TPerSegmentResourceTota
 using TResourceTotals = NClient::NApi::NProto::TResourceTotals;
 
 TResourceTotals ResourceUsageFromPodSpec(
-    const NObjects::NProto::TPodSpecOther& spec,
+    const NObjects::NProto::TPodSpecEtc& spec,
     const NObjects::TObjectId& segmentId);
 
 ////////////////////////////////////////////////////////////////////////////////

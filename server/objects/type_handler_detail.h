@@ -70,14 +70,14 @@ protected:
     TAttributeSchema* ControlAttributeSchema_ = nullptr;
 
     TAttributeSchema* MakeAttributeSchema(const TString& name);
-    TAttributeSchema* MakeFallbackAttributeSchema();
+    TAttributeSchema* MakeEtcAttributeSchema();
 
 protected:
     virtual std::vector<NAccessControl::EAccessControlPermission> GetDefaultPermissions();
     virtual bool IsObjectNameSupported() const;
 
 private:
-    void ValidateMetaOther(TTransaction* transaction, TObject* object);
+    void ValidateMetaEtc(TTransaction* transaction, TObject* object);
     void ValidateAcl(TTransaction* transaction, TObject* object);
 
 };

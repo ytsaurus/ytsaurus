@@ -27,9 +27,9 @@ const TScalarAttributeSchema<TNode, ui64> TNode::TStatus::HeartbeatSequenceNumbe
     [] (TNode* node) { return &node->Status().HeartbeatSequenceNumber(); }
 };
 
-const TScalarAttributeSchema<TNode, TNode::TStatus::TOther> TNode::TStatus::OtherSchema{
-    &NodesTable.Fields.Status_Other,
-    [] (TNode* node) { return &node->Status().Other(); }
+const TScalarAttributeSchema<TNode, TNode::TStatus::TEtc> TNode::TStatus::EtcSchema{
+    &NodesTable.Fields.Status_Etc,
+    [] (TNode* node) { return &node->Status().Etc(); }
 };
 
 TNode::TStatus::TStatus(TNode* node)
@@ -37,7 +37,7 @@ TNode::TStatus::TStatus(TNode* node)
     , EpochId_(node, &EpochIdSchema)
     , LastSeenTime_(node, &LastSeenTimeSchema)
     , HeartbeatSequenceNumber_(node, &HeartbeatSequenceNumberSchema)
-    , Other_(node, &OtherSchema)
+    , Etc_(node, &EtcSchema)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -88,12 +88,12 @@ TResource* TNode::GetCpuResourceOrThrow()
 
 void TNode::UpdateHfsmStatus(EHfsmState state, const TString& message)
 {
-    auto* hfsm = Status().Other()->mutable_hfsm();
+    auto* hfsm = Status().Etc()->mutable_hfsm();
     hfsm->set_state(static_cast<NClient::NApi::NProto::EHfsmState>(state));
     hfsm->set_message(message);
     hfsm->set_last_updated(TInstant::Now().MicroSeconds());
 
-    auto* maintenance = Status().Other()->mutable_maintenance();
+    auto* maintenance = Status().Etc()->mutable_maintenance();
     auto maintenanceState = static_cast<ENodeMaintenanceState>(maintenance->state());
     if (state == EHfsmState::PrepareMaintenance && maintenanceState != ENodeMaintenanceState::Requested) {
         UpdateMaintenanceStatus(
@@ -114,7 +114,7 @@ void TNode::UpdateHfsmStatus(EHfsmState state, const TString& message)
 
 void TNode::UpdateMaintenanceStatus(ENodeMaintenanceState state, const TString& message)
 {
-    auto* maintenance = Status().Other()->mutable_maintenance();
+    auto* maintenance = Status().Etc()->mutable_maintenance();
     maintenance->set_state(static_cast<NClient::NApi::NProto::ENodeMaintenanceState>(state));
     maintenance->set_message(message);
     maintenance->set_last_updated(TInstant::Now().MicroSeconds());

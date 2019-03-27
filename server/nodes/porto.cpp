@@ -101,11 +101,11 @@ struct TInternetTunnelProperties
     TString Mtu;
 };
 
-std::vector<TInternetTunnelProperties> CreateInternetTunnelsProperties(const NProto::TPodStatusOther& statusOther)
+std::vector<TInternetTunnelProperties> CreateInternetTunnelsProperties(const NProto::TPodStatusEtc& statusEtc)
 {
     std::vector<TInternetTunnelProperties> props;
 
-    for (const auto& ip6Address : statusOther.ip6_address_allocations()) {
+    for (const auto& ip6Address : statusEtc.ip6_address_allocations()) {
         if (!ip6Address.has_internet_address()) {
             continue;
         }
@@ -132,12 +132,12 @@ struct TVirtualServicesProperties
 };
 
 TVirtualServicesProperties CreateVirtualServicesProperties(
-    const NProto::TPodSpecOther& podSpecOther,
-    const NProto::TPodStatusOther& podStatusOther)
+    const NProto::TPodSpecEtc& podSpecEtc,
+    const NProto::TPodStatusEtc& podStatusEtc)
 {
     TVirtualServicesProperties props;
 
-    const auto& options = podSpecOther.virtual_service_options();
+    const auto& options = podSpecEtc.virtual_service_options();
 
     TStringBuf decapsulatorAnycastAddress = DefaultDecapsulatorAnycastAddress;
     if (options.has_decapsulator_anycast_address()) {
@@ -187,7 +187,7 @@ TVirtualServicesProperties CreateVirtualServicesProperties(
         }
     };
 
-    for (const auto& allocation : podStatusOther.ip6_address_allocations()) {
+    for (const auto& allocation : podStatusEtc.ip6_address_allocations()) {
         processIP6AddressVirtualServices(allocation);
     }
 
@@ -265,8 +265,8 @@ void ValidateSysctlProperty(const NClient::NApi::NProto::TPodSpec_TSysctlPropert
 
 std::vector<std::pair<TString, TString>> BuildPortoProperties(
     const NClient::NApi::NProto::TResourceSpec_TCpuSpec& cpuSpec,
-    const NProto::TPodSpecOther& podSpecOther,
-    const NProto::TPodStatusOther& podStatusOther)
+    const NProto::TPodSpecEtc& podSpecEtc,
+    const NProto::TPodStatusEtc& podStatusEtc)
 {
     std::vector<std::pair<TString, TString>> result;
 
@@ -275,7 +275,7 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(
         return Format("%.3fc", vcpu / cpuSpec.cpu_to_vcpu_factor() / 1000);
     };
 
-    const auto& requests = podSpecOther.resource_requests();
+    const auto& requests = podSpecEtc.resource_requests();
     result.emplace_back("cpu_guarantee", vcpuToPortoCpu(requests.vcpu_guarantee()));
     if (requests.has_vcpu_limit()) {
         result.emplace_back("cpu_limit", vcpuToPortoCpu(requests.vcpu_limit()));
@@ -292,18 +292,18 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(
     }
 
     // Internet tunnels
-    const auto internetTunnelsProps = CreateInternetTunnelsProperties(podStatusOther);
+    const auto internetTunnelsProps = CreateInternetTunnelsProperties(podStatusEtc);
 
     // VirtualService tunnels
-    const auto virtualServicesProps = CreateVirtualServicesProperties(podSpecOther, podStatusOther);
+    const auto virtualServicesProps = CreateVirtualServicesProperties(podSpecEtc, podStatusEtc);
 
     // Network
-    switch (podSpecOther.host_name_kind()) {
+    switch (podSpecEtc.host_name_kind()) {
         case NClient::NApi::NProto::PHNK_TRANSIENT:
-            result.emplace_back("hostname", podStatusOther.dns().transient_fqdn());
+            result.emplace_back("hostname", podStatusEtc.dns().transient_fqdn());
             break;
         case NClient::NApi::NProto::PHNK_PERSISTENT:
-            result.emplace_back("hostname", podStatusOther.dns().persistent_fqdn());
+            result.emplace_back("hostname", podStatusEtc.dns().persistent_fqdn());
             break;
         default:
             Y_UNREACHABLE();
@@ -323,7 +323,7 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(
 
 
     std::vector<TString> addresses;
-    for (const auto& ip6Address : podStatusOther.ip6_address_allocations()) {
+    for (const auto& ip6Address : podStatusEtc.ip6_address_allocations()) {
         addresses.emplace_back(Format("veth %v", ip6Address.address()));
     }
     for (const auto& internetTunnel : internetTunnelsProps) {
@@ -332,7 +332,7 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(
     for (const auto& vsTunnel : virtualServicesProps.Addresses) {
         addresses.emplace_back(vsTunnel);
     }
-    for (const auto& ip6Subnet : podStatusOther.ip6_subnet_allocations()) {
+    for (const auto& ip6Subnet : podStatusEtc.ip6_subnet_allocations()) {
         addresses.emplace_back(Format("veth %v", ip6Subnet.subnet()));
     }
     if (!addresses.empty()) {
@@ -340,7 +340,7 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(
     }
 
     // Host devices
-    const auto& hostDevices = podSpecOther.host_devices();
+    const auto& hostDevices = podSpecEtc.host_devices();
     if (!hostDevices.empty()) {
         result.emplace_back("devices", JoinToString(
             hostDevices.begin(),
@@ -353,7 +353,7 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(
 
     // Sysctl properties
     std::vector<TString> sysctlProperties;
-    for (const auto& property : podSpecOther.sysctl_properties()) {
+    for (const auto& property : podSpecEtc.sysctl_properties()) {
         sysctlProperties.emplace_back(Format("%v:%v", property.name(), property.value()));
     }
     for (const auto& property : virtualServicesProps.SysCtl) {

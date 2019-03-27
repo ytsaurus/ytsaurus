@@ -15,9 +15,9 @@ const TScalarAttributeSchema<TObject, TInstant> TObject::CreationTimeSchema{
     [] (TObject* object) { return &object->CreationTime(); }
 };
 
-const TScalarAttributeSchema<TObject, TObject::TMetaOther> TObject::MetaOtherSchema{
-    &ObjectsTable.Fields.Meta_Other,
-    [] (TObject* object) { return &object->MetaOther(); }
+const TScalarAttributeSchema<TObject, TObject::TMetaEtc> TObject::MetaEtcSchema{
+    &ObjectsTable.Fields.Meta_Etc,
+    [] (TObject* object) { return &object->MetaEtc(); }
 };
 
 const TScalarAttributeSchema<TObject, NYT::NYTree::IMapNodePtr> TObject::LabelsSchema{
@@ -41,7 +41,7 @@ TObject::TObject(
     IObjectTypeHandler* typeHandler,
     ISession* session)
     : CreationTime_(this, &CreationTimeSchema)
-    , MetaOther_(this, &MetaOtherSchema)
+    , MetaEtc_(this, &MetaEtcSchema)
     , Labels_(this, &LabelsSchema)
     , Annotations_(this)
     , InheritAcl_(this, &InheritAclSchema)

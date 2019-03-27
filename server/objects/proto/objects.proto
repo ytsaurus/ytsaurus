@@ -1,24 +1,12 @@
 package NYP.NServer.NObjects.NProto;
 
-import "yt/core/misc/proto/error.proto";
-
 ////////////////////////////////////////////////////////////////////////////////
 
 // Cf. NYP.NClient.NApi.NProto.TXXXMeta
-message TMetaOther
+message TMetaEtc
 {
     optional string uuid = 12;
     optional string name = 13;
-}
-
-// Cf. NYP.NClient.NApi.NProto.TPodStatus.TAgent
-message TPodAgentStatusOther
-{
-    optional NYT.NProto.TError execution_error = 6;
-    optional NYT.NProto.TError install_error = 9;
-    optional uint64 failed_install_attempt_spec_timestamp = 10;
-    repeated string validation_failures = 8;
-    optional uint64 last_heartbeat_time = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

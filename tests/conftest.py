@@ -90,15 +90,13 @@ def create_pod_with_boilerplate(yp_client, pod_set_id, spec, pod_id=None, transa
 
 
 def create_nodes(
-        yp_env,
+        yp_client,
         node_count,
         rack_count=1,
         hfsm_state="up",
         cpu_total_capacity=100,
         memory_total_capacity=1000000000,
         disk_spec=None):
-    yp_client = yp_env.yp_client
-
     disk_spec_defaults = dict(
         total_capacity=10 ** 11,
         total_volume_slots=10,

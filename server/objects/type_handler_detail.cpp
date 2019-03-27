@@ -48,10 +48,10 @@ TObjectTypeHandlerBase::TObjectTypeHandlerBase(
                         ->SetUpdatable()
                         ->SetValidator<TObject>(std::bind(&TObjectTypeHandlerBase::ValidateAcl, this, _1, _2)),
 
-                    MakeFallbackAttributeSchema()
-                        ->SetAttribute(TObject::MetaOtherSchema)
+                    MakeEtcAttributeSchema()
+                        ->SetAttribute(TObject::MetaEtcSchema)
                         ->SetUpdatable()
-                        ->SetValidator<TObject>(std::bind(&TObjectTypeHandlerBase::ValidateMetaOther, this, _1, _2))
+                        ->SetValidator<TObject>(std::bind(&TObjectTypeHandlerBase::ValidateMetaEtc, this, _1, _2))
                 }),
 
 
@@ -145,7 +145,7 @@ void TObjectTypeHandlerBase::BeforeObjectCreated(
     }
 
     object->CreationTime() = TInstant::Now();
-    object->MetaOther()->set_uuid(GenerateUuid());
+    object->MetaEtc()->set_uuid(GenerateUuid());
     object->Labels() = GetEphemeralNodeFactory()->CreateMap();
 
     const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
@@ -194,10 +194,10 @@ TAttributeSchema* TObjectTypeHandlerBase::MakeAttributeSchema(
     return schema;
 }
 
-TAttributeSchema* TObjectTypeHandlerBase::MakeFallbackAttributeSchema()
+TAttributeSchema* TObjectTypeHandlerBase::MakeEtcAttributeSchema()
 {
     return MakeAttributeSchema(TString())
-        ->SetFallback();
+        ->SetEtc();
 }
 
 std::vector<EAccessControlPermission> TObjectTypeHandlerBase::GetDefaultPermissions()
@@ -213,16 +213,16 @@ bool TObjectTypeHandlerBase::IsObjectNameSupported() const
     return false;
 }
 
-void TObjectTypeHandlerBase::ValidateMetaOther(TTransaction* /*transaction*/, TObject* object)
+void TObjectTypeHandlerBase::ValidateMetaEtc(TTransaction* /*transaction*/, TObject* object)
 {
-    const auto& metaOtherNew = object->MetaOther().Load();
-    const auto& metaOtherOld = object->MetaOther().LoadOld();
+    const auto& metaEtcNew = object->MetaEtc().Load();
+    const auto& metaEtcOld = object->MetaEtc().LoadOld();
 
-    if (object->DidExist() && metaOtherOld.uuid() != metaOtherNew.uuid()) {
+    if (object->DidExist() && metaEtcOld.uuid() != metaEtcNew.uuid()) {
         THROW_ERROR_EXCEPTION("Changing /meta/uuid is forbidden");
     }
 
-    if (metaOtherNew.has_name() && !IsObjectNameSupported()) {
+    if (metaEtcNew.has_name() && !IsObjectNameSupported()) {
         THROW_ERROR_EXCEPTION("Cannot set /meta/name for %v objects",
             GetLowercaseHumanReadableTypeName(GetType()));
     }

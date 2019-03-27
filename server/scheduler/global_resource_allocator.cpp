@@ -86,7 +86,7 @@ private:
     {
         int result = 0;
 
-        for (const auto& addressRequest : pod->SpecOther().ip6_address_requests()) {
+        for (const auto& addressRequest : pod->SpecEtc().ip6_address_requests()) {
             if (addressRequest.enable_internet()) {
                 ++result;
             }
@@ -202,7 +202,7 @@ public:
                 nodeSegment->GetId());
         }
 
-        const auto& nodeFilter = pod->SpecOther().node_filter();
+        const auto& nodeFilter = pod->SpecEtc().node_filter();
         const auto& nodesOrError = cache->GetFilteredObjects(nodeFilter);
         if (!nodesOrError.IsOK()) {
             return TError("Error applying pod node filter %Qv",
@@ -342,7 +342,7 @@ private:
             statistics->RegisterError(EAllocationErrorType::InternetAddressUnsatisfied);
         }
 
-        const auto& resourceRequests = pod->SpecOther().resource_requests();
+        const auto& resourceRequests = pod->SpecEtc().resource_requests();
 
         if (resourceRequests.vcpu_guarantee() > 0) {
             if (!nodeAllocationContext.CpuResource().TryAllocate(MakeCpuCapacities(resourceRequests.vcpu_guarantee()))) {
@@ -359,7 +359,7 @@ private:
         }
 
         bool allDiskVolumeRequestsSatisfied = true;
-        for (const auto& volumeRequest : pod->SpecOther().disk_volume_requests()) {
+        for (const auto& volumeRequest : pod->SpecEtc().disk_volume_requests()) {
             const auto& storageClass = volumeRequest.storage_class();
             auto policy = GetDiskVolumeRequestPolicy(volumeRequest);
             auto capacities = GetDiskVolumeRequestCapacities(volumeRequest);
@@ -433,7 +433,7 @@ public:
             // We compare uuids here to overcome possible pod ids collision:
             // current pod could be removed and another pod could be created with the same pod_id
             // between consecutive state reconcilations.
-            if (!pod || pod->MetaOther().uuid() != history->Uuid) {
+            if (!pod || pod->MetaEtc().uuid() != history->Uuid) {
                 ++removedPodCount;
                 expiredPodIds.push_back(podId);
             } else if (pod->GetNode()) {
@@ -532,13 +532,13 @@ private:
         if (it == PodComputeAllocationHistory_.end()) {
             auto history = std::make_unique<TPodComputeAllocationHistory>();
             history->IterationCountToEveryNodeSelection = GenerateIterationCountToEveryNodeSelection();
-            history->Uuid = pod->MetaOther().uuid();
+            history->Uuid = pod->MetaEtc().uuid();
 
             it = PodComputeAllocationHistory_.emplace(podId, std::move(history)).first;
         } else {
             const auto& history = it->second;
 
-            YCHECK(history->Uuid == pod->MetaOther().uuid());
+            YCHECK(history->Uuid == pod->MetaEtc().uuid());
         }
         return it->second.get();
     }

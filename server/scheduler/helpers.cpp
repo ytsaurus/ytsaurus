@@ -375,8 +375,8 @@ TAllocationStatistics ComputeTotalAllocationStatistics(
 
 std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
     const TObjectId& podId,
-    const NObjects::NProto::TPodSpecOther& spec,
-    const NObjects::NProto::TPodStatusOther& status,
+    const NObjects::NProto::TPodSpecEtc& spec,
+    const NObjects::NProto::TPodStatusEtc& status,
     const std::vector<TLocalResourceAllocator::TResource>& resources)
 {
     try {

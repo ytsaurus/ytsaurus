@@ -254,7 +254,7 @@ TString TAttributeSchema::GetPath() const
     SmallVector<const TAttributeSchema*, 4> parents;
     const auto* current = this;
     while (current->GetParent()) {
-        if (!current->IsFallback()) {
+        if (!current->IsEtc()) {
             parents.push_back(current);
         }
         current = current->GetParent();
@@ -291,9 +291,9 @@ void TAttributeSchema::AddChild(TAttributeSchema* child)
 {
     Composite_ = true;
     child->SetParent(this);
-    if (child->IsFallback()) {
-        YCHECK(!FallbackChild_);
-        FallbackChild_ = child;
+    if (child->IsEtc()) {
+        YCHECK(!EtcChild_);
+        EtcChild_ = child;
     } else {
         YCHECK(KeyToChild_.emplace(child->GetName(), child).second);
     }
@@ -313,9 +313,9 @@ TAttributeSchema* TAttributeSchema::FindChild(const TString& key) const
     return it == KeyToChild_.end() ? nullptr : it->second;
 }
 
-TAttributeSchema* TAttributeSchema::FindFallbackChild() const
+TAttributeSchema* TAttributeSchema::FindEtcChild() const
 {
-    return FallbackChild_;
+    return EtcChild_;
 }
 
 TAttributeSchema* TAttributeSchema::GetChildOrThrow(const TString& key) const
@@ -489,15 +489,15 @@ bool TAttributeSchema::GetUpdatable() const
     return Updatable_;
 }
 
-TAttributeSchema* TAttributeSchema::SetFallback()
+TAttributeSchema* TAttributeSchema::SetEtc()
 {
-    Fallback_ = true;
+    Etc_ = true;
     return this;
 }
 
-bool TAttributeSchema::IsFallback() const
+bool TAttributeSchema::IsEtc() const
 {
-    return Fallback_;
+    return Etc_;
 }
 
 TAttributeSchema* TAttributeSchema::SetReadPermission(EAccessControlPermission permission)

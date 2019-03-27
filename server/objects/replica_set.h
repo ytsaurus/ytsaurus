@@ -36,9 +36,9 @@ public:
         using TAccountAttribute = TManyToOneAttribute<TReplicaSet, TAccount>;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAccountAttribute, Account);
 
-        using TOther = NProto::TReplicaSetSpecOther;
-        static const TScalarAttributeSchema<TReplicaSet, TOther> OtherSchema;
-        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TOther>, Other);
+        using TEtc = NProto::TReplicaSetSpecEtc;
+        static const TScalarAttributeSchema<TReplicaSet, TEtc> EtcSchema;
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TEtc>, Etc);
     };
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TSpec, Spec);
 

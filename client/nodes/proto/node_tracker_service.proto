@@ -77,6 +77,8 @@ message TPodSpec
     optional NYP.NClient.NApi.NProto.EPodTargetState target_state = 3;
 
     // The following section of fields contains values obtained from pod spec/status.
+    optional NYP.NClient.NApi.NProto.TPodSpec.TResourceRequests resource_requests = 13;
+
     repeated NYP.NClient.NApi.NProto.TPodSpec.TIP6AddressRequest ip6_address_requests = 4;
     repeated NYP.NClient.NApi.NProto.TPodStatus.TIP6AddressAllocation ip6_address_allocations = 5;
 

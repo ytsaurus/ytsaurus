@@ -37,9 +37,9 @@ public:
         using TAccountAttribute = TManyToOneAttribute<TMultiClusterReplicaSet, TAccount>;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAccountAttribute, Account);
 
-        using TOther = NProto::TMultiClusterReplicaSetSpecOther;
-        static const TScalarAttributeSchema<TMultiClusterReplicaSet, TOther> OtherSchema;
-        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TOther>, Other);
+        using TEtc = NProto::TMultiClusterReplicaSetSpecEtc;
+        static const TScalarAttributeSchema<TMultiClusterReplicaSet, TEtc> EtcSchema;
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TEtc>, Etc);
     };
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TSpec, Spec);
 

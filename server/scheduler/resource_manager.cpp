@@ -69,7 +69,7 @@ public:
                     scheduledAllocations->end(),
                     [&] (const auto& allocation) {
                         auto* pod = transaction->GetPod(allocation.pod_id());
-                        if (!pod || !pod->DoesExist() || pod->MetaOther().Load().uuid() != allocation.pod_uuid()) {
+                        if (!pod || !pod->DoesExist() || pod->MetaEtc().Load().uuid() != allocation.pod_uuid()) {
                             return true;
                         }
                         auto* podNode = pod->Spec().Node().Load();
@@ -158,7 +158,7 @@ private:
                 pod->Status().GenerationNumber() = pod->Status().GenerationNumber().Load() + 1;
 
                 const auto& netManager = Bootstrap_->GetNetManager();
-                pod->Status().Other()->mutable_dns()->set_transient_fqdn(netManager->BuildTransientPodFqdn(pod));
+                pod->Status().Etc()->mutable_dns()->set_transient_fqdn(netManager->BuildTransientPodFqdn(pod));
 
                 if (pod->GetState() != EObjectState::Created) {
                     if (manual) {
@@ -174,7 +174,7 @@ private:
                     }
                 }
             } else {
-                pod->Status().Other()->mutable_dns()->clear_transient_fqdn();
+                pod->Status().Etc()->mutable_dns()->clear_transient_fqdn();
 
                 if (pod->GetState() != EObjectState::Created) {
                     auto state = pod->Spec().EnableScheduling().Load()
@@ -192,7 +192,7 @@ private:
                 }
             }
 
-            if (pod->Status().Other().Load().eviction().state() != NClient::NApi::NProto::ES_NONE) {
+            if (pod->Status().Etc().Load().eviction().state() != NClient::NApi::NProto::ES_NONE) {
                 pod->UpdateEvictionStatus(
                     EEvictionState::None,
                     EEvictionReason::None,
@@ -239,8 +239,8 @@ private:
 
         auto allocatorRequests = BuildAllocatorResourceRequests(
             pod->GetId(),
-            pod->Spec().Other().Load(),
-            pod->Status().Other().Load(),
+            pod->Spec().Etc().Load(),
+            pod->Status().Etc().Load(),
             allocatorResources);
         if (allocatorRequests.empty()) {
             return;
@@ -264,14 +264,14 @@ private:
         }
 
         UpdatePodDiskVolumeAllocations(
-            pod->Status().Other()->mutable_disk_volume_allocations(),
+            pod->Status().Etc()->mutable_disk_volume_allocations(),
             allocatorRequests,
             allocatorResponses);
 
         UpdateScheduledResourceAllocations(
             pod->GetId(),
-            pod->MetaOther().Load().uuid(),
-            pod->Status().Other()->mutable_scheduled_resource_allocations(),
+            pod->MetaEtc().Load().uuid(),
+            pod->Status().Etc()->mutable_scheduled_resource_allocations(),
             nativeResources,
             allocatorResources,
             allocatorRequests,
@@ -283,8 +283,8 @@ private:
         if (context->InternetAddressManager) {
             context->InternetAddressManager->RevokeInternetAddressesFromPod(transaction, pod);
         }
-        pod->Status().Other()->mutable_scheduled_resource_allocations()->Clear();
-        pod->Status().Other()->mutable_disk_volume_allocations()->Clear();
+        pod->Status().Etc()->mutable_scheduled_resource_allocations()->Clear();
+        pod->Status().Etc()->mutable_disk_volume_allocations()->Clear();
     }
 };
 

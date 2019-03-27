@@ -10,19 +10,19 @@ using namespace NYT::NYson;
 TPod::TPod(
     const TObjectId& id,
     TPodSet* podSet,
-    NServer::NObjects::NProto::TMetaOther metaOther,
+    NServer::NObjects::NProto::TMetaEtc metaEtc,
     TNode* node,
-    NServer::NObjects::NProto::TPodSpecOther specOther,
+    NServer::NObjects::NProto::TPodSpecEtc specEtc,
     TAccount* account,
-    NServer::NObjects::NProto::TPodStatusOther statusOther,
+    NServer::NObjects::NProto::TPodStatusEtc statusEtc,
     TYsonString labels)
     : TObject(id, std::move(labels))
     , PodSet_(podSet)
-    , MetaOther_(std::move(metaOther))
+    , MetaEtc_(std::move(metaEtc))
     , Node_(node)
-    , SpecOther_(std::move(specOther))
+    , SpecEtc_(std::move(specEtc))
     , Account_(account)
-    , StatusOther_(std::move(statusOther))
+    , StatusEtc_(std::move(statusEtc))
 { }
 
 TAccount* TPod::GetEffectiveAccount() const
