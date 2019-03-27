@@ -249,16 +249,6 @@ const THashMap<TString, int>& TOperation::GetSlotIndices() const
     return TreeIdToSlotIndex_;
 }
 
-std::vector<TString> TOperation::GetOwners() const
-{
-    return RuntimeParameters_->Owners;
-}
-
-NSecurityClient::TSerializableAccessControlList TOperation::GetAcl() const
-{
-    return RuntimeParameters_->Acl;
-}
-
 TOperationRuntimeParametersPtr TOperation::GetRuntimeParameters() const
 {
     return RuntimeParameters_;

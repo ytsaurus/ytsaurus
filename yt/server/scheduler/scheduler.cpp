@@ -538,7 +538,7 @@ public:
                 operationId,
                 TJobId(),
                 permissions,
-                operation->GetAcl(),
+                operation->GetRuntimeParameters()->Acl,
                 GetMasterClient(),
                 Logger);
         });
