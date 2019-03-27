@@ -20,7 +20,7 @@ func TestTransactions(t *testing.T) {
 	defer cancel()
 
 	t.Run("CommitTransaction", func(t *testing.T) {
-		tx, err := env.YT.Begin(ctx, nil)
+		tx, err := env.YT.BeginTx(ctx, nil)
 		require.NoError(t, err)
 
 		name := tmpPath()
@@ -39,7 +39,7 @@ func TestTransactions(t *testing.T) {
 	})
 
 	t.Run("RollbackTransaction", func(t *testing.T) {
-		tx, err := env.YT.Begin(ctx, nil)
+		tx, err := env.YT.BeginTx(ctx, nil)
 		require.NoError(t, err)
 
 		require.NoError(t, tx.Abort())

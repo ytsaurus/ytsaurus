@@ -72,7 +72,7 @@ func tryLock(ctx context.Context, c yt.Client, options Options, lockCb func(ctx 
 		return xerrors.Errorf("ytlock: with %q: %w", options.LockPath, err)
 	}
 
-	tx, err := c.Begin(ctx, nil)
+	tx, err := c.BeginTx(ctx, nil)
 	if err != nil {
 		return false, wrap(err)
 	}

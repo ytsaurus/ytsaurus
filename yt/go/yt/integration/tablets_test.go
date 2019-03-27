@@ -45,7 +45,7 @@ func TestTablets(t *testing.T) {
 		&testRow{"foo", "1"},
 	}
 
-	tx, err := env.YT.BeginTablet(ctx, nil)
+	tx, err := env.YT.BeginTabletTx(ctx, nil)
 	require.NoError(t, err)
 
 	err = tx.InsertRows(env.Ctx, testTable, rows, nil)
@@ -78,7 +78,7 @@ func TestTablets(t *testing.T) {
 	require.NoError(t, err)
 	checkResult(r)
 
-	tx, err = env.YT.BeginTablet(ctx, nil)
+	tx, err = env.YT.BeginTabletTx(ctx, nil)
 	require.NoError(t, err)
 
 	err = tx.DeleteRows(env.Ctx, testTable, keys, nil)

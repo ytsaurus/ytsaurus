@@ -16,7 +16,7 @@ type tabletTx struct {
 	ctx            context.Context
 }
 
-func (c *httpClient) BeginTablet(ctx context.Context, options *yt.StartTabletTxOptions) (yt.TabletTx, error) {
+func (c *httpClient) BeginTabletTx(ctx context.Context, options *yt.StartTabletTxOptions) (yt.TabletTx, error) {
 	var tx tabletTx
 
 	var err error

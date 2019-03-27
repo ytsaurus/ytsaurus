@@ -115,7 +115,7 @@ func (t *TxInterceptor) Finished() <-chan struct{} {
 	return t.finished
 }
 
-func (t *TxInterceptor) Begin(ctx context.Context, options *yt.StartTxOptions) (tx yt.Tx, err error) {
+func (t *TxInterceptor) BeginTx(ctx context.Context, options *yt.StartTxOptions) (tx yt.Tx, err error) {
 	if err = t.checkState(); err != nil {
 		return
 	}
