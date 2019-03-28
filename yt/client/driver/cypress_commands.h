@@ -18,6 +18,7 @@ public:
 
 private:
     NYPath::TRichYPath Path;
+    bool ShouldReturnOnlyValue;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };
@@ -60,6 +61,7 @@ public:
 
 private:
     NYPath::TRichYPath Path;
+    bool ShouldReturnOnlyValue;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };
