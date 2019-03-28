@@ -596,12 +596,12 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        return std::unique_ptr<ICypressNodeFactory>(new TNodeFactory(
+        return std::make_unique<TNodeFactory>(
             Bootstrap_,
             Config_,
             transaction,
             account,
-            options));
+            options);
     }
 
     TCypressNodeBase* CreateNode(
