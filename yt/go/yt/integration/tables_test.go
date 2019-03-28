@@ -14,8 +14,8 @@ import (
 )
 
 type exampleRow struct {
-	A string `yt:"a"`
-	B int    `yt:"b"`
+	A string `yson:"a"`
+	B int    `yson:"b"`
 }
 
 func TestTables(t *testing.T) {
@@ -33,7 +33,7 @@ func TestTables(t *testing.T) {
 
 		require.NoError(t, w.Write(exampleRow{"foo", 1}))
 		require.NoError(t, w.Write(exampleRow{"bar", 2}))
-		require.NoError(t, w.Close())
+		require.NoError(t, w.Commit())
 
 		r, err := env.YT.ReadTable(ctx, name, nil)
 		require.NoError(t, err)
@@ -87,7 +87,7 @@ func TestTables(t *testing.T) {
 
 			require.NoError(t, w.Write(exampleRow{"foo", 1}))
 			require.NoError(t, w.Write(exampleRow{"bar", 2}))
-			require.NoError(t, w.Close())
+			require.NoError(t, w.Commit())
 		}
 
 		write()

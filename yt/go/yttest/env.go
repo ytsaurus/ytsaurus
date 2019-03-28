@@ -85,7 +85,7 @@ func UploadSlice(ctx context.Context, c yt.Client, path ypath.YPath, slice inter
 		}
 	}
 
-	return w.Close()
+	return w.Commit()
 }
 
 func (e *Env) UploadSlice(path ypath.YPath, slice interface{}) error {

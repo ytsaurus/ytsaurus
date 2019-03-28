@@ -32,7 +32,7 @@ func TestOperation(t *testing.T) {
 	w, err := env.YT.WriteTable(ctx, inTable, nil)
 	require.NoError(t, err)
 	require.NoError(t, w.Write(map[string]interface{}{"a": int64(1)}))
-	require.NoError(t, w.Close())
+	require.NoError(t, w.Commit())
 
 	spec := map[string]interface{}{
 		"input_table_paths":  []ypath.Path{inTable},
