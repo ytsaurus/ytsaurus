@@ -34,7 +34,7 @@ std::unique_ptr<NHydra::TSaveContext> TTabletAutomaton::CreateSaveContext(
     auto context = std::make_unique<TSaveContext>();
     context->SetVersion(GetCurrentSnapshotVersion());
     TCompositeAutomaton::InitSaveContext(*context, output);
-    return std::unique_ptr<NHydra::TSaveContext>(std::move(context));
+    return context;
 }
 
 std::unique_ptr<NHydra::TLoadContext> TTabletAutomaton::CreateLoadContext(
@@ -42,7 +42,7 @@ std::unique_ptr<NHydra::TLoadContext> TTabletAutomaton::CreateLoadContext(
 {
     auto context = std::make_unique<TLoadContext>();
     TCompositeAutomaton::InitLoadContext(*context, input);
-    return std::unique_ptr<NHydra::TLoadContext>(std::move(context));
+    return context;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
