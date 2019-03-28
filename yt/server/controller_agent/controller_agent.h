@@ -145,7 +145,7 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    NScheduler::TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) const;
+    NScheduler::TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter, bool onlineOnly = false) const;
 
     /*!
      *  \note Thread affinity: any
