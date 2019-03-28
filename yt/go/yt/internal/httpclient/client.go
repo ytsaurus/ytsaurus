@@ -104,6 +104,7 @@ func (c *httpClient) writeParams(h http.Header, call *internal.Call) error {
 	h.Add("X-YT-Header-Format", "yson")
 	h.Add("X-YT-Parameters", params.String())
 	h.Add("X-YT-Correlation-ID", call.CallID.String())
+	h.Set("User-Agent", "go-yt-client")
 
 	return nil
 }
