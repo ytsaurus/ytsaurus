@@ -29,7 +29,7 @@ func (w *tableWriter) Write(value interface{}) error {
 	return w.err
 }
 
-func (w *tableWriter) Close() error {
+func (w *tableWriter) Commit() error {
 	if w.err != nil {
 		return w.err
 	}

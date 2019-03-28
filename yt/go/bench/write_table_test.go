@@ -38,7 +38,7 @@ func BenchmarkWriteTable(b *testing.B) {
 	ys, _ := yson.Marshal(row)
 	b.SetBytes(int64(len(ys)))
 
-	if err = w.Close(); err != nil {
+	if err = w.Commit(); err != nil {
 		b.Fatal(err)
 	}
 }

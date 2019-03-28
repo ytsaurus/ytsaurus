@@ -10,7 +10,7 @@ import (
 
 type TableWriter interface {
 	Write(value interface{}) error
-	Close() error
+	Commit() error
 }
 
 type TableReader interface {

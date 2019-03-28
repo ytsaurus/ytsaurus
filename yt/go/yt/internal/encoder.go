@@ -457,7 +457,7 @@ func (e *Encoder) writeRows(w yt.TableWriter, rows []interface{}) error {
 		}
 	}
 
-	return w.Close()
+	return w.Commit()
 }
 
 func (e *Encoder) InsertRows(
