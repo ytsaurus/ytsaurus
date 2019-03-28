@@ -62,12 +62,6 @@ TApiServiceProxy TClientBase::CreateApiServiceProxy(NRpc::IChannelPtr channel)
     proxy.SetDefaultResponseCodec(config->ResponseCodec);
     proxy.SetDefaultEnableLegacyRpcCodecs(config->EnableLegacyRpcCodecs);
 
-    NRpc::TStreamingParameters streamingParameters;
-    streamingParameters.ReadTimeout = config->DefaultStallTimeout;
-    streamingParameters.WriteTimeout = config->DefaultStallTimeout;
-    proxy.DefaultRequestAttachmentsStreamingParameters() = streamingParameters;
-    proxy.DefaultResponseAttachmentsStreamingParameters() = streamingParameters;
-
     return proxy;
 }
 
