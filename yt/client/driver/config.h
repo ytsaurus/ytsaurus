@@ -74,7 +74,9 @@ public:
             .DefaultNew(1024 * 1024);
 
         RegisterParameter("api_version", ApiVersion)
-            .Default(ApiVersion3);
+            .Default(ApiVersion3)
+            .GreaterThanOrEqual(ApiVersion3)
+            .LessThanOrEqual(ApiVersion4);
 
         RegisterParameter("token", Token)
             .Optional();
