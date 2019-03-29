@@ -1,6 +1,6 @@
 import yt.logger as logger
 from .config import get_config, get_option, get_backend_type
-from .common import require, chunk_iter_stream, chunk_iter_string, parse_bool, set_param, get_value, get_disk_size
+from .common import require, chunk_iter_stream, chunk_iter_string, parse_bool, set_param, get_value, get_disk_size, MB
 from .driver import _create_http_client_from_rpc
 from .errors import YtError, YtResponseError, YtCypressTransactionLockConflict
 from .http_helpers import get_api_commands
@@ -241,6 +241,13 @@ def write_file(destination, stream,
             stream = [stream]
         else:
             stream = chunk_iter_string(stream, chunk_size)
+
+    if size_hint is not None and size_hint <= 16 * MB and file_writer is None:
+        file_writer = {
+            "enable_early_finish": True,
+            "upload_replication_factor": 3,
+            "min_upload_replication_factor": 2,
+        }
 
     params = {}
     set_param(params, "file_writer", file_writer)
