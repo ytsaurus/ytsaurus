@@ -328,8 +328,6 @@ protected:
     {
         Store_->WaitOnBlockedRow(dynamicRow, LockMask_, Timestamp_);
 
-        bool hasValues = false;
-
         // Prepare values and write timestamps.
         VersionedValues_.clear();
         WriteTimestamps_.clear();
@@ -338,9 +336,6 @@ protected:
                  list;
                  list = list.GetSuccessor())
             {
-                if (list.GetSize() > 0) {
-                    hasValues = true;
-                }
                 for (int itemIndex = UpperBoundByTimestamp(list, Timestamp_) - 1; itemIndex >= 0; --itemIndex) {
                     const auto& value = list[itemIndex];
                     ui32 revision = value.Revision;
@@ -363,9 +358,6 @@ protected:
              list;
              list = list.GetSuccessor())
         {
-            if (list.GetSize() > 0) {
-                hasValues = true;
-            }
             for (int itemIndex = UpperBoundByTimestamp(list, Timestamp_) - 1; itemIndex >= 0; --itemIndex) {
                 ui32 revision = list[itemIndex];
                 if (revision <= Revision_) {
@@ -376,8 +368,7 @@ protected:
             }
         }
 
-        // In case of versioned lookup key should be filled even if values exist in the future only.
-        if (WriteTimestamps_.empty() && DeleteTimestamps_.empty() && !(Revision_ == MaxRevision && hasValues)) {
+        if (WriteTimestamps_.empty() && DeleteTimestamps_.empty()) {
             return TVersionedRow();
         }
 

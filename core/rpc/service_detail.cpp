@@ -741,9 +741,11 @@ private:
         auto guard = Guard(StreamsLock_);
 
         if (!RequestAttachmentsStream_) {
+            auto parameters = FromProto<TStreamingParameters>(RequestHeader_->server_attachments_streaming_parameters());
             RequestAttachmentsStream_ =  New<TAttachmentsInputStream>(
                 BIND(&TServiceContext::OnRequestAttachmentsStreamRead, MakeWeak(this)),
-                GetInvoker());
+                GetInvoker(),
+                parameters.ReadTimeout);
         }
 
         auto error = StreamsError_;
@@ -760,12 +762,14 @@ private:
         auto guard = Guard(StreamsLock_);
 
         if (!ResponseAttachmentsStream_) {
+            auto parameters = FromProto<TStreamingParameters>(RequestHeader_->server_attachments_streaming_parameters());
             ResponseAttachmentsStream_ = New<TAttachmentsOutputStream>(
-                FromProto<TStreamingParameters>(RequestHeader_->response_attachments_streaming_parameters()),
                 ResponseMemoryZone_,
                 ResponseCodec_,
                 GetInvoker(),
-                BIND(&TServiceContext::OnPullResponseAttachmentsStream, MakeWeak(this)));
+                BIND(&TServiceContext::OnPullResponseAttachmentsStream, MakeWeak(this)),
+                parameters.WindowSize,
+                parameters.WriteTimeout);
         }
 
         auto error = StreamsError_;

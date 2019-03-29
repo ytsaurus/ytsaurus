@@ -91,6 +91,9 @@ void TJoblet::Persist(const TPersistenceContext& context)
     Persist(context, JobMetrics);
     Persist(context, TreeId);
     Persist(context, TreeIsTentative);
+    if (context.GetVersion() >= 300102) {
+        Persist(context, Speculative);
+    }
 
     if (context.IsLoad()) {
         Revived = true;

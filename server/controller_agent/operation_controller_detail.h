@@ -181,7 +181,7 @@ private: \
         (cookie),
         false)
 
-    //! Called by task's ScheduleJob to wrap the job spec proto building routine with safe environmnet.
+    //! Called by task's ScheduleJob to wrap the job spec proto building routine with safe environment.
     IMPLEMENT_SAFE_METHOD(TSharedRef, BuildJobSpecProto, (const TJobletPtr& joblet), (joblet), true)
 
 #undef IMPLEMENT_SAFE_METHOD
@@ -349,6 +349,8 @@ public:
 
     virtual TOutputTablePtr RegisterOutputTable(const NYPath::TRichYPath& outputTablePath) override;
 
+    virtual void AbortJobViaScheduler(TJobId jobId, EAbortReason abortReason) override;
+
 protected:
     const IOperationControllerHostPtr Host;
     TControllerAgentConfigPtr Config;
@@ -462,23 +464,23 @@ protected:
 
     TFuture<NApi::ITransactionPtr> StartTransaction(
         ETransactionType type,
-        NApi::NNative::IClientPtr client,
+        const NApi::NNative::IClientPtr& client,
         NTransactionClient::TTransactionId parentTransactionId = {},
         NTransactionClient::TTransactionId prerequisiteTransactionId = {});
 
     void RegisterTask(TTaskPtr task);
     void RegisterTaskGroup(TTaskGroupPtr group);
 
-    void UpdateTask(TTaskPtr task);
+    void UpdateTask(const TTaskPtr& task);
     void UpdateAllTasks();
 
-    void DoAddTaskLocalityHint(TTaskPtr task, NNodeTrackerClient::TNodeId nodeId);
+    void DoAddTaskLocalityHint(const TTaskPtr& task, NNodeTrackerClient::TNodeId nodeId);
     void ResetTaskLocalityDelays();
 
-    void MoveTaskToCandidates(TTaskPtr task, std::multimap<i64, TTaskPtr>& candidateTasks);
+    void MoveTaskToCandidates(const TTaskPtr& task, std::multimap<i64, TTaskPtr>& candidateTasks);
 
     bool CheckJobLimits(
-        TTaskPtr task,
+        const TTaskPtr& task,
         const TJobResourcesWithQuota& jobLimits,
         const TJobResourcesWithQuota& nodeResourceLimits);
 
@@ -1061,7 +1063,7 @@ private:
 
     void BuildAndSaveProgress();
 
-    void UpdateMemoryDigests(TJobletPtr joblet, const NJobTrackerClient::TStatistics& statistics, bool resourceOverdraft = false);
+    void UpdateMemoryDigests(const TJobletPtr& joblet, const NJobTrackerClient::TStatistics& statistics, bool resourceOverdraft = false);
 
     void InitializeHistograms();
     void UpdateActualHistogram(const NJobTrackerClient::TStatistics& statistics);
@@ -1144,6 +1146,8 @@ private:
 
     bool IsTreeTentative(const TString& treeId) const;
     void MaybeBanInTentativeTree(const TString& treeId, bool shouldBan);
+
+    void RegisterTestingSpeculativeJobIfNeeded(const TTaskPtr& task, TJobId jobId);
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink

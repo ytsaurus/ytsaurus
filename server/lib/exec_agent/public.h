@@ -29,6 +29,7 @@ DEFINE_ENUM(EErrorCode,
     ((RootVolumePreparationFailed)   (1111))
     ((NotEnoughDiskSpace)            (1112))
     ((ArtifactDownloadFailed)        (1113))
+    ((JobProxyPreparationTimeout)    (1114))
     ((JobProxyFailed)                (1120))
 );
 

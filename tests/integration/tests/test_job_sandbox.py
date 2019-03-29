@@ -153,7 +153,8 @@ class TestSandboxTmpfs(YTEnvSetup):
                     "max_failed_job_count": 1,
                 })
 
-        op = map(command="cat",
+        op = map(
+            command="cat",
             in_="//tmp/t_input",
             out="//tmp/t_output",
             spec={
@@ -167,7 +168,7 @@ class TestSandboxTmpfs(YTEnvSetup):
             })
 
         statistics = get(op.get_path() + "/@progress/job_statistics")
-        tmpfs_size = get_statistics(statistics, "user_job.tmpfs_size.$.completed.map.sum")
+        tmpfs_size = get_statistics(statistics, "user_job.tmpfs_volumes.0.max_size.$.completed.map.sum")
         assert 0.9 * 1024 * 1024 <= tmpfs_size <= 1.1 * 1024 * 1024
 
         with pytest.raises(YtError):
@@ -246,7 +247,8 @@ class TestSandboxTmpfs(YTEnvSetup):
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})
 
-        op = map(command="python -c 'import time; x = \"0\" * (200 * 1000 * 1000); time.sleep(2)'",
+        op = map(
+            command="python -c 'import time; x = \"0\" * (200 * 1000 * 1000); time.sleep(2)'",
             in_="//tmp/t_input",
             out="//tmp/t_output",
             spec={
@@ -281,6 +283,153 @@ class TestSandboxTmpfs(YTEnvSetup):
             })
 
         assert get("//tmp/t_output/@row_count".format(op.id)) == 2
+
+    def test_multiple_tmpfs_volumes(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        op = map(
+            command=
+                "cat; "
+                "echo 'content_1' > tmpfs_1/file; ls tmpfs_1/ >&2; cat tmpfs_1/file >&2;"
+                "echo 'content_2' > tmpfs_2/file; ls tmpfs_2/ >&2; cat tmpfs_2/file >&2;",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "tmpfs_volumes": [
+                        {
+                            "size": 1024 * 1024,
+                            "path": "tmpfs_1",
+                        },
+                        {
+                            "size": 1024 * 1024,
+                            "path": "tmpfs_2",
+                        },
+                    ]
+                },
+                "max_failed_job_count": 1
+            })
+
+        jobs_path = op.get_path() + "/jobs"
+        assert get(jobs_path + "/@count") == 1
+        content = remove_asan_warning(read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr"))
+        words = content.strip().split()
+        assert ["file", "content_1", "file", "content_2"] == words
+
+    def test_incorrect_multiple_tmpfs_volumes(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        with pytest.raises(YtError):
+            map(
+                command="cat",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                spec={
+                    "mapper": {
+                        "tmpfs_volumes": [
+                            {
+                                "path": "tmpfs",
+                            },
+                        ]
+                    },
+                    "max_failed_job_count": 1
+                })
+
+        with pytest.raises(YtError):
+            map(
+                command="cat",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                spec={
+                    "mapper": {
+                        "tmpfs_volumes": [
+                            {
+                                "size": 1024 * 1024,
+                            },
+                        ]
+                    },
+                    "max_failed_job_count": 1
+                })
+
+        with pytest.raises(YtError):
+            map(
+                command="cat",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                spec={
+                    "mapper": {
+                        "tmpfs_volumes": [
+                            {
+                                "path": "tmpfs",
+                                "size": 1024 * 1024,
+                            },
+                            {
+                                "path": "tmpfs/inner",
+                                "size": 1024 * 1024,
+                            },
+                        ]
+                    },
+                    "max_failed_job_count": 1
+                })
+
+        with pytest.raises(YtError):
+            map(
+                command="cat",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                spec={
+                    "mapper": {
+                        "tmpfs_volumes": [
+                            {
+                                "path": "tmpfs/fake_inner/../",
+                                "size": 1024 * 1024,
+                            },
+                            {
+                                "path": "tmpfs/inner",
+                                "size": 1024 * 1024,
+                            },
+                        ]
+                    },
+                    "max_failed_job_count": 1
+                })
+
+    def test_multiple_tmpfs_volumes_with_common_prefix(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        op = map(
+            command=
+                "cat; "
+                "echo 'content_1' > tmpfs_dir/file; ls tmpfs_dir/ >&2; cat tmpfs_dir/file >&2;"
+                "echo 'content_2' > tmpfs_dir_fedor/file; ls tmpfs_dir_fedor/ >&2; cat tmpfs_dir_fedor/file >&2;",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "tmpfs_volumes": [
+                        {
+                            "size": 1024 * 1024,
+                            "path": "tmpfs_dir",
+                        },
+                        {
+                            "size": 1024 * 1024,
+                            "path": "tmpfs_dir_fedor",
+                        },
+                    ]
+                },
+                "max_failed_job_count": 1
+            })
+
+        jobs_path = op.get_path() + "/jobs"
+        assert get(jobs_path + "/@count") == 1
+        content = remove_asan_warning(read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr"))
+        words = content.strip().split()
+        assert ["file", "content_1", "file", "content_2"] == words
 
 ##################################################################
 

@@ -1240,6 +1240,10 @@ public:
         int writeTimestampCount = TimestampReader_->GetWriteTimestampCount();
         int deleteTimestampCount = TimestampReader_->GetDeleteTimestampCount();
 
+        if (writeTimestampCount == 0 && deleteTimestampCount == 0) {
+            return {};
+        }
+
         size_t valueCount = 0;
         for (int valueColumnIndex = 0; valueColumnIndex < SchemaIdMapping_.size(); ++valueColumnIndex) {
             ui32 columnValueCount;
@@ -1764,6 +1768,11 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 THROW_ERROR_EXCEPTION("Reading all value versions is not supported with non-universal column filter");
             }
 
+            auto chunkTimestamp = static_cast<TTimestamp>(chunkMeta->Misc().min_timestamp());
+            if (timestamp < chunkTimestamp) {
+                return CreateEmptyVersionedReader(keys.Size());
+            }
+
             auto schemalessReaderFactory = [&] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
                 auto options = New<TTableReaderOptions>();
                 options->DynamicTable = true;
@@ -1785,16 +1794,11 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 return CreateSchemafulReaderAdapter(schemalessReaderFactory, schema, columnFilter);
             };
 
-            auto chunkTimestamp = static_cast<TTimestamp>(chunkMeta->Misc().min_timestamp());
-            if (timestamp < chunkTimestamp && !produceAllVersions) {
-                return CreateEmptyVersionedReader(keys.Size());
-            }
-
             return CreateVersionedReaderAdapter(
                 std::move(schemafulReaderFactory),
                 chunkMeta->Schema(),
                 columnFilter,
-                timestamp < chunkTimestamp ? NullTimestamp : chunkTimestamp);
+                chunkTimestamp);
         }
 
         default:

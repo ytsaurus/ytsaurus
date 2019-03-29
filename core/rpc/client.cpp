@@ -127,24 +127,24 @@ const NProto::TRequestHeader& TClientRequest::Header() const
     return Header_;
 }
 
-const TStreamingParameters& TClientRequest::RequestAttachmentsStreamingParameters() const
+const TStreamingParameters& TClientRequest::ClientAttachmentsStreamingParameters() const
 {
-    return RequestAttachmentStreamingParameters_;
+    return ClientAttachmentsStreamingParameters_;
 }
 
-TStreamingParameters& TClientRequest::RequestAttachmentsStreamingParameters()
+TStreamingParameters& TClientRequest::ClientAttachmentsStreamingParameters()
 {
-    return RequestAttachmentStreamingParameters_;
+    return ClientAttachmentsStreamingParameters_;
 }
 
-const TStreamingParameters& TClientRequest::ResponseAttachmentsStreamingParameters() const
+const TStreamingParameters& TClientRequest::ServerAttachmentsStreamingParameters() const
 {
-    return ResponseAttachmentStreamingParameters_;
+    return ServerAttachmentsStreamingParameters_;
 }
 
-TStreamingParameters& TClientRequest::ResponseAttachmentsStreamingParameters()
+TStreamingParameters& TClientRequest::ServerAttachmentsStreamingParameters()
 {
-    return ResponseAttachmentStreamingParameters_;
+    return ServerAttachmentsStreamingParameters_;
 }
 
 NConcurrency::IAsyncZeroCopyOutputStreamPtr TClientRequest::GetRequestAttachmentsStream() const
@@ -270,14 +270,16 @@ TClientContextPtr TClientRequest::CreateClientContext()
 
     if (StreamingEnabled_) {
         RequestAttachmentsStream_ = New<TAttachmentsOutputStream>(
-            RequestAttachmentStreamingParameters_,
             MemoryZone_,
             RequestCodec_,
             GetInvoker(),
-            BIND(&TClientRequest::OnPullRequestAttachmentsStream, MakeWeak(this)));
+            BIND(&TClientRequest::OnPullRequestAttachmentsStream, MakeWeak(this)),
+            ClientAttachmentsStreamingParameters_.WindowSize,
+            ClientAttachmentsStreamingParameters_.WriteTimeout);
         ResponseAttachmentsStream_ = New<TAttachmentsInputStream>(
             BIND(&TClientRequest::OnResponseAttachmentsStreamRead, MakeWeak(this)),
-            GetInvoker());
+            GetInvoker(),
+            ClientAttachmentsStreamingParameters_.ReadTimeout);
     }
 
     return New<TClientContext>(
@@ -403,7 +405,7 @@ void TClientRequest::SetStreamingParametersInHeader()
         return;
     }
 
-    ToProto(Header_.mutable_response_attachments_streaming_parameters(), ResponseAttachmentStreamingParameters_);
+    ToProto(Header_.mutable_server_attachments_streaming_parameters(), ServerAttachmentsStreamingParameters_);
 }
 
 const TSharedRefArray& TClientRequest::GetSerializedData() const

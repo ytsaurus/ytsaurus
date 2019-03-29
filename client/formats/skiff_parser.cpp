@@ -1,6 +1,8 @@
 #include "skiff_parser.h"
 
+#include "helpers.h"
 #include "parser.h"
+#include "yson_map_to_unversioned_value.h"
 
 #include <yt/core/skiff/schema_match.h>
 #include <yt/core/skiff/parser.h>
@@ -20,188 +22,6 @@ namespace NYT::NFormats {
 
 using namespace NTableClient;
 using namespace NSkiff;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TOtherColumnsConsumer
-    : public NYson::TYsonConsumerBase
-    , private IValueConsumer
-{
-public:
-    explicit TOtherColumnsConsumer(IValueConsumer* consumer)
-        : Consumer_(consumer)
-        , AllowUnknownColumns_(consumer->GetAllowUnknownColumns())
-        , NameTable_(consumer->GetNameTable())
-    {
-        ColumnConsumer_.SetValueConsumer(this);
-    }
-
-    void Reset()
-    {
-        YCHECK(InsideValue_ == false);
-    }
-
-    virtual void OnStringScalar(TStringBuf value) override
-    {
-        if (InsideValue_) {
-            ColumnConsumer_.OnStringScalar(value);
-        } else {
-            THROW_ERROR_EXCEPTION("\"$other_columns\" must be a map");
-        }
-    }
-
-    virtual void OnInt64Scalar(i64 value) override
-    {
-        if (InsideValue_) {
-            ColumnConsumer_.OnInt64Scalar(value);
-        } else {
-            THROW_ERROR_EXCEPTION("\"$other_columns\" must be a map");
-        }
-    }
-
-    virtual void OnUint64Scalar(ui64 value) override
-    {
-        if (InsideValue_) {
-            ColumnConsumer_.OnUint64Scalar(value);
-        } else {
-            THROW_ERROR_EXCEPTION("\"$other_columns\" must be a map");
-        }
-    }
-
-    virtual void OnDoubleScalar(double value) override
-    {
-        if (InsideValue_) {
-            ColumnConsumer_.OnDoubleScalar(value);
-        } else {
-            THROW_ERROR_EXCEPTION("\"$other_columns\" must be a map");
-        }
-    }
-
-    virtual void OnBooleanScalar(bool value) override
-    {
-        if (InsideValue_) {
-            ColumnConsumer_.OnBooleanScalar(value);
-        } else {
-            THROW_ERROR_EXCEPTION("\"$other_columns\" must be a map");
-        }
-    }
-
-    virtual void OnEntity() override
-    {
-        if (InsideValue_) {
-            ColumnConsumer_.OnEntity();
-        } else {
-            THROW_ERROR_EXCEPTION("\"$other_columns\" must be a map");
-        }
-    }
-
-    virtual void OnBeginList() override
-    {
-        if (InsideValue_) {
-            ColumnConsumer_.OnBeginList();
-        } else {
-            THROW_ERROR_EXCEPTION("\"$other_columns\" must be a map");
-        }
-    }
-
-    virtual void OnListItem() override
-    {
-        if (InsideValue_) {
-            ColumnConsumer_.OnListItem();
-        } else {
-            Y_UNREACHABLE(); // Should crash on BeginList()
-        }
-    }
-
-    virtual void OnBeginMap() override
-    {
-        if (InsideValue_) {
-            ColumnConsumer_.OnBeginMap();
-        }
-    }
-
-    virtual void OnKeyedItem(TStringBuf name) override
-    {
-        if (InsideValue_) {
-            ColumnConsumer_.OnKeyedItem(name);
-        } else {
-            InsideValue_ = true;
-            if (AllowUnknownColumns_) {
-                ColumnConsumer_.SetColumnIndex(NameTable_->GetIdOrRegisterName(name));
-            } else {
-                ColumnConsumer_.SetColumnIndex(NameTable_->GetIdOrThrow(name));
-            }
-        }
-    }
-
-    virtual void OnEndMap() override
-    {
-        if (InsideValue_) {
-            ColumnConsumer_.OnEndMap();
-        }
-    }
-
-    virtual void OnBeginAttributes() override
-    {
-        if (InsideValue_) {
-            ColumnConsumer_.OnBeginAttributes();
-        } else {
-            THROW_ERROR_EXCEPTION("\"$other_columns\" cannot have attributes");
-        }
-    }
-
-    virtual void OnEndList() override
-    {
-        if (InsideValue_) {
-            ColumnConsumer_.OnEndList();
-        } else {
-            Y_UNREACHABLE(); // Should crash on BeginList()
-        }
-    }
-
-    virtual void OnEndAttributes() override
-    {
-        if (InsideValue_) {
-            ColumnConsumer_.OnEndAttributes();
-        } else {
-            Y_UNREACHABLE(); // Should crash on BeginAttributes()
-        }
-    }
-
-private:
-    virtual const TNameTablePtr& GetNameTable() const override
-    {
-        Y_UNREACHABLE();
-    }
-
-    virtual bool GetAllowUnknownColumns() const override
-    {
-        Y_UNREACHABLE();
-    }
-
-    virtual void OnBeginRow() override
-    {
-        Y_UNREACHABLE();
-    }
-
-    virtual void OnValue(const TUnversionedValue& value) override
-    {
-        InsideValue_ = false;
-        Consumer_->OnValue(value);
-    }
-
-    virtual void OnEndRow() override
-    {
-        Y_UNREACHABLE();
-    }
-
-private:
-    IValueConsumer* const Consumer_;
-    const bool AllowUnknownColumns_;
-    TNameTablePtr NameTable_;
-    TYsonToUnversionedValueConverter ColumnConsumer_;
-    bool InsideValue_ = false;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -281,7 +101,7 @@ private:
     IValueConsumer* ValueConsumer_;
 
     TYsonToUnversionedValueConverter YsonToUnversionedValueConverter_;
-    TOtherColumnsConsumer OtherColumnsConsumer_;
+    TYsonMapToUnversionedValueConverter OtherColumnsConsumer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

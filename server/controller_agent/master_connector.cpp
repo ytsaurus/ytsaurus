@@ -530,7 +530,7 @@ private:
             auto controller = operation->GetController();
             std::vector<TTransactionId> locallyDeadTransactionIds;
             for (const auto& transactionId : operation->GetWatchTransactionIds()) {
-                if (deadTransactionIds.find(transactionId) != deadTransactionIds.end()) {
+                if (deadTransactionIds.contains(transactionId)) {
                     locallyDeadTransactionIds.push_back(transactionId);
                 }
             }

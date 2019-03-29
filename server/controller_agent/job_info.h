@@ -79,6 +79,7 @@ public:
     i64 StartRowIndex = -1;
     bool Restarted = false;
     bool Revived = false;
+    bool Speculative = false;
 
     // It is necessary to store tree id here since it is required to
     // create job metrics updater after revive.

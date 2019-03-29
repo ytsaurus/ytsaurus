@@ -7,6 +7,7 @@
 #include "serialize.h"
 #include "data_flow_graph.h"
 #include "input_chunk_mapping.h"
+#include "competitive_job_manager.h"
 
 #include <yt/server/controller_agent/chunk_pools/chunk_stripe_key.h>
 #include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
@@ -91,6 +92,9 @@ public:
         bool treeIsTentative,
         NScheduler::TScheduleJobResult* scheduleJobResult);
 
+    void RegisterSpeculativeJob(const TJobletPtr& joblet);
+    std::optional<EAbortReason> ShouldAbortJob(const TJobletPtr& joblet);
+
     virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary);
     virtual TJobFinishedResult OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary);
     virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary);
@@ -120,11 +124,14 @@ public:
 
     i64 GetInputDataSliceCount() const;
 
-    std::optional<i64> GetMaximumUsedTmpfsSize() const;
+    std::vector<std::optional<i64>> GetMaximumUsedTmpfsSizes() const;
 
     virtual void Persist(const TPersistenceContext& context) override;
 
     virtual NScheduler::TUserJobSpecPtr GetUserJobSpec() const;
+
+    // TODO(max42): eliminate necessity for this method (YT-10528).
+    virtual bool IsSimpleTask() const;
 
     ITaskHost* GetTaskHost();
     void AddLocalityHint(NNodeTrackerClient::TNodeId nodeId);
@@ -134,7 +141,6 @@ public:
     IDigest* GetJobProxyMemoryDigest() const;
 
     virtual void SetupCallbacks();
-
 
     virtual NScheduler::TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const = 0;
 
@@ -172,14 +178,14 @@ protected:
 
     virtual void OnTaskCompleted();
 
-    virtual void PrepareJoblet(TJobletPtr joblet);
-
     virtual void OnJobStarted(TJobletPtr joblet);
 
     //! True if task supports lost jobs.
     virtual bool CanLoseJobs() const;
 
-    void ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie, bool waitForSnapshot = false);
+    void ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie);
+
+    void ReleaseJobletResources(TJobletPtr joblet, bool waitForSnapshot);
 
     std::unique_ptr<NNodeTrackerClient::TNodeDirectoryBuilder> MakeNodeDirectoryBuilder(
         NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpec);
@@ -248,7 +254,7 @@ private:
     int CachedPendingJobCount_;
     int CachedTotalJobCount_;
 
-    std::optional<i64> MaximumUsedTmfpsSize_;
+    std::vector<std::optional<i64>> MaximumUsedTmpfsSizes_;
 
     TJobResources CachedTotalNeededResources_;
     mutable std::optional<NScheduler::TExtendedJobResources> CachedMinNeededResources_;
@@ -262,9 +268,13 @@ private:
 
     TInputChunkMappingPtr InputChunkMapping_;
 
+    TCompetitiveJobManager CompetitiveJobManager_;
+
     NScheduler::TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
 
-    void UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& statistics);
+    void UpdateMaximumUsedTmpfsSizes(const NJobTrackerClient::TStatistics& statistics);
+
+    void AbortJobViaScheduler(TJobId jobId, EAbortReason reason);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTask)

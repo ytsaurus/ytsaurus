@@ -13,6 +13,9 @@ ESecurityAction CheckPermissionsByAclAndSubjectClosure(
     const THashSet<TString>& subjectClosure,
     NYTree::EPermissionSet permissions);
 
+void ValidateSecurityTag(const TSecurityTag& tag);
+void ValidateSecurityTags(const std::vector<TSecurityTag>& tags);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityClient

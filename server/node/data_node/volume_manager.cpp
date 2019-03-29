@@ -143,6 +143,12 @@ public:
             LocationQueue_->GetInvoker(),
             Logger);
 
+        // If true, location is placed on a YT-specific drive, binded into container from dom0 host,
+        // so it has absolute path relative to dom0 root.
+        // Otherwise, location is placed inside a persistent volume, and should be treated differently.
+        // More details here: PORTO-460.
+        PlacePath_ = (Config_->LocationIsAbsolute ? "" : "//") + Config_->Path;
+
         try {
             WaitFor(HealthChecker_->RunCheck())
                 .ThrowOnError();
@@ -274,11 +280,12 @@ public:
 
 private:
     const TLayerLocationConfigPtr Config_;
-
     const IPortoExecutorPtr Executor_;
 
     const TActionQueuePtr LocationQueue_ ;
     TDiskHealthCheckerPtr HealthChecker_;
+
+    TString PlacePath_;
 
     TSpinLock SpinLock;
     const TString VolumesPath_;
@@ -346,7 +353,7 @@ private:
         }
 
         THashSet<TGuid> confirmedIds;
-        auto layerNames = WaitFor(Executor_->ListLayers(Config_->Path))
+        auto layerNames = WaitFor(Executor_->ListLayers(PlacePath_))
             .ValueOrThrow();
 
         for (const auto& layerName : layerNames) {
@@ -360,7 +367,7 @@ private:
             if (!fileIds.contains(id)) {
                 YT_LOG_DEBUG("Remove directory without a corresponding meta file (LayerName: %v)",
                     layerName);
-                WaitFor(Executor_->RemoveLayer(layerName, Config_->Path))
+                WaitFor(Executor_->RemoveLayer(layerName, PlacePath_))
                     .ThrowOnError();
                 continue;
             }
@@ -491,7 +498,7 @@ private:
                 YT_LOG_DEBUG("Unpack layer (Path: %v, Tag: %v)",
                     layerDirectory,
                     tag);
-                WaitFor(Executor_->ImportLayer(archivePath, ToString(id), Config_->Path))
+                WaitFor(Executor_->ImportLayer(archivePath, ToString(id), PlacePath_))
                     .ThrowOnError();
             } catch (const std::exception& ex) {
                 YT_LOG_ERROR(ex, "Layer unpacking failed (LayerId: %v, ArchivePath: %v, Tag: %v)",
@@ -574,7 +581,7 @@ private:
             YT_LOG_INFO("Removing layer (LayerId: %v, LayerPath: %v)",
                 layerId,
                 layerPath);
-            Executor_->RemoveLayer(ToString(layerId), Config_->Path);
+            Executor_->RemoveLayer(ToString(layerId), PlacePath_);
             NFS::Remove(layerMetaPath);
         } catch (const std::exception& ex) {
             auto error = TError("Failed to remove layer %v",

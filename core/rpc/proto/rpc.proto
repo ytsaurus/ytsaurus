@@ -11,6 +11,8 @@ import "yt/core/misc/proto/error.proto";
 message TStreamingParameters
 {
     optional int64 window_size = 1;
+    optional int64 read_timeout = 2;
+    optional int64 write_timeout = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,7 +53,7 @@ message TRequestHeader
 
     optional int32 response_memory_zone = 32; // EMemoryZone
 
-    optional TStreamingParameters response_attachments_streaming_parameters = 33;
+    optional TStreamingParameters server_attachments_streaming_parameters = 33;
 
     extensions 100 to max;
 }

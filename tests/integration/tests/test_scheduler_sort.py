@@ -43,6 +43,49 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted") ==  True
         assert get("//tmp/t_out/@sorted_by") ==  ["key"]
 
+    def test_megalomaniac_protection(self):
+        v1 = {"key" : "aaa"}
+        v2 = {"key" : "bb"}
+        v3 = {"key" : "bbxx"}
+        v4 = {"key" : "zfoo"}
+        v5 = {"key" : "zzz"}
+
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [v3, v5, v1, v2, v4]) # some random order
+
+        create("table", "//tmp/t_out")
+
+        with pytest.raises(YtError):
+            sort(in_="//tmp/t_in",
+                 out="//tmp/t_out",
+                 sort_by="key",
+                 spec={"max_input_data_weight" : 5})
+
+        with pytest.raises(YtError):
+            sort(in_="//tmp/t_in",
+                 out="//tmp/t_out",
+                 sort_by="key",
+                 spec={"max_shuffle_data_slice_count" : 1, 
+                       "partition_job_count" : 2,
+                       "partition_count" : 2})
+
+        with pytest.raises(YtError):
+            sort(in_="//tmp/t_in",
+                 out="//tmp/t_out",
+                 sort_by="key",
+                 spec={"max_shuffle_job_count" : 1, 
+                       "partition_job_count" : 2,
+                       "partition_count" : 2})
+
+        with pytest.raises(YtError):
+            sort(in_="//tmp/t_in",
+                 out="//tmp/t_out",
+                 sort_by="key",
+                 spec={"max_merge_data_slice_count" : 1, 
+                       "partition_job_count" : 2,
+                       "partition_count" : 2,
+                       "data_size_per_sort_job" : 3})
+
     def test_sort_with_sampling(self):
         create("table", "//tmp/t_in")
 

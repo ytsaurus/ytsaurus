@@ -307,6 +307,8 @@ public:
     int NodeDirectoryPrepareRetryCount;
     TDuration NodeDirectoryPrepareBackoffTime;
 
+    TDuration JobProxyPreparationTimeout;
+
     TDuration CoreForwarderTimeout;
 
     i64 MinRequiredDiskSpace;
@@ -345,6 +347,9 @@ public:
             .Default(10);
         RegisterParameter("node_directory_prepare_backoff_time", NodeDirectoryPrepareBackoffTime)
             .Default(TDuration::Seconds(3));
+
+        RegisterParameter("job_proxy_preparation_timeout", JobProxyPreparationTimeout)
+            .Default(TDuration::Minutes(3));
 
         RegisterParameter("core_forwarder_timeout", CoreForwarderTimeout)
             .Default(TDuration::Seconds(60))

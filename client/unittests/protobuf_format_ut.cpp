@@ -1,6 +1,6 @@
 #include "row_helpers.h"
 
-#include <yt/ytlib/unittests/protobuf_format_ut.pb.h>
+#include <yt/client/unittests/protobuf_format_ut.pb.h>
 
 #include <yt/core/test_framework/framework.h>
 
@@ -25,6 +25,7 @@
 namespace NYT {
 namespace {
 
+using namespace NYson;
 using namespace NYTree;
 using namespace NFormats;
 using namespace NTableClient;
@@ -32,7 +33,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Hadcoded serialization of file descriptor used in old format description.
+// Hardcoded serialization of file descriptor used in old format description.
 TString FileDescriptor = "\x0a\xb6\x03\x0a\x29\x6a\x75\x6e\x6b\x2f\x65\x72\x6d\x6f\x6c\x6f\x76\x64\x2f\x74\x65\x73\x74\x2d\x70\x72\x6f\x74\x6f\x62"
     "\x75\x66\x2f\x6d\x65\x73\x73\x61\x67\x65\x2e\x70\x72\x6f\x74\x6f\x22\x2d\x0a\x0f\x54\x45\x6d\x62\x65\x64\x65\x64\x4d\x65\x73\x73\x61\x67\x65\x12"
     "\x0b\x0a\x03\x4b\x65\x79\x18\x01\x20\x01\x28\x09\x12\x0d\x0a\x05\x56\x61\x6c\x75\x65\x18\x02\x20\x01\x28\x09\x22\xb3\x02\x0a\x08\x54\x4d\x65\x73"
@@ -76,7 +77,7 @@ TProtobufFormatConfigPtr ParseFormatConfigFromNode(const INodePtr& configNode)
     return config;
 };
 
-TProtobufFormatConfigPtr ParseProtobufFormatConfigFromString(TStringBuf configStr)
+TProtobufFormatConfigPtr ParseFormatConfigFromString(TStringBuf configStr)
 {
     return ParseFormatConfigFromNode(ParseYson(configStr));
 }
@@ -272,6 +273,41 @@ INodePtr CreateAllFieldsSchemaConfig()
                             .Item("field_number").Value(17)
                             .Item("proto_type").Value("message")
                         .EndMap()
+
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("AnyWithMap")
+                            .Item("field_number").Value(18)
+                            .Item("proto_type").Value("any")
+                        .EndMap()
+
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("AnyWithInt64")
+                            .Item("field_number").Value(19)
+                            .Item("proto_type").Value("any")
+                        .EndMap()
+
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("AnyWithString")
+                            .Item("field_number").Value(20)
+                            .Item("proto_type").Value("any")
+                        .EndMap()
+
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("OtherColumns")
+                            .Item("field_number").Value(21)
+                            .Item("proto_type").Value("other_columns")
+                        .EndMap()
+
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("MissingInt64")
+                            .Item("field_number").Value(22)
+                            .Item("proto_type").Value("int64")
+                        .EndMap()
                     .EndList()
                 .EndMap()
             .EndList()
@@ -338,10 +374,10 @@ private:
 TEST(TProtobufFormat, TestConfigParsing)
 {
     // Empty config.
-    EXPECT_ANY_THROW(ParseProtobufFormatConfigFromString("{}"));
+    EXPECT_ANY_THROW(ParseFormatConfigFromString("{}"));
 
-    // Broken protobuf
-    EXPECT_ANY_THROW(ParseProtobufFormatConfigFromString(R"({file_descriptor_set="xx", file_indices=[0;], message_indices=[0;]})"));
+    // Broken protobuf.
+    EXPECT_ANY_THROW(ParseFormatConfigFromString(R"({file_descriptor_set="xx", file_indices=[0;], message_indices=[0;]})"));
 
     EXPECT_NO_THROW(ParseFormatConfigFromNode(
         CreateAllFieldsFileDescriptorConfig()->Attributes().ToMap()
@@ -350,6 +386,58 @@ TEST(TProtobufFormat, TestConfigParsing)
     EXPECT_NO_THROW(ParseFormatConfigFromNode(
         CreateAllFieldsSchemaConfig()->Attributes().ToMap()
     ));
+
+    auto multipleOtherColumnsConfig = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("tables")
+            .BeginList()
+                .Item()
+                .BeginMap()
+                    .Item("columns")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("Other1")
+                            .Item("field_number").Value(1)
+                            .Item("proto_type").Value("other_columns")
+                        .EndMap()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("Other2")
+                            .Item("field_number").Value(2)
+                            .Item("proto_type").Value("other_columns")
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+        .EndMap();
+    EXPECT_ANY_THROW(ParseFormatConfigFromNode(multipleOtherColumnsConfig));
+
+    auto duplicateColumnNamesConfig = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("tables")
+            .BeginList()
+                .Item()
+                .BeginMap()
+                    .Item("columns")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("SomeColumn")
+                            .Item("field_number").Value(1)
+                            .Item("proto_type").Value("int64")
+                        .EndMap()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("SomeColumn")
+                            .Item("field_number").Value(2)
+                            .Item("proto_type").Value("string")
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+        .EndMap();
+    EXPECT_ANY_THROW(ParseFormatConfigFromNode(duplicateColumnNamesConfig));
 }
 
 TEST(TProtobufFormat, TestParseBigZigZag)
@@ -597,6 +685,121 @@ TEST(TProtobufFormat, TestWriteEnumerationString)
     }
 }
 
+TEST(TProtobufFormat, TestWriteEnumerationInt)
+{
+    auto config = BuildYsonNodeFluently()
+        .BeginAttributes()
+            .Item("tables")
+            .BeginList()
+                .Item()
+                .BeginMap()
+                    .Item("columns")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("Enum")
+                            .Item("field_number").Value(16)
+                            .Item("proto_type").Value("enum_int")
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+        .EndAttributes()
+        .Value("protobuf");
+
+    auto nameTable = New<TNameTable>();
+    auto enumId = nameTable->RegisterName("Enum");
+
+    auto writeAndParseRow = [&] (TUnversionedRow row, NProtobufFormatTest::TMessage* message) {
+        TString result;
+        TStringOutput resultStream(result);
+        auto writer = CreateSchemalessWriterForProtobuf(
+            config->Attributes(),
+            nameTable,
+            CreateAsyncAdapter(&resultStream),
+            true,
+            New<TControlAttributesConfig>(),
+            0);
+        writer->Write({row});
+        writer->Close()
+            .Get()
+            .ThrowOnError();
+
+        TStringInput si(result);
+        TLenvalParser parser(&si);
+        auto protoRow = parser.Next();
+        ASSERT_TRUE(protoRow);
+
+        ASSERT_TRUE(message->ParseFromString(protoRow->RowData));
+
+        auto nextProtoRow = parser.Next();
+        ASSERT_FALSE(nextProtoRow);
+    };
+
+    {
+        NProtobufFormatTest::TMessage message;
+        writeAndParseRow(
+            MakeRow({
+                MakeUnversionedInt64Value(-42, enumId),
+            }).Get(),
+            &message);
+        ASSERT_EQ(message.enum_field(), NProtobufFormatTest::EEnum::minus_forty_two);
+    }
+    {
+        NProtobufFormatTest::TMessage message;
+        writeAndParseRow(
+            MakeRow({
+                MakeUnversionedInt64Value(std::numeric_limits<i32>::max(), enumId),
+            }).Get(),
+            &message);
+        ASSERT_EQ(message.enum_field(), NProtobufFormatTest::EEnum::max_int32);
+    }
+    {
+        NProtobufFormatTest::TMessage message;
+        writeAndParseRow(
+            MakeRow({
+                MakeUnversionedUint64Value(std::numeric_limits<i32>::max(), enumId),
+            }).Get(),
+            &message);
+        ASSERT_EQ(message.enum_field(), NProtobufFormatTest::EEnum::max_int32);
+    }
+    {
+        NProtobufFormatTest::TMessage message;
+        writeAndParseRow(
+            MakeRow({
+                MakeUnversionedInt64Value(std::numeric_limits<i32>::min(), enumId),
+            }).Get(),
+            &message);
+        ASSERT_EQ(message.enum_field(), NProtobufFormatTest::EEnum::min_int32);
+    }
+
+    NProtobufFormatTest::TMessage message;
+    ASSERT_THROW(
+        writeAndParseRow(
+            MakeRow({
+                MakeUnversionedInt64Value(static_cast<i64>(std::numeric_limits<i32>::max()) + 1, enumId),
+            }).Get(),
+            &message),
+        TErrorException);
+
+    ASSERT_THROW(
+        writeAndParseRow(
+            MakeRow({
+                MakeUnversionedInt64Value(static_cast<i64>(std::numeric_limits<i32>::min()) - 1, enumId),
+            }).Get(),
+            &message),
+        TErrorException);
+
+    ASSERT_THROW(
+        writeAndParseRow(
+            MakeRow({
+                MakeUnversionedUint64Value(static_cast<i64>(std::numeric_limits<i32>::max()) + 1, enumId),
+            }).Get(),
+            &message),
+        TErrorException);
+}
+
+
 TEST(TProtobufFormat, TestWriteZeroColumns)
 {
     auto config = BuildYsonNodeFluently()
@@ -680,7 +883,13 @@ TEST(TProtobufFormat, TestContext)
 
 class TProtobufFormatAllFields
     : public ::testing::TestWithParam<INodePtr>
-{ };
+{
+public:
+    bool IsNewFormat() const
+    {
+        return GetParam()->Attributes().Contains("tables");
+    }
+};
 
 INSTANTIATE_TEST_CASE_P(
     Specification,
@@ -721,6 +930,19 @@ TEST_P(TProtobufFormatAllFields, Writer)
 
     auto messageId = nameTable->RegisterName("Message");
 
+    auto anyWithMapId = nameTable->RegisterName("AnyWithMap");
+    auto anyWithInt64Id = nameTable->RegisterName("AnyWithInt64");
+    auto anyWithStringId = nameTable->RegisterName("AnyWithString");
+
+    auto otherInt64ColumnId = nameTable->RegisterName("OtherInt64Column");
+    auto otherDoubleColumnId = nameTable->RegisterName("OtherDoubleColumn");
+    auto otherStringColumnId = nameTable->RegisterName("OtherStringColumn");
+    auto otherNullColumnId = nameTable->RegisterName("OtherNullColumn");
+    auto otherBooleanColumnId = nameTable->RegisterName("OtherBooleanColumn");
+    auto otherAnyColumnId = nameTable->RegisterName("OtherAnyColumn");
+
+    auto missintInt64Id = nameTable->RegisterName("MissingInt64");
+
     TString result;
     TStringOutput resultStream(result);
     auto writer = CreateSchemalessWriterForProtobuf(
@@ -737,31 +959,61 @@ TEST_P(TProtobufFormatAllFields, Writer)
     TString embeddedMessageBytes;
     ASSERT_TRUE(embeddedMessage.SerializeToString(&embeddedMessageBytes));
 
-    writer->Write({
-        MakeRow({
-            MakeUnversionedDoubleValue(3.14159, doubleId),
-            MakeUnversionedDoubleValue(2.71828, floatId),
+    auto mapNode = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("Key").Value("Value")
+            .Item("Another")
+            .BeginList()
+                .Item().Value(1)
+                .Item().Value("two")
+            .EndList()
+        .EndMap();
+    auto ysonString = ConvertToYsonString(mapNode);
 
-            MakeUnversionedInt64Value(-1, int64Id),
-            MakeUnversionedUint64Value(2, uint64Id),
-            MakeUnversionedInt64Value(-3, sint64Id),
-            MakeUnversionedUint64Value(4, fixed64Id),
-            MakeUnversionedInt64Value(-5, sfixed64Id),
+    TUnversionedRowBuilder builder;
+    for (const auto& value : {
+        MakeUnversionedDoubleValue(3.14159, doubleId),
+        MakeUnversionedDoubleValue(2.71828, floatId),
 
-            MakeUnversionedInt64Value(-6, int32Id),
-            MakeUnversionedUint64Value(7, uint32Id),
-            MakeUnversionedInt64Value(-8, sint32Id),
-            MakeUnversionedUint64Value(9, fixed32Id),
-            MakeUnversionedInt64Value(-10, sfixed32Id),
+        MakeUnversionedInt64Value(-1, int64Id),
+        MakeUnversionedUint64Value(2, uint64Id),
+        MakeUnversionedInt64Value(-3, sint64Id),
+        MakeUnversionedUint64Value(4, fixed64Id),
+        MakeUnversionedInt64Value(-5, sfixed64Id),
 
-            MakeUnversionedBooleanValue(true, boolId),
-            MakeUnversionedStringValue("this_is_string", stringId),
-            MakeUnversionedStringValue("this_is_bytes", bytesId),
+        MakeUnversionedInt64Value(-6, int32Id),
+        MakeUnversionedUint64Value(7, uint32Id),
+        MakeUnversionedInt64Value(-8, sint32Id),
+        MakeUnversionedUint64Value(9, fixed32Id),
+        MakeUnversionedInt64Value(-10, sfixed32Id),
 
-            MakeUnversionedStringValue("Two", enumId),
+        MakeUnversionedBooleanValue(true, boolId),
+        MakeUnversionedStringValue("this_is_string", stringId),
+        MakeUnversionedStringValue("this_is_bytes", bytesId),
 
-            MakeUnversionedStringValue(embeddedMessageBytes, messageId)
-        }).Get()});
+        MakeUnversionedStringValue("Two", enumId),
+
+        MakeUnversionedStringValue(embeddedMessageBytes, messageId),
+
+        MakeUnversionedNullValue(missintInt64Id),
+    }) {
+        builder.AddValue(value);
+    }
+
+    if (IsNewFormat()) {
+        builder.AddValue(MakeUnversionedAnyValue(ysonString.GetData(), anyWithMapId));
+        builder.AddValue(MakeUnversionedInt64Value(22, anyWithInt64Id));
+        builder.AddValue(MakeUnversionedStringValue("some_string", anyWithStringId));
+
+        builder.AddValue(MakeUnversionedInt64Value(-123, otherInt64ColumnId));
+        builder.AddValue(MakeUnversionedDoubleValue(-123.456, otherDoubleColumnId));
+        builder.AddValue(MakeUnversionedStringValue("some_string", otherStringColumnId));
+        builder.AddValue(MakeUnversionedBooleanValue(true, otherBooleanColumnId));
+        builder.AddValue(MakeUnversionedAnyValue(ysonString.GetData(), otherAnyColumnId));
+        builder.AddValue(MakeUnversionedNullValue(otherNullColumnId));
+    }
+
+    writer->Write({builder.GetRow()});
 
     writer->Close()
         .Get()
@@ -799,6 +1051,36 @@ TEST_P(TProtobufFormatAllFields, Writer)
     EXPECT_EQ(message.message_field().key(), "embedded_key");
     EXPECT_EQ(message.message_field().value(), "embedded_value");
 
+    if (IsNewFormat()) {
+        EXPECT_TRUE(AreNodesEqual(ConvertToNode(TYsonString(message.any_field_with_map())), mapNode));
+        EXPECT_TRUE(AreNodesEqual(
+            ConvertToNode(TYsonString(message.any_field_with_int64())),
+            BuildYsonNodeFluently().Value(22)));
+        EXPECT_TRUE(AreNodesEqual(
+            ConvertToNode(TYsonString(message.any_field_with_string())),
+            BuildYsonNodeFluently().Value("some_string")));
+
+        auto otherColumnsMap = ConvertToNode(TYsonString(message.other_columns_field()))->AsMap();
+        EXPECT_EQ(otherColumnsMap->GetChild("OtherInt64Column")->GetValue<i64>(), -123);
+        EXPECT_DOUBLE_EQ(otherColumnsMap->GetChild("OtherDoubleColumn")->GetValue<double>(), -123.456);
+        EXPECT_EQ(otherColumnsMap->GetChild("OtherStringColumn")->GetValue<TString>(), "some_string");
+        EXPECT_EQ(otherColumnsMap->GetChild("OtherBooleanColumn")->GetValue<bool>(), true);
+        EXPECT_TRUE(AreNodesEqual(otherColumnsMap->GetChild("OtherAnyColumn"), mapNode));
+        EXPECT_EQ(otherColumnsMap->GetChild("OtherNullColumn")->GetType(), ENodeType::Entity);
+
+        auto keys = otherColumnsMap->GetKeys();
+        std::sort(keys.begin(), keys.end());
+        std::vector<TString> expectedKeys = {
+            "OtherInt64Column",
+            "OtherDoubleColumn",
+            "OtherStringColumn",
+            "OtherBooleanColumn",
+            "OtherAnyColumn",
+            "OtherNullColumn"};
+        std::sort(expectedKeys.begin(), expectedKeys.end());
+        EXPECT_EQ(expectedKeys, keys);
+    }
+
     ASSERT_FALSE(lenvalParser.Next());
 }
 
@@ -834,6 +1116,33 @@ TEST_P(TProtobufFormatAllFields, Parser)
 
     message.mutable_message_field()->set_key("embedded_key");
     message.mutable_message_field()->set_value("embedded_value");
+
+    auto mapNode = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("Key").Value("Value")
+            .Item("Another")
+            .BeginList()
+                .Item().Value(1)
+                .Item().Value("two")
+            .EndList()
+        .EndMap();
+
+    auto otherColumnsNode = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("OtherInt64Column").Value(-123)
+            .Item("OtherDoubleColumn").Value(-123.456)
+            .Item("OtherStringColumn").Value("some_string")
+            .Item("OtherBooleanColumn").Value(true)
+            .Item("OtherAnyColumn").Value(mapNode)
+            .Item("OtherNullColumn").Entity()
+        .EndMap();
+
+    if (IsNewFormat()) {
+        message.set_any_field_with_map(ConvertToYsonString(mapNode).GetData());
+        message.set_any_field_with_int64(BuildYsonStringFluently().Value(22).GetData());
+        message.set_any_field_with_string(BuildYsonStringFluently().Value("some_string").GetData());
+        message.set_other_columns_field(ConvertToYsonString(otherColumnsNode).GetData());
+    }
 
     TString lenvalBytes;
     {
@@ -871,6 +1180,19 @@ TEST_P(TProtobufFormatAllFields, Parser)
     ASSERT_TRUE(embededMessage.ParseFromString(GetString(rowCollector.GetRowValue(0, "Message"))));
     ASSERT_EQ(embededMessage.key(), "embedded_key");
     ASSERT_EQ(embededMessage.value(), "embedded_value");
+
+    if (IsNewFormat()) {
+        ASSERT_TRUE(AreNodesEqual(GetAny(rowCollector.GetRowValue(0, "AnyWithMap")), mapNode));
+        ASSERT_EQ(GetInt64(rowCollector.GetRowValue(0, "AnyWithInt64")), 22);
+        ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "AnyWithString")), "some_string");
+
+        ASSERT_EQ(GetInt64(rowCollector.GetRowValue(0, "OtherInt64Column")), -123);
+        ASSERT_DOUBLE_EQ(GetDouble(rowCollector.GetRowValue(0, "OtherDoubleColumn")), -123.456);
+        ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "OtherStringColumn")), "some_string");
+        ASSERT_EQ(GetBoolean(rowCollector.GetRowValue(0, "OtherBooleanColumn")), true);
+        ASSERT_TRUE(AreNodesEqual(GetAny(rowCollector.GetRowValue(0, "OtherAnyColumn")), mapNode));
+        ASSERT_EQ(rowCollector.GetRowValue(0, "OtherNullColumn").Type, EValueType::Null);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

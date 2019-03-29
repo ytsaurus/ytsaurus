@@ -35,11 +35,11 @@ struct IClientRequest
     virtual const NProto::TRequestHeader& Header() const = 0;
     virtual NProto::TRequestHeader& Header() = 0;
 
-    virtual const TStreamingParameters& RequestAttachmentsStreamingParameters() const = 0;
-    virtual TStreamingParameters& RequestAttachmentsStreamingParameters() = 0;
+    virtual const TStreamingParameters& ClientAttachmentsStreamingParameters() const = 0;
+    virtual TStreamingParameters& ClientAttachmentsStreamingParameters() = 0;
 
-    virtual const TStreamingParameters& ResponseAttachmentsStreamingParameters() const = 0;
-    virtual TStreamingParameters& ResponseAttachmentsStreamingParameters() = 0;
+    virtual const TStreamingParameters& ServerAttachmentsStreamingParameters() const = 0;
+    virtual TStreamingParameters& ServerAttachmentsStreamingParameters() = 0;
 
     virtual NConcurrency::IAsyncZeroCopyOutputStreamPtr GetRequestAttachmentsStream() const = 0;
     virtual NConcurrency::IAsyncZeroCopyInputStreamPtr GetResponseAttachmentsStream() const = 0;
@@ -121,11 +121,11 @@ public:
     virtual NProto::TRequestHeader& Header() override;
     virtual const NProto::TRequestHeader& Header() const override;
 
-    virtual const TStreamingParameters& RequestAttachmentsStreamingParameters() const override;
-    virtual TStreamingParameters& RequestAttachmentsStreamingParameters() override;
+    virtual const TStreamingParameters& ClientAttachmentsStreamingParameters() const override;
+    virtual TStreamingParameters& ClientAttachmentsStreamingParameters() override;
 
-    virtual const TStreamingParameters& ResponseAttachmentsStreamingParameters() const override;
-    virtual TStreamingParameters& ResponseAttachmentsStreamingParameters() override;
+    virtual const TStreamingParameters& ServerAttachmentsStreamingParameters() const override;
+    virtual TStreamingParameters& ServerAttachmentsStreamingParameters() override;
 
     virtual NConcurrency::IAsyncZeroCopyOutputStreamPtr GetRequestAttachmentsStream() const override;
     virtual NConcurrency::IAsyncZeroCopyInputStreamPtr GetResponseAttachmentsStream() const override;
@@ -162,8 +162,8 @@ protected:
     EMultiplexingBand MultiplexingBand_ = EMultiplexingBand::Default;
     bool FirstTimeSerialization_ = true;
 
-    TStreamingParameters RequestAttachmentStreamingParameters_;
-    TStreamingParameters ResponseAttachmentStreamingParameters_;
+    TStreamingParameters ClientAttachmentsStreamingParameters_;
+    TStreamingParameters ServerAttachmentsStreamingParameters_;
 
     TAttachmentsOutputStreamPtr RequestAttachmentsStream_;
     TAttachmentsInputStreamPtr ResponseAttachmentsStream_;

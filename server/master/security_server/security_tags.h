@@ -13,6 +13,7 @@ struct TSecurityTags
     TSecurityTagsItems Items;
 
     void Normalize();
+    void Validate();
 
     bool IsEmpty() const;
 

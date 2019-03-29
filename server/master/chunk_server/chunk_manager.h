@@ -176,6 +176,9 @@ public:
     //! Validates and changes medium priority.
     void SetMediumPriority(TMedium* medium, int priority);
 
+    //! Changes medium config. Triggers global chunk refresh if necessary.
+    void SetMediumConfig(TMedium* medium, TMediumConfigPtr newConfig);
+
     //! Returns the medium with a given name (|nullptr| if none).
     TMedium* FindMediumByName(const TString& name) const;
 

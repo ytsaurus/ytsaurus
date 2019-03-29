@@ -12,6 +12,9 @@ namespace NYT {
 template <class T>
 TInternedObject<T> TInternRegistry<T>::Intern(T&& data)
 {
+    if (TInternedObjectData<T>::GetDefault()->Data_ == data) {
+        return TInternedObject<T>();
+    }
     auto guard = Guard(Lock_);
     auto it = Registry_.find(data);
     if (it == Registry_.end()) {
@@ -83,9 +86,7 @@ TInternedObjectData<T>::~TInternedObjectData()
 template <class T>
 TInternedObjectDataPtr<T> TInternedObjectData<T>::GetDefault()
 {
-    static const auto Default = [] {
-        return New<TInternedObjectData>(T(), nullptr);
-    } ();
+    static const auto Default = New<TInternedObjectData>(T(), nullptr);
     return Default;
 }
 

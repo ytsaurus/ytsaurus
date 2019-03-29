@@ -787,10 +787,10 @@ print "x={0}\ty={1}".format(x, y)
                 {"name": "bypass_key", "type": "int64", "sort_order": "ascending" if sorted else None}
             ]
         })
-        for i in range(10):
-            write_table("<append=%true>//tmp/t_in", [{"a": i}])
+        
+        write_table("<append=%true>//tmp/t_in", [{"a": i} for i in range(10)])
 
-        map_reduce(
+        op = map_reduce(
             in_="//tmp/t_in",
             out=["//tmp/t_out_map", "//tmp/t_out"],
             mapper_command="echo \"{bypass_key=$YT_JOB_INDEX}\" 1>&4; echo '{shuffle_key=23}'",

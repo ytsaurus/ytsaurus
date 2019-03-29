@@ -27,9 +27,9 @@ public:
     //! Used only for persistence.
     TJobSplitter() = default;
 
-    TJobSplitter(const TJobSplitterConfigPtr& config, TOperationId operationId)
+    TJobSplitter(TJobSplitterConfigPtr config, TOperationId operationId)
         : Config_(config)
-        , Statistics_(config)
+        , Statistics_(std::move(config))
         , OperationId_(operationId)
         , Logger(NLogging::TLogger(ControllerLogger)
             .AddTag("OperationId: %v", OperationId_))
@@ -182,8 +182,8 @@ private:
         //! Used only for persistence.
         TStatistics() = default;
 
-        explicit TStatistics(const TJobSplitterConfigPtr& config)
-            : Config_(config)
+        explicit TStatistics(TJobSplitterConfigPtr config)
+            : Config_(std::move(config))
         { }
 
         void SetSample(TInstant completionTime, TJobId jobId)
@@ -218,7 +218,7 @@ private:
             std::vector<std::pair<TInstant, TJobId>> samples;
             samples.reserve(JobIdToCompletionTime_.size());
             for (const auto& pair : JobIdToCompletionTime_) {
-                samples.push_back({pair.second, pair.first});
+                samples.emplace_back(pair.second, pair.first);
             }
             std::nth_element(samples.begin(), samples.begin() + medianIndex, samples.end());
             MedianCompletionTime_ = samples[medianIndex].first;
@@ -329,11 +329,6 @@ private:
                 TotalDataWeight_ > config->MinTotalDataWeight;
         }
 
-        TInstant GetCompletionTime() const
-        {
-            return CompletionTime_;
-        }
-
         i64 GetTotalRowCount() const
         {
             return TotalRowCount_;
@@ -412,12 +407,11 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TJobSplitter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IJobSplitter> CreateJobSplitter(const TJobSplitterConfigPtr& config, TOperationId operationId)
+std::unique_ptr<IJobSplitter> CreateJobSplitter(TJobSplitterConfigPtr config, TOperationId operationId)
 {
-    return std::unique_ptr<IJobSplitter>(new TJobSplitter(config, operationId));
+    return std::unique_ptr<IJobSplitter>(new TJobSplitter(std::move(config), operationId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent
-

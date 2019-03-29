@@ -198,6 +198,8 @@ struct IShuffleChunkPool
 {
     virtual IChunkPoolInput* GetInput() = 0;
     virtual IChunkPoolOutput* GetOutput(int partitionIndex) = 0;
+    virtual i64 GetTotalDataSliceCount() const = 0;
+    virtual i64 GetTotalJobCount() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
