@@ -90,7 +90,8 @@ private:
     TCoordinatorPtr Coordinator_;
     THostsHandlerPtr HostsHandler_;
     TPingHandlerPtr PingHandler_;
-    TDiscoverVersionsHandlerPtr DiscoverVersionsHandler_;
+    TDiscoverVersionsHandlerPtr DiscoverVersionsHandlerV1_;
+    TDiscoverVersionsHandlerPtr DiscoverVersionsHandlerV2_;
 
     void RegisterRoutes(const NHttp::IServerPtr& server);
 

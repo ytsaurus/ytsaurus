@@ -133,26 +133,63 @@ DEFINE_REFCOUNTED_TYPE(TPingHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TInstance {
+    TString Type, Address, Version, StartTime;
+
+    bool Banned = false;
+    bool Online = true;
+    TError Error;
+};
+
 class TDiscoverVersionsHandler
     : public NHttp::IHttpHandler
 {
 public:
     TDiscoverVersionsHandler(NApi::NNative::IConnectionPtr connection, NApi::IClientPtr client);
 
-    virtual void HandleRequest(
-        const NHttp::IRequestPtr& req,
-        const NHttp::IResponseWriterPtr& rsp) override;
-
-private:
+protected:
     const NApi::NNative::IConnectionPtr Connection_;
     const NApi::IClientPtr Client_;
 
-    NYson::TYsonString ListComponent(const TString& component, bool isDataNode);
     std::vector<TString> GetInstances(const TString& path, bool fromSubdirectories = false);
-    NYson::TYsonString GetAttributes(const TString& path, const std::vector<TString>& instances);
+    std::vector<TInstance> ListComponent(const TString& component, const TString& type);
+    std::vector<TInstance> GetAttributes(
+        const TString& path,
+        const std::vector<TString>& instances,
+        const TString& type);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiscoverVersionsHandler)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDiscoverVersionsHandlerV1
+    : public TDiscoverVersionsHandler
+{
+public:
+    using TDiscoverVersionsHandler::TDiscoverVersionsHandler;
+
+    virtual void HandleRequest(
+        const NHttp::IRequestPtr& req,
+        const NHttp::IResponseWriterPtr& rsp) override;
+};
+
+DEFINE_REFCOUNTED_TYPE(TDiscoverVersionsHandlerV1)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDiscoverVersionsHandlerV2
+    : public TDiscoverVersionsHandler
+{
+public:
+    using TDiscoverVersionsHandler::TDiscoverVersionsHandler;
+
+    virtual void HandleRequest(
+        const NHttp::IRequestPtr& req,
+        const NHttp::IResponseWriterPtr& rsp) override;
+};
+
+DEFINE_REFCOUNTED_TYPE(TDiscoverVersionsHandlerV2)
 
 ////////////////////////////////////////////////////////////////////////////////
 
