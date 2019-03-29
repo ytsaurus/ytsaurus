@@ -2012,6 +2012,11 @@ void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
     }
 }
 
+void TChunkReplicator::ScheduleGlobalChunkRefresh(TChunk* frontChunk, int chunkCount)
+{
+    RefreshScanner_->ScheduleGlobalScan(frontChunk, chunkCount);
+}
+
 void TChunkReplicator::OnRefresh()
 {
     int totalCount = 0;

@@ -505,7 +505,7 @@ class TCompositeNodeBase
     : public TCypressNodeBase
 {
 public:
-    explicit TCompositeNodeBase(const TVersionedNodeId& id);
+    using TCypressNodeBase::TCypressNodeBase;
 
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
@@ -849,7 +849,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, TargetPath);
 
 public:
-    explicit TLinkNode(const TVersionedNodeId& id);
+    using TCypressNodeBase::TCypressNodeBase;
 
     virtual NYTree::ENodeType GetNodeType() const override;
 

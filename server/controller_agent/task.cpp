@@ -36,6 +36,9 @@ using NScheduler::NProto::TSchedulerJobSpecExt;
 using NScheduler::NProto::TSchedulerJobResultExt;
 using NScheduler::NProto::TTableInputSpec;
 
+using std::placeholders::_1;
+using std::placeholders::_2;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTask::TTask()
@@ -43,6 +46,7 @@ TTask::TTask()
     , CachedPendingJobCount_(-1)
     , CachedTotalJobCount_(-1)
     , CompletedFired_(false)
+    , CompetitiveJobManager_(std::bind(&TTask::AbortJobViaScheduler, this, _1, _2), Logger)
 { }
 
 TTask::TTask(ITaskHostPtr taskHost, std::vector<TEdgeDescriptor> edgeDescriptors)
@@ -54,6 +58,7 @@ TTask::TTask(ITaskHostPtr taskHost, std::vector<TEdgeDescriptor> edgeDescriptors
     , CachedTotalJobCount_(0)
     , CompletedFired_(false)
     , InputChunkMapping_(New<TInputChunkMapping>())
+    , CompetitiveJobManager_(std::bind(&TTask::AbortJobViaScheduler, this, _1, _2), Logger)
 { }
 
 TTask::TTask(ITaskHostPtr taskHost)
@@ -71,6 +76,12 @@ void TTask::Initialize()
     TentativeTreeEligibility_.Initialize(operationId, taskTitle);
 
     SetupCallbacks();
+
+    if (IsSimpleTask()) {
+        if (auto userJobSpec = GetUserJobSpec()) {
+            MaximumUsedTmpfsSizes_.resize(userJobSpec->TmpfsVolumes.size());
+        }
+    }
 }
 
 TString TTask::GetTitle() const
@@ -85,7 +96,7 @@ TDataFlowGraph::TVertexDescriptor TTask::GetVertexDescriptor() const
 
 int TTask::GetPendingJobCount() const
 {
-    return GetChunkPoolOutput()->GetPendingJobCount();
+    return GetChunkPoolOutput()->GetPendingJobCount() + CompetitiveJobManager_.GetPendingSpeculativeJobCount();
 }
 
 int TTask::GetPendingJobCountDelta()
@@ -98,7 +109,7 @@ int TTask::GetPendingJobCountDelta()
 
 int TTask::GetTotalJobCount() const
 {
-    return GetChunkPoolOutput()->GetTotalJobCount();
+    return GetChunkPoolOutput()->GetTotalJobCount() + CompetitiveJobManager_.GetTotalSpeculativeJobCount();
 }
 
 int TTask::GetTotalJobCountDelta()
@@ -109,9 +120,9 @@ int TTask::GetTotalJobCountDelta()
     return newValue - oldValue;
 }
 
-std::optional<i64> TTask::GetMaximumUsedTmpfsSize() const
+std::vector<std::optional<i64>> TTask::GetMaximumUsedTmpfsSizes() const
 {
-    return MaximumUsedTmfpsSize_;
+    return MaximumUsedTmpfsSizes_;
 }
 
 const TProgressCounterPtr& TTask::GetJobCounter() const
@@ -186,7 +197,7 @@ void TTask::AddInput(const std::vector<TChunkStripePtr>& stripes)
 
 void TTask::FinishInput()
 {
-    YT_LOG_DEBUG("Task input finished" );
+    YT_LOG_DEBUG("Task input finished");
 
     // GetChunkPoolInput() may return nullptr on tasks that do not require input, such as for vanilla operation.
     if (const auto& chunkPoolInput = GetChunkPoolInput()) {
@@ -197,6 +208,11 @@ void TTask::FinishInput()
         TaskHost_->GetDataFlowGraph()
             ->RegisterCounter(GetVertexDescriptor(), progressCounter, GetJobType());
     }
+
+    TaskHost_->GetDataFlowGraph()->RegisterCounter(
+        GetVertexDescriptor(),
+        CompetitiveJobManager_.GetProgressCounter(),
+        GetJobType());
     AddPendingHint();
     CheckCompleted();
 }
@@ -267,20 +283,31 @@ void TTask::ScheduleJob(
     const auto& address = context->GetNodeDescriptor().Address;
 
     auto* chunkPoolOutput = GetChunkPoolOutput();
-    auto localityNodeId = HasInputLocality() ? nodeId : InvalidNodeId;
-    joblet->OutputCookie = chunkPoolOutput->Extract(localityNodeId);
+    joblet->Speculative = chunkPoolOutput->GetPendingJobCount() == 0;
 
-    if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
-        YT_LOG_DEBUG("Job input is empty");
-        scheduleJobResult->RecordFail(EScheduleJobFailReason::EmptyInput);
-        return;
+    if (joblet->Speculative) {
+        joblet->OutputCookie = CompetitiveJobManager_.PeekSpeculativeCandidate();
+    } else {
+        auto localityNodeId = HasInputLocality() ? nodeId : InvalidNodeId;
+        joblet->OutputCookie = chunkPoolOutput->Extract(localityNodeId);
+        if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
+            YT_LOG_DEBUG("Job input is empty");
+            scheduleJobResult->RecordFail(EScheduleJobFailReason::EmptyInput);
+            return;
+        }
     }
+
+    auto abortJob = [&] (EScheduleJobFailReason jobFailReason, EAbortReason abortReason) {
+        if (!joblet->Speculative) {
+            chunkPoolOutput->Aborted(joblet->OutputCookie, abortReason);
+        }
+        scheduleJobResult->RecordFail(jobFailReason);
+    };
 
     int sliceCount = chunkPoolOutput->GetStripeListSliceCount(joblet->OutputCookie);
 
     if (!ValidateChunkCount(sliceCount)) {
-        scheduleJobResult->RecordFail(EScheduleJobFailReason::IntermediateChunkLimitExceeded);
-        chunkPoolOutput->Aborted(joblet->OutputCookie, EAbortReason::IntermediateChunkLimitExceeded);
+        abortJob(EScheduleJobFailReason::IntermediateChunkLimitExceeded, EAbortReason::IntermediateChunkLimitExceeded);
         return;
     }
 
@@ -289,8 +316,7 @@ void TTask::ScheduleJob(
         if (!jobSpecSliceThrottler->TryAcquire(sliceCount)) {
             YT_LOG_DEBUG("Job spec throttling is active (SliceCount: %v)",
                 sliceCount);
-            chunkPoolOutput->Aborted(joblet->OutputCookie, EAbortReason::SchedulingJobSpecThrottling);
-            scheduleJobResult->RecordFail(EScheduleJobFailReason::JobSpecThrottling);
+            abortJob(EScheduleJobFailReason::JobSpecThrottling, EAbortReason::SchedulingJobSpecThrottling);
             return;
         }
     } else {
@@ -316,15 +342,15 @@ void TTask::ScheduleJob(
                   FormatResources(jobLimits),
                   FormatResources(neededResources));
         CheckResourceDemandSanity(nodeResourceLimits, neededResources);
-        chunkPoolOutput->Aborted(joblet->OutputCookie, EAbortReason::SchedulingOther);
+        abortJob(EScheduleJobFailReason::NotEnoughResources, EAbortReason::SchedulingOther);
         // Seems like cached min needed resources are too optimistic.
         ResetCachedMinNeededResources();
-        scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
         return;
     }
 
-    auto jobType = GetJobType();
     joblet->JobId = context->GetJobId();
+
+    CompetitiveJobManager_.OnJobScheduled(joblet);
 
     // Job is restarted if LostJobCookieMap contains at least one entry with this output cookie.
     auto it = LostJobCookieMap.lower_bound(TCookieAndPool(joblet->OutputCookie, nullptr));
@@ -340,6 +366,8 @@ void TTask::ScheduleJob(
     })
         .AsyncVia(TaskHost_->GetCancelableInvoker(TaskHost_->GetConfig()->BuildJobSpecControllerQueue))
         .Run();
+
+    auto jobType = GetJobType();
     scheduleJobResult->StartDescriptor.emplace(
         joblet->JobId,
         jobType,
@@ -360,7 +388,7 @@ void TTask::ScheduleJob(
     YT_LOG_DEBUG(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, SliceCount: %v (%v local), "
         "Approximate: %v, DataWeight: %v (%v local), RowCount: %v, Splittable: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
-        "UserJobMemoryReserveFactor: %v, ResourceLimits: %v)",
+        "UserJobMemoryReserveFactor: %v, ResourceLimits: %v, Speculative: %v)",
         joblet->JobId,
         TaskHost_->GetOperationId(),
         jobType,
@@ -378,7 +406,8 @@ void TTask::ScheduleJob(
         FormatResources(estimatedResourceUsage),
         joblet->JobProxyMemoryReserveFactor,
         joblet->UserJobMemoryReserveFactor,
-        FormatResources(neededResources));
+        FormatResources(neededResources),
+        joblet->Speculative);
 
     for (const auto& edgeDescriptor : EdgeDescriptors_) {
         joblet->ChunkListIds.push_back(TaskHost_->ExtractOutputChunkList(edgeDescriptor.CellTag));
@@ -393,11 +422,12 @@ void TTask::ScheduleJob(
     }
 
     // Sync part.
-    PrepareJoblet(joblet);
     TaskHost_->CustomizeJoblet(joblet);
 
     TaskHost_->RegisterJoblet(joblet);
-    TaskHost_->AddValueToEstimatedHistogram(joblet);
+    if (!joblet->Speculative) {
+        TaskHost_->AddValueToEstimatedHistogram(joblet);
+    }
 
     OnJobStarted(joblet);
 
@@ -406,9 +436,19 @@ void TTask::ScheduleJob(
     }
 }
 
+void TTask::RegisterSpeculativeJob(const TJobletPtr& joblet)
+{
+    CompetitiveJobManager_.AddSpeculativeCandidate(joblet);
+}
+
+std::optional<EAbortReason> TTask::ShouldAbortJob(const TJobletPtr& joblet)
+{
+    return CompetitiveJobManager_.ShouldAbortJob(joblet);
+}
+
 bool TTask::IsCompleted() const
 {
-    return IsActive() && GetChunkPoolOutput()->IsCompleted();
+    return IsActive() && GetChunkPoolOutput()->IsCompleted() && CompetitiveJobManager_.IsFinished();
 }
 
 bool TTask::IsActive() const
@@ -428,7 +468,7 @@ i64 TTask::GetCompletedDataWeight() const
 
 i64 TTask::GetPendingDataWeight() const
 {
-    return GetChunkPoolOutput()->GetPendingDataWeight();
+    return GetChunkPoolOutput()->GetPendingDataWeight() + CompetitiveJobManager_.GetPendingCandidatesDataWeight();
 }
 
 i64 TTask::GetInputDataSliceCount() const
@@ -468,10 +508,11 @@ void TTask::Persist(const TPersistenceContext& context)
     Persist(context, InputChunkMapping_);
 
     Persist(context, TaskJobIndexGenerator_);
-}
 
-void TTask::PrepareJoblet(TJobletPtr /* joblet */)
-{ }
+    if (context.GetVersion() >= 300102) {
+        Persist(context, CompetitiveJobManager_);
+    }
+}
 
 void TTask::OnJobStarted(TJobletPtr joblet)
 {
@@ -483,12 +524,19 @@ bool TTask::CanLoseJobs() const
     return false;
 }
 
+bool TTask::IsSimpleTask() const
+{
+    return true;
+}
+
 TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
 {
+    auto result = TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative);
+
+    CompetitiveJobManager_.OnJobCompleted(joblet);
+
     YCHECK(jobSummary.Statistics);
     const auto& statistics = *jobSummary.Statistics;
-
-    auto result = TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative);
 
     if (!jobSummary.Abandoned) {
         auto outputStatisticsMap = GetOutputDataStatistics(statistics);
@@ -545,16 +593,13 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
     TaskHost_->RegisterStderr(joblet, jobSummary);
     TaskHost_->RegisterCores(joblet, jobSummary);
 
-    UpdateMaximumUsedTmpfsSize(statistics);
+    UpdateMaximumUsedTmpfsSizes(statistics);
 
     return result;
 }
 
-void TTask::ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie, bool waitForSnapshot)
+void TTask::ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie)
 {
-    TaskHost_->RemoveValueFromEstimatedHistogram(joblet);
-    TaskHost_->ReleaseChunkTrees(joblet->ChunkListIds, true /* recursive */, waitForSnapshot);
-
     auto list = HasInputLocality()
         ? GetChunkPoolOutput()->GetStripeList(joblet->OutputCookie)
         : nullptr;
@@ -569,6 +614,12 @@ void TTask::ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputC
     AddPendingHint();
 }
 
+void TTask::ReleaseJobletResources(TJobletPtr joblet, bool waitForSnapshot)
+{
+    TaskHost_->RemoveValueFromEstimatedHistogram(joblet);
+    TaskHost_->ReleaseChunkTrees(joblet->ChunkListIds, /* recursive */ true, waitForSnapshot);
+}
+
 TJobFinishedResult TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary)
 {
     auto result = TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative);
@@ -577,9 +628,13 @@ TJobFinishedResult TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary
     TaskHost_->RegisterCores(joblet, jobSummary);
 
     YCHECK(jobSummary.Statistics);
-    UpdateMaximumUsedTmpfsSize(*jobSummary.Statistics);
+    UpdateMaximumUsedTmpfsSizes(*jobSummary.Statistics);
 
-    ReinstallJob(joblet, BIND([=] {GetChunkPoolOutput()->Failed(joblet->OutputCookie);}));
+    ReleaseJobletResources(joblet, /* waitForSnapshot */ false);
+    bool returnCookie = CompetitiveJobManager_.OnJobFailed(joblet);
+    if (returnCookie) {
+        ReinstallJob(joblet, BIND([=] {GetChunkPoolOutput()->Failed(joblet->OutputCookie);}));
+    }
 
     return result;
 }
@@ -600,10 +655,12 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
         TaskHost_->ReleaseChunkTrees({joblet->CoreTableChunkListId}, true /* unstageRecursively */, true /* waitForSnapshot */);
     }
 
-    ReinstallJob(
-        joblet,
-        BIND([=] {GetChunkPoolOutput()->Aborted(joblet->OutputCookie, jobSummary.AbortReason);}),
-        true /* waitForSnapshot */);
+    ReleaseJobletResources(joblet, /* waitForSnapshot */ true);
+
+    bool returnCookie = CompetitiveJobManager_.OnJobAborted(joblet, jobSummary.AbortReason);
+    if (returnCookie) {
+        ReinstallJob(joblet, BIND([=] { GetChunkPoolOutput()->Aborted(joblet->OutputCookie, jobSummary.AbortReason); }));
+    }
 
     return result;
 }
@@ -837,18 +894,29 @@ TJobResources TTask::ApplyMemoryReserve(const TExtendedJobResources& jobResource
     return result;
 }
 
-void TTask::UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& statistics)
+void TTask::UpdateMaximumUsedTmpfsSizes(const NJobTrackerClient::TStatistics& statistics)
 {
-    auto maxUsedTmpfsSize = FindNumericValue(
-        statistics,
-        "/user_job/max_tmpfs_size");
-
-    if (!maxUsedTmpfsSize) {
+    if (!IsSimpleTask()) {
         return;
     }
 
-    if (!MaximumUsedTmfpsSize_ || *MaximumUsedTmfpsSize_ < *maxUsedTmpfsSize) {
-        MaximumUsedTmfpsSize_ = *maxUsedTmpfsSize;
+    auto userJobSpec = GetUserJobSpec();
+    if (!userJobSpec) {
+        return;
+    }
+
+    for (int index = 0; index < userJobSpec->TmpfsVolumes.size(); ++index) {
+        auto maxUsedTmpfsSize = FindNumericValue(
+            statistics,
+            Format("/user_job/tmpfs_volumes/%v/max_size", index));
+        if (!maxUsedTmpfsSize) {
+            continue;
+        }
+
+        auto& maxTmpfsSize = MaximumUsedTmpfsSizes_[index];
+        if (!maxTmpfsSize || *maxTmpfsSize < *maxUsedTmpfsSize) {
+            maxTmpfsSize = *maxUsedTmpfsSize;
+        }
     }
 }
 
@@ -1110,6 +1178,11 @@ void TTask::SetupCallbacks()
 std::vector<TString> TTask::FindAndBanSlowTentativeTrees()
 {
     return TentativeTreeEligibility_.FindAndBanSlowTentativeTrees();
+}
+
+void TTask::AbortJobViaScheduler(TJobId jobId, EAbortReason reason)
+{
+    GetTaskHost()->AbortJobViaScheduler(jobId, reason);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

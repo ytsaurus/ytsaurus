@@ -292,7 +292,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletBalancerConfig)
         .SetWritable(true)
         .SetReplicated(true)
-        .SetOpaque(true));
+        .SetPresent(isDynamic));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)

@@ -28,6 +28,7 @@
 #include <Common/getMultipleKeysFromConfig.h>
 #include <Common/getNumberOfPhysicalCPUCores.h>
 #include <Databases/DatabaseMemory.h>
+#include <Dictionaries/registerDictionaries.h>
 #include <Functions/registerFunctions.h>
 #include <IO/HTTPCommon.h>
 #include <Interpreters/AsynchronousMetrics.h>
@@ -329,6 +330,7 @@ private:
         registerAggregateFunctions();
         registerTableFunctions();
         registerStorageMemory(StorageFactory::instance());
+        registerDictionaries();
 
         RegisterFunctions();
         RegisterTableFunctions();

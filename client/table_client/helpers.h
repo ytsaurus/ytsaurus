@@ -163,7 +163,7 @@ void FromUnversionedRow(
     Ts*... values);
 
 void UnversionedValueToYson(TUnversionedValue unversionedValue, NYson::IYsonConsumer* consumer);
-NYson::TYsonString UnversionedValueToYson(TUnversionedValue unversionedValue);
+NYson::TYsonString UnversionedValueToYson(TUnversionedValue unversionedValue, bool enableRaw = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

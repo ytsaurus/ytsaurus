@@ -48,6 +48,10 @@ struct IYsonConsumer;
 struct IFlushableYsonConsumer;
 struct IAsyncYsonConsumer;
 
+enum class TYsonItemType;
+class TYsonItem;
+class TYsonPullParser;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYson

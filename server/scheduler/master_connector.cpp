@@ -170,7 +170,7 @@ public:
             .BeginMap()
                 .Item("jobs").BeginAttributes()
                     .Item("opaque").Value(true)
-                    .Item("acl").Value(MakeOperationArtifactAcl(operation->GetAcl()))
+                    .Item("acl").Value(MakeOperationArtifactAcl(operation->GetRuntimeParameters()->Acl))
                     .Item("inherit_acl").Value(false)
                 .EndAttributes()
                 .BeginMap().EndMap()
@@ -188,7 +188,7 @@ public:
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("inherit_acl", false);
             attributes->Set("value", operation->GetSecureVault());
-            attributes->Set("acl", ConvertToYsonString(operation->GetAcl()));
+            attributes->Set("acl", ConvertToYsonString(operation->GetRuntimeParameters()->Acl));
 
             auto req = TCypressYPathProxy::Create(GetSecureVaultPath(operationId));
             req->set_type(static_cast<int>(EObjectType::Document));
@@ -1345,7 +1345,7 @@ private:
             if (operation->GetShouldFlushAcl()) {
                 auto aclBatchReq = StartObjectBatchRequest();
                 auto req = TYPathProxy::Set(GetJobsPath(operation->GetId()) + "/@acl");
-                auto operationNodeAcl = MakeOperationArtifactAcl(operation->GetAcl());
+                auto operationNodeAcl = MakeOperationArtifactAcl(operation->GetRuntimeParameters()->Acl);
                 req->set_value(ConvertToYsonString(operationNodeAcl).GetData());
                 aclBatchReq->AddRequest(req, "set_acl");
 

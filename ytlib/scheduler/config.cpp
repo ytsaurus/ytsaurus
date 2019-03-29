@@ -1,15 +1,17 @@
 #include "config.h"
 
 #include <yt/ytlib/security_client/acl.h>
+#include <yt/ytlib/security_client/helpers.h>
+
+#include <yt/client/scheduler/operation_id_or_alias.h>
 
 #include <yt/core/ytree/convert.h>
 
 #include <yt/core/misc/fs.h>
 
-#include <yt/client/scheduler/operation_id_or_alias.h>
-
 #include <util/string/split.h>
 #include <util/string/iterator.h>
+#include <util/folder/path.h>
 
 namespace NYT::NScheduler {
 
@@ -157,6 +159,8 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default(EControllerFailureType::None);
     RegisterParameter("fail_get_job_spec", FailGetJobSpec)
         .Default(false);
+    RegisterParameter("register_speculative_job_on_job_scheduled", RegisterSpeculativeJobOnJobScheduled)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -255,6 +259,26 @@ TSamplingConfig::TSamplingConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTmpfsVolumeConfig::TTmpfsVolumeConfig()
+{
+    RegisterParameter("size", Size);
+    RegisterParameter("path", Path);
+}
+
+void ToProto(NScheduler::NProto::TTmpfsVolume* protoTmpfsVolume, const TTmpfsVolumeConfig& tmpfsVolumeConfig)
+{
+    protoTmpfsVolume->set_size(tmpfsVolumeConfig.Size);
+    protoTmpfsVolume->set_path(tmpfsVolumeConfig.Path);
+}
+
+void FromProto(TTmpfsVolumeConfig* tmpfsVolumeConfig, const NScheduler::NProto::TTmpfsVolume& protoTmpfsVolume)
+{
+    tmpfsVolumeConfig->Size = protoTmpfsVolume.size();
+    tmpfsVolumeConfig->Path = protoTmpfsVolume.path();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TOperationSpecBase::TOperationSpecBase()
 {
     SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -312,7 +336,7 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("owners", Owners)
         .Default();
 
-    RegisterParameter("acl", Acl)
+    RegisterParameter("acl", AclNode)
         .Default();
 
     RegisterParameter("add_authenticated_user_to_acl", AddAuthenticatedUserToAcl)
@@ -411,8 +435,17 @@ TOperationSpecBase::TOperationSpecBase()
                 MaxAnnotationsYsonTextLength);
         }
 
+        if (AclNode) {
+            try {
+                Acl = ConvertTo<NSecurityClient::TSerializableAccessControlList>(AclNode);
+            } catch (const TErrorException& error) {
+                // Intentionally do nothing for backward compatibility.
+            }
+        }
+
         ValidateOperationAcl(Acl);
         ProcessAclAndOwnersParameters(&Acl, &Owners);
+        ValidateSecurityTags(AdditionalSecurityTags);
     });
 }
 
@@ -487,6 +520,8 @@ TUserJobSpec::TUserJobSpec()
         .GreaterThan(0);
     RegisterParameter("tmpfs_path", TmpfsPath)
         .Default();
+    RegisterParameter("tmpfs_volumes", TmpfsVolumes)
+        .Default();
     RegisterParameter("disk_space_limit", DiskSpaceLimit)
         .Default()
         .GreaterThanOrEqual(0);
@@ -505,22 +540,65 @@ TUserJobSpec::TUserJobSpec()
         .Default(false);
 
     RegisterPostprocessor([&] () {
-        if (TmpfsSize && *TmpfsSize > MemoryLimit) {
-            THROW_ERROR_EXCEPTION("Size of tmpfs must be less than or equal to memory limit")
-                << TErrorAttribute("tmpfs_size", *TmpfsSize)
-                << TErrorAttribute("memory_limit", MemoryLimit);
+        if ((TmpfsSize || TmpfsPath) && !TmpfsVolumes.empty()) {
+            THROW_ERROR_EXCEPTION(
+                "Options \"tmpfs_size\" and \"tmpfs_path\" cannot be specified "
+                "simultaneously with \"tmpfs_volumes\"")
+                << TErrorAttribute("tmpfs_size", TmpfsSize)
+                << TErrorAttribute("tmpfs_path", TmpfsPath)
+                << TErrorAttribute("tmpfs_volumes", TmpfsVolumes);
+        }
+
+        if (TmpfsPath) {
+            auto volume = New<TTmpfsVolumeConfig>();
+            volume->Size = TmpfsSize ? *TmpfsSize : MemoryLimit;
+            volume->Path = *TmpfsPath;
+            TmpfsVolumes.push_back(volume);
+            TmpfsPath = std::nullopt;
+            TmpfsSize = std::nullopt;
+        }
+
+        i64 totalTmpfsSize = 0;
+        for (const auto& volume : TmpfsVolumes) {
+            if (!NFS::IsPathRelativeAndInvolvesNoTraversal(volume->Path)) {
+                THROW_ERROR_EXCEPTION("Tmpfs path %v does not point inside the sandbox directory",
+                    volume->Path);
+            }
+            totalTmpfsSize += volume->Size;
         }
 
         // Memory reserve should greater than or equal to tmpfs_size (see YT-5518 for more details).
-        if (TmpfsPath) {
-            if (!NFS::IsPathRelativeAndInvolvesNoTraversal(*TmpfsPath)) {
-                THROW_ERROR_EXCEPTION("Tmpfs path %v does not point inside the sandbox directory",
-                    *TmpfsPath);
-            }
-            i64 tmpfsSize = TmpfsSize ? *TmpfsSize : MemoryLimit;
-            UserJobMemoryDigestDefaultValue = std::min(1.0, std::max(UserJobMemoryDigestDefaultValue, double(tmpfsSize) / MemoryLimit));
-            UserJobMemoryDigestLowerBound = std::min(1.0, std::max(UserJobMemoryDigestLowerBound, double(tmpfsSize) / MemoryLimit));
+        if (totalTmpfsSize > MemoryLimit) {
+            THROW_ERROR_EXCEPTION("Total size of tmpfs volumes must be less than or equal to memory limit")
+                << TErrorAttribute("tmpfs_size", totalTmpfsSize)
+                << TErrorAttribute("memory_limit", MemoryLimit);
         }
+
+        for (int i = 0; i < TmpfsVolumes.size(); ++i) {
+            for (int j = 0; j < TmpfsVolumes.size(); ++j) {
+                if (i == j) {
+                    continue;
+                }
+
+                auto lhsFsPath = TFsPath(TmpfsVolumes[i]->Path);
+                auto rhsFsPath = TFsPath(TmpfsVolumes[j]->Path);
+                if (lhsFsPath.IsSubpathOf(rhsFsPath)) {
+                    THROW_ERROR_EXCEPTION("Path of tmpfs volume %Qv is prefix of other tmpfs volume %Qv",
+                        TmpfsVolumes[i]->Path,
+                        TmpfsVolumes[j]->Path);
+                }
+            }
+        }
+
+        auto memoryDigestLowerLimit = static_cast<double>(totalTmpfsSize) / MemoryLimit;
+        UserJobMemoryDigestDefaultValue = std::min(
+            1.0,
+            std::max(UserJobMemoryDigestDefaultValue, memoryDigestLowerLimit)
+        );
+        UserJobMemoryDigestLowerBound = std::min(
+            1.0,
+            std::max(UserJobMemoryDigestLowerBound, memoryDigestLowerLimit)
+        );
         UserJobMemoryDigestDefaultValue = std::max(UserJobMemoryDigestLowerBound, UserJobMemoryDigestDefaultValue);
 
         for (const auto& pair : Environment) {
@@ -876,6 +954,15 @@ TSortOperationSpecBase::TSortOperationSpecBase()
         .Default(TDuration::Seconds(5));
     RegisterParameter("shuffle_network_limit", ShuffleNetworkLimit)
         .Default(0);
+    RegisterParameter("max_shuffle_data_slice_count", MaxShuffleDataSliceCount)
+        .GreaterThan(0)
+        .Default(10'000'000);
+    RegisterParameter("max_shuffle_job_count", MaxShuffleJobCount)
+        .GreaterThan(0)
+        .Default(200'000);
+    RegisterParameter("max_merge_data_slice_count", MaxMergeDataSliceCount)
+        .GreaterThan(0)
+        .Default(10'000'000);
     RegisterParameter("sort_by", SortBy)
         .NonEmpty();
     RegisterParameter("enable_partitioned_data_balancing", EnablePartitionedDataBalancing)
@@ -921,6 +1008,10 @@ TSortOperationSpec::TSortOperationSpec()
         .Default(TDuration::Seconds(5));
     RegisterParameter("merge_locality_timeout", MergeLocalityTimeout)
         .Default(TDuration::Minutes(1));
+
+    RegisterParameter("max_input_data_weight", MaxInputDataWeight)
+        .GreaterThan(0)
+        .Default(500_TB);
 
     RegisterParameter("schema_inference_mode", SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);

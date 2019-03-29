@@ -1074,11 +1074,12 @@ class TAttachmentsInputStreamTest
     : public ::testing::Test
 {
 protected:
-    TAttachmentsInputStreamPtr CreateStream()
+    TAttachmentsInputStreamPtr CreateStream(std::optional<TDuration> timeout = {})
     {
         return New<TAttachmentsInputStream>(
             BIND([=] {}),
-            nullptr);
+            nullptr,
+            timeout);
     }
 
     static TStreamingPayload MakePayload(int sequenceNumber, std::vector<TSharedRef> attachments)
@@ -1091,7 +1092,6 @@ protected:
         };
     }
 };
-
 
 TEST_F(TAttachmentsInputStreamTest, AbortPropagatesToRead)
 {
@@ -1192,6 +1192,15 @@ TEST_F(TAttachmentsInputStreamTest, Close)
     EXPECT_FALSE(future.Get().ValueOrThrow());
 }
 
+TEST_F(TAttachmentsInputStreamTest, Timeout)
+{
+    auto stream = CreateStream(TDuration::MilliSeconds(100));
+    auto future = stream->Read();
+    auto error = future.Get();
+    EXPECT_FALSE(error.IsOK());
+    EXPECT_EQ(NYT::EErrorCode::Timeout, error.GetCode());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAttachmentsOutputStreamTest
@@ -1200,19 +1209,20 @@ class TAttachmentsOutputStreamTest
 protected:
     int PullCallbackCounter_;
 
-    TAttachmentsOutputStreamPtr CreateStream(size_t windowSize)
+    TAttachmentsOutputStreamPtr CreateStream(
+        ssize_t windowSize,
+        std::optional<TDuration> timeout = {})
     {
         PullCallbackCounter_ = 0;
-        TStreamingParameters parameters;
-        parameters.WindowSize = windowSize;
         return New<TAttachmentsOutputStream>(
-            parameters,
             EMemoryZone::Normal,
             NCompression::ECodec::None,
             nullptr,
             BIND([=] {
                 ++PullCallbackCounter_;
-            }));
+            }),
+            windowSize,
+            timeout);
     }
 };
 
@@ -1395,6 +1405,34 @@ TEST_F(TAttachmentsOutputStreamTest, Close2)
 
     EXPECT_TRUE(future2.IsSet());
     EXPECT_TRUE(future2.Get().IsOK());
+}
+
+TEST_F(TAttachmentsOutputStreamTest, WriteTimeout)
+{
+    auto stream = CreateStream(5, TDuration::MilliSeconds(100));
+
+    auto payload = TSharedRef::FromString("abc");
+
+    auto future1 = stream->Write(payload);
+    EXPECT_TRUE(future1.IsSet());
+    EXPECT_TRUE(future1.Get().IsOK());
+
+    auto future2 = stream->Write(payload);
+    EXPECT_FALSE(future2.IsSet());
+    auto error = future2.Get();
+    EXPECT_FALSE(error.IsOK());
+    EXPECT_EQ(NYT::EErrorCode::Timeout, error.GetCode());
+}
+
+TEST_F(TAttachmentsOutputStreamTest, CloseTimeout)
+{
+    auto stream = CreateStream(5, TDuration::MilliSeconds(100));
+
+    auto future = stream->Close();
+    EXPECT_FALSE(future.IsSet());
+    auto error = future.Get();
+    EXPECT_FALSE(error.IsOK());
+    EXPECT_EQ(NYT::EErrorCode::Timeout, error.GetCode());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

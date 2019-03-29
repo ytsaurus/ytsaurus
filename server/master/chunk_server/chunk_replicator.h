@@ -83,6 +83,7 @@ public:
 
     void ScheduleChunkRefresh(TChunk* chunk);
     void ScheduleNodeRefresh(TNode* node);
+    void ScheduleGlobalChunkRefresh(TChunk* frontChunk, int chunkCount);
 
     void ScheduleUnknownReplicaRemoval(
         TNode* node,

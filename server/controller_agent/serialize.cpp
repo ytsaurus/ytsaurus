@@ -6,7 +6,7 @@ namespace NYT::NControllerAgent {
 
 int GetCurrentSnapshotVersion()
 {
-    return 300101;
+    return 300103;
 }
 
 bool ValidateSnapshotVersion(int version)

@@ -41,7 +41,12 @@ struct TStreamingFeedback
 //! Controls how attachments are being streamed between clients and services.
 struct TStreamingParameters
 {
+    //! Approximate limit for the number of bytes in flight.
     ssize_t WindowSize = 16_MB;
+    //! Timeout for reads from attachments input stream.
+    std::optional<TDuration> ReadTimeout;
+    //! Timeout for writes to attachments output stream.
+    std::optional<TDuration> WriteTimeout;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

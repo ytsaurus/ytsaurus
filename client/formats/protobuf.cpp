@@ -149,6 +149,10 @@ static TEnumerationDescription CreateEnumerationMap(const TString& enumName, con
 
         case EProtobufType::Message:
             return FieldDescriptor::TYPE_MESSAGE;
+
+        case EProtobufType::Any:
+        case EProtobufType::OtherColumns:
+            return FieldDescriptor::TYPE_BYTES;
     }
     Y_UNREACHABLE();
 }
@@ -314,9 +318,15 @@ void TProtobufFormatDescription::InitFromFileDescriptors(const TProtobufFormatCo
                 continue;
             }
 
-            auto wireFieldType = static_cast<::google::protobuf::internal::WireFormatLite::FieldType>(fieldDescriptor->type());
-            auto& field = columns[columnName];
+            auto [fieldIt, inserted] = columns.emplace(columnName, TProtobufFieldDescription{});
+            if (Y_UNLIKELY(!inserted)) {
+                THROW_ERROR_EXCEPTION("Multiple fields with same column name (%Qv) are forbidden in protobuf format",
+                    columnName);
+            }
+            auto& field = fieldIt->second;
+
             field.Name = columnName;
+            auto wireFieldType = static_cast<::google::protobuf::internal::WireFormatLite::FieldType>(fieldDescriptor->type());
             field.WireTag = google::protobuf::internal::WireFormatLite::MakeTag(
                 fieldDescriptor->number(),
                 ::google::protobuf::internal::WireFormatLite::WireTypeForFieldType(wireFieldType));
@@ -345,9 +355,7 @@ void TProtobufFormatDescription::InitFromProtobufSchema(const TProtobufFormatCon
 {
     if (config->Enumerations) {
         const auto& enumerationConfigMap = config->Enumerations;
-        for (const auto& entry : enumerationConfigMap->GetChildren()) {
-            const auto& name = entry.first;
-            const auto& node = entry.second;
+        for (const auto& [name, node] : enumerationConfigMap->GetChildren()) {
             if (node->GetType() != NYTree::ENodeType::Map) {
                 THROW_ERROR_EXCEPTION(R"(Invalid enumeration specification type, expected "map" found %Qv)",
                     node->GetType());
@@ -363,7 +371,13 @@ void TProtobufFormatDescription::InitFromProtobufSchema(const TProtobufFormatCon
         Tables_.emplace_back();
         auto& columns = Tables_.back().Columns;
         for (const auto& columnConfig : tableConfig->Columns) {
-            auto& field = columns[columnConfig->Name];
+            auto [fieldIt, inserted] = columns.emplace(columnConfig->Name, TProtobufFieldDescription{});
+            if (Y_UNLIKELY(!inserted)) {
+                THROW_ERROR_EXCEPTION("Multiple fields with same column name (%Qv) are forbidden in protobuf format",
+                    columnConfig->Name);
+            }
+            auto& field = fieldIt->second;
+
             field.Name = columnConfig->Name;
             field.Type = columnConfig->ProtoType;
 

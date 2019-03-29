@@ -399,6 +399,8 @@ public:
     //! (If not initialized then indicates to occupy all available space on drive).
     std::optional<i64> Quota;
 
+    bool LocationIsAbsolute;
+
     TLayerLocationConfig()
     {
         RegisterParameter("low_watermark", LowWatermark)
@@ -407,6 +409,9 @@ public:
 
         RegisterParameter("quota", Quota)
             .Default();
+
+        RegisterParameter("location_is_absolute", LocationIsAbsolute)
+            .Default(true);
     }
 };
 

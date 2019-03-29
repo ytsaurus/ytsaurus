@@ -29,6 +29,8 @@ using namespace NJson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static TLogger Logger("Test");
+
 class TLoggingTest
     : public ::testing::Test
 {
@@ -36,7 +38,6 @@ public:
     TLoggingTest()
         : SomeDate("2014-04-24 23:41:09,804")
         , DateLength(SomeDate.length())
-        , Logger("Test")
     {
         Category.Name = "category";
     }
@@ -45,8 +46,6 @@ protected:
     TLoggingCategory Category;
     TString SomeDate;
     int DateLength;
-
-    TLogger Logger;
 
     IMapNodePtr DeserializeJson(const TString& source)
     {
@@ -423,50 +422,89 @@ TEST_F(TLoggingTest, TraceSuppression)
     NFs::Remove("test.log");
 }
 
-TEST_F(TLoggingTest, LongMessages)
+////////////////////////////////////////////////////////////////////////////////
+
+class TLongMessagesTest
+    : public TLoggingTest
 {
-    NFs::Remove("test.log");
+protected:
+    static constexpr int N = 500;
+    std::vector<TString> Chunks_;
 
-    auto configText = R"({
-        rules = [
-            {
-                "min_level" = "info";
-                "writers" = [ "info" ];
+    TLongMessagesTest()
+    {
+        for (int i = 0; i < N; ++i) {
+            Chunks_.push_back(Format("PayloadPayloadPayloadPayloadPayload%v", i));
+        }
+    }
+
+    void ConfigureForLongMessages()
+    {
+        NFs::Remove("test.log");
+
+        auto configText = R"({
+            rules = [
+                {
+                    "min_level" = "info";
+                    "writers" = [ "info" ];
+                };
+            ];
+            "writers" = {
+                "info" = {
+                    "file_name" = "test.log";
+                    "type" = "file";
+                };
             };
-        ];
-        "writers" = {
-            "info" = {
-                "file_name" = "test.log";
-                "type" = "file";
-            };
-        };
-    })";
+        })";
 
-    auto configNode = ConvertToNode(TYsonString(configText));
-    auto config = ConvertTo<TLogConfigPtr>(configNode);
-    TLogManager::Get()->Configure(config);
-
-    constexpr int N = 500;
-    std::vector<TString> chunks;
-    for (int i = 0; i < N; ++i) {
-        chunks.push_back(Format("PayloadPayloadPayloadPayloadPayload%v", i));
+        auto configNode = ConvertToNode(TYsonString(configText));
+        auto config = ConvertTo<TLogConfigPtr>(configNode);
+        TLogManager::Get()->Configure(config);
     }
 
-    for (int i = 0; i < N; ++i) {
-        YT_LOG_INFO("%v", MakeRange(chunks.data(), chunks.data() + i));
+    void LogLongMessages()
+    {
+        for (int i = 0; i < N; ++i) {
+            YT_LOG_INFO("%v", MakeRange(Chunks_.data(), Chunks_.data() + i));
+        }
     }
 
-    TLogManager::Get()->Synchronize();
+    void CheckLongMessages()
+    {
+        TLogManager::Get()->Synchronize();
 
-    auto infoLog = ReadFile("test.log");
-    EXPECT_EQ(N + 1, infoLog.size());
-    for (int i = 0; i < N; ++i) {
-        auto expected = Format("%v", MakeRange(chunks.data(), chunks.data() + i));
-        auto actual = infoLog[i + 1];
-        EXPECT_NE(TString::npos, actual.find(expected));
+        auto infoLog = ReadFile("test.log");
+        EXPECT_EQ(N + 1, infoLog.size());
+        for (int i = 0; i < N; ++i) {
+            auto expected = Format("%v", MakeRange(Chunks_.data(), Chunks_.data() + i));
+            auto actual = infoLog[i + 1];
+            EXPECT_NE(TString::npos, actual.find(expected));
+        }
+
+        NFs::Remove("test.log");
     }
+};
 
-    NFs::Remove("test.log");
+TEST_F(TLongMessagesTest, WithPerThreadCache)
+{
+    ConfigureForLongMessages();
+    LogLongMessages();
+    CheckLongMessages();
+}
+
+TEST_F(TLongMessagesTest, WithoutPerThreadCache)
+{
+    ConfigureForLongMessages();
+    using TThis = typename std::remove_reference<decltype(*this)>::type;
+    TThread thread([] (void* opaque) -> void* {
+        auto this_ = static_cast<TThis*>(opaque);
+        NLogging::NDetail::TMessageStringBuilder::DisablePerThreadCache();
+        this_->LogLongMessages();
+        return nullptr;
+    }, this);
+    thread.Start();
+    thread.Join();
+    CheckLongMessages();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

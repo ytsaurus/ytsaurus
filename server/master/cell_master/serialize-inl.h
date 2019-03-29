@@ -116,16 +116,16 @@ struct TInternedObjectSerializer
     {
         using NYT::Load;
 
-        auto key = NYT::Load<NHydra::TEntitySerializationKey>(context);
+        auto key = NYT::LoadSuspended<NHydra::TEntitySerializationKey>(context);
         if (key == NHydra::TEntitySerializationKey::Inline) {
             T value;
             SERIALIZATION_DUMP_INDENT(context) {
                 Load(context, value);
+                const auto& registry = context.template GetInternRegistry<T>();
+                object = registry->Intern(std::move(value));
+                auto key = context.RegisterEntity(object.ToRaw());
+                SERIALIZATION_DUMP_WRITE(context, "objref %v", key.Index);
             }
-            const auto& registry = context.template GetInternRegistry<T>();
-            object = registry->Intern(std::move(value));
-            auto key = context.RegisterEntity(object.ToRaw());
-            SERIALIZATION_DUMP_WRITE(context, "objref %v", key.Index);
         } else {
             object = TInternedObject<T>::FromRaw(context.template GetEntity<void*>(key));
             SERIALIZATION_DUMP_WRITE(context, "objref %v", key.Index);

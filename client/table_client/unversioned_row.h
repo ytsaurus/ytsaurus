@@ -505,7 +505,7 @@ void ToProto(TProtoStringType* protoRow, const TUnversionedValue* begin, const T
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
 void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRowBufferPtr& rowBuffer);
 
-void Serialize(const TUnversionedValue& value, NYson::IYsonConsumer* consumer);
+void Serialize(const TUnversionedValue& value, NYson::IYsonConsumer* consumer, bool anyAsRaw = false);
 void Serialize(TKey key, NYson::IYsonConsumer* consumer);
 void Serialize(const TOwningKey& key, NYson::IYsonConsumer* consumer);
 

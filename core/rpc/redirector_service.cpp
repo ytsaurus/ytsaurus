@@ -60,22 +60,22 @@ public:
         return *Header_;
     }
 
-    virtual const NRpc::TStreamingParameters& RequestAttachmentsStreamingParameters() const override
+    virtual const NRpc::TStreamingParameters& ClientAttachmentsStreamingParameters() const override
     {
         Y_UNREACHABLE();
     }
 
-    virtual NRpc::TStreamingParameters& RequestAttachmentsStreamingParameters() override
+    virtual NRpc::TStreamingParameters& ClientAttachmentsStreamingParameters() override
     {
         Y_UNREACHABLE();
     }
 
-    virtual const NRpc::TStreamingParameters& ResponseAttachmentsStreamingParameters() const override
+    virtual const NRpc::TStreamingParameters& ServerAttachmentsStreamingParameters() const override
     {
         Y_UNREACHABLE();
     }
 
-    virtual NRpc::TStreamingParameters& ResponseAttachmentsStreamingParameters() override
+    virtual NRpc::TStreamingParameters& ServerAttachmentsStreamingParameters() override
     {
         Y_UNREACHABLE();
     }

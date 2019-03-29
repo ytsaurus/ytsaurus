@@ -727,6 +727,16 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
         mutableKeyRange.GetHolder());
     auto nameTable = valueConsumer.GetNameTable();
 
+    if (static_cast<bool>(Path.GetColumns())) {
+        THROW_ERROR_EXCEPTION("Columns cannot be specified with table path, use \"column_names\" instead")
+            << TErrorAttribute("rich_ypath", Path);
+    }
+
+    if (Path.HasNontrivialRanges()) {
+        THROW_ERROR_EXCEPTION("Ranges cannot be specified")
+            << TErrorAttribute("rich_ypath", Path);
+    }
+
     if (ColumnNames) {
         TColumnFilter::TIndexes columnFilterIndexes;
         for (const auto& name : *ColumnNames) {

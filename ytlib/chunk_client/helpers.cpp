@@ -50,6 +50,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NNet;
 using namespace NCypressClient;
+using namespace NSecurityClient;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -110,7 +111,7 @@ void GetUserObjectBasicAttributes(
             userObject->OmittedInaccessibleColumns = FromProto<std::vector<TString>>(rsp->omitted_inaccessible_columns().items());
         }
         if (rsp->has_security_tags()) {
-            userObject->SecurityTags = FromProto<std::vector<TString>>(rsp->security_tags().items());
+            userObject->SecurityTags = FromProto<std::vector<TSecurityTag>>(rsp->security_tags().items());
         }
     }
 }
