@@ -289,9 +289,8 @@ TFuture<void> TAttachmentsOutputStream::Close()
     }
 
     auto promise = ClosePromise_ = NewPromise<void>();
-    TDelayedExecutorCookie timeoutCookie;
     if (Timeout_) {
-        timeoutCookie = TDelayedExecutor::Submit(
+        CloseTimeoutCookie_ = TDelayedExecutor::Submit(
             BIND(&TAttachmentsOutputStream::OnTimeout, MakeWeak(this)),
             *Timeout_);
     }
@@ -303,7 +302,7 @@ TFuture<void> TAttachmentsOutputStream::Close()
     ConfirmationQueue_.push({
         WritePosition_,
         {},
-        std::move(timeoutCookie)
+        {}
     });
 
     MaybeInvokePullCallback(guard);
@@ -349,6 +348,7 @@ void TAttachmentsOutputStream::DoAbort(TGuard<TSpinLock>& guard, const TError& e
 
     if (ClosePromise_) {
         promises.push_back(ClosePromise_);
+        TDelayedExecutor::CancelAndClear(CloseTimeoutCookie_);
     }
 
     guard.Release();
@@ -400,6 +400,7 @@ void TAttachmentsOutputStream::HandleFeedback(const TStreamingFeedback& feedback
 
     if (ClosePromise_ && ReadPosition_ == WritePosition_) {
         promises.push_back(ClosePromise_);
+        TDelayedExecutor::CancelAndClear(CloseTimeoutCookie_);
         Closed_ = true;
     }
 
