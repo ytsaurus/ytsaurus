@@ -572,7 +572,6 @@ public:
         , MemoryLimit_(memoryLimit)
     { }
 
-protected:
     /// Lexer routines
 
     template <bool AllowFinish>

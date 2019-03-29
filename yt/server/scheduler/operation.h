@@ -294,12 +294,8 @@ public:
     void SetSlotIndex(const TString& treeId, int value) override;
     const THashMap<TString, int>& GetSlotIndices() const;
 
-    const std::vector<TString>& GetOwners() const;
-
     TOperationRuntimeParametersPtr GetRuntimeParameters() const override;
     void SetRuntimeParameters(TOperationRuntimeParametersPtr parameters);
-
-    const NSecurityClient::TSerializableAccessControlList& GetAcl() const;
 
     NYson::TYsonString BuildAlertsString() const;
     bool HasAlert(EOperationAlertType alertType) const;

@@ -956,13 +956,13 @@ TSortOperationSpecBase::TSortOperationSpecBase()
         .Default(0);
     RegisterParameter("max_shuffle_data_slice_count", MaxShuffleDataSliceCount)
         .GreaterThan(0)
-        .Default(10000000);
+        .Default(10'000'000);
     RegisterParameter("max_shuffle_job_count", MaxShuffleJobCount)
         .GreaterThan(0)
-        .Default(200000);
+        .Default(200'000);
     RegisterParameter("max_merge_data_slice_count", MaxMergeDataSliceCount)
         .GreaterThan(0)
-        .Default(10000000);
+        .Default(10'000'000);
     RegisterParameter("sort_by", SortBy)
         .NonEmpty();
     RegisterParameter("enable_partitioned_data_balancing", EnablePartitionedDataBalancing)
@@ -1011,7 +1011,7 @@ TSortOperationSpec::TSortOperationSpec()
 
     RegisterParameter("max_input_data_weight", MaxInputDataWeight)
         .GreaterThan(0)
-        .Default(500 * 1_PB);
+        .Default(500_TB);
 
     RegisterParameter("schema_inference_mode", SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);

@@ -57,7 +57,7 @@ class TestHttpProxy(YTEnvSetup):
         assert not hosts[0]["banned"]
 
     def test_supported_api_versions(self):
-        assert ["v2", "v3", "v4"] == requests.get(self.proxy_address() + "/api").json()
+        assert ["v3", "v4"] == requests.get(self.proxy_address() + "/api").json()
 
     def test_discover_versions(self):
         rsp = requests.get(self.proxy_address() + "/api/v3/_discover_versions").json()

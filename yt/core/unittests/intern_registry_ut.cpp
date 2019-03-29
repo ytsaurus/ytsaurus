@@ -55,6 +55,20 @@ TEST(TInternRegistry, Simple)
     EXPECT_EQ(0, registry->GetSize());
 }
 
+
+TEST(TInternRegistry, Default)
+{
+    auto registry = New<TStringRegistry>();
+    EXPECT_EQ(0, registry->GetSize());
+
+    auto s1 = TInternedString();
+ 
+    auto s2 = registry->Intern(TString());
+    EXPECT_EQ(0, registry->GetSize());
+
+    EXPECT_TRUE(*s1 == *s2);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 }

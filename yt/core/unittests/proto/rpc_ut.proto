@@ -139,3 +139,26 @@ message TReqServerStreamsAborted
 message TRspServerStreamsAborted
 {
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqServerNotReading
+{
+    required bool sleep = 1;
+}
+
+message TRspServerNotReading
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqServerNotWriting
+{
+    required bool sleep = 1;
+}
+
+message TRspServerNotWriting
+{
+}
+

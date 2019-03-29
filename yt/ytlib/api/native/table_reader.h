@@ -38,14 +38,6 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
     NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
 
-NConcurrency::IAsyncZeroCopyInputStreamPtr CreateBlobTableReader(
-    ITableReaderPtr reader,
-    const std::optional<TString>& partIndexColumnName,
-    const std::optional<TString>& dataColumnName,
-    i64 startPartIndex,
-    std::optional<i64> offset = std::nullopt,
-    std::optional<i64> partSize = std::nullopt);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative

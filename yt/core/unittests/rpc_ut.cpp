@@ -67,6 +67,10 @@ public:
         .SetStreamingEnabled(true));
     DEFINE_RPC_PROXY_METHOD(NMyRpc, ServerStreamsAborted,
         .SetStreamingEnabled(true));
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, ServerNotReading,
+        .SetStreamingEnabled(true));
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, ServerNotWriting,
+        .SetStreamingEnabled(true));
 };
 
 class TNonExistingServiceProxy
@@ -126,8 +130,15 @@ public:
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(NoReply));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StreamingEcho)
-            .SetStreamingEnabled(true));
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ServerStreamsAborted)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ServerNotReading)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ServerNotWriting)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
         // NB: NotRegisteredCall is not registered intentionally
@@ -297,6 +308,51 @@ public:
         }, TErrorException);
 
         ServerStreamsAborted_.Set();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, ServerNotReading)
+    {
+        context->SetRequestInfo();
+
+        WaitFor(context->GetRequestAttachmentsStream()->Read())
+            .ThrowOnError();
+
+        try {
+            auto sleep = request->sleep();
+            if (sleep) {
+                WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(1)));
+            }
+
+            WaitFor(context->GetRequestAttachmentsStream()->Read())
+                .ThrowOnError();
+            context->Reply();
+        } catch (const TFiberCanceledException&) {
+            SlowCallCanceled_.Set();
+            throw;
+        }
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, ServerNotWriting)
+    {
+        context->SetRequestInfo();
+
+        auto data = SharedRefFromString("abacaba");
+        WaitFor(context->GetResponseAttachmentsStream()->Write(data))
+            .ThrowOnError();
+
+        try {
+            auto sleep = request->sleep();
+            if (sleep) {
+                WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(1)));
+            }
+
+            WaitFor(context->GetResponseAttachmentsStream()->Close())
+                .ThrowOnError();
+            context->Reply();
+        } catch (const TFiberCanceledException&) {
+            SlowCallCanceled_.Set();
+            throw;
+        }
     }
 
     TFuture<void> GetServerStreamsAborted()
@@ -796,6 +852,121 @@ TYPED_TEST(TNotGrpcTest, ServerStreamsAborted)
     EXPECT_EQ(NYT::EErrorCode::Timeout, rspOrError.GetCode());
 
     WaitFor(this->Service_->GetServerStreamsAborted())
+        .ThrowOnError();
+}
+
+TYPED_TEST(TNotGrpcTest, ClientNotReading)
+{
+    TMyProxy proxy(this->CreateChannel());
+    proxy.DefaultServerAttachmentsStreamingParameters().WriteTimeout = TDuration::MilliSeconds(250);
+
+    for (auto sleep : {false, true}) {
+        auto expectedErrorCode = sleep ? NYT::EErrorCode::Timeout : NYT::EErrorCode::OK;
+
+        auto req = proxy.StreamingEcho();
+        req->set_delayed(true);
+        auto invokeResult = req->Invoke();
+
+        WaitFor(req->GetRequestAttachmentsStream()->Write(SharedRefFromString("hello")))
+            .ThrowOnError();
+        WaitFor(req->GetRequestAttachmentsStream()->Close())
+            .ThrowOnError();
+        WaitFor(req->GetResponseAttachmentsStream()->Read())
+            .ThrowOnError();
+
+        if (sleep) {
+            Sleep(TDuration::MilliSeconds(750));
+        }
+
+        auto streamError = static_cast<TError>(
+            WaitFor(req->GetResponseAttachmentsStream()->Read()));
+        EXPECT_EQ(expectedErrorCode, streamError.GetCode());
+        auto rspOrError = WaitFor(invokeResult);
+        EXPECT_EQ(expectedErrorCode, rspOrError.GetCode());
+    }
+}
+
+TYPED_TEST(TNotGrpcTest, ClientNotWriting)
+{
+    TMyProxy proxy(this->CreateChannel());
+    proxy.DefaultServerAttachmentsStreamingParameters().ReadTimeout = TDuration::MilliSeconds(250);
+
+    for (auto sleep : {false, true}) {
+        auto expectedErrorCode = sleep ? NYT::EErrorCode::Timeout : NYT::EErrorCode::OK;
+
+        auto req = proxy.StreamingEcho();
+        auto invokeResult = req->Invoke();
+
+        WaitFor(req->GetRequestAttachmentsStream()->Write(SharedRefFromString("hello")))
+            .ThrowOnError();
+        WaitFor(req->GetResponseAttachmentsStream()->Read())
+            .ThrowOnError();
+
+        if (sleep) {
+            Sleep(TDuration::MilliSeconds(750));
+        }
+
+        auto closeError = WaitFor(req->GetRequestAttachmentsStream()->Close());
+        auto readError = static_cast<TError>(
+            WaitFor(req->GetResponseAttachmentsStream()->Read()));
+
+        EXPECT_EQ(expectedErrorCode, closeError.GetCode());
+        EXPECT_EQ(expectedErrorCode, readError.GetCode());
+        auto rspOrError = WaitFor(invokeResult);
+        EXPECT_EQ(expectedErrorCode, rspOrError.GetCode());
+    }
+}
+
+TYPED_TEST(TNotGrpcTest, ServerNotReading)
+{
+    TMyProxy proxy(this->CreateChannel());
+    proxy.DefaultClientAttachmentsStreamingParameters().WriteTimeout = TDuration::MilliSeconds(250);
+
+    for (auto sleep : {false, true}) {
+        auto expectedStreamErrorCode = sleep ? NYT::EErrorCode::Timeout : NYT::EErrorCode::OK;
+        auto expectedInvokeErrorCode = sleep ? NYT::EErrorCode::Canceled : NYT::EErrorCode::OK;
+
+        auto req = proxy.ServerNotReading();
+        req->set_sleep(sleep);
+        auto invokeResult = req->Invoke();
+
+        auto data = SharedRefFromString("hello");
+        WaitFor(req->GetRequestAttachmentsStream()->Write(data))
+            .ThrowOnError();
+
+        auto streamError = WaitFor(req->GetRequestAttachmentsStream()->Close());
+        EXPECT_EQ(expectedStreamErrorCode, streamError.GetCode());
+        auto rspOrError = WaitFor(invokeResult);
+        EXPECT_EQ(expectedInvokeErrorCode, rspOrError.GetCode());
+    }
+
+    WaitFor(this->Service_->GetSlowCallCanceled())
+        .ThrowOnError();
+}
+
+TYPED_TEST(TNotGrpcTest, ServerNotWriting)
+{
+    TMyProxy proxy(this->CreateChannel());
+    proxy.DefaultClientAttachmentsStreamingParameters().ReadTimeout = TDuration::MilliSeconds(250);
+
+    for (auto sleep : {false, true}) {
+        auto expectedStreamErrorCode = sleep ? NYT::EErrorCode::Timeout : NYT::EErrorCode::OK;
+        auto expectedInvokeErrorCode = sleep ? NYT::EErrorCode::Canceled : NYT::EErrorCode::OK;
+
+        auto req = proxy.ServerNotWriting();
+        req->set_sleep(sleep);
+        auto invokeResult = req->Invoke();
+
+        WaitFor(req->GetResponseAttachmentsStream()->Read())
+            .ThrowOnError();
+
+        auto streamError = WaitFor(req->GetResponseAttachmentsStream()->Read());
+        EXPECT_EQ(expectedStreamErrorCode, streamError.GetCode());
+        auto rspOrError = WaitFor(invokeResult);
+        EXPECT_EQ(expectedInvokeErrorCode, rspOrError.GetCode());
+    }
+
+    WaitFor(this->Service_->GetSlowCallCanceled())
         .ThrowOnError();
 }
 
@@ -1431,6 +1602,35 @@ TEST_F(TAttachmentsOutputStreamTest, CloseTimeout)
     auto future = stream->Close();
     EXPECT_FALSE(future.IsSet());
     auto error = future.Get();
+    EXPECT_FALSE(error.IsOK());
+    EXPECT_EQ(NYT::EErrorCode::Timeout, error.GetCode());
+}
+
+TEST_F(TAttachmentsOutputStreamTest, CloseTimeout2)
+{
+    auto stream = CreateStream(10, TDuration::MilliSeconds(100));
+
+    auto payload = TSharedRef::FromString("abc");
+
+    auto future1 = stream->Write(payload);
+    EXPECT_TRUE(future1.IsSet());
+    EXPECT_TRUE(future1.Get().IsOK());
+
+    auto future2 = stream->Write(payload);
+    EXPECT_TRUE(future2.IsSet());
+    EXPECT_TRUE(future2.Get().IsOK());
+
+    auto future3 = stream->Close();
+    EXPECT_FALSE(future3.IsSet());
+
+    stream->HandleFeedback({3});
+
+    EXPECT_FALSE(future3.IsSet());
+
+    Sleep(TDuration::MilliSeconds(500));
+
+    ASSERT_TRUE(future3.IsSet());
+    auto error = future3.Get();
     EXPECT_FALSE(error.IsOK());
     EXPECT_EQ(NYT::EErrorCode::Timeout, error.GetCode());
 }

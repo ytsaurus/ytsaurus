@@ -690,7 +690,9 @@ public:
         for (int index = 0; index < rowCount; ++index) {
             rows[index] = ReadSchemafulRow(schemaData, deep);
         }
-        return TSharedRange<TUnversionedRow>(rows, rows + rowCount, RowBuffer_);
+
+        auto range = TRange<TUnversionedRow>(rows, rows + rowCount);
+        return deep ? MakeSharedRange(range, RowBuffer_) : MakeSharedRange(range, RowBuffer_, Data_);
     }
 
     TSharedRange<TUnversionedRow> ReadUnversionedRowset(bool deep)
@@ -700,7 +702,8 @@ public:
         for (int index = 0; index < rowCount; ++index) {
             rows[index] = ReadUnversionedRow(deep);
         }
-        return TSharedRange<TUnversionedRow>(rows, rows + rowCount, RowBuffer_);
+        auto range = TRange<TUnversionedRow>(rows, rows + rowCount);
+        return deep ? MakeSharedRange(range, RowBuffer_) : MakeSharedRange(range, RowBuffer_, Data_);
     }
 
     TSharedRange<TVersionedRow> ReadVersionedRowset(const TSchemaData& schemaData, bool deep)
@@ -710,7 +713,8 @@ public:
         for (int index = 0; index < rowCount; ++index) {
             rows[index] = ReadVersionedRow(schemaData, deep);
         }
-        return TSharedRange<TVersionedRow>(rows, rows + rowCount, RowBuffer_);
+        auto range = TRange<TVersionedRow>(rows, rows + rowCount);
+        return deep ? MakeSharedRange(range, RowBuffer_) : MakeSharedRange(range, RowBuffer_, Data_);
     }
 
 private:

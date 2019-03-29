@@ -842,7 +842,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
 
         auto jobSplitterConfig = GetJobSplitterConfig();
         if (jobSplitterConfig) {
-            JobSplitter_ = CreateJobSplitter(jobSplitterConfig, OperationId);
+            JobSplitter_ = CreateJobSplitter(std::move(jobSplitterConfig), OperationId);
         }
 
         if (State != EControllerState::Preparing) {
@@ -1090,7 +1090,7 @@ TAutoMergeDirector* TOperationControllerBase::GetAutoMergeDirector()
 
 TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
     ETransactionType type,
-    NNative::IClientPtr client,
+    const NNative::IClientPtr& client,
     TTransactionId parentTransactionId,
     TTransactionId prerequisiteTransactionId)
 {
@@ -1846,7 +1846,7 @@ void TOperationControllerBase::SafeOnJobStarted(std::unique_ptr<TStartedJobSumma
     LogProgress();
 }
 
-void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, const TStatistics& statistics, bool resourceOverdraft)
+void TOperationControllerBase::UpdateMemoryDigests(const TJobletPtr& joblet, const TStatistics& statistics, bool resourceOverdraft)
 {
     bool taskUpdateNeeded = false;
 
@@ -2018,6 +2018,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
 
     auto joblet = GetJoblet(jobId);
 
+    // Controller should abort job if its competitor has already completed.
     auto maybeAbortReason = joblet->Task->ShouldAbortJob(joblet);
     if (maybeAbortReason) {
         YT_LOG_DEBUG("Job is considered aborted since its competitor has already completed (JobId: %v)", jobId);
@@ -2047,7 +2048,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     if (jobSummary->InterruptReason != EInterruptReason::None) {
         jobSummary->SplitJobCount = EstimateSplitJobCount(*jobSummary, joblet);
         if (jobSummary->InterruptReason == EInterruptReason::JobSplit) {
-            // If we interrupted job on our own decision, (from JobSpliter), we should at least try to split it into 2 pieces.
+            // If we interrupted job on our own decision, (from JobSplitter), we should at least try to split it into 2 pieces.
             // Otherwise, the whole splitting thing makes to sense.
             jobSummary->SplitJobCount = std::max(2, jobSummary->SplitJobCount);
         }
@@ -3387,7 +3388,7 @@ void TOperationControllerBase::RegisterTaskGroup(TTaskGroupPtr group)
     TaskGroups.push_back(std::move(group));
 }
 
-void TOperationControllerBase::UpdateTask(TTaskPtr task)
+void TOperationControllerBase::UpdateTask(const TTaskPtr& task)
 {
     int oldPendingJobCount = CachedPendingJobCount;
     int newPendingJobCount = CachedPendingJobCount + task->GetPendingJobCountDelta();
@@ -3431,7 +3432,7 @@ void TOperationControllerBase::UpdateAllTasksIfNeeded()
 }
 
 void TOperationControllerBase::MoveTaskToCandidates(
-    TTaskPtr task,
+    const TTaskPtr& task,
     std::multimap<i64, TTaskPtr>& candidateTasks)
 {
     const auto& neededResources = task->GetMinNeededResources();
@@ -3465,7 +3466,7 @@ void TOperationControllerBase::AddAllTaskPendingHints()
     }
 }
 
-void TOperationControllerBase::DoAddTaskLocalityHint(TTaskPtr task, TNodeId nodeId)
+void TOperationControllerBase::DoAddTaskLocalityHint(const TTaskPtr& task, TNodeId nodeId)
 {
     auto group = task->GetGroup();
     if (group->NodeIdToTasks[nodeId].insert(task).second) {
@@ -3499,7 +3500,7 @@ void TOperationControllerBase::AddTaskLocalityHint(const TChunkStripePtr& stripe
 void TOperationControllerBase::ResetTaskLocalityDelays()
 {
     YT_LOG_DEBUG("Task locality delays are reset");
-    for (auto group : TaskGroups) {
+    for (const auto& group : TaskGroups) {
         for (const auto& pair : group->DelayedTasks) {
             auto task = pair.second;
             if (task->GetPendingJobCount() > 0) {
@@ -3515,7 +3516,7 @@ void TOperationControllerBase::ResetTaskLocalityDelays()
 }
 
 bool TOperationControllerBase::CheckJobLimits(
-    TTaskPtr task,
+    const TTaskPtr& task,
     const TJobResourcesWithQuota& jobLimits,
     const TJobResourcesWithQuota& nodeResourceLimits)
 {
@@ -5879,25 +5880,24 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
 
 int TOperationControllerBase::EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const TJobletPtr& joblet)
 {
-    int jobCount = 1;
-
-    if (JobSplitter_ && GetPendingJobCount() == 0) {
-        auto inputDataStatistics = GetTotalInputDataStatistics(*jobSummary.Statistics);
-
-        // We don't estimate unread row count based on unread slices,
-        // because foreign slices are not passed back to scheduler.
-        // Instead, we take the difference between estimated row count and actual read row count.
-        i64 unreadRowCount = joblet->InputStripeList->TotalRowCount - inputDataStatistics.row_count();
-
-        if (unreadRowCount <= 0) {
-            // This is almost impossible, still we don't want to fail operation in this case.
-            YT_LOG_WARNING("Estimated unread row count is negative (JobId: %v, UnreadRowCount: %v)", jobSummary.Id, unreadRowCount);
-            unreadRowCount = 1;
-        }
-
-        jobCount = JobSplitter_->EstimateJobCount(jobSummary, unreadRowCount);
+    if (!JobSplitter_ || GetPendingJobCount() > 0) {
+        return 1;
     }
-    return jobCount;
+
+    auto inputDataStatistics = GetTotalInputDataStatistics(*jobSummary.Statistics);
+
+    // We don't estimate unread row count based on unread slices,
+    // because foreign slices are not passed back to scheduler.
+    // Instead, we take the difference between estimated row count and actual read row count.
+    i64 unreadRowCount = joblet->InputStripeList->TotalRowCount - inputDataStatistics.row_count();
+
+    if (unreadRowCount <= 0) {
+        // This is almost impossible, still we don't want to fail operation in this case.
+        YT_LOG_WARNING("Estimated unread row count is negative (JobId: %v, UnreadRowCount: %v)", jobSummary.Id, unreadRowCount);
+        unreadRowCount = 1;
+    }
+
+    return JobSplitter_->EstimateJobCount(jobSummary, unreadRowCount);
 }
 
 TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
@@ -7045,13 +7045,15 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_port_count(config->PortCount);
     jobSpec->set_use_porto_memory_tracking(config->UsePortoMemoryTracking);
 
-    // COMPAT(ignat): remove after node update.
-    if (config->TmpfsVolumes.size() == 1) {
-        jobSpec->set_tmpfs_size(config->TmpfsVolumes[0]->Size);
-        jobSpec->set_tmpfs_path(config->TmpfsVolumes[0]->Path);
-    }
-    for (const auto& volume : config->TmpfsVolumes) {
-        ToProto(jobSpec->add_tmpfs_volumes(), *volume);
+    if (Config->EnableTmpfs) {
+        // COMPAT(ignat): remove after node update.
+        if (config->TmpfsVolumes.size() == 1) {
+            jobSpec->set_tmpfs_size(config->TmpfsVolumes[0]->Size);
+            jobSpec->set_tmpfs_path(config->TmpfsVolumes[0]->Path);
+        }
+        for (const auto& volume : config->TmpfsVolumes) {
+            ToProto(jobSpec->add_tmpfs_volumes(), *volume);
+        }
     }
 
     if (config->DiskSpaceLimit) {
