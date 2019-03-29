@@ -864,9 +864,11 @@ private:
 
     std::vector<TString> ParsePoolTrees(const TOperationSpecBasePtr& spec, EOperationType operationType) const
     {
-        for (const auto& treeId : spec->PoolTrees) {
-            if (!FindTree(treeId)) {
-                THROW_ERROR_EXCEPTION("Pool tree %Qv not found", treeId);
+        if (spec->PoolTrees) {
+            for (const auto& treeId : *spec->PoolTrees) {
+                if (!FindTree(treeId)) {
+                    THROW_ERROR_EXCEPTION("Pool tree %Qv not found", treeId);
+                }
             }
         }
 
@@ -877,23 +879,29 @@ private:
             tentativePoolTrees = Config->DefaultTentativePoolTrees;
         }
 
-        if (!tentativePoolTrees.empty() && spec->PoolTrees.empty()) {
-            THROW_ERROR_EXCEPTION("Regular pool trees must be specified for tentative pool trees to work properly");
+        if (!tentativePoolTrees.empty() && (!spec->PoolTrees || spec->PoolTrees->empty())) {
+            THROW_ERROR_EXCEPTION("Regular pool trees must be explicitly specified for tentative pool trees to work properly");
         }
 
         for (const auto& tentativePoolTree : tentativePoolTrees) {
-            if (spec->PoolTrees.contains(tentativePoolTree)) {
+            if (spec->PoolTrees && spec->PoolTrees->contains(tentativePoolTree)) {
                 THROW_ERROR_EXCEPTION("Regular and tentative pool trees must not intersect");
             }
         }
 
-        std::vector<TString> result(spec->PoolTrees.begin(), spec->PoolTrees.end());
-        if (result.empty()) {
+        std::vector<TString> result;
+        if (spec->PoolTrees) {
+            result = std::vector<TString>(spec->PoolTrees->begin(), spec->PoolTrees->end());
+        } else {
             if (!DefaultTreeId_) {
                 THROW_ERROR_EXCEPTION("Failed to determine fair-share tree for operation since "
                     "valid pool trees are not specified and default fair-share tree is not configured");
             }
             result.push_back(*DefaultTreeId_);
+        }
+
+        if (result.empty()) {
+            THROW_ERROR_EXCEPTION("No pool trees are specified for operation");
         }
 
         // Data shuffling shouldn't be launched in tentative trees.

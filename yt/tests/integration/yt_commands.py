@@ -87,7 +87,6 @@ def force_native_driver(func):
 
     return decorator.decorate(func, wrapper)
 
-
 def init_drivers(clusters):
     for instance in clusters:
         if instance.master_count > 0:
@@ -468,7 +467,6 @@ def read_blob_table(path, **kwargs):
     output = StringIO()
     execute_command("read_blob_table", kwargs, output_stream=output)
     return output.getvalue()
-
 
 @force_native_driver
 def write_table(path, value=None, is_raw=False, **kwargs):

@@ -132,7 +132,9 @@ TString ParseAttributes(const TString& str, IAttributeDictionary* attributes)
 
     NYson::TTokenizer tokenizer(TStringBuf(str).SubStr(spaceCount));
     tokenizer.ParseNext();
-    YCHECK(tokenizer.CurrentToken().GetType() == NYson::ETokenType::LeftAngle);
+    if (tokenizer.CurrentToken().GetType() != NYson::ETokenType::LeftAngle) {
+        ThrowUnexpectedToken(tokenizer.CurrentToken());
+    }
 
     int depth = 0;
     int attrStartPosition = spaceCount + 1;
@@ -337,6 +339,22 @@ void ParseRowRanges(NYson::TTokenizer& tokenizer, IAttributeDictionary* attribut
     }
 }
 
+void AppendAttributes(TStringBuilderBase* builder, const IAttributeDictionary& attributes)
+{
+    TString attrString;
+    TStringOutput output(attrString);
+    TYsonWriter writer(&output, EYsonFormat::Binary, EYsonType::MapFragment);
+
+    BuildYsonAttributesFluently(&writer)
+        .Items(attributes);
+
+    if (!attrString.empty()) {
+        builder->AppendChar(TokenTypeToChar(NYson::ETokenType::LeftAngle));
+        builder->AppendString(attrString);
+        builder->AppendChar(TokenTypeToChar(NYson::ETokenType::RightAngle));
+    }
+}
+
 template <class TFunc>
 auto RunAttributeAccessor(const TRichYPath& path, const TString& key, TFunc accessor) -> decltype(accessor())
 {
@@ -497,7 +515,7 @@ bool TRichYPath::HasNontrivialRanges() const
     auto optionalUpperLimit = FindAttribute<TReadLimit>(*this, "upper_limit");
     auto optionalRanges = FindAttribute<std::vector<TReadRange>>(*this, "ranges");
 
-    return optionalUpperLimit || optionalUpperLimit || optionalRanges;
+    return optionalLowerLimit || optionalUpperLimit || optionalRanges;
 }
 
 std::optional<TString> TRichYPath::GetFileName() const
@@ -589,16 +607,34 @@ std::optional<std::vector<TSecurityTag>> TRichYPath::GetSecurityTags() const
 
 TString ToString(const TRichYPath& path)
 {
-    auto keys = path.Attributes().List();
-    if (keys.empty()) {
-        return path.GetPath();
+    const IAttributeDictionary* attributes = nullptr;
+    std::unique_ptr<IAttributeDictionary> attrHolder;
+    auto columns = path.GetColumns();
+
+    if (columns) {
+        attrHolder = path.Attributes().Clone();
+        attrHolder->Remove("columns");
+        attributes = attrHolder.get();
+    } else {
+        attributes = &path.Attributes();
     }
 
-    return
-        TString('<') +
-        ConvertToYsonString(path.Attributes()).GetData() +
-        TString('>') +
-        path.GetPath();
+    TStringBuilder builder;
+
+    AppendAttributes(&builder, *attributes);
+    builder.AppendString(path.GetPath());
+    if (columns) {
+        builder.AppendChar(TokenTypeToChar(BeginColumnSelectorToken));
+        JoinToString(
+            &builder,
+            columns->begin(),
+            columns->end(),
+            TDefaultFormatter(),
+            TokenTypeToString(ColumnSeparatorToken));
+        builder.AppendChar(TokenTypeToChar(EndColumnSelectorToken));
+    }
+
+    return builder.Flush();
 }
 
 std::vector<TRichYPath> Normalize(const std::vector<TRichYPath>& paths)

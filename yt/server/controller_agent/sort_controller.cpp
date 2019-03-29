@@ -2190,7 +2190,8 @@ protected:
         }
 
         if (dataSliceCount > Spec->MaxMergeDataSliceCount) {
-            OnOperationFailed(TError("Too many data slices in merge pools, try to decrease size of intermediate data or split operation into several smaller ones")
+            OnOperationFailed(TError("Too many data slices in merge pools, try to decrease size of "
+                "intermediate data or split operation into several smaller ones")
                 << TErrorAttribute("merge_data_slice_count", dataSliceCount)
                 << TErrorAttribute("max_merge_data_slice_count", Spec->MaxMergeDataSliceCount));
         }

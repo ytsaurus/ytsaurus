@@ -14,6 +14,12 @@ TSharedRef TMessageStringBuilder::Flush()
     return Buffer_.Slice(0, GetLength());
 }
 
+void TMessageStringBuilder::DisablePerThreadCache()
+{
+    Cache_ = nullptr;
+    CacheDestroyed_ = true;
+}
+
 void TMessageStringBuilder::DoReset()
 {
     Buffer_.Reset();
@@ -23,16 +29,21 @@ void TMessageStringBuilder::DoPreallocate(size_t newLength)
 {
     auto oldLength = GetLength();
     newLength = FastClp2(newLength);
-    auto* context = GetContext();
-    if (Y_UNLIKELY(context->ChunkOffset + newLength > context->Chunk.Size())) {
-        auto chunkSize = std::max(ChunkSize, newLength);
-        context->Chunk = TSharedMutableRef::Allocate<TMessageBufferTag>(chunkSize, false);
-        context->ChunkOffset = 0;
-    }
+    auto newChunkSize = std::max(ChunkSize, newLength);
     // Hold the old buffer until the data is copied.
     auto oldBuffer = std::move(Buffer_);
-    Buffer_ = context->Chunk.Slice(context->ChunkOffset, context->ChunkOffset + newLength);
-    context->ChunkOffset += newLength;
+    auto* cache = GetCache();
+    if (Y_LIKELY(cache)) {
+        if (Y_UNLIKELY(cache->ChunkOffset + newLength > cache->Chunk.Size())) {
+            cache->Chunk = TSharedMutableRef::Allocate<TMessageBufferTag>(newChunkSize, false);
+            cache->ChunkOffset = 0;
+        }
+        Buffer_ = cache->Chunk.Slice(cache->ChunkOffset, cache->ChunkOffset + newLength);
+        cache->ChunkOffset += newLength;
+    } else {
+        Buffer_ = TSharedMutableRef::Allocate<TMessageBufferTag>(newChunkSize, false);
+        newLength = newChunkSize;
+    }
     if (oldLength > 0) {
         ::memcpy(Buffer_.Begin(), Begin_, oldLength);
     }
@@ -40,16 +51,26 @@ void TMessageStringBuilder::DoPreallocate(size_t newLength)
     End_ = Begin_ + newLength;
 }
 
-TMessageStringBuilder::TContext* TMessageStringBuilder::GetContext()
+TMessageStringBuilder::TPerThreadCache* TMessageStringBuilder::GetCache()
 {
-    if (Y_UNLIKELY(!Context_)) {
-        Y_STATIC_THREAD(TContext) Context;
-        Context_ = &Context;
+    if (Y_LIKELY(Cache_)) {
+        return Cache_;
     }
-    return Context_;
+    if (CacheDestroyed_) {
+        return nullptr;
+    }
+    Y_STATIC_THREAD(TPerThreadCache) Cache;
+    Cache_ = &Cache;
+    return Cache_;
 }
 
-Y_POD_THREAD(TMessageStringBuilder::TContext*) TMessageStringBuilder::Context_;
+TMessageStringBuilder::TPerThreadCache::~TPerThreadCache()
+{
+    TMessageStringBuilder::DisablePerThreadCache();
+}
+
+Y_POD_THREAD(TMessageStringBuilder::TPerThreadCache*) TMessageStringBuilder::Cache_;
+Y_POD_THREAD(bool) TMessageStringBuilder::CacheDestroyed_;
 
 } // namespace NDetail
 

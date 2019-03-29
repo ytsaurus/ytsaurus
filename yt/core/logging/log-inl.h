@@ -38,21 +38,27 @@ class TMessageStringBuilder
 public:
     TSharedRef Flush();
 
+    // For testing only.
+    static void DisablePerThreadCache();
+
 protected:
     virtual void DoReset() override;
     virtual void DoPreallocate(size_t newLength) override;
 
 private:
-    struct TContext
+    struct TPerThreadCache
     {
+        ~TPerThreadCache();
+
         TSharedMutableRef Chunk;
         size_t ChunkOffset = 0;
     };
 
     TSharedMutableRef Buffer_;
 
-    Y_POD_STATIC_THREAD(TContext*) Context_;
-    static TContext* GetContext();
+    Y_POD_STATIC_THREAD(TPerThreadCache*) Cache_;
+    Y_POD_STATIC_THREAD(bool) CacheDestroyed_;
+    static TPerThreadCache* GetCache();
 
     static constexpr size_t ChunkSize = 64_KB;
 };

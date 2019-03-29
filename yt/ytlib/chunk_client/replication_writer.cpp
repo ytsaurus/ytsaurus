@@ -290,7 +290,7 @@ public:
 
         TChunkReplicaList chunkReplicas;
         for (const auto& node : Nodes_) {
-            if (node->IsAlive()) {
+            if (node->IsAlive() && node->IsFinished) {
                 chunkReplicas.push_back(node->ChunkReplica);
             }
         }

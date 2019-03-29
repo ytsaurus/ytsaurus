@@ -1,10 +1,6 @@
 from yt_env_setup import YTEnvSetup, unix_only
 from yt_commands import *
 
-from yt.yson import to_yson_type, loads
-from yt.environment.helpers import assert_items_equal
-
-from time import sleep
 import pytest
 
 ##################################################################
@@ -285,4 +281,9 @@ class TestConcatenate(YTEnvSetup):
 
 class TestConcatenateMulticell(TestConcatenate):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+class TestConcatenateRpcProxy(TestConcatenate):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_PROXY = True
+    ENABLE_RPC_PROXY = True
 

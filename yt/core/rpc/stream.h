@@ -133,6 +133,7 @@ private:
     TRingQueue<TSharedRef> DataQueue_;
     TRingQueue<TConfirmationEntry> ConfirmationQueue_;
     TPromise<void> ClosePromise_;
+    NConcurrency::TDelayedExecutorCookie CloseTimeoutCookie_;
     bool Closed_ = false;
     ssize_t WritePosition_ = 0;
     ssize_t SentPosition_ = 0;

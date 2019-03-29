@@ -538,10 +538,10 @@ std::unique_ptr<IShuffleChunkPool> CreateShuffleChunkPool(
     i64 dataWeightThreshold,
     i64 chunkSliceThreshold)
 {
-    return std::unique_ptr<IShuffleChunkPool>(new TShuffleChunkPool(
+    return std::make_unique<TShuffleChunkPool>(
         partitionCount,
         dataWeightThreshold,
-        chunkSliceThreshold));
+        chunkSliceThreshold);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

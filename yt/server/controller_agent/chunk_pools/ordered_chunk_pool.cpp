@@ -143,7 +143,7 @@ public:
                 jobSummary.InterruptReason,
                 jobSummary.SplitJobCount);
             JobManager_->Invalidate(cookie);
-            SplitJob(std::move(jobSummary.UnreadInputDataSlices), jobSummary.SplitJobCount, cookie);
+            SplitJob(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount, cookie);
         }
         JobManager_->Completed(cookie, jobSummary.InterruptReason);
     }

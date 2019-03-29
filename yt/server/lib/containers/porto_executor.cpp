@@ -453,7 +453,7 @@ const std::vector<TString> TPortoExecutor::ContainerRequestVars_ = {
 
 IPortoExecutorPtr CreatePortoExecutor(TDuration retryTime, TDuration pollPeriod)
 {
-    std::unique_ptr<Porto::Connection> api(new Porto::Connection);
+    auto api = std::make_unique<Porto::Connection>();
     return New<TPortoExecutor>(std::move(api), retryTime, pollPeriod);
 }
 
