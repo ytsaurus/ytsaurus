@@ -38,12 +38,12 @@ func (r *reduceReader) Next() bool {
 //         })
 //     }
 func GroupKeys(r Reader, onKey func(r Reader) error) error {
-	reduceReader := reduceReader{Reader: r}
+	rr := reduceReader{Reader: r}
 
-	reduceReader.end = !r.Next()
-	for !reduceReader.end {
-		reduceReader.firstRow = true
-		if err := onKey(&reduceReader); err != nil {
+	rr.end = !r.Next()
+	for !rr.end {
+		rr.firstRow = true
+		if err := onKey(&rr); err != nil {
 			return err
 		}
 	}
