@@ -8,9 +8,13 @@
 
 #include <yt/core/misc/memory_tag.h>
 
+#include <yt/core/profiling/timing.h>
+
 #include <util/generic/singleton.h>
 
 namespace NYT::NConcurrency {
+
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,6 +113,8 @@ void TFiber::SetRunning()
     Y_ASSERT(State_ != EFiberState::Terminated);
     State_ = EFiberState::Running;
     AwaitedFuture_.Reset();
+    RunStartInstant_ = NProfiling::GetCpuInstant();
+    InstallTraceContext(RunStartInstant_, std::move(SavedTraceContext_));
 }
 
 void TFiber::SetSleeping(TFuture<void> awaitedFuture)
@@ -117,6 +123,7 @@ void TFiber::SetSleeping(TFuture<void> awaitedFuture)
 
     TGuard<TSpinLock> guard(SpinLock_);
     UnwindIfCanceled();
+    FinishRunning();
     Y_ASSERT(State_ != EFiberState::Terminated);
     State_ = EFiberState::Sleeping;
     Y_ASSERT(!AwaitedFuture_);
@@ -128,6 +135,7 @@ void TFiber::SetSuspended()
     // THREAD_AFFINITY(OwnerThread);
 
     TGuard<TSpinLock> guard(SpinLock_);
+    FinishRunning();
     Y_ASSERT(State_ != EFiberState::Terminated);
     State_ = EFiberState::Suspended;
     AwaitedFuture_.Reset();
@@ -242,6 +250,7 @@ void TFiber::DoRunNaked()
     // NB: All other uncaught exceptions will lead to std::terminate().
     // This way we preserve the much-needed backtrace.
 
+    FinishRunning();
     State_ = EFiberState::Terminated;
 
     GetCurrentScheduler()->Return();
@@ -297,6 +306,24 @@ void TFiber::SetMemoryZone(EMemoryZone zone)
 bool TFiber::CheckFreeStackSpace(size_t space) const
 {
     return reinterpret_cast<char*>(Stack_->GetStack()) + space < __builtin_frame_address(0);
+}
+
+NProfiling::TCpuDuration TFiber::GetRunCpuTime() const
+{
+    // THREAD_AFFINITY(OwnerThread);
+    Y_ASSERT(State_ == EFiberState::Running);
+
+    return RunCpuTime_ + std::max<NProfiling::TCpuDuration>(0, NProfiling::GetCpuInstant() - RunStartInstant_);
+}
+
+void TFiber::FinishRunning()
+{
+    if (State_ != EFiberState::Running) {
+        return;
+    }
+    auto now = NProfiling::GetCpuInstant();
+    SavedTraceContext_ = UninstallTraceContext(now);
+    RunCpuTime_ += std::max<NProfiling::TCpuDuration>(0, now - RunStartInstant_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

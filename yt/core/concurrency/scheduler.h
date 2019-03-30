@@ -72,6 +72,12 @@ TFiberId GetCurrentFiberId();
 //! Sets the current fiber id.
 void SetCurrentFiberId(TFiberId id);
 
+//! Returns the current fiber id. Fails if there's none.
+const TFiber* GetCurrentFiber();
+
+//! Sets the current fiber id.
+void SetCurrentFiber(const TFiber* fiber);
+
 ////////////////////////////////////////////////////////////////////////////////
 // Shortcuts.
 

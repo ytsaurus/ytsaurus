@@ -41,4 +41,54 @@ TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern Y_POD_THREAD(IScheduler*) CurrentScheduler;
+
+Y_FORCE_INLINE IScheduler* GetCurrentScheduler()
+{
+    Y_ASSERT(CurrentScheduler);
+    return CurrentScheduler;
+}
+
+Y_FORCE_INLINE IScheduler* TryGetCurrentScheduler()
+{
+    return CurrentScheduler;
+}
+
+Y_FORCE_INLINE void SetCurrentScheduler(IScheduler* scheduler)
+{
+    YCHECK(!CurrentScheduler);
+    CurrentScheduler = scheduler;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern Y_POD_THREAD(TFiberId) CurrentFiberId;
+
+Y_FORCE_INLINE TFiberId GetCurrentFiberId()
+{
+    return CurrentFiberId;
+}
+
+Y_FORCE_INLINE void SetCurrentFiberId(TFiberId id)
+{
+    CurrentFiberId = id;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern Y_POD_THREAD(const TFiber*) CurrentFiber;
+
+Y_FORCE_INLINE const TFiber* GetCurrentFiber()
+{
+    Y_ASSERT(CurrentFiber);
+    return CurrentFiber;
+}
+
+Y_FORCE_INLINE void SetCurrentFiber(const TFiber* fiber)
+{
+    CurrentFiber = fiber;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NConcurrency

@@ -99,7 +99,7 @@ public:
         , ReplyBus_(std::move(acceptedRequest.ReplyBus))
         , RuntimeInfo_(std::move(acceptedRequest.RuntimeInfo))
         , PerformanceCounters_(Service_->LookupMethodPerformanceCounters(RuntimeInfo_, User_))
-        , TraceContext_(acceptedRequest.TraceContext)
+        , TraceContext_(std::move(acceptedRequest.TraceContext))
         , ArrivalInstant_(GetCpuInstant())
 
     {
@@ -302,7 +302,7 @@ private:
     const IBusPtr ReplyBus_;
     const TRuntimeMethodInfoPtr RuntimeInfo_;
     TMethodPerformanceCounters* const PerformanceCounters_;
-    const NTracing::TTraceContext TraceContext_;
+    const NTracing::TTraceContextPtr TraceContext_;
 
     EMemoryZone ResponseMemoryZone_;
 
@@ -596,7 +596,7 @@ private:
 
     virtual void DoReply() override
     {
-        TRACE_ANNOTATION(
+        TRACE_ANNOTATION_WITH_CONTEXT(
             TraceContext_,
             Service_->ServiceId_.ServiceName,
             RuntimeInfo_->Descriptor.Method,
@@ -638,8 +638,8 @@ private:
 
     void HandleLoggingSuppression()
     {
-        auto traceId = NTracing::GetCurrentTraceContext().GetTraceId();
-        if (traceId == NTracing::InvalidTraceId) {
+        const auto* context = NTracing::GetCurrentTraceContext();
+        if (!context) {
             return;
         }
 
@@ -660,7 +660,7 @@ private:
             return;
         }
 
-        NLogging::TLogManager::Get()->SuppressTrace(traceId);
+        NLogging::TLogManager::Get()->SuppressTrace(context->GetTraceId());
     }
 
     void DoSetComplete()
@@ -974,17 +974,17 @@ void TServiceBase::HandleRequest(
     }
 
     auto traceContext = GetTraceContext(*header);
-    if (!traceContext.IsEnabled()) {
+    if (!traceContext) {
         traceContext = NTracing::CreateRootTraceContext(false);
     }
     NTracing::TTraceContextGuard traceContextGuard(traceContext);
 
-    TRACE_ANNOTATION(
+    TRACE_ANNOTATION_WITH_CONTEXT(
         traceContext,
         "server_host",
         NNet::GetLocalHostName());
 
-    TRACE_ANNOTATION(
+    TRACE_ANNOTATION_WITH_CONTEXT(
         traceContext,
         ServiceId_.ServiceName,
         method,
