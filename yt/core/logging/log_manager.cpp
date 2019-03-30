@@ -535,6 +535,10 @@ public:
                     LowBacklogWatermark_);
             }
         } else {
+            if (backlogEvents >= LowBacklogWatermark_) {
+                DequeueExecutor_->ScheduleOutOfBand();
+            }
+
             if (backlogEvents >= HighBacklogWatermark_) {
                 Suspended_ = true;
                 YT_LOG_WARNING("Backlog size has exceeded high watermark %v, logging suspended",
