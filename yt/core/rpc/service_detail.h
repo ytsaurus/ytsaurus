@@ -596,6 +596,12 @@ protected:
         //! Time between the request arrival and the moment when it is fully processed.
         NProfiling::TAggregateGauge TotalTimeCounter;
 
+        //! CPU time spent in the handler's fiber.
+        NProfiling::TAggregateGauge HandlerFiberTimeCounter;
+
+        //! CPU time spent in the trace context associated with the request (locally).
+        NProfiling::TMonotonicCounter TraceContextTimeCounter;
+
         //! Counts the number of bytes in requests message body.
         NProfiling::TMonotonicCounter RequestMessageBodySizeCounter;
 
@@ -753,7 +759,7 @@ private:
     TMethodPerformanceCountersPtr CreateMethodPerformanceCounters(
         const TRuntimeMethodInfoPtr& runtimeInfo,
         const TString& user);
-    TMethodPerformanceCounters* LookupMethodPerformanceCounters(
+    TMethodPerformanceCounters* GetMethodPerformanceCounters(
         const TRuntimeMethodInfoPtr& runtimeInfo,
         const TString& user);
 };
