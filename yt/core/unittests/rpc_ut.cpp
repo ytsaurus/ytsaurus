@@ -321,7 +321,8 @@ public:
         try {
             auto sleep = request->sleep();
             if (sleep) {
-                WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(1)));
+                WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(1)))
+                    .ThrowOnError();
             }
 
             WaitFor(context->GetRequestAttachmentsStream()->Read())
@@ -344,7 +345,8 @@ public:
         try {
             auto sleep = request->sleep();
             if (sleep) {
-                WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(1)));
+                WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(1)))
+                    .ThrowOnError();
             }
 
             WaitFor(context->GetResponseAttachmentsStream()->Close())
