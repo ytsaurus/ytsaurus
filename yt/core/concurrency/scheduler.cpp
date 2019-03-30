@@ -6,28 +6,11 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-PER_THREAD IScheduler* CurrentScheduler = nullptr;
-
-IScheduler* GetCurrentScheduler()
-{
-    YCHECK(CurrentScheduler);
-    return CurrentScheduler;
-}
-
-IScheduler* TryGetCurrentScheduler()
-{
-    return CurrentScheduler;
-}
-
-void SetCurrentScheduler(IScheduler* scheduler)
-{
-    YCHECK(!CurrentScheduler);
-    CurrentScheduler = scheduler;
-}
+Y_POD_THREAD(IScheduler*) CurrentScheduler;
+Y_POD_THREAD(TFiberId) CurrentFiberId;
+Y_POD_THREAD(const TFiber*) CurrentFiber;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-PER_THREAD TFiberId CurrentFiberId = InvalidFiberId;
 
 static class TFiberIdGenerator
 {
@@ -59,16 +42,6 @@ private:
 TFiberId GenerateFiberId()
 {
     return FiberIdGenerator.Generate();
-}
-
-TFiberId GetCurrentFiberId()
-{
-    return CurrentFiberId;
-}
-
-void SetCurrentFiberId(TFiberId id)
-{
-    CurrentFiberId = id;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

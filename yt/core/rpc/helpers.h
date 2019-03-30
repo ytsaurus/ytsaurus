@@ -54,12 +54,12 @@ IChannelPtr CreateFailureDetectingChannel(
 
 //! Returns the trace context associated with the request.
 //! If no trace context is attached, returns a disabled context.
-NTracing::TTraceContext GetTraceContext(const NProto::TRequestHeader& header);
+NTracing::TTraceContextPtr GetTraceContext(const NProto::TRequestHeader& header);
 
 //! Attaches a given trace context to the request.
 void SetTraceContext(
     NProto::TRequestHeader* header,
-    const NTracing::TTraceContext& context);
+    const NTracing::TTraceContextPtr& context);
 
 //! Generates a random mutation id.
 TMutationId GenerateMutationId();

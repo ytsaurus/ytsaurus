@@ -288,7 +288,7 @@ private:
         std::unique_ptr<TMutation> Mutation;
         TRequestHeader RequestHeader;
         TSharedRefArray RequestMessage;
-        NTracing::TTraceContext TraceContext;
+        NTracing::TTraceContextPtr TraceContext;
     };
 
     std::vector<TSubrequest> Subrequests_;
@@ -575,11 +575,13 @@ private:
             return true;
         }
 
-        NTracing::TraceEvent(
-            subrequest.TraceContext,
-            subrequest.RequestHeader.service(),
-            subrequest.RequestHeader.method(),
-            NTracing::ServerReceiveAnnotation);
+        if (subrequest.TraceContext) {
+            NTracing::TraceEvent(
+                *subrequest.TraceContext,
+                subrequest.RequestHeader.service(),
+                subrequest.RequestHeader.method(),
+                NTracing::ServerReceiveAnnotation);
+        }
 
         Revisions_[CurrentSubrequestIndex_] = HydraFacade_->GetHydraManager()->GetAutomatonVersion().ToRevision();
 
@@ -682,9 +684,9 @@ private:
             return;
         }
 
-        if (subrequest->Context) {
+        if (subrequest->TraceContext) {
             NTracing::TraceEvent(
-                subrequest->TraceContext,
+                *subrequest->TraceContext,
                 subrequest->RequestHeader.service(),
                 subrequest->RequestHeader.method(),
                 NTracing::ServerSendAnnotation);

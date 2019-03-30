@@ -35,18 +35,16 @@ namespace NYT::NDetail {
 struct TBindStateBase
     : public TIntrinsicRefCounted
 {
-public:
     explicit TBindStateBase(
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
         const TSourceLocation& location
 #endif
     );
 
-    NTracing::TTraceContext TraceContext;
+    NTracing::TTraceContextPtr TraceContext;
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
     TSourceLocation Location;
 #endif
-
 };
 
 //! Holds the TCallback methods that don't require specialization to reduce

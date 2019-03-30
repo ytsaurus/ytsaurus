@@ -1,6 +1,5 @@
 #pragma once
 
-#include "public.h"
 #include "execution_context.h"
 #include "execution_stack.h"
 
@@ -9,6 +8,10 @@
 #include <yt/core/misc/memory_tag.h>
 #include <yt/core/misc/memory_zone.h>
 #include <yt/core/misc/small_vector.h>
+
+#include <yt/core/profiling/public.h>
+
+#include <yt/core/tracing/public.h>
 
 #include <atomic>
 #include <forward_list>
@@ -176,6 +179,14 @@ public:
      */
     bool CheckFreeStackSpace(size_t space) const;
 
+    //! Returns the duration the fiber is running.
+    //! This counts CPU wall time but excludes periods the fiber was sleeping.
+    //! The call only makes sense if the fiber is currently runnning.
+    /*!
+     *  Thread affinity: OwnerThread
+     */
+    NProfiling::TCpuDuration GetRunCpuTime() const;
+
 private:
     TFiberId Id_;
 #ifdef DEBUG
@@ -183,6 +194,11 @@ private:
 #endif
 
     TSpinLock SpinLock_;
+
+    NTracing::TTraceContextPtr SavedTraceContext_;
+
+    NProfiling::TCpuInstant RunStartInstant_ = 0;
+    NProfiling::TCpuDuration RunCpuTime_ = 0;
 
     EFiberState State_ = EFiberState::Suspended;
     TFuture<void> AwaitedFuture_;
@@ -203,6 +219,8 @@ private:
     TContextSwitchHandlersList SwitchHandlers_;
 
     void FsdResize();
+
+    void FinishRunning();
 
     // ITrampoLine implementation
     virtual void DoRunNaked() override;

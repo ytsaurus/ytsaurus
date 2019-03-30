@@ -29,7 +29,7 @@ static const auto RequestIdAnnotation = TString("request_id");
 
 TClientContext::TClientContext(
     TRequestId requestId,
-    const NTracing::TTraceContext& traceContext,
+    NTracing::TTraceContextPtr traceContext,
     const TString& service,
     const TString& method,
     bool heavy,
@@ -37,7 +37,7 @@ TClientContext::TClientContext(
     TAttachmentsOutputStreamPtr requestAttachmentsStream,
     TAttachmentsInputStreamPtr responseAttachmentsStream)
     : RequestId_(requestId)
-    , TraceContext_(traceContext)
+    , TraceContext_(std::move(traceContext))
     , Service_(service)
     , Method_(method)
     , Heavy_(heavy)
@@ -260,12 +260,11 @@ void TClientRequest::SetMultiplexingBand(EMultiplexingBand band)
 TClientContextPtr TClientRequest::CreateClientContext()
 {
     auto traceContext = NTracing::CreateChildTraceContext();
-    if (traceContext.IsEnabled()) {
+    if (traceContext) {
         SetTraceContext(&Header(), traceContext);
-        TraceRequest(traceContext);
-    }
-    if (traceContext.IsVerbose()) {
-        TraceRequest(traceContext);
+        if (traceContext->IsVerbose()) {
+            TraceRequest(*traceContext);
+        }
     }
 
     if (StreamingEnabled_) {
@@ -284,7 +283,7 @@ TClientContextPtr TClientRequest::CreateClientContext()
 
     return New<TClientContext>(
         GetRequestId(),
-        traceContext,
+        std::move(traceContext),
         GetService(),
         GetMethod(),
         Heavy_,
@@ -485,11 +484,14 @@ void TClientResponse::Finish(const TError& error)
 
 void TClientResponse::TraceResponse()
 {
-    NTracing::TraceEvent(
-        ClientContext_->GetTraceContext(),
-        ClientContext_->GetService(),
-        ClientContext_->GetMethod(),
-        NTracing::ClientReceiveAnnotation);
+    const auto& traceContext = ClientContext_->GetTraceContext();
+    if (traceContext) {
+        NTracing::TraceEvent(
+            *traceContext,
+            ClientContext_->GetService(),
+            ClientContext_->GetMethod(),
+            NTracing::ClientReceiveAnnotation);
+    }
 }
 
 const IInvokerPtr& TClientResponse::GetInvoker()

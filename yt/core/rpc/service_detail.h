@@ -723,7 +723,7 @@ private:
         TRequestId RequestId;
         NYT::NBus::IBusPtr ReplyBus;
         TRuntimeMethodInfoPtr RuntimeInfo;
-        NTracing::TTraceContext TraceContext;
+        NTracing::TTraceContextPtr TraceContext;
         std::unique_ptr<NRpc::NProto::TRequestHeader> Header;
         TSharedRefArray Message;
     };

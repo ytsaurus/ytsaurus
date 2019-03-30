@@ -406,7 +406,7 @@ TEST_F(TLoggingTest, TraceSuppression)
 
         YT_LOG_INFO("Traced message");
 
-        TLogManager::Get()->SuppressTrace(traceContext.GetTraceId());
+        TLogManager::Get()->SuppressTrace(traceContext->GetTraceId());
     }
 
     YT_LOG_INFO("Info message");
