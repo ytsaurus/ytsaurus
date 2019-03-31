@@ -424,6 +424,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("max_offline_node_age", MaxOfflineNodeAge)
         .Default(TDuration::Hours(12));
 
+    RegisterParameter("skip_incorrect_operations", SkipIncorrectOperations)
+        .Default(false);
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {
