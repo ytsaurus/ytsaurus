@@ -454,6 +454,8 @@ public:
 
     TDuration MaxOfflineNodeAge;
 
+    bool SkipIncorrectOperations;
+
     TSchedulerConfig();
 };
 
