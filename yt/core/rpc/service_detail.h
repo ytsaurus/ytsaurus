@@ -597,7 +597,7 @@ protected:
         NProfiling::TAggregateGauge TotalTimeCounter;
 
         //! CPU time spent in the handler's fiber.
-        NProfiling::TAggregateGauge HandlerFiberTimeCounter;
+        NProfiling::TMonotonicCounter HandlerFiberTimeCounter;
 
         //! CPU time spent in the trace context associated with the request (locally).
         NProfiling::TMonotonicCounter TraceContextTimeCounter;
