@@ -178,7 +178,7 @@ const TClosure& TFiber::GetCanceler()
     TGuard<TSpinLock> guard(SpinLock_);
     if (!Canceler_) {
         TMemoryTagGuard guard(NullMemoryTag);
-        Canceler_ = BIND(&TFiber::Cancel, MakeWeak(this));
+        Canceler_ = BIND_DONT_CAPTURE_TRACE_CONTEXT(&TFiber::Cancel, MakeWeak(this));
     }
 
     return Canceler_;
