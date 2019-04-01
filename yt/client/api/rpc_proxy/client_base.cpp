@@ -508,7 +508,7 @@ NApi::IFileWriterPtr TClientBase::CreateFileWriter(
     auto req = proxy.CreateFileWriter();
     req->SetTimeout(config->DefaultStreamTimeout);
 
-    req->set_path(ConvertToYsonString(path).GetData());
+    ToProto(req->mutable_path(), path);
 
     req->set_compute_md5(options.ComputeMD5);
     if (options.Config) {
