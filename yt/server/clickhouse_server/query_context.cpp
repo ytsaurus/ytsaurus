@@ -1,13 +1,13 @@
 #include "query_context.h"
 
 #include "private.h"
-
+#include "config.h"
 #include "helpers.h"
 #include "attributes_helpers.h"
 #include "chunk_reader.h"
 #include "convert_row.h"
 #include "document.h"
-#include "job_input.h"
+#include "subquery.h"
 #include "read_job.h"
 #include "read_job_spec.h"
 #include "table_reader.h"
@@ -211,7 +211,7 @@ TTablePartList TQueryContext::GetTablesParts(
     const KeyCondition* keyCondition,
     size_t maxTableParts)
 {
-    auto fetchResult = FetchInput(Client(), names, keyCondition);
+    auto fetchResult = FetchInput(Client(), names, keyCondition, RowBuffer, Bootstrap_->GetConfig()->Engine->Subquery);
     auto chunkStripeList = BuildJobs(fetchResult.DataSlices, maxTableParts);
     return SerializeAsTablePartList(
         chunkStripeList,
@@ -247,11 +247,12 @@ bool TQueryContext::Exists(const TString& name)
 
 TQueryContext::TQueryContext(TBootstrap* bootstrap, TQueryId queryId, const DB::Context& context)
     : Logger(ServerLogger)
-      , User(TString(context.getClientInfo().initial_user))
-      , QueryId(queryId)
-      , QueryKind(static_cast<EQueryKind>(context.getClientInfo().query_kind))
-      , Bootstrap_(bootstrap)
-      , Host_(Bootstrap_->GetHost())
+    , User(TString(context.getClientInfo().initial_user))
+    , QueryId(queryId)
+    , QueryKind(static_cast<EQueryKind>(context.getClientInfo().query_kind))
+    , RowBuffer(New<TRowBuffer>())
+    , Bootstrap_(bootstrap)
+    , Host_(Bootstrap_->GetHost())
 {
     Logger.AddTag("QueryId: %v", queryId);
     YT_LOG_INFO("Query context created (User: %v, QueryKind: %v)", User, QueryKind);
