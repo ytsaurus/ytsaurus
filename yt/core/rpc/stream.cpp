@@ -475,23 +475,23 @@ void HandleInputStreamingRequest(
 {
     auto outputStream = context->GetResponseAttachmentsStream();
     YCHECK(outputStream);
-    while (auto block = NConcurrency::WaitFor(blockGenerator()).ValueOrThrow()) {
-        NConcurrency::WaitFor(outputStream->Write(block))
+    while (auto block = WaitFor(blockGenerator()).ValueOrThrow()) {
+        WaitFor(outputStream->Write(block))
             .ThrowOnError();
     }
 
-    NConcurrency::WaitFor(outputStream->Close())
+    WaitFor(outputStream->Close())
         .ThrowOnError();
     context->Reply(TError());
 };
 
 void HandleInputStreamingRequest(
     IServiceContextPtr context,
-    NConcurrency::IAsyncZeroCopyInputStreamPtr input)
+    IAsyncZeroCopyInputStreamPtr input)
 {
     HandleInputStreamingRequest(
         context,
-        BIND(&NConcurrency::IAsyncZeroCopyInputStream::Read, input));
+        BIND(&IAsyncZeroCopyInputStream::Read, input));
 }
 
 TSharedRef GenerateWriterFeedbackMessage(
@@ -516,10 +516,10 @@ void HandleOutputStreamingRequest(
 
     switch (feedbackStrategy) {
         case EWriterFeedbackStrategy::NoFeedback:
-            NConcurrency::WaitFor(outputStream->Close())
+            WaitFor(outputStream->Close())
                 .ThrowOnError();
-            while (auto block = NConcurrency::WaitFor(inputStream->Read()).ValueOrThrow()) {
-                NConcurrency::WaitFor(blockHandler(block))
+            while (auto block = WaitFor(inputStream->Read()).ValueOrThrow()) {
+                WaitFor(blockHandler(block))
                     .ThrowOnError();
             }
 
@@ -527,15 +527,15 @@ void HandleOutputStreamingRequest(
         case EWriterFeedbackStrategy::OnlyPositive:
             {
                 auto handshakeRef = GenerateWriterFeedbackMessage(EWriterFeedback::Handshake);
-                NConcurrency::WaitFor(outputStream->Write(handshakeRef))
+                WaitFor(outputStream->Write(handshakeRef))
                     .ThrowOnError();
 
-                while (auto block = NConcurrency::WaitFor(inputStream->Read()).ValueOrThrow()) {
-                    NConcurrency::WaitFor(blockHandler(block))
+                while (auto block = WaitFor(inputStream->Read()).ValueOrThrow()) {
+                    WaitFor(blockHandler(block))
                         .ThrowOnError();
 
                     auto ackRef = GenerateWriterFeedbackMessage(EWriterFeedback::Success);
-                    NConcurrency::WaitFor(outputStream->Write(ackRef))
+                    WaitFor(outputStream->Write(ackRef))
                         .ThrowOnError();
                 }
 
@@ -547,20 +547,20 @@ void HandleOutputStreamingRequest(
             Y_UNREACHABLE();
     }
 
-    NConcurrency::WaitFor(finalizer())
+    WaitFor(finalizer())
         .ThrowOnError();
     context->Reply(TError());
 }
 
 void HandleOutputStreamingRequest(
     IServiceContextPtr context,
-    NConcurrency::IAsyncZeroCopyOutputStreamPtr output,
+    IAsyncZeroCopyOutputStreamPtr output,
     EWriterFeedbackStrategy feedbackStrategy)
 {
     HandleOutputStreamingRequest(
         context,
-        BIND(&NConcurrency::IAsyncZeroCopyOutputStream::Write, output),
-        BIND(&NConcurrency::IAsyncZeroCopyOutputStream::Close, output),
+        BIND(&IAsyncZeroCopyOutputStream::Write, output),
+        BIND(&IAsyncZeroCopyOutputStream::Close, output),
         feedbackStrategy);
 }
 
