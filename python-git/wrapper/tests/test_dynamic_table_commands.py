@@ -4,6 +4,8 @@ from .helpers import TEST_DIR, set_config_option, get_tests_sandbox, wait
 
 from yt.wrapper.driver import get_command_list
 
+from yt.packages.six.moves import xrange
+
 from yt.local import start, stop
 
 import yt.wrapper as yt
@@ -269,4 +271,35 @@ class TestDynamicTableCommands(object):
         finally:
             if instance is not None:
                 stop(instance.id, path=dir)
+
+    def test_reshard_automatic(self):
+        self._sync_create_tablet_cell()
+        table = TEST_DIR + "/table_reshard_auto"
+        self._create_dynamic_table(table)
+
+        yt.reshard_table(table, [[], ["a"]], sync=True)
+        yt.set("{}/@tablet_balancer_config/enable_auto_reshard".format(table), False)
+        yt.mount_table(table, sync=True)
+
+        yt.reshard_table_automatic(table, sync=True)
+        assert yt.get("{}/@tablet_count".format(table)) == 1
+
+    @pytest.mark.parametrize("tables", [None, [TEST_DIR + "/table_balance_cells"]])
+    def test_balance_tablet_cells(self, tables):
+        cells = [self._sync_create_tablet_cell() for i in xrange(2)]
+        table = TEST_DIR + "/table_balance_cells"
+        yt.remove(table, force=True)
+        self._create_dynamic_table(table, external=False)
+
+        yt.reshard_table(table, [[], ["b"]], sync=True)
+        yt.set("{}/@tablet_balancer_config/enable_auto_reshard".format(table), False)
+        yt.set("{}/@tablet_balancer_config/enable_auto_tablet_move".format(table), False)
+        yt.set("{}/@in_memory_mode".format(table), "uncompressed")
+        yt.mount_table(table, cell_id=cells[0], sync=True)
+        yt.insert_rows(table, [{"x": "a", "y": "a"}, {"x": "b", "y": "b"}])
+        yt.freeze_table(table, sync=True)
+
+        yt.balance_tablet_cells("default", tables, sync=True)
+        tablets = yt.get("{}/@tablets".format(table))
+        assert tablets[0]["cell_id"] != tablets[1]["cell_id"]
 
