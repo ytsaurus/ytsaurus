@@ -333,17 +333,23 @@ protected:
                     continue;
                 }
                 const auto& column = table->Schema.GetColumnOrThrow(columnName);
-                if (column.LogicalType() == ESimpleLogicalValueType::Any) {
+                if (!column.SimplifiedLogicalType()) {
+                    THROW_ERROR_EXCEPTION("Key column cannot have complex type")
+                        << TErrorAttribute("column_name", columnName)
+                        << TErrorAttribute("type", ToString(*column.LogicalType()));
+                }
+                if (*column.SimplifiedLogicalType() == ESimpleLogicalValueType::Any) {
                     continue;
                 }
                 if (referenceColumn) {
-                    if (GetPhysicalType(referenceColumn->LogicalType()) != GetPhysicalType(column.LogicalType())) {
+                    YCHECK(referenceColumn->SimplifiedLogicalType());
+                    if (GetPhysicalType(*referenceColumn->SimplifiedLogicalType()) != GetPhysicalType(*column.SimplifiedLogicalType())) {
                         THROW_ERROR_EXCEPTION("Key columns have different types in input tables")
                             << TErrorAttribute("column_name", columnName)
                             << TErrorAttribute("input_table_1", referenceTable->Path.GetPath())
-                            << TErrorAttribute("type_1", referenceColumn->LogicalType())
+                            << TErrorAttribute("type_1", ToString(*referenceColumn->LogicalType()))
                             << TErrorAttribute("input_table_2", table->Path.GetPath())
-                            << TErrorAttribute("type_2", column.LogicalType());
+                            << TErrorAttribute("type_2", ToString(*column.LogicalType()));
                     }
                 } else {
                     referenceColumn = &column;

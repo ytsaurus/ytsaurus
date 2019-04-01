@@ -56,11 +56,11 @@ void ValidateSkynetSchema(const TTableSchema& schema)
             return;
         }
 
-        if (columnSchema->LogicalType()!= type) {
+        if (columnSchema->SimplifiedLogicalType() != type) {
             validationErrors.push_back(TError("Column %Qv has invalid type: expected %Qlv, actual %Qlv",
                 name,
                 type,
-                columnSchema->LogicalType()));
+                *columnSchema->LogicalType()));
         }
 
         if (columnSchema->Group() != group) {

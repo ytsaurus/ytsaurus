@@ -1018,7 +1018,7 @@ void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& colu
     if (value.Type == EValueType::Null) {
         if (columnSchema.Required()) {
             // Any column can't be required.
-            YCHECK(columnSchema.LogicalType() != ESimpleLogicalValueType::Any);
+            YCHECK(columnSchema.SimplifiedLogicalType() != ESimpleLogicalValueType::Any);
             THROW_ERROR_EXCEPTION(
                 EErrorCode::SchemaViolation,
                 "Required column %Qv cannot have %Qlv value",
@@ -1029,20 +1029,26 @@ void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& colu
         }
     }
 
+    if (!columnSchema.SimplifiedLogicalType()) {
+        THROW_ERROR_EXCEPTION("Validation of complex type is not supported yet")
+            << TErrorAttribute("column_name", columnSchema.Name())
+            << TErrorAttribute("column_type", ToString(*columnSchema.LogicalType()));
+    }
+
     if (columnSchema.GetPhysicalType() != value.Type) {
-        if (columnSchema.LogicalType() == ESimpleLogicalValueType::Any && typeAnyAcceptsAllValues) {
+        if (*columnSchema.SimplifiedLogicalType() == ESimpleLogicalValueType::Any && typeAnyAcceptsAllValues) {
             return;
         }
         THROW_ERROR_EXCEPTION(
             EErrorCode::SchemaViolation,
             "Invalid type of column %Qv: expected type %Qlv or %Qlv but got %Qlv",
             columnSchema.Name(),
-            columnSchema.LogicalType(),
+            *columnSchema.LogicalType(),
             EValueType::Null,
             value.Type);
     }
 
-    switch (columnSchema.LogicalType()) {
+    switch (*columnSchema.SimplifiedLogicalType()) {
         case ESimpleLogicalValueType::Int8:
             ValidateIntegerRange<i8>(value, columnSchema.Name());
             break;

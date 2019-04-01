@@ -28,16 +28,12 @@ using namespace NTabletClient;
 void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSchema& newColumn)
 {
     YCHECK(oldColumn.Name() == newColumn.Name());
-    if (oldColumn.LogicalType() != newColumn.LogicalType()) {
-        THROW_ERROR_EXCEPTION("Type mismatch for column %Qv: old %Qlv, new %Qlv",
-            oldColumn.Name(),
-            oldColumn.LogicalType(),
-            newColumn.LogicalType());
-    }
-
-    if (!oldColumn.Required() && newColumn.Required()) {
-        THROW_ERROR_EXCEPTION("Optional column %Qv cannot be changed to required",
-            oldColumn.Name());
+    try {
+        ValidateAlterType(oldColumn.LogicalType(), newColumn.LogicalType());
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Type mismatch for column %Qv",
+            oldColumn.Name())
+            << ex;
     }
 
     if (newColumn.SortOrder().operator bool() && newColumn.SortOrder() != oldColumn.SortOrder()) {
@@ -173,10 +169,10 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
             if (index < schema.GetKeyColumnCount()) {
                 THROW_ERROR_EXCEPTION("Key column %Qv cannot be aggregated", columnSchema.Name());
             }
-            if (!IsPhysicalType(columnSchema.LogicalType())) {
+            if (!columnSchema.SimplifiedLogicalType() || !IsPhysicalType(*columnSchema.SimplifiedLogicalType())) {
                 THROW_ERROR_EXCEPTION("Aggregated column %Qv is forbiden to have logical type %Qlv",
                     columnSchema.Name(),
-                    columnSchema.LogicalType());
+                    *columnSchema.LogicalType());
             }
 
             const auto& name = *columnSchema.Aggregate();
@@ -238,11 +234,11 @@ void ValidateComputedColumns(const TTableSchema& schema, bool isTableDynamic)
             }
             THashSet<TString> references;
             auto expr = PrepareExpression(*columnSchema.Expression(), schema, BuiltinTypeInferrersMap, &references);
-            if (GetLogicalType(expr->Type) != columnSchema.LogicalType()) {
+            if (GetLogicalType(expr->Type) != columnSchema.SimplifiedLogicalType()) {
                 THROW_ERROR_EXCEPTION(
                     "Computed column %Qv type mismatch: declared type is %Qlv but expression type is %Qlv",
                     columnSchema.Name(),
-                    columnSchema.LogicalType(),
+                    *columnSchema.LogicalType(),
                     expr->Type);
             }
 
@@ -446,8 +442,8 @@ TError ValidateTableSchemaCompatibility(
             if (!IsSubtypeOf(inputColumn->LogicalType(), outputColumn.LogicalType())) {
                 return addAttributes(TError("Column %Qv input type %Qlv is incompatible with the output type %Qlv",
                     inputColumn->Name(),
-                    inputColumn->LogicalType(),
-                    outputColumn.LogicalType()));
+                    *inputColumn->LogicalType(),
+                    *outputColumn.LogicalType()));
             }
             if (outputColumn.Expression() && inputColumn->Expression() != outputColumn.Expression()) {
                 return addAttributes(TError("Column %Qv expression mismatch",

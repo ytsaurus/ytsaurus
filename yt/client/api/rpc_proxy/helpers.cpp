@@ -397,7 +397,11 @@ void ToProto(NProto::TColumnSchema* protoSchema, const NTableClient::TColumnSche
 {
     protoSchema->set_name(schema.Name());
     protoSchema->set_type(static_cast<int>(schema.GetPhysicalType()));
-    protoSchema->set_logical_type(static_cast<int>(schema.LogicalType()));
+    if (!schema.SimplifiedLogicalType()) {
+        THROW_ERROR_EXCEPTION("Complex logical types are not supported in rpc yet")
+            << TErrorAttribute("name", schema.Name())
+            << TErrorAttribute("type", ToString(*schema.LogicalType()));
+    }
     if (schema.Lock()) {
         protoSchema->set_lock(*schema.Lock());
     }
@@ -422,17 +426,20 @@ void FromProto(NTableClient::TColumnSchema* schema, const NProto::TColumnSchema&
 {
     schema->SetName(protoSchema.name());
     if (protoSchema.has_logical_type()) {
-        schema->SetLogicalType(CheckedEnumCast<ESimpleLogicalValueType>(protoSchema.logical_type()));
+        auto logicalType = SimpleLogicalType(
+            CheckedEnumCast<NTableClient::ESimpleLogicalValueType>(protoSchema.logical_type()),
+            protoSchema.required());
+        schema->SetLogicalType(std::move(logicalType));
         YCHECK(schema->GetPhysicalType() == CheckedEnumCast<EValueType>(protoSchema.type()));
     } else {
-        schema->SetLogicalType(GetLogicalType(CheckedEnumCast<EValueType>(protoSchema.type())));
+        auto physicalType = CheckedEnumCast<NTableClient::EValueType>(protoSchema.type());
+        schema->SetLogicalType(SimpleLogicalType(NTableClient::GetLogicalType(physicalType), protoSchema.required()));
     }
     schema->SetLock(protoSchema.has_lock() ? std::make_optional(protoSchema.lock()) : std::nullopt);
     schema->SetExpression(protoSchema.has_expression() ? std::make_optional(protoSchema.expression()) : std::nullopt);
     schema->SetAggregate(protoSchema.has_aggregate() ? std::make_optional(protoSchema.aggregate()) : std::nullopt);
     schema->SetSortOrder(protoSchema.has_sort_order() ? std::make_optional(ESortOrder(protoSchema.sort_order())) : std::nullopt);
     schema->SetGroup(protoSchema.has_group() ? std::make_optional(protoSchema.group()) : std::nullopt);
-    schema->SetRequired(protoSchema.required());
 }
 
 void ToProto(NProto::TTableSchema* protoSchema, const NTableClient::TTableSchema& schema)
@@ -1269,7 +1276,13 @@ std::vector<TSharedRef> SerializeRowset(
         columnDescriptor->set_name(column.Name());
         // we save physical type for backward compatibility
         columnDescriptor->set_type(static_cast<int>(column.GetPhysicalType()));
-        columnDescriptor->set_logical_type(static_cast<int>(column.LogicalType()));
+        // TODO (ermolovd) YT-7178, support complex schemas.
+        if (!column.SimplifiedLogicalType()) {
+            THROW_ERROR_EXCEPTION("Serialization of complex types is not supported yet")
+                << TErrorAttribute("column_name", column.Name())
+                << TErrorAttribute("type", ToString(*column.LogicalType()));
+        }
+        columnDescriptor->set_logical_type(static_cast<int>(*column.SimplifiedLogicalType()));
     }
     TWireProtocolWriter writer;
     writer.WriteRowset(rows);
@@ -1295,10 +1308,13 @@ TTableSchema DeserializeRowsetSchema(
         if (descriptor.columns(i).has_name()) {
             columns[i].SetName(descriptor.columns(i).name());
         }
+        // TODO (ermolovd) YT-7178, support complex schemas.
         if (descriptor.columns(i).has_logical_type()) {
-            columns[i].SetLogicalType(CheckedEnumCast<NTableClient::ESimpleLogicalValueType>(descriptor.columns(i).logical_type()));
+            auto simpleLogicalType = CheckedEnumCast<NTableClient::ESimpleLogicalValueType>(descriptor.columns(i).logical_type());
+            columns[i].SetLogicalType(SimpleLogicalType(simpleLogicalType, false));
         } else if (descriptor.columns(i).has_type()) {
-            columns[i].SetLogicalType(CheckedEnumCast<NTableClient::ESimpleLogicalValueType>(descriptor.columns(i).type()));
+            auto simpleLogicalType = CheckedEnumCast<NTableClient::ESimpleLogicalValueType>(descriptor.columns(i).type());
+            columns[i].SetLogicalType(SimpleLogicalType(simpleLogicalType, false));
         }
     }
     return TTableSchema(std::move(columns));

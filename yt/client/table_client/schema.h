@@ -1,5 +1,6 @@
 #pragma once
 
+#include "logical_type.h"
 #include "row_base.h"
 
 #include <yt/core/misc/error.h>
@@ -31,13 +32,15 @@ class TColumnSchema
 public:
     // Keep in sync with hasher below.
     DEFINE_BYREF_RO_PROPERTY(TString, Name);
-    DEFINE_BYREF_RO_PROPERTY(ESimpleLogicalValueType, LogicalType, ESimpleLogicalValueType::Null);
+    DEFINE_BYREF_RO_PROPERTY(TLogicalTypePtr, LogicalType, NullLogicalType);
     DEFINE_BYREF_RO_PROPERTY(std::optional<ESortOrder>, SortOrder);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Lock);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Expression);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Aggregate);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Group);
-    DEFINE_BYREF_RO_PROPERTY(bool, Required, false);
+
+    DEFINE_BYREF_RO_PROPERTY(std::optional<ESimpleLogicalValueType>, SimplifiedLogicalType);
+    DEFINE_BYREF_RO_PROPERTY(bool, Required);
 
 public:
     TColumnSchema();
@@ -50,6 +53,11 @@ public:
         ESimpleLogicalValueType type,
         std::optional<ESortOrder> SortOrder = std::nullopt);
 
+    TColumnSchema(
+        const TString& name,
+        TLogicalTypePtr type,
+        std::optional<ESortOrder> SortOrder = std::nullopt);
+
     TColumnSchema(const TColumnSchema&) = default;
     TColumnSchema(TColumnSchema&&) = default;
 
@@ -57,13 +65,12 @@ public:
     TColumnSchema& operator=(TColumnSchema&&) = default;
 
     TColumnSchema& SetName(const TString& name);
-    TColumnSchema& SetLogicalType(ESimpleLogicalValueType valueType);
+    TColumnSchema& SetLogicalType(TLogicalTypePtr valueType);
     TColumnSchema& SetSortOrder(const std::optional<ESortOrder>& value);
     TColumnSchema& SetLock(const std::optional<TString>& value);
     TColumnSchema& SetExpression(const std::optional<TString>& value);
     TColumnSchema& SetAggregate(const std::optional<TString>& value);
     TColumnSchema& SetGroup(const std::optional<TString>& value);
-    TColumnSchema& SetRequired(bool value);
 
     EValueType GetPhysicalType() const;
 
@@ -201,6 +208,11 @@ void FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TTableSchema& schema, NYson::IYsonConsumer* consumer);
+void Deserialize(TTableSchema& schema, NYTree::INodePtr node);
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool operator == (const TColumnSchema& lhs, const TColumnSchema& rhs);
 bool operator != (const TColumnSchema& lhs, const TColumnSchema& rhs);
 
@@ -208,11 +220,6 @@ bool operator == (const TTableSchema& lhs, const TTableSchema& rhs);
 bool operator != (const TTableSchema& lhs, const TTableSchema& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
-
-//! Returns true if #lhs type is subtype of #rhs type.
-//! We say that #lhs type is subtype of #rhs type
-//! iff every value that belongs to #lhs type also belongs to #rhs type.
-bool IsSubtypeOf(ESimpleLogicalValueType lhs, ESimpleLogicalValueType rhs);
 
 void ValidateKeyColumns(const TKeyColumns& keyColumns);
 
@@ -263,13 +270,12 @@ struct THash<NYT::NTableClient::TColumnSchema>
     {
         return MultiHash(
             columnSchema.Name(),
-            columnSchema.LogicalType(),
+            *columnSchema.LogicalType(),
             columnSchema.SortOrder(),
             columnSchema.Lock(),
             columnSchema.Expression(),
             columnSchema.Aggregate(),
-            columnSchema.Group(),
-            columnSchema.Required());
+            columnSchema.Group());
     }
 };
 
