@@ -502,6 +502,52 @@ func writeUnlockNodeOptions(w *yson.Writer, o *yt.UnlockNodeOptions) {
 	writeMutatingOptions(w, o.MutatingOptions)
 }
 
+func writeTabletRangeOptions(w *yson.Writer, o *yt.TabletRangeOptions) {
+	if o == nil {
+		return
+	}
+	w.MapKeyString("first_tablet_index")
+	w.Any(o.FirstTabletIndex)
+	w.MapKeyString("last_tablet_index")
+	w.Any(o.LastTabletIndex)
+}
+
+func writeMountTableOptions(w *yson.Writer, o *yt.MountTableOptions) {
+	if o == nil {
+		return
+	}
+	if o.CellId != nil {
+		w.MapKeyString("cell_id")
+		w.Any(o.CellId)
+	}
+	if o.TargetCellIds != nil {
+		w.MapKeyString("target_cell_ids")
+		w.Any(o.TargetCellIds)
+	}
+	w.MapKeyString("freeze")
+	w.Any(o.Freeze)
+	writeTabletRangeOptions(w, o.TabletRangeOptions)
+	writeMutatingOptions(w, o.MutatingOptions)
+}
+
+func writeUnmountTableOptions(w *yson.Writer, o *yt.UnmountTableOptions) {
+	if o == nil {
+		return
+	}
+	w.MapKeyString("force")
+	w.Any(o.Force)
+	writeTabletRangeOptions(w, o.TabletRangeOptions)
+	writeMutatingOptions(w, o.MutatingOptions)
+}
+
+func writeRemountTableOptions(w *yson.Writer, o *yt.RemountTableOptions) {
+	if o == nil {
+		return
+	}
+	writeTabletRangeOptions(w, o.TabletRangeOptions)
+	writeMutatingOptions(w, o.MutatingOptions)
+}
+
 func writeLookupRowsOptions(w *yson.Writer, o *yt.LookupRowsOptions) {
 	if o == nil {
 		return
@@ -1968,6 +2014,41 @@ func (p *UnlockNodeParams) MutatingOptions() **yt.MutatingOptions {
 	return &p.options.MutatingOptions
 }
 
+type SelectRowsParams struct {
+	verb    Verb
+	query   string
+	options *yt.SelectRowsOptions
+}
+
+func NewSelectRowsParams(
+	query string,
+	options *yt.SelectRowsOptions,
+) *SelectRowsParams {
+	if options == nil {
+		options = &yt.SelectRowsOptions{}
+	}
+	return &SelectRowsParams{
+		Verb("select_rows"),
+		query,
+		options,
+	}
+}
+
+func (p *SelectRowsParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *SelectRowsParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("query", p.query),
+	}
+}
+
+func (p *SelectRowsParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("query")
+	w.Any(p.query)
+	writeSelectRowsOptions(w, p.options)
+}
+
 type LookupRowsParams struct {
 	verb    Verb
 	path    ypath.Path
@@ -2085,37 +2166,131 @@ func (p *DeleteRowsParams) TransactionOptions() **yt.TransactionOptions {
 	return &p.options.TransactionOptions
 }
 
-type SelectRowsParams struct {
+type MountTableParams struct {
 	verb    Verb
-	query   string
-	options *yt.SelectRowsOptions
+	path    ypath.Path
+	options *yt.MountTableOptions
 }
 
-func NewSelectRowsParams(
-	query string,
-	options *yt.SelectRowsOptions,
-) *SelectRowsParams {
+func NewMountTableParams(
+	path ypath.Path,
+	options *yt.MountTableOptions,
+) *MountTableParams {
 	if options == nil {
-		options = &yt.SelectRowsOptions{}
+		options = &yt.MountTableOptions{}
 	}
-	return &SelectRowsParams{
-		Verb("select_rows"),
-		query,
+	return &MountTableParams{
+		Verb("mount_table"),
+		path,
 		options,
 	}
 }
 
-func (p *SelectRowsParams) HTTPVerb() Verb {
+func (p *MountTableParams) HTTPVerb() Verb {
 	return p.verb
 }
-func (p *SelectRowsParams) Log() []log.Field {
+func (p *MountTableParams) Log() []log.Field {
 	return []log.Field{
-		log.Any("query", p.query),
+		log.Any("path", p.path),
 	}
 }
 
-func (p *SelectRowsParams) MarshalHTTP(w *yson.Writer) {
-	w.MapKeyString("query")
-	w.Any(p.query)
-	writeSelectRowsOptions(w, p.options)
+func (p *MountTableParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("path")
+	w.Any(p.path)
+	writeMountTableOptions(w, p.options)
+}
+
+func (p *MountTableParams) TabletRangeOptions() **yt.TabletRangeOptions {
+	return &p.options.TabletRangeOptions
+}
+
+func (p *MountTableParams) MutatingOptions() **yt.MutatingOptions {
+	return &p.options.MutatingOptions
+}
+
+type UnmountTableParams struct {
+	verb    Verb
+	path    ypath.Path
+	options *yt.UnmountTableOptions
+}
+
+func NewUnmountTableParams(
+	path ypath.Path,
+	options *yt.UnmountTableOptions,
+) *UnmountTableParams {
+	if options == nil {
+		options = &yt.UnmountTableOptions{}
+	}
+	return &UnmountTableParams{
+		Verb("unmount_table"),
+		path,
+		options,
+	}
+}
+
+func (p *UnmountTableParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *UnmountTableParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("path", p.path),
+	}
+}
+
+func (p *UnmountTableParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("path")
+	w.Any(p.path)
+	writeUnmountTableOptions(w, p.options)
+}
+
+func (p *UnmountTableParams) TabletRangeOptions() **yt.TabletRangeOptions {
+	return &p.options.TabletRangeOptions
+}
+
+func (p *UnmountTableParams) MutatingOptions() **yt.MutatingOptions {
+	return &p.options.MutatingOptions
+}
+
+type RemountTableParams struct {
+	verb    Verb
+	path    ypath.Path
+	options *yt.RemountTableOptions
+}
+
+func NewRemountTableParams(
+	path ypath.Path,
+	options *yt.RemountTableOptions,
+) *RemountTableParams {
+	if options == nil {
+		options = &yt.RemountTableOptions{}
+	}
+	return &RemountTableParams{
+		Verb("remount_table"),
+		path,
+		options,
+	}
+}
+
+func (p *RemountTableParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *RemountTableParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("path", p.path),
+	}
+}
+
+func (p *RemountTableParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("path")
+	w.Any(p.path)
+	writeRemountTableOptions(w, p.options)
+}
+
+func (p *RemountTableParams) TabletRangeOptions() **yt.TabletRangeOptions {
+	return &p.options.TabletRangeOptions
+}
+
+func (p *RemountTableParams) MutatingOptions() **yt.MutatingOptions {
+	return &p.options.MutatingOptions
 }

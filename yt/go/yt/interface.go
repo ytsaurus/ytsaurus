@@ -659,6 +659,32 @@ type LockClient interface {
 	) (err error)
 }
 
+type TabletRangeOptions struct {
+	FirstTabletIndex int `http:"first_tablet_index"`
+	LastTabletIndex  int `http:"last_tablet_index"`
+}
+
+type MountTableOptions struct {
+	*TabletRangeOptions
+	*MutatingOptions
+
+	CellId        *guid.GUID  `http:"cell_id,omitnil"`
+	TargetCellIds []guid.GUID `http:"target_cell_ids,omitnil"`
+	Freeze        bool        `http:"freeze"`
+}
+
+type UnmountTableOptions struct {
+	*TabletRangeOptions
+	*MutatingOptions
+
+	Force bool `http:"force"`
+}
+
+type RemountTableOptions struct {
+	*TabletRangeOptions
+	*MutatingOptions
+}
+
 // Tx is high level API for master transactions.
 //
 // Create new tx by calling BeginTx() method on Client or other Tx.
@@ -740,6 +766,32 @@ type TabletClient interface {
 	) (err error)
 }
 
+type MountClient interface {
+	// http:verb:"mount_table"
+	// http:params:"path"
+	MountTable(
+		ctx context.Context,
+		path ypath.Path,
+		options *MountTableOptions,
+	) (err error)
+
+	// http:verb:"unmount_table"
+	// http:params:"path"
+	UnmountTable(
+		ctx context.Context,
+		path ypath.Path,
+		options *UnmountTableOptions,
+	) (err error)
+
+	// http:verb:"remount_table"
+	// http:params:"path"
+	RemountTable(
+		ctx context.Context,
+		path ypath.Path,
+		options *RemountTableOptions,
+	) (err error)
+}
+
 type TabletTx interface {
 	TabletClient
 
@@ -760,6 +812,7 @@ type Client interface {
 	BeginTabletTx(ctx context.Context, options *StartTabletTxOptions) (tx TabletTx, err error)
 
 	TabletClient
+	MountClient
 
 	LowLevelTxClient
 	LowLevelSchedulerClient
