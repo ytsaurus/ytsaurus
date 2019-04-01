@@ -23,17 +23,23 @@ protected:
 
     void AtoB()
     {
-        int item;
-        while (A.Pop(&item) && !Stopped.load()) {
-            B.Push(std::move(item));
+        while (auto item = A.Front()) {
+            if (Stopped.load()) {
+                break;
+            }
+            B.Push(std::move(*item));
+            A.Pop();
         }
     }
 
     void BtoA()
     {
-        int item;
-        while (B.Pop(&item) && !Stopped.load()) {
-            A.Push(std::move(item));
+        while (auto item = B.Front()) {
+            if (Stopped.load()) {
+                break;
+            }
+            A.Push(std::move(*item));
+            B.Pop();
         }
     }
 
@@ -74,12 +80,13 @@ TEST_F(TSpscQueueTest, TwoThreads)
     thread2.Join();
 
     std::vector<int> elements;
-    int item;
-    while (A.Pop(&item)) {
-        elements.push_back(item);
+    while (auto item = A.Front()) {
+        elements.push_back(*item);
+        A.Pop();
     }
-    while (B.Pop(&item)) {
-        elements.push_back(item);
+    while (auto item = B.Front()) {
+        elements.push_back(*item);
+        B.Pop();
     }
 
     std::sort(elements.begin(), elements.end());

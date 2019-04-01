@@ -165,7 +165,7 @@ void TSingleProducerSingleConsumerQueue<T>::Push(T&& element)
     auto count = Count_.load();
     size_t position = count - Tail_->Offset;
 
-    if (position == BufferSize) {
+    if (Y_UNLIKELY(position == BufferSize)) {
         auto oldTail = Tail_;
         Tail_ = new TNode();
         Tail_->Offset = count;
@@ -178,32 +178,32 @@ void TSingleProducerSingleConsumerQueue<T>::Push(T&& element)
 }
 
 template <class T>
-bool TSingleProducerSingleConsumerQueue<T>::Pop(T* element)
+T* TSingleProducerSingleConsumerQueue<T>::Front() const
 {
-    auto count = Count_.load();
+    if (Y_UNLIKELY(Offset_ >= CachedCount_)) {
+        auto count = Count_.load();
+        CachedCount_ = count;
 
-    if (Offset_ >= count) {
-        return false;
+        if (Offset_ >= count) {
+            return nullptr;
+        }
+    }
+
+    while (Y_UNLIKELY(Offset_ >= Head_->Offset + BufferSize)) {
+        auto next = Head_->Next.load();
+        YCHECK(next);
+        delete Head_;
+        Head_ = next;
     }
 
     auto position = Offset_ - Head_->Offset;
+    return &Head_->Data[position];
+}
 
-    if (position == BufferSize) {
-        auto next = Head_->Next.load();
-
-        if (!next) {
-            return false;
-        }
-
-        delete Head_;
-        Head_ = next;
-        position = 0;
-    }
-
-    *element = std::move(Head_->Data[position]);
+template <class T>
+void TSingleProducerSingleConsumerQueue<T>::Pop()
+{
     ++Offset_;
-    return true;
-
 }
 
 template <class T>

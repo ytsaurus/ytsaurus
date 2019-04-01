@@ -46,7 +46,8 @@ public:
 
     void Push(T&& element);
 
-    bool Pop(T* element);
+    T* Front() const;
+    void Pop();
 
     bool IsEmpty() const;
 
@@ -55,10 +56,12 @@ private:
 
     struct TNode;
 
-    TNode* Head_;
-    TNode* Tail_;
     std::atomic<size_t> Count_ = {0};
+
+    mutable TNode* Head_;
+    TNode* Tail_;
     size_t Offset_ = 0;
+    mutable size_t CachedCount_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
