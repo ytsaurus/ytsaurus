@@ -161,7 +161,6 @@ class TestFiles(YTEnvSetup):
 
         assert read_file("//tmp/f") == content
 
-    @skip_if_rpc_driver_backend # TODO(kiselyovp) wait for YT-10519
     def test_concatenate(self):
         create("file", "//tmp/fa")
         write_file("//tmp/fa", "a")
@@ -257,25 +256,19 @@ class TestFileErrorsRpcProxy(YTEnvSetup):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_PROXY = True
+    DELTA_DRIVER_CONFIG = {"default_stall_timeout": 1500}
 
     class FaultyStringStream(TextIOBase):
-        def __init__(self, data, env=None, client_error=False, server_error=False):
+        def __init__(self, data):
             self._position = 0
             self._data = data
-            self._env = env
-            self._client_error = client_error
-            self._server_error = server_error
 
         def read(self, size):
             if size < 0:
                 raise ValueError()
 
             if self._position == len(self._data):
-                if self._server_error:
-                    if self._env:
-                        self._env.kill_nodes()
-                if self._client_error:
-                    raise RuntimeError("surprise")
+               raise RuntimeError("surprise")
 
             result = self._data[self._position:self._position + size]
             self._position = min(self._position + size, len(self._data))
@@ -284,32 +277,39 @@ class TestFileErrorsRpcProxy(YTEnvSetup):
 
     def test_faulty_client(self):
         create("file", "//tmp/file")
-        write_file("//tmp/file", "abacaba", file_writer={"upload_transaction_timeout": 1000})
+        write_file("//tmp/file", "abacaba")
+
+        tx = start_transaction()
         with pytest.raises(YtError):
             write_file(
                 "<append=true>//tmp/file",
                 None,
-                input_stream=self.FaultyStringStream("dabacaba", client_error=True),
-                file_writer={"upload_transaction_timeout": 1000})
-        time.sleep(3)
+                input_stream=self.FaultyStringStream("dabacaba"),
+                tx=tx)
 
+        wait(lambda: get("//sys/transactions/{0}/@nested_transaction_ids".format(tx)) == [])
         assert read_file("//tmp/file") == "abacaba"
 
     def test_faulty_server(self):
         create("file", "//tmp/file")
         write_file("//tmp/file", "abacaba")
-        assert read_file("//tmp/file", file_reader={"session_timeout": 1500}) == "abacaba"
+        assert read_file("//tmp/file") == "abacaba"
+
+        nodes = ls("//sys/cluster_nodes")
+        set_node_banned(nodes[0], True)
+
         with pytest.raises(YtError):
             write_file(
                 "<append=true>//tmp/file",
-                None,
-                input_stream=self.FaultyStringStream("dabacaba", env=self.Env, server_error=True))
-        with pytest.raises(YtError):
-            read_file("//tmp/file", file_reader={"session_timeout": 1500})
-        self.Env.start_nodes()
-        wait_for_nodes()
+                "dabacaba")
 
-        assert retry(lambda: read_file("//tmp/file", file_reader={"session_timeout": 1500})) == "abacaba"
+        set_node_banned(nodes[1], True)
+        with pytest.raises(YtError):
+            read_file("//tmp/file")
+
+        set_node_banned(nodes[0], False)
+        set_node_banned(nodes[1], False)
+        assert retry(lambda: read_file("//tmp/file")) == "abacaba"
 
 class TestBigFilesRpcProxy(YTEnvSetup):
     NUM_MASTERS = 1
@@ -330,7 +330,6 @@ class TestBigFilesRpcProxy(YTEnvSetup):
         contents = read_file("//tmp/abacaba", verbose=False)
         assert contents == data
 
-@pytest.mark.skipif("True", reason = "waiting for YT-10487") # XXX(kiselyovp)
 class TestBigFilesWithCompressionRpcProxy(TestBigFilesRpcProxy):
     DELTA_DRIVER_CONFIG = {
         "request_codec": "lz4",

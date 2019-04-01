@@ -39,7 +39,8 @@ TConnectionConfig::TConnectionConfig()
         .Default(TDuration::Seconds(30));
     RegisterParameter("default_stream_timeout", DefaultStreamTimeout)
         .Default(TDuration::Minutes(15));
-    // XXX(kiselyovp) add stall timeout after YT-10450 is done
+    RegisterParameter("default_stall_timeout", DefaultStallTimeout)
+        .Default(TDuration::Minutes(1));
 
     RegisterParameter("default_ping_period", DefaultPingPeriod)
         .Default(TDuration::Seconds(5));
