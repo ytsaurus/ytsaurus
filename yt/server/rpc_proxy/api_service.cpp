@@ -2893,7 +2893,7 @@ private:
             return;
         }
 
-        auto path = ConvertTo<NYPath::TRichYPath>(TYsonString(request->path()));
+        auto path = FromProto<NYPath::TRichYPath>(request->path());
 
         TFileWriterOptions options;
         options.ComputeMD5 = request->compute_md5();
