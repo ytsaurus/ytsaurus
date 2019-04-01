@@ -4,6 +4,8 @@ from .helpers import TEST_DIR, set_config_option, get_tests_sandbox, wait
 
 from yt.wrapper.driver import get_command_list
 
+from yt.packages.six.moves import xrange
+
 from yt.local import start, stop
 
 import yt.wrapper as yt
