@@ -39,6 +39,10 @@ const (
 	VerbLookupRows Verb = "lookup_rows"
 	VerbDeleteRows Verb = "delete_rows"
 	VerbSelectRows Verb = "select_rows"
+
+	VerbMountTable   Verb = "mount_table"
+	VerbUnmountTable Verb = "unmount_table"
+	VerbRemountTable Verb = "remount_table"
 )
 
 func (v Verb) hasInput() bool {

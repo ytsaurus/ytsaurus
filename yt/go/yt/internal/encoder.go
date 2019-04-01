@@ -489,3 +489,27 @@ func (e *Encoder) DeleteRows(
 
 	return e.writeRows(w, keys)
 }
+
+func (e *Encoder) MountTable(
+	ctx context.Context,
+	path ypath.Path,
+	options *yt.MountTableOptions,
+) (err error) {
+	return e.do(ctx, e.newCall(NewMountTableParams(path, options)), func(res *CallResult) error { return nil })
+}
+
+func (e *Encoder) UnmountTable(
+	ctx context.Context,
+	path ypath.Path,
+	options *yt.UnmountTableOptions,
+) (err error) {
+	return e.do(ctx, e.newCall(NewUnmountTableParams(path, options)), func(res *CallResult) error { return nil })
+}
+
+func (e *Encoder) RemountTable(
+	ctx context.Context,
+	path ypath.Path,
+	options *yt.RemountTableOptions,
+) (err error) {
+	return e.do(ctx, e.newCall(NewRemountTableParams(path, options)), func(res *CallResult) error { return nil })
+}
