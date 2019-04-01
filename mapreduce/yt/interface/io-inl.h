@@ -375,7 +375,7 @@ public:
     void Next()
     {
         ReaderImpl_->NextKey();
-        if (IsValid_ = Reader_->IsValid()) {
+        if ((IsValid_ = Reader_->IsValid())) {
             Reader_->Next();
         }
     }
