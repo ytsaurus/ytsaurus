@@ -18,6 +18,7 @@
 #include <yt/core/misc/shutdown.h>
 #include <yt/core/misc/variant.h>
 #include <yt/core/misc/ref_counted_tracker.h>
+#include <yt/core/misc/heap.h>
 
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/profiler.h>
@@ -572,7 +573,7 @@ public:
                     LowBacklogWatermark_);
             }
         } else {
-            if (backlogEvents >= LowBacklogWatermark_) {
+            if (backlogEvents >= LowBacklogWatermark_ && !ScheduledOutOfBand_.test_and_set()) {
                 DequeueExecutor_->ScheduleOutOfBand();
             }
 
@@ -997,7 +998,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
-        auto savedSize = TimeOrderedBuffer_.size();
+        ScheduledOutOfBand_.clear();
 
         auto instant = NProfiling::GetCpuInstant();
 
@@ -1005,16 +1006,61 @@ private:
             YCHECK(LocalQueues_.insert(item).second);
         });
 
-        std::vector<TLoggerQueueItem> nextEvents;
-        for (auto localQueue : LocalQueues_) {
-            TLoggerQueueItem event;
-            while (localQueue->Pop(&event)) {
-                if (GetEventInstant(event) < instant) {
-                    TimeOrderedBuffer_.emplace_back(std::move(event));
+        struct THeapItem
+        {
+            TThreadLocalQueue* Queue;
+
+            THeapItem(TThreadLocalQueue* queue)
+                : Queue(queue)
+            { }
+
+            TLoggerQueueItem* Front() const
+            {
+                return Queue->Front();
+            }
+
+            void Pop()
+            {
+                Queue->Pop();
+            }
+
+            NProfiling::TCpuInstant GetInstant() const
+            {
+                auto front = Front();
+                if (Y_LIKELY(front)) {
+                    return GetEventInstant(*front);
                 } else {
-                    nextEvents.push_back(std::move(event));
+                    return std::numeric_limits<TCpuInstant>::max();
                 }
             }
+
+            bool operator < (const THeapItem& other) const
+            {
+                return GetInstant() < other.GetInstant();
+            }
+        };
+
+        std::vector<THeapItem> heap;
+        for (auto localQueue : LocalQueues_) {
+            if (localQueue->Front()) {
+                heap.push_back(localQueue);
+            }
+        }
+
+        NYT::MakeHeap(heap.begin(), heap.end());
+
+        // NB: Messages are not totally ordered beacause of race around high/low watermark check
+        while (!heap.empty()) {
+            auto& queue = heap.front();
+            TLoggerQueueItem* event = queue.Front();
+
+            if (!event || GetEventInstant(*event) >= instant) {
+                break;
+            }
+
+            TimeOrderedBuffer_.emplace_back(std::move(*event));
+            queue.Pop();
+            NYT::AdjustHeapFront(heap.begin(), heap.end());
         }
 
         UnregisteredLocalQueues_.DequeueAll(true, [&] (TThreadLocalQueue* item) {
@@ -1026,6 +1072,8 @@ private:
             }
         });
 
+        // NB: Messages from global queue are not sorted
+        std::vector<TLoggerQueueItem> nextEvents;
         while (GlobalQueue_.DequeueAll(true, [&] (TLoggerQueueItem& event) {
             if (GetEventInstant(event) < instant) {
                 TimeOrderedBuffer_.emplace_back(std::move(event));
@@ -1039,14 +1087,7 @@ private:
             GlobalQueue_.Enqueue(std::move(event));
         }
 
-        std::sort(
-            TimeOrderedBuffer_.begin() + savedSize,
-            TimeOrderedBuffer_.end(),
-            [] (const TLoggerQueueItem& lhs, const TLoggerQueueItem& rhs) {
-                return GetEventInstant(lhs) < GetEventInstant(rhs);
-            });
-
-        int eventsWritten = ProcessTimeOrderedBuffer();
+        auto eventsWritten = ProcessTimeOrderedBuffer();
 
         if (eventsWritten == 0) {
             return;
@@ -1062,13 +1103,31 @@ private:
 
     int ProcessTimeOrderedBuffer()
     {
+        int eventsWritten = 0;
         if (TraceSuppressionEnabled_) {
             SuppressedTraceIdSet_.Update(SuppressedTraceIdQueue_.DequeueAll());
+        } else {
+            while (!TimeOrderedBuffer_.empty()) {
+                auto& event = TimeOrderedBuffer_.front();
+
+                ++eventsWritten;
+
+                Visit(event,
+                    [&] (TConfigEvent& event) {
+                        return UpdateConfig(event);
+                    },
+                    [&] (const TLogEvent& event) {
+                        WriteEvent(event);
+                    });
+
+                TimeOrderedBuffer_.pop_front();
+            }
+
+            return eventsWritten;
         }
 
         auto deadline = GetCpuInstant() - DurationToCpuDuration(Config_->TraceSuppressionTimeout);
 
-        int eventsWritten = 0;
         int suppressed = 0;
         while (!TimeOrderedBuffer_.empty()) {
             auto& event = TimeOrderedBuffer_.front();
@@ -1162,6 +1221,7 @@ private:
 
     bool Suspended_ = false;
     std::once_flag Started_;
+    std::atomic_flag ScheduledOutOfBand_ = {false};
 
     THashSet<TThreadLocalQueue*> LocalQueues_;
     TMultipleProducerSingleConsumerLockFreeStack<TThreadLocalQueue*> RegisteredLocalQueues_;
