@@ -147,7 +147,6 @@ class Clique(object):
 
 
 @require_ytserver_root_privileges
-#@pytest.mark.xfail(run=False, reason="I want to go to vacation and do not know what's the deal with those core dumps :(")
 class ClickHouseTestBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
@@ -186,7 +185,7 @@ class ClickHouseTestBase(YTEnvSetup):
         Clique.base_config = yson.loads(self._read_local_config_file("config.yson"))
         Clique.base_config["cluster_connection"] = self.__class__.Env.configs["driver"]
 
-#@pytest.mark.xfail(run=False, reason="I want to go to vacation and do not know what's the deal with those core dumps :(")
+
 class TestClickHouseCommon(ClickHouseTestBase):
     def setup(self):
         self._setup()
@@ -261,26 +260,61 @@ class TestClickHouseCommon(ClickHouseTestBase):
             new_description = clique.make_query('describe "//tmp/t"')
             assert new_description["data"][0]["name"] == "b"
 
-#@pytest.mark.xfail(run=False, reason="I want to go to vacation and do not know what's the deal with those core dumps :(")
+
 class TestJobInput(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
-    def _expect_row_count(self, clique, query, row_count):
-        result = clique.make_query(query)
-        assert result["statistics"]["rows_read"] == row_count
+    def _expect_row_count(self, clique, query, exact=None, min=None, max=None, verbose=True):
+        result = clique.make_query(query, verbose=verbose)
+        assert (exact is not None) ^ (min is not None and max is not None)
+        if exact is not None:
+            assert result["statistics"]["rows_read"] == exact
+        else:
+            assert min <= result["statistics"]["rows_read"] <= max
 
     def test_chunk_filter(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "i", "type": "int64", "sort_order": "ascending"}]})
+        for i in xrange(10):
+            write_table("<append=%true>//tmp/t", [{"i": i}])
         with Clique(1) as clique:
-            create("table", "//tmp/t", attributes={"schema": [{"name": "i", "type": "int64", "sort_order": "ascending"}]})
-            for i in xrange(10):
-                write_table("<append=%true>//tmp/t", [{"i": i}])
-            self._expect_row_count(clique, 'select * from "//tmp/t" where i >= 3', 7)
-            self._expect_row_count(clique, 'select * from "//tmp/t" where i < 2', 2)
-            self._expect_row_count(clique, 'select * from "//tmp/t" where 5 <= i and i <= 8', 4)
-            self._expect_row_count(clique, 'select * from "//tmp/t" where i in (-1, 2, 8, 8, 15)', 2)
+            self._expect_row_count(clique, 'select * from "//tmp/t" where i >= 3', exact=7)
+            self._expect_row_count(clique, 'select * from "//tmp/t" where i < 2', exact=2)
+            self._expect_row_count(clique, 'select * from "//tmp/t" where 5 <= i and i <= 8', exact=4)
+            self._expect_row_count(clique, 'select * from "//tmp/t" where i in (-1, 2, 8, 8, 15)', exact=2)
 
-#@pytest.mark.xfail(run=False, reason="I want to go to vacation and do not know what's the deal with those core dumps :(")
+    def test_chunk_slicing(self):
+        create("table",
+               "//tmp/t",
+               attributes={
+                   "chunk_writer": {"block_size": 1024},
+                   "compression_codec": "none",
+                   # TODO(max42): investigate what happens when both columns are sorted.
+                   "schema": [{"name": "i", "type": "int64", "sort_order": "ascending"},
+                              {"name": "s", "type": "string"}]
+               })
+
+        write_table("//tmp/t", [{"i": i, "s": str(i) * (10 * 1024)} for i in range(10)], verbose=False)
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        assert get("#" + chunk_id + "/@compressed_data_size") > 100 * 1024
+        assert get("#" + chunk_id + "/@max_block_size") < 20 * 1024
+
+        with Clique(1) as clique:
+            # Due to inclusiveness issues each of the row counts should be correct with some error.
+            self._expect_row_count(clique, 'select i from "//tmp/t" where i >= 3', min=7, max=8)
+            self._expect_row_count(clique, 'select i from "//tmp/t" where i < 2', min=3, max=4)
+            self._expect_row_count(clique, 'select i from "//tmp/t" where 5 <= i and i <= 8', min=4, max=6)
+            self._expect_row_count(clique, 'select i from "//tmp/t" where i in (-1, 2, 8, 8, 15)', min=2, max=4)
+
+        # Forcefully disable chunk slicing.
+        with Clique(1, config_patch={"engine": {"subquery": {"max_sliced_chunk_count": 0}}}) as clique:
+            # Due to inclusiveness issues each of the row counts should be correct with some error.
+            self._expect_row_count(clique, 'select i from "//tmp/t" where i >= 3', exact=10)
+            self._expect_row_count(clique, 'select i from "//tmp/t" where i < 2', exact=10)
+            self._expect_row_count(clique, 'select i from "//tmp/t" where 5 <= i and i <= 8', exact=10)
+            self._expect_row_count(clique, 'select i from "//tmp/t" where i in (-1, 2, 8, 8, 15)', exact=10)
+
+
 class TestCompositeTypes(ClickHouseTestBase):
     def setup(self):
         self._setup()
@@ -412,7 +446,7 @@ class TestCompositeTypes(ClickHouseTestBase):
                                        "YPathString('{a=1}', NULL) as c")
         assert result["data"] == [{"a": None, "b": None, "c": None}]
 
-#@pytest.mark.xfail(run=False, reason="I want to go to vacation and do not know what's the deal with those core dumps :(")
+
 class TestYtDictionaries(ClickHouseTestBase):
     def setup(self):
         self._setup()
@@ -530,7 +564,7 @@ class TestYtDictionaries(ClickHouseTestBase):
             time.sleep(7)
             assert clique.make_query("select dictGetString('dict', 'value', CAST(42 as UInt64)) as value")["data"][0]["value"] == "z"
 
-#@pytest.mark.xfail(run=False, reason="I want to go to vacation and do not know what's the deal with those core dumps :(")
+
 class TestClickHouseSchema(ClickHouseTestBase):
     def setup(self):
         self._setup()
@@ -613,7 +647,6 @@ class TestClickHouseSchema(ClickHouseTestBase):
                 [{"a": 17}, {"a": 42}]
 
 
-#@pytest.mark.xfail(run=False, reason="I want to go to vacation and do not know what's the deal with those core dumps :(")
 class TestClickHouseAccess(ClickHouseTestBase):
     def setup(self):
         self._setup()

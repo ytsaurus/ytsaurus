@@ -17,6 +17,8 @@
 
 #include <yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/client/table_client/row_buffer.h>
+
 #include <yt/core/concurrency/public.h>
 #include <yt/core/concurrency/rw_spinlock.h>
 #include <yt/core/logging/log.h>
@@ -50,6 +52,8 @@ public:
     TString User;
     TQueryId QueryId;
     EQueryKind QueryKind;
+
+    NTableClient::TRowBufferPtr RowBuffer;
 
     explicit TQueryContext(TBootstrap* bootstrap, TQueryId queryId, const DB::Context& context);
 

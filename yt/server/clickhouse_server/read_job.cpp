@@ -1,6 +1,6 @@
 #include "read_job.h"
 
-#include "job_input.h"
+#include "subquery.h"
 #include "chunk_reader.h"
 #include "read_job_spec.h"
 #include "table_reader.h"

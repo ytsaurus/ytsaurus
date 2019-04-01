@@ -17,8 +17,6 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Tables should have identical schemas (native and YQL) and types (static/dynamic)
-
 struct TFetchResult
 {
     std::vector<NChunkClient::TInputDataSlicePtr> DataSlices;
@@ -29,7 +27,9 @@ struct TFetchResult
 TFetchResult FetchInput(
     NApi::NNative::IClientPtr client,
     std::vector<TString> inputTablePaths,
-    const DB::KeyCondition* keyCondition);
+    const DB::KeyCondition* keyCondition,
+    NTableClient::TRowBufferPtr rowBuffer,
+    TSubqueryConfigPtr config);
 
 NChunkPools::TChunkStripeListPtr BuildJobs(
     const std::vector<NChunkClient::TInputDataSlicePtr>& dataSlices,
