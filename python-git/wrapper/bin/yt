@@ -40,7 +40,8 @@ File commands:
 Table commands:
     read, write, alter-table, create-temp-table
 Tablet commands:
-    mount-table, unmount-table, remount-table, reshard-table
+    mount-table, unmount-table, remount-table, reshard-table,
+    reshard-table-automatic, balance-tablet-cells
 ACL commands:
     add-member, remove-member, check-permission
 Operation commands:
@@ -623,6 +624,18 @@ def add_reshard_table_parser(add_parser):
     tablet_args(parser)
     parser.add_argument("pivot_keys", action=ParseStructuredArguments, nargs="*")
     parser.add_argument("--tablet-count", type=int)
+    parser.add_argument("--sync", action="store_true")
+
+def add_reshard_table_automatic_parser(add_parser):
+    parser = add_parser("reshard-table-automatic", yt.reshard_table_automatic)
+    add_ypath_argument(parser, "path", hybrid=True)
+    parser.add_argument("--sync", action="store_true")
+
+def add_balance_tablet_cells_parser(add_parser):
+    parser = add_parser("balance-tablet-cells", yt.balance_tablet_cells)
+    add_hybrid_argument(parser, "bundle", help="tablet cell bundle", type=str)
+    parser.add_argument("--tables", nargs="*", help="tables to balance. If omitted, all tables of bundle"
+        " will be balanced")
     parser.add_argument("--sync", action="store_true")
 
 def add_trim_rows_parser(add_parser):
@@ -1304,6 +1317,8 @@ def main():
     add_unmount_table_parser(add_parser)
     add_remount_table_parser(add_parser)
     add_reshard_table_parser(add_parser)
+    add_reshard_table_automatic_parser(add_parser)
+    add_balance_tablet_cells_parser(add_parser)
     add_trim_rows_parser(add_parser)
     add_alter_table_parser(add_parser)
     add_freeze_table_parser(add_parser)
