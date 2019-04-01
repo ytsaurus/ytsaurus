@@ -74,18 +74,18 @@ def _create_table(path, recursive=None, ignore_existing=False, attributes=None, 
     return create("table", table, recursive=recursive, ignore_existing=ignore_existing,
                   attributes=attributes, client=client)
 
-def _with_schema_if_exists(table_path):
+def _with_schema_if_exists(table_path, client=None):
     """Fetches schema of a given table and, if table exists and has schema, applies it
        to `table_path`."""
     try:
-        schema = get(table_path + "/@schema")
+        schema = get(table_path + "/@schema", client=client)
     except YtResponseError as err:
         if err.is_resolve_error():
             return table_path
         else:
             raise
     else:
-        return TablePath(table_path, schema=schema)
+        return TablePath(table_path, schema=schema, client=client)
 
 @deprecated(alternative='"create" with "table" type')
 def create_table(path, recursive=None, ignore_existing=False,
@@ -206,7 +206,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
 
     if enable_parallel_writing:
         force_create = True
-        table = _with_schema_if_exists(table)
+        table = _with_schema_if_exists(table, client=client)
         make_parallel_write_request(
             "write_table",
             input_stream,
