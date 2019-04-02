@@ -9,6 +9,7 @@
 #include "file_writer.h"
 #include "journal_reader.h"
 #include "journal_writer.h"
+#include "table_writer.h"
 
 #include <yt/core/net/address.h>
 
@@ -575,6 +576,30 @@ IJournalWriterPtr TClientBase::CreateJournalWriter(
     ToProto(req->mutable_prerequisite_options(), options);
 
     return CreateRpcJournalWriter(req);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<ITableWriterPtr> TClientBase::CreateTableWriter(
+    const TRichYPath& path,
+    const TTableWriterOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+    auto connection = GetRpcProxyConnection();
+    const auto& config = connection->GetConfig();
+
+    auto req = proxy.CreateTableWriter();
+    req->SetTimeout(config->DefaultStreamTimeout);
+
+    ToProto(req->mutable_path(), path);
+
+    if (options.Config) {
+        req->set_config(ConvertToYsonString(*options.Config).GetData());
+    }
+
+    ToProto(req->mutable_transactional_options(), options);
+
+    return CreateRpcTableWriter(req);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

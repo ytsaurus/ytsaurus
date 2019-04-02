@@ -16,6 +16,7 @@
 #include <yt/client/api/file_writer.h>
 #include <yt/client/api/journal_reader.h>
 #include <yt/client/api/journal_writer.h>
+#include <yt/client/api/table_writer.h>
 #include <yt/client/api/transaction.h>
 #include <yt/client/api/rowset.h>
 #include <yt/client/api/sticky_transaction_pool.h>
@@ -330,6 +331,10 @@ public:
             .SetStreamingEnabled(true)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateJournalWriter)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateTableWriter)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
 
@@ -3015,6 +3020,82 @@ private:
             }),
             BIND(&IJournalWriter::Close, journalWriter),
             EWriterFeedbackStrategy::OnlyPositive);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // TABLES
+    ////////////////////////////////////////////////////////////////////////////////
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateTableWriter)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto path = FromProto<NYPath::TRichYPath>(request->path());
+
+        NApi::TTableWriterOptions options;
+        if (request->has_config()) {
+            options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(request->config()));
+        }
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+
+        context->SetRequestInfo(
+            "Path: %v",
+            path);
+
+        auto tableWriter = WaitFor(client->CreateTableWriter(path, options))
+            .ValueOrThrow();
+
+        auto outputStream = context->GetResponseAttachmentsStream();
+        const auto& schema = tableWriter->GetSchema();
+        NApi::NRpcProxy::NProto::TMetaCreateTableWriter meta;
+        ToProto(meta.mutable_schema(), schema);
+        auto metaRef = SerializeProtoToRef(meta);
+        WaitFor(outputStream->Write(metaRef))
+            .ThrowOnError();
+
+        auto blockHandler = BIND([=] (const TSharedRef& block) {
+            std::vector<TSharedRef> parts;
+            UnpackRefs(block, &parts, true);
+            if (parts.size() != 2) {
+                THROW_ERROR_EXCEPTION("Error deserializing rows in table writer");
+            }
+
+            auto descriptorRef = parts[0];
+            auto mergedRowRefs = parts[1];
+
+            NApi::NRpcProxy::NProto::TRowsetDescriptor descriptor;
+            if (!TryDeserializeProto(&descriptor, descriptorRef)) {
+                THROW_ERROR_EXCEPTION("Error deserializing rowset descriptor in table writer");
+            }
+
+            auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
+                descriptor, mergedRowRefs); // TODO(kiselyovp) does this throw YCHECKs??
+            auto desiredNameTable = TNameTable::FromSchema(rowset->Schema());
+            // TODO(kiselyovp) achtung! Budget name table cloning! might not even work
+            // TODO(kiselyovp) make sure that received schema is an extension of the one we already have
+            for (int id = tableWriter->GetNameTable()->GetSize(); id < desiredNameTable->GetSize(); ++id) {
+                auto name = desiredNameTable->GetName(id);
+                tableWriter->GetNameTable()->RegisterName(name);
+            }
+
+            if (tableWriter->Write(rowset->GetRows())) { // TODO(kiselyovp) should i make this less sync??
+                return VoidFuture;
+            } else {
+                return tableWriter->GetReadyEvent();
+            }
+        });
+
+        HandleOutputStreamingRequest(
+            context,
+            blockHandler,
+            BIND(&ITableWriter::Close, tableWriter),
+            EWriterFeedbackStrategy::NoFeedback);
     }
 
     ////////////////////////////////////////////////////////////////////////////////

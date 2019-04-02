@@ -140,19 +140,16 @@ public:
         const NApi::TJournalWriterOptions& options) override;
 
     // Tables
-    virtual TFuture<ITableReaderPtr> CreateTableReader(
+    virtual TFuture<NApi::ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath&,
         const NApi::TTableReaderOptions&) override
     {
         ThrowUnimplemented("read_table");
     }
 
-    virtual TFuture<ITableWriterPtr> CreateTableWriter(
-        const NYPath::TRichYPath&,
-        const NApi::TTableWriterOptions&) override
-    {
-        ThrowUnimplemented("write_table");
-    }
+    virtual TFuture<NApi::ITableWriterPtr> CreateTableWriter(
+        const NYPath::TRichYPath& path,
+        const NApi::TTableWriterOptions& options) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TClientBase)
