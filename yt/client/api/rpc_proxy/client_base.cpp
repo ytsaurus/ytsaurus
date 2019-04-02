@@ -329,8 +329,8 @@ TFuture<TLockNodeResult> TClientBase::LockNode(
 }
 
 TFuture<void> TClientBase::UnlockNode(
-    const NYPath::TYPath& path,
-    const NApi::TUnlockNodeOptions& options)
+    const TYPath& path,
+    const TUnlockNodeOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -452,7 +452,7 @@ TFuture<void> TClientBase::ConcatenateNodes(
 
 TFuture<NObjectClient::TObjectId> TClientBase::CreateObject(
     NObjectClient::EObjectType type,
-    const NApi::TCreateObjectOptions& options)
+    const TCreateObjectOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
     auto req = proxy.CreateObject();
@@ -469,9 +469,9 @@ TFuture<NObjectClient::TObjectId> TClientBase::CreateObject(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<NApi::IFileReaderPtr> TClientBase::CreateFileReader(
-    const NYPath::TYPath& path,
-    const NApi::TFileReaderOptions& options)
+TFuture<IFileReaderPtr> TClientBase::CreateFileReader(
+    const TYPath& path,
+    const TFileReaderOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
     auto connection = GetRpcProxyConnection();
@@ -497,9 +497,9 @@ TFuture<NApi::IFileReaderPtr> TClientBase::CreateFileReader(
     return CreateRpcFileReader(req);
 }
 
-NApi::IFileWriterPtr TClientBase::CreateFileWriter(
-    const NYPath::TRichYPath& path,
-    const NApi::TFileWriterOptions& options)
+IFileWriterPtr TClientBase::CreateFileWriter(
+    const TRichYPath& path,
+    const TFileWriterOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
     auto connection = GetRpcProxyConnection();
@@ -523,9 +523,9 @@ NApi::IFileWriterPtr TClientBase::CreateFileWriter(
 
 /////////////////////////////////////////////////////////////////////////////
 
-NApi::IJournalReaderPtr TClientBase::CreateJournalReader(
-    const NYPath::TYPath& path,
-    const NApi::TJournalReaderOptions& options)
+IJournalReaderPtr TClientBase::CreateJournalReader(
+    const TYPath& path,
+    const TJournalReaderOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
     auto connection = GetRpcProxyConnection();
@@ -552,9 +552,9 @@ NApi::IJournalReaderPtr TClientBase::CreateJournalReader(
     return CreateRpcJournalReader(req);
 }
 
-NApi::IJournalWriterPtr TClientBase::CreateJournalWriter(
-    const NYPath::TYPath& path,
-    const NApi::TJournalWriterOptions& options)
+IJournalWriterPtr TClientBase::CreateJournalWriter(
+    const TYPath& path,
+    const TJournalWriterOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
     auto connection = GetRpcProxyConnection();
@@ -582,7 +582,7 @@ NApi::IJournalWriterPtr TClientBase::CreateJournalWriter(
 TFuture<IUnversionedRowsetPtr> TClientBase::LookupRows(
     const TYPath& path,
     TNameTablePtr nameTable,
-    const TSharedRange<NTableClient::TKey>& keys,
+    const TSharedRange<TKey>& keys,
     const TLookupRowsOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
@@ -614,7 +614,7 @@ TFuture<IUnversionedRowsetPtr> TClientBase::LookupRows(
 TFuture<IVersionedRowsetPtr> TClientBase::VersionedLookupRows(
     const TYPath& path,
     TNameTablePtr nameTable,
-    const TSharedRange<NTableClient::TKey>& keys,
+    const TSharedRange<TKey>& keys,
     const TVersionedLookupRowsOptions& options)
 {
     auto proxy = CreateApiServiceProxy();

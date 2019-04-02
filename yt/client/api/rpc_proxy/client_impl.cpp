@@ -280,7 +280,7 @@ TFuture<void> TClient::UnfreezeTable(
 
 TFuture<void> TClient::ReshardTable(
     const TYPath& path,
-    const std::vector<NTableClient::TOwningKey>& pivotKeys,
+    const std::vector<TOwningKey>& pivotKeys,
     const TReshardTableOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
@@ -420,7 +420,7 @@ TFuture<void> TClient::AlterTableReplica(
 TFuture<std::vector<TTableReplicaId>> TClient::GetInSyncReplicas(
     const TYPath& path,
     TNameTablePtr nameTable,
-    const TSharedRange<NTableClient::TKey>& keys,
+    const TSharedRange<TKey>& keys,
     const TGetInSyncReplicasOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
@@ -441,7 +441,7 @@ TFuture<std::vector<TTableReplicaId>> TClient::GetInSyncReplicas(
     }));
 }
 
-TFuture<std::vector<NApi::TTabletInfo>> TClient::GetTabletInfos(
+TFuture<std::vector<TTabletInfo>> TClient::GetTabletInfos(
     const TYPath& path,
     const std::vector<int>& tabletIndexes,
     const TGetTabletsInfoOptions& options)
@@ -456,7 +456,7 @@ TFuture<std::vector<NApi::TTabletInfo>> TClient::GetTabletInfos(
 
     return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspGetTabletInfosPtr>& rspOrError) {
         const auto& rsp = rspOrError.ValueOrThrow();
-        std::vector<NApi::TTabletInfo> tabletInfos;
+        std::vector<TTabletInfo> tabletInfos;
         tabletInfos.reserve(rsp->tablets_size());
         for (const auto& protoTabletInfo : rsp->tablets()) {
             tabletInfos.emplace_back();
@@ -471,7 +471,7 @@ TFuture<std::vector<NApi::TTabletInfo>> TClient::GetTabletInfos(
 TFuture<std::vector<TTabletActionId>> TClient::BalanceTabletCells(
     const TString& tabletCellBundle,
     const std::vector<NYPath::TYPath>& movableTables,
-    const NApi::TBalanceTabletCellsOptions& options)
+    const TBalanceTabletCellsOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -491,7 +491,7 @@ TFuture<std::vector<TTabletActionId>> TClient::BalanceTabletCells(
 TFuture<void> TClient::AddMember(
     const TString& group,
     const TString& member,
-    const NApi::TAddMemberOptions& options)
+    const TAddMemberOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -508,7 +508,7 @@ TFuture<void> TClient::AddMember(
 TFuture<void> TClient::RemoveMember(
     const TString& group,
     const TString& member,
-    const NApi::TRemoveMemberOptions& options)
+    const TRemoveMemberOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -525,7 +525,7 @@ TFuture<void> TClient::RemoveMember(
 TFuture<TCheckPermissionResponse> TClient::CheckPermission(
     const TString& user,
     const NYPath::TYPath& path,
-    NYTree::EPermission permission,
+    EPermission permission,
     const TCheckPermissionOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
@@ -547,7 +547,7 @@ TFuture<TCheckPermissionResponse> TClient::CheckPermission(
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspCheckPermissionPtr& rsp) {
         TCheckPermissionResponse response;
-        static_cast<TCheckPermissionResult&>(response) = FromProto<NApi::TCheckPermissionResult>(rsp->result());
+        static_cast<TCheckPermissionResult&>(response) = FromProto<TCheckPermissionResult>(rsp->result());
         if (rsp->has_columns()) {
             response.Columns = FromProto<std::vector<TCheckPermissionResult>>(rsp->columns().items());
         }
@@ -557,9 +557,9 @@ TFuture<TCheckPermissionResponse> TClient::CheckPermission(
 
 TFuture<TCheckPermissionByAclResult> TClient::CheckPermissionByAcl(
     const std::optional<TString>& user,
-    NYTree::EPermission permission,
-    NYTree::INodePtr acl,
-    const NApi::TCheckPermissionByAclOptions& options)
+    EPermission permission,
+    INodePtr acl,
+    const TCheckPermissionByAclOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -577,14 +577,14 @@ TFuture<TCheckPermissionByAclResult> TClient::CheckPermissionByAcl(
     ToProto(req->mutable_prerequisite_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspCheckPermissionByAclPtr& rsp) {
-        return FromProto<NApi::TCheckPermissionByAclResult>(rsp->result());
+        return FromProto<TCheckPermissionByAclResult>(rsp->result());
     }));
 }
 
 TFuture<NScheduler::TOperationId> TClient::StartOperation(
     NScheduler::EOperationType type,
     const NYson::TYsonString& spec,
-    const NApi::TStartOperationOptions& options)
+    const TStartOperationOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -598,13 +598,13 @@ TFuture<NScheduler::TOperationId> TClient::StartOperation(
     ToProto(req->mutable_transactional_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspStartOperationPtr& rsp) {
-        return FromProto<NScheduler::TOperationId>(rsp->operation_id());
+        return FromProto<TOperationId>(rsp->operation_id());
     }));
 }
 
 TFuture<void> TClient::AbortOperation(
-    const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-    const NApi::TAbortOperationOptions& options)
+    const TOperationIdOrAlias& operationIdOrAlias,
+    const TAbortOperationOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -621,8 +621,8 @@ TFuture<void> TClient::AbortOperation(
 }
 
 TFuture<void> TClient::SuspendOperation(
-    const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-    const NApi::TSuspendOperationOptions& options)
+    const TOperationIdOrAlias& operationIdOrAlias,
+    const TSuspendOperationOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -636,8 +636,8 @@ TFuture<void> TClient::SuspendOperation(
 }
 
 TFuture<void> TClient::ResumeOperation(
-    const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-    const NApi::TResumeOperationOptions& options)
+    const TOperationIdOrAlias& operationIdOrAlias,
+    const TResumeOperationOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -650,8 +650,8 @@ TFuture<void> TClient::ResumeOperation(
 }
 
 TFuture<void> TClient::CompleteOperation(
-    const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-    const NApi::TCompleteOperationOptions& options)
+    const TOperationIdOrAlias& operationIdOrAlias,
+    const TCompleteOperationOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -664,9 +664,9 @@ TFuture<void> TClient::CompleteOperation(
 }
 
 TFuture<void> TClient::UpdateOperationParameters(
-    const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
+    const TOperationIdOrAlias& operationIdOrAlias,
     const NYson::TYsonString& parameters,
-    const NApi::TUpdateOperationParametersOptions& options)
+    const TUpdateOperationParametersOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -681,8 +681,8 @@ TFuture<void> TClient::UpdateOperationParameters(
 }
 
 TFuture<NYson::TYsonString> TClient::GetOperation(
-    const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-    const NApi::TGetOperationOptions& options)
+    const TOperationIdOrAlias& operationIdOrAlias,
+    const TGetOperationOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -705,7 +705,7 @@ TFuture<NYson::TYsonString> TClient::GetOperation(
 TFuture<void> TClient::DumpJobContext(
     NJobTrackerClient::TJobId jobId,
     const NYPath::TYPath& path,
-    const NApi::TDumpJobContextOptions& options)
+    const TDumpJobContextOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -720,7 +720,7 @@ TFuture<void> TClient::DumpJobContext(
 
 TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> TClient::GetJobInput(
     NJobTrackerClient::TJobId jobId,
-    const NApi::TGetJobInputOptions& options)
+    const TGetJobInputOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
     auto connection = GetRpcProxyConnection();
@@ -737,7 +737,7 @@ TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> TClient::GetJobInput(
 
 TFuture<NYson::TYsonString> TClient::GetJobInputPaths(
     NJobTrackerClient::TJobId jobId,
-    const NApi::TGetJobInputPathsOptions& options)
+    const TGetJobInputPathsOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -754,7 +754,7 @@ TFuture<NYson::TYsonString> TClient::GetJobInputPaths(
 TFuture<TSharedRef> TClient::GetJobStderr(
     NJobTrackerClient::TOperationId operationId,
     NJobTrackerClient::TJobId jobId,
-    const NApi::TGetJobStderrOptions& options)
+    const TGetJobStderrOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -773,7 +773,7 @@ TFuture<TSharedRef> TClient::GetJobStderr(
 TFuture<TSharedRef> TClient::GetJobFailContext(
     NJobTrackerClient::TOperationId operationId,
     NJobTrackerClient::TJobId jobId,
-    const NApi::TGetJobFailContextOptions& options)
+    const TGetJobFailContextOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -789,8 +789,8 @@ TFuture<TSharedRef> TClient::GetJobFailContext(
     }));
 }
 
-TFuture<NApi::TListOperationsResult> TClient::ListOperations(
-    const NApi::TListOperationsOptions& options)
+TFuture<TListOperationsResult> TClient::ListOperations(
+    const TListOperationsOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -841,13 +841,13 @@ TFuture<NApi::TListOperationsResult> TClient::ListOperations(
     ToProto(req->mutable_master_read_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspListOperationsPtr& rsp) {
-        return FromProto<NApi::TListOperationsResult>(rsp->result());
+        return FromProto<TListOperationsResult>(rsp->result());
     }));
 }
 
-TFuture<NApi::TListJobsResult> TClient::ListJobs(
+TFuture<TListJobsResult> TClient::ListJobs(
     NJobTrackerClient::TOperationId operationId,
-    const NApi::TListJobsOptions& options)
+    const TListJobsOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -891,14 +891,14 @@ TFuture<NApi::TListJobsResult> TClient::ListJobs(
     ToProto(req->mutable_master_read_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspListJobsPtr& rsp) {
-        return FromProto<NApi::TListJobsResult>(rsp->result());
+        return FromProto<TListJobsResult>(rsp->result());
     }));
 }
 
 TFuture<NYson::TYsonString> TClient::GetJob(
     NJobTrackerClient::TOperationId operationId,
     NJobTrackerClient::TJobId jobId,
-    const NApi::TGetJobOptions& options)
+    const TGetJobOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -917,7 +917,7 @@ TFuture<NYson::TYsonString> TClient::GetJob(
 
 TFuture<NYson::TYsonString> TClient::StraceJob(
     NJobTrackerClient::TJobId jobId,
-    const NApi::TStraceJobOptions& options)
+    const TStraceJobOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -934,7 +934,7 @@ TFuture<NYson::TYsonString> TClient::StraceJob(
 TFuture<void> TClient::SignalJob(
     NJobTrackerClient::TJobId jobId,
     const TString& signalName,
-    const NApi::TSignalJobOptions& options)
+    const TSignalJobOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -949,7 +949,7 @@ TFuture<void> TClient::SignalJob(
 
 TFuture<void> TClient::AbandonJob(
     NJobTrackerClient::TJobId jobId,
-    const NApi::TAbandonJobOptions& options)
+    const TAbandonJobOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -964,7 +964,7 @@ TFuture<void> TClient::AbandonJob(
 TFuture<NYson::TYsonString> TClient::PollJobShell(
     NJobTrackerClient::TJobId jobId,
     const NYson::TYsonString& parameters,
-    const NApi::TPollJobShellOptions& options)
+    const TPollJobShellOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -981,7 +981,7 @@ TFuture<NYson::TYsonString> TClient::PollJobShell(
 
 TFuture<void> TClient::AbortJob(
     NJobTrackerClient::TJobId jobId,
-    const NApi::TAbortJobOptions& options)
+    const TAbortJobOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -996,9 +996,9 @@ TFuture<void> TClient::AbortJob(
     return req->Invoke().As<void>();
 }
 
-TFuture<NApi::TGetFileFromCacheResult> TClient::GetFileFromCache(
+TFuture<TGetFileFromCacheResult> TClient::GetFileFromCache(
     const TString& md5,
-    const NApi::TGetFileFromCacheOptions& options)
+    const TGetFileFromCacheOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -1011,14 +1011,14 @@ TFuture<NApi::TGetFileFromCacheResult> TClient::GetFileFromCache(
     ToProto(req->mutable_master_read_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetFileFromCachePtr& rsp) {
-        return FromProto<NApi::TGetFileFromCacheResult>(rsp->result());
+        return FromProto<TGetFileFromCacheResult>(rsp->result());
     }));
 }
 
-TFuture<NApi::TPutFileToCacheResult> TClient::PutFileToCache(
+TFuture<TPutFileToCacheResult> TClient::PutFileToCache(
     const NYPath::TYPath& path,
     const TString& expectedMD5,
-    const NApi::TPutFileToCacheOptions& options)
+    const TPutFileToCacheOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -1034,13 +1034,13 @@ TFuture<NApi::TPutFileToCacheResult> TClient::PutFileToCache(
     ToProto(req->mutable_mutating_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspPutFileToCachePtr& rsp) {
-        return FromProto<NApi::TPutFileToCacheResult>(rsp->result());
+        return FromProto<TPutFileToCacheResult>(rsp->result());
     }));
 }
 
-TFuture<std::vector<NTableClient::TColumnarStatistics>> TClient::GetColumnarStatistics(
+TFuture<std::vector<TColumnarStatistics>> TClient::GetColumnarStatistics(
     const std::vector<NYPath::TRichYPath>& path,
-    const NApi::TGetColumnarStatisticsOptions& options)
+    const TGetColumnarStatisticsOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -1062,7 +1062,7 @@ TFuture<std::vector<NTableClient::TColumnarStatistics>> TClient::GetColumnarStat
     ToProto(req->mutable_transactional_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetColumnarStatisticsPtr& rsp) {
-        return NYT::FromProto<std::vector<NTableClient::TColumnarStatistics>>(rsp->statistics());
+        return NYT::FromProto<std::vector<TColumnarStatistics>>(rsp->statistics());
     }));
 }
 
