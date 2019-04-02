@@ -161,6 +161,7 @@ static const auto HeadersWhitelist = JoinSeq(", ", std::vector<TString>{
     "X-YT-Parameters-0",
     "X-YT-Parameters1",
     "X-YT-Parameters-1",
+    "X-YT-Response-Parameters",
     "X-YT-Input-Format",
     "X-YT-Input-Format0",
     "X-YT-Input-Format-0",
