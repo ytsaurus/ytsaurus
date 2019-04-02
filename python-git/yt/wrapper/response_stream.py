@@ -32,7 +32,7 @@ class ResponseStream(Iterator):
             return b""
 
         if length is None:
-            length = 2 ** 32
+            length = 2 ** 63
 
         result_strings = []
         if self._pos:
