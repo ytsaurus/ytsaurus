@@ -177,6 +177,13 @@ TFuture<NConcurrency::IAsyncZeroCopyOutputStreamPtr> CreateOutputStreamAdapter(
     TIntrusivePtr<TTypedClientRequest<TRequestMessage, TResponse>> request,
     EWriterFeedbackStrategy feedbackStrategy = EWriterFeedbackStrategy::NoFeedback);
 
+//! This variant expects the server to send one TSharedRef of meta information,
+//! then close its stream.
+template <class TRequestMessage, class TResponse>
+TFuture<NConcurrency::IAsyncZeroCopyOutputStreamPtr> CreateOutputStreamAdapter(
+    TIntrusivePtr<TTypedClientRequest<TRequestMessage, TResponse>> request,
+    TCallback<void(TSharedRef)> metaHandler);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Handles an incoming streaming request that uses the #CreateInputStreamAdapter

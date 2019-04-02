@@ -1544,6 +1544,26 @@ message TRspCreateJournalWriter
 
 //------------------------------------------------------------------------------
 
+message TReqCreateTableWriter
+{
+    required string path = 1; // RichYPath
+
+    optional bytes config = 2; // YSON-serialized TTableWriterConfig
+
+    optional TTransactionalOptions transactional_options = 100;
+}
+
+message TMetaCreateTableWriter
+{
+    required TTableSchema schema = 1;
+}
+
+message TRspCreateTableWriter
+{
+}
+
+//------------------------------------------------------------------------------
+
 message TReqGetJobInput
 {
     required NYT.NProto.TGuid job_id = 1;

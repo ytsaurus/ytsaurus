@@ -468,7 +468,6 @@ def read_blob_table(path, **kwargs):
     execute_command("read_blob_table", kwargs, output_stream=output)
     return output.getvalue()
 
-@force_native_driver
 def write_table(path, value=None, is_raw=False, **kwargs):
     if "input_stream" in kwargs:
         input_stream = kwargs.pop("input_stream")

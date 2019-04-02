@@ -246,15 +246,15 @@ TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateInputStreamAdapter(
 }
 
 template <class TRequestMessage, class TResponse>
-TFuture<NConcurrency::IAsyncZeroCopyOutputStreamPtr> CreateOutputStreamAdapter(
+TFuture<NConcurrency::IAsyncZeroCopyOutputStreamPtr> CreateOutputStreamAdapterFromInvokedRequest(
     TIntrusivePtr<TTypedClientRequest<TRequestMessage, TResponse>> request,
+    TFuture<void> invokeResult,
     EWriterFeedbackStrategy feedbackStrategy)
 {
-    auto invokeResult = request->Invoke().template As<void>();
     auto handshakeResult =
         feedbackStrategy == EWriterFeedbackStrategy::NoFeedback
-        ? ExpectEndOfStream(request->GetResponseAttachmentsStream())
-        : request->GetResponseAttachmentsStream()->Read()
+            ? ExpectEndOfStream(request->GetResponseAttachmentsStream())
+            : request->GetResponseAttachmentsStream()->Read()
             .Apply(BIND([] (const TSharedRef& feedback) {
                 CheckWriterFeedback(feedback, EWriterFeedback::Handshake)
                     .ThrowOnError();
@@ -266,6 +266,34 @@ TFuture<NConcurrency::IAsyncZeroCopyOutputStreamPtr> CreateOutputStreamAdapter(
             invokeResult,
             feedbackStrategy);
     })).template As<NConcurrency::IAsyncZeroCopyOutputStreamPtr>();
+}
+
+template <class TRequestMessage, class TResponse>
+TFuture<NConcurrency::IAsyncZeroCopyOutputStreamPtr> CreateOutputStreamAdapter(
+    TIntrusivePtr<TTypedClientRequest<TRequestMessage, TResponse>> request,
+    EWriterFeedbackStrategy feedbackStrategy)
+{
+    auto invokeResult = request->Invoke().template As<void>();
+    return CreateOutputStreamAdapterFromInvokedRequest(
+        request,
+        invokeResult,
+        feedbackStrategy);
+}
+
+template <class TRequestMessage, class TResponse>
+TFuture<NConcurrency::IAsyncZeroCopyOutputStreamPtr> CreateOutputStreamAdapter(
+    TIntrusivePtr<TTypedClientRequest<TRequestMessage, TResponse>> request,
+    TCallback<void(TSharedRef)> metaHandler)
+{
+    auto invokeResult = request->Invoke().template As<void>();
+    auto metaHandlerResult = request->GetResponseAttachmentsStream()->Read()
+        .Apply(metaHandler);
+    return metaHandlerResult.Apply(BIND ([=] () {
+        return CreateOutputStreamAdapterFromInvokedRequest(
+            request,
+            invokeResult,
+            EWriterFeedbackStrategy::NoFeedback);
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
