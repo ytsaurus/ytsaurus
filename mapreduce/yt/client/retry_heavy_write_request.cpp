@@ -3,6 +3,7 @@
 #include "transaction.h"
 
 #include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/common/retry_lib.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
 #include <mapreduce/yt/interface/logging/log.h>
@@ -52,10 +53,10 @@ void RetryHeavyWriteRequest(
                 requestId.data(),
                 attempt);
 
-            if (!NDetail::IsRetriable(e) || attempt + 1 == retryCount) {
+            if (!IsRetriable(e) || attempt + 1 == retryCount) {
                 throw;
             }
-            NDetail::TWaitProxy::Get()->Sleep(NDetail::GetRetryInterval(e));
+            NDetail::TWaitProxy::Get()->Sleep(GetRetryInterval(e));
             continue;
 
         } catch (yexception& e) {
