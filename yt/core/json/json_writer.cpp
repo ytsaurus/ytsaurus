@@ -15,10 +15,16 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ENanInfinityMode,
+    (NotSupported)
+    (WriteInfinitiesUnquoted)
+    (WriteAllQuouted)
+);
+
 class TJsonWriter
 {
 public:
-    TJsonWriter(IOutputStream* output, bool isPretty, bool supportInfinity);
+    TJsonWriter(IOutputStream* output, bool isPretty, ENanInfinityMode nanInfinityMode);
     ~TJsonWriter();
 
     void Flush();
@@ -43,6 +49,7 @@ public:
 private:
     yajl_gen Handle;
     IOutputStream* Output;
+    ENanInfinityMode NanInfinityMode_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -141,13 +148,17 @@ static void CheckYajlCode(int yajlCode)
     THROW_ERROR_EXCEPTION(errorMessage);
 }
 
-TJsonWriter::TJsonWriter(IOutputStream* output, bool isPretty, bool supportInfinity)
+TJsonWriter::TJsonWriter(IOutputStream* output, bool isPretty, ENanInfinityMode nanInfinityMode)
     : Output(output)
+    , NanInfinityMode_(nanInfinityMode)
 {
     Handle = yajl_gen_alloc(nullptr);
     yajl_gen_config(Handle, yajl_gen_beautify, isPretty ? 1 : 0);
     yajl_gen_config(Handle, yajl_gen_skip_final_newline, 0);
+
+    auto supportInfinity = (NanInfinityMode_ == ENanInfinityMode::WriteInfinitiesUnquoted);
     yajl_gen_config(Handle, yajl_gen_support_infinity, supportInfinity ? 1 : 0);
+
     yajl_gen_config(Handle, yajl_gen_disable_yandex_double_format, 1);
     yajl_gen_config(Handle, yajl_gen_validate_utf8, 1);
 }
@@ -209,7 +220,22 @@ void TJsonWriter::WriteNull()
 
 void TJsonWriter::Write(double value)
 {
-    CheckYajlCode(yajl_gen_double(Handle, value));
+    if (NanInfinityMode_ != ENanInfinityMode::WriteAllQuouted) {
+        CheckYajlCode(yajl_gen_double(Handle, value));
+        return;
+    }
+
+    if (std::isnan(value)) {
+        Write(AsStringBuf("nan"));
+    } else if (std::isinf(value)) {
+        if (value < 0) {
+            Write(AsStringBuf("-inf"));
+        } else {
+            Write(AsStringBuf("inf"));
+        }
+    } else {
+        CheckYajlCode(yajl_gen_double(Handle, value));
+    }
 }
 
 void TJsonWriter::Write(i64 value)
@@ -241,10 +267,17 @@ TJsonConsumer::TJsonConsumer(IOutputStream* output,
         THROW_ERROR_EXCEPTION("Map fragments are not supported by JSON");
     }
 
+    auto nanInfinityMode = ENanInfinityMode::NotSupported;
+    if (Config->SupportInfinity) {
+        nanInfinityMode = ENanInfinityMode::WriteInfinitiesUnquoted;
+    } else if (Config->StringifyNanAndInfinity) {
+        nanInfinityMode = ENanInfinityMode::WriteAllQuouted;
+    }
+
     JsonWriter = std::make_unique<TJsonWriter>(
         output,
         Config->Format == EJsonFormat::Pretty,
-        Config->SupportInfinity);
+        nanInfinityMode);
 }
 
 void TJsonConsumer::EnterNode()
