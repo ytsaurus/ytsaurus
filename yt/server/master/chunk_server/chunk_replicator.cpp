@@ -949,7 +949,7 @@ void TChunkReplicator::ScheduleJobs(
     std::vector<TJobPtr>* jobsToAbort,
     std::vector<TJobPtr>* jobsToRemove)
 {
-    UpdateInterDCEdgeCapacities(); // Pull capacity changes, react on DC removal (if any).
+    UpdateInterDCEdgeCapacities(); // Pull capacity changes.
 
     ProcessExistingJobs(
         node,
@@ -2566,9 +2566,11 @@ void TChunkReplicator::InitInterDCEdges()
     InitUnsaturatedInterDCEdges();
 }
 
-void TChunkReplicator::UpdateInterDCEdgeCapacities()
+void TChunkReplicator::UpdateInterDCEdgeCapacities(bool force)
 {
-    if (GetCpuInstant() - InterDCEdgeCapacitiesLastUpdateTime_ <= GetDynamicConfig()->InterDCLimits->GetUpdateInterval()) {
+    if (!force &&
+        GetCpuInstant() - InterDCEdgeCapacitiesLastUpdateTime_ <= GetDynamicConfig()->InterDCLimits->GetUpdateInterval())
+    {
         return;
     }
 
@@ -2693,7 +2695,7 @@ void TChunkReplicator::UpdateInterDCEdgeConsumption(
             auto it = UnsaturatedInterDCEdges_.find(srcDataCenter);
             if (it != UnsaturatedInterDCEdges_.end()) {
                 it->second.erase(dstDataCenter);
-                // Don't do UnsaturatedInterDCEdges.erase(it) here - the memory
+                // Don't do UnsaturatedInterDCEdges_.erase(it) here - the memory
                 // saving is negligible, but the slowdown may be noticeable. Plus,
                 // the removal is very likely to be undone by a soon-to-follow insertion.
             }
@@ -2704,6 +2706,50 @@ void TChunkReplicator::UpdateInterDCEdgeConsumption(
 bool TChunkReplicator::HasUnsaturatedInterDCEdgeStartingFrom(const TDataCenter* srcDataCenter)
 {
     return !UnsaturatedInterDCEdges_[srcDataCenter].empty();
+}
+
+void TChunkReplicator::OnDataCenterCreated(const TDataCenter* dataCenter)
+{
+    UpdateInterDCEdgeCapacities(true);
+
+    const auto defaultCapacity =
+        GetDynamicConfig()->InterDCLimits->GetDefaultCapacity() / std::max<int>(Bootstrap_->GetSecondaryCellTags().size(), 1);
+
+    auto updateEdge = [&] (const TDataCenter* srcDataCenter, const TDataCenter* dstDataCenter) {
+        if (InterDCEdgeConsumption_[srcDataCenter].Value(dstDataCenter, 0) <
+            InterDCEdgeCapacities_[srcDataCenter].Value(dstDataCenter, defaultCapacity))
+        {
+            UnsaturatedInterDCEdges_[srcDataCenter].insert(dstDataCenter);
+        }
+    };
+
+
+    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+
+    updateEdge(nullptr, dataCenter);
+    updateEdge(dataCenter, nullptr);
+    for (const auto& [dstDataCenterId, otherDataCenter] : nodeTracker->DataCenters()) {
+        updateEdge(dataCenter, otherDataCenter);
+        updateEdge(otherDataCenter, dataCenter);
+    }
+}
+
+void TChunkReplicator::OnDataCenterDestroyed(const TDataCenter* dataCenter)
+{
+    InterDCEdgeCapacities_.erase(dataCenter);
+    for (auto& [srcDataCenter, dstDataCenterCapacities] : InterDCEdgeCapacities_) {
+        dstDataCenterCapacities.erase(dataCenter); // may be no-op
+    }
+
+    InterDCEdgeConsumption_.erase(dataCenter);
+    for (auto& [srcDataCenter, dstDataCenterConsumption] : InterDCEdgeConsumption_) {
+        dstDataCenterConsumption.erase(dataCenter); // may be no-op
+    }
+
+    UnsaturatedInterDCEdges_.erase(dataCenter);
+    for (auto& [srcDataCenter, dstDataCenterSet] : UnsaturatedInterDCEdges_) {
+        dstDataCenterSet.erase(dataCenter); // may be no-op
+    }
 }
 
 TChunkRequisitionRegistry* TChunkReplicator::GetChunkRequisitionRegistry()

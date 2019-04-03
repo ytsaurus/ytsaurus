@@ -109,10 +109,14 @@ public:
         std::vector<TJobPtr>* jobsToRemove);
 
     void OnNodeDataCenterChanged(TNode* node, NNodeTrackerServer::TDataCenter* oldDataCenter);
+    void OnDataCenterCreated(const NNodeTrackerServer::TDataCenter* dataCenter);
+    void OnDataCenterDestroyed(const NNodeTrackerServer::TDataCenter* dataCenter);
 
     bool IsReplicatorEnabled();
     bool IsRefreshEnabled();
     bool IsRequisitionUpdateEnabled();
+
+    bool IsEnabled();
 
     int GetRefreshQueueSize() const;
     int GetRequisitionUpdateQueueSize() const;
@@ -346,7 +350,7 @@ private:
     void RemoveFromChunkRepairQueues(TChunkPtrWithIndexes chunkWithIndexes);
 
     void InitInterDCEdges();
-    void UpdateInterDCEdgeCapacities();
+    void UpdateInterDCEdgeCapacities(bool force = false);
     void InitUnsaturatedInterDCEdges();
     void UpdateInterDCEdgeConsumption(
         const TJobPtr& job,
