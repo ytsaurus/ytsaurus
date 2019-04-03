@@ -1672,6 +1672,10 @@ private:
         if (!EnsureDataCenterTagsInitialized()) {
             RegisterTagsForDataCenter(dataCenter);
         }
+
+        if (ChunkReplicator_) {
+            ChunkReplicator_->OnDataCenterDestroyed(dataCenter);
+        }
     }
 
     void OnDataCenterRenamed(TDataCenter* dataCenter)
@@ -1686,6 +1690,10 @@ private:
     {
         if (!EnsureDataCenterTagsInitialized()) {
             UnregisterTagsForDataCenter(dataCenter);
+        }
+
+        if (ChunkReplicator_) {
+            ChunkReplicator_->OnDataCenterDestroyed(dataCenter);
         }
     }
 
