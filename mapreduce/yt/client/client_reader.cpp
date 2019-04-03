@@ -4,6 +4,7 @@
 
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
+#include <mapreduce/yt/common/retry_lib.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
 #include <mapreduce/yt/interface/logging/log.h>
@@ -165,10 +166,10 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
             LOG_ERROR("RSP %s - attempt %d failed",
                 requestId.data(), attempt);
 
-            if (!NDetail::IsRetriable(e) || attempt == lastAttempt) {
+            if (!IsRetriable(e) || attempt == lastAttempt) {
                 throw;
             }
-            NDetail::TWaitProxy::Get()->Sleep(NDetail::GetRetryInterval(e));
+            NDetail::TWaitProxy::Get()->Sleep(GetRetryInterval(e));
             continue;
         } catch (yexception& e) {
             LOG_ERROR("RSP %s - %s - attempt %d failed",

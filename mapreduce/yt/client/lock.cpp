@@ -4,6 +4,8 @@
 
 #include <mapreduce/yt/http/retry_request.h>
 
+#include <mapreduce/yt/common/retry_lib.h>
+
 #include <mapreduce/yt/raw_client/raw_batch_request.h>
 
 #include <util/string/builder.h>

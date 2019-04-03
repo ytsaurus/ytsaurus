@@ -5,6 +5,7 @@
 
 #include <mapreduce/yt/common/finally_guard.h>
 #include <mapreduce/yt/common/helpers.h>
+#include <mapreduce/yt/common/retry_lib.h>
 #include <mapreduce/yt/interface/logging/log.h>
 
 #include <mapreduce/yt/interface/errors.h>

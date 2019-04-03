@@ -14,6 +14,7 @@
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/finally_guard.h>
 #include <mapreduce/yt/common/helpers.h>
+#include <mapreduce/yt/common/retry_lib.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
 #include <mapreduce/yt/interface/errors.h>
@@ -1930,7 +1931,7 @@ public:
                 OperationImpl_->UpdateBriefProgress(attributes.BriefProgress);
             }
         } catch (const TErrorResponse& e) {
-            if (!NDetail::IsRetriable(e)) {
+            if (!IsRetriable(e)) {
                 OperationImpl_->FinishWithException(std::current_exception());
                 return PollBreak;
             }
@@ -2267,7 +2268,7 @@ public:
             return operationHasLockedFiles ? EStatus::PollBreak : EStatus::PollContinue;
         } catch (const TErrorResponse& e) {
             LOG_ERROR("get_operation request %s failed: %s", e.GetRequestId().data(), e.GetError().GetMessage().data());
-            return NDetail::IsRetriable(e) ? PollContinue : PollBreak;
+            return IsRetriable(e) ? PollContinue : PollBreak;
         } catch (const yexception& e) {
             LOG_ERROR("%s", e.what());
             return PollBreak;

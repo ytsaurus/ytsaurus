@@ -7,6 +7,7 @@
 #include <mapreduce/yt/common/abortable_registry.h>
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
+#include <mapreduce/yt/common/retry_lib.h>
 #include <mapreduce/yt/interface/logging/log.h>
 #include <mapreduce/yt/common/node_builder.h>
 #include <mapreduce/yt/common/wait_proxy.h>
@@ -270,7 +271,7 @@ TString RetryRequest(
                 e.GetError().GetMessage(),
                 TStringBuilder() << "attempt " << attempt << " of " << retryCount);
 
-            if (!NDetail::IsRetriable(e) || attempt + 1 == retryCount) {
+            if (!IsRetriable(e) || attempt + 1 == retryCount) {
                 throw;
             }
             if (e.IsConcurrentOperationsLimitReached()) {
@@ -278,7 +279,7 @@ TString RetryRequest(
             }
 
             hasError = true;
-            retryInterval = NDetail::GetRetryInterval(e);
+            retryInterval = GetRetryInterval(e);
         } catch (yexception& e) {
             LogRequestError(
                 requestId,

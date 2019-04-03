@@ -2,8 +2,9 @@
 
 #include "transaction.h"
 
-#include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/common/helpers.h>
+#include <mapreduce/yt/common/retry_lib.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
 #include <mapreduce/yt/interface/logging/log.h>
@@ -71,10 +72,10 @@ size_t TStreamReaderBase::DoRead(void* buf, size_t len)
             return read;
         } catch (TErrorResponse& e) {
             LOG_ERROR("RSP %s - failed: %s (attempt %d of %d)", GetActiveRequestId().data(), e.what(), attempt, retryCount);
-            if (!NDetail::IsRetriable(e) || attempt == retryCount) {
+            if (!IsRetriable(e) || attempt == retryCount) {
                 throw;
             }
-            NDetail::TWaitProxy::Get()->Sleep(NDetail::GetRetryInterval(e));
+            NDetail::TWaitProxy::Get()->Sleep(GetRetryInterval(e));
         } catch (yexception& e) {
             LOG_ERROR("RSP %s - failed: %s (attempt %d of %d)", GetActiveRequestId().data(), e.what(), attempt, retryCount);
             if (Request_) {

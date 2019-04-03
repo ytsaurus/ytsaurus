@@ -6,6 +6,7 @@
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/finally_guard.h>
+#include <mapreduce/yt/common/retry_lib.h>
 #include <mapreduce/yt/http/retry_request.h>
 #include <mapreduce/yt/interface/operation.h>
 #include <mapreduce/yt/interface/serialize.h>
@@ -31,9 +32,10 @@ void ExecuteBatch(
     const auto concurrency = options.Concurrency_.GetOrElse(50);
     const auto batchPartMaxSize = options.BatchPartMaxSize_.GetOrElse(concurrency * 5);
 
-    TAttemptLimitedRetryPolicy defaultRetryPolicy(TConfig::Get()->RetryCount);
+    IRequestRetryPolicyPtr defaultRetryPolicy = nullptr;
     if (!retryPolicy) {
-        retryPolicy = &defaultRetryPolicy;
+        defaultRetryPolicy = CreateDefaultRetryPolicy();
+        retryPolicy = defaultRetryPolicy.Get();
     }
 
     while (batchRequest.BatchSize()) {
