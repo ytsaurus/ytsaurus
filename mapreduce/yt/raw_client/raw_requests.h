@@ -137,21 +137,15 @@ void CompleteOperation(
     const TAuth& auth,
     const TOperationId& operationId);
 
-TListOperationsResult ListOperations(
-    const TAuth& auth,
-    const TListOperationsOptions& options = TListOperationsOptions(),
-    IRequestRetryPolicy* retryPolicy = nullptr);
-
 void UpdateOperationParameters(
     const TAuth& auth,
     const TOperationId& operationId,
     const TUpdateOperationParametersOptions& options,
     IRequestRetryPolicy* retryPolicy = nullptr);
 
-TNode ListJobsOld(
+TListOperationsResult ListOperations(
     const TAuth& auth,
-    const TOperationId& operationId,
-    const TListJobsOptions& options = TListJobsOptions(),
+    const TListOperationsOptions& options = TListOperationsOptions(),
     IRequestRetryPolicy* retryPolicy = nullptr);
 
 //

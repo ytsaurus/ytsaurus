@@ -147,11 +147,22 @@ REGISTER_MAPPER(TAlwaysFailingMapper);
 class TMapperThatWritesStderr : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
-    void Do(TReader* reader, TWriter*) {
+    TMapperThatWritesStderr() = default;
+
+    TMapperThatWritesStderr(TStringBuf str)
+        : Stderr_(str)
+    { }
+
+    void Do(TReader* reader, TWriter*) override {
         for (; reader->IsValid(); reader->Next()) {
         }
-        Cerr << "PYSHCH" << Endl;
+        Cerr << Stderr_;
     }
+
+    Y_SAVELOAD_JOB(Stderr_);
+
+private:
+    TString Stderr_;
 };
 REGISTER_MAPPER(TMapperThatWritesStderr);
 
@@ -721,16 +732,17 @@ Y_UNIT_TEST_SUITE(Operations)
             writer->Finish();
         }
 
+        auto expectedStderr = AsStringBuf("PYSHCH");
         client->Map(
             TMapOperationSpec()
             .AddInput<TNode>(workingDir + "/input")
             .AddOutput<TNode>(workingDir + "/output")
             .StderrTablePath(workingDir + "/stderr"),
-            new TMapperThatWritesStderr);
+            new TMapperThatWritesStderr(expectedStderr));
 
         auto reader = client->CreateTableReader<TNode>(workingDir + "/stderr");
         UNIT_ASSERT(reader->IsValid());
-        UNIT_ASSERT(reader->GetRow()["data"].AsString().Contains("PYSHCH\n"));
+        UNIT_ASSERT(reader->GetRow()["data"].AsString().Contains(expectedStderr));
         reader->Next();
         UNIT_ASSERT(!reader->IsValid());
     }
@@ -747,6 +759,8 @@ Y_UNIT_TEST_SUITE(Operations)
             writer->Finish();
         }
 
+        auto expectedStderr = AsStringBuf("PYSHCH");
+
         // stderr table does not exist => should fail
         UNIT_ASSERT_EXCEPTION(
             client->Map(
@@ -754,7 +768,7 @@ Y_UNIT_TEST_SUITE(Operations)
                     .AddInput<TNode>(workingDir + "/input")
                     .AddOutput<TNode>(workingDir + "/output")
                     .StderrTablePath(workingDir + "/stderr"),
-                new TMapperThatWritesStderr,
+                new TMapperThatWritesStderr(expectedStderr),
                 TOperationOptions()
                     .CreateDebugOutputTables(false)),
             TOperationFailedError);
@@ -768,7 +782,7 @@ Y_UNIT_TEST_SUITE(Operations)
                     .AddInput<TNode>(workingDir + "/input")
                     .AddOutput<TNode>(workingDir + "/output")
                     .StderrTablePath(workingDir + "/stderr"),
-                new TMapperThatWritesStderr,
+                new TMapperThatWritesStderr(expectedStderr),
                 TOperationOptions()
                     .CreateDebugOutputTables(false)));
     }
@@ -785,6 +799,8 @@ Y_UNIT_TEST_SUITE(Operations)
             writer->Finish();
         }
 
+        auto expectedStderr = AsStringBuf("PYSHCH");
+
         // Output table does not exist => operation should fail.
         UNIT_ASSERT_EXCEPTION(
             client->Map(
@@ -792,7 +808,7 @@ Y_UNIT_TEST_SUITE(Operations)
                     .AddInput<TNode>(workingDir + "/input")
                     .AddOutput<TNode>(workingDir + "/output")
                     .StderrTablePath(workingDir + "/stderr"),
-                new TMapperThatWritesStderr,
+                new TMapperThatWritesStderr(expectedStderr),
                 TOperationOptions()
                     .CreateOutputTables(false)),
             TOperationFailedError);
@@ -806,7 +822,7 @@ Y_UNIT_TEST_SUITE(Operations)
                     .AddInput<TNode>(workingDir + "/input")
                     .AddOutput<TNode>(workingDir + "/output")
                     .StderrTablePath(workingDir + "/stderr"),
-                new TMapperThatWritesStderr,
+                new TMapperThatWritesStderr(expectedStderr),
                 TOperationOptions()
                     .CreateOutputTables(false)));
 
@@ -2331,13 +2347,15 @@ Y_UNIT_TEST_SUITE(Operations)
 
         CreateTableWithFooColumn(client, workingDir + "/input");
 
+        auto expectedStderr = AsStringBuf("EXPECTED-STDERR");
+
         auto beforeStart = TInstant::Now();
         auto op = client->Map(
             TMapOperationSpec()
                 .AddInput<TNode>(workingDir + "/input")
                 .AddOutput<TNode>(workingDir + "/output")
                 .JobCount(1),
-            new TMapperThatWritesStderr);
+            new TMapperThatWritesStderr(expectedStderr));
         auto afterFinish = TInstant::Now();
 
         auto jobs = client->ListJobs(op->GetId()).Jobs;
@@ -2389,22 +2407,31 @@ Y_UNIT_TEST_SUITE(Operations)
             // (as EJobState::Failed > EJobState::Completed).
             UNIT_ASSERT_VALUES_EQUAL(result.Jobs.size(), 3);
             for (size_t index = 0; index < result.Jobs.size(); ++index) {
-                const auto& jobAttrs = result.Jobs[index];
+                const auto& job = result.Jobs[index];
 
-                UNIT_ASSERT(jobAttrs.StartTime);
-                UNIT_ASSERT(*jobAttrs.StartTime > beforeStart);
+                UNIT_ASSERT(job.StartTime);
+                UNIT_ASSERT(*job.StartTime > beforeStart);
 
-                UNIT_ASSERT(jobAttrs.FinishTime);
-                UNIT_ASSERT(*jobAttrs.FinishTime < afterFinish);
+                UNIT_ASSERT(job.FinishTime);
+                UNIT_ASSERT(*job.FinishTime < afterFinish);
 
-                UNIT_ASSERT(jobAttrs.Type);
-                UNIT_ASSERT_VALUES_EQUAL(*jobAttrs.Type, EJobType::PartitionMap);
+                UNIT_ASSERT(job.Type);
+                UNIT_ASSERT_VALUES_EQUAL(*job.Type, EJobType::PartitionMap);
 
-                UNIT_ASSERT(jobAttrs.State);
-                auto expectedState = (index == result.Jobs.size() - 1)
-                    ? EJobState::Failed
-                    : EJobState::Completed;
-                UNIT_ASSERT_VALUES_EQUAL(*jobAttrs.State, expectedState);
+                UNIT_ASSERT(job.State);
+
+                if (index == result.Jobs.size() - 1) {
+                    UNIT_ASSERT_VALUES_EQUAL(*job.State, EJobState::Failed);
+
+                    UNIT_ASSERT_VALUES_EQUAL(job.StderrSize.GetOrElse(0), 0);
+
+                    UNIT_ASSERT(job.Error);
+                    UNIT_ASSERT(job.Error->ContainsErrorCode(1205));
+                } else {
+                    UNIT_ASSERT_VALUES_EQUAL(*job.State, EJobState::Completed);
+                }
+
+                UNIT_ASSERT(job.BriefStatistics);
             }
         }
     }
@@ -2484,19 +2511,20 @@ Y_UNIT_TEST_SUITE(Operations)
 
         CreateTableWithFooColumn(client, workingDir + "/input");
 
+        auto expectedStderr = AsStringBuf("PYSHCH");
         auto op = client->Map(
             TMapOperationSpec()
                 .AddInput<TNode>(workingDir + "/input")
                 .AddOutput<TNode>(workingDir + "/output")
                 .JobCount(1),
-            new TMapperThatWritesStderr);
+            new TMapperThatWritesStderr(expectedStderr));
 
         auto jobs = op->ListJobs().Jobs;
         UNIT_ASSERT_VALUES_EQUAL(jobs.size(), 1);
         UNIT_ASSERT(jobs.front().Id.Defined());
 
         auto jobStderrStream = client->GetJobStderr(op->GetId(), *jobs.front().Id);
-        UNIT_ASSERT_STRING_CONTAINS(jobStderrStream->ReadAll(), "PYSHCH");
+        UNIT_ASSERT_STRING_CONTAINS(jobStderrStream->ReadAll(), expectedStderr);
     }
 
     Y_UNIT_TEST(GetJobFailContext)
