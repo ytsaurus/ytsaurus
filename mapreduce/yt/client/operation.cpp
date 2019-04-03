@@ -677,26 +677,27 @@ TVector<TFailedJobInfo> GetFailedJobInfo(
     const TOperationId& operationId,
     const TGetFailedJobInfoOptions& options)
 {
-    const size_t maxJobCount = options.MaxJobCount_;
-    const i64 stderrTailSize = options.StderrTailSize_;
+    const auto listJobsResult = ListJobs(
+        auth,
+        operationId,
+        TListJobsOptions()
+            .State(EJobState::Failed)
+            .Limit(options.MaxJobCount_));
 
-    const auto jobList = ListJobsOld(auth, operationId, TListJobsOptions()
-        .State(EJobState::Failed)
-        .Limit(maxJobCount))["jobs"].AsList();
+    const auto stderrTailSize = options.StderrTailSize_;
+
     TVector<TFailedJobInfo> result;
-    for (const auto& jobNode : jobList) {
-        const auto& jobMap = jobNode.AsMap();
-        TFailedJobInfo info;
-        info.JobId = GetGuid(jobMap.at("id").AsString());
-        auto errorIt = jobMap.find("error");
-        info.Error = TYtError(errorIt == jobMap.end() ? "unknown error" : errorIt->second);
-        if (jobMap.count("stderr_size")) {
-            info.Stderr = GetJobStderrWithRetries(auth, operationId, info.JobId);
-            if (info.Stderr.size() > static_cast<size_t>(stderrTailSize)) {
-                info.Stderr = TString(info.Stderr.data() + info.Stderr.size() - stderrTailSize, stderrTailSize);
+    for (const auto& job : listJobsResult.Jobs) {
+        auto& info = result.emplace_back();
+        Y_ENSURE(job.Id);
+        info.JobId = *job.Id;
+        info.Error = job.Error.GetOrElse(TYtError(TString("unknown error")));
+        if (job.StderrSize.GetOrElse(0) != 0) {
+            info.Stderr = GetJobStderrWithRetries(auth, operationId, *job.Id);
+            if (info.Stderr.size() > stderrTailSize) {
+                info.Stderr = info.Stderr.substr(info.Stderr.size() - stderrTailSize, stderrTailSize);
             }
         }
-        result.push_back(std::move(info));
     }
     return result;
 }

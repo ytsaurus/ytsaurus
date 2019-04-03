@@ -391,18 +391,6 @@ void UpdateOperationParameters(
     RetryRequestWithPolicy(auth, header, "", retryPolicy);
 }
 
-TNode ListJobsOld(
-    const TAuth& auth,
-    const TOperationId& operationId,
-    const TListJobsOptions& options,
-    IRequestRetryPolicy* retryPolicy)
-{
-    THttpHeader header("GET", "list_jobs");
-    header.MergeParameters(SerializeParamsForListJobs(operationId, options));
-    auto responseInfo = RetryRequestWithPolicy(auth, header, "", retryPolicy);
-    return NodeFromYsonString(responseInfo.Response);
-}
-
 TJobAttributes ParseJobAttributes(const TNode& node)
 {
     const auto& mapNode = node.AsMap();
@@ -435,16 +423,16 @@ TJobAttributes ParseJobAttributes(const TNode& node)
     if (auto progressNode = mapNode.FindPtr("progress")) {
         result.Progress = progressNode->AsDouble();
     }
-    if (auto stderrSizeNode = mapNode.FindPtr("stderrSize")) {
-        result.StderrSize = stderrSizeNode->AsInt64();
+    if (auto stderrSizeNode = mapNode.FindPtr("stderr_size")) {
+        result.StderrSize = stderrSizeNode->AsUint64();
     }
     if (auto errorNode = mapNode.FindPtr("error")) {
         result.Error.ConstructInPlace(*errorNode);
     }
-    if (auto briefStatisticsNode = mapNode.FindPtr("briefStatistics")) {
+    if (auto briefStatisticsNode = mapNode.FindPtr("brief_statistics")) {
         result.BriefStatistics = *briefStatisticsNode;
     }
-    if (auto inputPathsNode = mapNode.FindPtr("inputPaths")) {
+    if (auto inputPathsNode = mapNode.FindPtr("input_paths")) {
         const auto& inputPathNodesList = inputPathsNode->AsList();
         result.InputPaths.ConstructInPlace();
         result.InputPaths->reserve(inputPathNodesList.size());
@@ -454,7 +442,7 @@ TJobAttributes ParseJobAttributes(const TNode& node)
             result.InputPaths->push_back(std::move(path));
         }
     }
-    if (auto coreInfosNode = mapNode.FindPtr("coreInfos")) {
+    if (auto coreInfosNode = mapNode.FindPtr("core_infos")) {
         const auto& coreInfoNodesList = coreInfosNode->AsList();
         result.CoreInfos.ConstructInPlace();
         result.CoreInfos->reserve(coreInfoNodesList.size());
