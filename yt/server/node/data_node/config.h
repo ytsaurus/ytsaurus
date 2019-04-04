@@ -844,12 +844,8 @@ public:
 
         RegisterPreprocessor([&] () {
             ChunkMetaCache->Capacity = 1_GB;
-
-            // TODO(babenko): adjust after experiments
-            BlocksExtCache->Capacity = 100_GB;
-
+            BlocksExtCache->Capacity = 1_GB;
             BlockMetaCache->Capacity = 1_GB;
-
             BlockCache->CompressedData->Capacity = 1_GB;
             BlockCache->UncompressedData->Capacity = 1_GB;
 
