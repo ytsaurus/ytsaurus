@@ -34,6 +34,7 @@
 
 #include <yt/core/misc/core_dumper.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
+#include <yt/core/alloc/statistics_producer.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -106,6 +107,9 @@ void TBootstrap::DoRun()
     YT_LOG_INFO("Starting ClickHouse server");
 
     MonitoringManager_ = New<TMonitoringManager>();
+    MonitoringManager_->Register(
+        "/yt_alloc",
+        NYTAlloc::CreateYTAllocStatisticsProducer());
     MonitoringManager_->Register(
         "/ref_counted",
         CreateRefCountedTrackerStatisticsProducer());
