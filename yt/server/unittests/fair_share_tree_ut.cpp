@@ -33,6 +33,11 @@ struct TSchedulerStrategyHostMock
         : TSchedulerStrategyHostMock(TJobResourcesWithQuotaList{})
     { }
 
+    virtual IInvokerPtr GetProfilingInvoker() const override
+    {
+        Y_UNREACHABLE();
+    }
+
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) override
     {
         if (!filter.IsEmpty()) {

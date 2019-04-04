@@ -1127,6 +1127,11 @@ public:
         return Bootstrap_->GetControlInvoker(queue);
     }
 
+    virtual IInvokerPtr GetProfilingInvoker() const override
+    {
+        return ProfilingActionQueue_->GetInvoker();
+    }
+
     virtual IYsonConsumer* GetEventLogConsumer() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1259,6 +1264,7 @@ private:
     TOperationsCleanerPtr OperationsCleaner_;
 
     const TActionQueuePtr OrchidActionQueue_ = New<TActionQueue>("OrchidWorker");
+    const TActionQueuePtr ProfilingActionQueue_ = New<TActionQueue>("ProfilingWorker");
 
     ISchedulerStrategyPtr Strategy_;
 
