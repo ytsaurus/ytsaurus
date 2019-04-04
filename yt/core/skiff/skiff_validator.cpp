@@ -214,6 +214,39 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TRepeatedVariant8TypeUsageValidator
+    : public IValidatorNode
+{
+public:
+    explicit TRepeatedVariant8TypeUsageValidator(TValidatorNodeList children)
+        : Children_(std::move(children))
+    { }
+
+    virtual void BeforeVariant8Tag() override
+    { }
+
+    virtual void OnVariant8Tag(TValidatorNodeStack* validatorNodeStack, ui8 tag) override
+    {
+        if (tag == EndOfSequenceTag<ui8>()) {
+            validatorNodeStack->PopValidator();
+        } else if (tag >= Children_.size()) {
+            THROW_ERROR_EXCEPTION("Variant tag %Qv exceeds number of children %Qv",
+                tag,
+                Children_.size());
+        } else {
+            validatorNodeStack->PushValidator(Children_[tag].Get());
+        }
+    }
+
+    virtual void OnChildDone(TValidatorNodeStack* /*validatorNodeStack*/) override
+    { }
+
+private:
+    const TValidatorNodeList Children_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TRepeatedVariant16TypeUsageValidator
     : public IValidatorNode
 {
@@ -352,6 +385,8 @@ IValidatorNodePtr CreateUsageValidatorNode(const TSkiffSchemaPtr& skiffSchema)
             return New<TVariant8TypeUsageValidator>(CreateUsageValidatorNodeList(skiffSchema->GetChildren()));
         case EWireType::Variant16:
             return New<TVariant16TypeUsageValidator>(CreateUsageValidatorNodeList(skiffSchema->GetChildren()));
+        case EWireType::RepeatedVariant8:
+            return New<TRepeatedVariant8TypeUsageValidator>(CreateUsageValidatorNodeList(skiffSchema->GetChildren()));
         case EWireType::RepeatedVariant16:
             return New<TRepeatedVariant16TypeUsageValidator>(CreateUsageValidatorNodeList(skiffSchema->GetChildren()));
         default:
