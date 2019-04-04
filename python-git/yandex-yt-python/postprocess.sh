@@ -2,7 +2,7 @@
 # Build and upload self-contained binaries
 
 export YT_PROXY=locke.yt.yandex.net
-export YT_TOKEN=1da6afc98d189e8ba59d2ea39f29d0f1 #teamcity user
+export YT_TOKEN=${TEAMCITY_YT_TOKEN}
 export PYTHONPATH="."
 DEST="//home/files"
 YT="yt/wrapper/bin/yt"

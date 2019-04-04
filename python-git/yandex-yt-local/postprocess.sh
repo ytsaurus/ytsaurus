@@ -6,14 +6,9 @@ set -o pipefail
 export YT_PROXY=locke.yt.yandex.net
 
 # Tokens belong to teamcity@ user
-export YT_TOKEN="1da6afc98d189e8ba59d2ea39f29d0f1"
+export YT_TOKEN=${TEAMCITY_YT_TOKEN}
 # robot-yt-openstack token
-export SANDBOX_TOKEN="AVImS1cAAAIG5Gbx39hmSpqvUEcG4AdMCg"
-
-# Teamcity token.
-#export SANDBOX_TOKEN="AQAD-qJSJgakAAACBoCwfKSgK0zqgUOQTyrMYnw"
-# Old teamcity token.
-#export SANDBOX_TOKEN=c80fbd1794784f2fbea86ac39ec92f8f
+export SANDBOX_TOKEN=${TEAMCITY_SANDBOX_TOKEN}
 
 export PYTHONPATH="$(pwd)"
 
