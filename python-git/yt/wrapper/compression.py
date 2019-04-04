@@ -1,4 +1,4 @@
-from yt.common import YtError, GB, chunk_iter_string
+from yt.wrapper.common import YtError, GB, chunk_iter_string
 
 from yt.packages.six import binary_type
 
@@ -16,7 +16,7 @@ class _Compressor(object):
 
     def __call__(self, obj):
         if isinstance(obj, binary_type):
-            obj_iterator = chunk_iter_string(obj, 2*GB)
+            obj_iterator = chunk_iter_string(obj, 2 * GB)
         else:
             obj_iterator = obj
 
