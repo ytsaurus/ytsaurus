@@ -19,6 +19,7 @@
 #include <yt/client/api/rpc_proxy/public.h>
 #include <yt/client/api/rpc_proxy/api_service_proxy.h>
 #include <yt/client/api/rpc_proxy/helpers.h>
+#include <yt/client/api/rpc_proxy/protocol_version.h>
 
 #include <yt/client/chunk_client/config.h>
 
@@ -44,6 +45,8 @@
 #include <yt/core/misc/serialize.h>
 
 #include <yt/core/rpc/service_detail.h>
+
+
 
 namespace NYT::NRpcProxy {
 
@@ -209,7 +212,10 @@ void FromProto(
 const TServiceDescriptor& GetDescriptor()
 {
     static const auto descriptor = TServiceDescriptor(NApi::NRpcProxy::ApiServiceName)
-        .SetProtocolVersion(NApi::NRpcProxy::GetCurrentProtocolVersion());
+        .SetProtocolVersion({
+            YTRpcProxyProtocolVersionMajor,
+            YTRpcProxyServerProtocolVersionMinor
+        });
     return descriptor;
 }
 
