@@ -470,6 +470,12 @@ public:
   inline const_iterator end() const {
     return const_iterator(getBucketsEnd(), getBucketsEnd(), *this, true);
   }
+  inline const_iterator cbegin() const {
+    return begin();
+  }
+  inline const_iterator cend() const {
+    return end();
+  }
 
   bool empty() const {
     return getNumEntries() == 0;
