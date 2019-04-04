@@ -441,6 +441,11 @@ void TTask::RegisterSpeculativeJob(const TJobletPtr& joblet)
     CompetitiveJobManager_.AddSpeculativeCandidate(joblet);
 }
 
+bool TTask::IsJobInterruptible() const
+{
+    return TaskHost_->IsJobInterruptible();
+}
+
 std::optional<EAbortReason> TTask::ShouldAbortJob(const TJobletPtr& joblet)
 {
     return CompetitiveJobManager_.ShouldAbortJob(joblet);

@@ -92,6 +92,8 @@ protected:
     NScheduler::TExtendedJobResources GetMinNeededResourcesHeavy() const override;
 
     void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) override;
+    bool IsJobInterruptible() const override;
+
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TAutoMergeTask, 0x4ef99f1a);
