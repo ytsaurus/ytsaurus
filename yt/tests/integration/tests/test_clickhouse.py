@@ -674,3 +674,14 @@ class TestClickHouseAccess(ClickHouseTestBase):
                     }) as clique:
             assert len(clique.make_query("select * from \"//tmp/t\"", user="u")["data"]) == 1
 
+
+class TestQueryLog(ClickHouseTestBase):
+    def setup(self):
+        self._setup()
+
+    def test_query_log(self):
+        with Clique(1, config_patch={"engine": {"settings": {"log_queries": 1}}}) as clique:
+            clique.make_query("select 1")
+            wait(lambda: len(clique.make_query("select * from system.tables where database = 'system' and "
+                                               "name = 'query_log';")["data"]) >= 1)
+            wait(lambda: len(clique.make_query("select * from system.query_log")["data"]) >= 1)
