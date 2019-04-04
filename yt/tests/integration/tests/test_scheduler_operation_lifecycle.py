@@ -638,6 +638,35 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             wait(lambda: func("demand_ratio_x100000", "other_pool", value) == 100000)
             wait(lambda: func("guaranteed_resource_ratio_x100000", "other_pool", value) in range_1)
 
+    def test_job_count_profiling(self):
+        self._prepare_tables()
+
+        start_profiling = get_job_count_profiling()
+        def get_new_jobs_with_state(state):
+            current_profiling = get_job_count_profiling()
+            return current_profiling["state"][state] - start_profiling["state"][state]
+
+        op = map(
+            dont_track=True,
+            command=with_breakpoint("echo '{foo=bar}'; BREAKPOINT"),
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out")
+
+        wait(lambda: get_new_jobs_with_state("running") == 1)
+
+        for job in op.get_running_jobs():
+            abort_job(job)
+
+        wait(lambda: get_new_jobs_with_state("aborted") == 1)
+
+        release_breakpoint()
+        op.track()
+
+        wait(lambda: get_new_jobs_with_state("completed") == 1)
+
+        assert op.get_state() == "completed"
+
+
     def test_suspend_resume(self):
         self._create_table("//tmp/t_in")
         self._create_table("//tmp/t_out")
