@@ -99,6 +99,8 @@
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
+#include <yt/core/alloc/statistics_producer.h>
+
 #include <yt/core/profiling/profile_manager.h>
 
 #include <yt/core/rpc/caching_channel_factory.h>
@@ -615,6 +617,9 @@ void TBootstrap::DoInitialize()
     CellDirectorySynchronizer_->Start();
 
     MonitoringManager_ = New<TMonitoringManager>();
+    MonitoringManager_->Register(
+        "/yt_alloc",
+        NYTAlloc::CreateYTAllocStatisticsProducer());
     MonitoringManager_->Register(
         "/ref_counted",
         CreateRefCountedTrackerStatisticsProducer());
