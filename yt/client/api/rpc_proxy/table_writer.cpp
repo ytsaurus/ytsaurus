@@ -23,7 +23,7 @@ public:
         const TTableSchema& schema)
         : Underlying_ (std::move(underlying))
         , Schema_(schema)
-        , NameTable_ (TNameTable::FromSchema(schema))
+        , NameTable_ (New<TNameTable>())
         , GetReadyEvent_ (MakePromise<void>(TError()))
     {
         YCHECK(Underlying_);
@@ -48,7 +48,7 @@ public:
             promise.Set(error);
         }));
 
-        return promise.IsSet(); // TODO(kiselyovp) look at the streaming implementation to see if this could be too slow
+        return promise.IsSet() && promise.Get().IsOK();
     }
 
     virtual TFuture<void> GetReadyEvent() override {
@@ -77,6 +77,7 @@ private:
     IAsyncZeroCopyOutputStreamPtr Underlying_;
     TTableSchema Schema_;
     TNameTablePtr NameTable_;
+    size_t NameTableSize_ = 0;
 
     TPromise<void> GetReadyEvent_;
     TSpinLock EventLock_;
@@ -92,10 +93,12 @@ private:
 
     TSharedRef SerializeRowsToRef(TRange<TUnversionedRow> rows) {
         NRpcProxy::NProto::TRowsetDescriptor descriptor;
-        const auto& rowRefs = SerializeRowset(
-            NameTable_, // TODO(kiselyovp) race or no race??
+        const auto& rowRefs = SerializeRowsetWithPartialNameTable(
+            NameTable_,
+            NameTableSize_,
             rows,
             &descriptor);
+        NameTableSize_ += descriptor.columns_size();
 
         auto descriptorRef = SerializeProtoToRef(descriptor);
         struct TRpcFileWriterTag { };
@@ -120,7 +123,8 @@ TFuture<ITableWriterPtr> CreateRpcTableWriter(
             FromProto(schema, meta.schema());
         }));
 
-    return createStreamResult.Apply(BIND([=, schemaHolder = std::move(schemaHolder)] (const IAsyncZeroCopyOutputStreamPtr& outputStream) {
+    return createStreamResult.Apply(BIND([=, schemaHolder = std::move(schemaHolder)]
+        (const IAsyncZeroCopyOutputStreamPtr& outputStream) {
             return New<TRpcTableWriter>(outputStream, *schemaHolder);
         })).As<ITableWriterPtr>();
 }

@@ -1240,20 +1240,30 @@ void ValidateRowsetDescriptor(
     }
 }
 
-std::vector<TSharedRef> SerializeRowset(
+std::vector<TSharedRef> SerializeRowsetWithPartialNameTable(
     const NTableClient::TNameTablePtr& nameTable,
+    size_t startingId,
     TRange<NTableClient::TUnversionedRow> rows,
     NProto::TRowsetDescriptor* descriptor)
 {
     descriptor->set_wire_format_version(1);
     descriptor->set_rowset_kind(NProto::RK_UNVERSIONED);
-    for (size_t id = 0; id < nameTable->GetSize(); ++id) {
+    YCHECK(startingId <= nameTable->GetSize());
+    for (size_t id = startingId; id < nameTable->GetSize(); ++id) {
         auto* columnDescriptor = descriptor->add_columns();
         columnDescriptor->set_name(TString(nameTable->GetName(id)));
     }
     TWireProtocolWriter writer;
     writer.WriteUnversionedRowset(rows);
     return writer.Finish();
+}
+
+std::vector<TSharedRef> SerializeRowset(
+    const NTableClient::TNameTablePtr& nameTable,
+    TRange<NTableClient::TUnversionedRow> rows,
+    NProto::TRowsetDescriptor* descriptor)
+{
+    return SerializeRowsetWithPartialNameTable(nameTable, 0, rows, descriptor);
 }
 
 template <class TRow>
