@@ -242,7 +242,8 @@ public:
             ValidateSignature(header);
 
             // Read meta.
-            auto serializedMeta = TSharedMutableRef::Allocate(header.MetaSize);
+            struct TMetaTag { };
+            auto serializedMeta = TSharedMutableRef::Allocate<TMetaTag>(header.MetaSize);
 
             NFS::ExpectIOErrors([&] () {
                 ReadPadded(*dataFile, serializedMeta);
