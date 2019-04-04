@@ -173,6 +173,11 @@ void TAutoMergeTask::BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::
     AddOutputTableSpecs(jobSpec, joblet);
 }
 
+bool TAutoMergeTask::IsJobInterruptible() const
+{
+    return false;
+}
+
 void TAutoMergeTask::UpdateSelf()
 {
     RegisterNewTeleportChunks();
