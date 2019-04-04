@@ -806,9 +806,10 @@ void TContext::Finalize()
     if (!Error_.IsOK() && dumpErrorIntoResponse && DriverRequest_.OutputStream) {
         auto result = WaitFor(DriverRequest_.OutputStream->Write(DumpError(Error_)));
         (void)result;
-    }
 
-    if (!Response_->IsHeadersFlushed()) {
+        auto closeResult = WaitFor(DriverRequest_.OutputStream->Close());
+        (void)closeResult;
+    } else if (!Response_->IsHeadersFlushed()) {
         Response_->GetHeaders()->Remove("Trailer");
 
         if (Error_.FindMatching(NSecurityClient::EErrorCode::UserBanned)) {
