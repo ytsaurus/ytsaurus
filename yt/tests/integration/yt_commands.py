@@ -79,6 +79,8 @@ def _get_driver(driver):
 
 # TODO(kiselyovp) remove this _native_driver crutch when
 # read_table and write_table are supported via RPC proxy
+# TODO(kiselyovp) also, remove skip_if_rpc_driver_backend
+# decorator from some tests
 def force_native_driver(func):
     def wrapper(func, self, *args, **kwargs):
         if "driver" not in kwargs:

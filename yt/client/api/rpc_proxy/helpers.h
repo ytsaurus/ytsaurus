@@ -192,12 +192,19 @@ NJobTrackerClient::EJobState ConvertJobStateFromProto(
     const NProto::EJobState& proto);
 
 } // namespace NProto
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateRowsetDescriptor(
     const NProto::TRowsetDescriptor& descriptor,
     int expectedVersion,
     NProto::ERowsetKind expectedKind);
+
+std::vector<TSharedRef> SerializeRowsetWithPartialNameTable(
+    const NTableClient::TNameTablePtr& nameTable,
+    size_t startingId,
+    TRange<NTableClient::TUnversionedRow> rows,
+    NProto::TRowsetDescriptor* descriptor);
 
 std::vector<TSharedRef> SerializeRowset(
     const NTableClient::TNameTablePtr& nameTable,

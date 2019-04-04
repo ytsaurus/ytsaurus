@@ -156,8 +156,6 @@ template <class TRequestMessage, class TResponse>
 TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateInputStreamAdapter(
     TIntrusivePtr<TTypedClientRequest<TRequestMessage, TResponse>> request);
 
-// TODO(kiselyovp) add an option for possible negative feedback when
-// implementing CreateTableWriter
 //! Describes whether the client output stream needs server feedback to mark
 //! writes as successful and whether that feedback can be negative.
 DEFINE_ENUM(EWriterFeedbackStrategy,
@@ -165,7 +163,6 @@ DEFINE_ENUM(EWriterFeedbackStrategy,
     (OnlyPositive)
 );
 
-// TODO(kiselyovp) add a Failure option for table writers
 DEFINE_ENUM(EWriterFeedback,
     (Handshake)
     (Success)

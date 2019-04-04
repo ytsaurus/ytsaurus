@@ -3059,36 +3059,41 @@ private:
         WaitFor(outputStream->Write(metaRef))
             .ThrowOnError();
 
-        auto blockHandler = BIND([=] (const TSharedRef& block) {
+        auto descriptor = std::make_unique<NApi::NRpcProxy::NProto::TRowsetDescriptor>();
+        descriptor->set_wire_format_version(1);
+        descriptor->set_rowset_kind(NApi::NRpcProxy::NProto::RK_UNVERSIONED);
+
+        auto blockHandler = BIND([=, descriptor = std::move(descriptor)] (const TSharedRef& block) {
             std::vector<TSharedRef> parts;
             UnpackRefs(block, &parts, true);
             if (parts.size() != 2) {
                 THROW_ERROR_EXCEPTION("Error deserializing rows in table writer");
             }
 
-            auto descriptorRef = parts[0];
+            auto descriptorDeltaRef = parts[0];
             auto mergedRowRefs = parts[1];
 
-            NApi::NRpcProxy::NProto::TRowsetDescriptor descriptor;
-            if (!TryDeserializeProto(&descriptor, descriptorRef)) {
-                THROW_ERROR_EXCEPTION("Error deserializing rowset descriptor in table writer");
+            NApi::NRpcProxy::NProto::TRowsetDescriptor descriptorDelta;
+            if (!TryDeserializeProto(&descriptorDelta, descriptorDeltaRef)) {
+                THROW_ERROR_EXCEPTION("Error deserializing rowset descriptor delta in table writer");
             }
+            NApi::NRpcProxy::ValidateRowsetDescriptor(
+                descriptorDelta,
+                1,
+                NApi::NRpcProxy::NProto::RK_UNVERSIONED);
+
+            descriptor->MergeFrom(descriptorDelta);
 
             auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
-                descriptor, mergedRowRefs); // TODO(kiselyovp) does this throw YCHECKs??
+                *descriptor, mergedRowRefs);
             auto desiredNameTable = TNameTable::FromSchema(rowset->Schema());
-            // TODO(kiselyovp) achtung! Budget name table cloning! might not even work
-            // TODO(kiselyovp) make sure that received schema is an extension of the one we already have
             for (int id = tableWriter->GetNameTable()->GetSize(); id < desiredNameTable->GetSize(); ++id) {
                 auto name = desiredNameTable->GetName(id);
-                tableWriter->GetNameTable()->RegisterName(name);
+                tableWriter->GetNameTable()->RegisterNameOrThrow(name);
             }
 
-            if (tableWriter->Write(rowset->GetRows())) { // TODO(kiselyovp) should i make this less sync??
-                return VoidFuture;
-            } else {
-                return tableWriter->GetReadyEvent();
-            }
+            tableWriter->Write(rowset->GetRows());
+            return tableWriter->GetReadyEvent();
         });
 
         HandleOutputStreamingRequest(
