@@ -4,15 +4,11 @@ import yt.environment.init_operation_archive as init_operation_archive
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.common import uuid_hash_pair
 from yt.common import date_string_to_datetime
-from yt.test_helpers import WaitFailed
 
 from test_rpc_proxy import create_input_table
 
 from collections import defaultdict
 from datetime import datetime
-import sys
-import time
-import traceback
 import __builtin__
 
 import pytest
