@@ -489,6 +489,12 @@ message TUtilityContainer {
 
     // параметры обработки корок
     string core_command = 6;
+
+    // uid of container processes, @see porto.md
+    string user = 7;
+
+    // gid of container processes, @see porto.md
+    string group = 8;
 }
 
 //Позволяет выставить ограничение сверху на все закачки. Важным моментом является, что сумма лимитов
