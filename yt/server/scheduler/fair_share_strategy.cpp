@@ -37,6 +37,10 @@ using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Profiler = SchedulerProfiler;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFairShareStrategy
     : public ISchedulerStrategy
 {
@@ -671,12 +675,20 @@ public:
             ++SnapshotRevision_;
         }
 
-        if (LastProfilingTime_ + Config->FairShareProfilingPeriod < now) {
+        if (LastProfilingTime_ + Config->FairShareProfilingPeriod < now && ProfilingCompleted_.IsSet()) {
             LastProfilingTime_ = now;
+
+            TMetricsAccumulator accumulator;
             for (const auto& pair : IdToTree_) {
                 const auto& tree = pair.second;
-                tree->ProfileFairShare();
+                tree->ProfileFairShare(accumulator);
             }
+
+            ProfilingCompleted_ = BIND([profiler = Profiler, accumulator = std::move(accumulator)] () mutable {
+                    accumulator.BuildAndPublish(&profiler);
+                })
+                .AsyncVia(Host->GetProfilingInvoker())
+                .Run();
         }
 
         if (!errors.empty()) {
@@ -842,6 +854,7 @@ private:
     THashMap<TOperationId, TFairShareStrategyOperationStatePtr> OperationIdToOperationState_;
 
     TInstant LastProfilingTime_;
+    TFuture<void> ProfilingCompleted_ = VoidFuture;
 
     using TFairShareTreeMap = THashMap<TString, TFairShareTreePtr>;
     TFairShareTreeMap IdToTree_;
