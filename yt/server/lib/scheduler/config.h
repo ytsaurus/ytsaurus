@@ -454,7 +454,11 @@ public:
 
     TDuration MaxOfflineNodeAge;
 
-    bool SkipIncorrectOperations;
+    //! By default, when the scheduler encounters a malformed operation spec during revival, it disconnects.
+    //! This serves as a safeguard protecting us from accidentially failing all operations in case a bug
+    //! is introduced in spec parser. This option, when set to true, overrides this behavior and enables
+    //! such operations to be just skipped.
+    bool SkipOperationsWithMalformedSpecDuringRevival;
 
     //! The number of threads in OrchidWorker thread pool used for serving reads from
     //! the scheduler's orchid.
