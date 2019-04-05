@@ -300,18 +300,9 @@ public:
             .Run(path, timestamp);
     }
 
-    std::vector<TTableMountInfoPtr> ExtractTableInfos()
-    {
-        auto guard = Guard(TableInfosSpinLock_);
-        return std::move(TableInfos_);
-    }
-
 private:
     const NTabletClient::ITableMountCachePtr MountTableCache_;
     const IInvokerPtr Invoker_;
-
-    TSpinLock TableInfosSpinLock_;
-    std::vector<TTableMountInfoPtr> TableInfos_;
 
     static TTableSchema GetTableSchema(
         const TRichYPath& path,
@@ -335,12 +326,6 @@ private:
             .ValueOrThrow();
 
         tableInfo->ValidateNotReplicated();
-
-        // NB: This access may come from distinct threads as connection's invoker is typically a thread pool.
-        {
-            auto guard = Guard(TableInfosSpinLock_);
-            TableInfos_.push_back(tableInfo);
-        }
 
         TDataSplit result;
         SetObjectId(&result, tableInfo->TableId);
@@ -2060,8 +2045,6 @@ private:
         const auto& query = fragment->Query;
         const auto& dataSource = fragment->Ranges;
 
-        auto tableInfos = queryPreparer->ExtractTableInfos();
-
         for (size_t index = 0; index < query->JoinClauses.size(); ++index) {
             if (query->JoinClauses[index]->ForeignKeyPrefix == 0 && !options.AllowJoinWithoutIndex) {
                 const auto& ast = std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
@@ -2097,7 +2080,6 @@ private:
 
         auto statistics = WaitFor(queryExecutor->Execute(
             query,
-            tableInfos,
             externalCGInfo,
             dataSource,
             writer,

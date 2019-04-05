@@ -13,11 +13,6 @@ namespace NYT { namespace NChunkClient { namespace NProto {
     class TChunkSpec;
 } } }
 
-// TODO(lukyan): kill after refactoring protobuf in client
-namespace NYT { namespace NTableClient { namespace NProto {
-    class TTabletInfo;
-} } }
-
 namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,7 +27,6 @@ class TJoinClause;
 class TQuery;
 class TQueryOptions;
 class TDataRanges;
-class TTableMountInfo;
 
 } // namespace NProto
 
