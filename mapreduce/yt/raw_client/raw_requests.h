@@ -71,7 +71,8 @@ TNodeId Copy(
     const TTransactionId& transactionId,
     const TYPath& sourcePath,
     const TYPath& destinationPath,
-    const TCopyOptions& options);
+    const TCopyOptions& options,
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 TNodeId Move(
     const TAuth& auth,
@@ -140,11 +141,13 @@ TOperationAttributes GetOperation(
 
 void AbortOperation(
     const TAuth& auth,
-    const TOperationId& operationId);
+    const TOperationId& operationId,
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 void CompleteOperation(
     const TAuth& auth,
-    const TOperationId& operationId);
+    const TOperationId& operationId,
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 TListOperationsResult ListOperations(
     const TAuth& auth,
