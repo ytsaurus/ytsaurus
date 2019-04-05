@@ -334,9 +334,9 @@ protected:
                 }
                 const auto& column = table->Schema.GetColumnOrThrow(columnName);
                 if (!column.SimplifiedLogicalType()) {
-                    THROW_ERROR_EXCEPTION("Key column cannot have complex type")
-                        << TErrorAttribute("column_name", columnName)
-                        << TErrorAttribute("type", ToString(*column.LogicalType()));
+                    THROW_ERROR_EXCEPTION("Key column %Qv cannot have complex type %Qv",
+                        columnName,
+                        *column.LogicalType());
                 }
                 if (*column.SimplifiedLogicalType() == ESimpleLogicalValueType::Any) {
                     continue;

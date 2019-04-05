@@ -1030,9 +1030,9 @@ void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& colu
     }
 
     if (!columnSchema.SimplifiedLogicalType()) {
-        THROW_ERROR_EXCEPTION("Validation of complex type is not supported yet")
-            << TErrorAttribute("column_name", columnSchema.Name())
-            << TErrorAttribute("column_type", ToString(*columnSchema.LogicalType()));
+        THROW_ERROR_EXCEPTION("Cannot validate column %Qv of type %Qv: validation of complex type is not supported yet",
+             columnSchema.Name(),
+             *columnSchema.LogicalType());
     }
 
     if (columnSchema.GetPhysicalType() != value.Type) {

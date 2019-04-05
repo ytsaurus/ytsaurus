@@ -19,6 +19,7 @@ namespace NYT::NTableClient {
 namespace NProto {
 
 class TNameTableExt;
+class TLogicalType;
 class TColumnSchema;
 class TTableSchemaExt;
 class TKeyColumnsExt;
