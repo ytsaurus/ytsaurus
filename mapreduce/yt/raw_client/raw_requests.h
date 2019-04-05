@@ -73,6 +73,14 @@ TNodeId Copy(
     const TYPath& destinationPath,
     const TCopyOptions& options);
 
+TNodeId Move(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& sourcePath,
+    const TYPath& destinationPath,
+    const TMoveOptions& options,
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
+
 void Remove(
     const TAuth& auth,
     const TTransactionId& transactionId,
@@ -241,6 +249,18 @@ void EnableTableReplica(
 void DisableTableReplica(
     const TAuth& auth,
     const TReplicaId& replicaId,
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
+
+void FreezeTable(
+    const TAuth& auth,
+    const TYPath& path,
+    const TFreezeTableOptions& options,
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
+
+void UnfreezeTable(
+    const TAuth& auth,
+    const TYPath& path,
+    const TUnfreezeTableOptions& options,
     IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////

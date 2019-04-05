@@ -128,10 +128,7 @@ TNodeId TClientBase::Move(
     const TYPath& destinationPath,
     const TMoveOptions& options)
 {
-    THttpHeader header("POST", "move");
-    header.AddMutationId();
-    header.MergeParameters(NRawClient::SerializeParamsForMove(TransactionId_, sourcePath, destinationPath, options));
-    return ParseGuidFromResponse(RetryRequest(Auth_, header));
+    return NRawClient::Move(Auth_, TransactionId_, sourcePath, destinationPath, options);
 }
 
 TNodeId TClientBase::Link(
@@ -696,18 +693,14 @@ void TClient::FreezeTable(
     const TYPath& path,
     const TFreezeTableOptions& options)
 {
-    THttpHeader header("POST", "freeze_table");
-    SetTabletParams(header, path, options);
-    RetryRequest(Auth_, header);
+    NRawClient::FreezeTable(Auth_, path, options);
 }
 
 void TClient::UnfreezeTable(
     const TYPath& path,
     const TUnfreezeTableOptions& options)
 {
-    THttpHeader header("POST", "unfreeze_table");
-    SetTabletParams(header, path, options);
-    RetryRequest(Auth_, header);
+    NRawClient::UnfreezeTable(Auth_, path, options);
 }
 
 void TClient::ReshardTable(

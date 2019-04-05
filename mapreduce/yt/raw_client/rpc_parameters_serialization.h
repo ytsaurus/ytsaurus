@@ -121,6 +121,14 @@ TNode SerializeParamsForAlterTableReplica(
     const TReplicaId& replicaId,
     const TAlterTableReplicaOptions& options);
 
+TNode SerializeParamsForFreezeTable(
+    const TYPath& path,
+    const TFreezeTableOptions& options);
+
+TNode SerializeParamsForUnfreezeTable(
+    const TYPath& path,
+    const TUnfreezeTableOptions& options);
+
 TNode SerializeParamsForAlterTable(
     const TTransactionId& transactionId,
     const TYPath& path,
