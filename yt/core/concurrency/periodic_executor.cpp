@@ -15,7 +15,7 @@ namespace NYT::NConcurrency {
 TPeriodicExecutor::TPeriodicExecutor(
     IInvokerPtr invoker,
     TClosure callback,
-    TDuration period,
+    std::optional<TDuration> period,
     EPeriodicExecutorMode mode,
     TDuration splay)
     : Invoker_(std::move(invoker))
@@ -39,7 +39,9 @@ void TPeriodicExecutor::Start()
     ExecutedPromise_ = TPromise<void>();
     IdlePromise_ = TPromise<void>();
     Started_ = true;
-    PostDelayedCallback(RandomDuration(Splay_));
+    if (Period_) {
+        PostDelayedCallback(RandomDuration(Splay_));
+    }
 }
 
 void TPeriodicExecutor::DoStop(TGuard<TSpinLock>& guard)
@@ -147,8 +149,8 @@ void TPeriodicExecutor::ScheduleNext()
         OutOfBandRequested_ = false;
         guard.Release();
         PostCallback();
-    } else {
-        PostDelayedCallback(Period_);
+    } else if (Period_) {
+        PostDelayedCallback(*Period_);
     }
 }
 
@@ -243,13 +245,21 @@ void TPeriodicExecutor::OnCallbackFailure()
     if (!Started_) {
         return;
     }
-    
-    PostDelayedCallback(Period_);
+
+    if (Period_) {
+        PostDelayedCallback(*Period_);
+    }
 }
 
-void TPeriodicExecutor::SetPeriod(TDuration period)
+void TPeriodicExecutor::SetPeriod(std::optional<TDuration> period)
 {
     TGuard<TSpinLock> guard(SpinLock_);
+
+    // Kick-start invocations, if needed.
+    if (Started_ && !Period_ && period) {
+        PostDelayedCallback(RandomDuration(Splay_));
+    }
+
     Period_ = period;
 }
 
