@@ -24,7 +24,7 @@ public:
         : Underlying_ (std::move(underlying))
         , Schema_(schema)
         , NameTable_ (New<TNameTable>())
-        , GetReadyEvent_ (MakePromise<void>(TError()))
+        , ReadyEvent_ (MakePromise<void>(TError()))
     {
         YCHECK(Underlying_);
     }
@@ -36,11 +36,11 @@ public:
 
         {
             auto guard = Guard(EventLock_);
-            if (!GetReadyEvent_.IsSet() || !GetReadyEvent_.Get().IsOK()) {
+            if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
                 THROW_ERROR_EXCEPTION("TRpcTableWriter::Write() was called before waiting for GetReadyEvent()");
             }
 
-            GetReadyEvent_ = promise;
+            ReadyEvent_ = promise;
         }
 
         auto rowData = SerializeRowsToRef(rows);
@@ -55,7 +55,7 @@ public:
         ValidateNotClosed();
 
         auto guard = Guard(EventLock_);
-        return GetReadyEvent_;
+        return ReadyEvent_;
     }
 
     virtual TFuture<void> Close() override {
@@ -79,7 +79,7 @@ private:
     TNameTablePtr NameTable_;
     size_t NameTableSize_ = 0;
 
-    TPromise<void> GetReadyEvent_;
+    TPromise<void> ReadyEvent_;
     TSpinLock EventLock_;
 
     std::atomic<bool> Closed_ = {false};
