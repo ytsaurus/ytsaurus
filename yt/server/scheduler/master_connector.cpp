@@ -885,9 +885,9 @@ private:
                             secureVault);
                         Result_.Operations.push_back(operation);
                     } catch (const std::exception& ex) {
-                        YT_LOG_ERROR(ex, "Error create operation from cypress node (OperationId: %v)",
+                        YT_LOG_ERROR(ex, "Error creating operation from Cypress node (OperationId: %v)",
                             operationId);
-                        if (!Owner_->Config_->SkipIncorrectOperations) {
+                        if (!Owner_->Config_->SkipOperationsWithMalformedSpecDuringRevival) {
                             throw;
                         }
                     }

@@ -424,7 +424,7 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("max_offline_node_age", MaxOfflineNodeAge)
         .Default(TDuration::Hours(12));
 
-    RegisterParameter("skip_incorrect_operations", SkipIncorrectOperations)
+    RegisterParameter("skip_operations_with_malformed_spec_during_revival", SkipOperationsWithMalformedSpecDuringRevival)
         .Default(false);
 
     RegisterParameter("orchid_worker_thread_cout", OrchidWorkerThreadCount)
