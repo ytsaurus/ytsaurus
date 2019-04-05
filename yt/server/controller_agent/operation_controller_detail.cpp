@@ -957,7 +957,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
             joblet->JobType,
             joblet->StartTime,
             joblet->ResourceLimits,
-            IsJobInterruptible(),
+            joblet->Task->IsJobInterruptible(),
             joblet->TreeId,
             joblet->NodeDescriptor.Id,
             joblet->NodeDescriptor.Address
@@ -2299,7 +2299,7 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
 
         if (JobSplitter_) {
             JobSplitter_->OnJobRunning(*jobSummary);
-            if (GetPendingJobCount() == 0 && JobSplitter_->IsJobSplittable(jobId)) {
+            if (GetPendingJobCount() == 0 && joblet->Task->IsJobInterruptible() && JobSplitter_->IsJobSplittable(jobId)) {
                 YT_LOG_DEBUG("Job is ready to be split (JobId: %v)", jobId);
                 Host->InterruptJob(jobId, EInterruptReason::JobSplit);
             }
