@@ -11,6 +11,20 @@ TAsyncSemaphore::TAsyncSemaphore(i64 totalSlots)
     YCHECK(TotalSlots_ >= 0);
 }
 
+void TAsyncSemaphore::SetTotal(i64 totalSlots)
+{
+    YCHECK(totalSlots >= 0);
+
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        auto delta = totalSlots - TotalSlots_;
+        TotalSlots_ += delta;
+        FreeSlots_ += delta;
+    }
+
+    Release(0);
+}
+
 void TAsyncSemaphore::Release(i64 slots /* = 1 */)
 {
     YCHECK(slots >= 0);
