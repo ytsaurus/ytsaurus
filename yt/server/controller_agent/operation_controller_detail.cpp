@@ -7275,13 +7275,7 @@ void TOperationControllerBase::GetExecNodesInformation()
 
     OnlineExecNodeCount_ = Host->GetOnlineExecNodeCount();
     ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(NScheduler::TSchedulingTagFilter(Spec_->SchedulingTagFilter));
-
-    OnlineExecNodesDescriptors_->clear();
-    for (const auto& pair : *ExecNodesDescriptors_) {
-        if (pair.second.Online) {
-            YCHECK(OnlineExecNodesDescriptors_->insert(pair).second);
-        }
-    }
+    OnlineExecNodesDescriptors_ = Host->GetExecNodeDescriptors(NScheduler::TSchedulingTagFilter(Spec_->SchedulingTagFilter), /* onlineOnly */ true);
 
     GetExecNodesInformationDeadline_ = now + NProfiling::DurationToCpuDuration(Config->ControllerExecNodeInfoUpdatePeriod);
 
