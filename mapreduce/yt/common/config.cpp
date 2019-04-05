@@ -190,6 +190,8 @@ TConfig::TConfig()
     MountSandboxInTmpfs = GetBool("YT_MOUNT_SANDBOX_IN_TMPFS");
 
     ConnectionPoolSize = GetInt("YT_CONNECTION_POOL_SIZE", 16);
+
+    TraceHttpRequestsMode = FromString<ETraceHttpRequestsMode>(to_lower(GetEnv("YT_TRACE_HTTP_REQUESTS", "never")));
 }
 
 TJobBinaryConfig TConfig::GetJobBinary() const

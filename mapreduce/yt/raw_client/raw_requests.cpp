@@ -530,11 +530,11 @@ class TResponseReader
 {
 public:
     TResponseReader(const TAuth& auth, THttpHeader header)
-        : Request_(GetProxyForHeavyRequest(auth))
+        : Request_()
     {
         header.SetToken(auth.Token);
 
-        Request_.Connect();
+        Request_.Connect(GetProxyForHeavyRequest(auth));
         Request_.StartRequest(header);
         Request_.FinishRequest();
 

@@ -32,13 +32,13 @@ void RetryHeavyWriteRequest(
 
         try {
             auto proxyName = GetProxyForHeavyRequest(auth);
-            THttpRequest request(proxyName);
+            THttpRequest request;
             requestId = request.GetRequestId();
 
             header.AddTransactionId(attemptTx.GetId(), /* overwrite = */ true);
             header.SetRequestCompression(ToString(TConfig::Get()->ContentEncoding));
 
-            request.Connect();
+            request.Connect(proxyName);
             try {
                 IOutputStream* output = request.StartRequest(header);
                 TransferData(input.Get(), output);

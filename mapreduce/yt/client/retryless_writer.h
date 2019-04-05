@@ -28,7 +28,7 @@ public:
         const TRichYPath& path,
         size_t bufferSize,
         const TWriterOptions& options)
-        : Request_(GetProxyForHeavyRequest(auth))
+        : Request_()
     {
         THttpHeader header("PUT", command);
         header.SetInputFormat(format);
@@ -37,7 +37,7 @@ public:
         header.SetRequestCompression(ToString(TConfig::Get()->ContentEncoding));
         header.SetToken(auth.Token);
 
-        Request_.Connect();
+        Request_.Connect(GetProxyForHeavyRequest(auth));
         auto* outputStream = Request_.StartRequest(header);
         BufferedOutput_.Reset(new TBufferedOutput(outputStream, bufferSize));
     }

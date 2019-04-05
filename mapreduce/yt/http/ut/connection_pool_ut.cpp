@@ -82,8 +82,8 @@ Y_UNIT_TEST_SUITE(NConnectionPoolSuite) {
         const TString hostName = TStringBuilder() << "localhost:" << simpleServer->GetPort();
 
         for (size_t i = 0; i != 10; ++i) {
-            THttpRequest request(hostName);
-            request.Connect();
+            THttpRequest request;
+            request.Connect(hostName);
             request.StartRequest(THttpHeader("GET", "foo"));
             request.FinishRequest();
             request.GetResponseStream();
@@ -99,8 +99,8 @@ Y_UNIT_TEST_SUITE(NConnectionPoolSuite) {
 
         const auto func = [&] {
             for (int i = 0; i != 100; ++i) {
-                THttpRequest request(hostName);
-                request.Connect();
+                THttpRequest request;
+                request.Connect(hostName);
                 request.StartRequest(THttpHeader("GET", "foo"));
                 request.FinishRequest();
                 auto res = request.GetResponseStream();

@@ -62,7 +62,7 @@ TString RetryRequest(
     bool isOperation = false);
 
 void LogRequestError(
-    const TString& requestId,
+    const THttpRequest& request,
     const THttpHeader& header,
     const TString& message,
     const TString& attemptDescription);

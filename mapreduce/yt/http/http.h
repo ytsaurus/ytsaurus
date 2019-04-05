@@ -162,12 +162,12 @@ private:
 class THttpRequest
 {
 public:
-    explicit THttpRequest(const TString& hostName);
+    THttpRequest();
     ~THttpRequest();
 
     TString GetRequestId() const;
 
-    void Connect(TDuration socketTimeout = TDuration::Zero());
+    void Connect(TString hostName, TDuration socketTimeout = TDuration::Zero());
 
     THttpOutput* StartRequest(const THttpHeader& header);
     void FinishRequest();
@@ -180,8 +180,13 @@ public:
 
     void InvalidateConnection();
 
+    TString GetTracedHttpRequest() const;
+
 private:
     THttpOutput* StartRequestImpl(const THttpHeader& header, bool includeParameters);
+
+private:
+    class TDebugRequestTracer;
 
 private:
     TString HostName;
@@ -192,12 +197,17 @@ private:
 
     THolder<TSocketOutput> SocketOutput;
     THolder<THttpOutput> Output;
+    THolder<TDebugRequestTracer> DebugRequestTracer;
 
     THolder<TSocketInput> SocketInput;
     THolder<THttpResponse> Input;
 
     bool LogResponse = false;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TraceRequest(const THttpRequest& request);
 
 ////////////////////////////////////////////////////////////////////////////////
 
