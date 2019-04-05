@@ -94,7 +94,7 @@ int TProgram::Run(int argc, const char** argv)
 
 int TProgram::Exit(EProgramExitCode code) const noexcept
 {
-    return Exit(static_cast<int>(code));
+    Exit(static_cast<int>(code));
 }
 
 int TProgram::Exit(int code) const noexcept
@@ -104,8 +104,7 @@ int TProgram::Exit(int code) const noexcept
     // No graceful shutdown at the moment.
     _exit(code);
 
-    // Unreachable.
-    return -1;
+    Y_UNREACHABLE();
 }
 
 void TProgram::OnError(const TString& message) const noexcept
