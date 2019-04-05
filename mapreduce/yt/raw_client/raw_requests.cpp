@@ -124,12 +124,13 @@ TNodeId Copy(
     const TTransactionId& transactionId,
     const TYPath& sourcePath,
     const TYPath& destinationPath,
-    const TCopyOptions& options)
+    const TCopyOptions& options,
+    IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("POST", "copy");
     header.AddMutationId();
     header.MergeParameters(SerializeParamsForCopy(transactionId, sourcePath, destinationPath, options));
-    return ParseGuidFromResponse(RetryRequest(auth, header));
+    return ParseGuidFromResponse(RetryRequestWithPolicy(auth, header, "", retryPolicy).Response);
 }
 
 TNodeId Move(
@@ -334,20 +335,20 @@ TOperationAttributes GetOperation(
     return ParseOperationAttributes(NodeFromYsonString(result.Response));
 }
 
-void AbortOperation(const TAuth& auth, const TOperationId& operationId)
+void AbortOperation(const TAuth& auth, const TOperationId& operationId, IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("POST", "abort_op");
     header.AddMutationId();
     header.MergeParameters(SerializeParamsForAbortOperation(operationId));
-    RetryRequest(auth, header);
+    RetryRequestWithPolicy(auth, header, "", retryPolicy);
 }
 
-void CompleteOperation(const TAuth& auth, const TOperationId& operationId)
+void CompleteOperation(const TAuth& auth, const TOperationId& operationId, IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("POST", "complete_op");
     header.AddMutationId();
     header.MergeParameters(SerializeParamsForCompleteOperation(operationId));
-    RetryRequest(auth, header);
+    RetryRequestWithPolicy(auth, header, "", retryPolicy);
 }
 
 template <typename TKey>
