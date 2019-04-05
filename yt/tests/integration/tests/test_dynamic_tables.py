@@ -1730,6 +1730,8 @@ class TestTabletActions(DynamicTablesBase):
         wait(lambda: get("#{0}/@state".format(action)) == "completed")
         self._validate_tablets("//tmp/t", state=[e, e], expected_state=[e, e])
 
+    # TODO(ifsmirnov): YT-10550
+    @flaky(max_runs=5)
     def test_action_autoremove(self):
         cells = sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
@@ -1737,7 +1739,7 @@ class TestTabletActions(DynamicTablesBase):
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         action = create("tablet_action", "", attributes={
             "kind": "reshard",
-            "expiration_time": (datetime.utcnow() + timedelta(seconds=2)).isoformat(),
+            "expiration_time": (datetime.utcnow() + timedelta(seconds=5)).isoformat(),
             "tablet_ids": [tablet_id],
             "pivot_keys": [[], [1]]})
         wait(lambda: len(ls("//sys/tablet_actions")) > 0)
