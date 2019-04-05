@@ -706,11 +706,8 @@ void TContext::Finalize()
     }
 
     if (!Error_.IsOK() && dumpErrorIntoResponse && DriverRequest_.OutputStream) {
-        auto result = WaitFor(DriverRequest_.OutputStream->Write(DumpError(Error_)));
-        (void)result;
-
-        auto closeResult = WaitFor(DriverRequest_.OutputStream->Close());
-        (void)closeResult;
+        Y_UNUSED(WaitFor(DriverRequest_.OutputStream->Write(DumpError(Error_))));
+        Y_UNUSED(WaitFor(DriverRequest_.OutputStream->Close()));
     } else if (!Response_->IsHeadersFlushed()) {
         Response_->GetHeaders()->Remove("Trailer");
 
@@ -734,8 +731,7 @@ void TContext::Finalize()
     } else {
         if (!Error_.IsOK()) {
             FillYTErrorTrailers(Response_, Error_);
-            auto result = WaitFor(Response_->Close());
-            (void)result;
+            Y_UNUSED(WaitFor(Response_->Close()));
         }
     }
 

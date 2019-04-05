@@ -512,7 +512,7 @@ void TTables::GetResource(
     DeserializeProto(resource, TRef(row[2].Data.String, row[2].Length));
 
     // TODO(prime): load sha1 from /files table
-    (void) duplicateId;
+    Y_UNUSED(duplicateId);
 }
 
 bool TTables::LookupRequest(
