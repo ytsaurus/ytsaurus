@@ -17,7 +17,7 @@ message TReqExecute
     repeated TDataRanges data_sources = 3;
     // TODO(kiselyovp) move codec to header
     required int32 response_codec = 4; // ECodec
-    repeated TTableMountInfo mount_infos = 7;
+    reserved 7; // deprecated
 }
 
 message TRspExecute
