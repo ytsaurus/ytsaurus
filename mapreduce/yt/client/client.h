@@ -235,6 +235,7 @@ private:
         const TTableWriterOptions& options,
         const Message* prototype) override;
 
+private:
     // Raw table writer buffer size
     static const size_t BUFFER_SIZE;
 };

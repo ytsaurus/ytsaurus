@@ -70,7 +70,7 @@ TMapReduceOperationSpec PrepareMRSpec(
     const TKeyColumns& reduceFields)
 {
     auto spec = TMapReduceOperationSpec()
-        .template AddOutput<W>(WithSchema<W>(to))
+        .template AddOutput<W>(MaybeWithSchema<W>(to))
         .ReduceBy(reduceFields);
 
     for (auto& input : from.Parts_) {
@@ -86,7 +86,7 @@ TReduceOperationSpec PrepareReduceSpec(
     const TKeyColumns& reduceFields)
 {
     auto spec = TReduceOperationSpec()
-        .template AddOutput<W>(WithSchema<W>(to, reduceFields))
+        .template AddOutput<W>(MaybeWithSchema<W>(to, reduceFields))
         .ReduceBy(reduceFields);
 
     for (auto& input : from.Parts_) {

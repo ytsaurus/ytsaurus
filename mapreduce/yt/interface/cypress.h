@@ -19,6 +19,15 @@ public:
         ENodeType type,
         const TCreateOptions& options = TCreateOptions()) = 0;
 
+    // Create table with schema deduced from `TRowType`.
+    // If "schema" is passed in `options.Attributes`
+    // it has prority over the deduced schema (the latter is ignored).
+    template <typename TRowType>
+    TNodeId CreateTable(
+        const TYPath& path,
+        const TKeyColumns& keyColumns = TKeyColumns(),
+        const TCreateOptions& options = TCreateOptions());
+
     virtual void Remove(
         const TYPath& path,
         const TRemoveOptions& options = TRemoveOptions()) = 0;
@@ -63,6 +72,32 @@ public:
 
     virtual TVector<TTableColumnarStatistics> GetTableColumnarStatistics(const TVector<TRichYPath>& paths) = 0;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TRowType>
+TNodeId ICypressClient::CreateTable(
+    const TYPath& path,
+    const TKeyColumns& keyColumns,
+    const TCreateOptions& options)
+{
+    static_assert(
+        std::is_base_of_v<::google::protobuf::Message, TRowType>,
+        "TRowType must be inherited from google::protobuf::Message");
+
+    TCreateOptions actualOptions = options;
+    if (!actualOptions.Attributes_) {
+        actualOptions.Attributes_ = TNode::CreateMap();
+    }
+
+    if (!actualOptions.Attributes_->HasKey("schema")) {
+        actualOptions.Attributes_->AsMap().emplace(
+            "schema",
+            CreateTableSchema<TRowType>(keyColumns).ToNode());
+    }
+
+    return Create(path, ENodeType::NT_TABLE, actualOptions);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

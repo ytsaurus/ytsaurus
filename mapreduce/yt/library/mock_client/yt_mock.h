@@ -93,6 +93,8 @@ namespace NTesting {
         MOCK_METHOD4(PutFileToCache, TYPath(const TYPath&, const TString& md5Signature, const TYPath& cachePath, const TPutFileToCacheOptions&));
 
         MOCK_METHOD0(GetParentClient, IClientPtr());
+
+        MOCK_METHOD4(CreateTable, TNodeId(const TYPath&, const ::google::protobuf::Descriptor&, const TKeyColumns&, const TCreateOptions&));
     };
 
     class TTransactionMock : public ITransaction {
