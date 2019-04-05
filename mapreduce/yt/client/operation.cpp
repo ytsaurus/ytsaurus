@@ -529,14 +529,14 @@ private:
         auto md5Signature = itemToUpload.CalculateMD5();
         Y_VERIFY(md5Signature.size() == 32);
 
-        constexpr int LockConflictRetryCount = 30;
-        TRetryPolicyIgnoringLockConflicts retryPolicy(LockConflictRetryCount);
+        constexpr ui32 LockConflictRetryCount = 30;
+        auto retryPolicy = MakeIntrusive<TRetryPolicyIgnoringLockConflicts>(LockConflictRetryCount);
         auto maybePath = GetFileFromCache(
             OperationPreparer_.GetAuth(),
             md5Signature,
             GetCachePath(),
             TGetFileFromCacheOptions(),
-            &retryPolicy);
+            retryPolicy);
         if (maybePath) {
             LOG_DEBUG("File is already in cache: %s", itemToUpload.GetDescription().c_str());
             return *maybePath;
@@ -562,7 +562,7 @@ private:
             md5Signature,
             GetCachePath(),
             TPutFileToCacheOptions(),
-            &retryPolicy);
+            retryPolicy);
 
         Remove(OperationPreparer_.GetAuth(), TTransactionId(), uniquePath, TRemoveOptions().Force(true));
 
@@ -2372,7 +2372,7 @@ TOperationId TOperationPreparer::StartOperation(
     header.AddTransactionId(TransactionId_);
     header.AddMutationId();
 
-    TCacheTouchingRetryPolicy retryPolicy(
+    auto retryPolicy = MakeIntrusive<TCacheTouchingRetryPolicy>(
         MakeIntrusive<TAttemptLimitedRetryPolicy>(static_cast<ui32>(TConfig::Get()->StartOperationRetryCount)),
         GetAuth(),
         LockedFileSignatures_,
@@ -2383,7 +2383,7 @@ TOperationId TOperationPreparer::StartOperation(
         GetAuth(),
         header,
         ysonSpec,
-        &retryPolicy);
+        retryPolicy);
     TOperationId operationId = ParseGuidFromResponse(responseInfo.Response);
 
     LOG_INFO("Operation %s started (%s): http://%s/#page=operation&mode=detail&id=%s&tab=details",

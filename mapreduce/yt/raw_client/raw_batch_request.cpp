@@ -511,7 +511,7 @@ void TRawBatchRequest::FillParameterList(size_t maxSize, TNode* result, TInstant
 
 void TRawBatchRequest::ParseResponse(
     const TResponseInfo& requestResult,
-    IRequestRetryPolicy* retryPolicy,
+    const IRequestRetryPolicyPtr& retryPolicy,
     TRawBatchRequest* retryBatch,
     TInstant now)
 {
@@ -522,7 +522,7 @@ void TRawBatchRequest::ParseResponse(
 void TRawBatchRequest::ParseResponse(
     TNode node,
     const TString& requestId,
-    IRequestRetryPolicy* retryPolicy,
+    const IRequestRetryPolicyPtr& retryPolicy,
     TRawBatchRequest* retryBatch,
     TInstant now)
 {

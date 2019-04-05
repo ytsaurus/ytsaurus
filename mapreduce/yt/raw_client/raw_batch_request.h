@@ -48,13 +48,13 @@ public:
 
     void ParseResponse(
         const TResponseInfo& requestResult,
-        IRequestRetryPolicy* retryPolicy,
+        const IRequestRetryPolicyPtr& retryPolicy,
         TRawBatchRequest* retryBatch,
         TInstant now = TInstant::Now());
     void ParseResponse(
         TNode response,
         const TString& requestId,
-        IRequestRetryPolicy* retryPolicy,
+        const IRequestRetryPolicyPtr& retryPolicy,
         TRawBatchRequest* retryBatch,
         TInstant now = TInstant::Now());
     void SetErrorResult(std::exception_ptr e) const;
