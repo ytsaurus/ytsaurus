@@ -683,18 +683,22 @@ def package_rpc_bindings(options, build_context):
         # build_type, python_type, library_path, package_path, package_name
 
         # Pypi packages.
-        ("pypi", "2", "linux", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-driver-rpc"),
-        ("pypi", "3", "linux", "lib/pyshared-3-4/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python3-driver-rpc"),
-        ("pypi", "skynet", "linux", "lib/pyshared-skynet/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-skynet-driver-rpc"),
+        ("pypi", "2", "linux", "lib/pyshared-2-7/driver_rpc_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-driver-rpc"),
+        ("pypi", "3", "linux", "lib/pyshared-3-4/driver_rpc_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python3-driver-rpc"),
+        ("pypi", "skynet", "linux", "lib/pyshared-skynet/driver_rpc_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-skynet-driver-rpc"),
+
+        # Pypi packages for mac.
+        ("pypi", "2", "darwin", "lib/pyshared-2-7-darwin/driver_rpc_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-driver-rpc"),
+        ("pypi", "3", "darwin", "lib/pyshared-3-4-darwin/driver_rpc_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python3-driver-rpc"),
 
         # Python-friendly debian packages.
-        ("debian", "2", "linux", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-driver-rpc"),
-        ("debian", "3", "linux", "lib/pyshared-3-4/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python3-driver-rpc"),
+        ("debian", "2", "linux", "lib/pyshared-2-7/driver_rpc_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-driver-rpc"),
+        ("debian", "3", "linux", "lib/pyshared-3-4/driver_rpc_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python3-driver-rpc"),
 
         # Non-python-friendly debian packages.
-        ("debian", "2", "linux", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-2-7-driver-rpc"),
-        ("debian", "3", "linux", "lib/pyshared-3-4/driver_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-3-4-driver-rpc"),
-        ("debian", "skynet", "linux", "lib/pyshared-skynet/driver_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-skynet-driver-rpc"),
+        ("debian", "2", "linux", "lib/pyshared-2-7/driver_rpc_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-2-7-driver-rpc"),
+        ("debian", "3", "linux", "lib/pyshared-3-4/driver_rpc_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-3-4-driver-rpc"),
+        ("debian", "skynet", "linux", "lib/pyshared-skynet/driver_rpc_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-skynet-driver-rpc"),
     ]
 
     perform_python_packaging(options, rpc_packages_path, args, configurations)
