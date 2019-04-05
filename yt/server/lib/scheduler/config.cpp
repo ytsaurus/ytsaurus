@@ -424,7 +424,7 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("max_offline_node_age", MaxOfflineNodeAge)
         .Default(TDuration::Hours(12));
 
-    RegisterParameter("orchid_worker_thread_cout", OrchidWorkerThreadCount)
+    RegisterParameter("orchid_worker_thread_count", OrchidWorkerThreadCount)
         .Default(4)
         .GreaterThan(0);
 
