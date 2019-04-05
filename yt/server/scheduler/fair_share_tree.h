@@ -141,7 +141,7 @@ public:
     // NB: This function is public for testing purposes.
     TError OnFairShareUpdateAt(TInstant now);
 
-    void ProfileFairShare() const;
+    void ProfileFairShare(NProfiling::TMetricsAccumulator& accumulator) const;
 
     void ResetTreeIndexes();
 

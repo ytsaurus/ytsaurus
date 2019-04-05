@@ -621,11 +621,9 @@ TError TFairShareTree::OnFairShareUpdateAt(TInstant now)
     return error;
 }
 
-void TFairShareTree::ProfileFairShare() const
+void TFairShareTree::ProfileFairShare(TMetricsAccumulator& accumulator) const
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
-
-    TMetricsAccumulator accumulator;
 
     for (const auto& pair : Pools) {
         ProfileCompositeSchedulerElement(accumulator, pair.second);
@@ -636,8 +634,6 @@ void TFairShareTree::ProfileFairShare() const
             ProfileOperationElement(accumulator, pair.second);
         }
     }
-
-    accumulator.Publish(&Profiler);
 }
 
 void TFairShareTree::ResetTreeIndexes()
