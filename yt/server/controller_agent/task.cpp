@@ -372,7 +372,7 @@ void TTask::ScheduleJob(
         joblet->JobId,
         jobType,
         neededResources.ToJobResources(),
-        TaskHost_->IsJobInterruptible());
+        IsJobInterruptible());
 
     joblet->Restarted = restarted;
     joblet->JobType = jobType;
