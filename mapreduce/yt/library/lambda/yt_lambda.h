@@ -75,7 +75,7 @@ void CopyIf(const IClientBasePtr& client, const TRichYPath& from, const TRichYPa
     client->Map(
         TMapOperationSpec()
             .AddInput<T>(from)
-            .template AddOutput<T>(WithSchema<T>(to))
+            .template AddOutput<T>(MaybeWithSchema<T>(to))
             .Ordered(true),
         p ? new TCopyIfMapper<T>(p) : nullptr);
 }
@@ -85,7 +85,7 @@ void TransformCopyIf(const IClientBasePtr& client, const TRichYPath& from, const
     client->Map(
         TMapOperationSpec()
             .AddInput<R>(from)
-            .template AddOutput<W>(WithSchema<W>(to))
+            .template AddOutput<W>(MaybeWithSchema<W>(to))
             .Ordered(true),
         mapper ? new TTransformMapper<R, W>(mapper) : nullptr);
 }

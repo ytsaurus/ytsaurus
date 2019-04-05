@@ -11,6 +11,8 @@
 #include <util/generic/type_name.h>
 #include <util/generic/vector.h>
 
+#include <contrib/libs/protobuf/message.h>
+
 #include <initializer_list>
 #include <type_traits>
 
@@ -222,6 +224,26 @@ public:
     TNode ToNode() const;
 };
 
+TTableSchema CreateTableSchema(
+    const ::google::protobuf::Descriptor& proto,
+    const TKeyColumns& keyColumns = TKeyColumns(),
+    const bool keepFieldsWithoutExtension = true);
+
+template<class TProtoType>
+inline TTableSchema CreateTableSchema(
+    const TKeyColumns& keyColumns = TKeyColumns(),
+    const bool keepFieldsWithoutExtension = true)
+{
+    static_assert(
+        std::is_base_of_v<::google::protobuf::Message, TProtoType>,
+        "Should be base of google::protobuf::Message");
+
+    return CreateTableSchema(
+        *TProtoType::descriptor(),
+        keyColumns,
+        keepFieldsWithoutExtension);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TReadLimit
@@ -305,6 +327,26 @@ struct TRichYPath
         : Path_(path)
     { }
 };
+
+template <typename TProtoType>
+TRichYPath WithSchema(const TRichYPath& path, const TKeyColumns& sortBy = TKeyColumns())
+{
+    auto schemedPath = path;
+    if (!schemedPath.Schema_) {
+        schemedPath.Schema(CreateTableSchema<TProtoType>(sortBy));
+    }
+    return schemedPath;
+}
+
+template <typename TRowType>
+TRichYPath MaybeWithSchema(const TRichYPath& path, const TKeyColumns& sortBy = TKeyColumns())
+{
+    if constexpr (std::is_base_of_v<::google::protobuf::Message, TRowType>) {
+        return WithSchema<TRowType>(path, sortBy);
+    } else {
+        return path;
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

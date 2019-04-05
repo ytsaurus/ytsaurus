@@ -1,6 +1,10 @@
 #include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
 
+#include <mapreduce/yt/tests/native/proto_lib/row.pb.h>
+
 #include <mapreduce/yt/interface/errors.h>
+#include <mapreduce/yt/interface/serialize.h>
+
 #include <mapreduce/yt/http/abortable_http_response.h>
 
 #include <library/unittest/registar.h>
@@ -104,6 +108,37 @@ Y_UNIT_TEST_SUITE(CypressClient) {
             auto forceNodeId = client->Create(workingDir + "/existing_table_for_force", NT_TABLE, TCreateOptions().Force(true));
             UNIT_ASSERT(forceNodeId != initialNodeId);
         }
+    }
+
+    Y_UNIT_TEST(TestCreateProtobufTable)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto id = client->CreateTable<NYT::NTesting::TUrlRow>(
+            workingDir + "/table",
+            {"Host"});
+
+        UNIT_ASSERT_VALUES_EQUAL(client->Get(workingDir + "/table/@id").AsString(), GetGuidAsString(id));
+
+        auto schemaNode = client->Get(workingDir + "/table/@schema");
+        TTableSchema schema;
+        Deserialize(schema, schemaNode);
+
+        UNIT_ASSERT_VALUES_EQUAL(schema.Columns_.size(), 3);
+
+        UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[0].Name_, "Host");
+        UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[0].Type_, EValueType::VT_STRING);
+        UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[0].SortOrder_, ESortOrder::SO_ASCENDING);
+
+        UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[1].Name_, "Path");
+        UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[1].Type_, EValueType::VT_STRING);
+        UNIT_ASSERT(schema.Columns_[1].SortOrder_.Empty());
+
+        UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[2].Name_, "HttpCode");
+        UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[2].Type_, EValueType::VT_INT32);
+        UNIT_ASSERT(schema.Columns_[2].SortOrder_.Empty());
     }
 
     Y_UNIT_TEST(TestCreateHugeAttribute)
