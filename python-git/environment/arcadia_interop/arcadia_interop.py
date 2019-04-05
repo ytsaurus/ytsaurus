@@ -11,7 +11,13 @@ except ImportError:
 
 YT_ABI = "19_4"
 
-def prepare_yt_binaries(destination, source_prefix=""):
+def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None):
+    def get_binary_path(path):
+        if arcadia_root is None:
+            return yatest.common.binary_path(path)
+        else:
+            return os.path.join(arcadia_root, path)
+
     programs = [("master", "master/bin"),
                 ("node", "node/bin"),
                 ("job-proxy", "job_proxy/bin"),
@@ -22,17 +28,17 @@ def prepare_yt_binaries(destination, source_prefix=""):
                 ("scheduler", "scheduler/bin"),
                 ("controller-agent", "controller_agent/bin")]
     for binary, server_dir in programs:
-        binary_path = yatest.common.binary_path("{0}yt/{1}/yt/server/{2}/ytserver-{3}"
-                                                .format(source_prefix, YT_ABI, server_dir, binary))
+        binary_path = get_binary_path("{0}yt/{1}/yt/server/{2}/ytserver-{3}"
+                                      .format(source_prefix, YT_ABI, server_dir, binary))
         os.symlink(binary_path, os.path.join(destination, "ytserver-" + binary))
 
-    watcher_path = yatest.common.binary_path(source_prefix + "yt/python/yt/environment/bin/yt_env_watcher_make/yt_env_watcher")
+    watcher_path = get_binary_path(source_prefix + "yt/python/yt/environment/bin/yt_env_watcher_make/yt_env_watcher")
     os.symlink(watcher_path, os.path.join(destination, "yt_env_watcher"))
 
-    logrotate_path = yatest.common.binary_path(source_prefix + "infra/nanny/logrotate/logrotate")
+    logrotate_path = get_binary_path(source_prefix + "infra/nanny/logrotate/logrotate")
     os.symlink(logrotate_path, os.path.join(destination, "logrotate"))
 
-def prepare_yt_environment(destination):
+def prepare_yt_environment(destination, arcadia_root=None):
     bin_dir = os.path.join(destination, "bin")
     lock_path = os.path.join(destination, "lock")
     prepared_path = os.path.join(destination, "prepared")
@@ -48,7 +54,7 @@ def prepare_yt_environment(destination):
     if not os.path.exists(bin_dir):
         os.makedirs(bin_dir)
 
-        prepare_yt_binaries(bin_dir)
+        prepare_yt_binaries(bin_dir, arcadia_root=arcadia_root)
 
     with open(prepared_path, "w"):
         pass
