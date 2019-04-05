@@ -151,10 +151,10 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
 
             header.MergeParameters(FormIORequestParameters(Path_, Options_));
 
-            Request_.Reset(new THttpRequest(proxyName));
+            Request_.Reset(new THttpRequest);
             requestId = Request_->GetRequestId();
 
-            Request_->Connect();
+            Request_->Connect(proxyName);
             Request_->StartRequest(header);
             Request_->FinishRequest();
 

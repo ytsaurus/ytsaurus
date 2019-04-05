@@ -126,9 +126,9 @@ THolder<THttpRequest> TFileReader::CreateRequest(const TAuth& auth, const TTrans
 
     header.SetResponseCompression(::ToString(TConfig::Get()->AcceptEncoding));
 
-    auto request = MakeHolder<THttpRequest>(proxyName);
+    auto request = MakeHolder<THttpRequest>();
 
-    request->Connect();
+    request->Connect(proxyName);
     request->StartRequest(header);
     request->FinishRequest();
 
@@ -176,8 +176,8 @@ THolder<THttpRequest> TBlobTableReader::CreateRequest(const TAuth& auth, const T
     header.MergeParameters(params);
     header.SetResponseCompression(::ToString(TConfig::Get()->AcceptEncoding));
 
-    auto request = MakeHolder<THttpRequest>(proxyName);
-    request->Connect();
+    auto request = MakeHolder<THttpRequest>();
+    request->Connect(proxyName);
     request->StartRequest(header);
     request->FinishRequest();
 

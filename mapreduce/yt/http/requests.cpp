@@ -232,17 +232,14 @@ TString RetryRequest(
     for (int attempt = 0; attempt < retryCount; ++attempt) {
         bool hasError = false;
         TString response;
-        TString requestId;
         TDuration retryInterval;
 
+        THttpRequest request;
         try {
             TString hostName = auth.ServerName;
             if (isHeavy) {
                 hostName = GetProxyForHeavyRequest(auth);
             }
-
-            THttpRequest request(hostName);
-            requestId = request.GetRequestId();
 
             if (needMutationId) {
                 header.AddMutationId();
@@ -257,7 +254,7 @@ TString RetryRequest(
                 needRetry = true;
             }
 
-            request.Connect(socketTimeout);
+            request.Connect(hostName, socketTimeout);
             try {
                 request.SmallRequest(header, body);
             } catch (yexception&) {
@@ -266,7 +263,7 @@ TString RetryRequest(
             response = request.GetResponse();
         } catch (TErrorResponse& e) {
             LogRequestError(
-                requestId,
+                request,
                 header,
                 e.GetError().GetMessage(),
                 TStringBuilder() << "attempt " << attempt << " of " << retryCount);
@@ -282,7 +279,7 @@ TString RetryRequest(
             retryInterval = GetRetryInterval(e);
         } catch (yexception& e) {
             LogRequestError(
-                requestId,
+                request,
                 header,
                 e.what(),
                 TStringBuilder() << "attempt " << attempt << " of " << retryCount);
@@ -305,17 +302,20 @@ TString RetryRequest(
 }
 
 void LogRequestError(
-    const TString& requestId,
+    const THttpRequest& request,
     const THttpHeader& header,
     const TString& message,
     const TString& attemptDescription)
 {
     LOG_ERROR("RSP %s - %s - %s - %s - X-YT-Parameters: %s",
-        requestId.data(),
+        request.GetRequestId().data(),
         header.GetUrl().data(),
         message.data(),
         attemptDescription.data(),
         NodeToYsonString(header.GetParameters()).data());
+    if (TConfig::Get()->TraceHttpRequestsMode == ETraceHttpRequestsMode::Error) {
+        TraceRequest(request);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

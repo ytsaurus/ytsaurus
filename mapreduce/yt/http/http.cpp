@@ -12,13 +12,56 @@
 
 #include <util/generic/singleton.h>
 
-#include <util/string/quote.h>
-#include <util/string/printf.h>
-#include <util/string/cast.h>
+#include <util/stream/mem.h>
 #include <util/string/builder.h>
+#include <util/string/cast.h>
+#include <util/string/escape.h>
+#include <util/string/printf.h>
+#include <util/string/quote.h>
 #include <util/system/getpid.h>
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class THttpRequest::TDebugRequestTracer
+    : public IOutputStream
+{
+public:
+    TDebugRequestTracer(IOutputStream* underlyingStream)
+        : UnderlyingStream(underlyingStream)
+    { }
+
+    TStringBuf GetTrace() const
+    {
+        return Trace;
+    }
+
+private:
+    void DoWrite(const void* buf, size_t len) override
+    {
+        const size_t saveToDebugLen = Min(len, MaxSize - Trace.size());
+        UnderlyingStream->Write(buf, len);
+        if (saveToDebugLen) {
+            Trace.append(static_cast<const char*>(buf), saveToDebugLen);
+        }
+    }
+
+    void DoFlush() override
+    {
+        UnderlyingStream->Flush();
+    }
+
+    void DoFinish() override
+    {
+        UnderlyingStream->Finish();
+    }
+
+private:
+    static constexpr size_t MaxSize = 1024 * 1024;
+    IOutputStream* const UnderlyingStream;
+    TString Trace;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -565,8 +608,7 @@ void THttpResponse::CheckTrailers(const THttpHeaders& trailers)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THttpRequest::THttpRequest(const TString& hostName)
-    : HostName(hostName)
+THttpRequest::THttpRequest()
 {
     RequestId = CreateGuidAsString();
 }
@@ -601,8 +643,9 @@ TString THttpRequest::GetRequestId() const
     return RequestId;
 }
 
-void THttpRequest::Connect(TDuration socketTimeout)
+void THttpRequest::Connect(TString hostName, TDuration socketTimeout)
 {
+    HostName = std::move(hostName);
     LOG_DEBUG("REQ %s - connect to %s",
         RequestId.data(),
         HostName.data());
@@ -628,7 +671,12 @@ THttpOutput* THttpRequest::StartRequestImpl(const THttpHeader& header, bool incl
     }
 
     SocketOutput.Reset(new TSocketOutput(*Connection->Socket.Get()));
-    Output.Reset(new THttpOutput(SocketOutput.Get()));
+    if (TConfig::Get()->TraceHttpRequestsMode != ETraceHttpRequestsMode::Never) {
+        DebugRequestTracer = MakeHolder<TDebugRequestTracer>(SocketOutput.Get());
+        Output = MakeHolder<THttpOutput>(DebugRequestTracer.Get());
+    } else {
+        Output = MakeHolder<THttpOutput>(SocketOutput.Get());
+    }
     Output->EnableKeepAlive(true);
 
     Output->Write(strHeader.data(), strHeader.size());
@@ -651,6 +699,9 @@ void THttpRequest::FinishRequest()
 {
     Output->Flush();
     Output->Finish();
+    if (TConfig::Get()->TraceHttpRequestsMode == ETraceHttpRequestsMode::Always) {
+        TraceRequest(*this);
+    }
 }
 
 void THttpRequest::SmallRequest(const THttpHeader& header, TMaybe<TStringBuf> body)
@@ -716,6 +767,43 @@ void THttpRequest::InvalidateConnection()
 {
     TConnectionPool::Get()->Invalidate(HostName, Connection);
     Connection.Reset();
+}
+
+TString THttpRequest::GetTracedHttpRequest() const
+{
+    if (!DebugRequestTracer) {
+        return TString();
+    }
+    TStringStream result;
+    TMemoryInput savedRequest(DebugRequestTracer->GetTrace());
+    TString line;
+    while (savedRequest.ReadLine(line)) {
+        auto authPattern = AsStringBuf("Authorization: OAuth");
+        if (line.StartsWith(authPattern)) {
+            for (size_t i = authPattern.size(); i < line.size(); ++i) {
+                if (!isspace(line[i])) {
+                    line[i] = '*';
+                }
+            }
+        }
+
+        result << ">   " << EscapeC(line) << Endl;
+    }
+
+    return result.Str();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TraceRequest(const THttpRequest& request)
+{
+    Y_VERIFY(TConfig::Get()->TraceHttpRequestsMode == ETraceHttpRequestsMode::Error ||
+             TConfig::Get()->TraceHttpRequestsMode == ETraceHttpRequestsMode::Always);
+    auto httpRequestTrace = request.GetTracedHttpRequest();
+    LOG_DEBUG("Dump of request %s:\n%s\n",
+        request.GetRequestId().data(),
+        httpRequestTrace.data()
+    );
 }
 
 ////////////////////////////////////////////////////////////////////////////////

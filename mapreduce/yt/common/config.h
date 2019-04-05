@@ -23,6 +23,16 @@ enum class ENodeReaderFormat : int
     Auto,  // Use Skiff format if it's possible, YSON otherwise
 };
 
+enum class ETraceHttpRequestsMode
+{
+    // Never dump http requests.
+    Never /* "never" */,
+    // Dump failed http requests.
+    Error /* "error" */,
+    // Dump all http requests.
+    Always /* "always" */,
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TConfig
@@ -92,6 +102,13 @@ struct TConfig
     // There is optimization used with local YT that enables to skip binary upload and use real binary path.
     // When EnableLocalModeOptimization is set to false this optimization is completely disabled.
     bool EnableLocalModeOptimization = true;
+
+    //
+    // This configuration is useful for debug.
+    // If set to ETraceHttpRequestsMode::Error library will dump all http error requests.
+    // If set to ETraceHttpRequestsMode::All library will dump all http requests.
+    // All tracing occurres as DEBUG level logging.
+    ETraceHttpRequestsMode TraceHttpRequestsMode = ETraceHttpRequestsMode::Never;
 
     static bool GetBool(const char* var, bool defaultValue = false);
     static int GetInt(const char* var, int defaultValue);
