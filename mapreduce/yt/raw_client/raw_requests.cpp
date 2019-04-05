@@ -132,6 +132,20 @@ TNodeId Copy(
     return ParseGuidFromResponse(RetryRequest(auth, header));
 }
 
+TNodeId Move(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& sourcePath,
+    const TYPath& destinationPath,
+    const TMoveOptions& options,
+    IRequestRetryPolicyPtr retryPolicy)
+{
+    THttpHeader header("POST", "move");
+    header.AddMutationId();
+    header.MergeParameters(NRawClient::SerializeParamsForMove(transactionId, sourcePath, destinationPath, options));
+    return ParseGuidFromResponse(RetryRequestWithPolicy(auth, header, "", retryPolicy).Response);
+}
+
 void Remove(
     const TAuth& auth,
     const TTransactionId& transactionId,
@@ -679,6 +693,28 @@ void DisableTableReplica(
 {
     THttpHeader header("POST", "disable_table_replica");
     header.MergeParameters(SerializeParamsForDisableTableReplica(replicaId));
+    RetryRequestWithPolicy(auth, header, "", retryPolicy);
+}
+
+void FreezeTable(
+    const TAuth& auth,
+    const TYPath& path,
+    const TFreezeTableOptions& options,
+    IRequestRetryPolicyPtr retryPolicy)
+{
+    THttpHeader header("POST", "freeze_table");
+    header.MergeParameters(SerializeParamsForFreezeTable(path, options));
+    RetryRequestWithPolicy(auth, header, "", retryPolicy);
+}
+
+void UnfreezeTable(
+    const TAuth& auth,
+    const TYPath& path,
+    const TUnfreezeTableOptions& options,
+    IRequestRetryPolicyPtr retryPolicy)
+{
+    THttpHeader header("POST", "unfreeze_table");
+    header.MergeParameters(SerializeParamsForUnfreezeTable(path, options));
     RetryRequestWithPolicy(auth, header, "", retryPolicy);
 }
 

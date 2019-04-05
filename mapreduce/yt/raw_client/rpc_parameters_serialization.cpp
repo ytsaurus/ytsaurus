@@ -52,6 +52,17 @@ static TNode SerializeAttributeFilter(const TOperationAttributeFilter& attribute
     return result;
 }
 
+template <typename TOptions>
+static void SetFirstLastTabletIndex(TNode* node, const TOptions& options)
+{
+    if (options.FirstTabletIndex_) {
+        (*node)["first_tablet_index"] = *options.FirstTabletIndex_;
+    }
+    if (options.LastTabletIndex_) {
+        (*node)["last_tablet_index"] = *options.LastTabletIndex_;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////
 
 TNode SerializeParamsForCreate(
@@ -522,6 +533,26 @@ TNode SerializeParamsForAlterTableReplica(const TReplicaId& replicaId, const TAl
     if (options.Mode_) {
         result["mode"] = ::ToString(*options.Mode_);
     }
+    return result;
+}
+
+TNode SerializeParamsForFreezeTable(
+    const TYPath& path,
+    const TFreezeTableOptions& options)
+{
+    TNode result;
+    SetPathParam(&result, path);
+    SetFirstLastTabletIndex(&result, options);
+    return result;
+}
+
+TNode SerializeParamsForUnfreezeTable(
+    const TYPath& path,
+    const TUnfreezeTableOptions& options)
+{
+    TNode result;
+    SetPathParam(&result, path);
+    SetFirstLastTabletIndex(&result, options);
     return result;
 }
 
