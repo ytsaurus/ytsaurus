@@ -14,10 +14,6 @@
 
 namespace NYT::NTableClient {
 
-namespace NProto {
-class TLogicalType;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ELogicalMetatype,
@@ -27,7 +23,7 @@ DEFINE_ENUM(ELogicalMetatype,
 );
 
 class TLogicalType
-    : public virtual TRefCounted
+    : public virtual TIntrinsicRefCounted
 {
 public:
     explicit TLogicalType(ELogicalMetatype type);
@@ -37,9 +33,10 @@ public:
     const TOptionalLogicalType& AsOptionalTypeRef() const;
 
 private:
-    ELogicalMetatype Metatype_;
+    const ELogicalMetatype Metatype_;
 };
-DEFINE_REFCOUNTED_TYPE(TLogicalType);
+
+DEFINE_REFCOUNTED_TYPE(TLogicalType)
 
 TString ToString(const TLogicalType& logicalType);
 
@@ -74,7 +71,7 @@ public:
     const TLogicalTypePtr& GetElement() const;
 
 private:
-    TLogicalTypePtr Element_;
+    const TLogicalTypePtr Element_;
 };
 DEFINE_REFCOUNTED_TYPE(TOptionalLogicalType);
 

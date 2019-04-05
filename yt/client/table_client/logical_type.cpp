@@ -214,8 +214,9 @@ void FromProto(TLogicalTypePtr* logicalType, const NProto::TLogicalType& protoLo
             return;
         }
         case NProto::TLogicalType::TypeCase::TYPE_NOT_SET:
-            Y_UNREACHABLE();
+            break;
     }
+    Y_UNREACHABLE();
 }
 
 void Serialize(const TLogicalTypePtr& logicalType, NYson::IYsonConsumer* consumer)
@@ -223,13 +224,15 @@ void Serialize(const TLogicalTypePtr& logicalType, NYson::IYsonConsumer* consume
     const auto metatype = logicalType->GetMetatype();
     switch (metatype) {
         case ELogicalMetatype::Simple:
-            NYTree::BuildYsonFluently(consumer).Value(logicalType->AsSimpleTypeRef().GetElement());
+            NYTree::BuildYsonFluently(consumer)
+                .Value(logicalType->AsSimpleTypeRef().GetElement());
             return;
         case ELogicalMetatype::Optional:
-            NYTree::BuildYsonFluently(consumer).BeginMap()
-                .Item("metatype").Value(metatype)
-                .Item("element").Value(logicalType->AsOptionalTypeRef().GetElement())
-            .EndMap();
+            NYTree::BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("metatype").Value(metatype)
+                    .Item("element").Value(logicalType->AsOptionalTypeRef().GetElement())
+                .EndMap();
             return;
     }
     Y_UNREACHABLE();
@@ -281,7 +284,7 @@ struct TSimpleTypeStore
 public:
     TSimpleTypeStore()
     {
-        for (const auto simpleLogicalType : TEnumTraits<ESimpleLogicalValueType>::GetDomainValues()) {
+        for (auto simpleLogicalType : TEnumTraits<ESimpleLogicalValueType>::GetDomainValues()) {
             auto logicalType = New<TSimpleLogicalType>(simpleLogicalType);
             SimpleTypeMap[simpleLogicalType] = logicalType;
             OptionalTypeMap[simpleLogicalType] = New<TOptionalLogicalType>(logicalType);
@@ -321,10 +324,10 @@ TLogicalTypePtr OptionalLogicalType(TLogicalTypePtr element)
             return Singleton<TSimpleTypeStore>()->GetOptionalType(simpleLogicalType);
         }
     }
-    return New<TOptionalLogicalType>(element);
+    return New<TOptionalLogicalType>(std::move(element));
 }
 
-TLogicalTypePtr SimpleLogicalType(NTableClient::ESimpleLogicalValueType element, bool required)
+TLogicalTypePtr SimpleLogicalType(ESimpleLogicalValueType element, bool required)
 {
     if (required) {
         return Singleton<TSimpleTypeStore>()->GetSimpleType(element);
@@ -337,7 +340,7 @@ TLogicalTypePtr NullLogicalType = Singleton<TSimpleTypeStore>()->GetSimpleType(E
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableSchema
+} // namespace NYT::NTableClient
 
 size_t THash<NYT::NTableClient::TLogicalType>::operator()(const NYT::NTableClient::TLogicalType& logicalType) const
 {

@@ -236,7 +236,7 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
         auto physicalType = CheckedEnumCast<EValueType>(protoSchema.type());
         schema->SetLogicalType(SimpleLogicalType(GetLogicalType(physicalType), protoSchema.required()));
     }
-    YCHECK(schema->GetPhysicalType() == static_cast<EValueType>(protoSchema.type()));
+    YCHECK(schema->GetPhysicalType() == CheckedEnumCast<EValueType>(protoSchema.type()));
 
     schema->SetLock(protoSchema.has_lock() ? std::make_optional(protoSchema.lock()) : std::nullopt);
     schema->SetExpression(protoSchema.has_expression() ? std::make_optional(protoSchema.expression()) : std::nullopt);
@@ -928,18 +928,18 @@ void ValidateTimestampColumn(const TTableSchema& schema)
     }
 
     if (column->SortOrder()) {
-        THROW_ERROR_EXCEPTION("%Qv column cannot be a part of key",
+        THROW_ERROR_EXCEPTION("Column %Qv cannot be a part of key",
             TimestampColumnName);
     }
 
     if (column->SimplifiedLogicalType() != ESimpleLogicalValueType::Uint64) {
-        THROW_ERROR_EXCEPTION("%Qv column must have %Qlv type",
+        THROW_ERROR_EXCEPTION("Column %Qv must have %Qlv type",
             TimestampColumnName,
             EValueType::Uint64);
     }
 
     if (schema.IsSorted()) {
-        THROW_ERROR_EXCEPTION("%Qv column cannot appear in a sorted table",
+        THROW_ERROR_EXCEPTION("Column %Qv cannot appear in a sorted table",
             TimestampColumnName);
     }
 }
