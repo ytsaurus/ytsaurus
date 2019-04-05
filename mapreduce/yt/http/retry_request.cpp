@@ -21,7 +21,7 @@ TResponseInfo RetryRequestWithPolicy(
     const TAuth& auth,
     THttpHeader& header,
     TStringBuf body,
-    IRequestRetryPolicy* retryPolicy,
+    IRequestRetryPolicyPtr retryPolicy,
     const TRequestConfig& config)
 {
     header.SetToken(auth.Token);
@@ -29,10 +29,8 @@ TResponseInfo RetryRequestWithPolicy(
     bool useMutationId = header.HasMutationId();
     bool retryWithSameMutationId = false;
 
-    IRequestRetryPolicyPtr defaultRetryPolicy = nullptr;
     if (!retryPolicy) {
-        defaultRetryPolicy = CreateDefaultRetryPolicy();
-        retryPolicy = defaultRetryPolicy.Get();
+        retryPolicy = CreateDefaultRetryPolicy();
     }
 
     while (true) {

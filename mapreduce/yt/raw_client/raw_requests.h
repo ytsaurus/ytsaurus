@@ -3,6 +3,7 @@
 #include <mapreduce/yt/interface/fwd.h>
 #include <mapreduce/yt/interface/client_method_options.h>
 #include <mapreduce/yt/interface/operation.h>
+#include <mapreduce/yt/interface/retry_policy.h>
 
 namespace NYT {
 
@@ -30,7 +31,7 @@ void ExecuteBatch(
     const TAuth& auth,
     TRawBatchRequest& batchRequest,
     const TExecuteBatchOptions& options = TExecuteBatchOptions(),
-    IRequestRetryPolicy* retryPolicy = nullptr);
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 //
 // Cypress
@@ -41,7 +42,7 @@ TNode Get(
     const TTransactionId& transactionId,
     const TYPath& path,
     const TGetOptions& options = TGetOptions(),
-    IRequestRetryPolicy* retryPolicy = nullptr);
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 void Set(
     const TAuth& auth,
@@ -49,13 +50,13 @@ void Set(
     const TYPath& path,
     const TNode& value,
     const TSetOptions& options = TSetOptions(),
-    IRequestRetryPolicy* retryPolicy = nullptr);
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 bool Exists(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path,
-    IRequestRetryPolicy* retryPolicy = nullptr);
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 TNodeId Create(
     const TAuth& auth,
@@ -63,7 +64,7 @@ TNodeId Create(
     const TYPath& path,
     const ENodeType& type,
     const TCreateOptions& options = TCreateOptions(),
-    IRequestRetryPolicy* retryPolicy = nullptr);
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 TNodeId Copy(
     const TAuth& auth,
@@ -77,14 +78,14 @@ void Remove(
     const TTransactionId& transactionId,
     const TYPath& path,
     const TRemoveOptions& options = TRemoveOptions(),
-    IRequestRetryPolicy* retryPolicy = nullptr);
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 TNode::TListType List(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path,
     const TListOptions& options,
-    IRequestRetryPolicy* retryPolicy = nullptr);
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 TNodeId Link(
     const TAuth& auth,
@@ -92,7 +93,7 @@ TNodeId Link(
     const TYPath& targetPath,
     const TYPath& linkPath,
     const TLinkOptions& options = TLinkOptions(),
-    IRequestRetryPolicy* retryPolicy = nullptr);
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 TLockId Lock(
     const TAuth& auth,
@@ -100,7 +101,7 @@ TLockId Lock(
     const TYPath& path,
     ELockMode mode,
     const TLockOptions& options = TLockOptions(),
-    IRequestRetryPolicy* retryPolicy = nullptr);
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 void Concatenate(
     const TAuth& auth,
@@ -108,7 +109,7 @@ void Concatenate(
     const TVector<TYPath>& sourcePaths,
     const TYPath& destinationPath,
     const TConcatenateOptions& options,
-    IRequestRetryPolicy* retryPolicy = nullptr);
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 //
 // Transactions
@@ -117,7 +118,7 @@ void Concatenate(
 void PingTx(
     const TAuth& auth,
     const TTransactionId& transactionId,
-    IRequestRetryPolicy* retryPolicy = nullptr);
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 //
 // Operations
@@ -127,7 +128,7 @@ TOperationAttributes GetOperation(
     const TAuth& auth,
     const TOperationId& operationId,
     const TGetOperationOptions& options = TGetOperationOptions(),
-    IRequestRetryPolicy* retryPolicy = nullptr);
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 void AbortOperation(
     const TAuth& auth,
@@ -137,16 +138,16 @@ void CompleteOperation(
     const TAuth& auth,
     const TOperationId& operationId);
 
+TListOperationsResult ListOperations(
+    const TAuth& auth,
+    const TListOperationsOptions& options = TListOperationsOptions(),
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
+
 void UpdateOperationParameters(
     const TAuth& auth,
     const TOperationId& operationId,
     const TUpdateOperationParametersOptions& options,
-    IRequestRetryPolicy* retryPolicy = nullptr);
-
-TListOperationsResult ListOperations(
-    const TAuth& auth,
-    const TListOperationsOptions& options = TListOperationsOptions(),
-    IRequestRetryPolicy* retryPolicy = nullptr);
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 //
 // Jobs
@@ -157,13 +158,13 @@ TJobAttributes GetJob(
     const TOperationId& operationId,
     const TJobId& jobId,
     const TGetJobOptions& options = TGetJobOptions(),
-    IRequestRetryPolicy* retryPolicy = nullptr);
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 TListJobsResult ListJobs(
     const TAuth& auth,
     const TOperationId& operationId,
     const TListJobsOptions& options = TListJobsOptions(),
-    IRequestRetryPolicy* retryPolicy = nullptr);
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 TIntrusivePtr<IFileReader> GetJobInput(
     const TAuth& auth,
@@ -181,7 +182,7 @@ TString GetJobStderrWithRetries(
     const TOperationId& operationId,
     const TJobId& jobId,
     const TGetJobStderrOptions& /* options */ = TGetJobStderrOptions(),
-    IRequestRetryPolicy* retryPolicy = nullptr);
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 TIntrusivePtr<IFileReader> GetJobStderr(
     const TAuth& auth,
@@ -198,7 +199,7 @@ TMaybe<TYPath> GetFileFromCache(
     const TString& md5Signature,
     const TYPath& cachePath,
     const TGetFileFromCacheOptions& options = TGetFileFromCacheOptions(),
-    IRequestRetryPolicy* retryPolicy = nullptr);
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 TYPath PutFileToCache(
     const TAuth& auth,
@@ -206,7 +207,7 @@ TYPath PutFileToCache(
     const TString& md5Signature,
     const TYPath& cachePath,
     const TPutFileToCacheOptions& options = TPutFileToCacheOptions(),
-    IRequestRetryPolicy* retryPolicy = nullptr);
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 //
 // Tables
@@ -217,30 +218,30 @@ void AlterTable(
     const TTransactionId& transactionId,
     const TYPath& path,
     const TAlterTableOptions& options,
-    IRequestRetryPolicy* retryPolicy = nullptr);
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 void AlterTableReplica(
     const TAuth& auth,
     const TReplicaId& replicaId,
     const TAlterTableReplicaOptions& options,
-    IRequestRetryPolicy* retryPolicy = nullptr);
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 void DeleteRows(
     const TAuth& auth,
     const TYPath& path,
     const TNode::TListType& keys,
     const TDeleteRowsOptions& options,
-    IRequestRetryPolicy* retryPolicy = nullptr);
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 void EnableTableReplica(
     const TAuth& auth,
     const TReplicaId& replicaId,
-    IRequestRetryPolicy* retryPolicy = nullptr);
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 void DisableTableReplica(
     const TAuth& auth,
     const TReplicaId& replicaId,
-    IRequestRetryPolicy* retryPolicy = nullptr);
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

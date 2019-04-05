@@ -635,8 +635,8 @@ void TTransaction::Abort()
 
 void TTransaction::Ping()
 {
-    TPingRetryPolicy retryPolicy(TConfig::Get()->RetryCount);
-    PingTx(Auth_, TransactionId_, &retryPolicy);
+    auto retryPolicy = MakeIntrusive<TPingRetryPolicy>((ui32)TConfig::Get()->RetryCount);
+    PingTx(Auth_, TransactionId_, retryPolicy);
 }
 
 TClientPtr TTransaction::GetParentClientImpl()

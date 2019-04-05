@@ -20,7 +20,7 @@ void ExecuteBatch(
     const TAuth& auth,
     TRawBatchRequest& batchRequest,
     const TExecuteBatchOptions& options,
-    IRequestRetryPolicy* retryPolicy)
+    IRequestRetryPolicyPtr retryPolicy)
 {
     if (batchRequest.IsExecuted()) {
         ythrow yexception() << "Cannot execute batch request since it is already executed";
@@ -60,7 +60,7 @@ void ExecuteBatch(
                 retryBatch.SetErrorResult(std::current_exception());
                 throw;
             }
-            batchRequest.ParseResponse(std::move(result), retryPolicy, &retryBatch);
+            batchRequest.ParseResponse(std::move(result), retryPolicy.Get(), &retryBatch);
         }
 
         batchRequest = std::move(retryBatch);
@@ -72,7 +72,7 @@ TNode Get(
     const TTransactionId& transactionId,
     const TYPath& path,
     const TGetOptions& options,
-    IRequestRetryPolicy* retryPolicy)
+    IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("GET", "get");
     header.MergeParameters(SerializeParamsForGet(transactionId, path, options));
@@ -85,7 +85,7 @@ void Set(
     const TYPath& path,
     const TNode& value,
     const TSetOptions& options,
-    IRequestRetryPolicy* retryPolicy)
+    IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("PUT", "set");
     header.AddMutationId();
@@ -98,7 +98,7 @@ bool Exists(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path,
-    IRequestRetryPolicy* retryPolicy)
+    IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("GET", "exists");
     header.MergeParameters(SerializeParamsForExists(transactionId, path));
@@ -111,7 +111,7 @@ TNodeId Create(
     const TYPath& path,
     const ENodeType& type,
     const TCreateOptions& options,
-    IRequestRetryPolicy* retryPolicy)
+    IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("POST", "create");
     header.AddMutationId();
@@ -137,7 +137,7 @@ void Remove(
     const TTransactionId& transactionId,
     const TYPath& path,
     const TRemoveOptions& options,
-    IRequestRetryPolicy* retryPolicy)
+    IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("POST", "remove");
     header.AddMutationId();
@@ -150,7 +150,7 @@ TNode::TListType List(
     const TTransactionId& transactionId,
     const TYPath& path,
     const TListOptions& options,
-    IRequestRetryPolicy* retryPolicy)
+    IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("GET", "list");
 
@@ -171,7 +171,7 @@ TNodeId Link(
     const TYPath& targetPath,
     const TYPath& linkPath,
     const TLinkOptions& options,
-    IRequestRetryPolicy* retryPolicy)
+    IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("POST", "link");
     header.AddMutationId();
@@ -185,7 +185,7 @@ TLockId Lock(
     const TYPath& path,
     ELockMode mode,
     const TLockOptions& options,
-    IRequestRetryPolicy* retryPolicy)
+    IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("POST", "lock");
     header.AddMutationId();
@@ -199,7 +199,7 @@ void Concatenate(
     const TVector<TYPath>& sourcePaths,
     const TYPath& destinationPath,
     const TConcatenateOptions& options,
-    IRequestRetryPolicy* retryPolicy)
+    IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("POST", "concatenate");
     header.AddMutationId();
@@ -210,7 +210,7 @@ void Concatenate(
 void PingTx(
     const TAuth& auth,
     const TTransactionId& transactionId,
-    IRequestRetryPolicy* retryPolicy)
+    IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("POST", "ping_tx");
     header.MergeParameters(SerializeParamsForPingTx(transactionId));
@@ -312,7 +312,7 @@ TOperationAttributes GetOperation(
     const TAuth& auth,
     const TOperationId& operationId,
     const TGetOperationOptions& options,
-    IRequestRetryPolicy* retryPolicy)
+    IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("GET", "get_operation");
     header.MergeParameters(SerializeParamsForGetOperation(operationId, options));
@@ -349,7 +349,7 @@ static THashMap<TKey, i64> GetCounts(const TNode& countsNode)
 TListOperationsResult ListOperations(
     const TAuth& auth,
     const TListOperationsOptions& options,
-    IRequestRetryPolicy* retryPolicy)
+    IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("GET", "list_operations");
     header.MergeParameters(SerializeParamsForListOperations(options));
@@ -386,7 +386,7 @@ void UpdateOperationParameters(
     const TAuth& auth,
     const TOperationId& operationId,
     const TUpdateOperationParametersOptions& options,
-    IRequestRetryPolicy* retryPolicy)
+    IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("POST", "update_op_parameters");
     header.MergeParameters(SerializeParamsForUpdateOperationParameters(operationId, options));
@@ -469,7 +469,7 @@ TJobAttributes GetJob(
     const TOperationId& operationId,
     const TJobId& jobId,
     const TGetJobOptions& options,
-    IRequestRetryPolicy* retryPolicy)
+    IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("GET", "get_job");
     header.MergeParameters(SerializeParamsForGetJob(operationId, jobId, options));
@@ -482,7 +482,7 @@ TListJobsResult ListJobs(
     const TAuth& auth,
     const TOperationId& operationId,
     const TListJobsOptions& options,
-    IRequestRetryPolicy* retryPolicy)
+    IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("GET", "list_jobs");
     header.MergeParameters(SerializeParamsForListJobs(operationId, options));
@@ -569,7 +569,7 @@ TString GetJobStderrWithRetries(
     const TOperationId& operationId,
     const TJobId& jobId,
     const TGetJobStderrOptions& /* options */,
-    IRequestRetryPolicy* retryPolicy)
+    IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("GET", "get_job_stderr");
     header.AddOperationId(operationId);
@@ -597,7 +597,7 @@ TMaybe<TYPath> GetFileFromCache(
     const TString& md5Signature,
     const TYPath& cachePath,
     const TGetFileFromCacheOptions& options,
-    IRequestRetryPolicy* retryPolicy)
+    IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("GET", "get_file_from_cache");
     header.MergeParameters(SerializeParamsForGetFileFromCache(md5Signature, cachePath, options));
@@ -612,7 +612,7 @@ TYPath PutFileToCache(
     const TString& md5Signature,
     const TYPath& cachePath,
     const TPutFileToCacheOptions& options,
-    IRequestRetryPolicy* retryPolicy)
+    IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("POST", "put_file_to_cache");
     header.MergeParameters(SerializeParamsForPutFileToCache(filePath, md5Signature, cachePath, options));
@@ -625,7 +625,7 @@ void AlterTable(
     const TTransactionId& transactionId,
     const TYPath& path,
     const TAlterTableOptions& options,
-    IRequestRetryPolicy* retryPolicy)
+    IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("POST", "alter_table");
     header.AddMutationId();
@@ -637,7 +637,7 @@ void AlterTableReplica(
     const TAuth& auth,
     const TReplicaId& replicaId,
     const TAlterTableReplicaOptions& options,
-    IRequestRetryPolicy* retryPolicy)
+    IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("POST", "alter_table_replica");
     header.AddMutationId();
@@ -650,7 +650,7 @@ void DeleteRows(
     const TYPath& path,
     const TNode::TListType& keys,
     const TDeleteRowsOptions& options,
-    IRequestRetryPolicy* retryPolicy)
+    IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("PUT", "delete_rows");
     header.SetInputFormat(TFormat::YsonBinary());
@@ -665,7 +665,7 @@ void DeleteRows(
 void EnableTableReplica(
     const TAuth& auth,
     const TReplicaId& replicaId,
-    IRequestRetryPolicy* retryPolicy)
+    IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("POST", "enable_table_replica");
     header.MergeParameters(SerializeParamsForEnableTableReplica(replicaId));
@@ -675,7 +675,7 @@ void EnableTableReplica(
 void DisableTableReplica(
     const TAuth& auth,
     const TReplicaId& replicaId,
-    IRequestRetryPolicy* retryPolicy)
+    IRequestRetryPolicyPtr retryPolicy)
 {
     THttpHeader header("POST", "disable_table_replica");
     header.MergeParameters(SerializeParamsForDisableTableReplica(replicaId));

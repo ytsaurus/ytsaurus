@@ -93,7 +93,7 @@ Y_UNIT_TEST_SUITE(BatchRequestImpl) {
 
         UNIT_ASSERT_VALUES_EQUAL(batchRequest.BatchSize(), 3);
 
-        TTestRetryPolicy testRetryPolicy;
+        auto testRetryPolicy = MakeIntrusive<TTestRetryPolicy>();
         const TInstant now = TInstant::Seconds(100500);
 
         TRawBatchRequest retryBatch;
@@ -105,7 +105,7 @@ Y_UNIT_TEST_SUITE(BatchRequestImpl) {
                 .Add(TNode()("error",
                         TTestRetryPolicy::GenerateRetriableError(TDuration::Seconds(5)))),
                 "<no-request-id>",
-                &testRetryPolicy,
+                testRetryPolicy,
                 &retryBatch,
                 now);
 

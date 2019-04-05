@@ -38,7 +38,7 @@ TResponseInfo RetryRequestWithPolicy(
     const TAuth& auth,
     THttpHeader& header,
     TStringBuf body,
-    IRequestRetryPolicy* retryPolicy = nullptr,
+    IRequestRetryPolicyPtr retryPolicy = nullptr,
     const TRequestConfig& config = TRequestConfig());
 
 ////////////////////////////////////////////////////////////////////

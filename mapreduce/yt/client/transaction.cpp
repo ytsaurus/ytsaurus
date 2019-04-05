@@ -158,8 +158,8 @@ void TPingableTransaction::Pinger()
 {
     while (Running_) {
         try {
-            TPingRetryPolicy retryPolicy;
-            NDetail::NRawClient::PingTx(Auth_, TransactionId_, &retryPolicy);
+            auto retryPolicy = MakeIntrusive<TPingRetryPolicy>();
+            NDetail::NRawClient::PingTx(Auth_, TransactionId_, retryPolicy);
         } catch (const TErrorResponse& e) {
             // All other errors must be retried by our TPingRetryPolicy.
             Y_VERIFY(e.GetError().ContainsErrorCode(NYT::NClusterErrorCodes::NTransactionClient::NoSuchTransaction));

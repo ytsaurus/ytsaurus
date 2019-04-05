@@ -310,4 +310,7 @@ namespace NYT {
         TJobBinaryDefault,
         TJobBinaryLocalPath,
         TJobBinaryCypressPath>;
+
+    class IRequestRetryPolicy;
+    using IRequestRetryPolicyPtr = ::TIntrusivePtr<IRequestRetryPolicy>;
 }
