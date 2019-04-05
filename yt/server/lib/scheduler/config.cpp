@@ -424,6 +424,10 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("max_offline_node_age", MaxOfflineNodeAge)
         .Default(TDuration::Hours(12));
 
+    RegisterParameter("orchid_worker_thread_cout", OrchidWorkerThreadCount)
+        .Default(4)
+        .GreaterThan(0);
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {
@@ -437,6 +441,28 @@ TSchedulerConfig::TSchedulerConfig()
                 << TErrorAttribute("soft_limit", SoftConcurrentHeartbeatLimit)
                 << TErrorAttribute("hard_limit", HardConcurrentHeartbeatLimit);
         }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSchedulerBootstrapConfig::TSchedulerBootstrapConfig()
+{
+    RegisterParameter("cluster_connection", ClusterConnection);
+    RegisterParameter("scheduler", Scheduler)
+        .DefaultNew();
+    RegisterParameter("response_keeper", ResponseKeeper)
+        .DefaultNew();
+    RegisterParameter("addresses", Addresses)
+        .Default();
+    RegisterParameter("cypress_annotations", CypressAnnotations)
+        .Default(NYTree::BuildYsonNodeFluently()
+            .BeginMap()
+            .EndMap()
+            ->AsMap());
+
+    RegisterPreprocessor([&] () {
+        ResponseKeeper->EnableWarmup = false;
     });
 }
 

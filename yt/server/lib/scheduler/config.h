@@ -1,3 +1,4 @@
+
 #pragma once
 
 #include "public.h"
@@ -454,6 +455,10 @@ public:
 
     TDuration MaxOfflineNodeAge;
 
+    //! The number of threads in OrchidWorker thread pool used for serving reads from
+    //! the scheduler's orchid.
+    int OrchidWorkerThreadCount;
+
     TSchedulerConfig();
 };
 
@@ -475,25 +480,7 @@ public:
 
     NYTree::IMapNodePtr CypressAnnotations;
 
-    TSchedulerBootstrapConfig()
-    {
-        RegisterParameter("cluster_connection", ClusterConnection);
-        RegisterParameter("scheduler", Scheduler)
-            .DefaultNew();
-        RegisterParameter("response_keeper", ResponseKeeper)
-            .DefaultNew();
-        RegisterParameter("addresses", Addresses)
-            .Default();
-        RegisterParameter("cypress_annotations", CypressAnnotations)
-            .Default(NYTree::BuildYsonNodeFluently()
-                .BeginMap()
-                .EndMap()
-            ->AsMap());
-
-        RegisterPreprocessor([&] () {
-            ResponseKeeper->EnableWarmup = false;
-        });
-    }
+    TSchedulerBootstrapConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerBootstrapConfig)
