@@ -673,7 +673,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         self._test_cell_bundle_distribution(True)
 
     @flaky(max_runs=5)
-    def test_cell_bundle_distribution_new(self):
+    def test_cell_bundle_distribution_old(self):
         self._test_cell_bundle_distribution(False)
 
     def test_cell_bundle_options(self):
