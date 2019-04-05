@@ -167,6 +167,7 @@ public:
         , InitialConfig_(Config_)
         , Bootstrap_(bootstrap)
         , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
+        , OrchidWorkerPool_(New<TThreadPool>(Config_->OrchidWorkerThreadCount, "OrchidWorker"))
         , TotalResourceLimitsProfiler_(SchedulerProfiler.AppendPath("/total_resource_limits"))
         , TotalResourceUsageProfiler_(SchedulerProfiler.AppendPath("/total_resource_usage"))
         , TotalCompletedJobTimeCounter_("/total_completed_job_time")
@@ -341,7 +342,7 @@ public:
         auto staticOrchidProducer = BIND(&TImpl::BuildStaticOrchid, MakeStrong(this));
         auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer)
             ->Via(GetControlInvoker(EControlQueue::Orchid))
-            ->Cached(Config_->StaticOrchidCacheUpdatePeriod, OrchidActionQueue_->GetInvoker());
+            ->Cached(Config_->StaticOrchidCacheUpdatePeriod, OrchidWorkerPool_->GetInvoker());
         StaticOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(staticOrchidService.Get()));
         YCHECK(StaticOrchidService_);
 
@@ -1263,7 +1264,7 @@ private:
 
     TOperationsCleanerPtr OperationsCleaner_;
 
-    const TActionQueuePtr OrchidActionQueue_ = New<TActionQueue>("OrchidWorker");
+    const TThreadPoolPtr OrchidWorkerPool_;
     const TActionQueuePtr ProfilingActionQueue_ = New<TActionQueue>("ProfilingWorker");
 
     ISchedulerStrategyPtr Strategy_;
