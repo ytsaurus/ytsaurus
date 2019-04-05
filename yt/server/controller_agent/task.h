@@ -151,6 +151,8 @@ public:
 
     TSharedRef BuildJobSpecProto(TJobletPtr joblet);
 
+    virtual bool IsJobInterruptible() const;
+
 protected:
     NLogging::TLogger Logger;
 
@@ -238,8 +240,6 @@ protected:
     //! A convenience method for calling task->Finish() and
     //! task->SetInputVertex(this->GetJobType());
     void FinishTaskInput(const TTaskPtr& task);
-
-    virtual bool IsJobInterruptible() const;
 
     virtual NScheduler::TExtendedJobResources GetMinNeededResourcesHeavy() const = 0;
     virtual void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) = 0;
