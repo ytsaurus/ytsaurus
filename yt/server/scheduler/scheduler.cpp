@@ -168,11 +168,6 @@ public:
         , Bootstrap_(bootstrap)
         , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
         , OrchidWorkerPool_(New<TThreadPool>(Config_->OrchidWorkerThreadCount, "OrchidWorker"))
-        , TotalResourceLimitsProfiler_(SchedulerProfiler.AppendPath("/total_resource_limits"))
-        , TotalResourceUsageProfiler_(SchedulerProfiler.AppendPath("/total_resource_usage"))
-        , TotalCompletedJobTimeCounter_("/total_completed_job_time")
-        , TotalFailedJobTimeCounter_("/total_failed_job_time")
-        , TotalAbortedJobTimeCounter_("/total_aborted_job_time")
     {
         YCHECK(config);
         YCHECK(bootstrap);
@@ -1287,12 +1282,12 @@ private:
 
     TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>> CachedExecNodeMemoryDistributionByTags_;
 
-    TProfiler TotalResourceLimitsProfiler_;
-    TProfiler TotalResourceUsageProfiler_;
+    TProfiler TotalResourceLimitsProfiler_{SchedulerProfiler.AppendPath("/total_resource_limits")};
+    TProfiler TotalResourceUsageProfiler_{SchedulerProfiler.AppendPath("/total_resource_usage")};
 
-    TMonotonicCounter TotalCompletedJobTimeCounter_;
-    TMonotonicCounter TotalFailedJobTimeCounter_;
-    TMonotonicCounter TotalAbortedJobTimeCounter_;
+    TMonotonicCounter TotalCompletedJobTimeCounter_{"/total_completed_job_time"};
+    TMonotonicCounter TotalFailedJobTimeCounter_{"/total_failed_job_time"};
+    TMonotonicCounter TotalAbortedJobTimeCounter_{"/total_aborted_job_time"};
 
     TEnumIndexedVector<TTagId, EJobState> JobStateToTag_;
     TEnumIndexedVector<TTagId, EJobType> JobTypeToTag_;
