@@ -57,7 +57,9 @@ private:
     TSharedMutableRef Buffer_;
 
     Y_POD_STATIC_THREAD(TPerThreadCache*) Cache_;
+#if not defined(__APPLE__)
     Y_POD_STATIC_THREAD(bool) CacheDestroyed_;
+#endif
     static TPerThreadCache* GetCache();
 
     static constexpr size_t ChunkSize = 64_KB;
