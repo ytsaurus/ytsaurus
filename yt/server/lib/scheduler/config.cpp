@@ -427,7 +427,7 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("skip_operations_with_malformed_spec_during_revival", SkipOperationsWithMalformedSpecDuringRevival)
         .Default(false);
 
-    RegisterParameter("orchid_worker_thread_cout", OrchidWorkerThreadCount)
+    RegisterParameter("orchid_worker_thread_count", OrchidWorkerThreadCount)
         .Default(4)
         .GreaterThan(0);
 
