@@ -161,7 +161,6 @@ protected:
         if (!executorError.IsOK()) {
             fprintf(stderr, "Failed to prepare pipes, unexpected executor error\n%s", ToString(executorError).data());
             Exit(3);
-            return;
         }
 
         if (Pty_ != -1) {
@@ -220,8 +219,8 @@ protected:
             args.data(),
             env.data());
 
-        Exit(3);
-        return;
+        fprintf(stderr, "execve failed: %s", TError::FromSystem().GetMessage().data());
+        Exit(5);
     }
 
 private:
