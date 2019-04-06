@@ -12,14 +12,6 @@ from time import sleep
 class TestChunkServer(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 21
-    DELTA_MASTER_CONFIG = {
-        "chunk_manager": {
-            "max_replication_factor": 5
-        },
-        "node_tracker": {
-            "full_node_states_gossip_period": 1000
-        }
-    }
 
     def test_owning_nodes1(self):
         create("table", "//tmp/t")
@@ -210,20 +202,24 @@ class TestChunkServer(YTEnvSetup):
         wait(check_replica_count, sleep_backoff=1.0)
 
     def test_max_replication_factor(self):
-        assert get("//sys/media/default/@config/max_replication_factor") == self.DELTA_MASTER_CONFIG["chunk_manager"]["max_replication_factor"]
+        old_max_rf = get("//sys/media/default/@config/max_replication_factor")
+        try:
+            MAX_RF = 5
+            set("//sys/media/default/@config/max_replication_factor", MAX_RF)
 
-        create("table", "//tmp/t", attributes={"replication_factor": 10})
-        assert get("//tmp/t/@replication_factor") == 10
+            create("table", "//tmp/t", attributes={"replication_factor": 10})
+            assert get("//tmp/t/@replication_factor") == 10
 
-        write_table("//tmp/t", {"a" : "b"})
-        chunk_id = get_singular_chunk_id("//tmp/t")
+            write_table("//tmp/t", {"a" : "b"})
+            chunk_id = get_singular_chunk_id("//tmp/t")
 
-        wait(lambda: len(get("#{0}/@stored_replicas".format(chunk_id))) >= 5)
+            wait(lambda: len(get("#{0}/@stored_replicas".format(chunk_id))) >= MAX_RF)
 
-        # Make sure RF doesn't go higher.
-        sleep(0.3)
-        assert len(get("#{0}/@stored_replicas".format(chunk_id))) == 5
-
+            # Make sure RF doesn't go higher.
+            sleep(0.3)
+            assert len(get("#{0}/@stored_replicas".format(chunk_id))) == MAX_RF
+        finally:
+            set("//sys/media/default/@config/max_replication_factor", old_max_rf)
 
 ##################################################################
 
