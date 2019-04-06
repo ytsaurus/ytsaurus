@@ -13,21 +13,16 @@ import (
 	"a.yandex-team.ru/yt/go/yt/ythttp"
 )
 
-func fatal(err error) {
-	fmt.Fprintf(os.Stderr, "error: %+v\n", err)
-	os.Exit(1)
-}
-
 var (
 	flagProxy = flag.String("proxy", "", "cluster address")
 )
 
-func main() {
+func Example() error {
 	flag.Parse()
 
 	yc, err := ythttp.NewClientCli(*flagProxy)
 	if err != nil {
-		fatal(err)
+		return err
 	}
 
 	ctx := context.Background()
@@ -39,8 +34,16 @@ func main() {
 	}
 
 	if err = yc.GetNode(ctx, ypath.Path("//@"), &attrs, nil); err != nil {
-		fatal(err)
+		return err
 	}
 
 	fmt.Printf("cluster was created at %v\n", time.Time(attrs.CreationTime))
+	return nil
+}
+
+func main() {
+	if err := Example(); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %+v\n", err)
+		os.Exit(1)
+	}
 }

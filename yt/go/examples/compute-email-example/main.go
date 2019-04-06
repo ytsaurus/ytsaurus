@@ -17,11 +17,6 @@ import (
 	"a.yandex-team.ru/yt/go/mapreduce"
 )
 
-func fatal(err error) {
-	fmt.Fprintf(os.Stderr, "error: %+v\n", err)
-	os.Exit(1)
-}
-
 func init() {
 	mapreduce.Register(&ComputeEmailJob{})
 }
@@ -54,14 +49,10 @@ func (*ComputeEmailJob) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []
 	return nil
 }
 
-func main() {
-	if mapreduce.InsideJob() {
-		os.Exit(mapreduce.JobMain())
-	}
-
+func Example() error {
 	yc, err := ythttp.NewClientCli("freud")
 	if err != nil {
-		fatal(err)
+		return err
 	}
 
 	mr := mapreduce.New(yc)
@@ -70,20 +61,31 @@ func main() {
 
 	_, err = yt.CreateTable(context.Background(), yc, outputTable, yt.WithInferredSchema(&EmailRow{}))
 	if err != nil {
-		fatal(err)
+		return err
 	}
 
 	op, err := mr.Map(&ComputeEmailJob{}, spec.Map().AddInput(inputTable).AddOutput(outputTable))
-
 	if err != nil {
-		fatal(err)
+		return err
 	}
 
 	fmt.Printf("Operation: %s\n", yt.WebUIOperationURL("freud", op.ID()))
 	err = op.Wait()
 	if err != nil {
-		fatal(err)
+		return err
 	}
 
 	fmt.Printf("Output table: %s\n", yt.WebUITableURL("freud", outputTable))
+	return nil
+}
+
+func main() {
+	if mapreduce.InsideJob() {
+		os.Exit(mapreduce.JobMain())
+	}
+
+	if err := Example(); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %+v\n", err)
+		os.Exit(1)
+	}
 }
