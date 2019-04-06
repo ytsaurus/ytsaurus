@@ -4,6 +4,8 @@
 #include "object_manager.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/server/master/cell_master/config_manager.h>
+#include <yt/server/master/cell_master/config.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
 #include <yt/server/master/cell_master/serialize.h>
 
@@ -41,24 +43,29 @@ void TGarbageCollector::Start()
     YCHECK(!SweepExecutor_);
     SweepExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::GarbageCollector),
-        BIND(&TGarbageCollector::OnSweep, MakeWeak(this)),
-        Config_->GCSweepPeriod);
+        BIND(&TGarbageCollector::OnSweep, MakeWeak(this)));
     SweepExecutor_->Start();
 
     CollectPromise_ = NewPromise<void>();
     if (Zombies_.empty()) {
         CollectPromise_.Set();
     }
+
+    const auto& configManager = Bootstrap_->GetConfigManager();
+    configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
+    OnDynamicConfigChanged();
 }
 
 void TGarbageCollector::Stop()
 {
     if (SweepExecutor_) {
         SweepExecutor_->Stop();
-        SweepExecutor_.Reset();
     }
 
     CollectPromise_.Reset();
+
+    const auto& configManager = Bootstrap_->GetConfigManager();
+    configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
 }
 
 void TGarbageCollector::SaveKeys(NCellMaster::TSaveContext& context) const
@@ -379,8 +386,9 @@ void TGarbageCollector::OnSweep()
     for (const auto* object : Zombies_) {
         ToProto(request.add_object_ids(), object->GetId());
         totalWeight += object->GetGCWeight();
-        if (totalWeight >= Config_->MaxWeightPerGCSweep)
+        if (totalWeight >= GetDynamicConfig()->MaxWeightPerGCSweep) {
             break;
+        }
     }
 
     YT_LOG_DEBUG("Starting zombie objects sweep (Count: %v, Weight: %v)",
@@ -417,6 +425,16 @@ int TGarbageCollector::GetLockedCount() const
 bool TGarbageCollector::IsRecovery()
 {
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery();
+}
+
+const TDynamicObjectManagerConfigPtr& TGarbageCollector::GetDynamicConfig()
+{
+    return Bootstrap_->GetConfigManager()->GetConfig()->ObjectManager;
+}
+
+void TGarbageCollector::OnDynamicConfigChanged()
+{
+    SweepExecutor_->SetPeriod(GetDynamicConfig()->GCSweepPeriod);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

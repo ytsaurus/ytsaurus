@@ -66,6 +66,8 @@ private:
     const TObjectManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
 
+    const TClosure DynamicConfigChangedCallback_ = BIND(&TGarbageCollector::OnDynamicConfigChanged, MakeWeak(this));
+
     NConcurrency::TPeriodicExecutorPtr SweepExecutor_;
 
     //! Contains objects with zero ref counter.
@@ -95,6 +97,8 @@ private:
     void OnSweep();
     bool IsRecovery();
 
+    const TDynamicObjectManagerConfigPtr& GetDynamicConfig();
+    void OnDynamicConfigChanged();
 };
 
 DEFINE_REFCOUNTED_TYPE(TGarbageCollector)

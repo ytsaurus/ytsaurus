@@ -14,6 +14,14 @@ namespace NYT::NObjectServer {
 
 class TObjectManagerConfig
     : public NYTree::TYsonSerializable
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TObjectManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicObjectManagerConfig
+    : public NYTree::TYsonSerializable
 {
 public:
     //! Maximum total weight of objects processed per a single GC mutation.
@@ -22,7 +30,7 @@ public:
     //! Period between subsequent GC queue checks.
     TDuration GCSweepPeriod;
 
-    TObjectManagerConfig()
+    TDynamicObjectManagerConfig()
     {
         RegisterParameter("max_weight_per_gc_sweep", MaxWeightPerGCSweep)
             .Default(100000);
@@ -31,7 +39,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TObjectManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TDynamicObjectManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
