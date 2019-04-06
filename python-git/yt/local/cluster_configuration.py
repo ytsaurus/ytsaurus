@@ -60,9 +60,6 @@ MASTER_CONFIG_PATCHES = [
         }
     },
     {
-        "node_tracker": {
-            "node_states_gossip_period": None
-        },
         "tablet_manager": None,
         "multicell_manager": None
     },
