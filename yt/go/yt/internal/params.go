@@ -516,13 +516,13 @@ func writeMountTableOptions(w *yson.Writer, o *yt.MountTableOptions) {
 	if o == nil {
 		return
 	}
-	if o.CellId != nil {
+	if o.CellID != nil {
 		w.MapKeyString("cell_id")
-		w.Any(o.CellId)
+		w.Any(o.CellID)
 	}
-	if o.TargetCellIds != nil {
+	if o.TargetCellIDs != nil {
 		w.MapKeyString("target_cell_ids")
-		w.Any(o.TargetCellIds)
+		w.Any(o.TargetCellIDs)
 	}
 	w.MapKeyString("freeze")
 	w.Any(o.Freeze)

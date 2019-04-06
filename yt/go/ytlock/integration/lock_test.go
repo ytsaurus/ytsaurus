@@ -32,7 +32,8 @@ func TestLockAcquire(t *testing.T) {
 	defer cancel()
 
 	path := rangomPath()
-	env.YT.CreateNode(env.Ctx, path, yt.NodeFile, &yt.CreateNodeOptions{})
+	_, err := env.YT.CreateNode(env.Ctx, path, yt.NodeFile, &yt.CreateNodeOptions{})
+	require.NoError(t, err)
 
 	lock := ytlock.NewLock(env.Ctx, env.YT, path)
 	ctx, err := lock.Acquire()
@@ -49,7 +50,8 @@ func TestConcurrentLocks(t *testing.T) {
 	defer cancel()
 
 	path := rangomPath()
-	env.YT.CreateNode(env.Ctx, path, yt.NodeFile, &yt.CreateNodeOptions{})
+	_, err := env.YT.CreateNode(env.Ctx, path, yt.NodeFile, &yt.CreateNodeOptions{})
+	require.NoError(t, err)
 
 	firstLock := ytlock.NewLock(env.Ctx, env.YT, path)
 	firstCtx, err := firstLock.Acquire()
