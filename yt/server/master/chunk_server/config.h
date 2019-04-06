@@ -221,6 +221,9 @@ public:
     //! Minimum fill coefficient of the most loaded node to start balancing.
     double MinChunkBalancingFillFactor;
 
+    //! If set to false, fully disables background chunk refresh. Only use during bulk
+    //! node restarts to save leaders' CPU.
+    bool EnableChunkRefresh;
     //! Graceful delay before chunk refresh.
     TDuration ChunkRefreshDelay;
     //! Interval between consequent chunk refresh iterations.
@@ -309,6 +312,8 @@ public:
             .InRange(0.0, 1.0)
             .Default(0.1);
 
+        RegisterParameter("enable_chunk_refresh", EnableChunkRefresh)
+            .Default(true);
         RegisterParameter("chunk_refresh_delay", ChunkRefreshDelay)
             .Default(TDuration::Seconds(30));
         RegisterParameter("chunk_refresh_period", ChunkRefreshPeriod)
