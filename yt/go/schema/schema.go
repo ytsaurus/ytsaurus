@@ -102,9 +102,7 @@ func (s Schema) Copy() Schema {
 
 	columns := s.Columns
 	s.Columns = make([]Column, len(columns))
-	for i, column := range columns {
-		s.Columns[i] = column
-	}
+	copy(s.Columns, columns)
 
 	return s
 }

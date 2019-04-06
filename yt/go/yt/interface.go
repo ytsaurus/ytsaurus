@@ -668,8 +668,8 @@ type MountTableOptions struct {
 	*TabletRangeOptions
 	*MutatingOptions
 
-	CellId        *guid.GUID  `http:"cell_id,omitnil"`
-	TargetCellIds []guid.GUID `http:"target_cell_ids,omitnil"`
+	CellID        *guid.GUID  `http:"cell_id,omitnil"`
+	TargetCellIDs []guid.GUID `http:"target_cell_ids,omitnil"`
 	Freeze        bool        `http:"freeze"`
 }
 

@@ -100,9 +100,9 @@ func NewLockWithOptions(ctx context.Context, yc yt.Client, path ypath.Path, opt 
 func (l Lock) wrapError(err error) error {
 	if err != nil {
 		return xerrors.Errorf("ytlock: with %q: %w", l.Path, err)
-	} else {
-		return err
 	}
+
+	return nil
 }
 
 // setup creates master transaction and tries to acquire lock, i.e. create cypress LockNode.
