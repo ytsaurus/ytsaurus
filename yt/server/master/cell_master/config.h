@@ -177,6 +177,7 @@ public:
     NChunkServer::TDynamicChunkManagerConfigPtr ChunkManager;
     NTabletServer::TDynamicTabletManagerConfigPtr TabletManager;
     NNodeTrackerServer::TDynamicNodeTrackerConfigPtr NodeTracker;
+    NObjectServer::TDynamicObjectManagerConfigPtr ObjectManager;
 
     TDynamicClusterConfig()
     {
@@ -187,6 +188,8 @@ public:
         RegisterParameter("tablet_manager", TabletManager)
             .DefaultNew();
         RegisterParameter("node_tracker", NodeTracker)
+            .DefaultNew();
+        RegisterParameter("object_manager", ObjectManager)
             .DefaultNew();
     }
 };
