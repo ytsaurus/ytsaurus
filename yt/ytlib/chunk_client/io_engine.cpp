@@ -28,6 +28,8 @@
 
 #include <yt/core/profiling/profiler.h>
 
+#include <yt/core/tracing/trace_context.h>
+
 #include <util/system/thread.h>
 #include <util/system/mutex.h>
 #include <util/system/condvar.h>
@@ -149,7 +151,7 @@ class TIOEngineBase
     : public IIOEngine
 {
 protected:
-    TIOEngineBase(const NLogging::TLogger& logger)
+    explicit TIOEngineBase(const NLogging::TLogger& logger)
         : Logger(logger)
     { }
 
@@ -157,7 +159,11 @@ protected:
 
     std::shared_ptr<TFileHandle> DoOpen(const TString& fileName, EOpenMode mode, bool useDirectIO, i64 preallocateSize)
     {
-        auto handle = std::make_shared<TFileHandle>(fileName, mode);
+        std::shared_ptr<TFileHandle> handle;
+        {
+            NTracing::TNullTraceContextGuard nullTraceContextGuard;
+            handle = std::make_shared<TFileHandle>(fileName, mode);
+        }
         if (!handle->IsOpen()) {
             THROW_ERROR_EXCEPTION(
                 "Cannot open %Qv with mode %v",
@@ -180,6 +186,7 @@ protected:
         i64 newSize)
     {
 #ifdef _linux
+        NTracing::TNullTraceContextGuard nullTraceContextGuard;
         if (fallocate(*handle, FALLOC_FL_CONVERT_UNWRITTEN, 0, newSize) != 0) {
             YT_LOG_WARNING(TError::FromSystem(), "fallocate call failed");
         }
@@ -189,6 +196,7 @@ protected:
     void DoFlushDirectory(const TString& path)
     {
         NFS::ExpectIOErrors([&]() {
+            NTracing::TNullTraceContextGuard nullTraceContextGuard;
             NFS::FlushDirectory(path);
         });
     }
@@ -196,6 +204,7 @@ protected:
     void DoClose(const std::shared_ptr<TFileHandle>& handle, i64 newSize, bool flush)
     {
         NFS::ExpectIOErrors([&]() {
+            NTracing::TNullTraceContextGuard nullTraceContextGuard;
             if (newSize >= 0) {
                 handle->Resize(newSize);
             }
@@ -380,11 +389,13 @@ private:
 
     bool DoFlushData(const std::shared_ptr<TFileHandle>& handle)
     {
+        NTracing::TNullTraceContextGuard nullTraceContextGuard;
         return handle->FlushData();
     }
 
     bool DoFlush(const std::shared_ptr<TFileHandle>& handle)
     {
+        NTracing::TNullTraceContextGuard nullTraceContextGuard;
         return handle->Flush();
     }
 
@@ -422,9 +433,15 @@ private:
         YCHECK(readPortion <= data.Size());
 
         NFS::ExpectIOErrors([&]() {
+            NTracing::TNullTraceContextGuard nullTraceContextGuard;
             while (readPortion > 0) {
-                const i32 toRead = static_cast<i32>(Min(MaxBytesPerRead, readPortion));
-                const i32 reallyRead = handle->Pread(buf, toRead, from);
+                i32 toRead = static_cast<i32>(Min(MaxBytesPerRead, readPortion));
+
+                i32 reallyRead;
+                {
+                    NTracing::TNullTraceContextGuard nullTraceContextGuard;
+                    reallyRead = handle->Pread(buf, toRead, from);
+                }
 
                 if (reallyRead < 0) {
                     // TODO(aozeritsky): ythrow is placed here consciously.
@@ -465,8 +482,7 @@ private:
     {
         AddReadWaitTimeSample(timer.GetElapsedTime());
 
-        EOpenMode mode = OpenExisting | RdOnly | Seq | CloseOnExec;
-
+        auto mode = OpenExisting | RdOnly | Seq | CloseOnExec;
         auto file = DoOpen(fileName, mode, UseDirectIO_, -1);
         auto data = DoPread(file, file->GetLength(), 0, timer, memoryZone);
         DoClose(file, -1, false);
@@ -481,9 +497,16 @@ private:
         size_t numBytes = data.Size();
 
         NFS::ExpectIOErrors([&]() {
+            NTracing::TNullTraceContextGuard nullTraceContextGuard;
             while (numBytes) {
-                const i32 toWrite = static_cast<i32>(Min(MaxBytesPerRead, numBytes));
-                const i32 reallyWritten = handle->Pwrite(buf, toWrite, offset);
+                i32 toWrite = static_cast<i32>(Min(MaxBytesPerRead, numBytes));
+
+                i32 reallyWritten;
+                {
+                    NTracing::TNullTraceContextGuard nullTraceContextGuard;
+                    reallyWritten = handle->Pwrite(buf, toWrite, offset);
+                }
+
 
                 if (reallyWritten < 0) {
                     ythrow TFileError();
@@ -576,17 +599,6 @@ private:
     {
         Profiler_.Update(SickGauge_, Sick_.load());
         Profiler_.Update(SickEventsCount_, SicknessCounter_.load());
-    }
-
-    void DoFallocate(
-        const std::shared_ptr<TFileHandle>& handle,
-        i64 newSize)
-    {
-#ifdef _linux_
-        if (fallocate(*handle, FALLOC_FL_CONVERT_UNWRITTEN, 0, newSize) != 0) {
-            YT_LOG_WARNING(TError::FromSystem(), "fallocate call failed");
-        }
-#endif
     }
 };
 
