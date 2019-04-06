@@ -1508,7 +1508,7 @@ void TChunkReplicator::ScheduleNewJobs(
             resourceUsage.removal_slots() < resourceLimits.removal_slots();
     };
 
-    if (IsEnabled()) {
+    if (IsReplicatorEnabled()) {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         // Schedule replication jobs.
@@ -2023,7 +2023,7 @@ void TChunkReplicator::ScheduleGlobalChunkRefresh(TChunk* frontChunk, int chunkC
 void TChunkReplicator::OnRefresh()
 {
     if (!GetDynamicConfig()->EnableChunkRefresh) {
-        YT_LOG_DEBUG("Incremental chunk refresh disabled; see //sys/@config");
+        YT_LOG_DEBUG("Chunk refresh disabled; see //sys/@config");
         return;
     }
 
@@ -2031,7 +2031,7 @@ void TChunkReplicator::OnRefresh()
     int aliveCount = 0;
     NProfiling::TWallTimer timer;
 
-    YT_LOG_DEBUG("Incremental chunk refresh iteration started");
+    YT_LOG_DEBUG("Chunk refresh iteration started");
 
     auto deadline = GetCpuInstant() - DurationToCpuDuration(GetDynamicConfig()->ChunkRefreshDelay);
     PROFILE_AGGREGATED_TIMING (RefreshTimeCounter) {
@@ -2053,14 +2053,24 @@ void TChunkReplicator::OnRefresh()
         }
     }
 
-    YT_LOG_DEBUG("Incremental chunk refresh iteration completed (TotalCount: %v, AliveCount: %v)",
+    YT_LOG_DEBUG("Chunk refresh iteration completed (TotalCount: %v, AliveCount: %v)",
         totalCount,
         aliveCount);
 }
 
-bool TChunkReplicator::IsEnabled()
+bool TChunkReplicator::IsReplicatorEnabled()
 {
     return Enabled_.value_or(false);
+}
+
+bool TChunkReplicator::IsRefreshEnabled()
+{
+    return GetDynamicConfig()->EnableChunkRefresh;
+}
+
+bool TChunkReplicator::IsRequisitionUpdateEnabled()
+{
+    return GetDynamicConfig()->EnableChunkRequisitionUpdate;
 }
 
 void TChunkReplicator::OnCheckEnabled()
@@ -2236,6 +2246,11 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunk* chunk)
 void TChunkReplicator::OnRequisitionUpdate()
 {
     if (!Bootstrap_->GetHydraFacade()->GetHydraManager()->IsActiveLeader()) {
+        return;
+    }
+
+    if (!GetDynamicConfig()->EnableChunkRequisitionUpdate) {
+        YT_LOG_DEBUG("Chunk requisition update disabled; see //sys/@config");
         return;
     }
 

@@ -203,8 +203,12 @@ class TDynamicChunkManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    //! If set to false, disables scheduling new chunk jobs (replication, removal).
     bool EnableChunkReplicator;
+
+    //! If set to false, disables scheduling new chunk seal jobs.
     bool EnableChunkSealer;
+
     TDuration ReplicaApproveTimeout;
 
     //! Controls the maximum number of unsuccessful attempts to schedule a replication job.
@@ -221,8 +225,9 @@ public:
     //! Minimum fill coefficient of the most loaded node to start balancing.
     double MinChunkBalancingFillFactor;
 
-    //! If set to false, fully disables background chunk refresh. Only use during bulk
-    //! node restarts to save leaders' CPU.
+    //! If set to false, fully disables background chunk refresh.
+    //! Only use during bulk node restarts to save leaders' CPU.
+    //! Don't forget to turn it on afterwards.
     bool EnableChunkRefresh;
     //! Graceful delay before chunk refresh.
     TDuration ChunkRefreshDelay;
@@ -233,6 +238,9 @@ public:
     //! Maximum amount of time allowed to spend during a refresh iteration.
     TDuration MaxTimePerRefresh;
 
+    //! If set to false, fully disables background chunk requisition updates;
+    //! see #EnableChunkRefresh for a rationale.
+    bool EnableChunkRequisitionUpdate;
     //! Interval between consequent chunk requisition update iterations.
     std::optional<TDuration> ChunkRequisitionUpdatePeriod;
     //! Maximum number of chunks to process during a requisition update iteration.
@@ -291,8 +299,10 @@ public:
     {
         RegisterParameter("enable_chunk_replicator", EnableChunkReplicator)
             .Default(true);
+
         RegisterParameter("enable_chunk_sealer", EnableChunkSealer)
             .Default(true);
+
         RegisterParameter("replica_approve_timeout", ReplicaApproveTimeout)
             .Default(TDuration::Seconds(60));
 
@@ -323,6 +333,8 @@ public:
         RegisterParameter("max_time_per_refresh", MaxTimePerRefresh)
             .Default(TDuration::MilliSeconds(100));
 
+        RegisterParameter("enable_chunk_requisition_update", EnableChunkRequisitionUpdate)
+            .Default(true);
         RegisterParameter("chunk_requisition_update_period", ChunkRequisitionUpdatePeriod)
             .Default(TDuration::MilliSeconds(100));
         RegisterParameter("max_chunks_per_requisition_update", MaxChunksPerRequisitionUpdate)

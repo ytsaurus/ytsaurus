@@ -92,6 +92,11 @@ public:
         configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
     }
 
+    bool IsEnabled()
+    {
+        return Enabled_;
+    }
+
     void ScheduleSeal(TChunk* chunk)
     {
         Y_ASSERT(chunk->IsAlive());
@@ -229,11 +234,6 @@ private:
                     .Run();
             }
         }
-    }
-
-    bool IsEnabled()
-    {
-        return Enabled_;
     }
 
     void OnCheckEnabled()
@@ -374,6 +374,11 @@ void TChunkSealer::Start(TChunk* frontJournalChunk, int journalChunkCount)
 void TChunkSealer::Stop()
 {
     Impl_->Stop();
+}
+
+bool TChunkSealer::IsEnabled()
+{
+    return Impl_->IsEnabled();
 }
 
 void TChunkSealer::ScheduleSeal(TChunk* chunk)
