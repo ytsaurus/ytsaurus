@@ -2022,6 +2022,11 @@ void TChunkReplicator::ScheduleGlobalChunkRefresh(TChunk* frontChunk, int chunkC
 
 void TChunkReplicator::OnRefresh()
 {
+    if (!GetDynamicConfig()->EnableChunkRefresh) {
+        YT_LOG_DEBUG("Incremental chunk refresh disabled; see //sys/@config");
+        return;
+    }
+
     int totalCount = 0;
     int aliveCount = 0;
     NProfiling::TWallTimer timer;
