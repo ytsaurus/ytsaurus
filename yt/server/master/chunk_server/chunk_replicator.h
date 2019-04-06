@@ -110,7 +110,9 @@ public:
 
     void OnNodeDataCenterChanged(TNode* node, NNodeTrackerServer::TDataCenter* oldDataCenter);
 
-    bool IsEnabled();
+    bool IsReplicatorEnabled();
+    bool IsRefreshEnabled();
+    bool IsRequisitionUpdateEnabled();
 
     int GetRefreshQueueSize() const;
     int GetRequisitionUpdateQueueSize() const;

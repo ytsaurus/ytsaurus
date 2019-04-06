@@ -978,9 +978,25 @@ public:
         return TotalReplicaCount_;
     }
 
-    bool IsReplicatorEnabled()
+
+    bool IsChunkReplicatorEnabled()
     {
-        return ChunkReplicator_ && ChunkReplicator_->IsEnabled();
+        return ChunkReplicator_ && ChunkReplicator_->IsReplicatorEnabled();
+    }
+
+    bool IsChunkRefreshEnabled()
+    {
+        return ChunkReplicator_ && ChunkReplicator_->IsRefreshEnabled();
+    }
+
+    bool IsChunkRequisitionUpdateEnabled()
+    {
+        return ChunkReplicator_ && ChunkReplicator_->IsRequisitionUpdateEnabled();
+    }
+
+    bool IsChunkSealerEnabled()
+    {
+        return ChunkSealer_ && ChunkSealer_->IsEnabled();
     }
 
 
@@ -3362,9 +3378,24 @@ void TChunkManager::ScheduleJobs(
         jobsToRemove);
 }
 
-bool TChunkManager::IsReplicatorEnabled()
+bool TChunkManager::IsChunkReplicatorEnabled()
 {
-    return Impl_->IsReplicatorEnabled();
+    return Impl_->IsChunkReplicatorEnabled();
+}
+
+bool TChunkManager::IsChunkRefreshEnabled()
+{
+    return Impl_->IsChunkRefreshEnabled();
+}
+
+bool TChunkManager::IsChunkRequisitionUpdateEnabled()
+{
+    return Impl_->IsChunkRequisitionUpdateEnabled();
+}
+
+bool TChunkManager::IsChunkSealerEnabled()
+{
+    return Impl_->IsChunkSealerEnabled();
 }
 
 void TChunkManager::ScheduleChunkRefresh(TChunk* chunk)
