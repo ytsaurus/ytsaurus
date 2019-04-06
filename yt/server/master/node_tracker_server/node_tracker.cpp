@@ -225,9 +225,6 @@ public:
         TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::NodeTracker)
         , Config_(config)
-        , FullHeartbeatSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentFullHeartbeats))
-        , IncrementalHeartbeatSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentIncrementalHeartbeats))
-        , DisposeNodeSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentNodeUnregistrations))
     {
         RegisterMethod(BIND(&TImpl::HydraRegisterNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUnregisterNode, Unretained(this)));
@@ -377,6 +374,8 @@ public:
     {
         RebuildNodeGroups();
         RecomputePendingRegisterNodeMutationCounters();
+        ReconfigureGossipPeriods();
+        ReconfigureNodeSemaphores();
     }
 
 
@@ -833,8 +832,7 @@ public:
             TotalNodeStatistics_.FullNodeCount += statistics.full() ? 1 : 0;
         }
 
-        const auto& dynamicConfig = GetDynamicConfig();
-        TotalNodeStatisticsUpdateDeadline_ = now + DurationToCpuDuration(dynamicConfig->TotalNodeStatisticsUpdatePeriod);
+        TotalNodeStatisticsUpdateDeadline_ = now + DurationToCpuDuration(GetDynamicConfig()->TotalNodeStatisticsUpdatePeriod);
 
         return TotalNodeStatistics_;
     }
@@ -880,9 +878,9 @@ private:
     TPeriodicExecutorPtr IncrementalNodeStatesGossipExecutor_;
     TPeriodicExecutorPtr FullNodeStatesGossipExecutor_;
 
-    TAsyncSemaphorePtr FullHeartbeatSemaphore_;
-    TAsyncSemaphorePtr IncrementalHeartbeatSemaphore_;
-    TAsyncSemaphorePtr DisposeNodeSemaphore_;
+    const TAsyncSemaphorePtr FullHeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
+    const TAsyncSemaphorePtr IncrementalHeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
+    const TAsyncSemaphorePtr DisposeNodeSemaphore_ = New<TAsyncSemaphore>(0);
 
     struct TNodeGroup
     {
@@ -1352,14 +1350,12 @@ private:
         if (Bootstrap_->IsSecondaryMaster()) {
             IncrementalNodeStatesGossipExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
-                BIND(&TImpl::OnNodeStatesGossip, MakeWeak(this), true),
-                Config_->IncrementalNodeStatesGossipPeriod);
+                BIND(&TImpl::OnNodeStatesGossip, MakeWeak(this), true));
             IncrementalNodeStatesGossipExecutor_->Start();
 
             FullNodeStatesGossipExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
-                BIND(&TImpl::OnNodeStatesGossip, MakeWeak(this), false),
-                Config_->FullNodeStatesGossipPeriod);
+                BIND(&TImpl::OnNodeStatesGossip, MakeWeak(this), false));
             FullNodeStatesGossipExecutor_->Start();
         }
 
@@ -1374,6 +1370,9 @@ private:
                 CommitDisposeNodeWithSemaphore(node);
             }
         }
+
+        ReconfigureNodeSemaphores();
+        ReconfigureGossipPeriods();
     }
 
     virtual void OnStopLeading() override
@@ -1844,8 +1843,7 @@ private:
 
         NodeGroups_.clear();
 
-        const auto& dynamicConfig = GetDynamicConfig();
-        for (const auto& pair : dynamicConfig->NodeGroups) {
+        for (const auto& pair : GetDynamicConfig()->NodeGroups) {
             NodeGroups_.emplace_back();
             auto& group = NodeGroups_.back();
             group.Id = pair.first;
@@ -1857,7 +1855,7 @@ private:
             DefaultNodeGroup_ = &NodeGroups_.back();
             DefaultNodeGroup_->Id = "default";
             DefaultNodeGroup_->Config = New<TNodeGroupConfig>();
-            DefaultNodeGroup_->Config->MaxConcurrentNodeRegistrations = Config_->MaxConcurrentNodeRegistrations;
+            DefaultNodeGroup_->Config->MaxConcurrentNodeRegistrations = GetDynamicConfig()->MaxConcurrentNodeRegistrations;
         }
 
         for (const auto& pair : NodeMap_) {
@@ -1878,6 +1876,23 @@ private:
                 ++group->PendingRegisterNodeMutationCount;
             }
         }
+    }
+
+    void ReconfigureGossipPeriods()
+    {
+        if (IncrementalNodeStatesGossipExecutor_) {
+            IncrementalNodeStatesGossipExecutor_->SetPeriod(GetDynamicConfig()->IncrementalNodeStatesGossipPeriod);
+        }
+        if (FullNodeStatesGossipExecutor_) {
+            FullNodeStatesGossipExecutor_->SetPeriod(GetDynamicConfig()->FullNodeStatesGossipPeriod);
+        }
+    }
+
+    void ReconfigureNodeSemaphores()
+    {
+        FullHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentFullHeartbeats);
+        IncrementalHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentIncrementalHeartbeats);
+        DisposeNodeSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentNodeUnregistrations);
     }
 };
 
