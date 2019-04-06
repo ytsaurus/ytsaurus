@@ -2,27 +2,22 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"os"
 
+	"github.com/davecgh/go-spew/spew"
+
+	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yt/ythttp"
-
-	"github.com/brianvoe/gofakeit"
-	"github.com/google/uuid"
 )
 
 const (
 	numberOfRows int    = 100
 	cluster      string = "freud"
 )
-
-func failOnError(err error) {
-	if err != nil {
-		log.Fatalln(err)
-	}
-}
 
 type Contact struct {
 	Name  string `yson:"name"`
@@ -32,62 +27,93 @@ type Contact struct {
 }
 
 func (c *Contact) Init() {
-	c.Name = gofakeit.Name()
-	c.Email = gofakeit.Email()
-	c.Phone = gofakeit.Phone()
-	c.Age = gofakeit.Number(18, 80)
+	c.Name = "Fedor"
+	c.Email = "prime@yandex-team.ru"
+	c.Phone = "+79152147106"
+	c.Age = 27
 }
 
-func main() {
+func Example() error {
 	yc, err := ythttp.NewClientCli(cluster)
-	failOnError(err)
+	if err != nil {
+		return err
+	}
 
 	fakeContacts := make([]Contact, numberOfRows)
 	for i := range fakeContacts {
 		fakeContacts[i].Init()
 	}
-	log.Println("Generated contacts:\n", fakeContacts)
+	fmt.Println("Generated contacts:")
+	spew.Fdump(os.Stdout, fakeContacts)
 
-	schema, err := schema.Infer(Contact{})
-	failOnError(err)
-	log.Println("Infered struct schema:\n", schema)
+	tableSchema, err := schema.Infer(Contact{})
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Infered struct schema:")
+	spew.Fdump(os.Stdout, tableSchema)
 	ctx := context.Background()
-	tablePath := ypath.Path("//tmp/go-table-example-" + uuid.New().String())
+	tablePath := ypath.Path("//tmp/go-table-example-" + guid.New().String())
 
-	_, err = yt.CreateTable(ctx, yc, tablePath, yt.WithSchema(schema))
-	failOnError(err)
-	log.Printf("Created table at https://yt.yandex-team.ru/%s/navigation?path=%s", cluster, tablePath.String())
+	_, err = yt.CreateTable(ctx, yc, tablePath, yt.WithSchema(tableSchema))
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Created table at https://yt.yandex-team.ru/%s/navigation?path=%s", cluster, tablePath.String())
 
 	writer, err := yc.WriteTable(ctx, tablePath, nil)
-	failOnError(err)
-
-	log.Println("Writing rows to table...")
-	for _, v := range fakeContacts {
-		err = writer.Write(v)
-		failOnError(err)
+	if err != nil {
+		return err
 	}
-	err = writer.Commit()
-	failOnError(err)
-	log.Printf("Written and commited %v rows", len(fakeContacts))
+
+	fmt.Println("Writing rows to table...")
+	for _, v := range fakeContacts {
+		if err = writer.Write(v); err != nil {
+			return err
+		}
+	}
+	if err = writer.Commit(); err != nil {
+		return err
+	}
+	fmt.Printf("Written and commited %v rows", len(fakeContacts))
 
 	type Attrs struct {
 		Rows int `yson:"row_count"`
 	}
 	var attrs Attrs
-	err = yc.GetNode(ctx, tablePath.Attrs(), &attrs, nil)
-	failOnError(err)
-	log.Printf("YT table contains %v rows", attrs.Rows)
+	if err = yc.GetNode(ctx, tablePath.Attrs(), &attrs, nil); err != nil {
+		return err
+	}
+	fmt.Printf("YT table contains %v rows", attrs.Rows)
 
 	reader, err := yc.ReadTable(ctx, tablePath, nil)
-	failOnError(err)
-
-	log.Println("Reading rows from table...")
-	readContacts := make([]Contact, attrs.Rows)
-	var readerCursor int
-	for reader.Next() {
-		err = reader.Scan(&readContacts[readerCursor])
-		failOnError(err)
-		readerCursor++
+	if err != nil {
+		return err
 	}
-	log.Printf("Read %v rows:\n%v", len(readContacts), readContacts)
+	defer func() { _ = reader.Close() }()
+
+	fmt.Println("Reading rows from table...")
+	readContacts := make([]Contact, 0, attrs.Rows)
+
+	for reader.Next() {
+		var c Contact
+		err = reader.Scan(&c)
+		if err != nil {
+			return err
+		}
+
+		readContacts = append(readContacts, c)
+	}
+
+	fmt.Printf("Read %v rows:\n", len(readContacts))
+	spew.Fdump(os.Stdout, readContacts)
+	return nil
+}
+
+func main() {
+	if err := Example(); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %+v\n", err)
+		os.Exit(1)
+	}
 }
