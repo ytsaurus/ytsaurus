@@ -330,6 +330,7 @@ class TestJobProber(YTEnvSetup):
 
     @unix_only
     def test_abort_job(self):
+        time.sleep(2)
         start_profiling = get_job_count_profiling()
 
         create("table", "//tmp/t1")
