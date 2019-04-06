@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from .configs_provider import init_logging, get_default_provision, create_configs_provider
-from .default_configs import get_watcher_config
+from .default_configs import get_watcher_config, get_dynamic_master_config
 from .helpers import read_config, write_config, is_dead_or_zombie, OpenPortIterator, wait_for_removing_file_lock, add_binary_path
 from .porto_helpers import PortoSubprocess, porto_avaliable
 
@@ -865,8 +865,8 @@ class YTInstance(object):
             old_level = logger.level
             logger.setLevel(logging.ERROR)
             try:
-                # XXX(asaitgalin): If get("/") request is successful then quorum is ready
-                # and world is initialized. Secondary masters can only be checked with native
+                # XXX(asaitgalin): Once we're able to execute set("//sys/@config") then quorum is ready
+                # and the world is initialized. Secondary masters can only be checked with native
                 # driver so it is requirement to have driver bindings if secondary cells are started.
                 client = None
                 if not secondary:
@@ -874,7 +874,7 @@ class YTInstance(object):
                 else:
                     client = self.create_native_client(master_name.replace("master", "driver"))
                 client.config["proxy"]["retries"]["enable"] = False
-                client.get("/")
+                client.set("//sys/@config", get_dynamic_master_config())
                 return True
             except (requests.RequestException, YtError) as err:
                 return False, err
