@@ -133,8 +133,6 @@ func (l Lock) setup() error {
 // is case of transaction being aborted remotely, network partition or coordination service downtime.
 //
 // If lock context is done, there is no need to call Release explicitly.
-//
-// Even though Acquire returns context every call, Lock object should be recreated if context reports it's done.
 func (l *Lock) Acquire() (ctx context.Context, err error) {
 	for {
 		l.ctx, l.ctxCancel = context.WithCancel(l.initialCtx)
