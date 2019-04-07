@@ -168,8 +168,6 @@ private:
     NCellMaster::TBootstrap* const Bootstrap_;
     const TChunkPlacementPtr ChunkPlacement_;
 
-    NProfiling::TCpuDuration ChunkRefreshDelay_;
-
     const NConcurrency::TPeriodicExecutorPtr RefreshExecutor_;
     const std::unique_ptr<TChunkScanner> RefreshScanner_;
 
@@ -194,13 +192,15 @@ private:
 
     const NConcurrency::TPeriodicExecutorPtr EnabledCheckExecutor_;
 
-    const NConcurrency::IThroughputThrottlerPtr JobThrottler_;
+    const NConcurrency::IReconfigurableThroughputThrottlerPtr JobThrottler_;
+
+    const TClosure DynamicConfigChangedCallback_ = BIND(&TChunkReplicator::OnDynamicConfigChanged, MakeWeak(this));
 
     std::optional<bool> Enabled_;
 
-    NProfiling::TCpuInstant InterDCEdgeCapacitiesLastUpdateTime = {};
+    NProfiling::TCpuInstant InterDCEdgeCapacitiesLastUpdateTime_ = {};
     // Cached from InterDCEdgeConsumption and InterDCEdgeCapacities.
-    THashMap<const NNodeTrackerServer::TDataCenter*, SmallSet<const NNodeTrackerServer::TDataCenter*, NNodeTrackerServer::TypicalInterDCEdgeCount>> UnsaturatedInterDCEdges;
+    THashMap<const NNodeTrackerServer::TDataCenter*, SmallSet<const NNodeTrackerServer::TDataCenter*, NNodeTrackerServer::TypicalInterDCEdgeCount>> UnsaturatedInterDCEdges_;
 
     void ProcessExistingJobs(
         TNode* node,
@@ -361,6 +361,9 @@ private:
     TChunkRepairQueue& ChunkRepairQueue(int mediumIndex, EChunkRepairQueue queue);
     TPerMediumArray<TChunkRepairQueue>& ChunkRepairQueues(EChunkRepairQueue queue);
     TDecayingMaxMinBalancer<int, double>& ChunkRepairQueueBalancer(EChunkRepairQueue queue);
+
+    const TDynamicChunkManagerConfigPtr& GetDynamicConfig();
+    void OnDynamicConfigChanged();
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReplicator)

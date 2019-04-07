@@ -1261,7 +1261,7 @@ public:
         return ComputeQuorumInfo(
             chunk->GetId(),
             replicas,
-            Config_->JournalRpcTimeout,
+            GetDynamicConfig()->JournalRpcTimeout,
             chunk->GetReadQuorum(),
             Bootstrap_->GetNodeChannelFactory());
     }

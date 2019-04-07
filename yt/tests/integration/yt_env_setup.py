@@ -3,6 +3,7 @@ import yt_commands
 from yt.environment import YTInstance, init_operation_archive
 from yt.common import makedirp, YtError, YtResponseError, format_error
 from yt.environment.porto_helpers import porto_avaliable, remove_all_volumes
+from yt.environment.default_configs import get_dynamic_master_config
 from yt.test_helpers import wait
 
 from yt.common import update_inplace
@@ -128,7 +129,7 @@ def _restore_globals(driver=None):
         for response in yt_commands.execute_batch([
                 yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@dynamic_options", input={}),
                 yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@tablet_balancer_config", input={}),
-                yt_commands.make_batch_request("set", path="//sys/@config", input={}),
+                yt_commands.make_batch_request("set", path="//sys/@config", input=get_dynamic_master_config()),
                 yt_commands.make_batch_request("remove", path="//sys/pool_trees/default/*", force=True)
             ], driver=driver):
             assert yt_commands.get_batch_output(response) is None

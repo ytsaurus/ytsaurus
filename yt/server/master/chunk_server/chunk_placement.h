@@ -239,6 +239,8 @@ private:
 
     template <class T>
     void ForEachDataCenter(const TDataCenterSet* dataCenters, T callback);
+
+    const TDynamicChunkManagerConfigPtr& GetDynamicConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkPlacement)

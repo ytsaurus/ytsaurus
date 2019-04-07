@@ -6,6 +6,7 @@
 #    yt/server/cell_master/serialize.cpp - если версия другая, то обновлнеие нужно делать через снапшот мастера (сделаный с --set-read-only).
 #    yt/server/tablet_node/serialize.cpp - если версия другая, то обновление нужно делать с пересозданием таблет-целлов.
 
+* babenko: Some master config settings were made dynamic and moved to //sys/@config; check master logs for unrecogznied options after upgrade and migrate them to //sys/@config
 * babenko: Security tags
 * shakurov: Изменилась логика проверки прав в мутации создания кипарисных узлов. Обновлять через снепшот.
 * babenko: Добавлены поколоночные ACL, обновлять мастера через снепшот.

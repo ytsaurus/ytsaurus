@@ -14,7 +14,6 @@ class TestChunkServer(YTEnvSetup):
     NUM_NODES = 21
     DELTA_MASTER_CONFIG = {
         "chunk_manager": {
-            "safe_online_node_count": 3,
             "max_replication_factor": 5
         },
         "node_tracker": {
@@ -143,6 +142,8 @@ class TestChunkServer(YTEnvSetup):
         ls("//sys/chunks", attributes=["owning_nodes"])
 
     def test_disable_replicator_when_few_nodes_are_online(self):
+        set("//sys/@config/chunk_manager/safe_online_node_count", 3)
+        
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 21
 
