@@ -59,7 +59,7 @@ private:
 
     virtual ASTPtr RewriteSelectQueryForTablePart(
         const ASTPtr& queryAst,
-        const std::string& jobSpec) override;
+        const std::string& subquerySpec) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,7 +89,7 @@ TTablePartList TStorageTable::GetTableParts(
 
 ASTPtr TStorageTable::RewriteSelectQueryForTablePart(
     const ASTPtr& queryAst,
-    const std::string& jobSpec)
+    const std::string& subquerySpec)
 {
     auto modifiedQueryAst = queryAst->clone();
 
@@ -112,13 +112,13 @@ ASTPtr TStorageTable::RewriteSelectQueryForTablePart(
             if (function.name == "ytTable") {
                 // TODO: forward all args
                 tableFunction = makeASTFunction(
-                    "ytTableData",
-                    std::make_shared<ASTLiteral>(jobSpec));
+                    "ytSubquery",
+                    std::make_shared<ASTLiteral>(subquerySpec));
             }
         } else {
             tableFunction = makeASTFunction(
-                "ytTableData",
-                std::make_shared<ASTLiteral>(jobSpec));
+                "ytSubquery",
+                std::make_shared<ASTLiteral>(subquerySpec));
         }
 
         if (tableFunction) {

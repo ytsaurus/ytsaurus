@@ -13,8 +13,8 @@ namespace NYT::NClickHouseServer {
 
 struct TTablePart
 {
-    /// Serialized job specification.
-    TString JobSpec;
+    /// Base64 encoded proto subquery specification.
+    TString SubquerySpec;
 
     /// Data estimates
     size_t DataWeight = 0;

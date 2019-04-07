@@ -2,13 +2,20 @@
 
 #include "private.h"
 
+#include "table.h"
+
 #include <Storages/IStorage.h>
+
+#include <string>
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::StoragePtr CreateStorageStub(TClickHouseTablePtr table);
+// TODO: ITablePartPtr instead of tables
+DB::StoragePtr CreateStorageSubquery(
+    TQueryContext* queryContext,
+    std::string subquerySpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -59,7 +59,7 @@ BlockInputStreams TStorageDistributed::read(
 
         auto subQueryAst = RewriteSelectQueryForTablePart(
             queryInfo.query,
-            ToStdString(tablePart.JobSpec));
+            ToStdString(tablePart.SubquerySpec));
 
         bool isLocal = clusterNode->IsLocal();
         // XXX(max42): weird workaround.

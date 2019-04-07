@@ -38,7 +38,8 @@ NChunkPools::TChunkStripeListPtr BuildJobs(
 TTablePartList SerializeAsTablePartList(
     const NChunkPools::TChunkStripeListPtr& chunkStripeListPtr,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
-    const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory);
+    const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
+    TQueryContext* context);
 
 ////////////////////////////////////////////////////////////////////////////////
 

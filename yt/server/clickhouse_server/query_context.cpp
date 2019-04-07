@@ -9,7 +9,7 @@
 #include "document.h"
 #include "subquery.h"
 #include "read_job.h"
-#include "read_job_spec.h"
+#include "subquery_spec.h"
 #include "table_reader.h"
 #include "table_schema.h"
 
@@ -216,23 +216,8 @@ TTablePartList TQueryContext::GetTablesParts(
     return SerializeAsTablePartList(
         chunkStripeList,
         fetchResult.NodeDirectory,
-        fetchResult.DataSourceDirectory);
-}
-
-TTableReaderList TQueryContext::CreateTableReaders(
-    const TString& jobSpec,
-    const TStringList& columns,
-    const TSystemColumns& systemColumns,
-    size_t maxStreamCount,
-    bool unordered)
-{
-    return CreateJobTableReaders(
-        Client(),
-        jobSpec,
-        columns,
-        systemColumns,
-        maxStreamCount,
-        unordered);
+        fetchResult.DataSourceDirectory,
+        this);
 }
 
 bool TQueryContext::Exists(const TString& name)
