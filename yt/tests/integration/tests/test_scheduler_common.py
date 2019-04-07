@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait, require_ytserver_root_privileges
+from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait, require_ytserver_root_privileges, is_asan_build
 from yt_commands import *
 
 from yt.yson import *
@@ -3633,6 +3633,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
         }
     }
 
+    @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
     def test_controller_memory_usage(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -3862,7 +3863,7 @@ class TestPorts(YTEnvSetup):
 
         server_socket = None
         try:
-            try: 
+            try:
                 server_socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
                 server_socket.bind(("::1", 20001))
             except Exception as err:
