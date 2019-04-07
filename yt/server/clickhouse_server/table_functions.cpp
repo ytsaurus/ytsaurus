@@ -1,6 +1,6 @@
 #include "table_functions.h"
 
-#include "storage_read_job.h"
+#include "storage_subquery.h"
 #include "type_helpers.h"
 #include "read_job.h"
 #include "query_context.h"
@@ -117,12 +117,12 @@ private:
         MutableColumnPtr row_count_column = ColumnUInt64::create();
 
         for (const auto& tablePart: tableParts) {
-            job_spec_column->insert(ToStdString(tablePart.JobSpec));
+            job_spec_column->insert(ToStdString(tablePart.SubquerySpec));
             data_weight_column->insert(static_cast<UInt64>(tablePart.DataWeight));
             row_count_column->insert(static_cast<UInt64>(tablePart.RowCount));
         }
 
-        ColumnWithTypeAndName jobSpec(
+        ColumnWithTypeAndName subquerySpec(
             std::move(job_spec_column),
             std::make_shared<DataTypeString>(),
             "job_spec");
@@ -137,7 +137,7 @@ private:
             std::make_shared<DataTypeUInt64>(),
             "row_count");
 
-        Block block { jobSpec, dataWeight, rowCount };
+        Block block { subquerySpec, dataWeight, rowCount };
 
         auto storage = StorageMemory::create(tableName + "_parts", ColumnsDescription{block.getNamesAndTypesList()});
         storage->write(nullptr, context)->write(block);
@@ -147,13 +147,13 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-// select * from ytTableData(jobSpec)
+// select * from ytSubquery(subquerySpec)
 
 class TGetTableData
     : public ITableFunction
 {
 public:
-    static constexpr auto name = "ytTableData";
+    static constexpr auto name = "ytSubquery";
 
     TGetTableData() = default;
 
@@ -164,7 +164,7 @@ public:
 
     virtual StoragePtr executeImpl(const ASTPtr& functionAst, const Context& context) const override
     {
-        const char* err = "Table function 'ytTableData' requires 1 parameter: table part to read";
+        const char* err = "Table function 'ytSubquery' requires 1 parameter: table part to read";
 
         auto& funcArgs = typeid_cast<ASTFunction &>(*functionAst).children;
         if (funcArgs.size() != 1) {
@@ -178,21 +178,19 @@ public:
 
         args[0] = evaluateConstantExpressionAsLiteral(args[0], context);
 
-        auto jobSpec = static_cast<const ASTLiteral &>(*args[0]).value.safeGet<std::string>();
+        auto subquerySpec = static_cast<const ASTLiteral &>(*args[0]).value.safeGet<std::string>();
 
-        return Execute(context, std::move(jobSpec));
+        return Execute(context, std::move(subquerySpec));
     }
 
 private:
-    StoragePtr Execute(const Context& context, std::string jobSpec) const
+    StoragePtr Execute(const Context& context, std::string subquerySpec) const
     {
         auto* queryContext = GetQueryContext(context);
-        auto tables = LoadReadJobSpec(TString(jobSpec)).GetTables();
 
-        return CreateStorageReadJob(
+        return CreateStorageSubquery(
             queryContext,
-            std::move(tables),
-            std::move(jobSpec));
+            std::move(subquerySpec));
     }
 };
 

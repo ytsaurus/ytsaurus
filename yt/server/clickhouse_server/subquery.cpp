@@ -1,8 +1,9 @@
 #include "subquery.h"
 
+#include "query_context.h"
 #include "config.h"
 #include "convert_row.h"
-#include "read_job_spec.h"
+#include "subquery_spec.h"
 #include "table_schema.h"
 #include "table.h"
 #include "helpers.h"
@@ -48,6 +49,8 @@
 
 #include <Storages/MergeTree/KeyCondition.h>
 #include <DataTypes/IDataType.h>
+
+#include <library/string_utils/base64/base64.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -190,10 +193,10 @@ private:
             EPermission::Read);
 
         for (const auto& table : InputTables_) {
-            if (table.Type != EObjectType::Table) {
+            if (table.Type != NObjectClient::EObjectType::Table) {
                 THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
                     table.Path.GetPath(),
-                    EObjectType::Table,
+                    NObjectClient::EObjectType::Table,
                     table.Type);
             }
         }
@@ -538,20 +541,22 @@ NChunkPools::TChunkStripeListPtr BuildJobs(
 TTablePartList SerializeAsTablePartList(
     const TChunkStripeListPtr& chunkStripeList,
     const TNodeDirectoryPtr& nodeDirectory,
-    const TDataSourceDirectoryPtr& dataSourceDirectory)
+    const TDataSourceDirectoryPtr& dataSourceDirectory,
+    TQueryContext* context)
 {
     TTablePartList tableParts;
 
     for (auto& chunkStripe : chunkStripeList->Stripes) {
-        TReadJobSpec readJobSpec;
+        TSubquerySpec subquerySpec;
         {
-            readJobSpec.DataSourceDirectory = dataSourceDirectory;
-            readJobSpec.NodeDirectory = nodeDirectory;
-            YCHECK(!readJobSpec.DataSourceDirectory->DataSources().empty());
+            subquerySpec.DataSourceDirectory = dataSourceDirectory;
+            subquerySpec.NodeDirectory = nodeDirectory;
+            subquerySpec.InitialQueryId = context->QueryId;
+            YCHECK(!subquerySpec.DataSourceDirectory->DataSources().empty());
             for (const auto& dataSlice : chunkStripe->DataSlices) {
                 const auto& chunkSlice = dataSlice->ChunkSlices[0];
                 auto chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
-                auto& chunkSpec = readJobSpec.DataSliceDescriptors.emplace_back().ChunkSpecs.emplace_back();
+                auto& chunkSpec = subquerySpec.DataSliceDescriptors.emplace_back().ChunkSpecs.emplace_back();
                 ToProto(&chunkSpec, chunk, EDataSourceType::UnversionedTable);
                 // TODO(max42): wtf?
                 chunkSpec.set_row_count_override(dataSlice->GetRowCount());
@@ -575,9 +580,10 @@ TTablePartList SerializeAsTablePartList(
 
         TTablePart tablePart;
         {
-            tablePart.JobSpec = ConvertToYsonString(readJobSpec, EYsonFormat::Text).GetData();
+            auto protoSpec = NYT::ToProto<NProto::TSubquerySpec>(subquerySpec);
+            tablePart.SubquerySpec = Base64Encode(protoSpec.SerializeAsString());
 
-            for (const auto& dataSlice : readJobSpec.DataSliceDescriptors) {
+            for (const auto& dataSlice : subquerySpec.DataSliceDescriptors) {
                 for (const auto& chunkSpec : dataSlice.ChunkSpecs) {
                     tablePart.RowCount += chunkSpec.row_count_override();
                     tablePart.DataWeight += chunkSpec.data_weight_override();

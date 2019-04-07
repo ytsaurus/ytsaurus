@@ -1,6 +1,5 @@
-#include "read_job_spec.h"
+#include "subquery_spec.h"
 
-#include "serialize.h"
 #include "table.h"
 #include "table_schema.h"
 
@@ -27,11 +26,13 @@ bool IsTable(const TDataSource& dataSource)
            type == EDataSourceType::VersionedTable;
 }
 
+/////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TReadJobSpec::Validate() const
+void TSubquerySpec::Validate() const
 {
     const auto& dataSources = DataSources();
 
@@ -68,21 +69,21 @@ void TReadJobSpec::Validate() const
     }
 }
 
-NChunkClient::EDataSourceType TReadJobSpec::GetCommonDataSourceType() const
+NChunkClient::EDataSourceType TSubquerySpec::GetCommonDataSourceType() const
 {
     // TODO: checks
     const auto& representative = DataSources().front();
     return representative.GetType();
 }
 
-NTableClient::TTableSchema TReadJobSpec::GetCommonNativeSchema() const
+NTableClient::TTableSchema TSubquerySpec::GetCommonNativeSchema() const
 {
     // TODO: checks
     const auto& representative = DataSources().front();
     return *representative.Schema();
 }
 
-std::vector<TClickHouseTablePtr> TReadJobSpec::GetTables() const
+std::vector<TClickHouseTablePtr> TSubquerySpec::GetTables() const
 {
     auto nativeSchema = GetCommonNativeSchema();
 
@@ -99,8 +100,10 @@ std::vector<TClickHouseTablePtr> TReadJobSpec::GetTables() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TReadJobSpec* protoSpec, const TReadJobSpec& spec)
+void ToProto(NProto::TSubquerySpec* protoSpec, const TSubquerySpec& spec)
 {
+    using NYT::ToProto;
+
     ToProto(protoSpec->mutable_data_source_directory(), spec.DataSourceDirectory);
 
     auto* tableSpec = protoSpec->mutable_table_spec();
@@ -112,10 +115,14 @@ void ToProto(NProto::TReadJobSpec* protoSpec, const TReadJobSpec& spec)
     if (spec.NodeDirectory) {
         spec.NodeDirectory->DumpTo(protoSpec->mutable_node_directory());
     }
+
+    ToProto(protoSpec->mutable_initial_query_id(), spec.InitialQueryId);
 }
 
-void FromProto(TReadJobSpec* spec, const NProto::TReadJobSpec& protoSpec)
+void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
 {
+    using NYT::FromProto;
+
     FromProto(&spec->DataSourceDirectory, protoSpec.data_source_directory());
 
     const auto& tableSpec = protoSpec.table_spec();
@@ -128,33 +135,8 @@ void FromProto(TReadJobSpec* spec, const NProto::TReadJobSpec& protoSpec)
         spec->NodeDirectory = New<TNodeDirectory>();
         spec->NodeDirectory->MergeFrom(protoSpec.node_directory());
     }
-}
 
-////////////////////////////////////////////////////////////////////////////////
-
-void Serialize(const TReadJobSpec& spec, IYsonConsumer* consumer)
-{
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("data_source_directory").Value(spec.DataSourceDirectory)
-            .Item("table_spec").List(spec.DataSliceDescriptors)
-            .DoIf(bool(spec.NodeDirectory), [&] (TFluentMap fluent) {
-                fluent.Item("node_directory").Value(spec.NodeDirectory);
-            })
-        .EndMap();
-}
-
-void Deserialize(TReadJobSpec& spec, INodePtr node)
-{
-    auto mapNode = node->AsMap();
-
-    spec = TReadJobSpec();
-    spec.DataSourceDirectory = ConvertTo<TDataSourceDirectoryPtr>(mapNode->GetChild("data_source_directory"));
-    spec.DataSliceDescriptors = ConvertTo<std::vector<TDataSliceDescriptor>>(mapNode->GetChild("table_spec"));
-
-    if (auto node = mapNode->FindChild("node_directory")) {
-        spec.NodeDirectory = ConvertTo<TNodeDirectoryPtr>(node);
-    }
+    FromProto(&spec->InitialQueryId, protoSpec.initial_query_id());
 }
 
 /////////////////////////////////////////////////////////////////////////////

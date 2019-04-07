@@ -74,13 +74,6 @@ public:
         const DB::KeyCondition* keyCondition = nullptr,
         size_t maxParts = 1);
 
-    TTableReaderList CreateTableReaders(
-        const TString& jobSpec,
-        const TStringList& columns,
-        const TSystemColumns& systemColumns,
-        size_t maxStreamCount,
-        bool unordered);
-
     bool Exists(const TString& name);
 
 private:

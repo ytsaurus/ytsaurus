@@ -99,7 +99,7 @@ protected:
 
     virtual DB::ASTPtr RewriteSelectQueryForTablePart(
         const DB::ASTPtr& queryAst,
-        const std::string& jobSpec) = 0;
+        const std::string& subquerySpec) = 0;
 
     const TClickHouseTableSchema& GetSchema() const
     {
