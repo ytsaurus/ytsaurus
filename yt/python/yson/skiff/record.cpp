@@ -101,7 +101,7 @@ void CheckFieldType(const Py::Object& value, NSkiff::TSkiffSchemaPtr schema, boo
     thread_local PyObject* Zero = PyLong_FromLongLong(0);
     thread_local PyObject* SignedInt64Min = PyLong_FromLongLong(std::numeric_limits<i64>::min());
     thread_local PyObject* SignedInt64Max = PyLong_FromLongLong(std::numeric_limits<i64>::max());
-    thread_local PyObject* UnsignedInt64Max = PyLong_FromUnsignedLongLong(std::numeric_limits<ui64>::max());;
+    thread_local PyObject* UnsignedInt64Max = PyLong_FromUnsignedLongLong(std::numeric_limits<ui64>::max());
 
     if (value.isNone()) {
         if (required) {

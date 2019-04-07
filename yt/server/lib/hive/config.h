@@ -84,7 +84,7 @@ public:
         RegisterParameter("participant_backoff_time", ParticipantBackoffTime)
             .Default(TDuration::Seconds(5));
     }
-};;
+};
 
 DEFINE_REFCOUNTED_TYPE(TTransactionSupervisorConfig)
 

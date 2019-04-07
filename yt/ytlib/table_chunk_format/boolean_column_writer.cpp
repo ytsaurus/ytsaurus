@@ -77,7 +77,7 @@ private:
 
     void DumpSegment()
     {
-        TSegmentInfo segmentInfo;;
+        TSegmentInfo segmentInfo;
         segmentInfo.SegmentMeta.set_type(0);
         segmentInfo.SegmentMeta.set_version(0);
 

@@ -1803,7 +1803,7 @@ void TUnversionedOwningRow::Init(const TUnversionedValue* begin, const TUnversio
 
         for (int index = 0; index < count; ++index) {
             const auto& otherValue = begin[index];
-            auto& value = reinterpret_cast<TUnversionedValue*>(header + 1)[index];;
+            auto& value = reinterpret_cast<TUnversionedValue*>(header + 1)[index];
             if (otherValue.Type == EValueType::String || otherValue.Type == EValueType::Any) {
                 ::memcpy(current, otherValue.Data.String, otherValue.Length);
                 value.Data.String = current;

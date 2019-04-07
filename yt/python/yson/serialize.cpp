@@ -117,7 +117,7 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer, TCon
     NSan::MarkAsIntentionallyLeaked(SignedInt64Min);
     thread_local PyObject* SignedInt64Max = PyLong_FromLongLong(std::numeric_limits<i64>::max());
     NSan::MarkAsIntentionallyLeaked(SignedInt64Max);
-    thread_local PyObject* UnsignedInt64Max = PyLong_FromUnsignedLongLong(std::numeric_limits<ui64>::max());;
+    thread_local PyObject* UnsignedInt64Max = PyLong_FromUnsignedLongLong(std::numeric_limits<ui64>::max());
     NSan::MarkAsIntentionallyLeaked(UnsignedInt64Max);
 
     if (PyObject_RichCompareBool(UnsignedInt64Max, obj.ptr(), Py_LT) == 1 ||

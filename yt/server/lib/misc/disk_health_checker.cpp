@@ -51,7 +51,7 @@ TFuture<void> TDiskHealthChecker::RunCheck()
 
 void TDiskHealthChecker::OnCheck()
 {
-    RunCheck().Subscribe(BIND(&TDiskHealthChecker::OnCheckCompleted, MakeWeak(this)));;
+    RunCheck().Subscribe(BIND(&TDiskHealthChecker::OnCheckCompleted, MakeWeak(this)));
 }
 
 void TDiskHealthChecker::OnCheckCompleted(const TError& error)

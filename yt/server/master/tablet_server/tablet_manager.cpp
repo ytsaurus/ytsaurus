@@ -6068,7 +6068,7 @@ private:
                                         cellId,
                                         changelogId);
                                 }
-                            }));;
+                            }));
                         ++changelogsRemoved;
                     }
                 }
