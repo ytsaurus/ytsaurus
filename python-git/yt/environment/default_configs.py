@@ -144,6 +144,13 @@ b"""
     object_manager = {
         gc_sweep_period = 10;
     };
+
+    security_manager = {
+        user_statistics_gossip_period = 150;
+        account_statistics_gossip_period = 150;
+        user_statistics_flush_period = 50;
+        request_rate_smoothing_period = 60000;
+    };
 }
 """)
 
