@@ -49,6 +49,10 @@ private:
     ICoordinationServicePtr CoordinationService;
     TClickHouseHostPtr ClickHouseHost_;
 
+    NConcurrency::TThreadPoolPtr WorkerThreadPool_;
+    IInvokerPtr WorkerInvoker_;
+    IInvokerPtr SerializedWorkerInvoker_;
+
 public:
     TBootstrap(
         TClickHouseServerBootstrapConfigPtr config,
@@ -64,6 +68,8 @@ public:
 
     const TClickHouseServerBootstrapConfigPtr& GetConfig() const;
     const IInvokerPtr& GetControlInvoker() const;
+    const IInvokerPtr& GetWorkerInvoker() const;
+    const IInvokerPtr& GetSerializedWorkerInvoker() const;
     const NApi::NNative::IConnectionPtr& GetConnection() const;
     const NApi::NNative::TClientCachePtr& GetClientCache() const;
     const NApi::NNative::IClientPtr& GetRootClient() const;

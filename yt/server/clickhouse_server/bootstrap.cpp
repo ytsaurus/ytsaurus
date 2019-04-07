@@ -31,6 +31,7 @@
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/throughput_throttler.h>
 #include <yt/core/concurrency/thread_pool_poller.h>
+#include <yt/core/concurrency/thread_pool.h>
 
 #include <yt/core/misc/core_dumper.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
@@ -131,6 +132,11 @@ void TBootstrap::DoRun()
 
     SetBuildAttributes(orchidRoot, "clickhouse_server");
 
+    // TODO(max42): make configurable.
+    WorkerThreadPool_ = New<TThreadPool>(4, "Worker");
+    WorkerInvoker_ = WorkerThreadPool_->GetInvoker();
+    SerializedWorkerInvoker_ = CreateSerializedInvoker(WorkerInvoker_);
+
     if (Config_->CoreDumper) {
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
@@ -203,6 +209,16 @@ const TClickHouseServerBootstrapConfigPtr& TBootstrap::GetConfig() const
 const IInvokerPtr& TBootstrap::GetControlInvoker() const
 {
     return ControlQueue_->GetInvoker();
+}
+
+const IInvokerPtr& TBootstrap::GetWorkerInvoker() const
+{
+    return WorkerInvoker_;
+}
+
+const IInvokerPtr& TBootstrap::GetSerializedWorkerInvoker() const
+{
+    return SerializedWorkerInvoker_;
 }
 
 const NApi::NNative::IConnectionPtr& TBootstrap::GetConnection() const

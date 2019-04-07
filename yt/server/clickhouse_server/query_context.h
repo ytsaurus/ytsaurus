@@ -49,9 +49,10 @@ struct TQueryContext
 {
 public:
     TLogger Logger;
-    TString User;
-    TQueryId QueryId;
-    EQueryKind QueryKind;
+    const TString User;
+    const TQueryId QueryId;
+    const EQueryKind QueryKind;
+    TBootstrap* const Bootstrap;
 
     NTableClient::TRowBufferPtr RowBuffer;
 
@@ -60,11 +61,6 @@ public:
     ~TQueryContext();
 
     const NApi::NNative::IClientPtr& Client() const;
-
-    // TODO(max42): helpers below should not belong to query context. Maybe move them to helpers.h?
-    std::vector<TClickHouseTablePtr> ListTables(
-        const TString& path = {},
-        bool recursive = false);
 
     TTablePartList GetTableParts(const TString& name, const DB::KeyCondition* keyCondition, size_t maxParts = 1);
     TTablePartList GetTablesParts(const std::vector<TString>& names, const DB::KeyCondition* keyCondition, size_t maxParts = 1);
@@ -77,7 +73,6 @@ public:
     bool Exists(const TString& name);
 
 private:
-    TBootstrap* Bootstrap_;
     TClickHouseHostPtr Host_;
 
     //! Spinlock controlling lazy client creation.
