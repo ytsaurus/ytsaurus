@@ -402,7 +402,7 @@ void TMapNodeTypeHandler::DoMerge(
                 objectManager->UnrefObject(it->second);
                 YCHECK(childToKey.erase(it->second) == 1);
                 YCHECK(childToKey.insert(std::make_pair(childTrunkNode, key)).second);
-                it->second = childTrunkNode;;
+                it->second = childTrunkNode;
             } else {
                 // Originating: tombstone
                 it->second = childTrunkNode;

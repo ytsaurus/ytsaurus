@@ -6072,7 +6072,7 @@ private:
             result.UserCounts = std::move(countingFilter.UserCounts);
             result.StateCounts = std::move(countingFilter.StateCounts);
             result.TypeCounts = std::move(countingFilter.TypeCounts);
-            result.FailedJobsCount = countingFilter.FailedJobsCount;;
+            result.FailedJobsCount = countingFilter.FailedJobsCount;
         }
 
         return result;

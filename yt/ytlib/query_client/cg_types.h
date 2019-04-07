@@ -111,7 +111,7 @@ class TypeBuilder<TJoinLookup*, Cross>
 template <bool Cross>
 class TypeBuilder<std::vector<std::pair<TRow, i64>>*, Cross>
     : public TypeBuilder<void*, Cross>
-{ };;
+{ };
 
 template <bool Cross>
 class TypeBuilder<TTopCollector*, Cross>

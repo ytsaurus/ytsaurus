@@ -129,7 +129,7 @@ TStracerResultPtr Strace(const std::vector<int>& pids)
     for (const auto& pid : pids) {
         result->Traces[pid] = traceFutures[pid]
             .Get()
-            .ValueOrThrow();;
+            .ValueOrThrow();
     }
     return result;
 }

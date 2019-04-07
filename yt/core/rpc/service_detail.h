@@ -293,7 +293,7 @@ protected:
             // COMPAT(kiselyovp): legacy RPC codecs
             bool enableBodyEnvelope;
             NCompression::ECodec attachmentCodecId;
-            auto bodyCodecId = UnderlyingContext_->GetResponseCodec();;
+            auto bodyCodecId = UnderlyingContext_->GetResponseCodec();
             if (requestHeader.has_request_codec()) {
                 enableBodyEnvelope = false;
                 attachmentCodecId = bodyCodecId;

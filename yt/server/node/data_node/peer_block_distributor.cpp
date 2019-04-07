@@ -215,7 +215,7 @@ void TPeerBlockDistributor::DistributeBlocks()
 
         const auto& block = blocks[index];
         const auto& blockId = blockIds[index];
-        const auto& reqTemplate = reqTemplates[index];;
+        const auto& reqTemplate = reqTemplates[index];
 
         YT_LOG_DEBUG("Sending block to destination nodes (BlockId: %v, DestinationNodes: %v)",
             blockId,

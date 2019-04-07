@@ -60,10 +60,10 @@ TEST_W(TPeriodicTest, Simple)
     WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(250)))
         .ThrowOnError();
     WaitFor(executor->GetExecutedEvent())
-        .ThrowOnError();;
+        .ThrowOnError();
     EXPECT_EQ(6, count.load());
     WaitFor(executor->Stop())
-        .ThrowOnError();;
+        .ThrowOnError();
 }
 
 TEST_W(TPeriodicTest, ParallelStop)

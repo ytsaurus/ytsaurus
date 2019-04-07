@@ -314,7 +314,7 @@ void TClientRequest::OnPullRequestAttachmentsStream()
         !payload->Attachments.back());
 
     control->SendStreamingPayload(*payload).Subscribe(
-        BIND(&TClientRequest::OnRequestStreamingPayloadAcked, MakeStrong(this), payload->SequenceNumber));;
+        BIND(&TClientRequest::OnRequestStreamingPayloadAcked, MakeStrong(this), payload->SequenceNumber));
 }
 
 void TClientRequest::OnRequestStreamingPayloadAcked(int sequenceNumber, const TError& error)

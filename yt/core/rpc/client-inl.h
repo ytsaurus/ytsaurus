@@ -61,9 +61,9 @@ TSharedRefArray TTypedClientRequest<TRequestMessage, TResponse>::SerializeData()
     auto attachmentCodecId = EnableLegacyRpcCodecs_
         ? NCompression::ECodec::None
         : RequestCodec_;
-    auto* attachementCodec = NCompression::GetCodec(attachmentCodecId);
+    auto* attachmentCodec = NCompression::GetCodec(attachmentCodecId);
     for (const auto& attachment : Attachments()) {
-        auto compressedAttachment = attachementCodec->Compress(attachment);
+        auto compressedAttachment = attachmentCodec->Compress(attachment);
         data.push_back(std::move(compressedAttachment));
     }
 

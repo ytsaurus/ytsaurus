@@ -43,7 +43,7 @@ public:
 
     void Stop()
     {
-        CleanupExecutor_->Stop();;
+        CleanupExecutor_->Stop();
     }
 
 private:

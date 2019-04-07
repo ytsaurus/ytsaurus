@@ -109,7 +109,7 @@ static TSkiffTableDescription CreateTableDescription(
     const TString& rowIndexColumnName)
 {
     TSkiffTableDescription result;
-    THashSet<TString> topLevelNames;;
+    THashSet<TString> topLevelNames;
     TSkiffSchemaPtr otherColumnsField;
     TSkiffSchemaPtr sparseColumnsField;
 
