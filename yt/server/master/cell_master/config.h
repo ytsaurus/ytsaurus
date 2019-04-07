@@ -133,8 +133,6 @@ public:
 
     NChunkServer::TChunkManagerConfigPtr ChunkManager;
 
-    NJournalServer::TJournalManagerConfigPtr JournalManager;
-
     NObjectServer::TObjectServiceConfigPtr ObjectService;
 
     NCypressServer::TCypressManagerConfigPtr CypressManager;

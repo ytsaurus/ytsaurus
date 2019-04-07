@@ -558,7 +558,7 @@ void TBootstrap::DoInitialize()
 
     ChunkManager_ = New<TChunkManager>(Config_->ChunkManager, this);
 
-    JournalManager_ = New<NJournalServer::TJournalManager>(Config_->JournalManager, this);
+    JournalManager_ = New<NJournalServer::TJournalManager>(this);
 
     TabletManager_ = New<TTabletManager>(Config_->TabletManager, this);
 
