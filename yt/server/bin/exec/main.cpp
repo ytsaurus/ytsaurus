@@ -114,6 +114,17 @@ protected:
         static const int PipePermissions = S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IWOTH;
 
         try {
+            struct rlimit rlimit = {
+                EnableCoreDump_ ? RLIM_INFINITY : 0,
+                EnableCoreDump_ ? RLIM_INFINITY : 0
+            };
+
+            auto rv = setrlimit(RLIMIT_CORE, &rlimit);
+            if (rv) {
+                THROW_ERROR_EXCEPTION("Failed to configure core dump limits")
+                    << TError::FromSystem();
+            }
+
             for (const auto& pipe : Pipes_) {
                 const int streamFd = pipe.FD;
                 const auto& path = pipe.Path;
@@ -142,17 +153,6 @@ protected:
                         << TErrorAttribute("fd", streamFd)
                         << ex;
                 }
-            }
-
-            struct rlimit rlimit = {
-                EnableCoreDump_ ? RLIM_INFINITY : 0,
-                EnableCoreDump_ ? RLIM_INFINITY : 0
-            };
-
-            auto rv = setrlimit(RLIMIT_CORE, &rlimit);
-            if (rv) {
-                THROW_ERROR_EXCEPTION("Failed to configure core dump limits")
-                    << TError::FromSystem();
             }
         } catch (const std::exception& ex) {
             executorError = ex;

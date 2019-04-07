@@ -1,5 +1,5 @@
 from yt_env_setup import YTEnvSetup, unix_only, wait, require_enabled_core_dump, \
-    require_ytserver_root_privileges, patch_porto_env_only, skip_if_porto
+    require_ytserver_root_privileges, patch_porto_env_only, skip_if_porto, is_asan_build
 from yt_commands import *
 
 from flaky import flaky
@@ -468,7 +468,7 @@ def queue_iterator(queue):
             return
         yield chunk
 
-#@flaky(max_runs=5)
+@pytest.mark.skipif(is_asan_build(), reason="Cores are not dumped in ASAN build")
 class TestCoreTable(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -538,7 +538,7 @@ class TestCoreTable(YTEnvSetup):
                         "job_count": job_count,
                     }
                 },
-                "core_table_path": "//tmp/t_core",
+                "core_table_path": self.CORE_TABLE,
                 "max_failed_job_count": max_failed_job_count
             })
 

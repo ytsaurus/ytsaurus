@@ -73,7 +73,7 @@ TB = 1024 * GB
 
 PACKAGING_TIMEOUT = 30 * 60
 
-INTEGRATION_TESTS_PARALLELISM = {"debug": 4, "release": 10}
+INTEGRATION_TESTS_PARALLELISM = {"debug": 4, "release": 10, "debug-asan": 3, "release-asan": 3}
 PYTHON_TESTS_PARALLELISM = 6
 YP_TESTS_PARALLELISM = 6
 
@@ -1014,13 +1014,11 @@ def run_yt_integration_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("Integration tests are skipped since all tests are disabled")
         return
-    if options.use_asan:
-        teamcity_message("Integration tests are skipped since they are not quite stable under ASAN")
-        return
 
     pytest_args = []
     if options.enable_parallel_testing:
-        pytest_args.extend(["--process-count", str(INTEGRATION_TESTS_PARALLELISM[options.ya_build_type])])
+        build_type = options.ya_build_type + ("-asan" if options.use_asan else "")
+        pytest_args.extend(["--process-count", str(INTEGRATION_TESTS_PARALLELISM[build_type])])
 
     run_pytest(options, "integration", "{0}/yt/tests/integration".format(options.checkout_directory),
                pytest_args=pytest_args)

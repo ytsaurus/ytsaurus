@@ -1,4 +1,4 @@
-from yt_env_setup import wait, YTEnvSetup, require_ytserver_root_privileges
+from yt_env_setup import wait, YTEnvSetup, require_ytserver_root_privileges, is_asan_build
 from yt_commands import *
 from yt.wrapper.clickhouse import get_clickhouse_clique_spec_builder
 from yt.wrapper.common import simplify_structure
@@ -48,7 +48,8 @@ class Clique(object):
                                                           defaults=DEFAULTS,
                                                           **kwargs)
         self.spec = simplify_structure(spec_builder.build())
-        self.spec["tasks"]["clickhouse_servers"]["force_core_dump"] = True
+        if not is_asan_build():
+            self.spec["tasks"]["clickhouse_servers"]["force_core_dump"] = True
         self.instance_count = instance_count
 
     def _get_active_instance_count(self):

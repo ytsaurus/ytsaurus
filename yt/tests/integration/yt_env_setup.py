@@ -269,9 +269,14 @@ def skip_if_porto(func):
     return wrapped_func
 
 
+def is_asan_build():
+    binary = find_executable("ytserver-master")
+    version = subprocess.check_output([binary, "--version"])
+    return "asan" in version
+
+
 # doesn't work with @patch_porto_env_only on the same class, wrap each method
 def require_ytserver_root_privileges(func_or_class):
-
     def check_root_privileges():
         for binary in ["ytserver-exec", "ytserver-job-proxy", "ytserver-node", "ytserver-tools"]:
             binary_path = find_executable(binary)
