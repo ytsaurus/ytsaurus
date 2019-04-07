@@ -35,9 +35,17 @@ DEFAULTS = {
 class Clique(object):
     base_config = None
     clique_index = 0
+    path_to_run = None
 
     def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, **kwargs):
         config = update(Clique.base_config, config_patch) if config_patch is not None else Clique.base_config
+
+        self.log_root = os.path.join(self.path_to_run, "logs", "clickhouse-{}".format(Clique.clique_index))
+        for writer_key, writer in Clique.base_config["logging"]["writers"].iteritems():
+            if writer["type"] == "file":
+                writer["file_name"] = os.path.join(self.log_root, writer["file_name"])
+        os.mkdir(self.log_root)
+        os.chmod(self.log_root, 0777)
 
         filename = "//sys/clickhouse/config-{}.yson".format(Clique.clique_index)
         Clique.clique_index += 1
@@ -68,7 +76,12 @@ class Clique(object):
                            spec=self.spec,
                            dont_track=True)
 
+        self.log_root_alternative = os.path.realpath(os.path.join(self.log_root, "..",
+                                                                  "clickhouse-{}".format(self.op.id)))
+        os.symlink(self.log_root, self.log_root_alternative)
+
         print >>sys.stderr, "Waiting for clique {} to become ready".format(self.op.id)
+        print >>sys.stderr, "Logging roots:\n- {}\n- {}".format(self.log_root, self.log_root_alternative)
 
         MAX_COUNTER_VALUE = 600
         counter = 0
@@ -177,6 +190,7 @@ class ClickHouseTestBase(YTEnvSetup):
         return open(os.path.join(TEST_DIR, "test_clickhouse", name)).read()
 
     def _setup(self):
+        Clique.path_to_run = self.path_to_run
         if CLICKHOUSE_CLIENT_BINARY is None or YTSERVER_CLICKHOUSE_BINARY is None:
             pytest.skip("This test requires built clickhouse and ytserver-clickhouse binaries; "
                         "they are available only when using ya as a build system")
@@ -264,6 +278,15 @@ class TestClickHouseCommon(ClickHouseTestBase):
             new_description = clique.make_query('describe "//tmp/t"')
             assert new_description["data"][0]["name"] == "b"
 
+    def test_concat_inside_link(self):
+        with Clique(1) as clique:
+            create("map_node", "//tmp/dir")
+            create("link", "//tmp/link", attributes={"target_path": "//tmp/dir"})
+            create("table", "//tmp/link/t1", attributes={"schema": [{"name": "i", "type": "int64"}]})
+            create("table", "//tmp/link/t2", attributes={"schema": [{"name": "i", "type": "int64"}]})
+            write_table("//tmp/link/t1", [{"i": 0}])
+            write_table("//tmp/link/t2", [{"i": 1}])
+            assert len(clique.make_query("select * from concatYtTablesRange('//tmp/link')")["data"]) == 2
 
 class TestJobInput(ClickHouseTestBase):
     def setup(self):
