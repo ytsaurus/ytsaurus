@@ -23,9 +23,7 @@ class TGarbageCollector
     : public TRefCounted
 {
 public:
-    TGarbageCollector(
-        TObjectManagerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap);
+    explicit TGarbageCollector(NCellMaster::TBootstrap* bootstrap);
 
     void Start();
     void Stop();
@@ -60,10 +58,6 @@ public:
     int GetLockedCount() const;
 
 private:
-    void ClearWeakGhosts();
-    void ClearEphemeralGhosts();
-
-    const TObjectManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
 
     const TClosure DynamicConfigChangedCallback_ = BIND(&TGarbageCollector::OnDynamicConfigChanged, MakeWeak(this));
@@ -93,6 +87,9 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+
+    void ClearWeakGhosts();
+    void ClearEphemeralGhosts();
 
     void OnSweep();
     bool IsRecovery();

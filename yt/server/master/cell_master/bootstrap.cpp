@@ -546,7 +546,7 @@ void TBootstrap::DoInitialize()
 
     // NB: This is exactly the order in which parts get registered and there are some
     // dependencies in Clear methods.
-    ObjectManager_ = New<TObjectManager>(Config_->ObjectManager, this);
+    ObjectManager_ = New<TObjectManager>(this);
 
     SecurityManager_ = New<TSecurityManager>(Config_->SecurityManager, this);
 

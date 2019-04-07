@@ -135,8 +135,6 @@ public:
 
     NJournalServer::TJournalManagerConfigPtr JournalManager;
 
-    NObjectServer::TObjectManagerConfigPtr ObjectManager;
-
     NObjectServer::TObjectServiceConfigPtr ObjectService;
 
     NCypressServer::TCypressManagerConfigPtr CypressManager;

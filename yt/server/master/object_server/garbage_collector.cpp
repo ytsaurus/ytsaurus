@@ -28,13 +28,9 @@ static const auto& Logger = ObjectServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGarbageCollector::TGarbageCollector(
-    TObjectManagerConfigPtr config,
-    NCellMaster::TBootstrap* bootstrap)
-    : Config_(config)
-    , Bootstrap_(bootstrap)
+TGarbageCollector::TGarbageCollector(NCellMaster::TBootstrap* bootstrap)
+    : Bootstrap_(bootstrap)
 {
-    YCHECK(Config_);
     YCHECK(Bootstrap_);
 }
 
