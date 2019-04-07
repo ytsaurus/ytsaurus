@@ -139,7 +139,7 @@ b"""
 
     node_tracker = {
         full_node_states_gossip_period = 1000
-    }
+    };
 
     object_manager = {
         gc_sweep_period = 10;
