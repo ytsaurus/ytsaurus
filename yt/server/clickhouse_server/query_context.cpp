@@ -8,7 +8,6 @@
 #include "convert_row.h"
 #include "document.h"
 #include "subquery.h"
-#include "read_job.h"
 #include "subquery_spec.h"
 #include "table_reader.h"
 #include "table_schema.h"
