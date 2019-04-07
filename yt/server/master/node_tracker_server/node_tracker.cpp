@@ -1318,8 +1318,6 @@ private:
 
             YCHECK(NameToDataCenterMap_.insert(std::make_pair(dc->GetName(), dc)).second);
         }
-
-        OnDynamicConfigChanged();
     }
 
     virtual void OnRecoveryStarted() override
