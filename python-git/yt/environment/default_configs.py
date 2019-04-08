@@ -151,6 +151,10 @@ b"""
         user_statistics_flush_period = 50;
         request_rate_smoothing_period = 60000;
     };
+
+    cypress_manager = {
+        statistics_flush_period = 50;
+    };
 }
 """)
 
