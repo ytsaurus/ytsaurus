@@ -219,6 +219,9 @@ bool operator != (const TColumnSchema& lhs, const TColumnSchema& rhs);
 bool operator == (const TTableSchema& lhs, const TTableSchema& rhs);
 bool operator != (const TTableSchema& lhs, const TTableSchema& rhs);
 
+// Compat function for https://st.yandex-team.ru/YT-10668 workaround.
+bool IsEqualIgnoringRequiredness(const TTableSchema& lhs, const TTableSchema& rhs);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateKeyColumns(const TKeyColumns& keyColumns);
