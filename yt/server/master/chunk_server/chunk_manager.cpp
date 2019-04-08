@@ -1168,7 +1168,7 @@ public:
     {
         auto oldMaxReplicationFactor = medium->Config()->MaxReplicationFactor;
         medium->Config() = std::move(newConfig);
-        if (medium->Config()->MaxReplicationFactor != oldMaxReplicationFactor) {
+        if (ChunkReplicator_ && medium->Config()->MaxReplicationFactor != oldMaxReplicationFactor) {
             ChunkReplicator_->ScheduleGlobalChunkRefresh(AllChunks_.GetFront(), AllChunks_.GetSize());
         }
     }
