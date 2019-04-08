@@ -41,9 +41,11 @@ public:
     int MaxExpiredNodesRemovalsPerCommit;
     TDuration ExpirationBackoffTime;
 
+    // COMPAT(ignat)
     //! Forbids performing set inside Cypress.
     bool ForbidSetCommand;
 
+    // COMPAT(shakurov)
     //! Controls if unlock command is enabled.
     bool EnableUnlockCommand;
 
