@@ -732,7 +732,7 @@ TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> TClient::GetJobInput(
 
     ToProto(req->mutable_job_id(), jobId);
 
-    return CreateInputStreamAdapter(req);
+    return CreateInputStreamAdapter(std::move(req));
 }
 
 TFuture<NYson::TYsonString> TClient::GetJobInputPaths(

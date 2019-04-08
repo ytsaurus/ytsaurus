@@ -151,13 +151,6 @@ DEFINE_REFCOUNTED_TYPE(TAttachmentsOutputStream)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Creates an input stream adapter from an uninvoked client request.
-template <class TRequestMessage, class TResponse>
-TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateInputStreamAdapter(
-    TIntrusivePtr<TTypedClientRequest<TRequestMessage, TResponse>> request);
-
-// TODO(kiselyovp) add an option for possible negative feedback when
-// implementing CreateTableWriter
 //! Describes whether the client output stream needs server feedback to mark
 //! writes as successful and whether that feedback can be negative.
 DEFINE_ENUM(EWriterFeedbackStrategy,
@@ -165,11 +158,86 @@ DEFINE_ENUM(EWriterFeedbackStrategy,
     (OnlyPositive)
 );
 
-// TODO(kiselyovp) add a Failure option for table writers
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRpcInputStreamAdapter
+    : public NConcurrency::IAsyncZeroCopyInputStream
+{
+public:
+    TRpcInputStreamAdapter(
+        IClientRequestPtr request,
+        TFuture<void> invokeResult,
+        TSharedRef firstReadResult);
+
+    virtual TFuture<TSharedRef> Read() override;
+
+    ~TRpcInputStreamAdapter();
+
+private:
+    const IClientRequestPtr Request_;
+
+    NConcurrency::IAsyncZeroCopyInputStreamPtr Underlying_;
+    TFuture<void> InvokeResult_;
+    std::atomic<bool> FirstRead_ = {true};
+    TSharedRef FirstReadResult_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(EWriterFeedback,
     (Handshake)
     (Success)
 );
+
+void CheckWriterFeedback(
+    const TSharedRef& ref,
+    EWriterFeedback expectedFeedback);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRpcOutputStreamAdapter
+    : public NConcurrency::IAsyncZeroCopyOutputStream
+{
+public:
+    TRpcOutputStreamAdapter(
+        IClientRequestPtr request,
+        TFuture<void> invokeResult,
+        EWriterFeedbackStrategy feedbackStrategy = EWriterFeedbackStrategy::NoFeedback);
+
+    virtual TFuture<void> Write(const TSharedRef& data) override;
+    virtual TFuture<void> Close() override;
+
+private:
+    const IClientRequestPtr Request_;
+
+    NConcurrency::IAsyncZeroCopyOutputStreamPtr Underlying_;
+    TFuture<void> InvokeResult_;
+
+    NConcurrency::IAsyncZeroCopyInputStreamPtr FeedbackStream_;
+    EWriterFeedbackStrategy FeedbackStrategy_;
+
+    TSpinLock QueueLock_;
+    TRingQueue<TPromise<void>> ConfirmationQueue_;
+    TError Error_;
+
+    void AbortOnError(const TError& error);
+    void OnFeedback(const TErrorOr<TSharedRef>& refOrError);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Creates an input stream adapter from an uninvoked client request.
+template <class TRequestMessage, class TResponse>
+TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateInputStreamAdapter(
+    TIntrusivePtr<TTypedClientRequest<TRequestMessage, TResponse>> request);
 
 //! Creates an output stream adapter from an uninvoked client request.
 template <class TRequestMessage, class TResponse>
@@ -182,24 +250,24 @@ TFuture<NConcurrency::IAsyncZeroCopyOutputStreamPtr> CreateOutputStreamAdapter(
 //! Handles an incoming streaming request that uses the #CreateInputStreamAdapter
 //! function.
 void HandleInputStreamingRequest(
-    IServiceContextPtr context,
-    TCallback<TFuture<TSharedRef>()> blockGenerator);
+    const IServiceContextPtr& context,
+    const TCallback<TFuture<TSharedRef>()>& blockGenerator);
 
 void HandleInputStreamingRequest(
-    IServiceContextPtr context,
-    NConcurrency::IAsyncZeroCopyInputStreamPtr input);
+    const IServiceContextPtr& context,
+    const NConcurrency::IAsyncZeroCopyInputStreamPtr& input);
 
 //! Handles an incoming streaming request that uses the #CreateOutputStreamAdapter
 //! function with the same #feedbackStrategy.
 void HandleOutputStreamingRequest(
-    IServiceContextPtr context,
-    TCallback<TFuture<void>(TSharedRef)> blockHandler,
-    TCallback<TFuture<void>()> finalizer,
+    const IServiceContextPtr& context,
+    const TCallback<TFuture<void>(TSharedRef)>& blockHandler,
+    const TCallback<TFuture<void>()>& finalizer,
     EWriterFeedbackStrategy feedbackStrategy = EWriterFeedbackStrategy::NoFeedback);
 
 void HandleOutputStreamingRequest(
-    IServiceContextPtr context,
-    NConcurrency::IAsyncZeroCopyOutputStreamPtr output,
+    const IServiceContextPtr& context,
+    const NConcurrency::IAsyncZeroCopyOutputStreamPtr& output,
     EWriterFeedbackStrategy feedbackStrategy = EWriterFeedbackStrategy::NoFeedback);
 
 /////////////////////////////////////////////////////////////////////////////

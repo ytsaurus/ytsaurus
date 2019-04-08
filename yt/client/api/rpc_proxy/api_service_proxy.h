@@ -90,15 +90,15 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AbortJob);
 
     // Files
-    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CreateFileReader,
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ReadFile,
         .SetStreamingEnabled(true));
-    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CreateFileWriter,
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, WriteFile,
         .SetStreamingEnabled(true));
 
     // Journals
-    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CreateJournalReader,
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ReadJournal,
         .SetStreamingEnabled(true));
-    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CreateJournalWriter,
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, WriteJournal,
         .SetStreamingEnabled(true));
 
     // File caching

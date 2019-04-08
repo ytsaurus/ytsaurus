@@ -1,5 +1,7 @@
 #include "file_reader.h"
 
+#include <yt/client/api/file_reader.h>
+
 #include <yt/core/rpc/stream.h>
 
 namespace NYT::NApi::NRpcProxy {
@@ -32,19 +34,19 @@ public:
     }
 
 private:
-    IAsyncZeroCopyInputStreamPtr Underlying_;
-    ui64 Revision_;
+    const IAsyncZeroCopyInputStreamPtr Underlying_;
+    const ui64 Revision_;
 };
 
 TFuture<IFileReaderPtr> CreateRpcFileReader(
-    TApiServiceProxy::TReqCreateFileReaderPtr request)
+    TApiServiceProxy::TReqReadFilePtr request)
 {
-    return NRpc::CreateInputStreamAdapter(request)
+    return NRpc::CreateInputStreamAdapter(std::move(request))
         .Apply(BIND([=] (const IAsyncZeroCopyInputStreamPtr& inputStream) {
             return inputStream->Read().Apply(BIND([=] (const TSharedRef& metaRef) {
-                NApi::NRpcProxy::NProto::TMetaCreateFileReader meta;
+                NApi::NRpcProxy::NProto::TMetaReadFile meta;
                 if (!TryDeserializeProto(&meta, metaRef)) {
-                    THROW_ERROR_EXCEPTION("Failed to deserialize file reader revision");
+                    THROW_ERROR_EXCEPTION("Failed to deserialize file stream header");
                 }
 
                 return New<TRpcFileReader>(inputStream, meta.revision());

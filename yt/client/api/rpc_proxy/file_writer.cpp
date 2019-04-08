@@ -1,5 +1,7 @@
 #include "file_writer.h"
 
+#include <yt/client/api/file_writer.h>
+
 #include <yt/core/rpc/stream.h>
 
 namespace NYT::NApi::NRpcProxy {
@@ -13,7 +15,7 @@ class TRpcFileWriter
 {
 public:
     TRpcFileWriter(
-        TApiServiceProxy::TReqCreateFileWriterPtr request)
+        TApiServiceProxy::TReqWriteFilePtr request)
         : Request_(std::move(request))
     {
         YCHECK(Request_);
@@ -43,9 +45,9 @@ public:
             return VoidFuture;
         }
 
-        // data can be rewritten after returned future is set, which can happen prematurely
-        struct TRpcFileWriterTag { };
-        auto dataCopy = TSharedMutableRef::MakeCopy<TRpcFileWriterTag>(data);
+        // Data can be rewritten after returned future is set, which can happen prematurely.
+        struct TTag { };
+        auto dataCopy = TSharedMutableRef::MakeCopy<TTag>(data);
         return Underlying_->Write(dataCopy);
     }
 
@@ -59,7 +61,8 @@ public:
     }
 
 private:
-    TApiServiceProxy::TReqCreateFileWriterPtr Request_;
+    const TApiServiceProxy::TReqWriteFilePtr Request_;
+
     IAsyncZeroCopyOutputStreamPtr Underlying_;
     TFuture<void> OpenResult_;
     std::atomic<bool> Closed_ = {false};
@@ -84,9 +87,9 @@ private:
 };
 
 IFileWriterPtr CreateRpcFileWriter(
-    TApiServiceProxy::TReqCreateFileWriterPtr request)
+    TApiServiceProxy::TReqWriteFilePtr request)
 {
-    return New<TRpcFileWriter>(request);
+    return New<TRpcFileWriter>(std::move(request));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

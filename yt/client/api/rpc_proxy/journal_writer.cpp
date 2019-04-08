@@ -1,5 +1,7 @@
 #include "journal_writer.h"
 
+#include <yt/client/api/journal_writer.h>
+
 #include <yt/core/rpc/stream.h>
 
 namespace NYT::NApi::NRpcProxy {
@@ -13,7 +15,7 @@ class TRpcJournalWriter
 {
 public:
     TRpcJournalWriter(
-        TApiServiceProxy::TReqCreateJournalWriterPtr request)
+        TApiServiceProxy::TReqWriteJournalPtr request)
         : Request_(std::move(request))
     {
         YCHECK(Request_);
@@ -57,7 +59,8 @@ public:
     }
 
 private:
-    TApiServiceProxy::TReqCreateJournalWriterPtr Request_;
+    const TApiServiceProxy::TReqWriteJournalPtr Request_;
+
     IAsyncZeroCopyOutputStreamPtr Underlying_;
     TFuture<void> OpenResult_;
     std::atomic<bool> Closed_ = {false};
@@ -81,9 +84,9 @@ private:
 };
 
 IJournalWriterPtr CreateRpcJournalWriter(
-    TApiServiceProxy::TReqCreateJournalWriterPtr request)
+    TApiServiceProxy::TReqWriteJournalPtr request)
 {
-    return New<TRpcJournalWriter>(request);
+    return New<TRpcJournalWriter>(std::move(request));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

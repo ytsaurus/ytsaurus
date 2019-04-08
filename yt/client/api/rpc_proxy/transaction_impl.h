@@ -215,7 +215,7 @@ private:
 
     //! Returns a fresh batch modify rows request.
     TApiServiceProxy::TReqBatchModifyRowsPtr CreateBatchModifyRowsRequest();
-    //! Invokes the stored batch modify rows request and replaces it with an null one.
+    //! Invokes the stored batch modify rows request and replaces it with a null one.
     TFuture<void> InvokeBatchModifyRowsRequest();
 
     template <class T>

@@ -477,7 +477,7 @@ TFuture<IFileReaderPtr> TClientBase::CreateFileReader(
     auto connection = GetRpcProxyConnection();
     const auto& config = connection->GetConfig();
 
-    auto req = proxy.CreateFileReader();
+    auto req = proxy.ReadFile();
     req->SetTimeout(config->DefaultStreamTimeout);
 
     req->set_path(path);
@@ -494,7 +494,7 @@ TFuture<IFileReaderPtr> TClientBase::CreateFileReader(
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_suppressable_access_tracking_options(), options);
 
-    return CreateRpcFileReader(req);
+    return CreateRpcFileReader(std::move(req));
 }
 
 IFileWriterPtr TClientBase::CreateFileWriter(
@@ -505,7 +505,7 @@ IFileWriterPtr TClientBase::CreateFileWriter(
     auto connection = GetRpcProxyConnection();
     const auto& config = connection->GetConfig();
 
-    auto req = proxy.CreateFileWriter();
+    auto req = proxy.WriteFile();
     req->SetTimeout(config->DefaultStreamTimeout);
 
     ToProto(req->mutable_path(), path);
@@ -518,7 +518,7 @@ IFileWriterPtr TClientBase::CreateFileWriter(
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_prerequisite_options(), options);
 
-    return CreateRpcFileWriter(req);
+    return CreateRpcFileWriter(std::move(req));
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -531,7 +531,7 @@ IJournalReaderPtr TClientBase::CreateJournalReader(
     auto connection = GetRpcProxyConnection();
     const auto& config = connection->GetConfig();
 
-    auto req = proxy.CreateJournalReader();
+    auto req = proxy.ReadJournal();
     req->SetTimeout(config->DefaultStreamTimeout);
 
     req->set_path(path);
@@ -549,7 +549,7 @@ IJournalReaderPtr TClientBase::CreateJournalReader(
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_suppressable_access_tracking_options(), options);
 
-    return CreateRpcJournalReader(req);
+    return CreateRpcJournalReader(std::move(req));
 }
 
 IJournalWriterPtr TClientBase::CreateJournalWriter(
@@ -560,7 +560,7 @@ IJournalWriterPtr TClientBase::CreateJournalWriter(
     auto connection = GetRpcProxyConnection();
     const auto& config = connection->GetConfig();
 
-    auto req = proxy.CreateJournalWriter();
+    auto req = proxy.WriteJournal();
     req->SetTimeout(config->DefaultStreamTimeout);
 
     req->set_path(path);
@@ -574,7 +574,7 @@ IJournalWriterPtr TClientBase::CreateJournalWriter(
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_prerequisite_options(), options);
 
-    return CreateRpcJournalWriter(req);
+    return CreateRpcJournalWriter(std::move(req));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
