@@ -486,6 +486,10 @@ default_config = {
         }
     }),
 
+    # Special timeouts for commands retrieving information about operations,
+    # i.e. 'list_operations', 'list_jobs', 'get_operation', 'get_job'.
+    "operation_info_commands_timeout": 60000,
+
     "auto_merge_output": {
         # Action can be:
         # "none" - do nothing

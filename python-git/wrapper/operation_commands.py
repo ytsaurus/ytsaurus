@@ -79,11 +79,15 @@ def get_operation(operation_id, attributes=None, include_scheduler=None, format=
     params = {"operation_id": operation_id}
     set_param(params, "attributes", attributes)
     set_param(params, "include_scheduler", include_scheduler)
+
+    timeout = get_config(client)["operation_info_commands_timeout"]
+
     return make_formatted_request(
         "get_operation",
         params,
         format=format,
-        client=client)
+        client=client,
+        timeout=timeout)
 
 def list_operations(user=None, state=None, type=None, filter=None, pool=None, with_failed_jobs=None,
                     from_time=None, to_time=None, cursor_time=None, cursor_direction=None,
@@ -112,11 +116,14 @@ def list_operations(user=None, state=None, type=None, filter=None, pool=None, wi
     set_param(params, "limit", limit)
     set_param(params, "enable_ui_mode", enable_ui_mode)
 
+    timeout = get_config(client)["operation_info_commands_timeout"]
+
     return make_formatted_request(
         "list_operations",
         params=params,
         format=format,
-        client=client)
+        client=client,
+        timeout=timeout)
 
 def update_operation_parameters(operation_id, parameters, client=None):
     """Updates operation runtime parameters."""
