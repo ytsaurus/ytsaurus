@@ -71,7 +71,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     IAttributeDictionary* explicitAttributes,
     TAccount* account)
 {
-    const auto& config = this->Bootstrap_->GetConfig()->CypressManager;
+    const auto& config = this->GetDynamicCypressManagerConfig();
 
     auto combinedAttributes = OverlayAttributeDictionaries(explicitAttributes, inheritedAttributes);
     auto optionalTabletCellBundleName = combinedAttributes.FindAndRemove<TString>("tablet_cell_bundle");

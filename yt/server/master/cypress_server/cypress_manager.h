@@ -47,9 +47,7 @@ class TCypressManager
     : public TRefCounted
 {
 public:
-    TCypressManager(
-        TCypressManagerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap);
+    explicit TCypressManager(NCellMaster::TBootstrap* bootstrap);
     ~TCypressManager();
 
     void Initialize();

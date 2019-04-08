@@ -9,6 +9,8 @@
 
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
+#include <yt/server/master/cell_master/config.h>
+#include <yt/server/master/cell_master/config_manager.h>
 
 #include <yt/client/object_client/helpers.h>
 
@@ -23,11 +25,8 @@ static const auto& Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExpirationTracker::TExpirationTracker(
-    TCypressManagerConfigPtr config,
-    NCellMaster::TBootstrap* bootstrap)
-    : Config_(config)
-    , Bootstrap_(bootstrap)
+TExpirationTracker::TExpirationTracker(NCellMaster::TBootstrap* bootstrap)
+    : Bootstrap_(bootstrap)
 { }
 
 void TExpirationTracker::Start()
@@ -49,10 +48,12 @@ void TExpirationTracker::Start()
     YCHECK(!CheckExecutor_);
     CheckExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::ExpirationTracker),
-        BIND(&TExpirationTracker::OnCheck, MakeWeak(this)),
-        Config_->ExpirationCheckPeriod);
+        BIND(&TExpirationTracker::OnCheck, MakeWeak(this)));
     CheckExecutor_->Start();
 
+    const auto& configManager = Bootstrap_->GetConfigManager();
+    configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
+    OnDynamicConfigChanged();
 }
 
 void TExpirationTracker::Stop()
@@ -121,7 +122,7 @@ void TExpirationTracker::OnNodeRemovalFailed(TCypressNodeBase* trunkNode)
     ExpiredNodes_.erase(trunkNode);
 
     auto* mutationContext = GetCurrentMutationContext();
-    RegisterNodeExpiration(trunkNode, mutationContext->GetTimestamp() + Config_->ExpirationBackoffTime);
+    RegisterNodeExpiration(trunkNode, mutationContext->GetTimestamp() + GetDynamicConfig()->ExpirationBackoffTime);
 }
 
 void TExpirationTracker::RegisterNodeExpiration(TCypressNodeBase* trunkNode, TInstant expirationTime)
@@ -150,7 +151,7 @@ void TExpirationTracker::OnCheck()
     NProto::TReqRemoveExpiredNodes request;
 
     auto now = TInstant::Now();
-    while (!ExpirationMap_.empty() && request.node_ids_size() < Config_->MaxExpiredNodesRemovalsPerCommit) {
+    while (!ExpirationMap_.empty() && request.node_ids_size() < GetDynamicConfig()->MaxExpiredNodesRemovalsPerCommit) {
         auto it = ExpirationMap_.begin();
         const auto& pair = *it;
         auto expirationTime = pair.first;
@@ -180,6 +181,17 @@ void TExpirationTracker::OnCheck()
 bool TExpirationTracker::IsRecovery()
 {
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery();
+}
+
+const TDynamicCypressManagerConfigPtr& TExpirationTracker::GetDynamicConfig()
+{
+    const auto& configManager = Bootstrap_->GetConfigManager();
+    return configManager->GetConfig()->CypressManager;
+}
+
+void TExpirationTracker::OnDynamicConfigChanged()
+{
+    CheckExecutor_->SetPeriod(GetDynamicConfig()->ExpirationCheckPeriod);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
