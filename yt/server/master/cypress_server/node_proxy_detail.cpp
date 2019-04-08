@@ -2207,12 +2207,12 @@ void TMapNodeProxy::SetChildNode(
 
 int TMapNodeProxy::GetMaxChildCount() const
 {
-    return Bootstrap_->GetConfig()->CypressManager->MaxNodeChildCount;
+    return GetDynamicCypressManagerConfig()->MaxNodeChildCount;
 }
 
 int TMapNodeProxy::GetMaxKeyLength() const
 {
-    return Bootstrap_->GetConfig()->CypressManager->MaxMapNodeKeyLength;
+    return GetDynamicCypressManagerConfig()->MaxMapNodeKeyLength;
 }
 
 IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(
@@ -2501,7 +2501,7 @@ void TListNodeProxy::SetChildNode(
 
 int TListNodeProxy::GetMaxChildCount() const
 {
-    return Bootstrap_->GetConfig()->CypressManager->MaxNodeChildCount;
+    return GetDynamicCypressManagerConfig()->MaxNodeChildCount;
 }
 
 IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(

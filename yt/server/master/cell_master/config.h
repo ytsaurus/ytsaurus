@@ -135,8 +135,6 @@ public:
 
     NObjectServer::TObjectServiceConfigPtr ObjectService;
 
-    NCypressServer::TCypressManagerConfigPtr CypressManager;
-
     NTabletServer::TTabletManagerConfigPtr TabletManager;
 
     NTabletServer::TReplicatedTableTrackerConfigPtr ReplicatedTableTracker;
@@ -173,6 +171,7 @@ public:
     NNodeTrackerServer::TDynamicNodeTrackerConfigPtr NodeTracker;
     NObjectServer::TDynamicObjectManagerConfigPtr ObjectManager;
     NSecurityServer::TDynamicSecurityManagerConfigPtr SecurityManager;
+    NCypressServer::TDynamicCypressManagerConfigPtr CypressManager;
 
     TDynamicClusterConfig()
     {
@@ -187,6 +186,8 @@ public:
         RegisterParameter("object_manager", ObjectManager)
             .DefaultNew();
         RegisterParameter("security_manager", SecurityManager)
+            .DefaultNew();
+        RegisterParameter("cypress_manager", CypressManager)
             .DefaultNew();
     }
 };

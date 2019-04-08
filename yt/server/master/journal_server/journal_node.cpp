@@ -168,8 +168,7 @@ protected:
         IAttributeDictionary* explicitAttributes,
         NSecurityServer::TAccount* account) override
     {
-        const auto& config = Bootstrap_->GetConfig()->CypressManager;
-
+        const auto& config = GetDynamicCypressManagerConfig();
         auto combinedAttributes = OverlayAttributeDictionaries(explicitAttributes, inheritedAttributes);
         auto replicationFactor = combinedAttributes.GetAndRemove<int>("replication_factor", config->DefaultJournalReplicationFactor);
         auto readQuorum = combinedAttributes.GetAndRemove<int>("read_quorum", config->DefaultJournalReadQuorum);

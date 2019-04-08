@@ -10,7 +10,7 @@ namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressManagerConfig
+class TDynamicCypressManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
@@ -18,22 +18,19 @@ public:
     TDuration StatisticsFlushPeriod;
 
     //! Maximum number of children map and list nodes are allowed to contain.
-    //! NB: Changing these values will invalidate all changelogs!
     int MaxNodeChildCount;
 
     //! Maximum allowed length of string nodes.
-    //! NB: Changing these values will invalidate all changelogs!
     int MaxStringNodeLength;
 
     //! Maximum allowed size of custom attributes for objects (transactions, Cypress nodes etc).
     //! This limit concerns the binary YSON representation of attributes.
-    //! NB: Changing these values will invalidate all changelogs!
     int MaxAttributeSize;
 
     //! Maximum allowed length of keys in map nodes.
     int MaxMapNodeKeyLength;
 
-    // NB: Changing these values will invalidate all changelogs!
+    //! Default replication factors.
     int DefaultFileReplicationFactor;
     int DefaultTableReplicationFactor;
     int DefaultJournalReplicationFactor;
@@ -42,13 +39,12 @@ public:
 
     TDuration ExpirationCheckPeriod;
     int MaxExpiredNodesRemovalsPerCommit;
-    // NB: Changing this value will invalidate all changelogs!
     TDuration ExpirationBackoffTime;
 
     //! Forbids performing set inside Cypress.
     bool ForbidSetCommand;
 
-    TCypressManagerConfig()
+    TDynamicCypressManagerConfig()
     {
         RegisterParameter("statistics_flush_period", StatisticsFlushPeriod)
             .GreaterThan(TDuration())
@@ -101,7 +97,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TCypressManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TDynamicCypressManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

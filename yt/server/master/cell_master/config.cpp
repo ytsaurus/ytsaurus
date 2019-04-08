@@ -39,8 +39,6 @@ TCellMasterConfig::TCellMasterConfig()
         .DefaultNew();
     RegisterParameter("object_service", ObjectService)
         .DefaultNew();
-    RegisterParameter("cypress_manager", CypressManager)
-        .DefaultNew();
     RegisterParameter("tablet_manager", TabletManager)
         .DefaultNew();
     RegisterParameter("replicated_table_tracker", ReplicatedTableTracker)

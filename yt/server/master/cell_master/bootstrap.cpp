@@ -554,7 +554,7 @@ void TBootstrap::DoInitialize()
 
     NodeTracker_ = New<TNodeTracker>(Config_->NodeTracker, this);
 
-    CypressManager_ = New<TCypressManager>(Config_->CypressManager, this);
+    CypressManager_ = New<TCypressManager>(this);
 
     ChunkManager_ = New<TChunkManager>(Config_->ChunkManager, this);
 
