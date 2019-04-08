@@ -6,6 +6,8 @@
 
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
+#include <yt/server/master/cell_master/config_manager.h>
+#include <yt/server/master/cell_master/config.h>
 
 #include <yt/server/master/object_server/object_manager.h>
 
@@ -32,34 +34,31 @@ static const auto& Logger = SecurityServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRequestTracker::TRequestTracker(
-    TSecurityManagerConfigPtr config,
-    NCellMaster::TBootstrap* bootstrap)
-    : Config_(config)
-    , Bootstrap_(bootstrap)
+TRequestTracker::TRequestTracker(NCellMaster::TBootstrap* bootstrap)
+    : Bootstrap_(bootstrap)
 { }
 
 void TRequestTracker::Start()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    const auto& securityManager = Bootstrap_->GetSecurityManager();
-    for (const auto& pair : securityManager->Users()) {
-        auto* user = pair.second;
-        ReconfigureUserRequestRateThrottler(user);
-    }
-
     YCHECK(!FlushExecutor_);
     FlushExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
-        BIND(&TRequestTracker::OnFlush, MakeWeak(this)),
-        Config_->UserStatisticsFlushPeriod);
+        BIND(&TRequestTracker::OnFlush, MakeWeak(this)));
     FlushExecutor_->Start();
+
+    const auto& configManager = Bootstrap_->GetConfigManager();
+    configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
+    OnDynamicConfigChanged();
 }
 
 void TRequestTracker::Stop()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    const auto& configManager = Bootstrap_->GetConfigManager();
+    configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     for (const auto& pair : securityManager->Users()) {
@@ -70,6 +69,7 @@ void TRequestTracker::Stop()
     }
 
     FlushExecutor_.Reset();
+
     Reset();
 }
 
@@ -86,7 +86,10 @@ void TRequestTracker::ChargeUser(
             if (hydraManager->IsLeader()) {
                 DoChargeUser(user, workload);
             } else {
-                user->GetRequestRateThrottler(workload.Type)->Acquire(workload.RequestCount);
+                const auto& throttler = user->GetRequestRateThrottler(workload.Type);
+                if (throttler) {
+                    throttler->Acquire(workload.RequestCount);
+                }
             }
             break;
         }
@@ -134,7 +137,8 @@ void TRequestTracker::DoChargeUser(
 
 TFuture<void> TRequestTracker::ThrottleUserRequest(TUser* user, int requestCount, EUserWorkloadType workloadType)
 {
-    return user->GetRequestRateThrottler(workloadType)->Throttle(requestCount);
+    const auto& throttler = user->GetRequestRateThrottler(workloadType);
+    return throttler ? throttler->Throttle(requestCount) : VoidFuture;
 }
 
 void TRequestTracker::SetUserRequestRateLimit(TUser* user, int limit, EUserWorkloadType type)
@@ -152,7 +156,7 @@ void TRequestTracker::ReconfigureUserRequestRateThrottler(TUser* user)
         }
 
         auto config = New<TThroughputThrottlerConfig>();
-        config->Period = Config_->RequestRateSmoothingPeriod;
+        config->Period = GetDynamicConfig()->RequestRateSmoothingPeriod;
 
         auto requestRateLimit = user->GetRequestRateLimit(workloadType);
         if (workloadType == EUserWorkloadType::Read && totalPeerCount > 0) {
@@ -219,6 +223,29 @@ void TRequestTracker::OnFlush()
     Reset();
 
     Y_UNUSED(WaitFor(asyncResult));
+}
+
+const TDynamicSecurityManagerConfigPtr& TRequestTracker::GetDynamicConfig()
+{
+    const auto& configManager = Bootstrap_->GetConfigManager();
+    return configManager->GetConfig()->SecurityManager;
+}
+
+void TRequestTracker::OnDynamicConfigChanged()
+{
+    ReconfigureUsersThrottlers();
+    FlushExecutor_->SetPeriod(GetDynamicConfig()->UserStatisticsFlushPeriod);
+}
+
+void TRequestTracker::ReconfigureUsersThrottlers()
+{
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    for (const auto& pair : securityManager->Users()) {
+        auto* user = pair.second;
+        if (IsObjectAlive(user)) {
+            ReconfigureUserRequestRateThrottler(user);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

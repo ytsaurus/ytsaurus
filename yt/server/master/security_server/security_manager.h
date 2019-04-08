@@ -102,9 +102,7 @@ class TSecurityManager
     : public ISecurityManager
 {
 public:
-    TSecurityManager(
-        TSecurityManagerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap);
+    explicit TSecurityManager(NCellMaster::TBootstrap* bootstrap);
     virtual ~TSecurityManager() override;
 
     void Initialize();
