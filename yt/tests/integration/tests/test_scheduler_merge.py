@@ -1264,10 +1264,11 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"key": 0}, {"key": 1}])
 
-        with pytest.raises(YtError):
-            merge(in_="<ranges=[{};{}]>//tmp/t1",
-                  out="//tmp/t2",
-                  mode="sorted")
+        merge(in_="<ranges=[{};{}]>//tmp/t1",
+              out="//tmp/t2",
+              mode="sorted")
+
+        assert read_table("//tmp/t2") == [{"key": 0}, {"key": 0}, {"key": 1}, {"key": 1}]
 
 ##################################################################
 

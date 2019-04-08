@@ -321,6 +321,7 @@ protected:
         const auto& oldChunkId = InputCookieToChunkId_[cookie];
         YCHECK(oldChunkId);
         auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+        dataSlice->InputStreamIndex = chunk->GetTableIndex();
         InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
         ChunkPool_->Reset(cookie, New<TChunkStripe>(dataSlice), IdentityChunkMapping);
         InputCookieToChunkId_[cookie] = chunk->ChunkId();
@@ -371,6 +372,17 @@ protected:
             }
         }
         return stripeLists;
+    }
+
+    TChunkStripePtr GetStripeByTableIndex(const TChunkStripeListPtr& stripeList, int tableIndex)
+    {
+        for (auto& stripe : stripeList->Stripes) {
+            if (stripe->DataSlices.front()->GetTableIndex() == tableIndex) {
+                return stripe;
+            }
+        }
+
+        Y_UNREACHABLE();
     }
 
     //! Check that:
@@ -1818,10 +1830,11 @@ TEST_F(TSortedChunkPoolTest, TestJobInterruption)
     auto stripeLists = GetAllStripeLists();
     ASSERT_EQ(stripeLists.size(), 1);
     ASSERT_EQ(ExtractedCookies_.size(), 1);
+
     const auto& stripeList = stripeLists[0];
     std::vector<TInputDataSlicePtr> unreadDataSlices = {
-        CreateInputDataSlice(stripeList->Stripes[0]->DataSlices.front(), BuildRow({13})),
-        CreateInputDataSlice(stripeList->Stripes[1]->DataSlices.front(), BuildRow({14})),
+        CreateInputDataSlice(GetStripeByTableIndex(stripeList, 0)->DataSlices.front(), BuildRow({13})),
+        CreateInputDataSlice(GetStripeByTableIndex(stripeList, 1)->DataSlices.front(), BuildRow({14})),
     };
     TCompletedJobSummary jobSummary;
     jobSummary.InterruptReason = EInterruptReason::Preemption;
@@ -1832,11 +1845,11 @@ TEST_F(TSortedChunkPoolTest, TestJobInterruption)
     ASSERT_EQ(ExtractedCookies_.size(), 2);
     auto newStripeList = ChunkPool_->GetStripeList(ExtractedCookies_.back());
     ASSERT_EQ(newStripeList->Stripes.size(), 3);
-    ASSERT_EQ(newStripeList->Stripes[0]->DataSlices.size(), 1);
-    ASSERT_EQ(newStripeList->Stripes[0]->DataSlices.front()->LowerLimit().Key, BuildRow({13}));
-    ASSERT_EQ(newStripeList->Stripes[1]->DataSlices.size(), 1);
-    ASSERT_EQ(newStripeList->Stripes[1]->DataSlices.front()->LowerLimit().Key, BuildRow({14}));
-    ASSERT_EQ(newStripeList->Stripes[2]->DataSlices.size(), 1);
+    ASSERT_EQ(GetStripeByTableIndex(newStripeList, 0)->DataSlices.size(), 1);
+    ASSERT_EQ(GetStripeByTableIndex(newStripeList, 0)->DataSlices.front()->LowerLimit().Key, BuildRow({13}));
+    ASSERT_EQ(GetStripeByTableIndex(newStripeList, 1)->DataSlices.size(), 1);
+    ASSERT_EQ(GetStripeByTableIndex(newStripeList, 1)->DataSlices.front()->LowerLimit().Key, BuildRow({14}));
+    ASSERT_EQ(GetStripeByTableIndex(newStripeList, 3)->DataSlices.size(), 1);
 }
 
 TEST_F(TSortedChunkPoolTest, TestJobSplitSimple)
@@ -1930,8 +1943,8 @@ TEST_F(TSortedChunkPoolTest, TestJobSplitWithForeign)
     std::vector<TInputDataSlicePtr> unreadSlices;
     unreadSlices.insert(
         unreadSlices.end(),
-        stripeLists[0]->Stripes[0]->DataSlices.begin(),
-        stripeLists[0]->Stripes[0]->DataSlices.end());
+        GetStripeByTableIndex(stripeLists[0], 0)->DataSlices.begin(),
+        GetStripeByTableIndex(stripeLists[0], 0)->DataSlices.end());
     jobSummary.SplitJobCount = 10;
     jobSummary.UnreadInputDataSlices = std::move(unreadSlices);
     ChunkPool_->Completed(*OutputCookies_.begin(), jobSummary);
@@ -1946,7 +1959,7 @@ TEST_F(TSortedChunkPoolTest, TestJobSplitWithForeign)
 
     for (const auto& stripeList : stripeLists) {
         ASSERT_EQ(stripeList->Stripes.size(), 2);
-        ASSERT_LE(stripeList->Stripes[1]->DataSlices.size(), 2);
+        ASSERT_LE(GetStripeByTableIndex(stripeList, 1)->DataSlices.size(), 2);
     }
 }
 
@@ -1995,8 +2008,8 @@ TEST_F(TSortedChunkPoolTest, TestJobSplitStripeSuspension)
     std::vector<TInputDataSlicePtr> unreadSlices;
     unreadSlices.insert(
         unreadSlices.end(),
-        stripeLists[0]->Stripes[0]->DataSlices.begin(),
-        stripeLists[0]->Stripes[0]->DataSlices.end());
+        GetStripeByTableIndex(stripeLists[0], 0)->DataSlices.begin(),
+        GetStripeByTableIndex(stripeLists[0], 0)->DataSlices.end());
     jobSummary.SplitJobCount = 10;
     jobSummary.UnreadInputDataSlices = std::move(unreadSlices);
     ChunkPool_->Completed(*OutputCookies_.begin(), jobSummary);
