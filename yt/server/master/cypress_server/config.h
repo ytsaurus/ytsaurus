@@ -44,6 +44,9 @@ public:
     //! Forbids performing set inside Cypress.
     bool ForbidSetCommand;
 
+    //! Controls if unlock command is enabled.
+    bool EnableUnlockCommand;
+
     TDynamicCypressManagerConfig()
     {
         RegisterParameter("statistics_flush_period", StatisticsFlushPeriod)
@@ -86,6 +89,8 @@ public:
             .Default(TDuration::Seconds(10));
 
         RegisterParameter("forbid_set_command", ForbidSetCommand)
+            .Default(false);
+        RegisterParameter("enable_unlock_command", EnableUnlockCommand)
             .Default(false);
 
         RegisterPostprocessor([&] () {
