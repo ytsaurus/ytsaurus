@@ -83,7 +83,7 @@ def main(args):
 
         with cwd(os.path.join(python_src_copy, "yandex-yt-python-proto")):
             reset_debian_changelog()
-            dch(version=config["yt_rpc_client_protocol_version"],
+            dch(version=config["yt_rpc_proxy_protocol_version"],
                 message="Proto package release.",
                 create_package="yandex-yt-python-proto")
 
