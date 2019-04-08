@@ -511,7 +511,7 @@ class ConfigsProvider_19(ConfigsProvider):
             _set_bind_retry_options(proxy_config)
 
             proxy_config["proxy"]["driver"] = driver_config
-            
+
             proxy_configs.append(proxy_config)
 
         return proxy_configs
@@ -816,6 +816,5 @@ class ConfigsProvider_19_4(ConfigsProvider_19_3):
         return configs, connection_configs
 
 VERSION_TO_CONFIGS_PROVIDER_CLASS = {
-    (19, 3): ConfigsProvider_19_3,
     (19, 4): ConfigsProvider_19_4,
 }
