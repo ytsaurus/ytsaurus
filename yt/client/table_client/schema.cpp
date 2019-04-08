@@ -718,6 +718,22 @@ bool operator==(const TTableSchema& lhs, const TTableSchema& rhs)
         lhs.GetUniqueKeys() == rhs.GetUniqueKeys();
 }
 
+// Compat code for https://st.yandex-team.ru/YT-10668 workaround.
+bool IsEqualIgnoringRequiredness(const TTableSchema& lhs, const TTableSchema& rhs)
+{
+    auto dropRequiredness = [] (const TTableSchema& schema) {
+        std::vector<TColumnSchema> resultColumns;
+        for (auto column : schema.Columns()) {
+            if (column.LogicalType()->GetMetatype() == ELogicalMetatype::Optional) {
+                column.SetLogicalType(column.LogicalType()->AsOptionalTypeRef().GetElement());
+            }
+            resultColumns.emplace_back(column);
+        }
+        return TTableSchema(resultColumns, schema.GetStrict(), schema.GetUniqueKeys());
+    };
+    return dropRequiredness(lhs) == dropRequiredness(rhs);
+}
+
 bool operator!=(const TTableSchema& lhs, const TTableSchema& rhs)
 {
     return !(lhs == rhs);
@@ -751,7 +767,7 @@ void ValidateColumnSchema(
         "max",
         "first"
     };
-
+;
     static const auto allowedSortedTablesSystemColumns = THashMap<TString, EValueType>{
     };
 

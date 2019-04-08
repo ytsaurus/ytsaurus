@@ -1073,7 +1073,14 @@ public:
 
         if (!SchemaChecked_) {
             auto actualSchema = WireReader_->ReadTableSchema();
-            if (Schema_ != actualSchema) {
+
+            //
+            // NB this comparison is compat for YT-10668
+            // This could be replaced with simple `operator==', once all nodes and proxies are updated to have new schema
+            // representation introduced in cec93e9435fc3bbecc02ee5b8fd9ffa0eafc1672
+            //
+            // Guess it will be surely the case after after 01.11.2019
+            if (!IsEqualIgnoringRequiredness(Schema_, actualSchema)) {
                 THROW_ERROR_EXCEPTION("Schema mismatch while parsing wire protocol");
             }
             SchemaChecked_ = true;
