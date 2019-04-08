@@ -105,7 +105,7 @@ protected:
         IAttributeDictionary* explicitAttributes,
         TAccount* account) override
     {
-        const auto& config = this->GetDynamicCypressManagerConfig();
+        const auto& config = Bootstrap_->GetConfig()->CypressManager;
         auto combinedAttributes = OverlayAttributeDictionaries(explicitAttributes, inheritedAttributes);
         auto replicationFactor = combinedAttributes.GetAndRemove("replication_factor", config->DefaultFileReplicationFactor);
         auto compressionCodec = combinedAttributes.GetAndRemove<NCompression::ECodec>("compression_codec", NCompression::ECodec::None);

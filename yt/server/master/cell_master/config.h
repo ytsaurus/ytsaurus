@@ -137,6 +137,8 @@ public:
 
     NTabletServer::TTabletManagerConfigPtr TabletManager;
 
+    NCypressServer::TCypressManagerConfigPtr CypressManager;
+
     NTabletServer::TReplicatedTableTrackerConfigPtr ReplicatedTableTracker;
 
     NTransactionServer::TTimestampManagerConfigPtr TimestampManager;

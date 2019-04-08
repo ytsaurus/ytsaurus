@@ -58,6 +58,7 @@ using TUint64NodeTypeHandler = TScalarNodeTypeHandler<ui64>;
 using TDoubleNodeTypeHandler = TScalarNodeTypeHandler<double>;
 using TBooleanNodeTypeHandler = TScalarNodeTypeHandler<bool>;
 
+DECLARE_REFCOUNTED_CLASS(TCypressManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicCypressManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
