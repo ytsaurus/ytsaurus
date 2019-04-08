@@ -713,9 +713,9 @@ class ConfigsProvider_19(ConfigsProvider):
 
         return configs
 
-class ConfigsProvider_19_3(ConfigsProvider_19):
+class ConfigsProvider_19_4(ConfigsProvider_19):
     def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir):
-        configs, connection_configs = super(ConfigsProvider_19_3, self)._build_master_configs(
+        configs, connection_configs = super(ConfigsProvider_19_4, self)._build_master_configs(
             provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir)
 
         for key, cell_configs in iteritems(configs):
@@ -723,6 +723,20 @@ class ConfigsProvider_19_3(ConfigsProvider_19):
                 continue
 
             for config in cell_configs:
+                tablet_manager_config = config["tablet_manager"]
+
+                multicell_gossip_config = tablet_manager_config.setdefault("multicell_gossip_config", {})
+                if "table_statistics_gossip_period" not in multicell_gossip_config:
+                    multicell_gossip_config["table_statistics_gossip_period"] = 100
+                if "tablet_cell_statistics_gossip_period" not in multicell_gossip_config:
+                    multicell_gossip_config["tablet_cell_statistics_gossip_period"] = 100
+
+                if "tablet_cell_decommissioner" not in tablet_manager_config:
+                    tablet_manager_config["tablet_cell_decommissioner"] = {
+                        "decommission_check_period": 100,
+                        "orphans_check_period": 100,
+                    }
+
                 chunk_manager_config = config["chunk_manager"]
                 if "chunk_properties_update_period" in chunk_manager_config:
                     chunk_manager_config["chunk_requisition_update_period"] = chunk_manager_config["chunk_properties_update_period"]
@@ -732,7 +746,7 @@ class ConfigsProvider_19_3(ConfigsProvider_19):
 
     def _build_scheduler_configs(self, provision, scheduler_dirs, master_connection_configs,
                                  ports_generator, scheduler_logs_dir):
-        configs = super(ConfigsProvider_19_3, self)._build_scheduler_configs(
+        configs = super(ConfigsProvider_19_4, self)._build_scheduler_configs(
             provision, scheduler_dirs, master_connection_configs,
             ports_generator, scheduler_logs_dir)
 
@@ -767,7 +781,7 @@ class ConfigsProvider_19_3(ConfigsProvider_19):
         return configs
 
     def _build_node_configs(self, provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir):
-        configs, addresses = super(ConfigsProvider_19_3, self)._build_node_configs(
+        configs, addresses = super(ConfigsProvider_19_4, self)._build_node_configs(
             provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir)
 
         if hasattr(ports_generator, "local_port_range"):
@@ -789,31 +803,6 @@ class ConfigsProvider_19_3(ConfigsProvider_19):
 
         return configs, addresses
 
-class ConfigsProvider_19_4(ConfigsProvider_19_3):
-    def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir):
-        configs, connection_configs = super(ConfigsProvider_19_4, self)._build_master_configs(
-            provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir)
-
-        for key, cell_configs in iteritems(configs):
-            if key in ["primary_cell_tag", "secondary_cell_tags"]:
-                continue
-
-            for config in cell_configs:
-                tablet_manager_config = config["tablet_manager"]
-
-                multicell_gossip_config = tablet_manager_config.setdefault("multicell_gossip_config", {})
-                if "table_statistics_gossip_period" not in multicell_gossip_config:
-                    multicell_gossip_config["table_statistics_gossip_period"] = 100
-                if "tablet_cell_statistics_gossip_period" not in multicell_gossip_config:
-                    multicell_gossip_config["tablet_cell_statistics_gossip_period"] = 100
-
-                if "tablet_cell_decommissioner" not in tablet_manager_config:
-                    tablet_manager_config["tablet_cell_decommissioner"] = {
-                        "decommission_check_period": 100,
-                        "orphans_check_period": 100,
-                    }
-
-        return configs, connection_configs
 
 VERSION_TO_CONFIGS_PROVIDER_CLASS = {
     (19, 4): ConfigsProvider_19_4,
