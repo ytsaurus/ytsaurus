@@ -661,7 +661,7 @@ public:
     }
 
     // Adds #chunk to accounts' resource usage.
-    void UpdateAccountResourceUsage(const TChunk* chunk, i64 delta, TChunkRequisition* forcedRequisition = nullptr)
+    void UpdateAccountResourceUsage(const TChunk* chunk, i64 delta, const TChunkRequisition* forcedRequisition = nullptr)
     {
         Y_ASSERT(chunk->IsDiskSizeFinal());
 
@@ -898,24 +898,33 @@ public:
             return;
         }
 
-        auto externalRequisitionIndexBefore = chunk->GetExternalRequisitionIndex(cellIndex);
-        auto requisitionBefore = chunk->GetAggregatedRequisition(GetChunkRequisitionRegistry());
-
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        chunk->Unexport(cellIndex, importRefCounter, GetChunkRequisitionRegistry(), objectManager);
+        auto* requisitionRegistry = GetChunkRequisitionRegistry();
 
-        if (externalRequisitionIndexBefore == EmptyChunkRequisitionIndex) {
-            // Unexporting has effectively done nothing from the replication and
+        auto unexportChunk = [&] () {
+            chunk->Unexport(cellIndex, importRefCounter, requisitionRegistry, objectManager);
+        };
+
+        if (chunk->GetExternalRequisitionIndex(cellIndex) == EmptyChunkRequisitionIndex) {
+            // Unexporting will effectively do nothing from the replication and
             // accounting standpoints.
-            return;
-        }
+            unexportChunk();
+        } else {
+            const auto isChunkDiskSizeFinal = chunk->IsDiskSizeFinal();
+            if (isChunkDiskSizeFinal) {
+                const auto& requisitionBefore = chunk->GetAggregatedRequisition(requisitionRegistry);
+                UpdateAccountResourceUsage(chunk, -1, &requisitionBefore);
+                // Don't use the old requisition after unexporting the chunk.
+            }
 
-        if (chunk->IsDiskSizeFinal()) {
-            UpdateAccountResourceUsage(chunk, -1, &requisitionBefore);
-            UpdateAccountResourceUsage(chunk, +1, nullptr);
-        }
+            unexportChunk();
 
-        ScheduleChunkRefresh(chunk);
+            if (isChunkDiskSizeFinal) {
+                UpdateAccountResourceUsage(chunk, +1, nullptr);
+            }
+
+            ScheduleChunkRefresh(chunk);
+        }
     }
 
 
@@ -1762,16 +1771,25 @@ private:
         auto local = request->cell_tag() == Bootstrap_->GetCellTag();
         int cellIndex = local ? -1 : multicellManager->GetRegisteredMasterCellIndex(request->cell_tag());
 
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto* requisitionRegistry = GetChunkRequisitionRegistry();
+
+        auto setChunkRequisitionIndex = [&] (TChunk* chunk, TChunkRequisitionIndex requisitionIndex) {
+            if (local) {
+                chunk->SetLocalRequisitionIndex(requisitionIndex, requisitionRegistry, objectManager);
+            } else {
+                chunk->SetExternalRequisitionIndex(cellIndex, requisitionIndex, requisitionRegistry, objectManager);
+            }
+        };
+
         const auto updates = TranslateChunkRequisitionUpdateRequest(request);
 
         // Below, we ref chunks' new requisitions and unref old ones. Such unreffing may
         // remove a requisition which may happen to be the new requisition of subsequent chunks.
         // To avoid such thrashing, ref everything here and unref it afterwards.
         for (const auto& update : updates) {
-            ChunkRequisitionRegistry_.Ref(update.TranslatedRequisitionIndex);
+            requisitionRegistry->Ref(update.TranslatedRequisitionIndex);
         }
-
-        const auto& objectManager = Bootstrap_->GetObjectManager();
 
         for (const auto& update : updates) {
             auto* chunk = update.Chunk;
@@ -1788,25 +1806,28 @@ private:
                 continue;
             }
 
-            auto requisitionBefore = chunk->IsForeign()
-                ? TChunkRequisition() // Not used.
-                : chunk->GetAggregatedRequisition(GetChunkRequisitionRegistry());
-
-            if (local) {
-                chunk->SetLocalRequisitionIndex(newRequisitionIndex, GetChunkRequisitionRegistry(), objectManager);
-            } else {
-                chunk->SetExternalRequisitionIndex(cellIndex, newRequisitionIndex, GetChunkRequisitionRegistry(), objectManager);
-            }
-
             if (chunk->IsForeign()) {
+                setChunkRequisitionIndex(chunk, newRequisitionIndex);
+
                 Y_ASSERT(local);
                 auto& crossCellRequest = getCrossCellRequest(chunk);
                 auto* crossCellUpdate = crossCellRequest.add_updates();
                 ToProto(crossCellUpdate->mutable_chunk_id(), chunk->GetId());
                 crossCellUpdate->set_chunk_requisition_index(newRequisitionIndex);
             } else {
-                if (chunk->IsDiskSizeFinal()) {
+                const auto isChunkDiskSizeFinal = chunk->IsDiskSizeFinal();
+                if (isChunkDiskSizeFinal) {
+                    // NB: changing chunk's requisition may unreference and destroy the old requisition.
+                    // Worse yet, this may, in turn, weak-unreference some accounts, thus triggering
+                    // destruction of their control blocks (that hold strong and weak counters).
+                    // So be sure to use the old requisition *before* setting the new one.
+                    const auto& requisitionBefore = chunk->GetAggregatedRequisition(requisitionRegistry);
                     UpdateAccountResourceUsage(chunk, -1, &requisitionBefore);
+                }
+
+                setChunkRequisitionIndex(chunk, newRequisitionIndex); // potentially destroys the old requisition
+
+                if (isChunkDiskSizeFinal) {
                     UpdateAccountResourceUsage(chunk, +1, nullptr);
                 }
 
@@ -1817,7 +1838,7 @@ private:
         for (auto& pair : crossCellRequestMap) {
             auto cellTag = pair.first;
             auto& request = pair.second;
-            FillChunkRequisitionDict(&request, ChunkRequisitionRegistry_);
+            FillChunkRequisitionDict(&request, *requisitionRegistry);
             multicellManager->PostToMaster(request, cellTag);
             YT_LOG_DEBUG_UNLESS(IsRecovery(), "Requesting to update requisition of imported chunks (CellTag: %v, Count: %v)",
                 cellTag,
@@ -1825,7 +1846,7 @@ private:
         }
 
         for (const auto& update : updates) {
-            ChunkRequisitionRegistry_.Unref(update.TranslatedRequisitionIndex, objectManager);
+            requisitionRegistry->Unref(update.TranslatedRequisitionIndex, objectManager);
         }
     }
 
