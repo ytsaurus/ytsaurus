@@ -6,7 +6,9 @@ YP_PROTOS="
     yp/client/api/proto/cluster_api.proto
     yp/client/api/proto/pod_agent.proto
     yp/client/api/proto/data_model.proto
+    yp/client/api/proto/deploy.proto
     yp/client/api/proto/enums.proto
+    yp/client/api/proto/environment.proto
     yp/client/api/proto/dynamic_resource.proto
     yp/client/api/proto/discovery_service.proto
     yp/client/api/proto/object_service.proto

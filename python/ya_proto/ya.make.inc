@@ -4,7 +4,9 @@ yp_proto/yp/client/api/proto/conditions.proto
 yp_proto/yp/client/api/proto/cluster_api.proto
 yp_proto/yp/client/api/proto/pod_agent.proto
 yp_proto/yp/client/api/proto/data_model.proto
+yp_proto/yp/client/api/proto/deploy.proto
 yp_proto/yp/client/api/proto/enums.proto
+yp_proto/yp/client/api/proto/environment.proto
 yp_proto/yp/client/api/proto/dynamic_resource.proto
 yp_proto/yp/client/api/proto/discovery_service.proto
 yp_proto/yp/client/api/proto/object_service.proto
