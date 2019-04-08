@@ -41,6 +41,8 @@ DEFINE_REFCOUNTED_TYPE(TLogicalType)
 TString ToString(const TLogicalType& logicalType);
 
 bool operator == (const TLogicalType& lhs, const TLogicalType& rhs);
+bool operator == (const TLogicalTypePtr& lhs, const TLogicalTypePtr& rhs) = delete;
+
 void ValidateAlterType(const TLogicalTypePtr& oldType, const TLogicalTypePtr& newType);
 
 //! Returns true if #lhs type is subtype of #rhs type.
