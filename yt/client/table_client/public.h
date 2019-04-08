@@ -172,6 +172,8 @@ using TColumnRenameDescriptors = std::vector<TColumnRenameDescriptor>;
 
 class TColumnSchema;
 class TTableSchema;
+class TLockMask;
+using TLockBitmap = ui64;
 
 DECLARE_REFCOUNTED_CLASS(TNameTable)
 class TNameTableReader;

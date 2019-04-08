@@ -679,7 +679,7 @@ private:
                         }
                         auto session = Transaction_->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
                         auto command = GetCommand(modification.Type);
-                        session->SubmitRow(command, capturedRow, modification.ReadLocks);
+                        session->SubmitRow(command, capturedRow, modification.Locks);
                         break;
                     }
 
@@ -839,12 +839,12 @@ private:
         void SubmitRow(
             EWireProtocolCommand command,
             TUnversionedRow row,
-            ui32 readLockMask)
+            TLockMask lockMask)
         {
             UnversionedSubmittedRows_.push_back({
                 command,
                 row,
-                readLockMask,
+                lockMask,
                 static_cast<int>(UnversionedSubmittedRows_.size())});
         }
 
@@ -924,7 +924,7 @@ private:
         {
             EWireProtocolCommand Command;
             TUnversionedRow Row;
-            ui32 ReadLocks;
+            TLockMask Locks;
             int SequentialId;
         };
 
@@ -958,7 +958,7 @@ private:
                 auto startIt = it;
                 merger.InitPartialRow(startIt->Row);
 
-                ui32 readLocksMask = 0;
+                TLockMask lockMask;
                 EWireProtocolCommand resultCommand;
 
                 do {
@@ -973,7 +973,7 @@ private:
 
                         case EWireProtocolCommand::ReadLockWriteRow:
                             merger.AddPartialRow(it->Row);
-                            readLocksMask |= it->ReadLocks;
+                            lockMask = MaxMask(lockMask, it->Locks);
                             break;
 
                         default:
@@ -988,13 +988,13 @@ private:
                 if (resultCommand == EWireProtocolCommand::DeleteRow) {
                     mergedRow = merger.BuildDeleteRow();
                 } else {
-                    if (readLocksMask) {
+                    if (lockMask) {
                         resultCommand = EWireProtocolCommand::ReadLockWriteRow;
                     }
                     mergedRow = merger.BuildMergedRow();
                 }
 
-                unversionedMergedRows.push_back({resultCommand, mergedRow, readLocksMask});
+                unversionedMergedRows.push_back({resultCommand, mergedRow, lockMask});
             }
 
             for (const auto& submittedRow : unversionedMergedRows) {
@@ -1024,11 +1024,10 @@ private:
             ++batch->RowCount;
             batch->DataWeight += GetDataWeight(submittedRow.Row);
 
-
             writer.WriteCommand(submittedRow.Command);
 
             if (submittedRow.Command == EWireProtocolCommand::ReadLockWriteRow) {
-                writer.WriteLocks(submittedRow.ReadLocks);
+                writer.WriteLockBitmap(submittedRow.Locks);
             }
 
             writer.WriteUnversionedRow(submittedRow.Row);

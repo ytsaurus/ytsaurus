@@ -2482,12 +2482,22 @@ private:
         std::vector<TRowModification> modifications;
         modifications.reserve(rowsetSize);
         for (size_t index = 0; index < rowsetSize; ++index) {
-            ui32 readLocks = index < request.row_read_locks_size() ? request.row_read_locks(index) : 0;
+            TLockMask lockMask;
+            if (index < request.row_read_locks_size()) {
+                ui32 readLockMask = request.row_read_locks(index);
+                for (int index = 0; index < TLockMask::MaxCount; ++index) {
+                    if (readLockMask & (1u << index)) {
+                        lockMask.Set(index, ELockType::SharedWeak);
+                    }
+                }
+            } else if (index < request.row_locks_size()) {
+                lockMask = TLockMask(request.row_locks(index));
+            }
 
             modifications.push_back({
                 CheckedEnumCast<ERowModificationType>(request.row_modification_types(index)),
                 rowsetRows[index].ToTypeErasedRow(),
-                readLocks
+                lockMask
             });
         }
 

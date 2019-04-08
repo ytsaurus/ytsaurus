@@ -22,8 +22,38 @@ DEFINE_ENUM(ESortOrder,
 )
 
 constexpr int PrimaryLockIndex = 0;
-constexpr ui32 PrimaryLockMask = (1 << PrimaryLockIndex);
-constexpr ui32 AllLocksMask = 0xffffffff;
+
+DEFINE_ENUM(ELockType,
+    ((None)         (0))
+    ((SharedWeak)   (1))
+    ((SharedStrong) (2))
+    ((Exclusive)    (3))
+);
+
+class TLockMask
+{
+public:
+    explicit TLockMask(TLockBitmap value = 0);
+
+    ELockType Get(int index) const;
+    void Set(int index, ELockType lock);
+
+    void Enrich(int columnCount);
+
+    TLockMask& operator = (const TLockMask& other) = default;
+    operator TLockBitmap() const;
+
+    static constexpr int BitsPerType = 2;
+    static constexpr TLockBitmap TypeMask = (1 << BitsPerType) - 1;
+    static constexpr int MaxCount = 8 * sizeof(TLockBitmap) / BitsPerType;
+
+private:
+    TLockBitmap Data_;
+};
+
+static_assert(TEnumTraits<ELockType>::GetMaxValue() <= ELockType((1 << TLockMask::BitsPerType) - 1));
+
+TLockMask MaxMask(TLockMask lhs, TLockMask rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -245,10 +275,11 @@ THashMap<TString, int> GetLocksMapping(
     std::vector<int>* columnIndexToLockIndex = nullptr,
     std::vector<TString>* lockIndexToName = nullptr);
 
-ui32 GetLockMask(
+TLockMask GetLockMask(
     const NTableClient::TTableSchema& schema,
     bool fullAtomicity,
-    const std::vector<TString>& locks);
+    const std::vector<TString>& locks,
+    ELockType lockType = ELockType::SharedWeak);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -297,3 +328,6 @@ struct THash<NYT::NTableClient::TTableSchema>
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define SCHEMA_INL_H_
+#include "schema-inl.h"
+#undef SCHEMA_INL_H_
