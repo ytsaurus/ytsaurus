@@ -840,14 +840,16 @@ def run_sandbox_upload(options, build_context):
 
     cli = sandbox_client.SandboxClient(oauth_token=os.environ["TEAMCITY_SANDBOX_TOKEN"])
     task_description = """
-    YT version: {0}
-    Teamcity build id: {1}
-    Teamcity build type: {2}
-    Teamcity host: {3}
-    Teamcity build type id: {4}
-    Git branch: {5}
-    Git commit: {6}
+    {0}
+    YT version: {1}
+    Teamcity build id: {2}
+    Teamcity build type: {3}
+    Teamcity host: {4}
+    Teamcity build type id: {5}
+    Git branch: {6}
+    Git commit: {7}
     """.format(
+        "[yp] " if options.build_project == "yp" else ""
         build_context["yt_version"],
         options.build_number,
         options.type,
