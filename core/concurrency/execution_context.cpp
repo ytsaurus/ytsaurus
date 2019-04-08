@@ -16,7 +16,7 @@ TExecutionContext::TExecutionContext(
     ITrampoLine* trampoline)
     : ContClosure_{
         trampoline,
-        TMemRegion(static_cast<char*>(stack->GetStack()), stack->GetSize())}
+        TArrayRef(static_cast<char*>(stack->GetStack()), stack->GetSize())}
     , ContContext_(ContClosure_)
 {
 #ifdef CXXABIv1
