@@ -26,11 +26,15 @@ def list_jobs(operation_id,
     set_param(params, "include_runtime", include_runtime)
     set_param(params, "include_archive", include_archive)
     set_param(params, "data_source", data_source)
+
+    timeout = get_config(client)["operation_info_commands_timeout"]
+
     return make_formatted_request(
         "list_jobs",
         params=params,
         format=format,
-        client=client)
+        client=client,
+        timeout=timeout)
 
 def get_job(operation_id, job_id, format=None, client=None):
     """Get job of operation.
@@ -39,7 +43,13 @@ def get_job(operation_id, job_id, format=None, client=None):
     :param str job_id: job id.
     """
     params = {"operation_id": operation_id, "job_id": job_id}
-    return make_formatted_request("get_job", params=params, format=format, client=client)
+    timeout = get_config(client)["operation_info_commands_timeout"]
+    return make_formatted_request(
+        "get_job",
+        params=params,
+        format=format,
+        client=client,
+        timeout=timeout)
 
 def run_job_shell(job_id, timeout=None, command=None, client=None):
     """Runs interactive shell in the job sandbox.

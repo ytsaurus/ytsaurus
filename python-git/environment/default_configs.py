@@ -46,6 +46,7 @@ def get_logging_config(enable_debug_logging=True, enable_structured_logging=Fals
 
     return yson.to_yson_type(config)
 
+# TODO(babenko): drop settings mirrored in get_dynamic_master_config below
 def get_master_config():
     return yson.loads(
 b"""
@@ -122,6 +123,33 @@ b"""
 
     cell_directory_synchronizer = {
         sync_period = 500;
+    };
+}
+""")
+
+def get_dynamic_master_config():
+    return yson.loads(
+b"""
+{
+    chunk_manager = {
+        chunk_refresh_delay = 300;
+        chunk_refresh_period = 10;
+        chunk_properties_update_period = 10;
+    };
+
+    node_tracker = {
+        full_node_states_gossip_period = 1000
+    };
+
+    object_manager = {
+        gc_sweep_period = 10;
+    };
+
+    security_manager = {
+        user_statistics_gossip_period = 150;
+        account_statistics_gossip_period = 150;
+        user_statistics_flush_period = 50;
+        request_rate_smoothing_period = 60000;
     };
 }
 """)

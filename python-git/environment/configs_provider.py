@@ -3,20 +3,7 @@ from .helpers import canonize_uuid
 
 from yt.wrapper.common import MB, GB
 from yt.wrapper.mappings import VerifiedDict
-from yt.common import YtError, get_value
-
-# TODO(asaitgalin): Remove it when new version of yt.wrapper
-# is built and deployed.
-from copy import deepcopy
-from yt.common import update
-try:
-    from yt.common import update_inplace
-except ImportError:
-    update_inplace = update
-    del update
-
-    def update(obj, patch):
-        return update_inplace(deepcopy(obj), patch)
+from yt.common import YtError, get_value, update, update_inplace
 
 from yt.yson import to_yson_type
 
@@ -27,6 +14,7 @@ import random
 import socket
 import abc
 import os
+from copy import deepcopy
 
 """
 TLDR: If you want to support new version of ytserver you should create your own ConfigsProvider
@@ -725,33 +713,6 @@ class ConfigsProvider_19(ConfigsProvider):
 
         return configs
 
-class ConfigsProvider_19_2(ConfigsProvider_19):
-    def _build_scheduler_configs(self, provision, scheduler_dirs, master_connection_configs,
-                                 ports_generator, scheduler_logs_dir):
-        configs = super(ConfigsProvider_19_2, self)._build_scheduler_configs(
-            provision, scheduler_dirs, master_connection_configs,
-            ports_generator, scheduler_logs_dir)
-
-        for config in configs:
-            set_at(config, "scheduler/environment", {"PYTHONUSERBASE": "/tmp"})
-            set_at(config, "scheduler/testing_options/enable_snapshot_cycle_after_materialization", True)
-            set_at(config, "scheduler/snapshot_timeout", 1000)
-            set_at(config, "scheduler/enable_snapshot_loading", True)
-            set_at(config, "scheduler/snapshot_period", 100000000)
-            set_at(config, "scheduler/transactions_refresh_period", 500)
-            set_at(config, "scheduler/update_exec_node_descriptors_period", 100)
-            set_at(config, "scheduler/safe_scheduler_online_time", 5000)
-            set_at(config, "scheduler/exec_nodes_request_period", 100)
-            set_at(config, "scheduler/node_directory_synchronizer/sync_period", 100)
-
-            set_at(
-                config,
-                "scheduler/operation_options/spec_template",
-                {"max_failed_job_count": 10, "locality_timeout": 100},
-                merge=True)
-
-        return configs
-
 class ConfigsProvider_19_3(ConfigsProvider_19):
     def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir):
         configs, connection_configs = super(ConfigsProvider_19_3, self)._build_master_configs(
@@ -855,7 +816,6 @@ class ConfigsProvider_19_4(ConfigsProvider_19_3):
         return configs, connection_configs
 
 VERSION_TO_CONFIGS_PROVIDER_CLASS = {
-    (19, 2): ConfigsProvider_19_2,
     (19, 3): ConfigsProvider_19_3,
     (19, 4): ConfigsProvider_19_4,
 }
