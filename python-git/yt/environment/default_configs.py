@@ -154,6 +154,8 @@ b"""
 
     cypress_manager = {
         statistics_flush_period = 50;
+        expiration_check_period = 100;
+        expiration_backoff_time = 100;
         enable_unlock_command = %true;
     };
 }
