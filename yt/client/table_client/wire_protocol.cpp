@@ -73,9 +73,9 @@ public:
         WriteUint64(static_cast<unsigned int>(command));
     }
 
-    void WriteLocks(ui32 lockMask)
+    void WriteLockBitmap(TLockBitmap lockBitmap)
     {
-        WriteUint64(lockMask);
+        WriteUint64(lockBitmap);
     }
 
     void WriteTableSchema(const TTableSchema& schema)
@@ -487,9 +487,9 @@ void TWireProtocolWriter::WriteCommand(EWireProtocolCommand command)
     Impl_->WriteCommand(command);
 }
 
-void TWireProtocolWriter::WriteLocks(ui32 lockMask)
+void TWireProtocolWriter::WriteLockBitmap(TLockBitmap lockBitmap)
 {
-    Impl_->WriteLocks(lockMask);
+    Impl_->WriteLockBitmap(lockBitmap);
 }
 
 void TWireProtocolWriter::WriteTableSchema(const TTableSchema& schema)
@@ -602,7 +602,7 @@ public:
         return EWireProtocolCommand(ReadUint64());
     }
 
-    ui32 ReadLocks()
+    TLockBitmap ReadLockBitmap()
     {
         return ReadUint64();
     }
@@ -946,9 +946,9 @@ EWireProtocolCommand TWireProtocolReader::ReadCommand()
     return Impl_->ReadCommand();
 }
 
-ui32 TWireProtocolReader::ReadLocks()
+TLockBitmap TWireProtocolReader::ReadLockBitmap()
 {
-    return Impl_->ReadLocks();
+    return Impl_->ReadLockBitmap();
 }
 
 TTableSchema TWireProtocolReader::ReadTableSchema()

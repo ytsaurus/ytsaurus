@@ -307,6 +307,7 @@ private:
     NYTree::INodePtr TableWriter;
     NYPath::TRichYPath Path;
     std::vector<TString> Locks;
+    NTableClient::ELockType LockType;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };

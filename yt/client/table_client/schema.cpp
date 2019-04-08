@@ -20,6 +20,17 @@ using namespace NTabletClient;
 using NYT::ToProto;
 using NYT::FromProto;
 
+/////////////////////////////////////////////////////////////////////////////
+
+TLockMask MaxMask(TLockMask lhs, TLockMask rhs)
+{
+    TLockMask result;
+    for (int index = 0; index < TLockMask::MaxCount; ++index) {
+        result.Set(index, std::max(lhs.Get(index), rhs.Get(index)));
+    }
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TColumnSchema::TColumnSchema()
@@ -1032,20 +1043,21 @@ THashMap<TString, int> GetLocksMapping(
     return groupToIndex;
 }
 
-ui32 GetLockMask(
+TLockMask GetLockMask(
     const NTableClient::TTableSchema& schema,
     bool fullAtomicity,
-    const std::vector<TString>& locks)
+    const std::vector<TString>& locks,
+    ELockType lockType)
 {
     THashMap<TString, int> groupToIndex = GetLocksMapping(
         schema,
         fullAtomicity);
 
-    ui32 lockMask = 0;
+    TLockMask lockMask;
     for (const auto& lock : locks) {
         auto it = groupToIndex.find(lock);
         if (it != groupToIndex.end()) {
-            lockMask |= 1U << it->second;
+            lockMask.Set(it->second, lockType);
         } else {
             THROW_ERROR_EXCEPTION("Lock group %Qv not found in schema", lock);
         }

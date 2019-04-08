@@ -63,7 +63,7 @@ public:
     //! less that #timestamp. If so, raises |RowBlocked| signal and loops.
     void WaitOnBlockedRow(
         TSortedDynamicRow row,
-        ui32 lockMask,
+        TLockMask lockMask,
         TTimestamp timestamp);
 
     //! Modifies (writes or deletes) a row.
@@ -82,15 +82,8 @@ public:
      */
     TSortedDynamicRow ModifyRow(
         NTableClient::TUnversionedRow row,
-        ui32 readLockMask,
-        ui32 writeLockMask,
-        NApi::ERowModificationType modificationType,
-        TWriteContext* context);
-
-    TSortedDynamicRow ModifyRow(
-        NTableClient::TUnversionedRow row,
-        ui32 writeLockMask,
-        NApi::ERowModificationType modificationType,
+        TLockMask lockMask,
+        bool isDelete,
         TWriteContext* context);
 
     //! Writes a versioned row into the store.
@@ -101,16 +94,17 @@ public:
         NTableClient::TVersionedRow row,
         TWriteContext* context);
 
-    TSortedDynamicRow MigrateRow(TTransaction* transaction, TSortedDynamicRow row, ui32 readLockMask);
+    TSortedDynamicRow MigrateRow(TTransaction* transaction, TSortedDynamicRow row, TLockMask readLockMask);
     void PrepareRow(TTransaction* transaction, TSortedDynamicRow row);
-    void CommitRow(TTransaction* transaction, TSortedDynamicRow row, ui32 readLockMask);
-    void AbortRow(TTransaction* transaction, TSortedDynamicRow row, ui32 readLockMask);
+    void CommitRow(TTransaction* transaction, TSortedDynamicRow row, TLockMask readLockMask);
+    void AbortRow(TTransaction* transaction, TSortedDynamicRow row, TLockMask readLockMask);
 
     // The following functions are made public for unit-testing.
     TSortedDynamicRow FindRow(NTableClient::TUnversionedRow key);
     std::vector<TSortedDynamicRow> GetAllRows();
     Y_FORCE_INLINE TTimestamp TimestampFromRevision(ui32 revision) const;
-    TTimestamp GetLastCommitTimestamp(TSortedDynamicRow row, int lockIndex);
+    TTimestamp GetLastWriteTimestamp(TSortedDynamicRow row, int lockIndex);
+    TTimestamp GetLastReadTimestamp(TSortedDynamicRow row, int lockIndex);
 
     // IStore implementation.
     virtual EStoreType GetType() const override;
@@ -147,8 +141,7 @@ public:
     virtual TError CheckRowLocks(
         TUnversionedRow row,
         TTransaction* transaction,
-        ui32 readLockMask,
-        ui32 writeLockMask) override;
+        TLockMask lockMask) override;
 
     virtual void Save(TSaveContext& context) const override;
     virtual void Load(TLoadContext& context) override;
@@ -192,23 +185,21 @@ private:
     TRowBlockedHandler GetRowBlockedHandler();
     int GetBlockingLockIndex(
         TSortedDynamicRow row,
-        ui32 lockMask,
+        TLockMask lockMask,
         TTimestamp timestamp);
     bool CheckRowBlocking(
         TSortedDynamicRow row,
-        ui32 lockMask,
+        TLockMask lockMask,
         TWriteContext* context);
 
     TError CheckRowLocks(
         TSortedDynamicRow row,
         TTransaction* transaction,
-        ui32 readLockMask,
-        ui32 writeLockMask);
+        TLockMask lockMask);
     void AcquireRowLocks(
         TSortedDynamicRow row,
-        ui32 readLockMask,
-        ui32 writeLockMask,
-        NApi::ERowModificationType modificationType,
+        TLockMask lockMask,
+        bool isDelete,
         TWriteContext* context);
 
     TValueList PrepareFixedValue(TSortedDynamicRow row, int index);

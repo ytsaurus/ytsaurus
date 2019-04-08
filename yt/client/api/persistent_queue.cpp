@@ -1030,7 +1030,8 @@ TFuture<void> UpdatePersistentQueueTabletsState(
                 rowToDelete[1] = MakeUnversionedInt64Value(rowIndex, nameTableRowIndexColumnId);
                 modifications.push_back(TRowModification{
                     ERowModificationType::Delete,
-                    rowToDelete.ToTypeErasedRow()
+                    rowToDelete.ToTypeErasedRow(),
+                    TLockMask()
                 });
             }
 
@@ -1045,7 +1046,8 @@ TFuture<void> UpdatePersistentQueueTabletsState(
                     rowToWrite[2] = MakeUnversionedInt64Value(static_cast<i64>(ERowState::ConsumedAndTrimmed), nameTableStateColumnId);
                     modifications.push_back(TRowModification{
                         ERowModificationType::Write,
-                        rowToWrite.ToTypeErasedRow()
+                        rowToWrite.ToTypeErasedRow(),
+                        TLockMask()
                     });
                 }
             }
