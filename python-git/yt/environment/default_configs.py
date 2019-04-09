@@ -158,6 +158,10 @@ b"""
         expiration_backoff_time = 100;
         enable_unlock_command = %true;
     };
+
+    multicell_manager = {
+        cell_statistics_gossip_period = 80;
+    };
 }
 """)
 
