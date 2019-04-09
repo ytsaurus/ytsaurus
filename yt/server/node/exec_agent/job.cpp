@@ -103,11 +103,10 @@ public:
         , StartTime_(TInstant::Now())
         , TrafficMeter_(New<TTrafficMeter>(
             Bootstrap_->GetMasterConnector()->GetLocalDescriptor().GetDataCenter()))
+        , JobSpec_(std::move(jobSpec))
         , ResourceUsage_(resourceUsage)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        JobSpec_.Swap(&jobSpec);
 
         TrafficMeter_->Start();
 
@@ -560,7 +559,9 @@ public:
     virtual void ReportStatistics(TJobStatistics&& statistics) override
     {
         Bootstrap_->GetStatisticsReporter()->ReportStatistics(
-            std::move(statistics).OperationId(GetOperationId()).JobId(GetId()));
+            std::move(statistics)
+                .OperationId(GetOperationId())
+                .JobId(GetId()));
     }
 
     virtual void ReportSpec() override
@@ -571,30 +572,23 @@ public:
 
     virtual void ReportStderr() override
     {
-        ReportStatistics(
-            TJobStatistics()
-                .Stderr(GetStderr()));
+        ReportStatistics(TJobStatistics()
+            .Stderr(GetStderr()));
     }
 
     virtual void ReportFailContext() override
     {
-        auto failContext = GetFailContext();
-
-        if (failContext) {
-            ReportStatistics(
-                TJobStatistics()
-                    .FailContext(*failContext));
+        if (auto failContext = GetFailContext()) {
+            ReportStatistics(TJobStatistics()
+                .FailContext(*failContext));
         }
     }
 
     virtual void ReportProfile() override
     {
-        auto profile = GetProfile();
-
-        if (profile) {
-            ReportStatistics(
-                TJobStatistics()
-                    .Profile(*profile));
+        if (auto profile = GetProfile()) {
+            ReportStatistics(TJobStatistics()
+                .Profile(*profile));
         }
     }
 
@@ -1128,7 +1122,8 @@ private:
             }
 
             if (attempt >= Config_->NodeDirectoryPrepareRetryCount) {
-                YT_LOG_WARNING("Some node ids were not resolved, skipping corresponding replicas (UnresolvedNodeId: %v)", *unresolvedNodeId);
+                YT_LOG_WARNING("Some node ids were not resolved, skipping corresponding replicas (UnresolvedNodeId: %v)",
+                    *unresolvedNodeId);
                 break;
             }
 
