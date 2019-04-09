@@ -92,19 +92,31 @@ public:
     //! Applies to follower-to-leader forwarding and cross-cell interactions.
     TMasterConnectionConfigPtr MasterConnection;
 
-    TDuration CellStatisticsGossipPeriod;
-
     TMulticellManagerConfig()
     {
         RegisterParameter("master_connection", MasterConnection)
             .DefaultNew();
+    }
+};
 
+DEFINE_REFCOUNTED_TYPE(TMulticellManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicMulticellManagerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration CellStatisticsGossipPeriod;
+
+    TDynamicMulticellManagerConfig()
+    {
         RegisterParameter("cell_statistics_gossip_period", CellStatisticsGossipPeriod)
             .Default(TDuration::Seconds(1));
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TMulticellManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TDynamicMulticellManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -174,6 +186,7 @@ public:
     NObjectServer::TDynamicObjectManagerConfigPtr ObjectManager;
     NSecurityServer::TDynamicSecurityManagerConfigPtr SecurityManager;
     NCypressServer::TDynamicCypressManagerConfigPtr CypressManager;
+    TDynamicMulticellManagerConfigPtr MulticellManager;
 
     TDynamicClusterConfig()
     {
@@ -190,6 +203,8 @@ public:
         RegisterParameter("security_manager", SecurityManager)
             .DefaultNew();
         RegisterParameter("cypress_manager", CypressManager)
+            .DefaultNew();
+        RegisterParameter("multicell_manager", MulticellManager)
             .DefaultNew();
     }
 };

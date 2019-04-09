@@ -604,6 +604,7 @@ void TBootstrap::DoInitialize()
     CypressManager_->Initialize();
     ChunkManager_->Initialize();
     TabletManager_->Initialize();
+    MulticellManager_->Initialize();
 
     CellDirectorySynchronizer_ = New<NHiveServer::TCellDirectorySynchronizer>(
         Config_->CellDirectorySynchronizer,
