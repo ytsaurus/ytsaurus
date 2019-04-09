@@ -60,7 +60,7 @@ using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = JobTrackerServerLogger;
+static const auto& Logger = JobAgentServerLogger;
 static const auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -128,6 +128,7 @@ private:
     std::optional<TInstant> UserMemoryOverdraftInstant_;
     std::optional<TInstant> CpuOverdraftInstant_;
 
+    TProfiler Profiler_;
     TProfiler ResourceLimitsProfiler_;
     TProfiler ResourceUsageProfiler_;
     TEnumIndexedVector<TTagId, EJobOrigin> JobOriginToTag_;
@@ -224,8 +225,9 @@ TJobController::TImpl::TImpl(
     : Config_(std::move(config))
     , Bootstrap_(bootstrap)
     , StatisticsThrottler_(CreateReconfigurableThroughputThrottler(Config_->StatisticsThrottler))
-    , ResourceLimitsProfiler_(Profiler.AppendPath("/resource_limits"))
-    , ResourceUsageProfiler_(Profiler.AppendPath("/resource_usage"))
+    , Profiler_("/job_controller")
+    , ResourceLimitsProfiler_(Profiler_.AppendPath("/resource_limits"))
+    , ResourceUsageProfiler_(Profiler_.AppendPath("/resource_usage"))
 {
     YCHECK(Config_);
     YCHECK(Bootstrap_);
@@ -509,7 +511,7 @@ void TJobController::TImpl::StartWaitingJobs()
         if (job->GetState() != EJobState::Waiting)
             continue;
 
-        NLogging::TLogger jobLogger = JobTrackerServerLogger;
+        auto jobLogger = JobAgentServerLogger;
         jobLogger.AddTag("JobId: %v", job->GetId());
 
         const auto& Logger = jobLogger;
@@ -1188,7 +1190,7 @@ void TJobController::TImpl::OnProfiling()
 {
     auto jobs = GetJobsByOrigin();
     for (auto origin : TEnumTraits<EJobOrigin>::GetDomainValues()) {
-        Profiler.Enqueue("/active_job_count", jobs[origin].size(), EMetricType::Gauge, {JobOriginToTag_[origin]});
+        Profiler_.Enqueue("/active_job_count", jobs[origin].size(), EMetricType::Gauge, {JobOriginToTag_[origin]});
     }
     ProfileResources(ResourceUsageProfiler_, GetResourceUsage());
     ProfileResources(ResourceLimitsProfiler_, GetResourceLimits());
