@@ -2,7 +2,7 @@
 
 #include <yt/server/lib/exec_agent/config.h>
 
-#include <yt/server/node/job_agent/gpu_manager.h>
+#include <yt/server/lib/job_agent/gpu_helpers.h>
 
 #include <yt/ytlib/job_proxy/private.h>
 
@@ -600,11 +600,11 @@ public:
             instance->SetRoot(*RootFS_);
         }
 
-        auto manager = New<TGpuManager>();
         std::vector<TDevice> devices;
-        for (const auto& device : manager->ListGpuDevices()) {
-            if (std::find(GpuDevices_.begin(), GpuDevices_.end(), device) == GpuDevices_.end()) {
-                devices.emplace_back(TDevice{device, false});
+        for (const auto& descriptor : ListGpuDevices()) {
+            const auto& deviceName = descriptor.DeviceName;
+            if (std::find(GpuDevices_.begin(), GpuDevices_.end(), deviceName) == GpuDevices_.end()) {
+                devices.emplace_back(TDevice{deviceName, false});
             }
         }
 
