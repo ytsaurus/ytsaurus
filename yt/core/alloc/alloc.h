@@ -1,7 +1,7 @@
 #pragma once
 
-#include <yt/core/misc/public.h>
 #include <yt/core/misc/enum.h>
+#include <yt/core/misc/small_vector.h>
 
 namespace NYT::NYTAlloc {
 
@@ -147,6 +147,19 @@ TEnumIndexedVector<ssize_t, ESystemCounter> GetSystemCounters();
 
 // Builds a string containing some brief allocation statistics.
 TString FormatCounters();
+
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr int MaxAllocationProfilingBacktraceDepth = 16;
+using TBacktrace = SmallVector<void*, MaxAllocationProfilingBacktraceDepth>;
+
+struct TProfiledAllocation
+{
+    TBacktrace Backtrace;
+    TEnumIndexedVector<ssize_t, EBasicCounter> Counters;
+};
+
+std::vector<TProfiledAllocation> GetProfiledAllocationStatistics();
 
 ////////////////////////////////////////////////////////////////////////////////
 
