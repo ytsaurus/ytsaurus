@@ -1241,12 +1241,6 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
 
     const auto& autoMergeSpec = Spec_->AutoMerge;
     auto mode = autoMergeSpec->Mode;
-    if (outputChunkCountEstimate <= 1) {
-        YT_LOG_INFO("Output chunk count estimate does not exceed 1, force disabling auto merge "
-            "(OutputChunkCountEstimate: %v)",
-            outputChunkCountEstimate);
-        return false;
-    }
 
     if (mode == EAutoMergeMode::Disabled) {
         return false;
