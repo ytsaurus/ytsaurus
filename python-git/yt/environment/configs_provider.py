@@ -93,7 +93,8 @@ _default_provision = {
         },
         "memory_limit_addition": None,
         "chunk_store_quota": None,
-        "allow_chunk_storage_in_tmpfs": False
+        "allow_chunk_storage_in_tmpfs": False,
+        "port_set_size": None,
     },
     "http_proxy": {
         "enable": False,
@@ -798,8 +799,12 @@ class ConfigsProvider_19_4(ConfigsProvider_19):
             port_start = USER_PORT_START + (index * (USER_PORT_END - USER_PORT_START)) // node_count
             port_end = USER_PORT_START + ((index + 1) * (USER_PORT_END - USER_PORT_START)) // node_count
 
-            set_at(config, "exec_agent/job_controller/start_port", port_start)
-            set_at(config, "exec_agent/job_controller/port_count", port_end - port_start)
+            if provision["node"]["port_set_size"] is None:
+                set_at(config, "exec_agent/job_controller/start_port", port_start)
+                set_at(config, "exec_agent/job_controller/port_count", port_end - port_start)
+            else:
+                ports = [next(ports_generator) for _ in xrange(provision["node"]["port_set_size"])]
+                set_at(config, "exec_agent/job_controller/port_set", ports)
 
         return configs, addresses
 
