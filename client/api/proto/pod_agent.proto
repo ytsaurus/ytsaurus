@@ -257,10 +257,9 @@ message TTimeLimit {
     uint64 initial_delay_ms = 1;
     uint64 restart_period_scale_ms = 2;
     uint64 restart_period_back_off = 3;
-    // Следующие поля должны быть > 0
-    uint64 max_restart_period_ms = 4;
-    uint64 min_restart_period_ms = 5;
-    uint64 max_execution_time_ms = 6;
+    uint64 max_restart_period_ms = 4; // treat 0 as 18446744073709551615 (UINT64_MAX)
+    uint64 min_restart_period_ms = 5; // treat 0 as 30000
+    uint64 max_execution_time_ms = 6; // treat 0 as 1800000
 }
 
 message TTimeLimitStatus {
