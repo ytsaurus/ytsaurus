@@ -1214,21 +1214,23 @@ public:
         }
     }
 
-    void ValidateUserAccess(TUser* user)
+    TError CheckUserAccess(TUser* user)
     {
         if (user->GetBanned()) {
-            THROW_ERROR_EXCEPTION(
+            return TError(
                 NSecurityClient::EErrorCode::UserBanned,
                 "User %Qv is banned",
                 user->GetName());
         }
 
         if (user == GetOwnerUser()) {
-            THROW_ERROR_EXCEPTION(
+            return TError(
                 NSecurityClient::EErrorCode::AuthenticationError,
                 "Cannot authenticate as %Qv",
                 user->GetName());
         }
+
+        return {};
     }
 
 
@@ -3027,9 +3029,9 @@ void TSecurityManager::SetUserBanned(TUser* user, bool banned)
     Impl_->SetUserBanned(user, banned);
 }
 
-void TSecurityManager::ValidateUserAccess(TUser* user)
+TError TSecurityManager::CheckUserAccess(TUser* user)
 {
-    Impl_->ValidateUserAccess(user);
+    return Impl_->CheckUserAccess(user);
 }
 
 void TSecurityManager::ChargeUser(TUser* user, const TUserWorkload& workload)
