@@ -846,8 +846,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert get("#{0}/@tablets/0/current_replication_row_index".format(replica_id)) == 0
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}], require_sync_replica=False)
-        sleep(1.0)
-        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test", "value2": 123}]
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test", "value2": 123}])
 
         sync_unmount_table("//tmp/t")
 
