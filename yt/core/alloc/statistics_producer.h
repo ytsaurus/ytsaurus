@@ -1,16 +1,15 @@
-// Support build without YTAlloc
-
 #pragma once
+
+#include "yt/core/misc/ref_counted_tracker.h"
+
+#include <yt/core/yson/public.h>
 
 namespace NYT::NYTAlloc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void* Allocate(size_t size);
-void Free(void* ptr);
-size_t GetAllocationSize(void* ptr);
+NYson::TYsonProducer CreateYTAllocStatisticsProducer();
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTAlloc
-
