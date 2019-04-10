@@ -36,7 +36,7 @@ TString ToString(const TLogicalType& logicalType)
 
     switch (logicalType.GetMetatype()) {
         case ELogicalMetatype::Simple:
-            return ToString(logicalType.AsSimpleTypeRef().GetElement());
+            return CamelCaseToUnderscoreCase(ToString(logicalType.AsSimpleTypeRef().GetElement()));
         case ELogicalMetatype::Optional:
             return Format("optional<%v>", *logicalType.AsOptionalTypeRef().GetElement());
     }
