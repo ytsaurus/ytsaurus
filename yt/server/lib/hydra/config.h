@@ -264,6 +264,10 @@ public:
     //! sufficiently high to proceed with applying mutations.
     TDuration ChangelogQuorumCheckRetryPeriod;
 
+    //! If mutation logging remains suspended for this period of time,
+    //! Hydra restarts.
+    TDuration MutationLoggingSuspensionTimeout;
+
     TDistributedHydraManagerConfig()
     {
         RegisterParameter("control_rpc_timeout", ControlRpcTimeout)
@@ -328,6 +332,9 @@ public:
 
         RegisterParameter("changelog_quorum_check_retry_period", ChangelogQuorumCheckRetryPeriod)
             .Default(TDuration::Seconds(1));
+
+        RegisterParameter("mutation_logging_suspension_timeout", MutationLoggingSuspensionTimeout)
+            .Default(TDuration::Seconds(60));
 
         RegisterPostprocessor([&] () {
             if (!DisableLeaderLeaseGraceDelay && LeaderLeaseGraceDelay <= LeaderLeaseTimeout) {

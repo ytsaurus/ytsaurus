@@ -1060,6 +1060,15 @@ private:
         Restart(AutomatonEpochContext_, wrappedError);
     }
 
+    void OnLoggingFailed(const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto wrappedError = TError("Error logging mutations")
+            << error;
+        Restart(AutomatonEpochContext_, wrappedError);
+    }
+
     void OnLeaderLeaseLost(TEpochId epochId, const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -1146,6 +1155,8 @@ private:
             BIND(&TDistributedHydraManager::OnCheckpointNeeded, MakeWeak(this)));
         epochContext->LeaderCommitter->SubscribeCommitFailed(
             BIND(&TDistributedHydraManager::OnCommitFailed, MakeWeak(this)));
+        epochContext->LeaderCommitter->SubscribeLoggingFailed(
+            BIND(&TDistributedHydraManager::OnLoggingFailed, MakeWeak(this)));
 
         epochContext->Checkpointer = New<TCheckpointer>(
             Config_,
@@ -1289,6 +1300,8 @@ private:
             CellManager_,
             DecoratedAutomaton_,
             epochContext.Get());
+        epochContext->FollowerCommitter->SubscribeLoggingFailed(
+            BIND(&TDistributedHydraManager::OnLoggingFailed, MakeWeak(this)));
 
         SwitchTo(DecoratedAutomaton_->GetSystemInvoker());
         VERIFY_THREAD_AFFINITY(AutomatonThread);
