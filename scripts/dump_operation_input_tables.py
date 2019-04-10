@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 import yt.wrapper as yt
 import yt.wrapper.yson as yson
 import copy
