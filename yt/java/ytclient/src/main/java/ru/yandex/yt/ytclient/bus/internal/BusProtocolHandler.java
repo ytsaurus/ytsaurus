@@ -72,7 +72,7 @@ public class BusProtocolHandler extends ChannelDuplexHandler {
         try {
             try {
                 try {
-                    logger.error("Unhandled exception", cause);
+                    logger.debug("Unhandled exception", cause);
                     abortDelivery(cause);
                 } finally {
                     wrappedListener.onException(bus, cause);
