@@ -604,7 +604,7 @@ public:
     }
 };
 
-// Holds TYAlloc control knobs.
+// Holds YTAlloc control knobs.
 // Thread safe.
 class TConfigurationManager
 {
@@ -926,10 +926,6 @@ TBox<TTimingManager> TimingManager;
 ////////////////////////////////////////////////////////////////////////////////
 
 // Used to log statistics about long-running syscalls and lock acquisitions.
-// Maintains recursion depth and execution stats in TLS.
-// Recursion depth counter ensures that logging only happens
-// when the topmost guard is being destroyed and thus YTAlloc does not invoke itself in
-// an unexpected way.
 class TTimingGuard
     : public TNonCopyable
 {
