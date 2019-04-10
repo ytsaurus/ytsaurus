@@ -619,7 +619,7 @@ void TBootstrap::DoInitialize()
     MonitoringManager_ = New<TMonitoringManager>();
     MonitoringManager_->Register(
         "/yt_alloc",
-        NYTAlloc::CreateYTAllocStatisticsProducer());
+        NYTAlloc::CreateStatisticsProducer());
     MonitoringManager_->Register(
         "/ref_counted",
         CreateRefCountedTrackerStatisticsProducer());
