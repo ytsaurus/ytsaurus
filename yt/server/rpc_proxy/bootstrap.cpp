@@ -141,7 +141,7 @@ void TBootstrap::DoRun()
     MonitoringManager_ = New<TMonitoringManager>();
     MonitoringManager_->Register(
         "/yt_alloc",
-        CreateYTAllocStatisticsProducer());
+        NYTAlloc::CreateStatisticsProducer());
     MonitoringManager_->Register(
         "/ref_counted",
         CreateRefCountedTrackerStatisticsProducer());

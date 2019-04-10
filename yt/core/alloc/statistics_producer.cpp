@@ -13,7 +13,7 @@ using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonProducer CreateYTAllocStatisticsProducer()
+TYsonProducer CreateStatisticsProducer()
 {
     return BIND([] (IYsonConsumer* consumer) {
         auto statistics = GetProfiledAllocationStatistics();
