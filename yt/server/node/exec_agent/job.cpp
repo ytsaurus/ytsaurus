@@ -175,11 +175,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO(error, "Job abort requested (Phase: %v)", JobPhase_);
+        YT_LOG_INFO(error, "Job abort requested (Phase: %v)",
+            JobPhase_);
 
         switch (JobPhase_) {
             case EJobPhase::Created:
-            case EJobPhase::PreparingNodeDirectory:
             case EJobPhase::DownloadingArtifacts:
             case EJobPhase::Running:
                 SetJobStatePhase(EJobState::Aborting, EJobPhase::WaitingAbort);
@@ -193,6 +193,7 @@ public:
 
                 break;
 
+            case EJobPhase::PreparingNodeDirectory:
             case EJobPhase::PreparingSandboxDirectories:
             case EJobPhase::PreparingArtifacts:
             case EJobPhase::PreparingRootVolume:
@@ -204,7 +205,9 @@ public:
                 break;
 
             default:
-                YT_LOG_DEBUG("Cannot abort job (JobState: %v, JobPhase: %v)", JobState_, JobPhase_);
+                YT_LOG_DEBUG("Cannot abort job (JobState: %v, JobPhase: %v)",
+                    JobState_,
+                    JobPhase_);
                 break;
         }
     }
