@@ -19,7 +19,7 @@ TReaderWriterSpinLock& ForkLock()
 
 void TForkAwareSpinLock::Acquire() noexcept
 {
-    ForkLock().AcquireReader();
+    ForkLock().AcquireReaderForkFriendly();
     SpinLock_.Acquire();
 }
 
