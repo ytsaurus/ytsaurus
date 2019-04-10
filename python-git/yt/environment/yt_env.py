@@ -168,7 +168,8 @@ class YTInstance(object):
                  node_count=1, defer_node_start=False, scheduler_count=1, controller_agent_count=None,
                  http_proxy_count=0, http_proxy_ports=None, rpc_proxy_count=None, cell_tag=0, skynet_manager_count=0,
                  enable_debug_logging=True, preserve_working_dir=False, tmpfs_path=None,
-                 port_locks_path=None, local_port_range=None, port_range_start=None, fqdn=None, jobs_resource_limits=None, jobs_memory_limit=None,
+                 port_locks_path=None, local_port_range=None, port_range_start=None, node_port_set_size=None,
+                 fqdn=None, jobs_resource_limits=None, jobs_memory_limit=None,
                  jobs_cpu_limit=None, jobs_user_slot_count=None, node_memory_limit_addition=None,
                  node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=False, modify_configs_func=None,
                  kill_child_processes=False, use_porto_for_servers=False, watcher_config=None,
@@ -299,7 +300,7 @@ class YTInstance(object):
         self.watcher_config = watcher_config
 
         self._prepare_environment(jobs_resource_limits, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
-                                  node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start,
+                                  node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start, node_port_set_size,
                                   enable_master_cache, modify_configs_func, enable_structured_master_logging)
 
     def _get_ports_generator(self, port_range_start):
@@ -378,7 +379,7 @@ class YTInstance(object):
                 "skynet_manager": skynet_manager_dirs}
 
     def _prepare_environment(self, jobs_resource_limits, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
-                             node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start,
+                             node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start, node_port_set_size,
                              enable_master_cache, modify_configs_func, enable_structured_master_logging):
         logger.info("Preparing cluster instance as follows:")
         logger.info("  uuid               %s", self._uuid)
@@ -420,6 +421,7 @@ class YTInstance(object):
         provision["node"]["memory_limit_addition"] = node_memory_limit_addition
         provision["node"]["chunk_store_quota"] = node_chunk_store_quota
         provision["node"]["allow_chunk_storage_in_tmpfs"] = allow_chunk_storage_in_tmpfs
+        provision["node"]["port_set_size"] = node_port_set_size
         provision["http_proxy"]["count"] = self.http_proxy_count
         provision["http_proxy"]["http_ports"] = self.http_proxy_ports
         provision["rpc_proxy"]["count"] = self.rpc_proxy_count
