@@ -232,8 +232,12 @@ TJobController::TImpl::TImpl(
     YCHECK(Config_);
     YCHECK(Bootstrap_);
 
-    for (int index = 0; index < Config_->PortCount; ++index) {
-        FreePorts_.insert(Config_->StartPort + index);
+    if (Config_->PortSet) {
+        FreePorts_ = *Config_->PortSet;
+    } else {
+        for (int index = 0; index < Config_->PortCount; ++index) {
+            FreePorts_.insert(Config_->StartPort + index);
+        }
     }
 }
 

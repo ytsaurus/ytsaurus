@@ -1,21 +1,23 @@
-from yt_env_setup import wait, YTEnvSetup, require_ytserver_root_privileges, is_asan_build
 from yt_commands import *
+
+from yt_env_setup import wait, YTEnvSetup, require_ytserver_root_privileges, is_asan_build
 from yt.wrapper.clickhouse import get_clickhouse_clique_spec_builder
 from yt.wrapper.common import simplify_structure
 
-from yt.yson import YsonUint64
-
-from distutils.spawn import find_executable
+import yt.yson as yson
 
 from yt.common import update
 
-TEST_DIR = os.path.join(os.path.dirname(__file__))
+from distutils.spawn import find_executable
 
 import json
 import pytest
 import psutil
 import subprocess
 import random
+import os
+
+TEST_DIR = os.path.join(os.path.dirname(__file__))
 
 CLICKHOUSE_CLIENT_BINARY = find_executable("clickhouse")
 YTSERVER_CLICKHOUSE_BINARY = find_executable("ytserver-clickhouse")
@@ -152,6 +154,7 @@ class ClickHouseTestBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
+    NODE_PORT_SET_SIZE = 5
 
     DELTA_NODE_CONFIG = {
         "exec_agent": {
@@ -326,7 +329,7 @@ class TestCompositeTypes(ClickHouseTestBase):
                 "i": 0,
                 "v": {
                     "i64": -42,
-                    "ui64": YsonUint64(23),
+                    "ui64": yson.YsonUint64(23),
                     "bool": True,
                     "dbl": 3.14,
                     "str": "xyz",
@@ -348,7 +351,7 @@ class TestCompositeTypes(ClickHouseTestBase):
             {
                 "i": 2,
                 "v": {
-                    "i64": YsonUint64(2**63 + 42),  # Out of range for getting value as i64.
+                    "i64": yson.YsonUint64(2**63 + 42),  # Out of range for getting value as i64.
                 },
             },
             {
