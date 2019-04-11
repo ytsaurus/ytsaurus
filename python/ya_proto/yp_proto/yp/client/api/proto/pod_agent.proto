@@ -209,6 +209,7 @@ message TMountedStaticResource {
 
 message TRootfsVolume {
     // Квота на размер
+    // NOTE: не обрабатывается - porto не умеет во вложенные квоты по диску
     uint64 quota_bytes = 1;
 
     // Слои, из которых собирается volume
