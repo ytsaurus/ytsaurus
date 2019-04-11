@@ -24,27 +24,33 @@ using namespace NTableClient;
 struct TEmptyValueConsumer
     : public IValueConsumer
 {
-    virtual const TNameTablePtr& GetNameTable() const
+    virtual const TNameTablePtr& GetNameTable() const override
     {
         return NameTable;
     }
 
-    virtual bool GetAllowUnknownColumns() const
+    virtual const TTableSchema& GetSchema() const override
+    {
+        return Schema_;
+    }
+
+    virtual bool GetAllowUnknownColumns() const override
     {
         return true;
     }
 
-    virtual void OnBeginRow()
+    virtual void OnBeginRow() override
     { }
 
-    virtual void OnValue(const TUnversionedValue& /*value*/)
+    virtual void OnValue(const TUnversionedValue& /*value*/) override
     { }
 
-    virtual void OnEndRow()
+    virtual void OnEndRow() override
     { }
 
 private:
-    TNameTablePtr NameTable = New<TNameTable>();
+    const TTableSchema Schema_ = TTableSchema();
+    const TNameTablePtr NameTable = New<TNameTable>();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

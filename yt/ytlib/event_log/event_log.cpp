@@ -82,6 +82,12 @@ public:
         AddRow_(Builder_.FinishRow());
     }
 
+    virtual const TTableSchema& GetSchema() const override
+    {
+        static TTableSchema schema;
+        return schema;
+    }
+
 private:
     TNameTablePtr NameTable_;
     TCallback<void(TUnversionedOwningRow)> AddRow_;

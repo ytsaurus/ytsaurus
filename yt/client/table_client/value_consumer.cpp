@@ -192,6 +192,11 @@ void TValueConsumerBase::OnValue(const TUnversionedValue& value)
     }
 }
 
+const TTableSchema& TValueConsumerBase::GetSchema() const
+{
+    return Schema_;
+}
+
 void TValueConsumerBase::ThrowConversionException(const TUnversionedValue& value, EValueType columnType, const TError& ex)
 {
     THROW_ERROR_EXCEPTION("Error while performing type conversion")

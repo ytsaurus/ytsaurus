@@ -21,6 +21,7 @@ struct IValueConsumer
     virtual ~IValueConsumer() = default;
 
     virtual const TNameTablePtr& GetNameTable() const = 0;
+    virtual const TTableSchema& GetSchema() const = 0;
 
     virtual bool GetAllowUnknownColumns() const = 0;
 
@@ -38,6 +39,7 @@ public:
     TValueConsumerBase(const TTableSchema& schema, const TTypeConversionConfigPtr& typeConversionConfig);
 
     virtual void OnValue(const TUnversionedValue& value) override;
+    virtual const TTableSchema& GetSchema() const override;
 
 protected:
     TTableSchema Schema_;
