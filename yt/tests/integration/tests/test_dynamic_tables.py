@@ -2478,6 +2478,24 @@ class TestTabletActions(DynamicTablesBase):
         with pytest.raises(YtError):
             sync_balance_tablet_cells("b", ["//tmp/t"])
 
+    def test_removing_bundle_removes_actions(self):
+        create_tablet_cell_bundle("b")
+        cell_id, = sync_create_cells(1, "b")
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
+        sync_mount_table("//tmp/t")
+        action_id = create("tablet_action", "", attributes={
+            "kind": "move",
+            "tablet_ids": [get("//tmp/t/@tablets/0/tablet_id")],
+            "cell_ids": [cell_id],
+            "expiration_time": "2099-01-01"})
+        wait(lambda: get("#{}/@state".format(action_id)) in ("completed", "failed"))
+        assert get("#{}/@state".format(action_id)) == "completed"
+        remove("//tmp/t")
+        sync_remove_tablet_cells([cell_id])
+        assert exists("//sys/tablet_actions/{}".format(action_id))
+        remove_tablet_cell_bundle("b")
+        assert not exists("//sys/tablet_actions/{}".format(action_id))
+
 ##################################################################
 
 class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
