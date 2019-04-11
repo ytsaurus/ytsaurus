@@ -116,6 +116,7 @@ i64 TColumnSchema::GetMemoryUsage() const
 {
     return sizeof(TColumnSchema) +
         Name_.size() +
+        (LogicalType_ ? LogicalType_->GetMemoryUsage() : 0) +
         (Lock_ ? Lock_->size() : 0) +
         (Expression_ ? Expression_->size() : 0) +
         (Aggregate_ ? Aggregate_->size() : 0) +

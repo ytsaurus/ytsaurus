@@ -55,6 +55,17 @@ const TLogicalTypePtr& TOptionalLogicalType::GetElement() const
     return Element_;
 }
 
+
+size_t TOptionalLogicalType::GetMemoryUsage() const
+{
+    if (Element_->GetMetatype() == ELogicalMetatype::Simple) {
+        // All optionals of simple logical types are signletons and therefore we assume they use no space.
+        return 0;
+    } else {
+        return sizeof(*this) + Element_->GetMemoryUsage();
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSimpleLogicalType::TSimpleLogicalType(ESimpleLogicalValueType element)
@@ -66,6 +77,14 @@ ESimpleLogicalValueType TSimpleLogicalType::GetElement() const
 {
     return Element_;
 }
+
+size_t TSimpleLogicalType::GetMemoryUsage() const
+{
+    // All simple logical types are signletons and therefore we assume they use no space.
+    return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 std::pair<std::optional<ESimpleLogicalValueType>, bool> SimplifyLogicalType(const TLogicalTypePtr& logicalType)
 {
