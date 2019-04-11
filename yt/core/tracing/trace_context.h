@@ -16,7 +16,6 @@ class TTraceContext
     : public TIntrinsicRefCounted
 {
 public:
-    TTraceContext();
     TTraceContext(
         TTraceId traceId,
         TSpanId spanId,
