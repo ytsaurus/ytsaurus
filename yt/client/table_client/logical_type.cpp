@@ -55,7 +55,6 @@ const TLogicalTypePtr& TOptionalLogicalType::GetElement() const
     return Element_;
 }
 
-
 size_t TOptionalLogicalType::GetMemoryUsage() const
 {
     if (Element_->GetMetatype() == ELogicalMetatype::Simple) {
@@ -63,6 +62,15 @@ size_t TOptionalLogicalType::GetMemoryUsage() const
         return 0;
     } else {
         return sizeof(*this) + Element_->GetMemoryUsage();
+    }
+}
+
+ui32 TOptionalLogicalType::GetTypeComplexity() const
+{
+    if (Element_->GetMetatype() == ELogicalMetatype::Simple) {
+        return 1;
+    } else {
+        return 1 + Element_->GetTypeComplexity();
     }
 }
 
@@ -82,6 +90,11 @@ size_t TSimpleLogicalType::GetMemoryUsage() const
 {
     // All simple logical types are signletons and therefore we assume they use no space.
     return 0;
+}
+
+ui32 TSimpleLogicalType::GetTypeComplexity() const
+{
+    return 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
