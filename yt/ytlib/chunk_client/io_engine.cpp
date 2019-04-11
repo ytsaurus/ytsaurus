@@ -433,7 +433,6 @@ private:
         YCHECK(readPortion <= data.Size());
 
         NFS::ExpectIOErrors([&]() {
-            NTracing::TNullTraceContextGuard nullTraceContextGuard;
             while (readPortion > 0) {
                 i32 toRead = static_cast<i32>(Min(MaxBytesPerRead, readPortion));
 
