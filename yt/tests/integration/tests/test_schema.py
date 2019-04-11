@@ -338,3 +338,26 @@ class TestSchemaDeduplication(YTEnvSetup):
         assert get("//tmp/table1/@schema_duplicate_count") == 1
         assert get("//tmp/table2/@schema_duplicate_count") == 2
         assert get("//tmp/table3/@schema_duplicate_count") == 2
+
+
+class TestSchemaValidation(YTEnvSetup):
+    def test_schema_complexity(self):
+        def make_schema(size):
+            return [
+                {"name": "column{}".format(i), "type": "int64"}
+                for i in range(size)
+            ]
+        def make_row(size):
+            return {"column{}".format(i) : i for i in range(size)}
+
+        bad_size = 32 * 1024
+        with pytest.raises(YtError):
+            create("table", "//tmp/bad-schema-1", attributes={"schema": make_schema(bad_size)})
+
+        create("table", "//tmp/bad-schema-2")
+        with pytest.raises(YtError):
+            write_table("//tmp/bad-schema-2", [make_row(bad_size)])
+
+        ok_size = bad_size - 1
+        create("table", "//tmp/ok-schema", attributes={"schema": make_schema(ok_size)})
+        write_table("//tmp/ok-schema", [make_row(ok_size)])

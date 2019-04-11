@@ -982,11 +982,16 @@ void ValidateSchemaAttributes(const TTableSchema& schema)
 
 void ValidateTableSchema(const TTableSchema& schema, bool isTableDynamic)
 {
+    ui32 totalTypeComplexity = 0;
     for (const auto& column : schema.Columns()) {
         ValidateColumnSchema(
             column,
             schema.IsSorted(),
             isTableDynamic);
+        totalTypeComplexity += column.LogicalType()->GetTypeComplexity();
+    }
+    if (totalTypeComplexity >= MaxSchemaTotalTypeComplexity) {
+        THROW_ERROR_EXCEPTION("Table schema is too complex, reduce number of columns or simplify their types");
     }
     ValidateColumnUniqueness(schema);
     ValidateLocks(schema);
