@@ -1181,7 +1181,7 @@ INSTANCE SELECTORS
    This selector also adds attributes
      - <chunk-id>:last-seen
      - <chunk-id>:stored:<medium>
-   for selected logs.
+   for selected nodes.
 
    /<tablet-id> master
    Select master responsible for this tablet.
