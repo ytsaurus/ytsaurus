@@ -1955,6 +1955,8 @@ public:
 
     void GetTaggedMemoryUsage(TRange<TMemoryTag> tags, size_t* usage)
     {
+        TMemoryTagGuard guard(NullMemoryTag);
+
         std::vector<TEnumIndexedVector<ssize_t, EBasicCounter>> counters;
         counters.resize(tags.Size());
         GetTaggedMemoryCounters(tags, counters.data());
