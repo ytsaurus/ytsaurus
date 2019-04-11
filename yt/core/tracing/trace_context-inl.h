@@ -11,14 +11,6 @@ namespace NYT::NTracing {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE TTraceContext::TTraceContext()
-    : TraceId_(InvalidTraceId)
-    , SpanId_(InvalidSpanId)
-    , ParentSpanId_(InvalidSpanId)
-{
-    Y_ASSERT(TraceId_ != InvalidTraceId);
-}
-
 Y_FORCE_INLINE TTraceContext::TTraceContext(
     TTraceId traceId,
     TSpanId spanId,
