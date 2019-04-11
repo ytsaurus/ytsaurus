@@ -462,7 +462,7 @@ def upload_file_to_cache(filename, hash=None, progress_monitor=None, client=None
             size_hint = None
             filename_hint = None
         write_file(real_destination, stream, compute_md5=True, force_create=False,
-                   size_hint=size_hint, filename_hint=filename, progress_monitor=progress_monitor,
+                   size_hint=size_hint, filename_hint=filename_hint, progress_monitor=progress_monitor,
                    client=client)
 
     destination = put_file_to_cache(real_destination, hash, client=client)
