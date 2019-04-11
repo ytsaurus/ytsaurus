@@ -32,6 +32,8 @@ public:
     const TSimpleLogicalType& AsSimpleTypeRef() const;
     const TOptionalLogicalType& AsOptionalTypeRef() const;
 
+    virtual size_t GetMemoryUsage() const = 0;
+
 private:
     const ELogicalMetatype Metatype_;
 };
@@ -72,6 +74,8 @@ public:
 
     const TLogicalTypePtr& GetElement() const;
 
+    virtual size_t GetMemoryUsage() const override;
+
 private:
     const TLogicalTypePtr Element_;
 };
@@ -87,6 +91,8 @@ public:
 
     ESimpleLogicalValueType GetElement() const;
 
+    virtual size_t GetMemoryUsage() const override;
+
 private:
     ESimpleLogicalValueType Element_;
 };
@@ -99,7 +105,7 @@ extern TLogicalTypePtr NullLogicalType;
 ////////////////////////////////////////////////////////////////////////////////
 
 TLogicalTypePtr OptionalLogicalType(TLogicalTypePtr element);
-TLogicalTypePtr SimpleLogicalType(NTableClient::ESimpleLogicalValueType element, bool required);
+TLogicalTypePtr SimpleLogicalType(ESimpleLogicalValueType element, bool required);
 
 ////////////////////////////////////////////////////////////////////////////////
 
