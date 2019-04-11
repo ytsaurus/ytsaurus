@@ -14,9 +14,18 @@ class TCollectingValueConsumer
     : public NTableClient::IValueConsumer
 {
 public:
+    TCollectingValueConsumer(NTableClient::TTableSchema schema = NTableClient::TTableSchema())
+        : Schema_(std::move(schema))
+    { }
+
     virtual const NTableClient::TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;
+    }
+
+    virtual const NTableClient::TTableSchema& GetSchema() const override
+    {
+        return Schema_;
     }
 
     virtual bool GetAllowUnknownColumns() const override
@@ -70,6 +79,7 @@ public:
     }
 
 private:
+    const NTableClient::TTableSchema Schema_;
     const NTableClient::TNameTablePtr NameTable_ = New<NTableClient::TNameTable>();
     NTableClient::TUnversionedOwningRowBuilder Builder_;
     std::vector<NTableClient::TUnversionedOwningRow> RowList_;

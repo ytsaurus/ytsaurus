@@ -41,6 +41,7 @@ private:
     virtual void OnBeginRow() override;
     virtual void OnValue(const NTableClient::TUnversionedValue& value) override;
     virtual void OnEndRow() override;
+    virtual const NTableClient::TTableSchema& GetSchema() const override;
 
 private:
     NTableClient::IValueConsumer* const Consumer_;

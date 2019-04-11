@@ -174,6 +174,11 @@ void TYsonMapToUnversionedValueConverter::OnEndRow()
     Y_UNREACHABLE();
 }
 
+const NTableClient::TTableSchema& TYsonMapToUnversionedValueConverter::GetSchema() const
+{
+    Y_UNREACHABLE();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFormats
