@@ -79,7 +79,7 @@ constexpr int MaxSampleSize = 64_KB;
 // imposed Id field size (16-bit) in TUnversionedValue.
 constexpr int MaxColumnId = 32 * 1024;
 
-constexpr int MaxSchemaTotalTypeComplexity = 32 * 1024;
+constexpr int MaxSchemaTotalTypeComplexity = MaxColumnId;
 
 extern const TString SystemColumnNamePrefix;
 extern const TString TableIndexColumnName;
