@@ -3835,36 +3835,43 @@ void SetLargeUnreclaimableBytes(size_t value)
 
 TEnumIndexedVector<ssize_t, ETotalCounter> GetTotalCounters()
 {
+    InitializeGlobals();
     return StatisticsManager->GetTotalCounters();
 }
 
 TEnumIndexedVector<ssize_t, ESystemCounter> GetSystemCounters()
 {
+    InitializeGlobals();
     return StatisticsManager->GetSystemCounters();
 }
 
 TEnumIndexedVector<ssize_t, ESmallCounter> GetSmallCounters()
 {
+    InitializeGlobals();
     return StatisticsManager->GetSmallCounters();
 }
 
 TEnumIndexedVector<ssize_t, ESmallCounter> GetLargeCounters()
 {
+    InitializeGlobals();
     return StatisticsManager->GetLargeCounters();
 }
 
 std::array<TEnumIndexedVector<ssize_t, ESmallArenaCounter>, SmallRankCount> GetSmallArenaCounters()
 {
+    InitializeGlobals();
     return StatisticsManager->GetSmallArenaCounters();
 }
 
 std::array<TEnumIndexedVector<ssize_t, ELargeArenaCounter>, LargeRankCount> GetLargeArenaCounters()
 {
+    InitializeGlobals();
     return StatisticsManager->GetLargeArenaCounters();
 }
 
 TEnumIndexedVector<ssize_t, EHugeCounter> GetHugeCounters()
 {
+    InitializeGlobals();
     return StatisticsManager->GetHugeCounters();
 }
 

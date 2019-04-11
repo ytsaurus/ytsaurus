@@ -69,6 +69,7 @@ void SetCurrentMemoryTag(TMemoryTag tag)
 
 void GetMemoryUsageForTags(TMemoryTag* tags, size_t count, size_t* result)
 {
+    NYTAlloc::InitializeGlobals();
     NYTAlloc::StatisticsManager->GetTaggedMemoryUsage(MakeRange(tags, count), result);
 }
 
