@@ -682,8 +682,6 @@ public:
 class TRpcOverUnixDomainImpl
 {
 public:
-    static constexpr bool AllowTransportErrors = false;
-
     static IBusServerPtr MakeBusServer()
     {
         auto busConfig = TTcpBusServerConfig::CreateUnixDomain("unix_domain");

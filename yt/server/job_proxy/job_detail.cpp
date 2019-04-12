@@ -43,8 +43,6 @@ using NChunkClient::TChunkReaderStatistics;
 static const auto& Profiler = JobProxyProfiler;
 static const auto& Logger = JobProxyLogger;
 
-static const int PipeBufferRowCount = 10240;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TJob::TJob(IJobHostPtr host)
