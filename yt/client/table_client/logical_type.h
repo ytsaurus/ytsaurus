@@ -33,7 +33,7 @@ public:
     const TOptionalLogicalType& AsOptionalTypeRef() const;
 
     virtual size_t GetMemoryUsage() const = 0;
-    virtual ui32 GetTypeComplexity() const = 0;
+    virtual int GetTypeComplexity() const = 0;
 
 private:
     const ELogicalMetatype Metatype_;
@@ -76,7 +76,7 @@ public:
     const TLogicalTypePtr& GetElement() const;
 
     virtual size_t GetMemoryUsage() const override;
-    virtual ui32 GetTypeComplexity() const override;
+    virtual int GetTypeComplexity() const override;
 
 private:
     const TLogicalTypePtr Element_;
@@ -94,7 +94,7 @@ public:
     ESimpleLogicalValueType GetElement() const;
 
     virtual size_t GetMemoryUsage() const override;
-    virtual ui32 GetTypeComplexity() const override;
+    virtual int GetTypeComplexity() const override;
 
 private:
     ESimpleLogicalValueType Element_;

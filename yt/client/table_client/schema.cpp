@@ -982,7 +982,7 @@ void ValidateSchemaAttributes(const TTableSchema& schema)
 
 void ValidateTableSchema(const TTableSchema& schema, bool isTableDynamic)
 {
-    ui32 totalTypeComplexity = 0;
+    int totalTypeComplexity = 0;
     for (const auto& column : schema.Columns()) {
         ValidateColumnSchema(
             column,
