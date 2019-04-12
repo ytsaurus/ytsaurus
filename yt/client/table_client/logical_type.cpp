@@ -65,7 +65,7 @@ size_t TOptionalLogicalType::GetMemoryUsage() const
     }
 }
 
-ui32 TOptionalLogicalType::GetTypeComplexity() const
+int TOptionalLogicalType::GetTypeComplexity() const
 {
     if (Element_->GetMetatype() == ELogicalMetatype::Simple) {
         return 1;
@@ -92,7 +92,7 @@ size_t TSimpleLogicalType::GetMemoryUsage() const
     return 0;
 }
 
-ui32 TSimpleLogicalType::GetTypeComplexity() const
+int TSimpleLogicalType::GetTypeComplexity() const
 {
     return 1;
 }
