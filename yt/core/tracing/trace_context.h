@@ -19,11 +19,12 @@ public:
     TTraceContext(
         TTraceId traceId,
         TSpanId spanId,
-        TSpanId parentSpanId);
+        TSpanId parentSpanId,
+        TTraceContextPtr parentContext = nullptr);
 
     bool IsVerbose() const;
 
-    TTraceContextPtr CreateChild() const;
+    TTraceContextPtr CreateChild();
 
     DEFINE_BYVAL_RO_PROPERTY(TTraceId, TraceId);
     DEFINE_BYVAL_RO_PROPERTY(TSpanId, SpanId);
@@ -36,6 +37,7 @@ public:
 
 private:
     std::atomic<NProfiling::TCpuDuration> ElapsedCpuTime_ = {0};
+    TTraceContextPtr ParentContext_;
 
 };
 

@@ -14,10 +14,12 @@ namespace NYT::NTracing {
 Y_FORCE_INLINE TTraceContext::TTraceContext(
     TTraceId traceId,
     TSpanId spanId,
-    TSpanId parentSpanId)
+    TSpanId parentSpanId,
+    TTraceContextPtr parentContext)
     : TraceId_(traceId)
     , SpanId_(spanId)
     , ParentSpanId_(parentSpanId)
+    , ParentContext_(std::move(parentContext))
 { }
 
 Y_FORCE_INLINE bool TTraceContext::IsVerbose() const
@@ -27,7 +29,11 @@ Y_FORCE_INLINE bool TTraceContext::IsVerbose() const
 
 Y_FORCE_INLINE void TTraceContext::IncrementElapsedCpuTime(NProfiling::TCpuDuration delta)
 {
-    ElapsedCpuTime_ += delta;
+    auto* current = this;
+    while (current) {
+        ElapsedCpuTime_ += delta;
+        current = current->ParentContext_.Get();
+    }
 }
 
 Y_FORCE_INLINE NProfiling::TCpuDuration TTraceContext::GetElapsedCpuTime() const
