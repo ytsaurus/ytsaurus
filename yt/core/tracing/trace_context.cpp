@@ -35,9 +35,9 @@ TSpanId GenerateSpanId()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTraceContextPtr TTraceContext::CreateChild() const
+TTraceContextPtr TTraceContext::CreateChild()
 {
-    return New<TTraceContext>(TraceId_, GenerateSpanId(), SpanId_);
+    return New<TTraceContext>(TraceId_, GenerateSpanId(), SpanId_, this);
 }
 
 TDuration TTraceContext::GetElapsedTime() const
@@ -163,7 +163,7 @@ void FlushCurrentTraceContextTime()
 
 TTraceContextPtr CreateChildTraceContext()
 {
-    const auto* current = GetCurrentTraceContext();
+    auto* current = GetCurrentTraceContext();
     return current ? current->CreateChild() : nullptr;
 }
 
