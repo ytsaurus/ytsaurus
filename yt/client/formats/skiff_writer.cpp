@@ -20,6 +20,8 @@
 
 #include <util/stream/buffer.h>
 
+#include <functional>
+
 namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,7 +44,7 @@ DEFINE_ENUM(ESkiffWriterColumnType,
     (Skip)
     (RangeIndex)
     (RowIndex)
-);
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,14 +58,106 @@ void ResizeToContainIndex(std::vector<T>* vec, size_t index)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TWriteContext
+{
+    TNameTablePtr NameTable;
+    TBuffer* TmpBuffer = nullptr;
+};
+
+using TUnversionedValueToSkiffConverter = std::function<void(const TUnversionedValue&, TCheckedInDebugSkiffWriter*, TWriteContext*)>;
+
+template <EWireType wireType>
+constexpr EValueType WireTypeToValueType()
+{
+    if constexpr (wireType == EWireType::Int64) {
+        return EValueType::Int64;
+    } else if constexpr (wireType == EWireType::Uint64) {
+        return EValueType::Uint64;
+    } else if constexpr (wireType == EWireType::Double) {
+        return EValueType::Double;
+    } else if constexpr (wireType == EWireType::Boolean) {
+        return EValueType::Boolean;
+    } else if constexpr (wireType == EWireType::String32) {
+        return EValueType::String;
+    } else {
+        static_assert(wireType == EWireType::Int64);
+    }
+}
+
+template<EWireType wireType, bool required>
+void ConvertSimpleValueImpl(const TUnversionedValue& value, TCheckedInDebugSkiffWriter* writer, TWriteContext* context)
+{
+    if constexpr (!required) {
+        if (value.Type == EValueType::Null) {
+            writer->WriteVariant8Tag(0);
+            return;
+        } else {
+            writer->WriteVariant8Tag(1);
+        }
+    }
+
+    if constexpr (wireType != EWireType::Yson32) {
+        constexpr auto expectedValueType = WireTypeToValueType<wireType>();
+        if (value.Type != expectedValueType) {
+            THROW_ERROR_EXCEPTION("Unexpected type of %Qv column, expected: %Qlv found %Qlv",
+                context->NameTable->GetName(value.Id),
+                expectedValueType,
+                value.Type);
+        }
+    }
+
+    if constexpr (wireType == EWireType::Int64) {
+        writer->WriteInt64(value.Data.Int64);
+    } else if constexpr (wireType == EWireType::Uint64) {
+        writer->WriteUint64(value.Data.Uint64);
+    } else if constexpr (wireType == EWireType::Boolean) {
+        writer->WriteBoolean(value.Data.Boolean);
+    } else if constexpr (wireType == EWireType::Double) {
+        writer->WriteDouble(value.Data.Double);
+    } else if constexpr (wireType == EWireType::String32) {
+        writer->WriteString32(TStringBuf(value.Data.String, value.Length));
+    } else if constexpr (wireType == EWireType::Yson32) {
+        context->TmpBuffer->Clear();
+        {
+            TBufferOutput out(*context->TmpBuffer);
+            NYson::TYsonWriter writer(&out);
+            WriteYsonValue(&writer, value);
+        }
+        writer->WriteYson32(TStringBuf(context->TmpBuffer->data(), context->TmpBuffer->size()));
+    } else {
+        static_assert(wireType == EWireType::Int64);
+    }
+}
+
+TUnversionedValueToSkiffConverter CreateSimpleValueConverter(EWireType wireType, bool required)
+{
+    switch (wireType) {
+#define CASE(t) \
+        case t: \
+            return required ? ConvertSimpleValueImpl<t, true> : ConvertSimpleValueImpl<t, false>;
+        CASE(EWireType::Int64)
+        CASE(EWireType::Uint64)
+        CASE(EWireType::Double)
+        CASE(EWireType::Boolean)
+        CASE(EWireType::String32)
+        CASE(EWireType::Yson32)
+#undef CASE
+
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
 struct TSkiffEncodingInfo
 {
     ESkiffWriterColumnType EncodingPart = ESkiffWriterColumnType::Unknown;
 
-    EWireType WireType = EWireType::Nothing;
-    TSkiffSchemaPtr SkiffType = nullptr;
-    ui32 FieldIndex = 0; // index inside sparse / dense part of the row
-    bool Required = false;
+    // Convereter is set only for sparse part.
+    TUnversionedValueToSkiffConverter Converter;
+
+    // FieldIndex is index of field inside skiff tuple for dense part of the row
+    // and variant tag for sparse part of the row.
+    ui32 FieldIndex = 0;
 
     TSkiffEncodingInfo() = default;
 
@@ -90,52 +184,48 @@ struct TSkiffEncodingInfo
         return result;
     }
 
-    static TSkiffEncodingInfo Dense(EWireType wireType, bool required, ui32 fieldIndex)
+    static TSkiffEncodingInfo Dense(ui32 fieldIndex)
     {
         TSkiffEncodingInfo result;
         result.EncodingPart = ESkiffWriterColumnType::Dense;
-        result.WireType = wireType;
         result.FieldIndex = fieldIndex;
-        result.Required = required;
         return result;
     }
 
-    static TSkiffEncodingInfo Sparse(EWireType wireType, ui32 fieldIndex)
+    static TSkiffEncodingInfo Sparse(TUnversionedValueToSkiffConverter converter, ui32 fieldIndex)
     {
         TSkiffEncodingInfo result;
         result.EncodingPart = ESkiffWriterColumnType::Sparse;
-        result.WireType = wireType;
+        result.Converter = converter;
         result.FieldIndex = fieldIndex;
-        result.Required = true;
         return result;
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
 struct TSparseFieldInfo
 {
-    NSkiff::EWireType WireType;
-    ui32 SparseFieldIndex;
+    const TUnversionedValueToSkiffConverter* Converter;
+    ui32 SparseFieldTag;
     ui32 ValueIndex;
 
-    TSparseFieldInfo(EWireType wireType, ui32 sparseFieldIndex, ui32 valueIndex)
-        : WireType(wireType)
-        , SparseFieldIndex(sparseFieldIndex)
+    TSparseFieldInfo(const TUnversionedValueToSkiffConverter* converter, ui32 sparseFieldTag, ui32 valueIndex)
+        : Converter(converter)
+        , SparseFieldTag(sparseFieldTag)
         , ValueIndex(valueIndex)
     { }
 };
 
 struct TDenseFieldWriterInfo
 {
-    NSkiff::EWireType WireType;
+    TUnversionedValueToSkiffConverter Converter;
     ui16 ColumnId;
-    bool Required = false;
 
-    TDenseFieldWriterInfo(NSkiff::EWireType type, ui16 columnId, bool required)
-        : WireType(type)
+    TDenseFieldWriterInfo(const TUnversionedValueToSkiffConverter& converter, ui16 columnId)
+        : Converter(converter)
         , ColumnId(columnId)
-        , Required(required)
     { }
 };
 
@@ -165,13 +255,13 @@ public:
         int keyColumnCount)
         : TSchemalessFormatWriterBase(
             std::move(nameTable),
-            output,
+            std::move(output),
             enableContextSaving,
-            controlAttributesConfig,
+            std::move(controlAttributesConfig),
             keyColumnCount)
     { }
 
-    void Init(std::vector<TSkiffSchemaPtr> tableSkiffSchemas)
+    void Init(const std::vector<TSkiffSchemaPtr>& tableSkiffSchemas)
     {
         auto streamSchema = CreateVariant16Schema(tableSkiffSchemas);
         SkiffWriter_.emplace(streamSchema, GetOutputStream());
@@ -196,15 +286,11 @@ public:
                 const auto id = NameTable_->GetIdOrRegisterName(denseField.Name());
                 ResizeToContainIndex(&knownFields, id);
                 YCHECK(knownFields[id].EncodingPart == ESkiffWriterColumnType::Unknown);
-                knownFields[id] = TSkiffEncodingInfo::Dense(
-                    denseField.ValidatedSimplify(),
-                    denseField.IsRequired(),
-                    i);
+                knownFields[id] = TSkiffEncodingInfo::Dense(i);
 
                 denseFieldWriterInfos.emplace_back(
-                    denseField.ValidatedSimplify(),
-                    id,
-                    denseField.IsRequired());
+                    CreateSimpleValueConverter(denseField.ValidatedSimplify(), denseField.IsRequired()),
+                    id);
             }
 
             const auto& sparseFieldDescriptionList = commonTableDescription.SparseFieldDescriptionList;
@@ -214,7 +300,7 @@ public:
                 ResizeToContainIndex(&knownFields, id);
                 YCHECK(knownFields[id].EncodingPart == ESkiffWriterColumnType::Unknown);
                 knownFields[id] = TSkiffEncodingInfo::Sparse(
-                    sparseField.ValidatedSimplify(),
+                    CreateSimpleValueConverter(sparseField.ValidatedSimplify(), true),
                     i);
             }
 
@@ -270,6 +356,10 @@ private:
     virtual void DoWrite(TRange<TUnversionedRow> rows) override
     {
         const auto rowCount = rows.Size();
+        TWriteContext writeContext;
+        writeContext.NameTable = NameTable_;
+        writeContext.TmpBuffer = &YsonBuffer_;
+
         for (size_t rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
             const auto& row = rows[rowIndex];
             CurrentRow_ = &row;
@@ -324,9 +414,8 @@ private:
                         DenseIndexes_[encodingInfo.FieldIndex] = valueIndex;
                         break;
                     case ESkiffWriterColumnType::Sparse:
-                        Y_ASSERT(encodingInfo.Required == true);
                         SparseFields_.emplace_back(
-                            encodingInfo.WireType,
+                            &encodingInfo.Converter,
                             encodingInfo.FieldIndex,
                             valueIndex);
                         break;
@@ -391,28 +480,20 @@ private:
 
                 switch (valueIndex) {
                     case missingColumnPlaceholder:
-                        if (fieldInfo.Required) {
-                            auto value = MakeUnversionedSentinelValue(EValueType::Null, fieldInfo.ColumnId);
-                            // WriteValue succeeds iff fieldInfo.WireType is Yson32 otherwise it fails
-                            WriteValue(fieldInfo.WireType, value);
-                        } else {
-                            SkiffWriter_->WriteVariant8Tag(0);
-                        }
+                        fieldInfo.Converter(
+                            MakeUnversionedSentinelValue(EValueType::Null, fieldInfo.ColumnId),
+                            &*SkiffWriter_,
+                            &writeContext);
                         break;
                     case keySwitchColumnPlaceholder:
                         SkiffWriter_->WriteBoolean(CheckKeySwitch(row, isLastRowInBatch));
                         break;
                     default: {
                         const auto& value = row[valueIndex];
-                        if (!fieldInfo.Required) {
-                            if (value.Type == EValueType::Null) {
-                                SkiffWriter_->WriteVariant8Tag(0);
-                                continue;
-                            } else {
-                                SkiffWriter_->WriteVariant8Tag(1);
-                            }
-                        }
-                        WriteValue(fieldInfo.WireType, value);
+                        fieldInfo.Converter(
+                            value,
+                            &*SkiffWriter_,
+                            &writeContext);
                         break;
                     }
                 }
@@ -422,8 +503,8 @@ private:
                 for (const auto& fieldInfo : SparseFields_) {
                     const auto& value = row[fieldInfo.ValueIndex];
                     if (value.Type != EValueType::Null) {
-                        SkiffWriter_->WriteVariant16Tag(fieldInfo.SparseFieldIndex);
-                        WriteValue(fieldInfo.WireType, value);
+                        SkiffWriter_->WriteVariant16Tag(fieldInfo.SparseFieldTag);
+                        (*fieldInfo.Converter)(value, &*SkiffWriter_, &writeContext);
                     }
                 }
                 SkiffWriter_->WriteVariant16Tag(EndOfSequenceTag<ui16>());
@@ -451,58 +532,9 @@ private:
         TryFlushBuffer(true);
     }
 
-    Y_FORCE_INLINE void WriteValue(NSkiff::EWireType wireType, const TUnversionedValue& value)
-    {
-        switch (wireType) {
-            case EWireType::Int64:
-                ValidateType(EValueType::Int64, value.Type, value.Id);
-                SkiffWriter_->WriteInt64(value.Data.Int64);
-                break;
-            case EWireType::Uint64:
-                ValidateType(EValueType::Uint64, value.Type, value.Id);
-                SkiffWriter_->WriteUint64(value.Data.Uint64);
-                break;
-            case EWireType::Boolean:
-                ValidateType(EValueType::Boolean, value.Type, value.Id);
-                SkiffWriter_->WriteBoolean(value.Data.Boolean);
-                break;
-            case EWireType::Double:
-                ValidateType(EValueType::Double, value.Type, value.Id);
-                SkiffWriter_->WriteDouble(value.Data.Double);
-                break;
-            case EWireType::String32:
-                ValidateType(EValueType::String, value.Type, value.Id);
-                SkiffWriter_->WriteString32(TStringBuf(value.Data.String, value.Length));
-                break;
-            case EWireType::Yson32: {
-                YsonBuffer_.Clear();
-                TBufferOutput out(YsonBuffer_);
-
-                NYson::TYsonWriter writer(&out);
-                WriteYsonValue(&writer, value);
-                SkiffWriter_->WriteYson32(TStringBuf(YsonBuffer_.Data(), YsonBuffer_.Size()));
-                break;
-            }
-            default:
-                Y_UNREACHABLE();
-        }
-    }
-
-    Y_FORCE_INLINE void ValidateType(EValueType expected, EValueType actual, ui16 columnId)
-    {
-        if (expected != actual) {
-            THROW_ERROR_EXCEPTION("Unexpected type of %Qv column, expected %Qlv found %Qlv",
-                NameTable_->GetName(columnId),
-                expected,
-                actual)
-                << GetRowPositionErrorAttributes();
-        }
-    }
-
 private:
     using TSkiffEncodingInfoList = std::vector<TSkiffEncodingInfo>;
 
-    const NSkiff::TSkiffSchemaPtr SkiffSchema_;
     std::optional<NSkiff::TCheckedInDebugSkiffWriter> SkiffWriter_;
 
     std::vector<ui16> DenseIndexes_;
@@ -536,10 +568,10 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSkiff(
     auto skiffSchemas = ParseSkiffSchemas(config->SkiffSchemaRegistry, config->TableSkiffSchemas);
     return CreateSchemalessWriterForSkiff(
         skiffSchemas,
-        nameTable,
-        output,
+        std::move(nameTable),
+        std::move(output),
         enableContextSaving,
-        controlAttributesConfig,
+        std::move(controlAttributesConfig),
         keyColumnCount
     );
 }
