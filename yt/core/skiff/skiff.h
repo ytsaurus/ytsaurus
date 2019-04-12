@@ -31,11 +31,9 @@ public:
     double ParseDouble();
     bool ParseBoolean();
 
-    const TString& ParseString32(TString* result);
-    TString ParseString32();
+    TStringBuf ParseString32();
 
-    const TString& ParseYson32(TString* result);
-    TString ParseYson32();
+    TStringBuf ParseYson32();
 
     ui8 ParseVariant8Tag();
     ui16 ParseVariant16Tag();
@@ -57,6 +55,7 @@ private:
     IInputStream* const Underlying_;
 
     TBuffer Buffer_;
+    TString Tmp_;
     size_t RemainingBytes_ = 0;
     ui64 ReadBytesCount_ = 0;
     char* Position_ = Buffer_.Data();
@@ -76,11 +75,9 @@ public:
     double ParseDouble();
     bool ParseBoolean();
 
-    const TString& ParseString32(TString* result);
-    TString ParseString32();
+    TStringBuf ParseString32();
 
-    const TString& ParseYson32(TString* result);
-    TString ParseYson32();
+    TStringBuf ParseYson32();
 
     ui8 ParseVariant8Tag();
     ui16 ParseVariant16Tag();
