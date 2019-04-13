@@ -145,19 +145,6 @@ private:
     const TActionQueuePtr WorkerThread_ = New<TActionQueue>("DataNodeWorker");
     const TActionQueuePtr MetaProcessorThread_ = New<TActionQueue>("MetaProcessor");
 
-    bool ShouldUseDirectIO(EDirectIOPolicy policy, bool writerRequestedDirectIO) const
-    {
-        if (policy == EDirectIOPolicy::Never) {
-            return false;
-        }
-
-        if (policy == EDirectIOPolicy::Always) {
-            return true;
-        }
-
-        return writerRequestedDirectIO;
-    }
-
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, StartChunk)
     {
         Y_UNUSED(response);
@@ -385,7 +372,7 @@ private:
                 << TErrorAttribute("blocks_length", request->blocks_size());
         }
 
-        auto blockManager = Bootstrap_->GetChunkBlockManager();
+        const auto& blockManager = Bootstrap_->GetChunkBlockManager();
         for (size_t index = 0; index < blocks.size(); ++index) {
             const auto& block = blocks[index];
             const auto& protoBlock = request->blocks(index);
@@ -397,9 +384,10 @@ private:
         }
 
         // We mimic TPeerBlockUpdater behavior here.
-        auto expirationTime = Bootstrap_->GetPeerBlockUpdater()->GetPeerUpdateExpirationTime().ToDeadLine();
+        const auto& peerBlockUpdater = Bootstrap_->GetPeerBlockUpdater();
+        auto expirationTime = peerBlockUpdater->GetPeerUpdateExpirationTime().ToDeadLine();
+        response->set_expiration_time(ToProto<i64>(expirationTime));
 
-        response->set_expiration_time(expirationTime.GetValue());
         context->Reply();
     }
 
@@ -1162,7 +1150,7 @@ private:
         std::vector<TRefCountedColumnarStatisticsSubresponsePtr> subresponses;
         std::vector<TFuture<void>> asyncResults;
 
-        TNameTablePtr nameTable = NYT::FromProto<TNameTablePtr>(request->name_table());
+        auto nameTable = NYT::FromProto<TNameTablePtr>(request->name_table());
 
         for (const auto& subrequest : request->subrequests()) {
             auto chunkId = FromProto<TChunkId>(subrequest.chunk_id());
@@ -1326,6 +1314,19 @@ private:
                 "Chunk %v already exists",
                 sessionId);
         }
+    }
+
+    static bool ShouldUseDirectIO(EDirectIOPolicy policy, bool writerRequestedDirectIO)
+    {
+        if (policy == EDirectIOPolicy::Never) {
+            return false;
+        }
+
+        if (policy == EDirectIOPolicy::Always) {
+            return true;
+        }
+
+        return writerRequestedDirectIO;
     }
 
     static i64 GetDiskReadQueueSize(const IChunkPtr& chunk, const TWorkloadDescriptor& workloadDescriptor)
