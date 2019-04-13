@@ -423,7 +423,7 @@ private:
 
         ValidateConnected();
 
-        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
+        const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(chunkId);
         bool hasCompleteChunk = chunk.operator bool();
         response->set_has_complete_chunk(hasCompleteChunk);
@@ -481,7 +481,7 @@ private:
             options.FetchFromDisk = fetchFromDisk && !netThrottling && !diskThrottling;
             options.ChunkReaderStatistics = chunkReaderStatistics;
 
-            const auto& chunkBlockManager =Bootstrap_->GetChunkBlockManager();
+            const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
             auto asyncBlocks = chunkBlockManager->ReadBlockSet(
                 chunkId,
                 blockIndexes,
@@ -567,7 +567,7 @@ private:
 
         ValidateConnected();
 
-        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
+        const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(chunkId);
         bool hasCompleteChunk = chunk.operator bool();
         response->set_has_complete_chunk(hasCompleteChunk);
@@ -608,7 +608,7 @@ private:
             options.FetchFromDisk = fetchFromDisk && !netThrottling && !diskThrottling;
             options.ChunkReaderStatistics = chunkReaderStatistics;
 
-            const auto& chunkBlockManager =Bootstrap_->GetChunkBlockManager();
+            const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
             auto asyncBlocks = chunkBlockManager->ReadBlockRange(
                 chunkId,
                 firstBlockIndex,
@@ -680,7 +680,7 @@ private:
             return;
         }
 
-        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
+        const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->GetChunkOrThrow(chunkId, mediumIndex);
 
         TBlockReadOptions options;
@@ -1329,7 +1329,7 @@ private:
         }
     }
 
-    i64 GetDiskReadQueueSize(const IChunkPtr& chunk, const TWorkloadDescriptor& workloadDescriptor)
+    static i64 GetDiskReadQueueSize(const IChunkPtr& chunk, const TWorkloadDescriptor& workloadDescriptor)
     {
         if (!chunk) {
             return 0;

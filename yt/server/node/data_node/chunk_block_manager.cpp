@@ -107,7 +107,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         try {
-            auto chunkRegistry = Bootstrap_->GetChunkRegistry();
+            const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
             // NB: At the moment, range read requests are only possible for the whole chunks.
             auto chunk = chunkRegistry->GetChunkOrThrow(chunkId);
 
@@ -132,7 +132,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         try {
-            auto chunkRegistry = Bootstrap_->GetChunkRegistry();
+            const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
             auto chunk = chunkRegistry->FindChunk(chunkId);
             auto type = TypeFromId(DecodeChunkId(chunkId).Id);
             if (!chunk) {
