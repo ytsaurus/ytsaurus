@@ -108,6 +108,7 @@ public:
             .SetMaxConcurrency(5000)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PopulateCache)
+            .SetInvoker(StorageLightThreadPool_->GetInvoker())
             .SetMaxQueueSize(5000)
             .SetMaxConcurrency(5000)
             .SetCancelable(true));
@@ -132,16 +133,20 @@ public:
             .SetMaxQueueSize(5000)
             .SetMaxConcurrency(5000)
             .SetHeavy(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer)
+            .SetInvoker(StorageLightThreadPool_->GetInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples)
+            .SetInvoker(StorageLightThreadPool_->GetInvoker())
             .SetCancelable(true)
             .SetHeavy(true)
             .SetResponseCodec(NCompression::ECodec::Lz4));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSlices)
+            .SetInvoker(StorageLightThreadPool_->GetInvoker())
             .SetCancelable(true)
             .SetHeavy(true)
             .SetResponseCodec(NCompression::ECodec::Lz4));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics)
+            .SetInvoker(StorageLightThreadPool_->GetInvoker())
             .SetCancelable(true));
     }
 
@@ -1267,11 +1272,11 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdatePeer)
     {
-        auto expirationTime = FromProto<TInstant>(request->peer_expiration_time());
-
         if (!request->has_peer_node_id()) {
             THROW_ERROR_EXCEPTION("Peer-to-peer with older versions is not supported, update node to a more recent version");
         }
+
+        auto expirationTime = FromProto<TInstant>(request->peer_expiration_time());
 
         const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();
         const auto* nodeDescriptor = nodeDirectory->FindDescriptor(request->peer_node_id());
