@@ -26,14 +26,13 @@ class TNetworkStatistics
     : public TRefCounted
 {
 public:
-    TNetworkStatistics(TDataNodeConfigPtr config);
+    explicit TNetworkStatistics(TDataNodeConfigPtr config);
 
     void IncrementReadThrottlingCounter(const TString& name);
-
     void UpdateStatistics(NNodeTrackerClient::NProto::TNodeStatistics* statistics);
 
 private:
-    TDataNodeConfigPtr Config_;
+    const TDataNodeConfigPtr Config_;
 
     NConcurrency::TReaderWriterSpinLock Lock_;
     THashMap<TString, TNetworkCounters> Counters_;
