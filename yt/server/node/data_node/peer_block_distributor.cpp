@@ -95,16 +95,15 @@ void TPeerBlockDistributor::SweepObsoleteRequests()
         TBlockId blockId;
         TInstant requestTime;
         std::tie(requestTime, blockId) = RequestHistory_.front();
-        if (requestTime + Config_->WindowLength <= now) {
-            auto it = BlockIdToDistributionEntry_.find(blockId);
-            YCHECK(it != BlockIdToDistributionEntry_.end());
-            if (--it->second.RequestCount == 0) {
-                BlockIdToDistributionEntry_.erase(it);
-            }
-            RequestHistory_.pop();
-        } else {
+        if (requestTime + Config_->WindowLength > now) {
             break;
         }
+        auto it = BlockIdToDistributionEntry_.find(blockId);
+        YCHECK(it != BlockIdToDistributionEntry_.end());
+        if (--it->second.RequestCount == 0) {
+            BlockIdToDistributionEntry_.erase(it);
+        }
+        RequestHistory_.pop();
     }
 }
 
