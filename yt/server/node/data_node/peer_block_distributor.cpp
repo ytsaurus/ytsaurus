@@ -54,7 +54,7 @@ TPeerBlockDistributor::TPeerBlockDistributor(
     : Config_(std::move(config))
     , Bootstrap_(bootstrap)
     , PeriodicExecutor_(New<TPeriodicExecutor>(
-        NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+        Bootstrap_->GetStorageHeavyInvoker(),
         BIND(&TPeerBlockDistributor::DoIteration, MakeWeak(this)),
         Config_->IterationPeriod))
 { }
