@@ -303,7 +303,7 @@ void TBootstrap::DoRun()
     BlockMetaCache = New<TBlockMetaCache>(Config->DataNode->BlockMetaCache, TProfiler("/data_node/block_meta_cache"));
 
     PeerBlockDistributor = New<TPeerBlockDistributor>(Config->DataNode->PeerBlockDistributor, this);
-    PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable, this);
+    PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable);
     PeerBlockUpdater = New<TPeerBlockUpdater>(Config->DataNode, this);
 
     SessionManager = New<TSessionManager>(Config->DataNode, this);

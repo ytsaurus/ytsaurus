@@ -454,19 +454,27 @@ private:
         }
 
         // Try suggesting other peers. This can never hurt.
+        bool registerRequestingPeer = request->has_peer_node_id() && request->has_peer_expiration_time();
         const auto& peerBlockTable = Bootstrap_->GetPeerBlockTable();
         for (int blockIndex : request->block_indexes()) {
             auto blockId = TBlockId(chunkId, blockIndex);
-            const auto& peers = peerBlockTable->GetPeers(blockId);
-            if (!peers.empty()) {
-                auto* peerDescriptor = response->add_peer_descriptors();
-                peerDescriptor->set_block_index(blockIndex);
-                for (const auto& peer : peers) {
-                    peerDescriptor->add_node_ids(peer.NodeId);
+            auto peerData = peerBlockTable->FindOrCreatePeerData(blockId, registerRequestingPeer);
+            if (peerData) {
+                auto peers = peerData->GetPeers();
+                if (!peers.empty()) {
+                    auto* peerDescriptor = response->add_peer_descriptors();
+                    peerDescriptor->set_block_index(blockIndex);
+                    for (auto peer : peers) {
+                        peerDescriptor->add_node_ids(peer);
+                    }
+                    YT_LOG_DEBUG("Peers suggested (BlockId: %v, PeerCount: %v)",
+                        blockId,
+                        peers.size());
                 }
-                YT_LOG_DEBUG("Peers suggested (BlockId: %v, PeerCount: %v)",
-                    blockId,
-                    peers.size());
+            }
+            if (registerRequestingPeer) {
+                // Register the peer we're replying to.
+                peerData->AddPeer(request->peer_node_id(), FromProto<TInstant>(request->peer_expiration_time()));
             }
         }
 
@@ -509,15 +517,6 @@ private:
         }
 
         i64 blocksSize = GetByteSize(response->Attachments());
-
-        // Register the peer that we had just sent the reply to.
-        if (request->has_peer_node_id() && request->has_peer_expiration_time()) {
-            auto expirationTime = FromProto<TInstant>(request->peer_expiration_time());
-            TPeerInfo peerInfo(request->peer_node_id(), expirationTime);
-            for (int blockIndex : request->block_indexes()) {
-                peerBlockTable->UpdatePeer(TBlockId(chunkId, blockIndex), peerInfo);
-            }
-        }
 
         context->SetResponseInfo(
             "HasCompleteChunk: %v, NetThrottling: %v, NetOutQueueSize: %v, "
@@ -1278,8 +1277,6 @@ private:
             THROW_ERROR_EXCEPTION("Peer-to-peer with older versions is not supported, update node to a more recent version");
         }
 
-        TPeerInfo peer(request->peer_node_id(), expirationTime);
-
         const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();
         const auto* nodeDescriptor = nodeDirectory->FindDescriptor(request->peer_node_id());
 
@@ -1290,9 +1287,10 @@ private:
             request->block_ids_size());
 
         const auto& peerBlockTable = Bootstrap_->GetPeerBlockTable();
-        for (const auto& block_id : request->block_ids()) {
-            TBlockId blockId(FromProto<TGuid>(block_id.chunk_id()), block_id.block_index());
-            peerBlockTable->UpdatePeer(blockId, peer);
+        for (const auto& protoBlockId : request->block_ids()) {
+            auto blockId = FromProto<TBlockId>(protoBlockId);
+            auto peerData = peerBlockTable->FindOrCreatePeerData(blockId, true);
+            peerData->AddPeer(request->peer_node_id(), expirationTime);
         }
 
         context->Reply();
@@ -1301,6 +1299,7 @@ private:
 
     void ValidateConnected()
     {
+        // XXX(babenko): not thread safe
         auto masterConnector = Bootstrap_->GetMasterConnector();
         if (!masterConnector->IsConnected()) {
             THROW_ERROR_EXCEPTION(
