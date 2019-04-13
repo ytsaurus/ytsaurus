@@ -992,26 +992,22 @@ private:
 
     TTransactionId GetTransactionId(const TTransactionalOptions& options, bool allowNullTransaction)
     {
-        auto transaction = GetTransaction(options, allowNullTransaction, true);
-        return transaction ? transaction->GetId() : NullTransactionId;
-    }
-
-    NTransactionClient::TTransactionPtr GetTransaction(
-        const TTransactionalOptions& options,
-        bool allowNullTransaction,
-        bool pingTransaction)
-    {
         if (!options.TransactionId) {
             if (!allowNullTransaction) {
                 THROW_ERROR_EXCEPTION("A valid master transaction is required");
             }
-            return nullptr;
+            return {};
         }
 
-        TTransactionAttachOptions attachOptions;
-        attachOptions.Ping = pingTransaction;
-        attachOptions.PingAncestors = options.PingAncestors;
-        return TransactionManager_->Attach(options.TransactionId, attachOptions);
+        if (options.Ping) {
+            // XXX(babenko): this is just to make a ping; shall we even support this?
+            TTransactionAttachOptions attachOptions;
+            attachOptions.Ping = options.Ping;
+            attachOptions.PingAncestors = options.PingAncestors;
+            TransactionManager_->Attach(options.TransactionId, attachOptions);
+        }
+
+        return options.TransactionId;
     }
 
     void SetTransactionId(
