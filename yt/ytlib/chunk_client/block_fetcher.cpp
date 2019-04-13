@@ -141,7 +141,6 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int blockIndex)
         auto uncompressedBlock = BlockCache_->Find(blockId, EBlockType::UncompressedData);
         if (uncompressedBlock) {
             windowSlot.BlockPromise->Set(uncompressedBlock);
-            windowSlot.Cached = true;
             TotalRemainingSize_ -= BlockInfos_[windowIndex].UncompressedDataSize;
         } else {
             TDispatcher::Get()->GetReaderInvoker()->Invoke(
@@ -245,7 +244,6 @@ void TBlockFetcher::FetchNextGroup(TAsyncSemaphoreGuard asyncSemaphoreGuard)
             if (uncompressedBlock) {
                 auto& slot = Window_[FirstUnfetchedWindowIndex_];
                 slot.BlockPromise->Set(uncompressedBlock);
-                slot.Cached = true;
                 TotalRemainingSize_ -= blockInfo.UncompressedDataSize;
             } else {
                 uncompressedSize += blockInfo.UncompressedDataSize;
