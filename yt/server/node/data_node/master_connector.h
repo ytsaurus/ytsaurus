@@ -63,14 +63,6 @@ public:
     //! Starts interaction with master.
     void Start();
 
-    //! Forces a new registration round and a full heartbeat to be sent.
-    /*!
-     *  Thread affinity: any
-     *
-     *  Typically called when a location goes down.
-     */
-    void ForceRegisterAtMaster();
-
     //! Returns |true| iff node is currently connected to master.
     /*!
      *  \note
@@ -244,7 +236,7 @@ private:
     //! Handles the outcome and schedules the next heartbeat.
     void ReportJobHeartbeat();
 
-    //! Similar to #ForceRegisterAtMaster but handled in Control thread.
+    //! Initiates registering at masters.
     void StartHeartbeats();
 
     //! Constructs a protobuf info for an added chunk.

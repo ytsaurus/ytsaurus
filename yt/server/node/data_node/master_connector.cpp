@@ -151,18 +151,6 @@ void TMasterConnector::Start()
         RandomDuration(Config_->IncrementalHeartbeatPeriod));
 }
 
-void TMasterConnector::ForceRegisterAtMaster()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    if (!Started_) {
-        return;
-    }
-
-    ControlInvoker_->Invoke(
-        BIND(&TMasterConnector::StartHeartbeats, MakeStrong(this)));
-}
-
 void TMasterConnector::StartHeartbeats()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
