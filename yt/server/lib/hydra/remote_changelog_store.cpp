@@ -59,11 +59,11 @@ public:
         ITransactionPtr prerequisiteTransaction,
         TVersion reachableVersion,
         const NProfiling::TTagIdList& profilerTags)
-        : Config_(config)
+        : Config_(std::move(config))
         , Options_(options)
         , Path_(remotePath)
         , Client_(client)
-        , PrerequisiteTransaction_(prerequisiteTransaction)
+        , PrerequisiteTransaction_(std::move(prerequisiteTransaction))
         , ReachableVersion_(reachableVersion)
         , ProfilerTags_(profilerTags)
         , Logger(NLogging::TLogger(HydraLogger)
@@ -87,6 +87,13 @@ public:
         return BIND(&TRemoteChangelogStore::DoOpenChangelog, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
             .Run(id);
+    }
+
+    virtual void Abort() override
+    {
+        if (PrerequisiteTransaction_) {
+            PrerequisiteTransaction_->Abort();
+        }
     }
 
 private:

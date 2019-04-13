@@ -975,8 +975,7 @@ private:
                     YT_LOG_INFO("The latest snapshot is %v", maxSnapshotId);
                 }
 
-                auto asyncChangelogStore = ChangelogStoreFactory_->Lock();
-                ChangelogStore_ = WaitFor(asyncChangelogStore)
+                ChangelogStore_ = WaitFor(ChangelogStoreFactory_->Lock())
                     .ValueOrThrow();
 
                 auto changelogVersion = ChangelogStore_->GetReachableVersion();
@@ -1473,7 +1472,11 @@ private:
 
         SystemLockGuard_.Release();
 
-        ChangelogStore_.Reset();
+        if (ChangelogStore_) {
+            ChangelogStore_->Abort();
+            ChangelogStore_.Reset();
+        }
+
         ReachableVersion_.reset();
     }
 
