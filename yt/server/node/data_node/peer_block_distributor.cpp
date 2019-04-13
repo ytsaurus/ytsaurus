@@ -77,7 +77,7 @@ void TPeerBlockDistributor::Start()
 
 void TPeerBlockDistributor::DoIteration()
 {
-    VERIFY_INVOKER_AFFINITY_ANY();
+    VERIFY_THREAD_AFFINITY_ANY();
 
     ProcessNewRequests();
     SweepObsoleteRequests();
@@ -242,8 +242,7 @@ void TPeerBlockDistributor::DistributeBlocks()
                 nodeDescriptor,
                 nodeId,
                 blockId,
-                block.Size())
-                .Via(Bootstrap_->GetControlInvoker()));
+                block.Size()));
         }
     }
 }
@@ -399,7 +398,7 @@ void TPeerBlockDistributor::OnBlockDistributed(
     i64 size,
     const TDataNodeServiceProxy::TErrorOrRspPopulateCachePtr& rspOrError)
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+    VERIFY_THREAD_AFFINITY_ANY();
 
     if (!rspOrError.IsOK()) {
         YT_LOG_DEBUG(rspOrError, "Populate cache request failed (Address: %v)",
@@ -407,8 +406,9 @@ void TPeerBlockDistributor::OnBlockDistributed(
         return;
     }
 
-    TInstant expirationTime;
-    FromProto(&expirationTime, rspOrError.Value()->expiration_time());
+    const auto& rsp = rspOrError.Value();
+    auto expirationTime = FromProto<TInstant>(rsp->expiration_time());
+
     YT_LOG_DEBUG("Populate cache request succeeded, registering node as a peer for block "
         "(BlockId: %v, Address: %v, NodeId: %v, ExpirationTime: %v, Size: %v)",
         blockId,
@@ -416,9 +416,12 @@ void TPeerBlockDistributor::OnBlockDistributed(
         nodeId,
         expirationTime,
         size);
+
+    const auto& peerBlockTable = Bootstrap_->GetPeerBlockTable();
+    auto peerData = peerBlockTable->FindOrCreatePeerData(blockId, true);
+    peerData->AddPeer(nodeId, expirationTime);
+
     DistributedBytes_ += size;
-    TPeerInfo peerInfo(nodeId, expirationTime);
-    Bootstrap_->GetPeerBlockTable()->UpdatePeer(blockId, std::move(peerInfo));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
