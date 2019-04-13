@@ -20,27 +20,29 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/chunk_slice.h>
-#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 #include <yt/ytlib/chunk_client/data_node_service.pb.h>
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/ytlib/chunk_client/key_set.h>
-#include <yt/client/chunk_client/read_limit.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/helpers.h>
+#include <yt/ytlib/table_client/samples_fetcher.h>
+
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/unversioned_row.h>
+
+#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
+#include <yt/client/chunk_client/read_limit.h>
 
 #include <yt/client/misc/workload.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/ytlib/table_client/helpers.h>
-#include <yt/ytlib/table_client/samples_fetcher.h>
-
 #include <yt/core/bus/bus.h>
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/misc/optional.h>
@@ -86,6 +88,8 @@ public:
             DataNodeLogger)
         , Config_(config)
         , Bootstrap_(bootstrap)
+        , StorageHeavyThreadPool_(New<TThreadPool>(Config_->StorageHeavyThreadCount, "StorageHeavy"))
+        , StorageLightThreadPool_(New<TThreadPool>(Config_->StorageLightThreadCount, "StorageLight"))
     {
         YCHECK(Config_);
         YCHECK(Bootstrap_);
@@ -113,14 +117,17 @@ public:
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockSet)
+            .SetInvoker(StorageLightThreadPool_->GetInvoker())
             .SetCancelable(true)
             .SetMaxQueueSize(5000)
             .SetMaxConcurrency(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockRange)
+            .SetInvoker(StorageLightThreadPool_->GetInvoker())
             .SetCancelable(true)
             .SetMaxQueueSize(5000)
             .SetMaxConcurrency(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta)
+            .SetInvoker(StorageLightThreadPool_->GetInvoker())
             .SetCancelable(true)
             .SetMaxQueueSize(5000)
             .SetMaxConcurrency(5000)
@@ -142,8 +149,9 @@ private:
     const TDataNodeConfigPtr Config_;
     TBootstrap* const Bootstrap_;
 
-    const TActionQueuePtr WorkerThread_ = New<TActionQueue>("DataNodeWorker");
-    const TActionQueuePtr MetaProcessorThread_ = New<TActionQueue>("MetaProcessor");
+    const TThreadPoolPtr StorageHeavyThreadPool_;
+    const TThreadPoolPtr StorageLightThreadPool_;
+
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, StartChunk)
     {
@@ -697,7 +705,7 @@ private:
             }
 
             ToProto(response->mutable_chunk_reader_statistics(), options.ChunkReaderStatistics);
-        }).AsyncVia(MetaProcessorThread_->GetInvoker())));
+        }).AsyncVia(StorageHeavyThreadPool_->GetInvoker())));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSlices)
@@ -752,7 +760,7 @@ private:
                     request->slice_by_keys(),
                     keyColumns,
                     keySetWriter)
-                .AsyncVia(WorkerThread_->GetInvoker())));
+                .AsyncVia(StorageHeavyThreadPool_->GetInvoker())));
         }
 
         context->ReplyFrom(Combine(asyncResults).Apply(BIND([=] () {
@@ -766,7 +774,7 @@ private:
             } else {
                 response->set_keys_in_attachment(false);
             }
-        }).AsyncVia(WorkerThread_->GetInvoker())));
+        }).AsyncVia(StorageHeavyThreadPool_->GetInvoker())));
     }
 
     void MakeChunkSlices(
@@ -893,7 +901,7 @@ private:
                     keyColumns,
                     request->max_sample_size(),
                     keySetWriter)
-                .AsyncVia(WorkerThread_->GetInvoker())));
+                .AsyncVia(StorageHeavyThreadPool_->GetInvoker())));
         }
 
         context->ReplyFrom(Combine(asyncResults).Apply(BIND([=] () {
@@ -907,7 +915,7 @@ private:
             } else {
                 response->set_keys_in_attachment(false);
             }
-        }).AsyncVia(WorkerThread_->GetInvoker())));
+        }).AsyncVia(StorageHeavyThreadPool_->GetInvoker())));
     }
 
     void ProcessSample(
@@ -1186,7 +1194,7 @@ private:
                     Passed(std::move(columnNames)),
                     chunkId,
                     Passed(std::move(subresponse)))
-                    .AsyncVia(WorkerThread_->GetInvoker())));
+                    .AsyncVia(StorageHeavyThreadPool_->GetInvoker())));
         }
 
         auto combinedResult = Combine(asyncResults);
