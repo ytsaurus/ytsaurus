@@ -155,8 +155,9 @@ void TMasterConnector::ForceRegisterAtMaster()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (!Started_)
+    if (!Started_) {
         return;
+    }
 
     ControlInvoker_->Invoke(
         BIND(&TMasterConnector::StartHeartbeats, MakeStrong(this)));
@@ -174,14 +175,14 @@ void TMasterConnector::StartHeartbeats()
 
 bool TMasterConnector::IsConnected() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
     return GetNodeId() != InvalidNodeId;
 }
 
 TNodeId TMasterConnector::GetNodeId() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
     return NodeId_.load();
 }
