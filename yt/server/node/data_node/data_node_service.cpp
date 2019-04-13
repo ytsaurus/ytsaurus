@@ -454,7 +454,7 @@ private:
         }
 
         // Try suggesting other peers. This can never hurt.
-        auto peerBlockTable = Bootstrap_->GetPeerBlockTable();
+        const auto& peerBlockTable = Bootstrap_->GetPeerBlockTable();
         for (int blockIndex : request->block_indexes()) {
             auto blockId = TBlockId(chunkId, blockIndex);
             const auto& peers = peerBlockTable->GetPeers(blockId);
@@ -1289,7 +1289,7 @@ private:
             expirationTime,
             request->block_ids_size());
 
-        auto peerBlockTable = Bootstrap_->GetPeerBlockTable();
+        const auto& peerBlockTable = Bootstrap_->GetPeerBlockTable();
         for (const auto& block_id : request->block_ids()) {
             TBlockId blockId(FromProto<TGuid>(block_id.chunk_id()), block_id.block_index());
             peerBlockTable->UpdatePeer(blockId, peer);

@@ -53,9 +53,8 @@ TPeerBlockDistributor::TPeerBlockDistributor(
     TBootstrap* bootstrap)
     : Config_(std::move(config))
     , Bootstrap_(bootstrap)
-    , Invoker_(CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()))
     , PeriodicExecutor_(New<TPeriodicExecutor>(
-        Invoker_,
+        NRpc::TDispatcher::Get()->GetHeavyInvoker(),
         BIND(&TPeerBlockDistributor::DoIteration, MakeWeak(this)),
         Config_->IterationPeriod))
 { }
@@ -78,14 +77,14 @@ void TPeerBlockDistributor::Start()
 
 void TPeerBlockDistributor::DoIteration()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    VERIFY_INVOKER_AFFINITY_ANY();
 
     ProcessNewRequests();
     SweepObsoleteRequests();
-
     if (ShouldDistributeBlocks()) {
         DistributeBlocks();
     }
+
     Profiler.Enqueue("/distributed_block_size", DistributedBytes_, EMetricType::Counter);
 }
 
