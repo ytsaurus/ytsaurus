@@ -1176,10 +1176,11 @@ private:
                 ToProto(subresponse->mutable_error(), error);
                 continue;
             }
+
             auto columnIds = FromProto<std::vector<int>>(subrequest.column_ids());
             std::vector<TString> columnNames;
             for (auto id : columnIds) {
-                columnNames.emplace_back(nameTable->GetName(id));
+                columnNames.emplace_back(nameTable->GetNameOrThrow(id));
             }
 
             TBlockReadOptions options;
