@@ -85,7 +85,6 @@ private:
         TLazyUniquePtr<TPromise<NChunkClient::TBlock>> BlockPromise;
         std::atomic<int> RemainingFetches = { 0 };
         std::unique_ptr<NConcurrency::TAsyncSemaphoreGuard> AsyncSemaphoreGuard;
-        bool Cached = false;
         std::atomic_flag FetchStarted = ATOMIC_FLAG_INIT;
 
         TWindowSlot()
