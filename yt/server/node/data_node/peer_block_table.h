@@ -70,7 +70,9 @@ class TPeerBlockTable
     : public TRefCounted
 {
 public:
-    explicit TPeerBlockTable(TPeerBlockTableConfigPtr config);
+    TPeerBlockTable(
+        TPeerBlockTableConfigPtr config,
+        NCellNode::TBootstrap* bootstrap);
 
     //! Retrieves peer data for a given #blockId.
     /*

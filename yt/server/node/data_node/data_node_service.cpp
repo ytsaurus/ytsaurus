@@ -88,8 +88,6 @@ public:
             DataNodeLogger)
         , Config_(config)
         , Bootstrap_(bootstrap)
-        , StorageHeavyThreadPool_(New<TThreadPool>(Config_->StorageHeavyThreadCount, "StorageHeavy"))
-        , StorageLightThreadPool_(New<TThreadPool>(Config_->StorageLightThreadCount, "StorageLight"))
     {
         YCHECK(Config_);
         YCHECK(Bootstrap_);
@@ -108,7 +106,7 @@ public:
             .SetMaxConcurrency(5000)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PopulateCache)
-            .SetInvoker(StorageLightThreadPool_->GetInvoker())
+            .SetInvoker(Bootstrap_->GetStorageLightInvoker())
             .SetMaxQueueSize(5000)
             .SetMaxConcurrency(5000)
             .SetCancelable(true));
@@ -118,44 +116,41 @@ public:
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockSet)
-            .SetInvoker(StorageLightThreadPool_->GetInvoker())
+            .SetInvoker(Bootstrap_->GetStorageLightInvoker())
             .SetCancelable(true)
             .SetMaxQueueSize(5000)
             .SetMaxConcurrency(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockRange)
-            .SetInvoker(StorageLightThreadPool_->GetInvoker())
+            .SetInvoker(Bootstrap_->GetStorageLightInvoker())
             .SetCancelable(true)
             .SetMaxQueueSize(5000)
             .SetMaxConcurrency(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta)
-            .SetInvoker(StorageLightThreadPool_->GetInvoker())
+            .SetInvoker(Bootstrap_->GetStorageLightInvoker())
             .SetCancelable(true)
             .SetMaxQueueSize(5000)
             .SetMaxConcurrency(5000)
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer)
-            .SetInvoker(StorageLightThreadPool_->GetInvoker()));
+            .SetInvoker(Bootstrap_->GetStorageLightInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples)
-            .SetInvoker(StorageLightThreadPool_->GetInvoker())
+            .SetInvoker(Bootstrap_->GetStorageLightInvoker())
             .SetCancelable(true)
             .SetHeavy(true)
             .SetResponseCodec(NCompression::ECodec::Lz4));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSlices)
-            .SetInvoker(StorageLightThreadPool_->GetInvoker())
+            .SetInvoker(Bootstrap_->GetStorageLightInvoker())
             .SetCancelable(true)
             .SetHeavy(true)
             .SetResponseCodec(NCompression::ECodec::Lz4));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics)
-            .SetInvoker(StorageLightThreadPool_->GetInvoker())
+            .SetInvoker(Bootstrap_->GetStorageLightInvoker())
             .SetCancelable(true));
     }
 
 private:
     const TDataNodeConfigPtr Config_;
     TBootstrap* const Bootstrap_;
-
-    const TThreadPoolPtr StorageHeavyThreadPool_;
-    const TThreadPoolPtr StorageLightThreadPool_;
 
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, StartChunk)
@@ -710,7 +705,7 @@ private:
             }
 
             ToProto(response->mutable_chunk_reader_statistics(), options.ChunkReaderStatistics);
-        }).AsyncVia(StorageHeavyThreadPool_->GetInvoker())));
+        }).AsyncVia(Bootstrap_->GetStorageHeavyInvoker())));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSlices)
@@ -765,7 +760,7 @@ private:
                     request->slice_by_keys(),
                     keyColumns,
                     keySetWriter)
-                .AsyncVia(StorageHeavyThreadPool_->GetInvoker())));
+                .AsyncVia(Bootstrap_->GetStorageHeavyInvoker())));
         }
 
         context->ReplyFrom(Combine(asyncResults).Apply(BIND([=] () {
@@ -779,7 +774,7 @@ private:
             } else {
                 response->set_keys_in_attachment(false);
             }
-        }).AsyncVia(StorageHeavyThreadPool_->GetInvoker())));
+        }).AsyncVia(Bootstrap_->GetStorageHeavyInvoker())));
     }
 
     void MakeChunkSlices(
@@ -906,7 +901,7 @@ private:
                     keyColumns,
                     request->max_sample_size(),
                     keySetWriter)
-                .AsyncVia(StorageHeavyThreadPool_->GetInvoker())));
+                .AsyncVia(Bootstrap_->GetStorageHeavyInvoker())));
         }
 
         context->ReplyFrom(Combine(asyncResults).Apply(BIND([=] () {
@@ -920,7 +915,7 @@ private:
             } else {
                 response->set_keys_in_attachment(false);
             }
-        }).AsyncVia(StorageHeavyThreadPool_->GetInvoker())));
+        }).AsyncVia(Bootstrap_->GetStorageHeavyInvoker())));
     }
 
     void ProcessSample(
@@ -1199,7 +1194,7 @@ private:
                     Passed(std::move(columnNames)),
                     chunkId,
                     Passed(std::move(subresponse)))
-                    .AsyncVia(StorageHeavyThreadPool_->GetInvoker())));
+                    .AsyncVia(Bootstrap_->GetStorageHeavyInvoker())));
         }
 
         auto combinedResult = Combine(asyncResults);

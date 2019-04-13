@@ -242,12 +242,16 @@ void TBootstrap::DoRun()
     LookupThreadPool = New<TThreadPool>(
         Config->QueryAgent->LookupThreadPoolSize,
         "Lookup");
-
     TableReplicatorThreadPool = New<TThreadPool>(
         Config->TabletNode->TabletManager->ReplicatorThreadPoolSize,
         "Replicator");
-
     TransactionTrackerQueue = New<TActionQueue>("TxTracker");
+    StorageHeavyThreadPool = New<TThreadPool>(
+        Config->DataNode->StorageHeavyThreadCount,
+        "StorageHeavy");
+    StorageLightThreadPool = New<TThreadPool>(
+        Config->DataNode->StorageLightThreadCount,
+        "StorageLight");
 
     BusServer = CreateTcpBusServer(Config->BusServer);
 
@@ -303,7 +307,7 @@ void TBootstrap::DoRun()
     BlockMetaCache = New<TBlockMetaCache>(Config->DataNode->BlockMetaCache, TProfiler("/data_node/block_meta_cache"));
 
     PeerBlockDistributor = New<TPeerBlockDistributor>(Config->DataNode->PeerBlockDistributor, this);
-    PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable);
+    PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable, this);
     PeerBlockUpdater = New<TPeerBlockUpdater>(Config->DataNode, this);
 
     SessionManager = New<TSessionManager>(Config->DataNode, this);
@@ -682,6 +686,16 @@ const IInvokerPtr& TBootstrap::GetTableReplicatorPoolInvoker() const
 const IInvokerPtr& TBootstrap::GetTransactionTrackerInvoker() const
 {
     return TransactionTrackerQueue->GetInvoker();
+}
+
+const IInvokerPtr& TBootstrap::GetStorageHeavyInvoker() const
+{
+    return StorageHeavyThreadPool->GetInvoker();
+}
+
+const IInvokerPtr& TBootstrap::GetStorageLightInvoker() const
+{
+    return StorageLightThreadPool->GetInvoker();
 }
 
 const NNative::IClientPtr& TBootstrap::GetMasterClient() const

@@ -34,7 +34,7 @@ TPeerBlockUpdater::TPeerBlockUpdater(
     : Config_(config)
     , Bootstrap_(bootstrap)
     , PeriodicExecutor_(New<TPeriodicExecutor>(
-        NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+        Bootstrap_->GetStorageHeavyInvoker(),
         BIND(&TPeerBlockUpdater::Update, MakeWeak(this)),
         Config_->PeerUpdatePeriod))
 { }
