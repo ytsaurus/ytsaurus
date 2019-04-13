@@ -197,6 +197,7 @@ void TBlob::SetTagCookie(TRefCountedTypeCookie tagCookie)
     TagCookie_ = tagCookie;
 #endif
 }
+
 void TBlob::SetTagCookie(const TBlob& other)
 {
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
