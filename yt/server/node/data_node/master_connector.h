@@ -72,10 +72,18 @@ public:
     void ForceRegisterAtMaster();
 
     //! Returns |true| iff node is currently connected to master.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
     bool IsConnected() const;
 
     //! Returns the node id assigned by master or |InvalidNodeId| if the node
     //! is not registered.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
     TNodeId GetNodeId() const;
 
     //! Adds a given message to the list of alerts sent to master with each heartbeat.
@@ -126,7 +134,7 @@ private:
     NApi::ITransactionPtr LeaseTransaction_;
 
     //! Node id assigned by master or |InvalidNodeId| is not registered.
-    TNodeId NodeId_ = NNodeTrackerClient::InvalidNodeId;
+    std::atomic<TNodeId> NodeId_ = {NNodeTrackerClient::InvalidNodeId};
 
     struct TChunksDelta
     {
