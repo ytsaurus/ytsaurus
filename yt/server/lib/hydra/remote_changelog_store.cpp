@@ -66,9 +66,9 @@ public:
         , PrerequisiteTransaction_(prerequisiteTransaction)
         , ReachableVersion_(reachableVersion)
         , ProfilerTags_(profilerTags)
-    {
-        Logger.AddTag("Path: %v", Path_);
-    }
+        , Logger(NLogging::TLogger(HydraLogger)
+            .AddTag("Path: %v", Path_))
+    { }
 
     virtual TVersion GetReachableVersion() const override
     {
@@ -98,7 +98,7 @@ private:
     const TVersion ReachableVersion_;
     const NProfiling::TTagIdList ProfilerTags_;
 
-    NLogging::TLogger Logger = HydraLogger;
+    const NLogging::TLogger Logger;
 
 
     IChangelogPtr DoCreateChangelog(int id, const TChangelogMeta& meta)
