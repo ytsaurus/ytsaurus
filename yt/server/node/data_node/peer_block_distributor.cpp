@@ -48,7 +48,9 @@ static const auto& Profiler = P2PProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPeerBlockDistributor::TPeerBlockDistributor(TPeerBlockDistributorConfigPtr config, TBootstrap* bootstrap)
+TPeerBlockDistributor::TPeerBlockDistributor(
+    TPeerBlockDistributorConfigPtr config,
+    TBootstrap* bootstrap)
     : Config_(std::move(config))
     , Bootstrap_(bootstrap)
     , Invoker_(CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()))
