@@ -174,14 +174,14 @@ void TMasterConnector::StartHeartbeats()
 
 bool TMasterConnector::IsConnected() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     return NodeId_ != InvalidNodeId;
 }
 
 TNodeId TMasterConnector::GetNodeId() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     return NodeId_;
 }
