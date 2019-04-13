@@ -11,7 +11,10 @@
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
 
+#include <yt/core/rpc/dispatcher.h>
+
 #include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
 namespace NYT::NDataNode {
 
@@ -31,7 +34,7 @@ TPeerBlockUpdater::TPeerBlockUpdater(
     : Config_(config)
     , Bootstrap_(bootstrap)
     , PeriodicExecutor_(New<TPeriodicExecutor>(
-        bootstrap->GetControlInvoker(),
+        NRpc::TDispatcher::Get()->GetHeavyInvoker(),
         BIND(&TPeerBlockUpdater::Update, MakeWeak(this)),
         Config_->PeerUpdatePeriod))
 { }
@@ -53,6 +56,8 @@ TDuration TPeerBlockUpdater::GetPeerUpdateExpirationTime() const
 
 void TPeerBlockUpdater::Update()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     YT_LOG_INFO("Updating peer blocks");
 
     auto expirationTime = GetPeerUpdateExpirationTime().ToDeadLine();
@@ -64,40 +69,37 @@ void TPeerBlockUpdater::Update()
         ->GetNativeConnection()
         ->GetChannelFactory();
 
-    typedef TDataNodeServiceProxy TProxy;
-    THashMap<TString, TProxy::TReqUpdatePeerPtr> requests;
+    THashMap<TString, TDataNodeServiceProxy::TReqUpdatePeerPtr> requests;
 
     auto blocks = Bootstrap_->GetChunkBlockManager()->GetAllBlocks();
     for (const auto& block : blocks) {
         if (block->Source()) {
             const auto& sourceAddress = block->Source()->GetAddressOrThrow(Bootstrap_->GetLocalNetworks());
-            TProxy::TReqUpdatePeerPtr request;
             auto it = requests.find(sourceAddress);
-            if (it != requests.end()) {
-                request = it->second;
-            } else {
+            if (it == requests.end()) {
                 auto channel = channelFactory->CreateChannel(sourceAddress);
-                TProxy proxy(channel);
-                request = proxy.UpdatePeer();
-                request->SetMultiplexingBand(NRpc::EMultiplexingBand::Heavy);
-                request->set_peer_node_id(Bootstrap_->GetMasterConnector()->GetNodeId());
-                // COMPAT(psushin).
-                ToProto(request->mutable_peer_descriptor(), localDescriptor);
-                request->set_peer_expiration_time(expirationTime.GetValue());
-                requests.insert(std::make_pair(sourceAddress, request));
+                TDataNodeServiceProxy proxy(channel);
+                it = requests.emplace(sourceAddress, proxy.UpdatePeer()).first;
             }
-            auto* block_id = request->add_block_ids();
+
+            const auto& request = it->second;
+            request->SetMultiplexingBand(NRpc::EMultiplexingBand::Heavy);
+            request->set_peer_node_id(Bootstrap_->GetMasterConnector()->GetNodeId());
+            // COMPAT(psushin).
+            ToProto(request->mutable_peer_descriptor(), localDescriptor);
+            request->set_peer_expiration_time(expirationTime.GetValue());
+            auto* protoBlockId = request->add_block_ids();
             const auto& blockId = block->GetKey();
-            ToProto(block_id->mutable_chunk_id(), blockId.ChunkId);
-            block_id->set_block_index(blockId.BlockIndex);
+            ToProto(protoBlockId->mutable_chunk_id(), blockId.ChunkId);
+            protoBlockId->set_block_index(blockId.BlockIndex);
         }
     }
 
-    for (const auto& pair : requests) {
+    for (const auto& [address, request] : requests) {
         YT_LOG_DEBUG("Sending peer block update request (Address: %v, ExpirationTime: %v)",
-            pair.first,
+            address,
             expirationTime);
-        pair.second->Invoke();
+        request->Invoke();
     }
 }
 
