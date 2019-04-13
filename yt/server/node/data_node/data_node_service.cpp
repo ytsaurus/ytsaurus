@@ -1296,9 +1296,7 @@ private:
 
     void ValidateConnected()
     {
-        // XXX(babenko): not thread safe
-        auto masterConnector = Bootstrap_->GetMasterConnector();
-        if (!masterConnector->IsConnected()) {
+        if (!Bootstrap_->GetMasterConnector()->IsConnected()) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::MasterNotConnected,
                 "Master is not connected");
