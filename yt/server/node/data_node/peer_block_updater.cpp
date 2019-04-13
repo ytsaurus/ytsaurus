@@ -60,6 +60,11 @@ void TPeerBlockUpdater::Update()
 
     YT_LOG_INFO("Updating peer blocks");
 
+    auto blocks = Bootstrap_->GetChunkBlockManager()->GetAllBlocksWithSource();
+
+    YT_LOG_INFO("Cached blocks snapshot captured (BlockCount: %v)",
+        blocks.size());
+
     auto expirationTime = GetPeerUpdateExpirationTime().ToDeadLine();
     auto localDescriptor = Bootstrap_
         ->GetMasterConnector()
@@ -70,29 +75,27 @@ void TPeerBlockUpdater::Update()
         ->GetChannelFactory();
 
     THashMap<TString, TDataNodeServiceProxy::TReqUpdatePeerPtr> requests;
-
-    auto blocks = Bootstrap_->GetChunkBlockManager()->GetAllBlocks();
     for (const auto& block : blocks) {
-        if (block->Source()) {
-            const auto& sourceAddress = block->Source()->GetAddressOrThrow(Bootstrap_->GetLocalNetworks());
-            auto it = requests.find(sourceAddress);
-            if (it == requests.end()) {
-                auto channel = channelFactory->CreateChannel(sourceAddress);
-                TDataNodeServiceProxy proxy(channel);
-                it = requests.emplace(sourceAddress, proxy.UpdatePeer()).first;
-            }
+        YCHECK(block->Source());
+        const auto& sourceAddress = block->Source()->GetAddressOrThrow(Bootstrap_->GetLocalNetworks());
 
-            const auto& request = it->second;
-            request->SetMultiplexingBand(NRpc::EMultiplexingBand::Heavy);
-            request->set_peer_node_id(Bootstrap_->GetMasterConnector()->GetNodeId());
-            // COMPAT(psushin).
-            ToProto(request->mutable_peer_descriptor(), localDescriptor);
-            request->set_peer_expiration_time(expirationTime.GetValue());
-            auto* protoBlockId = request->add_block_ids();
-            const auto& blockId = block->GetKey();
-            ToProto(protoBlockId->mutable_chunk_id(), blockId.ChunkId);
-            protoBlockId->set_block_index(blockId.BlockIndex);
+        auto it = requests.find(sourceAddress);
+        if (it == requests.end()) {
+            auto channel = channelFactory->CreateChannel(sourceAddress);
+            TDataNodeServiceProxy proxy(channel);
+            it = requests.emplace(sourceAddress, proxy.UpdatePeer()).first;
         }
+
+        const auto& request = it->second;
+        request->SetMultiplexingBand(NRpc::EMultiplexingBand::Heavy);
+        request->set_peer_node_id(Bootstrap_->GetMasterConnector()->GetNodeId());
+        // COMPAT(psushin).
+        ToProto(request->mutable_peer_descriptor(), localDescriptor);
+        request->set_peer_expiration_time(expirationTime.GetValue());
+        auto* protoBlockId = request->add_block_ids();
+        const auto& blockId = block->GetKey();
+        ToProto(protoBlockId->mutable_chunk_id(), blockId.ChunkId);
+        protoBlockId->set_block_index(blockId.BlockIndex);
     }
 
     for (const auto& [address, request] : requests) {
