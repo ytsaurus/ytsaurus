@@ -730,6 +730,7 @@ private:
             ? New<TKeySetWriter>()
             : nullptr;
 
+        auto heavyInvoker = CreateSerializedInvoker(Bootstrap_->GetStorageHeavyInvoker());
         for (const auto& sliceRequest : request->slice_requests()) {
             auto chunkId = FromProto<TChunkId>(sliceRequest.chunk_id());
             auto* slices = response->add_slices();
@@ -760,7 +761,7 @@ private:
                     request->slice_by_keys(),
                     keyColumns,
                     keySetWriter)
-                .AsyncVia(Bootstrap_->GetStorageHeavyInvoker())));
+                .AsyncVia(heavyInvoker)));
         }
 
         context->ReplyFrom(Combine(asyncResults).Apply(BIND([=] () {
@@ -774,7 +775,7 @@ private:
             } else {
                 response->set_keys_in_attachment(false);
             }
-        }).AsyncVia(Bootstrap_->GetStorageHeavyInvoker())));
+        }).AsyncVia(heavyInvoker)));
     }
 
     void MakeChunkSlices(
@@ -866,11 +867,12 @@ private:
 
         const auto& chunkStore = Bootstrap_->GetChunkStore();
 
-        std::vector<TFuture<void>> asyncResults;
-        TKeySetWriterPtr keySetWriter = request->keys_in_attachment()
+        auto keySetWriter = request->keys_in_attachment()
             ? New<TKeySetWriter>()
             : nullptr;
 
+        auto heavyInvoker = CreateSerializedInvoker(Bootstrap_->GetStorageHeavyInvoker());
+        std::vector<TFuture<void>> asyncResults;
         for (const auto& sampleRequest : request->sample_requests()) {
             auto* sampleResponse = response->add_sample_responses();
             auto chunkId = FromProto<TChunkId>(sampleRequest.chunk_id());
@@ -901,7 +903,7 @@ private:
                     keyColumns,
                     request->max_sample_size(),
                     keySetWriter)
-                .AsyncVia(Bootstrap_->GetStorageHeavyInvoker())));
+                .AsyncVia(heavyInvoker)));
         }
 
         context->ReplyFrom(Combine(asyncResults).Apply(BIND([=] () {
@@ -915,7 +917,7 @@ private:
             } else {
                 response->set_keys_in_attachment(false);
             }
-        }).AsyncVia(Bootstrap_->GetStorageHeavyInvoker())));
+        }).AsyncVia(heavyInvoker)));
     }
 
     void ProcessSample(
@@ -1160,6 +1162,7 @@ private:
 
         auto nameTable = NYT::FromProto<TNameTablePtr>(request->name_table());
 
+        auto heavyInvoker = CreateSerializedInvoker(Bootstrap_->GetStorageHeavyInvoker());
         for (const auto& subrequest : request->subrequests()) {
             auto chunkId = FromProto<TChunkId>(subrequest.chunk_id());
 
@@ -1195,7 +1198,7 @@ private:
                     Passed(std::move(columnNames)),
                     chunkId,
                     Passed(std::move(subresponse)))
-                    .AsyncVia(Bootstrap_->GetStorageHeavyInvoker())));
+                    .AsyncVia(heavyInvoker)));
         }
 
         auto combinedResult = Combine(asyncResults);
