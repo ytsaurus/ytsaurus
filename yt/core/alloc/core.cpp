@@ -1611,18 +1611,18 @@ public:
 
     static TMemoryTag GetCurrentMemoryTag()
     {
-        return CurrentRawMemoryTag_ & 0xffffffff;
+        return (&CurrentRawMemoryTag_)->Parts.MemoryTag;
     }
 
     Y_FORCE_INLINE static ui64 GetCurrentRawMemoryTag()
     {
-        return CurrentRawMemoryTag_;
+        return (&CurrentRawMemoryTag_)->Value;
     }
 
     static void SetCurrentMemoryTag(TMemoryTag tag)
     {
         YCHECK(tag <= MaxMemoryTag);
-        *reinterpret_cast<ui32*>(&CurrentRawMemoryTag_) = tag;
+        (&CurrentRawMemoryTag_)->Parts.MemoryTag = tag;
     }
 
     static EMemoryZone GetCurrentMemoryZone()
@@ -1642,7 +1642,7 @@ private:
     {
         auto* state = ThreadStatePool_.Allocate();
 
-        state->AllocationProfilingEnabled = reinterpret_cast<ui32*>(&CurrentRawMemoryTag_) + 1;
+        state->AllocationProfilingEnabled = &(*&CurrentRawMemoryTag_).Parts.ProfilingEnabled;
         *state->AllocationProfilingEnabled = ConfigurationManager->IsAllocationProfilingEnabled();
 
         {
@@ -1685,9 +1685,17 @@ private:
     // The caller must be able to deal with it.
     Y_POD_STATIC_THREAD(bool) ThreadStateDestroyed_;
 
-    // Lower 32 bits: current memory tag.
-    // Upper 32 bits: zero if allocation profiling is off.
-    Y_POD_STATIC_THREAD(ui64) CurrentRawMemoryTag_;
+    union TRawMemoryTag
+    {
+        ui64 __attribute__((__may_alias__)) Value;
+        struct TParts
+        {
+            ui32 __attribute__((__may_alias__)) MemoryTag;
+            // 0 if alloctaton profiling is off, 1 if on.
+            ui32 __attribute__((__may_alias__)) ProfilingEnabled;
+        } Parts;
+    };
+    Y_POD_STATIC_THREAD(TRawMemoryTag) CurrentRawMemoryTag_;
 
     // See memory zone API.
     Y_POD_STATIC_THREAD(EMemoryZone) CurrentMemoryZone_;
@@ -1703,7 +1711,7 @@ private:
 
 Y_POD_THREAD(TThreadState*) TThreadManager::ThreadState_;
 Y_POD_THREAD(bool) TThreadManager::ThreadStateDestroyed_;
-Y_POD_THREAD(ui64) TThreadManager::CurrentRawMemoryTag_;
+Y_POD_THREAD(TThreadManager::TRawMemoryTag) TThreadManager::CurrentRawMemoryTag_;
 Y_POD_THREAD(EMemoryZone) TThreadManager::CurrentMemoryZone_;
 
 TBox<TThreadManager> ThreadManager;
