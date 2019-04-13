@@ -45,7 +45,8 @@ TRecoveryBase::TRecoveryBase(
     , ResponseKeeper_(responseKeeper)
     , EpochContext_(epochContext)
     , SyncVersion_(syncVersion)
-    , Logger(HydraLogger)
+    , Logger(NLogging::TLogger(HydraLogger)
+        .AddTag("CellId: %v", CellManager_->GetCellId()))
 {
     YCHECK(Config_);
     YCHECK(CellManager_);
@@ -54,8 +55,6 @@ TRecoveryBase::TRecoveryBase(
     YCHECK(SnapshotStore_);
     YCHECK(EpochContext_);
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochSystemAutomatonInvoker, AutomatonThread);
-
-    Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 }
 
 void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
