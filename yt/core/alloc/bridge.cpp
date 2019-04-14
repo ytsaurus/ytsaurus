@@ -14,6 +14,11 @@ void* Allocate(size_t size)
     return AllocateInline(size);
 }
 
+void* AllocateSmall(size_t untaggedRank, size_t taggedRank)
+{
+    return AllocateSmallInline(untaggedRank, taggedRank);
+}
+
 void* AllocatePageAligned(size_t size)
 {
     return AllocatePageAlignedInline(size);
@@ -24,26 +29,14 @@ void Free(void* ptr)
     FreeInline(ptr);
 }
 
+void FreeNonNull(void* ptr)
+{
+    FreeNonNullInline(ptr);
+}
+
 size_t GetAllocationSize(void* ptr)
 {
     return GetAllocationSizeInline(ptr);
-}
-
-#else
-
-void* Allocate(size_t size)
-{
-    return ::malloc(size);
-}
-
-void* AllocatePageAligned(size_t size)
-{
-    return ::valloc(size);
-}
-
-void Free(void* ptr)
-{
-    ::free(ptr);
 }
 
 #endif
