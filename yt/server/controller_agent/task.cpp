@@ -605,14 +605,10 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
 
 void TTask::ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie)
 {
-    auto list = HasInputLocality()
-        ? GetChunkPoolOutput()->GetStripeList(joblet->OutputCookie)
-        : nullptr;
-
     releaseOutputCookie();
 
     if (HasInputLocality()) {
-        for (const auto& stripe : list->Stripes) {
+        for (const auto& stripe : joblet->InputStripeList->Stripes) {
             TaskHost_->AddTaskLocalityHint(stripe, this);
         }
     }
