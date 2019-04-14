@@ -113,15 +113,14 @@ constexpr size_t PageSize = 4_KB;
 
 constexpr size_t MinLargeRank = 15;
 
-static_assert(LargeRankCount - MinLargeRank <= 16, "Too many large ranks.");
-static_assert(SmallRankCount <= 32, "Too many small ranks.");
+static_assert(LargeRankCount - MinLargeRank <= 16, "Too many large ranks");
+static_assert(SmallRankCount <= 32, "Too many small ranks");
 
 constexpr size_t SmallZoneSize = 1_TB;
 constexpr size_t LargeZoneSize = 1_TB * 16;
 constexpr size_t HugeZoneSize = 1_TB;
 constexpr size_t SystemZoneSize = 1_TB;
 
-constexpr size_t LargeSizeThreshold = 32_KB;
 constexpr size_t MaxCachedChunksPerRank = 256;
 
 constexpr uintptr_t UntaggedSmallZonesStart = 0;
@@ -242,42 +241,6 @@ void InitializeGlobals();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Maps small chunk ranks to size in bytes.
-static const ui16 SmallRankToSize[SmallRankCount] = {
-    0,
-    16, 16,
-    32, 32, 48, 64, 96, 128,
-    192, 256, 384, 512, 768, 1024, 1536, 2048,
-    3072, 4096, 6144, 8192, 12288, 16384, 24576, 32768,
-};
-
-// Helper array for mapping size to small chunk rank.
-static const ui8 SmallSizeToRank1[65] = {
-    1,
-    2, 2, 4, 4,  // 16, 16, 32, 32
-    5, 5, 6, 6,  // 48, 64
-    7, 7, 7, 7, 8, 8, 8, 8, // 96, 128
-    9, 9, 9, 9, 9, 9, 9, 9,  10, 10, 10, 10, 10, 10, 10, 10,  // 192, 256
-    11, 11, 11, 11, 11, 11, 11, 11,  11, 11, 11, 11, 11, 11, 11, 11,  // 384
-    12, 12, 12, 12, 12, 12, 12, 12,  12, 12, 12, 12, 12, 12, 12, 12   // 512
-};
-
-// Helper array for mapping size to small chunk rank.
-static const unsigned char SmallSizeToRank2[128] = {
-    12, 12, 13, 14, // 512, 512, 768, 1024
-    15, 15, 16, 16, // 1536, 2048
-    17, 17, 17, 17, 18, 18, 18, 18, // 3072, 4096
-    19, 19, 19, 19, 19, 19, 19, 19,  20, 20, 20, 20, 20, 20, 20, 20, // 6144, 8192
-    21, 21, 21, 21, 21, 21, 21, 21,  21, 21, 21, 21, 21, 21, 21, 21, // 12288
-    22, 22, 22, 22, 22, 22, 22, 22,  22, 22, 22, 22, 22, 22, 22, 22, // 16384
-    23, 23, 23, 23, 23, 23, 23, 23,  23, 23, 23, 23, 23, 23, 23, 23,
-    23, 23, 23, 23, 23, 23, 23, 23,  23, 23, 23, 23, 23, 23, 23, 23, // 24576
-    24, 24, 24, 24, 24, 24, 24, 24,  24, 24, 24, 24, 24, 24, 24, 24,
-    24, 24, 24, 24, 24, 24, 24, 24,  24, 24, 24, 24, 24, 24, 24, 24, // 32768
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 Y_FORCE_INLINE size_t GetUsed(ssize_t allocated, ssize_t freed)
 {
     return allocated >= freed ? static_cast<size_t>(allocated - freed) : 0;
@@ -348,7 +311,7 @@ Y_FORCE_INLINE void PoisonUninitializedRange(void* ptr, size_t size)
 }
 
 // Checks that the header size is divisible by 16 (as needed due to alignment restrictions).
-#define CHECK_HEADER_SIZE(T) static_assert(sizeof(T) % 16 == 0, "sizeof(" #T ") % 16 != 0");
+#define CHECK_HEADER_ALIGNMENT(T) static_assert(sizeof(T) % 16 == 0, "sizeof(" #T ") % 16 != 0");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1200,7 +1163,7 @@ struct TSystemBlobHeader
     char Padding[8];
 };
 
-CHECK_HEADER_SIZE(TSystemBlobHeader)
+CHECK_HEADER_ALIGNMENT(TSystemBlobHeader)
 
 // Used for some internal allocations.
 // Delgates directly to TMappedMemoryManager.
@@ -1530,13 +1493,13 @@ struct TThreadState
         }
 
         // For each rank we have a segment of pointers in CachedChunks with the following layout:
-        //   LPP[P]........R
+        //   LCC[C]........R
         // Legend:
-        //   .  = null pointer
+        //   .  = garbage
         //   L  = left sentinel
         //   R  = right sentinel
-        //   P  = cached pointer
-        //  [P] = current cached pointer
+        //   C  = cached pointer
+        //  [C] = current cached pointer
         //
         //  +2 is for two sentinels
         std::array<void*, SmallRankCount * (MaxCachedChunksPerRank + 2)> CachedChunks{};
@@ -2340,7 +2303,7 @@ void TSystemAllocator::Free(void* ptr)
 //
 // Allocations (called small chunks) are grouped by their sizes. Two most-significant binary digits are
 // used to determine the rank of a chunk, which guarantees 25% overhead in the worst case.
-// A pair of helper arrays (SmallSizeToRank1 and SmallSizeToRank2) are used to compute ranks; we expect
+// A pair of helper arrays (SizeToSmallRank1 and SizeToSmallRank2) are used to compute ranks; we expect
 // them to be permanently cached.
 //
 // Chunks of the same rank are served by a (small) arena allocator.
@@ -2390,7 +2353,10 @@ struct TTaggedSmallChunkHeader
     char Padding[12];
 };
 
-CHECK_HEADER_SIZE(TTaggedSmallChunkHeader)
+CHECK_HEADER_ALIGNMENT(TTaggedSmallChunkHeader)
+static_assert(
+    sizeof(TTaggedSmallChunkHeader) == TaggedSmallChunkHeaderSize,
+    "Wrong size of TTaggedSmallChunkHeader");
 
 class TSmallArenaAllocator
 {
@@ -2550,7 +2516,9 @@ public:
         auto& chunkPtrPtr = state->SmallBlobCache[Kind_].RankToCachedChunkPtr[rank];
         group->PutMany(chunkPtrPtr - ChunksPerGroup + 1, ChunksPerGroup);
         chunkPtrPtr -= ChunksPerGroup;
+#ifdef PARANOID
         ::memset(chunkPtrPtr + 1, 0, sizeof(void*) * ChunksPerGroup);
+#endif
 
         auto& groups = RankToChunkGroups_[rank];
         PARANOID_CHECK(!group->IsEmpty());
@@ -2583,7 +2551,9 @@ public:
 
             auto* group = GroupPool_.Allocate(state);
             group->PutMany(chunkPtrPtr + 1, count);
+#ifdef PARANOID
             ::memset(chunkPtrPtr + 1, 0, sizeof(void*) * count);
+#endif
 
             auto& groups = RankToChunkGroups_[rank];
             groups.Put(state, group);
@@ -2623,7 +2593,9 @@ public:
             auto* ptr = cachedPtr;
             PARANOID_CHECK(ptr);
             if (Y_LIKELY(ptr != reinterpret_cast<void*>(TThreadState::LeftSentinel))) {
+#ifdef PARANOID
                 cachedPtr = nullptr;
+#endif
                 --chunkPtr;
                 PoisonUninitializedRange(ptr, size);
                 return ptr;
@@ -2653,7 +2625,7 @@ public:
         while (true) {
             auto& chunkPtrPtr = state->SmallBlobCache[Kind].RankToCachedChunkPtr[rank];
             auto& chunkPtr = *(chunkPtrPtr + 1);
-            if (Y_LIKELY(!chunkPtr)) {
+            if (Y_LIKELY(chunkPtr != reinterpret_cast<void*>(TThreadState::RightSentinel))) {
                 chunkPtr = ptr;
                 ++chunkPtrPtr;
                 return;
@@ -2803,7 +2775,7 @@ struct TLargeBlobHeader
     size_t BytesAllocated;
 };
 
-CHECK_HEADER_SIZE(TLargeBlobHeader)
+CHECK_HEADER_ALIGNMENT(TLargeBlobHeader)
 
 struct TLargeBlobExtent
 {
@@ -3374,7 +3346,7 @@ struct THugeBlobHeader
     char Padding[15];
 };
 
-CHECK_HEADER_SIZE(THugeBlobHeader)
+CHECK_HEADER_ALIGNMENT(THugeBlobHeader)
 
 class THugeBlobAllocator
 {
@@ -3704,40 +3676,60 @@ void InitializeGlobals()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Y_FORCE_INLINE void* AllocateSmallUntagged(size_t rank)
+{
+    auto* result = TSmallAllocator::Allocate<EAllocationKind::Untagged>(NullMemoryTag, rank);
+    PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= MinUntaggedSmallPtr && reinterpret_cast<uintptr_t>(result) < MaxUntaggedSmallPtr);
+    return result;
+}
+
+Y_FORCE_INLINE void* AllocateSmallTagged(ui64 rawTag, size_t rank)
+{
+    auto tag = (Y_UNLIKELY(rawTag & (1ULL << 32)) && ConfigurationManager->IsSmallArenaAllocationProfiled(rank))
+        ? BacktraceManager->GetMemoryTagFromBacktrace(2)
+        : static_cast<TMemoryTag>(rawTag);
+    auto* ptr = TSmallAllocator::Allocate<EAllocationKind::Tagged>(tag, rank);
+    auto* chunk = static_cast<TTaggedSmallChunkHeader*>(ptr);
+    new (chunk) TTaggedSmallChunkHeader(tag);
+    auto* result = HeaderToPtr(chunk);
+    PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= MinTaggedSmallPtr && reinterpret_cast<uintptr_t>(result) < MaxTaggedSmallPtr);
+    return result;
+}
+
 Y_FORCE_INLINE void* AllocateInline(size_t size)
 {
 #define XX() \
     size_t rank; \
     if (Y_LIKELY(size <= 512)) { \
-        rank = SmallSizeToRank1[1 + ((static_cast<int>(size) - 1) >> 3)]; \
+        rank = SizeToSmallRank1[1 + ((static_cast<int>(size) - 1) >> 3)]; \
     } else { \
         if (Y_LIKELY(size < LargeSizeThreshold)) { \
-            rank = SmallSizeToRank2[(size - 1) >> 8]; \
+            rank = SizeToSmallRank2[(size - 1) >> 8]; \
         } else { \
             return TBlobAllocator::Allocate(size); \
         } \
     }
 
     auto rawTag = TThreadManager::GetCurrentRawMemoryTag();
-    void* result;
     if (Y_LIKELY(rawTag == NullMemoryTag)) {
         XX()
-        result = TSmallAllocator::Allocate<EAllocationKind::Untagged>(NullMemoryTag, rank);
-        PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= MinUntaggedSmallPtr && reinterpret_cast<uintptr_t>(result) < MaxUntaggedSmallPtr);
+        return AllocateSmallUntagged(rank);
     } else {
-        size += sizeof (TTaggedSmallChunkHeader);
+        size += TaggedSmallChunkHeaderSize;
         XX()
-        auto tag = (Y_UNLIKELY(rawTag & (1ULL << 32)) && ConfigurationManager->IsSmallArenaAllocationProfiled(rank))
-            ? BacktraceManager->GetMemoryTagFromBacktrace(2)
-            : static_cast<TMemoryTag>(rawTag);
-        auto* ptr = TSmallAllocator::Allocate<EAllocationKind::Tagged>(tag, rank);
-        auto* chunk = static_cast<TTaggedSmallChunkHeader*>(ptr);
-        new (chunk) TTaggedSmallChunkHeader(tag);
-        result = HeaderToPtr(chunk);
-        PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= MinTaggedSmallPtr && reinterpret_cast<uintptr_t>(result) < MaxTaggedSmallPtr);
+        return AllocateSmallTagged(rawTag, rank);
     }
-    return result;
 #undef XX
+}
+
+Y_FORCE_INLINE void* AllocateSmallInline(size_t untaggedRank, size_t taggedRank)
+{
+    auto rawTag = TThreadManager::GetCurrentRawMemoryTag();
+    if (Y_LIKELY(rawTag == NullMemoryTag)) {
+        return AllocateSmallUntagged(untaggedRank);
+    } else {
+        return AllocateSmallTagged(rawTag, taggedRank);
+    }
 }
 
 Y_FORCE_INLINE void* AllocatePageAlignedInline(size_t size)
@@ -3746,12 +3738,9 @@ Y_FORCE_INLINE void* AllocatePageAlignedInline(size_t size)
     return AlignUp(ptr, PageSize);
 }
 
-Y_FORCE_INLINE void FreeInline(void* ptr)
+Y_FORCE_INLINE void FreeNonNullInline(void* ptr)
 {
-    if (Y_UNLIKELY(!ptr)) {
-        return;
-    }
-
+    Y_ASSERT(ptr);
     if (Y_LIKELY(reinterpret_cast<uintptr_t>(ptr) < UntaggedSmallZonesEnd)) {
         PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= MinUntaggedSmallPtr && reinterpret_cast<uintptr_t>(ptr) < MaxUntaggedSmallPtr);
         TSmallAllocator::Free<EAllocationKind::Untagged>(NullMemoryTag, ptr);
@@ -3762,6 +3751,13 @@ Y_FORCE_INLINE void FreeInline(void* ptr)
         TSmallAllocator::Free<EAllocationKind::Tagged>(tag, chunk);
     } else {
         TBlobAllocator::Free(ptr);
+    }
+}
+
+Y_FORCE_INLINE void FreeInline(void* ptr)
+{
+    if (Y_LIKELY(ptr)) {
+        FreeNonNullInline(ptr);
     }
 }
 
