@@ -3,11 +3,9 @@
 #include "db_helpers.h"
 #include "format_helpers.h"
 #include "input_stream.h"
-#include "storage_with_virtual_columns.h"
 #include "subquery_spec.h"
 #include "type_helpers.h"
 #include "chunk_reader.h"
-#include "virtual_columns.h"
 #include "subquery.h"
 #include "query_context.h"
 #include "table_reader.h"
@@ -25,6 +23,7 @@
 #include <yt/core/concurrency/throughput_throttler.h>
 
 #include <Interpreters/Context.h>
+#include <Storages/IStorage.h>
 
 #include <library/string_utils/base64/base64.h>
 
@@ -39,7 +38,7 @@ using namespace NTableClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStorageSubquery
-    : public IStorageWithVirtualColumns
+    : public DB::IStorage
 {
 public:
     TStorageSubquery(
@@ -57,10 +56,7 @@ public:
             queryContext->Logger.AddTag("InitialQueryId: %v", SubquerySpec_.InitialQueryId);
         }
 
-        auto representative = SubquerySpec_.GetTables().front();
-        Columns_ = GetTableColumns(*representative);
-
-        setColumns(ColumnsDescription(Columns_));
+        setColumns(ColumnsDescription(SubquerySpec_.Columns));
     }
 
     std::string getName() const override { return "YT"; }
@@ -77,14 +73,11 @@ public:
         size_t /* maxBlockSize */,
         unsigned maxStreamCount) override
     {
+        // TODO(max42): normal logging in this method.
         const auto& Logger = QueryContext_->Logger;
 
-        DB::Names physicalColumns;
-        DB::Names virtualColumns;
-        SplitColumns(columnNames, physicalColumns, virtualColumns);
-
-        auto columns = ToString(physicalColumns);
-        auto systemColumns = GetSystemColumns(virtualColumns);
+        // TODO(max42): ?
+        auto columns = ToString(columnNames);
 
         i64 totalRowCount = 0;
         i64 totalDataWeight = 0;
@@ -94,26 +87,18 @@ public:
         }
         YT_LOG_DEBUG("Deserialized subquery spec (RowCount: %v, DataWeight: %v)", totalRowCount, totalDataWeight);
 
-        auto dataSourceType = SubquerySpec_.GetCommonDataSourceType();
-        YT_LOG_DEBUG("Creating table readers (MaxStreamCount: %v, DataSourceType: %v, Columns: %v)",
-            maxStreamCount,
-            dataSourceType,
-            columns);
+        YT_LOG_DEBUG("Creating table readers (MaxStreamCount: %v, Columns: %v)", maxStreamCount, columns);
 
         TChunkStripeListPtr chunkStripeList;
-        if (dataSourceType == EDataSourceType::UnversionedTable) {
-            std::vector<TInputDataSlicePtr> dataSlices;
-            for (const auto& dataSliceDescriptor : SubquerySpec_.DataSliceDescriptors) {
-                const auto& chunkSpec = dataSliceDescriptor.GetSingleChunk();
-                auto inputChunk = New<TInputChunk>(chunkSpec);
-                auto inputChunkSlice = New<TInputChunkSlice>(std::move(inputChunk));
-                auto dataSlice = CreateUnversionedInputDataSlice(std::move(inputChunkSlice));
-                dataSlices.emplace_back(std::move(dataSlice));
-            }
-            chunkStripeList = BuildJobs(dataSlices, maxStreamCount);
-        } else {
-            YCHECK(false);
+        std::vector<TInputDataSlicePtr> dataSlices;
+        for (const auto& dataSliceDescriptor : SubquerySpec_.DataSliceDescriptors) {
+            const auto& chunkSpec = dataSliceDescriptor.GetSingleChunk();
+            auto inputChunk = New<TInputChunk>(chunkSpec);
+            auto inputChunkSlice = New<TInputChunkSlice>(std::move(inputChunk));
+            auto dataSlice = CreateUnversionedInputDataSlice(std::move(inputChunkSlice));
+            dataSlices.emplace_back(std::move(dataSlice));
         }
+        chunkStripeList = SubdivideDataSlices(dataSlices, maxStreamCount);
 
         i64 totalDataSliceCount = 0;
         for (const auto& stripe : chunkStripeList->Stripes) {
@@ -121,8 +106,9 @@ public:
         }
         YT_LOG_DEBUG("Per-thread stripes prepared (Count: %v, TotalDataSliceCount: %v)", chunkStripeList->Stripes.size(), totalDataSliceCount);
 
-        auto schema = SubquerySpec_.GetCommonNativeSchema();
+        auto schema = SubquerySpec_.ReadSchema;
 
+        // TODO(max42): do we still need this?
         std::vector<TString> dataColumns;
         for (const auto& columnName : columns) {
             if (!schema.FindColumn(columnName)) {
@@ -132,35 +118,13 @@ public:
             dataColumns.emplace_back(columnName);
         }
 
-        auto readerSchema = schema.Filter(dataColumns);
+        auto readSchema = schema.Filter(dataColumns);
 
-        std::vector<TClickHouseTablePtr> sourceTables = SubquerySpec_.GetTables();
-
-        YT_LOG_DEBUG("Number of job source tables: %v", sourceTables.size());
-
-        std::vector<TClickHouseTablePtr> readerTables;
-        readerTables.reserve(sourceTables.size());
-        for (const auto& table : sourceTables) {
-            auto filtered = std::make_shared<TClickHouseTable>(table->Name);
-
-            for (const auto& column: table->Columns) {
-                if (IsIn(columns, column.Name)) {
-                    filtered->Columns.push_back(column);
-                }
-            }
-
-            readerTables.emplace_back(std::move(filtered));
-        }
-
-        YT_LOG_DEBUG("Narrowing schema to %v physical columns", readerSchema.GetColumnCount());
+        YT_LOG_DEBUG("Narrowing schema to %v columns", readSchema.GetColumnCount());
 
         // TODO
         auto nativeReaderConfig = New<TTableReaderConfig>();
         auto nativeReaderOptions = New<NTableClient::TTableReaderOptions>();
-
-        if (systemColumns.TableName) {
-            nativeReaderOptions->EnableTableIndex = true;
-        }
 
         YT_LOG_INFO("Creating table readers");
 
@@ -200,7 +164,7 @@ public:
                 SubquerySpec_.DataSourceDirectory,
                 dataSliceDescriptors,
                 GetUnlimitedThrottler(),
-                readerSchema,
+                readSchema,
                 true);
 
             chunkReaders.push_back(std::move(chunkReader));
@@ -209,15 +173,12 @@ public:
         // It seems there is no need to warm up readers
         // WarmUp(chunkReaders);
 
-        auto readerColumns = readerTables.front()->Columns;
+        // TODO(max42): refactor.
+        auto foo = std::make_shared<TClickHouseTable>("foo", readSchema);
 
         TTableReaderList readers;
         for (auto& chunkReader : chunkReaders) {
-            readers.emplace_back(CreateTableReader(
-                readerTables,
-                readerColumns,
-                systemColumns,
-                std::move(chunkReader)));
+            readers.emplace_back(CreateTableReader(foo->Columns, std::move(chunkReader)));
         }
 
         BlockInputStreams streams;
@@ -235,18 +196,7 @@ public:
 
 private:
     TQueryContext* QueryContext_;
-    NamesAndTypesList Columns_;
     TSubquerySpec SubquerySpec_;
-
-    const NamesAndTypesList& ListPhysicalColumns() const override
-    {
-        return Columns_;
-    }
-
-    const NamesAndTypesList& ListVirtualColumns() const override
-    {
-        return ListSystemVirtualColumns();
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

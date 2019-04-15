@@ -7,6 +7,28 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 
+#include <DataTypes/DataTypeFactory.h>
+
+namespace DB {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NYT::NClickHouseServer::NProto::TNameAndTypePair* protoPair, const NameAndTypePair& pair)
+{
+    protoPair->set_name(TString(pair.name));
+    protoPair->set_type(TString(pair.type->getName()));
+}
+
+void FromProto(NameAndTypePair* pair, const NYT::NClickHouseServer::NProto::TNameAndTypePair& protoPair)
+{
+    pair->name = protoPair.name();
+    pair->type = DB::DataTypeFactory::instance().get(protoPair.type());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace DB
+
 namespace NYT::NClickHouseServer {
 
 using namespace NChunkClient;
@@ -69,35 +91,6 @@ void TSubquerySpec::Validate() const
     }
 }
 
-NChunkClient::EDataSourceType TSubquerySpec::GetCommonDataSourceType() const
-{
-    // TODO: checks
-    const auto& representative = DataSources().front();
-    return representative.GetType();
-}
-
-NTableClient::TTableSchema TSubquerySpec::GetCommonNativeSchema() const
-{
-    // TODO: checks
-    const auto& representative = DataSources().front();
-    return *representative.Schema();
-}
-
-std::vector<TClickHouseTablePtr> TSubquerySpec::GetTables() const
-{
-    auto nativeSchema = GetCommonNativeSchema();
-
-    const auto& dataSources = DataSources();
-
-    std::vector<TClickHouseTablePtr> tables;
-    tables.reserve(dataSources.size());
-    for (auto dataSource : dataSources) {
-        tables.push_back(
-            CreateClickHouseTable(*dataSource.GetPath(), nativeSchema));
-    }
-    return tables;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TSubquerySpec* protoSpec, const TSubquerySpec& spec)
@@ -117,6 +110,10 @@ void ToProto(NProto::TSubquerySpec* protoSpec, const TSubquerySpec& spec)
     }
 
     ToProto(protoSpec->mutable_initial_query_id(), spec.InitialQueryId);
+    for (const auto& column : spec.Columns) {
+        ToProto(protoSpec->add_columns(), column);
+    }
+    ToProto(protoSpec->mutable_read_schema(), spec.ReadSchema);
 }
 
 void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
@@ -137,8 +134,12 @@ void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
     }
 
     FromProto(&spec->InitialQueryId, protoSpec.initial_query_id());
+    for (const auto& protoColumn : protoSpec.columns()) {
+        FromProto(&spec->Columns.emplace_back(), protoColumn);
+    }
+    FromProto(&spec->ReadSchema, protoSpec.read_schema());
 }
 
-/////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer

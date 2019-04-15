@@ -50,8 +50,6 @@
 #include <Storages/MergeTree/KeyCondition.h>
 #include <DataTypes/IDataType.h>
 
-#include <library/string_utils/base64/base64.h>
-
 namespace NYT::NClickHouseServer {
 
 using namespace NApi;
@@ -273,7 +271,7 @@ private:
 
         KeyColumnCount_ = representativeTable.Schema.GetKeyColumnCount();
         KeyColumns_ = representativeTable.Schema.GetKeyColumns();
-        KeyColumnDataTypes_ = TClickHouseTableSchema::From(*CreateClickHouseTable("", representativeTable.Schema)).GetKeyDataTypes();
+        KeyColumnDataTypes_ = TClickHouseTableSchema::From(TClickHouseTable("", representativeTable.Schema)).GetKeyDataTypes();
     }
 
     void LogStatistics(const TStringBuf& stage)
@@ -406,12 +404,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFetchResult FetchInput(
+std::vector<TInputDataSlicePtr> FetchDataSlices(
     NNative::IClientPtr client,
     std::vector<TString> inputTablePaths,
     const KeyCondition* keyCondition,
     TRowBufferPtr rowBuffer,
-    TSubqueryConfigPtr config)
+    TSubqueryConfigPtr config,
+    TSubquerySpec& specTemplate)
 {
     std::vector<TRichYPath> inputTableRichPaths;
     for (const auto& path : inputTablePaths) {
@@ -426,16 +425,13 @@ TFetchResult FetchInput(
         std::move(config));
     dataSliceFetcher.Fetch();
 
-    return TFetchResult {
-        std::move(dataSliceFetcher.DataSlices()),
-        std::move(dataSliceFetcher.NodeDirectory()),
-        std::move(dataSliceFetcher.DataSourceDirectory())
-    };
+    specTemplate.NodeDirectory = std::move(dataSliceFetcher.NodeDirectory());
+    specTemplate.DataSourceDirectory = std::move(dataSliceFetcher.DataSourceDirectory());
+
+    return std::move(dataSliceFetcher.DataSlices());
 }
 
-NChunkPools::TChunkStripeListPtr BuildJobs(
-    const std::vector<TInputDataSlicePtr>& dataSlices,
-    int jobCount)
+NChunkPools::TChunkStripeListPtr SubdivideDataSlices(const std::vector<TInputDataSlicePtr>& dataSlices, int jobCount)
 {
     if (jobCount == 0) {
         jobCount = 1;
@@ -538,63 +534,31 @@ NChunkPools::TChunkStripeListPtr BuildJobs(
     return result;
 }
 
-TTablePartList SerializeAsTablePartList(
-    const TChunkStripeListPtr& chunkStripeList,
-    const TNodeDirectoryPtr& nodeDirectory,
-    const TDataSourceDirectoryPtr& dataSourceDirectory,
-    TQueryContext* context)
+void FillDataSliceDescriptors(TSubquerySpec& subquerySpec, const TChunkStripePtr& chunkStripe)
 {
-    TTablePartList tableParts;
-
-    for (auto& chunkStripe : chunkStripeList->Stripes) {
-        TSubquerySpec subquerySpec;
-        {
-            subquerySpec.DataSourceDirectory = dataSourceDirectory;
-            subquerySpec.NodeDirectory = nodeDirectory;
-            subquerySpec.InitialQueryId = context->QueryId;
-            YCHECK(!subquerySpec.DataSourceDirectory->DataSources().empty());
-            for (const auto& dataSlice : chunkStripe->DataSlices) {
-                const auto& chunkSlice = dataSlice->ChunkSlices[0];
-                auto chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
-                auto& chunkSpec = subquerySpec.DataSliceDescriptors.emplace_back().ChunkSpecs.emplace_back();
-                ToProto(&chunkSpec, chunk, EDataSourceType::UnversionedTable);
-                // TODO(max42): wtf?
-                chunkSpec.set_row_count_override(dataSlice->GetRowCount());
-                chunkSpec.set_data_weight_override(dataSlice->GetDataWeight());
-                if (chunkSlice->LowerLimit().RowIndex) {
-                    chunkSpec.mutable_lower_limit()->set_row_index(*chunkSlice->LowerLimit().RowIndex);
-                }
-                if (chunkSlice->UpperLimit().RowIndex) {
-                    chunkSpec.mutable_upper_limit()->set_row_index(*chunkSlice->UpperLimit().RowIndex);
-                }
-                NChunkClient::NProto::TMiscExt miscExt;
-                miscExt.set_row_count(chunk->GetTotalRowCount());
-                miscExt.set_uncompressed_data_size(chunk->GetTotalUncompressedDataSize());
-                miscExt.set_data_weight(chunk->GetTotalDataWeight());
-                miscExt.set_compressed_data_size(chunk->GetCompressedDataSize());
-                chunkSpec.mutable_chunk_meta()->set_version(static_cast<int>(chunk->GetTableChunkFormat()));
-                chunkSpec.mutable_chunk_meta()->set_type(static_cast<int>(EChunkType::Table));
-                SetProtoExtension(chunkSpec.mutable_chunk_meta()->mutable_extensions(), miscExt);
-            }
+   for (const auto& dataSlice : chunkStripe->DataSlices) {
+        const auto& chunkSlice = dataSlice->ChunkSlices[0];
+        auto chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
+        auto& chunkSpec = subquerySpec.DataSliceDescriptors.emplace_back().ChunkSpecs.emplace_back();
+        ToProto(&chunkSpec, chunk, EDataSourceType::UnversionedTable);
+        // TODO(max42): wtf?
+        chunkSpec.set_row_count_override(dataSlice->GetRowCount());
+        chunkSpec.set_data_weight_override(dataSlice->GetDataWeight());
+        if (chunkSlice->LowerLimit().RowIndex) {
+            chunkSpec.mutable_lower_limit()->set_row_index(*chunkSlice->LowerLimit().RowIndex);
         }
-
-        TTablePart tablePart;
-        {
-            auto protoSpec = NYT::ToProto<NProto::TSubquerySpec>(subquerySpec);
-            tablePart.SubquerySpec = Base64Encode(protoSpec.SerializeAsString());
-
-            for (const auto& dataSlice : subquerySpec.DataSliceDescriptors) {
-                for (const auto& chunkSpec : dataSlice.ChunkSpecs) {
-                    tablePart.RowCount += chunkSpec.row_count_override();
-                    tablePart.DataWeight += chunkSpec.data_weight_override();
-                }
-            }
+        if (chunkSlice->UpperLimit().RowIndex) {
+            chunkSpec.mutable_upper_limit()->set_row_index(*chunkSlice->UpperLimit().RowIndex);
         }
-
-        tableParts.emplace_back(std::move(tablePart));
+        NChunkClient::NProto::TMiscExt miscExt;
+        miscExt.set_row_count(chunk->GetTotalRowCount());
+        miscExt.set_uncompressed_data_size(chunk->GetTotalUncompressedDataSize());
+        miscExt.set_data_weight(chunk->GetTotalDataWeight());
+        miscExt.set_compressed_data_size(chunk->GetCompressedDataSize());
+        chunkSpec.mutable_chunk_meta()->set_version(static_cast<int>(chunk->GetTableChunkFormat()));
+        chunkSpec.mutable_chunk_meta()->set_type(static_cast<int>(EChunkType::Table));
+        SetProtoExtension(chunkSpec.mutable_chunk_meta()->mutable_extensions(), miscExt);
     }
-
-    return tableParts;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

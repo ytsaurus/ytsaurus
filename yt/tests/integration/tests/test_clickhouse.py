@@ -27,7 +27,7 @@ DEFAULTS = {
     "memory_limit": 5 * 1000**3,
     "host_ytserver_clickhouse_path": YTSERVER_CLICKHOUSE_BINARY,
     "cpu_limit": 1,
-    "enable_monitoring": False,
+    "enable_monitorin`g": False,
     "clickhouse_config": {},
 }
 
@@ -673,6 +673,19 @@ class TestClickHouseSchema(ClickHouseTestBase):
             assert clique.make_query("select * from concatYtTablesDropPrimaryKey(\"//tmp/t2\", \"//tmp/t1\") order by a")["data"] == \
                 [{"a": 17}, {"a": 42}]
 
+    def test_drop_primary_key(self):
+        create("table", "//tmp/t", attributes={"schema": [
+            {"name": "a", "type": "int64", "sort_order": "ascending"}
+        ]})
+
+        write_table("//tmp/t", {"a": None})
+
+        with Clique(1) as clique:
+            with pytest.raises(YtError):
+                clique.make_query("select * from concatYtTables('//tmp/t')")
+            with pytest.raises(YtError):
+                clique.make_query("select * from \"//tmp/t\"")
+            assert clique.make_query("select * from concatYtTablesDropPrimaryKey('//tmp/t')")["data"] == [{"a": 0}]
 
 class TestClickHouseAccess(ClickHouseTestBase):
     def setup(self):

@@ -80,46 +80,6 @@ using namespace DB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTablePartList TQueryContext::ConcatenateAndGetTableParts(
-    const std::vector<TString>& names,
-    const DB::KeyCondition* keyCondition,
-    size_t maxTableParts)
-{
-    return GetTablesParts(names, keyCondition, maxTableParts);
-}
-
-TTablePartList TQueryContext::GetTableParts(
-    const TString& name,
-    const KeyCondition* keyCondition,
-    size_t maxTableParts)
-{
-    return GetTablesParts({name}, keyCondition, maxTableParts);
-}
-
-TTablePartList TQueryContext::GetTablesParts(
-    const std::vector<TString>& names,
-    const KeyCondition* keyCondition,
-    size_t maxTableParts)
-{
-    auto fetchResult = FetchInput(Client(), names, keyCondition, RowBuffer, Bootstrap->GetConfig()->Engine->Subquery);
-    auto chunkStripeList = BuildJobs(fetchResult.DataSlices, maxTableParts);
-    return SerializeAsTablePartList(
-        chunkStripeList,
-        fetchResult.NodeDirectory,
-        fetchResult.DataSourceDirectory,
-        this);
-}
-
-bool TQueryContext::Exists(const TString& name)
-{
-    TNodeExistsOptions options;
-    options.ReadFrom = EMasterChannelKind::Follower;
-    options.SuppressAccessTracking = true;
-
-    return WaitFor(Client()->NodeExists(name, options))
-        .ValueOrThrow();
-}
-
 TQueryContext::TQueryContext(TBootstrap* bootstrap, TQueryId queryId, const DB::Context& context)
     : Logger(ServerLogger)
     , User(TString(context.getClientInfo().initial_user))

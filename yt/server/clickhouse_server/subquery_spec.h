@@ -27,13 +27,10 @@ public:
     std::vector<NChunkClient::TDataSliceDescriptor> DataSliceDescriptors;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
     TQueryId InitialQueryId;
+    DB::NamesAndTypesList Columns;
+    NTableClient::TTableSchema ReadSchema;
 
-public:
     void Validate() const;
-
-    NChunkClient::EDataSourceType GetCommonDataSourceType() const;
-    NTableClient::TTableSchema GetCommonNativeSchema() const;
-    std::vector<TClickHouseTablePtr> GetTables() const;
 
 private:
     const std::vector<NChunkClient::TDataSource>& DataSources() const
