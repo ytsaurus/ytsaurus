@@ -4,7 +4,6 @@
 // For the sake of sane code completion.
 #include "stream.h"
 #endif
-#undef STREAM_INL_H_
 
 #include <yt/core/misc/cast.h>
 
@@ -15,36 +14,35 @@ namespace NYT::NRpc {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TRequestMessage, class TResponse>
-TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateInputStreamAdapter(
+TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateRpcClientInputStream(
     TIntrusivePtr<TTypedClientRequest<TRequestMessage, TResponse>> request)
 {
     auto invokeResult = request->Invoke().template As<void>();
 
     return request->GetResponseAttachmentsStream()->Read()
         .Apply(BIND([=] (const TSharedRef& firstReadResult) {
-            return New<NDetail::TRpcInputStreamAdapter>(request, invokeResult, firstReadResult);
+            return New<NDetail::TRpcClientInputStream>(
+                std::move(request),
+                std::move(invokeResult),
+                firstReadResult);
         })).template As<NConcurrency::IAsyncZeroCopyInputStreamPtr>();
 }
 
 template <class TRequestMessage, class TResponse>
-TFuture<NConcurrency::IAsyncZeroCopyOutputStreamPtr> CreateOutputStreamAdapter(
+TFuture<NConcurrency::IAsyncZeroCopyOutputStreamPtr> CreateRpcClientOutputStream(
     TIntrusivePtr<TTypedClientRequest<TRequestMessage, TResponse>> request,
-    EWriterFeedbackStrategy feedbackStrategy)
+    bool feedbackEnabled)
 {
     auto invokeResult = request->Invoke().template As<void>();
-    auto handshakeResult =
-        feedbackStrategy == EWriterFeedbackStrategy::NoFeedback
-        ? ExpectEndOfStream(request->GetResponseAttachmentsStream())
-        : request->GetResponseAttachmentsStream()->Read()
-            .Apply(BIND([] (const TSharedRef& feedback) {
-                NDetail::CheckWriterFeedback(feedback, NDetail::EWriterFeedback::Handshake);
-            }));
+    auto handshakeResult = NDetail::ExpectHandshake(
+        request->GetResponseAttachmentsStream(),
+        feedbackEnabled);
 
     return handshakeResult.Apply(BIND([=] () {
-        return New<NDetail::TRpcOutputStreamAdapter>(
-            request,
-            invokeResult,
-            feedbackStrategy);
+        return New<NDetail::TRpcClientOutputStream>(
+            std::move(request),
+            std::move(invokeResult),
+            feedbackEnabled);
     })).template As<NConcurrency::IAsyncZeroCopyOutputStreamPtr>();
 }
 

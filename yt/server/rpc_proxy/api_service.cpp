@@ -2877,7 +2877,7 @@ private:
 
         auto outputStream = context->GetResponseAttachmentsStream();
         ui64 revision = fileReader->GetRevision();
-        NApi::NRpcProxy::NProto::TMetaReadFile meta;
+        NApi::NRpcProxy::NProto::TReadFileMeta meta;
         meta.set_revision(revision);
         auto metaRef = SerializeProtoToRef(meta);
         WaitFor(outputStream->Write(metaRef))
@@ -2921,7 +2921,7 @@ private:
             context,
             BIND(&IFileWriter::Write, fileWriter),
             BIND(&IFileWriter::Close, fileWriter),
-            EWriterFeedbackStrategy::NoFeedback);
+            false);
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -3010,11 +3010,11 @@ private:
             context,
             BIND([=] (const TSharedRef& packedRows) {
                 std::vector<TSharedRef> rows;
-                UnpackRefs(packedRows, &rows, true);
+                UnpackRefsOrThrow(packedRows, &rows);
                 return journalWriter->Write(rows);
             }),
             BIND(&IJournalWriter::Close, journalWriter),
-            EWriterFeedbackStrategy::OnlyPositive);
+            true);
     }
 
     ////////////////////////////////////////////////////////////////////////////////

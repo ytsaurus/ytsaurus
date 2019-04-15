@@ -10,11 +10,11 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcFileWriter
+class TFileWriter
     : public IFileWriter
 {
 public:
-    TRpcFileWriter(
+    TFileWriter(
         TApiServiceProxy::TReqWriteFilePtr request)
         : Request_(std::move(request))
     {
@@ -27,7 +27,7 @@ public:
 
         auto guard = Guard(SpinLock_);
         if (!OpenResult_) {
-            OpenResult_ = NRpc::CreateOutputStreamAdapter(Request_)
+            OpenResult_ = NRpc::CreateRpcClientOutputStream(Request_)
                 .Apply(BIND([=, this_ = MakeStrong(this)] (const IAsyncZeroCopyOutputStreamPtr& outputStream) {
                     Underlying_ = outputStream;
                 })).As<void>();
@@ -45,7 +45,7 @@ public:
             return VoidFuture;
         }
 
-        // Data can be rewritten after returned future is set, which can happen prematurely.
+        // Returned future might be set instantly, and the user can modify #data right after that.
         struct TTag { };
         auto dataCopy = TSharedMutableRef::MakeCopy<TTag>(data);
         return Underlying_->Write(dataCopy);
@@ -86,10 +86,10 @@ private:
     }
 };
 
-IFileWriterPtr CreateRpcFileWriter(
+IFileWriterPtr CreateRpcProxyFileWriter(
     TApiServiceProxy::TReqWriteFilePtr request)
 {
-    return New<TRpcFileWriter>(std::move(request));
+    return New<TFileWriter>(std::move(request));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

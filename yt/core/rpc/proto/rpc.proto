@@ -161,14 +161,14 @@ message TRspDiscover
 
 ////////////////////////////////////////////////////////////////////////////////
 
+enum EWriterFeedback
+{
+    WF_HANDSHAKE = 0;
+    WF_SUCCESS = 1;
+}
+
 message TWriterFeedback
 {
-    enum EWriterFeedback
-    {
-        WF_HANDSHAKE = 0;
-        WF_SUCCESS = 1;
-    }
-
     required EWriterFeedback feedback = 1;
 }
 

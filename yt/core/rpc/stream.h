@@ -151,31 +151,22 @@ DEFINE_REFCOUNTED_TYPE(TAttachmentsOutputStream)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Describes whether the client output stream needs server feedback to mark
-//! writes as successful and whether that feedback can be negative.
-DEFINE_ENUM(EWriterFeedbackStrategy,
-    (NoFeedback)
-    (OnlyPositive)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcInputStreamAdapter
+class TRpcClientInputStream
     : public NConcurrency::IAsyncZeroCopyInputStream
 {
 public:
-    TRpcInputStreamAdapter(
+    TRpcClientInputStream(
         IClientRequestPtr request,
         TFuture<void> invokeResult,
         TSharedRef firstReadResult);
 
     virtual TFuture<TSharedRef> Read() override;
 
-    ~TRpcInputStreamAdapter();
+    ~TRpcClientInputStream();
 
 private:
     const IClientRequestPtr Request_;
@@ -197,16 +188,24 @@ void CheckWriterFeedback(
     const TSharedRef& ref,
     EWriterFeedback expectedFeedback);
 
+TFuture<void> ExpectWriterFeedback(
+    const NConcurrency::IAsyncZeroCopyInputStreamPtr& input,
+    EWriterFeedback expectedFeedback);
+
+TFuture<void> ExpectHandshake(
+    const NConcurrency::IAsyncZeroCopyInputStreamPtr& input,
+    bool feedbackEnabled);
+
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcOutputStreamAdapter
+class TRpcClientOutputStream
     : public NConcurrency::IAsyncZeroCopyOutputStream
 {
 public:
-    TRpcOutputStreamAdapter(
+    TRpcClientOutputStream(
         IClientRequestPtr request,
         TFuture<void> invokeResult,
-        EWriterFeedbackStrategy feedbackStrategy = EWriterFeedbackStrategy::NoFeedback);
+        bool feedbackEnabled = false);
 
     virtual TFuture<void> Write(const TSharedRef& data) override;
     virtual TFuture<void> Close() override;
@@ -218,9 +217,9 @@ private:
     TFuture<void> InvokeResult_;
 
     NConcurrency::IAsyncZeroCopyInputStreamPtr FeedbackStream_;
-    EWriterFeedbackStrategy FeedbackStrategy_;
+    bool FeedbackEnabled_;
 
-    TSpinLock QueueLock_;
+    TSpinLock SpinLock_;
     TRingQueue<TPromise<void>> ConfirmationQueue_;
     TError Error_;
 
@@ -236,18 +235,18 @@ private:
 
 //! Creates an input stream adapter from an uninvoked client request.
 template <class TRequestMessage, class TResponse>
-TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateInputStreamAdapter(
+TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateRpcClientInputStream(
     TIntrusivePtr<TTypedClientRequest<TRequestMessage, TResponse>> request);
 
 //! Creates an output stream adapter from an uninvoked client request.
 template <class TRequestMessage, class TResponse>
-TFuture<NConcurrency::IAsyncZeroCopyOutputStreamPtr> CreateOutputStreamAdapter(
+TFuture<NConcurrency::IAsyncZeroCopyOutputStreamPtr> CreateRpcClientOutputStream(
     TIntrusivePtr<TTypedClientRequest<TRequestMessage, TResponse>> request,
-    EWriterFeedbackStrategy feedbackStrategy = EWriterFeedbackStrategy::NoFeedback);
+    bool feedbackEnabled = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Handles an incoming streaming request that uses the #CreateInputStreamAdapter
+//! Handles an incoming streaming request that uses the #CreateRpcClientInputStream
 //! function.
 void HandleInputStreamingRequest(
     const IServiceContextPtr& context,
@@ -257,18 +256,18 @@ void HandleInputStreamingRequest(
     const IServiceContextPtr& context,
     const NConcurrency::IAsyncZeroCopyInputStreamPtr& input);
 
-//! Handles an incoming streaming request that uses the #CreateOutputStreamAdapter
-//! function with the same #feedbackStrategy.
+//! Handles an incoming streaming request that uses the #CreateRpcClientOutputStream
+//! function with the same #feedbackEnabled value.
 void HandleOutputStreamingRequest(
     const IServiceContextPtr& context,
     const TCallback<TFuture<void>(TSharedRef)>& blockHandler,
     const TCallback<TFuture<void>()>& finalizer,
-    EWriterFeedbackStrategy feedbackStrategy = EWriterFeedbackStrategy::NoFeedback);
+    bool feedbackEnabled = false);
 
 void HandleOutputStreamingRequest(
     const IServiceContextPtr& context,
     const NConcurrency::IAsyncZeroCopyOutputStreamPtr& output,
-    EWriterFeedbackStrategy feedbackStrategy = EWriterFeedbackStrategy::NoFeedback);
+    bool feedbackEnabled = false);
 
 /////////////////////////////////////////////////////////////////////////////
 
