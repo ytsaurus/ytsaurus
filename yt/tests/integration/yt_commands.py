@@ -1575,6 +1575,6 @@ def get_job_count_profiling():
         job_count["abort_reason"][abort_reason] += value
 
     # Enable it for debugging.
-    print "job_counters:", job_count
+    print("job_counters:", job_count, file=sys.stderr)
 
     return job_count
