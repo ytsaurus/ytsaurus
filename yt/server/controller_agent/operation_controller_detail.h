@@ -1145,7 +1145,7 @@ private:
     void ReleaseJobs(const std::vector<TJobId>& jobIds);
 
     bool IsTreeTentative(const TString& treeId) const;
-    void MaybeBanInTentativeTree(const TString& treeId, bool shouldBan);
+    void MaybeBanInTentativeTree(const TString& treeId);
 
     void RegisterTestingSpeculativeJobIfNeeded(const TTaskPtr& task, TJobId jobId);
 
