@@ -1456,8 +1456,8 @@ struct TThreadState
     // This is a pair of next/prev pointers connecting an instance of TThreadState to its neighbors.
     TIntrusiveLinkedListNode<TThreadState> RegistryNode;
 
-    // Pointer to the upper part of TThreadManager::CurrentRawMemoryTag_.
-    ui32* AllocationProfilingEnabled;
+    // Pointer to the respective part of TThreadManager::ThreadControlWord_.
+    ui8* AllocationProfilingEnabled;
 
     // TThreadStates are ref-counted.
     // TThreadManager::EnumerateThreadStates enumerates the registered states and acquires
@@ -1527,20 +1527,24 @@ public:
         pthread_key_create(&ThreadDtorKey_, DestroyThread);
     }
 
+    // Returns TThreadState for the current thread; the caller guarantees that this
+    // state is initialized and is not destroyed yet.
+    static TThreadState* GetThreadStateUnchecked();
+
     // Returns TThreadState for the current thread; may return null.
     static TThreadState* FindThreadState();
 
     // Returns TThreadState for the current thread; may not return null
     // (but may crash if TThreadState is already destroyed).
-    static TThreadState* GetThreadState()
+    static TThreadState* GetThreadStateChecked()
     {
         auto* state = FindThreadState();
         YCHECK(state);
         return state;
     }
 
-    // Enumerates all threads and invokes #func passing TThreadState instances.
-    // #func must not throw but can take arbitrary time; no locks are being held while it executes.
+    // Enumerates all threads and invokes func passing TThreadState instances.
+    // func must not throw but can take arbitrary time; no locks are being held while it executes.
     template <class F>
     void EnumerateThreadStates(F func) noexcept
     {
@@ -1572,21 +1576,44 @@ public:
         }
     }
 
-    static TMemoryTag GetCurrentMemoryTag()
+
+    // We store a special 64-bit "thread control word" in TLS encapsulating the following
+    // crucial per-thread parameters:
+    // * the current memory tag
+    // * a flag indicating that a valid TThreadState is known to exists
+    // (and can be obtained via GetThreadStateUnchecked)
+    // * a flag indicating if allocation profiling is enabled
+    // Thread control word is fetched via GetThreadControlWord and is compared
+    // against FastPathControlWord to see if the fast path can be taken.
+    // The latter happens when no memory tagging is configured, TThreadState is
+    // valid, and allocation profiling is disabled.
+
+    // The mask for extracting memory tag from thread control word.
+    static constexpr ui64 MemoryTagControlWordMask = 0xffffffff;
+    // ThreadStateValid is on.
+    static constexpr ui64 ThreadStateValidControlWordMask = (1ULL << 32);
+    // AllocationProfiling is on.
+    static constexpr ui64 AllocationProfilingEnabledControlWordMask = (1ULL << 40);
+    // Memory tag is NullMemoryTag; thread state is valid.
+    static constexpr ui64 FastPathControlWord = ThreadStateValidControlWordMask | NullMemoryTag;
+
+    Y_FORCE_INLINE static ui64 GetThreadControlWord()
     {
-        return (&CurrentRawMemoryTag_)->Parts.MemoryTag;
+        return (&ThreadControlWord_)->Value;
     }
 
-    Y_FORCE_INLINE static ui64 GetCurrentRawMemoryTag()
+
+    static TMemoryTag GetCurrentMemoryTag()
     {
-        return (&CurrentRawMemoryTag_)->Value;
+        return (&ThreadControlWord_)->Parts.MemoryTag;
     }
 
     static void SetCurrentMemoryTag(TMemoryTag tag)
     {
         YCHECK(tag <= MaxMemoryTag);
-        (&CurrentRawMemoryTag_)->Parts.MemoryTag = tag;
+        (&ThreadControlWord_)->Parts.MemoryTag = tag;
     }
+
 
     static EMemoryZone GetCurrentMemoryZone()
     {
@@ -1605,8 +1632,8 @@ private:
     {
         auto* state = ThreadStatePool_.Allocate();
 
-        state->AllocationProfilingEnabled = &(*&CurrentRawMemoryTag_).Parts.ProfilingEnabled;
-        *state->AllocationProfilingEnabled = ConfigurationManager->IsAllocationProfilingEnabled();
+        state->AllocationProfilingEnabled = &(*&ThreadControlWord_).Parts.ProfilingEnabled;
+        *state->AllocationProfilingEnabled = ConfigurationManager->IsAllocationProfilingEnabled() ? 1 : 0;
 
         {
             auto guard = GuardWithTiming(ThreadRegistryLock_);
@@ -1648,17 +1675,20 @@ private:
     // The caller must be able to deal with it.
     Y_POD_STATIC_THREAD(bool) ThreadStateDestroyed_;
 
-    union TRawMemoryTag
+    union TThreadControlWord
     {
         ui64 __attribute__((__may_alias__)) Value;
         struct TParts
         {
             ui32 __attribute__((__may_alias__)) MemoryTag;
-            // 0 if alloctaton profiling is off, 1 if on.
-            ui32 __attribute__((__may_alias__)) ProfilingEnabled;
+            // 1 if a valid TThreadState exists and can be obtained via GetThreadStateUnchecked, 0 otherwise.
+            ui8 __attribute__((__may_alias__)) ThreadStateValid;
+            // 1 if allocation profiling is on, 0 if off.
+            ui8 __attribute__((__may_alias__)) ProfilingEnabled;
+            ui8 Padding[2];
         } Parts;
     };
-    Y_POD_STATIC_THREAD(TRawMemoryTag) CurrentRawMemoryTag_;
+    Y_POD_STATIC_THREAD(TThreadControlWord) ThreadControlWord_;
 
     // See memory zone API.
     Y_POD_STATIC_THREAD(EMemoryZone) CurrentMemoryZone_;
@@ -1674,7 +1704,7 @@ private:
 
 Y_POD_THREAD(TThreadState*) TThreadManager::ThreadState_;
 Y_POD_THREAD(bool) TThreadManager::ThreadStateDestroyed_;
-Y_POD_THREAD(TThreadManager::TRawMemoryTag) TThreadManager::CurrentRawMemoryTag_;
+Y_POD_THREAD(TThreadManager::TThreadControlWord) TThreadManager::ThreadControlWord_;
 Y_POD_THREAD(EMemoryZone) TThreadManager::CurrentMemoryZone_;
 
 TBox<TThreadManager> ThreadManager;
@@ -1726,7 +1756,7 @@ public:
         return CaptureBacktrace(hash, frames.data(), frameCount);
     }
 
-    // Returns the backtrace corresponding to the given #tag, if any.
+    // Returns the backtrace corresponding to the given tag, if any.
     std::optional<TBacktrace> FindBacktrace(TMemoryTag tag)
     {
         if (tag < AllocationProfilingMemoryTagBase ||
@@ -2578,13 +2608,18 @@ public:
     template <EAllocationKind Kind>
     static Y_FORCE_INLINE void* Allocate(TMemoryTag tag, size_t rank)
     {
-        size_t size = SmallRankToSize[rank];
-
         auto* state = TThreadManager::FindThreadState();
         if (Y_UNLIKELY(!state)) {
-            return AllocateGlobal<Kind>(tag, size, rank);
+            auto size = SmallRankToSize[rank];
+            return AllocateGlobal<Kind>(tag, rank, size);
         }
+        return Allocate<Kind>(tag, rank, state);
+    }
 
+    template <EAllocationKind Kind>
+    static Y_FORCE_INLINE void* Allocate(TMemoryTag tag, size_t rank, TThreadState* state)
+    {
+        size_t size = SmallRankToSize[rank];
         StatisticsManager->IncrementTotalCounter<Kind>(state, tag, EBasicCounter::BytesAllocated, size);
 
         while (true) {
@@ -2655,14 +2690,14 @@ private:
     template <EAllocationKind Kind>
     static void DoPurgeCaches()
     {
-        auto* state = TThreadManager::GetThreadState();
+        auto* state = TThreadManager::GetThreadStateChecked();
         for (size_t rank = 0; rank < SmallRankCount; ++rank) {
             (*GlobalSmallChunkCaches)[Kind]->MoveAllToGlobal(state, rank);
         }
     }
 
     template <EAllocationKind Kind>
-    static void* AllocateGlobal(TMemoryTag tag, size_t size, size_t rank)
+    static void* AllocateGlobal(TMemoryTag tag, size_t rank, size_t size)
     {
         StatisticsManager->IncrementTotalCounter(tag, EBasicCounter::BytesAllocated, size);
         return (*SmallArenaAllocators)[Kind][rank]->Allocate(size);
@@ -2942,7 +2977,7 @@ private:
     void ReinstallLockedSpareBlobs(const TBackgroundContext& context, TLargeArena* arena)
     {
         auto* blob = arena->LockedSpareBlobs.ExtractAll();
-        auto* state = TThreadManager::GetThreadState();
+        auto* state = TThreadManager::GetThreadStateChecked();
 
         size_t count = 0;
         while (blob) {
@@ -2961,7 +2996,7 @@ private:
 
     void ReinstallLockedFreedBlobs(const TBackgroundContext& context, TLargeArena* arena)
     {
-        auto* state = TThreadManager::GetThreadState();
+        auto* state = TThreadManager::GetThreadStateChecked();
         auto* blob = arena->LockedFreedBlobs.ExtractAll();
 
         size_t count = 0;
@@ -2985,7 +3020,7 @@ private:
         }
 
         auto rank = arena->Rank;
-        auto* state = TThreadManager::GetThreadState();
+        auto* state = TThreadManager::GetThreadStateChecked();
 
         const auto& Logger = context.Logger;
         YT_LOG_DEBUG("Started processing spare memory in arena (BytesToReclaim: %vM, Rank: %v)",
@@ -3039,7 +3074,7 @@ private:
             return;
         }
 
-        auto* state = TThreadManager::GetThreadState();
+        auto* state = TThreadManager::GetThreadStateChecked();
         auto rank = arena->Rank;
 
         const auto& Logger = context.Logger;
@@ -3601,6 +3636,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Y_FORCE_INLINE TThreadState* TThreadManager::GetThreadStateUnchecked()
+{
+    PARANOID_CHECK(ThreadState_);
+    return ThreadState_;
+}
+
 Y_FORCE_INLINE TThreadState* TThreadManager::FindThreadState()
 {
     if (Y_LIKELY(ThreadState_)) {
@@ -3616,6 +3657,7 @@ Y_FORCE_INLINE TThreadState* TThreadManager::FindThreadState()
     // InitializeGlobals must not allocate.
     YCHECK(!ThreadState_);
     ThreadState_ = ThreadManager->AllocateThreadState();
+    (&ThreadControlWord_)->Parts.ThreadStateValid = 1;
 
     return ThreadState_;
 }
@@ -3627,6 +3669,7 @@ void TThreadManager::DestroyThread(void*)
     TThreadState* state = ThreadState_;
     ThreadState_ = nullptr;
     ThreadStateDestroyed_ = true;
+    (&ThreadControlWord_)->Parts.ThreadStateValid = 0;
 
     {
         auto guard = GuardWithTiming(ThreadManager->ThreadRegistryLock_);
@@ -3676,19 +3719,21 @@ void InitializeGlobals()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE void* AllocateSmallUntagged(size_t rank)
+template <class... Ts>
+Y_FORCE_INLINE void* AllocateSmallUntagged(size_t rank, Ts... args)
 {
-    auto* result = TSmallAllocator::Allocate<EAllocationKind::Untagged>(NullMemoryTag, rank);
+    auto* result = TSmallAllocator::Allocate<EAllocationKind::Untagged>(NullMemoryTag, rank, std::forward<Ts>(args)...);
     PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= MinUntaggedSmallPtr && reinterpret_cast<uintptr_t>(result) < MaxUntaggedSmallPtr);
     return result;
 }
 
-Y_FORCE_INLINE void* AllocateSmallTagged(ui64 rawTag, size_t rank)
+template <class... Ts>
+Y_FORCE_INLINE void* AllocateSmallTagged(ui64 controlWord, size_t rank, Ts... args)
 {
-    auto tag = (Y_UNLIKELY(rawTag & (1ULL << 32)) && ConfigurationManager->IsSmallArenaAllocationProfiled(rank))
+    auto tag = Y_UNLIKELY((controlWord & TThreadManager::AllocationProfilingEnabledControlWordMask) && ConfigurationManager->IsSmallArenaAllocationProfiled(rank))
         ? BacktraceManager->GetMemoryTagFromBacktrace(2)
-        : static_cast<TMemoryTag>(rawTag);
-    auto* ptr = TSmallAllocator::Allocate<EAllocationKind::Tagged>(tag, rank);
+        : static_cast<TMemoryTag>(controlWord & TThreadManager::MemoryTagControlWordMask);
+    auto* ptr = TSmallAllocator::Allocate<EAllocationKind::Tagged>(tag, rank, std::forward<Ts>(args)...);
     auto* chunk = static_cast<TTaggedSmallChunkHeader*>(ptr);
     new (chunk) TTaggedSmallChunkHeader(tag);
     auto* result = HeaderToPtr(chunk);
@@ -3710,25 +3755,36 @@ Y_FORCE_INLINE void* AllocateInline(size_t size)
         } \
     }
 
-    auto rawTag = TThreadManager::GetCurrentRawMemoryTag();
-    if (Y_LIKELY(rawTag == NullMemoryTag)) {
+    auto controlWord = TThreadManager::GetThreadControlWord();
+    if (Y_LIKELY(controlWord == TThreadManager::FastPathControlWord)) {
+        XX()
+        return AllocateSmallUntagged(rank, TThreadManager::GetThreadStateUnchecked());
+    }
+
+    auto tag = static_cast<TMemoryTag>(controlWord & TThreadManager::MemoryTagControlWordMask);
+    if (Y_LIKELY(tag == NullMemoryTag)) {
         XX()
         return AllocateSmallUntagged(rank);
     } else {
         size += TaggedSmallChunkHeaderSize;
         XX()
-        return AllocateSmallTagged(rawTag, rank);
+        return AllocateSmallTagged(controlWord, rank);
     }
 #undef XX
 }
 
 Y_FORCE_INLINE void* AllocateSmallInline(size_t untaggedRank, size_t taggedRank)
 {
-    auto rawTag = TThreadManager::GetCurrentRawMemoryTag();
-    if (Y_LIKELY(rawTag == NullMemoryTag)) {
+    auto controlWord = TThreadManager::GetThreadControlWord();
+    if (Y_LIKELY(controlWord == TThreadManager::FastPathControlWord)) {
+        return AllocateSmallUntagged(untaggedRank, TThreadManager::GetThreadStateUnchecked());
+    }
+
+    auto tag = static_cast<TMemoryTag>(controlWord & TThreadManager::MemoryTagControlWordMask);
+    if (Y_LIKELY(tag == NullMemoryTag)) {
         return AllocateSmallUntagged(untaggedRank);
     } else {
-        return AllocateSmallTagged(rawTag, taggedRank);
+        return AllocateSmallTagged(controlWord, taggedRank);
     }
 }
 
