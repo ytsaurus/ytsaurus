@@ -2053,7 +2053,9 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
             jobSummary->SplitJobCount);
     }
     auto taskResult = joblet->Task->OnJobCompleted(joblet, *jobSummary);
-    MaybeBanInTentativeTree(joblet->TreeId, taskResult.BanTree);
+    for (const auto& treeId : taskResult.NewlyBannedTrees) {
+        MaybeBanInTentativeTree(treeId);
+    }
 
     if (JobSplitter_) {
         JobSplitter_->OnJobCompleted(*jobSummary);
@@ -2137,7 +2139,9 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     UpdateJobStatistics(joblet, *jobSummary);
 
     auto taskResult = joblet->Task->OnJobFailed(joblet, *jobSummary);
-    MaybeBanInTentativeTree(joblet->TreeId, taskResult.BanTree);
+    for (const auto& treeId : taskResult.NewlyBannedTrees) {
+        MaybeBanInTentativeTree(treeId);
+    }
 
     if (JobSplitter_) {
         JobSplitter_->OnJobFailed(*jobSummary);
@@ -2232,7 +2236,9 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     }
 
     auto taskResult = joblet->Task->OnJobAborted(joblet, *jobSummary);
-    MaybeBanInTentativeTree(joblet->TreeId, taskResult.BanTree);
+    for (const auto& treeId : taskResult.NewlyBannedTrees) {
+        MaybeBanInTentativeTree(treeId);
+    }
 
     if (JobSplitter_) {
         JobSplitter_->OnJobAborted(*jobSummary);
@@ -3802,12 +3808,8 @@ bool TOperationControllerBase::IsTreeTentative(const TString& treeId) const
     return Spec_->TentativePoolTrees && Spec_->TentativePoolTrees->contains(treeId);
 }
 
-void TOperationControllerBase::MaybeBanInTentativeTree(const TString& treeId, bool shouldBan)
+void TOperationControllerBase::MaybeBanInTentativeTree(const TString& treeId)
 {
-    if (!shouldBan) {
-        return;
-    }
-
     if (!BannedTreeIds_.insert(treeId).second) {
         return;
     }
@@ -6702,7 +6704,7 @@ void TOperationControllerBase::CheckTentativeTreeEligibility()
         }
     }
     for (const auto& treeId : treeIds) {
-        MaybeBanInTentativeTree(treeId, /* shouldBan */ true);
+        MaybeBanInTentativeTree(treeId);
     }
 }
 
