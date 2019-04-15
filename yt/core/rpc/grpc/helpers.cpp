@@ -391,6 +391,7 @@ TGrpcChannelCredentialsPtr LoadChannelCredentials(const TChannelCredentialsConfi
     return TGrpcChannelCredentialsPtr(grpc_ssl_credentials_create(
         rootCerts ? rootCerts.c_str() : nullptr,
         keyCertPair.Unwrap(),
+        nullptr,
         nullptr));
 }
 
