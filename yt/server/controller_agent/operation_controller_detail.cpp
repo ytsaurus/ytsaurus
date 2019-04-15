@@ -442,7 +442,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
         StartTransactions();
         InitializeStructures();
 
-        SyncPrepare();
+        LockInputs();
     }
 
     InitUnrecognizedSpec();
@@ -466,7 +466,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
         InitializeClients();
         StartTransactions();
         InitializeStructures();
-        SyncPrepare();
+        LockInputs();
     });
 
     auto initializeFuture = initializeAction
@@ -669,7 +669,7 @@ void TOperationControllerBase::InitializeOrchid()
 void TOperationControllerBase::DoInitialize()
 { }
 
-void TOperationControllerBase::SyncPrepare()
+void TOperationControllerBase::LockInputs()
 {
     PrepareInputTables();
     LockInputTables();
