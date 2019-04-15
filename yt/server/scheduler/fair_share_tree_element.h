@@ -57,6 +57,12 @@ struct IFairShareTreeHost
     // NB(renadeen): see TSchedulerElementSharedState for explanation
     virtual NConcurrency::TReaderWriterSpinLock* GetSharedStateTreeLock() = 0;
 };
+////////////////////////////////////////////////////////////////////////////////
+
+struct TUpdateFairShareContext
+{
+    std::vector<TError> Errors;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -240,7 +246,7 @@ public:
 
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config);
 
-    virtual void Update(TDynamicAttributesList& dynamicAttributesList);
+    virtual void Update(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* context);
 
     //! Updates attributes that need to be computed from leafs up to root.
     //! For example: |parent->ResourceDemand = Sum(child->ResourceDemand)|.
@@ -248,7 +254,7 @@ public:
 
     //! Updates attributes that are propagated from root down to leafs.
     //! For example: |child->FairShareRatio = fraction(parent->FairShareRatio)|.
-    virtual void UpdateTopDown(TDynamicAttributesList& dynamicAttributesList);
+    virtual void UpdateTopDown(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* context);
 
     virtual TJobResources ComputePossibleResourceUsage(TJobResources limit) const = 0;
 
@@ -372,7 +378,6 @@ class TCompositeSchedulerElementFixedState
 public:
     DEFINE_BYREF_RW_PROPERTY(int, RunningOperationCount);
     DEFINE_BYREF_RW_PROPERTY(int, OperationCount);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TError>, UpdateFairShareAlerts);
 
     DEFINE_BYREF_RO_PROPERTY(double, AdjustedFairShareStarvationToleranceLimit);
     DEFINE_BYREF_RO_PROPERTY(TDuration, AdjustedMinSharePreemptionTimeoutLimit);
@@ -403,7 +408,7 @@ public:
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
 
     virtual void UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList) override;
-    virtual void UpdateTopDown(TDynamicAttributesList& dynamicAttributesList) override;
+    virtual void UpdateTopDown(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* context) override;
 
     virtual TJobResources ComputePossibleResourceUsage(TJobResources limit) const override;
 
@@ -466,8 +471,8 @@ protected:
     template <class TGetter, class TSetter>
     void ComputeByFitting(const TGetter& getter, const TSetter& setter, double sum);
 
-    void UpdateFifo(TDynamicAttributesList& dynamicAttributesList);
-    void UpdateFairShare(TDynamicAttributesList& dynamicAttributesList);
+    void UpdateFifo(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* context);
+    void UpdateFairShare(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* context);
 
     TSchedulerElementPtr GetBestActiveChild(const TDynamicAttributesList& dynamicAttributesList) const;
     TSchedulerElementPtr GetBestActiveChildFifo(const TDynamicAttributesList& dynamicAttributesList) const;
@@ -727,7 +732,7 @@ public:
     virtual TDuration GetFairSharePreemptionTimeout() const override;
 
     virtual void UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList) override;
-    virtual void UpdateTopDown(TDynamicAttributesList& dynamicAttributesList) override;
+    virtual void UpdateTopDown(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* context) override;
 
     virtual bool IsOperation() const override;
 
@@ -880,7 +885,7 @@ public:
         const TString& treeId);
     TRootElement(const TRootElement& other);
 
-    virtual void Update(TDynamicAttributesList& dynamicAttributesList) override;
+    virtual void Update(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* context) override;
 
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
 
