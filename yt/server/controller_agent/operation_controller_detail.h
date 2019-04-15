@@ -540,7 +540,7 @@ protected:
     virtual NTransactionClient::TTransactionId GetInputTransactionParentId();
     virtual NTransactionClient::TTransactionId GetOutputTransactionParentId();
     virtual void InitializeStructures();
-    virtual void SyncPrepare();
+    virtual void LockInputs();
     void InitUnrecognizedSpec();
     void FillInitializeResult(TOperationControllerInitializeResult* result);
     void ValidateIntermediateDataAccess(const TString& user, NYTree::EPermission permission) const;
