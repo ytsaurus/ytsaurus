@@ -103,13 +103,12 @@ TJobFinishedResult TTentativeTreeEligibility::OnJobFinished(const TJobSummary& j
         ++FinishedJobsPerStatePerPoolTree_[treeId][jobSummary.State];
     }
 
+    TJobFinishedResult result;
+
     if (jobSummary.State == EJobState::Completed) {
         UpdateDurations(jobSummary, treeId, tentative);
-        CheckDurations(treeId, tentative);
+        result.NewlyBannedTrees = FindAndBanSlowTentativeTrees();
     }
-
-    TJobFinishedResult result;
-    result.BanTree = IsTreeBanned(treeId);
 
     return result;
 }
@@ -135,19 +134,6 @@ void TTentativeTreeEligibility::UpdateDurations(
     auto totalDuration = jobSummary.PrepareDuration.value_or(TDuration()) + jobSummary.ExecDuration.value_or(TDuration());
     auto& durationSummary = tentative ? Durations_[treeId] : NonTentativeTreeDuration_;
     durationSummary.AddSample(totalDuration);
-}
-
-void TTentativeTreeEligibility::CheckDurations(const TString& treeId, bool tentative)
-{
-    if (tentative) {
-        if (!IsTreeBanned(treeId) && IsSlow(treeId)) {
-            BanTree(treeId);
-        }
-    } else {
-        for (const auto& pair : Durations_) {
-            CheckDurations(pair.first, true);
-        }
-    }
 }
 
 TDuration TTentativeTreeEligibility::GetTentativeTreeAverageJobDuration(const TString& treeId) const
