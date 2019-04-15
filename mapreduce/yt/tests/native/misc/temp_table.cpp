@@ -86,4 +86,34 @@ Y_UNIT_TEST_SUITE(TempTableTestSuite) {
             UNIT_ASSERT(!client->Exists(tmpTableName));
         }
     }
+
+    Y_UNIT_TEST(Release)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        TString tmpTableName;
+        {
+            auto tmpTable = TTempTable(client, "table", workingDir + "");
+            tmpTableName = tmpTable.Name();
+            UNIT_ASSERT(client->Exists(tmpTableName));
+            UNIT_ASSERT_VALUES_EQUAL(tmpTable.Release(), tmpTableName);
+        }
+        UNIT_ASSERT(client->Exists(tmpTableName));
+    }
+
+    template <class T, class R = decltype(std::declval<T>().Name())>
+    bool HasDangerousNameMethod(const T*) {
+        return true;
+    }
+
+    bool HasDangerousNameMethod(...) {
+        return false;
+    }
+
+    Y_UNIT_TEST(DangerousNameMethod)
+    {
+        TTempTable* tt = nullptr;
+        UNIT_ASSERT(!HasDangerousNameMethod(tt));
+    }
 }

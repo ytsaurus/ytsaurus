@@ -2,6 +2,8 @@
 
 #include <mapreduce/yt/common/config.h>
 
+#include <util/system/yassert.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -74,11 +76,17 @@ TTempTable::~TTempTable()
     }
 }
 
-TString TTempTable::Name() const
+TString TTempTable::Name() const &
 {
     return Name_;
 }
 
+TString TTempTable::Release()
+{
+    Y_ASSERT(Owns_);
+    Owns_ = false;
+    return Name_;
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
