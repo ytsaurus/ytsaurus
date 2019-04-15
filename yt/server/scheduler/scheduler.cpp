@@ -1715,7 +1715,6 @@ private:
             .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation))
             .Item("start_time").Value(operation->GetStartTime())
             .Item("finish_time").Value(operation->GetFinishTime())
-            .Item("controller_time_statistics").Value(operation->ControllerTimeStatistics())
             .Item("error").Value(error)
             .DoIf(progress.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("progress").Value(progress);
@@ -2197,11 +2196,9 @@ private:
             const auto& controller = operation->GetController();
 
             {
-                TWallTimer timer;
                 auto result = WaitFor(controller->Prepare())
                     .ValueOrThrow();
 
-                operation->UpdateControllerTimeStatistics("/prepare", timer.GetElapsedTime());
                 operation->ControllerAttributes().PrepareAttributes = std::move(result.Attributes);
             }
 

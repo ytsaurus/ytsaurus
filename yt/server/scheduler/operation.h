@@ -210,9 +210,6 @@ public:
     //! Operation result, becomes set when the operation finishes.
     DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(NProto::TOperationResult, Result);
 
-    //! Stores statistics about operation preparation and schedule job timings.
-    DEFINE_BYREF_RW_PROPERTY(NJobTrackerClient::TStatistics, ControllerTimeStatistics);
-
     //! Marks that operation attributes should be flushed to Cypress.
     DEFINE_BYVAL_RW_PROPERTY(bool, ShouldFlush);
 
@@ -276,9 +273,6 @@ public:
 
     //! Checks whether current operation state allows starting new jobs.
     bool IsSchedulable() const override;
-
-    //! Adds new sample to controller time statistics.
-    void UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDuration value);
 
     virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
 

@@ -209,11 +209,6 @@ IOperationControllerStrategyHostPtr TOperation::GetControllerStrategyHost() cons
     return Controller_;
 }
 
-void TOperation::UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDuration value)
-{
-    ControllerTimeStatistics_.AddSample(name, value.MicroSeconds());
-}
-
 TCodicilGuard TOperation::MakeCodicilGuard() const
 {
     return TCodicilGuard(CodicilData_);
