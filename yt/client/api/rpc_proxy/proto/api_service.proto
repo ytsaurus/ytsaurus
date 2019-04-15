@@ -1481,7 +1481,7 @@ message TReqReadFile
     optional TSuppressableAccessTrackingOptions suppressable_access_tracking_options = 104;
 }
 
-message TMetaReadFile
+message TReadFileMeta
 {
     required uint64 revision = 1;
 }

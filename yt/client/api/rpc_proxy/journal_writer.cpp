@@ -10,11 +10,11 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcJournalWriter
+class TJournalWriter
     : public IJournalWriter
 {
 public:
-    TRpcJournalWriter(
+    TJournalWriter(
         TApiServiceProxy::TReqWriteJournalPtr request)
         : Request_(std::move(request))
     {
@@ -27,7 +27,7 @@ public:
 
         auto guard = Guard(SpinLock_);
         if (!OpenResult_) {
-            OpenResult_ = NRpc::CreateOutputStreamAdapter(Request_, NRpc::EWriterFeedbackStrategy::OnlyPositive)
+            OpenResult_ = NRpc::CreateRpcClientOutputStream(Request_, true)
                 .Apply(BIND([=, this_ = MakeStrong(this)] (const IAsyncZeroCopyOutputStreamPtr& outputStream) {
                     Underlying_ = outputStream;
                 })).As<void>();
@@ -83,10 +83,10 @@ private:
     }
 };
 
-IJournalWriterPtr CreateRpcJournalWriter(
+IJournalWriterPtr CreateRpcProxyJournalWriter(
     TApiServiceProxy::TReqWriteJournalPtr request)
 {
-    return New<TRpcJournalWriter>(std::move(request));
+    return New<TJournalWriter>(std::move(request));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

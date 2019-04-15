@@ -10,11 +10,11 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcJournalReader
+class TJournalReader
     : public IJournalReader
 {
 public:
-    TRpcJournalReader(
+    TJournalReader(
         TApiServiceProxy::TReqReadJournalPtr request)
         : Request_(std::move(request))
     {
@@ -26,7 +26,7 @@ public:
         auto guard = Guard(SpinLock_);
 
         if (!OpenResult_) {
-            OpenResult_ = NRpc::CreateInputStreamAdapter(Request_)
+            OpenResult_ = NRpc::CreateRpcClientInputStream(Request_)
                 .Apply(BIND([=, this_ = MakeStrong(this)] (const IAsyncZeroCopyInputStreamPtr& inputStream) {
                     Underlying_ = inputStream;
                 }));
@@ -42,7 +42,7 @@ public:
         return Underlying_->Read().Apply(BIND ([] (const TSharedRef& packedRows) {
             std::vector<TSharedRef> rows;
             if (packedRows) {
-                UnpackRefs(packedRows, &rows, true);
+                UnpackRefsOrThrow(packedRows, &rows);
             }
             return rows;
         }));
@@ -65,10 +65,10 @@ private:
     }
 };
 
-IJournalReaderPtr CreateRpcJournalReader(
+IJournalReaderPtr CreateRpcProxyJournalReader(
     TApiServiceProxy::TReqReadJournalPtr request)
 {
-    return New<TRpcJournalReader>(std::move(request));
+    return New<TJournalReader>(std::move(request));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

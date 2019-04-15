@@ -341,6 +341,7 @@ void TAttachmentsOutputStream::DoAbort(TGuard<TSpinLock>& guard, const TError& e
     Error_ = error;
 
     std::vector<TPromise<void>> promises;
+    promises.reserve(ConfirmationQueue_.size());
     while (!ConfirmationQueue_.empty()) {
         auto& entry = ConfirmationQueue_.front();
         TDelayedExecutor::CancelAndClear(entry.TimeoutCookie);
@@ -391,6 +392,7 @@ void TAttachmentsOutputStream::HandleFeedback(const TStreamingFeedback& feedback
     ReadPosition_ = feedback.ReadPosition;
 
     std::vector<TPromise<void>> promises;
+    promises.reserve(ConfirmationQueue_.size());
     while (!ConfirmationQueue_.empty() &&
             ConfirmationQueue_.front().Position <= ReadPosition_ + WindowSize_)
     {
@@ -474,7 +476,7 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRpcInputStreamAdapter::TRpcInputStreamAdapter(
+TRpcClientInputStream::TRpcClientInputStream(
     IClientRequestPtr request,
     TFuture<void> invokeResult,
     TSharedRef firstReadResult)
@@ -487,7 +489,7 @@ TRpcInputStreamAdapter::TRpcInputStreamAdapter(
     YCHECK(Underlying_);
 }
 
-TFuture<TSharedRef> TRpcInputStreamAdapter::Read()
+TFuture<TSharedRef> TRpcClientInputStream::Read()
 {
     if (FirstRead_.exchange(false)) {
         return MakeFuture(std::move(FirstReadResult_));
@@ -495,8 +497,9 @@ TFuture<TSharedRef> TRpcInputStreamAdapter::Read()
     return Underlying_->Read();
 }
 
-TRpcInputStreamAdapter::~TRpcInputStreamAdapter()
+TRpcClientInputStream::~TRpcClientInputStream()
 {
+    // Here we assume that canceling a completed request is safe.
     InvokeResult_.Cancel();
 }
 
@@ -515,21 +518,40 @@ void CheckWriterFeedback(
     actualFeedback = CheckedEnumCast<EWriterFeedback>(protoFeedback.feedback());
 
     if (actualFeedback != expectedFeedback) {
-        THROW_ERROR_EXCEPTION("Received the wrong kind of writer feedback: %v instead of %v",
+        THROW_ERROR_EXCEPTION("Received a wrong kind of writer feedback: %v instead of %v",
             actualFeedback,
             expectedFeedback);
     }
 }
 
+TFuture<void> ExpectWriterFeedback(
+    const IAsyncZeroCopyInputStreamPtr& input,
+    EWriterFeedback expectedFeedback)
+{
+    YCHECK(input);
+    return input->Read().Apply(BIND([=] (const TSharedRef& ref) {
+        CheckWriterFeedback(ref, expectedFeedback);
+    }));
+}
+
+TFuture<void> ExpectHandshake(
+    const NConcurrency::IAsyncZeroCopyInputStreamPtr& input,
+    bool feedbackEnabled)
+{
+    return feedbackEnabled
+        ? ExpectWriterFeedback(input, NDetail::EWriterFeedback::Handshake)
+        : ExpectEndOfStream(input);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TRpcOutputStreamAdapter::TRpcOutputStreamAdapter(
+TRpcClientOutputStream::TRpcClientOutputStream(
     IClientRequestPtr request,
     TFuture<void> invokeResult,
-    EWriterFeedbackStrategy feedbackStrategy)
+    bool feedbackEnabled)
     : Request_(std::move(request))
     , InvokeResult_(std::move(invokeResult))
-    , FeedbackStrategy_(feedbackStrategy)
+    , FeedbackEnabled_(feedbackEnabled)
 {
     YCHECK(Request_);
     Underlying_ = Request_->GetRequestAttachmentsStream();
@@ -537,53 +559,52 @@ TRpcOutputStreamAdapter::TRpcOutputStreamAdapter(
     FeedbackStream_ = Request_->GetResponseAttachmentsStream();
     YCHECK(FeedbackStream_);
 
-    if (FeedbackStrategy_ != EWriterFeedbackStrategy::NoFeedback) {
+    if (FeedbackEnabled_) {
         FeedbackStream_->Read().Subscribe(
-            BIND(&TRpcOutputStreamAdapter::OnFeedback, MakeWeak(this)));
+            BIND(&TRpcClientOutputStream::OnFeedback, MakeWeak(this)));
     }
 }
 
-TFuture<void> TRpcOutputStreamAdapter::Write(const TSharedRef& data)
+TFuture<void> TRpcClientOutputStream::Write(const TSharedRef& data)
 {
-    switch (FeedbackStrategy_) {
-        case EWriterFeedbackStrategy::NoFeedback:
-            return Underlying_->Write(data);
-        case EWriterFeedbackStrategy::OnlyPositive: {
-            auto promise = NewPromise<void>();
-            TFuture<void> writeResult;
-            {
-                auto guard = Guard(QueueLock_);
-                if (!Error_.IsOK()) {
-                    return MakeFuture(Error_);
-                }
-
-                ConfirmationQueue_.push(promise);
-                writeResult = Underlying_->Write(data);
+    if (FeedbackEnabled_) {
+        auto promise = NewPromise<void>();
+        TFuture<void> writeResult;
+        {
+            auto guard = Guard(SpinLock_);
+            if (!Error_.IsOK()) {
+                return MakeFuture(Error_);
             }
 
-            writeResult.Subscribe(
-                BIND(&TRpcOutputStreamAdapter::AbortOnError, MakeWeak(this)));
-
-            return promise.ToFuture();
+            ConfirmationQueue_.push(promise);
+            writeResult = Underlying_->Write(data);
         }
-        default:
-            Y_UNREACHABLE();
+
+        writeResult.Subscribe(
+            BIND(&TRpcClientOutputStream::AbortOnError, MakeWeak(this)));
+
+        return promise.ToFuture();
+    } else {
+        auto writeResult = Underlying_->Write(data);
+        writeResult.Subscribe(
+            BIND(&TRpcClientOutputStream::AbortOnError, MakeWeak(this)));
+        return writeResult;
     }
 }
 
-TFuture<void> TRpcOutputStreamAdapter::Close()
+TFuture<void> TRpcClientOutputStream::Close()
 {
     Underlying_->Close();
     return InvokeResult_;
 }
 
-void TRpcOutputStreamAdapter::AbortOnError(const TError& error)
+void TRpcClientOutputStream::AbortOnError(const TError& error)
 {
     if (error.IsOK()) {
         return;
     }
 
-    auto guard = Guard(QueueLock_);
+    auto guard = Guard(SpinLock_);
 
     if (!Error_.IsOK()) {
         return;
@@ -592,6 +613,7 @@ void TRpcOutputStreamAdapter::AbortOnError(const TError& error)
     Error_ = error;
 
     std::vector<TPromise<void>> promises;
+    promises.reserve(ConfirmationQueue_.size());
     while (!ConfirmationQueue_.empty()) {
         promises.push_back(std::move(ConfirmationQueue_.front()));
         ConfirmationQueue_.pop();
@@ -608,15 +630,15 @@ void TRpcOutputStreamAdapter::AbortOnError(const TError& error)
     InvokeResult_.Cancel();
 }
 
-void TRpcOutputStreamAdapter::OnFeedback(const TErrorOr<TSharedRef>& refOrError)
+void TRpcClientOutputStream::OnFeedback(const TErrorOr<TSharedRef>& refOrError)
 {
-    YCHECK(FeedbackStrategy_ != EWriterFeedbackStrategy::NoFeedback);
+    YCHECK(FeedbackEnabled_);
 
-    auto error = static_cast<TError>(refOrError);
+    auto error = TError(refOrError);
     if (error.IsOK()) {
         const auto& ref = refOrError.Value();
         if (!ref) {
-            auto guard = Guard(QueueLock_);
+            auto guard = Guard(SpinLock_);
 
             if (ConfirmationQueue_.empty()) {
                 guard.Release();
@@ -636,7 +658,7 @@ void TRpcOutputStreamAdapter::OnFeedback(const TErrorOr<TSharedRef>& refOrError)
     TPromise<void> promise;
 
     {
-        auto guard = Guard(QueueLock_);
+        auto guard = Guard(SpinLock_);
 
         if (!Error_.IsOK()) {
             return;
@@ -655,7 +677,7 @@ void TRpcOutputStreamAdapter::OnFeedback(const TErrorOr<TSharedRef>& refOrError)
 
     promise.Set();
     FeedbackStream_->Read().Subscribe(
-        BIND(&TRpcOutputStreamAdapter::OnFeedback, MakeWeak(this)));
+        BIND(&TRpcClientOutputStream::OnFeedback, MakeWeak(this)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -665,7 +687,7 @@ TSharedRef GenerateWriterFeedbackMessage(
 {
     NProto::TWriterFeedback protoFeedback;
     protoFeedback.set_feedback(
-        static_cast<NProto::TWriterFeedback::EWriterFeedback>(feedback));
+        static_cast<NProto::EWriterFeedback>(feedback));
     return SerializeProtoToRef(protoFeedback);
 }
 
@@ -704,45 +726,37 @@ void HandleOutputStreamingRequest(
     const IServiceContextPtr& context,
     const TCallback<TFuture<void>(TSharedRef)>& blockHandler,
     const TCallback<TFuture<void>()>& finalizer,
-    EWriterFeedbackStrategy feedbackStrategy)
+    bool feedbackEnabled)
 {
     auto inputStream = context->GetRequestAttachmentsStream();
     YCHECK(inputStream);
     auto outputStream = context->GetResponseAttachmentsStream();
     YCHECK(outputStream);
 
-    switch (feedbackStrategy) {
-        case EWriterFeedbackStrategy::NoFeedback:
-            WaitFor(outputStream->Close())
-                .ThrowOnError();
-            while (auto block = WaitFor(inputStream->Read()).ValueOrThrow()) {
-                WaitFor(blockHandler(block))
-                    .ThrowOnError();
-            }
+    if (feedbackEnabled) {
+        auto handshakeRef = GenerateWriterFeedbackMessage(
+            NDetail::EWriterFeedback::Handshake);
+        WaitFor(outputStream->Write(handshakeRef))
+            .ThrowOnError();
 
-            break;
-        case EWriterFeedbackStrategy::OnlyPositive: {
-            auto handshakeRef = GenerateWriterFeedbackMessage(
-                NDetail::EWriterFeedback::Handshake);
-            WaitFor(outputStream->Write(handshakeRef))
+        while (auto block = WaitFor(inputStream->Read()).ValueOrThrow()) {
+            WaitFor(blockHandler(block))
                 .ThrowOnError();
 
-            while (auto block = WaitFor(inputStream->Read()).ValueOrThrow()) {
-                WaitFor(blockHandler(block))
-                    .ThrowOnError();
-
-                auto ackRef = GenerateWriterFeedbackMessage(
-                    NDetail::EWriterFeedback::Success);
-                WaitFor(outputStream->Write(ackRef))
-                    .ThrowOnError();
-            }
-
-            outputStream->Close();
-            break;
+            auto ackRef = GenerateWriterFeedbackMessage(
+                NDetail::EWriterFeedback::Success);
+            WaitFor(outputStream->Write(ackRef))
+                .ThrowOnError();
         }
 
-        default:
-            Y_UNREACHABLE();
+        outputStream->Close();
+    } else {
+        WaitFor(outputStream->Close())
+            .ThrowOnError();
+        while (auto block = WaitFor(inputStream->Read()).ValueOrThrow()) {
+            WaitFor(blockHandler(block))
+                .ThrowOnError();
+        }
     }
 
     WaitFor(finalizer())
@@ -753,13 +767,13 @@ void HandleOutputStreamingRequest(
 void HandleOutputStreamingRequest(
     const IServiceContextPtr& context,
     const IAsyncZeroCopyOutputStreamPtr& output,
-    EWriterFeedbackStrategy feedbackStrategy)
+    bool feedbackEnabled)
 {
     HandleOutputStreamingRequest(
         context,
         BIND(&IAsyncZeroCopyOutputStream::Write, output),
         BIND(&IAsyncZeroCopyOutputStream::Close, output),
-        feedbackStrategy);
+        feedbackEnabled);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

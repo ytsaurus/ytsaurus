@@ -10,11 +10,11 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcFileReader
+class TFileReader
     : public IFileReader
 {
 public:
-    TRpcFileReader(
+    TFileReader(
         IAsyncZeroCopyInputStreamPtr underlying,
         ui64 revision)
         : Underlying_(std::move(underlying))
@@ -38,18 +38,18 @@ private:
     const ui64 Revision_;
 };
 
-TFuture<IFileReaderPtr> CreateRpcFileReader(
+TFuture<IFileReaderPtr> CreateRpcProxyFileReader(
     TApiServiceProxy::TReqReadFilePtr request)
 {
-    return NRpc::CreateInputStreamAdapter(std::move(request))
+    return NRpc::CreateRpcClientInputStream(std::move(request))
         .Apply(BIND([=] (const IAsyncZeroCopyInputStreamPtr& inputStream) {
             return inputStream->Read().Apply(BIND([=] (const TSharedRef& metaRef) {
-                NApi::NRpcProxy::NProto::TMetaReadFile meta;
+                NApi::NRpcProxy::NProto::TReadFileMeta meta;
                 if (!TryDeserializeProto(&meta, metaRef)) {
                     THROW_ERROR_EXCEPTION("Failed to deserialize file stream header");
                 }
 
-                return New<TRpcFileReader>(inputStream, meta.revision());
+                return New<TFileReader>(inputStream, meta.revision());
             })).As<IFileReaderPtr>();
         }));
 }

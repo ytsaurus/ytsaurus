@@ -1095,10 +1095,10 @@ TFuture<void> ExpectEndOfStream(
     const IAsyncZeroCopyInputStreamPtr& input)
 {
     YCHECK(input);
-    return input->Read().Apply(BIND([=] (const TSharedRef& ref) {
+    return input->Read().Apply(BIND([] (const TSharedRef& ref) {
         if (ref) {
-            THROW_ERROR_EXCEPTION("Expected end-of-stream, received a non-null ref")
-                << TErrorAttribute("attachment_size", ref.Size());
+            THROW_ERROR_EXCEPTION("Expected end-of-stream, received a non-null ref of size %v",
+                ref.Size());
         }
     }));
 }
