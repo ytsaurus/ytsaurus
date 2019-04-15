@@ -12,7 +12,6 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: ITablePartPtr instead of tables
 DB::StoragePtr CreateStorageSubquery(
     TQueryContext* queryContext,
     std::string subquerySpec);

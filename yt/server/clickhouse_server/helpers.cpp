@@ -167,9 +167,7 @@ TClickHouseTablePtr FetchClickHouseTable(
         EPermission::Read,
         logger);
 
-    return CreateClickHouseTable(
-        path.GetPath(),
-        userObject->Schema);
+    return std::make_shared<TClickHouseTable>(path.GetPath(), userObject->Schema);
 }
 
 /////////////////////////////////////////////////////////////////////////////

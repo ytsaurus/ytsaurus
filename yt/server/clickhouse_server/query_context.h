@@ -6,9 +6,7 @@
 
 #include "document.h"
 #include "objects.h"
-#include "system_columns.h"
 #include "table_reader.h"
-#include "table_partition.h"
 #include "table_schema.h"
 
 #include <yt/client/table_client/schema.h>
@@ -27,20 +25,8 @@
 
 namespace NYT::NClickHouseServer {
 
-using TStringList = std::vector<TString>;
-
 using namespace NLogging;
 using namespace NConcurrency;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TObjectListItem
-{
-    TString Name;
-    TObjectAttributes Attributes;
-};
-
-using TObjectList = std::vector<TObjectListItem>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,16 +47,6 @@ public:
     ~TQueryContext();
 
     const NApi::NNative::IClientPtr& Client() const;
-
-    TTablePartList GetTableParts(const TString& name, const DB::KeyCondition* keyCondition, size_t maxParts = 1);
-    TTablePartList GetTablesParts(const std::vector<TString>& names, const DB::KeyCondition* keyCondition, size_t maxParts = 1);
-
-    TTablePartList ConcatenateAndGetTableParts(
-        const std::vector<TString>& names,
-        const DB::KeyCondition* keyCondition = nullptr,
-        size_t maxParts = 1);
-
-    bool Exists(const TString& name);
 
 private:
     TClickHouseHostPtr Host_;

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "table_partition.h"
 #include "private.h"
 
 #include <yt/server/controller_agent/chunk_pools/chunk_stripe.h>
@@ -17,29 +16,18 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFetchResult
-{
-    std::vector<NChunkClient::TInputDataSlicePtr> DataSlices;
-    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
-    NChunkClient::TDataSourceDirectoryPtr DataSourceDirectory;
-};
-
-TFetchResult FetchInput(
+//! Fetch data slices for given input tables and fill given subquery spec template.
+std::vector<NChunkClient::TInputDataSlicePtr> FetchDataSlices(
     NApi::NNative::IClientPtr client,
     std::vector<TString> inputTablePaths,
     const DB::KeyCondition* keyCondition,
     NTableClient::TRowBufferPtr rowBuffer,
-    TSubqueryConfigPtr config);
+    TSubqueryConfigPtr config,
+    TSubquerySpec& specTemplate);
 
-NChunkPools::TChunkStripeListPtr BuildJobs(
-    const std::vector<NChunkClient::TInputDataSlicePtr>& dataSlices,
-    int jobCount);
+NChunkPools::TChunkStripeListPtr SubdivideDataSlices(const std::vector<NChunkClient::TInputDataSlicePtr>& dataSlices, int jobCount);
 
-TTablePartList SerializeAsTablePartList(
-    const NChunkPools::TChunkStripeListPtr& chunkStripeListPtr,
-    const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
-    const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
-    TQueryContext* context);
+void FillDataSliceDescriptors(TSubquerySpec& subquerySpec, const NChunkPools::TChunkStripePtr& chunkStripe);
 
 ////////////////////////////////////////////////////////////////////////////////
 

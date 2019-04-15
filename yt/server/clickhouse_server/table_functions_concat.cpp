@@ -5,7 +5,6 @@
 #include "storage_concat.h"
 #include "type_helpers.h"
 #include "helpers.h"
-#include "table_partition.h"
 #include "query_context.h"
 
 #include <yt/ytlib/api/native/client.h>

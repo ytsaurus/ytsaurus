@@ -3,7 +3,6 @@
 #include "private.h"
 #include "helpers.h"
 #include "column_builder.h"
-#include "system_columns.h"
 
 #include <yt/ytlib/api/native/table_reader.h>
 
@@ -239,56 +238,13 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// System column handlers
-
-THandlerFunction CreateSourceTableColumnHandler(
-    const std::vector<TClickHouseTablePtr>& tables)
-{
-    auto handler = [tables] (IColumnBuilder& columnBuilder, const TUnversionedValue& value)
-    {
-        const i64 tableIndex = value.Data.Int64;
-
-        if (tableIndex < 0 || tableIndex >= static_cast<int>(tables.size())) {
-            THROW_ERROR_EXCEPTION("table index is out of range")
-                << TErrorAttribute("table_index", tableIndex);
-        }
-
-        ProduceStringValue(columnBuilder, tables[tableIndex]->Name);
-    };
-
-    return handler;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<TClickHouseColumn> ConcatColumns(
-    std::vector<TClickHouseColumn> physical,
-    TSystemColumns system)
-{
-    std::vector<TClickHouseColumn> all;
-    all.reserve(physical.size() + system.GetCount());
-
-    all.insert(all.end(), physical.begin(), physical.end());
-
-    const auto system_ = system.ToColumnList();
-    all.insert(all.end(), system_.begin(), system_.end());
-
-    return all;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTableReader
     : public ITableReader
 {
 private:
     static const size_t MAX_ROWS_PER_READ = 1024;
 
-    const std::vector<TClickHouseTablePtr> Tables;
-
-    std::vector<TClickHouseColumn> PhysicalColumns;
-    TSystemColumns SystemColumns;
-    std::vector<TClickHouseColumn> AllColumns;
+    std::vector<TClickHouseColumn> Columns;
 
     const ISchemafulReaderPtr ChunkReader;
 
@@ -298,14 +254,9 @@ private:
     std::vector<THandlerFunction> ColumnHandlers;
 
 public:
-    TTableReader(std::vector<TClickHouseTablePtr> tables,
-                 std::vector<TClickHouseColumn> columns,
-                 TSystemColumns systemColumns,
+    TTableReader(std::vector<TClickHouseColumn> columns,
                  ISchemafulReaderPtr chunkReader)
-        : Tables(std::move(tables))
-        , PhysicalColumns(std::move(columns))
-        , SystemColumns(std::move(systemColumns))
-        , AllColumns(ConcatColumns(PhysicalColumns, SystemColumns))
+        : Columns(std::move(columns))
         , ChunkReader(std::move(chunkReader))
     {
         Rows.reserve(MAX_ROWS_PER_READ);
@@ -313,14 +264,9 @@ public:
         PrepareColumnHandlers();
     }
 
-    const std::vector<TClickHouseTablePtr>& GetTables() const override
-    {
-        return Tables;
-    }
-
     std::vector<TClickHouseColumn> GetColumns() const override
     {
-        return AllColumns;
+        return Columns;
     }
 
     bool Read(const TColumnBuilderList& columns) override;
@@ -337,14 +283,9 @@ private:
 
 void TTableReader::PrepareColumnHandlers()
 {
-    ColumnHandlers.reserve(PhysicalColumns.size());
-    for (const auto& columnSchema: PhysicalColumns) {
+    ColumnHandlers.reserve(Columns.size());
+    for (const auto& columnSchema: Columns) {
         ColumnHandlers.push_back(TColumnHandlerFactory::Create(columnSchema));
-    }
-
-    if (SystemColumns.TableName) {
-        ColumnHandlers.push_back(
-            CreateSourceTableColumnHandler(Tables));
     }
 }
 
@@ -393,17 +334,17 @@ void TTableReader::ForwardRows(
 
 void TTableReader::ValidateColumns(const TColumnBuilderList& columns) const
 {
-    if (columns.size() != AllColumns.size()) {
+    if (columns.size() != Columns.size()) {
         THROW_ERROR_EXCEPTION("Mismatched columns count")
-            << TErrorAttribute("expected", AllColumns.size())
+            << TErrorAttribute("expected", Columns.size())
             << TErrorAttribute("actual", columns.size());
     }
 
-    for (size_t i = 0; i < AllColumns.size(); ++i) {
-        if (static_cast<int>(columns[i]->GetType()) != static_cast<int>(AllColumns[i].Type)) {
+    for (size_t i = 0; i < Columns.size(); ++i) {
+        if (static_cast<int>(columns[i]->GetType()) != static_cast<int>(Columns[i].Type)) {
             THROW_ERROR_EXCEPTION("Mismatched column type")
-                << TErrorAttribute("column", AllColumns[i].Name)
-                << TErrorAttribute("expected", static_cast<int>(AllColumns[i].Type))
+                << TErrorAttribute("column", Columns[i].Name)
+                << TErrorAttribute("expected", static_cast<int>(Columns[i].Type))
                 << TErrorAttribute("actual", static_cast<int>(columns[i]->GetType()));
         }
     }
@@ -412,30 +353,11 @@ void TTableReader::ValidateColumns(const TColumnBuilderList& columns) const
 ////////////////////////////////////////////////////////////////////////////////
 
 ITableReaderPtr CreateTableReader(
-    std::vector<TClickHouseTablePtr> tables,
     std::vector<TClickHouseColumn> columns,
-    TSystemColumns systemColumns,
     ISchemafulReaderPtr chunkReader)
 {
-    if (tables.empty()) {
-        THROW_ERROR_EXCEPTION("Cannot create reader: provided empty list of tables");
-    }
-
     return std::make_shared<TTableReader>(
-        std::move(tables),
         std::move(columns),
-        std::move(systemColumns),
-        std::move(chunkReader));
-}
-
-ITableReaderPtr CreateTableReader(
-    TClickHouseTablePtr table,
-    ISchemafulReaderPtr chunkReader)
-{
-    return CreateTableReader(
-        {table},
-        table->Columns,
-        {},
         std::move(chunkReader));
 }
 
@@ -496,8 +418,8 @@ ITableReaderPtr CreateTableReader(const NApi::NNative::IClientPtr& client, const
         readerOptions);
 
     // TODO(max42): rename?
-    auto readerTable = CreateClickHouseTable(path.GetPath(), tableObject->Schema);
-    return NClickHouseServer::CreateTableReader(readerTable, std::move(chunkReader));
+    auto readerTable = std::make_shared<TClickHouseTable>(path.GetPath(), tableObject->Schema);
+    return NClickHouseServer::CreateTableReader(readerTable->Columns, std::move(chunkReader));
 }
 
 /////////////////////////////////////////////////////////////////////////////

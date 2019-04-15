@@ -4,8 +4,15 @@ import "yt/ytlib/chunk_client/data_source.proto";
 import "yt/ytlib/scheduler/proto/job.proto";
 import "yt/client/node_tracker_client/proto/node_directory.proto";
 import "yt/core/misc/proto/guid.proto";
+import "yt/client/table_client/proto/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TNameAndTypePair
+{
+    required string name = 1;
+    required string type = 2;
+}
 
 message TSubquerySpec
 {
@@ -13,4 +20,6 @@ message TSubquerySpec
     required NScheduler.NProto.TTableInputSpec table_spec = 2;
     optional NNodeTrackerClient.NProto.TNodeDirectory node_directory = 3;
     optional NYT.NProto.TGuid initial_query_id = 4;
+    repeated TNameAndTypePair columns = 5;
+    optional NYT.NTableClient.NProto.TTableSchemaExt read_schema = 6;
 };
