@@ -2253,7 +2253,6 @@ private:
                 operation->Transactions() = std::move(result.Transactions);
                 operation->ControllerAttributes().InitializeAttributes = std::move(result.Attributes);
                 operation->BriefSpec() = BuildBriefSpec(operation);
-                operation->Transactions() = std::move(result.Transactions);
             }
 
             ValidateOperationState(operation, EOperationState::Reviving);
