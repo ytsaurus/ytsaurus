@@ -23,7 +23,9 @@ public:
 
     ~TTempTable();
 
-    TString Name() const;
+    TString Name() const &;
+    TString Name() && = delete;
+    TString Release(); // Release table and return its name. Table will not be deleted by TTempTable after this call
 
 private:
     IClientBasePtr Client_;
