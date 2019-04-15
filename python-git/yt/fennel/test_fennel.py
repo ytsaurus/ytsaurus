@@ -132,7 +132,7 @@ def test_make_read_tasks_simple_cases():
         (2, 0, [make_range(4, 6)]),
     ]
 
-def test_make_read_tasks_complicated_cases():
+def test_make_read_tasks_complicated_case_1():
     class MockYtClient(object):
         def get(self, *args, **kwargs):
             return {"processed_row_count": 17, "table_start_row_index": 50, "row_count": 50}
@@ -151,4 +151,45 @@ def test_make_read_tasks_complicated_cases():
         (0, 24, [make_range(22, 25), make_range(31, 34), make_range(40, 43)]),
         (1, 22, [make_range(17, 19), make_range(25, 28), make_range(34, 37)]),
         (2, 21, [make_range(19, 22), make_range(28, 31), make_range(37, 40)]),
+    ]
+
+def test_make_read_tasks_complicated_case_2():
+    class MockYtClient(object):
+        def get(self, *args, **kwargs):
+            return {"processed_row_count": 17, "table_start_row_index": 50, "row_count": 35}
+
+    def make_range(start_index, end_index):
+        return {"lower_limit": {"row_index": start_index}, "upper_limit": {"row_index": end_index}}
+
+    tasks, row_count = make_read_tasks(
+        MockYtClient(),
+        "", # fake table path
+        3, # session_count
+        3, # range_row_count
+        3) # max_range_count
+    assert row_count == 18
+    assert tasks == [
+        (0, 24, [make_range(22, 25), make_range(31, 34)]),
+        (1, 22, [make_range(17, 19), make_range(25, 28), make_range(34, 35)]),
+        (2, 21, [make_range(19, 22), make_range(28, 31)]),
+    ]
+
+def test_make_read_tasks_complicated_case_3():
+    class MockYtClient(object):
+        def get(self, *args, **kwargs):
+            return {"processed_row_count": 35, "table_start_row_index": 50, "row_count": 39}
+
+    def make_range(start_index, end_index):
+        return {"lower_limit": {"row_index": start_index}, "upper_limit": {"row_index": end_index}}
+
+    tasks, row_count = make_read_tasks(
+        MockYtClient(),
+        "", # fake table path
+        3, # session_count
+        3, # range_row_count
+        3) # max_range_count
+    assert row_count == 4
+    assert tasks == [
+        (1, 28, [make_range(35, 37)]),
+        (2, 27, [make_range(37, 39)]),
     ]
