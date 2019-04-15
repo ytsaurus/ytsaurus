@@ -401,12 +401,12 @@ void TSchedulerElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& 
     TreeConfig_ = config;
 }
 
-void TSchedulerElement::Update(TDynamicAttributesList& dynamicAttributesList)
+void TSchedulerElement::Update(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* context)
 {
     YCHECK(!Cloned_);
 
     UpdateBottomUp(dynamicAttributesList);
-    UpdateTopDown(dynamicAttributesList);
+    UpdateTopDown(dynamicAttributesList, context);
 }
 
 void TSchedulerElement::UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList)
@@ -419,7 +419,7 @@ void TSchedulerElement::UpdateBottomUp(TDynamicAttributesList& dynamicAttributes
     UpdateDynamicAttributes(dynamicAttributesList);
 }
 
-void TSchedulerElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesList)
+void TSchedulerElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* context)
 {
     YCHECK(!Cloned_);
 }
@@ -859,19 +859,19 @@ void TCompositeSchedulerElement::UpdateBottomUp(TDynamicAttributesList& dynamicA
     TSchedulerElement::UpdateBottomUp(dynamicAttributesList);
 }
 
-void TCompositeSchedulerElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesList)
+void TCompositeSchedulerElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* context)
 {
     YCHECK(!Cloned_);
 
     switch (Mode_) {
         case ESchedulingMode::Fifo:
             // Easy case -- the first child get everything, others get none.
-            UpdateFifo(dynamicAttributesList);
+            UpdateFifo(dynamicAttributesList, context);
             break;
 
         case ESchedulingMode::FairShare:
             // Hard case -- compute fair shares using fit factor.
-            UpdateFairShare(dynamicAttributesList);
+            UpdateFairShare(dynamicAttributesList, context);
             break;
 
         default:
@@ -883,7 +883,7 @@ void TCompositeSchedulerElement::UpdateTopDown(TDynamicAttributesList& dynamicAt
     // Propagate updates to children.
     for (const auto& child : EnabledChildren_) {
         UpdateChildPreemptionSettings(child);
-        child->UpdateTopDown(dynamicAttributesList);
+        child->UpdateTopDown(dynamicAttributesList, context);
     }
 }
 
@@ -1224,7 +1224,7 @@ void TCompositeSchedulerElement::ComputeByFitting(
     }
 }
 
-void TCompositeSchedulerElement::UpdateFifo(TDynamicAttributesList& dynamicAttributesList)
+void TCompositeSchedulerElement::UpdateFifo(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* /* context */)
 {
     YCHECK(!Cloned_);
 
@@ -1251,11 +1251,9 @@ void TCompositeSchedulerElement::UpdateFifo(TDynamicAttributesList& dynamicAttri
     }
 }
 
-void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamicAttributesList)
+void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* context)
 {
     YCHECK(!Cloned_);
-
-    UpdateFairShareAlerts_.clear();
 
     // Compute min shares sum and min weight.
     double minShareRatioSumForPools = 0.0;
@@ -1277,14 +1275,14 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
         }
 
         if ((!child->IsOperation() && minShareRatio > 0) && Attributes_.RecursiveMinShareRatio == 0) {
-            UpdateFairShareAlerts_.emplace_back(
+            context->Errors.emplace_back(
                 "Min share ratio setting for %Qv has no effect "
                 "because min share ratio of parent pool %Qv is zero",
                 child->GetId(),
                 GetId());
         }
         if ((!child->IsOperation() && minShareRatioByResources > 0) && Attributes_.RecursiveMinShareRatio == 0) {
-            UpdateFairShareAlerts_.emplace_back(
+            context->Errors.emplace_back(
                 "Min share ratio resources setting for %Qv has no effect "
                 "because min share ratio of parent pool %Qv is zero",
                 child->GetId(),
@@ -1298,7 +1296,7 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
 
     // If min share sum is larger than one, adjust all children min shares to sum up to one.
     if (minShareRatioSumForPools > Attributes_.RecursiveMinShareRatio + RatioComparisonPrecision) {
-        UpdateFairShareAlerts_.emplace_back(
+        context->Errors.emplace_back(
             "Impossible to satisfy resources guarantees of pool %Qv, "
             "total min share ratio of children pools is too large: %v > %v",
             GetId(),
@@ -2331,11 +2329,11 @@ void TOperationElement::UpdateBottomUp(TDynamicAttributesList& dynamicAttributes
         dominantLimit == 0 ? 1.0 : dominantAllocationLimit / dominantLimit;
 }
 
-void TOperationElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesList)
+void TOperationElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* context)
 {
     YCHECK(!Cloned_);
 
-    TSchedulerElement::UpdateTopDown(dynamicAttributesList);
+    TSchedulerElement::UpdateTopDown(dynamicAttributesList, context);
 
     UpdatePreemptableJobsList();
 }
@@ -3040,13 +3038,13 @@ void TRootElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& confi
     Attributes_.AdjustedFairSharePreemptionTimeout = GetFairSharePreemptionTimeout();
 }
 
-void TRootElement::Update(TDynamicAttributesList& dynamicAttributesList)
+void TRootElement::Update(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* context)
 {
     YCHECK(!Cloned_);
 
     TreeSize_ = TCompositeSchedulerElement::EnumerateElements(0);
     dynamicAttributesList.assign(TreeSize_, TDynamicAttributes());
-    TCompositeSchedulerElement::Update(dynamicAttributesList);
+    TCompositeSchedulerElement::Update(dynamicAttributesList, context);
 }
 
 bool TRootElement::IsRoot() const
