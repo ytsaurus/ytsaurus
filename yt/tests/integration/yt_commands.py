@@ -4,10 +4,9 @@ from yt.environment.yt_env import set_environment_driver_logging_config
 
 import yt.yson as yson
 from yt_driver_bindings import Driver, Request
-import yt_driver_bindings
 from yt.common import YtError, YtResponseError, flatten, update_inplace
 
-from yt.test_helpers import wait
+from yt.test_helpers import wait, WaitFailed
 from yt.test_helpers.job_events import JobEvents, TimeoutError
 
 import __builtin__
@@ -22,6 +21,8 @@ import string
 import sys
 import tempfile
 import time
+import traceback
+from collections import defaultdict
 from datetime import datetime, timedelta
 from cStringIO import StringIO, OutputType
 
@@ -1545,3 +1546,35 @@ def get_singular_chunk_id(path, **kwargs):
 
 def get_first_chunk_id(path, **kwargs):
     return get(path + "/@chunk_ids/0", **kwargs)
+
+def get_job_count_profiling():
+    job_count = {"state": defaultdict(int), "abort_reason": defaultdict(int)}
+
+    try:
+        profiling_response = get("//sys/scheduler/orchid/profiling/scheduler/job_count", verbose=False)
+    except YtError:
+        return job_count
+
+    profiling_info = {}
+    for value in reversed(profiling_response):
+        key = tuple(sorted(value["tags"].items()))
+        if key not in profiling_info:
+            profiling_info[key] = value["value"]
+
+    # Enable it for debugging.
+    # print "profiling_info:", profiling_info
+    for key, value in profiling_info.iteritems():
+        state = dict(key)["state"]
+        job_count["state"][state] += value
+
+    for key, value in profiling_info.iteritems():
+        state = dict(key)["state"]
+        if state != "aborted":
+            continue
+        abort_reason = dict(key)["abort_reason"]
+        job_count["abort_reason"][abort_reason] += value
+
+    # Enable it for debugging.
+    print "job_counters:", job_count
+
+    return job_count

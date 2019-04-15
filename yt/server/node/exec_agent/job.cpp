@@ -1021,6 +1021,12 @@ private:
 
         auto error = FromProto<TError>(JobResult_->error());
 
+        if (!error.IsOK()) {
+            // NB: it is required to report error that occured in some place different
+            // from OnJobFinished method.
+            ReportStatistics(TJobStatistics().Error(error));
+        }
+
         if (error.IsOK()) {
             SetJobState(EJobState::Completed);
         } else if (IsFatalError(error)) {
