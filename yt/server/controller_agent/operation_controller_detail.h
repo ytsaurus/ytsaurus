@@ -1144,7 +1144,7 @@ private:
     void ReleaseJobs(const std::vector<TJobId>& jobIds);
 
     bool IsTreeTentative(const TString& treeId) const;
-    void MaybeBanInTentativeTree(const TString& treeId, bool shouldBan);
+    void MaybeBanInTentativeTree(const TString& treeId);
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink
