@@ -140,10 +140,10 @@ public:
         return OpenResult_->Reader->GetReadyEvent();
     }
 
-    i64 GetTableRowIndex() const
+    i64 GetStartRowIndex() const
     {
         YCHECK(OpenResult_);
-        return OpenResult_->Reader->GetTableRowIndex();
+        return StartRowIndex_;
     }
 
     virtual i64 GetTotalRowCount() const override
@@ -191,6 +191,7 @@ private:
 
     TFuture<void> ReadyEvent_;
     std::optional<TSchemalessMultiChunkReaderCreateResult> OpenResult_;
+    i64 StartRowIndex_;
     NProfiling::TCpuInstant ReadDeadline_ = Max<NProfiling::TCpuInstant>();
 
     void DoOpen()
@@ -204,6 +205,8 @@ private:
             BandwidthThrottler_,
             RpsThrottler_))
             .ValueOrThrow();
+
+        StartRowIndex_ = OpenResult_->Reader->GetTableRowIndex();
         
         if (Transaction_) {
             StartListenTransaction(Transaction_);

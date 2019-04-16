@@ -142,11 +142,8 @@ public:
     // TODO(kiselyovp) cpp tests for table reader/writer classes?
     // Tables
     virtual TFuture<NApi::ITableReaderPtr> CreateTableReader(
-        const NYPath::TRichYPath&,
-        const NApi::TTableReaderOptions&) override
-    {
-        ThrowUnimplemented("read_table");
-    }
+        const NYPath::TRichYPath& path,
+        const NApi::TTableReaderOptions& options) override;
 
     virtual TFuture<NApi::ITableWriterPtr> CreateTableWriter(
         const NYPath::TRichYPath& path,

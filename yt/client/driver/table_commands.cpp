@@ -91,7 +91,7 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
             .Item("omitted_inaccessible_columns").Value(reader->GetOmittedInaccessibleColumns())
             .DoIf(reader->GetTotalRowCount() > 0, [&](auto fluent) {
                 fluent
-                    .Item("start_row_index").Value(reader->GetTableRowIndex());
+                    .Item("start_row_index").Value(reader->GetStartRowIndex());
             });
     });
 
