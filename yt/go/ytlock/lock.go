@@ -20,13 +20,6 @@ type WinnerTx struct {
 	Timeout   yson.Duration `yson:"duration"`
 }
 
-type ConflictPolicy int
-
-const (
-	Fail ConflictPolicy = iota
-	Retry
-)
-
 func FindConflictWinner(err error) *WinnerTx {
 	if ytErr := yt.FindErrorCode(err, yt.CodeConcurrentTransactionLockConflict); ytErr != nil {
 		var winner WinnerTx
@@ -44,13 +37,13 @@ func FindConflictWinner(err error) *WinnerTx {
 }
 
 const (
-	DefaultBackoff = time.Minute
+	DefaultBackoff = 10 * time.Second
 )
 
 type Options struct {
 	// Fail if LockPath is missing.
 	FailIfMissing   bool
-	OnConflict      ConflictPolicy
+	NumberOfRetries int
 	ConflictBackoff time.Duration
 	LockType        yt.LockMode
 }
@@ -77,10 +70,9 @@ type Lock struct {
 
 // NewLock creates Lock object using default Options
 func NewLock(ctx context.Context, yc yt.Client, path ypath.Path) (l Lock) {
-	// TODO(@iagorsky): pick sane default options
 	defaultOptions := Options{
 		FailIfMissing:   true,
-		OnConflict:      Fail,
+		NumberOfRetries: 0,
 		ConflictBackoff: DefaultBackoff,
 		LockType:        yt.LockExclusive,
 	}
@@ -118,7 +110,7 @@ func (l Lock) setup() error {
 		l.ctxCancel()
 	}()
 
-	_, err = tx.LockNode(l.ctx, l.Path, yt.LockExclusive, nil)
+	_, err = tx.LockNode(l.ctx, l.Path, l.Options.LockType, nil)
 	if yt.ContainsErrorCode(err, yt.CodeResolveError) && !l.Options.FailIfMissing {
 		_, err = tx.CreateNode(l.ctx, l.Path, yt.NodeMap, &yt.CreateNodeOptions{Recursive: true})
 	}
@@ -134,13 +126,14 @@ func (l Lock) setup() error {
 //
 // If lock context is done, there is no need to call Release explicitly.
 func (l *Lock) Acquire() (ctx context.Context, err error) {
-	for {
+	// Add 1 to retry counter so that it works in case of value == 0
+	retries := l.Options.NumberOfRetries + 1
+	for retries > 0 {
 		l.ctx, l.ctxCancel = context.WithCancel(l.initialCtx)
 		ctx = l.ctx
 		err = l.setup()
 
-		// FIX(@iagorsky): if node creating fails with OnConflict == Retry and !Options.FailIfMissing -> infinite loop
-		if err == nil || l.Options.OnConflict == Fail {
+		if err == nil {
 			return
 		}
 
@@ -150,7 +143,9 @@ func (l *Lock) Acquire() (ctx context.Context, err error) {
 			return
 		case <-time.After(l.Options.conflictBackoff()):
 		}
+		retries--
 	}
+	return
 }
 
 // Release closes lock context and releases distributed lock by aborting transaction
