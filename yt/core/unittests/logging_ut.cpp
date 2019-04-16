@@ -156,10 +156,11 @@ TEST_F(TLoggingTest, Compression)
     WritePlainTextEvent(writer.Get());
 
     writer->Reload();
+    WritePlainTextEvent(writer.Get());
 
     {
         auto lines = ReadFile("test.log.gz", true);
-        EXPECT_EQ(2, lines.size());
+        EXPECT_EQ(5, lines.size());
         EXPECT_TRUE(lines[0].find("Logging started") != -1);
         EXPECT_EQ("\tD\tcategory\tmessage\tba\t\t\n", lines[1].substr(DateLength, lines[1].size()));
     }
