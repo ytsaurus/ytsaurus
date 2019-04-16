@@ -43,6 +43,8 @@ public:
 
     std::optional<TString> Token;
 
+    std::optional<bool> RewriteOperationPath;
+
     TDriverConfig()
     {
         RegisterParameter("file_reader", FileReader)
@@ -81,6 +83,8 @@ public:
         RegisterParameter("token", Token)
             .Optional();
 
+        RegisterParameter("rewrite_operation_path", RewriteOperationPath)
+            .Optional();
     }
 };
 

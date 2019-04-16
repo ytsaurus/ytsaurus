@@ -396,11 +396,9 @@ TPoolsUpdateResult TFairShareTree::UpdatePools(const INodePtr& poolsNode)
         }
     }
 
-    ResetTreeIndexes();
-    RootElement_->Update(GlobalDynamicAttributes_);
-    RootElementSnapshot_ = CreateRootElementSnapshot();
-
     LastPoolsNodeUpdateError_ = TError();
+
+    OnFairShareUpdateAt(TInstant::Now());
 
     return {LastPoolsNodeUpdateError_, true};
 }
@@ -584,23 +582,14 @@ TError TFairShareTree::OnFairShareUpdateAt(TInstant now)
     PROFILE_AGGREGATED_TIMING(FairShareUpdateTimeCounter_) {
         // The root element gets the whole cluster.
         ResetTreeIndexes();
-        RootElement_->Update(GlobalDynamicAttributes_);
 
-        // Collect alerts after update.
-        std::vector<TError> alerts;
+        TUpdateFairShareContext updateContext;
+        RootElement_->Update(GlobalDynamicAttributes_, &updateContext);
 
-        for (const auto& pair : Pools_) {
-            const auto& poolAlerts = pair.second->UpdateFairShareAlerts();
-            alerts.insert(alerts.end(), poolAlerts.begin(), poolAlerts.end());
-        }
-
-        const auto& rootElementAlerts = RootElement_->UpdateFairShareAlerts();
-        alerts.insert(alerts.end(), rootElementAlerts.begin(), rootElementAlerts.end());
-
-        if (!alerts.empty()) {
+        if (updateContext.Errors.empty()) {
             error = TError("Found pool configuration issues during fair share update in tree %Qv", TreeId_)
                 << TErrorAttribute("pool_tree", TreeId_)
-                << std::move(alerts);
+                << std::move(updateContext.Errors);
         }
 
         // Update starvation flags for all operations.
