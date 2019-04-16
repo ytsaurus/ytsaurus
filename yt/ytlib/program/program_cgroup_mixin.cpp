@@ -2,7 +2,13 @@
 
 #include <yt/ytlib/cgroup/cgroup.h>
 
+#include <yt/core/logging/log.h>
+
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const NLogging::TLogger Logger("Cgroup");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,10 +24,14 @@ TProgramCgroupMixin::TProgramCgroupMixin(NLastGetopt::TOpts& opts)
 
 bool TProgramCgroupMixin::HandleCgroupOptions()
 {
-    for (const auto& cgroupPath : CgroupPaths_) {
-        NCGroup::TNonOwningCGroup cgroup(cgroupPath);
-        cgroup.EnsureExistance();
-        cgroup.AddCurrentTask();
+    try {
+        for (const auto& cgroupPath : CgroupPaths_) {
+            NCGroup::TNonOwningCGroup cgroup(cgroupPath);
+            cgroup.EnsureExistance();
+            cgroup.AddCurrentTask();
+        }
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Failed to handle cgroups");
     }
     return false;
 }
