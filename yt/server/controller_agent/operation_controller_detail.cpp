@@ -4385,9 +4385,12 @@ void TOperationControllerBase::FetchInputTables()
         auto& table = InputTables_[tableIndex];
         auto ranges = table->Path.GetRanges();
         int originalRangeCount = ranges.size();
+
+        // XXX(max42): does this ever happen?
         if (ranges.empty()) {
             continue;
         }
+
         bool hasColumnSelectors = table->Path.GetColumns().operator bool();
 
         if (InputQuery && table->Schema.IsSorted()) {

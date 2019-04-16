@@ -150,6 +150,8 @@ public:
     NChunkClient::TFetcherConfigPtr ChunkSliceFetcher;
 
     int MaxSlicedChunkCount;
+    int MaxChunksPerFetch;
+    int MaxChunksPerLocateRequest;
 
     TSubqueryConfig()
     {
@@ -157,6 +159,10 @@ public:
             .DefaultNew();
         RegisterParameter("max_sliced_chunk_count", MaxSlicedChunkCount)
             .Default(100);
+        RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
+            .Default(100'000);
+        RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)
+            .Default(10'000);
     }
 };
 
