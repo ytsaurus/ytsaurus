@@ -159,7 +159,8 @@ public:
 
     virtual i64 GetTableRowIndex() const override
     {
-        Y_UNREACHABLE();
+        // Not supported.
+        return 0;
     }
 
 private:

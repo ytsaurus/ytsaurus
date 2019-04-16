@@ -16,6 +16,7 @@
 #include <yt/client/api/file_writer.h>
 #include <yt/client/api/journal_reader.h>
 #include <yt/client/api/journal_writer.h>
+#include <yt/client/api/table_reader.h>
 #include <yt/client/api/table_writer.h>
 #include <yt/client/api/transaction.h>
 #include <yt/client/api/rowset.h>
@@ -32,9 +33,9 @@
 
 #include <yt/ytlib/security_client/public.h>
 
+#include <yt/client/table_client/helpers.h>
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/row_buffer.h>
-
 #include <yt/client/table_client/wire_protocol.h>
 
 #include <yt/client/transaction_client/timestamp_provider.h>
@@ -334,6 +335,9 @@ public:
             .SetStreamingEnabled(true)
             .SetCancelable(true));
 
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateTableReader)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateTableWriter)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
@@ -3026,6 +3030,68 @@ private:
     // TABLES
     ////////////////////////////////////////////////////////////////////////////////
 
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateTableReader)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto path = FromProto<NYPath::TRichYPath>(request->path());
+
+        NApi::TTableReaderOptions options;
+        options.Unordered = request->unordered();
+        options.OmitInaccessibleColumns = request->omit_inaccessible_columns();
+        if (request->has_config()) {
+            options.Config = ConvertTo<TTableReaderConfigPtr>(TYsonString(request->config()));
+        }
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+
+        context->SetRequestInfo(
+            "Path: %v, Unordered: %v, OmitInaccessibleColumns: %v",
+            path);
+
+        auto tableReader = WaitFor(client->CreateTableReader(path, options))
+            .ValueOrThrow();
+
+        auto outputStream = context->GetResponseAttachmentsStream();
+        NApi::NRpcProxy::NProto::TMetaCreateTableReader meta;
+        meta.set_start_row_index(tableReader->GetStartRowIndex());
+        ToProto(meta.mutable_key_columns(), tableReader->GetKeyColumns());
+        ToProto(meta.mutable_omitted_inaccessible_columns(), tableReader->GetOmittedInaccessibleColumns());
+        meta.mutable_payload()->set_total_row_count(tableReader->GetTotalRowCount());
+        ToProto(meta.mutable_payload()->mutable_data_statistics(), tableReader->GetDataStatistics());
+
+        auto metaRef = SerializeProtoToRef(meta);
+        WaitFor(outputStream->Write(metaRef))
+            .ThrowOnError();
+
+        auto nameTableSizeHolder = std::make_unique<size_t>(0);
+        auto rowsHolder = std::make_unique<std::vector<TUnversionedRow>>();
+        rowsHolder->reserve(Config_->ReadBufferRowCount);
+
+        HandleInputStreamingRequest(
+            context,
+            BIND([=, nameTableSizeHolder = std::move(nameTableSizeHolder), rowsHolder = std::move(rowsHolder)] () {
+                return AsyncReadRows(tableReader, rowsHolder.get()).Apply(BIND([=, &rows = *rowsHolder, nameTableSize = nameTableSizeHolder.get()] {
+                    auto rowsetData = NApi::NRpcProxy::SerializeRowsetWithNameTableDelta(
+                        tableReader->GetNameTable(),
+                        rows,
+                        nameTableSize);
+
+                    NApi::NRpcProxy::NProto::TTableReaderPayload payload;
+                    payload.set_total_row_count(tableReader->GetTotalRowCount());
+                    ToProto(payload.mutable_data_statistics(), tableReader->GetDataStatistics());
+                    auto payloadRef = SerializeProtoToRef(payload);
+
+                    return PackRefs(std::vector{rowsetData, payloadRef});
+                }));
+            }));
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateTableWriter)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
@@ -3064,35 +3130,12 @@ private:
         descriptor->set_rowset_kind(NApi::NRpcProxy::NProto::RK_UNVERSIONED);
 
         auto blockHandler = BIND([=, descriptor = std::move(descriptor)] (const TSharedRef& block) {
-            std::vector<TSharedRef> parts;
-            UnpackRefs(block, &parts, true);
-            if (parts.size() != 2) {
-                THROW_ERROR_EXCEPTION("Error deserializing rows in table writer");
-            }
+            auto rows = NApi::NRpcProxy::DeserializeRowsetWithNameTableDelta(
+                block,
+                tableWriter->GetNameTable(),
+                descriptor.get());
 
-            auto descriptorDeltaRef = parts[0];
-            auto mergedRowRefs = parts[1];
-
-            NApi::NRpcProxy::NProto::TRowsetDescriptor descriptorDelta;
-            if (!TryDeserializeProto(&descriptorDelta, descriptorDeltaRef)) {
-                THROW_ERROR_EXCEPTION("Error deserializing rowset descriptor delta in table writer");
-            }
-            NApi::NRpcProxy::ValidateRowsetDescriptor(
-                descriptorDelta,
-                1,
-                NApi::NRpcProxy::NProto::RK_UNVERSIONED);
-
-            descriptor->MergeFrom(descriptorDelta);
-
-            auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
-                *descriptor, mergedRowRefs);
-            auto desiredNameTable = TNameTable::FromSchema(rowset->Schema());
-            for (int id = tableWriter->GetNameTable()->GetSize(); id < desiredNameTable->GetSize(); ++id) {
-                auto name = desiredNameTable->GetName(id);
-                tableWriter->GetNameTable()->RegisterNameOrThrow(name);
-            }
-
-            tableWriter->Write(rowset->GetRows());
+            tableWriter->Write(rows);
             return tableWriter->GetReadyEvent();
         });
 

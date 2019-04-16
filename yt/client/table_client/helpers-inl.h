@@ -339,4 +339,22 @@ T FromUnversionedValue(TUnversionedValue unversionedValue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TReader, class TRow>
+TFuture<void> AsyncReadRows(TIntrusivePtr<TReader> reader, std::vector<TRow>* rows)
+{
+    YCHECK(reader);
+    YCHECK(rows);
+
+    rows->clear();
+    if (!reader->Read(rows) || !rows->empty()) {
+        return VoidFuture;
+    }
+
+    return reader->GetReadyEvent().Apply(BIND ([=] () {
+        return AsyncReadRows(reader, rows);
+    }));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient

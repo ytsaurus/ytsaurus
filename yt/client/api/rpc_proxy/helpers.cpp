@@ -1335,6 +1335,92 @@ template NApi::IVersionedRowsetPtr DeserializeRowset(
     const NProto::TRowsetDescriptor& descriptor,
     const TSharedRef& data);
 
+TSharedRef SerializeRowsetWithNameTableDelta(
+    const TNameTablePtr& nameTable,
+    TRange<TUnversionedRow> rows,
+    size_t* nameTableSize)
+{
+    NProto::TRowsetDescriptor descriptor;
+    const auto& rowRefs = NApi::NRpcProxy::SerializeRowsetWithPartialNameTable(
+        nameTable,
+        *nameTableSize,
+        rows,
+        &descriptor);
+    *nameTableSize += descriptor.columns_size();
+
+    auto descriptorRef = SerializeProtoToRef(descriptor);
+    auto mergedRowRefs = MergeRefsToRef<TRpcProxyRowsetBufferTag>(rowRefs);
+
+    // TODO(kiselyovp) refs are being copied here, we could optimize this
+    return PackRefs(std::vector{ descriptorRef, mergedRowRefs });
+}
+
+TSharedRange<NTableClient::TUnversionedRow> DeserializeRowsetWithNameTableDelta(
+    const TSharedRef& data,
+    const TNameTablePtr& nameTable,
+    NProto::TRowsetDescriptor* descriptor,
+    TNameTableToSchemaIdMapping* idMapping)
+{
+    std::vector<TSharedRef> parts;
+    UnpackRefs(data, &parts, true);
+    if (parts.size() != 2) {
+        THROW_ERROR_EXCEPTION("Error deserializing rowset with name table delta: expected %v packed refs, got %v",
+            2,
+            parts.size());
+    }
+
+    auto descriptorDeltaRef = parts[0];
+    auto mergedRowRefs = parts[1];
+
+    NApi::NRpcProxy::NProto::TRowsetDescriptor descriptorDelta;
+    if (!TryDeserializeProto(&descriptorDelta, descriptorDeltaRef)) {
+        THROW_ERROR_EXCEPTION("Error deserializing rowset descriptor delta");
+    }
+    NApi::NRpcProxy::ValidateRowsetDescriptor(
+        descriptorDelta,
+        1,
+        NApi::NRpcProxy::NProto::RK_UNVERSIONED);
+
+    auto oldRemoteNameTableSize = descriptor->columns_size();
+    descriptor->MergeFrom(descriptorDelta);
+    auto newRemoteNameTableSize = descriptor->columns_size();
+    auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
+        *descriptor, mergedRowRefs);
+
+    if (idMapping) {
+        idMapping->resize(newRemoteNameTableSize);
+        for (int id = oldRemoteNameTableSize; id < newRemoteNameTableSize; ++id) {
+            auto name = descriptor->columns(id).name();
+            (*idMapping)[id] = nameTable->GetIdOrRegisterName(name);
+        }
+
+        for (auto& row : rowset->GetRows()) {
+            // TODO(kiselyovp) the line below is a const_cast and i want to argue that it's better than
+            // patching an id mapping inside TWireProtocolReader
+            auto mutableRow = TMutableUnversionedRow(row.ToTypeErasedRow());
+            for (auto& value : mutableRow) {
+                auto newId = ApplyIdMapping(value, rowset->Schema(), idMapping);
+                YCHECK(newId >= 0);
+                YCHECK(newId < nameTable->GetSize());
+                value.Id = newId;
+            }
+        }
+    } else {
+        for (int id = oldRemoteNameTableSize; id < newRemoteNameTableSize; ++id) {
+            auto name = descriptor->columns(id).name();
+            auto newId = nameTable->RegisterNameOrThrow(name);
+            if (newId != id) {
+                THROW_ERROR_EXCEPTION("Name table id for name %Qv mismatch: expected %v, got %v",
+                    name,
+                    id,
+                    newId);
+            }
+        }
+    }
+
+    return MakeSharedRange(rowset->GetRows(), rowset);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NRpcProxy

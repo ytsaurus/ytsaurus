@@ -15,8 +15,8 @@ namespace NYT::NApi {
 struct ITableReader
     : public virtual TRefCounted
 {
-    //! Returns the current row index within the table.
-    virtual i64 GetTableRowIndex() const = 0;
+    //! Returns the starting row index within the table.
+    virtual i64 GetStartRowIndex() const = 0;
 
     //! Returns the total (approximate) number of rows readable.
     virtual i64 GetTotalRowCount() const = 0;
@@ -27,8 +27,9 @@ struct ITableReader
     //! Returns an asynchronous flag enabling to wait until data is avilable.
     virtual TFuture<void> GetReadyEvent() = 0;
 
-    //! Attempts to read a bunch of #rows. If false is returned then the rows
-    //! are not immediately available and the client must invoke #GetReadyEvent and wait.
+    //! Attempts to read a bunch of #rows. If true is returned but #rows is empty
+    //! the rows are not immediately available and the client must invoke
+    //! #GetReadyEvent and wait. False is returned if the end of table was reached.
     virtual bool Read(std::vector<NTableClient::TUnversionedRow>* rows) = 0;
 
     //! Returns the name table used for constructing rows.

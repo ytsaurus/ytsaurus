@@ -102,6 +102,8 @@ public:
         .SetStreamingEnabled(true));
 
     // Tables
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CreateTableReader,
+        .SetStreamingEnabled(true));
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CreateTableWriter,
         .SetStreamingEnabled(true));
 

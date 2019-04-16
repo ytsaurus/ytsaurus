@@ -27,9 +27,11 @@ public:
         , ReadyEvent_ (MakePromise<void>(TError()))
     {
         YCHECK(Underlying_);
+        NameTable_->SetEnableColumnNameValidation();
     }
 
-    virtual bool Write(TRange<TUnversionedRow> rows) override {
+    virtual bool Write(TRange<TUnversionedRow> rows) override
+    {
         ValidateNotClosed();
 
         auto promise = NewPromise<void>();
@@ -43,33 +45,38 @@ public:
             ReadyEvent_ = promise;
         }
 
-        auto rowData = SerializeRowsToRef(rows);
-        Underlying_->Write(rowData).Subscribe(BIND ([=] (const TError& error) mutable {
-            promise.Set(error);
-        }));
+        auto rowData = SerializeRowsetWithNameTableDelta(
+            NameTable_,
+            rows,
+            &NameTableSize_);
+        promise.TrySetFrom(Underlying_->Write(rowData));
 
         return promise.IsSet() && promise.Get().IsOK();
     }
 
-    virtual TFuture<void> GetReadyEvent() override {
+    virtual TFuture<void> GetReadyEvent() override
+    {
         ValidateNotClosed();
 
         auto guard = Guard(EventLock_);
         return ReadyEvent_;
     }
 
-    virtual TFuture<void> Close() override {
+    virtual TFuture<void> Close() override
+    {
         ValidateNotClosed();
         Closed_ = true;
 
         return Underlying_->Close();
     }
 
-    virtual const TNameTablePtr& GetNameTable() const override {
+    virtual const TNameTablePtr& GetNameTable() const override
+    {
         return NameTable_;
     }
 
-    virtual const TTableSchema& GetSchema() const override {
+    virtual const TTableSchema& GetSchema() const override
+    {
         return Schema_;
     }
 
@@ -89,22 +96,6 @@ private:
         if (Closed_) {
             THROW_ERROR_EXCEPTION("Table writer is closed");
         }
-    }
-
-    TSharedRef SerializeRowsToRef(TRange<TUnversionedRow> rows) {
-        NRpcProxy::NProto::TRowsetDescriptor descriptor;
-        const auto& rowRefs = SerializeRowsetWithPartialNameTable(
-            NameTable_,
-            NameTableSize_,
-            rows,
-            &descriptor);
-        NameTableSize_ += descriptor.columns_size();
-
-        auto descriptorRef = SerializeProtoToRef(descriptor);
-        struct TRpcFileWriterTag { };
-        auto mergedRowRefs = MergeRefsToRef<TRpcFileWriterTag>(rowRefs);
-
-        return PackRefs(std::vector { descriptorRef, mergedRowRefs });
     }
 };
 

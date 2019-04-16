@@ -458,12 +458,11 @@ def ls(path, **kwargs):
     kwargs["path"] = path
     return yson.loads(execute_command("list", kwargs))
 
-@force_native_driver
+# @force_native_driver # TODO(kiselyovp)
 def read_table(path, **kwargs):
     kwargs["path"] = path
     return execute_command_with_output_format("read_table", kwargs)
 
-@force_native_driver
 def read_blob_table(path, **kwargs):
     kwargs["path"] = path
     output = StringIO()
