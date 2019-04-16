@@ -1,5 +1,7 @@
 #include "file_writer.h"
 
+#include <yt/client/api/file_writer.h>
+
 #include <yt/core/rpc/stream.h>
 
 namespace NYT::NApi::NRpcProxy {
@@ -8,12 +10,12 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcFileWriter
+class TFileWriter
     : public IFileWriter
 {
 public:
-    TRpcFileWriter(
-        TApiServiceProxy::TReqCreateFileWriterPtr request)
+    TFileWriter(
+        TApiServiceProxy::TReqWriteFilePtr request)
         : Request_(std::move(request))
     {
         YCHECK(Request_);
@@ -25,7 +27,7 @@ public:
 
         auto guard = Guard(SpinLock_);
         if (!OpenResult_) {
-            OpenResult_ = NRpc::CreateOutputStreamAdapter(Request_)
+            OpenResult_ = NRpc::CreateRpcClientOutputStream(Request_)
                 .Apply(BIND([=, this_ = MakeStrong(this)] (const IAsyncZeroCopyOutputStreamPtr& outputStream) {
                     Underlying_ = outputStream;
                 })).As<void>();
@@ -43,9 +45,9 @@ public:
             return VoidFuture;
         }
 
-        // data can be rewritten after returned future is set, which can happen prematurely
-        struct TRpcFileWriterTag { };
-        auto dataCopy = TSharedMutableRef::MakeCopy<TRpcFileWriterTag>(data);
+        // Returned future might be set instantly, and the user can modify #data right after that.
+        struct TTag { };
+        auto dataCopy = TSharedMutableRef::MakeCopy<TTag>(data);
         return Underlying_->Write(dataCopy);
     }
 
@@ -59,7 +61,8 @@ public:
     }
 
 private:
-    TApiServiceProxy::TReqCreateFileWriterPtr Request_;
+    const TApiServiceProxy::TReqWriteFilePtr Request_;
+
     IAsyncZeroCopyOutputStreamPtr Underlying_;
     TFuture<void> OpenResult_;
     std::atomic<bool> Closed_ = {false};
@@ -83,10 +86,10 @@ private:
     }
 };
 
-IFileWriterPtr CreateRpcFileWriter(
-    TApiServiceProxy::TReqCreateFileWriterPtr request)
+IFileWriterPtr CreateRpcProxyFileWriter(
+    TApiServiceProxy::TReqWriteFilePtr request)
 {
-    return New<TRpcFileWriter>(request);
+    return New<TFileWriter>(std::move(request));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

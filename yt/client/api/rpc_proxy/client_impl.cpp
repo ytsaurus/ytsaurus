@@ -727,12 +727,12 @@ TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> TClient::GetJobInput(
     const auto& config = connection->GetConfig();
 
     auto req = proxy.GetJobInput();
-    auto timeout = options.Timeout.value_or(config->DefaultStreamTimeout);
+    auto timeout = options.Timeout.value_or(config->DefaultTotalStreamingTimeout);
     req->SetTimeout(timeout);
 
     ToProto(req->mutable_job_id(), jobId);
 
-    return CreateInputStreamAdapter(req);
+    return CreateRpcClientInputStream(std::move(req));
 }
 
 TFuture<NYson::TYsonString> TClient::GetJobInputPaths(

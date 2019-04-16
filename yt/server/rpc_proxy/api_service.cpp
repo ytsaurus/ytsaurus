@@ -321,17 +321,17 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckPermission));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckPermissionByAcl));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateFileReader)
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadFile)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateFileWriter)
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteFile)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateJournalReader)
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadJournal)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateJournalWriter)
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteJournal)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
 
@@ -2849,14 +2849,14 @@ private:
     // FILES
     ////////////////////////////////////////////////////////////////////////////////
 
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateFileReader)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadFile)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
             return;
         }
 
-        auto path = request->path();
+        const auto& path = request->path();
 
         TFileReaderOptions options;
         if (request->has_offset()) {
@@ -2886,7 +2886,7 @@ private:
 
         auto outputStream = context->GetResponseAttachmentsStream();
         ui64 revision = fileReader->GetRevision();
-        NApi::NRpcProxy::NProto::TMetaCreateFileReader meta;
+        NApi::NRpcProxy::NProto::TReadFileMeta meta;
         meta.set_revision(revision);
         auto metaRef = SerializeProtoToRef(meta);
         WaitFor(outputStream->Write(metaRef))
@@ -2895,7 +2895,7 @@ private:
         HandleInputStreamingRequest(context, fileReader);
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateFileWriter)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteFile)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -2930,21 +2930,21 @@ private:
             context,
             BIND(&IFileWriter::Write, fileWriter),
             BIND(&IFileWriter::Close, fileWriter),
-            EWriterFeedbackStrategy::NoFeedback);
+            false);
     }
 
     ////////////////////////////////////////////////////////////////////////////////
     // JOURNALS
     ////////////////////////////////////////////////////////////////////////////////
 
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateJournalReader)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadJournal)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
             return;
         }
 
-        auto path = request->path();
+        const auto& path = request->path();
 
         TJournalReaderOptions options;
         if (request->has_first_row_index()) {
@@ -2984,14 +2984,14 @@ private:
         }));
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateJournalWriter)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteJournal)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
             return;
         }
 
-        auto path = request->path();
+        const auto& path = request->path();
 
         TJournalWriterOptions options;
         if (request->has_config()) {
@@ -3019,11 +3019,11 @@ private:
             context,
             BIND([=] (const TSharedRef& packedRows) {
                 std::vector<TSharedRef> rows;
-                UnpackRefs(packedRows, &rows, true);
+                UnpackRefsOrThrow(packedRows, &rows);
                 return journalWriter->Write(rows);
             }),
             BIND(&IJournalWriter::Close, journalWriter),
-            EWriterFeedbackStrategy::OnlyPositive);
+            true);
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -3143,7 +3143,7 @@ private:
             context,
             blockHandler,
             BIND(&ITableWriter::Close, tableWriter),
-            EWriterFeedbackStrategy::NoFeedback);
+            false);
     }
 
     ////////////////////////////////////////////////////////////////////////////////

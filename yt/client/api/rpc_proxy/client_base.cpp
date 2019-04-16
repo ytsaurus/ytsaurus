@@ -65,8 +65,8 @@ TApiServiceProxy TClientBase::CreateApiServiceProxy(NRpc::IChannelPtr channel)
     proxy.SetDefaultEnableLegacyRpcCodecs(config->EnableLegacyRpcCodecs);
 
     NRpc::TStreamingParameters streamingParameters;
-    streamingParameters.ReadTimeout = config->DefaultStallTimeout;
-    streamingParameters.WriteTimeout = config->DefaultStallTimeout;
+    streamingParameters.ReadTimeout = config->DefaultStreamingStallTimeout;
+    streamingParameters.WriteTimeout = config->DefaultStreamingStallTimeout;
     proxy.DefaultClientAttachmentsStreamingParameters() = streamingParameters;
     proxy.DefaultServerAttachmentsStreamingParameters() = streamingParameters;
 
@@ -479,8 +479,8 @@ TFuture<IFileReaderPtr> TClientBase::CreateFileReader(
     auto connection = GetRpcProxyConnection();
     const auto& config = connection->GetConfig();
 
-    auto req = proxy.CreateFileReader();
-    req->SetTimeout(config->DefaultStreamTimeout);
+    auto req = proxy.ReadFile();
+    req->SetTimeout(config->DefaultTotalStreamingTimeout);
 
     req->set_path(path);
     if (options.Offset) {
@@ -496,7 +496,7 @@ TFuture<IFileReaderPtr> TClientBase::CreateFileReader(
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_suppressable_access_tracking_options(), options);
 
-    return CreateRpcFileReader(req);
+    return CreateRpcProxyFileReader(std::move(req));
 }
 
 IFileWriterPtr TClientBase::CreateFileWriter(
@@ -507,8 +507,8 @@ IFileWriterPtr TClientBase::CreateFileWriter(
     auto connection = GetRpcProxyConnection();
     const auto& config = connection->GetConfig();
 
-    auto req = proxy.CreateFileWriter();
-    req->SetTimeout(config->DefaultStreamTimeout);
+    auto req = proxy.WriteFile();
+    req->SetTimeout(config->DefaultTotalStreamingTimeout);
 
     ToProto(req->mutable_path(), path);
 
@@ -520,7 +520,7 @@ IFileWriterPtr TClientBase::CreateFileWriter(
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_prerequisite_options(), options);
 
-    return CreateRpcFileWriter(req);
+    return CreateRpcProxyFileWriter(std::move(req));
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -533,8 +533,8 @@ IJournalReaderPtr TClientBase::CreateJournalReader(
     auto connection = GetRpcProxyConnection();
     const auto& config = connection->GetConfig();
 
-    auto req = proxy.CreateJournalReader();
-    req->SetTimeout(config->DefaultStreamTimeout);
+    auto req = proxy.ReadJournal();
+    req->SetTimeout(config->DefaultTotalStreamingTimeout);
 
     req->set_path(path);
 
@@ -551,7 +551,7 @@ IJournalReaderPtr TClientBase::CreateJournalReader(
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_suppressable_access_tracking_options(), options);
 
-    return CreateRpcJournalReader(req);
+    return CreateRpcProxyJournalReader(std::move(req));
 }
 
 IJournalWriterPtr TClientBase::CreateJournalWriter(
@@ -562,8 +562,8 @@ IJournalWriterPtr TClientBase::CreateJournalWriter(
     auto connection = GetRpcProxyConnection();
     const auto& config = connection->GetConfig();
 
-    auto req = proxy.CreateJournalWriter();
-    req->SetTimeout(config->DefaultStreamTimeout);
+    auto req = proxy.WriteJournal();
+    req->SetTimeout(config->DefaultTotalStreamingTimeout);
 
     req->set_path(path);
 
@@ -576,7 +576,7 @@ IJournalWriterPtr TClientBase::CreateJournalWriter(
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_prerequisite_options(), options);
 
-    return CreateRpcJournalWriter(req);
+    return CreateRpcProxyJournalWriter(std::move(req));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -590,7 +590,7 @@ TFuture<ITableReaderPtr> TClientBase::CreateTableReader(
     const auto& config = connection->GetConfig();
 
     auto req = proxy.CreateTableReader();
-    req->SetTimeout(config->DefaultStreamTimeout);
+    req->SetTimeout(config->DefaultTotalStreamingTimeout);
 
     ToProto(req->mutable_path(), path);
 
@@ -614,7 +614,7 @@ TFuture<ITableWriterPtr> TClientBase::CreateTableWriter(
     const auto& config = connection->GetConfig();
 
     auto req = proxy.CreateTableWriter();
-    req->SetTimeout(config->DefaultStreamTimeout);
+    req->SetTimeout(config->DefaultTotalStreamingTimeout);
 
     ToProto(req->mutable_path(), path);
 

@@ -1470,7 +1470,7 @@ message TRspAbortJob
 // STREAMING
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqCreateFileReader
+message TReqReadFile
 {
     required string path = 1; // YPath
 
@@ -1482,18 +1482,18 @@ message TReqCreateFileReader
     optional TSuppressableAccessTrackingOptions suppressable_access_tracking_options = 104;
 }
 
-message TMetaCreateFileReader
+message TReadFileMeta
 {
     required uint64 revision = 1;
 }
 
-message TRspCreateFileReader
+message TRspReadFile
 {
 }
 
 //------------------------------------------------------------------------------
 
-message TReqCreateFileWriter
+message TReqWriteFile
 {
     required string path = 1; // RichYPath
 
@@ -1504,13 +1504,13 @@ message TReqCreateFileWriter
     optional TPrerequisiteOptions prerequisite_options = 101;
 }
 
-message TRspCreateFileWriter
+message TRspWriteFile
 {
 }
 
 //------------------------------------------------------------------------------
 
-message TReqCreateJournalReader
+message TReqReadJournal
 {
     required string path = 1; // YPath
 
@@ -1522,13 +1522,13 @@ message TReqCreateJournalReader
     optional TSuppressableAccessTrackingOptions suppressable_access_tracking_options = 104;
 }
 
-message TRspCreateJournalReader
+message TRspReadJournal
 {
 }
 
 //------------------------------------------------------------------------------
 
-message TReqCreateJournalWriter
+message TReqWriteJournal
 {
     required string path = 1; // YPath
 
@@ -1539,7 +1539,7 @@ message TReqCreateJournalWriter
     optional TPrerequisiteOptions prerequisite_options = 101;
 }
 
-message TRspCreateJournalWriter
+message TRspWriteJournal
 {
 }
 
