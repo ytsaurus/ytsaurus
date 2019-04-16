@@ -103,7 +103,7 @@ TFuture<ITableWriterPtr> CreateRpcTableWriter(
     TApiServiceProxy::TReqCreateTableWriterPtr request)
 {
     auto schemaHolder = std::make_unique<TTableSchema>();
-    auto createStreamResult = NRpc::CreateOutputStreamAdapter(
+    auto createStreamResult = NRpc::CreateRpcClientOutputStream(
         request,
         BIND ([=, schema = schemaHolder.get()] (const TSharedRef& metaRef) {
             NApi::NRpcProxy::NProto::TMetaCreateTableWriter meta;

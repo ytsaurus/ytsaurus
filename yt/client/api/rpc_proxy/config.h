@@ -33,8 +33,8 @@ public:
     TDuration TimestampProviderUpdatePeriod;
     TDuration DefaultTransactionTimeout;
     TDuration DefaultSelectRowsTimeout;
-    TDuration DefaultStreamTimeout;
-    std::optional<TDuration> DefaultStallTimeout;
+    TDuration DefaultTotalStreamingTimeout;
+    TDuration DefaultStreamingStallTimeout;
     TDuration DefaultPingPeriod;
     NBus::TTcpBusConfigPtr BusClient;
     NHttp::TClientConfigPtr HttpClient;

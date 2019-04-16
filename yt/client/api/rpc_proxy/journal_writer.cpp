@@ -1,5 +1,7 @@
 #include "journal_writer.h"
 
+#include <yt/client/api/journal_writer.h>
+
 #include <yt/core/rpc/stream.h>
 
 namespace NYT::NApi::NRpcProxy {
@@ -8,12 +10,12 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcJournalWriter
+class TJournalWriter
     : public IJournalWriter
 {
 public:
-    TRpcJournalWriter(
-        TApiServiceProxy::TReqCreateJournalWriterPtr request)
+    TJournalWriter(
+        TApiServiceProxy::TReqWriteJournalPtr request)
         : Request_(std::move(request))
     {
         YCHECK(Request_);
@@ -25,7 +27,7 @@ public:
 
         auto guard = Guard(SpinLock_);
         if (!OpenResult_) {
-            OpenResult_ = NRpc::CreateOutputStreamAdapter(Request_, NRpc::EWriterFeedbackStrategy::OnlyPositive)
+            OpenResult_ = NRpc::CreateRpcClientOutputStream(Request_, true)
                 .Apply(BIND([=, this_ = MakeStrong(this)] (const IAsyncZeroCopyOutputStreamPtr& outputStream) {
                     Underlying_ = outputStream;
                 })).As<void>();
@@ -57,7 +59,8 @@ public:
     }
 
 private:
-    TApiServiceProxy::TReqCreateJournalWriterPtr Request_;
+    const TApiServiceProxy::TReqWriteJournalPtr Request_;
+
     IAsyncZeroCopyOutputStreamPtr Underlying_;
     TFuture<void> OpenResult_;
     std::atomic<bool> Closed_ = {false};
@@ -80,10 +83,10 @@ private:
     }
 };
 
-IJournalWriterPtr CreateRpcJournalWriter(
-    TApiServiceProxy::TReqCreateJournalWriterPtr request)
+IJournalWriterPtr CreateRpcProxyJournalWriter(
+    TApiServiceProxy::TReqWriteJournalPtr request)
 {
-    return New<TRpcJournalWriter>(request);
+    return New<TJournalWriter>(std::move(request));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

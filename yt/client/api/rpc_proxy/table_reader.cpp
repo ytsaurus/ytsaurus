@@ -200,7 +200,7 @@ private:
     TRowsWithPayload DeserializeRows(const TSharedRef& rowData)
     {
         std::vector<TSharedRef> parts;
-        UnpackRefs(rowData, &parts, true);
+        UnpackRefsOrThrow(rowData, &parts);
         if (parts.size() != 2) {
             THROW_ERROR_EXCEPTION("Error deserializing rows in table reader: expected %v packed refs, got %v",
                 2,
@@ -228,7 +228,7 @@ private:
 TFuture<ITableReaderPtr> CreateRpcTableReader(
     TApiServiceProxy::TReqCreateTableReaderPtr request)
 {
-    return NRpc::CreateInputStreamAdapter(request)
+    return NRpc::CreateRpcClientInputStream(request)
         .Apply(BIND([=] (const IAsyncZeroCopyInputStreamPtr& inputStream) {
             return inputStream->Read().Apply(BIND([=] (const TSharedRef& metaRef) {
                 NApi::NRpcProxy::NProto::TMetaCreateTableReader meta;

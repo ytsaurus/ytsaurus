@@ -2,14 +2,12 @@
 
 #include "api_service_proxy.h"
 
-#include <yt/client/api/journal_reader.h>
-
 namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJournalReaderPtr CreateRpcJournalReader(
-    TApiServiceProxy::TReqCreateJournalReaderPtr request);
+IJournalReaderPtr CreateRpcProxyJournalReader(
+    TApiServiceProxy::TReqReadJournalPtr request);
 
 ////////////////////////////////////////////////////////////////////////////////
 

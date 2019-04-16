@@ -1,5 +1,7 @@
 #include "file_reader.h"
 
+#include <yt/client/api/file_reader.h>
+
 #include <yt/core/rpc/stream.h>
 
 namespace NYT::NApi::NRpcProxy {
@@ -8,11 +10,11 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcFileReader
+class TFileReader
     : public IFileReader
 {
 public:
-    TRpcFileReader(
+    TFileReader(
         IAsyncZeroCopyInputStreamPtr underlying,
         ui64 revision)
         : Underlying_(std::move(underlying))
@@ -32,22 +34,22 @@ public:
     }
 
 private:
-    IAsyncZeroCopyInputStreamPtr Underlying_;
-    ui64 Revision_;
+    const IAsyncZeroCopyInputStreamPtr Underlying_;
+    const ui64 Revision_;
 };
 
-TFuture<IFileReaderPtr> CreateRpcFileReader(
-    TApiServiceProxy::TReqCreateFileReaderPtr request)
+TFuture<IFileReaderPtr> CreateRpcProxyFileReader(
+    TApiServiceProxy::TReqReadFilePtr request)
 {
-    return NRpc::CreateInputStreamAdapter(request)
+    return NRpc::CreateRpcClientInputStream(std::move(request))
         .Apply(BIND([=] (const IAsyncZeroCopyInputStreamPtr& inputStream) {
             return inputStream->Read().Apply(BIND([=] (const TSharedRef& metaRef) {
-                NApi::NRpcProxy::NProto::TMetaCreateFileReader meta;
+                NApi::NRpcProxy::NProto::TReadFileMeta meta;
                 if (!TryDeserializeProto(&meta, metaRef)) {
-                    THROW_ERROR_EXCEPTION("Failed to deserialize file reader revision");
+                    THROW_ERROR_EXCEPTION("Failed to deserialize file stream header");
                 }
 
-                return New<TRpcFileReader>(inputStream, meta.revision());
+                return New<TFileReader>(inputStream, meta.revision());
             })).As<IFileReaderPtr>();
         }));
 }

@@ -1362,7 +1362,7 @@ TSharedRange<NTableClient::TUnversionedRow> DeserializeRowsetWithNameTableDelta(
     TNameTableToSchemaIdMapping* idMapping)
 {
     std::vector<TSharedRef> parts;
-    UnpackRefs(data, &parts, true);
+    UnpackRefsOrThrow(data, &parts);
     if (parts.size() != 2) {
         THROW_ERROR_EXCEPTION("Error deserializing rowset with name table delta: expected %v packed refs, got %v",
             2,
