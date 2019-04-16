@@ -148,6 +148,8 @@ DECLARE_REFCOUNTED_CLASS(TMediumDirectory)
 
 DECLARE_REFCOUNTED_CLASS(TChunkMetaFetcher)
 
+DECLARE_REFCOUNTED_CLASS(TChunkSpecFetcher)
+
 DECLARE_REFCOUNTED_STRUCT(TChunkReaderStatistics)
 
 class TReadLimit;
