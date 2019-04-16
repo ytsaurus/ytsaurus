@@ -73,7 +73,7 @@ private:
     THashMap<TString, THashMap<TString, i64>> Capacities_;
     i64 DefaultCapacity_;
     TDuration UpdateInterval_;
-    NProfiling::TCpuDuration CpuUpdateInterval_;
+    NProfiling::TCpuDuration CpuUpdateInterval_ = {};
 };
 
 DEFINE_REFCOUNTED_TYPE(TInterDCLimitsConfig)
