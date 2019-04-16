@@ -66,14 +66,36 @@ struct TUpdateFairShareContext
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFairShareContext
+struct TScheduleJobsProfilingCounters
 {
-    explicit TFairShareContext(const ISchedulingContextPtr& schedulingContext);
+    TScheduleJobsProfilingCounters(const TString& prefix, const NProfiling::TTagIdList& treeIdProfilingTags);
+
+    NProfiling::TAggregateGauge PrescheduleJobTime;
+    NProfiling::TAggregateGauge TotalControllerScheduleJobTime;
+    NProfiling::TAggregateGauge ExecControllerScheduleJobTime;
+    NProfiling::TAggregateGauge StrategyScheduleJobTime;
+    NProfiling::TMonotonicCounter ScheduleJobCount;
+    NProfiling::TMonotonicCounter ScheduleJobFailureCount;
+    TEnumIndexedVector<NProfiling::TMonotonicCounter, NControllerAgent::EScheduleJobFailReason> ControllerScheduleJobFail;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFairShareContext
+{
+public:
+    explicit TFairShareContext(const ISchedulingContextPtr& schedulingContext, bool enableSchedulingInfoLogging);
 
     void Initialize(int treeSize, const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters);
 
     TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element);
     const TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element) const;
+
+    void PrepareForStage(TString stageName, TScheduleJobsProfilingCounters* profilingCounters);
+
+    void ProfileStageTimingsAndLogStatistics();
+
+    void FinishStage();
 
     bool Initialized = false;
 
@@ -81,19 +103,39 @@ struct TFairShareContext
     TDynamicAttributesList DynamicAttributesList;
 
     const ISchedulingContextPtr SchedulingContext;
-    TDuration TotalScheduleJobDuration;
-    TDuration ExecScheduleJobDuration;
-    TEnumIndexedVector<int, NControllerAgent::EScheduleJobFailReason> FailedScheduleJob;
-
-    int ActiveOperationCount = 0;
-    int ActiveTreeSize = 0;
-    int ScheduleJobFailureCount = 0;
-    TEnumIndexedVector<int, EDeactivationReason> DeactivationReasons;
+    const bool EnableSchedulingInfoLogging;
 
     // Used to avoid unnecessary calculation of HasAggressivelyStarvingElements.
-    bool PrescheduledCalled = false;
+    bool PrescheduleCalled = false;
 
     TFairShareSchedulingStatistics SchedulingStatistics;
+
+    struct TStageState
+    {
+        TStageState(TString stageName, TScheduleJobsProfilingCounters* profilingCounters);
+
+        TString Name;
+        TScheduleJobsProfilingCounters* ProfilingCounters;
+
+        TDuration TotalDuration;
+        TDuration PrescheduleDuration;
+        TDuration TotalScheduleJobDuration;
+        TDuration ExecScheduleJobDuration;
+        TEnumIndexedVector<int, NControllerAgent::EScheduleJobFailReason> FailedScheduleJob;
+
+        int ActiveOperationCount = 0;
+        int ActiveTreeSize = 0;
+        int ScheduleJobAttempts = 0;
+        int ScheduleJobFailureCount = 0;
+        TEnumIndexedVector<int, EDeactivationReason> DeactivationReasons;
+    };
+
+    std::optional<TStageState> Stage;
+
+private:
+    void ProfileStageTimings();
+
+    void LogStageStatistics();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

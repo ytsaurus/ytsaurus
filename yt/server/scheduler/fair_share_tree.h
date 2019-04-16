@@ -315,36 +315,6 @@ private:
 
     TDynamicAttributesList GlobalDynamicAttributes_;
 
-    struct TScheduleJobsProfilingCounters
-    {
-        TScheduleJobsProfilingCounters(const TString& prefix, const NProfiling::TTagIdList& treeIdProfilingTags)
-            : PrescheduleJobTime(prefix + "/preschedule_job_time", treeIdProfilingTags)
-            , TotalControllerScheduleJobTime(prefix + "/controller_schedule_job_time/total", treeIdProfilingTags)
-            , ExecControllerScheduleJobTime(prefix + "/controller_schedule_job_time/exec", treeIdProfilingTags)
-            , StrategyScheduleJobTime(prefix + "/strategy_schedule_job_time", treeIdProfilingTags)
-            , ScheduleJobCount(prefix + "/schedule_job_count", treeIdProfilingTags)
-            , ScheduleJobFailureCount(prefix + "/schedule_job_failure_count", treeIdProfilingTags)
-        {
-            for (auto reason : TEnumTraits<NControllerAgent::EScheduleJobFailReason>::GetDomainValues())
-            {
-                auto tags = GetFailReasonProfilingTags(reason);
-                tags.insert(tags.end(), treeIdProfilingTags.begin(), treeIdProfilingTags.end());
-
-                ControllerScheduleJobFail[reason] = NProfiling::TMonotonicCounter(
-                    prefix + "/controller_schedule_job_fail",
-                    tags);
-            }
-        }
-
-        NProfiling::TAggregateGauge PrescheduleJobTime;
-        NProfiling::TAggregateGauge TotalControllerScheduleJobTime;
-        NProfiling::TAggregateGauge ExecControllerScheduleJobTime;
-        NProfiling::TAggregateGauge StrategyScheduleJobTime;
-        NProfiling::TMonotonicCounter ScheduleJobCount;
-        NProfiling::TMonotonicCounter ScheduleJobFailureCount;
-        TEnumIndexedVector<NProfiling::TMonotonicCounter, NControllerAgent::EScheduleJobFailReason> ControllerScheduleJobFail;
-    };
-
     TScheduleJobsProfilingCounters NonPreemptiveProfilingCounters_;
     TScheduleJobsProfilingCounters PreemptiveProfilingCounters_;
 
@@ -371,15 +341,11 @@ private:
     void DoScheduleJobsWithoutPreemption(
         const TRootElementSnapshotPtr& rootElementSnapshot,
         TFairShareContext* context,
-        NProfiling::TCpuInstant startTime,
-        const std::function<void(TScheduleJobsProfilingCounters&, int, TDuration)> profileTimings,
-        const std::function<void(TStringBuf)> logAndCleanSchedulingStatistics);
+        NProfiling::TCpuInstant startTime);
     void DoScheduleJobsWithPreemption(
         const TRootElementSnapshotPtr& rootElementSnapshot,
         TFairShareContext* context,
-        NProfiling::TCpuInstant startTime,
-        const std::function<void(TScheduleJobsProfilingCounters&, int, TDuration)>& profileTimings,
-        const std::function<void(TStringBuf)>& logAndCleanSchedulingStatistics);
+        NProfiling::TCpuInstant startTime);
     void DoScheduleJobs(
         const ISchedulingContextPtr& schedulingContext,
         const TRootElementSnapshotPtr& rootElementSnapshot);

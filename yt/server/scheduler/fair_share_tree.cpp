@@ -844,9 +844,7 @@ TReaderWriterSpinLock* TFairShareTree::GetSharedStateTreeLock()
 void TFairShareTree::DoScheduleJobsWithoutPreemption(
     const TRootElementSnapshotPtr& rootElementSnapshot,
     TFairShareContext* context,
-    TCpuInstant startTime,
-    const std::function<void(TScheduleJobsProfilingCounters&, int, TDuration)> profileTimings,
-    const std::function<void(TStringBuf)> logAndCleanSchedulingStatistics)
+    TCpuInstant startTime)
 {
     auto& rootElement = rootElementSnapshot->RootElement;
 
@@ -854,43 +852,36 @@ void TFairShareTree::DoScheduleJobsWithoutPreemption(
         YT_LOG_TRACE("Scheduling new jobs");
 
         bool prescheduleExecuted = false;
-        TDuration prescheduleDuration;
+        TCpuInstant schedulingDeadline = startTime + DurationToCpuDuration(ControllerConfig_->ScheduleJobsTimeout);
 
         TWallTimer scheduleTimer;
-        while (context->SchedulingContext->CanStartMoreJobs() &&
-            context->SchedulingContext->GetNow() < startTime + DurationToCpuDuration(ControllerConfig_->ScheduleJobsTimeout))
+        while (context->SchedulingContext->CanStartMoreJobs() && context->SchedulingContext->GetNow() < schedulingDeadline)
         {
             if (!prescheduleExecuted) {
                 TWallTimer prescheduleTimer;
-                context->Initialize(rootElement->GetTreeSize(), RegisteredSchedulingTagFilters_);
-                rootElement->PrescheduleJob(context, /*starvingOnly*/ false, /*aggressiveStarvationEnabled*/ false);
-                prescheduleDuration = prescheduleTimer.GetElapsedTime();
-                Profiler.Update(NonPreemptiveProfilingCounters_.PrescheduleJobTime, DurationToCpuDuration(prescheduleDuration));
+                if (!context->Initialized) {
+                    context->Initialize(rootElement->GetTreeSize(), RegisteredSchedulingTagFilters_);
+                }
+                rootElement->PrescheduleJob(context, /* starvingOnly */ false, /* aggressiveStarvationEnabled */ false);
+                context->Stage->PrescheduleDuration = prescheduleTimer.GetElapsedTime();
                 prescheduleExecuted = true;
-                context->PrescheduledCalled = true;
+                context->PrescheduleCalled = true;
             }
-            ++context->SchedulingStatistics.NonPreemptiveScheduleJobAttempts;
+            ++context->Stage->ScheduleJobAttempts;
             if (!rootElement->ScheduleJob(context)) {
                 break;
             }
         }
-        profileTimings(
-            NonPreemptiveProfilingCounters_,
-            context->SchedulingStatistics.NonPreemptiveScheduleJobAttempts,
-            scheduleTimer.GetElapsedTime() - prescheduleDuration - context->TotalScheduleJobDuration);
 
-        if (context->SchedulingStatistics.NonPreemptiveScheduleJobAttempts > 0) {
-            logAndCleanSchedulingStatistics(AsStringBuf("Non preemptive"));
-        }
+        context->Stage->TotalDuration = scheduleTimer.GetElapsedTime();
+        context->ProfileStageTimingsAndLogStatistics();
     }
 }
 
 void TFairShareTree::DoScheduleJobsWithPreemption(
     const TRootElementSnapshotPtr& rootElementSnapshot,
     TFairShareContext* context,
-    TCpuInstant startTime,
-    const std::function<void(TScheduleJobsProfilingCounters&, int, TDuration)>& profileTimings,
-    const std::function<void(TStringBuf)>& logAndCleanSchedulingStatistics)
+    TCpuInstant startTime)
 {
     auto& rootElement = rootElementSnapshot->RootElement;
     auto& config = rootElementSnapshot->Config;
@@ -899,7 +890,7 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
         context->Initialize(rootElement->GetTreeSize(), RegisteredSchedulingTagFilters_);
     }
 
-    if (!context->PrescheduledCalled) {
+    if (!context->PrescheduleCalled) {
         context->SchedulingStatistics.HasAggressivelyStarvingElements = rootElement->HasAggressivelyStarvingElements(context, false);
     }
 
@@ -945,28 +936,20 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
     {
         YT_LOG_TRACE("Scheduling new jobs with preemption");
 
-        // Clean data from previous profiling.
-        context->TotalScheduleJobDuration = TDuration::Zero();
-        context->ExecScheduleJobDuration = TDuration::Zero();
-        context->ScheduleJobFailureCount = 0;
-        std::fill(context->FailedScheduleJob.begin(), context->FailedScheduleJob.end(), 0);
-
         bool prescheduleExecuted = false;
-        TDuration prescheduleDuration;
+        TCpuInstant schedulingDeadline = startTime + DurationToCpuDuration(ControllerConfig_->ScheduleJobsTimeout);
 
         TWallTimer timer;
-        while (context->SchedulingContext->CanStartMoreJobs() &&
-            context->SchedulingContext->GetNow() < startTime + DurationToCpuDuration(ControllerConfig_->ScheduleJobsTimeout))
+        while (context->SchedulingContext->CanStartMoreJobs() && context->SchedulingContext->GetNow() < schedulingDeadline)
         {
             if (!prescheduleExecuted) {
                 TWallTimer prescheduleTimer;
-                rootElement->PrescheduleJob(context, /*starvingOnly*/ true, /*aggressiveStarvationEnabled*/ false);
-                prescheduleDuration = prescheduleTimer.GetElapsedTime();
-                Profiler.Update(PreemptiveProfilingCounters_.PrescheduleJobTime, DurationToCpuDuration(prescheduleDuration));
+                rootElement->PrescheduleJob(context, /* starvingOnly */ true, /* aggressiveStarvationEnabled */ false);
+                context->Stage->PrescheduleDuration = prescheduleTimer.GetElapsedTime();
                 prescheduleExecuted = true;
             }
 
-            ++context->SchedulingStatistics.PreemptiveScheduleJobAttempts;
+            ++context->Stage->ScheduleJobAttempts;
             if (!rootElement->ScheduleJob(context)) {
                 break;
             }
@@ -975,13 +958,9 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
                 break;
             }
         }
-        profileTimings(
-            PreemptiveProfilingCounters_,
-            context->SchedulingStatistics.PreemptiveScheduleJobAttempts,
-            timer.GetElapsedTime() - prescheduleDuration - context->TotalScheduleJobDuration);
-        if (context->SchedulingStatistics.PreemptiveScheduleJobAttempts > 0) {
-            logAndCleanSchedulingStatistics(AsStringBuf("Preemptive"));
-        }
+
+        context->Stage->TotalDuration = timer.GetElapsedTime();
+        context->ProfileStageTimingsAndLogStatistics();
     }
 
     int startedAfterPreemption = context->SchedulingContext->StartedJobs().size();
@@ -1087,35 +1066,6 @@ void TFairShareTree::DoScheduleJobs(
     const ISchedulingContextPtr& schedulingContext,
     const TRootElementSnapshotPtr& rootElementSnapshot)
 {
-    TFairShareContext context(schedulingContext);
-
-    auto profileTimings = [&] (
-        TScheduleJobsProfilingCounters& counters,
-        int scheduleJobCount,
-        TDuration scheduleJobDurationWithoutControllers)
-    {
-        Profiler.Update(
-            counters.StrategyScheduleJobTime,
-            scheduleJobDurationWithoutControllers.MicroSeconds());
-
-        Profiler.Update(
-            counters.TotalControllerScheduleJobTime,
-            context.TotalScheduleJobDuration.MicroSeconds());
-
-        Profiler.Update(
-            counters.ExecControllerScheduleJobTime,
-            context.ExecScheduleJobDuration.MicroSeconds());
-
-        Profiler.Increment(counters.ScheduleJobCount, scheduleJobCount);
-        Profiler.Increment(counters.ScheduleJobFailureCount, context.ScheduleJobFailureCount);
-
-        for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
-            Profiler.Increment(
-                counters.ControllerScheduleJobFail[reason],
-                context.FailedScheduleJob[reason]);
-        }
-    };
-
     bool enableSchedulingInfoLogging = false;
     auto now = schedulingContext->GetNow();
     const auto& config = rootElementSnapshot->Config;
@@ -1124,23 +1074,14 @@ void TFairShareTree::DoScheduleJobs(
         LastSchedulingInformationLoggedTime_ = now;
     }
 
-    auto logAndCleanSchedulingStatistics = [&] (TStringBuf stageName) {
-        if (!enableSchedulingInfoLogging) {
-            return;
-        }
-        YT_LOG_DEBUG("%v scheduling statistics (ActiveTreeSize: %v, ActiveOperationCount: %v, DeactivationReasons: %v, CanStartMoreJobs: %v, Address: %v)",
-            stageName,
-            context.ActiveTreeSize,
-            context.ActiveOperationCount,
-            context.DeactivationReasons,
-            schedulingContext->CanStartMoreJobs(),
-            schedulingContext->GetNodeDescriptor().Address);
-        context.ActiveTreeSize = 0;
-        context.ActiveOperationCount = 0;
-        std::fill(context.DeactivationReasons.begin(), context.DeactivationReasons.end(), 0);
-    };
+    TFairShareContext context(schedulingContext, enableSchedulingInfoLogging);
 
-    DoScheduleJobsWithoutPreemption(rootElementSnapshot, &context, now, profileTimings, logAndCleanSchedulingStatistics);
+    {
+        context.PrepareForStage("Non preemptive", &NonPreemptiveProfilingCounters_);
+        DoScheduleJobsWithoutPreemption(rootElementSnapshot, &context, now);
+        context.SchedulingStatistics.NonPreemptiveScheduleJobAttempts = context.Stage->ScheduleJobAttempts;
+        context.FinishStage();
+    }
 
     auto nodeId = schedulingContext->GetNodeDescriptor().Id;
 
@@ -1165,7 +1106,10 @@ void TFairShareTree::DoScheduleJobs(
     }
 
     if (scheduleJobsWithPreemption) {
-        DoScheduleJobsWithPreemption(rootElementSnapshot, &context, now, profileTimings, logAndCleanSchedulingStatistics);
+        context.PrepareForStage("Preemptive", &PreemptiveProfilingCounters_);
+        DoScheduleJobsWithPreemption(rootElementSnapshot, &context, now);
+        context.SchedulingStatistics.PreemptiveScheduleJobAttempts = context.Stage->ScheduleJobAttempts;
+        context.FinishStage();
     } else {
         YT_LOG_DEBUG("Skip preemptive scheduling");
     }
