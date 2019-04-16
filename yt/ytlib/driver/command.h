@@ -85,7 +85,8 @@ protected:
         ICommandContextPtr context,
         std::function<void(NYson::IYsonConsumer*)> producer);
 
-    bool RewriteOperationPath;
+    std::optional<bool> RewriteOperationPathOption;
+    bool RewriteOperationPath = true;
 
 public:
     virtual void Execute(ICommandContextPtr context) override;
