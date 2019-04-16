@@ -398,7 +398,8 @@ TPoolsUpdateResult TFairShareTree::UpdatePools(const INodePtr& poolsNode)
 
     LastPoolsNodeUpdateError_ = TError();
 
-    OnFairShareUpdateAt(TInstant::Now());
+    // TODO(ignat): do not ignore error.
+    Y_UNUSED(OnFairShareUpdateAt(TInstant::Now()));
 
     return {LastPoolsNodeUpdateError_, true};
 }
