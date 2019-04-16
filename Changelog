@@ -6,6 +6,7 @@
 #    yt/server/cell_master/serialize.cpp - если версия другая, то обновлнеие нужно делать через снапшот мастера (сделаный с --set-read-only).
 #    yt/server/tablet_node/serialize.cpp - если версия другая, то обновление нужно делать с пересозданием таблет-целлов.
 
+* savrus: Изменилась валидация прав при создании таблиц с несколькими таблетами. Обновлять через снепшот.
 * ermolovd: Изменилась валидация схем таблиц (коммит 7ebee26d7b7). Обновлять через снепшот.
 * ifsmirnov: Tablet cell bundle destruction semantics changed. Update masters with snapshot.
 * babenko: Some master config settings were made dynamic and moved to //sys/@config; check master logs for unrecogznied options after upgrade and migrate them to //sys/@config
