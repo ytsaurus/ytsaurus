@@ -398,7 +398,7 @@ TPoolsUpdateResult TFairShareTree::UpdatePools(const INodePtr& poolsNode)
 
     LastPoolsNodeUpdateError_ = TError();
 
-    OnFairShareUpdateAt(TInstant::Now());
+    (void)OnFairShareUpdateAt(TInstant::Now());
 
     return {LastPoolsNodeUpdateError_, true};
 }
