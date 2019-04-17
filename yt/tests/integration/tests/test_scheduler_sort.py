@@ -239,6 +239,33 @@ class TestSchedulerSortCommands(YTEnvSetup):
              out="<append=true>//tmp/t_out",
              sort_by="foo")
 
+    def test_validate_schema(self):
+        create("table", "//tmp/t_in", attributes={
+            "schema": make_schema(
+                [
+                    {"name": "field", "type": "int64", "required": False},
+                ]
+            )
+        })
+        create("table", "//tmp/t_out", attributes={
+            "schema": make_schema(
+                [
+                    {"name": "field", "type": "int64", "required": True},
+                ]
+            )
+        })
+        write_table("//tmp/t_in", [{"field": 1}])
+        sort(in_="//tmp/t_in",
+             out="//tmp/t_out",
+             sort_by="field")
+
+        write_table("<append=%true>//tmp/t_in", [{"field": None}])
+
+        with pytest.raises(YtError):
+            sort(in_="//tmp/t_in",
+                 out="//tmp/t_out",
+                 sort_by="field")
+
     def test_append_simple(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out", attributes={
