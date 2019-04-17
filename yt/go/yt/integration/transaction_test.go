@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"a.yandex-team.ru/yt/go/yson"
+
 	"a.yandex-team.ru/yt/go/yttest"
 
 	"a.yandex-team.ru/yt/go/yt"
@@ -43,5 +45,15 @@ func TestTransactions(t *testing.T) {
 		require.NoError(t, err)
 
 		require.NoError(t, tx.Abort())
+	})
+
+	t.Run("TransactionBackgroundPing", func(t *testing.T) {
+		lowTimeout := yson.Duration(5 * time.Second)
+		tx, err := env.YT.BeginTx(ctx, &yt.StartTxOptions{Timeout: &lowTimeout})
+		require.NoError(t, err)
+
+		time.Sleep(time.Second * 10)
+
+		require.NoError(t, tx.Commit())
 	})
 }

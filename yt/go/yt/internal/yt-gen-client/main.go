@@ -36,13 +36,13 @@ func main() {
 		fatalf("%v", err)
 	}
 
-	file, err := parseFile(node)
+	f, err := parseFile(node)
 	if err != nil {
 		fatalf("%v", err)
 	}
 
 	var buf bytes.Buffer
-	if err = emit(file, &buf); err != nil {
+	if err = emit(f, &buf); err != nil {
 		fatalf("%v", err)
 	}
 

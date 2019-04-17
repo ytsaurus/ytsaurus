@@ -3,11 +3,14 @@ package yt
 import (
 	"os"
 	"strings"
+	"time"
 
 	"golang.org/x/xerrors"
 
 	"a.yandex-team.ru/library/go/core/log"
 )
+
+const DefaultTxTimeout = 15 * time.Second
 
 type Config struct {
 	Proxy string
