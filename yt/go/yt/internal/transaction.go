@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"a.yandex-team.ru/yt/go/yson"
+
 	"golang.org/x/xerrors"
 
 	"a.yandex-team.ru/yt/go/yt"
@@ -19,9 +21,10 @@ type TxInterceptor struct {
 	finished           chan struct{}
 	stop               *StopGroup
 
-	id     yt.TxID
-	ctx    context.Context
-	client Encoder
+	id        yt.TxID
+	ctx       context.Context
+	client    Encoder
+	txTimeout time.Duration
 }
 
 type TransactionParams interface {
@@ -59,7 +62,7 @@ func (t *TxInterceptor) abort() {
 }
 
 func (t *TxInterceptor) pinger() {
-	ticker := time.NewTicker(time.Second * 5)
+	ticker := time.NewTicker(t.txTimeout / 4)
 	defer ticker.Stop()
 	defer t.stop.Done()
 
@@ -79,18 +82,41 @@ func (t *TxInterceptor) pinger() {
 				return
 			}
 
-			_ = t.PingTx(t.ctx, t.id, nil)
+			err := t.client.PingTx(t.ctx, t.id, nil)
+			if yt.ContainsErrorCode(err, yt.CodeNoSuchTransaction) {
+				t.abort()
+				return
+			}
 		}
 	}
 }
 
 func NewTx(ctx context.Context, e Encoder, stop *StopGroup, options *yt.StartTxOptions) (*TxInterceptor, error) {
-	txID, err := e.StartTx(ctx, options)
+	if options == nil {
+		options = &yt.StartTxOptions{}
+	}
+
+	updatedOptions := *options
+	txTimeout := yson.Duration(yt.DefaultTxTimeout)
+	if updatedOptions.Timeout == nil {
+		updatedOptions.Timeout = &txTimeout
+	}
+
+	txID, err := e.StartTx(ctx, &updatedOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	tx := &TxInterceptor{Encoder: e, id: txID, ctx: ctx, client: e, finished: make(chan struct{}), stop: stop}
+	tx := &TxInterceptor{
+		Encoder:   e,
+		id:        txID,
+		ctx:       ctx,
+		client:    e,
+		finished:  make(chan struct{}),
+		stop:      stop,
+		txTimeout: time.Duration(*updatedOptions.Timeout),
+	}
+
 	tx.Encoder.Invoke = tx.Encoder.Invoke.Wrap(tx.Intercept)
 	tx.Encoder.InvokeRead = tx.Encoder.InvokeRead.Wrap(tx.Read)
 	tx.Encoder.InvokeWrite = tx.Encoder.InvokeWrite.Wrap(tx.Write)

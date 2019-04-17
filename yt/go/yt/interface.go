@@ -35,9 +35,9 @@ package yt
 import (
 	"context"
 	"io"
-	"time"
 
 	"a.yandex-team.ru/yt/go/guid"
+	"a.yandex-team.ru/yt/go/yson"
 
 	"a.yandex-team.ru/yt/go/ypath"
 )
@@ -305,8 +305,8 @@ type CypressClient interface {
 }
 
 type StartTxOptions struct {
-	Timeout  *time.Duration `http:"timeout,omitnil"`
-	Deadline *time.Time     `http:"deadline,omitnil"`
+	Timeout  *yson.Duration `http:"timeout,omitnil"`
+	Deadline *yson.Time     `http:"deadline,omitnil"`
 
 	ParentID *TxID `http:"parent_id,omitnil"`
 
