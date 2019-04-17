@@ -7411,10 +7411,13 @@ void TOperationControllerBase::ValidateOutputSchemaCompatibility(bool ignoreSort
 
     for (const auto& inputTable : InputTables_) {
         if (inputTable->SchemaMode == ETableSchemaMode::Strong) {
+            // NB for historical reasons we consider optional<T> to be compatible with T when T is simple
+            // check is performed during operation.
             ValidateTableSchemaCompatibility(
                 inputTable->Schema.Filter(inputTable->Path.GetColumns()),
                 OutputTables_[0]->TableUploadOptions.TableSchema,
-                ignoreSortOrder)
+                ignoreSortOrder,
+                /*allowSimpleTypeDeoptionalize*/ true)
                 .ThrowOnError();
         } else if (hasComputedColumn && validateComputedColumns) {
             // Input table has weak schema, so we cannot check if all
