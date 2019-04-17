@@ -31,7 +31,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSecurityManager
-    : public NSecurityServer::ISecurityManager
+    : public NSecurityServer::IUsersManager
 {
 public:
     TSecurityManager(
