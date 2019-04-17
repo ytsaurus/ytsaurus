@@ -344,7 +344,7 @@ def find(**args):
     if args["attribute_filter"] is not None:
         attributes.update(yson._loads_from_native_str(args["attribute_filter"], yson_type="map_fragment"))
 
-    long_format_attributes = LONG_FORMAT_ATTRIBUTES if args["long_format"] else []
+    long_format_attributes = builtins.list(LONG_FORMAT_ATTRIBUTES) if args["long_format"] else []
 
     object_filter = lambda obj: \
         all([obj.attributes.get(attr) == attributes[attr] for attr in attributes])
