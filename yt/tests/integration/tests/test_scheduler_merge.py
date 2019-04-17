@@ -1270,6 +1270,16 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert read_table("//tmp/t2") == [{"key": 0}, {"key": 0}, {"key": 1}, {"key": 1}]
 
+    def test_schema_compatibility(self):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64"}]})
+        write_table("//tmp/t1", [{"key": None}])
+        with pytest.raises(YtError):
+            merge(
+                in_="//tmp/t1",
+                out="<schema=[{name=key;type=int64;required=true}]>//tmp/t2"
+            )
+
+
 ##################################################################
 
 class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
