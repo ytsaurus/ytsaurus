@@ -19,8 +19,6 @@ import yt.json_wrapper as json
 from yt.packages.six import PY3, iteritems
 from yt.packages.six.moves import builtins, map as imap
 
-import yt.wrapper.clickhouse as clickhouse
-
 import yt.wrapper as yt
 
 import os
