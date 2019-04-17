@@ -250,6 +250,7 @@ b"""
         enable_snapshot_loading = %true;
 
         snapshot_period = 100000000;
+        snapshot_timeout = 5000;
 
         transactions_refresh_period = 500;
 
