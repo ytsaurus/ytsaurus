@@ -20,7 +20,7 @@
 
 #include <Common/Exception.h>
 #include <Interpreters/Users.h>
-#include <Interpreters/ISecurityManager.h>
+#include <Interpreters/IUsersManager.h>
 
 #include <util/generic/maybe.h>
 #include <util/system/rwlock.h>
@@ -41,10 +41,10 @@ static const auto& Logger = ServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSecurityManager
-    : public DB::ISecurityManager
+    : public DB::IUsersManager
 {
 private:
-    THashMap<TString, DB::ISecurityManager::UserPtr> Users_;
+    THashMap<TString, DB::IUsersManager::UserPtr> Users_;
     std::optional<DB::User> UserTemplate_;
     TReaderWriterSpinLock SpinLock_;
 
@@ -117,7 +117,7 @@ public:
     }
 
 private:
-    DB::ISecurityManager::UserPtr GetOrRegisterUser(TStringBuf userName)
+    DB::IUsersManager::UserPtr GetOrRegisterUser(TStringBuf userName)
     {
         {
             auto guard = TReaderGuard(SpinLock_);
@@ -181,7 +181,7 @@ private:
         LastCurrentAclUpdateTime_ = NProfiling::GetCpuInstant();
     }
 
-    DB::ISecurityManager::UserPtr CreateNewUserFromTemplate(TStringBuf userName)
+    DB::IUsersManager::UserPtr CreateNewUserFromTemplate(TStringBuf userName)
     {
         if (!UserTemplate_) {
             throw DB::Exception(
@@ -197,7 +197,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<DB::ISecurityManager> CreateSecurityManager(
+std::unique_ptr<DB::IUsersManager> CreateSecurityManager(
     TBootstrap* bootstrap,
     TString cliqueId)
 {

@@ -17,16 +17,16 @@ class TAuthenticatedUserGuardBase
     : private TNonCopyable
 {
 public:
-    TAuthenticatedUserGuardBase(ISecurityManagerPtr securityManager, const std::optional<TString>& userName);
+    TAuthenticatedUserGuardBase(IUsersManagerPtr securityManager, const std::optional<TString>& userName);
     ~TAuthenticatedUserGuardBase();
 
 protected:
-    ISecurityManagerPtr SecurityManager_;
+    IUsersManagerPtr SecurityManager_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ISecurityManager
+struct IUsersManager
     : public virtual TRefCounted
 {
     //! Sets the authenticated user by user name.
@@ -39,7 +39,7 @@ struct ISecurityManager
     virtual std::optional<TString> GetAuthenticatedUserName() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(ISecurityManager)
+DEFINE_REFCOUNTED_TYPE(IUsersManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
