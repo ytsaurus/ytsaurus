@@ -1548,6 +1548,8 @@ def get_first_chunk_id(path, **kwargs):
     return get(path + "/@chunk_ids/0", **kwargs)
 
 def get_job_count_profiling():
+    start_time = datetime.now()
+
     job_count = {"state": defaultdict(int), "abort_reason": defaultdict(int)}
 
     try:
@@ -1574,7 +1576,9 @@ def get_job_count_profiling():
         abort_reason = dict(key)["abort_reason"]
         job_count["abort_reason"][abort_reason] += value
 
+    duration = (datetime.now() - start_time).total_seconds()
+
     # Enable it for debugging.
-    print("job_counters:", job_count, file=sys.stderr)
+    print("job_counters (take {} seconds to calculate): {}".format(duration, job_count), file=sys.stderr)
 
     return job_count
