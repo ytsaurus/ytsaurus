@@ -156,7 +156,10 @@ TVector<TTableColumnarStatistics> TClientBase::GetTableColumnarStatistics(const 
 {
     THttpHeader header("GET", "get_table_columnar_statistics");
     header.MergeParameters(NRawClient::SerializeParamsForGetTableColumnarStatistics(TransactionId_, paths));
-    auto response = NodeFromYsonString(RetryRequest(Auth_, header, /* body = */ Nothing(), /* heavy = */ true));
+    TRequestConfig config;
+    config.IsHeavy = true;
+    auto requestResult = RetryRequestWithPolicy(Auth_, header, TStringBuf(), nullptr, config);
+    auto response = NodeFromYsonString(requestResult.Response);
     TVector<TTableColumnarStatistics> result;
     Deserialize(result, response);
     return result;
@@ -667,7 +670,7 @@ void TClient::MountTable(
         header.AddParameter("cell_id", GetGuidAsString(*options.CellId_));
     }
     header.AddParameter("freeze", options.Freeze_);
-    RetryRequest(Auth_, header);
+    RetryRequestWithPolicy(Auth_, header, TStringBuf(), nullptr);
 }
 
 void TClient::UnmountTable(
@@ -677,7 +680,7 @@ void TClient::UnmountTable(
     THttpHeader header("POST", "unmount_table");
     SetTabletParams(header, path, options);
     header.AddParameter("force", options.Force_);
-    RetryRequest(Auth_, header);
+    RetryRequestWithPolicy(Auth_, header, TStringBuf(), nullptr);
 }
 
 void TClient::RemountTable(
@@ -686,7 +689,7 @@ void TClient::RemountTable(
 {
     THttpHeader header("POST", "remount_table");
     SetTabletParams(header, path, options);
-    RetryRequest(Auth_, header);
+    RetryRequestWithPolicy(Auth_, header, TStringBuf(), nullptr);
 }
 
 void TClient::FreezeTable(
@@ -711,7 +714,7 @@ void TClient::ReshardTable(
     THttpHeader header("POST", "reshard_table");
     SetTabletParams(header, path, options);
     header.AddParameter("pivot_keys", BuildYsonNodeFluently().List(keys));
-    RetryRequest(Auth_, header);
+    RetryRequestWithPolicy(Auth_, header, TStringBuf(), nullptr);
 }
 
 void TClient::ReshardTable(
@@ -722,7 +725,7 @@ void TClient::ReshardTable(
     THttpHeader header("POST", "reshard_table");
     SetTabletParams(header, path, options);
     header.AddParameter("tablet_count", tabletCount);
-    RetryRequest(Auth_, header);
+    RetryRequestWithPolicy(Auth_, header, TStringBuf(), nullptr);
 }
 
 void TClient::InsertRows(
@@ -736,7 +739,9 @@ void TClient::InsertRows(
     header.MergeParameters(SerializeParametersForInsertRows(path, options));
 
     auto body = NodeListToYsonString(rows);
-    RetryRequest(Auth_, header, TStringBuf(body), true);
+    TRequestConfig config;
+    config.IsHeavy = true;
+    auto requestResult = RetryRequestWithPolicy(Auth_, header, body, nullptr, config);
 }
 
 void TClient::DeleteRows(
@@ -758,7 +763,10 @@ void TClient::TrimRows(
     header.AddParameter("tablet_index", tabletIndex);
     // TODO: use corresponding raw request
     header.MergeParameters(NRawClient::SerializeParametersForTrimRows(path, options));
-    RetryRequest(Auth_, header, Nothing(), true);
+
+    TRequestConfig config;
+    config.IsHeavy = true;
+    RetryRequestWithPolicy(Auth_, header, TStringBuf(), nullptr, config);
 }
 
 TNode::TListType TClient::LookupRows(
@@ -786,8 +794,10 @@ TNode::TListType TClient::LookupRows(
     .EndMap());
 
     auto body = NodeListToYsonString(keys);
-    auto response = RetryRequest(Auth_, header, TStringBuf(body), true);
-    return NodeFromYsonString(response, YT_LIST_FRAGMENT).AsList();
+    TRequestConfig config;
+    config.IsHeavy = true;
+    auto result = RetryRequestWithPolicy(Auth_, header, body, nullptr, config);
+    return NodeFromYsonString(result.Response, YT_LIST_FRAGMENT).AsList();
 }
 
 TNode::TListType TClient::SelectRows(
@@ -815,8 +825,10 @@ TNode::TListType TClient::SelectRows(
         .Item("enable_code_cache").Value(options.EnableCodeCache_)
     .EndMap());
 
-    auto response = RetryRequest(Auth_, header, Nothing(), true);
-    return NodeFromYsonString(response, YT_LIST_FRAGMENT).AsList();
+    TRequestConfig config;
+    config.IsHeavy = true;
+    auto result = RetryRequestWithPolicy(Auth_, header, TStringBuf(), nullptr);
+    return NodeFromYsonString(result.Response, YT_LIST_FRAGMENT).AsList();
 }
 
 void TClient::EnableTableReplica(const TReplicaId& replicaId)
@@ -837,18 +849,20 @@ void TClient::AlterTableReplica(const TReplicaId& replicaId, const TAlterTableRe
 ui64 TClient::GenerateTimestamp()
 {
     THttpHeader header("GET", "generate_timestamp");
-    auto response = RetryRequest(Auth_, header, Nothing(), true);
-    return NodeFromYsonString(response).AsUint64();
+    TRequestConfig config;
+    config.IsHeavy = true;
+    auto requestResult = RetryRequestWithPolicy(Auth_, header, TStringBuf(), nullptr, config);
+    return NodeFromYsonString(requestResult.Response).AsUint64();
 }
 
 TAuthorizationInfo TClient::WhoAmI()
 {
     THttpHeader header("GET", "auth/whoami", /* isApi = */ false);
-    auto response = RetryRequest(Auth_, header);
+    auto requestResult = RetryRequestWithPolicy(Auth_, header, TStringBuf(), nullptr);
     TAuthorizationInfo result;
 
     NJson::TJsonValue jsonValue;
-    bool ok = NJson::ReadJsonTree(response, &jsonValue, /* throwOnError = */ true);
+    bool ok = NJson::ReadJsonTree(requestResult.Response, &jsonValue, /* throwOnError = */ true);
     Y_VERIFY(ok);
     result.Login = jsonValue["login"].GetString();
     result.Realm = jsonValue["realm"].GetString();
