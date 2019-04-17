@@ -827,7 +827,7 @@ TNode::TListType TClient::SelectRows(
 
     TRequestConfig config;
     config.IsHeavy = true;
-    auto result = RetryRequestWithPolicy(Auth_, header, TStringBuf(), nullptr);
+    auto result = RetryRequestWithPolicy(Auth_, header, TStringBuf(), nullptr, config);
     return NodeFromYsonString(result.Response, YT_LIST_FRAGMENT).AsList();
 }
 
