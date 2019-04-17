@@ -414,7 +414,8 @@ TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool dis
 TError ValidateTableSchemaCompatibility(
     const TTableSchema& inputSchema,
     const TTableSchema& outputSchema,
-    bool ignoreSortOrder)
+    bool ignoreSortOrder,
+    bool allowSimpleTypeDeoptionalize)
 {
     auto addAttributes = [&] (TError error) {
         return error
@@ -439,7 +440,17 @@ TError ValidateTableSchemaCompatibility(
     // Check that columns are the same.
     for (const auto& outputColumn : outputSchema.Columns()) {
         if (auto inputColumn = inputSchema.FindColumn(outputColumn.Name())) {
-            if (!IsSubtypeOf(inputColumn->LogicalType(), outputColumn.LogicalType())) {
+            bool typeIsOk = IsSubtypeOf(inputColumn->LogicalType(), outputColumn.LogicalType());
+            if (allowSimpleTypeDeoptionalize &&
+                !typeIsOk &&
+                inputColumn->SimplifiedLogicalType() &&
+                inputColumn->LogicalType()->GetMetatype() == ELogicalMetatype::Optional)
+            {
+                // For historical reasons some users of this function consider type optional<T> to be compatible with T.
+                // They perform runtime check of values.
+                typeIsOk = IsSubtypeOf(inputColumn->LogicalType()->AsOptionalTypeRef().GetElement(), outputColumn.LogicalType());
+            }
+            if (!typeIsOk) {
                 return addAttributes(TError("Column %Qv input type %Qlv is incompatible with the output type %Qlv",
                     inputColumn->Name(),
                     *inputColumn->LogicalType(),
