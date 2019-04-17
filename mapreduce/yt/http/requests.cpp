@@ -91,7 +91,8 @@ TRichYPath CanonizePath(const TAuth& auth, const TRichYPath& path)
         THttpHeader header("GET", "parse_ypath");
         auto pathNode = PathToNode(path);
         header.AddParameter("path", pathNode);
-        auto response = NodeFromYsonString(RetryRequest(auth, header));
+        auto requestResult = NDetail::RetryRequestWithPolicy(auth, header, TStringBuf(), nullptr);
+        auto response = NodeFromYsonString(requestResult.Response);
         for (const auto& item : pathNode.GetAttributes().AsMap()) {
             response.Attributes()[item.first] = item.second;
         }
@@ -145,7 +146,8 @@ TTransactionId StartTransaction(
 
     header.AddParameter("attributes", attributes);
 
-    auto txId = ParseGuidFromResponse(RetryRequest(auth, header));
+    auto result = NDetail::RetryRequestWithPolicy(auth, header, TStringBuf());
+    auto txId = ParseGuidFromResponse(result.Response);
     LOG_DEBUG("Transaction %s started", GetGuidAsString(txId).data());
     return txId;
 }
@@ -158,7 +160,7 @@ static void TransactionRequest(
     THttpHeader header("POST", command);
     header.AddTransactionId(transactionId);
     header.AddMutationId();
-    RetryRequest(auth, header, Nothing(), false, false);
+    NDetail::RetryRequestWithPolicy(auth, header, TStringBuf());
 }
 
 void AbortTransaction(
@@ -181,7 +183,7 @@ void CommitTransaction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetProxyForHeavyRequest(const TAuth& auth)
+TString GetProxyForHeavyRequest(const TAuth& auth, IRequestRetryPolicyPtr retryPolicy)
 {
     if (!TConfig::Get()->UseHosts) {
         return auth.ServerName;
@@ -193,8 +195,8 @@ TString GetProxyForHeavyRequest(const TAuth& auth)
         hostsEndpoint = hostsEndpoint.substr(1);
     }
     THttpHeader header("GET", hostsEndpoint, false);
-    TString response = RetryRequest(auth, header);
-    ParseJsonStringArray(response, hosts);
+    auto result = NDetail::RetryRequestWithPolicy(auth, header, TStringBuf(), retryPolicy);
+    ParseJsonStringArray(result.Response, hosts);
     if (hosts.empty()) {
         ythrow yexception() << "returned list of proxies is empty";
     }
@@ -208,97 +210,6 @@ TString GetProxyForHeavyRequest(const TAuth& auth)
     } while (hostIdx >= hosts.size());
 
     return hosts[hostIdx];
-}
-
-TString RetryRequest(
-    const TAuth& auth,
-    THttpHeader& header,
-    const TMaybe<TStringBuf>& body,
-    bool isHeavy,
-    bool isOperation)
-{
-    int retryCount = isOperation ?
-        TConfig::Get()->StartOperationRetryCount :
-        TConfig::Get()->RetryCount;
-
-    header.SetToken(auth.Token);
-
-    TDuration socketTimeout = (header.GetCommand() == "ping_tx") ?
-        TConfig::Get()->PingTimeout : TDuration::Zero();
-
-    bool needMutationId = false;
-    bool needRetry = false;
-
-    for (int attempt = 0; attempt < retryCount; ++attempt) {
-        bool hasError = false;
-        TString response;
-        TDuration retryInterval;
-
-        THttpRequest request;
-        try {
-            TString hostName = auth.ServerName;
-            if (isHeavy) {
-                hostName = GetProxyForHeavyRequest(auth);
-            }
-
-            if (needMutationId) {
-                header.AddMutationId();
-                needMutationId = false;
-                needRetry = false;
-            }
-
-            if (needRetry) {
-                header.AddParameter("retry", true, /* overwrite = */ true);
-            } else {
-                header.RemoveParameter("retry");
-                needRetry = true;
-            }
-
-            request.Connect(hostName, socketTimeout);
-            try {
-                request.SmallRequest(header, body);
-            } catch (yexception&) {
-                // try to read error in response
-            }
-            response = request.GetResponse();
-        } catch (TErrorResponse& e) {
-            LogRequestError(
-                request,
-                header,
-                e.GetError().GetMessage(),
-                TStringBuilder() << "attempt " << attempt << " of " << retryCount);
-
-            if (!IsRetriable(e) || attempt + 1 == retryCount) {
-                throw;
-            }
-            if (e.IsConcurrentOperationsLimitReached()) {
-                needMutationId = true;
-            }
-
-            hasError = true;
-            retryInterval = GetRetryInterval(e);
-        } catch (yexception& e) {
-            LogRequestError(
-                request,
-                header,
-                e.what(),
-                TStringBuilder() << "attempt " << attempt << " of " << retryCount);
-
-            if (attempt + 1 == retryCount) {
-                throw;
-            }
-            hasError = true;
-            retryInterval = TConfig::Get()->RetryInterval;
-        }
-
-        if (!hasError) {
-            return response;
-        }
-
-        NDetail::TWaitProxy::Get()->Sleep(retryInterval);
-    }
-
-    Y_FAIL("Must be unreachable");
 }
 
 void LogRequestError(
