@@ -49,6 +49,7 @@ public:
     void SetupOutputStream();
     void SetupOutputParameters();
     void LogRequest();
+    void SetupTracing();
     void AddHeaders();
 
     void SetError(const TError& error);

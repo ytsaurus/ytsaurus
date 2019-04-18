@@ -32,6 +32,8 @@ namespace NYT::NHttpProxy {
 
 static const auto& Logger = HttpProxyLogger;
 
+static const TString SysProxies = "//sys/proxies";
+
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NYTree;
@@ -74,6 +76,14 @@ TString TProxyEntry::GetHost() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TDynamicConfig::TDynamicConfig()
+{
+    RegisterParameter("tracing_user_sample_probability", TracingUserSampleProbability)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCoordinator::TCoordinator(
     const TProxyConfigPtr& config,
     TBootstrap* bootstrap)
@@ -84,18 +94,27 @@ TCoordinator::TCoordinator(
         bootstrap->GetControlInvoker(),
         BIND(&TCoordinator::Update, MakeWeak(this)),
         Config_->HeartbeatInterval))
+    , ConfigUpdater_(New<TPeriodicExecutor>(
+        bootstrap->GetControlInvoker(),
+        BIND(&TCoordinator::UpdateConfig, MakeWeak(this)),
+        Config_->HeartbeatInterval))
 {
     Self_ = New<TProxyEntry>();
     Self_->Endpoint = Config_->PublicFqdn
         ? *Config_->PublicFqdn
         : Format("%v:%d", NNet::GetLocalHostName(), config->Port);
     Self_->Role = "data";
+
+    DynamicConfig_ = New<TDynamicConfig>();
+    DynamicConfig_->SetDefaults();
 }
 
 void TCoordinator::Start()
 {
     Periodic_->Start();
     Periodic_->ScheduleOutOfBand();
+
+    ConfigUpdater_->Start();
 
     auto result = WaitFor(FirstUpdateIterationFinished_.ToFuture());
     YT_LOG_INFO(result, "Initial coordination iteration finished");
@@ -183,13 +202,19 @@ const TCoordinatorConfigPtr& TCoordinator::GetConfig() const
     return Config_;
 }
 
+TDynamicConfigPtr TCoordinator::GetDynamicConfig()
+{
+    auto guard = Guard(Lock_);
+    return DynamicConfig_;
+}    
+
 std::vector<TProxyEntryPtr> TCoordinator::ListCypressProxies()
 {
     TListNodeOptions options;
     options.ReadFrom = EMasterChannelKind::Cache;
     options.Attributes = {"role", "banned", "liveness", BanMessageAttributeName};
 
-    auto proxiesYson = WaitFor(Client_->ListNode("//sys/proxies", options))
+    auto proxiesYson = WaitFor(Client_->ListNode(SysProxies, options))
         .ValueOrThrow();
     auto proxiesList = ConvertTo<IListNodePtr>(proxiesYson);
     std::vector<TProxyEntryPtr> proxies;
@@ -206,9 +231,39 @@ std::vector<TProxyEntryPtr> TCoordinator::ListCypressProxies()
     return proxies;
 }
 
+void TCoordinator::UpdateConfig()
+{
+    try {
+        TGetNodeOptions options;
+        options.ReadFrom = EMasterChannelKind::Cache;
+
+        auto configYson = WaitFor(Client_->GetNode(SysProxies + "/@config", options))
+            .ValueOrThrow();
+
+        auto config = ConvertTo<TDynamicConfigPtr>(configYson);
+        auto guard = Guard(Lock_);
+        DynamicConfig_ = config;
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Error loading dynamic config");
+    }
+}
+
+IYPathServicePtr TCoordinator::CreateOrchidService()
+{
+   return IYPathService::FromProducer(BIND(&TCoordinator::BuildOrchid, MakeStrong(this)));
+}
+
+void TCoordinator::BuildOrchid(IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("dynamic_config").Value(GetDynamicConfig())
+        .EndMap();
+}
+
 void TCoordinator::Update()
 {
-    auto selfPath = "//sys/proxies/" + Self_->Endpoint;
+    auto selfPath = SysProxies + "/" + Self_->Endpoint;
 
     {
         auto guard = Guard(Lock_);
