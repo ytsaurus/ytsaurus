@@ -628,7 +628,7 @@ DEFINE_REFCOUNTED_TYPE(TPool)
 class TOperationElementFixedState
 {
 protected:
-    explicit TOperationElementFixedState(
+    TOperationElementFixedState(
         IOperationStrategyHost* operation,
         TFairShareStrategyOperationControllerConfigPtr controllerConfig);
 
