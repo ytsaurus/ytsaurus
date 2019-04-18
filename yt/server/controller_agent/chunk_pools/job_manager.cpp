@@ -93,6 +93,18 @@ void TJobStub::Finalize(bool sortByPosition)
         StripeList_->Stripes.emplace_back(std::move(stripe));
     }
     StripeMap_.clear();
+
+    // This order is crucial for ordered map.
+    std::sort(StripeList_->Stripes.begin(), StripeList_->Stripes.end(), [] (const TChunkStripePtr& lhs, const TChunkStripePtr& rhs) {
+        auto& lhsSlice = lhs->DataSlices.front();
+        auto& rhsSlice = rhs->DataSlices.front();
+
+        if (lhsSlice->GetTableIndex() != rhsSlice->GetTableIndex()) {
+            return lhsSlice->GetTableIndex() < rhsSlice->GetTableIndex();
+        }
+
+        return lhsSlice->GetRangeIndex() < rhsSlice->GetRangeIndex();
+    });
 }
 
 i64 TJobStub::GetDataWeight() const
