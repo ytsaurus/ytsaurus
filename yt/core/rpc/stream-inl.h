@@ -18,14 +18,11 @@ TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateRpcClientInputStream(
     TIntrusivePtr<TTypedClientRequest<TRequestMessage, TResponse>> request)
 {
     auto invokeResult = request->Invoke().template As<void>();
-
-    return request->GetResponseAttachmentsStream()->Read()
-        .Apply(BIND([=] (const TSharedRef& firstReadResult) {
-            return New<NDetail::TRpcClientInputStream>(
-                std::move(request),
-                std::move(invokeResult),
-                firstReadResult);
-        })).template As<NConcurrency::IAsyncZeroCopyInputStreamPtr>();
+    auto inputStream = New<NDetail::TRpcClientInputStream>(
+        std::move(request),
+        std::move(invokeResult));
+    return MakeFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr>(
+        std::move(inputStream));
 }
 
 template <class TRequestMessage, class TResponse>

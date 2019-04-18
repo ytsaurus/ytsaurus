@@ -23,8 +23,6 @@ public:
 
     virtual TFuture<void> Open() override
     {
-        auto guard = Guard(SpinLock_);
-
         if (!OpenResult_) {
             OpenResult_ = NRpc::CreateRpcClientInputStream(Request_)
                 .Apply(BIND([=, this_ = MakeStrong(this)] (const IAsyncZeroCopyInputStreamPtr& inputStream) {
@@ -52,12 +50,10 @@ private:
     const TApiServiceProxy::TReqReadJournalPtr Request_;
 
     IAsyncZeroCopyInputStreamPtr Underlying_;
-    TSpinLock SpinLock_;
     TFuture<void> OpenResult_;
 
     void ValidateOpened()
     {
-        auto guard = Guard(SpinLock_);
         if (!OpenResult_ || !OpenResult_.IsSet()) {
             THROW_ERROR_EXCEPTION("Can't read from an unopened journal reader");
         }
