@@ -66,8 +66,9 @@ private:
     TEpochContextPtr EpochContext;
     IInvokerPtr ControlEpochInvoker;
 
-    THashSet<TPeerId> AliveFollowers;
-    THashSet<TPeerId> PotentialFollowers;
+    TPeerIdSet AliveFollowers; // actually, includes the leader, too
+    TPeerIdSet AlivePeers; // additionally includes non-voting peers
+    TPeerIdSet PotentialPeers;
 
     TLease LeaderPingLease;
     TFollowerPingerPtr FollowerPinger;
@@ -88,7 +89,10 @@ private:
 
     bool CheckQuorum();
 
-    bool IsVotingPeer();
+    //! Returns true iff this peer is voting.
+    bool IsVotingPeer() const;
+    // Returns true iff the specified peer is voting.
+    bool IsVotingPeer(TPeerId peerId) const;
 
     void StartVotingRound();
     void ContinueVoting(TPeerId voteId, TEpochId voteEpochId);
@@ -105,6 +109,7 @@ private:
 
     void OnPeerReconfigured(TPeerId peerId);
 
+    void FireAlivePeerSetChanged();
 };
 
 DEFINE_REFCOUNTED_TYPE(TDistributedElectionManager)
@@ -188,12 +193,28 @@ private:
     {
         YT_LOG_DEBUG("Ping reply from follower (PeerId: %v)", id);
 
-        if (Owner->PotentialFollowers.find(id) != Owner->PotentialFollowers.end()) {
-            YT_LOG_INFO("Follower is up, first success (PeerId: %v)", id);
-            YCHECK(Owner->PotentialFollowers.erase(id) == 1);
-        } else if (Owner->AliveFollowers.find(id) == Owner->AliveFollowers.end()) {
-            YT_LOG_INFO("Follower is up (PeerId: %v)", id);
-            YCHECK(Owner->AliveFollowers.insert(id).second);
+        const auto votingPeer = Owner->IsVotingPeer(id);
+
+        if (Owner->PotentialPeers.contains(id)) {
+            YT_LOG_INFO("%v is up, first success (PeerId: %v)",
+                votingPeer ? "Follower" : "Observer",
+                id);
+            YCHECK(Owner->PotentialPeers.erase(id) == 1);
+        } else {
+            if (votingPeer) {
+                if (!Owner->AliveFollowers.contains(id)) {
+                    YT_LOG_INFO("Follower is up (PeerId: %v)", id);
+                    YCHECK(Owner->AliveFollowers.insert(id).second);
+                    YCHECK(Owner->AlivePeers.insert(id).second); // peers is a superset of followers
+                    Owner->FireAlivePeerSetChanged();
+                }
+            } else {
+                if (!Owner->AlivePeers.contains(id)) {
+                    YT_LOG_INFO("Observer is up (PeerId: %v)", id);
+                    YCHECK(Owner->AlivePeers.insert(id).second);
+                    Owner->FireAlivePeerSetChanged();
+                }
+            }
         }
 
         SchedulePing(id);
@@ -201,38 +222,67 @@ private:
 
     void OnPingResponseFailure(TPeerId id, const TError& error)
     {
-        auto code = error.GetCode();
+        const auto votingPeer = Owner->IsVotingPeer(id);
+
+        const auto code = error.GetCode();
         if (code == NElection::EErrorCode::InvalidState ||
             code == NElection::EErrorCode::InvalidLeader ||
             code == NElection::EErrorCode::InvalidEpoch)
         {
             // These errors are possible during grace period.
-            if (Owner->PotentialFollowers.find(id) == Owner->PotentialFollowers.end()) {
-                if (Owner->AliveFollowers.erase(id) > 0) {
-                    YT_LOG_WARNING(error, "Error pinging follower %v, considered down",
+            if (Owner->PotentialPeers.contains(id)) {
+                 if (TInstant::Now() > Owner->EpochContext->StartTime + Owner->Config->FollowerGraceTimeout) {
+                    YT_LOG_WARNING(error, "Error pinging %v, no success within grace period, considered down (PeerId: %v)",
+                        votingPeer ? "follower" : "observer",
+                        id);
+                    Owner->PotentialPeers.erase(id);
+                    Owner->AliveFollowers.erase(id);
+                    if (Owner->AlivePeers.erase(id) > 0) {
+                        Owner->FireAlivePeerSetChanged();
+                    }
+                } else {
+                    YT_LOG_INFO(error, "Error pinging %v, will retry later (PeerId: %v)",
+                        votingPeer ? "follower": "observer",
                         id);
                 }
             } else {
-                if (TInstant::Now() > Owner->EpochContext->StartTime + Owner->Config->FollowerGraceTimeout) {
-                    YT_LOG_WARNING(error, "Error pinging follower %v, no success within grace period, considered down",
-                        id);
-                    Owner->PotentialFollowers.erase(id);
-                    Owner->AliveFollowers.erase(id);
+                if (votingPeer) {
+                    if (Owner->AliveFollowers.erase(id) > 0) {
+                        YT_LOG_WARNING(error, "Error pinging follower, considered down (PeerId: %v)",
+                            id);
+                        YCHECK(Owner->AlivePeers.erase(id));
+                        Owner->FireAlivePeerSetChanged();
+                    }
                 } else {
-                    YT_LOG_INFO(error, "Error pinging follower %v, will retry later",
-                        id);
+                    if(Owner->AlivePeers.erase(id) > 0) {
+                        YT_LOG_WARNING(error, "Error pinging observer, considered down (PeerId: %v)",
+                            id);
+                        Owner->FireAlivePeerSetChanged();
+                    }
                 }
             }
         } else {
-            if (Owner->AliveFollowers.erase(id) > 0) {
-                YT_LOG_WARNING(error, "Error pinging follower %v, considered down",
-                    id);
-                Owner->PotentialFollowers.erase(id);
+            if (votingPeer) {
+                if (Owner->AliveFollowers.erase(id) > 0) {
+                    YT_LOG_WARNING(error, "Error pinging follower, considered down (PeerId: %v)",
+                        id);
+                    Owner->PotentialPeers.erase(id);
+                    YCHECK(Owner->AlivePeers.erase(id) > 0);
+                    Owner->FireAlivePeerSetChanged();
+                }
+            } else {
+                if (Owner->AlivePeers.erase(id) > 0) {
+                    YT_LOG_WARNING(error, "Error pinging observer, considered down (PeerId: %v)",
+                        id);
+                    Owner->PotentialPeers.erase(id);
+                    Owner->FireAlivePeerSetChanged();
+                }
             }
         }
 
-        if (!Owner->CheckQuorum())
+        if (votingPeer && !Owner->CheckQuorum()) {
             return;
+        }
 
         if (code == NYT::EErrorCode::Timeout) {
             SendPing(id);
@@ -286,8 +336,7 @@ public:
             if (!channel)
                 continue;
 
-            const auto& peerConfig = cellManager->GetPeerConfig(id);
-            if (!peerConfig.Voting)
+            if (!Owner->IsVotingPeer(id))
                 continue;
 
             TElectionServiceProxy proxy(channel);
@@ -590,7 +639,8 @@ void TDistributedElectionManager::Reset()
     EpochContext.Reset();
 
     AliveFollowers.clear();
-    PotentialFollowers.clear();
+    AlivePeers.clear();
+    PotentialPeers.clear();
     TLeaseManager::CloseLease(LeaderPingLease);
     LeaderPingLease.Reset();
 }
@@ -671,9 +721,15 @@ bool TDistributedElectionManager::CheckQuorum()
     return false;
 }
 
-bool TDistributedElectionManager::IsVotingPeer()
+bool TDistributedElectionManager::IsVotingPeer() const
 {
     const auto& config = CellManager->GetSelfConfig();
+    return config.Voting;
+}
+
+bool TDistributedElectionManager::IsVotingPeer(TPeerId peerId) const
+{
+    const auto& config = CellManager->GetPeerConfig(peerId);
     return config.Voting;
 }
 
@@ -742,10 +798,10 @@ void TDistributedElectionManager::StartLeading()
 
     // Initialize followers state.
     for (TPeerId id = 0; id < CellManager->GetTotalPeerCount(); ++id) {
-        const auto& peerConfig = CellManager->GetPeerConfig(id);
-        if (peerConfig.Voting) {
+        PotentialPeers.insert(id);
+        AlivePeers.insert(id);
+        if (IsVotingPeer(id)) {
             AliveFollowers.insert(id);
-            PotentialFollowers.insert(id);
         }
     }
 
@@ -846,15 +902,24 @@ void TDistributedElectionManager::OnPeerReconfigured(TPeerId peerId)
             DoParticipate();
         }
     } else {
-        const auto& peerConfig = CellManager->GetPeerConfig(peerId);
-        if (State == EPeerState::Leading && peerConfig.Voting) {
-            PotentialFollowers.erase(peerId);
+        if (State == EPeerState::Leading) {
+            PotentialPeers.erase(peerId);
             AliveFollowers.erase(peerId);
+            if (AlivePeers.erase(peerId) > 0) {
+                FireAlivePeerSetChanged();
+            }
+            // NB: even if the peer is non-voting, quorum must be checked
+            // because the peer may've been voting before reconfiguration.
             CheckQuorum();
         } else if (State == EPeerState::Following && peerId == EpochContext->LeaderId) {
             DoParticipate();
         }
     }
+}
+
+void TDistributedElectionManager::FireAlivePeerSetChanged()
+{
+    ElectionCallbacks->OnAlivePeerSetChanged(AlivePeers);
 }
 
 DEFINE_RPC_SERVICE_METHOD(TDistributedElectionManager, PingFollower)

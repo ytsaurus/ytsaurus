@@ -43,14 +43,21 @@ void TRequestTracker::Start()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     YCHECK(!FlushExecutor_);
+    const auto& hydraFacade = Bootstrap_->GetHydraFacade();
     FlushExecutor_ = New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
+        hydraFacade->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
         BIND(&TRequestTracker::OnFlush, MakeWeak(this)));
     FlushExecutor_->Start();
 
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
     OnDynamicConfigChanged();
+
+    const auto& hydraManager = hydraFacade->GetHydraManager();
+    AlivePeerCount_ = static_cast<int>(hydraManager->AlivePeers().size());
+    hydraManager->SubscribeAlivePeerSetChanged(
+        BIND(&TRequestTracker::OnAlivePeerSetChanged, MakeWeak(this))
+            .Via(hydraFacade->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::SecurityManager)));
 }
 
 void TRequestTracker::Stop()
@@ -67,6 +74,8 @@ void TRequestTracker::Stop()
         user->SetRequestRateThrottler(nullptr, EUserWorkloadType::Write);
         user->SetRequestQueueSize(0);
     }
+
+    AlivePeerCount_ = 0;
 
     FlushExecutor_.Reset();
 
@@ -149,7 +158,6 @@ void TRequestTracker::SetUserRequestRateLimit(TUser* user, int limit, EUserWorkl
 
 void TRequestTracker::ReconfigureUserRequestRateThrottler(TUser* user)
 {
-    auto totalPeerCount = Bootstrap_->GetCellManager()->GetTotalPeerCount();
     for (auto workloadType : {EUserWorkloadType::Read, EUserWorkloadType::Write}) {
         if (!user->GetRequestRateThrottler(workloadType)) {
             user->SetRequestRateThrottler(CreateReconfigurableThroughputThrottler(New<TThroughputThrottlerConfig>()), workloadType);
@@ -159,9 +167,15 @@ void TRequestTracker::ReconfigureUserRequestRateThrottler(TUser* user)
         config->Period = GetDynamicConfig()->RequestRateSmoothingPeriod;
 
         auto requestRateLimit = user->GetRequestRateLimit(workloadType);
-        if (workloadType == EUserWorkloadType::Read && totalPeerCount > 0) {
-            requestRateLimit /= totalPeerCount;
+
+        // If there're three or more peers, divide user limits by the number of
+        // followers (because it's they who handle read requests).
+        // If there're two peers, there's only one follower - no division necessary.
+        // If there's only one peer, its certainly being read from - no division necessary.
+        if (AlivePeerCount_ > 2) {
+            requestRateLimit /= AlivePeerCount_ - 1;
         }
+
         config->Limit = requestRateLimit;
 
         user->GetRequestRateThrottler(workloadType)->Reconfigure(std::move(config));
@@ -233,11 +247,11 @@ const TDynamicSecurityManagerConfigPtr& TRequestTracker::GetDynamicConfig()
 
 void TRequestTracker::OnDynamicConfigChanged()
 {
-    ReconfigureUsersThrottlers();
+    ReconfigureUserThrottlers();
     FlushExecutor_->SetPeriod(GetDynamicConfig()->UserStatisticsFlushPeriod);
 }
 
-void TRequestTracker::ReconfigureUsersThrottlers()
+void TRequestTracker::ReconfigureUserThrottlers()
 {
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     for (const auto& pair : securityManager->Users()) {
@@ -245,6 +259,15 @@ void TRequestTracker::ReconfigureUsersThrottlers()
         if (IsObjectAlive(user)) {
             ReconfigureUserRequestRateThrottler(user);
         }
+    }
+}
+
+void TRequestTracker::OnAlivePeerSetChanged(const THashSet<NElection::TPeerId>& alivePeers)
+{
+    auto peerCount = static_cast<int>(alivePeers.size());
+    if (peerCount != AlivePeerCount_) {
+        AlivePeerCount_ = peerCount;
+        ReconfigureUserThrottlers();
     }
 }
 

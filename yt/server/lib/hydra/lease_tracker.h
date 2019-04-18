@@ -53,6 +53,8 @@ public:
 
     void Start();
 
+    void SetAlivePeers(const TPeerIdSet& alivePeers);
+
     TFuture<void> GetLeaseAcquired();
     TFuture<void> GetLeaseLost();
 
@@ -65,6 +67,7 @@ private:
     TEpochContext* const EpochContext_;
     TLeaderLeasePtr Lease_;
     const std::vector<TCallback<TFuture<void>()>> CustomLeaseCheckers_;
+    TPeerIdSet AlivePeers_;
 
     NConcurrency::TPeriodicExecutorPtr LeaseCheckExecutor_;
 
@@ -73,9 +76,10 @@ private:
 
     NLogging::TLogger Logger;
 
-
     void OnLeaseCheck();
     TFuture<void> FireLeaseCheck();
+
+    bool IsPeerAlive(TPeerId peerId) const;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
