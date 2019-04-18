@@ -510,10 +510,9 @@ TError CheckWriterFeedback(
     }
 
     EWriterFeedback actualFeedback;
-    try {
-        actualFeedback = CheckedEnumCast<EWriterFeedback>(protoFeedback.feedback());
-    } catch (const TErrorException& ex) {
-        return ex.Error();
+    if (!TryEnumCast(protoFeedback.feedback(), &actualFeedback)) {
+        return TError("Invalid writer feedback value %v",
+            protoFeedback.feedback());
     }
 
     if (actualFeedback != expectedFeedback) {
