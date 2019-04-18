@@ -3,10 +3,11 @@
 #include "helpers.h"
 
 #include <yt/client/api/rowset.h>
+#include <yt/client/api/table_reader.h>
 
 #include <yt/client/chunk_client/proto/data_statistics.pb.h>
-
 #include <yt/client/table_client/name_table.h>
+
 #include <yt/client/table_client/row_buffer.h>
 
 #include <yt/core/rpc/stream.h>
@@ -18,11 +19,11 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcTableReader
+class TTableReader
     : public ITableReader
 {
 public:
-    TRpcTableReader(
+    TTableReader(
         IAsyncZeroCopyInputStreamPtr underlying,
         i64 startRowIndex,
         const TKeyColumns& keyColumns,
@@ -155,12 +156,12 @@ private:
     };
 
     const IAsyncZeroCopyInputStreamPtr Underlying_;
+    const i64 StartRowIndex_;
+    const TKeyColumns KeyColumns_;
+    const std::vector<TString> OmittedInaccessibleColumns_;
 
     NChunkClient::NProto::TDataStatistics DataStatistics_;
-    i64 StartRowIndex_;
     i64 TotalRowCount_;
-    TKeyColumns KeyColumns_;
-    std::vector<TString> OmittedInaccessibleColumns_;
 
     size_t RowCount_ = 0;
     size_t DataWeight_ = 0;
@@ -169,8 +170,8 @@ private:
     TNameTableToSchemaIdMapping IdMapping_;
     NApi::NRpcProxy::NProto::TRowsetDescriptor RowsetDescriptor_;
 
-    TPromise<void> ReadyEvent_;
     TSpinLock EventLock_;
+    TPromise<void> ReadyEvent_;
 
     std::vector<TRows> UserRows_;
     TFuture<TRowsWithPayload> AsyncRowsWithPayload_;
@@ -225,13 +226,13 @@ private:
     }
 };
 
-TFuture<ITableReaderPtr> CreateRpcTableReader(
-    TApiServiceProxy::TReqCreateTableReaderPtr request)
+TFuture<ITableReaderPtr> CreateRpcProxyTableReader(
+    TApiServiceProxy::TReqReadTablePtr request)
 {
-    return NRpc::CreateRpcClientInputStream(request)
+    return NRpc::CreateRpcClientInputStream(std::move(request))
         .Apply(BIND([=] (const IAsyncZeroCopyInputStreamPtr& inputStream) {
             return inputStream->Read().Apply(BIND([=] (const TSharedRef& metaRef) {
-                NApi::NRpcProxy::NProto::TMetaCreateTableReader meta;
+                NApi::NRpcProxy::NProto::TReadTableMeta meta;
                 if (!TryDeserializeProto(&meta, metaRef)) {
                     THROW_ERROR_EXCEPTION("Failed to deserialize table reader meta information");
                 }
@@ -241,7 +242,7 @@ TFuture<ITableReaderPtr> CreateRpcTableReader(
                 auto omittedInaccessibleColumns = FromProto<std::vector<TString>>(
                     meta.omitted_inaccessible_columns());
 
-                return New<TRpcTableReader>(
+                return New<TTableReader>(
                     inputStream,
                     startRowIndex,
                     std::move(keyColumns),

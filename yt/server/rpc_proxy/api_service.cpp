@@ -335,10 +335,10 @@ public:
             .SetStreamingEnabled(true)
             .SetCancelable(true));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateTableReader)
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadTable)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateTableWriter)
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteTable)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
 
@@ -3030,7 +3030,7 @@ private:
     // TABLES
     ////////////////////////////////////////////////////////////////////////////////
 
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateTableReader)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadTable)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -3058,7 +3058,7 @@ private:
             .ValueOrThrow();
 
         auto outputStream = context->GetResponseAttachmentsStream();
-        NApi::NRpcProxy::NProto::TMetaCreateTableReader meta;
+        NApi::NRpcProxy::NProto::TReadTableMeta meta;
         meta.set_start_row_index(tableReader->GetStartRowIndex());
         ToProto(meta.mutable_key_columns(), tableReader->GetKeyColumns());
         ToProto(meta.mutable_omitted_inaccessible_columns(), tableReader->GetOmittedInaccessibleColumns());
@@ -3092,7 +3092,7 @@ private:
             }));
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateTableWriter)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteTable)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
@@ -3119,7 +3119,7 @@ private:
 
         auto outputStream = context->GetResponseAttachmentsStream();
         const auto& schema = tableWriter->GetSchema();
-        NApi::NRpcProxy::NProto::TMetaCreateTableWriter meta;
+        NApi::NRpcProxy::NProto::TWriteTableMeta meta;
         ToProto(meta.mutable_schema(), schema);
         auto metaRef = SerializeProtoToRef(meta);
         WaitFor(outputStream->Write(metaRef))
@@ -3130,6 +3130,8 @@ private:
         descriptor->set_rowset_kind(NApi::NRpcProxy::NProto::RK_UNVERSIONED);
 
         auto blockHandler = BIND([=, descriptor = std::move(descriptor)] (const TSharedRef& block) {
+            // Here we assume our local tableWriter wouldn't modify its own name table,
+            // so we don't have to use an id mapping.
             auto rows = NApi::NRpcProxy::DeserializeRowsetWithNameTableDelta(
                 block,
                 tableWriter->GetNameTable(),

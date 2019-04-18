@@ -102,9 +102,9 @@ public:
         .SetStreamingEnabled(true));
 
     // Tables
-    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CreateTableReader,
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ReadTable,
         .SetStreamingEnabled(true));
-    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CreateTableWriter,
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, WriteTable,
         .SetStreamingEnabled(true));
 
     // File caching
