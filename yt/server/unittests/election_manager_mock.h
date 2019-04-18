@@ -20,6 +20,8 @@ public:
 
     MOCK_METHOD0(GetPriority, TPeerPriority());
     MOCK_METHOD1(FormatPriority, TString(TPeerPriority priority));
+
+    MOCK_METHOD1(OnAlivePeerSetChanged, void(const TPeerIdSet& alivePeers));
 };
 
 ////////////////////////////////////////////////////////////////////////////////

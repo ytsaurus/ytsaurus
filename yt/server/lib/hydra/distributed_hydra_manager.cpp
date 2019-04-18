@@ -110,6 +110,14 @@ public:
             return ToString(version);
         }
 
+        virtual void OnAlivePeerSetChanged(const TPeerIdSet& alivePeers) override
+        {
+            CancelableControlInvoker_->Invoke(BIND(
+                &TDistributedHydraManager::OnElectionAlivePeerSetChanged,
+                Owner_,
+                alivePeers));
+        }
+
     private:
         const TWeakPtr<TDistributedHydraManager> Owner_;
         const IInvokerPtr CancelableControlInvoker_;
@@ -339,6 +347,11 @@ public:
         });
     }
 
+    virtual TPeerIdSet& AlivePeers() override
+    {
+        return AlivePeers_;
+    }
+
     virtual TFuture<void> SyncWithUpstream() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -370,7 +383,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        
+
         // NB: This is monotonic: once in read-only mode, cannot leave it.
         if (ReadOnly_) {
             return MakeFuture<TMutationResponse>(TError(
@@ -434,6 +447,8 @@ public:
     DEFINE_SIGNAL(TFuture<void>(), LeaderLeaseCheck);
     DEFINE_SIGNAL(TFuture<void>(), UpstreamSync);
 
+    DEFINE_SIGNAL(void (const TPeerIdSet&), AlivePeerSetChanged);
+
 private:
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
 
@@ -466,6 +481,8 @@ private:
 
     TEpochContextPtr ControlEpochContext_;
     TEpochContextPtr AutomatonEpochContext_;
+
+    TPeerIdSet AlivePeers_;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, LookupChangelog)
     {
@@ -614,7 +631,7 @@ private:
         auto epochId = FromProto<TEpochId>(request->epoch_id());
         auto pingVersion = TVersion::FromRevision(request->ping_revision());
         auto committedVersion = TVersion::FromRevision(request->committed_revision());
-
+        auto alivePeers = FromProto<TPeerIdSet>(request->alive_peers());
         context->SetRequestInfo("PingVersion: %v, CommittedVersion: %v, EpochId: %v",
             pingVersion,
             committedVersion,
@@ -646,6 +663,11 @@ private:
 
             default:
                 Y_UNREACHABLE();
+        }
+
+        if (alivePeers != AlivePeers_) {
+            AlivePeers_ = std::move(alivePeers);
+            AlivePeerSetChanged_.Fire(AlivePeers_);
         }
 
         response->set_state(static_cast<int>(ControlState_));
@@ -1177,12 +1199,23 @@ private:
 
         StartLeading_.Fire();
 
+        epochContext->LeaseTracker->SetAlivePeers(GetAllPeers());
         epochContext->LeaseTracker->Start();
 
         SwitchTo(epochContext->EpochControlInvoker);
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         RecoverLeader();
+    }
+
+    TPeerIdSet GetAllPeers()
+    {
+        TPeerIdSet result;
+        result.reserve(CellManager_->GetTotalPeerCount());
+        for (TPeerId id = 0; id < CellManager_->GetTotalPeerCount(); ++id) {
+            result.insert(id);
+        }
+        return result;
     }
 
     void RecoverLeader()
@@ -1252,6 +1285,15 @@ private:
             TDelayedExecutor::WaitForDuration(Config_->RestartBackoffTime);
             Restart(epochContext, ex);
         }
+    }
+
+    void OnElectionAlivePeerSetChanged(const TPeerIdSet& alivePeers)
+    {
+        AlivePeers_ = alivePeers;
+        // Send the change to the followers.
+        ControlEpochContext_->LeaseTracker->SetAlivePeers(alivePeers);
+        // Fire the event here, on the leader.
+        AlivePeerSetChanged_.Fire(alivePeers);
     }
 
     void OnElectionStopLeading()
