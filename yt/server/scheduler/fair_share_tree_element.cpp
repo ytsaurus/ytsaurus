@@ -81,8 +81,7 @@ TScheduleJobsProfilingCounters::TScheduleJobsProfilingCounters(
     , ScheduleJobCount(prefix + "/schedule_job_count", treeIdProfilingTags)
     , ScheduleJobFailureCount(prefix + "/schedule_job_failure_count", treeIdProfilingTags)
 {
-    for (auto reason : TEnumTraits<NControllerAgent::EScheduleJobFailReason>::GetDomainValues())
-    {
+    for (auto reason : TEnumTraits<NControllerAgent::EScheduleJobFailReason>::GetDomainValues()) {
         auto tags = GetFailReasonProfilingTags(reason);
         tags.insert(tags.end(), treeIdProfilingTags.begin(), treeIdProfilingTags.end());
 
