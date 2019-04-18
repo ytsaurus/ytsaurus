@@ -91,7 +91,7 @@ public:
     TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element);
     const TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element) const;
 
-    void PrepareForStage(TString stageName, TScheduleJobsProfilingCounters* profilingCounters);
+    void PrepareForStage(const TString& stageName, TScheduleJobsProfilingCounters* profilingCounters);
 
     void ProfileStageTimingsAndLogStatistics();
 
@@ -112,7 +112,7 @@ public:
 
     struct TStageState
     {
-        TStageState(TString stageName, TScheduleJobsProfilingCounters* profilingCounters);
+        TStageState(const TString& stageName, TScheduleJobsProfilingCounters* profilingCounters);
 
         TString Name;
         TScheduleJobsProfilingCounters* ProfilingCounters;
