@@ -512,7 +512,7 @@ TError CheckWriterFeedback(
     EWriterFeedback actualFeedback;
     if (!TryEnumCast(protoFeedback.feedback(), &actualFeedback)) {
         return TError("Invalid writer feedback value %v",
-            protoFeedback.feedback());
+            static_cast<int>(protoFeedback.feedback()));
     }
 
     if (actualFeedback != expectedFeedback) {
