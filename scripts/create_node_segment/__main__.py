@@ -9,7 +9,7 @@ import argparse
 
 
 def main_impl(yp_client, arguments):
-    attributes  = {
+    attributes = {
         "meta": {
             "id": arguments.id,
             "inherit_acl": arguments.inherit_acl,
