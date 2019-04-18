@@ -22,6 +22,7 @@
 
 #include <util/string/ascii.h>
 #include <util/string/strip.h>
+#include <util/random/random.h>
 
 namespace NYT::NHttpProxy {
 
@@ -49,12 +50,6 @@ TContext::TContext(
 
 bool TContext::TryPrepare()
 {
-    if (auto trace = NTracing::GetCurrentTraceContext()) {
-        if (Api_->GetConfig()->ForceTracing) {
-            trace->SetSampled();
-        }
-    }
-
     ProcessDebugHeaders(Request_, Response_, Api_->GetCoordinator());
 
     if (auto correlationId = Request_->GetHeaders()->Find("X-YT-Correlation-ID")) {
@@ -599,6 +594,24 @@ void TContext::SetupOutputParameters()
     };
 }
 
+void TContext::SetupTracing()
+{
+    if (auto trace = NTracing::GetCurrentTraceContext()) {
+        if (Api_->GetConfig()->ForceTracing) {
+            trace->SetSampled();
+        }
+
+        auto config = Api_->GetCoordinator()->GetDynamicConfig();
+        const auto& tracingConfig = config->TracingUserSampleProbability;
+        auto it = tracingConfig.find(DriverRequest_.AuthenticatedUser);
+        if (it != tracingConfig.end()) {
+            if (RandomNumber<double>() < it->second) {
+                trace->SetSampled();
+            }
+        }
+    }
+}
+
 void TContext::AddHeaders()
 {
     auto headers = Response_->GetHeaders();
@@ -631,6 +644,7 @@ void TContext::FinishPrepare()
     SetupInputStream();
     SetupOutputStream();
     SetupOutputParameters();
+    SetupTracing();
     AddHeaders();
 }
 

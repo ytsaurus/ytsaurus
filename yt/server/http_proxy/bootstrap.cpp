@@ -89,6 +89,11 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     SetupClients();
 
     Coordinator_ = New<TCoordinator>(Config_, this);
+    SetNodeByYPath(
+        orchidRoot,
+        "/coordinator",
+        CreateVirtualNode(Coordinator_->CreateOrchidService()));
+
     HostsHandler_ = New<THostsHandler>(Coordinator_);
     PingHandler_ = New<TPingHandler>(Coordinator_);
     DiscoverVersionsHandlerV1_ = New<TDiscoverVersionsHandlerV1>(Connection_, RootClient_);
