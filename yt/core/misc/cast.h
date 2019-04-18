@@ -13,7 +13,7 @@ template <class T, class S>
 T CheckedIntegralCast(S value);
 
 template <class T, class S>
-T TryEnumCast(S value);
+bool TryEnumCast(S value, T* result);
 
 template <class T, class S>
 T CheckedEnumCast(S value);
