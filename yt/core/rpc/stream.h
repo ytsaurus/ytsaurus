@@ -161,8 +161,7 @@ class TRpcClientInputStream
 public:
     TRpcClientInputStream(
         IClientRequestPtr request,
-        TFuture<void> invokeResult,
-        TSharedRef firstReadResult);
+        TFuture<void> invokeResult);
 
     virtual TFuture<TSharedRef> Read() override;
 
@@ -173,8 +172,6 @@ private:
 
     NConcurrency::IAsyncZeroCopyInputStreamPtr Underlying_;
     TFuture<void> InvokeResult_;
-    std::atomic<bool> FirstRead_ = {true};
-    TSharedRef FirstReadResult_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -184,7 +181,7 @@ DEFINE_ENUM(EWriterFeedback,
     (Success)
 );
 
-void CheckWriterFeedback(
+TError CheckWriterFeedback(
     const TSharedRef& ref,
     EWriterFeedback expectedFeedback);
 

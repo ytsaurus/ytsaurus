@@ -478,11 +478,9 @@ namespace NDetail {
 
 TRpcClientInputStream::TRpcClientInputStream(
     IClientRequestPtr request,
-    TFuture<void> invokeResult,
-    TSharedRef firstReadResult)
+    TFuture<void> invokeResult)
     : Request_(std::move(request))
     , InvokeResult_(std::move(invokeResult))
-    , FirstReadResult_(std::move(firstReadResult))
 {
     YCHECK(Request_);
     Underlying_ = Request_->GetResponseAttachmentsStream();
@@ -491,9 +489,6 @@ TRpcClientInputStream::TRpcClientInputStream(
 
 TFuture<TSharedRef> TRpcClientInputStream::Read()
 {
-    if (FirstRead_.exchange(false)) {
-        return MakeFuture(std::move(FirstReadResult_));
-    }
     return Underlying_->Read();
 }
 
@@ -505,23 +500,29 @@ TRpcClientInputStream::~TRpcClientInputStream()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void CheckWriterFeedback(
+TError CheckWriterFeedback(
     const TSharedRef& ref,
     EWriterFeedback expectedFeedback)
 {
     NProto::TWriterFeedback protoFeedback;
     if (!TryDeserializeProto(&protoFeedback, ref)) {
-        THROW_ERROR_EXCEPTION("Failed to deserialize writer feedback");
+        return TError("Failed to deserialize writer feedback");
     }
 
     EWriterFeedback actualFeedback;
-    actualFeedback = CheckedEnumCast<EWriterFeedback>(protoFeedback.feedback());
+    try {
+        actualFeedback = CheckedEnumCast<EWriterFeedback>(protoFeedback.feedback());
+    } catch (const TErrorException& ex) {
+        return ex.Error();
+    }
 
     if (actualFeedback != expectedFeedback) {
-        THROW_ERROR_EXCEPTION("Received a wrong kind of writer feedback: %v instead of %v",
+        return TError("Received a wrong kind of writer feedback: %v instead of %v",
             actualFeedback,
             expectedFeedback);
     }
+
+    return TError();
 }
 
 TFuture<void> ExpectWriterFeedback(
@@ -530,7 +531,7 @@ TFuture<void> ExpectWriterFeedback(
 {
     YCHECK(input);
     return input->Read().Apply(BIND([=] (const TSharedRef& ref) {
-        CheckWriterFeedback(ref, expectedFeedback);
+        return MakeFuture(CheckWriterFeedback(ref, expectedFeedback));
     }));
 }
 
@@ -647,11 +648,7 @@ void TRpcClientOutputStream::OnFeedback(const TErrorOr<TSharedRef>& refOrError)
             }
             error = TError("Expected a positive writer feedback, received a null ref");
         } else {
-            try {
-                CheckWriterFeedback(ref, EWriterFeedback::Success);
-            } catch (const TErrorException& ex) {
-                error = ex.Error();
-            }
+            error = CheckWriterFeedback(ref, EWriterFeedback::Success);
         }
     }
 
@@ -703,7 +700,11 @@ void HandleInputStreamingRequest(
 {
     auto outputStream = context->GetResponseAttachmentsStream();
     YCHECK(outputStream);
-    while (auto block = WaitFor(blockGenerator()).ValueOrThrow()) {
+    auto getNextBlock = [&] () {
+        return WaitFor(blockGenerator())
+            .ValueOrThrow();
+    };
+    while (auto block = getNextBlock()) {
         WaitFor(outputStream->Write(block))
             .ThrowOnError();
     }
@@ -733,13 +734,18 @@ void HandleOutputStreamingRequest(
     auto outputStream = context->GetResponseAttachmentsStream();
     YCHECK(outputStream);
 
+    auto getNextBlock = [&] () {
+        return WaitFor(inputStream->Read())
+            .ValueOrThrow();
+    };
+
     if (feedbackEnabled) {
         auto handshakeRef = GenerateWriterFeedbackMessage(
             NDetail::EWriterFeedback::Handshake);
         WaitFor(outputStream->Write(handshakeRef))
             .ThrowOnError();
 
-        while (auto block = WaitFor(inputStream->Read()).ValueOrThrow()) {
+        while (auto block = getNextBlock()) {
             WaitFor(blockHandler(block))
                 .ThrowOnError();
 
@@ -753,7 +759,7 @@ void HandleOutputStreamingRequest(
     } else {
         WaitFor(outputStream->Close())
             .ThrowOnError();
-        while (auto block = WaitFor(inputStream->Read()).ValueOrThrow()) {
+        while (auto block = getNextBlock()) {
             WaitFor(blockHandler(block))
                 .ThrowOnError();
         }
