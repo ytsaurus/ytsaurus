@@ -506,6 +506,7 @@ class ConfigsProvider_19(ConfigsProvider):
         for index in xrange(provision["http_proxy"]["count"]):
             proxy_config = default_configs.get_proxy_config()
             proxy_config["port"] = provision["http_proxy"]["http_ports"][index] if provision["http_proxy"]["http_ports"] else next(ports_generator)
+            proxy_config["monitoring_port"] = next(ports_generator)
             proxy_config["fqdn"] = "{0}:{1}".format(provision["fqdn"], proxy_config["port"])
 
             set_at(proxy_config, "coordination/public_fqdn", proxy_config["fqdn"])
