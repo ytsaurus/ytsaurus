@@ -2,6 +2,8 @@
 
 #include "helpers.h"
 
+#include <yt/client/api/table_writer.h>
+
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/schema.h>
 
@@ -14,11 +16,11 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcTableWriter
+class TTableWriter
     : public ITableWriter
 {
 public:
-    TRpcTableWriter(
+    TTableWriter(
         IAsyncZeroCopyOutputStreamPtr underlying,
         const TTableSchema& schema)
         : Underlying_ (std::move(underlying))
@@ -39,7 +41,7 @@ public:
         {
             auto guard = Guard(EventLock_);
             if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
-                THROW_ERROR_EXCEPTION("TRpcTableWriter::Write() was called before waiting for GetReadyEvent()");
+                THROW_ERROR_EXCEPTION("Write() was called before waiting for GetReadyEvent()");
             }
 
             ReadyEvent_ = promise;
@@ -81,13 +83,14 @@ public:
     }
 
 private:
-    IAsyncZeroCopyOutputStreamPtr Underlying_;
-    TTableSchema Schema_;
+    const IAsyncZeroCopyOutputStreamPtr Underlying_;
+    const TTableSchema Schema_;
+
     TNameTablePtr NameTable_;
     size_t NameTableSize_ = 0;
 
-    TPromise<void> ReadyEvent_;
     TSpinLock EventLock_;
+    TPromise<void> ReadyEvent_;
 
     std::atomic<bool> Closed_ = {false};
 
@@ -99,14 +102,14 @@ private:
     }
 };
 
-TFuture<ITableWriterPtr> CreateRpcTableWriter(
-    TApiServiceProxy::TReqCreateTableWriterPtr request)
+TFuture<ITableWriterPtr> CreateRpcProxyTableWriter(
+    TApiServiceProxy::TReqWriteTablePtr request)
 {
     auto schemaHolder = std::make_unique<TTableSchema>();
     auto createStreamResult = NRpc::CreateRpcClientOutputStream(
-        request,
+        std::move(request),
         BIND ([=, schema = schemaHolder.get()] (const TSharedRef& metaRef) {
-            NApi::NRpcProxy::NProto::TMetaCreateTableWriter meta;
+            NApi::NRpcProxy::NProto::TWriteTableMeta meta;
             if (!TryDeserializeProto(&meta, metaRef)) {
                 THROW_ERROR_EXCEPTION("Failed to deserialize schema for table writer");
             }
@@ -116,7 +119,7 @@ TFuture<ITableWriterPtr> CreateRpcTableWriter(
 
     return createStreamResult.Apply(BIND([=, schemaHolder = std::move(schemaHolder)]
         (const IAsyncZeroCopyOutputStreamPtr& outputStream) {
-            return New<TRpcTableWriter>(outputStream, *schemaHolder);
+            return New<TTableWriter>(outputStream, *schemaHolder);
         })).As<ITableWriterPtr>();
 }
 

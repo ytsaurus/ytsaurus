@@ -589,7 +589,7 @@ TFuture<ITableReaderPtr> TClientBase::CreateTableReader(
     auto connection = GetRpcProxyConnection();
     const auto& config = connection->GetConfig();
 
-    auto req = proxy.CreateTableReader();
+    auto req = proxy.ReadTable();
     req->SetTimeout(config->DefaultTotalStreamingTimeout);
 
     ToProto(req->mutable_path(), path);
@@ -602,7 +602,7 @@ TFuture<ITableReaderPtr> TClientBase::CreateTableReader(
 
     ToProto(req->mutable_transactional_options(), options);
 
-    return CreateRpcTableReader(req);
+    return CreateRpcProxyTableReader(std::move(req));
 }
 
 TFuture<ITableWriterPtr> TClientBase::CreateTableWriter(
@@ -613,7 +613,7 @@ TFuture<ITableWriterPtr> TClientBase::CreateTableWriter(
     auto connection = GetRpcProxyConnection();
     const auto& config = connection->GetConfig();
 
-    auto req = proxy.CreateTableWriter();
+    auto req = proxy.WriteTable();
     req->SetTimeout(config->DefaultTotalStreamingTimeout);
 
     ToProto(req->mutable_path(), path);
@@ -624,7 +624,7 @@ TFuture<ITableWriterPtr> TClientBase::CreateTableWriter(
 
     ToProto(req->mutable_transactional_options(), options);
 
-    return CreateRpcTableWriter(req);
+    return CreateRpcProxyTableWriter(std::move(req));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1545,7 +1545,7 @@ message TRspWriteJournal
 
 //------------------------------------------------------------------------------
 
-message TReqCreateTableReader
+message TReqReadTable
 {
     required string path = 1; // RichYPath
 
@@ -1556,7 +1556,7 @@ message TReqCreateTableReader
     optional TTransactionalOptions transactional_options = 100;
 }
 
-message TMetaCreateTableReader
+message TReadTableMeta
 {
     required int64 start_row_index = 1;
     repeated string key_columns = 2;
@@ -1572,13 +1572,13 @@ message TTableReaderPayload
     required NYT.NChunkClient.NProto.TDataStatistics data_statistics = 2;
 }
 
-message TRspCreateTableReader
+message TRspReadTable
 {
 }
 
 //------------------------------------------------------------------------------
 
-message TReqCreateTableWriter
+message TReqWriteTable
 {
     required string path = 1; // RichYPath
 
@@ -1587,12 +1587,12 @@ message TReqCreateTableWriter
     optional TTransactionalOptions transactional_options = 100;
 }
 
-message TMetaCreateTableWriter
+message TWriteTableMeta
 {
     required TTableSchema schema = 1;
 }
 
-message TRspCreateTableWriter
+message TRspWriteTable
 {
 }
 
