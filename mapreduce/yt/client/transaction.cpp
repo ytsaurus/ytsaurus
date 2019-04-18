@@ -5,6 +5,7 @@
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/finally_guard.h>
 #include <mapreduce/yt/common/wait_proxy.h>
+#include <mapreduce/yt/common/retry_lib.h>
 
 #include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/http/retry_request.h>
@@ -162,7 +163,11 @@ void TPingableTransaction::Pinger()
             NDetail::NRawClient::PingTx(Auth_, TransactionId_, retryPolicy);
         } catch (const TErrorResponse& e) {
             // All other errors must be retried by our TPingRetryPolicy.
-            Y_VERIFY(e.GetError().ContainsErrorCode(NYT::NClusterErrorCodes::NTransactionClient::NoSuchTransaction));
+            Y_VERIFY(
+                !IsRetriable(e) ||
+                e.GetError().ContainsErrorCode(NYT::NClusterErrorCodes::NTransactionClient::NoSuchTransaction),
+                "Unexpected exception: %s",
+                e.what());
             break;
         }
 
