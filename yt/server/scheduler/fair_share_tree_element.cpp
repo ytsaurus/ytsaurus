@@ -126,15 +126,15 @@ const TDynamicAttributes& TFairShareContext::DynamicAttributesFor(const TSchedul
     return DynamicAttributesList[index];
 }
 
-TFairShareContext::TStageState::TStageState(TString stageName, TScheduleJobsProfilingCounters* profilingCounters)
-    : Name(std::move(stageName))
+TFairShareContext::TStageState::TStageState(const TString& stageName, TScheduleJobsProfilingCounters* profilingCounters)
+    : Name(stageName)
     , ProfilingCounters(profilingCounters)
 { }
 
-void TFairShareContext::PrepareForStage(TString stageName, TScheduleJobsProfilingCounters* profilingCounters)
+void TFairShareContext::PrepareForStage(const TString& stageName, TScheduleJobsProfilingCounters* profilingCounters)
 {
     YCHECK(!Stage);
-    Stage = TStageState(std::move(stageName), profilingCounters);
+    Stage = TStageState(stageName, profilingCounters);
 }
 
 void TFairShareContext::ProfileStageTimingsAndLogStatistics()
