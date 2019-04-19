@@ -257,6 +257,10 @@ namespace NYT {
 
     struct TSortOperationSpec;
 
+    class IISchemaInferenceContext;
+
+    class TSchemaInferenceResultBuilder;
+
     class IJob;
 
     class IRawJob;

@@ -123,18 +123,35 @@ TStructuredJobTableList CanonizeStructuredTableList(const TAuth& auth, const TVe
     return result;
 }
 
-TVector<TRichYPath> GetPathList(const TStructuredJobTableList& tableList, bool inferSchema)
+TVector<TRichYPath> GetPathList(
+    const TStructuredJobTableList& tableList,
+    const TMaybe<TSchemaInferenceResult>& jobSchemaInferenceResult,
+    bool inferSchemaFromDescriptions)
 {
+    Y_VERIFY(!jobSchemaInferenceResult || tableList.size() == jobSchemaInferenceResult->size());
+
+    auto maybeInferSchema = [&] (const TStructuredJobTable& table, ui32 tableIndex) -> TMaybe<TTableSchema> {
+        if (jobSchemaInferenceResult && !jobSchemaInferenceResult->at(tableIndex).Empty()) {
+            return jobSchemaInferenceResult->at(tableIndex);
+        }
+        if (inferSchemaFromDescriptions) {
+            return GetTableSchema(table.Description);
+        }
+        return Nothing();
+    };
+
     TVector<TRichYPath> result;
     result.reserve(tableList.size());
-    for (const auto& table : tableList) {
-        Y_VERIFY(table.RichYPath, "Cannot get path for intermediate table.");
+    for (size_t tableIndex = 0; tableIndex != tableList.size(); ++tableIndex) {
+        const auto& table = tableList[tableIndex];
+        Y_VERIFY(table.RichYPath, "Cannot get path for intermediate table");
         auto richYPath = *table.RichYPath;
-        if (inferSchema && !richYPath.Schema_) {
-            if (auto schema = GetTableSchema(table.Description)) {
+        if (!richYPath.Schema_) {
+            if (auto schema = maybeInferSchema(table, tableIndex)) {
                 richYPath.Schema(std::move(*schema));
             }
         }
+
         result.emplace_back(std::move(richYPath));
     }
     return result;

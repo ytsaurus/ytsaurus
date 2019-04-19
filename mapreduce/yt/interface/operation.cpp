@@ -1,5 +1,7 @@
 #include "operation.h"
 
+#include <util/generic/iterator_range.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,6 +72,109 @@ const TJobBinaryConfig& TUserJobSpec::GetJobBinary() const
 TVector<std::tuple<TLocalFilePath, TAddLocalFileOptions>> TUserJobSpec::GetLocalFiles() const
 {
     return LocalFiles_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSchemaInferenceResultBuilder::TSchemaInferenceResultBuilder(const ISchemaInferenceContext& context)
+    : Context_(context)
+    , Schemas_(context.GetOutputTableCount(), TIllegallyMissingSchema{})
+{ }
+
+TSchemaInferenceResultBuilder& TSchemaInferenceResultBuilder::OutputSchema(int tableIndex, TTableSchema schema)
+{
+    Y_ENSURE(tableIndex < static_cast<int>(Schemas_.size()));
+    ValidateIllegallyMissing(tableIndex);
+    Schemas_[tableIndex] = std::move(schema);
+    return *this;
+}
+
+TSchemaInferenceResultBuilder& TSchemaInferenceResultBuilder::OutputSchemas(int begin, int end, const TTableSchema& schema)
+{
+    Y_ENSURE(begin <= end);
+    for (auto i = begin; i < end; ++i) {
+        ValidateIllegallyMissing(i);
+    }
+    for (auto i = begin; i < end; ++i) {
+        Schemas_[i] = schema;
+    }
+    return *this;
+}
+
+TSchemaInferenceResultBuilder& TSchemaInferenceResultBuilder::IntentionallyMissingOutputSchema(int tableIndex)
+{
+    Y_ENSURE(tableIndex < static_cast<int>(Schemas_.size()));
+    ValidateIllegallyMissing(tableIndex);
+    Schemas_[tableIndex] = TIntentionallyMissingSchema{};
+    return *this;
+}
+
+TSchemaInferenceResultBuilder& TSchemaInferenceResultBuilder::RemainingOutputSchemas(const TTableSchema& schema)
+{
+    for (auto& entry : Schemas_) {
+        if (HoldsAlternative<TIllegallyMissingSchema>(entry)) {
+            entry = schema;
+        }
+    }
+    return *this;
+}
+
+TSchemaInferenceResult TSchemaInferenceResultBuilder::Build()
+{
+    FinallyValidate();
+
+    TSchemaInferenceResult result;
+    result.reserve(Schemas_.size());
+    for (auto& schema : Schemas_) {
+        if (HoldsAlternative<TTableSchema>(schema)) {
+            result.push_back(std::move(Get<TTableSchema>(schema)));
+        } else {
+            result.emplace_back();
+        }
+        schema = TIllegallyMissingSchema();
+    }
+    return result;
+}
+
+void TSchemaInferenceResultBuilder::FinallyValidate() const
+{
+    TVector<int> illegallyMissingSchemaIndices;
+    for (int i = 0; i < static_cast<int>(Schemas_.size()); ++i) {
+        if (HoldsAlternative<TIllegallyMissingSchema>(Schemas_[i])) {
+            illegallyMissingSchemaIndices.push_back(i);
+        }
+    }
+    if (illegallyMissingSchemaIndices.empty()) {
+        return;
+    }
+    TApiUsageError error;
+    error << "Output table schemas are missing and not marked as intentionally missing: ";
+    for (auto i : illegallyMissingSchemaIndices) {
+        error << "no. " << i;
+        if (auto path = Context_.GetInputTablePath(i)) {
+            error << "(" << *path << ")";
+        }
+        error << "; ";
+    }
+    ythrow error;
+}
+
+void TSchemaInferenceResultBuilder::ValidateIllegallyMissing(int tableIndex) const
+{
+    Y_ENSURE_EX(HoldsAlternative<TIllegallyMissingSchema>(Schemas_[tableIndex]),
+        TApiUsageError() <<
+        "Output table schema no. " << tableIndex << " " <<
+        "(" << Context_.GetOutputTablePath(tableIndex).GetOrElse("<unknown path>") << ") " <<
+        "is already set or marked as intentionally missing");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void IJob::InferSchemas(const ISchemaInferenceContext& context, TSchemaInferenceResultBuilder& resultBuilder) const
+{
+    for (int i = 0; i < context.GetOutputTableCount(); ++i) {
+        resultBuilder.IntentionallyMissingOutputSchema(i);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

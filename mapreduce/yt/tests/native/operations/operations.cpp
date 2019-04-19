@@ -2812,7 +2812,7 @@ Y_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT_NO_EXCEPTION(thread->Join());
     }
 
-    void TestProtobufSchemaInferring(bool setOperationOptions)
+    void TestProtobufSchemaInference(bool setOperationOptions)
     {
         TTestFixture fixture;
         auto client = fixture.GetClient();
@@ -2865,14 +2865,14 @@ Y_UNIT_TEST_SUITE(Operations)
         checkSchema(client->Get(workingDir + "/mapreduce_output/@schema"));
     }
 
-    Y_UNIT_TEST(ProtobufSchemaInferring_Config)
+    Y_UNIT_TEST(ProtobufSchemaInference_Config)
     {
-        TestProtobufSchemaInferring(false);
+        TestProtobufSchemaInference(false);
     }
 
-    Y_UNIT_TEST(ProtobufSchemaInferring_Options)
+    Y_UNIT_TEST(ProtobufSchemaInference_Options)
     {
-        TestProtobufSchemaInferring(true);
+        TestProtobufSchemaInference(true);
     }
 
     Y_UNIT_TEST(OutputTableCounter)
@@ -2996,7 +2996,8 @@ Y_UNIT_TEST_SUITE(Operations)
 
         op3->AbortOperation();
     }
-}
+
+} // Y_UNIT_TEST_SUITE(Operations)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3243,7 +3244,8 @@ Y_UNIT_TEST_SUITE(OperationWatch)
         //expect no exception
         operation->Watch().Wait();
     }
-}
+
+} // Y_UNIT_TEST_SUITE(OperationWatch)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3459,6 +3461,359 @@ Y_UNIT_TEST_SUITE(OperationTracker)
 
         tx->Abort(); // We make sure that operation is stopped
     }
-}
+
+} // Y_UNIT_TEST_SUITE(OperationTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+// This mapper maps `n` input tables to `2n` output tables.
+// First `n` tables are duplicated into outputs `0,2,...,2n-2` and `1,3,...,2n-1`,
+// adding "int64" columns "even" and "odd" to schemas correspondingly.
+class TInferringNodeMapper : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
+{
+public:
+    void Do(TReader* reader, TWriter* writer) override
+    {
+        for (; reader->IsValid(); reader->Next()) {
+            auto even = reader->MoveRow();
+            auto odd = even;
+            even["even"] = 100;
+            odd["odd"] = 101;
+            writer->AddRow(even, 2 * reader->GetTableIndex());
+            writer->AddRow(odd, 2 * reader->GetTableIndex() + 1);
+        }
+    }
+
+    void InferSchemas(const ISchemaInferenceContext& context, TSchemaInferenceResultBuilder& builder) const override
+    {
+        for (int i = 0; i < context.GetInputTableCount(); ++i) {
+            auto schema = context.GetInputTableSchema(i);
+            schema.AddColumn(TColumnSchema().Name("even").Type(EValueType::VT_INT64));
+            builder.OutputSchema(2 * i, schema);
+            schema.Columns_.back() = TColumnSchema().Name("odd").Type(EValueType::VT_INT64);
+            builder.OutputSchema(2 * i + 1, schema);
+        }
+    }
+};
+REGISTER_MAPPER(TInferringNodeMapper);
+
+// This mapper sends all the input rows into the 0-th output stream.
+// Moreover, a row from i-th table is sent to (i + 1)-th output stream.
+// Schema for 0-th table is the result of concatenation of all the input schemas,
+// other output schemas are copied as-is.
+class TInferringMapperForMapReduce : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
+{
+public:
+    void Do(TReader* reader, TWriter* writer) override
+    {
+        for (; reader->IsValid(); reader->Next()) {
+            writer->AddRow(reader->GetRow(), 0);
+            writer->AddRow(reader->MoveRow(), 1 + reader->GetTableIndex());
+        }
+    }
+
+    void InferSchemas(const ISchemaInferenceContext& context, TSchemaInferenceResultBuilder& builder) const override
+    {
+        UNIT_ASSERT_VALUES_EQUAL(context.GetInputTableCount() + 1, context.GetOutputTableCount());
+
+        TTableSchema bigSchema;
+        for (int i = 0; i < context.GetInputTableCount(); ++i) {
+            auto schema = context.GetInputTableSchema(i);
+            UNIT_ASSERT(!schema.Empty());
+            builder.OutputSchema(i + 1, schema);
+            for (const auto& column : schema.Columns_) {
+                bigSchema.AddColumn(column);
+            }
+        }
+        builder.OutputSchema(0, bigSchema);
+    }
+};
+REGISTER_MAPPER(TInferringMapperForMapReduce);
+
+// This reduce combiner retains only the columns from `ColumnsToRetain_`.
+class TInferringReduceCombiner : public IReducer<TTableReader<TNode>, TTableWriter<TNode>>
+{
+public:
+    TInferringReduceCombiner() = default;
+
+    TInferringReduceCombiner(THashSet<TString> columnsToRetain)
+        : ColumnsToRetain_(std::move(columnsToRetain))
+    { }
+
+    void Do(TReader* reader, TWriter* writer) override
+    {
+        for (; reader->IsValid(); reader->Next()) {
+            auto row = reader->MoveRow();
+            TNode out = TNode::CreateMap();
+            for (const auto& toRetain : ColumnsToRetain_) {
+                if (row.HasKey(toRetain)) {
+                    out[toRetain] = std::move(row[toRetain]);
+                }
+            }
+            writer->AddRow(out);
+        }
+    }
+
+    void InferSchemas(const ISchemaInferenceContext& context, TSchemaInferenceResultBuilder& builder) const override
+    {
+        UNIT_ASSERT_VALUES_EQUAL(context.GetInputTableCount(), 1);
+        UNIT_ASSERT_VALUES_EQUAL(context.GetOutputTableCount(), 1);
+        UNIT_ASSERT(!context.GetInputTableSchema(0).Empty());
+
+        TTableSchema result;
+        for (const auto& column : context.GetInputTableSchema(0).Columns_) {
+            if (ColumnsToRetain_.contains(column.Name_)) {
+                result.AddColumn(column);
+            }
+        }
+        builder.OutputSchema(0, result);
+    }
+
+    Y_SAVELOAD_JOB(ColumnsToRetain_);
+
+private:
+    THashSet<TString> ColumnsToRetain_;
+};
+REGISTER_REDUCER(TInferringReduceCombiner);
+
+// The reducer just outputs the passed rows. Schema is copied as-is.
+class TInferringIdReducer : public TIdReducer
+{
+public:
+    void InferSchemas(const ISchemaInferenceContext& context, TSchemaInferenceResultBuilder& builder) const override
+    {
+        UNIT_ASSERT_VALUES_EQUAL(context.GetInputTableCount(), 1);
+        UNIT_ASSERT_VALUES_EQUAL(context.GetOutputTableCount(), 1);
+        UNIT_ASSERT(!context.GetInputTableSchema(0).Empty());
+        builder.OutputSchema(0, context.GetInputTableSchema(0));
+    }
+};
+REGISTER_REDUCER(TInferringIdReducer);
+
+// This mapper infers one additional column.
+class TInferringProtoMapper : public TUrlRowIdMapper
+{
+public:
+    void InferSchemas(const ISchemaInferenceContext& context, TSchemaInferenceResultBuilder& builder) const override
+    {
+        UNIT_ASSERT_VALUES_EQUAL(context.GetInputTableCount(), 1);
+        UNIT_ASSERT_VALUES_EQUAL(context.GetOutputTableCount(), 1);
+
+        auto schema = context.GetInputTableSchema(0);
+        UNIT_ASSERT(!schema.Empty());
+
+        schema.AddColumn("extra", EValueType::VT_DOUBLE);
+        builder.OutputSchema(0, schema);
+    }
+};
+REGISTER_MAPPER(TInferringProtoMapper);
+
+////////////////////////////////////////////////////////////////////////////////
+
+Y_UNIT_TEST_SUITE(JobSchemaInference)
+{
+    Y_UNIT_TEST(Map)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto someSchema = TTableSchema().AddColumn("some_column", EValueType::VT_STRING);
+        auto otherSchema = TTableSchema().AddColumn("other_column", EValueType::VT_INT64);
+
+        TYPath someTable = workingDir + "/some_table";
+        TYPath otherTable = workingDir + "/other_table";
+        {
+            auto writer = client->CreateTableWriter<TNode>(TRichYPath(someTable).Schema(someSchema));
+            writer->AddRow(TNode()("some_column", "abc"));
+            writer->Finish();
+        }
+        {
+            auto writer = client->CreateTableWriter<TNode>(TRichYPath(otherTable).Schema(otherSchema));
+            writer->AddRow(TNode()("other_column", 12));
+            writer->Finish();
+        }
+
+        TMapOperationSpec spec;
+        spec.AddInput<TNode>(someTable);
+        spec.AddInput<TNode>(otherTable);
+
+        TVector<TYPath> outTables;
+        for (int i = 0; i < 4; ++i) {
+            outTables.push_back(workingDir + "/out_table_" + ToString(i));
+            spec.AddOutput<TNode>(outTables.back());
+        }
+
+        client->Map(spec, new TInferringNodeMapper());
+
+        TVector<TTableSchema> outSchemas;
+        for (const auto& path : outTables) {
+            outSchemas.emplace_back();
+            Deserialize(outSchemas.back(), client->Get(path + "/@schema"));
+        }
+
+        for (int i = 0; i < 4; ++i) {
+            UNIT_ASSERT_VALUES_EQUAL(outSchemas[i].Columns_.size(), 2);
+
+            if (i < 2) {
+                UNIT_ASSERT_VALUES_EQUAL(outSchemas[i].Columns_[0].Name_, someSchema.Columns_[0].Name_);
+                UNIT_ASSERT_VALUES_EQUAL(outSchemas[i].Columns_[0].Type_, someSchema.Columns_[0].Type_);
+            } else {
+                UNIT_ASSERT_VALUES_EQUAL(outSchemas[i].Columns_[0].Name_, otherSchema.Columns_[0].Name_);
+                UNIT_ASSERT_VALUES_EQUAL(outSchemas[i].Columns_[0].Type_, otherSchema.Columns_[0].Type_);
+            }
+
+            UNIT_ASSERT_VALUES_EQUAL(outSchemas[i].Columns_[1].Name_, (i % 2 == 0) ? "even" : "odd");
+            UNIT_ASSERT_VALUES_EQUAL(outSchemas[i].Columns_[1].Type_, EValueType::VT_INT64);
+        }
+    }
+
+    Y_UNIT_TEST(MapReduce)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto someSchema = TTableSchema()
+            .AddColumn("some_key", EValueType::VT_INT64, ESortOrder::SO_ASCENDING)
+            .AddColumn("some_column", EValueType::VT_STRING);
+        auto otherSchema = TTableSchema()
+            .AddColumn("other_key", EValueType::VT_INT64, ESortOrder::SO_ASCENDING)
+            .AddColumn(TColumnSchema().Name("other_column").Type(EValueType::VT_INT64));
+
+        TYPath someTable = workingDir + "/some_table";
+        TYPath otherTable = workingDir + "/other_table";
+        {
+            auto writer = client->CreateTableWriter<TNode>(TRichYPath(someTable).Schema(someSchema));
+            writer->AddRow(TNode()("some_column", "abc"));
+            writer->Finish();
+        }
+        {
+            auto writer = client->CreateTableWriter<TNode>(TRichYPath(otherTable).Schema(otherSchema));
+            writer->AddRow(TNode()("other_column", 12));
+            writer->Finish();
+        }
+
+        auto spec = TMapReduceOperationSpec()
+            .AddInput<TNode>(someTable)
+            .AddInput<TNode>(otherTable)
+            .SortBy({"some_key", "other_key"})
+            .MaxFailedJobCount(1)
+            .ForceReduceCombiners(true);
+
+        TVector<TYPath> mapperOutTables;
+        for (int i = 0; i < 2; ++i) {
+            mapperOutTables.push_back(workingDir + "/mapper_out_table_" + ToString(i));
+            spec.AddMapOutput<TNode>(mapperOutTables.back());
+        }
+
+        TYPath outTable = workingDir + "/out_table";
+        spec.AddOutput<TNode>(outTable);
+
+        THashSet<TString> toRetain = {"some_key", "other_key", "other_column"};
+        client->MapReduce(
+            spec,
+            new TInferringMapperForMapReduce(),
+            new TInferringReduceCombiner(toRetain),
+            new TInferringIdReducer());
+
+        TVector<TTableSchema> mapperOutSchemas;
+        for (const auto& path : mapperOutTables) {
+            mapperOutSchemas.emplace_back();
+            Deserialize(mapperOutSchemas.back(), client->Get(path + "/@schema"));
+        }
+        TTableSchema outSchema;
+        Deserialize(outSchema, client->Get(outTable + "/@schema"));
+
+        for (const auto& [index, expectedSchema] : TVector<std::pair<int, TTableSchema>>{{0, someSchema}, {1, otherSchema}}) {
+            UNIT_ASSERT_VALUES_EQUAL(mapperOutSchemas[index].Columns_.size(), 2);
+
+            UNIT_ASSERT_VALUES_EQUAL(mapperOutSchemas[index].Columns_[0].Name_, expectedSchema.Columns_[0].Name_);
+            UNIT_ASSERT_VALUES_EQUAL(mapperOutSchemas[index].Columns_[0].Type_, expectedSchema.Columns_[0].Type_);
+            UNIT_ASSERT_VALUES_EQUAL(mapperOutSchemas[index].Columns_[0].SortOrder_, expectedSchema.Columns_[0].SortOrder_);
+
+            UNIT_ASSERT_VALUES_EQUAL(mapperOutSchemas[index].Columns_[1].Name_, expectedSchema.Columns_[1].Name_);
+            UNIT_ASSERT_VALUES_EQUAL(mapperOutSchemas[index].Columns_[1].Type_, expectedSchema.Columns_[1].Type_);
+        }
+
+        UNIT_ASSERT_VALUES_EQUAL(outSchema.Columns_.size(), 3);
+
+        for (const auto& [index, expectedName, expectedType, expectedSortOrder] :
+            TVector<std::tuple<int, TString, EValueType, TMaybe<ESortOrder>>>{
+                {0, "some_key", EValueType::VT_INT64, ESortOrder::SO_ASCENDING},
+                {1, "other_key", EValueType::VT_INT64, ESortOrder::SO_ASCENDING},
+                {2, "other_column", EValueType::VT_INT64, Nothing()}})
+        {
+            UNIT_ASSERT_VALUES_EQUAL(outSchema.Columns_[index].Name_, expectedName);
+            UNIT_ASSERT_VALUES_EQUAL(outSchema.Columns_[index].Type_, expectedType);
+            UNIT_ASSERT_VALUES_EQUAL(outSchema.Columns_[index].SortOrder_, expectedSortOrder);
+        }
+    }
+
+    Y_UNIT_TEST(PrecedenceOverProtobufInference)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        TYPath input = workingDir + "/input";
+        {
+            auto writer = client->CreateTableWriter<TUrlRow>(
+                WithSchema<TUrlRow>(TRichYPath(input)));
+            TUrlRow row;
+            row.SetHost("ya.ru");
+            row.SetPath("search");
+            row.SetHttpCode(404);
+            writer->AddRow(row);
+            writer->Finish();
+        }
+
+        TYPath outputForProtoInference = workingDir + "/output_for_proto_inference";
+        client->Map(
+            TMapOperationSpec()
+                .AddInput<TUrlRow>(input)
+                .AddOutput<TUrlRow>(outputForProtoInference),
+            new TUrlRowIdMapper(),
+            TOperationOptions()
+                .InferOutputSchema(true));
+
+        {
+            TTableSchema schema;
+            Deserialize(schema, client->Get(outputForProtoInference + "/@schema"));
+
+            UNIT_ASSERT_VALUES_EQUAL(schema.Columns_.size(), 3);
+            for (const auto& [index, expectedName, expectedType] : TVector<std::tuple<int, TString, EValueType>>{
+                {0, "Host", EValueType::VT_STRING},
+                {1, "Path", EValueType::VT_STRING},
+                {2, "HttpCode", EValueType::VT_INT32}})
+            {
+                UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[index].Name_, expectedName);
+                UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[index].Type_, expectedType);
+            }
+        }
+
+        TYPath outputForBothInferences = workingDir + "/output_for_both_inferences";
+        client->Map(
+            TMapOperationSpec()
+                .AddInput<TUrlRow>(input)
+                .AddOutput<TUrlRow>(outputForBothInferences),
+            new TInferringProtoMapper(),
+            TOperationOptions()
+                .InferOutputSchema(true));
+
+        TTableSchema schema;
+        Deserialize(schema, client->Get(outputForBothInferences + "/@schema"));
+
+        UNIT_ASSERT_VALUES_EQUAL(schema.Columns_.size(), 4);
+        for (const auto& [index, expectedName, expectedType] : TVector<std::tuple<int, TString, EValueType>>{
+            {0, "Host", EValueType::VT_STRING},
+            {1, "Path", EValueType::VT_STRING},
+            {2, "HttpCode", EValueType::VT_INT32},
+            {3, "extra", EValueType::VT_DOUBLE}})
+        {
+            UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[index].Name_, expectedName);
+            UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[index].Type_, expectedType);
+        }
+    }
+
+} // Y_UNIT_TEST_SUITE(JobSchemaInference)

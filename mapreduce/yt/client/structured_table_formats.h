@@ -47,7 +47,10 @@ TString JobTablePathString(const TStructuredJobTable& jobTable);
 TStructuredJobTableList ToStructuredJobTableList(const TVector<TStructuredTablePath>& tableList);
 
 TStructuredJobTableList CanonizeStructuredTableList(const TAuth& auth, const TVector<TStructuredTablePath>& tableList);
-TVector<TRichYPath> GetPathList(const TStructuredJobTableList& tableList, bool inferSchema);
+TVector<TRichYPath> GetPathList(
+    const TStructuredJobTableList& tableList,
+    const TMaybe<TSchemaInferenceResult>& schemaInferenceResult,
+    bool inferSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 
