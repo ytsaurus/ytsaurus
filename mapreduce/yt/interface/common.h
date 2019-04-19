@@ -209,6 +209,8 @@ public:
     FLUENT_FIELD_DEFAULT(bool, Strict, true);
     FLUENT_FIELD_DEFAULT(bool, UniqueKeys, false);
 
+    bool Empty() const;
+
 public:
     // Some helper methods
 

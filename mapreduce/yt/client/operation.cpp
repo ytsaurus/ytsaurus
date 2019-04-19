@@ -4,6 +4,7 @@
 #include "file_reader.h"
 #include "file_writer.h"
 #include "init.h"
+#include "job_schema_inference.h"
 #include "operation_tracker.h"
 #include "retry_heavy_write_request.h"
 #include "skiff.h"
@@ -205,7 +206,7 @@ TSimpleOperationIo CreateSimpleOperationIo(
     TFormatBuilder formatBuilder(auth, transactionId, options);
 
     // Input format
-    auto[inputFormat, inputFormatConfig] = formatBuilder.CreateFormat(
+    auto [inputFormat, inputFormatConfig] = formatBuilder.CreateFormat(
         structuredJob,
         EIODirection::Input,
         structuredInputs,
@@ -214,7 +215,7 @@ TSimpleOperationIo CreateSimpleOperationIo(
         /* allowFormatFromTableAttribute = */ true);
 
     // Output format
-    auto[outputFormat, outputFormatConfig] = formatBuilder.CreateFormat(
+    auto [outputFormat, outputFormatConfig] = formatBuilder.CreateFormat(
         structuredJob,
         EIODirection::Output,
         structuredOutputs,
@@ -223,10 +224,19 @@ TSimpleOperationIo CreateSimpleOperationIo(
         /* allowFormatFromTableAttribute = */ false);
 
     const bool inferOutputSchema = options.InferOutputSchema_.GetOrElse(TConfig::Get()->InferTableSchema);
-    auto outputPaths = GetPathList(structuredOutputs, inferOutputSchema);
+
+    auto jobSchemaInferenceResult = InferJobSchemas(
+        structuredJob,
+        TSchemaInferenceContext(
+            structuredInputs,
+            structuredOutputs,
+            auth,
+            transactionId));
+
+    auto outputPaths = GetPathList(structuredOutputs, jobSchemaInferenceResult, inferOutputSchema);
 
     return TSimpleOperationIo {
-        GetPathList(structuredInputs, /*inferSchema*/ false),
+        GetPathList(structuredInputs, /*schemaInferenceResult*/ Nothing(), /*inferSchema*/ false),
         outputPaths,
 
         inputFormat,
@@ -264,7 +274,6 @@ TSimpleOperationIo CreateSimpleOperationIo(
         TVector<TSmallJobFile>{},
     };
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1400,6 +1409,9 @@ TOperationId DoExecuteMapReduce(
         .Item("input_table_paths").List(operationIo.Inputs)
         .Item("output_table_paths").List(allOutputs)
         .Item("mapper_output_table_count").Value(operationIo.MapOutputs.size())
+        .DoIf(spec.ForceReduceCombiners_.Defined(), [&] (TFluentMap fluent) {
+            fluent.Item("force_reduce_combiners").Value(*spec.ForceReduceCombiners_);
+        })
         .Item("map_job_io").BeginMap()
             .Item("control_attributes").BeginMap()
                 .Item("enable_row_index").Value(true)
@@ -1469,14 +1481,12 @@ TOperationId ExecuteMapReduce(
 
     const bool inferOutputSchema = options.InferOutputSchema_.GetOrElse(TConfig::Get()->InferTableSchema);
 
-    operationIo.Inputs = GetPathList(structuredInputs, /*inferSchema*/ false);
-    operationIo.MapOutputs = GetPathList(structuredMapOutputs, inferOutputSchema);
-    operationIo.Outputs = GetPathList(structuredOutputs, inferOutputSchema);
-
+    operationIo.Inputs = GetPathList(structuredInputs, /*jobSchemaInferenceResult*/ Nothing(), /*inferSchema*/ false);
     VerifyHasElements(operationIo.Inputs, "inputs");
-    VerifyHasElements(operationIo.Outputs, "outputs");
 
-    auto fixSpec = [&](const TFormat& format) {
+    TSchemaInferenceResult currentInferenceResult;
+
+    auto fixSpec = [&] (const TFormat& format) {
         if (format.IsYamredDsv()) {
             spec.SortBy_.Parts_.clear();
             spec.ReduceBy_.Parts_.clear();
@@ -1529,6 +1539,24 @@ TOperationId ExecuteMapReduce(
         operationIo.MapperJobFiles = CreateFormatConfig(inputFormatConfig, outputFormatConfig);
         operationIo.MapperInputFormat = inputFormat;
         operationIo.MapperOutputFormat = outputFormat;
+
+        auto mapperInferenceResult = InferJobSchemas(
+            *mapper,
+            TSchemaInferenceContext(
+                structuredInputs,
+                mapperOutput,
+                preparer.GetAuth(),
+                preparer.GetTransactionId()));
+
+        Y_VERIFY(mapperInferenceResult.size() >= 1);
+        currentInferenceResult = TSchemaInferenceResult{mapperInferenceResult[0]};
+        // The first output as it corresponds to the intermediate data.
+        TSchemaInferenceResult additionalOutputsInferenceResult(mapperInferenceResult.begin() + 1, mapperInferenceResult.end());
+
+        operationIo.MapOutputs = GetPathList(
+            structuredMapOutputs,
+            additionalOutputsInferenceResult,
+            inferOutputSchema);
     }
 
     if (reduceCombiner) {
@@ -1573,6 +1601,23 @@ TOperationId ExecuteMapReduce(
         if (isFirstStep) {
             fixSpec(*operationIo.ReduceCombinerInputFormat);
         }
+
+        if (isFirstStep) {
+            currentInferenceResult = InferJobSchemas(
+                *reduceCombiner,
+                TSchemaInferenceContext(
+                    inputs,
+                    outputs,
+                    preparer.GetAuth(),
+                    preparer.GetTransactionId()));
+        } else {
+            currentInferenceResult = InferJobSchemas(
+                *reduceCombiner,
+                TSpeculativeSchemaInferenceContext(
+                    currentInferenceResult,
+                    inputs,
+                    outputs));
+        }
     }
 
     const bool isFirstStep = (!mapper && !reduceCombiner);
@@ -1609,6 +1654,27 @@ TOperationId ExecuteMapReduce(
     if (isFirstStep) {
         fixSpec(operationIo.ReducerInputFormat);
     }
+
+    TSchemaInferenceResult reducerInferenceResult;
+    if (isFirstStep) {
+        reducerInferenceResult = InferJobSchemas(
+            reducer,
+            TSchemaInferenceContext(
+                structuredInputs,
+                structuredOutputs,
+                preparer.GetAuth(),
+                preparer.GetTransactionId()));
+    } else {
+        reducerInferenceResult = InferJobSchemas(
+            reducer,
+            TSpeculativeSchemaInferenceContext(
+                currentInferenceResult,
+                reducerInputs,
+                structuredOutputs));
+    }
+
+    operationIo.Outputs = GetPathList(structuredOutputs, reducerInferenceResult, inferOutputSchema);
+    VerifyHasElements(operationIo.Outputs, "outputs");
 
     return DoExecuteMapReduce(
         preparer,

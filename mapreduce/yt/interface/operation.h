@@ -492,6 +492,9 @@ struct TMapReduceOperationSpecBase
     // Ordered mode for map stage.
     // Check `Ordered' option for Map operation for more info.
     FLUENT_FIELD_OPTION(bool, Ordered);
+
+    // Always run reduce combiner before reducer.
+    FLUENT_FIELD_OPTION(bool, ForceReduceCombiners);
 };
 
 struct TMapReduceOperationSpec
@@ -649,11 +652,83 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// This interface provides the user with information about operation inputs/outputs
+// during schema inference (in `IJob::InferSchemas`).
+class ISchemaInferenceContext
+{
+public:
+    virtual int GetInputTableCount() const = 0;
+    virtual int GetOutputTableCount() const = 0;
+
+    virtual const TTableSchema& GetInputTableSchema(int index) const = 0;
+
+    // The below methods can return `Nothing()` if an input or output
+    // doesn't correspond to a real table in Cypress (i.e. it's itermediate table of map_reduce).
+    virtual TMaybe<TYPath> GetInputTablePath(int index) const = 0;
+    virtual TMaybe<TYPath> GetOutputTablePath(int index) const = 0;
+};
+
+using TSchemaInferenceResult = TVector<TMaybe<TTableSchema>>;
+
+// This class is used to build result of `IJob::InferSchemas`.
+// Calls to building methods can be chained.
+class TSchemaInferenceResultBuilder
+{
+public:
+    explicit TSchemaInferenceResultBuilder(const ISchemaInferenceContext& context);
+
+    //
+    // Set the schema of table with index `tableIndex`.
+    TSchemaInferenceResultBuilder& OutputSchema(int tableIndex, TTableSchema schema);
+
+    //
+    // Set schemas for tables with indices from STL-like container `indices` to `schema`.
+    template <typename TCont>
+    TSchemaInferenceResultBuilder& OutputSchemas(const TCont& indices, const TTableSchema& schema);
+
+    //
+    // Set schemas for tables with indices from `[begin, end)` to `schema`.
+    TSchemaInferenceResultBuilder& OutputSchemas(int begin, int end, const TTableSchema& schema);
+
+    //
+    // Mark the schema of table with index `tableIndex` intentionally missing.
+    TSchemaInferenceResultBuilder& IntentionallyMissingOutputSchema(int tableIndex);
+
+    //
+    // Set all not-yet-marked schemas to `schema`.
+    TSchemaInferenceResultBuilder& RemainingOutputSchemas(const TTableSchema& schema);
+
+    //
+    // The following methods are usually not used by clients.
+    TSchemaInferenceResult Build();
+
+private:
+    void ValidateIllegallyMissing(int tableIndex) const;
+    void FinallyValidate() const;
+
+private:
+    struct TIllegallyMissingSchema
+    { };
+    struct TIntentionallyMissingSchema
+    { };
+
+    using TEntry = ::TVariant<
+        TTableSchema,
+        TIllegallyMissingSchema,
+        TIntentionallyMissingSchema>;
+
+    const ISchemaInferenceContext& Context_;
+    TVector<TEntry> Schemas_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class IJob
     : public TThrRefBase
 {
 public:
-    enum EType {
+    enum EType
+    {
         Mapper,
         Reducer,
         ReducerAggregator,
@@ -671,15 +746,25 @@ public:
         Y_UNUSED(stream);
     }
 
-    const TNode& SecureVault() const {
+    const TNode& SecureVault() const
+    {
         return GetJobSecureVault();
     }
 
-    i64 GetOutputTableCount() const {
+    i64 GetOutputTableCount() const
+    {
         Y_VERIFY(NDetail::OutputTableCount > 0);
 
         return NDetail::OutputTableCount;
     }
+
+    // User can override this method in their job class
+    // to enable output table schema inference.
+    //
+    // All the output schemas must be either set or marked as intentionally missing.
+    //
+    // By default all the schemas are marked as intentionally missing.
+    virtual void InferSchemas(const ISchemaInferenceContext& context, TSchemaInferenceResultBuilder& resultBuilder) const;
 };
 
 #define Y_SAVELOAD_JOB(...) \

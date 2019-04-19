@@ -329,6 +329,20 @@ TDerived& TOperationIOSpec<TDerived>::AddProtobufOutput_VerySlow_Deprecated(cons
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename TCont>
+TSchemaInferenceResultBuilder& TSchemaInferenceResultBuilder::OutputSchemas(const TCont& indices, const TTableSchema& schema)
+{
+    for (ui32 index : indices) {
+        ValidateIllegallyMissing(index);
+    }
+    for (ui32 index : indices) {
+        Schemas_[index] = schema;
+    }
+    return *this;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TDerived>
 template <class TRow>
 TDerived& TIntermediateTablesHintSpec<TDerived>::HintMapOutput()

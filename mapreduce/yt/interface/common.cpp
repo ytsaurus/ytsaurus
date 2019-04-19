@@ -4,7 +4,6 @@
 
 #include <util/generic/xrange.h>
 
-
 namespace NYT {
 namespace NDetail {
 
@@ -107,6 +106,11 @@ bool HasExtension(const ::google::protobuf::FieldDescriptor& field) {
 } // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
+
+bool TTableSchema::Empty() const
+{
+    return Columns_.empty();
+}
 
 TTableSchema& TTableSchema::AddColumn(const TString& name, EValueType type) &
 {
