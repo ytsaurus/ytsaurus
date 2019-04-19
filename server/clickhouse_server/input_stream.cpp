@@ -19,6 +19,7 @@ using namespace DB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(max42): this is not a storage, rename?
 class TStorageInputStream
     : public IBlockInputStream
 {
@@ -48,13 +49,7 @@ private:
 
 std::string TStorageInputStream::getName() const
 {
-    const std::vector<TClickHouseTablePtr>& tables = TableReader->GetTables();
-    if (tables.size() == 1) {
-        return tables.front()->Name;
-    } else {
-        // TODO
-        return "TableConcatenation";
-    }
+    return "StorageInputStream";
 }
 
 Block TStorageInputStream::readImpl()

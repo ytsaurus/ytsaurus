@@ -6,17 +6,21 @@ namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using namespace NTableClient;
+
+/////////////////////////////////////////////////////////////////////////////
+
 void ITransaction::WriteRows(
     const NYPath::TYPath& path,
-    NTableClient::TNameTablePtr nameTable,
-    TSharedRange<NTableClient::TUnversionedRow> rows,
+    TNameTablePtr nameTable,
+    TSharedRange<TUnversionedRow> rows,
     const TModifyRowsOptions& options)
 {
     std::vector<TRowModification> modifications;
     modifications.reserve(rows.Size());
 
     for (auto row : rows) {
-        modifications.push_back({ERowModificationType::Write, row.ToTypeErasedRow()});
+        modifications.push_back({ERowModificationType::Write, row.ToTypeErasedRow(), TLockMask()});
     }
 
     ModifyRows(
@@ -28,15 +32,15 @@ void ITransaction::WriteRows(
 
 void ITransaction::WriteRows(
     const NYPath::TYPath& path,
-    NTableClient::TNameTablePtr nameTable,
-    TSharedRange<NTableClient::TVersionedRow> rows,
+    TNameTablePtr nameTable,
+    TSharedRange<TVersionedRow> rows,
     const TModifyRowsOptions& options)
 {
     std::vector<TRowModification> modifications;
     modifications.reserve(rows.Size());
 
     for (auto row : rows) {
-        modifications.push_back({ERowModificationType::VersionedWrite, row.ToTypeErasedRow()});
+        modifications.push_back({ERowModificationType::VersionedWrite, row.ToTypeErasedRow(), TLockMask()});
     }
 
     ModifyRows(
@@ -48,14 +52,14 @@ void ITransaction::WriteRows(
 
 void ITransaction::DeleteRows(
     const NYPath::TYPath& path,
-    NTableClient::TNameTablePtr nameTable,
-    TSharedRange<NTableClient::TKey> keys,
+    TNameTablePtr nameTable,
+    TSharedRange<TKey> keys,
     const TModifyRowsOptions& options)
 {
     std::vector<TRowModification> modifications;
     modifications.reserve(keys.Size());
     for (auto key : keys) {
-        modifications.push_back({ERowModificationType::Delete, key.ToTypeErasedRow()});
+        modifications.push_back({ERowModificationType::Delete, key.ToTypeErasedRow(), TLockMask()});
     }
 
     ModifyRows(
@@ -69,9 +73,9 @@ void ITransaction::DeleteRows(
 
 void ITransaction::LockRows(
     const NYPath::TYPath& path,
-    NTableClient::TNameTablePtr nameTable,
-    TSharedRange<NTableClient::TKey> keys,
-    ui32 lockMask)
+    TNameTablePtr nameTable,
+    TSharedRange<TKey> keys,
+    TLockMask lockMask)
 {
     std::vector<TRowModification> modifications;
     modifications.reserve(keys.Size());
@@ -80,7 +84,7 @@ void ITransaction::LockRows(
         TRowModification modification;
         modification.Type = ERowModificationType::ReadLockWrite;
         modification.Row = key.ToTypeErasedRow();
-        modification.ReadLocks = lockMask;
+        modification.Locks = lockMask;
         modifications.push_back(modification);
     }
 
@@ -93,18 +97,31 @@ void ITransaction::LockRows(
 
 void ITransaction::LockRows(
     const NYPath::TYPath& path,
-    NTableClient::TNameTablePtr nameTable,
-    TSharedRange<NTableClient::TKey> keys,
-    const std::vector<TString>& locks)
+    TNameTablePtr nameTable,
+    TSharedRange<TKey> keys,
+    ELockType lockType)
+{
+    TLockMask lockMask;
+    lockMask.Set(PrimaryLockIndex, lockType);
+    LockRows(path, nameTable, keys, lockMask);
+}
+
+void ITransaction::LockRows(
+    const NYPath::TYPath& path,
+    TNameTablePtr nameTable,
+    TSharedRange<TKey> keys,
+    const std::vector<TString>& locks,
+    ELockType lockType)
 {
     const auto& tableMountCache = GetClient()->GetTableMountCache();
     auto tableInfo = NConcurrency::WaitFor(tableMountCache->GetTableInfo(path))
         .ValueOrThrow();
 
-    ui32 lockMask = GetLockMask(
+    auto lockMask = GetLockMask(
         tableInfo->Schemas[NTabletClient::ETableSchemaKind::Write],
         GetAtomicity() == NTransactionClient::EAtomicity::Full,
-        locks);
+        locks,
+        lockType);
 
     LockRows(path, nameTable, keys, lockMask);
 }

@@ -409,7 +409,7 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TJobSplitter);
 
 std::unique_ptr<IJobSplitter> CreateJobSplitter(TJobSplitterConfigPtr config, TOperationId operationId)
 {
-    return std::unique_ptr<IJobSplitter>(new TJobSplitter(std::move(config), operationId));
+    return std::make_unique<TJobSplitter>(std::move(config), operationId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -19,6 +19,7 @@ namespace NYT::NTableClient {
 namespace NProto {
 
 class TNameTableExt;
+class TLogicalType;
 class TColumnSchema;
 class TTableSchemaExt;
 class TKeyColumnsExt;
@@ -77,6 +78,8 @@ constexpr int MaxSampleSize = 64_KB;
 // This is a hard limit for static tables,
 // imposed Id field size (16-bit) in TUnversionedValue.
 constexpr int MaxColumnId = 32 * 1024;
+
+constexpr int MaxSchemaTotalTypeComplexity = MaxColumnId;
 
 extern const TString SystemColumnNamePrefix;
 extern const TString TableIndexColumnName;
@@ -171,6 +174,8 @@ using TColumnRenameDescriptors = std::vector<TColumnRenameDescriptor>;
 
 class TColumnSchema;
 class TTableSchema;
+class TLockMask;
+using TLockBitmap = ui64;
 
 DECLARE_REFCOUNTED_CLASS(TNameTable)
 class TNameTableReader;
@@ -215,6 +220,10 @@ DECLARE_REFCOUNTED_STRUCT(IWireProtocolRowsetReader)
 DECLARE_REFCOUNTED_STRUCT(IWireProtocolRowsetWriter)
 
 struct IValueConsumer;
+
+DECLARE_REFCOUNTED_CLASS(TLogicalType)
+DECLARE_REFCOUNTED_CLASS(TSimpleLogicalType)
+DECLARE_REFCOUNTED_CLASS(TOptionalLogicalType)
 
 ////////////////////////////////////////////////////////////////////////////////
 

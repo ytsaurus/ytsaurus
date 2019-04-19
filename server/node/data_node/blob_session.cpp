@@ -119,7 +119,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
         memoryTrackerGuards.emplace_back(std::move(guardOrError.Value()));
     }
 
-    const auto& chunkBlockManager =Bootstrap_->GetChunkBlockManager();
+    const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
 
     std::vector<int> receivedBlockIndexes;
     for (int localIndex = 0; localIndex < static_cast<int>(blocks.size()); ++localIndex) {

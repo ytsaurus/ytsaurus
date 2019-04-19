@@ -182,13 +182,13 @@ public:
     {
         YCHECK(Timestamp_ != AllCommittedTimestamp || ColumnFilter_.IsUniversal());
 
+        LockMask_.Set(PrimaryLockIndex, ELockType::SharedWeak);
         if (columnFilter.IsUniversal()) {
-            LockMask_ = AllLocksMask;
+            LockMask_.Enrich(ColumnLockCount_);
         } else {
-            LockMask_ = PrimaryLockMask;
             for (int columnIndex : columnFilter.GetIndexes()) {
                 int lockIndex = Store_->ColumnIndexToLockIndex_[columnIndex];
-                LockMask_ |= (1U << lockIndex);
+                LockMask_.Set(lockIndex, ELockType::SharedWeak);
             }
         }
     }
@@ -211,7 +211,7 @@ protected:
     std::vector<TTimestamp> WriteTimestamps_;
     std::vector<TVersionedValue> VersionedValues_;
 
-    ui32 LockMask_;
+    TLockMask LockMask_;
 
 
     TTimestamp GetLatestWriteTimestamp(TSortedDynamicRow dynamicRow)
@@ -894,7 +894,7 @@ void TSortedDynamicStore::ResetRowBlockedHandler()
 
 void TSortedDynamicStore::WaitOnBlockedRow(
     TSortedDynamicRow row,
-    ui32 lockMask,
+    TLockMask lockMask,
     TTimestamp timestamp)
 {
     if (timestamp == AsyncLastCommittedTimestamp ||
@@ -937,9 +937,8 @@ void TSortedDynamicStore::WaitOnBlockedRow(
 
 TSortedDynamicRow TSortedDynamicStore::ModifyRow(
     TUnversionedRow row,
-    ui32 readLockMask,
-    ui32 writeLockMask,
-    ERowModificationType modificationType,
+    TLockMask lockMask,
+    bool isDelete,
     TWriteContext* context)
 {
     Y_ASSERT(FlushRevision_ != MaxRevision);
@@ -975,7 +974,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(
 
         if (context->Phase == EWritePhase::Prelock || context->Phase == EWritePhase::Lock) {
             // Acquire the lock.
-            AcquireRowLocks(dynamicRow, readLockMask, writeLockMask, modificationType, context);
+            AcquireRowLocks(dynamicRow, lockMask, isDelete, context);
         }
 
          // Copy values.
@@ -990,12 +989,12 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(
     auto existingKeyConsumer = [&] (TSortedDynamicRow dynamicRow) {
         if (context->Phase == EWritePhase::Prelock) {
             // Make sure the row is not blocked.
-            if (!CheckRowBlocking(dynamicRow, readLockMask | writeLockMask, context)) {
+            if (!CheckRowBlocking(dynamicRow, lockMask, context)) {
                 return;
             }
 
             // Check for lock conflicts and acquire the lock.
-            auto error = CheckRowLocks(dynamicRow, context->Transaction, readLockMask, writeLockMask);
+            auto error = CheckRowLocks(dynamicRow, context->Transaction, lockMask);
             if (!error.IsOK()) {
                 context->Error = error;
                 return;
@@ -1004,7 +1003,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(
 
         if (context->Phase == EWritePhase::Prelock || context->Phase == EWritePhase::Lock) {
             // Acquire the lock.
-            AcquireRowLocks(dynamicRow, readLockMask, writeLockMask, modificationType, context);
+            AcquireRowLocks(dynamicRow, lockMask, isDelete, context);
         }
 
         // Copy values.
@@ -1020,11 +1019,11 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(
     }
 
     if (commitTimestamp != NullTimestamp) {
-        if (modificationType == ERowModificationType::Write) {
+        if (isDelete) {
+            AddDeleteRevision(result, revision);
+        } else {
             auto& primaryLock = result.BeginLocks(KeyColumnCount_)[PrimaryLockIndex];
             AddWriteRevision(primaryLock, revision);
-        } else {
-            AddDeleteRevision(result, revision);
         }
         UpdateTimestampRange(commitTimestamp);
     }
@@ -1038,15 +1037,6 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(
     context->DataWeight += dataWeight;
 
     return result;
-}
-
-TSortedDynamicRow TSortedDynamicStore::ModifyRow(
-    TUnversionedRow row,
-    ui32 writeLockMask,
-    ERowModificationType modificationType,
-    TWriteContext* context)
-{
-    return ModifyRow(row, 0, writeLockMask, modificationType, context);
 }
 
 TSortedDynamicRow TSortedDynamicStore::ModifyRow(TVersionedRow row, TWriteContext* context)
@@ -1145,7 +1135,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(TVersionedRow row, TWriteContex
 TSortedDynamicRow TSortedDynamicStore::MigrateRow(
     TTransaction* transaction,
     TSortedDynamicRow row,
-    ui32 readLockMask)
+    TLockMask lockMask)
 {
     Y_ASSERT(Atomicity_ == EAtomicity::Full);
     Y_ASSERT(FlushRevision_ != MaxRevision);
@@ -1160,9 +1150,11 @@ TSortedDynamicRow TSortedDynamicStore::MigrateRow(
             auto* lockEnd = locks + ColumnLockCount_;
             auto* migratedLock = migratedLocks;
 
-            for (ui32 lockMaskBit = 1; lock < lockEnd; ++lock, ++migratedLock, lockMaskBit <<= 1) {
+            for (int index = 0; lock < lockEnd; ++lock, ++migratedLock, ++index) {
+                auto lockType = lockMask.Get(index);
                 if (lock->WriteTransaction == transaction) {
                     // Write Lock
+                    Y_ASSERT(lockType == ELockType::Exclusive);
 
                     // Validate the original lock's sanity.
                     // NB: For simple commit, transaction may not go through preparation stage
@@ -1178,11 +1170,11 @@ TSortedDynamicRow TSortedDynamicStore::MigrateRow(
 
                     migratedLock->WriteTransaction = lock->WriteTransaction;
                     migratedLock->PrepareTimestamp = lock->PrepareTimestamp.load();
-                    if (lockMaskBit == PrimaryLockMask) {
+                    if (index == PrimaryLockIndex) {
                         Y_ASSERT(!migratedRow.GetDeleteLockFlag());
                         migratedRow.SetDeleteLockFlag(row.GetDeleteLockFlag());
                     }
-                } else if (readLockMask & lockMaskBit) {
+                } else if (lockType == ELockType::SharedWeak || lockType == ELockType::SharedStrong) {
                     // Read Lock
                     ++migratedLock->ReadLockCount;
                 }
@@ -1253,7 +1245,7 @@ void TSortedDynamicStore::PrepareRow(TTransaction* transaction, TSortedDynamicRo
     }
 }
 
-void TSortedDynamicStore::CommitRow(TTransaction* transaction, TSortedDynamicRow row, ui32 readLockMask)
+void TSortedDynamicStore::CommitRow(TTransaction* transaction, TSortedDynamicRow row, TLockMask lockMask)
 {
     Y_ASSERT(Atomicity_ == EAtomicity::Full);
     Y_ASSERT(FlushRevision_ != MaxRevision);
@@ -1284,18 +1276,23 @@ void TSortedDynamicStore::CommitRow(TTransaction* transaction, TSortedDynamicRow
         auto* lock = row.BeginLocks(KeyColumnCount_);
         auto* lockEnd = lock + ColumnLockCount_;
 
-        for (ui32 lockMaskBit = 1; lock < lockEnd; ++lock, lockMaskBit <<= 1) {
+        for (int index = 0; lock < lockEnd; ++lock, ++index) {
+            auto lockType = lockMask.Get(index);
             if (lock->WriteTransaction == transaction) {
                 // Write Lock
+                Y_ASSERT(lockType == ELockType::Exclusive);
                 if (!row.GetDeleteLockFlag()) {
                     AddWriteRevision(*lock, commitRevision);
                 }
                 lock->WriteTransaction = nullptr;
                 lock->PrepareTimestamp = NotPreparedTimestamp;
-            } else if (readLockMask & lockMaskBit) {
-                // Read Lock
+            } else if (lockType == ELockType::SharedWeak) {
                 Y_ASSERT(lock->ReadLockCount > 0);
                 --lock->ReadLockCount;
+            } else if (lockType == ELockType::SharedStrong) {
+                Y_ASSERT(lock->ReadLockCount > 0);
+                --lock->ReadLockCount;
+                lock->LastReadLockTimestamp = std::max(lock->LastReadLockTimestamp, commitTimestamp);
             }
         }
     }
@@ -1307,7 +1304,7 @@ void TSortedDynamicStore::CommitRow(TTransaction* transaction, TSortedDynamicRow
     UpdateTimestampRange(commitTimestamp);
 }
 
-void TSortedDynamicStore::AbortRow(TTransaction* transaction, TSortedDynamicRow row, ui32 readLockMask)
+void TSortedDynamicStore::AbortRow(TTransaction* transaction, TSortedDynamicRow row, TLockMask lockMask)
 {
     Y_ASSERT(Atomicity_ == EAtomicity::Full);
     Y_ASSERT(FlushRevision_ != MaxRevision);
@@ -1330,12 +1327,14 @@ void TSortedDynamicStore::AbortRow(TTransaction* transaction, TSortedDynamicRow 
     auto* lock = row.BeginLocks(KeyColumnCount_);
     auto* lockEnd = lock + ColumnLockCount_;
 
-    for (ui32 lockMaskBit = 1; lock < lockEnd; ++lock, lockMaskBit <<= 1) {
+    for (int index = 0; lock < lockEnd; ++lock, ++index) {
+        auto lockType = lockMask.Get(index);
         if (lock->WriteTransaction == transaction) {
             // Write Lock
+            Y_ASSERT(lockType == ELockType::Exclusive);
             lock->WriteTransaction = nullptr;
             lock->PrepareTimestamp = NotPreparedTimestamp;
-        } else if (readLockMask & lockMaskBit) {
+        } else if (lockType == ELockType::SharedWeak || lockType == ELockType::SharedStrong) {
             // Read Lock
             Y_ASSERT(lock->ReadLockCount > 0);
             --lock->ReadLockCount;
@@ -1388,24 +1387,21 @@ TSortedDynamicStore::TRowBlockedHandler TSortedDynamicStore::GetRowBlockedHandle
 
 int TSortedDynamicStore::GetBlockingLockIndex(
     TSortedDynamicRow row,
-    ui32 lockMask,
+    TLockMask lockMask,
     TTimestamp timestamp)
 {
     Y_ASSERT(Atomicity_ == EAtomicity::Full);
 
-    if (lockMask & PrimaryLockMask) {
-        lockMask = AllLocksMask;
-    } else if (lockMask) {
-        lockMask |= PrimaryLockMask;
-    }
+    lockMask.Enrich(ColumnLockCount_);
 
     const auto* lock = row.BeginLocks(KeyColumnCount_);
-    ui32 lockMaskBit = 1;
     for (int index = 0;
          index < ColumnLockCount_;
-         ++index, ++lock, lockMaskBit <<= 1)
+         ++index, ++lock)
     {
-        if ((lockMask & lockMaskBit) && lock->PrepareTimestamp < timestamp) {
+        auto lockType = lockMask.Get(index);
+
+        if (lockType != ELockType::None && lock->PrepareTimestamp < timestamp) {
             return index;
         }
     }
@@ -1414,7 +1410,7 @@ int TSortedDynamicStore::GetBlockingLockIndex(
 
 bool TSortedDynamicStore::CheckRowBlocking(
     TSortedDynamicRow row,
-    ui32 lockMask,
+    TLockMask lockMask,
     TWriteContext* context)
 {
     auto timestamp = context->Transaction->GetStartTimestamp();
@@ -1430,7 +1426,7 @@ bool TSortedDynamicStore::CheckRowBlocking(
     return false;
 }
 
-TTimestamp TSortedDynamicStore::GetLastCommitTimestamp(TSortedDynamicRow row, int lockIndex)
+TTimestamp TSortedDynamicStore::GetLastWriteTimestamp(TSortedDynamicRow row, int lockIndex)
 {
     auto timestamp = MinTimestamp;
     auto& lock = row.BeginLocks(KeyColumnCount_)[lockIndex];
@@ -1455,94 +1451,85 @@ TTimestamp TSortedDynamicStore::GetLastCommitTimestamp(TSortedDynamicRow row, in
     return timestamp;
 }
 
+TTimestamp TSortedDynamicStore::GetLastReadTimestamp(TSortedDynamicRow row, int lockIndex)
+{
+    auto& lock = row.BeginLocks(KeyColumnCount_)[lockIndex];
+    return lock.LastReadLockTimestamp;
+}
+
 TError TSortedDynamicStore::CheckRowLocks(
     TSortedDynamicRow row,
     TTransaction* transaction,
-    ui32 readLockMask,
-    ui32 writeLockMask)
+    TLockMask lockMask)
 {
     Y_ASSERT(Atomicity_ == EAtomicity::Full);
 
-    if (writeLockMask & PrimaryLockMask) {
-        writeLockMask = AllLocksMask;
-    } else if (writeLockMask) {
-        writeLockMask |= PrimaryLockMask;
-    }
+    // Check locks requested in #lockMask with the following exceptions:
+    // * if primary lock is requested then all locks are checked
+    // * primary lock is always checked
 
-    if (readLockMask & PrimaryLockMask) {
-        readLockMask = AllLocksMask;
-    } else if (readLockMask) {
-        readLockMask |= PrimaryLockMask;
-    }
+    // Enrich lock mask
+    lockMask.Enrich(ColumnLockCount_);
 
-    // primary write lock
-    // primary read lock + write locks
-    // write locks + read locks
+    TError error;
 
     const auto* lock = row.BeginLocks(KeyColumnCount_);
-    ui32 lockMaskBit = 1;
-    for (int index = 0; index < ColumnLockCount_; ++index, ++lock, lockMaskBit <<= 1) {
-        if (lock->WriteTransaction == transaction) {
-            return TError("Multiple modifications to a row within a single transaction are not allowed")
-                << TErrorAttribute("transaction_id", transaction->GetId())
-                << TErrorAttribute("tablet_id", TabletId_)
-                << TErrorAttribute("table_path", TablePath_)
-                << TErrorAttribute("key", RowToKey(row));
+    for (int index = 0; index < ColumnLockCount_; ++index, ++lock) {
+        auto lockType = lockMask.Get(index);
+
+        YCHECK(lock->WriteTransaction != transaction);
+
+        if (lockType == ELockType::Exclusive) {
+            auto lastCommitTimestamp = GetLastReadTimestamp(row, index);
+            if (lastCommitTimestamp > transaction->GetStartTimestamp()) {
+                error = TError(
+                    NTabletClient::EErrorCode::TransactionLockConflict,
+                    "Write failed due to concurrent read lock")
+                    << TErrorAttribute("winner_transaction_commit_timestamp", lastCommitTimestamp);
+            }
+
+            if (lock->ReadLockCount > 0) {
+                YCHECK(!lock->WriteTransaction);
+                error = TError(
+                     NTabletClient::EErrorCode::TransactionLockConflict,
+                     "Write failed due to concurrent read lock");
+            }
         }
 
-        // Check locks requested in #lockMask with the following exceptions:
-        // * if primary lock is requested then all locks are checked
-        // * primary lock is always checked
-        bool isReadLock = readLockMask & lockMaskBit;
-        bool isWriteLock = writeLockMask & lockMaskBit;
+        if (lockType != ELockType::None) {
+            auto lastCommitTimestamp = GetLastWriteTimestamp(row, index);
+            if (lastCommitTimestamp > transaction->GetStartTimestamp()) {
+                error = TError(
+                    NTabletClient::EErrorCode::TransactionLockConflict,
+                    "Row lock conflict due to concurrent write")
+                    << TErrorAttribute("winner_transaction_commit_timestamp", lastCommitTimestamp);
+            }
 
-        if (isWriteLock && lock->ReadLockCount > 0) {
-            YCHECK(!lock->WriteTransaction);
-            return TError(
-                 NTabletClient::EErrorCode::TransactionLockConflict,
-                 "Row read lock conflict")
-                << TErrorAttribute("transaction_id", transaction->GetId())
+            if (lock->WriteTransaction) {
+                error = TError(
+                    NTabletClient::EErrorCode::TransactionLockConflict,
+                    "Row lock conflict due to concurrent write")
+                    << TErrorAttribute("winner_transaction_id", lock->WriteTransaction->GetId());
+            }
+        }
+
+        if (!error.IsOK()) {
+            error = std::move(error)
+                << TErrorAttribute("loser_transaction_id", transaction->GetId())
                 << TErrorAttribute("tablet_id", TabletId_)
                 << TErrorAttribute("table_path", TablePath_)
                 << TErrorAttribute("key", RowToKey(row))
                 << TErrorAttribute("lock", LockIndexToName_[index]);
-        }
-
-        if (isReadLock || isWriteLock) {
-            if (lock->WriteTransaction) {
-                return TError(
-                    NTabletClient::EErrorCode::TransactionLockConflict,
-                    "Row lock conflict")
-                    << TErrorAttribute("loser_transaction_id", transaction->GetId())
-                    << TErrorAttribute("winner_transaction_id", lock->WriteTransaction->GetId())
-                    << TErrorAttribute("tablet_id", TabletId_)
-                    << TErrorAttribute("table_path", TablePath_)
-                    << TErrorAttribute("key", RowToKey(row))
-                    << TErrorAttribute("lock", LockIndexToName_[index]);
-            }
-
-            auto lastCommitTimestamp = GetLastCommitTimestamp(row, index);
-            if (lastCommitTimestamp > transaction->GetStartTimestamp()) {
-                return TError(
-                    NTabletClient::EErrorCode::TransactionLockConflict,
-                    "Row lock conflict")
-                    << TErrorAttribute("loser_transaction_id", transaction->GetId())
-                    << TErrorAttribute("winner_transaction_commit_timestamp", lastCommitTimestamp)
-                    << TErrorAttribute("tablet_id", TabletId_)
-                    << TErrorAttribute("table_path", TablePath_)
-                    << TErrorAttribute("key", RowToKey(row))
-                    << TErrorAttribute("lock", LockIndexToName_[index]);
-            }
+            break;
         }
     }
-    return TError();
+    return error;
 }
 
 void TSortedDynamicStore::AcquireRowLocks(
     TSortedDynamicRow row,
-    ui32 readLockMask,
-    ui32 writeLockMask,
-    ERowModificationType modificationType,
+    TLockMask lockMask,
+    bool isDelete,
     TWriteContext* context)
 {
     Y_ASSERT(Atomicity_ == EAtomicity::Full);
@@ -1551,26 +1538,24 @@ void TSortedDynamicStore::AcquireRowLocks(
     // * if primary lock is requested then all locks are acquired
     {
         auto* lock = row.BeginLocks(KeyColumnCount_);
-        ui32 lockMaskBit = 1;
-        for (int index = 0; index < ColumnLockCount_; ++index, ++lock, lockMaskBit <<= 1) {
-            bool isReadLock = readLockMask & lockMaskBit;
-            bool isWriteLock = writeLockMask & lockMaskBit;
+        for (int index = 0; index < ColumnLockCount_; ++index, ++lock) {
+            auto lockType = lockMask.Get(index);
 
-            if (isWriteLock || isReadLock) {
+            if (lockType != ELockType::None) {
                 YCHECK(!lock->WriteTransaction);
                 Y_ASSERT(lock->PrepareTimestamp == NotPreparedTimestamp);
             }
 
-            if (isWriteLock) {
+            if (lockType == ELockType::Exclusive) {
                 lock->WriteTransaction = context->Transaction;
                 Y_ASSERT(lock->ReadLockCount == 0);
-            } else if (isReadLock) {
+            } else if (lockType != ELockType::None) {
                 ++lock->ReadLockCount;
             }
         }
     }
 
-    if (modificationType == ERowModificationType::Delete) {
+    if (isDelete) {
         Y_ASSERT(!row.GetDeleteLockFlag());
         row.SetDeleteLockFlag(true);
     }
@@ -1893,8 +1878,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
 TError TSortedDynamicStore::CheckRowLocks(
     TUnversionedRow row,
     TTransaction* transaction,
-    ui32 readLockMask,
-    ui32 writeLockMask)
+    TLockMask lockMask)
 {
     auto it = Rows_->FindEqualTo(TUnversionedRowWrapper{row});
     if (!it.IsValid()) {
@@ -1902,7 +1886,7 @@ TError TSortedDynamicStore::CheckRowLocks(
     }
 
     auto dynamicRow = it.GetCurrent();
-    return CheckRowLocks(dynamicRow, transaction, readLockMask, writeLockMask);
+    return CheckRowLocks(dynamicRow, transaction, lockMask);
 }
 
 void TSortedDynamicStore::Save(TSaveContext& context) const

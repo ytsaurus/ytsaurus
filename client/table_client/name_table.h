@@ -30,6 +30,7 @@ public:
     int GetIdOrRegisterName(TStringBuf name);
 
     TStringBuf GetName(int id) const;
+    TStringBuf GetNameOrThrow(int id) const;
 
 private:
     TSpinLock SpinLock_;

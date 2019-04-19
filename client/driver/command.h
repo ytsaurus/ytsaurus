@@ -45,8 +45,8 @@ DEFINE_REFCOUNTED_TYPE(ICommandContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Depending on the driver API version calls context->ProduceOutputValue
-//! with TYsonString created by the appropriate producer.
+//! Depending on the driver API version calls |context->ProduceOutputValue|
+//! with |TYsonString| created by the appropriate producer.
 void ProduceOutput(
     ICommandContextPtr context,
     std::function<void(NYson::IYsonConsumer*)> producerV3,
@@ -85,7 +85,8 @@ protected:
         ICommandContextPtr context,
         std::function<void(NYson::IYsonConsumer*)> producer);
 
-    bool RewriteOperationPath;
+    std::optional<bool> RewriteOperationPathOption;
+    bool RewriteOperationPath = true;
 
 public:
     virtual void Execute(ICommandContextPtr context) override;

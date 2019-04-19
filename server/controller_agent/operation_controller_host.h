@@ -77,7 +77,7 @@ public:
     virtual TMemoryTagQueue* GetMemoryTagQueue() override;
 
     virtual int GetOnlineExecNodeCount() override;
-    virtual TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) override;
+    virtual TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter, bool onlineOnly = false) override;
 
     virtual TInstant GetConnectionTime() override;
     virtual TIncarnationId GetIncarnationId() override;

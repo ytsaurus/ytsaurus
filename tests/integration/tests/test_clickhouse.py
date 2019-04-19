@@ -1,21 +1,23 @@
-from yt_env_setup import wait, YTEnvSetup, require_ytserver_root_privileges
 from yt_commands import *
+
+from yt_env_setup import wait, YTEnvSetup, require_ytserver_root_privileges, is_asan_build
 from yt.wrapper.clickhouse import get_clickhouse_clique_spec_builder
 from yt.wrapper.common import simplify_structure
 
-from yt.yson import YsonUint64
-
-from distutils.spawn import find_executable
+import yt.yson as yson
 
 from yt.common import update
 
-TEST_DIR = os.path.join(os.path.dirname(__file__))
+from distutils.spawn import find_executable
 
 import json
 import pytest
 import psutil
 import subprocess
 import random
+import os
+
+TEST_DIR = os.path.join(os.path.dirname(__file__))
 
 CLICKHOUSE_CLIENT_BINARY = find_executable("clickhouse")
 YTSERVER_CLICKHOUSE_BINARY = find_executable("ytserver-clickhouse")
@@ -25,7 +27,7 @@ DEFAULTS = {
     "memory_limit": 5 * 1000**3,
     "host_ytserver_clickhouse_path": YTSERVER_CLICKHOUSE_BINARY,
     "cpu_limit": 1,
-    "enable_monitoring": False,
+    "enable_monitorin`g": False,
     "clickhouse_config": {},
 }
 
@@ -33,9 +35,17 @@ DEFAULTS = {
 class Clique(object):
     base_config = None
     clique_index = 0
+    path_to_run = None
 
     def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, **kwargs):
         config = update(Clique.base_config, config_patch) if config_patch is not None else Clique.base_config
+
+        self.log_root = os.path.join(self.path_to_run, "logs", "clickhouse-{}".format(Clique.clique_index))
+        for writer_key, writer in Clique.base_config["logging"]["writers"].iteritems():
+            if writer["type"] == "file":
+                writer["file_name"] = os.path.join(self.log_root, writer["file_name"])
+        os.mkdir(self.log_root)
+        os.chmod(self.log_root, 0777)
 
         filename = "//sys/clickhouse/config-{}.yson".format(Clique.clique_index)
         Clique.clique_index += 1
@@ -48,7 +58,8 @@ class Clique(object):
                                                           defaults=DEFAULTS,
                                                           **kwargs)
         self.spec = simplify_structure(spec_builder.build())
-        self.spec["tasks"]["clickhouse_servers"]["force_core_dump"] = True
+        if not is_asan_build():
+            self.spec["tasks"]["clickhouse_servers"]["force_core_dump"] = True
         self.instance_count = instance_count
 
     def _get_active_instance_count(self):
@@ -65,7 +76,12 @@ class Clique(object):
                            spec=self.spec,
                            dont_track=True)
 
+        self.log_root_alternative = os.path.realpath(os.path.join(self.log_root, "..",
+                                                                  "clickhouse-{}".format(self.op.id)))
+        os.symlink(self.log_root, self.log_root_alternative)
+
         print >>sys.stderr, "Waiting for clique {} to become ready".format(self.op.id)
+        print >>sys.stderr, "Logging roots:\n- {}\n- {}".format(self.log_root, self.log_root_alternative)
 
         MAX_COUNTER_VALUE = 600
         counter = 0
@@ -147,11 +163,11 @@ class Clique(object):
 
 
 @require_ytserver_root_privileges
-#@pytest.mark.xfail(run=False, reason="I want to go to vacation and do not know what's the deal with those core dumps :(")
 class ClickHouseTestBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
+    NODE_PORT_SET_SIZE = 5
 
     DELTA_NODE_CONFIG = {
         "exec_agent": {
@@ -174,6 +190,7 @@ class ClickHouseTestBase(YTEnvSetup):
         return open(os.path.join(TEST_DIR, "test_clickhouse", name)).read()
 
     def _setup(self):
+        Clique.path_to_run = self.path_to_run
         if CLICKHOUSE_CLIENT_BINARY is None or YTSERVER_CLICKHOUSE_BINARY is None:
             pytest.skip("This test requires built clickhouse and ytserver-clickhouse binaries; "
                         "they are available only when using ya as a build system")
@@ -186,7 +203,7 @@ class ClickHouseTestBase(YTEnvSetup):
         Clique.base_config = yson.loads(self._read_local_config_file("config.yson"))
         Clique.base_config["cluster_connection"] = self.__class__.Env.configs["driver"]
 
-#@pytest.mark.xfail(run=False, reason="I want to go to vacation and do not know what's the deal with those core dumps :(")
+
 class TestClickHouseCommon(ClickHouseTestBase):
     def setup(self):
         self._setup()
@@ -261,26 +278,70 @@ class TestClickHouseCommon(ClickHouseTestBase):
             new_description = clique.make_query('describe "//tmp/t"')
             assert new_description["data"][0]["name"] == "b"
 
-#@pytest.mark.xfail(run=False, reason="I want to go to vacation and do not know what's the deal with those core dumps :(")
+    def test_concat_inside_link(self):
+        with Clique(1) as clique:
+            create("map_node", "//tmp/dir")
+            create("link", "//tmp/link", attributes={"target_path": "//tmp/dir"})
+            create("table", "//tmp/link/t1", attributes={"schema": [{"name": "i", "type": "int64"}]})
+            create("table", "//tmp/link/t2", attributes={"schema": [{"name": "i", "type": "int64"}]})
+            write_table("//tmp/link/t1", [{"i": 0}])
+            write_table("//tmp/link/t2", [{"i": 1}])
+            assert len(clique.make_query("select * from concatYtTablesRange('//tmp/link')")["data"]) == 2
+
 class TestJobInput(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
-    def _expect_row_count(self, clique, query, row_count):
-        result = clique.make_query(query)
-        assert result["statistics"]["rows_read"] == row_count
+    def _expect_row_count(self, clique, query, exact=None, min=None, max=None, verbose=True):
+        result = clique.make_query(query, verbose=verbose)
+        assert (exact is not None) ^ (min is not None and max is not None)
+        if exact is not None:
+            assert result["statistics"]["rows_read"] == exact
+        else:
+            assert min <= result["statistics"]["rows_read"] <= max
 
     def test_chunk_filter(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "i", "type": "int64", "sort_order": "ascending"}]})
+        for i in xrange(10):
+            write_table("<append=%true>//tmp/t", [{"i": i}])
         with Clique(1) as clique:
-            create("table", "//tmp/t", attributes={"schema": [{"name": "i", "type": "int64", "sort_order": "ascending"}]})
-            for i in xrange(10):
-                write_table("<append=%true>//tmp/t", [{"i": i}])
-            self._expect_row_count(clique, 'select * from "//tmp/t" where i >= 3', 7)
-            self._expect_row_count(clique, 'select * from "//tmp/t" where i < 2', 2)
-            self._expect_row_count(clique, 'select * from "//tmp/t" where 5 <= i and i <= 8', 4)
-            self._expect_row_count(clique, 'select * from "//tmp/t" where i in (-1, 2, 8, 8, 15)', 2)
+            self._expect_row_count(clique, 'select * from "//tmp/t" where i >= 3', exact=7)
+            self._expect_row_count(clique, 'select * from "//tmp/t" where i < 2', exact=2)
+            self._expect_row_count(clique, 'select * from "//tmp/t" where 5 <= i and i <= 8', exact=4)
+            self._expect_row_count(clique, 'select * from "//tmp/t" where i in (-1, 2, 8, 8, 15)', exact=2)
 
-#@pytest.mark.xfail(run=False, reason="I want to go to vacation and do not know what's the deal with those core dumps :(")
+    def test_chunk_slicing(self):
+        create("table",
+               "//tmp/t",
+               attributes={
+                   "chunk_writer": {"block_size": 1024},
+                   "compression_codec": "none",
+                   # TODO(max42): investigate what happens when both columns are sorted.
+                   "schema": [{"name": "i", "type": "int64", "sort_order": "ascending"},
+                              {"name": "s", "type": "string"}]
+               })
+
+        write_table("//tmp/t", [{"i": i, "s": str(i) * (10 * 1024)} for i in range(10)], verbose=False)
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        assert get("#" + chunk_id + "/@compressed_data_size") > 100 * 1024
+        assert get("#" + chunk_id + "/@max_block_size") < 20 * 1024
+
+        with Clique(1) as clique:
+            # Due to inclusiveness issues each of the row counts should be correct with some error.
+            self._expect_row_count(clique, 'select i from "//tmp/t" where i >= 3', min=7, max=8)
+            self._expect_row_count(clique, 'select i from "//tmp/t" where i < 2', min=3, max=4)
+            self._expect_row_count(clique, 'select i from "//tmp/t" where 5 <= i and i <= 8', min=4, max=6)
+            self._expect_row_count(clique, 'select i from "//tmp/t" where i in (-1, 2, 8, 8, 15)', min=2, max=4)
+
+        # Forcefully disable chunk slicing.
+        with Clique(1, config_patch={"engine": {"subquery": {"max_sliced_chunk_count": 0}}}) as clique:
+            # Due to inclusiveness issues each of the row counts should be correct with some error.
+            self._expect_row_count(clique, 'select i from "//tmp/t" where i >= 3', exact=10)
+            self._expect_row_count(clique, 'select i from "//tmp/t" where i < 2', exact=10)
+            self._expect_row_count(clique, 'select i from "//tmp/t" where 5 <= i and i <= 8', exact=10)
+            self._expect_row_count(clique, 'select i from "//tmp/t" where i in (-1, 2, 8, 8, 15)', exact=10)
+
+
 class TestCompositeTypes(ClickHouseTestBase):
     def setup(self):
         self._setup()
@@ -291,7 +352,7 @@ class TestCompositeTypes(ClickHouseTestBase):
                 "i": 0,
                 "v": {
                     "i64": -42,
-                    "ui64": YsonUint64(23),
+                    "ui64": yson.YsonUint64(23),
                     "bool": True,
                     "dbl": 3.14,
                     "str": "xyz",
@@ -313,7 +374,7 @@ class TestCompositeTypes(ClickHouseTestBase):
             {
                 "i": 2,
                 "v": {
-                    "i64": YsonUint64(2**63 + 42),  # Out of range for getting value as i64.
+                    "i64": yson.YsonUint64(2**63 + 42),  # Out of range for getting value as i64.
                 },
             },
             {
@@ -412,7 +473,7 @@ class TestCompositeTypes(ClickHouseTestBase):
                                        "YPathString('{a=1}', NULL) as c")
         assert result["data"] == [{"a": None, "b": None, "c": None}]
 
-#@pytest.mark.xfail(run=False, reason="I want to go to vacation and do not know what's the deal with those core dumps :(")
+
 class TestYtDictionaries(ClickHouseTestBase):
     def setup(self):
         self._setup()
@@ -530,7 +591,7 @@ class TestYtDictionaries(ClickHouseTestBase):
             time.sleep(7)
             assert clique.make_query("select dictGetString('dict', 'value', CAST(42 as UInt64)) as value")["data"][0]["value"] == "z"
 
-#@pytest.mark.xfail(run=False, reason="I want to go to vacation and do not know what's the deal with those core dumps :(")
+
 class TestClickHouseSchema(ClickHouseTestBase):
     def setup(self):
         self._setup()
@@ -612,8 +673,20 @@ class TestClickHouseSchema(ClickHouseTestBase):
             assert clique.make_query("select * from concatYtTablesDropPrimaryKey(\"//tmp/t2\", \"//tmp/t1\") order by a")["data"] == \
                 [{"a": 17}, {"a": 42}]
 
+    def test_drop_primary_key(self):
+        create("table", "//tmp/t", attributes={"schema": [
+            {"name": "a", "type": "int64", "sort_order": "ascending"}
+        ]})
 
-#@pytest.mark.xfail(run=False, reason="I want to go to vacation and do not know what's the deal with those core dumps :(")
+        write_table("//tmp/t", {"a": None})
+
+        with Clique(1) as clique:
+            with pytest.raises(YtError):
+                clique.make_query("select * from concatYtTables('//tmp/t')")
+            with pytest.raises(YtError):
+                clique.make_query("select * from \"//tmp/t\"")
+            assert clique.make_query("select * from concatYtTablesDropPrimaryKey('//tmp/t')")["data"] == [{"a": 0}]
+
 class TestClickHouseAccess(ClickHouseTestBase):
     def setup(self):
         self._setup()
@@ -641,3 +714,14 @@ class TestClickHouseAccess(ClickHouseTestBase):
                     }) as clique:
             assert len(clique.make_query("select * from \"//tmp/t\"", user="u")["data"]) == 1
 
+
+class TestQueryLog(ClickHouseTestBase):
+    def setup(self):
+        self._setup()
+
+    def test_query_log(self):
+        with Clique(1, config_patch={"engine": {"settings": {"log_queries": 1}}}) as clique:
+            clique.make_query("select 1")
+            wait(lambda: len(clique.make_query("select * from system.tables where database = 'system' and "
+                                               "name = 'query_log';")["data"]) >= 1)
+            wait(lambda: len(clique.make_query("select * from system.query_log")["data"]) >= 1)

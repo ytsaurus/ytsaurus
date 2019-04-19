@@ -45,83 +45,6 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef _unix_
-namespace NDetail {
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Returns the symbol for address at given program counter.
-int GetSymbolInfo(void* pc, char* buffer, int length)
-{
-    TRawFormatter<0> formatter(buffer, length);
-
-#if defined(HAVE_DLFCN_H)
-    // See http://www.codesourcery.com/cxx-abi/abi.html#mangling
-    // And, yes, dladdr() is not async signal safe. We can substitute it
-    // with hand-written symbolization code from google-glog in case of any trouble.
-    Dl_info info;
-    if (!dladdr(pc, &info)) {
-        return 0;
-    }
-
-    /*
-     * typedef struct {
-     *     const char *dli_fname;  // Pathname of shared object that
-     *                             // contains address
-     *     void       *dli_fbase;  // Address at which shared object
-     *                             // is loaded
-     *     const char *dli_sname;  // Name of nearest symbol with address
-     *                             // lower than addr
-     *     void       *dli_saddr;  // Exact address of symbol named
-     *                             // in dli_sname
-     * } Dl_info;
-     *
-     * If no symbol matching addr could be found, then dli_sname and dli_saddr are set to NULL.
-     */
-
-    if (info.dli_sname && info.dli_saddr) {
-        formatter.AppendString("<");
-#if defined(HAVE_CXXABI_H)
-        int demangleStatus = 0;
-
-        if (info.dli_sname[0] == '_' && info.dli_sname[1] == 'Z') {
-            // This is also not async signal safe.
-            // But (ta-dah!) we can replace it with symbolization code from google-glob.
-            char* demangledName = abi::__cxa_demangle(info.dli_sname, 0, 0, &demangleStatus);
-            if (demangleStatus == 0) {
-                formatter.AppendString(demangledName);
-            } else {
-                formatter.AppendString(info.dli_sname);
-            }
-            free(demangledName);
-        } else {
-            formatter.AppendString(info.dli_sname);
-        }
-#else
-        formatter.AppendString(info.dli_sname);
-#endif
-        formatter.AppendString("+");
-        formatter.AppendNumber((char*)pc - (char*)info.dli_saddr);
-        formatter.AppendString(">");
-        formatter.AppendString(" ");
-    }
-
-    if (info.dli_fname && info.dli_fbase) {
-        formatter.AppendString("(");
-        formatter.AppendString(info.dli_fname);
-        formatter.AppendString("+");
-        formatter.AppendNumber((char*)pc - (char*)info.dli_fbase);
-        formatter.AppendString(")");
-    }
-#else
-    formatter.AppendString("0x");
-    formatter.AppendNumber((uintptr_t)pc, 16);
-#endif
-    return formatter.GetBytesWritten();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NDetail
 
 // See http://pubs.opengroup.org/onlinepubs/009695399/functions/xsh_chap02_04.html
 // for a list of async signal safe functions.
@@ -318,7 +241,7 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
     // This is the first time we enter the signal handler. We are going to
     // do some interesting stuff from here.
 
-    TRawFormatter<256> formatter;
+    TRawFormatter<1024> formatter;
 
     // When did the crash happen?
     DumpTimeInfo();
@@ -331,8 +254,8 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
         void* pc = GetPC(uc);
         formatter.Reset();
         formatter.AppendString("PC: ");
+        NDetail::DumpStackFrameInfo(&formatter, pc);
         WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
-        NDetail::DumpStackFrameInfo(pc, WriteToStderr);
     }
 
     DumpSignalInfo(signal, si);

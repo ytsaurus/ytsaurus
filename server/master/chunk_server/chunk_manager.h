@@ -132,7 +132,10 @@ public:
         std::vector<TJobPtr>* jobsToAbort,
         std::vector<TJobPtr>* jobsToRemove);
 
-    bool IsReplicatorEnabled();
+    bool IsChunkReplicatorEnabled();
+    bool IsChunkRefreshEnabled();
+    bool IsChunkRequisitionUpdateEnabled();
+    bool IsChunkSealerEnabled();
 
     void ScheduleChunkRefresh(TChunk* chunk);
     void ScheduleNodeRefresh(TNode* node);

@@ -639,7 +639,8 @@ void TContext::Run()
     }
 
     if (MemoryOutput_) {
-        DriverRequest_.OutputStream->Close();
+        WaitFor(DriverRequest_.OutputStream->Close())
+            .ThrowOnError();
         Response_->GetHeaders()->Remove("Trailer");
         WaitFor(Response_->WriteBody(MergeRefsToRef<TDefaultSharedBlobTag>(MemoryOutput_->GetRefs())))
             .ThrowOnError();
@@ -705,11 +706,9 @@ void TContext::Finalize()
     }
 
     if (!Error_.IsOK() && dumpErrorIntoResponse && DriverRequest_.OutputStream) {
-        auto result = WaitFor(DriverRequest_.OutputStream->Write(DumpError(Error_)));
-        (void)result;
-    }
-
-    if (!Response_->IsHeadersFlushed()) {
+        Y_UNUSED(WaitFor(DriverRequest_.OutputStream->Write(DumpError(Error_))));
+        Y_UNUSED(WaitFor(DriverRequest_.OutputStream->Close()));
+    } else if (!Response_->IsHeadersFlushed()) {
         Response_->GetHeaders()->Remove("Trailer");
 
         if (Error_.FindMatching(NSecurityClient::EErrorCode::UserBanned)) {
@@ -732,8 +731,7 @@ void TContext::Finalize()
     } else {
         if (!Error_.IsOK()) {
             FillYTErrorTrailers(Response_, Error_);
-            auto result = WaitFor(Response_->Close());
-            (void)result;
+            Y_UNUSED(WaitFor(Response_->Close()));
         }
     }
 

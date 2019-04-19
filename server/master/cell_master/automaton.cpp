@@ -27,7 +27,7 @@ std::unique_ptr<NHydra::TSaveContext> TMasterAutomaton::CreateSaveContext(
     auto context = std::make_unique<TSaveContext>();
     context->SetVersion(GetCurrentSnapshotVersion());
     TCompositeAutomaton::InitSaveContext(*context, output);
-    return std::unique_ptr<NHydra::TSaveContext>(std::move(context));
+    return context;
 }
 
 std::unique_ptr<NHydra::TLoadContext> TMasterAutomaton::CreateLoadContext(
@@ -35,7 +35,7 @@ std::unique_ptr<NHydra::TLoadContext> TMasterAutomaton::CreateLoadContext(
 {
     auto context = std::make_unique<TLoadContext>(Bootstrap_);
     TCompositeAutomaton::InitLoadContext(*context, input);
-    return std::unique_ptr<NHydra::TLoadContext>(std::move(context));
+    return context;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

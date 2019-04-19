@@ -31,7 +31,7 @@ struct IChunk
     : public virtual TRefCounted
 {
     virtual TChunkId GetId() const = 0;
-    virtual TLocationPtr GetLocation() const = 0;
+    virtual const TLocationPtr& GetLocation() const = 0;
     virtual NChunkClient::NProto::TChunkInfo GetInfo() const = 0;
 
     virtual int GetVersion() const = 0;

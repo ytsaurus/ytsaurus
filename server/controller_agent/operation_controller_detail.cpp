@@ -442,7 +442,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
         StartTransactions();
         InitializeStructures();
 
-        SyncPrepare();
+        LockInputs();
     }
 
     InitUnrecognizedSpec();
@@ -466,7 +466,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
         InitializeClients();
         StartTransactions();
         InitializeStructures();
-        SyncPrepare();
+        LockInputs();
     });
 
     auto initializeFuture = initializeAction
@@ -669,7 +669,7 @@ void TOperationControllerBase::InitializeOrchid()
 void TOperationControllerBase::DoInitialize()
 { }
 
-void TOperationControllerBase::SyncPrepare()
+void TOperationControllerBase::LockInputs()
 {
     PrepareInputTables();
     LockInputTables();
@@ -957,7 +957,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
             joblet->JobType,
             joblet->StartTime,
             joblet->ResourceLimits,
-            IsJobInterruptible(),
+            joblet->Task->IsJobInterruptible(),
             joblet->TreeId,
             joblet->NodeDescriptor.Id,
             joblet->NodeDescriptor.Address
@@ -1241,12 +1241,6 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
 
     const auto& autoMergeSpec = Spec_->AutoMerge;
     auto mode = autoMergeSpec->Mode;
-    if (outputChunkCountEstimate <= 1) {
-        YT_LOG_INFO("Output chunk count estimate does not exceed 1, force disabling auto merge "
-            "(OutputChunkCountEstimate: %v)",
-            outputChunkCountEstimate);
-        return false;
-    }
 
     if (mode == EAutoMergeMode::Disabled) {
         return false;
@@ -2059,7 +2053,9 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
             jobSummary->SplitJobCount);
     }
     auto taskResult = joblet->Task->OnJobCompleted(joblet, *jobSummary);
-    MaybeBanInTentativeTree(joblet->TreeId, taskResult.BanTree);
+    for (const auto& treeId : taskResult.NewlyBannedTrees) {
+        MaybeBanInTentativeTree(treeId);
+    }
 
     if (JobSplitter_) {
         JobSplitter_->OnJobCompleted(*jobSummary);
@@ -2143,7 +2139,9 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     UpdateJobStatistics(joblet, *jobSummary);
 
     auto taskResult = joblet->Task->OnJobFailed(joblet, *jobSummary);
-    MaybeBanInTentativeTree(joblet->TreeId, taskResult.BanTree);
+    for (const auto& treeId : taskResult.NewlyBannedTrees) {
+        MaybeBanInTentativeTree(treeId);
+    }
 
     if (JobSplitter_) {
         JobSplitter_->OnJobFailed(*jobSummary);
@@ -2238,7 +2236,9 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     }
 
     auto taskResult = joblet->Task->OnJobAborted(joblet, *jobSummary);
-    MaybeBanInTentativeTree(joblet->TreeId, taskResult.BanTree);
+    for (const auto& treeId : taskResult.NewlyBannedTrees) {
+        MaybeBanInTentativeTree(treeId);
+    }
 
     if (JobSplitter_) {
         JobSplitter_->OnJobAborted(*jobSummary);
@@ -2299,7 +2299,7 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
 
         if (JobSplitter_) {
             JobSplitter_->OnJobRunning(*jobSummary);
-            if (GetPendingJobCount() == 0 && JobSplitter_->IsJobSplittable(jobId)) {
+            if (GetPendingJobCount() == 0 && joblet->Task->IsJobInterruptible() && JobSplitter_->IsJobSplittable(jobId)) {
                 YT_LOG_DEBUG("Job is ready to be split (JobId: %v)", jobId);
                 Host->InterruptJob(jobId, EInterruptReason::JobSplit);
             }
@@ -3808,12 +3808,8 @@ bool TOperationControllerBase::IsTreeTentative(const TString& treeId) const
     return Spec_->TentativePoolTrees && Spec_->TentativePoolTrees->contains(treeId);
 }
 
-void TOperationControllerBase::MaybeBanInTentativeTree(const TString& treeId, bool shouldBan)
+void TOperationControllerBase::MaybeBanInTentativeTree(const TString& treeId)
 {
-    if (!shouldBan) {
-        return;
-    }
-
     if (!BannedTreeIds_.insert(treeId).second) {
         return;
     }
@@ -6708,7 +6704,7 @@ void TOperationControllerBase::CheckTentativeTreeEligibility()
         }
     }
     for (const auto& treeId : treeIds) {
-        MaybeBanInTentativeTree(treeId, /* shouldBan */ true);
+        MaybeBanInTentativeTree(treeId);
     }
 }
 
@@ -7275,13 +7271,7 @@ void TOperationControllerBase::GetExecNodesInformation()
 
     OnlineExecNodeCount_ = Host->GetOnlineExecNodeCount();
     ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(NScheduler::TSchedulingTagFilter(Spec_->SchedulingTagFilter));
-
-    OnlineExecNodesDescriptors_->clear();
-    for (const auto& pair : *ExecNodesDescriptors_) {
-        if (pair.second.Online) {
-            YCHECK(OnlineExecNodesDescriptors_->insert(pair).second);
-        }
-    }
+    OnlineExecNodesDescriptors_ = Host->GetExecNodeDescriptors(NScheduler::TSchedulingTagFilter(Spec_->SchedulingTagFilter), /* onlineOnly */ true);
 
     GetExecNodesInformationDeadline_ = now + NProfiling::DurationToCpuDuration(Config->ControllerExecNodeInfoUpdatePeriod);
 
@@ -7418,10 +7408,13 @@ void TOperationControllerBase::ValidateOutputSchemaCompatibility(bool ignoreSort
 
     for (const auto& inputTable : InputTables_) {
         if (inputTable->SchemaMode == ETableSchemaMode::Strong) {
+            // NB for historical reasons we consider optional<T> to be compatible with T when T is simple
+            // check is performed during operation.
             ValidateTableSchemaCompatibility(
                 inputTable->Schema.Filter(inputTable->Path.GetColumns()),
                 OutputTables_[0]->TableUploadOptions.TableSchema,
-                ignoreSortOrder)
+                ignoreSortOrder,
+                /*allowSimpleTypeDeoptionalize*/ true)
                 .ThrowOnError();
         } else if (hasComputedColumn && validateComputedColumns) {
             // Input table has weak schema, so we cannot check if all

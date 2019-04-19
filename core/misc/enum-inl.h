@@ -40,8 +40,8 @@ namespace NYT {
     { \
         using TType = name; \
         using TUnderlying = underlyingType; \
-        static constexpr bool IsBitEnum = isBit; \
-        static constexpr bool IsStringSerializableEnum = isStringSerializable; \
+        [[maybe_unused]] static constexpr bool IsBitEnum = isBit; \
+        [[maybe_unused]] static constexpr bool IsStringSerializableEnum = isStringSerializable; \
         \
         static TStringBuf GetTypeName() \
         { \

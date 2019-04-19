@@ -137,9 +137,9 @@ std::unique_ptr<IJobSizeAdjuster> CreateJobSizeAdjuster(
     i64 dataWeightPerJob,
     const TJobSizeAdjusterConfigPtr& config)
 {
-    return std::unique_ptr<IJobSizeAdjuster>(new TJobSizeAdjuster(
+    return std::make_unique<TJobSizeAdjuster>(
         dataWeightPerJob,
-        config));
+        config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

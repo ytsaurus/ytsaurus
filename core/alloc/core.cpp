@@ -20,6 +20,7 @@
 #include <yt/core/misc/align.h>
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/proc.h>
+#include <yt/core/misc/stack_trace.h>
 
 #include <yt/core/concurrency/fork_aware_spinlock.h>
 
@@ -29,6 +30,8 @@
 #include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
+
+#include <yt/core/ytree/yson_serializable.h>
 
 #include <atomic>
 #include <array>
@@ -77,7 +80,6 @@
 namespace NYT::NYTAlloc {
 
 ////////////////////////////////////////////////////////////////////////////////
-
 // Allocations are classified into three types:
 //
 // a) Small chunks (less than LargeSizeThreshold)
@@ -111,15 +113,14 @@ constexpr size_t PageSize = 4_KB;
 
 constexpr size_t MinLargeRank = 15;
 
-static_assert(LargeRankCount - MinLargeRank <= 16, "Too many large ranks.");
-static_assert(SmallRankCount <= 32, "Too many small ranks.");
+static_assert(LargeRankCount - MinLargeRank <= 16, "Too many large ranks");
+static_assert(SmallRankCount <= 32, "Too many small ranks");
 
 constexpr size_t SmallZoneSize = 1_TB;
 constexpr size_t LargeZoneSize = 1_TB * 16;
 constexpr size_t HugeZoneSize = 1_TB;
 constexpr size_t SystemZoneSize = 1_TB;
 
-constexpr size_t LargeSizeThreshold = 32_KB;
 constexpr size_t MaxCachedChunksPerRank = 256;
 
 constexpr uintptr_t UntaggedSmallZonesStart = 0;
@@ -163,6 +164,7 @@ constexpr const char* BackgroundThreadName = "YTAllocBack";
 constexpr const char* StockpileThreadName = "YTAllocStock";
 constexpr const char* LoggerCategory = "YTAlloc";
 constexpr const char* ProfilerPath = "/yt_alloc";
+constexpr const char* ConfigEnvVarName = "YT_ALLOC_CONFIG";
 
 DEFINE_ENUM(EAllocationKind,
     (Untagged)
@@ -239,42 +241,6 @@ void InitializeGlobals();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Maps small chunk ranks to size in bytes.
-static const ui16 SmallRankToSize[SmallRankCount] = {
-    0,
-    16, 16,
-    32, 32, 48, 64, 96, 128,
-    192, 256, 384, 512, 768, 1024, 1536, 2048,
-    3072, 4096, 6144, 8192, 12288, 16384, 24576, 32768,
-};
-
-// Helper array for mapping size to small chunk rank.
-static const ui8 SmallSizeToRank1[65] = {
-    1,
-    2, 2, 4, 4,  // 16, 16, 32, 32
-    5, 5, 6, 6,  // 48, 64
-    7, 7, 7, 7, 8, 8, 8, 8, // 96, 128
-    9, 9, 9, 9, 9, 9, 9, 9,  10, 10, 10, 10, 10, 10, 10, 10,  // 192, 256
-    11, 11, 11, 11, 11, 11, 11, 11,  11, 11, 11, 11, 11, 11, 11, 11,  // 384
-    12, 12, 12, 12, 12, 12, 12, 12,  12, 12, 12, 12, 12, 12, 12, 12   // 512
-};
-
-// Helper array for mapping size to small chunk rank.
-static const unsigned char SmallSizeToRank2[128] = {
-    12, 12, 13, 14, // 512, 512, 768, 1024
-    15, 15, 16, 16, // 1536, 2048
-    17, 17, 17, 17, 18, 18, 18, 18, // 3072, 4096
-    19, 19, 19, 19, 19, 19, 19, 19,  20, 20, 20, 20, 20, 20, 20, 20, // 6144, 8192
-    21, 21, 21, 21, 21, 21, 21, 21,  21, 21, 21, 21, 21, 21, 21, 21, // 12288
-    22, 22, 22, 22, 22, 22, 22, 22,  22, 22, 22, 22, 22, 22, 22, 22, // 16384
-    23, 23, 23, 23, 23, 23, 23, 23,  23, 23, 23, 23, 23, 23, 23, 23,
-    23, 23, 23, 23, 23, 23, 23, 23,  23, 23, 23, 23, 23, 23, 23, 23, // 24576
-    24, 24, 24, 24, 24, 24, 24, 24,  24, 24, 24, 24, 24, 24, 24, 24,
-    24, 24, 24, 24, 24, 24, 24, 24,  24, 24, 24, 24, 24, 24, 24, 24, // 32768
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 Y_FORCE_INLINE size_t GetUsed(ssize_t allocated, ssize_t freed)
 {
     return allocated >= freed ? static_cast<size_t>(allocated - freed) : 0;
@@ -345,7 +311,7 @@ Y_FORCE_INLINE void PoisonUninitializedRange(void* ptr, size_t size)
 }
 
 // Checks that the header size is divisible by 16 (as needed due to alignment restrictions).
-#define CHECK_HEADER_SIZE(T) static_assert(sizeof(T) % 16 == 0, "sizeof(" #T ") % 16 != 0");
+#define CHECK_HEADER_ALIGNMENT(T) static_assert(sizeof(T) % 16 == 0, "sizeof(" #T ") % 16 != 0");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -570,11 +536,48 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Holds TYAlloc control knobs.
+class TSerializableConfiguration
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableAllocationProfiling;
+    double AllocationProfilingSamplingRate;
+    std::vector<int> SmallArenasToProfile;
+    std::vector<int> LargeArenasToProfile;
+    int ProfilingBacktraceDepth;
+    size_t MinProfilingBytesUsedToReport;
+
+    TSerializableConfiguration()
+    {
+        RegisterParameter("enable_allocation_profiling", EnableAllocationProfiling)
+            .Default(false);
+        RegisterParameter("allocation_profiling_sampling_rate", AllocationProfilingSamplingRate)
+            .Default(1.0)
+            .InRange(0.0, 1.0);
+        RegisterParameter("small_arenas_to_profile", SmallArenasToProfile)
+            .Default({});
+        RegisterParameter("large_arenas_to_profile", LargeArenasToProfile)
+            .Default({});
+        RegisterParameter("profiling_backtrace_depth", ProfilingBacktraceDepth)
+            .Default(10)
+            .InRange(1, MaxAllocationProfilingBacktraceDepth);
+        RegisterParameter("min_profiling_bytes_used_to_report", MinProfilingBytesUsedToReport)
+            .Default(1_MB)
+            .GreaterThan(0);
+    }
+};
+
+// Holds YTAlloc control knobs.
 // Thread safe.
 class TConfigurationManager
 {
 public:
+    void RunBackgroundTasks(const TBackgroundContext& context)
+    {
+        ParseEnvVar(context);
+    }
+
+
     void EnableLogging()
     {
         LoggingEnabled_.store(true);
@@ -629,12 +632,140 @@ public:
         return TDuration::MicroSeconds(SlowCallWarningThreshold_.load());
     }
 
+
+    void SetAllocationProfilingEnabled(bool value);
+
+    bool IsAllocationProfilingEnabled() const
+    {
+        return AllocationProfilingEnabled_.load();
+    }
+
+
+    Y_FORCE_INLINE bool GetAllocationProfilingSamplingRate()
+    {
+        return AllocationProfilingSamplingRate_.load();
+    }
+
+    void SetAllocationProfilingSamplingRate(double rate)
+    {
+        i64 rateX64K = static_cast<i64>(rate * (1ULL << 16));
+        AllocationProfilingSamplingRateX64K_.store(ClampVal<ui32>(rateX64K, 0, std::numeric_limits<ui16>::max() + 1));
+        AllocationProfilingSamplingRate_.store(rate);
+    }
+
+
+    Y_FORCE_INLINE bool IsSmallArenaAllocationProfilingEnabled(size_t rank)
+    {
+        return SmallArenaAllocationProfilingEnabled_[rank].load(std::memory_order_relaxed);
+    }
+
+    Y_FORCE_INLINE bool IsSmallArenaAllocationProfiled(size_t rank)
+    {
+        return IsSmallArenaAllocationProfilingEnabled(rank) && IsAllocationSampled();
+    }
+
+    Y_FORCE_INLINE bool IsLargeArenaAllocationProfilingEnabled(size_t rank)
+    {
+        return LargeArenaAllocationProfilingEnabled_[rank].load(std::memory_order_relaxed);
+    }
+
+    Y_FORCE_INLINE bool IsLargeArenaAllocationProfiled(size_t rank)
+    {
+        return IsLargeArenaAllocationProfilingEnabled(rank) && IsAllocationSampled();
+    }
+
+
+    Y_FORCE_INLINE int GetProfilingBacktraceDepth()
+    {
+        return ProfilingBacktraceDepth_.load();
+    }
+
+    Y_FORCE_INLINE size_t GetMinProfilingBytesUsedToReport()
+    {
+        return MinProfilingBytesUsedToReport_.load();
+    }
+
 private:
     std::atomic<bool> LoggingEnabled_ = {false};
     std::atomic<bool> ProfilingEnabled_ = {false};
     std::atomic<double> LargeUnreclaimableCoeff_ = {0.05};
     std::atomic<size_t> LargeUnreclaimableBytes_ = {128_MB};
     std::atomic<ui64> SlowCallWarningThreshold_ = {10000}; // in microseconds, 10 ms by default
+
+    bool ConfigEnvVarParsed_ = false;
+    std::atomic<bool> AllocationProfilingEnabled_ = {false};
+    std::atomic<double> AllocationProfilingSamplingRate_ = {0};
+    std::atomic<ui32> AllocationProfilingSamplingRateX64K_ = {0};
+    std::array<std::atomic<bool>, SmallRankCount> SmallArenaAllocationProfilingEnabled_ = {};
+    std::array<std::atomic<bool>, LargeRankCount> LargeArenaAllocationProfilingEnabled_ = {};
+    std::atomic<int> ProfilingBacktraceDepth_ = {MaxAllocationProfilingBacktraceDepth};
+    std::atomic<size_t> MinProfilingBytesUsedToReport_ = {1_MB};
+
+private:
+    void ParseEnvVar(const TBackgroundContext& context)
+    {
+        if (ConfigEnvVarParsed_) {
+            return;
+        }
+        ConfigEnvVarParsed_ = true;
+
+        const auto& Logger = context.Logger;
+
+        const auto* configVarValue = ::getenv(ConfigEnvVarName);
+        if (!configVarValue) {
+            YT_LOG_INFO("No %v environment variable is found",
+                ConfigEnvVarName);
+            return;
+        }
+
+        TIntrusivePtr<TSerializableConfiguration> config;
+        try {
+            config = NYTree::ConvertTo<TIntrusivePtr<TSerializableConfiguration>>(
+                NYson::TYsonString(TString(configVarValue)));
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Error parsing environment variable %v",
+                ConfigEnvVarName);
+            return;
+        }
+
+        for (auto& flag : SmallArenaAllocationProfilingEnabled_) {
+            flag.store(false);
+        }
+        for (auto rank : config->SmallArenasToProfile) {
+            if (rank < 1 || rank > SmallRankCount) {
+                YT_LOG_WARNING("Unable to enable allocation profiling for small arena %v since its rank is out of range",
+                    rank);
+                continue;
+            }
+            SmallArenaAllocationProfilingEnabled_[rank].store(true);
+        }
+
+        for (auto& flag : LargeArenaAllocationProfilingEnabled_) {
+            flag.store(false);
+        }
+        for (auto rank : config->LargeArenasToProfile) {
+            if (rank < 1 || rank > LargeRankCount) {
+                YT_LOG_WARNING("Unable to enable allocation profiling for large arena %v since its rank is out of range",
+                    rank);
+                continue;
+            }
+            LargeArenaAllocationProfilingEnabled_[rank].store(true);
+        }
+
+        SetAllocationProfilingEnabled(config->EnableAllocationProfiling);
+        SetAllocationProfilingSamplingRate(config->AllocationProfilingSamplingRate);
+        ProfilingBacktraceDepth_.store(config->ProfilingBacktraceDepth);
+        MinProfilingBytesUsedToReport_.store(config->MinProfilingBytesUsedToReport);
+
+        YT_LOG_INFO("%v environment variable parsed successfully",
+            ConfigEnvVarName);
+    }
+
+    bool IsAllocationSampled()
+    {
+        Y_STATIC_THREAD(ui16) Counter;
+        return Counter++ < AllocationProfilingSamplingRateX64K_.load();
+    }
 };
 
 TBox<TConfigurationManager> ConfigurationManager;
@@ -755,11 +886,9 @@ Y_POD_THREAD(bool) TTimingManager::DisabledForCurrentThread_;
 
 TBox<TTimingManager> TimingManager;
 
+////////////////////////////////////////////////////////////////////////////////
+
 // Used to log statistics about long-running syscalls and lock acquisitions.
-// Maintains recursion depth and execution stats in TLS.
-// Recursion depth counter ensures that logging only happens
-// when the topmost guard is being destroyed and thus YTAlloc does not invoke itself in
-// an unexpected way.
 class TTimingGuard
     : public TNonCopyable
 {
@@ -1034,7 +1163,7 @@ struct TSystemBlobHeader
     char Padding[8];
 };
 
-CHECK_HEADER_SIZE(TSystemBlobHeader)
+CHECK_HEADER_ALIGNMENT(TSystemBlobHeader)
 
 // Used for some internal allocations.
 // Delgates directly to TMappedMemoryManager.
@@ -1219,13 +1348,22 @@ private:
 // Since the total number of tags can be huge, a two-level scheme is employed.
 // Possible tags are arranged into sets each containing TaggedCounterSetSize tags.
 // There are up to MaxTaggedCounterSets in total.
-
+// Upper 4 sets are reserved for profiled allocations.
 constexpr size_t TaggedCounterSetSize = 16384;
-constexpr size_t MaxTaggedCounterSets = 256;
+constexpr size_t AllocationProfilingTaggedCounterSets = 4;
+constexpr size_t MaxTaggedCounterSets = 256 + AllocationProfilingTaggedCounterSets;
+
+constexpr size_t MaxCapturedAllocationBacktraces = 65000;
+static_assert(
+    MaxCapturedAllocationBacktraces < AllocationProfilingTaggedCounterSets * TaggedCounterSetSize,
+    "MaxCapturedAllocationBacktraces is too big");
+
+constexpr TMemoryTag AllocationProfilingMemoryTagBase = TaggedCounterSetSize * (MaxTaggedCounterSets - AllocationProfilingTaggedCounterSets);
+constexpr TMemoryTag AllocationProfilingUnknownMemoryTag = AllocationProfilingMemoryTagBase + MaxCapturedAllocationBacktraces;
 
 static_assert(
-    MaxMemoryTag == TaggedCounterSetSize * MaxTaggedCounterSets - 1,
-    "MaxMemoryTag != TaggedCounterSetSize * MaxTaggedCounterSets - 1");
+    MaxMemoryTag == TaggedCounterSetSize * (MaxTaggedCounterSets - AllocationProfilingTaggedCounterSets) - 1,
+    "Wrong MaxMemoryTag");
 
 template <class TCounter>
 using TUntaggedTotalCounters = TEnumIndexedVector<TCounter, EBasicCounter>;
@@ -1318,6 +1456,9 @@ struct TThreadState
     // This is a pair of next/prev pointers connecting an instance of TThreadState to its neighbors.
     TIntrusiveLinkedListNode<TThreadState> RegistryNode;
 
+    // Pointer to the respective part of TThreadManager::ThreadControlWord_.
+    ui8* AllocationProfilingEnabled;
+
     // TThreadStates are ref-counted.
     // TThreadManager::EnumerateThreadStates enumerates the registered states and acquires
     // a temporary reference preventing these states from being destructed. This provides
@@ -1352,13 +1493,13 @@ struct TThreadState
         }
 
         // For each rank we have a segment of pointers in CachedChunks with the following layout:
-        //   LPP[P]........R
+        //   LCC[C]........R
         // Legend:
-        //   .  = null pointer
+        //   .  = garbage
         //   L  = left sentinel
         //   R  = right sentinel
-        //   P  = cached pointer
-        //  [P] = current cached pointer
+        //   C  = cached pointer
+        //  [C] = current cached pointer
         //
         //  +2 is for two sentinels
         std::array<void*, SmallRankCount * (MaxCachedChunksPerRank + 2)> CachedChunks{};
@@ -1386,20 +1527,24 @@ public:
         pthread_key_create(&ThreadDtorKey_, DestroyThread);
     }
 
+    // Returns TThreadState for the current thread; the caller guarantees that this
+    // state is initialized and is not destroyed yet.
+    static TThreadState* GetThreadStateUnchecked();
+
     // Returns TThreadState for the current thread; may return null.
     static TThreadState* FindThreadState();
 
     // Returns TThreadState for the current thread; may not return null
     // (but may crash if TThreadState is already destroyed).
-    static TThreadState* GetThreadState()
+    static TThreadState* GetThreadStateChecked()
     {
         auto* state = FindThreadState();
         YCHECK(state);
         return state;
     }
 
-    // Enumerates all threads and invokes #func passing TThreadState instances.
-    // #func must not throw but can take arbitrary time; no locks are being held while it executes.
+    // Enumerates all threads and invokes func passing TThreadState instances.
+    // func must not throw but can take arbitrary time; no locks are being held while it executes.
     template <class F>
     void EnumerateThreadStates(F func) noexcept
     {
@@ -1431,23 +1576,51 @@ public:
         }
     }
 
-    Y_FORCE_INLINE static TMemoryTag GetCurrentMemoryTag()
+
+    // We store a special 64-bit "thread control word" in TLS encapsulating the following
+    // crucial per-thread parameters:
+    // * the current memory tag
+    // * a flag indicating that a valid TThreadState is known to exists
+    // (and can be obtained via GetThreadStateUnchecked)
+    // * a flag indicating if allocation profiling is enabled
+    // Thread control word is fetched via GetThreadControlWord and is compared
+    // against FastPathControlWord to see if the fast path can be taken.
+    // The latter happens when no memory tagging is configured, TThreadState is
+    // valid, and allocation profiling is disabled.
+
+    // The mask for extracting memory tag from thread control word.
+    static constexpr ui64 MemoryTagControlWordMask = 0xffffffff;
+    // ThreadStateValid is on.
+    static constexpr ui64 ThreadStateValidControlWordMask = (1ULL << 32);
+    // AllocationProfiling is on.
+    static constexpr ui64 AllocationProfilingEnabledControlWordMask = (1ULL << 40);
+    // Memory tag is NullMemoryTag; thread state is valid.
+    static constexpr ui64 FastPathControlWord = ThreadStateValidControlWordMask | NullMemoryTag;
+
+    Y_FORCE_INLINE static ui64 GetThreadControlWord()
     {
-        return CurrentMemoryTag_;
+        return (&ThreadControlWord_)->Value;
     }
 
-    Y_FORCE_INLINE static void SetCurrentMemoryTag(TMemoryTag tag)
+
+    static TMemoryTag GetCurrentMemoryTag()
+    {
+        return (&ThreadControlWord_)->Parts.MemoryTag;
+    }
+
+    static void SetCurrentMemoryTag(TMemoryTag tag)
     {
         YCHECK(tag <= MaxMemoryTag);
-        CurrentMemoryTag_ = tag;
+        (&ThreadControlWord_)->Parts.MemoryTag = tag;
     }
 
-    Y_FORCE_INLINE static EMemoryZone GetCurrentMemoryZone()
+
+    static EMemoryZone GetCurrentMemoryZone()
     {
         return CurrentMemoryZone_;
     }
 
-    Y_FORCE_INLINE static void SetCurrentMemoryZone(EMemoryZone zone)
+    static void SetCurrentMemoryZone(EMemoryZone zone)
     {
         CurrentMemoryZone_ = zone;
     }
@@ -1458,6 +1631,9 @@ private:
     TThreadState* AllocateThreadState()
     {
         auto* state = ThreadStatePool_.Allocate();
+
+        state->AllocationProfilingEnabled = &(*&ThreadControlWord_).Parts.ProfilingEnabled;
+        *state->AllocationProfilingEnabled = ConfigurationManager->IsAllocationProfilingEnabled() ? 1 : 0;
 
         {
             auto guard = GuardWithTiming(ThreadRegistryLock_);
@@ -1499,8 +1675,20 @@ private:
     // The caller must be able to deal with it.
     Y_POD_STATIC_THREAD(bool) ThreadStateDestroyed_;
 
-    // See tagged allocations API.
-    Y_POD_STATIC_THREAD(TMemoryTag) CurrentMemoryTag_;
+    union TThreadControlWord
+    {
+        ui64 __attribute__((__may_alias__)) Value;
+        struct TParts
+        {
+            ui32 __attribute__((__may_alias__)) MemoryTag;
+            // 1 if a valid TThreadState exists and can be obtained via GetThreadStateUnchecked, 0 otherwise.
+            ui8 __attribute__((__may_alias__)) ThreadStateValid;
+            // 1 if allocation profiling is on, 0 if off.
+            ui8 __attribute__((__may_alias__)) ProfilingEnabled;
+            ui8 Padding[2];
+        } Parts;
+    };
+    Y_POD_STATIC_THREAD(TThreadControlWord) ThreadControlWord_;
 
     // See memory zone API.
     Y_POD_STATIC_THREAD(EMemoryZone) CurrentMemoryZone_;
@@ -1516,10 +1704,154 @@ private:
 
 Y_POD_THREAD(TThreadState*) TThreadManager::ThreadState_;
 Y_POD_THREAD(bool) TThreadManager::ThreadStateDestroyed_;
-Y_POD_THREAD(TMemoryTag) TThreadManager::CurrentMemoryTag_;
+Y_POD_THREAD(TThreadManager::TThreadControlWord) TThreadManager::ThreadControlWord_;
 Y_POD_THREAD(EMemoryZone) TThreadManager::CurrentMemoryZone_;
 
 TBox<TThreadManager> ThreadManager;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TConfigurationManager::SetAllocationProfilingEnabled(bool value)
+{
+    AllocationProfilingEnabled_.store(value);
+    // Update threads' TLS.
+    ThreadManager->EnumerateThreadStates(
+        [&] (auto* state) {
+            *state->AllocationProfilingEnabled = IsAllocationProfilingEnabled() ? 1 : 0;
+        });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Backtrace Manager
+//
+// Captures backtraces observed during allocations and assigns memory tags to them.
+// Memory tags are chosen sequentially starting from AllocationProfilingMemoryTagBase.
+//
+// For each backtrace we compute a 64-bit hash and use it as a key in a certain concurrent hashmap.
+// This hashmap is organized into BucketCount buckets, each consisting of BucketSize slots.
+//
+// Backtrace hash is translated into bucket index by taking the appropriate number of
+// its lower bits. For each slot, we remember a 32-bit fingerprint, which is
+// just the next 32 bits of the backtrace's hash, and the (previously assigned) memory tag.
+//
+// Upon access to the hashtable, the bucket is first scanned optimistically, without taking
+// any locks. In case of a miss, a per-bucket spinlock is acquired and the bucket is rescanned.
+//
+// The above scheme may involve collisions but we neglect their probability.
+//
+// If the whole hash table overflows (i.e. a total of MaxCapturedAllocationBacktraces
+// backtraces are captured) or the bucket overflows (i.e. all of its slots become occupied),
+// the allocation is annotated with AllocationProfilingUnknownMemoryTag. Such allocations
+// appear as having no backtrace whatsoever in the profiling reports.
+
+class TBacktraceManager
+{
+public:
+    // Captures the backtrace and inserts it into the hashtable.
+    TMemoryTag GetMemoryTagFromBacktrace(int framesToSkip)
+    {
+        std::array<void*, MaxAllocationProfilingBacktraceDepth> frames;
+        auto frameCount  = GetStackTrace(frames.data(), ConfigurationManager->GetProfilingBacktraceDepth(), framesToSkip);
+        auto hash = GetBacktraceHash(frames.data(), frameCount);
+        return CaptureBacktrace(hash, frames.data(), frameCount);
+    }
+
+    // Returns the backtrace corresponding to the given tag, if any.
+    std::optional<TBacktrace> FindBacktrace(TMemoryTag tag)
+    {
+        if (tag < AllocationProfilingMemoryTagBase ||
+            tag >= AllocationProfilingMemoryTagBase + MaxCapturedAllocationBacktraces)
+        {
+            return std::nullopt;
+        }
+        const auto& entry = Backtraces_[tag - AllocationProfilingMemoryTagBase];
+        if (!entry.Captured.load()) {
+            return std::nullopt;
+        }
+        return entry.Backtrace;
+    }
+
+private:
+    static constexpr size_t Log2BucketCount = 16;
+    static constexpr size_t BucketCount = 1ULL << Log2BucketCount;
+    static constexpr size_t BucketSize = 8;
+
+    std::array<std::array<std::atomic<ui32>, BucketSize>, BucketCount> Fingerprints_= {};
+    std::array<std::array<std::atomic<TMemoryTag>, BucketSize>, BucketCount> MemoryTags_ = {};
+    std::array<NConcurrency::TForkAwareSpinLock, BucketCount> BucketLocks_;
+    std::atomic<TMemoryTag> CurrentMemoryTag_ = {AllocationProfilingMemoryTagBase};
+
+    struct TBacktraceEntry
+    {
+        TBacktrace Backtrace;
+        std::atomic<bool> Captured = {false};
+    };
+
+    std::array<TBacktraceEntry, MaxCapturedAllocationBacktraces> Backtraces_;
+
+private:
+    static size_t GetBacktraceHash(void** frames, int frameCount)
+    {
+        size_t hash = 0;
+        for (int index = 0; index < frameCount; ++index) {
+            HashCombine(hash, frames[index]);
+        }
+        return hash;
+    }
+
+    TMemoryTag CaptureBacktrace(size_t hash, void** frames, int frameCount)
+    {
+        size_t bucketIndex = hash % BucketCount;
+        ui32 fingerprint = (hash >> Log2BucketCount) & 0xffffffff;
+        // Zero fingerprint indicates the slot is free; check and adjust to ensure
+        // that regular fingerprints are non-zero.
+        if (fingerprint == 0) {
+            fingerprint = 1;
+        }
+
+        for (int slotIndex = 0; slotIndex < BucketSize; ++slotIndex) {
+            auto currentFingerprint = Fingerprints_[bucketIndex][slotIndex].load(std::memory_order_relaxed);
+            if (currentFingerprint == fingerprint) {
+                return MemoryTags_[bucketIndex][slotIndex].load();
+            }
+        }
+
+        auto guard = Guard(BucketLocks_[bucketIndex]);
+
+        int spareSlotIndex = -1;
+        for (int slotIndex = 0; slotIndex < BucketSize; ++slotIndex) {
+            auto currentFingerprint = Fingerprints_[bucketIndex][slotIndex].load(std::memory_order_relaxed);
+            if (currentFingerprint == fingerprint) {
+                return MemoryTags_[bucketIndex][slotIndex];
+            }
+            if (currentFingerprint == 0) {
+                spareSlotIndex = slotIndex;
+                break;
+            }
+        }
+
+        if (spareSlotIndex < 0) {
+            return AllocationProfilingUnknownMemoryTag;
+        }
+
+        auto memoryTag = CurrentMemoryTag_++;
+        if (memoryTag >= AllocationProfilingMemoryTagBase + MaxCapturedAllocationBacktraces) {
+            return AllocationProfilingUnknownMemoryTag;
+        }
+
+        MemoryTags_[bucketIndex][spareSlotIndex].store(memoryTag);
+        Fingerprints_[bucketIndex][spareSlotIndex].store(fingerprint);
+
+        auto& entry = Backtraces_[CurrentMemoryTag_ - AllocationProfilingMemoryTagBase];
+        entry.Backtrace.resize(frameCount);
+        ::memcpy(entry.Backtrace.data(), frames, sizeof (void*) * frameCount);
+        entry.Captured.store(true);
+
+        return memoryTag;
+    }
+};
+
+TBox<TBacktraceManager> BacktraceManager;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1589,30 +1921,45 @@ public:
     }
 
     // Computes memory usage for a list of tags by aggregating counters across threads.
-    void GetTaggedMemoryUsage(TRange<TMemoryTag> tags, size_t* usage)
+    void GetTaggedMemoryCounters(TRange<TMemoryTag> tags, TEnumIndexedVector<ssize_t, EBasicCounter>* counters)
     {
         TMemoryTagGuard guard(NullMemoryTag);
 
-        SmallVector<size_t, 64> bytesAllocated(tags.Size());
-        SmallVector<size_t, 64> bytesFreed(tags.Size());
+        for (size_t index = 0; index < tags.Size(); ++index) {
+            counters[index][EBasicCounter::BytesAllocated] = 0;
+            counters[index][EBasicCounter::BytesFreed] = 0;
+        }
 
         for (size_t index = 0; index < tags.Size(); ++index) {
             auto tag = tags[index];
-            bytesAllocated[index] += LoadTaggedTotalCounter(GlobalState->TotalCounters, tag, EBasicCounter::BytesAllocated);
-            bytesFreed[index] += LoadTaggedTotalCounter(GlobalState->TotalCounters, tag, EBasicCounter::BytesFreed);
+            counters[index][EBasicCounter::BytesAllocated] += LoadTaggedTotalCounter(GlobalState->TotalCounters, tag, EBasicCounter::BytesAllocated);
+            counters[index][EBasicCounter::BytesFreed] += LoadTaggedTotalCounter(GlobalState->TotalCounters, tag, EBasicCounter::BytesFreed);
         }
 
         ThreadManager->EnumerateThreadStates(
             [&] (const auto* state) {
                 for (size_t index = 0; index < tags.Size(); ++index) {
                     auto tag = tags[index];
-                    bytesAllocated[index] += LoadTaggedTotalCounter(state->TotalCounters, tag, EBasicCounter::BytesAllocated);
-                    bytesFreed[index] += LoadTaggedTotalCounter(state->TotalCounters, tag, EBasicCounter::BytesFreed);
+                    counters[index][EBasicCounter::BytesAllocated] += LoadTaggedTotalCounter(state->TotalCounters, tag, EBasicCounter::BytesAllocated);
+                    counters[index][EBasicCounter::BytesFreed] += LoadTaggedTotalCounter(state->TotalCounters, tag, EBasicCounter::BytesFreed);
                 }
             });
 
         for (size_t index = 0; index < tags.Size(); ++index) {
-            usage[index] = GetUsed(bytesAllocated[index], bytesFreed[index]);
+            counters[index][EBasicCounter::BytesUsed] = GetUsed(counters[index][EBasicCounter::BytesAllocated], counters[index][EBasicCounter::BytesFreed]);
+        }
+    }
+
+    void GetTaggedMemoryUsage(TRange<TMemoryTag> tags, size_t* usage)
+    {
+        TMemoryTagGuard guard(NullMemoryTag);
+
+        std::vector<TEnumIndexedVector<ssize_t, EBasicCounter>> counters;
+        counters.resize(tags.Size());
+        GetTaggedMemoryCounters(tags, counters.data());
+
+        for (size_t index = 0; index < tags.Size(); ++index) {
+            usage[index] = counters[index][EBasicCounter::BytesUsed];
         }
     }
 
@@ -1986,7 +2333,7 @@ void TSystemAllocator::Free(void* ptr)
 //
 // Allocations (called small chunks) are grouped by their sizes. Two most-significant binary digits are
 // used to determine the rank of a chunk, which guarantees 25% overhead in the worst case.
-// A pair of helper arrays (SmallSizeToRank1 and SmallSizeToRank2) are used to compute ranks; we expect
+// A pair of helper arrays (SizeToSmallRank1 and SizeToSmallRank2) are used to compute ranks; we expect
 // them to be permanently cached.
 //
 // Chunks of the same rank are served by a (small) arena allocator.
@@ -2036,7 +2383,10 @@ struct TTaggedSmallChunkHeader
     char Padding[12];
 };
 
-CHECK_HEADER_SIZE(TTaggedSmallChunkHeader)
+CHECK_HEADER_ALIGNMENT(TTaggedSmallChunkHeader)
+static_assert(
+    sizeof(TTaggedSmallChunkHeader) == TaggedSmallChunkHeaderSize,
+    "Wrong size of TTaggedSmallChunkHeader");
 
 class TSmallArenaAllocator
 {
@@ -2196,7 +2546,9 @@ public:
         auto& chunkPtrPtr = state->SmallBlobCache[Kind_].RankToCachedChunkPtr[rank];
         group->PutMany(chunkPtrPtr - ChunksPerGroup + 1, ChunksPerGroup);
         chunkPtrPtr -= ChunksPerGroup;
+#ifdef PARANOID
         ::memset(chunkPtrPtr + 1, 0, sizeof(void*) * ChunksPerGroup);
+#endif
 
         auto& groups = RankToChunkGroups_[rank];
         PARANOID_CHECK(!group->IsEmpty());
@@ -2229,7 +2581,9 @@ public:
 
             auto* group = GroupPool_.Allocate(state);
             group->PutMany(chunkPtrPtr + 1, count);
+#ifdef PARANOID
             ::memset(chunkPtrPtr + 1, 0, sizeof(void*) * count);
+#endif
 
             auto& groups = RankToChunkGroups_[rank];
             groups.Put(state, group);
@@ -2254,13 +2608,18 @@ public:
     template <EAllocationKind Kind>
     static Y_FORCE_INLINE void* Allocate(TMemoryTag tag, size_t rank)
     {
-        size_t size = SmallRankToSize[rank];
-
         auto* state = TThreadManager::FindThreadState();
         if (Y_UNLIKELY(!state)) {
-            return AllocateGlobal<Kind>(tag, size, rank);
+            auto size = SmallRankToSize[rank];
+            return AllocateGlobal<Kind>(tag, rank, size);
         }
+        return Allocate<Kind>(tag, rank, state);
+    }
 
+    template <EAllocationKind Kind>
+    static Y_FORCE_INLINE void* Allocate(TMemoryTag tag, size_t rank, TThreadState* state)
+    {
+        size_t size = SmallRankToSize[rank];
         StatisticsManager->IncrementTotalCounter<Kind>(state, tag, EBasicCounter::BytesAllocated, size);
 
         while (true) {
@@ -2269,7 +2628,9 @@ public:
             auto* ptr = cachedPtr;
             PARANOID_CHECK(ptr);
             if (Y_LIKELY(ptr != reinterpret_cast<void*>(TThreadState::LeftSentinel))) {
+#ifdef PARANOID
                 cachedPtr = nullptr;
+#endif
                 --chunkPtr;
                 PoisonUninitializedRange(ptr, size);
                 return ptr;
@@ -2299,7 +2660,7 @@ public:
         while (true) {
             auto& chunkPtrPtr = state->SmallBlobCache[Kind].RankToCachedChunkPtr[rank];
             auto& chunkPtr = *(chunkPtrPtr + 1);
-            if (Y_LIKELY(!chunkPtr)) {
+            if (Y_LIKELY(chunkPtr != reinterpret_cast<void*>(TThreadState::RightSentinel))) {
                 chunkPtr = ptr;
                 ++chunkPtrPtr;
                 return;
@@ -2329,14 +2690,14 @@ private:
     template <EAllocationKind Kind>
     static void DoPurgeCaches()
     {
-        auto* state = TThreadManager::GetThreadState();
+        auto* state = TThreadManager::GetThreadStateChecked();
         for (size_t rank = 0; rank < SmallRankCount; ++rank) {
             (*GlobalSmallChunkCaches)[Kind]->MoveAllToGlobal(state, rank);
         }
     }
 
     template <EAllocationKind Kind>
-    static void* AllocateGlobal(TMemoryTag tag, size_t size, size_t rank)
+    static void* AllocateGlobal(TMemoryTag tag, size_t rank, size_t size)
     {
         StatisticsManager->IncrementTotalCounter(tag, EBasicCounter::BytesAllocated, size);
         return (*SmallArenaAllocators)[Kind][rank]->Allocate(size);
@@ -2449,7 +2810,7 @@ struct TLargeBlobHeader
     size_t BytesAllocated;
 };
 
-CHECK_HEADER_SIZE(TLargeBlobHeader)
+CHECK_HEADER_ALIGNMENT(TLargeBlobHeader)
 
 struct TLargeBlobExtent
 {
@@ -2616,7 +2977,7 @@ private:
     void ReinstallLockedSpareBlobs(const TBackgroundContext& context, TLargeArena* arena)
     {
         auto* blob = arena->LockedSpareBlobs.ExtractAll();
-        auto* state = TThreadManager::GetThreadState();
+        auto* state = TThreadManager::GetThreadStateChecked();
 
         size_t count = 0;
         while (blob) {
@@ -2635,7 +2996,7 @@ private:
 
     void ReinstallLockedFreedBlobs(const TBackgroundContext& context, TLargeArena* arena)
     {
-        auto* state = TThreadManager::GetThreadState();
+        auto* state = TThreadManager::GetThreadStateChecked();
         auto* blob = arena->LockedFreedBlobs.ExtractAll();
 
         size_t count = 0;
@@ -2659,7 +3020,7 @@ private:
         }
 
         auto rank = arena->Rank;
-        auto* state = TThreadManager::GetThreadState();
+        auto* state = TThreadManager::GetThreadStateChecked();
 
         const auto& Logger = context.Logger;
         YT_LOG_DEBUG("Started processing spare memory in arena (BytesToReclaim: %vM, Rank: %v)",
@@ -2713,7 +3074,7 @@ private:
             return;
         }
 
-        auto* state = TThreadManager::GetThreadState();
+        auto* state = TThreadManager::GetThreadStateChecked();
         auto rank = arena->Rank;
 
         const auto& Logger = context.Logger;
@@ -2888,9 +3249,11 @@ private:
     template <class TState>
     void* DoAllocate(TState* state, size_t size)
     {
-        auto tag = TThreadManager::GetCurrentMemoryTag();
         auto rawSize = GetRawBlobSize<TLargeBlobHeader>(size);
         auto rank = GetLargeRank(rawSize);
+        auto tag = ConfigurationManager->IsLargeArenaAllocationProfiled(rank)
+            ? BacktraceManager->GetMemoryTagFromBacktrace(3)
+            : TThreadManager::GetCurrentMemoryTag();
         auto& arena = Arenas_[rank];
         PARANOID_CHECK(rawSize <= arena.SegmentSize);
 
@@ -3018,7 +3381,7 @@ struct THugeBlobHeader
     char Padding[15];
 };
 
-CHECK_HEADER_SIZE(THugeBlobHeader)
+CHECK_HEADER_ALIGNMENT(THugeBlobHeader)
 
 class THugeBlobAllocator
 {
@@ -3223,6 +3586,7 @@ private:
                 context.Profiler = NProfiling::TProfiler(ProfilerPath);
             }
 
+            ConfigurationManager->RunBackgroundTasks(context);
             StatisticsManager->RunBackgroundTasks(context);
             DumpableLargeBlobAllocator->RunBackgroundTasks(context);
             UndumpableLargeBlobAllocator->RunBackgroundTasks(context);
@@ -3272,6 +3636,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Y_FORCE_INLINE TThreadState* TThreadManager::GetThreadStateUnchecked()
+{
+    PARANOID_CHECK(ThreadState_);
+    return ThreadState_;
+}
+
 Y_FORCE_INLINE TThreadState* TThreadManager::FindThreadState()
 {
     if (Y_LIKELY(ThreadState_)) {
@@ -3287,6 +3657,7 @@ Y_FORCE_INLINE TThreadState* TThreadManager::FindThreadState()
     // InitializeGlobals must not allocate.
     YCHECK(!ThreadState_);
     ThreadState_ = ThreadManager->AllocateThreadState();
+    (&ThreadControlWord_)->Parts.ThreadStateValid = 1;
 
     return ThreadState_;
 }
@@ -3298,6 +3669,7 @@ void TThreadManager::DestroyThread(void*)
     TThreadState* state = ThreadState_;
     ThreadState_ = nullptr;
     ThreadStateDestroyed_ = true;
+    (&ThreadControlWord_)->Parts.ThreadStateValid = 0;
 
     {
         auto guard = GuardWithTiming(ThreadManager->ThreadRegistryLock_);
@@ -3318,6 +3690,7 @@ void InitializeGlobals()
 {
     static std::once_flag Initialized;
     std::call_once(Initialized, [] () {
+        BacktraceManager.Construct();
         StatisticsManager.Construct();
         MappedMemoryManager.Construct();
         ThreadManager.Construct();
@@ -3346,37 +3719,73 @@ void InitializeGlobals()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class... Ts>
+Y_FORCE_INLINE void* AllocateSmallUntagged(size_t rank, Ts... args)
+{
+    auto* result = TSmallAllocator::Allocate<EAllocationKind::Untagged>(NullMemoryTag, rank, std::forward<Ts>(args)...);
+    PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= MinUntaggedSmallPtr && reinterpret_cast<uintptr_t>(result) < MaxUntaggedSmallPtr);
+    return result;
+}
+
+template <class... Ts>
+Y_FORCE_INLINE void* AllocateSmallTagged(ui64 controlWord, size_t rank, Ts... args)
+{
+    auto tag = Y_UNLIKELY((controlWord & TThreadManager::AllocationProfilingEnabledControlWordMask) && ConfigurationManager->IsSmallArenaAllocationProfiled(rank))
+        ? BacktraceManager->GetMemoryTagFromBacktrace(2)
+        : static_cast<TMemoryTag>(controlWord & TThreadManager::MemoryTagControlWordMask);
+    auto* ptr = TSmallAllocator::Allocate<EAllocationKind::Tagged>(tag, rank, std::forward<Ts>(args)...);
+    auto* chunk = static_cast<TTaggedSmallChunkHeader*>(ptr);
+    new (chunk) TTaggedSmallChunkHeader(tag);
+    auto* result = HeaderToPtr(chunk);
+    PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= MinTaggedSmallPtr && reinterpret_cast<uintptr_t>(result) < MaxTaggedSmallPtr);
+    return result;
+}
+
 Y_FORCE_INLINE void* AllocateInline(size_t size)
 {
 #define XX() \
     size_t rank; \
     if (Y_LIKELY(size <= 512)) { \
-        rank = SmallSizeToRank1[1 + ((static_cast<int>(size) - 1) >> 3)]; \
+        rank = SizeToSmallRank1[1 + ((static_cast<int>(size) - 1) >> 3)]; \
     } else { \
         if (Y_LIKELY(size < LargeSizeThreshold)) { \
-            rank = SmallSizeToRank2[(size - 1) >> 8]; \
+            rank = SizeToSmallRank2[(size - 1) >> 8]; \
         } else { \
             return TBlobAllocator::Allocate(size); \
         } \
     }
 
-    auto tag = TThreadManager::GetCurrentMemoryTag();
-    void* result;
+    auto controlWord = TThreadManager::GetThreadControlWord();
+    if (Y_LIKELY(controlWord == TThreadManager::FastPathControlWord)) {
+        XX()
+        return AllocateSmallUntagged(rank, TThreadManager::GetThreadStateUnchecked());
+    }
+
+    auto tag = static_cast<TMemoryTag>(controlWord & TThreadManager::MemoryTagControlWordMask);
     if (Y_LIKELY(tag == NullMemoryTag)) {
         XX()
-        result = TSmallAllocator::Allocate<EAllocationKind::Untagged>(NullMemoryTag, rank);
-        PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= MinUntaggedSmallPtr && reinterpret_cast<uintptr_t>(result) < MaxUntaggedSmallPtr);
+        return AllocateSmallUntagged(rank);
     } else {
-        size += sizeof (TTaggedSmallChunkHeader);
+        size += TaggedSmallChunkHeaderSize;
         XX()
-        auto* ptr = TSmallAllocator::Allocate<EAllocationKind::Tagged>(tag, rank);
-        auto* chunk = static_cast<TTaggedSmallChunkHeader*>(ptr);
-        new (chunk) TTaggedSmallChunkHeader(tag);
-        result = HeaderToPtr(chunk);
-        PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= MinTaggedSmallPtr && reinterpret_cast<uintptr_t>(result) < MaxTaggedSmallPtr);
+        return AllocateSmallTagged(controlWord, rank);
     }
-    return result;
 #undef XX
+}
+
+Y_FORCE_INLINE void* AllocateSmallInline(size_t untaggedRank, size_t taggedRank)
+{
+    auto controlWord = TThreadManager::GetThreadControlWord();
+    if (Y_LIKELY(controlWord == TThreadManager::FastPathControlWord)) {
+        return AllocateSmallUntagged(untaggedRank, TThreadManager::GetThreadStateUnchecked());
+    }
+
+    auto tag = static_cast<TMemoryTag>(controlWord & TThreadManager::MemoryTagControlWordMask);
+    if (Y_LIKELY(tag == NullMemoryTag)) {
+        return AllocateSmallUntagged(untaggedRank);
+    } else {
+        return AllocateSmallTagged(controlWord, taggedRank);
+    }
 }
 
 Y_FORCE_INLINE void* AllocatePageAlignedInline(size_t size)
@@ -3385,12 +3794,9 @@ Y_FORCE_INLINE void* AllocatePageAlignedInline(size_t size)
     return AlignUp(ptr, PageSize);
 }
 
-Y_FORCE_INLINE void FreeInline(void* ptr)
+Y_FORCE_INLINE void FreeNonNullInline(void* ptr)
 {
-    if (Y_UNLIKELY(!ptr)) {
-        return;
-    }
-
+    Y_ASSERT(ptr);
     if (Y_LIKELY(reinterpret_cast<uintptr_t>(ptr) < UntaggedSmallZonesEnd)) {
         PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= MinUntaggedSmallPtr && reinterpret_cast<uintptr_t>(ptr) < MaxUntaggedSmallPtr);
         TSmallAllocator::Free<EAllocationKind::Untagged>(NullMemoryTag, ptr);
@@ -3401,6 +3807,13 @@ Y_FORCE_INLINE void FreeInline(void* ptr)
         TSmallAllocator::Free<EAllocationKind::Tagged>(tag, chunk);
     } else {
         TBlobAllocator::Free(ptr);
+    }
+}
+
+Y_FORCE_INLINE void FreeInline(void* ptr)
+{
+    if (Y_LIKELY(ptr)) {
+        FreeNonNullInline(ptr);
     }
 }
 
@@ -3478,36 +3891,43 @@ void SetLargeUnreclaimableBytes(size_t value)
 
 TEnumIndexedVector<ssize_t, ETotalCounter> GetTotalCounters()
 {
+    InitializeGlobals();
     return StatisticsManager->GetTotalCounters();
 }
 
 TEnumIndexedVector<ssize_t, ESystemCounter> GetSystemCounters()
 {
+    InitializeGlobals();
     return StatisticsManager->GetSystemCounters();
 }
 
 TEnumIndexedVector<ssize_t, ESmallCounter> GetSmallCounters()
 {
+    InitializeGlobals();
     return StatisticsManager->GetSmallCounters();
 }
 
 TEnumIndexedVector<ssize_t, ESmallCounter> GetLargeCounters()
 {
+    InitializeGlobals();
     return StatisticsManager->GetLargeCounters();
 }
 
 std::array<TEnumIndexedVector<ssize_t, ESmallArenaCounter>, SmallRankCount> GetSmallArenaCounters()
 {
+    InitializeGlobals();
     return StatisticsManager->GetSmallArenaCounters();
 }
 
 std::array<TEnumIndexedVector<ssize_t, ELargeArenaCounter>, LargeRankCount> GetLargeArenaCounters()
 {
+    InitializeGlobals();
     return StatisticsManager->GetLargeArenaCounters();
 }
 
 TEnumIndexedVector<ssize_t, EHugeCounter> GetHugeCounters()
 {
+    InitializeGlobals();
     return StatisticsManager->GetHugeCounters();
 }
 
@@ -3542,6 +3962,46 @@ TString FormatCounters()
 
     builder.AppendString("}");
     return builder.Flush();
+}
+
+std::vector<TProfiledAllocation> GetProfiledAllocationStatistics()
+{
+    InitializeGlobals();
+
+    if (!ConfigurationManager->IsAllocationProfilingEnabled()) {
+        return {};
+    }
+
+    std::vector<TMemoryTag> tags;
+    tags.reserve(MaxCapturedAllocationBacktraces + 1);
+    for (TMemoryTag tag = AllocationProfilingMemoryTagBase;
+        tag < AllocationProfilingMemoryTagBase + MaxCapturedAllocationBacktraces;
+        ++tag)
+    {
+        tags.push_back(tag);
+    }
+    tags.push_back(AllocationProfilingUnknownMemoryTag);
+
+    std::vector<TEnumIndexedVector<ssize_t, EBasicCounter>> counters;
+    counters.resize(tags.size());
+    StatisticsManager->GetTaggedMemoryCounters(MakeRange(tags), counters.data());
+
+    std::vector<TProfiledAllocation> statistics;
+    for (size_t index = 0; index < tags.size(); ++index) {
+        if (counters[index][EBasicCounter::BytesUsed] < ConfigurationManager->GetMinProfilingBytesUsedToReport()) {
+            continue;
+        }
+        auto tag = tags[index];
+        auto optionalBacktrace = BacktraceManager->FindBacktrace(tag);
+        if (!optionalBacktrace && tag != AllocationProfilingUnknownMemoryTag) {
+            continue;
+        }
+        statistics.push_back(TProfiledAllocation{
+            optionalBacktrace.value_or(TBacktrace()),
+            counters[index]
+        });
+    }
+    return statistics;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -181,7 +181,8 @@ public:
         size_t offset = ConsumedOffset_ - inputOffset;
         if (offset < keys.Size()) {
             ConsumedOffset_ += keys.Size() - offset;
-            ZeroCopyWriter_->Write(keys.Slice(offset, keys.Size()));
+            WaitFor(ZeroCopyWriter_->Write(keys.Slice(offset, keys.Size())))
+                .ThrowOnError();
 
             LastActivity_ = TInstant::Now();
             if (InactivityCookie_) {

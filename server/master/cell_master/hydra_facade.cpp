@@ -288,7 +288,7 @@ private:
                 continue;
             }
 
-            if (snapshotId <= thresholdId) {
+            if (snapshotId < thresholdId) {
                 YT_LOG_INFO("Removing snapshot %v",
                     snapshotId);
 
@@ -316,7 +316,7 @@ private:
                 continue;
             }
 
-            if (changelogId <= thresholdId) {
+            if (changelogId < thresholdId) {
                 YT_LOG_INFO("Removing changelog %v",
                     changelogId);
                 try {

@@ -99,6 +99,8 @@
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
+#include <yt/core/alloc/statistics_producer.h>
+
 #include <yt/core/profiling/profile_manager.h>
 
 #include <yt/core/rpc/caching_channel_factory.h>
@@ -546,19 +548,19 @@ void TBootstrap::DoInitialize()
 
     // NB: This is exactly the order in which parts get registered and there are some
     // dependencies in Clear methods.
-    ObjectManager_ = New<TObjectManager>(Config_->ObjectManager, this);
+    ObjectManager_ = New<TObjectManager>(this);
 
-    SecurityManager_ = New<TSecurityManager>(Config_->SecurityManager, this);
+    SecurityManager_ = New<TSecurityManager>(this);
 
     TransactionManager_ = New<TTransactionManager>(Config_->TransactionManager, this);
 
     NodeTracker_ = New<TNodeTracker>(Config_->NodeTracker, this);
 
-    CypressManager_ = New<TCypressManager>(Config_->CypressManager, this);
+    CypressManager_ = New<TCypressManager>(this);
 
     ChunkManager_ = New<TChunkManager>(Config_->ChunkManager, this);
 
-    JournalManager_ = New<NJournalServer::TJournalManager>(Config_->JournalManager, this);
+    JournalManager_ = New<NJournalServer::TJournalManager>(this);
 
     TabletManager_ = New<TTabletManager>(Config_->TabletManager, this);
 
@@ -604,6 +606,7 @@ void TBootstrap::DoInitialize()
     CypressManager_->Initialize();
     ChunkManager_->Initialize();
     TabletManager_->Initialize();
+    MulticellManager_->Initialize();
 
     CellDirectorySynchronizer_ = New<NHiveServer::TCellDirectorySynchronizer>(
         Config_->CellDirectorySynchronizer,
@@ -614,6 +617,9 @@ void TBootstrap::DoInitialize()
     CellDirectorySynchronizer_->Start();
 
     MonitoringManager_ = New<TMonitoringManager>();
+    MonitoringManager_->Register(
+        "/yt_alloc",
+        NYTAlloc::CreateStatisticsProducer());
     MonitoringManager_->Register(
         "/ref_counted",
         CreateRefCountedTrackerStatisticsProducer());

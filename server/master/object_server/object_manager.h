@@ -40,9 +40,7 @@ class TObjectManager
     : public NCellMaster::TMasterAutomatonPart
 {
 public:
-    TObjectManager(
-        TObjectManagerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap);
+    explicit TObjectManager(NCellMaster::TBootstrap* bootstrap);
 
     void Initialize();
 
@@ -224,8 +222,6 @@ private:
     typedef TIntrusivePtr<TRootService> TRootServicePtr;
     class TRemoteProxy;
     class TObjectResolver;
-
-    const TObjectManagerConfigPtr Config_;
 
     NProfiling::TProfiler Profiler;
 

@@ -333,25 +333,33 @@ IChannelPtr CreateFailureDetectingChannel(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTraceContext GetTraceContext(const TRequestHeader& header)
+TTraceContextPtr GetTraceContext(const TRequestHeader& header)
 {
     if (!header.HasExtension(TTracingExt::tracing_ext)) {
-        return TTraceContext();
+        return nullptr;
     }
 
     const auto& ext = header.GetExtension(TTracingExt::tracing_ext);
-    return TTraceContext(
+    if (ext.trace_id() == InvalidTraceId) {
+        return nullptr;
+    }
+
+    return New<TTraceContext>(
         ext.trace_id(),
         ext.span_id(),
         ext.parent_span_id());
 }
 
-void SetTraceContext(TRequestHeader* header, const NTracing::TTraceContext& context)
+void SetTraceContext(TRequestHeader* header, const NTracing::TTraceContextPtr& context)
 {
+    if (!context) {
+        return;
+    }
+
     auto* ext = header->MutableExtension(TTracingExt::tracing_ext);
-    ext->set_trace_id(context.GetTraceId());
-    ext->set_span_id(context.GetSpanId());
-    ext->set_parent_span_id(context.GetParentSpanId());
+    ext->set_trace_id(context->GetTraceId());
+    ext->set_span_id(context->GetSpanId());
+    ext->set_parent_span_id(context->GetParentSpanId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

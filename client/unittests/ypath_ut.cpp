@@ -401,6 +401,37 @@ TEST_F(TYPathTest, IgnoreAmpersand3)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TRichYPathToStringTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<TString>
+{ };
+
+TEST_P(TRichYPathToStringTest, TestRichYPathToString)
+{
+    auto path = NYPath::TRichYPath::Parse(GetParam());
+    auto newPathString = ToString(path);
+    EXPECT_FALSE(newPathString.Contains("columns"));
+    auto parsedPath = NYPath::TRichYPath::Parse(newPathString);
+    EXPECT_EQ(path.GetPath(), parsedPath.GetPath());
+    EXPECT_TRUE(path.Attributes() == parsedPath.Attributes());
+};
+
+INSTANTIATE_TEST_CASE_P(
+    TRichYPathToStringTest,
+    TRichYPathToStringTest,
+    ::testing::Values(
+        "//home/ignat",
+        "<a=b>//home",
+        "<a=b>//home/ignat{a,b}[1:2]",
+        "//home[#1:#2,x:y]",
+        "@home",
+        "<a=b;c=d>//home{a,b}[(x, y):(a, b),#1:#2]",
+        "<ranges={lower_limit={chunk_index=10}}>//home/ignat/my_table{}",
+        "<a=b; columns=[key1;key2;key3]>//tmp/[0, (3, abc, true), :12u]"
+));
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TEmbeddedYPathOpsTest
     : public ::testing::Test
 {

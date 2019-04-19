@@ -114,6 +114,8 @@
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
+#include <yt/core/alloc/statistics_producer.h>
+
 #include <yt/core/profiling/profile_manager.h>
 
 #include <yt/core/rpc/bus/channel.h>
@@ -240,12 +242,16 @@ void TBootstrap::DoRun()
     LookupThreadPool = New<TThreadPool>(
         Config->QueryAgent->LookupThreadPoolSize,
         "Lookup");
-
     TableReplicatorThreadPool = New<TThreadPool>(
         Config->TabletNode->TabletManager->ReplicatorThreadPoolSize,
         "Replicator");
-
     TransactionTrackerQueue = New<TActionQueue>("TxTracker");
+    StorageHeavyThreadPool = New<TThreadPool>(
+        Config->DataNode->StorageHeavyThreadCount,
+        "StorageHeavy");
+    StorageLightThreadPool = New<TThreadPool>(
+        Config->DataNode->StorageLightThreadCount,
+        "StorageLight");
 
     BusServer = CreateTcpBusServer(Config->BusServer);
 
@@ -264,6 +270,9 @@ void TBootstrap::DoRun()
     SkynetHttpServer = NHttp::CreateServer(skynetHttpConfig);
 
     MonitoringManager_ = New<TMonitoringManager>();
+    MonitoringManager_->Register(
+        "/yt_alloc",
+        NYTAlloc::CreateStatisticsProducer());
     MonitoringManager_->Register(
         "/ref_counted",
         CreateRefCountedTrackerStatisticsProducer());
@@ -677,6 +686,16 @@ const IInvokerPtr& TBootstrap::GetTableReplicatorPoolInvoker() const
 const IInvokerPtr& TBootstrap::GetTransactionTrackerInvoker() const
 {
     return TransactionTrackerQueue->GetInvoker();
+}
+
+const IInvokerPtr& TBootstrap::GetStorageHeavyInvoker() const
+{
+    return StorageHeavyThreadPool->GetInvoker();
+}
+
+const IInvokerPtr& TBootstrap::GetStorageLightInvoker() const
+{
+    return StorageLightThreadPool->GetInvoker();
 }
 
 const NNative::IClientPtr& TBootstrap::GetMasterClient() const

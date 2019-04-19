@@ -1,14 +1,20 @@
 #pragma once
 
-#include <Dictionaries/Embedded/IGeoDictionariesLoader.h>
+#include "private.h"
 
-#include <memory>
+#include "table.h"
+
+#include <Storages/IStorage.h>
+
+#include <string>
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IGeoDictionariesLoader> CreateGeoDictionariesLoader(const std::string& geodataPath);
+DB::StoragePtr CreateStorageSubquery(
+    TQueryContext* queryContext,
+    std::string subquerySpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

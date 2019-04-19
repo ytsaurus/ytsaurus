@@ -151,17 +151,6 @@ void TMasterConnector::Start()
         RandomDuration(Config_->IncrementalHeartbeatPeriod));
 }
 
-void TMasterConnector::ForceRegisterAtMaster()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    if (!Started_)
-        return;
-
-    ControlInvoker_->Invoke(
-        BIND(&TMasterConnector::StartHeartbeats, MakeStrong(this)));
-}
-
 void TMasterConnector::StartHeartbeats()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -176,14 +165,14 @@ bool TMasterConnector::IsConnected() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return NodeId_ != InvalidNodeId;
+    return GetNodeId() != InvalidNodeId;
 }
 
 TNodeId TMasterConnector::GetNodeId() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return NodeId_;
+    return NodeId_.load();
 }
 
 void TMasterConnector::RegisterAlert(const TError& alert)
@@ -293,7 +282,7 @@ void TMasterConnector::RegisterAtMaster()
     MasterConnected_.Fire();
 
     YT_LOG_INFO("Successfully registered at primary master (NodeId: %v)",
-        NodeId_);
+        GetNodeId());
 
     for (auto cellTag : MasterCellTags_) {
         ScheduleNodeHeartbeat(cellTag, true);
@@ -425,7 +414,7 @@ void TMasterConnector::RegisterAtPrimaryMaster()
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
 
-    NodeId_ = rsp->node_id();
+    NodeId_.store(rsp->node_id());
 }
 
 void TMasterConnector::OnLeaseTransactionAborted()
@@ -627,8 +616,8 @@ void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
     request->SetRequestCodec(NCompression::ECodec::Lz4);
     request->SetTimeout(Config_->FullHeartbeatTimeout);
 
-    YCHECK(NodeId_ != InvalidNodeId);
-    request->set_node_id(NodeId_);
+    YCHECK(IsConnected());
+    request->set_node_id(GetNodeId());
 
     *request->mutable_statistics() = ComputeStatistics();
 
@@ -731,8 +720,8 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
     request->SetRequestCodec(NCompression::ECodec::Lz4);
     request->SetTimeout(Config_->IncrementalHeartbeatTimeout);
 
-    YCHECK(NodeId_ != InvalidNodeId);
-    request->set_node_id(NodeId_);
+    YCHECK(IsConnected());
+    request->set_node_id(GetNodeId());
 
     *request->mutable_statistics() = ComputeStatistics();
 
@@ -979,7 +968,7 @@ TChunkRemoveInfo TMasterConnector::BuildRemoveChunkInfo(IChunkPtr chunk)
 void TMasterConnector::ReportJobHeartbeat()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YCHECK(NodeId_ != InvalidNodeId);
+    YCHECK(IsConnected());
 
     auto cellTag = MasterCellTags_[JobHeartbeatCellIndex_];
     auto Logger = DataNodeLogger;
@@ -1038,7 +1027,7 @@ void TMasterConnector::Reset()
     HeartbeatContext_ = New<TCancelableContext>();
     HeartbeatInvoker_ = HeartbeatContext_->CreateInvoker(ControlInvoker_);
 
-    NodeId_ = InvalidNodeId;
+    NodeId_.store(InvalidNodeId);
     JobHeartbeatCellIndex_ = 0;
     LeaseTransaction_.Reset();
 

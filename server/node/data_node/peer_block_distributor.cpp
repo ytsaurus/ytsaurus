@@ -48,12 +48,13 @@ static const auto& Profiler = P2PProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPeerBlockDistributor::TPeerBlockDistributor(TPeerBlockDistributorConfigPtr config, TBootstrap* bootstrap)
+TPeerBlockDistributor::TPeerBlockDistributor(
+    TPeerBlockDistributorConfigPtr config,
+    TBootstrap* bootstrap)
     : Config_(std::move(config))
     , Bootstrap_(bootstrap)
-    , Invoker_(CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()))
     , PeriodicExecutor_(New<TPeriodicExecutor>(
-        Invoker_,
+        Bootstrap_->GetStorageHeavyInvoker(),
         BIND(&TPeerBlockDistributor::DoIteration, MakeWeak(this)),
         Config_->IterationPeriod))
 { }
@@ -76,14 +77,14 @@ void TPeerBlockDistributor::Start()
 
 void TPeerBlockDistributor::DoIteration()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    VERIFY_THREAD_AFFINITY_ANY();
 
     ProcessNewRequests();
     SweepObsoleteRequests();
-
     if (ShouldDistributeBlocks()) {
         DistributeBlocks();
     }
+
     Profiler.Enqueue("/distributed_block_size", DistributedBytes_, EMetricType::Counter);
 }
 
@@ -94,16 +95,15 @@ void TPeerBlockDistributor::SweepObsoleteRequests()
         TBlockId blockId;
         TInstant requestTime;
         std::tie(requestTime, blockId) = RequestHistory_.front();
-        if (requestTime + Config_->WindowLength <= now) {
-            auto it = BlockIdToDistributionEntry_.find(blockId);
-            YCHECK(it != BlockIdToDistributionEntry_.end());
-            if (--it->second.RequestCount == 0) {
-                BlockIdToDistributionEntry_.erase(it);
-            }
-            RequestHistory_.pop();
-        } else {
+        if (requestTime + Config_->WindowLength > now) {
             break;
         }
+        auto it = BlockIdToDistributionEntry_.find(blockId);
+        YCHECK(it != BlockIdToDistributionEntry_.end());
+        if (--it->second.RequestCount == 0) {
+            BlockIdToDistributionEntry_.erase(it);
+        }
+        RequestHistory_.pop();
     }
 }
 
@@ -215,7 +215,7 @@ void TPeerBlockDistributor::DistributeBlocks()
 
         const auto& block = blocks[index];
         const auto& blockId = blockIds[index];
-        const auto& reqTemplate = reqTemplates[index];;
+        const auto& reqTemplate = reqTemplates[index];
 
         YT_LOG_DEBUG("Sending block to destination nodes (BlockId: %v, DestinationNodes: %v)",
             blockId,
@@ -241,8 +241,7 @@ void TPeerBlockDistributor::DistributeBlocks()
                 nodeDescriptor,
                 nodeId,
                 blockId,
-                block.Size())
-                .Via(Bootstrap_->GetControlInvoker()));
+                block.Size()));
         }
     }
 }
@@ -398,7 +397,7 @@ void TPeerBlockDistributor::OnBlockDistributed(
     i64 size,
     const TDataNodeServiceProxy::TErrorOrRspPopulateCachePtr& rspOrError)
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+    VERIFY_THREAD_AFFINITY_ANY();
 
     if (!rspOrError.IsOK()) {
         YT_LOG_DEBUG(rspOrError, "Populate cache request failed (Address: %v)",
@@ -406,8 +405,9 @@ void TPeerBlockDistributor::OnBlockDistributed(
         return;
     }
 
-    TInstant expirationTime;
-    FromProto(&expirationTime, rspOrError.Value()->expiration_time());
+    const auto& rsp = rspOrError.Value();
+    auto expirationTime = FromProto<TInstant>(rsp->expiration_time());
+
     YT_LOG_DEBUG("Populate cache request succeeded, registering node as a peer for block "
         "(BlockId: %v, Address: %v, NodeId: %v, ExpirationTime: %v, Size: %v)",
         blockId,
@@ -415,9 +415,12 @@ void TPeerBlockDistributor::OnBlockDistributed(
         nodeId,
         expirationTime,
         size);
+
+    const auto& peerBlockTable = Bootstrap_->GetPeerBlockTable();
+    auto peerData = peerBlockTable->FindOrCreatePeerData(blockId, true);
+    peerData->AddPeer(nodeId, expirationTime);
+
     DistributedBytes_ += size;
-    TPeerInfo peerInfo(nodeId, expirationTime);
-    Bootstrap_->GetPeerBlockTable()->UpdatePeer(blockId, std::move(peerInfo));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

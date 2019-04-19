@@ -80,50 +80,42 @@ public:
     TCodecDuration GetDecompressionTime() const;
 
 private:
-    struct TWindowSlot
-    {
-        TLazyUniquePtr<TPromise<NChunkClient::TBlock>> BlockPromise;
-        std::atomic<int> RemainingFetches = { 0 };
-        std::unique_ptr<NConcurrency::TAsyncSemaphoreGuard> AsyncSemaphoreGuard;
-        bool Cached = false;
-        std::atomic_flag FetchStarted = ATOMIC_FLAG_INIT;
-
-        TWindowSlot()
-            : BlockPromise(BIND([] () {
-            return new TPromise<NChunkClient::TBlock>(NewPromise<NChunkClient::TBlock>());
-        }))
-        { }
-    };
-
-    std::atomic<i64> UncompressedDataSize_ = {0};
-    std::atomic<i64> CompressedDataSize_ = {0};
-
     const TBlockFetcherConfigPtr Config_;
     std::vector<TBlockInfo> BlockInfos_;
     const IChunkReaderPtr ChunkReader_;
     const IBlockCachePtr BlockCache_;
-
     const IInvokerPtr CompressionInvoker_;
     const double CompressionRatio_;
+    const NConcurrency::TAsyncSemaphorePtr AsyncSemaphore_;
+    NCompression::ICodec* const Codec_;
+    const TClientBlockReadOptions BlockReadOptions_;
+    NLogging::TLogger Logger;
+
+    std::atomic<i64> UncompressedDataSize_ = {0};
+    std::atomic<i64> CompressedDataSize_ = {0};
 
     THashMap<int, int> BlockIndexToWindowIndex_;
+
+    struct TWindowSlot
+    {
+        // Created lazily in GetBlockPromise.
+        TSpinLock BlockPromiseLock;
+        TPromise<TBlock> BlockPromise;
+
+        std::atomic<int> RemainingFetches = { 0 };
+
+        std::unique_ptr<NConcurrency::TAsyncSemaphoreGuard> AsyncSemaphoreGuard;
+
+        std::atomic_flag FetchStarted = ATOMIC_FLAG_INIT;
+    };
 
     std::unique_ptr<TWindowSlot[]> Window_;
     int WindowSize_ = 0;
 
-    NConcurrency::TAsyncSemaphorePtr AsyncSemaphore_;
-
     int TotalRemainingFetches_ = 0;
     std::atomic<i64> TotalRemainingSize_ = { 0 };
     int FirstUnfetchedWindowIndex_ = 0;
-
-    NCompression::ICodec* const Codec_;
-
-    bool IsFetchingCompleted_ = false;
-
-    const TClientBlockReadOptions BlockReadOptions_;
-
-    NLogging::TLogger Logger;
+    bool FetchingCompleted_ = false;
 
     TDuration DecompressionTime;
 
@@ -136,13 +128,15 @@ private:
 
     void DecompressBlocks(
         const std::vector<int>& windowIndexes,
-        const std::vector<NChunkClient::TBlock>& compressedBlocks);
+        const std::vector<TBlock>& compressedBlocks);
 
     void MarkFailedBlocks(
         const std::vector<int>& windowIndexes,
         const TError& error);
 
     void ReleaseBlock(int windowIndex);
+
+    static TPromise<TBlock>& GetBlockPromise(TWindowSlot& windowSlot);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlockFetcher)
@@ -164,7 +158,7 @@ public:
         double compressionRatio,
         const TClientBlockReadOptions& blockReadOptions);
 
-    TFuture<NChunkClient::TBlock> FetchNextBlock();
+    TFuture<TBlock> FetchNextBlock();
 
     using TBlockFetcher::HasMoreBlocks;
     using TBlockFetcher::IsFetchingCompleted;

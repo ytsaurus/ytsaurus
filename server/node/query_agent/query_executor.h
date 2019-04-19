@@ -26,7 +26,6 @@ struct IQuerySubexecutor
 {
     virtual TFuture<NQueryClient::TQueryStatistics> Execute(
         NQueryClient::TConstQueryPtr query,
-        const std::vector<NTabletClient::TTableMountInfoPtr>& mountInfos,
         NQueryClient::TConstExternalCGInfoPtr externalCGInfo,
         std::vector<NQueryClient::TDataRanges> dataSources,
         NTableClient::IUnversionedRowsetWriterPtr writer,

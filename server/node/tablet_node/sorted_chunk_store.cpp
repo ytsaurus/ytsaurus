@@ -279,12 +279,11 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
 TError TSortedChunkStore::CheckRowLocks(
     TUnversionedRow row,
     TTransaction* transaction,
-    ui32 readLockMask,
-    ui32 writeLockMask)
+    TLockMask lockMask)
 {
     auto backingStore = GetSortedBackingStore();
     if (backingStore) {
-        return backingStore->CheckRowLocks(row, transaction, readLockMask, writeLockMask);
+        return backingStore->CheckRowLocks(row, transaction, lockMask);
     }
 
     return TError(

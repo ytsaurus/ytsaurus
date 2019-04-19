@@ -77,7 +77,7 @@ class TClientContext
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TRequestId, RequestId);
-    DEFINE_BYVAL_RO_PROPERTY(NTracing::TTraceContext, TraceContext);
+    DEFINE_BYVAL_RO_PROPERTY(NTracing::TTraceContextPtr, TraceContext);
     DEFINE_BYVAL_RO_PROPERTY(TString, Service);
     DEFINE_BYVAL_RO_PROPERTY(TString, Method);
     DEFINE_BYVAL_RO_PROPERTY(bool, Heavy);
@@ -88,7 +88,7 @@ public:
 public:
     TClientContext(
         TRequestId requestId,
-        const NTracing::TTraceContext& traceContext,
+        NTracing::TTraceContextPtr traceContext,
         const TString& service,
         const TString& method,
         bool heavy,
@@ -401,6 +401,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, DefaultRequestCodec, NCompression::ECodec::None);
     DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, DefaultResponseCodec, NCompression::ECodec::None);
     DEFINE_BYVAL_RW_PROPERTY(bool, DefaultEnableLegacyRpcCodecs, true);
+
+    DEFINE_BYREF_RW_PROPERTY(TStreamingParameters, DefaultClientAttachmentsStreamingParameters);
+    DEFINE_BYREF_RW_PROPERTY(TStreamingParameters, DefaultServerAttachmentsStreamingParameters);
 
 protected:
     const IChannelPtr Channel_;

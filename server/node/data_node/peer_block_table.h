@@ -2,75 +2,94 @@
 
 #include "public.h"
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/server/node/cell_node/public.h>
 
 #include <yt/ytlib/chunk_client/block_id.h>
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/client/node_tracker_client/public.h>
+
+#include <yt/core/misc/small_vector.h>
+
+#include <yt/core/concurrency/rw_spinlock.h>
 
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Keeps information about a peer possibly holding a block.
-struct TPeerInfo
+//! Keeps information about all peers possibly holding a block.
+/*!
+ *  Thread affinity: any
+ */
+class TBlockPeerData
+    : public TIntrinsicRefCounted
 {
-    TNodeId NodeId;
-    TInstant ExpirationTime;
+public:
+    explicit TBlockPeerData(int entryCountLimit);
 
-    TPeerInfo()
-    { }
+    static constexpr int TypicalPeerCount = 64;
+    using TNodeIdList = SmallVector<TNodeId, TypicalPeerCount>;
+    //! Returns all node ids (sweeping out expired ones).
+    TNodeIdList GetPeers();
 
-    TPeerInfo(
-        const TNodeId& nodeId,
-        TInstant expirationTime)
-        : NodeId(nodeId)
-        , ExpirationTime(expirationTime)
-    { }
+    //! Inserts a new peer.
+    void AddPeer(TNodeId nodeId, TInstant expirationTime);
+
+    //! Returns true if the entry list is still non-empty.
+    bool Sweep();
+
+private:
+    template <class F>
+    void DoSweep(F&& func);
+
+    struct TBlockPeerEntry
+    {
+        TNodeId NodeId = NNodeTrackerClient::InvalidNodeId;
+        TInstant ExpirationTime;
+    };
+
+    const int EntryCountLimit_;
+
+    TSpinLock Lock_;
+    SmallVector<TBlockPeerEntry, TypicalPeerCount * 2> Entries_;
 };
+
+DEFINE_REFCOUNTED_TYPE(TBlockPeerData)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! When Data Node sends a block to a certain client
-//! its address is remembered to facilitate peer-to-peer transfers.
-//! This class maintains an auto-expiring map for this purpose.
+//! Manages peer blocks information.
+/*!
+ *
+ *  When Data Node sends a block to a certain client
+ *  ts address is remembered to facilitate peer-to-peer transfers.
+ *  This class maintains an auto-expiring map for this purpose.
+ *
+ *  Thread affinity: any
+ */
 class TPeerBlockTable
     : public TRefCounted
 {
 public:
-    explicit TPeerBlockTable(TPeerBlockTableConfigPtr config, NCellNode::TBootstrap* bootstrap);
+    TPeerBlockTable(
+        TPeerBlockTableConfigPtr config,
+        NCellNode::TBootstrap* bootstrap);
 
-    //! Gets peers where a particular block was sent to.
-    /*!
-     *  Also sweeps expired peers.
-     *
-     *  \note Invoker affinity: Control invoker
+    //! Retrieves peer data for a given #blockId.
+    /*
+     *  If #insert is true then always ensures an entry forr #blockId is created
+     *  (if not already exists); otherwise may return null.
      */
-    const std::vector<TPeerInfo>& GetPeers(const TBlockId& blockId);
-
-    //! For a given block, registers a new peer or updates the existing one.
-    /*!
-     *  Also sweeps expired peers.
-     *
-     *  \note Invoker affinity: Control invoker
-     */
-    void UpdatePeer(const TBlockId& blockId, const TPeerInfo& peer);
+    TBlockPeerDataPtr FindOrCreatePeerData(const TBlockId& blockId, bool insert);
 
 private:
     const TPeerBlockTableConfigPtr Config_;
-    [[maybe_unused]] NCellNode::TBootstrap* const Bootstrap_;
 
-    //! Each vector is sorted by decreasing expiration time.
-    THashMap<TBlockId, std::vector<TPeerInfo>> Table_;
+    const NConcurrency::TPeriodicExecutorPtr SweepExecutor_;
 
-    TInstant LastSwept_;
+    NConcurrency::TReaderWriterSpinLock Lock_;
+    THashMap<TBlockId, TBlockPeerDataPtr> BlockIdToData_;
 
-
-    static void SweepExpiredPeers(std::vector<TPeerInfo>& peers);
-    void SweepAllExpiredPeers();
-
-    std::vector<TPeerInfo>& GetMutablePeers(const TBlockId& blockId);
-
+    void OnSweep();
 };
 
 DEFINE_REFCOUNTED_TYPE(TPeerBlockTable)

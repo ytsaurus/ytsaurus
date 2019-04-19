@@ -35,8 +35,6 @@ namespace NYT::NPython {
 using namespace NYTree;
 using namespace NYson;
 
-static constexpr int BufferSize = 1024 * 1024;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYsonIterator

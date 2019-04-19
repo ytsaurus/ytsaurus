@@ -2,7 +2,9 @@
 
 #include "public.h"
 
-#include <yt/server/node/exec_agent/public.h>
+#include <yt/server/lib/exec_agent/public.h>
+
+#include <yt/ytlib/job_tracker_client/public.h>
 
 #include <yt/core/bus/tcp/config.h>
 
@@ -11,8 +13,6 @@
 #include <yt/core/misc/proc.h>
 
 #include <yt/core/yson/public.h>
-
-#include <yt/ytlib/job_tracker_client/public.h>
 
 namespace NYT::NJobProxy {
 

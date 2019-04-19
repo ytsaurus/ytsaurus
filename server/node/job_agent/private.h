@@ -1,17 +1,10 @@
 #pragma once
 
-#include "public.h"
-
-#include <yt/core/logging/log.h>
-
-#include <yt/core/profiling/profiler.h>
+#include <yt/server/lib/job_agent/private.h>
 
 namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-extern const NLogging::TLogger JobTrackerServerLogger;
-extern const NProfiling::TProfiler Profiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

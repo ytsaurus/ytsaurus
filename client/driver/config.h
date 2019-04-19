@@ -43,6 +43,8 @@ public:
 
     std::optional<TString> Token;
 
+    std::optional<bool> RewriteOperationPath;
+
     TDriverConfig()
     {
         RegisterParameter("file_reader", FileReader)
@@ -74,11 +76,15 @@ public:
             .DefaultNew(1024 * 1024);
 
         RegisterParameter("api_version", ApiVersion)
-            .Default(ApiVersion3);
+            .Default(ApiVersion3)
+            .GreaterThanOrEqual(ApiVersion3)
+            .LessThanOrEqual(ApiVersion4);
 
         RegisterParameter("token", Token)
             .Optional();
 
+        RegisterParameter("rewrite_operation_path", RewriteOperationPath)
+            .Optional();
     }
 };
 

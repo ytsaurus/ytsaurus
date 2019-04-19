@@ -31,8 +31,6 @@
 
 #include <yt/client/table_client/wire_protocol.h>
 
-#include <yt/client/tablet_client/table_mount_cache.h>
-
 #include <yt/core/compression/codec.h>
 
 #include <yt/core/concurrency/scheduler.h>
@@ -104,14 +102,6 @@ private:
         FromProto(&externalCGInfo->Functions, request->external_functions());
         externalCGInfo->NodeDirectory->MergeFrom(request->node_directory());
 
-        std::vector<NTabletClient::TTableMountInfoPtr> mountInfos;
-
-        for (int i = 0; i < request->mount_infos_size(); ++i) {
-            auto tableInfo = New<TTableMountInfo>();
-            FromProto(tableInfo, request->mount_infos(i));
-            mountInfos.push_back(tableInfo);
-        }
-
         auto options = FromProto<TQueryOptions>(request->options());
         options.InputRowLimit = request->query().input_row_limit();
         options.OutputRowLimit = request->query().output_row_limit();
@@ -156,7 +146,6 @@ private:
                 const auto& executor = Bootstrap_->GetQueryExecutor();
                 auto asyncResult = executor->Execute(
                     query,
-                    mountInfos,
                     externalCGInfo,
                     dataSources,
                     writer,

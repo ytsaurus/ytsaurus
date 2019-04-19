@@ -38,6 +38,15 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Make sure GetMemoryUsageForTag by itself does not interfere with memory counting.
+void TestZero()
+{
+    TMemoryTagGuard guard(42);
+    EXPECT_EQ(GetMemoryUsageForTag(42), 0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Allocate vector that results in exactly `size` memory usage considering the 16-byte header.
 std::vector<char> MakeAllocation(size_t size)
 {
@@ -53,9 +62,6 @@ std::vector<char> MakeAllocation(size_t size)
     FakeSideEffectVolatileVariable = result.data();
     return result;
 }
-
-// GDB does not allow to set breakpoints inside lambda functions, so
-// I prefer using global functions.
 
 void TestSimple()
 {
@@ -249,6 +255,7 @@ TEST_P(TMemoryTagTest, Test)
 }
 
 INSTANTIATE_TEST_CASE_P(MemoryTagTest, TMemoryTagTest, Values(
+    &TestZero,
     &TestSimple,
     &TestStackingGuards,
     &TestSwitchingFibers,

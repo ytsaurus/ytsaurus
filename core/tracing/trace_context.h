@@ -4,56 +4,81 @@
 
 #include <yt/core/misc/property.h>
 
+#include <yt/core/profiling/public.h>
+
+#include <atomic>
+
 namespace NYT::NTracing {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTraceContext
+    : public TIntrinsicRefCounted
 {
 public:
-    TTraceContext();
     TTraceContext(
         TTraceId traceId,
         TSpanId spanId,
-        TSpanId parentSpanId);
+        TSpanId parentSpanId,
+        TTraceContextPtr parentContext = nullptr);
 
-    bool IsEnabled() const;
     bool IsVerbose() const;
 
-    TTraceContext CreateChild() const;
+    TTraceContextPtr CreateChild();
 
     DEFINE_BYVAL_RO_PROPERTY(TTraceId, TraceId);
     DEFINE_BYVAL_RO_PROPERTY(TSpanId, SpanId);
     DEFINE_BYVAL_RO_PROPERTY(TSpanId, ParentSpanId);
+
+    void IncrementElapsedCpuTime(NProfiling::TCpuDuration delta);
+    void FlushElapsedTime();
+    NProfiling::TCpuDuration GetElapsedCpuTime() const;
+    TDuration GetElapsedTime() const;
+
+private:
+    std::atomic<NProfiling::TCpuDuration> ElapsedCpuTime_ = {0};
+    TTraceContextPtr ParentContext_;
+
 };
 
+DEFINE_REFCOUNTED_TYPE(TTraceContext)
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(TStringBuilderBase* builder, TTraceContext* context, TStringBuf /*spec*/);
 void FormatValue(TStringBuilderBase* builder, const TTraceContext& context, TStringBuf /*spec*/);
+void FormatValue(TStringBuilderBase* builder, const TTraceContextPtr& context, TStringBuf /*spec*/);
+TString ToString(TTraceContext* context);
 TString ToString(const TTraceContext& context);
+TString ToString(const TTraceContextPtr& context);
 
-TTraceContext CreateChildTraceContext();
-TTraceContext CreateRootTraceContext(bool verbose = true);
+TTraceContextPtr CreateChildTraceContext();
+TTraceContextPtr CreateRootTraceContext(bool verbose = true);
 
-extern const TTraceContext NullTraceContext;
+bool IsVerbose(TTraceId traceId);
+
+TTraceContext* GetCurrentTraceContext();
+TTraceId GetCurrentTraceId();
+void FlushCurrentTraceContextTime();
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTraceContextGuard
 {
 public:
-    explicit TTraceContextGuard(const TTraceContext& context);
+    explicit TTraceContextGuard(TTraceContextPtr context);
     TTraceContextGuard(TTraceContextGuard&& other);
     ~TTraceContextGuard();
-
-    const TTraceContext& GetContext() const;
 
     bool IsActive() const;
     void Release();
 
 private:
-    TTraceContext Context_;
     bool Active_;
-
+    TTraceContextPtr OldContext_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TNullTraceContextGuard
 {
@@ -67,14 +92,8 @@ public:
 
 private:
     bool Active_;
-
+    TTraceContextPtr OldContext_;
 };
-
-const TTraceContext& GetCurrentTraceContext();
-bool IsVerboseTracing();
-
-void PushContext(const TTraceContext& context);
-void PopContext();
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,20 +101,20 @@ class TTraceSpanGuard
 {
 public:
     TTraceSpanGuard(
-        const TTraceContext& parentContext,
+        const TTraceContextPtr& parentContext,
         const TString& serviceName,
         const TString& spanName);
     TTraceSpanGuard(TTraceSpanGuard&& other);
     ~TTraceSpanGuard();
 
     bool IsActive() const;
-    const TTraceContext& GetContext() const;
+    const TTraceContextPtr& GetContext() const;
     void Release();
 
 private:
     TString ServiceName_;
     TString SpanName_;
-    TTraceContext Context_;
+    TTraceContextPtr Context_;
     bool Active_;
 
 };
@@ -133,20 +152,11 @@ extern const TString ServerSendAnnotation;
 extern const TString ServerReceiveAnnotation;
 
 ////////////////////////////////////////////////////////////////////////////////
+// For internal use only.
 
-void TraceEvent(
-    const TString& serviceName,
-    const TString& spanName,
-    const TString& annotationName);
-
-void TraceEvent(
-    const TString& annotationKey,
-    const TString& annotationValue);
-
-template <class T>
-void TraceEvent(
-    const TString& annotationKey,
-    const T& annotationValue);
+TTraceContextPtr SwitchTraceContext(TTraceContextPtr newContext);
+void InstallTraceContext(NProfiling::TCpuInstant now, TTraceContextPtr newContext);
+TTraceContextPtr UninstallTraceContext(NProfiling::TCpuInstant now);
 
 void TraceEvent(
     const TTraceContext& context,
@@ -167,10 +177,18 @@ void TraceEvent(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define TRACE_ANNOTATION(head, ...) \
+#define TRACE_ANNOTATION(...) \
     do { \
-        if (::NYT::NTracing::IsVerboseTracing(head)) { \
-            ::NYT::NTracing::TraceEvent(head, __VA_ARGS__); \
+        if (::NYT::NTracing::IsVerbose(::NYT::NTracing::GetCurrentTraceId())) { \
+            ::NYT::NTracing::TraceEvent(*::NYT::NTracing::GetCurrentTraceContext(), __VA_ARGS__); \
+        } \
+    } while (false)
+
+#define TRACE_ANNOTATION_WITH_CONTEXT(context, ...) \
+    do { \
+        const auto& pinnedContext = context; \
+        if (pinnedContext && pinnedContext->IsVerbose()) { \
+            ::NYT::NTracing::TraceEvent(*pinnedContext, __VA_ARGS__); \
         } \
     } while (false)
 

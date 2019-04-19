@@ -12,7 +12,7 @@ struct IAttributeDictionary
 {
     virtual ~IAttributeDictionary() = default;
 
-    // Returns the list of all attribute names.
+    //! Returns the list of all attribute names.
     virtual std::vector<TString> List() const = 0;
 
     //! Returns the value of the attribute (null indicates that the attribute is not found).
@@ -60,7 +60,7 @@ struct IAttributeDictionary
     template <class T>
     typename TOptionalTraits<T>::TOptional FindAndRemove(const TString& key);
 
-    //! Returns True iff the given key is present.
+    //! Returns |true| iff the given key is present.
     bool Contains(const TString& key) const;
 
     //! Sets the attribute with a serialized value.

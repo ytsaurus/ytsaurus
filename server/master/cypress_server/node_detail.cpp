@@ -3,6 +3,8 @@
 #include "node_proxy_detail.h"
 
 #include <yt/server/master/cell_master/hydra_facade.h>
+#include <yt/server/master/cell_master/config.h>
+#include <yt/server/master/cell_master/config_manager.h>
 
 #include <yt/server/master/security_server/account.h>
 #include <yt/server/master/security_server/user.h>
@@ -60,6 +62,11 @@ bool TNontemplateCypressNodeTypeHandlerBase::IsLeader() const
 bool TNontemplateCypressNodeTypeHandlerBase::IsRecovery() const
 {
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery();
+}
+
+const TDynamicCypressManagerConfigPtr& TNontemplateCypressNodeTypeHandlerBase::GetDynamicCypressManagerConfig() const
+{
+    return Bootstrap_->GetConfigManager()->GetConfig()->CypressManager;
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNodeBase* node)
@@ -402,7 +409,7 @@ void TMapNodeTypeHandler::DoMerge(
                 objectManager->UnrefObject(it->second);
                 YCHECK(childToKey.erase(it->second) == 1);
                 YCHECK(childToKey.insert(std::make_pair(childTrunkNode, key)).second);
-                it->second = childTrunkNode;;
+                it->second = childTrunkNode;
             } else {
                 // Originating: tombstone
                 it->second = childTrunkNode;

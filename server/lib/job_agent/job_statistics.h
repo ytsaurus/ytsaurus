@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/core/misc/error.h>
+#include "public.h"
 
 #include <yt/ytlib/job_tracker_client/public.h>
 
@@ -8,19 +8,8 @@
 
 #include <yt/core/yson/string.h>
 
-////////////////////////////////////////////////////////////////////////////////
-
-#define DEFINE_FORWARD_RW_PROPERTY(type, name) \
-    DEFINE_BYREF_RO_PROPERTY(type, name) \
-public: \
-    template <class T> \
-    Y_FORCE_INLINE auto&& name(T&& t) && \
-    { \
-        Set##name(std::forward<T>(t)); \
-        return std::move(*this); \
-    }
-
-////////////////////////////////////////////////////////////////////////////////
+#include <yt/core/misc/error.h>
+#include <yt/core/misc/property.h>
 
 namespace NYT::NJobAgent {
 
@@ -28,21 +17,9 @@ namespace NYT::NJobAgent {
 
 struct TJobEvent
 {
-    explicit TJobEvent(NJobTrackerClient::EJobState state)
-        : Timestamp_(Now())
-        , State_(state)
-    { }
-
-    explicit TJobEvent(NJobTrackerClient::EJobPhase phase)
-        : Timestamp_(Now())
-        , Phase_(phase)
-    { }
-
-    TJobEvent(NJobTrackerClient::EJobState state, NJobTrackerClient::EJobPhase phase)
-        : Timestamp_(Now())
-        , State_(state)
-        , Phase_(phase)
-    { }
+    explicit TJobEvent(NJobTrackerClient::EJobState state);
+    explicit TJobEvent(NJobTrackerClient::EJobPhase phase);
+    TJobEvent(NJobTrackerClient::EJobState state, NJobTrackerClient::EJobPhase phase);
 
     DEFINE_BYREF_RO_PROPERTY(TInstant, Timestamp)
     DEFINE_BYREF_RO_PROPERTY(std::optional<NJobTrackerClient::EJobState>, State)
@@ -104,8 +81,6 @@ struct TJobStatistics
     DEFINE_FORWARD_RW_PROPERTY(std::optional<TString>, FailContext)
     DEFINE_FORWARD_RW_PROPERTY(std::optional<TJobProfile>, Profile)
 };
-
-#undef DEFINE_FORWARD_RW_PROPERTY
 
 ////////////////////////////////////////////////////////////////////////////////
 

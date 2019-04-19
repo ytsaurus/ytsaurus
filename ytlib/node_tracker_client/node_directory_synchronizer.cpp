@@ -1,10 +1,10 @@
 #include "node_directory_synchronizer.h"
 #include "config.h"
-#include "private.h"
 
 #include <yt/client/api/connection.h>
 #include <yt/client/api/client.h>
 
+#include <yt/client/node_tracker_client/private.h>
 #include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/security_client/public.h>

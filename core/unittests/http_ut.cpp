@@ -885,10 +885,12 @@ public:
         rsp->SetStatus(EStatusCode::OK);
         auto data = TSharedRef::FromString(TString(1024, 'f'));
         for (int i = 0; i < 16 * 1024; i++) {
-            WaitFor(rsp->Write(data));
+            WaitFor(rsp->Write(data))
+                .ThrowOnError();
         }
 
-        WaitFor(rsp->Close());
+        WaitFor(rsp->Close())
+            .ThrowOnError();
     }
 };
 

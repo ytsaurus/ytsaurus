@@ -1,5 +1,6 @@
 #include "multicell_manager.h"
 #include "config.h"
+#include "config_manager.h"
 #include "bootstrap.h"
 #include "private.h"
 #include "automaton.h"
@@ -84,6 +85,12 @@ public:
             ESyncSerializationPriority::Values,
             "MulticellManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
+    }
+
+    void Initialize()
+    {
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
 
@@ -359,10 +366,11 @@ private:
 
             CellStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Periodic),
-                BIND(&TImpl::OnCellStatisticsGossip, MakeWeak(this)),
-                Config_->CellStatisticsGossipPeriod);
+                BIND(&TImpl::OnCellStatisticsGossip, MakeWeak(this)));
             CellStatisticsGossipExecutor_->Start();
         }
+
+        OnDynamicConfigChanged();
     }
 
     virtual void OnStopLeading() override
@@ -679,6 +687,19 @@ private:
         }
         hiveManager->PostMessage(mailboxes, std::move(message), reliable);
     }
+
+
+    const TDynamicMulticellManagerConfigPtr& GetDynamicConfig()
+    {
+        return Bootstrap_->GetConfigManager()->GetConfig()->MulticellManager;
+    }
+
+    void OnDynamicConfigChanged()
+    {
+        if (CellStatisticsGossipExecutor_) {
+            CellStatisticsGossipExecutor_->SetPeriod(GetDynamicConfig()->CellStatisticsGossipPeriod);
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -690,6 +711,11 @@ TMulticellManager::TMulticellManager(
 { }
 
 TMulticellManager::~TMulticellManager() = default;
+
+void TMulticellManager::Initialize()
+{
+    Impl_->Initialize();
+}
 
 void TMulticellManager::PostToMaster(
     const TCrossCellMessage& message,
