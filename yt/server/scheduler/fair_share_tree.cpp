@@ -586,7 +586,7 @@ TError TFairShareTree::OnFairShareUpdateAt(TInstant now)
         TUpdateFairShareContext updateContext;
         RootElement_->Update(GlobalDynamicAttributes_, &updateContext);
 
-        if (updateContext.Errors.empty()) {
+        if (!updateContext.Errors.empty()) {
             error = TError("Found pool configuration issues during fair share update in tree %Qv", TreeId_)
                 << TErrorAttribute("pool_tree", TreeId_)
                 << std::move(updateContext.Errors);
