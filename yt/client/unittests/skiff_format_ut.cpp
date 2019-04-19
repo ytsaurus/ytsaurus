@@ -319,7 +319,7 @@ ISchemalessFormatWriterPtr CreateSkiffWriter(
 {
     auto controlAttributesConfig = New<TControlAttributesConfig>();
     controlAttributesConfig->EnableKeySwitch = (keyColumnCount > 0);
-    return CreateSchemalessWriterForSkiff(
+    return CreateWriterForSkiff(
         {skiffSchema},
         nameTable,
         NConcurrency::CreateAsyncAdapter(outputStream),

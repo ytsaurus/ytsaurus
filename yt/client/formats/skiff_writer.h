@@ -14,7 +14,7 @@ namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessFormatWriterPtr CreateSchemalessWriterForSkiff(
+ISchemalessFormatWriterPtr CreateWriterForSkiff(
     const NYTree::IAttributeDictionary& attributes,
     NTableClient::TNameTablePtr nameTable,
     NConcurrency::IAsyncOutputStreamPtr output,
@@ -22,7 +22,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSkiff(
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount);
 
-ISchemalessFormatWriterPtr CreateSchemalessWriterForSkiff(
+ISchemalessFormatWriterPtr CreateWriterForSkiff(
     const std::vector<NSkiff::TSkiffSchemaPtr>& tableSkiffSchemas,
     NTableClient::TNameTablePtr nameTable,
     NConcurrency::IAsyncOutputStreamPtr output,
