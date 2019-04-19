@@ -352,7 +352,7 @@ ISchemalessFormatWriterPtr CreateStaticTableWriterForFormat(
                 std::move(output),
                 nameTable);
         case EFormatType::Skiff:
-            return CreateSchemalessWriterForSkiff(
+            return CreateWriterForSkiff(
                 format.Attributes(),
                 nameTable,
                 std::move(output),

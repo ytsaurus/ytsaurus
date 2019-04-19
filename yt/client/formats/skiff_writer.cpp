@@ -558,7 +558,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessFormatWriterPtr CreateSchemalessWriterForSkiff(
+ISchemalessFormatWriterPtr CreateWriterForSkiff(
     const NYTree::IAttributeDictionary& attributes,
     NTableClient::TNameTablePtr nameTable,
     NConcurrency::IAsyncOutputStreamPtr output,
@@ -568,7 +568,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSkiff(
 {
     auto config = NYTree::ConvertTo<TSkiffFormatConfigPtr>(attributes);
     auto skiffSchemas = ParseSkiffSchemas(config->SkiffSchemaRegistry, config->TableSkiffSchemas);
-    return CreateSchemalessWriterForSkiff(
+    return CreateWriterForSkiff(
         skiffSchemas,
         std::move(nameTable),
         std::move(output),
@@ -578,7 +578,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSkiff(
     );
 }
 
-ISchemalessFormatWriterPtr CreateSchemalessWriterForSkiff(
+ISchemalessFormatWriterPtr CreateWriterForSkiff(
     const std::vector<TSkiffSchemaPtr>& tableSkiffSchemas,
     NTableClient::TNameTablePtr nameTable,
     NConcurrency::IAsyncOutputStreamPtr output,
