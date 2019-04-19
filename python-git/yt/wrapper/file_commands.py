@@ -480,7 +480,11 @@ def _touch_file_in_cache(filepath, client=None):
             get_config(client)["remote_temp_files_directory"] is not None
 
     if use_legacy:
-        set(filepath + "&/@touched", True, client=client)
+        try:
+            set(filepath + "&/@touched", True, client=client)
+        except YtError as err:
+            if not err.is_concurrent_transaction_lock_conflict():
+                raise
     else:
         dirname, hash = ypath_split(filepath)
         get_file_from_cache(hash, client=client)
