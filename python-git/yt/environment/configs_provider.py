@@ -508,6 +508,8 @@ class ConfigsProvider_19(ConfigsProvider):
             proxy_config["port"] = provision["http_proxy"]["http_ports"][index] if provision["http_proxy"]["http_ports"] else next(ports_generator)
             proxy_config["fqdn"] = "{0}:{1}".format(provision["fqdn"], proxy_config["port"])
 
+            set_at(proxy_config, "coordination/public_fqdn", proxy_config["fqdn"])
+
             logging_config = get_at(proxy_config, "proxy/logging")
             set_at(proxy_config, "proxy/logging",
                    init_logging(logging_config, proxy_logs_dir, "http-proxy-{}".format(index), provision["enable_debug_logging"]))
