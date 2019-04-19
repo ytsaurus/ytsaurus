@@ -1,9 +1,12 @@
 #include "storage_distributed.h"
 
+#include "config.h"
+#include "bootstrap.h"
 #include "format_helpers.h"
 #include "type_helpers.h"
 #include "helpers.h"
 #include "query_context.h"
+#include "subquery.h"
 
 #include <Common/Exception.h>
 #include <DataStreams/materializeBlock.h>
@@ -13,13 +16,15 @@
 #include <Parsers/queryToString.h>
 #include <Storages/MergeTree/KeyCondition.h>
 
+#include <library/string_utils/base64/base64.h>
+
 namespace NYT::NClickHouseServer {
 
 using namespace DB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-BlockInputStreams TStorageDistributed::read(
+BlockInputStreams TStorageDistributedBase::read(
     const Names& columnNames,
     const SelectQueryInfo& queryInfo,
     const Context& context,
@@ -30,13 +35,20 @@ BlockInputStreams TStorageDistributed::read(
     auto* queryContext = GetQueryContext(context);
     const auto& Logger = queryContext->Logger;
 
-    auto clusterNodes = Cluster->GetAvailableNodes();
-    auto allocation = AllocateTablePartsToClusterNodes(clusterNodes, queryInfo, context);
+    SpecTemplate.InitialQueryId = queryContext->QueryId;
 
-    YT_LOG_INFO("Preparing query to YT table storage (ColumnNames: %v, TableName: %v, NodeCount: %v)",
+    auto clusterNodes = Cluster->GetAvailableNodes();
+    Prepare(clusterNodes.size(), queryInfo, context);
+
+    YT_LOG_INFO("Preparing query to YT table storage (ColumnNames: %v, TableName: %v, NodeCount: %v, StripeCount: %v)",
         columnNames,
         getTableName(),
-        clusterNodes.size());
+        clusterNodes.size(),
+        StripeList->Stripes.size());
+
+    if (StripeList->Stripes.size() > clusterNodes.size()) {
+        throw Exception("Cluster is too small", ErrorCodes::LOGICAL_ERROR);
+    }
 
     // Prepare settings and context for subqueries.
 
@@ -53,31 +65,34 @@ BlockInputStreams TStorageDistributed::read(
 
     BlockInputStreams streams;
 
-    for (const auto& partAllocation : allocation) {
-        const auto& tablePart = partAllocation.TablePart;
-        const auto& clusterNode = partAllocation.TargetClusterNode;
+    for (int index = 0; index < static_cast<int>(StripeList->Stripes.size()); ++index) {
+        const auto& stripe = StripeList->Stripes[index];
+        const auto& clusterNode = clusterNodes[index];
+        auto spec = SpecTemplate;
+        FillDataSliceDescriptors(spec, stripe);
 
-        auto subQueryAst = RewriteSelectQueryForTablePart(
-            queryInfo.query,
-            ToStdString(tablePart.JobSpec));
+        auto protoSpec = NYT::ToProto<NProto::TSubquerySpec>(spec);
+        auto encodedSpec = Base64Encode(protoSpec.SerializeAsString());
+
+        auto subqueryAst = RewriteSelectQueryForTablePart(queryInfo.query, encodedSpec);
 
         bool isLocal = clusterNode->IsLocal();
         // XXX(max42): weird workaround.
         isLocal = false;
-        auto tablePartStream = isLocal
+        auto substream = isLocal
             ? CreateLocalStream(
-                subQueryAst,
+                subqueryAst,
                 newContext,
                 processedStage)
             : CreateRemoteStream(
-                partAllocation.TargetClusterNode,
-                subQueryAst,
+                clusterNode,
+                subqueryAst,
                 newContext,
                 throttler,
                 context.getExternalTables(),
                 processedStage);
 
-        streams.push_back(std::move(tablePartStream));
+        streams.push_back(std::move(substream));
     }
 
     YT_LOG_INFO("Finished query preparation");
@@ -85,7 +100,7 @@ BlockInputStreams TStorageDistributed::read(
     return streams;
 }
 
-QueryProcessingStage::Enum TStorageDistributed::getQueryProcessingStage(const Context& context) const
+QueryProcessingStage::Enum TStorageDistributedBase::getQueryProcessingStage(const Context& context) const
 {
     const auto& settings = context.getSettingsRef();
 
@@ -96,42 +111,30 @@ QueryProcessingStage::Enum TStorageDistributed::getQueryProcessingStage(const Co
                      : QueryProcessingStage::WithMergeableState;
 }
 
-TTableAllocation TStorageDistributed::AllocateTablePartsToClusterNodes(
-    const TClusterNodes& clusterNodes,
+void TStorageDistributedBase::Prepare(
+    int subqueryCount,
     const SelectQueryInfo& queryInfo,
     const Context& context)
 {
-    size_t clusterNodeCount = clusterNodes.size();
+    auto* queryContext = GetQueryContext(context);
 
     std::unique_ptr<KeyCondition> keyCondition;
-    if (Schema.HasPrimaryKey()) {
-        keyCondition = std::make_unique<KeyCondition>(CreateKeyCondition(context, queryInfo, Schema));
+    if (ClickHouseSchema.HasPrimaryKey()) {
+        keyCondition = std::make_unique<KeyCondition>(CreateKeyCondition(context, queryInfo, ClickHouseSchema));
     }
 
-    auto tableParts = GetTableParts(
-        queryInfo.query,
-        context,
+    auto tablePaths = GetTablePaths();
+    auto dataSlices = FetchDataSlices(
+        queryContext->Client(),
+        tablePaths,
         keyCondition.get(),
-        clusterNodeCount);
-
-    if (tableParts.empty()) {
-        // nothing to read
-        return {};
-    }
-
-    if (tableParts.size() > clusterNodes.size()) {
-        throw Exception("Cluster is too small", ErrorCodes::LOGICAL_ERROR);
-    }
-
-    TTableAllocation allocation;
-    allocation.reserve(tableParts.size());
-    for (size_t i = 0; i < tableParts.size(); ++i) {
-        allocation.emplace_back(tableParts[i], clusterNodes[i]);
-    }
-    return allocation;
+        queryContext->RowBuffer,
+        queryContext->Bootstrap->GetConfig()->Engine->Subquery,
+        SpecTemplate);
+    StripeList = SubdivideDataSlices(dataSlices, subqueryCount);
 }
 
-Settings TStorageDistributed::PrepareLeafJobSettings(const Settings& settings)
+Settings TStorageDistributedBase::PrepareLeafJobSettings(const Settings& settings)
 {
     Settings newSettings = settings;
 
@@ -156,7 +159,7 @@ Settings TStorageDistributed::PrepareLeafJobSettings(const Settings& settings)
     return newSettings;
 }
 
-ThrottlerPtr TStorageDistributed::CreateNetThrottler(
+ThrottlerPtr TStorageDistributedBase::CreateNetThrottler(
     const Settings& settings)
 {
     ThrottlerPtr throttler;
@@ -169,7 +172,7 @@ ThrottlerPtr TStorageDistributed::CreateNetThrottler(
     return throttler;
 }
 
-BlockInputStreamPtr TStorageDistributed::CreateLocalStream(
+BlockInputStreamPtr TStorageDistributedBase::CreateLocalStream(
     const ASTPtr& queryAst,
     const Context& context,
     QueryProcessingStage::Enum processedStage)
@@ -183,7 +186,7 @@ BlockInputStreamPtr TStorageDistributed::CreateLocalStream(
     return std::make_shared<MaterializingBlockInputStream>(stream);
 }
 
-BlockInputStreamPtr TStorageDistributed::CreateRemoteStream(
+BlockInputStreamPtr TStorageDistributedBase::CreateRemoteStream(
     const IClusterNodePtr remoteNode,
     const ASTPtr& queryAst,
     const Context& context,

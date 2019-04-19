@@ -1,4 +1,5 @@
 #include "node_directory.h"
+#include "private.h"
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
@@ -15,6 +16,7 @@
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/string.h>
 #include <yt/core/misc/hash.h>
+#include <yt/core/misc/small_vector.h>
 
 #include <util/digest/numeric.h>
 
@@ -31,6 +33,7 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const TString NullAddress("<null>");
+static const auto& Logger = NodeTrackerClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,6 +42,26 @@ const TNodeDescriptor& NullNodeDescriptor()
     static const TNodeDescriptor Result(NullAddress);
     return Result;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+constexpr int TypicalTagCount = 16;
+
+// Cf. YT-10645
+SmallVector<TStringBuf, TypicalTagCount> GetSortedTags(const std::vector<TString>& tags)
+{
+    SmallVector<TStringBuf, TypicalTagCount> result;
+    result.reserve(tags.size());
+    for (const auto& tag : tags) {
+        result.push_back(tag);
+    }
+    std::sort(result.begin(), result.end());
+    return result;
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -137,6 +160,7 @@ void FormatValue(TStringBuilderBase* builder, const TNodeDescriptor& descriptor,
         builder->AppendChar('#');
         builder->AppendString(*dataCenter);
     }
+    builder->AppendFormat("%v", descriptor.GetTags());
 }
 
 TString ToString(const TNodeDescriptor& descriptor)
@@ -274,7 +298,7 @@ bool operator == (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs)
         lhs.Addresses() == rhs.Addresses() &&
         lhs.GetRack() == rhs.GetRack() &&
         lhs.GetDataCenter() == rhs.GetDataCenter() &&
-        lhs.GetTags() == rhs.GetTags();
+        GetSortedTags(lhs.GetTags()) == GetSortedTags(rhs.GetTags());
 }
 
 bool operator != (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs)
@@ -314,7 +338,7 @@ bool operator == (const TNodeDescriptor& lhs, const NProto::TNodeDescriptor& rhs
 
     const auto& lhsTags = lhs.GetTags();
     auto rhsTags = FromProto<std::vector<TString>>(rhs.tags());
-    if (lhsTags != rhsTags) {
+    if (GetSortedTags(lhsTags) != GetSortedTags(rhsTags)) {
         return false;
     }
 
@@ -415,6 +439,10 @@ void TNodeDirectory::DoAddCapturedDescriptor(TNodeId id, std::unique_ptr<TNodeDe
     Descriptors_.emplace_back(std::move(descriptorHolder));
     IdToDescriptor_[id] = capturedDescriptor;
     AddressToDescriptor_[capturedDescriptor->GetDefaultAddress()] = capturedDescriptor;
+    YT_LOG_DEBUG("Node descriptor added to directory (This: %v, NodeId: %v, NodeDescriptor: %v)",
+        this,
+        id,
+        *capturedDescriptor);
 }
 
 const TNodeDescriptor* TNodeDirectory::FindDescriptor(TNodeId id) const
@@ -561,7 +589,7 @@ size_t THash<NYT::NNodeTrackerClient::TNodeDescriptor>::operator()(
         HashCombine(result, pair.first);
         HashCombine(result, pair.second);
     }
-    for (const auto& tag : nodeDescriptor.GetTags()) {
+    for (const auto& tag : NYT::NNodeTrackerClient::GetSortedTags(nodeDescriptor.GetTags())) {
         HashCombine(result, tag);
     }
     return result;

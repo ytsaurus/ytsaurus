@@ -19,6 +19,7 @@ DECLARE_REFCOUNTED_CLASS(TObjectManager)
 DECLARE_REFCOUNTED_CLASS(TGarbageCollector)
 
 DECLARE_REFCOUNTED_CLASS(TObjectManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicObjectManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TObjectServiceConfig)
 
 class TObjectBase;

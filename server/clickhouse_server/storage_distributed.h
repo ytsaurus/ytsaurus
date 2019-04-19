@@ -3,60 +3,41 @@
 #include "private.h"
 
 #include "cluster_tracker.h"
-#include "storage_with_virtual_columns.h"
 #include "table_schema.h"
+#include "subquery_spec.h"
 
-#include "table_partition.h"
+#include <yt/server/controller_agent/chunk_pools/chunk_stripe.h>
 
 #include <Interpreters/Cluster.h>
 #include <Interpreters/Context.h>
+#include <Storages/IStorage.h>
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTablePartAllocation
+class TStorageDistributedBase
+    : public DB::IStorage
 {
-    TTablePart TablePart;
-    IClusterNodePtr TargetClusterNode;
-
-    TTablePartAllocation(
-        TTablePart part,
-        IClusterNodePtr node)
-        : TablePart(std::move(part))
-        , TargetClusterNode(std::move(node))
-    {
-    }
-};
-
-using TTableAllocation = std::vector<TTablePartAllocation>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Abstract base class for distributed storages
-
-class TStorageDistributed
-    : public IStorageWithVirtualColumns
-{
-private:
-    const IExecutionClusterPtr Cluster;
-    TClickHouseTableSchema Schema;
-
 public:
-    TStorageDistributed(
+    TStorageDistributedBase(
         IExecutionClusterPtr cluster,
-        TClickHouseTableSchema schema)
+        NTableClient::TTableSchema readSchema,
+        TClickHouseTableSchema clickHouseSchema)
         : Cluster(std::move(cluster))
-        , Schema(std::move(schema))
+        , ClickHouseSchema(std::move(clickHouseSchema))
+        , ReadSchema(std::move(readSchema))
     { }
 
     virtual void startup() override
     {
-        if (Schema.Columns.empty()) {
+        if (ClickHouseSchema.Columns.empty()) {
             THROW_ERROR_EXCEPTION("CHYT does not support tables without schema")
                 << TErrorAttribute("path", getTableName());
         }
-        setColumns(DB::ColumnsDescription(ListPhysicalColumns()));
+        setColumns(DB::ColumnsDescription(ClickHouseSchema.Columns));
+        SpecTemplate.Columns = ClickHouseSchema.Columns;
+        SpecTemplate.ReadSchema = ReadSchema;
     }
 
     // Database name
@@ -72,7 +53,7 @@ public:
 
     virtual bool supportsIndexForIn() const override
     {
-        return Schema.HasPrimaryKey();
+        return ClickHouseSchema.HasPrimaryKey();
     }
 
     virtual bool mayBenefitFromIndexForIn(const DB::ASTPtr & /* left_in_operand */, const DB::Context & /* query_context */) const override
@@ -91,29 +72,27 @@ public:
         unsigned numStreams) override;
 
 protected:
-    virtual TTablePartList GetTableParts(
-        const DB::ASTPtr& queryAst,
-        const DB::Context& context,
-        const DB::KeyCondition* keyCondition,
-        const size_t maxParts) = 0;
+    virtual std::vector<NYPath::TYPath> GetTablePaths() const = 0;
 
+    // TODO(max42): why is this different?
     virtual DB::ASTPtr RewriteSelectQueryForTablePart(
         const DB::ASTPtr& queryAst,
-        const std::string& jobSpec) = 0;
+        const std::string& subquerySpec) = 0;
 
     const TClickHouseTableSchema& GetSchema() const
     {
-        return Schema;
+        return ClickHouseSchema;
     }
 
 private:
-    const DB::NamesAndTypesList& ListPhysicalColumns() const override
-    {
-        return Schema.Columns;
-    }
+    IExecutionClusterPtr Cluster;
+    TClickHouseTableSchema ClickHouseSchema;
+    NTableClient::TTableSchema ReadSchema;
+    TSubquerySpec SpecTemplate;
+    NChunkPools::TChunkStripeListPtr StripeList;
 
-    TTableAllocation AllocateTablePartsToClusterNodes(
-        const TClusterNodes& clusterNodes,
+    void Prepare(
+        int subqueryCount,
         const DB::SelectQueryInfo& queryInfo,
         const DB::Context& context);
 

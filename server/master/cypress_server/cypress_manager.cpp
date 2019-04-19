@@ -63,12 +63,10 @@ class TCypressManager::TNodeFactory
 public:
     TNodeFactory(
         NCellMaster::TBootstrap* bootstrap,
-        TCypressManagerConfigPtr config,
         TTransaction* transaction,
         TAccount* account,
         const TNodeFactoryOptions& options)
         : Bootstrap_(bootstrap)
-        , Config_(std::move(config))
         , Transaction_(transaction)
         , Account_(account)
         , Options_(options)
@@ -346,7 +344,6 @@ public:
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
-    const TCypressManagerConfigPtr Config_;
     TTransaction* const Transaction_;
     TAccount* const Account_;
     const TNodeFactoryOptions Options_;
@@ -484,14 +481,11 @@ class TCypressManager::TImpl
     : public NCellMaster::TMasterAutomatonPart
 {
 public:
-    TImpl(
-        TCypressManagerConfigPtr config,
-        TBootstrap* bootstrap)
+    explicit TImpl(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::CypressManager)
         , SharedTableSchemaRegistry_(New<NTableServer::TSharedTableSchemaRegistry>())
-        , Config_(config)
-        , AccessTracker_(New<TAccessTracker>(config, bootstrap))
-        , ExpirationTracker_(New<TExpirationTracker>(config, bootstrap))
+        , AccessTracker_(New<TAccessTracker>(bootstrap))
+        , ExpirationTracker_(New<TExpirationTracker>(bootstrap))
         , NodeMap_(TNodeMapTraits(this))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
@@ -596,12 +590,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        return std::unique_ptr<ICypressNodeFactory>(new TNodeFactory(
+        return std::make_unique<TNodeFactory>(
             Bootstrap_,
-            Config_,
             transaction,
             account,
-            options));
+            options);
     }
 
     TCypressNodeBase* CreateNode(
@@ -1317,8 +1310,6 @@ private:
         TImpl* const Owner_;
 
     };
-
-    const TCypressManagerConfigPtr Config_;
 
     const TAccessTrackerPtr AccessTracker_;
     const TExpirationTrackerPtr ExpirationTracker_;
@@ -2810,10 +2801,8 @@ TCypressManager::TLockTypeHandler::TLockTypeHandler(TImpl* owner)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressManager::TCypressManager(
-    TCypressManagerConfigPtr config,
-    TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(config, bootstrap))
+TCypressManager::TCypressManager(TBootstrap* bootstrap)
+    : Impl_(New<TImpl>(bootstrap))
 { }
 
 TCypressManager::~TCypressManager()

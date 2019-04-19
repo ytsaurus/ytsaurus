@@ -778,7 +778,7 @@ private:
         if (result.IsOK()) {
             direction->BytesTransferred += result.Value().ByteCount;
         } else {
-            result << TErrorAttribute("connection", Name_);
+            result = result << TErrorAttribute("connection", Name_);
         }
 
         bool needUnregister = false;

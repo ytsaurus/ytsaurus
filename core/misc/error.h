@@ -50,7 +50,7 @@ inline bool operator != (TErrorCode lhs, TErrorCode rhs);
 ////////////////////////////////////////////////////////////////////////////////
 
 template <>
-class TErrorOr<void>
+class [[nodiscard]] TErrorOr<void>
 {
 public:
     TErrorOr();
@@ -244,7 +244,7 @@ TException&& operator <<= (TException&& ex, TError&& error)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-class TErrorOr
+class [[nodiscard]] TErrorOr
     : public TError
 {
 public:

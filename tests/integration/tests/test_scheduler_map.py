@@ -905,6 +905,34 @@ print row + table_index
         with pytest.raises(YtError):
             op.track()
 
+    def test_ordered_map_multiple_ranges(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        rows = [
+            {
+                "field": 1
+            },
+            {
+                "field": 42
+            },
+            {
+                "field": 63
+            },
+            {
+                "field": 100500
+            },
+        ]
+        write_table("<sorted_by=[field]>//tmp/t_input", rows)
+
+        map(
+            ordered=True,
+            in_="//tmp/t_input[1,42,63,100500]",
+            out="<sorted_by=[field]>//tmp/t_output",
+            command='cat')
+
+        assert read_table("//tmp/t_output") == rows
+        
+
     @pytest.mark.parametrize("ordered", [False, True])
     def test_map_interrupt_job(self, ordered):
         create("table", "//tmp/in_1")

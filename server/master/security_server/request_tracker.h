@@ -19,9 +19,7 @@ class TRequestTracker
     : public TRefCounted
 {
 public:
-    TRequestTracker(
-        TSecurityManagerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap);
+    explicit TRequestTracker(NCellMaster::TBootstrap* bootstrap);
 
     void Start();
     void Stop();
@@ -54,8 +52,9 @@ public:
     void DecreaseRequestQueueSize(TUser* user);
 
 private:
-    const TSecurityManagerConfigPtr Config_;
     const NCellMaster::TBootstrap* Bootstrap_;
+
+    const TClosure DynamicConfigChangedCallback_ = BIND(&TRequestTracker::OnDynamicConfigChanged, MakeWeak(this));
 
     NProto::TReqIncreaseUserStatistics Request_;
     std::vector<TUser*> UsersWithsEntry_;
@@ -71,6 +70,9 @@ private:
     void Reset();
     void OnFlush();
 
+    const TDynamicSecurityManagerConfigPtr& GetDynamicConfig();
+    void OnDynamicConfigChanged();
+    void ReconfigureUsersThrottlers();
 };
 
 DEFINE_REFCOUNTED_TYPE(TRequestTracker)

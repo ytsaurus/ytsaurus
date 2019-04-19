@@ -147,6 +147,17 @@ public: \
         (delegateTo).Set##name(value); \
     }
 
+//! Similar to #DEFINE_BYREF_RW_PROPERTY but returns an rvalue to |*this| in setter.
+#define DEFINE_FORWARD_RW_PROPERTY(type, name) \
+    DEFINE_BYREF_RO_PROPERTY(type, name) \
+public: \
+    template <class T> \
+    Y_FORCE_INLINE auto&& name(T&& t) && \
+    { \
+        Set##name(std::forward<T>(t)); \
+        return std::move(*this); \
+    }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Declares a trivial public read-only property that is passed by value.

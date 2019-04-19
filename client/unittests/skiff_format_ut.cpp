@@ -551,9 +551,8 @@ TEST(TSkiffWriter, TestYsonWireType)
     TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
     auto parseYson = [] (TCheckedSkiffParser* parser) {
-        TString ysonBuffer;
-        parser->ParseYson32(&ysonBuffer);
-        return ConvertToNode(TYsonString(ysonBuffer));
+        auto yson = parser->ParseYson32().ToString();
+        return ConvertToNode(TYsonString(yson));
     };
 
     // Row 0 (Null)
@@ -902,9 +901,8 @@ TEST(TSkiffWriter, TestOtherColumns)
     TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
     auto parseYson = [] (TCheckedSkiffParser* parser) {
-        TString ysonBuffer;
-        parser->ParseYson32(&ysonBuffer);
-        return ConvertToYsonTextStringStable(ConvertToNode(TYsonString(ysonBuffer)));
+        auto yson = parser->ParseYson32().ToString();
+        return ConvertToYsonTextStringStable(ConvertToNode(TYsonString(yson)));
     };
 
     // row 0

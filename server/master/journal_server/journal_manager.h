@@ -18,9 +18,7 @@ class TJournalManager
     : public TRefCounted
 {
 public:
-    TJournalManager(
-        TJournalManagerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap);
+    explicit TJournalManager(NCellMaster::TBootstrap* bootstrap);
     ~TJournalManager();
 
     //! Marks the journal as sealed and updates its snapshot statistics.
@@ -33,7 +31,6 @@ public:
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TJournalManager)

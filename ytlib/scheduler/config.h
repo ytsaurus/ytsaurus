@@ -233,7 +233,7 @@ public:
     //! Pool trees to schedule operation in.
     //! Operation will be scheduled in default tree (if any) if this parameter
     //! is not specified.
-    THashSet<TString> PoolTrees;
+    std::optional<THashSet<TString>> PoolTrees;
 
     //! Limit on the number of concurrent calls to ScheduleJob of single controller.
     std::optional<int> MaxConcurrentControllerScheduleJobCalls;

@@ -546,7 +546,7 @@ private:
         int blockCount = GetBlockCount(chunkId, *meta);
         while (currentBlockIndex < blockCount) {
 
-            const auto& chunkBlockManager =Bootstrap_->GetChunkBlockManager();
+            const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
             auto asyncReadBlocks = chunkBlockManager->ReadBlockRange(
                 chunkId,
                 currentBlockIndex,

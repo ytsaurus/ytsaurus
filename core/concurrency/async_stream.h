@@ -25,7 +25,7 @@ struct IAsyncInputStream
      *  One must not call #Read again before the previous call is complete.
      *  Returns number of bytes read or an error.
      */
-    virtual TFuture<size_t> Read(const TSharedMutableRef& buffer) = 0;
+    [[nodiscard]] virtual TFuture<size_t> Read(const TSharedMutableRef& buffer) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAsyncInputStream)
@@ -61,14 +61,14 @@ struct IAsyncOutputStream
      *  between calls to #Write; e.g. clients are allowed to reuse a single (mutable)
      *  buffer between these calls.
      */
-    virtual TFuture<void> Write(const TSharedRef& buffer) = 0;
+    [[nodiscard]] virtual TFuture<void> Write(const TSharedRef& buffer) = 0;
 
     //! Finalizes stream.
     /*! Call #Close to complete writes.
      *  #Close shouldn't be called before previous #Write call is complete.
      *  #Write/#Close mustn't be called after #Close was called.
      */
-    virtual TFuture<void> Close() = 0;
+    [[nodiscard]] virtual TFuture<void> Close() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAsyncOutputStream)
@@ -112,7 +112,7 @@ struct IAsyncZeroCopyInputStream
      *  One must not call #Read again before the previous call is complete.
      *  A sane implementation must guarantee that it returns blocks of sensible size.
      */
-    virtual TFuture<TSharedRef> Read() = 0;
+    [[nodiscard]] virtual TFuture<TSharedRef> Read() = 0;
 
     // Extension methods
 
@@ -150,13 +150,13 @@ struct IAsyncZeroCopyOutputStream
      *
      *  NB: this shared ref should become unique ref.
      */
-    virtual TFuture<void> Write(const TSharedRef& data) = 0;
+    [[nodiscard]] virtual TFuture<void> Write(const TSharedRef& data) = 0;
 
     //! Indicates that the stream is closed.
     /*!
      *  No #Write calls are possible after #Close.
      */
-    virtual TFuture<void> Close() = 0;
+    [[nodiscard]] virtual TFuture<void> Close() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAsyncZeroCopyOutputStream)

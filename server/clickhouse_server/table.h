@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/client/table_client/schema.h>
 
 #include <yt/core/yson/public.h>
 
@@ -84,22 +84,14 @@ bool operator != (const TClickHouseColumn& lhs, const TClickHouseColumn& rhs);
 
 struct TClickHouseTable
 {
-    TString Name;
+    NYPath::TYPath Path;
     std::vector<TClickHouseColumn> Columns;
+    NTableClient::TTableSchema TableSchema;
 
     TClickHouseTable() = default;
 
-    TClickHouseTable(TString name, std::vector<TClickHouseColumn> columns = {})
-        : Name(std::move(name))
-        , Columns(std::move(columns))
-    {}
+    TClickHouseTable(const NYPath::TYPath& path, const NTableClient::TTableSchema& tableSchema);
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-TClickHouseTablePtr CreateClickHouseTable(
-    const TString& name,
-    const NTableClient::TTableSchema& schema);
 
 ////////////////////////////////////////////////////////////////////////////////
 

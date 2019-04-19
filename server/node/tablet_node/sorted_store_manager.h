@@ -35,7 +35,7 @@ public:
     TSortedDynamicRowRef ModifyRow(
         TUnversionedRow row,
         NApi::ERowModificationType modificationType,
-        ui32 readLockMask,
+        TLockMask readLockMask,
         TWriteContext* context);
 
     TSortedDynamicRowRef ModifyRow(
@@ -98,12 +98,9 @@ private:
 
     virtual void CreateActiveStore() override;
 
-    ui32 ComputeLockMask(TUnversionedRow row);
-
     bool CheckInactiveStoresLocks(
         TUnversionedRow row,
-        ui32 readLockMask,
-        ui32 writeLockMask,
+        TLockMask lockMask,
         TWriteContext* context);
 
     void SchedulePartitionSampling(TPartition* partition);

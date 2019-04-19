@@ -109,13 +109,13 @@ bool TSortedStoreManager::ExecuteWrites(
         switch (command) {
             case EWireProtocolCommand::WriteRow: {
                 auto row = reader->ReadUnversionedRow(false);
-                rowRef = ModifyRow(row, ERowModificationType::Write, 0, context);
+                rowRef = ModifyRow(row, ERowModificationType::Write, TLockMask(), context);
                 break;
             }
 
             case EWireProtocolCommand::DeleteRow: {
                 auto key = reader->ReadUnversionedRow(false);
-                rowRef = ModifyRow(key, ERowModificationType::Delete, 0, context);
+                rowRef = ModifyRow(key, ERowModificationType::Delete, TLockMask(), context);
                 break;
             }
 
@@ -126,7 +126,7 @@ bool TSortedStoreManager::ExecuteWrites(
             }
 
             case EWireProtocolCommand::ReadLockWriteRow: {
-                auto locks = reader->ReadLocks();
+                TLockMask locks(reader->ReadLockBitmap());
                 auto key = reader->ReadUnversionedRow(false);
                 rowRef = ModifyRow(key, ERowModificationType::ReadLockWrite, locks, context);
                 break;
@@ -147,20 +147,29 @@ bool TSortedStoreManager::ExecuteWrites(
 TSortedDynamicRowRef TSortedStoreManager::ModifyRow(
     TUnversionedRow row,
     ERowModificationType modificationType,
-    ui32 readLockMask,
+    TLockMask lockMask,
     TWriteContext* context)
 {
     auto phase = context->Phase;
     auto atomic = Tablet_->GetAtomicity() == EAtomicity::Full;
 
-    ui32 writeLockMask;
     switch (modificationType) {
         case ERowModificationType::Write:
-        case ERowModificationType::ReadLockWrite:
-            writeLockMask = ComputeLockMask(row);
+        case ERowModificationType::ReadLockWrite: {
+            if (Tablet_->GetAtomicity() == EAtomicity::None) {
+                break;
+            }
+            const auto& columnIndexToLockIndex = Tablet_->ColumnIndexToLockIndex();
+
+            for (int index = KeyColumnCount_; index < row.GetCount(); ++index) {
+                const auto& value = row[index];
+                int lockIndex = columnIndexToLockIndex[value.Id];
+                lockMask.Set(lockIndex, ELockType::Exclusive);
+            }
             break;
+        }
         case ERowModificationType::Delete:
-            writeLockMask = PrimaryLockMask;
+            lockMask.Set(PrimaryLockIndex, ELockType::Exclusive);
             break;
         default:
             Y_UNREACHABLE();
@@ -168,7 +177,7 @@ TSortedDynamicRowRef TSortedStoreManager::ModifyRow(
 
     if (atomic &&
         phase == EWritePhase::Prelock &&
-        !CheckInactiveStoresLocks(row, readLockMask, writeLockMask, context))
+        !CheckInactiveStoresLocks(row, lockMask, context))
     {
         return TSortedDynamicRowRef();
     }
@@ -178,13 +187,15 @@ TSortedDynamicRowRef TSortedStoreManager::ModifyRow(
         context->CommitTimestamp = GenerateMonotonicCommitTimestamp(context->CommitTimestamp);
     }
 
-    auto dynamicRow = ActiveStore_->ModifyRow(row, readLockMask, writeLockMask, modificationType, context);
+    auto isDelete = modificationType == ERowModificationType::Delete;
+
+    auto dynamicRow = ActiveStore_->ModifyRow(row, lockMask, isDelete, context);
     if (!dynamicRow) {
         return TSortedDynamicRowRef();
     }
 
     auto dynamicRowRef = TSortedDynamicRowRef(ActiveStore_.Get(), this, dynamicRow);
-    dynamicRowRef.ReadLockMask = readLockMask;
+    dynamicRowRef.LockMask = lockMask;
 
     if (atomic && (phase == EWritePhase::Prelock || phase == EWritePhase::Lock)) {
         LockRow(context->Transaction, phase == EWritePhase::Prelock, dynamicRowRef);
@@ -223,18 +234,18 @@ void TSortedStoreManager::PrepareRow(TTransaction* transaction, const TSortedDyn
 void TSortedStoreManager::CommitRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
 {
     if (rowRef.Store == ActiveStore_) {
-        ActiveStore_->CommitRow(transaction, rowRef.Row, rowRef.ReadLockMask);
+        ActiveStore_->CommitRow(transaction, rowRef.Row, rowRef.LockMask);
     } else {
-        auto migratedRow = ActiveStore_->MigrateRow(transaction, rowRef.Row, rowRef.ReadLockMask);
-        rowRef.Store->CommitRow(transaction, rowRef.Row, rowRef.ReadLockMask);
+        auto migratedRow = ActiveStore_->MigrateRow(transaction, rowRef.Row, rowRef.LockMask);
+        rowRef.Store->CommitRow(transaction, rowRef.Row, rowRef.LockMask);
         CheckForUnlockedStore(rowRef.Store);
-        ActiveStore_->CommitRow(transaction, migratedRow, rowRef.ReadLockMask);
+        ActiveStore_->CommitRow(transaction, migratedRow, rowRef.LockMask);
     }
 }
 
 void TSortedStoreManager::AbortRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
 {
-    rowRef.Store->AbortRow(transaction, rowRef.Row, rowRef.ReadLockMask);
+    rowRef.Store->AbortRow(transaction, rowRef.Row, rowRef.LockMask);
     CheckForUnlockedStore(rowRef.Store);
 }
 
@@ -243,31 +254,15 @@ IDynamicStore* TSortedStoreManager::GetActiveStore() const
     return ActiveStore_.Get();
 }
 
-ui32 TSortedStoreManager::ComputeLockMask(TUnversionedRow row)
-{
-    if (Tablet_->GetAtomicity() == EAtomicity::None) {
-        return 0;
-    }
-    const auto& columnIndexToLockIndex = Tablet_->ColumnIndexToLockIndex();
-    ui32 lockMask = 0;
-    for (int index = KeyColumnCount_; index < row.GetCount(); ++index) {
-        const auto& value = row[index];
-        int lockIndex = columnIndexToLockIndex[value.Id];
-        lockMask |= (1U << lockIndex);
-    }
-    return lockMask;
-}
-
 bool TSortedStoreManager::CheckInactiveStoresLocks(
     TUnversionedRow row,
-    ui32 readLockMask,
-    ui32 writeLockMask,
+    TLockMask lockMask,
     TWriteContext* context)
 {
     auto* transaction = context->Transaction;
 
     for (const auto& store : LockedStores_) {
-        auto error = store->AsSortedDynamic()->CheckRowLocks(row, transaction, readLockMask, writeLockMask);
+        auto error = store->AsSortedDynamic()->CheckRowLocks(row, transaction, lockMask);
         if (!error.IsOK()) {
             context->Error = error;
             return false;
@@ -286,7 +281,7 @@ bool TSortedStoreManager::CheckInactiveStoresLocks(
             continue;
         }
 
-        auto error = store->CheckRowLocks(row, transaction, readLockMask, writeLockMask);
+        auto error = store->CheckRowLocks(row, transaction, lockMask);
         if (!error.IsOK()) {
             context->Error = error;
             return false;

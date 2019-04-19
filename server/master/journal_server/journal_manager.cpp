@@ -40,11 +40,8 @@ class TJournalManager::TImpl
     : public NCellMaster::TMasterAutomatonPart
 {
 public:
-    TImpl(
-        TJournalManagerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap)
+    explicit TImpl(NCellMaster::TBootstrap* bootstrap)
         : NCellMaster::TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::JournalManager)
-        , Config_(config)
     { }
 
 
@@ -78,19 +75,12 @@ public:
             multicellManager->PostToMaster(req, PrimaryMasterCellTag);
         }
     }
-
-
-private:
-    const TJournalManagerConfigPtr Config_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJournalManager::TJournalManager(
-    TJournalManagerConfigPtr config,
-    NCellMaster::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(config, bootstrap))
+TJournalManager::TJournalManager(NCellMaster::TBootstrap* bootstrap)
+    : Impl_(New<TImpl>(bootstrap))
 { }
 
 TJournalManager::~TJournalManager() = default;

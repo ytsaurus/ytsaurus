@@ -1,11 +1,16 @@
-#include "private.h"
+#pragma once
+
+#include "public.h"
+
+#include <yt/core/logging/log.h>
+
+#include <yt/core/profiling/profiler.h>
 
 namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const NLogging::TLogger JobTrackerServerLogger("JobTracker");
-const NProfiling::TProfiler Profiler("/job_controller");
+extern const NLogging::TLogger JobAgentServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

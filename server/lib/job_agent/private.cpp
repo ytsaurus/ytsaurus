@@ -1,15 +1,11 @@
-#pragma once
-
 #include "private.h"
 
-#include <Storages/IStorage.h>
-
-namespace NYT::NClickHouseServer {
+namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::StoragePtr CreateStorageStub(TClickHouseTablePtr table);
+const NLogging::TLogger JobAgentServerLogger("JobTracker");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NClickHouseServer
+} // namespace NYT::NJobAgent

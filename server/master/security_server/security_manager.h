@@ -102,9 +102,7 @@ class TSecurityManager
     : public IUsersManager
 {
 public:
-    TSecurityManager(
-        TSecurityManagerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap);
+    explicit TSecurityManager(NCellMaster::TBootstrap* bootstrap);
     virtual ~TSecurityManager() override;
 
     void Initialize();
@@ -285,10 +283,7 @@ public:
     void SetUserBanned(TUser* user, bool banned);
 
     //! Checks if request handling is possible from a given user.
-    /*!
-     *  Throws if the user is banned.
-     */
-    void ValidateUserAccess(TUser* user);
+    TError CheckUserAccess(TUser* user);
 
     //! Called when some time has been spent processing user requests.
     /*

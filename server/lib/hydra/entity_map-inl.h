@@ -14,7 +14,7 @@ namespace NYT::NHydra {
 template <class TValue>
 std::unique_ptr<TValue> TDefaultEntityMapTraits<TValue>::Create(const TEntityKey<TValue>& key) const
 {
-    return std::unique_ptr<TValue>(new TValue(key));
+    return std::make_unique<TValue>(key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

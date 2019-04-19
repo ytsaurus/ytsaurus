@@ -4,15 +4,15 @@ from yt.environment.yt_env import set_environment_driver_logging_config
 
 import yt.yson as yson
 from yt_driver_bindings import Driver, Request
-import yt_driver_bindings
 from yt.common import YtError, YtResponseError, flatten, update_inplace
 
-from yt.test_helpers import wait
+from yt.test_helpers import wait, WaitFailed
 from yt.test_helpers.job_events import JobEvents, TimeoutError
 
 import __builtin__
 import contextlib
 import copy as pycopy
+import decorator
 import os
 import random
 import re
@@ -21,12 +21,15 @@ import string
 import sys
 import tempfile
 import time
+import traceback
+from collections import defaultdict
 from datetime import datetime, timedelta
 from cStringIO import StringIO, OutputType
 
 ###########################################################################
 
 clusters_drivers = {}
+_native_driver = None
 is_multicell = None
 path_to_run_tests = None
 _zombie_responses = []
@@ -66,23 +69,45 @@ def get_driver(cell_index=0, cluster="primary"):
 
     return clusters_drivers[cluster][cell_index]
 
+def get_native_driver():
+    return _native_driver
+
 def _get_driver(driver):
     if driver is None:
         return get_driver()
     else:
         return driver
 
+# TODO(kiselyovp) remove this _native_driver crutch when
+# read_table and write_table are supported via RPC proxy
+def force_native_driver(func):
+    def wrapper(func, self, *args, **kwargs):
+        if "driver" not in kwargs:
+            kwargs["driver"] = get_native_driver()
+        return func(self, *args, **kwargs)
+
+    return decorator.decorate(func, wrapper)
+
 def init_drivers(clusters):
     for instance in clusters:
         if instance.master_count > 0:
-            # Setup driver logging for all instances in the environment as in the primary cluster.
-            if instance._cluster_name == "primary":
-                set_environment_driver_logging_config(instance.driver_logging_config)
-
             prefix = "" if instance.driver_backend == "native" else "rpc_"
             secondary_driver_configs = [instance.configs[prefix + "driver_secondary_" + str(i)]
                                         for i in xrange(instance.secondary_master_cell_count)]
             driver = Driver(config=instance.configs[prefix + "driver"])
+
+            # Setup driver logging for all instances in the environment as in the primary cluster.
+            if instance._cluster_name == "primary":
+                set_environment_driver_logging_config(instance.driver_logging_config)
+
+                global _native_driver
+                if instance.driver_backend == "native":
+                    _native_driver = driver
+                else:
+                    native_config = pycopy.deepcopy(instance.configs["driver"])
+                    native_config["connection_type"] = "native"
+                    _native_driver = Driver(config=native_config)
+
             secondary_drivers = []
             for secondary_driver_config in secondary_driver_configs:
                 secondary_drivers.append(Driver(config=secondary_driver_config))
@@ -432,16 +457,19 @@ def ls(path, **kwargs):
     kwargs["path"] = path
     return yson.loads(execute_command("list", kwargs))
 
+@force_native_driver
 def read_table(path, **kwargs):
     kwargs["path"] = path
     return execute_command_with_output_format("read_table", kwargs)
 
+@force_native_driver
 def read_blob_table(path, **kwargs):
     kwargs["path"] = path
     output = StringIO()
     execute_command("read_blob_table", kwargs, output_stream=output)
     return output.getvalue()
 
+@force_native_driver
 def write_table(path, value=None, is_raw=False, **kwargs):
     if "input_stream" in kwargs:
         input_stream = kwargs.pop("input_stream")
@@ -1518,3 +1546,35 @@ def get_singular_chunk_id(path, **kwargs):
 
 def get_first_chunk_id(path, **kwargs):
     return get(path + "/@chunk_ids/0", **kwargs)
+
+def get_job_count_profiling():
+    job_count = {"state": defaultdict(int), "abort_reason": defaultdict(int)}
+
+    try:
+        profiling_response = get("//sys/scheduler/orchid/profiling/scheduler/job_count", verbose=False)
+    except YtError:
+        return job_count
+
+    profiling_info = {}
+    for value in reversed(profiling_response):
+        key = tuple(sorted(value["tags"].items()))
+        if key not in profiling_info:
+            profiling_info[key] = value["value"]
+
+    # Enable it for debugging.
+    # print "profiling_info:", profiling_info
+    for key, value in profiling_info.iteritems():
+        state = dict(key)["state"]
+        job_count["state"][state] += value
+
+    for key, value in profiling_info.iteritems():
+        state = dict(key)["state"]
+        if state != "aborted":
+            continue
+        abort_reason = dict(key)["abort_reason"]
+        job_count["abort_reason"][abort_reason] += value
+
+    # Enable it for debugging.
+    print("job_counters:", job_count, file=sys.stderr)
+
+    return job_count

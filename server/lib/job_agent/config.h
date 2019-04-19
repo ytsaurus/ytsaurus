@@ -114,8 +114,10 @@ public:
 
     double CpuPerTabletSlot;
 
+    //! Port set has higher priority than StartPort ans PortCount if it is specified.
     int StartPort;
     int PortCount;
+    std::optional<THashSet<int>> PortSet;
 
     //! This is a special testing option.
     //! Instead of normal gpu discovery, it forces the node to believe the number of GPUs passed in the config.
@@ -157,6 +159,9 @@ public:
 
         RegisterParameter("port_count", PortCount)
             .Default(10000);
+
+        RegisterParameter("port_set", PortSet)
+            .Default();
 
         RegisterParameter("test_gpu", TestGpu)
             .Default(false);

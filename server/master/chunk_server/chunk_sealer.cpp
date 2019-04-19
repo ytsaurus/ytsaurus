@@ -63,11 +63,9 @@ public:
         TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
-        , Semaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentChunkSeals))
         , SealExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
-            BIND(&TImpl::OnRefresh, MakeWeak(this)),
-            Config_->ChunkRefreshPeriod))
+            BIND(&TImpl::OnRefresh, MakeWeak(this))))
         , SealScanner_(std::make_unique<TChunkScanner>(
             Bootstrap_->GetObjectManager(),
             EChunkScanKind::Seal))
@@ -80,11 +78,23 @@ public:
     {
         SealScanner_->Start(frontJournalChunk, journalChunkCount);
         SealExecutor_->Start();
+
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
+        OnDynamicConfigChanged();
     }
 
     void Stop()
     {
         SealExecutor_->Stop();
+
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
+    }
+
+    bool IsEnabled()
+    {
+        return Enabled_;
     }
 
     void ScheduleSeal(TChunk* chunk)
@@ -111,12 +121,27 @@ private:
     const TChunkManagerConfigPtr Config_;
     TBootstrap* const Bootstrap_;
 
-    const TAsyncSemaphorePtr Semaphore_;
+    const TAsyncSemaphorePtr Semaphore_ = New<TAsyncSemaphore>(0);
 
     const TPeriodicExecutorPtr SealExecutor_;
     const std::unique_ptr<TChunkScanner> SealScanner_;
 
+    const TClosure DynamicConfigChangedCallback_ = BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this));
+
     bool Enabled_ = true;
+
+
+    const TDynamicChunkManagerConfigPtr& GetDynamicConfig()
+    {
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        return configManager->GetConfig()->ChunkManager;
+    }
+
+    void OnDynamicConfigChanged()
+    {
+        SealExecutor_->SetPeriod(GetDynamicConfig()->ChunkRefreshPeriod);
+        Semaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentChunkSeals);
+    }
 
     static bool IsSealNeeded(TChunk* chunk)
     {
@@ -189,7 +214,7 @@ private:
         }
 
         int totalCount = 0;
-        while (totalCount < Config_->MaxChunksPerSeal &&
+        while (totalCount < GetDynamicConfig()->MaxChunksPerSeal &&
                SealScanner_->HasUnscannedChunk())
         {
             auto guard = TAsyncSemaphoreGuard::TryAcquire(Semaphore_);
@@ -211,14 +236,9 @@ private:
         }
     }
 
-    bool IsEnabled()
-    {
-        return Enabled_;
-    }
-
     void OnCheckEnabled()
     {
-        auto enabledInConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->EnableChunkSealer;
+        auto enabledInConfig = GetDynamicConfig()->EnableChunkSealer;
 
         if (!enabledInConfig && Enabled_) {
             YT_LOG_INFO("Chunk sealer disabled, see //sys/@config");
@@ -248,10 +268,11 @@ private:
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Error sealing journal chunk %v; backing off",
                 chunkId);
+
             TDelayedExecutor::Submit(
                 BIND(&TImpl::RescheduleSeal, MakeStrong(this), chunkId)
                     .Via(GetCurrentInvoker()),
-                Config_->ChunkSealBackoffTime);
+                GetDynamicConfig()->ChunkSealBackoffTime);
         }
     }
 
@@ -264,6 +285,8 @@ private:
         auto chunkId = chunk->GetId();
         auto readQuorum = chunk->GetReadQuorum();
         auto replicas = GetChunkReplicas(chunk);
+        auto dynamicConfig = GetDynamicConfig();
+
         YT_LOG_DEBUG("Sealing journal chunk (ChunkId: %v)",
             chunkId);
 
@@ -271,7 +294,7 @@ private:
             auto asyncResult = AbortSessionsQuorum(
                 chunkId,
                 replicas,
-                Config_->JournalRpcTimeout,
+                dynamicConfig->JournalRpcTimeout,
                 readQuorum,
                 Bootstrap_->GetNodeChannelFactory());
             WaitFor(asyncResult)
@@ -283,7 +306,7 @@ private:
             auto asyncMiscExt = ComputeQuorumInfo(
                 chunkId,
                 replicas,
-                Config_->JournalRpcTimeout,
+                dynamicConfig->JournalRpcTimeout,
                 readQuorum,
                 Bootstrap_->GetNodeChannelFactory());
             miscExt = WaitFor(asyncMiscExt)
@@ -351,6 +374,11 @@ void TChunkSealer::Start(TChunk* frontJournalChunk, int journalChunkCount)
 void TChunkSealer::Stop()
 {
     Impl_->Stop();
+}
+
+bool TChunkSealer::IsEnabled()
+{
+    return Impl_->IsEnabled();
 }
 
 void TChunkSealer::ScheduleSeal(TChunk* chunk)

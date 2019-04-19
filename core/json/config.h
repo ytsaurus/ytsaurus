@@ -36,6 +36,7 @@ public:
     bool AnnotateWithTypes;
 
     bool SupportInfinity;
+    bool StringifyNanAndInfinity;
 
     // Size of buffer used read out input stream in parser.
     // NB: in case of parsing long string yajl holds in memory whole string prefix and copy it on every parse call.
@@ -65,12 +66,21 @@ public:
             .Default(false);
         RegisterParameter("support_infinity", SupportInfinity)
             .Default(false);
+        RegisterParameter("stringify_nan_and_infinity", StringifyNanAndInfinity)
+            .Default(false);
         RegisterParameter("buffer_size", BufferSize)
             .Default(16 * 1024);
         RegisterParameter("skip_null_values", SkipNullValues)
             .Default(false);
 
         MemoryLimit = 256_MB;
+
+        RegisterPostprocessor([&] () {
+            if (SupportInfinity && StringifyNanAndInfinity) {
+                THROW_ERROR_EXCEPTION("\"support_infinity\" and \"stringify_nan_and_infinity\" "
+                    "cannot be specified simultaneously");
+            }
+        });
     }
 };
 

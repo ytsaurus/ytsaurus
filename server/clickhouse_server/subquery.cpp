@@ -1,7 +1,9 @@
-#include "job_input.h"
+#include "subquery.h"
 
+#include "query_context.h"
+#include "config.h"
 #include "convert_row.h"
-#include "read_job_spec.h"
+#include "subquery_spec.h"
 #include "table_schema.h"
 #include "table.h"
 #include "helpers.h"
@@ -20,12 +22,14 @@
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/chunk_meta_fetcher.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 
@@ -93,6 +97,7 @@ TString GetDataSliceStatisticsDebugString(const std::vector<TInputDataSlicePtr>&
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(max42): rename
 class TDataSliceFetcher
 {
 public:
@@ -105,37 +110,64 @@ public:
     TDataSliceFetcher(
         NNative::IClientPtr client,
         std::vector<TRichYPath> inputTablePaths,
-        const KeyCondition* keyCondition)
-        : Client(std::move(client))
+        const KeyCondition* keyCondition,
+        TRowBufferPtr rowBuffer,
+        TSubqueryConfigPtr config)
+        : Client_(std::move(client))
         , InputTablePaths_(std::move(inputTablePaths))
         , KeyCondition_(keyCondition)
+        , RowBuffer_(std::move(rowBuffer))
+        , Config_(std::move(config))
     {}
 
     void Fetch()
     {
         CollectTablesAttributes();
         ValidateSchema();
-        FetchDataSlices();
+        FetchChunks();
         if (KeyCondition_) {
-            FilterDataSlices();
+            FilterChunks();
+            YT_LOG_INFO("Input chunks filtered (FinalDataSliceCount: %v, PartiallyNeededChunkCount: %v)",
+                DataSlices_.size(),
+                PartiallyNeededChunks_.size());
+            if (!PartiallyNeededChunks_.empty() &&
+                static_cast<int>(PartiallyNeededChunks_.size()) < Config_->MaxSlicedChunkCount)
+            {
+                FilterChunkSlices();
+            } else {
+                for (const auto& chunk : PartiallyNeededChunks_) {
+                    DataSlices_.emplace_back(CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk)));
+                }
+            }
+        } else {
+            for (const auto& chunk : InputChunks_) {
+                DataSlices_.emplace_back(CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk)));
+            }
         }
     }
 
 private:
     const NLogging::TLogger& Logger = ServerLogger;
 
-    NApi::NNative::IClientPtr Client;
+    NApi::NNative::IClientPtr Client_;
 
     std::vector<TRichYPath> InputTablePaths_;
     const KeyCondition* KeyCondition_;
 
     int KeyColumnCount_ = 0;
+    TKeyColumns KeyColumns_;
 
     DataTypes KeyColumnDataTypes_;
 
     std::vector<TInputTable> InputTables_;
 
+    std::vector<TInputChunkPtr> PartiallyNeededChunks_;
 
+    TRowBufferPtr RowBuffer_;
+
+    TSubqueryConfigPtr Config_;
+
+    std::vector<TInputChunkPtr> InputChunks_;
 
     // TODO(max42): get rid of duplicating code.
     void CollectBasicAttributes()
@@ -152,17 +184,17 @@ private:
         }
 
         GetUserObjectBasicAttributes(
-            Client,
+            Client_,
             MakeUserObjectList(InputTables_),
             NullTransactionId,
             Logger,
             EPermission::Read);
 
         for (const auto& table : InputTables_) {
-            if (table.Type != EObjectType::Table) {
+            if (table.Type != NObjectClient::EObjectType::Table) {
                 THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
                     table.Path.GetPath(),
-                    EObjectType::Table,
+                    NObjectClient::EObjectType::Table,
                     table.Type);
             }
         }
@@ -172,7 +204,7 @@ private:
     {
         YT_LOG_DEBUG("Collecting table specific attributes");
 
-        auto channel = Client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
 
         TObjectServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();
@@ -238,7 +270,8 @@ private:
         }
 
         KeyColumnCount_ = representativeTable.Schema.GetKeyColumnCount();
-        KeyColumnDataTypes_ = TClickHouseTableSchema::From(*CreateClickHouseTable("", representativeTable.Schema)).GetKeyDataTypes();
+        KeyColumns_ = representativeTable.Schema.GetKeyColumns();
+        KeyColumnDataTypes_ = TClickHouseTableSchema::From(TClickHouseTable("", representativeTable.Schema)).GetKeyDataTypes();
     }
 
     void LogStatistics(const TStringBuf& stage)
@@ -248,13 +281,13 @@ private:
             GetDataSliceStatisticsDebugString(DataSlices_));
     }
     
-    void FetchDataSlices()
+    void FetchChunks()
     {
         i64 totalChunkCount = 0;
         for (const auto& inputTable : InputTables_) {
             totalChunkCount += inputTable.ChunkCount;
         }
-        YT_LOG_INFO("Fetching data slices (InputTableCount: %v, TotalChunkCount: %v)",
+        YT_LOG_INFO("Fetching input chunks (InputTableCount: %v, TotalChunkCount: %v)",
             InputTables_.size(),
             totalChunkCount);
 
@@ -279,7 +312,7 @@ private:
                 table.Path.GetPath());
 
             auto chunkSpecs = FetchChunkSpecs(
-                Client,
+                Client_,
                 NodeDirectory_,
                 table.CellTag,
                 FromObjectId(table.ObjectId),
@@ -303,40 +336,81 @@ private:
     
             for (const auto& chunkSpec : chunkSpecs) {
                 auto inputChunk = New<TInputChunk>(chunkSpec);
-                DataSlices_.emplace_back(CreateUnversionedInputDataSlice(CreateInputChunkSlice(inputChunk)));
+                InputChunks_.emplace_back(std::move(inputChunk));
             }
         }
         
-        LogStatistics("FetchDataSlices");
+        LogStatistics("FetchChunks");
     }
 
-    void FilterDataSlices()
+    BoolMask GetRangeMask(TKey lowerKey, TKey upperKey)
     {
-        auto removePredicate = [&] (const TInputDataSlicePtr& inputDataSlice) {
-            const auto& chunk = inputDataSlice->GetSingleUnversionedChunkOrThrow();
-            YCHECK(chunk->BoundaryKeys()->MinKey.GetCount() == chunk->BoundaryKeys()->MaxKey.GetCount());
-            YCHECK(chunk->BoundaryKeys()->MinKey.GetCount() >= KeyColumnCount_);
+        YCHECK(static_cast<int>(lowerKey.GetCount()) >= KeyColumnCount_);
+        YCHECK(static_cast<int>(upperKey.GetCount()) >= KeyColumnCount_);
 
-            Field minKey[KeyColumnCount_];
-            Field maxKey[KeyColumnCount_];
-            ConvertToFieldRow(chunk->BoundaryKeys()->MinKey, minKey);
-            ConvertToFieldRow(chunk->BoundaryKeys()->MaxKey, maxKey);
+        Field minKey[KeyColumnCount_];
+        Field maxKey[KeyColumnCount_];
+        ConvertToFieldRow(lowerKey, KeyColumnCount_, minKey);
+        ConvertToFieldRow(upperKey, KeyColumnCount_, maxKey);
 
-            return !KeyCondition_->mayBeTrueInRange(KeyColumnCount_, minKey, maxKey, KeyColumnDataTypes_);
-        };
+        return KeyCondition_->getMaskInRange(KeyColumnCount_, minKey, maxKey, KeyColumnDataTypes_);
+    }
 
-        DataSlices_.erase(std::remove_if(DataSlices_.begin(), DataSlices_.end(), removePredicate), DataSlices_.end());
+    void FilterChunks()
+    {
+        for (const auto& chunk : InputChunks_) {
+            auto mask = GetRangeMask(chunk->BoundaryKeys()->MinKey, chunk->BoundaryKeys()->MaxKey);
 
-        LogStatistics("FilterDataSlices");
+            if (mask.can_be_true && mask.can_be_false) {
+                PartiallyNeededChunks_.emplace_back(chunk);
+            } else if (mask.can_be_true && !mask.can_be_false) {
+                DataSlices_.emplace_back(CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk)));
+            }
+        }
+
+        LogStatistics("FilterChunks");
+    }
+
+    void FilterChunkSlices()
+    {
+        auto chunkSliceFetcher = CreateChunkSliceFetcher(
+            Config_->ChunkSliceFetcher,
+            1 /* chunkSliceSize */,
+            KeyColumns_,
+            false /* sliceByKeys */,
+            NodeDirectory_,
+            GetCurrentInvoker(),
+            nullptr /* fetcherChunkScraper */,
+            Client_,
+            RowBuffer_,
+            Logger);
+
+        for (const auto& chunk : PartiallyNeededChunks_) {
+            chunkSliceFetcher->AddChunk(chunk);
+        }
+
+        WaitFor(chunkSliceFetcher->Fetch())
+            .ThrowOnError();
+
+        for (const auto& chunkSlice : chunkSliceFetcher->GetChunkSlices()) {
+            auto mask = GetRangeMask(chunkSlice->LowerLimit().Key, chunkSlice->UpperLimit().Key);
+            if (mask.can_be_true) {
+                DataSlices_.emplace_back(CreateUnversionedInputDataSlice(chunkSlice));
+            }
+        }
+        LogStatistics("FilterChunkSlices");
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFetchResult FetchInput(
+std::vector<TInputDataSlicePtr> FetchDataSlices(
     NNative::IClientPtr client,
     std::vector<TString> inputTablePaths,
-    const KeyCondition* keyCondition)
+    const KeyCondition* keyCondition,
+    TRowBufferPtr rowBuffer,
+    TSubqueryConfigPtr config,
+    TSubquerySpec& specTemplate)
 {
     std::vector<TRichYPath> inputTableRichPaths;
     for (const auto& path : inputTablePaths) {
@@ -346,19 +420,18 @@ TFetchResult FetchInput(
     TDataSliceFetcher dataSliceFetcher(
         std::move(client),
         std::move(inputTableRichPaths),
-        keyCondition);
+        keyCondition,
+        std::move(rowBuffer),
+        std::move(config));
     dataSliceFetcher.Fetch();
 
-    return TFetchResult {
-        std::move(dataSliceFetcher.DataSlices()),
-        std::move(dataSliceFetcher.NodeDirectory()),
-        std::move(dataSliceFetcher.DataSourceDirectory())
-    };
+    specTemplate.NodeDirectory = std::move(dataSliceFetcher.NodeDirectory());
+    specTemplate.DataSourceDirectory = std::move(dataSliceFetcher.DataSourceDirectory());
+
+    return std::move(dataSliceFetcher.DataSlices());
 }
 
-NChunkPools::TChunkStripeListPtr BuildJobs(
-    const std::vector<TInputDataSlicePtr>& dataSlices,
-    int jobCount)
+NChunkPools::TChunkStripeListPtr SubdivideDataSlices(const std::vector<TInputDataSlicePtr>& dataSlices, int jobCount)
 {
     if (jobCount == 0) {
         jobCount = 1;
@@ -387,10 +460,18 @@ NChunkPools::TChunkStripeListPtr BuildJobs(
             }
             const auto& dataSlice = dataSlices[currentDataSliceIndex];
             const auto& inputChunk = dataSlice->GetSingleUnversionedChunkOrThrow();
-            const auto& lowerLimit = inputChunk->LowerLimit();
-            const auto& upperLimit = inputChunk->UpperLimit();
-            i64 dataSliceLowerRowIndex = lowerLimit && lowerLimit->HasRowIndex() ? lowerLimit->GetRowIndex() : 0;
-            i64 dataSliceUpperRowIndex = upperLimit && upperLimit->HasRowIndex() ? upperLimit->GetRowIndex() : inputChunk->GetRowCount();
+            i64 dataSliceLowerRowIndex = dataSlice->LowerLimit().RowIndex.value_or(0);
+            i64 dataSliceUpperRowIndex = dataSlice->UpperLimit().RowIndex.value_or(inputChunk->GetRowCount());
+
+            const auto& chunkLowerLimit = inputChunk->LowerLimit();
+            const auto& chunkUpperLimit = inputChunk->UpperLimit();
+            if (chunkLowerLimit && chunkLowerLimit->HasRowIndex()) {
+                dataSliceLowerRowIndex = std::max(dataSliceLowerRowIndex, chunkLowerLimit->GetRowIndex());
+            }
+            if (chunkUpperLimit && chunkUpperLimit->HasRowIndex()) {
+                dataSliceUpperRowIndex = std::min(dataSliceUpperRowIndex, chunkUpperLimit->GetRowIndex());
+            }
+
             if (dataSliceLowerRowIndex >= dataSliceUpperRowIndex) {
                 currentDataSliceIndex++;
                 continue;
@@ -453,60 +534,31 @@ NChunkPools::TChunkStripeListPtr BuildJobs(
     return result;
 }
 
-TTablePartList SerializeAsTablePartList(
-    const TChunkStripeListPtr& chunkStripeList,
-    const TNodeDirectoryPtr& nodeDirectory,
-    const TDataSourceDirectoryPtr& dataSourceDirectory)
+void FillDataSliceDescriptors(TSubquerySpec& subquerySpec, const TChunkStripePtr& chunkStripe)
 {
-    TTablePartList tableParts;
-
-    for (auto& chunkStripe : chunkStripeList->Stripes) {
-        TReadJobSpec readJobSpec;
-        {
-            readJobSpec.DataSourceDirectory = dataSourceDirectory;
-            readJobSpec.NodeDirectory = nodeDirectory;
-            YCHECK(!readJobSpec.DataSourceDirectory->DataSources().empty());
-            for (const auto& dataSlice : chunkStripe->DataSlices) {
-                const auto& chunkSlice = dataSlice->ChunkSlices[0];
-                auto chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
-                auto& chunkSpec = readJobSpec.DataSliceDescriptors.emplace_back().ChunkSpecs.emplace_back();
-                ToProto(&chunkSpec, chunk, EDataSourceType::UnversionedTable);
-                // TODO(max42): wtf?
-                chunkSpec.set_row_count_override(dataSlice->GetRowCount());
-                chunkSpec.set_data_weight_override(dataSlice->GetDataWeight());
-                if (chunkSlice->LowerLimit().RowIndex) {
-                    chunkSpec.mutable_lower_limit()->set_row_index(*chunkSlice->LowerLimit().RowIndex);
-                }
-                if (chunkSlice->UpperLimit().RowIndex) {
-                    chunkSpec.mutable_upper_limit()->set_row_index(*chunkSlice->UpperLimit().RowIndex);
-                }
-                NChunkClient::NProto::TMiscExt miscExt;
-                miscExt.set_row_count(chunk->GetTotalRowCount());
-                miscExt.set_uncompressed_data_size(chunk->GetTotalUncompressedDataSize());
-                miscExt.set_data_weight(chunk->GetTotalDataWeight());
-                miscExt.set_compressed_data_size(chunk->GetCompressedDataSize());
-                chunkSpec.mutable_chunk_meta()->set_version(static_cast<int>(chunk->GetTableChunkFormat()));
-                chunkSpec.mutable_chunk_meta()->set_type(static_cast<int>(EChunkType::Table));
-                SetProtoExtension(chunkSpec.mutable_chunk_meta()->mutable_extensions(), miscExt);
-            }
+   for (const auto& dataSlice : chunkStripe->DataSlices) {
+        const auto& chunkSlice = dataSlice->ChunkSlices[0];
+        auto chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
+        auto& chunkSpec = subquerySpec.DataSliceDescriptors.emplace_back().ChunkSpecs.emplace_back();
+        ToProto(&chunkSpec, chunk, EDataSourceType::UnversionedTable);
+        // TODO(max42): wtf?
+        chunkSpec.set_row_count_override(dataSlice->GetRowCount());
+        chunkSpec.set_data_weight_override(dataSlice->GetDataWeight());
+        if (chunkSlice->LowerLimit().RowIndex) {
+            chunkSpec.mutable_lower_limit()->set_row_index(*chunkSlice->LowerLimit().RowIndex);
         }
-
-        TTablePart tablePart;
-        {
-            tablePart.JobSpec = ConvertToYsonString(readJobSpec, EYsonFormat::Text).GetData();
-
-            for (const auto& dataSlice : readJobSpec.DataSliceDescriptors) {
-                for (const auto& chunkSpec : dataSlice.ChunkSpecs) {
-                    tablePart.RowCount += chunkSpec.row_count_override();
-                    tablePart.DataWeight += chunkSpec.data_weight_override();
-                }
-            }
+        if (chunkSlice->UpperLimit().RowIndex) {
+            chunkSpec.mutable_upper_limit()->set_row_index(*chunkSlice->UpperLimit().RowIndex);
         }
-
-        tableParts.emplace_back(std::move(tablePart));
+        NChunkClient::NProto::TMiscExt miscExt;
+        miscExt.set_row_count(chunk->GetTotalRowCount());
+        miscExt.set_uncompressed_data_size(chunk->GetTotalUncompressedDataSize());
+        miscExt.set_data_weight(chunk->GetTotalDataWeight());
+        miscExt.set_compressed_data_size(chunk->GetCompressedDataSize());
+        chunkSpec.mutable_chunk_meta()->set_version(static_cast<int>(chunk->GetTableChunkFormat()));
+        chunkSpec.mutable_chunk_meta()->set_type(static_cast<int>(EChunkType::Table));
+        SetProtoExtension(chunkSpec.mutable_chunk_meta()->mutable_extensions(), miscExt);
     }
-
-    return tableParts;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -35,8 +35,6 @@ public:
 private:
     const TPeerBlockDistributorConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;
-    //! Serialized invoker in which all distribution iterations are performed.
-    const IInvokerPtr Invoker_;
     const NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
 
     //! Blocks that were requested since last iteration of distribution. This stack

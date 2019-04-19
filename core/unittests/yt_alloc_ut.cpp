@@ -2,6 +2,8 @@
 
 #include <yt/core/alloc/alloc.h>
 
+#include <yt/core/misc/memory_tag.h>
+
 #include <thread>
 
 namespace NYT::NYTAlloc {

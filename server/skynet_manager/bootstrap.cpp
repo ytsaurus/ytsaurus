@@ -31,6 +31,8 @@
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
+#include <yt/core/alloc/statistics_producer.h>
+
 #include <yt/core/ytree/virtual.h>
 
 #include <util/string/hex.h>
@@ -87,6 +89,9 @@ TBootstrap::TBootstrap(TSkynetManagerConfigPtr config)
     HttpClient_ = CreateClient(Config_->HttpClient, Poller_);
 
     MonitoringManager_ = New<TMonitoringManager>();
+    MonitoringManager_->Register(
+        "/yt_alloc",
+        NYTAlloc::CreateStatisticsProducer());
     MonitoringManager_->Register(
         "/ref_counted",
         CreateRefCountedTrackerStatisticsProducer());

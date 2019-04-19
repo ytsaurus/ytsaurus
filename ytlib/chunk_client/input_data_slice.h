@@ -37,6 +37,7 @@ public:
     i64 GetMaxBlockSize() const;
 
     int GetTableIndex() const;
+    int GetRangeIndex() const;
 
     void Persist(NTableClient::TPersistenceContext& context);
 

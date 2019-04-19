@@ -39,7 +39,7 @@ void AttachToChunkList(
 
 std::unique_ptr<TChunk> CreateChunk()
 {
-    std::unique_ptr<TChunk> chunk(new TChunk(GenerateChunkId()));
+    auto chunk = std::make_unique<TChunk>(GenerateChunkId());
 
     TChunkMeta chunkMeta;
     chunkMeta.set_type(static_cast<int>(EChunkType::Table));
@@ -81,7 +81,7 @@ public:
 
     virtual TChunkList* CreateChunkList() override
     {
-        auto chunkList = std::unique_ptr<TChunkList>(new TChunkList(GenerateChunkListId()));
+        auto chunkList = std::make_unique<TChunkList>(GenerateChunkListId());
         ChunkLists_->push_back(std::move(chunkList));
         return ChunkLists_->back().get();
     }

@@ -16,9 +16,7 @@ class TExpirationTracker
     : public TRefCounted
 {
 public:
-    TExpirationTracker(
-        TCypressManagerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap);
+    explicit TExpirationTracker(NCellMaster::TBootstrap* bootstrap);
 
     void Start();
     void Stop();
@@ -30,8 +28,9 @@ public:
     void OnNodeRemovalFailed(TCypressNodeBase* trunkNode);
 
 private:
-    const TCypressManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
+
+    const TClosure DynamicConfigChangedCallback_ = BIND(&TExpirationTracker::OnDynamicConfigChanged, MakeWeak(this));
 
     NConcurrency::TPeriodicExecutorPtr CheckExecutor_;
 
@@ -48,6 +47,8 @@ private:
 
     bool IsRecovery();
 
+    const TDynamicCypressManagerConfigPtr& GetDynamicConfig();
+    void OnDynamicConfigChanged();
 };
 
 DEFINE_REFCOUNTED_TYPE(TExpirationTracker)

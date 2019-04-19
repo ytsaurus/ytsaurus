@@ -14,6 +14,8 @@
 
 #include <yt/core/ytree/public.h>
 
+#include <yt/core/misc/memory_tag.h>
+
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////

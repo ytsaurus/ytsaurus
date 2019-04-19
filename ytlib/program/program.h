@@ -29,8 +29,8 @@ protected:
     NLastGetopt::TOpts Opts_;
     TString Argv0_;
 
-    int Exit(EProgramExitCode code) const noexcept;
-    int Exit(int code) const noexcept;
+    [[noreturn]] int Exit(EProgramExitCode code) const noexcept;
+    [[noreturn]] int Exit(int code) const noexcept;
 
     virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) = 0;
 

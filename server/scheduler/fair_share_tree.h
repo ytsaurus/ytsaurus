@@ -141,7 +141,7 @@ public:
     // NB: This function is public for testing purposes.
     TError OnFairShareUpdateAt(TInstant now);
 
-    void ProfileFairShare() const;
+    void ProfileFairShare(NProfiling::TMetricsAccumulator& accumulator) const;
 
     void ResetTreeIndexes();
 
@@ -182,52 +182,52 @@ public:
     virtual NConcurrency::TReaderWriterSpinLock* GetSharedStateTreeLock() override;
 
 private:
-    TFairShareStrategyTreeConfigPtr Config;
-    TFairShareStrategyOperationControllerConfigPtr ControllerConfig;
-    ISchedulerStrategyHost* const Host;
+    TFairShareStrategyTreeConfigPtr Config_;
+    TFairShareStrategyOperationControllerConfigPtr ControllerConfig_;
+    ISchedulerStrategyHost* const Host_;
 
-    std::vector<IInvokerPtr> FeasibleInvokers;
+    std::vector<IInvokerPtr> FeasibleInvokers_;
 
-    NYTree::INodePtr LastPoolsNodeUpdate;
-    TError LastPoolsNodeUpdateError;
+    NYTree::INodePtr LastPoolsNodeUpdate_;
+    TError LastPoolsNodeUpdateError_;
 
-    const TString TreeId;
-    const NProfiling::TTagId TreeIdProfilingTag;
+    const TString TreeId_;
+    const NProfiling::TTagId TreeIdProfilingTag_;
 
     const NLogging::TLogger Logger;
 
     using TPoolMap = THashMap<TString, TPoolPtr>;
-    TPoolMap Pools;
+    TPoolMap Pools_;
 
-    THashMap<TString, NProfiling::TTagId> PoolIdToProfilingTagId;
+    THashMap<TString, NProfiling::TTagId> PoolIdToProfilingTagId_;
 
-    THashMap<TString, THashSet<TString>> UserToEphemeralPools;
+    THashMap<TString, THashSet<TString>> UserToEphemeralPools_;
 
-    THashMap<TString, THashSet<int>> PoolToSpareSlotIndices;
-    THashMap<TString, int> PoolToMinUnusedSlotIndex;
+    THashMap<TString, THashSet<int>> PoolToSpareSlotIndices_;
+    THashMap<TString, int> PoolToMinUnusedSlotIndex_;
 
     using TOperationElementPtrByIdMap = THashMap<TOperationId, TOperationElementPtr>;
-    TOperationElementPtrByIdMap OperationIdToElement;
+    TOperationElementPtrByIdMap OperationIdToElement_;
 
     THashMap<TOperationId, TInstant> OperationIdToActivationTime_;
 
-    std::list<TOperationId> WaitingOperationQueue;
+    std::list<TOperationId> WaitingOperationQueue_;
 
-    NConcurrency::TReaderWriterSpinLock NodeIdToLastPreemptiveSchedulingTimeLock;
-    THashMap<NNodeTrackerClient::TNodeId, NProfiling::TCpuInstant> NodeIdToLastPreemptiveSchedulingTime;
+    NConcurrency::TReaderWriterSpinLock NodeIdToLastPreemptiveSchedulingTimeLock_;
+    THashMap<NNodeTrackerClient::TNodeId, NProfiling::TCpuInstant> NodeIdToLastPreemptiveSchedulingTime_;
 
     NConcurrency::TReaderWriterSpinLock SharedStateTreeLock_;
 
-    std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilters;
-    std::vector<int> FreeSchedulingTagFilterIndexes;
+    std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilters_;
+    std::vector<int> FreeSchedulingTagFilterIndexes_;
     struct TSchedulingTagFilterEntry
     {
         int Index;
         int Count;
     };
-    THashMap<TSchedulingTagFilter, TSchedulingTagFilterEntry> SchedulingTagFilterToIndexAndCount;
+    THashMap<TSchedulingTagFilter, TSchedulingTagFilterEntry> SchedulingTagFilterToIndexAndCount_;
 
-    TRootElementPtr RootElement;
+    TRootElementPtr RootElement_;
 
     struct TRootElementSnapshot
         : public TIntrinsicRefCounted
@@ -244,25 +244,25 @@ private:
     };
 
     typedef TIntrusivePtr<TRootElementSnapshot> TRootElementSnapshotPtr;
-    TRootElementSnapshotPtr RootElementSnapshot;
+    TRootElementSnapshotPtr RootElementSnapshot_;
 
     class TFairShareTreeSnapshot
         : public IFairShareTreeSnapshot
     {
     public:
         TFairShareTreeSnapshot(TFairShareTreePtr tree, TRootElementSnapshotPtr rootElementSnapshot, const NLogging::TLogger& logger)
-            : Tree(std::move(tree))
-            , RootElementSnapshot(std::move(rootElementSnapshot))
+            : Tree_(std::move(tree))
+            , RootElementSnapshot_(std::move(rootElementSnapshot))
             , Logger(logger)
-            , NodesFilter(Tree->GetNodesFilter())
+            , NodesFilter_(Tree_->GetNodesFilter())
         { }
 
         virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override
         {
             return BIND(&TFairShareTree::DoScheduleJobs,
-                Tree,
+                Tree_,
                 schedulingContext,
-                RootElementSnapshot)
+                RootElementSnapshot_)
                 .AsyncVia(GetCurrentInvoker())
                 .Run();
         }
@@ -271,7 +271,7 @@ private:
         {
             // NB: Should be filtered out on large clusters.
             YT_LOG_DEBUG("Processing updated job (OperationId: %v, JobId: %v)", operationId, jobId);
-            auto* operationElement = RootElementSnapshot->FindOperationElement(operationId);
+            auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
             if (operationElement) {
                 operationElement->IncreaseJobResourceUsage(jobId, delta);
             }
@@ -281,7 +281,7 @@ private:
         {
             // NB: Should be filtered out on large clusters.
             YT_LOG_DEBUG("Processing finished job (OperationId: %v, JobId: %v)", operationId, jobId);
-            auto* operationElement = RootElementSnapshot->FindOperationElement(operationId);
+            auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
             if (operationElement) {
                 operationElement->OnJobFinished(jobId);
             }
@@ -289,7 +289,7 @@ private:
 
         virtual void ApplyJobMetricsDelta(TOperationId operationId, const TJobMetrics& jobMetricsDelta) override
         {
-            auto* operationElement = RootElementSnapshot->FindOperationElement(operationId);
+            auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
             if (operationElement) {
                 operationElement->ApplyJobMetricsDelta(jobMetricsDelta);
             }
@@ -297,20 +297,20 @@ private:
 
         virtual bool HasOperation(TOperationId operationId) const override
         {
-            auto* operationElement = RootElementSnapshot->FindOperationElement(operationId);
+            auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
             return operationElement != nullptr;
         }
 
         virtual const TSchedulingTagFilter& GetNodesFilter() const override
         {
-            return NodesFilter;
+            return NodesFilter_;
         }
 
     private:
-        const TIntrusivePtr<TFairShareTree> Tree;
-        const TRootElementSnapshotPtr RootElementSnapshot;
+        const TIntrusivePtr<TFairShareTree> Tree_;
+        const TRootElementSnapshotPtr RootElementSnapshot_;
         const NLogging::TLogger Logger;
-        const TSchedulingTagFilter NodesFilter;
+        const TSchedulingTagFilter NodesFilter_;
     };
 
     TDynamicAttributesList GlobalDynamicAttributes_;
@@ -345,12 +345,12 @@ private:
         TEnumIndexedVector<NProfiling::TMonotonicCounter, NControllerAgent::EScheduleJobFailReason> ControllerScheduleJobFail;
     };
 
-    TScheduleJobsProfilingCounters NonPreemptiveProfilingCounters;
-    TScheduleJobsProfilingCounters PreemptiveProfilingCounters;
+    TScheduleJobsProfilingCounters NonPreemptiveProfilingCounters_;
+    TScheduleJobsProfilingCounters PreemptiveProfilingCounters_;
 
-    NProfiling::TAggregateGauge FairShareUpdateTimeCounter;
-    NProfiling::TAggregateGauge FairShareLogTimeCounter;
-    NProfiling::TAggregateGauge AnalyzePreemptableJobsTimeCounter;
+    NProfiling::TAggregateGauge FairShareUpdateTimeCounter_;
+    NProfiling::TAggregateGauge FairShareLogTimeCounter_;
+    NProfiling::TAggregateGauge AnalyzePreemptableJobsTimeCounter_;
 
     TSpinLock CustomProfilingCountersLock_;
     THashMap<TString, std::unique_ptr<NProfiling::TAggregateGauge>> CustomProfilingCounters_;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "logical_type.h"
 #include "row_base.h"
 
 #include <yt/core/misc/error.h>
@@ -21,8 +22,38 @@ DEFINE_ENUM(ESortOrder,
 )
 
 constexpr int PrimaryLockIndex = 0;
-constexpr ui32 PrimaryLockMask = (1 << PrimaryLockIndex);
-constexpr ui32 AllLocksMask = 0xffffffff;
+
+DEFINE_ENUM(ELockType,
+    ((None)         (0))
+    ((SharedWeak)   (1))
+    ((SharedStrong) (2))
+    ((Exclusive)    (3))
+);
+
+class TLockMask
+{
+public:
+    explicit TLockMask(TLockBitmap value = 0);
+
+    ELockType Get(int index) const;
+    void Set(int index, ELockType lock);
+
+    void Enrich(int columnCount);
+
+    TLockMask& operator = (const TLockMask& other) = default;
+    operator TLockBitmap() const;
+
+    static constexpr int BitsPerType = 2;
+    static constexpr TLockBitmap TypeMask = (1 << BitsPerType) - 1;
+    static constexpr int MaxCount = 8 * sizeof(TLockBitmap) / BitsPerType;
+
+private:
+    TLockBitmap Data_;
+};
+
+static_assert(TEnumTraits<ELockType>::GetMaxValue() <= ELockType((1 << TLockMask::BitsPerType) - 1));
+
+TLockMask MaxMask(TLockMask lhs, TLockMask rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,13 +62,15 @@ class TColumnSchema
 public:
     // Keep in sync with hasher below.
     DEFINE_BYREF_RO_PROPERTY(TString, Name);
-    DEFINE_BYREF_RO_PROPERTY(ELogicalValueType, LogicalType, ELogicalValueType::Null);
+    DEFINE_BYREF_RO_PROPERTY(TLogicalTypePtr, LogicalType, NullLogicalType);
     DEFINE_BYREF_RO_PROPERTY(std::optional<ESortOrder>, SortOrder);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Lock);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Expression);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Aggregate);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Group);
-    DEFINE_BYREF_RO_PROPERTY(bool, Required, false);
+
+    DEFINE_BYREF_RO_PROPERTY(std::optional<ESimpleLogicalValueType>, SimplifiedLogicalType);
+    DEFINE_BYREF_RO_PROPERTY(bool, Required);
 
 public:
     TColumnSchema();
@@ -47,7 +80,12 @@ public:
         std::optional<ESortOrder> SortOrder = std::nullopt);
     TColumnSchema(
         const TString& name,
-        ELogicalValueType type,
+        ESimpleLogicalValueType type,
+        std::optional<ESortOrder> SortOrder = std::nullopt);
+
+    TColumnSchema(
+        const TString& name,
+        TLogicalTypePtr type,
         std::optional<ESortOrder> SortOrder = std::nullopt);
 
     TColumnSchema(const TColumnSchema&) = default;
@@ -57,13 +95,12 @@ public:
     TColumnSchema& operator=(TColumnSchema&&) = default;
 
     TColumnSchema& SetName(const TString& name);
-    TColumnSchema& SetLogicalType(ELogicalValueType valueType);
+    TColumnSchema& SetLogicalType(TLogicalTypePtr valueType);
     TColumnSchema& SetSortOrder(const std::optional<ESortOrder>& value);
     TColumnSchema& SetLock(const std::optional<TString>& value);
     TColumnSchema& SetExpression(const std::optional<TString>& value);
     TColumnSchema& SetAggregate(const std::optional<TString>& value);
     TColumnSchema& SetGroup(const std::optional<TString>& value);
-    TColumnSchema& SetRequired(bool value);
 
     EValueType GetPhysicalType() const;
 
@@ -201,18 +238,21 @@ void FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TTableSchema& schema, NYson::IYsonConsumer* consumer);
+void Deserialize(TTableSchema& schema, NYTree::INodePtr node);
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool operator == (const TColumnSchema& lhs, const TColumnSchema& rhs);
 bool operator != (const TColumnSchema& lhs, const TColumnSchema& rhs);
 
 bool operator == (const TTableSchema& lhs, const TTableSchema& rhs);
 bool operator != (const TTableSchema& lhs, const TTableSchema& rhs);
 
-////////////////////////////////////////////////////////////////////////////////
+// Compat function for https://st.yandex-team.ru/YT-10668 workaround.
+bool IsEqualIgnoringRequiredness(const TTableSchema& lhs, const TTableSchema& rhs);
 
-//! Returns true if #lhs type is subtype of #rhs type.
-//! We say that #lhs type is subtype of #rhs type
-//! iff every value that belongs to #lhs type also belongs to #rhs type.
-bool IsSubtypeOf(ELogicalValueType lhs, ELogicalValueType rhs);
+////////////////////////////////////////////////////////////////////////////////
 
 void ValidateKeyColumns(const TKeyColumns& keyColumns);
 
@@ -235,10 +275,11 @@ THashMap<TString, int> GetLocksMapping(
     std::vector<int>* columnIndexToLockIndex = nullptr,
     std::vector<TString>* lockIndexToName = nullptr);
 
-ui32 GetLockMask(
+TLockMask GetLockMask(
     const NTableClient::TTableSchema& schema,
     bool fullAtomicity,
-    const std::vector<TString>& locks);
+    const std::vector<TString>& locks,
+    ELockType lockType = ELockType::SharedWeak);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -263,13 +304,12 @@ struct THash<NYT::NTableClient::TColumnSchema>
     {
         return MultiHash(
             columnSchema.Name(),
-            columnSchema.LogicalType(),
+            *columnSchema.LogicalType(),
             columnSchema.SortOrder(),
             columnSchema.Lock(),
             columnSchema.Expression(),
             columnSchema.Aggregate(),
-            columnSchema.Group(),
-            columnSchema.Required());
+            columnSchema.Group());
     }
 };
 
@@ -288,3 +328,6 @@ struct THash<NYT::NTableClient::TTableSchema>
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define SCHEMA_INL_H_
+#include "schema-inl.h"
+#undef SCHEMA_INL_H_

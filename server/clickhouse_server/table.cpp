@@ -10,6 +10,7 @@ namespace NYT::NClickHouseServer {
 
 using namespace NTableClient;
 using namespace NYson;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,9 +97,9 @@ bool TClickHouseTableSchemaBuilder::AddColumn(const TColumnSchema& ytColumn)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClickHouseTablePtr CreateClickHouseTable(
-    const TString& name,
-    const TTableSchema& schema)
+TClickHouseTable::TClickHouseTable(const TYPath& path, const TTableSchema& schema)
+    : Path(path)
+    , TableSchema(schema)
 {
     TClickHouseTableSchemaBuilder schemaBuilder;
 
@@ -106,7 +107,7 @@ TClickHouseTablePtr CreateClickHouseTable(
         schemaBuilder.AddColumn(columnSchema);
     }
 
-    return std::make_shared<TClickHouseTable>(name, schemaBuilder.GetColumns());
+    Columns = schemaBuilder.GetColumns();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

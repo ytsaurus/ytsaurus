@@ -28,13 +28,13 @@ public:
      *
      *  \param invoker Invoker used for wrapping actions.
      *  \param callback Callback to invoke periodically.
-     *  \param period Interval between usual consequent invocations.
+     *  \param period Interval between usual consequent invocations; if null then no invocations will be happening.
      *  \param splay First invocation splay time.
      */
     TPeriodicExecutor(
         IInvokerPtr invoker,
         TClosure callback,
-        TDuration period,
+        std::optional<TDuration> period = std::nullopt,
         EPeriodicExecutorMode mode = EPeriodicExecutorMode::Automatic,
         TDuration splay = TDuration::Zero());
 
@@ -54,7 +54,7 @@ public:
     void ScheduleNext();
 
     //! Changes execution period.
-    void SetPeriod(TDuration period);
+    void SetPeriod(std::optional<TDuration> period);
 
     //! Returns the future that become set when
     //! at least one action be fully executed from the moment of method call.
@@ -63,7 +63,7 @@ public:
 private:
     const IInvokerPtr Invoker_;
     const TClosure Callback_;
-    TDuration Period_;
+    std::optional<TDuration> Period_;
     const EPeriodicExecutorMode Mode_;
     const TDuration Splay_;
 

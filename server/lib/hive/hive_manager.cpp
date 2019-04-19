@@ -1207,7 +1207,7 @@ private:
         auto traceContext = GetTraceContext(message);
         TTraceContextGuard traceContextGuard(traceContext);
 
-        TRACE_ANNOTATION(
+        TRACE_ANNOTATION_WITH_CONTEXT(
             traceContext,
             HiveTracingService,
             request.Type,
@@ -1222,7 +1222,7 @@ private:
             static_cast<IAutomaton*>(Automaton_)->ApplyMutation(&mutationContext);
         }
 
-        TRACE_ANNOTATION(
+        TRACE_ANNOTATION_WITH_CONTEXT(
             traceContext,
             HiveTracingService,
             request.Type,
@@ -1230,13 +1230,17 @@ private:
     }
 
 
-    static TTraceContext GetTraceContext(const TEncapsulatedMessage& message)
+    static TTraceContextPtr GetTraceContext(const TEncapsulatedMessage& message)
     {
         if (!message.has_trace_id()) {
-            return TTraceContext();
+            return nullptr;
         }
 
-        return TTraceContext(
+        if (message.trace_id() == InvalidTraceId) {
+            return nullptr;
+        }
+
+        return New<TTraceContext>(
             message.trace_id(),
             message.span_id(),
             message.parent_span_id());
@@ -1245,24 +1249,24 @@ private:
     static void AnnotateWithTraceContext(TEncapsulatedMessage* message)
     {
         auto traceContext = CreateChildTraceContext();
-        if (!traceContext.IsEnabled()) {
+        if (!traceContext) {
             return;
         }
 
-        TRACE_ANNOTATION(
+        TRACE_ANNOTATION_WITH_CONTEXT(
             traceContext,
             HiveTracingService,
             message->type(),
             ClientSendAnnotation);
 
-        TRACE_ANNOTATION(
+        TRACE_ANNOTATION_WITH_CONTEXT(
             traceContext,
             ClientHostAnnotation,
             GetLocalHostName());
 
-        message->set_trace_id(traceContext.GetTraceId());
-        message->set_span_id(traceContext.GetSpanId());
-        message->set_parent_span_id(traceContext.GetParentSpanId());
+        message->set_trace_id(traceContext->GetTraceId());
+        message->set_span_id(traceContext->GetSpanId());
+        message->set_parent_span_id(traceContext->GetParentSpanId());
     }
 
 

@@ -168,7 +168,7 @@ void TBlob::Reallocate(size_t newCapacity)
     char* newBuffer = static_cast<char*>(NYTAlloc::Allocate(newCapacity + Alignment_ - 1));
     char* newBegin = AlignUp(newBuffer, Alignment_);
     memcpy(newBegin, Begin_, Size_);
-    NYTAlloc::Free(Buffer_);
+    NYTAlloc::FreeNonNull(Buffer_);
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
     TRefCountedTrackerFacade::AllocateSpace(TagCookie_, newCapacity);
     TRefCountedTrackerFacade::FreeSpace(TagCookie_, Capacity_);
@@ -183,7 +183,7 @@ void TBlob::Free()
     if (!Buffer_) {
         return;
     }
-    NYTAlloc::Free(Buffer_);
+    NYTAlloc::FreeNonNull(Buffer_);
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
     TRefCountedTrackerFacade::FreeTagInstance(TagCookie_);
     TRefCountedTrackerFacade::FreeSpace(TagCookie_, Capacity_);
@@ -197,6 +197,7 @@ void TBlob::SetTagCookie(TRefCountedTypeCookie tagCookie)
     TagCookie_ = tagCookie;
 #endif
 }
+
 void TBlob::SetTagCookie(const TBlob& other)
 {
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING

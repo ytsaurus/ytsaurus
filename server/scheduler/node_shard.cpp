@@ -2147,6 +2147,8 @@ void TNodeShard::IncreaseProfilingCounter(const TJobPtr& job, int value)
         AbortedJobCounter_[std::make_tuple(job->GetType(), job->GetState(), job->GetAbortReason())] += value;
     } else if (job->GetState() == EJobState::Completed) {
         CompletedJobCounter_[std::make_tuple(job->GetType(), job->GetState(), job->GetInterruptReason())] += value;
+    } else {
+        JobCounter_[std::make_tuple(job->GetType(), job->GetState())] += value;
     }
 }
 

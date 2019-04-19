@@ -63,3 +63,11 @@ message TMessageWithRequiredFields
     required int32 required_field = 2;
     repeated TNestedMessageWithRequriedFields nested_messages = 3;
 }
+
+message TMessageWithReservedFields
+{
+    reserved 99 to 101;
+    reserved "reserved_field1";
+    reserved "reserved_field2";
+    reserved "reserved_field3";
+}

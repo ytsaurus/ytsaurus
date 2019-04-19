@@ -48,7 +48,7 @@ struct IYsonConsumer;
 struct IFlushableYsonConsumer;
 struct IAsyncYsonConsumer;
 
-enum class TYsonItemType;
+enum class EYsonItemType : ui8;
 class TYsonItem;
 class TYsonPullParser;
 

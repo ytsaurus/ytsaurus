@@ -102,8 +102,8 @@ public:
         const std::vector<int>& blockIndexes,
         const TBlockReadOptions& options);
 
-    //! Gets a vector of all blocks stored in the cache. Thread-safe.
-    std::vector<TCachedBlockPtr> GetAllBlocks() const;
+    //! Gets a vector of all blocks with non-null source stored in the cache. Thread-safe.
+    std::vector<TCachedBlockPtr> GetAllBlocksWithSource() const;
 
     //! Thread-pool intended to offload all heavy non-IO reading-related actions from control thread.
     //! Not bounded to any of the locations.

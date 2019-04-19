@@ -27,7 +27,7 @@ namespace NYT {
  *  #TakeWinnerIf() may be used to find, among contenders matching given
  *  predicate, the one with the minimum weight.
  *
- *  To increase the contender's weight, use to #AddWeight().
+ *  To increase the contender's weight, use #AddWeight().
  *
  *  Not thread safe.
  */

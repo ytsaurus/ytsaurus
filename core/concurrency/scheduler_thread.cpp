@@ -29,7 +29,8 @@ void UnwindFiber(TFiberPtr fiber)
 {
     fiber->GetCanceler().Run();
 
-    GetFinalizerInvoker()->Invoke(BIND(&ResumeFiber, Passed(std::move(fiber))));
+    GetFinalizerInvoker()->Invoke(
+        BIND_DONT_CAPTURE_TRACE_CONTEXT(&ResumeFiber, Passed(std::move(fiber))));
 }
 
 } // namespace
@@ -186,7 +187,7 @@ void TSchedulerThread::ThreadMainStep()
     if (RunQueue_.empty()) {
         // Spawn a new idle fiber to run the loop.
         YCHECK(!IdleFiber_);
-        IdleFiber_ = New<TFiber>(BIND(
+        IdleFiber_ = New<TFiber>(BIND_DONT_CAPTURE_TRACE_CONTEXT(
             &TSchedulerThread::FiberMain,
             MakeStrong(this),
             Epoch_.load(std::memory_order_relaxed)));
@@ -195,14 +196,17 @@ void TSchedulerThread::ThreadMainStep()
 
     Y_ASSERT(!RunQueue_.empty());
     SetCurrentFiber(std::move(RunQueue_.front()));
-    SetCurrentFiberId(CurrentFiber_->GetId());
     RunQueue_.pop_front();
+
+    NConcurrency::SetCurrentFiber(CurrentFiber_.Get());
+    SetCurrentFiberId(CurrentFiber_->GetId());
 
     YCHECK(CurrentFiber_->GetState() == EFiberState::Suspended);
     CurrentFiber_->SetRunning();
 
     SchedulerContext_.SwitchTo(CurrentFiber_->GetContext());
 
+    NConcurrency::SetCurrentFiber(nullptr);
     SetCurrentFiberId(InvalidFiberId);
 
     auto optionalReleaseIdleFiber = [&] () {
@@ -243,6 +247,10 @@ void TSchedulerThread::ThreadMainStep()
     }
 
     // Finish sync part of the execution.
+    // NB: Fiber instance is not actually available, however EndExecute could make use of
+    // fiber id; e.g. some executors log long-running actions in EndExecute and it's helpful to annotate
+    // their log messages with the appropriate fiber id.
+    NConcurrency::SetCurrentFiber(nullptr);
     SetCurrentFiberId(savedFiberId);
     EndExecute();
     SetCurrentFiberId(InvalidFiberId);
@@ -344,11 +352,11 @@ void TSchedulerThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvoke
 
     fiber->GetCanceler(); // Initialize canceler; who knows what might happen to this fiber?
 
-    auto resumer = BIND(&ResumeFiber, fiber);
-    auto unwinder = BIND(&UnwindFiber, fiber);
+    auto resumer = BIND_DONT_CAPTURE_TRACE_CONTEXT(&ResumeFiber, fiber);
+    auto unwinder = BIND_DONT_CAPTURE_TRACE_CONTEXT(&UnwindFiber, fiber);
 
     if (future) {
-        future.Subscribe(BIND([
+        future.Subscribe(BIND_DONT_CAPTURE_TRACE_CONTEXT([
             invoker = std::move(invoker),
             fiber = std::move(fiber),
             resumer = std::move(resumer),
@@ -416,8 +424,8 @@ void TSchedulerThread::YieldTo(TFiberPtr&& other)
     }
 
     // Memoize raw pointers.
-    auto caller = CurrentFiber_.Get();
-    auto target = other.Get();
+    auto* caller = CurrentFiber_.Get();
+    auto* target = other.Get();
     YCHECK(caller);
     YCHECK(target);
 
@@ -425,6 +433,7 @@ void TSchedulerThread::YieldTo(TFiberPtr&& other)
 
     RunQueue_.emplace_front(std::move(CurrentFiber_));
     SetCurrentFiber(std::move(other));
+    NConcurrency::SetCurrentFiber(target);
     SetCurrentFiberId(target->GetId());
 
     caller->SetSuspended();

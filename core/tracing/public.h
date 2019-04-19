@@ -8,7 +8,7 @@ namespace NYT::NTracing {
 
 DECLARE_REFCOUNTED_CLASS(TTraceManagerConfig)
 
-class TTraceContext;
+DECLARE_REFCOUNTED_CLASS(TTraceContext)
 
 using TTraceId = ui64;
 constexpr TTraceId InvalidTraceId = 0;

@@ -10,8 +10,15 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString CreateYTVersion(int major, int minor, int patch, TStringBuf branch)
+TString CreateYTVersion(int major, int minor, TStringBuf branch)
 {
+
+#if defined(ARCADIA_PATCH_NUMBER)
+    auto patch = ARCADIA_PATCH_NUMBER;
+#else
+    auto patch = 0;
+#endif
+
     TStringStream out;
     out << major << "." << minor << "." << patch;
     out << "-" << branch;

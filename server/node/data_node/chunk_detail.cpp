@@ -45,7 +45,7 @@ TChunkId TChunkBase::GetId() const
     return Id_;
 }
 
-TLocationPtr TChunkBase::GetLocation() const
+const TLocationPtr& TChunkBase::GetLocation() const
 {
     return Location_;
 }
