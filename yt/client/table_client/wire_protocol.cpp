@@ -1066,7 +1066,15 @@ public:
 
         if (!SchemaChecked_) {
             auto actualSchema = WireReader_->ReadTableSchema();
-            if (Schema_ != actualSchema) {
+            auto dropRequiredness = [] (const TTableSchema& schema) {
+                std::vector<TColumnSchema> result;
+                for (auto column : schema.Columns()) {
+                    column.SetRequired(false);
+                    result.push_back(column);
+                }
+                return TTableSchema(result, schema.GetStrict(), schema.GetUniqueKeys());
+            };
+            if (dropRequiredness(Schema_) != dropRequiredness(actualSchema)) {
                 THROW_ERROR_EXCEPTION("Schema mismatch while parsing wire protocol");
             }
             SchemaChecked_ = true;
