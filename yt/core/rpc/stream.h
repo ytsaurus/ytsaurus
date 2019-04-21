@@ -37,7 +37,7 @@ public:
 
     void EnqueuePayload(const TStreamingPayload& payload);
     void Abort(const TError& error);
-    void AbortUnlessClosed(const TError& error);
+    void AbortUnlessClosed(const TError& error, bool fireAborted = true);
     TStreamingFeedback GetFeedback() const;
 
     DEFINE_SIGNAL(void(), Aborted);
@@ -74,7 +74,8 @@ private:
         const std::vector<TSharedRef>& decompressedAttachments);
     void DoAbort(
         TGuard<TSpinLock>& guard,
-        const TError& error);
+        const TError& error,
+        bool fireAborted = true);
     void OnTimeout();
 };
 
@@ -98,7 +99,7 @@ public:
     virtual TFuture<void> Close() override;
 
     void Abort(const TError& error);
-    void AbortUnlessClosed(const TError& error);
+    void AbortUnlessClosed(const TError& error, bool fireAborted = true);
     void HandleFeedback(const TStreamingFeedback& feedback);
     std::optional<TStreamingPayload> TryPull();
 
@@ -143,7 +144,10 @@ private:
     void OnWindowPacketReady(TWindowPacket&& packet, TGuard<TSpinLock>& guard);
     void MaybeInvokePullCallback(TGuard<TSpinLock>& guard);
     bool CanPullMore(bool first) const;
-    void DoAbort(TGuard<TSpinLock>& guard, const TError& error);
+    void DoAbort(
+        TGuard<TSpinLock>& guard,
+        const TError& error,
+        bool fireAborted = true);
     void OnTimeout();
 };
 

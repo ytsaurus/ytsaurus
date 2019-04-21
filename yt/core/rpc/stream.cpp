@@ -145,7 +145,7 @@ void TAttachmentsInputStream::Abort(const TError& error)
     DoAbort(guard, error);
 }
 
-void TAttachmentsInputStream::AbortUnlessClosed(const TError& error)
+void TAttachmentsInputStream::AbortUnlessClosed(const TError& error, bool fireAborted)
 {
     auto guard = Guard(Lock_);
 
@@ -155,10 +155,11 @@ void TAttachmentsInputStream::AbortUnlessClosed(const TError& error)
 
     DoAbort(
         guard,
-        error.IsOK() ? TError("Request is already completed") : error);
+        error.IsOK() ? TError("Request is already completed") : error,
+        fireAborted);
 }
 
-void TAttachmentsInputStream::DoAbort(TGuard<TSpinLock>& guard, const TError& error)
+void TAttachmentsInputStream::DoAbort(TGuard<TSpinLock>& guard, const TError& error, bool fireAborted)
 {
     if (!Error_.IsOK()) {
         return;
@@ -174,7 +175,9 @@ void TAttachmentsInputStream::DoAbort(TGuard<TSpinLock>& guard, const TError& er
         promise.Set(error);
     }
 
-    Aborted_.Fire();
+    if (fireAborted) {
+        Aborted_.Fire();
+    }
 }
 
 void TAttachmentsInputStream::OnTimeout()
@@ -319,7 +322,7 @@ void TAttachmentsOutputStream::Abort(const TError& error)
     DoAbort(guard, error);
 }
 
-void TAttachmentsOutputStream::AbortUnlessClosed(const TError& error)
+void TAttachmentsOutputStream::AbortUnlessClosed(const TError& error, bool fireAborted)
 {
     auto guard = Guard(Lock_);
 
@@ -329,10 +332,11 @@ void TAttachmentsOutputStream::AbortUnlessClosed(const TError& error)
 
     DoAbort(
         guard,
-        error.IsOK() ? TError("Request is already completed") : error);
+        error.IsOK() ? TError("Request is already completed") : error,
+        fireAborted);
 }
 
-void TAttachmentsOutputStream::DoAbort(TGuard<TSpinLock>& guard, const TError& error)
+void TAttachmentsOutputStream::DoAbort(TGuard<TSpinLock>& guard, const TError& error, bool fireAborted)
 {
     if (!Error_.IsOK()) {
         return;
@@ -362,7 +366,9 @@ void TAttachmentsOutputStream::DoAbort(TGuard<TSpinLock>& guard, const TError& e
         }
     }
 
-    Aborted_.Fire();
+    if (fireAborted) {
+        Aborted_.Fire();
+    }
 }
 
 void TAttachmentsOutputStream::OnTimeout()
@@ -489,7 +495,15 @@ TRpcClientInputStream::TRpcClientInputStream(
 
 TFuture<TSharedRef> TRpcClientInputStream::Read()
 {
-    return Underlying_->Read();
+    return Underlying_->Read().Apply(BIND ([=] (const TSharedRef& ref) {
+        if (ref) {
+            return MakeFuture(ref);
+        }
+
+        return InvokeResult_.Apply(BIND ([] () {
+            return TSharedRef();
+        }));
+    }));
 }
 
 TRpcClientInputStream::~TRpcClientInputStream()
@@ -697,6 +711,11 @@ void HandleInputStreamingRequest(
     const IServiceContextPtr& context,
     const TCallback<TFuture<TSharedRef>()>& blockGenerator)
 {
+    auto inputStream = context->GetRequestAttachmentsStream();
+    YCHECK(inputStream);
+    WaitFor(ExpectEndOfStream(inputStream))
+        .ThrowOnError();
+
     auto outputStream = context->GetResponseAttachmentsStream();
     YCHECK(outputStream);
     auto getNextBlock = [&] () {
@@ -754,7 +773,8 @@ void HandleOutputStreamingRequest(
                 .ThrowOnError();
         }
 
-        outputStream->Close();
+        WaitFor(outputStream->Close())
+            .ThrowOnError();
     } else {
         WaitFor(outputStream->Close())
             .ThrowOnError();
