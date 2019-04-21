@@ -193,7 +193,7 @@ private:
 
     const IInvokerPtr& GetInvoker() const;
 
-    void TraceRequest(const NTracing::TTraceContext& traceContext);
+    void TraceRequest(const NTracing::TTraceContextPtr& traceContext);
 
     void SetCodecsInHeader();
     void SetStreamingParametersInHeader();

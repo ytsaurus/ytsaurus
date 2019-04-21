@@ -19,7 +19,7 @@ struct TGuid
     };
 
     //! Constructs a null (zero) guid.
-    TGuid();
+    constexpr TGuid();
 
     //! Constructs guid from parts.
     TGuid(ui32 part0, ui32 part1, ui32 part2, ui32 part3);

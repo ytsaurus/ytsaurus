@@ -21,23 +21,62 @@ static const auto& Logger = TracingLogger;
 
 namespace  {
 
-TSpanId GenerateTraceId(bool verbose)
-{
-    return (RandomNumber<ui64>() & ~1ULL) | (verbose ? 1 : 0);
-}
-
 TSpanId GenerateSpanId()
 {
-    return RandomNumber<ui64>();
+    return RandomNumber<ui64>(std::numeric_limits<ui64>::max() - 1) + 1;
 }
 
 } // namespace
 
+TSpanContext TSpanContext::CreateChild()
+{
+    return {
+        TraceId,
+        GenerateSpanId(),
+        Sampled,
+        Debug,
+    };
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TTraceContextPtr TTraceContext::CreateChild()
+void FormatValue(TStringBuilderBase* builder, TSpanContext spanContext, TStringBuf spec)
 {
-    return New<TTraceContext>(TraceId_, GenerateSpanId(), SpanId_, this);
+    int flags = (spanContext.Sampled ? 1 : 0) | (spanContext.Debug ? 2 : 0);
+
+    builder->AppendFormat("%08" PRIx64 "%08" PRIx64 ":%08" PRIx64 ":%08" PRIx64 ":%d",
+        spanContext.TraceId.Parts64[1],
+        spanContext.TraceId.Parts64[0],
+        spanContext.SpanId,
+        flags);
+}
+
+TString ToString(TSpanContext spanContext)
+{
+    return ToStringViaBuilder(spanContext);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTraceContext::TTraceContext(TSpanContext parent, const TString& name, TTraceContextPtr parentContext)
+    : ParentSpanId_(parent.SpanId)
+    , StartTime_(GetCpuInstant())
+    , SpanContext_(parent.CreateChild())
+    , Name_(name)
+    , ParentContext_(parentContext)
+{ }
+
+TTraceContext::TTraceContext(TFollowsFrom, TSpanContext parent, const TString& name, TTraceContextPtr parentContext)
+    : FollowsFromSpanId_(parent.SpanId)
+    , StartTime_(GetCpuInstant())
+    , SpanContext_(parent.CreateChild())
+    , Name_(name)
+    , ParentContext_(parentContext)
+{ }
+
+TTraceContextPtr TTraceContext::CreateChild(const TString& name)
+{
+    return New<TTraceContext>(SpanContext_, name, this);
 }
 
 TDuration TTraceContext::GetElapsedTime() const
@@ -45,43 +84,85 @@ TDuration TTraceContext::GetElapsedTime() const
     return CpuDurationToDuration(GetElapsedCpuTime());
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-void FormatValue(TStringBuilderBase* builder, TTraceContext* context, TStringBuf spec)
+void TTraceContext::SetName(const TString& name)
 {
-    if (context) {
-        FormatValue(builder, *context, spec);
-    } else {
-        builder->AppendString(AsStringBuf("<null>"));
+    auto guard = Guard(Lock_);
+    Name_ = name;
+}
+
+void TTraceContext::SetSampled()
+{
+    auto guard = Guard(Lock_);
+    SpanContext_.Sampled = true;
+}
+
+void TTraceContext::AddTag(const TString& tagKey, const TString& tagValue)
+{
+    auto guard = Guard(Lock_);
+    if (Finished_) {
+        return;
+    }
+    Tags_.emplace_back(tagKey, tagValue);
+}
+
+void TTraceContext::ResetStartTime()
+{
+    auto guard = Guard(Lock_);
+    StartTime_ = GetCpuInstant();
+}
+
+TInstant TTraceContext::GetStartTime() const
+{
+    auto guard = Guard(Lock_);
+    return NProfiling::CpuInstantToInstant(StartTime_);
+}
+
+TDuration TTraceContext::GetDuration() const
+{
+    auto guard = Guard(Lock_);
+    return NProfiling::CpuDurationToDuration(Duration_);
+}
+
+const TTraceContext::TTagList& TTraceContext::GetTags() const
+{
+    return Tags_;
+}
+
+void TTraceContext::Finish()
+{
+    auto sampled = false;
+    {
+        auto guard = Guard(Lock_);
+        if (Finished_) {
+            return;
+        }
+
+        Finished_ = true;
+        sampled = SpanContext_.Sampled;
+        Duration_ = GetCpuInstant() - StartTime_;
+    }
+
+    if (sampled) {
+        TTraceManager::Get()->Enqueue(MakeStrong(this));
     }
 }
 
-TString ToString(TTraceContext* context)
+////////////////////////////////////////////////////////////////////////////////
+
+TTraceContextPtr CreateRootTraceContext(const TString& name)
 {
-    return ToStringViaBuilder(context);
+    TSpanContext context{TTraceId::Create(), InvalidSpanId, false, false};
+    return New<TTraceContext>(context, name);
 }
 
-void FormatValue(TStringBuilderBase* builder, const TTraceContext& context, TStringBuf /*spec*/)
+TTraceContextPtr CreateChildTraceContext(const TString& spanName)
 {
-    builder->AppendFormat("%08" PRIx64 ":%08" PRIx64 ":%08" PRIx64,
-        context.GetTraceId(),
-        context.GetSpanId(),
-        context.GetParentSpanId());
-}
+    auto context = GetCurrentTraceContext();
+    if (!context) {
+        return nullptr;
+    }
 
-TString ToString(const TTraceContext& context)
-{
-    return ToStringViaBuilder(context);
-}
-
-void FormatValue(TStringBuilderBase* builder, const TTraceContextPtr& context, TStringBuf spec)
-{
-    FormatValue(builder, context.Get(), spec);
-}
-
-TString ToString(const TTraceContextPtr& context)
-{
-    return ToStringViaBuilder(context);
+    return context->CreateChild(spanName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,6 +182,16 @@ Y_POD_THREAD(TTraceContext*) CurrentTraceContext;
 Y_POD_THREAD(TTraceId) CurrentTraceId;
 Y_POD_THREAD(TCpuInstant) TraceContextTimingCheckpoint;
 Y_STATIC_THREAD(TCurrentTraceContextReclaimer) CurrentTraceContextReclaimer;
+
+TString ToString(const TTraceContextPtr& context)
+{
+    if (!context) {
+        static TString Null("<null>");
+        return Null;
+    }
+
+    return ToString(context->GetContext());
+}
 
 TTraceContextPtr SwitchTraceContext(TTraceContextPtr newContext)
 {
@@ -161,131 +252,33 @@ void FlushCurrentTraceContextTime()
     TraceContextTimingCheckpoint = now;
 }
 
-TTraceContextPtr CreateChildTraceContext()
+void TTraceContext::IncrementElapsedCpuTime(NProfiling::TCpuDuration delta)
 {
-    auto* current = GetCurrentTraceContext();
-    return current ? current->CreateChild() : nullptr;
-}
-
-TTraceContextPtr CreateRootTraceContext(bool verbose)
-{
-    return New<TTraceContext>(
-        GenerateTraceId(verbose),
-        GenerateSpanId(),
-        InvalidSpanId);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTraceSpanGuard::TTraceSpanGuard(
-    const TTraceContextPtr& parentContext,
-    const TString& serviceName,
-    const TString& spanName)
-    : ServiceName_(serviceName)
-    , SpanName_(spanName)
-    , Context_(parentContext ? parentContext->CreateChild() : CreateRootTraceContext())
-    , Active_(true)
-{
-    TraceEvent(
-        *Context_,
-        ServiceName_,
-        SpanName_,
-        ClientSendAnnotation);
-}
-
-TTraceSpanGuard::TTraceSpanGuard(TTraceSpanGuard&& other)
-    : ServiceName_(other.ServiceName_)
-    , SpanName_(other.SpanName_)
-    , Context_(other.Context_)
-    , Active_(other.Active_)
-{
-    other.Active_ = false;
-}
-
-TTraceSpanGuard::~TTraceSpanGuard()
-{
-    Release();
-}
-
-bool TTraceSpanGuard::IsActive() const
-{
-    return Active_;
-}
-
-const TTraceContextPtr& TTraceSpanGuard::GetContext() const
-{
-    return Context_;
-}
-
-void TTraceSpanGuard::Release()
-{
-    if (Active_) {
-        TraceEvent(
-            *Context_,
-            ServiceName_,
-            SpanName_,
-            ClientReceiveAnnotation);
-        Active_ = false;
+    auto* current = this;
+    while (current) {
+        ElapsedCpuTime_ += delta;
+        current = current->ParentContext_.Get();
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChildTraceContextGuard::TChildTraceContextGuard(
-    const TString& serviceName,
     const TString& spanName)
-    : SpanGuard_(
-        GetCurrentTraceContext(),
-        serviceName,
-        spanName)
-    , ContextGuard_(SpanGuard_.GetContext())
+    : TraceContextGuard_(CreateChildTraceContext(spanName))
+    , FinishGuard_(GetCurrentTraceContext())
 { }
 
-bool TChildTraceContextGuard::IsActive() const
-{
-    return SpanGuard_.IsActive();
-}
-
-void TChildTraceContextGuard::Release()
-{
-    SpanGuard_.Release();
-    ContextGuard_.Release();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString ClientSendAnnotation("cs");
-const TString ClientReceiveAnnotation("cr");
-const TString ServerSendAnnotation("ss");
-const TString ServerReceiveAnnotation("sr");
+TTraceContextFinishGuard::TTraceContextFinishGuard(TTraceContextPtr traceContext)
+    : TraceContext_(std::move(traceContext))
+{ }
 
-////////////////////////////////////////////////////////////////////////////////
-
-void TraceEvent(
-    const TTraceContext& context,
-    const TString& serviceName,
-    const TString& spanName,
-    const TString& annotationName)
+TTraceContextFinishGuard::~TTraceContextFinishGuard()
 {
-    if (context.IsVerbose()) {
-        TTraceManager::Get()->Enqueue(
-            context,
-            serviceName,
-            spanName,
-            annotationName);
-    }
-}
-
-void TraceEvent(
-    const TTraceContext& context,
-    const TString& annotationKey,
-    const TString& annotationValue)
-{
-    if (context.IsVerbose()) {
-        TTraceManager::Get()->Enqueue(
-            context,
-            annotationKey,
-            annotationValue);
+    if (TraceContext_) {
+        TraceContext_->Finish();
     }
 }
 
