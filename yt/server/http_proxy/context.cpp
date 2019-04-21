@@ -6,6 +6,7 @@
 #include "formats.h"
 #include "compression.h"
 #include "private.h"
+#include "config.h"
 
 #include <yt/core/json/json_writer.h>
 #include <yt/core/json/config.h>
@@ -48,6 +49,12 @@ TContext::TContext(
 
 bool TContext::TryPrepare()
 {
+    if (auto trace = NTracing::GetCurrentTraceContext()) {
+        if (Api_->GetConfig()->ForceTracing) {
+            trace->SetSampled();
+        }
+    }
+
     ProcessDebugHeaders(Request_, Response_, Api_->GetCoordinator());
 
     if (auto correlationId = Request_->GetHeaders()->Find("X-YT-Correlation-ID")) {

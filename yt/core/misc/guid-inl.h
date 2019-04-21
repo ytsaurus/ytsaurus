@@ -9,11 +9,9 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE TGuid::TGuid()
-{
-    Parts64[0] = 0;
-    Parts64[1] = 0;
-}
+Y_FORCE_INLINE constexpr TGuid::TGuid()
+    : Parts32{}
+{ }
 
 Y_FORCE_INLINE TGuid::TGuid(ui32 part0, ui32 part1, ui32 part2, ui32 part3)
 {

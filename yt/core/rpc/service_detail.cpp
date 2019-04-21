@@ -29,8 +29,6 @@
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
 
-#include <yt/core/tracing/trace_context.h>
-
 namespace NYT::NRpc {
 
 using namespace NBus;
@@ -607,17 +605,15 @@ private:
         if (TraceContext_) {
             FlushCurrentTraceContextTime();
             auto traceContextTime = TraceContext_->GetElapsedTime();
-            Profiler.Increment(PerformanceCounters_->TraceContextTimeCounter, DurationToValue(traceContextTime));
+            Profiler.Increment(PerformanceCounters_->ExecutionTimeCounter, DurationToValue(traceContextTime));
         }
     }
 
     virtual void DoReply() override
     {
-        TRACE_ANNOTATION_WITH_CONTEXT(
-            TraceContext_,
-            Service_->ServiceId_.ServiceName,
-            RuntimeInfo_->Descriptor.Method,
-            ServerSendAnnotation);
+        if (TraceContext_) {
+            TraceContext_->Finish();
+        }
 
         auto responseMessage = GetResponseMessage();
 
@@ -655,7 +651,7 @@ private:
 
     void HandleLoggingSuppression()
     {
-        const auto* context = GetCurrentTraceContext();
+        auto context = GetCurrentTraceContext();
         if (!context) {
             return;
         }
@@ -990,22 +986,8 @@ void TServiceBase::HandleRequest(
         return;
     }
 
-    auto traceContext = GetTraceContext(*header);
-    if (!traceContext) {
-        traceContext = CreateRootTraceContext(false);
-    }
+    auto traceContext = GetOrCreateTraceContext(*header);
     TTraceContextGuard traceContextGuard(traceContext);
-
-    TRACE_ANNOTATION_WITH_CONTEXT(
-        traceContext,
-        "server_host",
-        NNet::GetLocalHostName());
-
-    TRACE_ANNOTATION_WITH_CONTEXT(
-        traceContext,
-        ServiceId_.ServiceName,
-        method,
-        ServerReceiveAnnotation);
 
     // NOTE: Do not use replyError() after this line.
     TAcceptedRequest acceptedRequest{

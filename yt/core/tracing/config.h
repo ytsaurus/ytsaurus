@@ -14,39 +14,16 @@ class TTraceManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    //! Address where all trace events are pushed to.
-    //! If null then push is disabled.
-    std::optional<TString> Address;
-
-    //! Timeout for push requests.
-    TDuration RpcTimeout;
-
-    //! Maximum number of trace events per batch.
-    int MaxBatchSize;
-
-    //! Send period.
-    TDuration SendPeriod;
-
-    //! Port to show in endpoints.
-    ui16 EndpointPort;
-
-    // Bus config.
-    NBus::TTcpBusConfigPtr BusClient;
+    TDuration CleanupPeriod;
+    i64 TracesBufferSize;
 
     TTraceManagerConfig()
     {
-        RegisterParameter("address", Address)
-            .Default();
-        RegisterParameter("rpc_timeout", RpcTimeout)
-            .Default();
-        RegisterParameter("max_batch_size", MaxBatchSize)
-            .Default(100);
-        RegisterParameter("send_period", SendPeriod)
+        RegisterParameter("cleanup_period", CleanupPeriod)
             .Default(TDuration::Seconds(1));
-        RegisterParameter("endpoint_port", EndpointPort)
-            .Default(0);
-        RegisterParameter("bus_client", BusClient)
-            .DefaultNew();
+
+        RegisterParameter("traces_buffer_size", TracesBufferSize)
+            .Default(16_MB);
     }
 };
 

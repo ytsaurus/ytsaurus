@@ -117,7 +117,6 @@ private:
     NApi::NNative::IConnectionPtr ClusterConnection_;
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     NHttp::IServerPtr HttpServer_;
-    NHttp::IHttpHandlerPtr OrchidHttpHandler_;
     NElection::TCellManagerPtr CellManager_;
     NHydra::IChangelogStoreFactoryPtr ChangelogStoreFactory_;
     NHydra::ISnapshotStorePtr SnapshotStore_;
