@@ -38,6 +38,7 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
+using namespace NYPath;
 using namespace NHttp;
 using namespace NCypressClient;
 using namespace NNative;
@@ -90,31 +91,32 @@ TCoordinator::TCoordinator(
     : Config_(config->Coordinator)
     , Bootstrap_(bootstrap)
     , Client_(bootstrap->GetRootClient())
-    , Periodic_(New<TPeriodicExecutor>(
+    , UpdateStateExecutor_(New<TPeriodicExecutor>(
         bootstrap->GetControlInvoker(),
-        BIND(&TCoordinator::Update, MakeWeak(this)),
+        BIND(&TCoordinator::UpdateState, MakeWeak(this)),
         Config_->HeartbeatInterval))
-    , ConfigUpdater_(New<TPeriodicExecutor>(
+    , UpdateDynamicConfigExecutor_(New<TPeriodicExecutor>(
         bootstrap->GetControlInvoker(),
-        BIND(&TCoordinator::UpdateConfig, MakeWeak(this)),
+        BIND(&TCoordinator::UpdateDynamicConfig, MakeWeak(this)),
         Config_->HeartbeatInterval))
 {
     Self_ = New<TProxyEntry>();
     Self_->Endpoint = Config_->PublicFqdn
         ? *Config_->PublicFqdn
-        : Format("%v:%d", NNet::GetLocalHostName(), config->Port);
+        : Format("%v:%v", NNet::GetLocalHostName(), config->Port);
     Self_->Role = "data";
 
-    DynamicConfig_ = New<TDynamicConfig>();
-    DynamicConfig_->SetDefaults();
+    auto dynamicConfig = New<TDynamicConfig>();
+    dynamicConfig->SetDefaults();
+    SetDynamicConfig(dynamicConfig);
 }
 
 void TCoordinator::Start()
 {
-    Periodic_->Start();
-    Periodic_->ScheduleOutOfBand();
+    UpdateStateExecutor_->Start();
+    UpdateStateExecutor_->ScheduleOutOfBand();
 
-    ConfigUpdater_->Start();
+    UpdateDynamicConfigExecutor_->Start();
 
     auto result = WaitFor(FirstUpdateIterationFinished_.ToFuture());
     YT_LOG_INFO(result, "Initial coordination iteration finished");
@@ -231,21 +233,29 @@ std::vector<TProxyEntryPtr> TCoordinator::ListCypressProxies()
     return proxies;
 }
 
-void TCoordinator::UpdateConfig()
+void TCoordinator::UpdateDynamicConfig()
 {
     try {
         TGetNodeOptions options;
         options.ReadFrom = EMasterChannelKind::Cache;
 
-        auto configYson = WaitFor(Client_->GetNode(SysProxies + "/@config", options))
-            .ValueOrThrow();
+        auto configYsonOrError = WaitFor(Client_->GetNode(SysProxies + "/@config", options));
+        if (configYsonOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            YT_LOG_INFO("Dynamic config is missing");
+            return;
+        }
 
-        auto config = ConvertTo<TDynamicConfigPtr>(configYson);
-        auto guard = Guard(Lock_);
-        DynamicConfig_ = config;
+        auto config = ConvertTo<TDynamicConfigPtr>(configYsonOrError.ValueOrThrow());
+        SetDynamicConfig(config);
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Error loading dynamic config");
     }
+}
+
+void TCoordinator::SetDynamicConfig(TDynamicConfigPtr config)
+{
+    auto guard = Guard(Lock_);
+    std::swap(config, DynamicConfig_);
 }
 
 IYPathServicePtr TCoordinator::CreateOrchidService()
@@ -261,9 +271,9 @@ void TCoordinator::BuildOrchid(IYsonConsumer* consumer)
         .EndMap();
 }
 
-void TCoordinator::Update()
+void TCoordinator::UpdateState()
 {
-    auto selfPath = SysProxies + "/" + Self_->Endpoint;
+    auto selfPath = SysProxies + "/" + ToYPathLiteral(Self_->Endpoint);
 
     {
         auto guard = Guard(Lock_);
@@ -271,7 +281,7 @@ void TCoordinator::Update()
     }
 
     try {
-        if (Config_->Enable && !IsInitialized_ && Config_->Announce) {
+        if (Config_->Enable && !Initialized_ && Config_->Announce) {
             TCreateNodeOptions options;
             options.Recursive = true;
             options.Attributes = ConvertToAttributes(BuildYsonStringFluently()
@@ -299,7 +309,7 @@ void TCoordinator::Update()
             WaitFor(Client_->SetNode(selfPath + "/@annotations", annotations))
                 .ThrowOnError();
 
-            IsInitialized_ = true;
+            Initialized_ = true;
         }
 
         if (!Config_->Enable) {
