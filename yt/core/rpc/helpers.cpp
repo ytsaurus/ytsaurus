@@ -364,7 +364,7 @@ TSpanContext GetSpanContext(const TRequestHeader& header)
     };
 }
 
-TTraceContextPtr GetThreadControlWord(const NProto::TRequestHeader& header)
+TTraceContextPtr GetOrCreateTraceContext(const NProto::TRequestHeader& header)
 {
     auto clientSpan = GetSpanContext(header);
     auto spanName = header.service() + "." + header.method();
