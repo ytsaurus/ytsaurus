@@ -327,7 +327,7 @@ private:
         auto Logger = MakeQueryLogger(query);
 
         auto compileWithLogging = [&] () {
-            NTracing::TChildTraceContextGuard traceСontextGuard("QueryClient.Compile");
+            NTracing::TChildTraceContextGuard traceContextGuard("QueryClient.Compile");
 
             YT_LOG_DEBUG("Started compiling fragment");
             NProfiling::TCpuTimingGuard timingGuard(&statistics.CodegenTime);
