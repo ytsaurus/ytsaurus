@@ -50,7 +50,6 @@ static const TString XFrameOptionsHeaderName("X-Frame-Options");
 static const TString XDnsPrefetchControlHeaderName("X-DNS-Prefetch-Control");
 static const TString XYTTraceIdHeaderName("X-YT-Trace-Id");
 static const TString XYTSpanIdHeaderName("X-YT-Span-Id");
-static const TString XYTParentSpanIdHeaderName("X-YT-Parent-Span-Id");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -161,6 +160,7 @@ static const auto HeadersWhitelist = JoinSeq(", ", std::vector<TString>{
     "X-YT-Parameters-0",
     "X-YT-Parameters1",
     "X-YT-Parameters-1",
+    "X-YT-Response-Parameters",
     "X-YT-Input-Format",
     "X-YT-Input-Format0",
     "X-YT-Input-Format-0",
@@ -288,59 +288,44 @@ void ReplyJson(const IResponseWriterPtr& rsp, std::function<void(NYson::IYsonCon
         .ThrowOnError();
 }
 
-namespace {
-
-template <class T, T NullValue>
-T GetTracingId(const IRequestPtr& req, const TString& headerName)
+NTracing::TTraceId GetTraceId(const IRequestPtr& req)
 {
     const auto& headers = req->GetHeaders();
     auto id = headers->Find(XYTTraceIdHeaderName);
     if (!id) {
-        return NullValue;
+        return NTracing::InvalidTraceId;
     }
-    return IntFromString<T, 16>(*id);
-}
 
-template <class T, T NullValue>
-void SetTracingId(const IResponseWriterPtr& rsp, T id, const TString& headerName)
-{
-    if (id == NullValue) {
-        return;
+    NTracing::TTraceId traceId;
+    if (!NTracing::TTraceId::FromString(*id, &traceId)) {
+        return NTracing::InvalidTraceId;    
     }
-    const auto& headers = rsp->GetHeaders();
-    headers->Set(headerName, IntToString<16>(id));
-}
-
-} // namespace
-
-NTracing::TTraceId GetTraceId(const IRequestPtr& req)
-{
-    return GetTracingId<NTracing::TTraceId, NTracing::InvalidTraceId>(req, XYTTraceIdHeaderName);
+    return traceId;
 }
 
 void SetTraceId(const IResponseWriterPtr& rsp, NTracing::TTraceId traceId)
 {
-    SetTracingId<NTracing::TTraceId, NTracing::InvalidTraceId>(rsp, traceId, XYTTraceIdHeaderName);
+    if (traceId != NTracing::InvalidTraceId) {
+        rsp->GetHeaders()->Set(XYTTraceIdHeaderName, ToString(traceId));
+    }
 }
 
 NTracing::TSpanId GetSpanId(const IRequestPtr& req)
 {
-    return GetTracingId<NTracing::TSpanId, NTracing::InvalidSpanId>(req, XYTSpanIdHeaderName);
+    const auto& headers = req->GetHeaders();
+    auto id = headers->Find(XYTSpanIdHeaderName);
+    if (!id) {
+        return NTracing::InvalidSpanId;
+    }
+    return IntFromString<NTracing::TSpanId, 16>(*id);
 }
 
-void SetSpanId(const IResponseWriterPtr& rsp, NTracing::TSpanId spanId)
+NTracing::TTraceContextPtr GetOrCreateTraceContext(const IRequestPtr& req)
 {
-    SetTracingId<NTracing::TSpanId , NTracing::InvalidSpanId>(rsp, spanId, XYTSpanIdHeaderName);
-}
-
-NTracing::TSpanId GetParentSpanId(const IRequestPtr& req)
-{
-    return GetTracingId<NTracing::TSpanId, NTracing::InvalidSpanId>(req, XYTParentSpanIdHeaderName);
-}
-
-void SetParentSpanId(const IResponseWriterPtr& rsp, NTracing::TSpanId parentSpanId)
-{
-    SetTracingId<NTracing::TSpanId , NTracing::InvalidSpanId>(rsp, parentSpanId, XYTParentSpanIdHeaderName);
+    // TODO(prime@): support accepting trace_id from client.
+    auto trace = NTracing::CreateRootTraceContext("HttpServer");
+    trace->AddTag("path", TString(req->GetUrl().Path));
+    return trace;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -18,7 +18,7 @@ inline TString SurroundWithQuotes(const TString& s)
     return quote + s + quote;
 }
 
-// Basic types:
+// Basic types.
 TEST(TJsonWriterTest, List)
 {
     TStringStream outputStream;
@@ -115,7 +115,7 @@ TEST(TJsonWriterTest, Entity)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, Infinities)
+TEST(TJsonWriterTest, SupportInfinity)
 {
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();
@@ -132,6 +132,28 @@ TEST(TJsonWriterTest, Infinities)
     consumer->Flush();
 
     TString output = "{\"a\":-inf,\"b\":inf}";
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+TEST(TJsonWriterTest, StringifyNanAndInfinity)
+{
+    TStringStream outputStream;
+    auto config = New<TJsonFormatConfig>();
+    config->StringifyNanAndInfinity = true;
+    auto consumer = CreateJsonConsumer(&outputStream, EYsonType::Node, config);
+
+    consumer->OnBeginMap();
+    consumer->OnKeyedItem("a");
+    consumer->OnDoubleScalar(-std::numeric_limits<double>::infinity());
+    consumer->OnKeyedItem("b");
+    consumer->OnDoubleScalar(std::numeric_limits<double>::infinity());
+    consumer->OnKeyedItem("c");
+    consumer->OnDoubleScalar(std::numeric_limits<double>::quiet_NaN());
+    consumer->OnEndMap();
+
+    consumer->Flush();
+
+    TString output = "{\"a\":\"-inf\",\"b\":\"inf\",\"c\":\"nan\"}";
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -217,7 +239,7 @@ TEST(TJsonWriterTest, StringStartingWithSpecailSymbol)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Values with attributes:
+// Values with attributes.
 TEST(TJsonWriterTest, ListWithAttributes)
 {
     TStringStream outputStream;

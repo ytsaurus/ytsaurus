@@ -5,8 +5,22 @@
 #include "storage_concat.h"
 #include "type_helpers.h"
 #include "helpers.h"
-#include "table_partition.h"
 #include "query_context.h"
+
+#include <yt/ytlib/api/native/client.h>
+
+#include <yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/client/table_client/schema.h>
+
+#include <yt/client/object_client/public.h>
+
+#include <yt/core/ytree/node.h>
+#include <yt/core/ytree/convert.h>
+
+#include <yt/core/yson/string.h>
 
 #include <Common/Exception.h>
 #include <Common/OptimizedRegularExpression.h>
@@ -29,6 +43,12 @@
 namespace NYT::NClickHouseServer {
 
 using namespace DB;
+using namespace NYTree;
+using namespace NApi;
+using namespace NObjectClient;
+using namespace NCypressClient;
+using namespace NYson;
+using namespace NTableClient;
 
 namespace {
 
@@ -78,38 +98,68 @@ T EvaluateArgument(ASTPtr& argument, const Context& context)
     return static_cast<const ASTLiteral &>(*argument).value.safeGet<T>();
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-void SortTablesByName(std::vector<TClickHouseTablePtr>& tables)
+// TODO(max42): unify with remaining functions.
+std::vector<TClickHouseTablePtr> FetchClickHouseTables(TQueryContext* queryContext, const std::vector<TYPath>& paths)
 {
-    std::sort(
-        tables.begin(),
-        tables.end(),
-        [] (const TClickHouseTablePtr& lhs, const TClickHouseTablePtr& rhs) {
-            return lhs->Name < rhs->Name;
-        });
-}
+    TObjectServiceProxy proxy(queryContext->Client()->GetMasterChannelOrThrow(EMasterChannelKind::Cache));
+    auto batchReq = proxy.ExecuteBatch();
 
-std::string GetTableBaseName(const TClickHouseTable& table) {
-    // TODO: abstract ypath
-    return ToStdString(TStringBuf(table.Name).RNextTok('/'));
-}
+    for (auto& path : paths) {
+        auto req = TYPathProxy::Get(path + "/@");
+        SetSuppressAccessTracking(req, true);
+        std::vector<TString> attributeKeys {
+            "schema",
+            "type",
+            "dynamic",
+        };
+        NYT::ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+        batchReq->AddRequest(req);
+    }
 
-using TTableNameFilter = std::function<bool(const std::string& tableName)>;
+    auto batchRspOrError = WaitFor(batchReq->Invoke());
+    if (!batchRspOrError.IsOK()) {
+        THROW_ERROR batchRspOrError;
+    }
 
-std::vector<TClickHouseTablePtr> FilterTablesByName(
-    const std::vector<TClickHouseTablePtr>& tables,
-    TTableNameFilter nameFilter)
-{
-    std::vector<TClickHouseTablePtr> filtered;
-    for (const auto& table : tables) {
-        const auto basename = GetTableBaseName(*table);
-        if (nameFilter(basename)) {
-            filtered.push_back(table);
+    const auto& rsps = batchRspOrError.Value()->GetResponses<TYPathProxy::TRspGet>();
+    YCHECK(rsps.size() == paths.size());
+
+    std::vector<TClickHouseTablePtr> tables;
+    std::vector<TError> errors;
+    for (int index = 0; index < static_cast<int>(paths.size()); ++index) {
+        const auto& path = paths[index];
+        const auto& rspOrError = rsps[index];
+
+        if (!rspOrError.IsOK()) {
+            // We intentionally skip missing tables.
+            if (!rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                errors.emplace_back(rspOrError
+                    << TErrorAttribute("path", path));
+            }
+        } else {
+            const auto& rsp = rspOrError.Value();
+            auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+            // Skip non-table or dynamic table nodes.
+            if (attributes->Get<NObjectClient::EObjectType>("type") == NObjectClient::EObjectType::Table &&
+                !attributes->Get<bool>("dynamic", false))
+            {
+                tables.emplace_back(std::make_shared<TClickHouseTable>(path, attributes->Get<TTableSchema>("schema")));
+            }
         }
     }
-    return filtered;
+    if (!errors.empty()) {
+        THROW_ERROR_EXCEPTION("Failed to fetch some of the tables")
+            << errors;
+    }
+    return tables;
 }
+
+// TODO(max42): move to core.
+TString BaseName(const TYPath& path) {
+    return TString(path.begin() + path.rfind('/') + 1, path.end());
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 
@@ -142,60 +192,41 @@ public:
 
     StoragePtr executeImpl(
         const ASTPtr& functionAst,
-        const Context& context) const override;
+        const Context& context) const override
+    {
+        auto* queryContext = GetQueryContext(context);
+
+        auto& functionNode = typeid_cast<ASTFunction &>(*functionAst);
+        auto& arguments = GetAllArguments(functionNode);
+
+        auto tableNames = EvaluateArguments(arguments, context);
+
+        return Execute(tableNames, queryContext);
+    }
 
 private:
     std::vector<TString> EvaluateArguments(
         TArguments& arguments,
-        const Context& context) const;
+        const Context& context) const
+    {
+        std::vector<TString> tableNames;
+        tableNames.reserve(arguments.size());
+        for (auto& argument : arguments) {
+            tableNames.push_back(ToString(EvaluateIdentifierArgument(argument, context)));
+        }
+        return tableNames;
+    }
 
-    StoragePtr Execute(const std::vector<TString>& tableNames, TQueryContext* queryContext) const;
+    StoragePtr Execute(const std::vector<TYPath>& tablePaths, TQueryContext* queryContext) const
+    {
+        auto tables = FetchClickHouseTables(queryContext, tablePaths);
+
+        return CreateStorageConcat(
+            std::move(tables),
+            Cluster,
+            DropPrimaryKey);
+    }
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-StoragePtr TConcatenateTablesList::executeImpl(
-    const ASTPtr& functionAst,
-    const Context& context) const
-{
-    auto* queryContext = GetQueryContext(context);
-
-    auto& functionNode = typeid_cast<ASTFunction &>(*functionAst);
-    auto& arguments = GetAllArguments(functionNode);
-
-    auto tableNames = EvaluateArguments(arguments, context);
-
-    return Execute(tableNames, queryContext);
-}
-
-std::vector<TString> TConcatenateTablesList::EvaluateArguments(
-    TArguments& arguments,
-    const Context& context) const
-{
-    std::vector<TString> tableNames;
-    tableNames.reserve(arguments.size());
-    for (auto& argument : arguments) {
-        tableNames.push_back(ToString(EvaluateIdentifierArgument(argument, context)));
-    }
-    return tableNames;
-}
-
-StoragePtr TConcatenateTablesList::Execute(
-    const std::vector<TString>& tableNames,
-    TQueryContext* queryContext) const
-{
-    std::vector<TClickHouseTablePtr> tables;
-    tables.reserve(tableNames.size());
-    for (const auto& name : tableNames) {
-        auto table = FetchClickHouseTable(queryContext->Client(), name, queryContext->Logger);
-        tables.push_back(std::move(table));
-    }
-
-    return CreateStorageConcat(
-        std::move(tables),
-        Cluster,
-        DropPrimaryKey);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -221,9 +252,46 @@ public:
         : Cluster(std::move(cluster))
         , Logger(logger)
         , DropPrimaryKey(dropPrimaryKey)
-    {}
+    { }
 
-    virtual StoragePtr executeImpl(const ASTPtr& functionAst, const Context& context) const override;
+    virtual StoragePtr executeImpl(const ASTPtr& functionAst, const Context& context) const override
+    {
+        auto* queryContext = GetQueryContext(context);
+        const auto& Logger = queryContext->Logger;
+
+        auto& functionNode = typeid_cast<ASTFunction &>(*functionAst);
+        auto& arguments = GetAllArguments(functionNode);
+
+        auto directory = TString(GetDirectoryRequiredArgument(arguments, context));
+
+        YT_LOG_INFO("Listing directory (Path: %v)", directory);
+
+        TListNodeOptions options;
+        options.Attributes = {"type", "path"};
+        options.SuppressAccessTracking = true;
+
+        auto items = WaitFor(queryContext->Client()->ListNode(directory, options))
+            .ValueOrThrow();
+        auto itemList = ConvertTo<IListNodePtr>(items);
+
+        std::vector<TYPath> tablePaths;
+        for (const auto& child : itemList->GetChildren()) {
+            const auto& attributes = child->Attributes();
+            if (attributes.Get<NObjectClient::EObjectType>("type") == NObjectClient::EObjectType::Table) {
+                tablePaths.emplace_back(attributes.Get<TYPath>("path"));
+            }
+        }
+
+        YT_LOG_INFO("Tables listed (ItemCount: %v, TableCount: %v)", itemList->GetChildCount(), tablePaths.size());
+
+        std::sort(tablePaths.begin(), tablePaths.end());
+
+        tablePaths = FilterTables(tablePaths, arguments, context);
+
+        auto tables = FetchClickHouseTables(queryContext, tablePaths);
+
+        return CreateStorage(std::move(tables), context);
+    }
 
 protected:
     Poco::Logger* GetLogger() const
@@ -231,72 +299,36 @@ protected:
         return Logger;
     }
 
-    // 0-th argument reserved to directory path
-    virtual std::vector<TClickHouseTablePtr> FilterTables(
-        const std::vector<TClickHouseTablePtr>& tables,
+    virtual std::vector<TYPath> FilterTables(
+        const std::vector<TYPath>& tablePaths,
         TArguments& arguments,
         const Context& context) const = 0;
 
 private:
     std::string GetDirectoryRequiredArgument(
         TArguments& arguments,
-        const Context& context) const;
+        const Context& context) const
+    {
+        if (arguments.empty()) {
+            throw Exception(
+                "Table function " + getName() + " expected at least one argument: directory path",
+                ErrorCodes::TOO_FEW_ARGUMENTS_FOR_FUNCTION);
+        }
+
+        return EvaluateIdentifierArgument(arguments[0], context);
+    }
 
     StoragePtr CreateStorage(
         const std::vector<TClickHouseTablePtr>& tables,
-        const Context& context) const;
+        const Context& /* context */) const
+    {
+        if (tables.empty()) {
+            throw Exception("No tables found by " + getName(), ErrorCodes::CANNOT_SELECT);
+        }
+
+        return CreateStorageConcat(tables, Cluster, DropPrimaryKey);
+    }
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-StoragePtr TListFilterAndConcatenateTables::executeImpl(
-    const ASTPtr& functionAst,
-    const Context& context) const
-{
-    auto* queryContext = GetQueryContext(context);
-    auto& functionNode = typeid_cast<ASTFunction &>(*functionAst);
-    auto& arguments = GetAllArguments(functionNode);
-
-    const auto directory = GetDirectoryRequiredArgument(
-        arguments,
-        context);
-
-    auto allTables = queryContext->ListTables(ToString(directory), false);
-    SortTablesByName(allTables);
-
-    auto selectedTables = FilterTables(allTables, arguments, context);
-
-    for (auto& table : selectedTables) {
-        table = FetchClickHouseTable(queryContext->Client(), table->Name, queryContext->Logger);
-    }
-
-    return CreateStorage(selectedTables, context);
-}
-
-std::string TListFilterAndConcatenateTables::GetDirectoryRequiredArgument(
-    TArguments& arguments,
-    const Context& context) const
-{
-    if (arguments.empty()) {
-        throw Exception(
-            "Table function " + getName() + " expected at least one argument: directory path",
-            ErrorCodes::TOO_FEW_ARGUMENTS_FOR_FUNCTION);
-    }
-
-    return EvaluateIdentifierArgument(arguments[0], context);
-}
-
-StoragePtr TListFilterAndConcatenateTables::CreateStorage(
-    const std::vector<TClickHouseTablePtr>& tables,
-    const Context& /* context */) const
-{
-    if (tables.empty()) {
-        // TODO: create StorageNull
-        throw Exception("No tables found by " + getName(), ErrorCodes::CANNOT_SELECT);
-    }
-
-    return CreateStorageConcat(tables, Cluster, DropPrimaryKey);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -311,7 +343,7 @@ public:
             std::move(cluster),
             &Poco::Logger::get("ConcatYtTablesRange"),
             dropPrimaryKey)
-    {}
+    { }
 
     static std::string GetName()
     {
@@ -324,54 +356,45 @@ public:
     }
 
 private:
-    std::vector<TClickHouseTablePtr> FilterTables(
-        const std::vector<TClickHouseTablePtr>& tables,
+    std::vector<TYPath> FilterTables(
+        const std::vector<TYPath>& tablePaths,
         TArguments& arguments,
-        const Context& context) const override;
+        const Context& context) const override
+    {
+        const size_t argumentCount = arguments.size();
+
+        if (argumentCount == 1) {
+            // All tables in directory
+            return tablePaths;
+        }
+
+        std::vector<TYPath> result;
+
+        if (argumentCount == 2) {
+            // [from, ...)
+            auto from = TString(EvaluateArgument<std::string>(arguments[1], context));
+
+            std::copy_if(tablePaths.begin(), tablePaths.end(), std::back_inserter(result), [&] (const auto& name) {
+                return BaseName(name) >= from;
+            });
+        } else if (argumentCount == 3) {
+            // [from, to] name range
+            auto from = TString(EvaluateArgument<std::string>(arguments[1], context));
+            auto to = TString(EvaluateArgument<std::string>(arguments[2], context));
+
+            std::copy_if(tablePaths.begin(), tablePaths.end(), std::back_inserter(result), [&] (const auto& name) {
+                return BaseName(name) >= from && BaseName(name) <= to;
+            });
+        } else {
+            throw Exception(
+                "Too may arguments: "
+                "expected 1, 2 or 3, provided: " + std::to_string(arguments.size()),
+                ErrorCodes::TOO_MANY_ARGUMENTS_FOR_FUNCTION);
+        }
+
+        return result;
+    }
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<TClickHouseTablePtr> TConcatenateTablesRange::FilterTables(
-    const std::vector<TClickHouseTablePtr>& tables,
-    TArguments& arguments,
-    const Context& context) const
-{
-    const size_t argumentCount = arguments.size();
-
-    if (argumentCount == 1) {
-        // All tables in directory
-        return tables;
-    }
-
-    if (argumentCount == 2) {
-        // [from, ...)
-        auto from = EvaluateArgument<std::string>(arguments[1], context);
-
-        auto nameFilter = [from] (const std::string& tableName) -> bool
-        {
-            return tableName >= from;
-        };
-        return FilterTablesByName(tables, std::move(nameFilter));
-    }
-
-    if (argumentCount == 3) {
-        // [from, to] name range
-        auto from = EvaluateArgument<std::string>(arguments[1], context);
-        auto to = EvaluateArgument<std::string>(arguments[2], context);
-
-        auto nameFilter = [from, to] (const std::string& tableName) -> bool
-        {
-            return tableName >= from && tableName <= to;
-        };
-        return FilterTablesByName(tables, std::move(nameFilter));
-    }
-
-    throw Exception(
-        "Too may arguments: "
-        "expected 1, 2 or 3, provided: " + std::to_string(arguments.size()),
-        ErrorCodes::TOO_MANY_ARGUMENTS_FOR_FUNCTION);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -397,32 +420,27 @@ public:
     }
 
 private:
-    std::vector<TClickHouseTablePtr> FilterTables(
-        const std::vector<TClickHouseTablePtr>& tables,
+    std::vector<TYPath> FilterTables(
+        const std::vector<TYPath>& tablePaths,
         TArguments& arguments,
-        const Context& context) const override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<TClickHouseTablePtr> TConcatenateTablesRegexp::FilterTables(
-    const std::vector<TClickHouseTablePtr>& tables,
-    TArguments& arguments,
-    const Context& context) const
-{
-    // 1) directory, 2) regexp
-    ValidateNumberOfArguments(arguments, 2);
-
-    const auto regexp = EvaluateArgument<std::string>(arguments[1], context);
-
-    auto matcher = std::make_shared<OptimizedRegularExpression>(std::move(regexp));
-
-    auto nameFilter = [matcher] (const std::string& tableName) -> bool
+        const Context& context) const override
     {
-        return matcher->match(tableName);
-    };
-    return FilterTablesByName(tables, std::move(nameFilter));
-}
+        // 1) directory, 2) regexp
+        ValidateNumberOfArguments(arguments, 2);
+
+        const auto regexp = EvaluateArgument<std::string>(arguments[1], context);
+
+        auto matcher = std::make_shared<OptimizedRegularExpression>(std::move(regexp));
+
+        std::vector<TYPath> result;
+
+        std::copy_if(tablePaths.begin(), tablePaths.end(), std::back_inserter(result), [&] (const auto& path) {
+            return matcher->match(BaseName(path));
+        });
+
+        return result;
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -450,33 +468,27 @@ public:
     }
 
 private:
-    std::vector<TClickHouseTablePtr> FilterTables(
-        const std::vector<TClickHouseTablePtr>& tables,
+    std::vector<TYPath> FilterTables(
+        const std::vector<TYPath>& tablePaths,
         TArguments& arguments,
-        const Context& context) const override;
-};
-
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<TClickHouseTablePtr> TConcatenateTablesLike::FilterTables(
-    const std::vector<TClickHouseTablePtr>& tables,
-    TArguments& arguments,
-    const Context& context) const
-{
-    // 1) directory 2) pattern
-    ValidateNumberOfArguments(arguments, 2);
-
-    auto pattern = EvaluateArgument<std::string>(arguments[1], context);
-
-    auto matcher = std::make_shared<Poco::Glob>(pattern);
-
-    auto nameFilter = [matcher] (const std::string& tableName) -> bool
+        const Context& context) const override
     {
-        return matcher->match(tableName);
-    };
-    return FilterTablesByName(tables, std::move(nameFilter));
-}
+        // 1) directory 2) pattern
+        ValidateNumberOfArguments(arguments, 2);
+
+        auto pattern = EvaluateArgument<std::string>(arguments[1], context);
+
+        auto matcher = std::make_shared<Poco::Glob>(pattern);
+
+        std::vector<TString> result;
+
+        std::copy_if(tablePaths.begin(), tablePaths.end(), std::back_inserter(result), [&] (const auto& path) {
+            return matcher->match(BaseName(path));
+        });
+
+        return result;
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

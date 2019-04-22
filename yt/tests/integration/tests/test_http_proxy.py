@@ -60,14 +60,38 @@ class TestHttpProxy(YTEnvSetup):
         assert ["v3", "v4"] == requests.get(self.proxy_address() + "/api").json()
 
     def test_discover_versions(self):
-        rsp = requests.get(self.proxy_address() + "/api/v3/_discover_versions").json()
+        rsp = requests.get(self.proxy_address() + "/internal/discover_versions").json()
         service = requests.get(self.proxy_address() + "/service").json()
+        
         assert len(rsp["primary_masters"]) == 1
         assert len(rsp["secondary_masters"]) == 2
         assert len(rsp["nodes"]) == 5
         assert len(rsp["schedulers"]) == 1
+        assert len(rsp["controller_agents"]) == 1
+        assert len(rsp["http_proxies"]) == 1
+        assert len(rsp["rpc_proxies"]) == 2
         for component in rsp:
             for instant in rsp[component]:
                 assert "version" in rsp[component][instant]
                 assert "start_time" in rsp[component][instant]
                 assert "version" in service
+
+    def test_discover_versions_v2(self):
+        rsp = requests.get(self.proxy_address() + "/internal/discover_versions/v2")
+        rsp.raise_for_status()
+
+        versions = rsp.json()
+        assert "details" in versions
+        assert "summary" in versions
+
+    def test_dynamic_config(self):
+        monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
+        config_url = "http://localhost:{}/orchid/coordinator/dynamic_config".format(monitoring_port)
+
+        set("//sys/proxies/@config", {"tracing_user_sample_probability": {"prime": 1.0}})
+
+        def config_updated():
+            config = requests.get(config_url).json()
+            return "prime" in config["tracing_user_sample_probability"]
+
+        wait(config_updated)

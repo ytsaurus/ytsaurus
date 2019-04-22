@@ -153,6 +153,7 @@ protected:
     //! Posts the request to a given master, either primary or secondary.
     void PostToMaster(NRpc::IServiceContextPtr context, TCellTag cellTag);
 
+    const NCypressServer::TDynamicCypressManagerConfigPtr& GetDynamicCypressManagerConfig() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

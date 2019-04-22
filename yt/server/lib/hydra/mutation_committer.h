@@ -24,6 +24,20 @@ namespace NYT::NHydra {
 class TCommitterBase
     : public TRefCounted
 {
+public:
+    //! Temporarily suspends writing mutations to the changelog and keeps them in memory.
+    void SuspendLogging();
+
+    //! Resumes an earlier suspended mutation logging and sends out all pending mutations.
+    void ResumeLogging();
+
+    //! Returns |true| is mutation logging is currently suspended.
+    bool IsLoggingSuspended() const;
+
+
+    //! Raised on mutation logging failure.
+    DEFINE_SIGNAL(void(const TError& error), LoggingFailed);
+
 protected:
     TCommitterBase(
         TDistributedHydraManagerConfigPtr config,
@@ -32,6 +46,8 @@ protected:
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext);
 
+    virtual void DoSuspendLogging() = 0;
+    virtual void DoResumeLogging() = 0;
 
     const TDistributedHydraManagerConfigPtr Config_;
     const TDistributedHydraManagerOptions Options_;
@@ -42,8 +58,17 @@ protected:
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler;
 
+    NProfiling::TSimpleGauge LoggingSuspensionTimeGauge_{"/mutation_logging_suspension_time"};
+
+    bool LoggingSuspended_ = false;
+    std::optional<NProfiling::TWallTimer> LoggingSuspensionTimer_;
+    NConcurrency::TDelayedExecutorCookie LoggingSuspensionTimeoutCookie_;
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+private:
+    void OnLoggingSuspensionTimeout();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,12 +103,6 @@ public:
     //! flushed by a quorum of changelogs.
     TFuture<void> GetQuorumFlushResult();
 
-    //! Temporarily suspends writing mutations to the changelog and keeps them in memory.
-    void SuspendLogging();
-
-    //! Resumes an earlier suspended mutation logging and sends out all pending mutations.
-    void ResumeLogging();
-
     //! Cleans things up, aborts all pending mutations with a human-readable error.
     void Stop();
 
@@ -93,7 +112,6 @@ public:
 
     //! Raised on commit failure.
     DEFINE_SIGNAL(void(const TError& error), CommitFailed);
-
 
 private:
     class TBatch;
@@ -113,6 +131,8 @@ private:
 
     void FireCommitFailed(const TError& error);
 
+    virtual void DoSuspendLogging() override;
+    virtual void DoResumeLogging() override;
 
     const IChangelogStorePtr ChangelogStore_;
 
@@ -131,14 +151,12 @@ private:
         TPromise<TMutationResponse> CommitPromise;
     };
 
-    bool LoggingSuspended_ = false;
     std::vector<TPendingMutation> PendingMutations_;
 
     TSpinLock BatchSpinLock_;
     TBatchPtr CurrentBatch_;
     TFuture<void> PrevBatchQuorumFlushResult_ = VoidFuture;
     NConcurrency::TDelayedExecutorCookie BatchTimeoutCookie_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TLeaderCommitter)
@@ -165,15 +183,6 @@ public:
         TVersion expectedVersion,
         const std::vector<TSharedRef>& recordsData);
 
-    //! Returns |true| is mutation logging is currently suspended.
-    bool IsLoggingSuspended() const;
-
-    //! Temporarily suspends writing mutations to the changelog and keeps them in memory.
-    void SuspendLogging();
-
-    //! Resumes an earlier suspended mutation logging and logs out all pending mutations.
-    void ResumeLogging();
-
     //! Forwards a given mutation to the leader via RPC.
     TFuture<TMutationResponse> Forward(TMutationRequest&& request);
 
@@ -185,6 +194,9 @@ private:
         TVersion expectedVersion,
         const std::vector<TSharedRef>& recordsData);
 
+    virtual void DoSuspendLogging() override;
+    virtual void DoResumeLogging() override;
+
     struct TPendingMutation
     {
         std::vector<TSharedRef> RecordsData;
@@ -192,9 +204,7 @@ private:
         TPromise<void> Promise;
     };
 
-    bool LoggingSuspended_ = false;
     std::vector<TPendingMutation> PendingMutations_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TFollowerCommitter)

@@ -22,6 +22,11 @@ TSchedulerStrategyHost::TSchedulerStrategyHost(
     }
 }
 
+IInvokerPtr TSchedulerStrategyHost::GetProfilingInvoker() const
+{
+    return GetCurrentInvoker();
+}
+
 TJobResources TSchedulerStrategyHost::GetResourceLimits(const TSchedulingTagFilter& filter)
 {
     auto it = FilterToJobResources_.find(filter);

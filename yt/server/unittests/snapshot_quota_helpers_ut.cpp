@@ -31,7 +31,7 @@ TEST(TThresholdSnapshotId, LongVector)
         {2, 11},
         {9, 15}
     };
-    ASSERT_EQ(1, GetSnapshotThresholdId(snapshots, 2, std::nullopt));
+    ASSERT_EQ(2, GetSnapshotThresholdId(snapshots, 2, std::nullopt));
 }
 
 TEST(TThresholdSnapshotId, SmallSize)
@@ -41,7 +41,7 @@ TEST(TThresholdSnapshotId, SmallSize)
         {2, 3},
         {3, 7}
     };
-    ASSERT_LE(GetSnapshotThresholdId(snapshots, std::nullopt, 30), 0);
+    ASSERT_LE(GetSnapshotThresholdId(snapshots, std::nullopt, 30), 1);
 }
 
 TEST(TThresholdSnapshotId, BigSize)
@@ -52,7 +52,7 @@ TEST(TThresholdSnapshotId, BigSize)
         {3, 15},
         {4, 7}
     };
-    ASSERT_EQ(2, GetSnapshotThresholdId(snapshots, std::nullopt, 25));
+    ASSERT_EQ(3, GetSnapshotThresholdId(snapshots, std::nullopt, 25));
 }
 
 TEST(TThresholdSnapshotId, AccurateSize)
@@ -63,7 +63,7 @@ TEST(TThresholdSnapshotId, AccurateSize)
         {3, 13},
         {4, 14}
     };
-    ASSERT_EQ(1, GetSnapshotThresholdId(snapshots, std::nullopt, 38));
+    ASSERT_EQ(2, GetSnapshotThresholdId(snapshots, std::nullopt, 38));
 }
 
 TEST(TThresholdSnapshotId, CountStronger)
@@ -74,7 +74,7 @@ TEST(TThresholdSnapshotId, CountStronger)
         {3, 13},
         {4, 14}
     };
-    ASSERT_EQ(3, GetSnapshotThresholdId(snapshots, 1, 30));
+    ASSERT_EQ(4, GetSnapshotThresholdId(snapshots, 1, 30));
 }
 
 TEST(TThresholdSnapshotId, SizeStronger)
@@ -85,7 +85,7 @@ TEST(TThresholdSnapshotId, SizeStronger)
         {3, 13},
         {4, 14}
     };
-    ASSERT_EQ(3, GetSnapshotThresholdId(snapshots, 3, 15));
+    ASSERT_EQ(4, GetSnapshotThresholdId(snapshots, 3, 15));
 }
 
 TEST(TThresholdSnapshotId, ZeroCount)
@@ -95,7 +95,7 @@ TEST(TThresholdSnapshotId, ZeroCount)
         {2, 11},
         {3, 13}
     };
-    ASSERT_EQ(2, GetSnapshotThresholdId(snapshots, 0, std::nullopt));
+    ASSERT_EQ(3, GetSnapshotThresholdId(snapshots, 0, std::nullopt));
 }
 
 TEST(TThresholdSnapshotId, ZeroSize)
@@ -105,7 +105,7 @@ TEST(TThresholdSnapshotId, ZeroSize)
         {2, 11},
         {3, 13}
     };
-    ASSERT_EQ(2, GetSnapshotThresholdId(snapshots, std::nullopt, 0));
+    ASSERT_EQ(3, GetSnapshotThresholdId(snapshots, std::nullopt, 0));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

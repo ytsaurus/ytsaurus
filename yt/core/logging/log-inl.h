@@ -56,8 +56,10 @@ private:
 
     TSharedMutableRef Buffer_;
 
+#ifndef __APPLE__
     Y_POD_STATIC_THREAD(TPerThreadCache*) Cache_;
     Y_POD_STATIC_THREAD(bool) CacheDestroyed_;
+#endif
     static TPerThreadCache* GetCache();
 
     static constexpr size_t ChunkSize = 64_KB;
@@ -153,7 +155,7 @@ inline TLogEvent CreateLogEvent(const TLogger& logger, ELogLevel level)
     event.Level = level;
     event.ThreadId = TThread::CurrentThreadId();
     event.FiberId = NConcurrency::GetCurrentFiberId();
-    event.TraceId = NTracing::GetCurrentTraceContext().GetTraceId();
+    event.TraceId = NTracing::GetCurrentTraceId();
     return event;
 }
 

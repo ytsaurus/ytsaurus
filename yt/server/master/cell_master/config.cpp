@@ -37,17 +37,11 @@ TCellMasterConfig::TCellMasterConfig()
         .DefaultNew();
     RegisterParameter("chunk_manager", ChunkManager)
         .DefaultNew();
-    RegisterParameter("journal_manager", JournalManager)
-        .DefaultNew();
-    RegisterParameter("object_manager", ObjectManager)
-        .DefaultNew();
     RegisterParameter("object_service", ObjectService)
         .DefaultNew();
-    RegisterParameter("cypress_manager", CypressManager)
-        .DefaultNew();
-    RegisterParameter("security_manager", SecurityManager)
-        .DefaultNew();
     RegisterParameter("tablet_manager", TabletManager)
+        .DefaultNew();
+    RegisterParameter("cypress_manager", CypressManager)
         .DefaultNew();
     RegisterParameter("replicated_table_tracker", ReplicatedTableTracker)
         .DefaultNew();

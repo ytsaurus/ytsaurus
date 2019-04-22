@@ -103,11 +103,10 @@ public:
         , StartTime_(TInstant::Now())
         , TrafficMeter_(New<TTrafficMeter>(
             Bootstrap_->GetMasterConnector()->GetLocalDescriptor().GetDataCenter()))
+        , JobSpec_(std::move(jobSpec))
         , ResourceUsage_(resourceUsage)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        JobSpec_.Swap(&jobSpec);
 
         TrafficMeter_->Start();
 
@@ -176,11 +175,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO(error, "Job abort requested (Phase: %v)", JobPhase_);
+        YT_LOG_INFO(error, "Job abort requested (Phase: %v)",
+            JobPhase_);
 
         switch (JobPhase_) {
             case EJobPhase::Created:
-            case EJobPhase::PreparingNodeDirectory:
             case EJobPhase::DownloadingArtifacts:
             case EJobPhase::Running:
                 SetJobStatePhase(EJobState::Aborting, EJobPhase::WaitingAbort);
@@ -194,6 +193,7 @@ public:
 
                 break;
 
+            case EJobPhase::PreparingNodeDirectory:
             case EJobPhase::PreparingSandboxDirectories:
             case EJobPhase::PreparingArtifacts:
             case EJobPhase::PreparingRootVolume:
@@ -205,7 +205,9 @@ public:
                 break;
 
             default:
-                YT_LOG_DEBUG("Cannot abort job (JobState: %v, JobPhase: %v)", JobState_, JobPhase_);
+                YT_LOG_DEBUG("Cannot abort job (JobState: %v, JobPhase: %v)",
+                    JobState_,
+                    JobPhase_);
                 break;
         }
     }
@@ -560,7 +562,9 @@ public:
     virtual void ReportStatistics(TJobStatistics&& statistics) override
     {
         Bootstrap_->GetStatisticsReporter()->ReportStatistics(
-            std::move(statistics).OperationId(GetOperationId()).JobId(GetId()));
+            std::move(statistics)
+                .OperationId(GetOperationId())
+                .JobId(GetId()));
     }
 
     virtual void ReportSpec() override
@@ -571,30 +575,23 @@ public:
 
     virtual void ReportStderr() override
     {
-        ReportStatistics(
-            TJobStatistics()
-                .Stderr(GetStderr()));
+        ReportStatistics(TJobStatistics()
+            .Stderr(GetStderr()));
     }
 
     virtual void ReportFailContext() override
     {
-        auto failContext = GetFailContext();
-
-        if (failContext) {
-            ReportStatistics(
-                TJobStatistics()
-                    .FailContext(*failContext));
+        if (auto failContext = GetFailContext()) {
+            ReportStatistics(TJobStatistics()
+                .FailContext(*failContext));
         }
     }
 
     virtual void ReportProfile() override
     {
-        auto profile = GetProfile();
-
-        if (profile) {
-            ReportStatistics(
-                TJobStatistics()
-                    .Profile(*profile));
+        if (auto profile = GetProfile()) {
+            ReportStatistics(TJobStatistics()
+                .Profile(*profile));
         }
     }
 
@@ -1024,6 +1021,12 @@ private:
 
         auto error = FromProto<TError>(JobResult_->error());
 
+        if (!error.IsOK()) {
+            // NB: it is required to report error that occured in some place different
+            // from OnJobFinished method.
+            ReportStatistics(TJobStatistics().Error(error));
+        }
+
         if (error.IsOK()) {
             SetJobState(EJobState::Completed);
         } else if (IsFatalError(error)) {
@@ -1128,7 +1131,8 @@ private:
             }
 
             if (attempt >= Config_->NodeDirectoryPrepareRetryCount) {
-                YT_LOG_WARNING("Some node ids were not resolved, skipping corresponding replicas (UnresolvedNodeId: %v)", *unresolvedNodeId);
+                YT_LOG_WARNING("Some node ids were not resolved, skipping corresponding replicas (UnresolvedNodeId: %v)",
+                    *unresolvedNodeId);
                 break;
             }
 

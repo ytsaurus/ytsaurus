@@ -287,6 +287,10 @@ public:
             YCHECK(NumberToField_.emplace(field->GetNumber(), field).second);
             Fields_.push_back(std::move(fieldHolder));
         }
+
+        for (int index = 0; index < Underlying_->reserved_name_count(); ++index) {
+            ReservedFieldNames_.insert(Underlying_->reserved_name(index));
+        }
     }
 
     const Descriptor* GetUnderlying() const
@@ -308,6 +312,25 @@ public:
     {
         return RequiredFieldNumbers_;
     }
+
+
+    bool IsReservedFieldName(TStringBuf name) const
+    {
+        return ReservedFieldNames_.contains(name);
+    }
+
+    bool IsReservedFieldNumber(int number) const
+    {
+        for (int index = 0; index < Underlying_->reserved_range_count(); ++index) {
+            if (number >= Underlying_->reserved_range(index)->start &&
+                number <= Underlying_->reserved_range(index)->end)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
 
     const TProtobufField* FindFieldByName(TStringBuf name) const
     {
@@ -348,6 +371,7 @@ private:
     std::vector<int> RequiredFieldNumbers_;
     THashMap<TStringBuf, const TProtobufField*> NameToField_;
     THashMap<int, const TProtobufField*> NumberToField_;
+    THashSet<TString> ReservedFieldNames_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -856,7 +880,7 @@ private:
         const auto* type = TypeStack_.back().Type;
         const auto* field = type->FindFieldByName(key);
         if (!field) {
-            if (Options_.SkipUnknownFields) {
+            if (Options_.SkipUnknownFields || type->IsReservedFieldName(key)) {
                 Forward(GetNullYsonConsumer(), [] {});
                 return;
             }
@@ -1510,7 +1534,7 @@ private:
         auto fieldNumber = WireFormatLite::GetTagFieldNumber(tag);
         const auto* field = type->FindFieldByNumber(fieldNumber);
         if (!field) {
-            if (Options_.SkipUnknownFields) {
+            if (Options_.SkipUnknownFields || type->IsReservedFieldNumber(fieldNumber)) {
                 switch (wireType) {
                     case WireFormatLite::WIRETYPE_VARINT: {
                         ui64 unsignedValue;

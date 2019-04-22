@@ -32,10 +32,13 @@ namespace NYT::NHttpProxy {
 
 static const auto& Logger = HttpProxyLogger;
 
+static const TString SysProxies = "//sys/proxies";
+
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
+using namespace NYPath;
 using namespace NHttp;
 using namespace NCypressClient;
 using namespace NNative;
@@ -74,28 +77,46 @@ TString TProxyEntry::GetHost() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TDynamicConfig::TDynamicConfig()
+{
+    RegisterParameter("tracing_user_sample_probability", TracingUserSampleProbability)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCoordinator::TCoordinator(
     const TProxyConfigPtr& config,
     TBootstrap* bootstrap)
     : Config_(config->Coordinator)
     , Bootstrap_(bootstrap)
     , Client_(bootstrap->GetRootClient())
-    , Periodic_(New<TPeriodicExecutor>(
+    , UpdateStateExecutor_(New<TPeriodicExecutor>(
         bootstrap->GetControlInvoker(),
-        BIND(&TCoordinator::Update, MakeWeak(this)),
+        BIND(&TCoordinator::UpdateState, MakeWeak(this)),
+        Config_->HeartbeatInterval))
+    , UpdateDynamicConfigExecutor_(New<TPeriodicExecutor>(
+        bootstrap->GetControlInvoker(),
+        BIND(&TCoordinator::UpdateDynamicConfig, MakeWeak(this)),
         Config_->HeartbeatInterval))
 {
     Self_ = New<TProxyEntry>();
     Self_->Endpoint = Config_->PublicFqdn
         ? *Config_->PublicFqdn
-        : Format("%v:%d", NNet::GetLocalHostName(), config->Port);
+        : Format("%v:%v", NNet::GetLocalHostName(), config->Port);
     Self_->Role = "data";
+
+    auto dynamicConfig = New<TDynamicConfig>();
+    dynamicConfig->SetDefaults();
+    SetDynamicConfig(dynamicConfig);
 }
 
 void TCoordinator::Start()
 {
-    Periodic_->Start();
-    Periodic_->ScheduleOutOfBand();
+    UpdateStateExecutor_->Start();
+    UpdateStateExecutor_->ScheduleOutOfBand();
+
+    UpdateDynamicConfigExecutor_->Start();
 
     auto result = WaitFor(FirstUpdateIterationFinished_.ToFuture());
     YT_LOG_INFO(result, "Initial coordination iteration finished");
@@ -183,13 +204,19 @@ const TCoordinatorConfigPtr& TCoordinator::GetConfig() const
     return Config_;
 }
 
+TDynamicConfigPtr TCoordinator::GetDynamicConfig()
+{
+    auto guard = Guard(Lock_);
+    return DynamicConfig_;
+}    
+
 std::vector<TProxyEntryPtr> TCoordinator::ListCypressProxies()
 {
     TListNodeOptions options;
     options.ReadFrom = EMasterChannelKind::Cache;
     options.Attributes = {"role", "banned", "liveness", BanMessageAttributeName};
 
-    auto proxiesYson = WaitFor(Client_->ListNode("//sys/proxies", options))
+    auto proxiesYson = WaitFor(Client_->ListNode(SysProxies, options))
         .ValueOrThrow();
     auto proxiesList = ConvertTo<IListNodePtr>(proxiesYson);
     std::vector<TProxyEntryPtr> proxies;
@@ -206,9 +233,47 @@ std::vector<TProxyEntryPtr> TCoordinator::ListCypressProxies()
     return proxies;
 }
 
-void TCoordinator::Update()
+void TCoordinator::UpdateDynamicConfig()
 {
-    auto selfPath = "//sys/proxies/" + Self_->Endpoint;
+    try {
+        TGetNodeOptions options;
+        options.ReadFrom = EMasterChannelKind::Cache;
+
+        auto configYsonOrError = WaitFor(Client_->GetNode(SysProxies + "/@config", options));
+        if (configYsonOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            YT_LOG_INFO("Dynamic config is missing");
+            return;
+        }
+
+        auto config = ConvertTo<TDynamicConfigPtr>(configYsonOrError.ValueOrThrow());
+        SetDynamicConfig(config);
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Error loading dynamic config");
+    }
+}
+
+void TCoordinator::SetDynamicConfig(TDynamicConfigPtr config)
+{
+    auto guard = Guard(Lock_);
+    std::swap(config, DynamicConfig_);
+}
+
+IYPathServicePtr TCoordinator::CreateOrchidService()
+{
+   return IYPathService::FromProducer(BIND(&TCoordinator::BuildOrchid, MakeStrong(this)));
+}
+
+void TCoordinator::BuildOrchid(IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("dynamic_config").Value(GetDynamicConfig())
+        .EndMap();
+}
+
+void TCoordinator::UpdateState()
+{
+    auto selfPath = SysProxies + "/" + ToYPathLiteral(Self_->Endpoint);
 
     {
         auto guard = Guard(Lock_);
@@ -216,7 +281,7 @@ void TCoordinator::Update()
     }
 
     try {
-        if (Config_->Enable && !IsInitialized_ && Config_->Announce) {
+        if (Config_->Enable && !Initialized_ && Config_->Announce) {
             TCreateNodeOptions options;
             options.Recursive = true;
             options.Attributes = ConvertToAttributes(BuildYsonStringFluently()
@@ -244,7 +309,7 @@ void TCoordinator::Update()
             WaitFor(Client_->SetNode(selfPath + "/@annotations", annotations))
                 .ThrowOnError();
 
-            IsInitialized_ = true;
+            Initialized_ = true;
         }
 
         if (!Config_->Enable) {
@@ -450,47 +515,61 @@ TDiscoverVersionsHandler::TDiscoverVersionsHandler(
     , Client_(std::move(client))
 { }
 
-void TDiscoverVersionsHandler::HandleRequest(
-    const NHttp::IRequestPtr& req,
-    const NHttp::IResponseWriterPtr& rsp)
-{
-    if (MaybeHandleCors(req, rsp)) {
-        return;
-    }
-
-    rsp->SetStatus(EStatusCode::OK);
-
-    ReplyJson(rsp, [this] (IYsonConsumer* consumer) {
-        BuildYsonFluently(consumer)
-            .BeginMap()
-                .Item("primary_masters").Value(GetAttributes("//sys/primary_masters", GetInstances("//sys/primary_masters")))
-                .Item("secondary_masters").Value(GetAttributes("//sys/secondary_masters", GetInstances("//sys/secondary_masters", true)))
-                .Item("schedulers").Value(GetAttributes("//sys/scheduler/instances", GetInstances("//sys/scheduler/instances")))
-                .Item("controller_agents").Value(GetAttributes("//sys/controller_agents/instances", GetInstances("//sys/controller_agents/instances")))
-                .Item("nodes").Value(ListComponent("nodes", true))
-                .Item("http_proxies").Value(ListComponent("proxies", false))
-                .Item("rpc_proxies").Value(ListComponent("rpc_proxies", false))
-            .EndMap();
-    });
-}
-
-TYsonString TDiscoverVersionsHandler::ListComponent(const TString& component, bool isDataNode)
+std::vector<TInstance> TDiscoverVersionsHandler::ListComponent(
+    const TString& component,
+    const TString& type)
 {
     TListNodeOptions options;
-    if (isDataNode) {
+    if (type == "node") {
         options.Attributes = {
             "register_time",
             "version",
+            "banned",
+            "state",
         };
     } else {
         options.Attributes = {
             "start_time",
             "version",
+            "banned",
         };
     }
+
     auto rsp = WaitFor(Client_->ListNode("//sys/" + component, options))
         .ValueOrThrow();
     auto rspList = ConvertToNode(rsp)->AsList();
+
+    std::vector<TInstance> instances;
+    for (const auto& node : rspList->GetChildren()) {
+        auto version = node->Attributes().Find<TString>("version");
+        auto banned = node->Attributes().Find<bool>("banned");
+        auto nodeState = node->Attributes().Find<TString>("state");
+        auto startTime = node->Attributes().Find<TString>(type == "node" ? "register_time" : "start_time");
+
+        TInstance instance;
+        instance.Type = type;
+        instance.Address = node->GetValue<TString>();
+
+        if (version && startTime) {
+            instance.Version = *version;
+            instance.StartTime = *startTime;
+            instance.Banned = banned ? *banned : false;
+        } else {
+            instance.Error = TError("Cannot find all attribute in response")
+                << TErrorAttribute("version", version)
+                << TErrorAttribute("start_time", startTime);
+        }
+
+        if (type == "node") {
+            instance.Online = (nodeState == TString("online"));
+        }
+
+        instances.push_back(instance);
+    }
+
+    return instances;
+
+/*    
     return BuildYsonStringFluently()
         .DoMapFor(rspList->GetChildren(), [isDataNode] (TFluentMap fluent, const INodePtr& node) {
             auto version = node->Attributes().Find<TString>("version");
@@ -507,12 +586,10 @@ TYsonString TDiscoverVersionsHandler::ListComponent(const TString& component, bo
                     .Item(node->GetValue<TString>())
                     .BeginMap()
                         .Item("error")
-                        .Value(TError("Cannot find all attribute in response")
-                                    << TErrorAttribute("version", version)
-                                    << TErrorAttribute("start_time", startTime))
+                        .Value()
                     .EndMap();
             }
-        });
+        });*/
 }
 
 std::vector<TString> TDiscoverVersionsHandler::GetInstances(const TString& path, bool fromSubdirectories)
@@ -536,17 +613,48 @@ std::vector<TString> TDiscoverVersionsHandler::GetInstances(const TString& path,
     return instances;
 }
 
-TYsonString TDiscoverVersionsHandler::GetAttributes(
+std::vector<TInstance> TDiscoverVersionsHandler::GetAttributes(
     const TString& path,
-    const std::vector<TString>& instances)
+    const std::vector<TString>& instances,
+    const TString& type)
 {
-    auto channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
-    TObjectServiceProxy proxy(channel);
+    const auto OrchidTimeout = TDuration::Seconds(1);
 
+    TGetNodeOptions options;
+    options.ReadFrom = EMasterChannelKind::Follower;
+    options.Timeout = OrchidTimeout;
+
+    std::vector<TFuture<TYsonString>> responses;
+    for (const auto& instance : instances) {
+        responses.push_back(Client_->GetNode(path + "/" + instance + "/orchid/service"));
+    }
+
+    std::vector<TInstance> results;
+    for (size_t i = 0; i < instances.size(); ++i) {
+        auto ysonOrError = WaitFor(responses[i]);
+
+        TInstance result;
+        result.Type = type;
+        result.Address = instances[i];
+        if (ysonOrError.IsOK()) {
+            auto rspMap = ConvertToNode(ysonOrError.Value())->AsMap();
+            auto version = ConvertTo<TString>(rspMap->GetChild("version"));
+            auto startTime = ConvertTo<TString>(rspMap->GetChild("start_time"));
+
+            result.Version = version;
+            result.StartTime = startTime;
+        } else {
+            result.Error = ysonOrError;
+        }
+
+        results.push_back(result);
+    }
+    return results;
+/*    
     auto batchReq = proxy.ExecuteBatch();
 
     for (const auto& instance : instances) {
-        auto req = TYPathProxy::Get(path + "/" + instance + "/orchid/service");
+        auto req = TYPathProxy::Get();
         batchReq->AddRequest(req, instance);
     }
 
@@ -577,7 +685,155 @@ TYsonString TDiscoverVersionsHandler::GetAttributes(
                     .EndMap();
             }
         });
+*/
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TYsonString FormatInstances(const std::vector<TInstance>& instances)
+{
+    return BuildYsonStringFluently()
+        .DoMapFor(instances, [&] (TFluentMap fluent, const TInstance& instance) {
+            if (instance.Error.IsOK()) {
+                fluent
+                    .Item(instance.Address)
+                    .BeginMap()
+                        .Item("start_time").Value(instance.StartTime)
+                        .Item("version").Value(instance.Version)
+                    .EndMap();
+            } else {
+                fluent
+                    .Item(instance.Address)
+                    .BeginMap()
+                        .Item("error").Value(instance.Error)
+                    .EndMap();
+            }
+        });
+}
+
+void TDiscoverVersionsHandlerV1::HandleRequest(
+    const NHttp::IRequestPtr& req,
+    const NHttp::IResponseWriterPtr& rsp)
+{
+    if (MaybeHandleCors(req, rsp)) {
+        return;
+    }
+
+    rsp->SetStatus(EStatusCode::OK);
+
+    ReplyJson(rsp, [this] (IYsonConsumer* consumer) {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("primary_masters").Value(FormatInstances(
+                    GetAttributes("//sys/primary_masters", GetInstances("//sys/primary_masters"), "primary_master")
+                 ))
+                .Item("secondary_masters").Value(FormatInstances(
+                    GetAttributes("//sys/secondary_masters", GetInstances("//sys/secondary_masters", true), "secondary_master")
+                ))
+                .Item("schedulers").Value(FormatInstances(
+                    GetAttributes("//sys/scheduler/instances", GetInstances("//sys/scheduler/instances"), "scheduler")
+                ))
+                .Item("controller_agents").Value(FormatInstances(
+                    GetAttributes("//sys/controller_agents/instances", GetInstances("//sys/controller_agents/instances"), "controller_agent")
+                ))
+                .Item("nodes").Value(FormatInstances(ListComponent("nodes", "node")))
+                .Item("http_proxies").Value(FormatInstances(ListComponent("proxies", "http_proxy")))
+                .Item("rpc_proxies").Value(FormatInstances(ListComponent("rpc_proxies", "rpc_proxy")))
+            .EndMap();
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TVersionCounter {
+    int Total = 0;
+    int Banned = 0;
+    int Offline = 0;
+};
+
+void Serialize(const TVersionCounter& counter, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("total").Value(counter.Total)
+            .Item("banned").Value(counter.Banned)
+            .Item("offline").Value(counter.Offline)
+        .EndMap();
+}
+
+void Serialize(const TInstance& instance, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("address").Value(instance.Address)
+            .Item("type").Value(instance.Type)
+            .DoIf(instance.Error.IsOK(), [&] (auto fluent) {
+                fluent
+                    .Item("version").Value(instance.Version)
+                    .Item("start_time").Value(instance.StartTime)
+                    .Item("banned").Value(instance.Banned)
+                    .Item("offline").Value(!instance.Online);
+            })
+            .DoIf(!instance.Error.IsOK(), [&] (auto fluent) {
+                fluent.Item("error").Value(instance.Type);
+            })
+        .EndMap();
+}
+
+void TDiscoverVersionsHandlerV2::HandleRequest(
+    const NHttp::IRequestPtr& req,
+    const NHttp::IResponseWriterPtr& rsp)
+{
+    if (MaybeHandleCors(req, rsp)) {
+        return;
+    }
+
+    std::vector<TInstance> instances;
+    auto add = [&] (auto part) {
+        for (const auto& instance : part) {
+            instances.push_back(instance);
+        }
+    };
+    
+    add(GetAttributes("//sys/primary_masters", GetInstances("//sys/primary_masters"), "primary_master"));
+    add(GetAttributes("//sys/secondary_masters", GetInstances("//sys/secondary_masters", true), "secondary_master"));
+    add(GetAttributes("//sys/scheduler/instances", GetInstances("//sys/scheduler/instances"), "scheduler"));
+    add(GetAttributes("//sys/controller_agents/instances", GetInstances("//sys/controller_agents/instances"), "controller_agent"));
+    add(ListComponent("nodes", "node"));
+    add(ListComponent("proxies", "http_proxy"));
+    add(ListComponent("rpc_proxies", "rpc_proxy"));
+
+    THashMap<TString, THashMap<TString, TVersionCounter>> summary;
+    for (const auto& instance : instances) {
+        auto count = [&] (const TString& key) {
+            summary[key][instance.Type].Total++;
+
+            if (instance.Banned) {
+                summary[key][instance.Type].Banned++;
+            }
+
+            if (!instance.Online) {
+                summary[key][instance.Type].Offline++;
+            }
+        };
+
+        count("total");
+        if (instance.Error.IsOK()) {
+            count(instance.Version);
+        } else {
+            count("error");
+        }
+    }
+
+    rsp->SetStatus(EStatusCode::OK);
+    ReplyJson(rsp, [&] (IYsonConsumer* consumer) {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("summary").Value(summary)
+                .Item("details").Value(instances)
+            .EndMap();
+    });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

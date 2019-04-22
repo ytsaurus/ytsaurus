@@ -21,6 +21,15 @@ inline void TReaderWriterSpinLock::AcquireReader() noexcept
     }
 }
 
+inline void TReaderWriterSpinLock::AcquireReaderForkFriendly() noexcept
+{
+    for (int counter = 0; !TryAcquireReaderForkFriendly(); ++counter) {
+        if (counter > YieldThreshold) {
+            SchedYield();
+        }
+    }
+}
+
 inline void TReaderWriterSpinLock::ReleaseReader() noexcept
 {
     ui32 prevValue = Value_.fetch_sub(ReaderDelta, std::memory_order_release);
@@ -57,13 +66,24 @@ inline bool TReaderWriterSpinLock::TryAcquireReader()
     return true;
 }
 
+inline bool TReaderWriterSpinLock::TryAcquireReaderForkFriendly()
+{
+    while (true) {
+        ui32 oldValue = Value_.load(std::memory_order_acquire);
+        if (oldValue & WriterMask) {
+            return false;
+        }
+        ui32 newValue = oldValue + ReaderDelta;
+        if (Value_.compare_exchange_weak(oldValue, newValue, std::memory_order_acquire)) {
+            return true;
+        }
+    }
+}
+
 inline bool TReaderWriterSpinLock::TryAcquireWriter()
 {
     ui32 expected = 0;
-    if (!Value_.compare_exchange_weak(expected, WriterMask, std::memory_order_acquire)) {
-        return false;
-    }
-    return true;
+    return Value_.compare_exchange_weak(expected, WriterMask, std::memory_order_acquire);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

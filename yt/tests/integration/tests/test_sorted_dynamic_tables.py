@@ -1017,7 +1017,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         tx2 = start_transaction(type="tablet", sticky=True)
 
         insert_rows("//tmp/t", [{"key": 1, "a": 1}], update=True, tx=tx1)
-        lock_rows("//tmp/t", [{"key": 1}], locks=["a", "c"], tx=tx1)
+        lock_rows("//tmp/t", [{"key": 1}], locks=["a", "c"], tx=tx1, lock_type="shared_weak")
         insert_rows("//tmp/t", [{"key": 1, "b": 2}], update=True, tx=tx2)
 
         commit_transaction(tx1, sticky=True)
@@ -1031,12 +1031,12 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         tx3 = start_transaction(type="tablet", sticky=True)
 
         insert_rows("//tmp/t", [{"key": 2, "a": 1}], update=True, tx=tx1)
-        lock_rows("//tmp/t", [{"key": 2}], locks=["a", "c"], tx=tx1)
+        lock_rows("//tmp/t", [{"key": 2}], locks=["a", "c"], tx=tx1, lock_type="shared_weak")
 
         insert_rows("//tmp/t", [{"key": 2, "b": 2}], update=True, tx=tx2)
-        lock_rows("//tmp/t", [{"key": 2}], locks=["c"], tx=tx2)
+        lock_rows("//tmp/t", [{"key": 2}], locks=["c"], tx=tx2, lock_type="shared_weak")
 
-        lock_rows("//tmp/t", [{"key": 2}], locks=["a"], tx=tx3)
+        lock_rows("//tmp/t", [{"key": 2}], locks=["a"], tx=tx3, lock_type="shared_weak")
 
         commit_transaction(tx1, sticky=True)
         commit_transaction(tx2, sticky=True)
@@ -1049,13 +1049,25 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         tx1 = start_transaction(type="tablet", sticky=True)
         tx2 = start_transaction(type="tablet", sticky=True)
 
-        lock_rows("//tmp/t", [{"key": 3}], locks=["a"], tx=tx1)
+        lock_rows("//tmp/t", [{"key": 3}], locks=["a"], tx=tx1, lock_type="shared_weak")
         insert_rows("//tmp/t", [{"key": 3, "a": 1}], update=True, tx=tx2)
 
         commit_transaction(tx2, sticky=True)
 
         with pytest.raises(YtError):
             commit_transaction(tx1, sticky=True)
+
+        tx1 = start_transaction(type="tablet", sticky=True)
+        tx2 = start_transaction(type="tablet", sticky=True)
+
+        lock_rows("//tmp/t", [{"key": 3}], locks=["a"], tx=tx1, lock_type="shared_strong")
+        insert_rows("//tmp/t", [{"key": 3, "a": 1}], update=True, tx=tx2)
+
+        commit_transaction(tx1, sticky=True)
+
+        with pytest.raises(YtError):
+            commit_transaction(tx2, sticky=True)
+
 
     def test_reshard_data(self):
         sync_create_cells(1)

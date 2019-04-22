@@ -204,9 +204,9 @@ int TOperationControllerHost::GetOnlineExecNodeCount()
     return Bootstrap_->GetControllerAgent()->GetOnlineExecNodeCount();
 }
 
-TRefCountedExecNodeDescriptorMapPtr TOperationControllerHost::GetExecNodeDescriptors(const TSchedulingTagFilter& filter)
+TRefCountedExecNodeDescriptorMapPtr TOperationControllerHost::GetExecNodeDescriptors(const TSchedulingTagFilter& filter, bool onlineOnly)
 {
-    return Bootstrap_->GetControllerAgent()->GetExecNodeDescriptors(filter);
+    return Bootstrap_->GetControllerAgent()->GetExecNodeDescriptors(filter, onlineOnly);
 }
 
 TInstant TOperationControllerHost::GetConnectionTime()

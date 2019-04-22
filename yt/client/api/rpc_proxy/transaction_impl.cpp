@@ -313,10 +313,33 @@ void TTransaction::ModifyRows(
 
     std::vector<TUnversionedRow> rows;
     rows.reserve(modifications.Size());
+
+    bool usedStrongLocks = false;
+    for (const auto& modification : modifications) {
+        auto mask = modification.Locks;
+        for (int index = 0; index < TLockMask::MaxCount; ++index) {
+            usedStrongLocks |= mask.Get(index) == ELockType::SharedStrong;
+        }
+    }
+
+    if (usedStrongLocks) {
+        req->Header().set_protocol_version_minor(YTRpcModifyRowsStrongLocksVersion);
+    }
+
     for (const auto& modification : modifications) {
         rows.emplace_back(modification.Row);
         req->add_row_modification_types(static_cast<NProto::ERowModificationType>(modification.Type));
-        req->add_row_read_locks(modification.ReadLocks);
+        if (usedStrongLocks) {
+            req->add_row_locks(modification.Locks);
+        } else {
+            ui32 mask = 0;
+            for (int index = 0; index < TLockMask::MaxCount; ++index) {
+                if (modification.Locks.Get(index) == ELockType::SharedWeak) {
+                    mask |= 1u << index;
+                }
+            }
+            req->add_row_read_locks(mask);
+        }
     }
 
     req->Attachments() = SerializeRowset(
@@ -674,7 +697,7 @@ void TTransaction::OnFailure(const TError& error)
 
 TFuture<void> TTransaction::SendAbort()
 {
-    YT_LOG_DEBUG("Aborting transaction (TransactionId: %v)",
+    YT_LOG_DEBUG(Error_, "Aborting transaction (TransactionId: %v)",
         Id_);
 
     const auto& config = Connection_->GetConfig();

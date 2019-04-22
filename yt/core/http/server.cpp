@@ -173,19 +173,10 @@ private:
                     response->Flush100Continue();
                 }
 
-                NTracing::TTraceContext traceContext(
-                    GetTraceId(request),
-                    GetSpanId(request),
-                    GetParentSpanId(request));
-                if (!traceContext.IsEnabled()) {
-                    traceContext = NTracing::CreateRootTraceContext(false);
-                }
-
-                NTracing::TTraceContextGuard traceContextGuard(traceContext);
-
-                SetTraceId(response, traceContext.GetTraceId());
-                SetSpanId(response, traceContext.GetSpanId());
-                SetParentSpanId(response, traceContext.GetParentSpanId());
+                auto trace = GetOrCreateTraceContext(request);
+                NTracing::TTraceContextGuard guard(trace);
+                NTracing::TTraceContextFinishGuard finishGuard(trace);
+                SetTraceId(response, trace->GetTraceId());
 
                 handler->HandleRequest(request, response);
 

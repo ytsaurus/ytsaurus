@@ -28,16 +28,12 @@ using namespace NTabletClient;
 void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSchema& newColumn)
 {
     YCHECK(oldColumn.Name() == newColumn.Name());
-    if (oldColumn.LogicalType() != newColumn.LogicalType()) {
-        THROW_ERROR_EXCEPTION("Type mismatch for column %Qv: old %Qlv, new %Qlv",
-            oldColumn.Name(),
-            oldColumn.LogicalType(),
-            newColumn.LogicalType());
-    }
-
-    if (!oldColumn.Required() && newColumn.Required()) {
-        THROW_ERROR_EXCEPTION("Optional column %Qv cannot be changed to required",
-            oldColumn.Name());
+    try {
+        ValidateAlterType(oldColumn.LogicalType(), newColumn.LogicalType());
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Type mismatch for column %Qv",
+            oldColumn.Name())
+            << ex;
     }
 
     if (newColumn.SortOrder().operator bool() && newColumn.SortOrder() != oldColumn.SortOrder()) {
@@ -153,7 +149,7 @@ void ValidateNoRequiredColumnsAdded(const TTableSchema& oldSchema, const TTableS
     }
 }
 
-static bool IsPhysicalType(ELogicalValueType logicalType)
+static bool IsPhysicalType(ESimpleLogicalValueType logicalType)
 {
     return static_cast<ui32>(logicalType) == static_cast<ui32>(GetPhysicalType(logicalType));
 }
@@ -173,10 +169,10 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
             if (index < schema.GetKeyColumnCount()) {
                 THROW_ERROR_EXCEPTION("Key column %Qv cannot be aggregated", columnSchema.Name());
             }
-            if (!IsPhysicalType(columnSchema.LogicalType())) {
+            if (!columnSchema.SimplifiedLogicalType() || !IsPhysicalType(*columnSchema.SimplifiedLogicalType())) {
                 THROW_ERROR_EXCEPTION("Aggregated column %Qv is forbiden to have logical type %Qlv",
                     columnSchema.Name(),
-                    columnSchema.LogicalType());
+                    *columnSchema.LogicalType());
             }
 
             const auto& name = *columnSchema.Aggregate();
@@ -238,11 +234,11 @@ void ValidateComputedColumns(const TTableSchema& schema, bool isTableDynamic)
             }
             THashSet<TString> references;
             auto expr = PrepareExpression(*columnSchema.Expression(), schema, BuiltinTypeInferrersMap, &references);
-            if (GetLogicalType(expr->Type) != columnSchema.LogicalType()) {
+            if (GetLogicalType(expr->Type) != columnSchema.SimplifiedLogicalType()) {
                 THROW_ERROR_EXCEPTION(
                     "Computed column %Qv type mismatch: declared type is %Qlv but expression type is %Qlv",
                     columnSchema.Name(),
-                    columnSchema.LogicalType(),
+                    *columnSchema.LogicalType(),
                     expr->Type);
             }
 
@@ -418,7 +414,8 @@ TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool dis
 TError ValidateTableSchemaCompatibility(
     const TTableSchema& inputSchema,
     const TTableSchema& outputSchema,
-    bool ignoreSortOrder)
+    bool ignoreSortOrder,
+    bool allowSimpleTypeDeoptionalize)
 {
     auto addAttributes = [&] (TError error) {
         return error
@@ -443,11 +440,21 @@ TError ValidateTableSchemaCompatibility(
     // Check that columns are the same.
     for (const auto& outputColumn : outputSchema.Columns()) {
         if (auto inputColumn = inputSchema.FindColumn(outputColumn.Name())) {
-            if (!IsSubtypeOf(inputColumn->LogicalType(), outputColumn.LogicalType())) {
+            bool typeIsOk = IsSubtypeOf(inputColumn->LogicalType(), outputColumn.LogicalType());
+            if (allowSimpleTypeDeoptionalize &&
+                !typeIsOk &&
+                inputColumn->SimplifiedLogicalType() &&
+                inputColumn->LogicalType()->GetMetatype() == ELogicalMetatype::Optional)
+            {
+                // For historical reasons some users of this function consider type optional<T> to be compatible with T.
+                // They perform runtime check of values.
+                typeIsOk = IsSubtypeOf(inputColumn->LogicalType()->AsOptionalTypeRef().GetElement(), outputColumn.LogicalType());
+            }
+            if (!typeIsOk) {
                 return addAttributes(TError("Column %Qv input type %Qlv is incompatible with the output type %Qlv",
                     inputColumn->Name(),
-                    inputColumn->LogicalType(),
-                    outputColumn.LogicalType()));
+                    *inputColumn->LogicalType(),
+                    *outputColumn.LogicalType()));
             }
             if (outputColumn.Expression() && inputColumn->Expression() != outputColumn.Expression()) {
                 return addAttributes(TError("Column %Qv expression mismatch",

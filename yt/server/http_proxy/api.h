@@ -51,6 +51,7 @@ public:
     const NDriver::IDriverPtr& GetDriverV4() const;
     const THttpAuthenticatorPtr& GetHttpAuthenticator() const;
     const TCoordinatorPtr& GetCoordinator() const;
+    const TApiConfigPtr& GetConfig() const;
 
     bool IsUserBannedInCache(const TString& user);
     void PutUserIntoBanCache(const TString& user);

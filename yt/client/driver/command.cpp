@@ -66,8 +66,8 @@ TCommandBase::TCommandBase()
 {
     SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::Keep);
 
-    RegisterParameter("rewrite_operation_path", RewriteOperationPath)
-        .Default(true);
+    RegisterParameter("rewrite_operation_path", RewriteOperationPathOption)
+        .Default();
 }
 
 void TCommandBase::Execute(ICommandContextPtr context)
@@ -77,6 +77,13 @@ void TCommandBase::Execute(ICommandContextPtr context)
         request.Id,
         request.AuthenticatedUser);
     Deserialize(*this, request.Parameters);
+    if (!RewriteOperationPathOption) {
+        RewriteOperationPathOption = context->GetConfig()->RewriteOperationPath;
+    }
+    RewriteOperationPath = RewriteOperationPathOption
+        ? *RewriteOperationPathOption
+        : true;
+
     DoExecute(context);
 }
 

@@ -17,6 +17,10 @@
 
 #include <yt/core/misc/lazy_ptr.h>
 
+#include <yt/core/profiling/timing.h>
+
+#include <yt/core/tracing/trace_context.h>
+
 #include <util/system/compiler.h>
 #include <util/system/thread.h>
 
@@ -518,7 +522,7 @@ TEST_F(TSchedulerTest, PropagateFiberCancelationToFuture)
     auto f1 = p1.ToFuture();
 
     auto a = BIND([=] () mutable {
-        WaitFor(f1);
+        Y_UNUSED(WaitFor(f1));
     });
 
     auto f2 = a.AsyncVia(Queue1->GetInvoker()).Run();
@@ -572,7 +576,8 @@ TEST_F(TSchedulerTest, YieldToFromCanceledFiber)
         BIND([=] () {
             NYT::NConcurrency::GetCurrentFiberCanceler().Run();
         }).AsyncVia(invoker2).Run().Get();
-        WaitFor(promise.ToFuture(), invoker2);
+        WaitFor(promise.ToFuture(), invoker2)
+            .ThrowOnError();
     }).AsyncVia(invoker1).Run();
 
     promise.Set();
@@ -656,8 +661,10 @@ TEST_F(TSchedulerTest, SerializedDoubleWaitFor)
     auto promise = NewPromise<void>();
 
     BIND([&] () {
-        WaitFor(VoidFuture);
-        WaitFor(VoidFuture);
+        WaitFor(VoidFuture)
+            .ThrowOnError();
+        WaitFor(VoidFuture)
+            .ThrowOnError();
         promise.Set();
 
         Sleep(SleepQuantum);
@@ -677,6 +684,89 @@ TEST_F(TSchedulerTest, SerializedDoubleWaitFor)
     .ValueOrThrow();
 
     EXPECT_TRUE(result);
+}
+
+void CheckCurrentFiberRunDuration(TDuration lo, TDuration hi)
+{
+    auto* scheduler = GetCurrentScheduler();
+    auto* fiber = scheduler->GetCurrentFiber();
+    auto actual = NProfiling::CpuDurationToDuration(fiber->GetRunCpuTime());
+    EXPECT_LE(actual, hi);
+    EXPECT_GE(actual, lo);
+}
+
+TEST_W(TSchedulerTest, FiberTiming)
+{
+    CheckCurrentFiberRunDuration(TDuration::MilliSeconds(0), TDuration::MilliSeconds(100));
+    Sleep(TDuration::Seconds(1));
+    CheckCurrentFiberRunDuration(TDuration::MilliSeconds(900), TDuration::MilliSeconds(1100));
+    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(1)))
+        .ThrowOnError();
+    CheckCurrentFiberRunDuration(TDuration::MilliSeconds(900), TDuration::MilliSeconds(1100));
+}
+
+void CheckTraceContextTime(const NTracing::TTraceContextPtr& traceContext, TDuration lo, TDuration hi)
+{
+    auto actual = traceContext->GetElapsedTime();
+    EXPECT_LE(actual, hi);
+    EXPECT_GE(actual, lo);
+}
+
+TEST_W(TSchedulerTest, TraceContextZeroTiming)
+{
+    auto traceContext = NTracing::CreateRootTraceContext("Test");
+
+    {
+        NTracing::TTraceContextGuard guard(traceContext);
+        Sleep(TDuration::Seconds(0));
+    }
+
+    CheckTraceContextTime(traceContext, TDuration::MilliSeconds(0), TDuration::MilliSeconds(100));
+}
+
+TEST_W(TSchedulerTest, TraceContextThreadSleepTiming)
+{
+    auto traceContext = NTracing::CreateRootTraceContext("Test");
+
+    {
+        NTracing::TTraceContextGuard guard(traceContext);
+        Sleep(TDuration::Seconds(1));
+    }
+
+    CheckTraceContextTime(traceContext, TDuration::MilliSeconds(900), TDuration::MilliSeconds(1100));
+}
+
+TEST_W(TSchedulerTest, TraceContextFiberSleepTiming)
+{
+    auto traceContext = NTracing::CreateRootTraceContext("Test");
+
+    {
+        NTracing::TTraceContextGuard guard(traceContext);
+        WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(1)))
+            .ThrowOnError();
+    }
+
+    CheckTraceContextTime(traceContext, TDuration::MilliSeconds(0), TDuration::MilliSeconds(100));
+}
+
+TEST_W(TSchedulerTest, TraceContextTimingPropagationViaBind)
+{
+    auto traceContext = NTracing::CreateRootTraceContext("Test");
+    auto actionQueue = New<TActionQueue>();
+
+    {
+        NTracing::TTraceContextGuard guard(traceContext);
+        auto asyncResult = BIND([] {
+            Sleep(TDuration::MilliSeconds(700));
+        })
+            .AsyncVia(actionQueue->GetInvoker())
+            .Run();
+        Sleep(TDuration::MilliSeconds(300));
+        WaitFor(asyncResult)
+            .ThrowOnError();
+    }
+
+    CheckTraceContextTime(traceContext, TDuration::MilliSeconds(900), TDuration::MilliSeconds(1100));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -730,9 +820,11 @@ TEST_F(TSuspendableInvokerTest, SuspendableDoubleWaitFor)
     auto promise = NewPromise<void>();
 
     auto setFlagFuture = BIND([&] () {
-        WaitFor(VoidFuture);
+        WaitFor(VoidFuture)
+            .ThrowOnError();
         Sleep(SleepQuantum);
-        WaitFor(VoidFuture);
+        WaitFor(VoidFuture)
+            .ThrowOnError();
         promise.Set();
 
         Sleep(SleepQuantum * 10);
@@ -805,7 +897,7 @@ TEST_F(TSuspendableInvokerTest, AllowSuspendOnContextSwitch)
 
     auto setFlagFuture = BIND([&] () {
         Sleep(SleepQuantum);
-        WaitFor(future);
+        Y_UNUSED(WaitFor(future));
         flag = true;
     })
     .AsyncVia(suspendableInvoker)

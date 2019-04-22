@@ -4,7 +4,7 @@
 
 #include "table_schema.h"
 
-#include <yt/server/clickhouse_server/protos/read_job_spec.pb.h>
+#include <yt/server/clickhouse_server/protos/subquery_spec.pb.h>
 
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/data_source.h>
@@ -20,19 +20,17 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReadJobSpec
+class TSubquerySpec
 {
 public:
     NChunkClient::TDataSourceDirectoryPtr DataSourceDirectory;
     std::vector<NChunkClient::TDataSliceDescriptor> DataSliceDescriptors;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
+    TQueryId InitialQueryId;
+    DB::NamesAndTypesList Columns;
+    NTableClient::TTableSchema ReadSchema;
 
-public:
     void Validate() const;
-
-    NChunkClient::EDataSourceType GetCommonDataSourceType() const;
-    NTableClient::TTableSchema GetCommonNativeSchema() const;
-    std::vector<TClickHouseTablePtr> GetTables() const;
 
 private:
     const std::vector<NChunkClient::TDataSource>& DataSources() const
@@ -43,8 +41,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(const TReadJobSpec& spec, NYson::IYsonConsumer* consumer);
-void Deserialize(TReadJobSpec& spec, NYTree::INodePtr node);
+void ToProto(NProto::TSubquerySpec* protoSpec, const TSubquerySpec& spec);
+void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

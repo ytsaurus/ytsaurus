@@ -91,6 +91,11 @@ public:
 
         auto cachedBlock = New<TCachedBlock>(blockId, data, source);
         cookie.EndInsert(cachedBlock);
+
+        if (source) {
+            auto guard = Guard(BlocksWithSourceLock_);
+            BlocksWithSource_.push_back(std::move(cachedBlock));
+        }
     }
 
     TCachedBlockCookie BeginInsertCachedBlock(const TBlockId& blockId)
@@ -107,7 +112,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         try {
-            auto chunkRegistry = Bootstrap_->GetChunkRegistry();
+            const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
             // NB: At the moment, range read requests are only possible for the whole chunks.
             auto chunk = chunkRegistry->GetChunkOrThrow(chunkId);
 
@@ -132,7 +137,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         try {
-            auto chunkRegistry = Bootstrap_->GetChunkRegistry();
+            const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
             auto chunk = chunkRegistry->FindChunk(chunkId);
             auto type = TypeFromId(DecodeChunkId(chunkId).Id);
             if (!chunk) {
@@ -166,6 +171,26 @@ public:
         }
     }
 
+    std::vector<TCachedBlockPtr> GetAllBlocksWithSource()
+    {
+        std::vector<TCachedBlockPtr> result;
+        auto guard = Guard(BlocksWithSourceLock_);
+        result.reserve(BlocksWithSource_.size());
+        auto sourceIt = BlocksWithSource_.begin();
+        auto destIt = sourceIt;
+        while (sourceIt != BlocksWithSource_.end()) {
+            auto block = sourceIt->Lock();
+            if (block) {
+                result.push_back(std::move(block));
+                *destIt++ = std::move(*sourceIt++);
+            } else {
+                ++sourceIt;
+            }
+        }
+        BlocksWithSource_.erase(sourceIt, BlocksWithSource_.end());
+        return result;
+    }
+
     IPrioritizedInvokerPtr GetReaderInvoker() const
     {
         return ReaderInvoker_;
@@ -174,8 +199,13 @@ public:
 private:
     const TDataNodeConfigPtr Config_;
     TBootstrap* const Bootstrap_;
-    TThreadPoolPtr ReaderThreadPool_;
-    IPrioritizedInvokerPtr ReaderInvoker_;
+
+    const TThreadPoolPtr ReaderThreadPool_;
+    const IPrioritizedInvokerPtr ReaderInvoker_;
+
+    TSpinLock BlocksWithSourceLock_;
+    std::vector<TWeakPtr<TCachedBlock>> BlocksWithSource_;
+
 
     virtual i64 GetWeight(const TCachedBlockPtr& block) const override
     {
@@ -245,9 +275,9 @@ TFuture<std::vector<TBlock>> TChunkBlockManager::ReadBlockSet(
         options);
 }
 
-std::vector<TCachedBlockPtr> TChunkBlockManager::GetAllBlocks() const
+std::vector<TCachedBlockPtr> TChunkBlockManager::GetAllBlocksWithSource() const
 {
-    return Impl_->GetAll();
+    return Impl_->GetAllBlocksWithSource();
 }
 
 IPrioritizedInvokerPtr TChunkBlockManager::GetReaderInvoker() const

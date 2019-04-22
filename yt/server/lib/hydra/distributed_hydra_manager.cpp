@@ -975,8 +975,7 @@ private:
                     YT_LOG_INFO("The latest snapshot is %v", maxSnapshotId);
                 }
 
-                auto asyncChangelogStore = ChangelogStoreFactory_->Lock();
-                ChangelogStore_ = WaitFor(asyncChangelogStore)
+                ChangelogStore_ = WaitFor(ChangelogStoreFactory_->Lock())
                     .ValueOrThrow();
 
                 auto changelogVersion = ChangelogStore_->GetReachableVersion();
@@ -1056,6 +1055,15 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto wrappedError = TError("Error committing mutation")
+            << error;
+        Restart(AutomatonEpochContext_, wrappedError);
+    }
+
+    void OnLoggingFailed(const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto wrappedError = TError("Error logging mutations")
             << error;
         Restart(AutomatonEpochContext_, wrappedError);
     }
@@ -1146,6 +1154,8 @@ private:
             BIND(&TDistributedHydraManager::OnCheckpointNeeded, MakeWeak(this)));
         epochContext->LeaderCommitter->SubscribeCommitFailed(
             BIND(&TDistributedHydraManager::OnCommitFailed, MakeWeak(this)));
+        epochContext->LeaderCommitter->SubscribeLoggingFailed(
+            BIND(&TDistributedHydraManager::OnLoggingFailed, MakeWeak(this)));
 
         epochContext->Checkpointer = New<TCheckpointer>(
             Config_,
@@ -1289,6 +1299,8 @@ private:
             CellManager_,
             DecoratedAutomaton_,
             epochContext.Get());
+        epochContext->FollowerCommitter->SubscribeLoggingFailed(
+            BIND(&TDistributedHydraManager::OnLoggingFailed, MakeWeak(this)));
 
         SwitchTo(DecoratedAutomaton_->GetSystemInvoker());
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1460,7 +1472,11 @@ private:
 
         SystemLockGuard_.Release();
 
-        ChangelogStore_.Reset();
+        if (ChangelogStore_) {
+            ChangelogStore_->Abort();
+            ChangelogStore_.Reset();
+        }
+
         ReachableVersion_.reset();
     }
 

@@ -6,6 +6,7 @@
 
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/config.h>
+#include <yt/server/master/cell_master/config_manager.h>
 
 #include <yt/server/master/node_tracker_server/node.h>
 #include <yt/server/master/node_tracker_server/node_tracker.h>
@@ -620,7 +621,7 @@ bool TChunkPlacement::IsValidBalancingTargetToAllocate(
 
 bool TChunkPlacement::IsValidBalancingTargetCore(TNode* node)
 {
-    if (node->GetSessionCount(ESessionType::Replication) >= Config_->MaxReplicationWriteSessions) {
+    if (node->GetSessionCount(ESessionType::Replication) >= GetDynamicConfig()->MaxReplicationWriteSessions) {
         // Do not write anything to a node with too many write sessions.
         return false;
     }
@@ -692,7 +693,7 @@ void TChunkPlacement::AddSessionHint(TNode* node, int mediumIndex, ESessionType 
     RemoveFromLoadFactorMaps(node);
     InsertToLoadFactorMaps(node);
 
-    if (node->GetSessionCount(ESessionType::Replication) >= Config_->MaxReplicationWriteSessions) {
+    if (node->GetSessionCount(ESessionType::Replication) >= GetDynamicConfig()->MaxReplicationWriteSessions) {
         RemoveFromFillFactorMaps(node);
     }
 }
@@ -748,6 +749,12 @@ void TChunkPlacement::PrepareLoadFactorIterator(const TDataCenterSet* dataCenter
             LoadFactorToNodeIterator_.AddRange(it->second);
         }
     });
+}
+
+const TDynamicChunkManagerConfigPtr& TChunkPlacement::GetDynamicConfig()
+{
+    const auto& configManager = Bootstrap_->GetConfigManager();
+    return configManager->GetConfig()->ChunkManager;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -10,7 +10,6 @@ DECLARE_REFCOUNTED_CLASS(TActionQueue)
 DECLARE_REFCOUNTED_CLASS(TFairShareActionQueue)
 DECLARE_REFCOUNTED_CLASS(TThreadPool)
 DECLARE_REFCOUNTED_CLASS(TPeriodicExecutor)
-DECLARE_REFCOUNTED_CLASS(TFiber)
 DECLARE_REFCOUNTED_CLASS(TAsyncSemaphore)
 DECLARE_REFCOUNTED_CLASS(TProfiledAsyncSemaphore)
 
@@ -44,7 +43,7 @@ DEFINE_ENUM(EExecutionStackKind,
 class TExecutionStack;
 class TExecutionContext;
 
-DECLARE_REFCOUNTED_CLASS(TFiber);
+DECLARE_REFCOUNTED_CLASS(TFiber)
 
 template <class TSignature>
 class TCoroutine;

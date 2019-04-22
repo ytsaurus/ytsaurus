@@ -81,6 +81,8 @@ public:
 
     bool DisableCorsCheck;
 
+    bool ForceTracing;
+
     TApiConfig()
     {
         RegisterParameter("ban_cache_expiration_time", BanCacheExpirationTime)
@@ -90,6 +92,9 @@ public:
             .Default(1024);
 
         RegisterParameter("disable_cors_check", DisableCorsCheck)
+            .Default(false);
+
+        RegisterParameter("force_tracing", ForceTracing)
             .Default(false);
     }
 };

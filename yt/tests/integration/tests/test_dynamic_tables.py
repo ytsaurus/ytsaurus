@@ -188,6 +188,15 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
                 if get("//sys/cluster_nodes/{0}/@decommissioned".format(address)):
                     return False
 
+                try:
+                    actual_config_version = get("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/config_version".format(address, cell_id))
+                except:
+                    return False
+
+                expected_config_version = get("//sys/tablet_cells/{0}/@config_version".format(cell_id))
+                if actual_config_version != expected_config_version:
+                    return False
+
             return True
 
         wait(check)
@@ -673,7 +682,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         self._test_cell_bundle_distribution(True)
 
     @flaky(max_runs=5)
-    def test_cell_bundle_distribution_new(self):
+    def test_cell_bundle_distribution_old(self):
         self._test_cell_bundle_distribution(False)
 
     def test_cell_bundle_options(self):
@@ -1728,6 +1737,8 @@ class TestTabletActions(DynamicTablesBase):
         wait(lambda: get("#{0}/@state".format(action)) == "completed")
         self._validate_tablets("//tmp/t", state=[e, e], expected_state=[e, e])
 
+    # TODO(ifsmirnov): YT-10550
+    @flaky(max_runs=5)
     def test_action_autoremove(self):
         cells = sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
@@ -1735,7 +1746,7 @@ class TestTabletActions(DynamicTablesBase):
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         action = create("tablet_action", "", attributes={
             "kind": "reshard",
-            "expiration_time": (datetime.utcnow() + timedelta(seconds=2)).isoformat(),
+            "expiration_time": (datetime.utcnow() + timedelta(seconds=5)).isoformat(),
             "tablet_ids": [tablet_id],
             "pivot_keys": [[], [1]]})
         wait(lambda: len(ls("//sys/tablet_actions")) > 0)
@@ -2473,6 +2484,24 @@ class TestTabletActions(DynamicTablesBase):
         sync_balance_tablet_cells("b")
         with pytest.raises(YtError):
             sync_balance_tablet_cells("b", ["//tmp/t"])
+
+    def test_removing_bundle_removes_actions(self):
+        create_tablet_cell_bundle("b")
+        cell_id, = sync_create_cells(1, "b")
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
+        sync_mount_table("//tmp/t")
+        action_id = create("tablet_action", "", attributes={
+            "kind": "move",
+            "tablet_ids": [get("//tmp/t/@tablets/0/tablet_id")],
+            "cell_ids": [cell_id],
+            "expiration_time": "2099-01-01"})
+        wait(lambda: get("#{}/@state".format(action_id)) in ("completed", "failed"))
+        assert get("#{}/@state".format(action_id)) == "completed"
+        remove("//tmp/t")
+        sync_remove_tablet_cells([cell_id])
+        assert exists("//sys/tablet_actions/{}".format(action_id))
+        remove_tablet_cell_bundle("b")
+        assert not exists("//sys/tablet_actions/{}".format(action_id))
 
 ##################################################################
 

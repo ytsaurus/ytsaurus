@@ -1,5 +1,5 @@
 SET(YT_VERSION_MAJOR 19)
-SET(YT_VERSION_MINOR 4)
+SET(YT_VERSION_MINOR 5)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya.make.environment.inc)
 
@@ -10,11 +10,11 @@ SET(YT_ARCADIA_CXXFLAGS
   -Wno-unused-function
   -Wno-unused-parameter
   -Wno-unused-value
-  -Wno-unused-const-variable
   -Wno-uninitialized
   -Wno-type-limits
   -Wno-missing-braces
   -Wno-missing-field-initializers
+  -Wunused-result
   -DYT_IN_ARCADIA
 )
 

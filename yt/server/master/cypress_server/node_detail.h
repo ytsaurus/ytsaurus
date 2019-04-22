@@ -48,6 +48,7 @@ protected:
 
     bool IsLeader() const;
     bool IsRecovery() const;
+    const TDynamicCypressManagerConfigPtr& GetDynamicCypressManagerConfig() const;
 
     void DestroyCore(TCypressNodeBase* node);
 

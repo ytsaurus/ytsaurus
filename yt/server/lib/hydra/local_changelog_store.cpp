@@ -424,6 +424,9 @@ public:
         return Factory_->OpenChangelog(id, Epoch_);
     }
 
+    virtual void Abort() override
+    { }
+
 private:
     const TLocalChangelogStoreFactoryPtr Factory_;
     const ui64 Epoch_;

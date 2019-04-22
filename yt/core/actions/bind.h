@@ -34,6 +34,7 @@ namespace NYT {
 //
 
 template <
+    bool CaptureTraceContext,
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
     class TTag,
     int Counter,
@@ -42,6 +43,7 @@ template <
     class... TAs>
 TCallback<
     typename NYT::NDetail::TBindState<
+        CaptureTraceContext,
         typename NYT::NDetail::TFunctorTraits<TFunctor>::TRunnable,
         typename NYT::NDetail::TFunctorTraits<TFunctor>::TSignature,
         void(typename NMpl::TDecay<TAs>::TType...)
@@ -73,6 +75,7 @@ Bind(
     // because #TBindState do not hold references to parameters.
 
     typedef NYT::NDetail::TBindState<
+            CaptureTraceContext,
             TRunnable,
             TSignature,
             void(typename NMpl::TDecay<TAs>::TType...)
@@ -100,10 +103,13 @@ Bind(
 }
 
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
-#define BIND(...) ::NYT::Bind<::NYT::TCurrentTranslationUnitTag, __COUNTER__>(FROM_HERE, __VA_ARGS__)
+    #define BIND_IMPL(captureTraceContext, ...) ::NYT::Bind<captureTraceContext, ::NYT::TCurrentTranslationUnitTag, __COUNTER__>(FROM_HERE, __VA_ARGS__)
 #else
-#define BIND(...) ::NYT::Bind(__VA_ARGS__)
+    #define BIND_IMPL(captureTraceContext, ...) ::NYT::Bind<captureTraceContext>(__VA_ARGS__)
 #endif
+
+#define BIND(...)                            BIND_IMPL(true, __VA_ARGS__)
+#define BIND_DONT_CAPTURE_TRACE_CONTEXT(...) BIND_IMPL(false, __VA_ARGS__)
 
 ////////////////////////////////////////////////////////////////////////////////
 /*! \endinternal */

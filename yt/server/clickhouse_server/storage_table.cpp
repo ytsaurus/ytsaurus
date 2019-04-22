@@ -2,7 +2,6 @@
 
 #include "query_helpers.h"
 #include "storage_distributed.h"
-#include "virtual_columns.h"
 #include "private.h"
 
 #include "query_context.h"
@@ -20,12 +19,13 @@
 
 namespace NYT::NClickHouseServer {
 
+using namespace NYPath;
 using namespace DB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStorageTable final
-    : public TStorageDistributed
+class TStorageTable
+    : public TStorageDistributedBase
 {
 private:
     TClickHouseTablePtr Table;
@@ -33,11 +33,17 @@ private:
 public:
     TStorageTable(
         TClickHouseTablePtr table,
-        IExecutionClusterPtr cluster);
+        IExecutionClusterPtr cluster)
+        : TStorageDistributedBase(
+            std::move(cluster),
+            table->TableSchema,
+            TClickHouseTableSchema::From(*table))
+        , Table(std::move(table))
+    { }
 
     std::string getTableName() const override
     {
-        return Table->Name;
+        return std::string(Table->Path);
     }
 
     virtual QueryProcessingStage::Enum getQueryProcessingStage(const Context&) const
@@ -46,95 +52,60 @@ public:
     }
 
 private:
-    const DB::NamesAndTypesList& ListVirtualColumns() const override
+    virtual std::vector<TYPath> GetTablePaths() const override
     {
-        return ListSystemVirtualColumns();
+        return {Table->Path};
     }
-
-    virtual TTablePartList GetTableParts(
-        const ASTPtr& queryAst,
-        const Context& context,
-        const DB::KeyCondition* keyCondition,
-        size_t maxParts) override;
 
     virtual ASTPtr RewriteSelectQueryForTablePart(
         const ASTPtr& queryAst,
-        const std::string& jobSpec) override;
-};
+        const std::string& subquerySpec) override
+    {
+        auto modifiedQueryAst = queryAst->clone();
 
-////////////////////////////////////////////////////////////////////////////////
+        const auto& tableExpressions = GetAllTableExpressions(typeid_cast<ASTSelectQuery &>(*modifiedQueryAst));
 
-TStorageTable::TStorageTable(
-    TClickHouseTablePtr table,
-    IExecutionClusterPtr cluster)
-    : TStorageDistributed(
-        std::move(cluster),
-        TClickHouseTableSchema::From(*table))
-    , Table(std::move(table))
-{}
+        bool anyTableFunction = false;
 
-TTablePartList TStorageTable::GetTableParts(
-    const ASTPtr& /* queryAst */,
-    const Context& context,
-    const KeyCondition* keyCondition,
-    size_t maxParts)
-{
-    auto* queryContext = GetQueryContext(context);
+        for (const auto& tableExpression : tableExpressions) {
+            ASTPtr tableFunction;
 
-    return queryContext->GetTableParts(
-        Table->Name,
-        keyCondition,
-        maxParts);
-}
-
-ASTPtr TStorageTable::RewriteSelectQueryForTablePart(
-    const ASTPtr& queryAst,
-    const std::string& jobSpec)
-{
-    auto modifiedQueryAst = queryAst->clone();
-
-    const auto& tableExpressions = GetAllTableExpressions(typeid_cast<ASTSelectQuery &>(*modifiedQueryAst));
-
-    bool anyTableFunction = false;
-
-    for (const auto& tableExpression : tableExpressions) {
-        ASTPtr tableFunction;
-
-        if (tableExpression->database_and_table_name) {
-            const auto& tableName = static_cast<ASTIdentifier&>(*tableExpression->database_and_table_name).name;
-            if (tableName != getTableName()) {
-                continue;
+            if (tableExpression->database_and_table_name) {
+                const auto& tableName = static_cast<ASTIdentifier&>(*tableExpression->database_and_table_name).name;
+                if (tableName != getTableName()) {
+                    continue;
+                }
             }
-        }
 
-        if (tableExpression->table_function) {
-            auto& function = typeid_cast<ASTFunction &>(*tableExpression->table_function);
-            if (function.name == "ytTable") {
-                // TODO: forward all args
+            if (tableExpression->table_function) {
+                auto& function = typeid_cast<ASTFunction &>(*tableExpression->table_function);
+                if (function.name == "ytTable") {
+                    // TODO: forward all args
+                    tableFunction = makeASTFunction(
+                        "ytSubquery",
+                        std::make_shared<ASTLiteral>(subquerySpec));
+                }
+            } else {
                 tableFunction = makeASTFunction(
-                    "ytTableData",
-                    std::make_shared<ASTLiteral>(jobSpec));
+                    "ytSubquery",
+                    std::make_shared<ASTLiteral>(subquerySpec));
             }
-        } else {
-            tableFunction = makeASTFunction(
-                "ytTableData",
-                std::make_shared<ASTLiteral>(jobSpec));
+
+            if (tableFunction) {
+                tableExpression->table_function = std::move(tableFunction);
+                tableExpression->database_and_table_name = nullptr;
+                tableExpression->subquery = nullptr;
+                anyTableFunction = true;
+            }
         }
 
-        if (tableFunction) {
-            tableExpression->table_function = std::move(tableFunction);
-            tableExpression->database_and_table_name = nullptr;
-            tableExpression->subquery = nullptr;
-            anyTableFunction = true;
+        if (!anyTableFunction) {
+            throw Exception("Invalid SelectQuery, no table function produced", Exception(queryToString(queryAst), ErrorCodes::LOGICAL_ERROR), ErrorCodes::LOGICAL_ERROR);
         }
-    }
 
-    if (!anyTableFunction) {
-        throw Exception("Invalid SelectQuery, no table function produced", Exception(queryToString(queryAst), ErrorCodes::LOGICAL_ERROR), ErrorCodes::LOGICAL_ERROR);
+        return modifiedQueryAst;
     }
-
-    return modifiedQueryAst;
-}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

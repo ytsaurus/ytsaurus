@@ -8,8 +8,6 @@ namespace NYT::NJournalServer {
 
 DECLARE_REFCOUNTED_CLASS(TJournalManager)
 
-DECLARE_REFCOUNTED_CLASS(TJournalManagerConfig)
-
 class TJournalNode;
 
 ////////////////////////////////////////////////////////////////////////////////

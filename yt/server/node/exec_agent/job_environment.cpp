@@ -678,13 +678,16 @@ private:
 
             auto limits = container->GetResourceLimitsRecursive();
 
-            auto guard = Guard(LimitsLock_);
             auto newCpuLimit = std::max<double>(limits.Cpu - Config_->NodeDedicatedCpu, 0);
+            bool cpuLimitChanged = false;
+
+            auto guard = Guard(LimitsLock_);
             if (!CpuLimit_ || *CpuLimit_ != limits.Cpu) {
                 YT_LOG_INFO("Update porto cpu limit (OldCpuLimit: %v, NewCpuLimit: %v)",
                     CpuLimit_,
                     newCpuLimit);
                 CpuLimit_ = newCpuLimit;
+                cpuLimitChanged = true;
             }
 
             if (!MemoryLimit_ || *MemoryLimit_ != limits.Memory) {
@@ -694,6 +697,10 @@ private:
                 MemoryLimit_ = limits.Memory;
             }
 
+            guard.Release();
+            if (!Config_->ExternalJobContainer && cpuLimitChanged) {
+                MetaInstance_->SetCpuLimit(newCpuLimit);
+            }
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to update resource limits from porto");
         }

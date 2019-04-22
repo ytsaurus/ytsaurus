@@ -60,11 +60,13 @@ public:
             TWriteContext context;
             context.Phase = EWritePhase::Lock;
             context.Transaction = transaction.get();
+
+            TLockMask lockMask;
+            lockMask.Set(PrimaryLockIndex, ELockType::Exclusive);
             auto dynamicRow = Store_->ModifyRow(
                 row,
-                0,
-                PrimaryLockMask,
-                NApi::ERowModificationType::Write,
+                lockMask,
+                false,
                 &context);
             transaction->LockedRows().push_back(TSortedDynamicRowRef(Store_.Get(), nullptr, dynamicRow));
 
@@ -72,7 +74,7 @@ public:
             Store_->PrepareRow(transaction.get(), dynamicRow);
 
             CommitTransaction(transaction.get());
-            Store_->CommitRow(transaction.get(), dynamicRow, PrimaryLockMask);
+            Store_->CommitRow(transaction.get(), dynamicRow, lockMask);
         };
 
         Cerr << "Warming up..." << Endl;

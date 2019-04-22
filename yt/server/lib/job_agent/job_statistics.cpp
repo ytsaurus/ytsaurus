@@ -51,6 +51,24 @@ size_t EstimateSizes(T&& t, U&& ... u)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TJobEvent::TJobEvent(NJobTrackerClient::EJobState state)
+    : Timestamp_(Now())
+    , State_(state)
+{ }
+
+TJobEvent::TJobEvent(NJobTrackerClient::EJobPhase phase)
+    : Timestamp_(Now())
+    , Phase_(phase)
+{ }
+
+TJobEvent::TJobEvent(NJobTrackerClient::EJobState state, NJobTrackerClient::EJobPhase phase)
+    : Timestamp_(Now())
+    , State_(state)
+    , Phase_(phase)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 void Serialize(const TJobEvents& events, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)

@@ -1,7 +1,8 @@
 #pragma once
 
-#include <yt/core/misc/public.h>
 #include <yt/core/misc/enum.h>
+#include <yt/core/misc/small_vector.h>
+#include <yt/core/misc/yt_alloc.h>
 
 namespace NYT::NYTAlloc {
 
@@ -28,14 +29,21 @@ void* Allocate(size_t size);
 //! ommited from the core dump.
 void* AllocatePageAligned(size_t size);
 
+//! An optimized version of #Allocate with #Size being known at compile-time.
+template <size_t Size>
+void* AllocateConstSize();
+
 //! Frees a chunk of memory previously allocated via YTAlloc* functions.
 //! Does nothing if #ptr is null.
 void Free(void* ptr);
 
+//! Similar to #Free but assumes that #ptr is not null.
+void FreeNonNull(void* ptr);
+
 //! Returns the size of the chunk pointed to by #ptr.
-//! This size is not guaranteed to be exactly equal to #size passed to YTAlloc* functions
+//! This size is not guaranteed to be exactly equal to #size passed to allocation functions
 //! due to rounding; the returned size, however, is never less than the latter size.
-//! If #ptr is null then returns 0.
+//! If #ptr is null or we are unable to determine the allocation size, then 0 is returned.
 size_t GetAllocationSize(void* ptr);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,9 +71,6 @@ TDuration GetSlowCallWarningThreshold();
 
 ////////////////////////////////////////////////////////////////////////////////
 // Statistics API
-
-constexpr size_t SmallRankCount = 25;
-constexpr size_t LargeRankCount = 30;
 
 DEFINE_ENUM(EBasicCounter,
     (BytesAllocated)
@@ -147,6 +152,19 @@ TEnumIndexedVector<ssize_t, ESystemCounter> GetSystemCounters();
 
 // Builds a string containing some brief allocation statistics.
 TString FormatCounters();
+
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr int MaxAllocationProfilingBacktraceDepth = 16;
+using TBacktrace = SmallVector<void*, MaxAllocationProfilingBacktraceDepth>;
+
+struct TProfiledAllocation
+{
+    TBacktrace Backtrace;
+    TEnumIndexedVector<ssize_t, EBasicCounter> Counters;
+};
+
+std::vector<TProfiledAllocation> GetProfiledAllocationStatistics();
 
 ////////////////////////////////////////////////////////////////////////////////
 

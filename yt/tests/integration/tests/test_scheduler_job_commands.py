@@ -332,31 +332,10 @@ class TestJobProber(YTEnvSetup):
                 width=132,
                 authenticated_user="u2")
 
-    def get_job_count_profiling(self):
-        time.sleep(1.2)
-        profiling_info = {}
-        for value in reversed(get("//sys/scheduler/orchid/profiling/scheduler/job_count", verbose=False)):
-            key = tuple(sorted(value["tags"].items()))
-            if key not in profiling_info:
-                profiling_info[key] = value["value"]
-
-        job_count = {"state": defaultdict(int), "abort_reason": defaultdict(int)}
-        print "profiling_info:", profiling_info
-        for key, value in profiling_info.iteritems():
-            state = dict(key)["state"]
-            job_count["state"][state] += value
-
-        for key, value in profiling_info.iteritems():
-            state = dict(key)["state"]
-            if state != "aborted":
-                continue
-            abort_reason = dict(key)["abort_reason"]
-            job_count["abort_reason"][abort_reason] += value
-        return job_count
-
     @unix_only
     def test_abort_job(self):
-        start_profiling = self.get_job_count_profiling()
+        time.sleep(2)
+        start_profiling = get_job_count_profiling()
 
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -385,7 +364,8 @@ class TestJobProber(YTEnvSetup):
         assert get(op.get_path() + "/@progress/jobs/aborted/scheduled/other") == 0
         assert get(op.get_path() + "/@progress/jobs/failed") == 0
 
-        end_profiling = self.get_job_count_profiling()
+        time.sleep(2)
+        end_profiling = get_job_count_profiling()
 
         for state in end_profiling["state"]:
             print state, start_profiling["state"][state], end_profiling["state"][state]

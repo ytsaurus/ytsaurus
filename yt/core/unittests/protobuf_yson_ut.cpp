@@ -687,6 +687,21 @@ TEST(TYsonToProtobufTest, Entities)
     EXPECT_FALSE(message.has_nested_message1());
 }
 
+TEST(TYsonToProtobufTest, ReservedFields)
+{
+    TProtobufWriterOptions options;
+
+    TEST_PROLOGUE_WITH_OPTIONS(TMessageWithReservedFields, options)
+        .BeginMap()
+            .Item("reserved_field1").Value(1)
+            .Item("reserved_field1").Entity()
+            .Item("reserved_field3").BeginMap()
+                .Item("key").Value("value")
+            .EndMap()
+        .EndMap();
+    TEST_EPILOGUE(TMessage)
+}
+
 #undef TEST_PROLOGUE
 #undef TEST_PROLOGUE_WITH_OPTIONS
 #undef TEST_EPILOGUE
@@ -1096,6 +1111,14 @@ TEST(TProtobufToYsonTest, UnknownFields)
             .EndMap();
         EXPECT_TRUE(AreNodesEqual(writtenNode, expectedNode));
     }
+}
+
+TEST(TProtobufToYsonTest, ReservedFields)
+{
+    TEST_PROLOGUE()
+    codedStream.WriteTag(WireFormatLite::MakeTag(100 /*unknown*/, WireFormatLite::WIRETYPE_VARINT));
+    codedStream.WriteVarint64(0);
+    TEST_EPILOGUE(TMessageWithReservedFields)
 }
 
 #undef TEST_PROLOGUE

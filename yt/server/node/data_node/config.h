@@ -669,6 +669,13 @@ public:
     //! Sample rate of blocks that will be added to the RecentlyReadBlockQueue in ChunkBlockManager.
     double RecentlyReadBlockQueueSampleRate;
 
+    //! The number of threads in StorageHeavy thread pool (used for extracting chunk meta, handling
+    //! chunk slices, columnar statistic etc).
+    int StorageHeavyThreadCount;
+
+    //! The number of threads in StorageLight thread pool (used for reading chunk blocks).
+    int StorageLightThreadCount;
+
     TDataNodeConfig()
     {
         RegisterParameter("lease_transaction_timeout", LeaseTransactionTimeout)
@@ -842,14 +849,17 @@ public:
             .LessThanOrEqual(1.0)
             .Default(0.0);
 
+        RegisterParameter("storage_heavy_thread_count", StorageHeavyThreadCount)
+            .GreaterThan(0)
+            .Default(2);
+        RegisterParameter("storage_light_thread_count", StorageLightThreadCount)
+            .GreaterThan(0)
+            .Default(2);
+
         RegisterPreprocessor([&] () {
             ChunkMetaCache->Capacity = 1_GB;
-
-            // TODO(babenko): adjust after experiments
-            BlocksExtCache->Capacity = 100_GB;
-
+            BlocksExtCache->Capacity = 1_GB;
             BlockMetaCache->Capacity = 1_GB;
-
             BlockCache->CompressedData->Capacity = 1_GB;
             BlockCache->UncompressedData->Capacity = 1_GB;
 

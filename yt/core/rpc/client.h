@@ -77,7 +77,7 @@ class TClientContext
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TRequestId, RequestId);
-    DEFINE_BYVAL_RO_PROPERTY(NTracing::TTraceContext, TraceContext);
+    DEFINE_BYVAL_RO_PROPERTY(NTracing::TTraceContextPtr, TraceContext);
     DEFINE_BYVAL_RO_PROPERTY(TString, Service);
     DEFINE_BYVAL_RO_PROPERTY(TString, Method);
     DEFINE_BYVAL_RO_PROPERTY(bool, Heavy);
@@ -88,7 +88,7 @@ public:
 public:
     TClientContext(
         TRequestId requestId,
-        const NTracing::TTraceContext& traceContext,
+        NTracing::TTraceContextPtr traceContext,
         const TString& service,
         const TString& method,
         bool heavy,
@@ -193,7 +193,7 @@ private:
 
     const IInvokerPtr& GetInvoker() const;
 
-    void TraceRequest(const NTracing::TTraceContext& traceContext);
+    void TraceRequest(const NTracing::TTraceContextPtr& traceContext);
 
     void SetCodecsInHeader();
     void SetStreamingParametersInHeader();

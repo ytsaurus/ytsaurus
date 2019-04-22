@@ -254,10 +254,10 @@ void TError::CaptureOriginAttributes()
     Attributes().Set("pid", ::getpid());
     Attributes().Set("tid", TThread::CurrentThreadId());
     Attributes().Set("fid", NConcurrency::GetCurrentFiberId());
-    auto traceContext = NTracing::GetCurrentTraceContext();
-    if (traceContext.IsEnabled()) {
-        Attributes().SetYson("trace_id", ConvertToYsonString(traceContext.GetTraceId()));
-        Attributes().SetYson("span_id", ConvertToYsonString(traceContext.GetSpanId()));
+    const auto* traceContext = NTracing::GetCurrentTraceContext();
+    if (traceContext) {
+        Attributes().SetYson("trace_id", ConvertToYsonString(traceContext->GetTraceId()));
+        Attributes().SetYson("span_id", ConvertToYsonString(traceContext->GetSpanId()));
     }
 }
 
