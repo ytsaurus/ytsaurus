@@ -549,7 +549,7 @@ def parse_time(time_str):
 # Instance resolving
 #
 
-Instance = collections.namedtuple("Instance", ["address", "application", "attributes"])
+Instance = collections.namedtuple("Instance", ["address", "application", "attributes", "hidden_attributes"])
 
 
 def resolve_cluster(guid):
@@ -609,7 +609,7 @@ def resolve_instance(instance_str):
         return resolve_service(client, service, components)
     elif instance_str.count("@") == 1:
         application, address = instance_str.split("@")
-        return [Instance(address, application, [])]
+        return [Instance(address, application, [], [])]
     else:
         _raise()
 
@@ -799,7 +799,26 @@ class NodeJobIdSelector(object):
 
 
 def instance_match_attribute(instance, attr_pattern):
-    return any(attr_pattern in attr for attr in instance.attributes)
+    result = False
+    for attr in instance.attributes:
+        if attr_pattern in attr:
+            result = True
+            break
+
+    write_idx = 0
+    for idx in xrange(len(instance.hidden_attributes)):
+        attr = instance.hidden_attributes[idx]
+        if attr_pattern in attr:
+            instance.attributes.append(attr)
+            result = True
+        else:
+            if write_idx != idx:
+                instance.hidden_attributes[write_idx] = attr
+            write_idx += 1
+    if write_idx < len(instance.hidden_attributes):
+        del instance.hidden_attributes[write_idx:]
+
+    return result
 
 
 def parse_state_attribute(address):
@@ -814,6 +833,12 @@ def parse_banned_attribute(address):
         ban_message = address.attributes.get("ban_message", "<ban-message-not-specified>")
         yield "banned:{}".format(banned)
         yield "ban-message:\"{}\"".format(ban_message)
+
+def parse_tags_attribute(address):
+    tags = address.attributes.get("tags", None)
+    if tags:
+        for t in tags:
+            yield "tag:{}".format(t)
 
 def parse_role_attribute(address):
     role = address.attributes.get("role", None)
@@ -842,7 +867,7 @@ def get_primary_master_list(client):
             "primary",
             rsp_map[address],
         ]
-        result.append(Instance(address, "ytserver-master", attributes))
+        result.append(Instance(address, "ytserver-master", attributes, []))
     return result
 
 
@@ -863,7 +888,7 @@ def get_secondary_master_list(client):
     result = []
     for address, state in rsp_map.iteritems():
         master_type = "secondary:{:x}".format(master_to_cell_id[address])
-        result.append(Instance(address, "ytserver-master", [master_type, state]))
+        result.append(Instance(address, "ytserver-master", [master_type, state], []))
     return result
 
 
@@ -882,7 +907,7 @@ def get_scheduler_list(client):
         attributes = [
             "active" if is_connected else "standby"
         ]
-        result.append(Instance(address, "ytserver-scheduler", attributes))
+        result.append(Instance(address, "ytserver-scheduler", attributes, []))
     return result
 
 
@@ -901,19 +926,21 @@ def get_controller_agent_list(client):
         attributes = [
             "active" if is_connected else "standby"
         ]
-        result.append(Instance(address, "ytserver-controller-agent", attributes))
+        result.append(Instance(address, "ytserver-controller-agent", attributes, []))
     return result
 
 
 def get_node_list(client):
-    address_list = client.list("//sys/nodes", attributes=["state", "rack", "banned", "ban_message"])
+    address_list = client.list("//sys/nodes", attributes=["state", "rack", "banned", "ban_message", "tags"])
     result = []
     for address in address_list:
         attributes = []
+        hidden_attributes = []
         attributes += parse_rack_attribute(address)
         attributes += parse_state_attribute(address)
         attributes += parse_banned_attribute(address)
-        result.append(Instance(str(address), "ytserver-node", attributes))
+        hidden_attributes += parse_tags_attribute(address)
+        result.append(Instance(str(address), "ytserver-node", attributes, hidden_attributes))
     return result
 
 
@@ -924,7 +951,7 @@ def get_proxy_list(client):
         attributes = []
         attributes += parse_role_attribute(address)
         attributes += parse_banned_attribute(address)
-        result.append(Instance(str(address), "ytserver-http-proxy", attributes))
+        result.append(Instance(str(address), "ytserver-http-proxy", attributes, []))
     return result
 
 
@@ -932,7 +959,7 @@ def get_rpc_proxy_list(client):
     address_list = client.list("//sys/rpc_proxies")
     result = []
     for address in address_list:
-        result.append(Instance(address, "ytserver-proxy", []))
+        result.append(Instance(address, "ytserver-proxy", [], []))
     return result
 
 
@@ -1051,7 +1078,7 @@ def subcommand_grep(instance_list, args):
 
 
 def subcommand_pgrep(instance_list, args):
-    verify_at_least_one_instance(instance_list, False)
+    verify_at_least_one_instance(instance_list)
 
     if args.instance_limit and len(instance_list) > args.instance_limit:
         raise LogrepError(
@@ -1154,7 +1181,7 @@ INSTANCE SELECTORS
    This selector also adds attributes
      - <chunk-id>:last-seen
      - <chunk-id>:stored:<medium>
-   for selected logs.
+   for selected nodes.
 
    /<tablet-id> master
    Select master responsible for this tablet.

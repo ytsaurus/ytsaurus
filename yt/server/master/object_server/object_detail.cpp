@@ -9,6 +9,7 @@
 
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/config.h>
+#include <yt/server/master/cell_master/config_manager.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
 #include <yt/server/master/cell_master/multicell_manager.h>
 #include <yt/server/master/cell_master/serialize.h>
@@ -621,7 +622,7 @@ void TObjectProxyBase::GuardedValidateCustomAttributeUpdate(
 void TObjectProxyBase::ValidateCustomAttributeLength(const TYsonString& value)
 {
     auto size = value.GetData().length();
-    auto limit = Bootstrap_->GetConfig()->CypressManager->MaxAttributeSize;
+    auto limit = GetDynamicCypressManagerConfig()->MaxAttributeSize;
     if (size > limit) {
         THROW_ERROR_EXCEPTION(
             NYTree::EErrorCode::MaxAttributeSizeViolation,
@@ -718,6 +719,11 @@ void TObjectProxyBase::PostToMaster(IServiceContextPtr context, TCellTag cellTag
     multicellManager->PostToMaster(
         TCrossCellMessage(Object_->GetId(), std::move(context)),
         cellTag);
+}
+
+const NCypressServer::TDynamicCypressManagerConfigPtr& TObjectProxyBase::GetDynamicCypressManagerConfig() const
+{
+    return Bootstrap_->GetConfigManager()->GetConfig()->CypressManager;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

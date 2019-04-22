@@ -14,7 +14,7 @@ extern const NProfiling::TProfiler ServerProfiler;
 
 namespace NProto {
 
-class TReadJobSpec;
+class TSubquerySpec;
 
 } // namespace NProto
 
@@ -26,6 +26,7 @@ DECLARE_REFCOUNTED_CLASS(TDictionarySourceConfig);
 DECLARE_REFCOUNTED_CLASS(TDictionaryConfig);
 DECLARE_REFCOUNTED_CLASS(TClickHouseServerBootstrapConfig);
 DECLARE_REFCOUNTED_CLASS(TUserConfig);
+DECLARE_REFCOUNTED_CLASS(TSubqueryConfig);
 DECLARE_REFCOUNTED_CLASS(TClickHouseHost);
 DECLARE_REFCOUNTED_STRUCT(ISubscriptionManager);
 
@@ -34,7 +35,7 @@ struct TClickHouseColumn;
 struct TValue;
 struct TQueryContext;
 class TBootstrap;
-class TReadJobSpec;
+class TSubquerySpec;
 
 //! This enum corresponds to DB::ClientInfo::QueryKind.
 DEFINE_ENUM(EQueryKind,

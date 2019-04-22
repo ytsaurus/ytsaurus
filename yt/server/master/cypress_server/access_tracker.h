@@ -21,9 +21,7 @@ class TAccessTracker
     : public TRefCounted
 {
 public:
-    TAccessTracker(
-        TCypressManagerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap);
+    explicit TAccessTracker(NCellMaster::TBootstrap* bootstrap);
 
     void Start();
     void Stop();
@@ -36,8 +34,9 @@ public:
     void SetAccessed(TCypressNodeBase* trunkNode);
 
 private:
-    const TCypressManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
+
+    const TClosure DynamicConfigChangedCallback_ = BIND(&TAccessTracker::OnDynamicConfigChanged, MakeWeak(this));
 
     NProto::TReqUpdateAccessStatistics UpdateAccessStatisticsRequest_;
     std::vector<TCypressNodeBase*> NodesWithAccessStatisticsUpdate_;
@@ -50,6 +49,8 @@ private:
     void Reset();
     void OnFlush();
 
+    const TDynamicCypressManagerConfigPtr& GetDynamicConfig();
+    void OnDynamicConfigChanged();
 };
 
 DEFINE_REFCOUNTED_TYPE(TAccessTracker)

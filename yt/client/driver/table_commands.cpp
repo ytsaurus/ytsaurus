@@ -898,6 +898,8 @@ TLockRowsCommand::TLockRowsCommand()
         .Default();
     RegisterParameter("path", Path);
     RegisterParameter("locks", Locks);
+    RegisterParameter("lock_type", LockType)
+        .Default(NTableClient::ELockType::SharedStrong);
 }
 
 void TLockRowsCommand::DoExecute(ICommandContextPtr context)
@@ -935,7 +937,8 @@ void TLockRowsCommand::DoExecute(ICommandContextPtr context)
         Path.GetPath(),
         valueConsumer.GetNameTable(),
         std::move(keyRange),
-        Locks);
+        Locks,
+        LockType);
 
     ProduceEmptyOutput(context);
 }

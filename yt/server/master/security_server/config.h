@@ -8,7 +8,7 @@ namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSecurityManagerConfig
+class TDynamicSecurityManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
@@ -17,7 +17,7 @@ public:
     TDuration AccountStatisticsGossipPeriod;
     TDuration RequestRateSmoothingPeriod;
 
-    TSecurityManagerConfig()
+    TDynamicSecurityManagerConfig()
     {
         RegisterParameter("user_statistics_gossip_period", UserStatisticsGossipPeriod)
             .Default(TDuration::Seconds(10));
@@ -30,7 +30,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TDynamicSecurityManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

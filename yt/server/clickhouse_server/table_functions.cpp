@@ -1,8 +1,8 @@
 #include "table_functions.h"
 
-#include "storage_read_job.h"
+#include "storage_subquery.h"
 #include "type_helpers.h"
-#include "read_job.h"
+#include "subquery.h"
 #include "query_context.h"
 
 #include <Columns/ColumnString.h>
@@ -28,13 +28,13 @@ using namespace DB;
 ////////////////////////////////////////////////////////////////////////////////
 // select * from ytTable('//home/user/table', ...)
 
-class TGetTable
+class TYtTableTableFunction
     : public ITableFunction
 {
 public:
     static constexpr auto name = "ytTable";
 
-    TGetTable() = default;
+    TYtTableTableFunction() = default;
 
     virtual std::string getName() const override
     {
@@ -64,15 +64,15 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-// select * from ytTableParts('//home/user/table', maxJobsCount)
+// select * from ytSubquery(subquerySpec)
 
-class TGetTableParts
+class TYtSubqueryTableFunction
     : public ITableFunction
 {
 public:
-    static constexpr auto name = "ytTableParts";
+    static constexpr auto name = "ytSubquery";
 
-    TGetTableParts() = default;
+    TYtSubqueryTableFunction() = default;
 
     virtual std::string getName() const override
     {
@@ -81,90 +81,7 @@ public:
 
     virtual StoragePtr executeImpl(const ASTPtr& functionAst, const Context& context) const override
     {
-        const char* err = "Table function 'ytTableParts' requires 2 parameter: name of remote table, maximum number of jobs";
-
-        auto& funcArgs = typeid_cast<ASTFunction &>(*functionAst).children;
-        if (funcArgs.size() != 1) {
-            throw Exception(err, ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH);
-        }
-
-        auto& args = typeid_cast<ASTExpressionList &>(*funcArgs.at(0)).children;
-        if (args.size() != 2) {
-            throw Exception(err, ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH);
-        }
-
-        args[0] = evaluateConstantExpressionOrIdentifierAsLiteral(args[0], context);
-        args[1] = evaluateConstantExpressionAsLiteral(args[1], context);
-
-        auto tableName = static_cast<const ASTLiteral &>(*args[0]).value.safeGet<std::string>();
-        auto maxJobsCount = static_cast<const ASTLiteral &>(*args[1]).value.safeGet<UInt64>();
-
-        return Execute(context, tableName, maxJobsCount);
-    }
-
-private:
-    StoragePtr Execute(const Context& context, const std::string& tableName, size_t maxJobsCount) const
-    {
-        auto* queryContext = GetQueryContext(context);
-
-        auto tableParts = queryContext->GetTableParts(
-            ToString(tableName),
-            nullptr /* keyCondition */,
-            maxJobsCount);
-
-        MutableColumnPtr job_spec_column = ColumnString::create();
-        MutableColumnPtr data_weight_column = ColumnUInt64::create();
-        MutableColumnPtr row_count_column = ColumnUInt64::create();
-
-        for (const auto& tablePart: tableParts) {
-            job_spec_column->insert(ToStdString(tablePart.JobSpec));
-            data_weight_column->insert(static_cast<UInt64>(tablePart.DataWeight));
-            row_count_column->insert(static_cast<UInt64>(tablePart.RowCount));
-        }
-
-        ColumnWithTypeAndName jobSpec(
-            std::move(job_spec_column),
-            std::make_shared<DataTypeString>(),
-            "job_spec");
-
-        ColumnWithTypeAndName dataWeight(
-            std::move(data_weight_column),
-            std::make_shared<DataTypeUInt64>(),
-            "data_weight");
-
-        ColumnWithTypeAndName rowCount(
-            std::move(row_count_column),
-            std::make_shared<DataTypeUInt64>(),
-            "row_count");
-
-        Block block { jobSpec, dataWeight, rowCount };
-
-        auto storage = StorageMemory::create(tableName + "_parts", ColumnsDescription{block.getNamesAndTypesList()});
-        storage->write(nullptr, context)->write(block);
-
-        return storage;
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-// select * from ytTableData(jobSpec)
-
-class TGetTableData
-    : public ITableFunction
-{
-public:
-    static constexpr auto name = "ytTableData";
-
-    TGetTableData() = default;
-
-    virtual std::string getName() const override
-    {
-        return name;
-    }
-
-    virtual StoragePtr executeImpl(const ASTPtr& functionAst, const Context& context) const override
-    {
-        const char* err = "Table function 'ytTableData' requires 1 parameter: table part to read";
+        const char* err = "Table function 'ytSubquery' requires 1 parameter: table part to read";
 
         auto& funcArgs = typeid_cast<ASTFunction &>(*functionAst).children;
         if (funcArgs.size() != 1) {
@@ -178,21 +95,19 @@ public:
 
         args[0] = evaluateConstantExpressionAsLiteral(args[0], context);
 
-        auto jobSpec = static_cast<const ASTLiteral &>(*args[0]).value.safeGet<std::string>();
+        auto subquerySpec = static_cast<const ASTLiteral &>(*args[0]).value.safeGet<std::string>();
 
-        return Execute(context, std::move(jobSpec));
+        return Execute(context, std::move(subquerySpec));
     }
 
 private:
-    StoragePtr Execute(const Context& context, std::string jobSpec) const
+    StoragePtr Execute(const Context& context, std::string subquerySpec) const
     {
         auto* queryContext = GetQueryContext(context);
-        auto tables = LoadReadJobSpec(TString(jobSpec)).GetTables();
 
-        return CreateStorageReadJob(
+        return CreateStorageSubquery(
             queryContext,
-            std::move(tables),
-            std::move(jobSpec));
+            std::move(subquerySpec));
     }
 };
 
@@ -202,9 +117,8 @@ void RegisterTableFunctions()
 {
     auto& factory = TableFunctionFactory::instance();
 
-    factory.registerFunction<TGetTable>();
-    factory.registerFunction<TGetTableParts>();
-    factory.registerFunction<TGetTableData>();
+    factory.registerFunction<TYtTableTableFunction>();
+    factory.registerFunction<TYtSubqueryTableFunction>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

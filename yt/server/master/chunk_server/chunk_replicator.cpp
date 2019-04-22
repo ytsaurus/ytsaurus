@@ -103,25 +103,21 @@ TChunkReplicator::TChunkReplicator(
     : Config_(config)
     , Bootstrap_(bootstrap)
     , ChunkPlacement_(chunkPlacement)
-    , ChunkRefreshDelay_(DurationToCpuDuration(Config_->ChunkRefreshDelay))
     , RefreshExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
-        BIND(&TChunkReplicator::OnRefresh, MakeWeak(this)),
-        Config_->ChunkRefreshPeriod))
+        BIND(&TChunkReplicator::OnRefresh, MakeWeak(this))))
     , RefreshScanner_(std::make_unique<TChunkScanner>(
         Bootstrap_->GetObjectManager(),
         EChunkScanKind::Refresh))
     , RequisitionUpdateExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
-        BIND(&TChunkReplicator::OnRequisitionUpdate, MakeWeak(this)),
-        Config_->ChunkRequisitionUpdatePeriod))
+        BIND(&TChunkReplicator::OnRequisitionUpdate, MakeWeak(this))))
     , RequisitionUpdateScanner_(std::make_unique<TChunkScanner>(
         Bootstrap_->GetObjectManager(),
         EChunkScanKind::RequisitionUpdate))
     , FinishedRequisitionTraverseFlushExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
-        BIND(&TChunkReplicator::OnFinishedRequisitionTraverseFlush, MakeWeak(this)),
-        Config_->FinishedChunkListsRequisitionTraverseFlushPeriod))
+        BIND(&TChunkReplicator::OnFinishedRequisitionTraverseFlush, MakeWeak(this))))
     , MissingPartChunkRepairQueueBalancer_(
         Config_->RepairQueueBalancerWeightDecayFactor,
         Config_->RepairQueueBalancerWeightDecayInterval)
@@ -133,7 +129,7 @@ TChunkReplicator::TChunkReplicator(
         BIND(&TChunkReplicator::OnCheckEnabled, MakeWeak(this)),
         Config_->ReplicatorEnabledCheckPeriod))
     , JobThrottler_(CreateReconfigurableThroughputThrottler(
-        Config_->JobThrottler,
+        New<TThroughputThrottlerConfig>(),
         ChunkServerLogger,
         ChunkServerProfiler.AppendPath("/job_throttler")))
 {
@@ -158,10 +154,17 @@ void TChunkReplicator::Start(TChunk* frontChunk, int chunkCount)
     RequisitionUpdateExecutor_->Start();
     FinishedRequisitionTraverseFlushExecutor_->Start();
     EnabledCheckExecutor_->Start();
+
+    const auto& configManager = Bootstrap_->GetConfigManager();
+    configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
+    OnDynamicConfigChanged();
 }
 
 void TChunkReplicator::Stop()
 {
+    const auto& configManager = Bootstrap_->GetConfigManager();
+    configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
+
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
     for (const auto& nodePair : nodeTracker->Nodes()) {
@@ -946,7 +949,7 @@ void TChunkReplicator::ScheduleJobs(
     std::vector<TJobPtr>* jobsToAbort,
     std::vector<TJobPtr>* jobsToRemove)
 {
-    UpdateInterDCEdgeCapacities(); // Pull capacity changes, react on DC removal (if any).
+    UpdateInterDCEdgeCapacities(); // Pull capacity changes.
 
     ProcessExistingJobs(
         node,
@@ -1047,7 +1050,7 @@ void TChunkReplicator::ProcessExistingJobs(
         switch (job->GetState()) {
             case EJobState::Running:
             case EJobState::Waiting: {
-                if (TInstant::Now() - job->GetStartTime() > Config_->JobTimeout) {
+                if (TInstant::Now() - job->GetStartTime() > GetDynamicConfig()->JobTimeout) {
                     jobsToAbort->push_back(job);
                     YT_LOG_WARNING("Job timed out (JobId: %v, Address: %v, Duration: %v)",
                         jobId,
@@ -1190,7 +1193,7 @@ bool TChunkReplicator::CreateReplicationJob(
         replicasNeeded,
         1,
         std::nullopt,
-        UnsaturatedInterDCEdges[sourceNode->GetDataCenter()],
+        UnsaturatedInterDCEdges_[sourceNode->GetDataCenter()],
         ESessionType::Replication);
     if (targetNodes.empty()) {
         return false;
@@ -1243,7 +1246,7 @@ bool TChunkReplicator::CreateBalancingJob(
         medium,
         chunk,
         maxFillFactor,
-        UnsaturatedInterDCEdges[sourceNode->GetDataCenter()]);
+        UnsaturatedInterDCEdges_[sourceNode->GetDataCenter()]);
     if (!targetNode) {
         return false;
     }
@@ -1380,7 +1383,7 @@ bool TChunkReplicator::CreateRepairJob(
         erasedPartCount,
         erasedPartCount,
         std::nullopt,
-        UnsaturatedInterDCEdges[node->GetDataCenter()],
+        UnsaturatedInterDCEdges_[node->GetDataCenter()],
         ESessionType::Repair);
     if (targetNodes.empty()) {
         return false;
@@ -1399,7 +1402,7 @@ bool TChunkReplicator::CreateRepairJob(
         chunk,
         node,
         targetReplicas,
-        Config_->RepairJobMemoryUsage,
+        GetDynamicConfig()->RepairJobMemoryUsage,
         repairQueue == EChunkRepairQueue::Decommissioned);
 
     YT_LOG_DEBUG("Repair job scheduled (JobId: %v, Address: %v, ChunkId: %v, Targets: %v, ErasedPartIndexes: %v)",
@@ -1480,7 +1483,7 @@ void TChunkReplicator::ScheduleNewJobs(
     // NB: Beware of chunks larger than the limit; we still need to be able to replicate them one by one.
     auto hasSpareReplicationResources = [&] () {
         return
-            misscheduledReplicationJobs < Config_->MaxMisscheduledReplicationJobsPerHeartbeat &&
+            misscheduledReplicationJobs < GetDynamicConfig()->MaxMisscheduledReplicationJobsPerHeartbeat &&
             resourceUsage.replication_slots() < resourceLimits.replication_slots() &&
             (resourceUsage.replication_slots() == 0 || resourceUsage.replication_data_size() < resourceLimits.replication_data_size());
     };
@@ -1488,24 +1491,24 @@ void TChunkReplicator::ScheduleNewJobs(
     // NB: Beware of chunks larger than the limit; we still need to be able to repair them one by one.
     auto hasSpareRepairResources = [&] () {
         return
-            misscheduledRepairJobs < Config_->MaxMisscheduledRepairJobsPerHeartbeat &&
+            misscheduledRepairJobs < GetDynamicConfig()->MaxMisscheduledRepairJobsPerHeartbeat &&
             resourceUsage.repair_slots() < resourceLimits.repair_slots() &&
             (resourceUsage.repair_slots() == 0 || resourceUsage.repair_data_size() < resourceLimits.repair_data_size());
     };
 
     auto hasSpareSealResources = [&] () {
         return
-            misscheduledSealJobs < Config_->MaxMisscheduledSealJobsPerHeartbeat &&
+            misscheduledSealJobs < GetDynamicConfig()->MaxMisscheduledSealJobsPerHeartbeat &&
             resourceUsage.seal_slots() < resourceLimits.seal_slots();
     };
 
     auto hasSpareRemovalResources = [&] () {
         return
-            misscheduledRemovalJobs < Config_->MaxMisscheduledRemovalJobsPerHeartbeat &&
+            misscheduledRemovalJobs < GetDynamicConfig()->MaxMisscheduledRemovalJobsPerHeartbeat &&
             resourceUsage.removal_slots() < resourceLimits.removal_slots();
     };
 
-    if (IsEnabled()) {
+    if (IsReplicatorEnabled()) {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         // Schedule replication jobs.
@@ -1631,12 +1634,12 @@ void TChunkReplicator::ScheduleNewJobs(
                 continue; // No storage of this medium on this node.
             }
 
-            double targetFillFactor = *sourceFillFactor - Config_->MinChunkBalancingFillFactorDiff;
+            double targetFillFactor = *sourceFillFactor - GetDynamicConfig()->MinChunkBalancingFillFactorDiff;
             if (hasSpareReplicationResources() &&
-                *sourceFillFactor > Config_->MinChunkBalancingFillFactor &&
+                *sourceFillFactor > GetDynamicConfig()->MinChunkBalancingFillFactor &&
                 HasUnsaturatedInterDCEdgeStartingFrom(nodeDataCenter) &&
                 ChunkPlacement_->HasBalancingTargets(
-                    UnsaturatedInterDCEdges[node->GetDataCenter()],
+                    UnsaturatedInterDCEdges_[node->GetDataCenter()],
                     medium,
                     targetFillFactor))
             {
@@ -2019,18 +2022,23 @@ void TChunkReplicator::ScheduleGlobalChunkRefresh(TChunk* frontChunk, int chunkC
 
 void TChunkReplicator::OnRefresh()
 {
+    if (!GetDynamicConfig()->EnableChunkRefresh) {
+        YT_LOG_DEBUG("Chunk refresh disabled; see //sys/@config");
+        return;
+    }
+
     int totalCount = 0;
     int aliveCount = 0;
     NProfiling::TWallTimer timer;
 
-    YT_LOG_DEBUG("Incremental chunk refresh iteration started");
+    YT_LOG_DEBUG("Chunk refresh iteration started");
 
+    auto deadline = GetCpuInstant() - DurationToCpuDuration(GetDynamicConfig()->ChunkRefreshDelay);
     PROFILE_AGGREGATED_TIMING (RefreshTimeCounter) {
-        auto deadline = GetCpuInstant() - ChunkRefreshDelay_;
-        while (totalCount < Config_->MaxChunksPerRefresh &&
+        while (totalCount < GetDynamicConfig()->MaxChunksPerRefresh &&
                RefreshScanner_->HasUnscannedChunk(deadline))
         {
-            if (timer.GetElapsedTime() > Config_->MaxTimePerRefresh) {
+            if (timer.GetElapsedTime() > GetDynamicConfig()->MaxTimePerRefresh) {
                 break;
             }
 
@@ -2045,14 +2053,24 @@ void TChunkReplicator::OnRefresh()
         }
     }
 
-    YT_LOG_DEBUG("Incremental chunk refresh iteration completed (TotalCount: %v, AliveCount: %v)",
+    YT_LOG_DEBUG("Chunk refresh iteration completed (TotalCount: %v, AliveCount: %v)",
         totalCount,
         aliveCount);
 }
 
-bool TChunkReplicator::IsEnabled()
+bool TChunkReplicator::IsReplicatorEnabled()
 {
     return Enabled_.value_or(false);
+}
+
+bool TChunkReplicator::IsRefreshEnabled()
+{
+    return GetDynamicConfig()->EnableChunkRefresh;
+}
+
+bool TChunkReplicator::IsRequisitionUpdateEnabled()
+{
+    return GetDynamicConfig()->EnableChunkRequisitionUpdate;
 }
 
 void TChunkReplicator::OnCheckEnabled()
@@ -2076,7 +2094,7 @@ void TChunkReplicator::OnCheckEnabled()
 
 void TChunkReplicator::OnCheckEnabledPrimary()
 {
-    if (!Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->EnableChunkReplicator) {
+    if (!GetDynamicConfig()->EnableChunkReplicator) {
         if (!Enabled_ || *Enabled_) {
             YT_LOG_INFO("Chunk replicator is disabled, see //sys/@config");
         }
@@ -2085,7 +2103,7 @@ void TChunkReplicator::OnCheckEnabledPrimary()
     }
 
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-    int needOnline = Config_->SafeOnlineNodeCount;
+    int needOnline = GetDynamicConfig()->SafeOnlineNodeCount;
     int gotOnline = nodeTracker->GetOnlineNodeCount();
     if (gotOnline < needOnline) {
         if (!Enabled_ || *Enabled_) {
@@ -2101,9 +2119,9 @@ void TChunkReplicator::OnCheckEnabledPrimary()
     auto statistics = multicellManager->ComputeClusterStatistics();
     int gotChunkCount = statistics.chunk_count();
     int gotLostChunkCount = statistics.lost_vital_chunk_count();
-    int needLostChunkCount = Config_->SafeLostChunkCount;
+    int needLostChunkCount = GetDynamicConfig()->SafeLostChunkCount;
     if (gotChunkCount > 0) {
-        double needFraction = Config_->SafeLostChunkFraction;
+        double needFraction = GetDynamicConfig()->SafeLostChunkFraction;
         double gotFraction = (double) gotLostChunkCount / gotChunkCount;
         if (gotFraction > needFraction) {
             if (!Enabled_ || *Enabled_) {
@@ -2231,6 +2249,11 @@ void TChunkReplicator::OnRequisitionUpdate()
         return;
     }
 
+    if (!GetDynamicConfig()->EnableChunkRequisitionUpdate) {
+        YT_LOG_DEBUG("Chunk requisition update disabled; see //sys/@config");
+        return;
+    }
+
     TReqUpdateChunkRequisition request;
     request.set_cell_tag(Bootstrap_->GetCellTag());
 
@@ -2243,10 +2266,10 @@ void TChunkReplicator::OnRequisitionUpdate()
     TmpRequisitionRegistry_.Clear();
     PROFILE_AGGREGATED_TIMING (RequisitionUpdateTimeCounter) {
         ClearChunkRequisitionCache();
-        while (totalCount < Config_->MaxChunksPerRequisitionUpdate &&
+        while (totalCount < GetDynamicConfig()->MaxChunksPerRequisitionUpdate &&
                RequisitionUpdateScanner_->HasUnscannedChunk())
         {
-            if (timer.GetElapsedTime() > Config_->MaxTimePerRequisitionUpdate) {
+            if (timer.GetElapsedTime() > GetDynamicConfig()->MaxTimePerRequisitionUpdate) {
                 break;
             }
 
@@ -2543,15 +2566,17 @@ void TChunkReplicator::InitInterDCEdges()
     InitUnsaturatedInterDCEdges();
 }
 
-void TChunkReplicator::UpdateInterDCEdgeCapacities()
+void TChunkReplicator::UpdateInterDCEdgeCapacities(bool force)
 {
-    if (GetCpuInstant() - InterDCEdgeCapacitiesLastUpdateTime <= Config_->InterDCLimits->GetUpdateInterval()) {
+    if (!force &&
+        GetCpuInstant() - InterDCEdgeCapacitiesLastUpdateTime_ <= GetDynamicConfig()->InterDCLimits->GetUpdateInterval())
+    {
         return;
     }
 
     InterDCEdgeCapacities_.clear();
 
-    auto capacities = Config_->InterDCLimits->GetCapacities();
+    auto capacities = GetDynamicConfig()->InterDCLimits->GetCapacities();
     auto secondaryCellCount = Bootstrap_->GetSecondaryCellTags().size();
     secondaryCellCount = std::max<int>(secondaryCellCount, 1);
 
@@ -2589,17 +2614,17 @@ void TChunkReplicator::UpdateInterDCEdgeCapacities()
         }
     }
 
-    InterDCEdgeCapacitiesLastUpdateTime = GetCpuInstant();
+    InterDCEdgeCapacitiesLastUpdateTime_ = GetCpuInstant();
 }
 
 void TChunkReplicator::InitUnsaturatedInterDCEdges()
 {
-    UnsaturatedInterDCEdges.clear();
-
-    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+    UnsaturatedInterDCEdges_.clear();
 
     const auto defaultCapacity =
-        Config_->InterDCLimits->GetDefaultCapacity() / std::max<int>(Bootstrap_->GetSecondaryCellTags().size(), 1);
+        GetDynamicConfig()->InterDCLimits->GetDefaultCapacity() / std::max<int>(Bootstrap_->GetSecondaryCellTags().size(), 1);
+
+    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
     auto updateForSrcDC = [&] (const TDataCenter* srcDataCenter) {
         auto& interDCEdgeConsumption = InterDCEdgeConsumption_[srcDataCenter];
@@ -2609,7 +2634,7 @@ void TChunkReplicator::InitUnsaturatedInterDCEdges()
             if (interDCEdgeConsumption.Value(dstDataCenter, 0) <
                 interDCEdgeCapacities.Value(dstDataCenter, defaultCapacity))
             {
-                UnsaturatedInterDCEdges[srcDataCenter].insert(dstDataCenter);
+                UnsaturatedInterDCEdges_[srcDataCenter].insert(dstDataCenter);
             }
         };
 
@@ -2644,7 +2669,7 @@ void TChunkReplicator::UpdateInterDCEdgeConsumption(
     const auto& interDCEdgeCapacities = InterDCEdgeCapacities_[srcDataCenter];
 
     const auto defaultCapacity =
-        Config_->InterDCLimits->GetDefaultCapacity() / std::max<int>(Bootstrap_->GetSecondaryCellTags().size(), 1);
+        GetDynamicConfig()->InterDCLimits->GetDefaultCapacity() / std::max<int>(Bootstrap_->GetSecondaryCellTags().size(), 1);
 
     for (const auto& nodePtrWithIndexes : job->TargetReplicas()) {
         const auto* dstDataCenter = nodePtrWithIndexes.GetPtr()->GetDataCenter();
@@ -2665,12 +2690,12 @@ void TChunkReplicator::UpdateInterDCEdgeConsumption(
         consumption += sizeMultiplier * chunkPartSize;
 
         if (consumption < interDCEdgeCapacities.Value(dstDataCenter, defaultCapacity)) {
-            UnsaturatedInterDCEdges[srcDataCenter].insert(dstDataCenter);
+            UnsaturatedInterDCEdges_[srcDataCenter].insert(dstDataCenter);
         } else {
-            auto it = UnsaturatedInterDCEdges.find(srcDataCenter);
-            if (it != UnsaturatedInterDCEdges.end()) {
+            auto it = UnsaturatedInterDCEdges_.find(srcDataCenter);
+            if (it != UnsaturatedInterDCEdges_.end()) {
                 it->second.erase(dstDataCenter);
-                // Don't do UnsaturatedInterDCEdges.erase(it) here - the memory
+                // Don't do UnsaturatedInterDCEdges_.erase(it) here - the memory
                 // saving is negligible, but the slowdown may be noticeable. Plus,
                 // the removal is very likely to be undone by a soon-to-follow insertion.
             }
@@ -2680,7 +2705,51 @@ void TChunkReplicator::UpdateInterDCEdgeConsumption(
 
 bool TChunkReplicator::HasUnsaturatedInterDCEdgeStartingFrom(const TDataCenter* srcDataCenter)
 {
-    return !UnsaturatedInterDCEdges[srcDataCenter].empty();
+    return !UnsaturatedInterDCEdges_[srcDataCenter].empty();
+}
+
+void TChunkReplicator::OnDataCenterCreated(const TDataCenter* dataCenter)
+{
+    UpdateInterDCEdgeCapacities(true);
+
+    const auto defaultCapacity =
+        GetDynamicConfig()->InterDCLimits->GetDefaultCapacity() / std::max<int>(Bootstrap_->GetSecondaryCellTags().size(), 1);
+
+    auto updateEdge = [&] (const TDataCenter* srcDataCenter, const TDataCenter* dstDataCenter) {
+        if (InterDCEdgeConsumption_[srcDataCenter].Value(dstDataCenter, 0) <
+            InterDCEdgeCapacities_[srcDataCenter].Value(dstDataCenter, defaultCapacity))
+        {
+            UnsaturatedInterDCEdges_[srcDataCenter].insert(dstDataCenter);
+        }
+    };
+
+
+    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+
+    updateEdge(nullptr, dataCenter);
+    updateEdge(dataCenter, nullptr);
+    for (const auto& [dstDataCenterId, otherDataCenter] : nodeTracker->DataCenters()) {
+        updateEdge(dataCenter, otherDataCenter);
+        updateEdge(otherDataCenter, dataCenter);
+    }
+}
+
+void TChunkReplicator::OnDataCenterDestroyed(const TDataCenter* dataCenter)
+{
+    InterDCEdgeCapacities_.erase(dataCenter);
+    for (auto& [srcDataCenter, dstDataCenterCapacities] : InterDCEdgeCapacities_) {
+        dstDataCenterCapacities.erase(dataCenter); // may be no-op
+    }
+
+    InterDCEdgeConsumption_.erase(dataCenter);
+    for (auto& [srcDataCenter, dstDataCenterConsumption] : InterDCEdgeConsumption_) {
+        dstDataCenterConsumption.erase(dataCenter); // may be no-op
+    }
+
+    UnsaturatedInterDCEdges_.erase(dataCenter);
+    for (auto& [srcDataCenter, dstDataCenterSet] : UnsaturatedInterDCEdges_) {
+        dstDataCenterSet.erase(dataCenter); // may be no-op
+    }
 }
 
 TChunkRequisitionRegistry* TChunkReplicator::GetChunkRequisitionRegistry()
@@ -2715,6 +2784,20 @@ TDecayingMaxMinBalancer<int, double>& TChunkReplicator::ChunkRepairQueueBalancer
         default:
             Y_UNREACHABLE();
     }
+}
+
+const TDynamicChunkManagerConfigPtr& TChunkReplicator::GetDynamicConfig()
+{
+    const auto& configManager = Bootstrap_->GetConfigManager();
+    return configManager->GetConfig()->ChunkManager;
+}
+
+void TChunkReplicator::OnDynamicConfigChanged()
+{
+    RefreshExecutor_->SetPeriod(GetDynamicConfig()->ChunkRefreshPeriod);
+    RequisitionUpdateExecutor_->SetPeriod(GetDynamicConfig()->ChunkRequisitionUpdatePeriod);
+    FinishedRequisitionTraverseFlushExecutor_->SetPeriod(GetDynamicConfig()->FinishedChunkListsRequisitionTraverseFlushPeriod);
+    JobThrottler_->Reconfigure(GetDynamicConfig()->JobThrottler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

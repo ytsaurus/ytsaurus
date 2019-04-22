@@ -207,99 +207,99 @@ public:
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         const TQueryBaseOptions& options)
     {
-        TRACE_CHILD("QueryClient", "Evaluate") {
-            TRACE_ANNOTATION("fragment_id", query->Id);
-            auto queryFingerprint = InferName(query, true);
-            TRACE_ANNOTATION("query_fingerprint", queryFingerprint);
+        NTracing::TChildTraceContextGuard guard("QueryClient.Evaluate");
+        NTracing::AddTag("fragment_id", ToString(query->Id));
+        auto queryFingerprint = InferName(query, true);
+        NTracing::AddTag("query_fingerprint", queryFingerprint);
 
-            auto Logger = MakeQueryLogger(query);
+        auto Logger = MakeQueryLogger(query);
 
-            YT_LOG_DEBUG("Executing query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v)",
-                queryFingerprint,
-                query->GetReadSchema(),
-                query->GetTableSchema());
+        YT_LOG_DEBUG("Executing query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v)",
+            queryFingerprint,
+            query->GetReadSchema(),
+            query->GetTableSchema());
 
-            TQueryStatistics statistics;
-            NProfiling::TWallTimer wallTime;
-            NProfiling::TCpuTimer syncTime;
+        TQueryStatistics statistics;
+        NProfiling::TWallTimer wallTime;
+        NProfiling::TCpuTimer syncTime;
 
-            auto finalLogger = Finally([&] () {
-                YT_LOG_DEBUG("Finalizing evaluation");
+        auto finalLogger = Finally([&] () {
+            YT_LOG_DEBUG("Finalizing evaluation");
+        });
+
+        auto memoryChunkProvider = MemoryProvider_.GetProvider(
+            ToString(options.ReadSessionId),
+            options.MemoryLimitPerNode,
+            NNodeTrackerClient::EMemoryCategory::Query,
+            MemoryTracker_);
+
+        try {
+            TCGVariables fragmentParams;
+            auto cgQuery = Codegen(
+                query,
+                fragmentParams,
+                joinProfiler,
+                functionProfilers,
+                aggregateProfilers,
+                statistics,
+                options.EnableCodeCache,
+                options.UseMultijoin);
+
+            auto finalizer = Finally([&] () {
+                fragmentParams.Clear();
             });
 
-            auto memoryChunkProvider = MemoryProvider_.GetProvider(
-                ToString(options.ReadSessionId),
-                options.MemoryLimitPerNode,
-                NNodeTrackerClient::EMemoryCategory::Query,
-                MemoryTracker_);
+            YT_LOG_DEBUG("Evaluating plan fragment");
 
-            try {
-                TCGVariables fragmentParams;
-                auto cgQuery = Codegen(
-                    query,
-                    fragmentParams,
-                    joinProfiler,
-                    functionProfilers,
-                    aggregateProfilers,
-                    statistics,
-                    options.EnableCodeCache,
-                    options.UseMultijoin);
+            // NB: function contexts need to be destroyed before cgQuery since it hosts destructors.
+            TExecutionContext executionContext;
+            executionContext.Reader = reader;
+            executionContext.Writer = writer;
+            executionContext.Statistics = &statistics;
+            executionContext.InputRowLimit = options.InputRowLimit;
+            executionContext.OutputRowLimit = options.OutputRowLimit;
+            executionContext.GroupRowLimit = options.OutputRowLimit;
+            executionContext.JoinRowLimit = options.OutputRowLimit;
+            executionContext.Offset = query->Offset;
+            executionContext.Limit = query->Limit;
+            executionContext.IsOrdered = query->IsOrdered();
+            executionContext.MemoryChunkProvider = memoryChunkProvider;
 
-                auto finalizer = Finally([&] () {
-                    fragmentParams.Clear();
-                });
+            YT_LOG_DEBUG("Evaluating query");
 
-                YT_LOG_DEBUG("Evaluating plan fragment");
+            CallCGQueryPtr(
+                cgQuery,
+                fragmentParams.GetLiteralValues(),
+                fragmentParams.GetOpaqueData(),
+                &executionContext);
 
-                // NB: function contexts need to be destroyed before cgQuery since it hosts destructors.
-                TExecutionContext executionContext;
-                executionContext.Reader = reader;
-                executionContext.Writer = writer;
-                executionContext.Statistics = &statistics;
-                executionContext.InputRowLimit = options.InputRowLimit;
-                executionContext.OutputRowLimit = options.OutputRowLimit;
-                executionContext.GroupRowLimit = options.OutputRowLimit;
-                executionContext.JoinRowLimit = options.OutputRowLimit;
-                executionContext.Offset = query->Offset;
-                executionContext.Limit = query->Limit;
-                executionContext.IsOrdered = query->IsOrdered();
-                executionContext.MemoryChunkProvider = memoryChunkProvider;
-
-                YT_LOG_DEBUG("Evaluating query");
-
-                CallCGQueryPtr(
-                    cgQuery,
-                    fragmentParams.GetLiteralValues(),
-                    fragmentParams.GetOpaqueData(),
-                    &executionContext);
-
-            } catch (const std::exception& ex) {
-                YT_LOG_DEBUG("Query evaluation failed");
-                THROW_ERROR_EXCEPTION("Query evaluation failed") << ex;
-            }
-
-            statistics.SyncTime = syncTime.GetElapsedTime();
-            statistics.AsyncTime = wallTime.GetElapsedTime() - statistics.SyncTime;
-            statistics.ExecuteTime =
-                statistics.SyncTime - statistics.ReadTime - statistics.WriteTime - statistics.CodegenTime;
-
-            statistics.MemoryUsage = memoryChunkProvider->GetMaxAllocated();
-
-            YT_LOG_DEBUG("Query statistics (%v)", statistics);
-
-            TRACE_ANNOTATION("rows_read", statistics.RowsRead);
-            TRACE_ANNOTATION("rows_written", statistics.RowsWritten);
-            TRACE_ANNOTATION("sync_time", statistics.SyncTime);
-            TRACE_ANNOTATION("async_time", statistics.AsyncTime);
-            TRACE_ANNOTATION("execute_time", statistics.ExecuteTime);
-            TRACE_ANNOTATION("read_time", statistics.ReadTime);
-            TRACE_ANNOTATION("write_time", statistics.WriteTime);
-            TRACE_ANNOTATION("codegen_time", statistics.CodegenTime);
-            TRACE_ANNOTATION("incomplete_input", statistics.IncompleteInput);
-            TRACE_ANNOTATION("incomplete_output", statistics.IncompleteOutput);
-
-            return statistics;
+        } catch (const std::exception& ex) {
+            YT_LOG_DEBUG(ex, "Query evaluation failed");
+            THROW_ERROR_EXCEPTION("Query evaluation failed") << ex;
         }
+
+        statistics.SyncTime = syncTime.GetElapsedTime();
+        statistics.AsyncTime = wallTime.GetElapsedTime() - statistics.SyncTime;
+        statistics.ExecuteTime =
+            statistics.SyncTime - statistics.ReadTime - statistics.WriteTime - statistics.CodegenTime;
+
+        statistics.MemoryUsage = memoryChunkProvider->GetMaxAllocated();
+
+        YT_LOG_DEBUG("Query statistics (%v)", statistics);
+
+        // TODO(prime): place these into trace log
+        //    TRACE_ANNOTATION("rows_read", statistics.RowsRead);
+        //    TRACE_ANNOTATION("rows_written", statistics.RowsWritten);
+        //    TRACE_ANNOTATION("sync_time", statistics.SyncTime);
+        //    TRACE_ANNOTATION("async_time", statistics.AsyncTime);
+        //    TRACE_ANNOTATION("execute_time", statistics.ExecuteTime);
+        //    TRACE_ANNOTATION("read_time", statistics.ReadTime);
+        //    TRACE_ANNOTATION("write_time", statistics.WriteTime);
+        //    TRACE_ANNOTATION("codegen_time", statistics.CodegenTime);
+        //    TRACE_ANNOTATION("incomplete_input", statistics.IncompleteInput);
+        //    TRACE_ANNOTATION("incomplete_output", statistics.IncompleteOutput);
+
+        return statistics;
     }
 
 private:
@@ -327,13 +327,13 @@ private:
         auto Logger = MakeQueryLogger(query);
 
         auto compileWithLogging = [&] () {
-            TRACE_CHILD("QueryClient", "Compile") {
-                YT_LOG_DEBUG("Started compiling fragment");
-                NProfiling::TCpuTimingGuard timingGuard(&statistics.CodegenTime);
-                auto cgQuery = New<TCachedCGQuery>(id, makeCodegenQuery());
-                YT_LOG_DEBUG("Finished compiling fragment");
-                return cgQuery;
-            }
+            NTracing::TChildTraceContextGuard traceСontextGuard("QueryClient.Compile");
+
+            YT_LOG_DEBUG("Started compiling fragment");
+            NProfiling::TCpuTimingGuard timingGuard(&statistics.CodegenTime);
+            auto cgQuery = New<TCachedCGQuery>(id, makeCodegenQuery());
+            YT_LOG_DEBUG("Finished compiling fragment");
+            return cgQuery;
         };
 
         TCachedCGQueryPtr cgQuery;

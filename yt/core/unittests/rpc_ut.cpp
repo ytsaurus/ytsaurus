@@ -227,7 +227,8 @@ public:
     {
         try {
             context->SetRequestInfo();
-            WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(2)));
+            WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(2)))
+                .ThrowOnError();
             context->Reply();
         } catch (const TFiberCanceledException&) {
             SlowCallCanceled_.Set();
@@ -320,7 +321,8 @@ public:
         try {
             auto sleep = request->sleep();
             if (sleep) {
-                WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(1)));
+                WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(1)))
+                    .ThrowOnError();
             }
 
             WaitFor(context->GetRequestAttachmentsStream()->Read())
@@ -343,7 +345,8 @@ public:
         try {
             auto sleep = request->sleep();
             if (sleep) {
-                WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(1)));
+                WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(1)))
+                    .ThrowOnError();
             }
 
             WaitFor(context->GetResponseAttachmentsStream()->Close())
@@ -679,8 +682,6 @@ public:
 class TRpcOverUnixDomainImpl
 {
 public:
-    static constexpr bool AllowTransportErrors = false;
-
     static IBusServerPtr MakeBusServer()
     {
         auto busConfig = TTcpBusServerConfig::CreateUnixDomain("unix_domain");

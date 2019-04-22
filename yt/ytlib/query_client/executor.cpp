@@ -171,29 +171,26 @@ public:
 
     virtual TFuture<TQueryStatistics> Execute(
         TConstQueryPtr query,
-        const std::vector<NTabletClient::TTableMountInfoPtr>& mountInfos,
         TConstExternalCGInfoPtr externalCGInfo,
         TDataRanges dataSource,
         IUnversionedRowsetWriterPtr writer,
         const TClientBlockReadOptions& blockReadOptions,
         const TQueryOptions& options) override
     {
-        TRACE_CHILD("QueryClient", "Execute") {
-            auto execute = query->IsOrdered()
-                ? &TQueryExecutor::DoExecuteOrdered
-                : &TQueryExecutor::DoExecute;
+        NTracing::TChildTraceContextGuard guard("QueryClient.Execute");
+        auto execute = query->IsOrdered()
+            ? &TQueryExecutor::DoExecuteOrdered
+            : &TQueryExecutor::DoExecute;
 
-            return BIND(execute, MakeStrong(this))
-                .AsyncVia(Invoker_)
-                .Run(
-                    std::move(query),
-                    mountInfos,
-                    std::move(externalCGInfo),
-                    std::move(dataSource),
-                    options,
-                    blockReadOptions,
-                    std::move(writer));
-        }
+        return BIND(execute, MakeStrong(this))
+            .AsyncVia(Invoker_)
+            .Run(
+                std::move(query),
+                std::move(externalCGInfo),
+                std::move(dataSource),
+                options,
+                blockReadOptions,
+                std::move(writer));
     }
 
 private:
@@ -270,7 +267,6 @@ private:
 
     std::vector<std::pair<TDataRanges, TString>> InferRanges(
         TConstQueryPtr query,
-        const std::vector<NTabletClient::TTableMountInfoPtr>& mountInfos,
         const TDataRanges& dataSource,
         const TQueryOptions& options,
         TRowBufferPtr rowBuffer,
@@ -278,20 +274,15 @@ private:
     {
         const auto& tableId = dataSource.Id;
 
-        NTabletClient::TTableMountInfoPtr tableInfo;
+        auto tableMountCache = Connection_->GetTableMountCache();
+        auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
+            .ValueOrThrow();
 
-        for (const auto& item : mountInfos) {
-            if (item->TableId == tableId) {
-                tableInfo = item;
-                break;
-            }
-        }
-
-        // COMPAT(lukyan): YT-9605
-        if (!tableInfo) {
-            auto tableMountCache = Connection_->GetTableMountCache();
-            tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
-                .ValueOrThrow();
+        if (query->OriginalSchema != tableInfo->Schemas[ETableSchemaKind::Query]) {
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::InvalidMountRevision,
+                "Invalid revision for table info; schema changed")
+                << TErrorAttribute("path", tableInfo->Path);
         }
 
         tableInfo->ValidateDynamic();
@@ -491,7 +482,6 @@ private:
 
     TQueryStatistics DoCoordinateAndExecute(
         const TConstQueryPtr& query,
-        const std::vector<NTabletClient::TTableMountInfoPtr>& mountInfos,
         const TConstExternalCGInfoPtr& externalCGInfo,
         const TQueryOptions& options,
         const TClientBlockReadOptions& blockReadOptions,
@@ -534,7 +524,6 @@ private:
 
                 return Delegate(
                     std::move(subquery),
-                    mountInfos,
                     externalCGInfo,
                     options,
                     std::move(dataSources),
@@ -555,7 +544,6 @@ private:
 
     TQueryStatistics DoExecute(
         TConstQueryPtr query,
-        const std::vector<NTabletClient::TTableMountInfoPtr>& mountInfos,
         TConstExternalCGInfoPtr externalCGInfo,
         TDataRanges dataSource,
         const TQueryOptions& options,
@@ -567,7 +555,6 @@ private:
         auto rowBuffer = New<TRowBuffer>(TQueryExecutorRowBufferTag{});
         auto allSplits = InferRanges(
             query,
-            mountInfos,
             dataSource,
             options,
             rowBuffer,
@@ -604,7 +591,6 @@ private:
 
         return DoCoordinateAndExecute(
             query,
-            mountInfos,
             externalCGInfo,
             options,
             blockReadOptions,
@@ -617,7 +603,6 @@ private:
 
     TQueryStatistics DoExecuteOrdered(
         TConstQueryPtr query,
-        const std::vector<NTabletClient::TTableMountInfoPtr>& mountInfos,
         TConstExternalCGInfoPtr externalCGInfo,
         TDataRanges dataSource,
         const TQueryOptions& options,
@@ -629,7 +614,6 @@ private:
         auto rowBuffer = New<TRowBuffer>(TQueryExecutorRowBufferTag());
         auto allSplits = InferRanges(
             query,
-            mountInfos,
             dataSource,
             options,
             rowBuffer,
@@ -653,7 +637,6 @@ private:
 
         return DoCoordinateAndExecute(
             query,
-            mountInfos,
             externalCGInfo,
             options,
             blockReadOptions,
@@ -672,7 +655,6 @@ private:
 
     std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> Delegate(
         TConstQueryPtr query,
-        const std::vector<NTabletClient::TTableMountInfoPtr>& mountInfos,
         const TConstExternalCGInfoPtr& externalCGInfo,
         const TQueryOptions& options,
         std::vector<TDataRanges> dataSources,
@@ -680,56 +662,51 @@ private:
     {
         auto Logger = MakeQueryLogger(query);
 
-        TRACE_CHILD("QueryClient", "Delegate") {
-            auto channel = NodeChannelFactory_->CreateChannel(address);
-            auto config = Connection_->GetConfig();
+        NTracing::TChildTraceContextGuard guard("QueryClient.Delegate");
+        auto channel = NodeChannelFactory_->CreateChannel(address);
+        auto config = Connection_->GetConfig();
 
-            TQueryServiceProxy proxy(channel);
+        TQueryServiceProxy proxy(channel);
 
-            auto req = proxy.Execute();
-            // TODO(babenko): set proper band
-            if (options.Deadline != TInstant::Max()) {
-                req->SetTimeout(options.Deadline - Now());
-            }
-
-            TDuration serializationTime;
-            {
-                NProfiling::TCpuTimingGuard timingGuard(&serializationTime);
-
-                // TODO(lukyan): remove after refactoring protobuf in client
-                for (const auto& item : mountInfos) {
-                    ToProto(req->add_mount_infos(), item);
-                }
-
-                ToProto(req->mutable_query(), query);
-                req->mutable_query()->set_input_row_limit(options.InputRowLimit);
-                req->mutable_query()->set_output_row_limit(options.OutputRowLimit);
-                ToProto(req->mutable_external_functions(), externalCGInfo->Functions);
-                externalCGInfo->NodeDirectory->DumpTo(req->mutable_node_directory());
-                ToProto(req->mutable_options(), options);
-                ToProto(req->mutable_data_sources(), dataSources);
-                req->set_response_codec(static_cast<int>(config->SelectRowsResponseCodec));
-            }
-
-            auto queryFingerprint = InferName(query, true);
-            YT_LOG_DEBUG("Sending subquery (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v, SerializationTime: %v, "
-                "RequestSize: %v)",
-                queryFingerprint,
-                query->GetReadSchema(),
-                query->GetTableSchema(),
-                serializationTime,
-                req->ByteSize());
-
-            TRACE_ANNOTATION("serialization_time", serializationTime);
-            TRACE_ANNOTATION("request_size", req->ByteSize());
-
-            auto resultReader = New<TQueryResponseReader>(
-                req->Invoke(),
-                query->GetTableSchema(),
-                config->SelectRowsResponseCodec,
-                Logger);
-            return std::make_pair(resultReader, resultReader->GetQueryResult());
+        auto req = proxy.Execute();
+        // TODO(babenko): set proper band
+        if (options.Deadline != TInstant::Max()) {
+            req->SetTimeout(options.Deadline - Now());
         }
+
+        TDuration serializationTime;
+        {
+            NProfiling::TCpuTimingGuard timingGuard(&serializationTime);
+
+            ToProto(req->mutable_query(), query);
+            req->mutable_query()->set_input_row_limit(options.InputRowLimit);
+            req->mutable_query()->set_output_row_limit(options.OutputRowLimit);
+            ToProto(req->mutable_external_functions(), externalCGInfo->Functions);
+            externalCGInfo->NodeDirectory->DumpTo(req->mutable_node_directory());
+            ToProto(req->mutable_options(), options);
+            ToProto(req->mutable_data_sources(), dataSources);
+            req->set_response_codec(static_cast<int>(config->SelectRowsResponseCodec));
+        }
+
+        auto queryFingerprint = InferName(query, true);
+        YT_LOG_DEBUG("Sending subquery (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v, SerializationTime: %v, "
+            "RequestSize: %v)",
+            queryFingerprint,
+            query->GetReadSchema(),
+            query->GetTableSchema(),
+            serializationTime,
+            req->ByteSize());
+
+        // TODO(prime): put these into the trace log
+        // TRACE_ANNOTATION("serialization_time", serializationTime);
+        // TRACE_ANNOTATION("request_size", req->ByteSize());
+
+        auto resultReader = New<TQueryResponseReader>(
+            req->Invoke(),
+            query->GetTableSchema(),
+            config->SelectRowsResponseCodec,
+            Logger);
+        return std::make_pair(resultReader, resultReader->GetQueryResult());
     }
 };
 

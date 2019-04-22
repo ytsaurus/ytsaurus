@@ -19,13 +19,13 @@ struct TGuid
     };
 
     //! Constructs a null (zero) guid.
-    TGuid();
+    constexpr TGuid();
 
     //! Constructs guid from parts.
-    TGuid(ui32 part0, ui32 part1, ui32 part2, ui32 part3);
+    constexpr TGuid(ui32 part0, ui32 part1, ui32 part2, ui32 part3);
 
     //! Constructs guid from parts.
-    TGuid(ui64 part0, ui64 part1);
+    constexpr TGuid(ui64 part0, ui64 part1);
 
     //! Copies an existing guid.
     TGuid(const TGuid& other) = default;

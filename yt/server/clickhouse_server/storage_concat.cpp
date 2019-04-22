@@ -6,10 +6,8 @@
 #include "logging_helpers.h"
 #include "query_helpers.h"
 #include "storage_distributed.h"
-#include "virtual_columns.h"
 
 #include "table.h"
-#include "table_partition.h"
 #include "query_context.h"
 
 #include <Common/Exception.h>
@@ -25,12 +23,14 @@
 
 namespace NYT::NClickHouseServer {
 
+using namespace NYPath;
+using namespace NTableClient;
 using namespace DB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStorageConcat final
-    : public TStorageDistributed
+class TStorageConcat
+    : public TStorageDistributedBase
 {
 private:
     std::vector<TClickHouseTablePtr> Tables;
@@ -38,100 +38,63 @@ private:
 public:
     TStorageConcat(
         std::vector<TClickHouseTablePtr> tables,
-        TClickHouseTableSchema schema,
-        IExecutionClusterPtr cluster);
+        TTableSchema schema,
+        TClickHouseTableSchema clickHouseSchema,
+        IExecutionClusterPtr cluster)
+        : TStorageDistributedBase(
+            std::move(cluster),
+            std::move(schema),
+            std::move(clickHouseSchema))
+        , Tables(std::move(tables))
+    { }
 
     std::string getTableName() const override
     {
-        return "Concatenate(" + JoinStrings(", ", GetTableNames()) + ")";
+        // TODO(max42): make better.
+        return "Concatenate";
     }
 
 private:
-    const DB::NamesAndTypesList& ListVirtualColumns() const override
+    virtual std::vector<TYPath> GetTablePaths() const override
     {
-        return ListSystemVirtualColumns();
+        std::vector<TYPath> result;
+        for (const auto& table : Tables) {
+            result.emplace_back(table->Path);
+        }
+        return result;
     }
-
-    std::vector<TString> GetTableNames() const;
-
-    virtual TTablePartList GetTableParts(
-        const ASTPtr& queryAst,
-        const Context& context,
-        const DB::KeyCondition* keyCondition,
-        size_t maxParts) override;
 
     virtual ASTPtr RewriteSelectQueryForTablePart(
         const ASTPtr& queryAst,
-        const std::string& jobSpec) override;
+        const std::string& subquerySpec) override
+    {
+        auto modifiedQueryAst = queryAst->clone();
+
+        ASTPtr tableFunction;
+
+        auto* tableExpression = GetFirstTableExpression(typeid_cast<ASTSelectQuery &>(*modifiedQueryAst));
+        if (tableExpression) {
+            // TODO: validate table function name
+            tableFunction = makeASTFunction(
+                "ytSubquery",
+                std::make_shared<ASTLiteral>(subquerySpec));
+        }
+
+        if (!tableFunction) {
+            throw Exception("Invalid SelectQuery", DB::Exception(queryToString(queryAst), ErrorCodes::LOGICAL_ERROR), ErrorCodes::LOGICAL_ERROR);
+        }
+
+        tableExpression->table_function = std::move(tableFunction);
+        tableExpression->database_and_table_name = nullptr;
+        tableExpression->subquery = nullptr;
+
+        return modifiedQueryAst;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStorageConcat::TStorageConcat(
-    std::vector<TClickHouseTablePtr> tables,
-    TClickHouseTableSchema schema,
-    IExecutionClusterPtr cluster)
-    : TStorageDistributed(
-        std::move(cluster),
-        std::move(schema))
-    , Tables(std::move(tables))
-{}
-
-std::vector<TString> TStorageConcat::GetTableNames() const
-{
-    std::vector<TString> names;
-    names.reserve(Tables.size());
-    for (auto& table : Tables) {
-        names.push_back(table->Name);
-    }
-    return names;
-}
-
-TTablePartList TStorageConcat::GetTableParts(
-    const ASTPtr& queryAst,
-    const Context& context,
-    const DB::KeyCondition* keyCondition,
-    size_t maxParts)
-{
-    auto* queryContext = GetQueryContext(context);
-    Y_UNUSED(queryAst);
-
-    return queryContext->ConcatenateAndGetTableParts(
-        GetTableNames(),
-        keyCondition,
-        maxParts);
-}
-
-ASTPtr TStorageConcat::RewriteSelectQueryForTablePart(
-    const ASTPtr& queryAst,
-    const std::string& jobSpec)
-{
-    auto modifiedQueryAst = queryAst->clone();
-
-    ASTPtr tableFunction;
-
-    auto* tableExpression = GetFirstTableExpression(typeid_cast<ASTSelectQuery &>(*modifiedQueryAst));
-    if (tableExpression) {
-        // TODO: validate table function name
-        tableFunction = makeASTFunction(
-            "ytTableData",
-            std::make_shared<ASTLiteral>(jobSpec));
-    }
-
-    if (!tableFunction) {
-        throw Exception("Invalid SelectQuery", DB::Exception(queryToString(queryAst), ErrorCodes::LOGICAL_ERROR), ErrorCodes::LOGICAL_ERROR);
-    }
-
-    tableExpression->table_function = std::move(tableFunction);
-    tableExpression->database_and_table_name = nullptr;
-    tableExpression->subquery = nullptr;
-
-    return modifiedQueryAst;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TClickHouseTableSchema GetCommonSchema(const std::vector<TClickHouseTablePtr>& tables, bool dropPrimaryKey)
+std::pair<TTableSchema, TClickHouseTableSchema> GetCommonSchema(const std::vector<TClickHouseTablePtr>& tables, bool dropPrimaryKey)
 {
     // TODO(max42): code below looks like a good programming contest code, but seems strange as a production code.
     // Maybe rewrite it simpler?
@@ -203,17 +166,22 @@ TClickHouseTableSchema GetCommonSchema(const std::vector<TClickHouseTablePtr>& t
     DB::NamesAndTypesList columns;
     DB::NamesAndTypesList keyColumns;
     DB::Names primarySortColumns;
+    std::vector<TColumnSchema> columnSchemas;
 
     for (const auto& column : remainingColumns) {
         auto dataType = dataTypes.get(GetTypeName(column));
         columns.emplace_back(column.Name, dataType);
+        auto& columnSchema = columnSchemas.emplace_back(tables[0]->TableSchema.GetColumn(column.Name));
 
         if (column.IsSorted() && !dropPrimaryKey) {
             keyColumns.emplace_back(column.Name, dataType);
             primarySortColumns.emplace_back(column.Name);
+        } else {
+            columnSchema.SetSortOrder(std::nullopt);
         }
     }
-    return TClickHouseTableSchema(std::move(columns), std::move(keyColumns), std::move(primarySortColumns));
+
+    return {TTableSchema(std::move(columnSchemas)), TClickHouseTableSchema(std::move(columns), std::move(keyColumns), std::move(primarySortColumns))};
 }
 
 DB::StoragePtr CreateStorageConcat(
@@ -231,7 +199,8 @@ DB::StoragePtr CreateStorageConcat(
 
     auto storage = std::make_shared<TStorageConcat>(
         std::move(tables),
-        std::move(commonSchema),
+        std::move(commonSchema.first),
+        std::move(commonSchema.second),
         std::move(cluster));
     storage->startup();
 

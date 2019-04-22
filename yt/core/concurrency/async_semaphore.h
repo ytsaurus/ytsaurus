@@ -19,6 +19,9 @@ class TAsyncSemaphore
 public:
     explicit TAsyncSemaphore(i64 totalSlots);
 
+    //! Updates the total number of slots.
+    void SetTotal(i64 totalSlots);
+
     //! Releases a given number of slots.
     virtual void Release(i64 slots = 1);
 
@@ -56,10 +59,8 @@ public:
     TFuture<void> GetReadyEvent();
 
 private:
-    const i64 TotalSlots_;
-
     TSpinLock SpinLock_;
-
+    std::atomic<i64> TotalSlots_;
     std::atomic<i64> FreeSlots_;
 
     bool Releasing_ = false;

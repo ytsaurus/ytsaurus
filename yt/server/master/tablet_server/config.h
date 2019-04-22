@@ -277,7 +277,7 @@ public:
         RegisterParameter("leader_reassignment_timeout", LeaderReassignmentTimeout)
             .Default(TDuration::Seconds(15));
         RegisterParameter("max_snapshot_count_to_keep", MaxSnapshotCountToKeep)
-            .GreaterThanOrEqual(0)
+            .GreaterThanOrEqual(1)
             .Default(5);
         RegisterParameter("max_snapshot_size_to_keep", MaxSnapshotSizeToKeep)
             .GreaterThanOrEqual(0)

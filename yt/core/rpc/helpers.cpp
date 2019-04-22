@@ -333,25 +333,74 @@ IChannelPtr CreateFailureDetectingChannel(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTraceContext GetTraceContext(const TRequestHeader& header)
+TSpanContext GetSpanContext(const TRequestHeader& header)
 {
     if (!header.HasExtension(TTracingExt::tracing_ext)) {
-        return TTraceContext();
+        return {};
     }
 
     const auto& ext = header.GetExtension(TTracingExt::tracing_ext);
-    return TTraceContext(
-        ext.trace_id(),
-        ext.span_id(),
-        ext.parent_span_id());
+
+    auto traceId = InvalidTraceId;
+    if (ext.has_trace_id()) {
+        FromProto(&traceId, ext.trace_id());
+    } else if (ext.has_trace_id_old()) {
+        // COMPAT(prime)
+        traceId.Parts64[0] = ext.trace_id_old();
+    }
+
+    auto spanId = InvalidSpanId;
+    if (ext.has_span_id()) {
+        spanId = ext.span_id();
+    } else if (ext.has_span_id_old()) {
+        spanId = ext.span_id_old();
+    }
+
+    return {
+        traceId,
+        spanId,
+        ext.sampled(),
+        ext.debug()
+    };
 }
 
-void SetTraceContext(TRequestHeader* header, const NTracing::TTraceContext& context)
+TTraceContextPtr GetOrCreateTraceContext(const NProto::TRequestHeader& header)
 {
+    auto clientSpan = GetSpanContext(header);
+    auto spanName = header.service() + "." + header.method();
+    if (clientSpan.TraceId != InvalidTraceId) {
+        return New<NTracing::TTraceContext>(clientSpan, spanName);
+    } else {
+        return CreateRootTraceContext(spanName);
+    }
+}
+
+TTraceContextPtr CreateCallTraceContext(const TString& service, const TString& method)
+{
+    auto context = GetCurrentTraceContext();
+    if (!context) {
+        return nullptr;
+    }
+
+    auto spanName = service + "." + method;
+    return CreateChildTraceContext(spanName);
+}
+
+void SetTraceContext(TRequestHeader* header, const TTraceContextPtr& traceContext)
+{
+    if (!traceContext) {
+        return;
+    }
+
     auto* ext = header->MutableExtension(TTracingExt::tracing_ext);
-    ext->set_trace_id(context.GetTraceId());
-    ext->set_span_id(context.GetSpanId());
-    ext->set_parent_span_id(context.GetParentSpanId());
+    ToProto(ext->mutable_trace_id(), traceContext->GetTraceId());
+    ext->set_span_id(traceContext->GetSpanId());
+    ext->set_sampled(traceContext->IsSampled());
+    ext->set_debug(traceContext->IsDebug());
+
+    // COMPAT(prime)
+    ext->set_trace_id_old(traceContext->GetTraceId().Parts64[0]);
+    ext->set_span_id_old(traceContext->GetSpanId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

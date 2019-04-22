@@ -929,9 +929,9 @@ IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
         0 /* jobCount */,
         dataWeightPerJob /* dataWeightPerJob */,
         dataWeightPerJob /* primaryDataWeightPerJob */,
-        options->MaxDataSlicesPerJob /* maxDataSlicesPerJob */,
-        std::numeric_limits<i64>::max() /* maxDataWeightPerJob */,
-        std::numeric_limits<i64>::max() /* maxPrimaryDataWeightPerJob */,
+        options->MaxDataSlicesPerJob,
+        spec->MaxDataWeightPerJob,
+        spec->MaxPrimaryDataWeightPerJob,
         std::numeric_limits<i64>::max() /* inputSliceDataSize */,
         std::numeric_limits<i64>::max() /* inputSliceRowCount */,
         std::nullopt /* samplingRate */);

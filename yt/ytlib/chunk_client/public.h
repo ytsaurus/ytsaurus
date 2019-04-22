@@ -31,6 +31,9 @@ class TRspExecuteBatch;
 class TDataSource;
 class TDataSourceDirectoryExt;
 
+class TReqGetChunkMeta;
+class TRspGetChunkMeta;
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -142,6 +145,10 @@ DECLARE_REFCOUNTED_CLASS(TScraperTask)
 DECLARE_REFCOUNTED_CLASS(TThrottlerManager)
 DECLARE_REFCOUNTED_CLASS(TChunkTeleporter)
 DECLARE_REFCOUNTED_CLASS(TMediumDirectory)
+
+DECLARE_REFCOUNTED_CLASS(TChunkMetaFetcher)
+
+DECLARE_REFCOUNTED_CLASS(TChunkSpecFetcher)
 
 DECLARE_REFCOUNTED_STRUCT(TChunkReaderStatistics)
 

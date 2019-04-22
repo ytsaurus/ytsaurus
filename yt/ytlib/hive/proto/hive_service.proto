@@ -10,9 +10,13 @@ message TEncapsulatedMessage
     required string type = 1;
     required bytes data = 2;
 
-    optional fixed64 trace_id = 3;
+    optional fixed64 trace_id_old = 3;
     optional fixed64 span_id = 4;
     optional fixed64 parent_span_id = 5;
+
+    optional NYT.NProto.TGuid trace_id = 6;
+    optional bool is_sampled = 7 [default = false];
+    optional bool is_debug = 8 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

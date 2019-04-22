@@ -62,8 +62,7 @@ public:
     virtual TError CheckRowLocks(
         TUnversionedRow row,
         TTransaction* transaction,
-        ui32 readLockMask,
-        ui32 writeLockMask) override;
+        TLockMask lockMask) override;
 
 private:
     // Cached for fast retrieval from ChunkMeta_.

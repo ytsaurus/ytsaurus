@@ -26,6 +26,8 @@ TGetCommand::TGetCommand()
     // TODO(babenko): rename to "limit"
     RegisterParameter("max_size", Options.MaxSize)
         .Optional();
+    RegisterParameter("return_only_value", ShouldReturnOnlyValue)
+        .Default(false);
 }
 
 void TGetCommand::DoExecute(ICommandContextPtr context)
@@ -38,7 +40,12 @@ void TGetCommand::DoExecute(ICommandContextPtr context)
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
-    ProduceSingleOutputValue(context, "value", result);
+    // XXX(levysotsky): Python client doesn't want to parse the returned |map_node|.
+    if (ShouldReturnOnlyValue) {
+        context->ProduceOutputValue(result);
+    } else {
+        ProduceSingleOutputValue(context, "value", result);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,6 +105,8 @@ TListCommand::TListCommand()
     // TODO(babenko): rename to "limit"
     RegisterParameter("max_size", Options.MaxSize)
         .Optional();
+    RegisterParameter("return_only_value", ShouldReturnOnlyValue)
+        .Default(false);
 }
 
 void TListCommand::DoExecute(ICommandContextPtr context)
@@ -108,7 +117,12 @@ void TListCommand::DoExecute(ICommandContextPtr context)
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
-    ProduceSingleOutputValue(context, "value", result);
+    // XXX(levysotsky): Python client doesn't want to parse the returned |map_node|.
+    if (ShouldReturnOnlyValue) {
+        context->ProduceOutputValue(result);
+    } else {
+        ProduceSingleOutputValue(context, "value", result);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

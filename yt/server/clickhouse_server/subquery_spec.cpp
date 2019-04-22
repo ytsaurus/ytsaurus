@@ -1,12 +1,33 @@
-#include "read_job_spec.h"
+#include "subquery_spec.h"
 
-#include "serialize.h"
 #include "table.h"
 #include "table_schema.h"
 
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
+
+#include <DataTypes/DataTypeFactory.h>
+
+namespace DB {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NYT::NClickHouseServer::NProto::TNameAndTypePair* protoPair, const NameAndTypePair& pair)
+{
+    protoPair->set_name(TString(pair.name));
+    protoPair->set_type(TString(pair.type->getName()));
+}
+
+void FromProto(NameAndTypePair* pair, const NYT::NClickHouseServer::NProto::TNameAndTypePair& protoPair)
+{
+    pair->name = protoPair.name();
+    pair->type = DB::DataTypeFactory::instance().get(protoPair.type());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace DB
 
 namespace NYT::NClickHouseServer {
 
@@ -27,11 +48,13 @@ bool IsTable(const TDataSource& dataSource)
            type == EDataSourceType::VersionedTable;
 }
 
+/////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TReadJobSpec::Validate() const
+void TSubquerySpec::Validate() const
 {
     const auto& dataSources = DataSources();
 
@@ -68,39 +91,12 @@ void TReadJobSpec::Validate() const
     }
 }
 
-NChunkClient::EDataSourceType TReadJobSpec::GetCommonDataSourceType() const
-{
-    // TODO: checks
-    const auto& representative = DataSources().front();
-    return representative.GetType();
-}
-
-NTableClient::TTableSchema TReadJobSpec::GetCommonNativeSchema() const
-{
-    // TODO: checks
-    const auto& representative = DataSources().front();
-    return *representative.Schema();
-}
-
-std::vector<TClickHouseTablePtr> TReadJobSpec::GetTables() const
-{
-    auto nativeSchema = GetCommonNativeSchema();
-
-    const auto& dataSources = DataSources();
-
-    std::vector<TClickHouseTablePtr> tables;
-    tables.reserve(dataSources.size());
-    for (auto dataSource : dataSources) {
-        tables.push_back(
-            CreateClickHouseTable(*dataSource.GetPath(), nativeSchema));
-    }
-    return tables;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TReadJobSpec* protoSpec, const TReadJobSpec& spec)
+void ToProto(NProto::TSubquerySpec* protoSpec, const TSubquerySpec& spec)
 {
+    using NYT::ToProto;
+
     ToProto(protoSpec->mutable_data_source_directory(), spec.DataSourceDirectory);
 
     auto* tableSpec = protoSpec->mutable_table_spec();
@@ -112,10 +108,18 @@ void ToProto(NProto::TReadJobSpec* protoSpec, const TReadJobSpec& spec)
     if (spec.NodeDirectory) {
         spec.NodeDirectory->DumpTo(protoSpec->mutable_node_directory());
     }
+
+    ToProto(protoSpec->mutable_initial_query_id(), spec.InitialQueryId);
+    for (const auto& column : spec.Columns) {
+        ToProto(protoSpec->add_columns(), column);
+    }
+    ToProto(protoSpec->mutable_read_schema(), spec.ReadSchema);
 }
 
-void FromProto(TReadJobSpec* spec, const NProto::TReadJobSpec& protoSpec)
+void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
 {
+    using NYT::FromProto;
+
     FromProto(&spec->DataSourceDirectory, protoSpec.data_source_directory());
 
     const auto& tableSpec = protoSpec.table_spec();
@@ -128,35 +132,14 @@ void FromProto(TReadJobSpec* spec, const NProto::TReadJobSpec& protoSpec)
         spec->NodeDirectory = New<TNodeDirectory>();
         spec->NodeDirectory->MergeFrom(protoSpec.node_directory());
     }
+
+    FromProto(&spec->InitialQueryId, protoSpec.initial_query_id());
+    for (const auto& protoColumn : protoSpec.columns()) {
+        FromProto(&spec->Columns.emplace_back(), protoColumn);
+    }
+    FromProto(&spec->ReadSchema, protoSpec.read_schema());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-void Serialize(const TReadJobSpec& spec, IYsonConsumer* consumer)
-{
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("data_source_directory").Value(spec.DataSourceDirectory)
-            .Item("table_spec").List(spec.DataSliceDescriptors)
-            .DoIf(bool(spec.NodeDirectory), [&] (TFluentMap fluent) {
-                fluent.Item("node_directory").Value(spec.NodeDirectory);
-            })
-        .EndMap();
-}
-
-void Deserialize(TReadJobSpec& spec, INodePtr node)
-{
-    auto mapNode = node->AsMap();
-
-    spec = TReadJobSpec();
-    spec.DataSourceDirectory = ConvertTo<TDataSourceDirectoryPtr>(mapNode->GetChild("data_source_directory"));
-    spec.DataSliceDescriptors = ConvertTo<std::vector<TDataSliceDescriptor>>(mapNode->GetChild("table_spec"));
-
-    if (auto node = mapNode->FindChild("node_directory")) {
-        spec.NodeDirectory = ConvertTo<TNodeDirectoryPtr>(node);
-    }
-}
-
-/////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer

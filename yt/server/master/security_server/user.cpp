@@ -74,13 +74,6 @@ TUserStatistics operator + (const TUserStatistics& lhs, const TUserStatistics& r
 
 TUser::TUser(TUserId id)
     : TSubject(id)
-    , Banned_(false)
-    , RequestQueueSizeLimit_(100)
-    , RequestQueueSize_(0)
-    , LocalStatisticsPtr_(nullptr)
-    , RequestStatisticsUpdateIndex_(-1)
-    , ReadRequestRateLimit_(100)
-    , WriteRequestRateLimit_(100)
 { }
 
 void TUser::Save(NCellMaster::TSaveContext& context) const
@@ -136,7 +129,7 @@ void TUser::RecomputeClusterStatistics()
     }
 }
 
-const NConcurrency::IReconfigurableThroughputThrottlerPtr TUser::GetRequestRateThrottler(EUserWorkloadType workloadType)
+const NConcurrency::IReconfigurableThroughputThrottlerPtr& TUser::GetRequestRateThrottler(EUserWorkloadType workloadType)
 {
     switch (workloadType) {
         case EUserWorkloadType::Read:
@@ -149,15 +142,15 @@ const NConcurrency::IReconfigurableThroughputThrottlerPtr TUser::GetRequestRateT
 }
 
 void TUser::SetRequestRateThrottler(
-    const NConcurrency::IReconfigurableThroughputThrottlerPtr& throttler,
+    NConcurrency::IReconfigurableThroughputThrottlerPtr throttler,
     EUserWorkloadType workloadType)
 {
     switch (workloadType) {
         case EUserWorkloadType::Read:
-            ReadRequestRateThrottler_ = throttler;
+            ReadRequestRateThrottler_ = std::move(throttler);
             break;
         case EUserWorkloadType::Write:
-            WriteRequestRateThrottler_ = throttler;
+            WriteRequestRateThrottler_ = std::move(throttler);
             break;
         default:
             Y_UNREACHABLE();

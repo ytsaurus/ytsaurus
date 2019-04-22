@@ -50,6 +50,23 @@ DEFINE_REFCOUNTED_TYPE(TProxyEntry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TDynamicConfig is part of proxy configuration stored in cypress.
+//
+// NOTE: config might me unavalable. Users must handle such cases
+// gracefully.
+class TDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    THashMap<TString, double> TracingUserSampleProbability;
+
+    TDynamicConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCoordinator
     : public TRefCounted
 {
@@ -68,29 +85,39 @@ public:
     TProxyEntryPtr GetSelf();
 
     const TCoordinatorConfigPtr& GetConfig() const;
+    TDynamicConfigPtr GetDynamicConfig();
+
+    NYTree::IYPathServicePtr CreateOrchidService();
 
     bool IsDead(const TProxyEntryPtr& proxy, TInstant at) const;
 
 private:
-    TCoordinatorConfigPtr Config_;
-    const TBootstrap* Bootstrap_;
-    NApi::IClientPtr Client_;
-    NConcurrency::TPeriodicExecutorPtr Periodic_;
+    const TCoordinatorConfigPtr Config_;
+    TBootstrap* const Bootstrap_;
+    const NApi::IClientPtr Client_;
+    const NConcurrency::TPeriodicExecutorPtr UpdateStateExecutor_;
+    const NConcurrency::TPeriodicExecutorPtr UpdateDynamicConfigExecutor_;
 
     TPromise<void> FirstUpdateIterationFinished_ = NewPromise<void>();
-    bool IsInitialized_ = false;
+    bool Initialized_ = false;
 
     TSpinLock Lock_;
     TProxyEntryPtr Self_;
+    TDynamicConfigPtr DynamicConfig_;
     std::vector<TProxyEntryPtr> Proxies_;
-
-    void Update();
-    std::vector<TProxyEntryPtr> ListCypressProxies();
 
     TInstant StatisticsUpdatedAt_;
     std::optional<TNetworkStatistics> LastStatistics_;
 
+    void UpdateState();
+    std::vector<TProxyEntryPtr> ListCypressProxies();
+
     TLivenessPtr GetSelfLiveness();
+
+    void UpdateDynamicConfig();
+    void SetDynamicConfig(TDynamicConfigPtr config);
+
+    void BuildOrchid(NYson::IYsonConsumer* consumer);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCoordinator)
@@ -133,26 +160,63 @@ DEFINE_REFCOUNTED_TYPE(TPingHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TInstance {
+    TString Type, Address, Version, StartTime;
+
+    bool Banned = false;
+    bool Online = true;
+    TError Error;
+};
+
 class TDiscoverVersionsHandler
     : public NHttp::IHttpHandler
 {
 public:
     TDiscoverVersionsHandler(NApi::NNative::IConnectionPtr connection, NApi::IClientPtr client);
 
-    virtual void HandleRequest(
-        const NHttp::IRequestPtr& req,
-        const NHttp::IResponseWriterPtr& rsp) override;
-
-private:
+protected:
     const NApi::NNative::IConnectionPtr Connection_;
     const NApi::IClientPtr Client_;
 
-    NYson::TYsonString ListComponent(const TString& component, bool isDataNode);
     std::vector<TString> GetInstances(const TString& path, bool fromSubdirectories = false);
-    NYson::TYsonString GetAttributes(const TString& path, const std::vector<TString>& instances);
+    std::vector<TInstance> ListComponent(const TString& component, const TString& type);
+    std::vector<TInstance> GetAttributes(
+        const TString& path,
+        const std::vector<TString>& instances,
+        const TString& type);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiscoverVersionsHandler)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDiscoverVersionsHandlerV1
+    : public TDiscoverVersionsHandler
+{
+public:
+    using TDiscoverVersionsHandler::TDiscoverVersionsHandler;
+
+    virtual void HandleRequest(
+        const NHttp::IRequestPtr& req,
+        const NHttp::IResponseWriterPtr& rsp) override;
+};
+
+DEFINE_REFCOUNTED_TYPE(TDiscoverVersionsHandlerV1)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDiscoverVersionsHandlerV2
+    : public TDiscoverVersionsHandler
+{
+public:
+    using TDiscoverVersionsHandler::TDiscoverVersionsHandler;
+
+    virtual void HandleRequest(
+        const NHttp::IRequestPtr& req,
+        const NHttp::IResponseWriterPtr& rsp) override;
+};
+
+DEFINE_REFCOUNTED_TYPE(TDiscoverVersionsHandlerV2)
 
 ////////////////////////////////////////////////////////////////////////////////
 

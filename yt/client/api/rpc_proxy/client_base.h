@@ -121,6 +121,7 @@ public:
         NObjectClient::EObjectType type,
         const NApi::TCreateObjectOptions& options) override;
 
+    //! NB: Readers and writers returned by methods below are NOT thread-safe.
     // Files
     virtual TFuture<NApi::IFileReaderPtr> CreateFileReader(
         const NYPath::TYPath& path,

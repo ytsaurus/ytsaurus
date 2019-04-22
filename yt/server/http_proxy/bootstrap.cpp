@@ -37,6 +37,7 @@
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
+#include <yt/core/alloc/statistics_producer.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
@@ -72,29 +73,13 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     MonitoringServer_ = NHttp::CreateServer(
         Config_->MonitoringServer);
 
-    MonitoringManager_ = New<TMonitoringManager>();
-    MonitoringManager_->Register(
-        "/ref_counted",
-        CreateRefCountedTrackerStatisticsProducer());
-    MonitoringManager_->Start();
+    NYTree::IMapNodePtr orchidRoot;
+    NMonitoring::Initialize(MonitoringServer_, &MonitoringManager_, &orchidRoot);
 
-    auto orchidRoot = NYTree::GetEphemeralNodeFactory(true)->CreateMap();
-    SetNodeByYPath(
-        orchidRoot,
-        "/monitoring",
-        CreateVirtualNode(MonitoringManager_->GetService()));
-    SetNodeByYPath(
-        orchidRoot,
-        "/profiling",
-        CreateVirtualNode(TProfileManager::Get()->GetService()));
     SetNodeByYPath(
         orchidRoot,
         "/config",
         ConfigNode_);
-
-    MonitoringServer_->AddHandler(
-        "/orchid/",
-        NMonitoring::GetOrchidYPathHttpHandler(orchidRoot));
 
     SetBuildAttributes(orchidRoot, "http_proxy");
 
@@ -104,9 +89,15 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     SetupClients();
 
     Coordinator_ = New<TCoordinator>(Config_, this);
+    SetNodeByYPath(
+        orchidRoot,
+        "/coordinator",
+        CreateVirtualNode(Coordinator_->CreateOrchidService()));
+
     HostsHandler_ = New<THostsHandler>(Coordinator_);
     PingHandler_ = New<TPingHandler>(Coordinator_);
-    DiscoverVersionsHandler_ = New<TDiscoverVersionsHandler>(Connection_, RootClient_);
+    DiscoverVersionsHandlerV1_ = New<TDiscoverVersionsHandlerV1>(Connection_, RootClient_);
+    DiscoverVersionsHandlerV2_ = New<TDiscoverVersionsHandlerV2>(Connection_, RootClient_);
 
     ClickHouseHandler_ = New<TClickHouseHandler>(this);
 
@@ -247,9 +238,10 @@ void TBootstrap::RegisterRoutes(const NHttp::IServerPtr& server)
     server->AddHandler("/hosts/", HostsHandler_);
     server->AddHandler("/ping/", PingHandler_);
 
-    server->AddHandler("/internal/discover_versions", DiscoverVersionsHandler_);
+    server->AddHandler("/internal/discover_versions", DiscoverVersionsHandlerV1_);
+    server->AddHandler("/internal/discover_versions/v2", DiscoverVersionsHandlerV2_);
     // Legacy.
-    server->AddHandler("/api/v3/_discover_versions", DiscoverVersionsHandler_);
+    server->AddHandler("/api/v3/_discover_versions", DiscoverVersionsHandlerV1_);
 
     server->AddHandler("/version", MakeStrong(this));
     server->AddHandler("/service", MakeStrong(this));

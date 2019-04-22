@@ -6,6 +6,8 @@
 
 #include <yt/ytlib/api/native/config.h>
 
+#include <yt/ytlib/chunk_client/config.h>
+
 #include <yt/client/ypath/rich.h>
 
 #include <yt/core/concurrency/config.h>
@@ -71,12 +73,12 @@ class TDictionarySourceYtConfig
     : public TYsonSerializable
 {
 public:
+    NYPath::TRichYPath Path;
+
     TDictionarySourceYtConfig()
     {
         RegisterParameter("path", Path);
     }
-
-    NYPath::TRichYPath Path;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDictionarySourceYtConfig);
@@ -90,14 +92,14 @@ class TDictionarySourceConfig
     : public TYsonSerializable
 {
 public:
+    // TODO(max42): proper value omission.
+    TDictionarySourceYtConfigPtr Yt;
+
     TDictionarySourceConfig()
     {
         RegisterParameter("yt", Yt)
             .Default(nullptr);
     }
-
-    // TODO(max42): proper value omission.
-    TDictionarySourceYtConfigPtr Yt;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDictionarySourceConfig);
@@ -110,15 +112,6 @@ class TDictionaryConfig
     : public TYsonSerializable
 {
 public:
-    TDictionaryConfig()
-    {
-        RegisterParameter("name", Name);
-        RegisterParameter("source", Source);
-        RegisterParameter("layout", Layout);
-        RegisterParameter("structure", Structure);
-        RegisterParameter("lifetime", Lifetime);
-    }
-
     TString Name;
 
     //! Source configuration.
@@ -135,9 +128,45 @@ public:
     //! Lifetime configuration.
     //! See: https://clickhouse.yandex/docs/en/query_language/dicts/external_dicts_dict_lifetime/
     INodePtr Lifetime;
+
+    TDictionaryConfig()
+    {
+        RegisterParameter("name", Name);
+        RegisterParameter("source", Source);
+        RegisterParameter("layout", Layout);
+        RegisterParameter("structure", Structure);
+        RegisterParameter("lifetime", Lifetime);
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TDictionaryConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSubqueryConfig
+    : public TYsonSerializable
+{
+public:
+    NChunkClient::TFetcherConfigPtr ChunkSliceFetcher;
+
+    int MaxSlicedChunkCount;
+    int MaxChunksPerFetch;
+    int MaxChunksPerLocateRequest;
+
+    TSubqueryConfig()
+    {
+        RegisterParameter("chunk_slice_fetcher", ChunkSliceFetcher)
+            .DefaultNew();
+        RegisterParameter("max_sliced_chunk_count", MaxSlicedChunkCount)
+            .Default(100);
+        RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
+            .Default(100'000);
+        RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)
+            .Default(10'000);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TSubqueryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -145,6 +174,36 @@ class TEngineConfig
     : public TYsonSerializable
 {
 public:
+    //! A map setting CH security policy.
+    TUserConfigPtr Users;
+
+    //! Path in filesystem to the internal state.
+    TString DataPath;
+
+    //! Path in Cypress with coordination map node, external dictionaries etc.
+    TString CypressRootPath;
+
+    //! Log level for internal CH logging.
+    TString LogLevel;
+
+    //! External dictionaries.
+    std::vector<TDictionaryConfigPtr> Dictionaries;
+
+    //! ClickHouse settings.
+    //! Refer to https://clickhouse.yandex/docs/en/operations/settings/settings/ for a complete list.
+    //! This map is merged into `users/profiles/default`.
+    THashMap<TString, INodePtr> Settings;
+
+    //! Hosts to listen.
+    std::vector<TString> ListenHosts;
+
+    //! Paths to geodata stuff.
+    TString PathToRegionsHierarchyFile;
+    TString PathToRegionsNameFiles;
+
+    //! Subquery logic configuration.
+    TSubqueryConfigPtr Subquery;
+
     TEngineConfig()
     {
         RegisterParameter("users", Users)
@@ -175,6 +234,9 @@ public:
         RegisterParameter("path_to_regions_name_files", PathToRegionsNameFiles)
             .Default("./geodata/");
 
+        RegisterParameter("subquery", Subquery)
+            .DefaultNew();
+
         RegisterPreprocessor([&] {
             Settings["readonly"] = ConvertToNode(2);
             Settings["max_memory_usage_for_all_queries"] = ConvertToNode(9_GB);
@@ -193,33 +255,6 @@ public:
 
         SetUnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
     }
-
-    //! A map setting CH security policy.
-    TUserConfigPtr Users;
-
-    //! Path in filesystem to the internal state.
-    TString DataPath;
-
-    //! Path in Cypress with coordination map node, external dictionaries etc.
-    TString CypressRootPath;
-
-    //! Log level for internal CH logging.
-    TString LogLevel;
-
-    //! External dictionaries.
-    std::vector<TDictionaryConfigPtr> Dictionaries;
-
-    //! ClickHouse settings.
-    //! Refer to https://clickhouse.yandex/docs/en/operations/settings/settings/ for a complete list.
-    //! This map is merged into `users/profiles/default`.
-    THashMap<TString, INodePtr> Settings;
-
-    //! Hosts to listen.
-    std::vector<TString> ListenHosts;
-
-    //! Paths to geodata stuff.
-    TString PathToRegionsHierarchyFile;
-    TString PathToRegionsNameFiles;
 };
 
 DEFINE_REFCOUNTED_TYPE(TEngineConfig);

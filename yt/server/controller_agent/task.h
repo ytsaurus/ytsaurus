@@ -157,6 +157,8 @@ public:
 
     TSharedRef BuildJobSpecProto(TJobletPtr joblet);
 
+    virtual bool IsJobInterruptible() const;
+
 protected:
     NLogging::TLogger Logger;
 

@@ -438,16 +438,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectManager::TObjectManager(
-    TObjectManagerConfigPtr config,
-    TBootstrap* bootstrap)
+TObjectManager::TObjectManager(TBootstrap* bootstrap)
     : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::ObjectManager)
-    , Config_(config)
     , Profiler(ObjectServerProfiler)
     , RootService_(New<TRootService>(Bootstrap_))
-    , GarbageCollector_(New<TGarbageCollector>(Config_, Bootstrap_))
+    , GarbageCollector_(New<TGarbageCollector>(Bootstrap_))
 {
-    YCHECK(config);
     YCHECK(bootstrap);
 
     RegisterLoader(

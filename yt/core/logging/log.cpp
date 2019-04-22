@@ -16,8 +16,10 @@ TSharedRef TMessageStringBuilder::Flush()
 
 void TMessageStringBuilder::DisablePerThreadCache()
 {
+#ifndef __APPLE__
     Cache_ = nullptr;
     CacheDestroyed_ = true;
+#endif
 }
 
 void TMessageStringBuilder::DoReset()
@@ -53,6 +55,7 @@ void TMessageStringBuilder::DoPreallocate(size_t newLength)
 
 TMessageStringBuilder::TPerThreadCache* TMessageStringBuilder::GetCache()
 {
+#ifndef __APPLE__
     if (Y_LIKELY(Cache_)) {
         return Cache_;
     }
@@ -62,6 +65,9 @@ TMessageStringBuilder::TPerThreadCache* TMessageStringBuilder::GetCache()
     Y_STATIC_THREAD(TPerThreadCache) Cache;
     Cache_ = &Cache;
     return Cache_;
+#else
+    return nullptr;
+#endif
 }
 
 TMessageStringBuilder::TPerThreadCache::~TPerThreadCache()
@@ -69,8 +75,10 @@ TMessageStringBuilder::TPerThreadCache::~TPerThreadCache()
     TMessageStringBuilder::DisablePerThreadCache();
 }
 
+#ifndef __APPLE__
 Y_POD_THREAD(TMessageStringBuilder::TPerThreadCache*) TMessageStringBuilder::Cache_;
 Y_POD_THREAD(bool) TMessageStringBuilder::CacheDestroyed_;
+#endif
 
 } // namespace NDetail
 

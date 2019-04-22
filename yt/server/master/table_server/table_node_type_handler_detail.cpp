@@ -72,7 +72,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     TAccount* account)
 {
     const auto& config = this->Bootstrap_->GetConfig()->CypressManager;
-
     auto combinedAttributes = OverlayAttributeDictionaries(explicitAttributes, inheritedAttributes);
     auto optionalTabletCellBundleName = combinedAttributes.FindAndRemove<TString>("tablet_cell_bundle");
     auto optimizeFor = combinedAttributes.GetAndRemove<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);

@@ -98,7 +98,7 @@ public:
 
     void WriteCommand(EWireProtocolCommand command);
 
-    void WriteLocks(ui32 lockMask);
+    void WriteLockBitmap(TLockBitmap lockBitmap);
 
     void WriteTableSchema(const NTableClient::TTableSchema& schema);
 
@@ -186,7 +186,7 @@ public:
     TSharedRef Slice(TIterator begin, TIterator end);
 
     EWireProtocolCommand ReadCommand();
-    ui32 ReadLocks();
+    TLockBitmap ReadLockBitmap();
 
     NTableClient::TTableSchema ReadTableSchema();
 

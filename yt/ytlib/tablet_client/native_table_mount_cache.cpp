@@ -243,7 +243,7 @@ private:
                 .Apply(BIND(&TGetSession::OnTableMountInfoReceived, MakeStrong(this)));
         }
 
-        TTableMountInfoPtr OnTableMountInfoReceived (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
+        TTableMountInfoPtr OnTableMountInfoReceived(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
         {
             THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting mount info for table %v", Key_.Path);
 

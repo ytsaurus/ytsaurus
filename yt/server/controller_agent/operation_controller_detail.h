@@ -540,7 +540,7 @@ protected:
     virtual NTransactionClient::TTransactionId GetInputTransactionParentId();
     virtual NTransactionClient::TTransactionId GetOutputTransactionParentId();
     virtual void InitializeStructures();
-    virtual void SyncPrepare();
+    virtual void LockInputs();
     void InitUnrecognizedSpec();
     void FillInitializeResult(TOperationControllerInitializeResult* result);
     void ValidateIntermediateDataAccess(const TString& user, NYTree::EPermission permission) const;
@@ -1145,7 +1145,7 @@ private:
     void ReleaseJobs(const std::vector<TJobId>& jobIds);
 
     bool IsTreeTentative(const TString& treeId) const;
-    void MaybeBanInTentativeTree(const TString& treeId, bool shouldBan);
+    void MaybeBanInTentativeTree(const TString& treeId);
 
     void RegisterTestingSpeculativeJobIfNeeded(const TTaskPtr& task, TJobId jobId);
 

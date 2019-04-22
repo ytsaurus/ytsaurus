@@ -52,8 +52,7 @@ public:
         }
         switch (wireType) {
             case EWireType::Yson32:
-                Parser_->ParseYson32(&String_);
-                Consumer_->OnYsonString(String_, columnId);
+                Consumer_->OnYsonString(Parser_->ParseYson32(), columnId);
                 break;
             case EWireType::Int64:
                 Consumer_->OnInt64Scalar(Parser_->ParseInt64(), columnId);
@@ -68,8 +67,7 @@ public:
                 Consumer_->OnBooleanScalar(Parser_->ParseBoolean(), columnId);
                 break;
             case EWireType::String32:
-                Parser_->ParseString32(&String_);
-                Consumer_->OnStringScalar(String_, columnId);
+                Consumer_->OnStringScalar(Parser_->ParseString32(), columnId);
                 break;
             default:
                 // Other types should be filtered out when we parse skiff schema.
@@ -114,8 +112,8 @@ public:
             }
 
             if (TableDescriptions_[tag].HasOtherColumns) {
-                Parser_->ParseYson32(&String_);
-                Consumer_->OnOtherColumns(String_);
+                auto buf = Parser_->ParseYson32();
+                Consumer_->OnOtherColumns(buf);
             }
 
             Consumer_->OnEndRow();
@@ -135,9 +133,6 @@ private:
 
     const std::vector<TSkiffTableColumnIds> TablesColumnIds_;
     std::vector<TSkiffTableDescription> TableDescriptions_;
-
-    // String that we parse string32 into.
-    TString String_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

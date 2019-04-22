@@ -31,36 +31,30 @@ class TGpuManager
     : public TRefCounted
 {
 public:
-    using TGpuSlotPtr = std::unique_ptr<TGpuSlot, std::function<void(TGpuSlot*)>>;
-
-    TGpuManager(NCellNode::TBootstrap* bootstrap, TGpuManagerConfigPtr config);
-    TGpuManager();
-
-    static const std::vector<TString>& GetMetaGpuDeviceNames();
-    static TString GetDeviceName(int deviceNumber);
+    TGpuManager(
+        NCellNode::TBootstrap* bootstrap,
+        TGpuManagerConfigPtr config);
 
     int GetTotalGpuCount() const;
     int GetFreeGpuCount() const;
     const std::vector<TString>& ListGpuDevices() const;
+
+    using TGpuSlotPtr = std::unique_ptr<TGpuSlot, std::function<void(TGpuSlot*)>>;
     TGpuSlotPtr AcquireGpuSlot();
 
 private:
     NCellNode::TBootstrap* const Bootstrap_;
     const TGpuManagerConfigPtr Config_;
-    const bool EnableHealthCheck_ = true;
-
-    NConcurrency::TPeriodicExecutorPtr HealthCheckExecutor_;
-
-    THashSet<int> HealthyGpuDeviceNumbers_;
-
-    TSpinLock SpinLock_;
-    std::vector<TGpuSlot> FreeSlots_;
 
     std::vector<TString> GpuDevices_;
+    NConcurrency::TPeriodicExecutorPtr HealthCheckExecutor_;
+
+    TSpinLock SpinLock_;
+    THashSet<int> HealthyGpuDeviceNumbers_;
+    std::vector<TGpuSlot> FreeSlots_;
     bool Disabled_ = false;
 
     void OnHealthCheck();
-    void Init();
 };
 
 DEFINE_REFCOUNTED_TYPE(TGpuManager)

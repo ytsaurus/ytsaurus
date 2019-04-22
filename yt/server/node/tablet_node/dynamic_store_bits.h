@@ -3,6 +3,7 @@
 #include "private.h"
 
 #include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/schema.h>
 
 #include <yt/core/misc/chunked_memory_pool.h>
 #include <yt/core/misc/enum.h>
@@ -10,6 +11,10 @@
 #include <atomic>
 
 namespace NYT::NTabletNode {
+
+/////////////////////////////////////////////////////////////////////////////
+
+using NTableClient::TLockMask;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,6 +61,9 @@ struct TLockDescriptor
 {
     // Each transaction can take read lock only once.
     int ReadLockCount;
+
+    // The latest commit timestamp of a transaction that was holding this read lock.
+    TTimestamp LastReadLockTimestamp;
 
     TTransaction* WriteTransaction;
     std::atomic<TTimestamp> PrepareTimestamp;
@@ -561,7 +569,7 @@ struct TSortedDynamicRowRef
         : TBase(store, storeManager, row)
     { }
 
-    ui32 ReadLockMask = 0;
+    TLockMask LockMask;
 };
 
 using TOrderedDynamicRowRef = TDynamicRowRef<TOrderedDynamicStore, TOrderedStoreManager, TOrderedDynamicRow>;
@@ -588,7 +596,7 @@ struct TWriteContext
 
     TSortedDynamicStorePtr BlockedStore;
     TSortedDynamicRow BlockedRow;
-    ui32 BlockedLockMask = 0;
+    TLockMask BlockedLockMask;
     TTimestamp BlockedTimestamp = NullTimestamp;
 
     TError Error;

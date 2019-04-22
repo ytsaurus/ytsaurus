@@ -13,7 +13,7 @@ namespace NYT {
 
 Y_FORCE_INLINE void TRefCountedBase::operator delete(void* ptr) noexcept
 {
-    NYTAlloc::Free(ptr);
+    NYTAlloc::FreeNonNull(ptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -164,8 +164,7 @@ Y_FORCE_INLINE void TRefCounter<true>::Destroy(const TRefCountedBase* object)
 
 Y_FORCE_INLINE void TRefCounter<true>::Dispose()
 {
-    Y_ASSERT(Ptr_);
-    NYTAlloc::Free(Ptr_);
+    NYTAlloc::FreeNonNull(Ptr_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

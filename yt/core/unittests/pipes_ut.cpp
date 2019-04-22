@@ -156,8 +156,8 @@ TEST_F(TPipeReadWriteTest, ReadSomethingSpin)
 {
     TString message("Hello pipe!\n");
     auto buffer = TSharedRef::FromString(message);
-    Writer->Write(buffer).Get();
-    Writer->Close();
+    Writer->Write(buffer).Get().ThrowOnError();
+    Writer->Close().Get().ThrowOnError();
 
     auto data = TSharedMutableRef::Allocate(1);
     auto whole = TBlob(TDefaultBlobTag());
@@ -178,8 +178,8 @@ TEST_F(TNamedPipeReadWriteTest, ReadSomethingSpin)
     TString message("Hello pipe!\n");
     auto buffer = TSharedRef::FromString(message);
 
-    Writer->Write(buffer).Get();
-    Writer->Close();
+    Writer->Write(buffer).Get().ThrowOnError();
+    Writer->Close().Get().ThrowOnError();
 
     auto data = TSharedMutableRef::Allocate(1);
     auto whole = TBlob(TDefaultBlobTag());

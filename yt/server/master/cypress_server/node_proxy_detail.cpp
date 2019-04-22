@@ -1218,6 +1218,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Unlock)
 
     context->SetRequestInfo();
 
+    if (!GetDynamicCypressManagerConfig()->EnableUnlockCommand) {
+        THROW_ERROR_EXCEPTION("Unlock command is not enabled");
+    }
+
     ValidateTransaction();
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
@@ -2207,12 +2211,12 @@ void TMapNodeProxy::SetChildNode(
 
 int TMapNodeProxy::GetMaxChildCount() const
 {
-    return Bootstrap_->GetConfig()->CypressManager->MaxNodeChildCount;
+    return GetDynamicCypressManagerConfig()->MaxNodeChildCount;
 }
 
 int TMapNodeProxy::GetMaxKeyLength() const
 {
-    return Bootstrap_->GetConfig()->CypressManager->MaxMapNodeKeyLength;
+    return GetDynamicCypressManagerConfig()->MaxMapNodeKeyLength;
 }
 
 IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(
@@ -2501,7 +2505,7 @@ void TListNodeProxy::SetChildNode(
 
 int TListNodeProxy::GetMaxChildCount() const
 {
-    return Bootstrap_->GetConfig()->CypressManager->MaxNodeChildCount;
+    return GetDynamicCypressManagerConfig()->MaxNodeChildCount;
 }
 
 IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(

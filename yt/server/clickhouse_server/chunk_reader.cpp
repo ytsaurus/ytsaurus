@@ -53,19 +53,6 @@ void VerifyDataSourcesAreHomogeneous(const TDataSourceDirectoryPtr dataSourceDir
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableSchema AddSystemColumns(
-    const TTableSchema& schema,
-    const NTableClient::TTableReaderOptionsPtr& options)
-{
-    auto columns = schema.Columns();
-
-    if (options->EnableTableIndex) {
-        columns.emplace_back(TableIndexColumnName, EValueType::Int64);
-    }
-
-    return TTableSchema(columns, schema.GetStrict(), schema.GetUniqueKeys());
-}
-
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -149,9 +136,7 @@ ISchemafulReaderPtr CreateChunkReader(
         }
     };
 
-    return CreateSchemafulReaderAdapter(
-        std::move(factory),
-        AddSystemColumns(readerSchema, options));
+    return CreateSchemafulReaderAdapter(std::move(factory), readerSchema);
 }
 
 void WarmUp(std::vector<NTableClient::ISchemafulReaderPtr>& chunkReaders)

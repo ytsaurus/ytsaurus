@@ -114,6 +114,8 @@
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
+#include <yt/core/alloc/statistics_producer.h>
+
 #include <yt/core/profiling/profile_manager.h>
 
 #include <yt/core/rpc/bus/channel.h>
@@ -240,12 +242,16 @@ void TBootstrap::DoRun()
     LookupThreadPool = New<TThreadPool>(
         Config->QueryAgent->LookupThreadPoolSize,
         "Lookup");
-
     TableReplicatorThreadPool = New<TThreadPool>(
         Config->TabletNode->TabletManager->ReplicatorThreadPoolSize,
         "Replicator");
-
     TransactionTrackerQueue = New<TActionQueue>("TxTracker");
+    StorageHeavyThreadPool = New<TThreadPool>(
+        Config->DataNode->StorageHeavyThreadCount,
+        "StorageHeavy");
+    StorageLightThreadPool = New<TThreadPool>(
+        Config->DataNode->StorageLightThreadCount,
+        "StorageLight");
 
     BusServer = CreateTcpBusServer(Config->BusServer);
 
@@ -263,10 +269,7 @@ void TBootstrap::DoRun()
     skynetHttpConfig->BindRetryBackoff = Config->BusServer->BindRetryBackoff;
     SkynetHttpServer = NHttp::CreateServer(skynetHttpConfig);
 
-    MonitoringManager_ = New<TMonitoringManager>();
-    MonitoringManager_->Register(
-        "/ref_counted",
-        CreateRefCountedTrackerStatisticsProducer());
+    NMonitoring::Initialize(HttpServer, &MonitoringManager_, &OrchidRoot);
 
     auto createBatchingChunkService = [&] (const auto& config) {
         RpcServer->RegisterService(CreateBatchingChunkService(
@@ -574,16 +577,6 @@ void TBootstrap::DoRun()
         MasterCacheServices.push_back(initMasterCacheSerivce(masterConfig));
     }
 
-    OrchidRoot = GetEphemeralNodeFactory(true)->CreateMap();
-
-    SetNodeByYPath(
-        OrchidRoot,
-        "/monitoring",
-        CreateVirtualNode(MonitoringManager_->GetService()));
-    SetNodeByYPath(
-        OrchidRoot,
-        "/profiling",
-        CreateVirtualNode(TProfileManager::Get()->GetService()));
     SetNodeByYPath(
         OrchidRoot,
         "/config",
@@ -609,10 +602,6 @@ void TBootstrap::DoRun()
             ->Via(GetControlInvoker())));
     SetBuildAttributes(OrchidRoot, "node");
 
-    HttpServer->AddHandler(
-        "/orchid/",
-        NMonitoring::GetOrchidYPathHttpHandler(OrchidRoot));
-
     SkynetHttpServer->AddHandler(
         "/read_skynet_part",
         MakeSkynetHttpHandler(this));
@@ -634,7 +623,6 @@ void TBootstrap::DoRun()
     ChunkCache->Initialize();
     ExecSlotManager->Initialize();
     JobController->Initialize();
-    MonitoringManager_->Start();
     PeerBlockUpdater->Start();
     PeerBlockDistributor->Start();
     MasterConnector->Start();
@@ -677,6 +665,16 @@ const IInvokerPtr& TBootstrap::GetTableReplicatorPoolInvoker() const
 const IInvokerPtr& TBootstrap::GetTransactionTrackerInvoker() const
 {
     return TransactionTrackerQueue->GetInvoker();
+}
+
+const IInvokerPtr& TBootstrap::GetStorageHeavyInvoker() const
+{
+    return StorageHeavyThreadPool->GetInvoker();
+}
+
+const IInvokerPtr& TBootstrap::GetStorageLightInvoker() const
+{
+    return StorageLightThreadPool->GetInvoker();
 }
 
 const NNative::IClientPtr& TBootstrap::GetMasterClient() const

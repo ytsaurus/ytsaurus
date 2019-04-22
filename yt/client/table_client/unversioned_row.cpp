@@ -1018,7 +1018,7 @@ void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& colu
     if (value.Type == EValueType::Null) {
         if (columnSchema.Required()) {
             // Any column can't be required.
-            YCHECK(columnSchema.LogicalType() != ELogicalValueType::Any);
+            YCHECK(columnSchema.SimplifiedLogicalType() != ESimpleLogicalValueType::Any);
             THROW_ERROR_EXCEPTION(
                 EErrorCode::SchemaViolation,
                 "Required column %Qv cannot have %Qlv value",
@@ -1029,39 +1029,45 @@ void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& colu
         }
     }
 
+    if (!columnSchema.SimplifiedLogicalType()) {
+        THROW_ERROR_EXCEPTION("Cannot validate column %Qv of type %Qv: validation of complex type is not supported yet",
+             columnSchema.Name(),
+             *columnSchema.LogicalType());
+    }
+
     if (columnSchema.GetPhysicalType() != value.Type) {
-        if (columnSchema.LogicalType() == ELogicalValueType::Any && typeAnyAcceptsAllValues) {
+        if (*columnSchema.SimplifiedLogicalType() == ESimpleLogicalValueType::Any && typeAnyAcceptsAllValues) {
             return;
         }
         THROW_ERROR_EXCEPTION(
             EErrorCode::SchemaViolation,
             "Invalid type of column %Qv: expected type %Qlv or %Qlv but got %Qlv",
             columnSchema.Name(),
-            columnSchema.LogicalType(),
+            *columnSchema.LogicalType(),
             EValueType::Null,
             value.Type);
     }
 
-    switch (columnSchema.LogicalType()) {
-        case ELogicalValueType::Int8:
+    switch (*columnSchema.SimplifiedLogicalType()) {
+        case ESimpleLogicalValueType::Int8:
             ValidateIntegerRange<i8>(value, columnSchema.Name());
             break;
-        case ELogicalValueType::Int16:
+        case ESimpleLogicalValueType::Int16:
             ValidateIntegerRange<i16>(value, columnSchema.Name());
             break;
-        case ELogicalValueType::Int32:
+        case ESimpleLogicalValueType::Int32:
             ValidateIntegerRange<i32>(value, columnSchema.Name());
             break;
-        case ELogicalValueType::Uint8:
+        case ESimpleLogicalValueType::Uint8:
             ValidateIntegerRange<ui8>(value, columnSchema.Name());
             break;
-        case ELogicalValueType::Uint16:
+        case ESimpleLogicalValueType::Uint16:
             ValidateIntegerRange<ui16>(value, columnSchema.Name());
             break;
-        case ELogicalValueType::Uint32:
+        case ESimpleLogicalValueType::Uint32:
             ValidateIntegerRange<ui32>(value, columnSchema.Name());
             break;
-        case ELogicalValueType::Utf8:
+        case ESimpleLogicalValueType::Utf8:
             ValidateUtf8(value, columnSchema.Name());
         default:
             break;
@@ -1797,7 +1803,7 @@ void TUnversionedOwningRow::Init(const TUnversionedValue* begin, const TUnversio
 
         for (int index = 0; index < count; ++index) {
             const auto& otherValue = begin[index];
-            auto& value = reinterpret_cast<TUnversionedValue*>(header + 1)[index];;
+            auto& value = reinterpret_cast<TUnversionedValue*>(header + 1)[index];
             if (otherValue.Type == EValueType::String || otherValue.Type == EValueType::Any) {
                 ::memcpy(current, otherValue.Data.String, otherValue.Length);
                 value.Data.String = current;

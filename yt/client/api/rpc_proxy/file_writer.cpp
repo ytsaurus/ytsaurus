@@ -25,7 +25,6 @@ public:
     {
         ValidateNotClosed();
 
-        auto guard = Guard(SpinLock_);
         if (!OpenResult_) {
             OpenResult_ = NRpc::CreateRpcClientOutputStream(Request_)
                 .Apply(BIND([=, this_ = MakeStrong(this)] (const IAsyncZeroCopyOutputStreamPtr& outputStream) {
@@ -65,13 +64,10 @@ private:
 
     IAsyncZeroCopyOutputStreamPtr Underlying_;
     TFuture<void> OpenResult_;
-    std::atomic<bool> Closed_ = {false};
-
-    TSpinLock SpinLock_;
+    bool Closed_ = false;
 
     void ValidateOpened()
     {
-        auto guard = Guard(SpinLock_);
         if (!OpenResult_ || !OpenResult_.IsSet()) {
             THROW_ERROR_EXCEPTION("Can't write into an unopened file writer");
         }

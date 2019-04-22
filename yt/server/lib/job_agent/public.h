@@ -6,6 +6,8 @@ namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TJobStatistics;
+
 DECLARE_REFCOUNTED_CLASS(TGpuManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TResourceLimitsConfig)
 DECLARE_REFCOUNTED_CLASS(TJobControllerConfig)

@@ -20,6 +20,8 @@ public:
     void Start(TChunk* frontJournalChunk, int journalChunkCount);
     void Stop();
 
+    bool IsEnabled();
+
     void ScheduleSeal(TChunk* chunk);
 
     void OnChunkDestroyed(NChunkServer::TChunk* chunk);

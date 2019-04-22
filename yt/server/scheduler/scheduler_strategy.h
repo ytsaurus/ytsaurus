@@ -26,6 +26,8 @@ struct ISchedulerStrategyHost
 {
     virtual ~ISchedulerStrategyHost() = default;
 
+    virtual IInvokerPtr GetProfilingInvoker() const = 0;
+
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) = 0;
     virtual std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(const TSchedulingTagFilter& filter) const = 0;
     virtual TString GetExecNodeAddress(NNodeTrackerClient::TNodeId nodeId) const = 0;

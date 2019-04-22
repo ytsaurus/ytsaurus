@@ -14,6 +14,8 @@
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/throughput_throttler.h>
+#include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/fiber.h>
 
 #include <yt/core/logging/log_manager.h>
 
@@ -34,6 +36,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 using namespace NProfiling;
+using namespace NTracing;
 using namespace NConcurrency;
 
 using NYT::FromProto;
@@ -63,6 +66,8 @@ TServiceBase::TMethodPerformanceCounters::TMethodPerformanceCounters(const NProf
     , RemoteWaitTimeCounter("/request_time/remote_wait", tagIds)
     , LocalWaitTimeCounter("/request_time/local_wait", tagIds)
     , TotalTimeCounter("/request_time/total", tagIds)
+    , HandlerFiberTimeCounter("/request_time/handler_fiber", tagIds)
+    , TraceContextTimeCounter("/request_time/trace_context", tagIds)
     , RequestMessageBodySizeCounter("/request_message_body_bytes", tagIds)
     , RequestMessageAttachmentSizeCounter("/request_message_attachment_bytes", tagIds)
     , ResponseMessageBodySizeCounter("/response_message_body_bytes", tagIds)
@@ -98,9 +103,9 @@ public:
         , RequestId_(acceptedRequest.RequestId)
         , ReplyBus_(std::move(acceptedRequest.ReplyBus))
         , RuntimeInfo_(std::move(acceptedRequest.RuntimeInfo))
-        , PerformanceCounters_(Service_->LookupMethodPerformanceCounters(RuntimeInfo_, User_))
-        , TraceContext_(acceptedRequest.TraceContext)
-        , ArrivalInstant_(GetCpuInstant())
+        , PerformanceCounters_(Service_->GetMethodPerformanceCounters(RuntimeInfo_, User_))
+        , TraceContext_(std::move(acceptedRequest.TraceContext))
+        , ArriveInstant_(GetCpuInstant())
 
     {
         Y_ASSERT(RequestMessage_);
@@ -302,7 +307,7 @@ private:
     const IBusPtr ReplyBus_;
     const TRuntimeMethodInfoPtr RuntimeInfo_;
     TMethodPerformanceCounters* const PerformanceCounters_;
-    const NTracing::TTraceContext TraceContext_;
+    const TTraceContextPtr TraceContext_;
 
     EMemoryZone ResponseMemoryZone_;
 
@@ -315,8 +320,8 @@ private:
     bool Cancelable_ = false;
     TSingleShotCallbackList<void()> Canceled_;
 
-    const NProfiling::TCpuInstant ArrivalInstant_;
-    NProfiling::TCpuInstant StartInstant_ = 0;
+    const NProfiling::TCpuInstant ArriveInstant_;
+    NProfiling::TCpuInstant RunInstant_ = 0;
     NProfiling::TCpuInstant ReplyInstant_ = 0;
 
     TDuration ExecutionTime_;
@@ -534,7 +539,7 @@ private:
         DoBeforeRun();
 
         try {
-            NTracing::TTraceContextGuard guard(TraceContext_);
+            TTraceContextGuard guard(TraceContext_);
             DoGuardedRun(handler);
         } catch (const std::exception& ex) {
             Reply(ex);
@@ -549,8 +554,8 @@ private:
 
     void DoBeforeRun()
     {
-        StartInstant_ = GetCpuInstant();
-        LocalWaitTime_ = CpuDurationToDuration(StartInstant_ - ArrivalInstant_);
+        RunInstant_ = GetCpuInstant();
+        LocalWaitTime_ = CpuDurationToDuration(RunInstant_ - ArriveInstant_);
         Profiler.Update(PerformanceCounters_->LocalWaitTimeCounter, DurationToValue(LocalWaitTime_));
     }
 
@@ -563,7 +568,7 @@ private:
         }
 
         auto timeout = GetTimeout();
-        if (timeout && NProfiling::GetCpuInstant() > ArrivalInstant_ + NProfiling::DurationToCpuDuration(*timeout)) {
+        if (timeout && NProfiling::GetCpuInstant() > ArriveInstant_ + NProfiling::DurationToCpuDuration(*timeout)) {
             if (!TimedOutLatch_.test_and_set()) {
                 YT_LOG_DEBUG("Request dropped due to timeout before being run (RequestId: %v)",
                     RequestId_);
@@ -592,15 +597,23 @@ private:
     void DoAfterRun()
     {
         TDelayedExecutor::CancelAndClear(TimeoutCookie_);
+
+        const auto* fiber = GetCurrentFiber();
+        auto handlerFiberTime = CpuDurationToDuration(fiber->GetRunCpuTime());
+        Profiler.Increment(PerformanceCounters_->HandlerFiberTimeCounter, DurationToValue(handlerFiberTime));
+        
+        if (TraceContext_) {
+            FlushCurrentTraceContextTime();
+            auto traceContextTime = TraceContext_->GetElapsedTime();
+            Profiler.Increment(PerformanceCounters_->ExecutionTimeCounter, DurationToValue(traceContextTime));
+        }
     }
 
     virtual void DoReply() override
     {
-        TRACE_ANNOTATION(
-            TraceContext_,
-            Service_->ServiceId_.ServiceName,
-            RuntimeInfo_->Descriptor.Method,
-            NTracing::ServerSendAnnotation);
+        if (TraceContext_) {
+            TraceContext_->Finish();
+        }
 
         auto responseMessage = GetResponseMessage();
 
@@ -613,10 +626,10 @@ private:
         ReplyBus_->Send(responseMessage, busOptions);
 
         ReplyInstant_ = GetCpuInstant();
-        ExecutionTime_ = StartInstant_ != 0
-            ? CpuDurationToDuration(ReplyInstant_ - StartInstant_)
+        ExecutionTime_ = RunInstant_ != 0
+            ? CpuDurationToDuration(ReplyInstant_ - RunInstant_)
             : TDuration();
-        TotalTime_ = CpuDurationToDuration(ReplyInstant_ - ArrivalInstant_);
+        TotalTime_ = CpuDurationToDuration(ReplyInstant_ - ArriveInstant_);
 
         Profiler.Update(PerformanceCounters_->ExecutionTimeCounter, DurationToValue(ExecutionTime_));
         Profiler.Update(PerformanceCounters_->TotalTimeCounter, DurationToValue(TotalTime_));
@@ -638,8 +651,8 @@ private:
 
     void HandleLoggingSuppression()
     {
-        auto traceId = NTracing::GetCurrentTraceContext().GetTraceId();
-        if (traceId == NTracing::InvalidTraceId) {
+        auto context = GetCurrentTraceContext();
+        if (!context) {
             return;
         }
 
@@ -660,7 +673,7 @@ private:
             return;
         }
 
-        NLogging::TLogManager::Get()->SuppressTrace(traceId);
+        NLogging::TLogManager::Get()->SuppressTrace(context->GetTraceId());
     }
 
     void DoSetComplete()
@@ -973,22 +986,8 @@ void TServiceBase::HandleRequest(
         return;
     }
 
-    auto traceContext = GetTraceContext(*header);
-    if (!traceContext.IsEnabled()) {
-        traceContext = NTracing::CreateRootTraceContext(false);
-    }
-    NTracing::TTraceContextGuard traceContextGuard(traceContext);
-
-    TRACE_ANNOTATION(
-        traceContext,
-        "server_host",
-        NNet::GetLocalHostName());
-
-    TRACE_ANNOTATION(
-        traceContext,
-        ServiceId_.ServiceName,
-        method,
-        NTracing::ServerReceiveAnnotation);
+    auto traceContext = GetOrCreateTraceContext(*header);
+    TTraceContextGuard traceContextGuard(traceContext);
 
     // NOTE: Do not use replyError() after this line.
     TAcceptedRequest acceptedRequest{
@@ -1326,7 +1325,7 @@ TServiceBase::TMethodPerformanceCountersPtr TServiceBase::CreateMethodPerformanc
     return GetGloballyCachedValue<TCacheTrait>(tagIds);
 }
 
-TServiceBase::TMethodPerformanceCounters* TServiceBase::LookupMethodPerformanceCounters(
+TServiceBase::TMethodPerformanceCounters* TServiceBase::GetMethodPerformanceCounters(
     const TRuntimeMethodInfoPtr& runtimeInfo,
     const TString& user)
 {

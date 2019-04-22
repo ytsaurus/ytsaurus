@@ -3,6 +3,7 @@ import yt_commands
 from yt.environment import YTInstance, init_operation_archive
 from yt.common import makedirp, YtError, YtResponseError, format_error
 from yt.environment.porto_helpers import porto_avaliable, remove_all_volumes
+from yt.environment.default_configs import get_dynamic_master_config
 from yt.test_helpers import wait
 
 from yt.common import update_inplace
@@ -128,7 +129,7 @@ def _restore_globals(driver=None):
         for response in yt_commands.execute_batch([
                 yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@dynamic_options", input={}),
                 yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@tablet_balancer_config", input={}),
-                yt_commands.make_batch_request("set", path="//sys/@config", input={}),
+                yt_commands.make_batch_request("set", path="//sys/@config", input=get_dynamic_master_config()),
                 yt_commands.make_batch_request("remove", path="//sys/pool_trees/default/*", force=True)
             ], driver=driver):
             assert yt_commands.get_batch_output(response) is None
@@ -268,9 +269,14 @@ def skip_if_porto(func):
     return wrapped_func
 
 
+def is_asan_build():
+    binary = find_executable("ytserver-master")
+    version = subprocess.check_output([binary, "--version"])
+    return "asan" in version
+
+
 # doesn't work with @patch_porto_env_only on the same class, wrap each method
 def require_ytserver_root_privileges(func_or_class):
-
     def check_root_privileges():
         for binary in ["ytserver-exec", "ytserver-job-proxy", "ytserver-node", "ytserver-tools"]:
             binary_path = find_executable(binary)
@@ -376,6 +382,7 @@ class YTEnvSetup(object):
     NUM_RPC_PROXIES = 2
     DRIVER_BACKEND = "native"
     NUM_SKYNET_MANAGERS = 0
+    NODE_PORT_SET_SIZE = None
 
     DELTA_DRIVER_CONFIG = {}
     DELTA_MASTER_CONFIG = {}
@@ -460,6 +467,7 @@ class YTEnvSetup(object):
             http_proxy_ports=cls.get_param("HTTP_PROXY_PORTS", index),
             rpc_proxy_count=cls.get_param("NUM_RPC_PROXIES", index) if cls.get_param("ENABLE_RPC_PROXY", index) else 0,
             skynet_manager_count=cls.get_param("NUM_SKYNET_MANAGERS", index),
+            node_port_set_size=cls.get_param("NODE_PORT_SET_SIZE", index),
             kill_child_processes=True,
             use_porto_for_servers=cls.get_param("USE_PORTO_FOR_SERVERS", index),
             port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"),
