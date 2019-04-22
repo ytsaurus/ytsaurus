@@ -14,18 +14,18 @@ class TRuntimeComponentsFactory
 {
 public:
     TRuntimeComponentsFactory(
-        std::unique_ptr<DB::ISecurityManager> securityManager,
+        std::unique_ptr<DB::IUsersManager> usersManager,
         std::unique_ptr<DB::IExternalLoaderConfigRepository> dictionariesConfigRepository,
         std::unique_ptr<IGeoDictionariesLoader> geoDictionariesLoader)
-        : SecurityManager_(std::move(securityManager))
+        : UsersManager_(std::move(usersManager))
         , DictionariesConfigRepository_(std::move(dictionariesConfigRepository))
         , GeoDictionariesLoader_(std::move(geoDictionariesLoader))
     {}
 
-    std::unique_ptr<DB::ISecurityManager> createSecurityManager() override
+    std::unique_ptr<DB::IUsersManager> createUsersManager() override
     {
-        YCHECK(SecurityManager_);
-        return std::move(SecurityManager_);
+        YCHECK(UsersManager_);
+        return std::move(UsersManager_);
     }
 
     std::unique_ptr<DB::IExternalLoaderConfigRepository> createExternalDictionariesConfigRepository() override
@@ -46,7 +46,7 @@ public:
     }
 
 private:
-    std::unique_ptr<DB::ISecurityManager> SecurityManager_;
+    std::unique_ptr<DB::IUsersManager> UsersManager_;
     std::unique_ptr<DB::IExternalLoaderConfigRepository> DictionariesConfigRepository_;
     std::unique_ptr<IGeoDictionariesLoader> GeoDictionariesLoader_;
 };
@@ -54,7 +54,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<DB::IRuntimeComponentsFactory> CreateRuntimeComponentsFactory(
-    std::unique_ptr<DB::ISecurityManager> securityManager,
+    std::unique_ptr<DB::IUsersManager> securityManager,
     std::unique_ptr<DB::IExternalLoaderConfigRepository> dictionariesConfigRepository,
     std::unique_ptr<IGeoDictionariesLoader> geoDictionariesLoader)
 {
