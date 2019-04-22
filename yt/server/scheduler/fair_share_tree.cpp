@@ -103,15 +103,11 @@ TFairShareTree::TFairShareTree(
     , Logger(NLogging::TLogger(SchedulerLogger)
         .AddTag("TreeId: %v", treeId))
     , NonPreemptiveSchedulingStage_(
-        "Non preemptive",
-        TScheduleJobsProfilingCounters(
-            "/non_preemptive",
-            {TreeIdProfilingTag_}))
+        /* nameInLogs */ "Non preemptive",
+        TScheduleJobsProfilingCounters("/non_preemptive", {TreeIdProfilingTag_}))
     , PreemptiveSchedulingStage_(
-        "Preemptive",
-        TScheduleJobsProfilingCounters(
-            "/preemptive",
-            {TreeIdProfilingTag_}))
+        /* nameInLogs */ "Preemptive",
+        TScheduleJobsProfilingCounters("/preemptive", {TreeIdProfilingTag_}))
     , FairShareUpdateTimeCounter_("/fair_share_update_time", {TreeIdProfilingTag_})
     , FairShareLogTimeCounter_("/fair_share_log_time", {TreeIdProfilingTag_})
     , AnalyzePreemptableJobsTimeCounter_("/analyze_preemptable_jobs_time", {TreeIdProfilingTag_})
