@@ -55,6 +55,8 @@ private:
         descriptors->push_back(EInternedAttributeKey::PrimaryCellId);
         descriptors->push_back(EInternedAttributeKey::CurrentCommitRevision);
         descriptors->push_back(EInternedAttributeKey::ChunkReplicatorEnabled);
+        descriptors->push_back(EInternedAttributeKey::ChunkRefreshEnabled);
+        descriptors->push_back(EInternedAttributeKey::ChunkRequisitionUpdateEnabled);
         descriptors->push_back(EInternedAttributeKey::RegisteredMasterCellTags);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Config)
             .SetWritable(true)
@@ -95,7 +97,31 @@ private:
                 RequireLeader();
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 BuildYsonFluently(consumer)
-                    .Value(chunkManager->IsReplicatorEnabled());
+                    .Value(chunkManager->IsChunkReplicatorEnabled());
+                return true;
+            }
+
+            case EInternedAttributeKey::ChunkRefreshEnabled: {
+                RequireLeader();
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
+                BuildYsonFluently(consumer)
+                    .Value(chunkManager->IsChunkRefreshEnabled());
+                return true;
+            }
+
+            case EInternedAttributeKey::ChunkRequisitionUpdateEnabled: {
+                RequireLeader();
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
+                BuildYsonFluently(consumer)
+                    .Value(chunkManager->IsChunkRequisitionUpdateEnabled());
+                return true;
+            }
+
+            case EInternedAttributeKey::ChunkSealerEnabled: {
+                RequireLeader();
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
+                BuildYsonFluently(consumer)
+                    .Value(chunkManager->IsChunkSealerEnabled());
                 return true;
             }
 

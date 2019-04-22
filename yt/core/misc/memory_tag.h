@@ -31,6 +31,7 @@ private:
 
 // Implementations in memory_tag.cpp are merely stubs, the intended
 // implementations may be found within the allocator.
+TMemoryTag GetCurrentMemoryTag();
 void SetCurrentMemoryTag(TMemoryTag tag);
 size_t GetMemoryUsageForTag(TMemoryTag tag);
 void GetMemoryUsageForTags(TMemoryTag* tags, size_t count, size_t* result);

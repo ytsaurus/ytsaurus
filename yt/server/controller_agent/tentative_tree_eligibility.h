@@ -15,7 +15,7 @@ namespace NYT::NControllerAgent {
 
 struct TJobFinishedResult
 {
-    bool BanTree = false;
+    std::vector<TString> NewlyBannedTrees;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,8 +84,6 @@ private:
     TDuration GetTentativeTreeAverageJobDuration(const TString& treeId) const;
 
     void UpdateDurations(const TJobSummary& jobSummary, const TString& treeId, bool tentative);
-
-    void CheckDurations(const TString& treeId, bool tentative);
 
     bool IsSlow(const TString& treeId) const;
 

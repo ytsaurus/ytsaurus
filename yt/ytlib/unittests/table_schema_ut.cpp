@@ -3,7 +3,6 @@
 #include <yt/ytlib/table_client/schema.h>
 
 #include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/proto/chunk_meta.pb.h>
 
 #include <yt/core/ytree/convert.h>
 
@@ -18,56 +17,6 @@ using namespace NYTree;
 class TTableSchemaTest
     : public ::testing::Test
 { };
-
-TEST_F(TTableSchemaTest, ColumnSchemaValidation)
-{
-    std::vector<TColumnSchema> invalidSchemas{
-        // Empty names are not ok.
-        TColumnSchema("", EValueType::String),
-        // Names starting from SystemColumnNamePrefix are not ok.
-        TColumnSchema(SystemColumnNamePrefix + "Name", EValueType::String),
-        // Names longer than MaxColumnNameLength are not ok.
-        TColumnSchema(TString(MaxColumnNameLength + 1, 'z'), EValueType::String),
-        // Empty lock names are not ok.
-        TColumnSchema("Name", EValueType::String)
-            .SetLock(TString("")),
-        // Locks on key columns are not ok.
-        TColumnSchema("Name", EValueType::String)
-            .SetSortOrder(ESortOrder::Ascending)
-            .SetLock(TString("LockName")),
-        // Locks longer than MaxColumnLockLength are not ok.
-        TColumnSchema("Name", EValueType::String)
-            .SetLock(TString(MaxColumnLockLength + 1, 'z')),
-        // Column type should be valid according to the ValidateSchemaValueType function.
-        // Non-key columns can't be computed.
-        TColumnSchema("Name", EValueType::String)
-            .SetExpression(TString("SomeExpression")),
-        // Key columns can't be aggregated.
-        TColumnSchema("Name", EValueType::String)
-            .SetSortOrder(ESortOrder::Ascending)
-            .SetAggregate(TString("sum"))
-    };
-
-    for (const auto& columnSchema : invalidSchemas) {
-        EXPECT_THROW(ValidateColumnSchema(columnSchema, true, true), std::exception);
-    }
-
-    std::vector<TColumnSchema> validSchemas{
-        TColumnSchema("Name", EValueType::String),
-        TColumnSchema("Name", EValueType::Any),
-        TColumnSchema(TString(256, 'z'), EValueType::String)
-            .SetLock(TString(256, 'z')),
-        TColumnSchema("Name", EValueType::String)
-            .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("SomeExpression")),
-        TColumnSchema("Name", EValueType::String)
-            .SetAggregate(TString("sum"))
-    };
-
-    for (const auto& columnSchema : validSchemas) {
-        ValidateColumnSchema(columnSchema);
-    }
-}
 
 TEST_F(TTableSchemaTest, ColumnSchemaUpdateValidation)
 {
@@ -551,27 +500,6 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
         }), false /* isDynamicTable */, true /* isEmptyTable */);
 }
 
-TEST_F(TTableSchemaTest, ColumnSchemaProtobufBackwardCompatibility)
-{
-    NProto::TColumnSchema columnSchemaProto;
-    columnSchemaProto.set_name("foo");
-    columnSchemaProto.set_type(static_cast<int>(EValueType::Uint64));
-
-    TColumnSchema columnSchema;
-    FromProto(&columnSchema, columnSchemaProto);
-
-    EXPECT_EQ(columnSchema.LogicalType(), ELogicalValueType::Uint64);
-    EXPECT_EQ(columnSchema.GetPhysicalType(), EValueType::Uint64);
-    EXPECT_EQ(columnSchema.Name(), "foo");
-
-    columnSchemaProto.set_logical_type(static_cast<int>(ELogicalValueType::Uint32));
-    FromProto(&columnSchema, columnSchemaProto);
-
-    EXPECT_EQ(columnSchema.LogicalType(), ELogicalValueType::Uint32);
-    EXPECT_EQ(columnSchema.GetPhysicalType(), EValueType::Uint64);
-    EXPECT_EQ(columnSchema.Name(), "foo");
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 using TInferSchemaTestCase = std::tuple<std::vector<const char*>, const char*, bool>;
@@ -651,34 +579,6 @@ INSTANTIATE_TEST_CASE_P(
     ::testing::Values(
         std::vector<const char*>{"<strict=%false>[{name=Key1;type=string}]"},
         std::vector<const char*>{"[{name=Key1;type=string}]", "[{name=Key1;type=any}]"}
-));
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TInvalidSchemaTest
-    : public ::testing::Test
-    , public ::testing::WithParamInterface<const char*>
-{ };
-
-TEST_P(TInvalidSchemaTest, Basic)
-{
-    const auto& schemaString = GetParam();
-
-    TTableSchema schema;
-    Deserialize(schema, ConvertToNode(TYsonString(schemaString)));
-
-    EXPECT_THROW(ValidateTableSchema(schema, true), std::exception);
-}
-
-INSTANTIATE_TEST_CASE_P(
-    TInvalidSchemaTest,
-    TInvalidSchemaTest,
-    ::testing::Values(
-        "[{name=x;type=int64;sort_order=ascending;expression=z}; {name=y;type=uint64;sort_order=ascending}; {name=a;type=int64}]",
-        "[{name=x;type=int64;sort_order=ascending;expression=a}; {name=y;type=uint64;sort_order=ascending}; {name=a;type=int64}]",
-        "[{name=x;type=int64;sort_order=ascending;expression=y}; {name=y;type=uint64;sort_order=ascending}; {name=a;type=int64}]",
-        "[{name=x;type=int64;sort_order=ascending;expression=x}; {name=y;type=uint64;sort_order=ascending}; {name=a;type=int64}]",
-        "[{name=x;type=int64;sort_order=ascending;expression=\"uint64(y)\"}; {name=y;type=uint64;sort_order=ascending}; {name=a;type=int64}]"
 ));
 
 ////////////////////////////////////////////////////////////////////////////////

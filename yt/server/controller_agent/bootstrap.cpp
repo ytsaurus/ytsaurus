@@ -48,6 +48,8 @@
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 #include <yt/core/misc/proc.h>
 
+#include <yt/core/alloc/statistics_producer.h>
+
 #include <yt/core/profiling/profile_manager.h>
 
 #include <yt/core/rpc/bus/channel.h>
@@ -137,23 +139,11 @@ void TBootstrap::DoRun()
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
 
-    MonitoringManager_ = New<TMonitoringManager>();
-    MonitoringManager_->Register(
-        "/ref_counted",
-        CreateRefCountedTrackerStatisticsProducer());
-    MonitoringManager_->Start();
-
+    NYTree::IMapNodePtr orchidRoot;
+    NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &orchidRoot);
+    
     ControllerAgent_->Initialize();
 
-    auto orchidRoot = NYTree::GetEphemeralNodeFactory(true)->CreateMap();
-    SetNodeByYPath(
-        orchidRoot,
-        "/monitoring",
-        CreateVirtualNode(MonitoringManager_->GetService()));
-    SetNodeByYPath(
-        orchidRoot,
-        "/profiling",
-        CreateVirtualNode(TProfileManager::Get()->GetService()));
     SetNodeByYPath(
         orchidRoot,
         "/config",
@@ -172,10 +162,6 @@ void TBootstrap::DoRun()
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
         GetControlInvoker()));
-
-    HttpServer_->AddHandler(
-        "/orchid/",
-        NMonitoring::GetOrchidYPathHttpHandler(orchidRoot));
 
     RpcServer_->RegisterService(CreateJobSpecService(this));
     RpcServer_->RegisterService(CreateControllerAgentService(this));

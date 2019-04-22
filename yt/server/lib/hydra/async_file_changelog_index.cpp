@@ -79,13 +79,15 @@ typename std::vector<T>::const_iterator FirstGreater(
 
 } // namespace
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct TIndexBucketDataTag
 { };
 
 TIndexBucket::TIndexBucket(size_t capacity, i64 alignment, i64 offset)
     : Capacity_(capacity)
-    , Data_(TAsyncFileChangelogIndex::AllocateAligned<TIndexBucketDataTag>(capacity * sizeof(TChangelogIndexRecord), true, alignment))
     , Offset_(offset)
+    , Data_(TAsyncFileChangelogIndex::AllocateAligned<TIndexBucketDataTag>(capacity * sizeof(TChangelogIndexRecord), true, alignment))
 {
     auto maxCurrentIndexRecords = alignment / sizeof(TChangelogIndexRecord);
     Index_ = reinterpret_cast<TChangelogIndexRecord*>(Data_.Begin());
@@ -97,9 +99,9 @@ TIndexBucket::TIndexBucket(size_t capacity, i64 alignment, i64 offset)
     }
 }
 
-TFuture<void> TIndexBucket::Write(const std::shared_ptr<TFileHandle>& file, const NChunkClient::IIOEnginePtr& io) const
+TFuture<void> TIndexBucket::Write(const std::shared_ptr<TFileHandle>& file, const NChunkClient::IIOEnginePtr& ioEngine) const
 {
-    return io->Pwrite(file, Data_, Offset_);
+    return ioEngine->Pwrite(file, Data_, Offset_);
 }
 
 void TIndexBucket::Push(const TChangelogIndexRecord& record)
@@ -140,6 +142,8 @@ bool TIndexBucket::HasSpace() const
     return CurrentIndexId_ < Capacity_;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TAsyncFileChangelogIndex::TAsyncFileChangelogIndex(
     const NChunkClient::IIOEnginePtr& IOEngine,
     const TString& name,
@@ -160,6 +164,8 @@ TAsyncFileChangelogIndex::TAsyncFileChangelogIndex(
 //! Creates an empty index file.
 void TAsyncFileChangelogIndex::Create()
 {
+    NTracing::TNullTraceContextGuard nullTraceContextGuard;
+
     auto tempFileName = IndexFileName_ + NFS::TempFileSuffix;
     TFile tempFile(tempFileName, WrOnly|CreateAlways);
 
@@ -176,6 +182,8 @@ void TAsyncFileChangelogIndex::Create()
 
 void TAsyncFileChangelogIndex::Read(const std::optional<i32>& truncatedRecordCount)
 {
+    NTracing::TNullTraceContextGuard nullTraceContextGuard;
+
     // Create index if it is missing.
     if (!NFS::Exists(IndexFileName_) ||
         TFile(IndexFileName_, RdOnly).GetLength() < sizeof(TChangelogIndexHeader))
@@ -254,8 +262,11 @@ void TAsyncFileChangelogIndex::TruncateInvalidRecords(i64 correctPrefixSize)
         }
     }
 
-    IndexFile_ = IOEngine_->Open(IndexFileName_, WrOnly | CloseOnExec).Get().ValueOrThrow();
-    IndexFile_->Resize(sizeof(TChangelogIndexHeader) + Index_.size() * sizeof(TChangelogIndexRecord));
+    {
+        NTracing::TNullTraceContextGuard nullTraceContextGuard;
+        IndexFile_ = IOEngine_->Open(IndexFileName_, WrOnly | CloseOnExec).Get().ValueOrThrow();
+        IndexFile_->Resize(sizeof(TChangelogIndexHeader) + Index_.size() * sizeof(TChangelogIndexRecord));
+    }
 }
 
 void TAsyncFileChangelogIndex::Search(
@@ -384,10 +395,11 @@ void TAsyncFileChangelogIndex::Close()
         return;
     }
 
-    NFS::ExpectIOErrors([&] () {
+    {
+        NTracing::TNullTraceContextGuard nullTraceContextGuard;
         IndexFile_->FlushData() ;
         IndexFile_->Close();
-    });
+    }
 }
 
 const std::vector<TChangelogIndexRecord>& TAsyncFileChangelogIndex::Records() const

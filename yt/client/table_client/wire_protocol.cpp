@@ -73,9 +73,9 @@ public:
         WriteUint64(static_cast<unsigned int>(command));
     }
 
-    void WriteLocks(ui32 lockMask)
+    void WriteLockBitmap(TLockBitmap lockBitmap)
     {
-        WriteUint64(lockMask);
+        WriteUint64(lockBitmap);
     }
 
     void WriteTableSchema(const TTableSchema& schema)
@@ -487,9 +487,9 @@ void TWireProtocolWriter::WriteCommand(EWireProtocolCommand command)
     Impl_->WriteCommand(command);
 }
 
-void TWireProtocolWriter::WriteLocks(ui32 lockMask)
+void TWireProtocolWriter::WriteLockBitmap(TLockBitmap lockBitmap)
 {
-    Impl_->WriteLocks(lockMask);
+    Impl_->WriteLockBitmap(lockBitmap);
 }
 
 void TWireProtocolWriter::WriteTableSchema(const TTableSchema& schema)
@@ -602,7 +602,7 @@ public:
         return EWireProtocolCommand(ReadUint64());
     }
 
-    ui32 ReadLocks()
+    TLockBitmap ReadLockBitmap()
     {
         return ReadUint64();
     }
@@ -946,9 +946,9 @@ EWireProtocolCommand TWireProtocolReader::ReadCommand()
     return Impl_->ReadCommand();
 }
 
-ui32 TWireProtocolReader::ReadLocks()
+TLockBitmap TWireProtocolReader::ReadLockBitmap()
 {
-    return Impl_->ReadLocks();
+    return Impl_->ReadLockBitmap();
 }
 
 TTableSchema TWireProtocolReader::ReadTableSchema()
@@ -1073,7 +1073,14 @@ public:
 
         if (!SchemaChecked_) {
             auto actualSchema = WireReader_->ReadTableSchema();
-            if (Schema_ != actualSchema) {
+
+            //
+            // NB this comparison is compat for YT-10668
+            // This could be replaced with simple `operator==', once all nodes and proxies are updated to have new schema
+            // representation introduced in cec93e9435fc3bbecc02ee5b8fd9ffa0eafc1672
+            //
+            // Guess it will be surely the case after after 01.11.2019
+            if (!IsEqualIgnoringRequiredness(Schema_, actualSchema)) {
                 THROW_ERROR_EXCEPTION("Schema mismatch while parsing wire protocol");
             }
             SchemaChecked_ = true;

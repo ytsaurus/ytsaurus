@@ -491,6 +491,9 @@ private:
         Process_->SetWorkingDirectory(NFS::CombinePaths(Host_->GetSlotPath(), SandboxDirectoryNames[ESandboxKind::User]));
 
         if (UserJobSpec_.has_core_table_spec() || UserJobSpec_.force_core_dump()) {
+#ifdef _asan_enabled_
+            THROW_ERROR_EXCEPTION("Core dumps are not allowed in ASAN build");
+#endif
             Process_->AddArgument("--enable-core-dump");
         }
 

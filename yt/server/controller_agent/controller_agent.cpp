@@ -151,7 +151,7 @@ public:
         , MasterConnector_(std::make_unique<TMasterConnector>(
             Config_,
             Bootstrap_))
-        , CachedExecNodeDescriptorsByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>>(
+        , CachedExecNodeDescriptorsByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TFilteredExecNodeDescriptors>>(
             BIND(&TImpl::FilterExecNodes, MakeStrong(this)),
             Config_->SchedulingTagFilterExpireTimeout,
             Bootstrap_->GetControlInvoker()))
@@ -644,16 +644,17 @@ public:
             .Run(jobId, /* outputStatistics */ true);
     }
 
-    TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const
+    TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const TSchedulingTagFilter& filter, bool onlineOnly = false) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (filter.IsEmpty()) {
+        if (filter.IsEmpty() && !onlineOnly) {
             TReaderGuard guard(ExecNodeDescriptorsLock_);
             return CachedExecNodeDescriptors_;
         }
 
-        return CachedExecNodeDescriptorsByTags_->Get(filter);
+        auto result = CachedExecNodeDescriptorsByTags_->Get(filter);
+        return onlineOnly ? result.Online : result.All;
     }
 
     int GetOnlineExecNodeCount() const
@@ -719,7 +720,14 @@ private:
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
-    const TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>> CachedExecNodeDescriptorsByTags_;
+
+    struct TFilteredExecNodeDescriptors
+    {
+        TRefCountedExecNodeDescriptorMapPtr All;
+        TRefCountedExecNodeDescriptorMapPtr Online;
+    };
+
+    const TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TFilteredExecNodeDescriptors>> CachedExecNodeDescriptorsByTags_;
     int OnlineExecNodeCount_ = 0;
 
     TControllerAgentTrackerServiceProxy SchedulerProxy_;
@@ -1352,24 +1360,31 @@ private:
 
 
     // TODO(ignat): eliminate this copy/paste from scheduler.cpp somehow.
-    TRefCountedExecNodeDescriptorMapPtr FilterExecNodes(const TSchedulingTagFilter& filter) const
+    TFilteredExecNodeDescriptors FilterExecNodes(const TSchedulingTagFilter& filter) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         TReaderGuard guard(ExecNodeDescriptorsLock_);
 
-        auto result = New<TRefCountedExecNodeDescriptorMap>();
+        TFilteredExecNodeDescriptors result;
+        result.All = New<TRefCountedExecNodeDescriptorMap>();
+        result.Online = New<TRefCountedExecNodeDescriptorMap>();
+
         for (const auto& pair : *CachedExecNodeDescriptors_) {
             auto nodeId = pair.first;
             const auto& descriptor = pair.second;
             if (filter.CanSchedule(descriptor.Tags)) {
-                YCHECK(result->emplace(nodeId, descriptor).second);
+                YCHECK(result.All->emplace(nodeId, descriptor).second);
+                if (descriptor.Online) {
+                    YCHECK(result.Online->emplace(nodeId, descriptor).second);
+                }
             }
         }
 
-        YT_LOG_DEBUG("Exec nodes filtered (Formula: %v, MatchingNodeCount: %v)",
+        YT_LOG_DEBUG("Exec nodes filtered (Formula: %v, MatchingNodeCount: %v, MatchingOnlineNodeCount)",
             filter.GetBooleanFormula().GetFormula(),
-            result->size());
+            result.All->size(),
+            result.Online->size());
 
         return result;
     }
@@ -1648,9 +1663,9 @@ int TControllerAgent::GetOnlineExecNodeCount() const
     return Impl_->GetOnlineExecNodeCount();
 }
 
-TRefCountedExecNodeDescriptorMapPtr TControllerAgent::GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const
+TRefCountedExecNodeDescriptorMapPtr TControllerAgent::GetExecNodeDescriptors(const TSchedulingTagFilter& filter, bool onlineOnly) const
 {
-    return Impl_->GetExecNodeDescriptors(filter);
+    return Impl_->GetExecNodeDescriptors(filter, onlineOnly);
 }
 
 const IThroughputThrottlerPtr& TControllerAgent::GetJobSpecSliceThrottler() const

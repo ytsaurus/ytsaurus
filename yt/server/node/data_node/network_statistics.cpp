@@ -13,7 +13,7 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 TNetworkStatistics::TNetworkStatistics(TDataNodeConfigPtr config)
-    : Config_(config)
+    : Config_(std::move(config))
 { }
 
 void TNetworkStatistics::IncrementReadThrottlingCounter(const TString& name)
@@ -28,17 +28,19 @@ void TNetworkStatistics::IncrementReadThrottlingCounter(const TString& name)
             }
         }
 
-        TWriterGuard guard(Lock_);
-        if (Counters_.find(name) == Counters_.end()) {
-            TTagIdList tagIds{
-                TProfileManager::Get()->RegisterTag("network", name)
-            };
+        {
+            TWriterGuard guard(Lock_);
+            if (Counters_.find(name) == Counters_.end()) {
+                TTagIdList tagIds{
+                    TProfileManager::Get()->RegisterTag("network", name)
+                };
 
-            auto& counters = Counters_[name];
-            counters.ThrottledReadsCounter = TMonotonicCounter(
-                "/net_throttled_reads",
-                tagIds,
-                Config_->NetOutThrottleCounterInterval);
+                auto& counters = Counters_[name];
+                counters.ThrottledReadsCounter = TMonotonicCounter(
+                    "/net_throttled_reads",
+                    tagIds,
+                    Config_->NetOutThrottleCounterInterval);
+            }
         }
     }
 }
@@ -47,7 +49,7 @@ void TNetworkStatistics::UpdateStatistics(NNodeTrackerClient::NProto::TNodeStati
 {
     TReaderGuard guard(Lock_);
     for (const auto& counter : Counters_) {
-        auto network = statistics->add_network();
+        auto* network = statistics->add_network();
         network->set_network(counter.first);
 
         auto deadline = counter.second.ThrottledReadsCounter.GetUpdateDeadline();

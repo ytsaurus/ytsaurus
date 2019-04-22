@@ -19,7 +19,8 @@ void TJobStub::AddDataSlice(const TInputDataSlicePtr& dataSlice, IChunkPoolInput
     }
 
     int streamIndex = dataSlice->InputStreamIndex;
-    auto& stripe = GetStripe(streamIndex, isPrimary);
+    int rangeIndex = dataSlice->GetRangeIndex();
+    auto& stripe = GetStripe(streamIndex, rangeIndex, isPrimary);
     stripe->DataSlices.emplace_back(dataSlice);
     if (cookie != IChunkPoolInput::NullCookie) {
         InputCookies_.emplace_back(cookie);
@@ -52,50 +53,58 @@ void TJobStub::AddPreliminaryForeignDataSlice(const TInputDataSlicePtr& dataSlic
 
 void TJobStub::Finalize(bool sortByPosition)
 {
-    int nonEmptyStripeCount = 0;
-    for (int index = 0; index < StripeList_->Stripes.size(); ++index) {
-        if (StripeList_->Stripes[index]) {
-            auto& stripe = StripeList_->Stripes[nonEmptyStripeCount];
-            stripe = std::move(StripeList_->Stripes[index]);
-            ++nonEmptyStripeCount;
-            const auto& statistics = stripe->GetStatistics();
-            StripeList_->TotalDataWeight += statistics.DataWeight;
-            StripeList_->TotalRowCount += statistics.RowCount;
-            StripeList_->TotalChunkCount += statistics.ChunkCount;
-            if (sortByPosition) {
-                // This is done to ensure that all the data slices inside a stripe
-                // are not only sorted by key, but additionally by their position
-                // in the original table.
-                std::sort(
-                    stripe->DataSlices.begin(),
-                    stripe->DataSlices.end(),
-                    [] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) {
-                        if (lhs->Type == EDataSourceType::UnversionedTable) {
-                            auto lhsChunk = lhs->GetSingleUnversionedChunkOrThrow();
-                            auto rhsChunk = rhs->GetSingleUnversionedChunkOrThrow();
-                            if (lhsChunk != rhsChunk) {
-                                return lhsChunk->GetTableRowIndex() < rhsChunk->GetTableRowIndex();
-                            }
+    for (auto& pair : StripeMap_) {
+        auto& stripe = pair.second;
+        const auto& statistics = stripe->GetStatistics();
+        StripeList_->TotalDataWeight += statistics.DataWeight;
+        StripeList_->TotalRowCount += statistics.RowCount;
+        StripeList_->TotalChunkCount += statistics.ChunkCount;
+        if (sortByPosition) {
+            // This is done to ensure that all the data slices inside a stripe
+            // are not only sorted by key, but additionally by their position
+            // in the original table.
+            std::sort(
+                stripe->DataSlices.begin(),
+                stripe->DataSlices.end(),
+                [] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) {
+                    if (lhs->Type == EDataSourceType::UnversionedTable) {
+                        auto lhsChunk = lhs->GetSingleUnversionedChunkOrThrow();
+                        auto rhsChunk = rhs->GetSingleUnversionedChunkOrThrow();
+                        if (lhsChunk != rhsChunk) {
+                            return lhsChunk->GetTableRowIndex() < rhsChunk->GetTableRowIndex();
                         }
+                    }
 
-                        auto cmpResult = CompareRows(lhs->LowerLimit().Key, rhs->LowerLimit().Key);
-                        if (cmpResult != 0) {
-                            return cmpResult < 0;
-                        }
+                    auto cmpResult = CompareRows(lhs->LowerLimit().Key, rhs->LowerLimit().Key);
+                    if (cmpResult != 0) {
+                        return cmpResult < 0;
+                    }
 
-                        if (lhs->LowerLimit().RowIndex &&
-                            rhs->LowerLimit().RowIndex &&
-                            *lhs->LowerLimit().RowIndex != *rhs->LowerLimit().RowIndex)
-                        {
-                            return *lhs->LowerLimit().RowIndex < *rhs->LowerLimit().RowIndex;
-                        }
+                    if (lhs->LowerLimit().RowIndex &&
+                        rhs->LowerLimit().RowIndex &&
+                        *lhs->LowerLimit().RowIndex != *rhs->LowerLimit().RowIndex)
+                    {
+                        return *lhs->LowerLimit().RowIndex < *rhs->LowerLimit().RowIndex;
+                    }
 
-                        return false;
-                    });
-            }
+                    return false;
+                });
         }
+        StripeList_->Stripes.emplace_back(std::move(stripe));
     }
-    StripeList_->Stripes.resize(nonEmptyStripeCount);
+    StripeMap_.clear();
+
+    // This order is crucial for ordered map.
+    std::sort(StripeList_->Stripes.begin(), StripeList_->Stripes.end(), [] (const TChunkStripePtr& lhs, const TChunkStripePtr& rhs) {
+        auto& lhsSlice = lhs->DataSlices.front();
+        auto& rhsSlice = rhs->DataSlices.front();
+
+        if (lhsSlice->GetTableIndex() != rhsSlice->GetTableIndex()) {
+            return lhsSlice->GetTableIndex() < rhsSlice->GetTableIndex();
+        }
+
+        return lhsSlice->GetRangeIndex() < rhsSlice->GetRangeIndex();
+    });
 }
 
 i64 TJobStub::GetDataWeight() const
@@ -162,12 +171,9 @@ void TJobStub::SetUnsplittable()
     StripeList_->IsSplittable = false;
 }
 
-const TChunkStripePtr& TJobStub::GetStripe(int streamIndex, bool isStripePrimary)
+const TChunkStripePtr& TJobStub::GetStripe(int streamIndex, int rangeIndex, bool isStripePrimary)
 {
-    if (streamIndex >= StripeList_->Stripes.size()) {
-        StripeList_->Stripes.resize(streamIndex + 1);
-    }
-    auto& stripe = StripeList_->Stripes[streamIndex];
+    auto& stripe = StripeMap_[std::make_pair(streamIndex, rangeIndex)];
     if (!stripe) {
         stripe = New<TChunkStripe>(!isStripePrimary /* foreign */);
     }
@@ -611,6 +617,7 @@ void TJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJob)
                 Jobs_[index].Invalidate();
                 Jobs_[index].UpdateCounters(&TProgressCounter::Decrement);
             }
+            currentJobStub->Finalize(false /* sortByPosition */);
             newJobs.emplace_back(std::move(currentJobStub));
         } else {
             YT_LOG_DEBUG("Leaving job as is (Cookie: %v)", startIndex);

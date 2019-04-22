@@ -79,8 +79,6 @@ class TUnversionedRowMerger;
 class TVersionedRowMerger;
 class TSamplingRowMerger;
 
-DECLARE_REFCOUNTED_CLASS(TChunkWriterOptions)
-
 DECLARE_REFCOUNTED_CLASS(TTableWriterOptions)
 DECLARE_REFCOUNTED_CLASS(TTableReaderOptions)
 

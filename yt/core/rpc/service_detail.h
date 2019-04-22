@@ -293,7 +293,7 @@ protected:
             // COMPAT(kiselyovp): legacy RPC codecs
             bool enableBodyEnvelope;
             NCompression::ECodec attachmentCodecId;
-            auto bodyCodecId = UnderlyingContext_->GetResponseCodec();;
+            auto bodyCodecId = UnderlyingContext_->GetResponseCodec();
             if (requestHeader.has_request_codec()) {
                 enableBodyEnvelope = false;
                 attachmentCodecId = bodyCodecId;
@@ -596,6 +596,12 @@ protected:
         //! Time between the request arrival and the moment when it is fully processed.
         NProfiling::TAggregateGauge TotalTimeCounter;
 
+        //! CPU time spent in the handler's fiber.
+        NProfiling::TMonotonicCounter HandlerFiberTimeCounter;
+
+        //! CPU time spent in the trace context associated with the request (locally).
+        NProfiling::TMonotonicCounter TraceContextTimeCounter;
+
         //! Counts the number of bytes in requests message body.
         NProfiling::TMonotonicCounter RequestMessageBodySizeCounter;
 
@@ -723,7 +729,7 @@ private:
         TRequestId RequestId;
         NYT::NBus::IBusPtr ReplyBus;
         TRuntimeMethodInfoPtr RuntimeInfo;
-        NTracing::TTraceContext TraceContext;
+        NTracing::TTraceContextPtr TraceContext;
         std::unique_ptr<NRpc::NProto::TRequestHeader> Header;
         TSharedRefArray Message;
     };
@@ -753,7 +759,7 @@ private:
     TMethodPerformanceCountersPtr CreateMethodPerformanceCounters(
         const TRuntimeMethodInfoPtr& runtimeInfo,
         const TString& user);
-    TMethodPerformanceCounters* LookupMethodPerformanceCounters(
+    TMethodPerformanceCounters* GetMethodPerformanceCounters(
         const TRuntimeMethodInfoPtr& runtimeInfo,
         const TString& user);
 };

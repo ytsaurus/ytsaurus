@@ -37,7 +37,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, TableIndex, -1);
     DEFINE_BYVAL_RO_PROPERTY(NErasure::ECodec, ErasureCodec, NErasure::ECodec::None);
     DEFINE_BYVAL_RW_PROPERTY(i64, TableRowIndex);
-    DEFINE_BYVAL_RO_PROPERTY(int, RangeIndex);
+    DEFINE_BYVAL_RO_PROPERTY(int, RangeIndex, 0);
     DEFINE_BYVAL_RO_PROPERTY(NTableClient::ETableChunkFormat, TableChunkFormat);
     DEFINE_BYVAL_RW_PROPERTY(i64, ChunkIndex, -1);
 

@@ -878,12 +878,18 @@ private:
                             << secureVaultRspOrError;
                     }
 
-                    auto operation = TryCreateOperationFromAttributes(
-                        operationId,
-                        *attributesNode,
-                        secureVault);
-                    if (operation) {
+                    try {
+                        auto operation = TryCreateOperationFromAttributes(
+                            operationId,
+                            *attributesNode,
+                            secureVault);
                         Result_.Operations.push_back(operation);
+                    } catch (const std::exception& ex) {
+                        YT_LOG_ERROR(ex, "Error creating operation from Cypress node (OperationId: %v)",
+                            operationId);
+                        if (!Owner_->Config_->SkipOperationsWithMalformedSpecDuringRevival) {
+                            throw;
+                        }
                     }
                 }
             }
@@ -900,9 +906,8 @@ private:
             try {
                 spec = ConvertTo<TOperationSpecBasePtr>(specNode);
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Error parsing operation spec (OperationId: %v)",
-                    operationId);
-                return nullptr;
+                THROW_ERROR_EXCEPTION("Error parsing operation spec")
+                    << ex;
             }
 
             auto user = attributes.Get<TString>("authenticated_user");

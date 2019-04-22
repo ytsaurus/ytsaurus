@@ -4,10 +4,9 @@ from yt.environment.yt_env import set_environment_driver_logging_config
 
 import yt.yson as yson
 from yt_driver_bindings import Driver, Request
-import yt_driver_bindings
 from yt.common import YtError, YtResponseError, flatten, update_inplace
 
-from yt.test_helpers import wait
+from yt.test_helpers import wait, WaitFailed
 from yt.test_helpers.job_events import JobEvents, TimeoutError
 
 import __builtin__
@@ -22,6 +21,8 @@ import string
 import sys
 import tempfile
 import time
+import traceback
+from collections import defaultdict
 from datetime import datetime, timedelta
 from cStringIO import StringIO, OutputType
 
@@ -792,7 +793,7 @@ class Operation(object):
             raise
 
     def read_stderr(self, job_id):
-        return remove_asan_warning(read_file(self.get_path() + "/jobs/{}/stderr".format(job_id)))
+        return read_file(self.get_path() + "/jobs/{}/stderr".format(job_id))
 
     def get_error(self):
         state = self.get_state(verbose=False)
@@ -1294,16 +1295,6 @@ def get_statistics(statistics, complex_key):
 
 ##################################################################
 
-_ASAN_WARNING_PATTERN = re.compile(
-    r"==\d+==WARNING: ASan is ignoring requested __asan_handle_no_return: " +
-    r"stack top: 0x[0-9a-f]+; bottom 0x[0-9a-f]+; size: 0x[0-9a-f]+ \(\d+\)\n" +
-    r"False positive error reports may follow\n" +
-    r"For details see https://github.com/google/sanitizers/issues/189\n")
-
-def remove_asan_warning(string):
-    """ Removes ASAN warning of form "==129647==WARNING: ASan is ignoring requested __asan_handle_no_return..." """
-    return re.sub(_ASAN_WARNING_PATTERN, '', string)
-
 def check_all_stderrs(op, expected_content, expected_count, substring=False):
     jobs_path = op.get_path() + "/jobs"
     assert get(jobs_path + "/@count") == expected_count
@@ -1311,13 +1302,12 @@ def check_all_stderrs(op, expected_content, expected_count, substring=False):
         stderr_path = "{0}/{1}/stderr".format(jobs_path, job_id)
         if is_multicell:
             assert get(stderr_path + "/@external")
-        actual_content = read_file(stderr_path)
-        assert get(stderr_path + "/@uncompressed_data_size") == len(actual_content)
-        content_without_warning = remove_asan_warning(actual_content)
+        content = read_file(stderr_path)
+        assert get(stderr_path + "/@uncompressed_data_size") == len(content)
         if substring:
-            assert expected_content in content_without_warning
+            assert expected_content in content
         else:
-            assert content_without_warning == expected_content
+            assert content == expected_content
 
 ##################################################################
 
@@ -1553,3 +1543,39 @@ def get_singular_chunk_id(path, **kwargs):
 
 def get_first_chunk_id(path, **kwargs):
     return get(path + "/@chunk_ids/0", **kwargs)
+
+def get_job_count_profiling():
+    start_time = datetime.now()
+
+    job_count = {"state": defaultdict(int), "abort_reason": defaultdict(int)}
+
+    try:
+        profiling_response = get("//sys/scheduler/orchid/profiling/scheduler/job_count", verbose=False)
+    except YtError:
+        return job_count
+
+    profiling_info = {}
+    for value in reversed(profiling_response):
+        key = tuple(sorted(value["tags"].items()))
+        if key not in profiling_info:
+            profiling_info[key] = value["value"]
+
+    # Enable it for debugging.
+    # print "profiling_info:", profiling_info
+    for key, value in profiling_info.iteritems():
+        state = dict(key)["state"]
+        job_count["state"][state] += value
+
+    for key, value in profiling_info.iteritems():
+        state = dict(key)["state"]
+        if state != "aborted":
+            continue
+        abort_reason = dict(key)["abort_reason"]
+        job_count["abort_reason"][abort_reason] += value
+
+    duration = (datetime.now() - start_time).total_seconds()
+
+    # Enable it for debugging.
+    print("job_counters (take {} seconds to calculate): {}".format(duration, job_count), file=sys.stderr)
+
+    return job_count

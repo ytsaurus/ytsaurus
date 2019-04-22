@@ -22,20 +22,23 @@ public:
     void PushHeader();
     void Push(const TChangelogIndexRecord& record);
 
-    TFuture<void> Write(const std::shared_ptr<TFileHandle>& file, const NChunkClient::IIOEnginePtr& io) const;
+    TFuture<void> Write(const std::shared_ptr<TFileHandle>& file, const NChunkClient::IIOEnginePtr& ioEngine) const;
     void UpdateRecordCount(int newRecordCount);
     i64 GetOffset() const;
     int GetCurrentIndexId() const;
     bool HasSpace() const;
 
 private:
-    size_t Capacity_;
+    const size_t Capacity_;
+    const i64 Offset_;
+
     int CurrentIndexId_ = 0;
     TSharedMutableRef Data_;
-    i64 Offset_;
     TChangelogIndexRecord* Index_;
     TChangelogIndexHeader* Header_ = nullptr;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TAsyncFileChangelogIndex
 {
@@ -76,10 +79,6 @@ public:
     }
 
 private:
-    void ProcessRecord(int recordId, i64 filePosition, int recordSize);
-    TFuture<void> FlushDirtyBuckets();
-    void UpdateIndexBuckets();
-
     const NChunkClient::IIOEnginePtr IOEngine_;
     const TString IndexFileName_;
     const i64 Alignment_;
@@ -96,6 +95,11 @@ private:
 
     std::vector<TIntrusivePtr<TIndexBucket>> DirtyBuckets_;
     bool HasDirtyBuckets_ = false;
+
+
+    void ProcessRecord(int recordId, i64 filePosition, int recordSize);
+    TFuture<void> FlushDirtyBuckets();
+    void UpdateIndexBuckets();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

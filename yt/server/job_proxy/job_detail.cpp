@@ -1,7 +1,7 @@
 #include "job_detail.h"
 #include "private.h"
 
-#include <yt/server/node/exec_agent/public.h>
+#include <yt/server/lib/exec_agent/public.h>
 
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/helpers.h>
@@ -42,8 +42,6 @@ using NChunkClient::TChunkReaderStatistics;
 
 static const auto& Profiler = JobProxyProfiler;
 static const auto& Logger = JobProxyLogger;
-
-static const int PipeBufferRowCount = 10240;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -10,6 +10,7 @@
 
 #include <yt/server/master/cell_master/config.h>
 #include <yt/server/master/cell_master/multicell_manager.h>
+#include <yt/server/master/cell_master/config_manager.h>
 
 #include <yt/server/master/node_tracker_server/node_directory_builder.h>
 
@@ -233,10 +234,11 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        const auto& config = Bootstrap_->GetConfig()->ChunkManager;
-        if (RpcContext_->Response().chunks_size() >= config->MaxChunksPerFetch) {
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        const auto& dynamicConfig = configManager->GetConfig()->ChunkManager;
+        if (RpcContext_->Response().chunks_size() >= dynamicConfig->MaxChunksPerFetch) {
             ReplyError(TError("Attempt to fetch too many chunks in a single request")
-                << TErrorAttribute("limit", config->MaxChunksPerFetch));
+                << TErrorAttribute("limit", dynamicConfig->MaxChunksPerFetch));
             return false;
         }
 
@@ -291,7 +293,7 @@ private:
 
         int cachedReplicaCount = 0;
         for (auto replica : chunk->CachedReplicas()) {
-            if (cachedReplicaCount >= config->MaxCachedReplicasPerFetch) {
+            if (cachedReplicaCount >= dynamicConfig->MaxCachedReplicasPerFetch) {
                 break;
             }
             if (addReplica(replica)) {

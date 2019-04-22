@@ -114,6 +114,17 @@ protected:
         static const int PipePermissions = S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IWOTH;
 
         try {
+            struct rlimit rlimit = {
+                EnableCoreDump_ ? RLIM_INFINITY : 0,
+                EnableCoreDump_ ? RLIM_INFINITY : 0
+            };
+
+            auto rv = setrlimit(RLIMIT_CORE, &rlimit);
+            if (rv) {
+                THROW_ERROR_EXCEPTION("Failed to configure core dump limits")
+                    << TError::FromSystem();
+            }
+
             for (const auto& pipe : Pipes_) {
                 const int streamFd = pipe.FD;
                 const auto& path = pipe.Path;
@@ -143,17 +154,6 @@ protected:
                         << ex;
                 }
             }
-
-            struct rlimit rlimit = {
-                EnableCoreDump_ ? RLIM_INFINITY : 0,
-                EnableCoreDump_ ? RLIM_INFINITY : 0
-            };
-
-            auto rv = setrlimit(RLIMIT_CORE, &rlimit);
-            if (rv) {
-                THROW_ERROR_EXCEPTION("Failed to configure core dump limits")
-                    << TError::FromSystem();
-            }
         } catch (const std::exception& ex) {
             executorError = ex;
         }
@@ -161,7 +161,6 @@ protected:
         if (!executorError.IsOK()) {
             fprintf(stderr, "Failed to prepare pipes, unexpected executor error\n%s", ToString(executorError).data());
             Exit(3);
-            return;
         }
 
         if (Pty_ != -1) {
@@ -220,8 +219,8 @@ protected:
             args.data(),
             env.data());
 
-        Exit(3);
-        return;
+        fprintf(stderr, "execve failed: %s", TError::FromSystem().GetMessage().data());
+        Exit(5);
     }
 
 private:

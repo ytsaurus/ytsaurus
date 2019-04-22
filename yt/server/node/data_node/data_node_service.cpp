@@ -20,27 +20,29 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/chunk_slice.h>
-#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 #include <yt/ytlib/chunk_client/data_node_service.pb.h>
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/ytlib/chunk_client/key_set.h>
-#include <yt/client/chunk_client/read_limit.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/helpers.h>
+#include <yt/ytlib/table_client/samples_fetcher.h>
+
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/unversioned_row.h>
+
+#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
+#include <yt/client/chunk_client/read_limit.h>
 
 #include <yt/client/misc/workload.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/ytlib/table_client/helpers.h>
-#include <yt/ytlib/table_client/samples_fetcher.h>
-
 #include <yt/core/bus/bus.h>
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/misc/optional.h>
@@ -104,6 +106,7 @@ public:
             .SetMaxConcurrency(5000)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PopulateCache)
+            .SetInvoker(Bootstrap_->GetStorageLightInvoker())
             .SetMaxQueueSize(5000)
             .SetMaxConcurrency(5000)
             .SetCancelable(true));
@@ -113,28 +116,35 @@ public:
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockSet)
+            .SetInvoker(Bootstrap_->GetStorageLightInvoker())
             .SetCancelable(true)
             .SetMaxQueueSize(5000)
             .SetMaxConcurrency(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockRange)
+            .SetInvoker(Bootstrap_->GetStorageLightInvoker())
             .SetCancelable(true)
             .SetMaxQueueSize(5000)
             .SetMaxConcurrency(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta)
+            .SetInvoker(Bootstrap_->GetStorageLightInvoker())
             .SetCancelable(true)
             .SetMaxQueueSize(5000)
             .SetMaxConcurrency(5000)
             .SetHeavy(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer)
+            .SetInvoker(Bootstrap_->GetStorageLightInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples)
+            .SetInvoker(Bootstrap_->GetStorageLightInvoker())
             .SetCancelable(true)
             .SetHeavy(true)
             .SetResponseCodec(NCompression::ECodec::Lz4));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSlices)
+            .SetInvoker(Bootstrap_->GetStorageLightInvoker())
             .SetCancelable(true)
             .SetHeavy(true)
             .SetResponseCodec(NCompression::ECodec::Lz4));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics)
+            .SetInvoker(Bootstrap_->GetStorageLightInvoker())
             .SetCancelable(true));
     }
 
@@ -142,21 +152,6 @@ private:
     const TDataNodeConfigPtr Config_;
     TBootstrap* const Bootstrap_;
 
-    const TActionQueuePtr WorkerThread_ = New<TActionQueue>("DataNodeWorker");
-    const TActionQueuePtr MetaProcessorThread_ = New<TActionQueue>("MetaProcessor");
-
-    bool ShouldUseDirectIO(EDirectIOPolicy policy, bool writerRequestedDirectIO) const
-    {
-        if (policy == EDirectIOPolicy::Never) {
-            return false;
-        }
-
-        if (policy == EDirectIOPolicy::Always) {
-            return true;
-        }
-
-        return writerRequestedDirectIO;
-    }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, StartChunk)
     {
@@ -385,7 +380,7 @@ private:
                 << TErrorAttribute("blocks_length", request->blocks_size());
         }
 
-        auto blockManager = Bootstrap_->GetChunkBlockManager();
+        const auto& blockManager = Bootstrap_->GetChunkBlockManager();
         for (size_t index = 0; index < blocks.size(); ++index) {
             const auto& block = blocks[index];
             const auto& protoBlock = request->blocks(index);
@@ -397,9 +392,10 @@ private:
         }
 
         // We mimic TPeerBlockUpdater behavior here.
-        auto expirationTime = Bootstrap_->GetPeerBlockUpdater()->GetPeerUpdateExpirationTime().ToDeadLine();
+        const auto& peerBlockUpdater = Bootstrap_->GetPeerBlockUpdater();
+        auto expirationTime = peerBlockUpdater->GetPeerUpdateExpirationTime().ToDeadLine();
+        response->set_expiration_time(ToProto<i64>(expirationTime));
 
-        response->set_expiration_time(expirationTime.GetValue());
         context->Reply();
     }
 
@@ -423,7 +419,7 @@ private:
 
         ValidateConnected();
 
-        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
+        const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(chunkId);
         bool hasCompleteChunk = chunk.operator bool();
         response->set_has_complete_chunk(hasCompleteChunk);
@@ -454,19 +450,27 @@ private:
         }
 
         // Try suggesting other peers. This can never hurt.
-        auto peerBlockTable = Bootstrap_->GetPeerBlockTable();
+        bool registerRequestingPeer = request->has_peer_node_id() && request->has_peer_expiration_time();
+        const auto& peerBlockTable = Bootstrap_->GetPeerBlockTable();
         for (int blockIndex : request->block_indexes()) {
             auto blockId = TBlockId(chunkId, blockIndex);
-            const auto& peers = peerBlockTable->GetPeers(blockId);
-            if (!peers.empty()) {
-                auto* peerDescriptor = response->add_peer_descriptors();
-                peerDescriptor->set_block_index(blockIndex);
-                for (const auto& peer : peers) {
-                    peerDescriptor->add_node_ids(peer.NodeId);
+            auto peerData = peerBlockTable->FindOrCreatePeerData(blockId, registerRequestingPeer);
+            if (peerData) {
+                auto peers = peerData->GetPeers();
+                if (!peers.empty()) {
+                    auto* peerDescriptor = response->add_peer_descriptors();
+                    peerDescriptor->set_block_index(blockIndex);
+                    for (auto peer : peers) {
+                        peerDescriptor->add_node_ids(peer);
+                    }
+                    YT_LOG_DEBUG("Peers suggested (BlockId: %v, PeerCount: %v)",
+                        blockId,
+                        peers.size());
                 }
-                YT_LOG_DEBUG("Peers suggested (BlockId: %v, PeerCount: %v)",
-                    blockId,
-                    peers.size());
+            }
+            if (registerRequestingPeer) {
+                // Register the peer we're replying to.
+                peerData->AddPeer(request->peer_node_id(), FromProto<TInstant>(request->peer_expiration_time()));
             }
         }
 
@@ -481,7 +485,7 @@ private:
             options.FetchFromDisk = fetchFromDisk && !netThrottling && !diskThrottling;
             options.ChunkReaderStatistics = chunkReaderStatistics;
 
-            const auto& chunkBlockManager =Bootstrap_->GetChunkBlockManager();
+            const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
             auto asyncBlocks = chunkBlockManager->ReadBlockSet(
                 chunkId,
                 blockIndexes,
@@ -509,15 +513,6 @@ private:
         }
 
         i64 blocksSize = GetByteSize(response->Attachments());
-
-        // Register the peer that we had just sent the reply to.
-        if (request->has_peer_node_id() && request->has_peer_expiration_time()) {
-            auto expirationTime = FromProto<TInstant>(request->peer_expiration_time());
-            TPeerInfo peerInfo(request->peer_node_id(), expirationTime);
-            for (int blockIndex : request->block_indexes()) {
-                peerBlockTable->UpdatePeer(TBlockId(chunkId, blockIndex), peerInfo);
-            }
-        }
 
         context->SetResponseInfo(
             "HasCompleteChunk: %v, NetThrottling: %v, NetOutQueueSize: %v, "
@@ -567,7 +562,7 @@ private:
 
         ValidateConnected();
 
-        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
+        const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(chunkId);
         bool hasCompleteChunk = chunk.operator bool();
         response->set_has_complete_chunk(hasCompleteChunk);
@@ -608,7 +603,7 @@ private:
             options.FetchFromDisk = fetchFromDisk && !netThrottling && !diskThrottling;
             options.ChunkReaderStatistics = chunkReaderStatistics;
 
-            const auto& chunkBlockManager =Bootstrap_->GetChunkBlockManager();
+            const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
             auto asyncBlocks = chunkBlockManager->ReadBlockRange(
                 chunkId,
                 firstBlockIndex,
@@ -680,7 +675,7 @@ private:
             return;
         }
 
-        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
+        const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->GetChunkOrThrow(chunkId, mediumIndex);
 
         TBlockReadOptions options;
@@ -710,7 +705,7 @@ private:
             }
 
             ToProto(response->mutable_chunk_reader_statistics(), options.ChunkReaderStatistics);
-        }).AsyncVia(MetaProcessorThread_->GetInvoker())));
+        }).AsyncVia(Bootstrap_->GetStorageHeavyInvoker())));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSlices)
@@ -735,6 +730,7 @@ private:
             ? New<TKeySetWriter>()
             : nullptr;
 
+        auto heavyInvoker = CreateSerializedInvoker(Bootstrap_->GetStorageHeavyInvoker());
         for (const auto& sliceRequest : request->slice_requests()) {
             auto chunkId = FromProto<TChunkId>(sliceRequest.chunk_id());
             auto* slices = response->add_slices();
@@ -765,7 +761,7 @@ private:
                     request->slice_by_keys(),
                     keyColumns,
                     keySetWriter)
-                .AsyncVia(WorkerThread_->GetInvoker())));
+                .AsyncVia(heavyInvoker)));
         }
 
         context->ReplyFrom(Combine(asyncResults).Apply(BIND([=] () {
@@ -779,7 +775,7 @@ private:
             } else {
                 response->set_keys_in_attachment(false);
             }
-        }).AsyncVia(WorkerThread_->GetInvoker())));
+        }).AsyncVia(heavyInvoker)));
     }
 
     void MakeChunkSlices(
@@ -871,11 +867,12 @@ private:
 
         const auto& chunkStore = Bootstrap_->GetChunkStore();
 
-        std::vector<TFuture<void>> asyncResults;
-        TKeySetWriterPtr keySetWriter = request->keys_in_attachment()
+        auto keySetWriter = request->keys_in_attachment()
             ? New<TKeySetWriter>()
             : nullptr;
 
+        auto heavyInvoker = CreateSerializedInvoker(Bootstrap_->GetStorageHeavyInvoker());
+        std::vector<TFuture<void>> asyncResults;
         for (const auto& sampleRequest : request->sample_requests()) {
             auto* sampleResponse = response->add_sample_responses();
             auto chunkId = FromProto<TChunkId>(sampleRequest.chunk_id());
@@ -906,7 +903,7 @@ private:
                     keyColumns,
                     request->max_sample_size(),
                     keySetWriter)
-                .AsyncVia(WorkerThread_->GetInvoker())));
+                .AsyncVia(heavyInvoker)));
         }
 
         context->ReplyFrom(Combine(asyncResults).Apply(BIND([=] () {
@@ -920,7 +917,7 @@ private:
             } else {
                 response->set_keys_in_attachment(false);
             }
-        }).AsyncVia(WorkerThread_->GetInvoker())));
+        }).AsyncVia(heavyInvoker)));
     }
 
     void ProcessSample(
@@ -1163,8 +1160,9 @@ private:
         std::vector<TRefCountedColumnarStatisticsSubresponsePtr> subresponses;
         std::vector<TFuture<void>> asyncResults;
 
-        TNameTablePtr nameTable = NYT::FromProto<TNameTablePtr>(request->name_table());
+        auto nameTable = NYT::FromProto<TNameTablePtr>(request->name_table());
 
+        auto heavyInvoker = CreateSerializedInvoker(Bootstrap_->GetStorageHeavyInvoker());
         for (const auto& subrequest : request->subrequests()) {
             auto chunkId = FromProto<TChunkId>(subrequest.chunk_id());
 
@@ -1181,10 +1179,11 @@ private:
                 ToProto(subresponse->mutable_error(), error);
                 continue;
             }
+
             auto columnIds = FromProto<std::vector<int>>(subrequest.column_ids());
             std::vector<TString> columnNames;
             for (auto id : columnIds) {
-                columnNames.emplace_back(nameTable->GetName(id));
+                columnNames.emplace_back(nameTable->GetNameOrThrow(id));
             }
 
             TBlockReadOptions options;
@@ -1199,7 +1198,7 @@ private:
                     Passed(std::move(columnNames)),
                     chunkId,
                     Passed(std::move(subresponse)))
-                    .AsyncVia(WorkerThread_->GetInvoker())));
+                    .AsyncVia(heavyInvoker)));
         }
 
         auto combinedResult = Combine(asyncResults);
@@ -1272,13 +1271,11 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdatePeer)
     {
-        auto expirationTime = FromProto<TInstant>(request->peer_expiration_time());
-
         if (!request->has_peer_node_id()) {
             THROW_ERROR_EXCEPTION("Peer-to-peer with older versions is not supported, update node to a more recent version");
         }
 
-        TPeerInfo peer(request->peer_node_id(), expirationTime);
+        auto expirationTime = FromProto<TInstant>(request->peer_expiration_time());
 
         const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();
         const auto* nodeDescriptor = nodeDirectory->FindDescriptor(request->peer_node_id());
@@ -1289,10 +1286,11 @@ private:
             expirationTime,
             request->block_ids_size());
 
-        auto peerBlockTable = Bootstrap_->GetPeerBlockTable();
-        for (const auto& block_id : request->block_ids()) {
-            TBlockId blockId(FromProto<TGuid>(block_id.chunk_id()), block_id.block_index());
-            peerBlockTable->UpdatePeer(blockId, peer);
+        const auto& peerBlockTable = Bootstrap_->GetPeerBlockTable();
+        for (const auto& protoBlockId : request->block_ids()) {
+            auto blockId = FromProto<TBlockId>(protoBlockId);
+            auto peerData = peerBlockTable->FindOrCreatePeerData(blockId, true);
+            peerData->AddPeer(request->peer_node_id(), expirationTime);
         }
 
         context->Reply();
@@ -1301,8 +1299,7 @@ private:
 
     void ValidateConnected()
     {
-        auto masterConnector = Bootstrap_->GetMasterConnector();
-        if (!masterConnector->IsConnected()) {
+        if (!Bootstrap_->GetMasterConnector()->IsConnected()) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::MasterNotConnected,
                 "Master is not connected");
@@ -1329,7 +1326,20 @@ private:
         }
     }
 
-    i64 GetDiskReadQueueSize(const IChunkPtr& chunk, const TWorkloadDescriptor& workloadDescriptor)
+    static bool ShouldUseDirectIO(EDirectIOPolicy policy, bool writerRequestedDirectIO)
+    {
+        if (policy == EDirectIOPolicy::Never) {
+            return false;
+        }
+
+        if (policy == EDirectIOPolicy::Always) {
+            return true;
+        }
+
+        return writerRequestedDirectIO;
+    }
+
+    static i64 GetDiskReadQueueSize(const IChunkPtr& chunk, const TWorkloadDescriptor& workloadDescriptor)
     {
         if (!chunk) {
             return 0;

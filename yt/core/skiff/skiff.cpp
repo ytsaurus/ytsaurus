@@ -44,42 +44,34 @@ bool TUncheckedSkiffParser::ParseBoolean()
     return result;
 }
 
-const TString& TUncheckedSkiffParser::ParseString32(TString* result)
+TStringBuf TUncheckedSkiffParser::ParseString32()
 {
     ui32 toRead = ParseSimple<ui32>();
-    result->clear();
-    result->reserve(toRead);
+    if (toRead < RemainingBytes_) {
+        auto result = TStringBuf(Position_, toRead);
+        Advance(toRead);
+        return result;
+    } else {
+        Tmp_.clear();
+        Tmp_.reserve(toRead);
 
-    while (true) {
-        ui32 curRead = Min<ui32>(toRead, RemainingBytes_);
-        result->append(Position_, curRead);
-        toRead -= curRead;
-        Advance(curRead);
-        if (toRead == 0) {
-            break;
+        while (true) {
+            ui32 curRead = Min<ui32>(toRead, RemainingBytes_);
+            Tmp_.append(Position_, curRead);
+            toRead -= curRead;
+            Advance(curRead);
+            if (toRead == 0) {
+                break;
+            }
+            RefillBuffer(1);
         }
-        RefillBuffer(1);
+        return Tmp_;
     }
-    return *result;
 }
 
-TString TUncheckedSkiffParser::ParseString32()
+TStringBuf TUncheckedSkiffParser::ParseYson32()
 {
-    TString result;
-    ParseString32(&result);
-    return result;
-}
-
-const TString& TUncheckedSkiffParser::ParseYson32(TString* result)
-{
-    return ParseString32(result);
-}
-
-TString TUncheckedSkiffParser::ParseYson32()
-{
-    TString result;
-    ParseYson32(&result);
-    return result;
+    return ParseString32();
 }
 
 ui8 TUncheckedSkiffParser::ParseVariant8Tag()
@@ -181,25 +173,13 @@ bool TCheckedSkiffParser::ParseBoolean()
     return Parser_.ParseBoolean();
 }
 
-const TString& TCheckedSkiffParser::ParseString32(TString* result)
-{
-    Validator_->OnSimpleType(EWireType::String32);
-    return Parser_.ParseString32(result);
-}
-
-TString TCheckedSkiffParser::ParseString32()
+TStringBuf TCheckedSkiffParser::ParseString32()
 {
     Validator_->OnSimpleType(EWireType::String32);
     return Parser_.ParseString32();
 }
 
-const TString& TCheckedSkiffParser::ParseYson32(TString* result)
-{
-    Validator_->OnSimpleType(EWireType::Yson32);
-    return Parser_.ParseYson32(result);
-}
-
-TString TCheckedSkiffParser::ParseYson32()
+TStringBuf TCheckedSkiffParser::ParseYson32()
 {
     Validator_->OnSimpleType(EWireType::Yson32);
     return Parser_.ParseYson32();

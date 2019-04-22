@@ -140,8 +140,7 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int blockIndex)
         TBlockId blockId(ChunkReader_->GetChunkId(), blockIndex);
         auto uncompressedBlock = BlockCache_->Find(blockId, EBlockType::UncompressedData);
         if (uncompressedBlock) {
-            windowSlot.BlockPromise->Set(uncompressedBlock);
-            windowSlot.Cached = true;
+            GetBlockPromise(windowSlot).Set(uncompressedBlock);
             TotalRemainingSize_ -= BlockInfos_[windowIndex].UncompressedDataSize;
         } else {
             TDispatcher::Get()->GetReaderInvoker()->Invoke(
@@ -152,9 +151,10 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int blockIndex)
                     static_cast<i64>(BlockInfos_[windowIndex].UncompressedDataSize)));
         }
     }
-    auto returnValue = windowSlot.BlockPromise->ToFuture();
 
-    auto hasBlock = windowSlot.BlockPromise->IsSet();
+    auto& blockPromise = GetBlockPromise(windowSlot);
+    auto returnValue = blockPromise.ToFuture();
+    auto hasBlock = blockPromise.IsSet();
     if (--windowSlot.RemainingFetches == 0 && hasBlock) {
         TDispatcher::Get()->GetReaderInvoker()->Invoke(
             BIND(&TBlockFetcher::ReleaseBlock,
@@ -192,7 +192,7 @@ void TBlockFetcher::DecompressBlocks(
         YCHECK(uncompressedBlock.Size() == blockInfo.UncompressedDataSize);
 
         auto& windowSlot = Window_[windowIndex];
-        Window_[windowIndex].BlockPromise->Set(TBlock(uncompressedBlock));
+        GetBlockPromise(windowSlot).Set(TBlock(uncompressedBlock));
         if (windowSlot.RemainingFetches == 0) {
             TDispatcher::Get()->GetReaderInvoker()->Invoke(
                 BIND(&TBlockFetcher::ReleaseBlock,
@@ -243,9 +243,8 @@ void TBlockFetcher::FetchNextGroup(TAsyncSemaphoreGuard asyncSemaphoreGuard)
             TBlockId blockId(ChunkReader_->GetChunkId(), blockIndex);
             auto uncompressedBlock = BlockCache_->Find(blockId, EBlockType::UncompressedData);
             if (uncompressedBlock) {
-                auto& slot = Window_[FirstUnfetchedWindowIndex_];
-                slot.BlockPromise->Set(uncompressedBlock);
-                slot.Cached = true;
+                auto& windowSlot = Window_[FirstUnfetchedWindowIndex_];
+                GetBlockPromise(windowSlot).Set(uncompressedBlock);
                 TotalRemainingSize_ -= blockInfo.UncompressedDataSize;
             } else {
                 uncompressedSize += blockInfo.UncompressedDataSize;
@@ -260,7 +259,7 @@ void TBlockFetcher::FetchNextGroup(TAsyncSemaphoreGuard asyncSemaphoreGuard)
     }
 
     if (windowIndexes.empty()) {
-        IsFetchingCompleted_ = true;
+        FetchingCompleted_ = true;
         return;
     }
 
@@ -277,17 +276,27 @@ void TBlockFetcher::FetchNextGroup(TAsyncSemaphoreGuard asyncSemaphoreGuard)
 void TBlockFetcher::MarkFailedBlocks(const std::vector<int>& windowIndexes, const TError& error)
 {
     for (auto index : windowIndexes) {
-        Window_[index].BlockPromise->Set(error);
+        GetBlockPromise(Window_[index]).Set(error);
     }
 }
 
 void TBlockFetcher::ReleaseBlock(int windowIndex)
 {
-    Window_[windowIndex].AsyncSemaphoreGuard.reset();
-    Window_[windowIndex].BlockPromise->Reset();
+    auto& windowSlot = Window_[windowIndex];
+    windowSlot.AsyncSemaphoreGuard.reset();
+    GetBlockPromise(windowSlot).Reset();
     YT_LOG_DEBUG("Releasing block (WindowIndex: %v, WindowSize: %v)",
         windowIndex,
         AsyncSemaphore_->GetFree());
+}
+
+TPromise<TBlock>& TBlockFetcher::GetBlockPromise(TWindowSlot& windowSlot)
+{
+    auto guard = Guard(windowSlot.BlockPromiseLock);
+    if (!windowSlot.BlockPromise) {
+        windowSlot.BlockPromise = NewPromise<TBlock>();
+    }
+    return windowSlot.BlockPromise;
 }
 
 void TBlockFetcher::RequestBlocks(
@@ -323,7 +332,7 @@ void TBlockFetcher::RequestBlocks(
 
 bool TBlockFetcher::IsFetchingCompleted()
 {
-    return IsFetchingCompleted_;
+    return FetchingCompleted_;
 }
 
 i64 TBlockFetcher::GetUncompressedDataSize() const

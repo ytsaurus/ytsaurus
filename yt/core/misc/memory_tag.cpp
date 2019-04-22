@@ -42,6 +42,11 @@ TMemoryTagGuard::TMemoryTagGuard(TMemoryTagGuard&& other)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Y_WEAK TMemoryTag GetCurrentMemoryTag()
+{
+    return 0;
+}
+
 Y_WEAK void SetCurrentMemoryTag(TMemoryTag /*tag*/)
 { }
 

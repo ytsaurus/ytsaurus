@@ -35,7 +35,7 @@ class TChunkBase
 {
 public:
     virtual TChunkId GetId() const override;
-    virtual TLocationPtr GetLocation() const override;
+    virtual const TLocationPtr& GetLocation() const override;
     virtual TString GetFileName() const override;
 
     virtual int GetVersion() const override;

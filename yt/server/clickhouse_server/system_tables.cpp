@@ -10,7 +10,6 @@
 #include <Storages/System/StorageSystemAsynchronousMetrics.h>
 #include <Storages/System/StorageSystemBuildOptions.h>
 #include <Storages/System/StorageSystemClusters.h>
-#include <Storages/System/StorageSystemColumns.h>
 #include <Storages/System/StorageSystemDatabases.h>
 #include <Storages/System/StorageSystemDictionaries.h>
 #include <Storages/System/StorageSystemEvents.h>

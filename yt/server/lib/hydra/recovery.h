@@ -53,7 +53,7 @@ protected:
     TEpochContext* const EpochContext_;
     const TVersion SyncVersion_;
 
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 

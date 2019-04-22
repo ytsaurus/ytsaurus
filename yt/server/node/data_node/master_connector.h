@@ -63,19 +63,19 @@ public:
     //! Starts interaction with master.
     void Start();
 
-    //! Forces a new registration round and a full heartbeat to be sent.
-    /*!
-     *  Thread affinity: any
-     *
-     *  Typically called when a location goes down.
-     */
-    void ForceRegisterAtMaster();
-
     //! Returns |true| iff node is currently connected to master.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
     bool IsConnected() const;
 
     //! Returns the node id assigned by master or |InvalidNodeId| if the node
     //! is not registered.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
     TNodeId GetNodeId() const;
 
     //! Adds a given message to the list of alerts sent to master with each heartbeat.
@@ -126,7 +126,7 @@ private:
     NApi::ITransactionPtr LeaseTransaction_;
 
     //! Node id assigned by master or |InvalidNodeId| is not registered.
-    TNodeId NodeId_ = NNodeTrackerClient::InvalidNodeId;
+    std::atomic<TNodeId> NodeId_ = {NNodeTrackerClient::InvalidNodeId};
 
     struct TChunksDelta
     {
@@ -236,7 +236,7 @@ private:
     //! Handles the outcome and schedules the next heartbeat.
     void ReportJobHeartbeat();
 
-    //! Similar to #ForceRegisterAtMaster but handled in Control thread.
+    //! Initiates registering at masters.
     void StartHeartbeats();
 
     //! Constructs a protobuf info for an added chunk.

@@ -140,7 +140,8 @@ size_t TPlainTextLogFormatter::WriteFormatted(IOutputStream* outputStream, const
     buffer->AppendChar('\t');
 
     if (event.TraceId != NTracing::InvalidTraceId) {
-        buffer->AppendNumber(event.TraceId, 16);
+        buffer->AppendNumber(event.TraceId.Parts64[1], 16);
+        buffer->AppendNumber(event.TraceId.Parts64[0], 16);
     }
     buffer->AppendChar('\n');
 

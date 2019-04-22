@@ -572,7 +572,7 @@ private:
                 auto rowDataWeight = GetDataWeight(row);
                 acquireThrottler(rowDataWeight);
                 dataWeight += rowDataWeight;
-                replicationRows->push_back({modificationType, replicationRow});
+                replicationRows->push_back({modificationType, replicationRow, TLockMask()});
                 prevTimestamp = timestamp;
             }
         }

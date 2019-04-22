@@ -45,7 +45,7 @@ protected:
         TWriteContext context;
         context.Phase = prelock ? EWritePhase::Prelock : EWritePhase::Lock;
         context.Transaction = transaction;
-        return StoreManager_->ModifyRow(row, NApi::ERowModificationType::Write, 0, &context);
+        return StoreManager_->ModifyRow(row, NApi::ERowModificationType::Write, TLockMask(), &context);
     }
 
     void WriteRow(const TUnversionedOwningRow& row, bool prelock = false)
@@ -55,7 +55,7 @@ protected:
         TWriteContext context;
         context.Phase = prelock ? EWritePhase::Prelock : EWritePhase::Lock;
         context.Transaction = transaction.get();
-        auto rowRef = StoreManager_->ModifyRow(row, NApi::ERowModificationType::Write, 0, &context);
+        auto rowRef = StoreManager_->ModifyRow(row, NApi::ERowModificationType::Write, TLockMask(), &context);
 
         if (prelock) {
             EXPECT_EQ(1, transaction->PrelockedRows().size());
@@ -80,7 +80,7 @@ protected:
         TWriteContext context;
         context.Phase = prelock ? EWritePhase::Prelock : EWritePhase::Lock;
         context.Transaction = transaction;
-        return StoreManager_->ModifyRow(row, ERowModificationType::Delete, 0, &context);
+        return StoreManager_->ModifyRow(row, ERowModificationType::Delete, TLockMask(), &context);
     }
 
     void DeleteRow(const TOwningKey& key)
@@ -355,43 +355,6 @@ TEST_F(TSingleLockStoreManagerTest, MigrateRow)
     EXPECT_TRUE(AreRowsEqual(LookupRow(store2, key, AsyncLastCommittedTimestamp), "key=1;a=1"));
 }
 
-TEST_F(TSingleLockStoreManagerTest, WriteSameRowWithRotation)
-{
-    auto store1 = GetActiveStore();
-
-    auto transaction = StartTransaction();
-
-    WriteRow(transaction.get(), BuildRow("key=1;a=1"), true);
-
-    RotateStores();
-
-    EXPECT_EQ(TSortedDynamicRowRef(), WriteRow(transaction.get(), BuildRow("key=1;a=2"), true));
-}
-
-TEST_F(TSingleLockStoreManagerTest, DeleteSameRowWithRotation)
-{
-    auto key = BuildKey("1");
-
-    auto transaction = StartTransaction();
-
-    DeleteRow(transaction.get(), key, true);
-
-    RotateStores();
-
-    EXPECT_EQ(TSortedDynamicRowRef(), DeleteRow(transaction.get(), key, true));
-}
-
-TEST_F(TSingleLockStoreManagerTest, WriteAfterDeleteFailureWithRotation)
-{
-    auto transaction = StartTransaction();
-
-    DeleteRow(transaction.get(), BuildKey("1"), true);
-
-    RotateStores();
-
-    EXPECT_EQ(TSortedDynamicRowRef(), WriteRow(transaction.get(), BuildRow("key=1;a=2"), true));
-}
-
 TEST_F(TSingleLockStoreManagerTest, WriteWriteConflictWithRotation1)
 {
     auto transaction1 = StartTransaction();
@@ -619,7 +582,8 @@ TEST_F(TSingleLockStoreManagerTest, WriteBlockedWrite)
     TWriteContext context;
     context.Phase = EWritePhase::Prelock;
     context.Transaction = transaction2.get();
-    EXPECT_EQ(TSortedDynamicRowRef(), StoreManager_->ModifyRow(row, ERowModificationType::Write, 0, &context));
+
+    EXPECT_EQ(TSortedDynamicRowRef(), StoreManager_->ModifyRow(row, ERowModificationType::Write, TLockMask(), &context));
     EXPECT_EQ(rowRef1.Row, context.BlockedRow);
     EXPECT_EQ(rowRef1.Store, context.BlockedStore);
     EXPECT_EQ(1, store->GetLockCount());

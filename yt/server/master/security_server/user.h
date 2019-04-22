@@ -42,17 +42,17 @@ class TUser
 {
 public:
     // Limits and bans.
-    DEFINE_BYVAL_RW_PROPERTY(bool, Banned);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Banned, false);
 
-    DEFINE_BYVAL_RW_PROPERTY(int, RequestQueueSizeLimit);
-    DEFINE_BYVAL_RW_PROPERTY(int, RequestQueueSize);
+    DEFINE_BYVAL_RW_PROPERTY(int, RequestQueueSizeLimit, 100);
+    DEFINE_BYVAL_RW_PROPERTY(int, RequestQueueSize, 0);
 
     // Statistics
     using TMulticellStatistics = THashMap<NObjectClient::TCellTag, TUserStatistics>;
     DEFINE_BYREF_RW_PROPERTY(TMulticellStatistics, MulticellStatistics);
     DEFINE_BYVAL_RW_PROPERTY(TUserStatistics*, LocalStatisticsPtr);
     DEFINE_BYREF_RW_PROPERTY(TUserStatistics, ClusterStatistics);
-    DEFINE_BYVAL_RW_PROPERTY(int, RequestStatisticsUpdateIndex);
+    DEFINE_BYVAL_RW_PROPERTY(int, RequestStatisticsUpdateIndex, -1);
 
 public:
     explicit TUser(TUserId id);
@@ -65,8 +65,8 @@ public:
 
     void RecomputeClusterStatistics();
 
-    const NConcurrency::IReconfigurableThroughputThrottlerPtr GetRequestRateThrottler(EUserWorkloadType workloadType);
-    void SetRequestRateThrottler(const NConcurrency::IReconfigurableThroughputThrottlerPtr& throttler, EUserWorkloadType workloadType);
+    const NConcurrency::IReconfigurableThroughputThrottlerPtr& GetRequestRateThrottler(EUserWorkloadType workloadType);
+    void SetRequestRateThrottler(NConcurrency::IReconfigurableThroughputThrottlerPtr throttler, EUserWorkloadType workloadType);
 
     int GetRequestRateLimit(EUserWorkloadType workloadType);
     void SetRequestRateLimit(int limit, EUserWorkloadType workloadType);
@@ -75,8 +75,8 @@ private:
     NConcurrency::IReconfigurableThroughputThrottlerPtr ReadRequestRateThrottler_;
     NConcurrency::IReconfigurableThroughputThrottlerPtr WriteRequestRateThrottler_;
 
-    int ReadRequestRateLimit_;
-    int WriteRequestRateLimit_;
+    int ReadRequestRateLimit_ = 100;
+    int WriteRequestRateLimit_ = 100;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

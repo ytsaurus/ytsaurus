@@ -450,6 +450,74 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             command="sleep 1 ; cat",
             spec={"max_failed_job_count": 1, "mapper": {"job_time_limit": 3000}})
 
+    def test_suspend_resume(self):
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out")
+        write_table("//tmp/t_in", [{"foo": i} for i in xrange(10)])
+
+        op = map(
+            dont_track=True,
+            command="sleep 1; cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"data_size_per_job": 1})
+
+        for i in xrange(5):
+            time.sleep(0.5)
+            op.suspend(abort_running_jobs=True)
+            time.sleep(0.5)
+            op.resume()
+
+        for i in xrange(5):
+            op.suspend()
+            op.resume()
+
+        for i in xrange(5):
+            op.suspend(abort_running_jobs=True)
+            op.resume()
+
+        op.track()
+
+        assert sorted(read_table("//tmp/t_out")) == [{"foo": i} for i in xrange(10)]
+
+
+class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "connect_retry_backoff_time": 100,
+            "fair_share_update_period": 100,
+            "profiling_update_period": 100,
+            "fair_share_profiling_period": 100,
+            "alerts_update_period": 100,
+            # Unrecognized alert often interferes with the alerts that
+            # are tested in this test suite.
+            "enable_unrecognized_alert": False
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operation_time_limit_check_period": 100,
+            "operation_controller_fail_timeout": 3000,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "slot_manager": {
+                "job_environment": {
+                    "type": "cgroups",
+                    "memory_watchdog_period": 100,
+                    "supported_cgroups": ["cpuacct", "blkio", "cpu"],
+                },
+            }
+        }
+    }
+
     def _get_metric_maximum_value(self, metric_key, pool):
         result = 0.0
         for value in reversed(get("//sys/scheduler/orchid/profiling/scheduler/pools/" + metric_key, verbose=False)):
@@ -638,35 +706,34 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             wait(lambda: func("demand_ratio_x100000", "other_pool", value) == 100000)
             wait(lambda: func("guaranteed_resource_ratio_x100000", "other_pool", value) in range_1)
 
-    def test_suspend_resume(self):
-        self._create_table("//tmp/t_in")
-        self._create_table("//tmp/t_out")
-        write_table("//tmp/t_in", [{"foo": i} for i in xrange(10)])
+    def test_job_count_profiling(self):
+        self._prepare_tables()
+
+        start_profiling = get_job_count_profiling()
+        def get_new_jobs_with_state(state):
+            current_profiling = get_job_count_profiling()
+            return current_profiling["state"][state] - start_profiling["state"][state]
 
         op = map(
             dont_track=True,
-            command="sleep 1; cat",
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            spec={"data_size_per_job": 1})
+            command=with_breakpoint("echo '{foo=bar}'; BREAKPOINT"),
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out")
 
-        for i in xrange(5):
-            time.sleep(0.5)
-            op.suspend(abort_running_jobs=True)
-            time.sleep(0.5)
-            op.resume()
+        wait(lambda: get_new_jobs_with_state("running") == 1)
 
-        for i in xrange(5):
-            op.suspend()
-            op.resume()
+        for job in op.get_running_jobs():
+            abort_job(job)
 
-        for i in xrange(5):
-            op.suspend(abort_running_jobs=True)
-            op.resume()
+        wait(lambda: get_new_jobs_with_state("aborted") == 1)
 
+        release_breakpoint()
         op.track()
 
-        assert sorted(read_table("//tmp/t_out")) == [{"foo": i} for i in xrange(10)]
+        wait(lambda: get_new_jobs_with_state("completed") == 1)
+
+        assert op.get_state() == "completed"
+
 
 ##################################################################
 

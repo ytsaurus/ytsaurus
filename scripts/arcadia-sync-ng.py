@@ -1407,8 +1407,7 @@ class YtCtx(BaseCtx):
     @classmethod
     def create(cls):
         git = Git(repo=PROJECT_PATH)
-        abi_major, abi_minor = get_abi_major_minor_from_git_branch(git)
-        return YtCtx(abi_major, abi_minor)
+        return YtCtx(19, 4)
 
 
 PROJECTS = {

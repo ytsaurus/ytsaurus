@@ -29,7 +29,7 @@ static const auto RequestIdAnnotation = TString("request_id");
 
 TClientContext::TClientContext(
     TRequestId requestId,
-    const NTracing::TTraceContext& traceContext,
+    NTracing::TTraceContextPtr traceContext,
     const TString& service,
     const TString& method,
     bool heavy,
@@ -37,7 +37,7 @@ TClientContext::TClientContext(
     TAttachmentsOutputStreamPtr requestAttachmentsStream,
     TAttachmentsInputStreamPtr responseAttachmentsStream)
     : RequestId_(requestId)
-    , TraceContext_(traceContext)
+    , TraceContext_(std::move(traceContext))
     , Service_(service)
     , Method_(method)
     , Heavy_(heavy)
@@ -259,13 +259,12 @@ void TClientRequest::SetMultiplexingBand(EMultiplexingBand band)
 
 TClientContextPtr TClientRequest::CreateClientContext()
 {
-    auto traceContext = NTracing::CreateChildTraceContext();
-    if (traceContext.IsEnabled()) {
+    auto traceContext = CreateCallTraceContext(GetService(), GetMethod());
+    if (traceContext) {
         SetTraceContext(&Header(), traceContext);
-        TraceRequest(traceContext);
-    }
-    if (traceContext.IsVerbose()) {
-        TraceRequest(traceContext);
+        if (traceContext->IsSampled()) {
+            TraceRequest(traceContext);
+        }
     }
 
     if (StreamingEnabled_) {
@@ -284,7 +283,7 @@ TClientContextPtr TClientRequest::CreateClientContext()
 
     return New<TClientContext>(
         GetRequestId(),
-        traceContext,
+        std::move(traceContext),
         GetService(),
         GetMethod(),
         Heavy_,
@@ -315,7 +314,7 @@ void TClientRequest::OnPullRequestAttachmentsStream()
         !payload->Attachments.back());
 
     control->SendStreamingPayload(*payload).Subscribe(
-        BIND(&TClientRequest::OnRequestStreamingPayloadAcked, MakeStrong(this), payload->SequenceNumber));;
+        BIND(&TClientRequest::OnRequestStreamingPayloadAcked, MakeStrong(this), payload->SequenceNumber));
 }
 
 void TClientRequest::OnRequestStreamingPayloadAcked(int sequenceNumber, const TError& error)
@@ -369,23 +368,9 @@ const IInvokerPtr& TClientRequest::GetInvoker() const
         : TDispatcher::Get()->GetLightInvoker();
 }
 
-void TClientRequest::TraceRequest(const NTracing::TTraceContext& traceContext)
+void TClientRequest::TraceRequest(const NTracing::TTraceContextPtr& traceContext)
 {
-    NTracing::TraceEvent(
-        traceContext,
-        GetService(),
-        GetMethod(),
-        NTracing::ClientSendAnnotation);
-
-    NTracing::TraceEvent(
-        traceContext,
-        RequestIdAnnotation,
-        GetRequestId());
-
-    NTracing::TraceEvent(
-        traceContext,
-        ClientHostAnnotation,
-        NNet::GetLocalHostName());
+    traceContext->AddTag(RequestIdAnnotation, ToString(GetRequestId()));
 }
 
 void TClientRequest::SetCodecsInHeader()
@@ -466,8 +451,6 @@ void TClientResponse::DoHandleError(const TError& error)
 
 void TClientResponse::Finish(const TError& error)
 {
-    NTracing::TTraceContextGuard guard(ClientContext_->GetTraceContext());
-
     TraceResponse();
 
     const auto& requestAttachmentsStream = ClientContext_->GetRequestAttachmentsStream();
@@ -485,11 +468,10 @@ void TClientResponse::Finish(const TError& error)
 
 void TClientResponse::TraceResponse()
 {
-    NTracing::TraceEvent(
-        ClientContext_->GetTraceContext(),
-        ClientContext_->GetService(),
-        ClientContext_->GetMethod(),
-        NTracing::ClientReceiveAnnotation);
+    const auto& traceContext = ClientContext_->GetTraceContext();
+    if (traceContext) {
+        traceContext->Finish();
+    }
 }
 
 const IInvokerPtr& TClientResponse::GetInvoker()

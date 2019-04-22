@@ -313,7 +313,7 @@ protected:
     void ValidateSetCommand(const NYTree::TYPath& path, const TString& user, bool force) const
     {
         const auto& Logger = CypressServerLogger;
-        bool forbidden = TBase::Bootstrap_->GetConfig()->CypressManager->ForbidSetCommand && !force;
+        bool forbidden = TBase::GetDynamicCypressManagerConfig()->ForbidSetCommand && !force;
         if (path) {
             YT_LOG_DEBUG("Validating possibly malicious \"set\" in Cypress (Path: %v, User: %v, Forbidden: %v)",
                 path,
@@ -421,7 +421,7 @@ BEGIN_DEFINE_SCALAR_TYPE(String, TString)
         virtual void ValidateValue(const TString& value) override
         {
             auto length = value.length();
-            auto limit = Bootstrap_->GetConfig()->CypressManager->MaxStringNodeLength;
+            auto limit = GetDynamicCypressManagerConfig()->MaxStringNodeLength;
             if (length > limit) {
                 THROW_ERROR_EXCEPTION(
                     NYTree::EErrorCode::MaxStringLengthViolation,
