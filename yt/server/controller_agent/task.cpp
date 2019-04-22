@@ -411,11 +411,6 @@ bool TTask::IsJobInterruptible() const
     return TaskHost_->IsJobInterruptible();
 }
 
-std::optional<EAbortReason> TTask::ShouldAbortJob(const TJobletPtr& joblet)
-{
-    return CompetitiveJobManager_.ShouldAbortJob(joblet);
-}
-
 bool TTask::IsCompleted() const
 {
     return IsActive() && GetChunkPoolOutput()->IsCompleted();
