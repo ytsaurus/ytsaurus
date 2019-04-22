@@ -99,9 +99,10 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
         return;
     }
 
-    auto writer = CreateSchemalessWriterForFormat(
+    auto writer = CreateStaticTableWriterForFormat(
         context->GetOutputFormat(),
         reader->GetNameTable(),
+        {reader->GetTableSchema()},
         context->Request().OutputStream,
         false,
         ControlAttributes,

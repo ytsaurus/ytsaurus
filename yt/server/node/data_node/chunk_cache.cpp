@@ -865,9 +865,10 @@ private:
             auto format = ConvertTo<NFormats::TFormat>(TYsonString(key.format()));
 
             auto producer = [&] (IOutputStream* output) {
-                auto writer = CreateSchemalessWriterForFormat(
+                auto writer = CreateStaticTableWriterForFormat(
                     format,
                     nameTable,
+                    {schema.value_or(TTableSchema())},
                     CreateAsyncAdapter(output),
                     false, /* enableContextSaving */
                     New<TControlAttributesConfig>(),

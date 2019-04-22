@@ -76,6 +76,8 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessFormatWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// This function historically creates format for reading dynamic tables
+// It slightly differes from format for static tables :(
 NTableClient::IUnversionedRowsetWriterPtr CreateSchemafulWriterForFormat(
     const TFormat& Format,
     const NTableClient::TTableSchema& schema,
@@ -90,9 +92,10 @@ NTableClient::IVersionedWriterPtr CreateVersionedWriterForFormat(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
+ISchemalessFormatWriterPtr CreateStaticTableWriterForFormat(
     const TFormat& format,
     NTableClient::TNameTablePtr nameTable,
+    const std::vector<NTableClient::TTableSchema>& tableSchemas,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     TControlAttributesConfigPtr controlAttributesConfig,
