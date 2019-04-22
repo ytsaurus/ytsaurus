@@ -50,6 +50,23 @@ DEFINE_REFCOUNTED_TYPE(TProxyEntry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TDynamicConfig is part of proxy configuration stored in cypress.
+//
+// NOTE: config might me unavalable. Users must handle such cases
+// gracefully.
+class TDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    THashMap<TString, double> TracingUserSampleProbability;
+
+    TDynamicConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCoordinator
     : public TRefCounted
 {
@@ -68,29 +85,39 @@ public:
     TProxyEntryPtr GetSelf();
 
     const TCoordinatorConfigPtr& GetConfig() const;
+    TDynamicConfigPtr GetDynamicConfig();
+
+    NYTree::IYPathServicePtr CreateOrchidService();
 
     bool IsDead(const TProxyEntryPtr& proxy, TInstant at) const;
 
 private:
-    TCoordinatorConfigPtr Config_;
-    const TBootstrap* Bootstrap_;
-    NApi::IClientPtr Client_;
-    NConcurrency::TPeriodicExecutorPtr Periodic_;
+    const TCoordinatorConfigPtr Config_;
+    TBootstrap* const Bootstrap_;
+    const NApi::IClientPtr Client_;
+    const NConcurrency::TPeriodicExecutorPtr UpdateStateExecutor_;
+    const NConcurrency::TPeriodicExecutorPtr UpdateDynamicConfigExecutor_;
 
     TPromise<void> FirstUpdateIterationFinished_ = NewPromise<void>();
-    bool IsInitialized_ = false;
+    bool Initialized_ = false;
 
     TSpinLock Lock_;
     TProxyEntryPtr Self_;
+    TDynamicConfigPtr DynamicConfig_;
     std::vector<TProxyEntryPtr> Proxies_;
-
-    void Update();
-    std::vector<TProxyEntryPtr> ListCypressProxies();
 
     TInstant StatisticsUpdatedAt_;
     std::optional<TNetworkStatistics> LastStatistics_;
 
+    void UpdateState();
+    std::vector<TProxyEntryPtr> ListCypressProxies();
+
     TLivenessPtr GetSelfLiveness();
+
+    void UpdateDynamicConfig();
+    void SetDynamicConfig(TDynamicConfigPtr config);
+
+    void BuildOrchid(NYson::IYsonConsumer* consumer);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCoordinator)

@@ -11,29 +11,45 @@ namespace NYT::NTracing {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE TTraceContext::TTraceContext(
-    TTraceId traceId,
-    TSpanId spanId,
-    TSpanId parentSpanId,
-    TTraceContextPtr parentContext)
-    : TraceId_(traceId)
-    , SpanId_(spanId)
-    , ParentSpanId_(parentSpanId)
-    , ParentContext_(std::move(parentContext))
-{ }
-
-Y_FORCE_INLINE bool TTraceContext::IsVerbose() const
+Y_FORCE_INLINE bool TTraceContext::IsSampled() const
 {
-    return NTracing::IsVerbose(TraceId_);
+    return SpanContext_.Sampled;
 }
 
-Y_FORCE_INLINE void TTraceContext::IncrementElapsedCpuTime(NProfiling::TCpuDuration delta)
+Y_FORCE_INLINE bool TTraceContext::IsDebug() const
 {
-    auto* current = this;
-    while (current) {
-        ElapsedCpuTime_ += delta;
-        current = current->ParentContext_.Get();
-    }
+    return SpanContext_.Debug;
+}
+
+Y_FORCE_INLINE TSpanContext TTraceContext::GetContext() const
+{
+    return SpanContext_;
+}
+
+Y_FORCE_INLINE TTraceId TTraceContext::GetTraceId() const
+{
+    return SpanContext_.TraceId;
+}
+
+Y_FORCE_INLINE TSpanId TTraceContext::GetSpanId() const
+{
+    return SpanContext_.SpanId;
+}
+
+Y_FORCE_INLINE TSpanId TTraceContext::GetParentSpanId() const
+{
+    return ParentSpanId_;
+}
+
+Y_FORCE_INLINE TSpanId TTraceContext::GetFollowsFromSpanId() const
+{
+    return FollowsFromSpanId_;
+}
+
+Y_FORCE_INLINE TString TTraceContext::GetName() const
+{
+    auto guard = Guard(Lock_);
+    return Name_;
 }
 
 Y_FORCE_INLINE NProfiling::TCpuDuration TTraceContext::GetElapsedCpuTime() const
@@ -43,17 +59,17 @@ Y_FORCE_INLINE NProfiling::TCpuDuration TTraceContext::GetElapsedCpuTime() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE TTraceContextGuard::TTraceContextGuard(TTraceContextPtr context)
-    : Active_(context.operator bool())
+Y_FORCE_INLINE TTraceContextGuard::TTraceContextGuard(TTraceContextPtr traceContext)
+    : Active_(static_cast<bool>(traceContext))
 {
-    if (Y_UNLIKELY(Active_)) {
-        OldContext_ = SwitchTraceContext(std::move(context));
+    if (Active_) {
+        OldTraceContext_ = SwitchTraceContext(std::move(traceContext));
     }
 }
 
 Y_FORCE_INLINE TTraceContextGuard::TTraceContextGuard(TTraceContextGuard&& other)
     : Active_(other.Active_)
-    , OldContext_(std::move(other.OldContext_   ))
+    , OldTraceContext_(std::move(other.OldTraceContext_))
 {
     other.Active_ = false;
 }
@@ -70,8 +86,8 @@ Y_FORCE_INLINE bool TTraceContextGuard::IsActive() const
 
 Y_FORCE_INLINE void TTraceContextGuard::Release()
 {
-    if (Y_UNLIKELY(Active_)) {
-        SwitchTraceContext(std::move(OldContext_));
+    if (Active_) {
+        SwitchTraceContext(std::move(OldTraceContext_));
         Active_ = false;
     }
 }
@@ -80,12 +96,12 @@ Y_FORCE_INLINE void TTraceContextGuard::Release()
 
 Y_FORCE_INLINE TNullTraceContextGuard::TNullTraceContextGuard()
     : Active_(true)
-    , OldContext_(SwitchTraceContext(nullptr))
+    , OldTraceContext_(SwitchTraceContext(nullptr))
 { }
 
 Y_FORCE_INLINE TNullTraceContextGuard::TNullTraceContextGuard(TNullTraceContextGuard&& other)
     : Active_(other.Active_)
-    , OldContext_(std::move(other.OldContext_))
+    , OldTraceContext_(std::move(other.OldTraceContext_))
 {
     other.Active_ = false;
 }
@@ -103,16 +119,9 @@ Y_FORCE_INLINE bool TNullTraceContextGuard::IsActive() const
 Y_FORCE_INLINE void TNullTraceContextGuard::Release()
 {
     if (Active_) {
-        SwitchTraceContext(std::move(OldContext_));
+        SwitchTraceContext(std::move(OldTraceContext_));
         Active_ = false;
     }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-Y_FORCE_INLINE bool IsVerbose(TTraceId traceId)
-{
-    return (traceId & 1) != 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -130,19 +139,17 @@ Y_FORCE_INLINE TTraceId GetCurrentTraceId()
     return CurrentTraceId;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
-void TraceEvent(
-    const TTraceContext& context,
-    const TString& annotationKey,
-    const T& annotationValue)
+void AddTag(const TString& tagName, const T& tagValue)
 {
-    if (context.IsVerbose()) {
-        using ::ToString;
-        TraceEvent(
-            context,
-            annotationKey,
-            ToString(annotationValue));
+    auto context = GetCurrentTraceContext();
+    if (!context) {
+        return;
     }
+
+    context->AddTag(tagName, ToString(tagValue));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -9,10 +9,18 @@
 
 #include <yt/ytlib/api/native/client.h>
 
+#include <yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/client/table_client/schema.h>
+
 #include <yt/client/object_client/public.h>
 
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/convert.h>
+
+#include <yt/core/yson/string.h>
 
 #include <Common/Exception.h>
 #include <Common/OptimizedRegularExpression.h>
@@ -37,6 +45,10 @@ namespace NYT::NClickHouseServer {
 using namespace DB;
 using namespace NYTree;
 using namespace NApi;
+using namespace NObjectClient;
+using namespace NCypressClient;
+using namespace NYson;
+using namespace NTableClient;
 
 namespace {
 
@@ -86,16 +98,60 @@ T EvaluateArgument(ASTPtr& argument, const Context& context)
     return static_cast<const ASTLiteral &>(*argument).value.safeGet<T>();
 }
 
+// TODO(max42): unify with remaining functions.
 std::vector<TClickHouseTablePtr> FetchClickHouseTables(TQueryContext* queryContext, const std::vector<TYPath>& paths)
 {
-    std::vector<TFuture<TClickHouseTablePtr>> asyncResults;
+    TObjectServiceProxy proxy(queryContext->Client()->GetMasterChannelOrThrow(EMasterChannelKind::Cache));
+    auto batchReq = proxy.ExecuteBatch();
+
     for (auto& path : paths) {
-        asyncResults.emplace_back(BIND(FetchClickHouseTable, queryContext->Client(), path, queryContext->Logger)
-            .AsyncVia(queryContext->Bootstrap->GetWorkerInvoker())
-            .Run());
+        auto req = TYPathProxy::Get(path + "/@");
+        SetSuppressAccessTracking(req, true);
+        std::vector<TString> attributeKeys {
+            "schema",
+            "type",
+            "dynamic",
+        };
+        NYT::ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+        batchReq->AddRequest(req);
     }
-    return WaitFor(Combine(asyncResults))
-        .ValueOrThrow();
+
+    auto batchRspOrError = WaitFor(batchReq->Invoke());
+    if (!batchRspOrError.IsOK()) {
+        THROW_ERROR batchRspOrError;
+    }
+
+    const auto& rsps = batchRspOrError.Value()->GetResponses<TYPathProxy::TRspGet>();
+    YCHECK(rsps.size() == paths.size());
+
+    std::vector<TClickHouseTablePtr> tables;
+    std::vector<TError> errors;
+    for (int index = 0; index < static_cast<int>(paths.size()); ++index) {
+        const auto& path = paths[index];
+        const auto& rspOrError = rsps[index];
+
+        if (!rspOrError.IsOK()) {
+            // We intentionally skip missing tables.
+            if (!rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                errors.emplace_back(rspOrError
+                    << TErrorAttribute("path", path));
+            }
+        } else {
+            const auto& rsp = rspOrError.Value();
+            auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+            // Skip non-table or dynamic table nodes.
+            if (attributes->Get<NObjectClient::EObjectType>("type") == NObjectClient::EObjectType::Table &&
+                !attributes->Get<bool>("dynamic", false))
+            {
+                tables.emplace_back(std::make_shared<TClickHouseTable>(path, attributes->Get<TTableSchema>("schema")));
+            }
+        }
+    }
+    if (!errors.empty()) {
+        THROW_ERROR_EXCEPTION("Failed to fetch some of the tables")
+            << errors;
+    }
+    return tables;
 }
 
 // TODO(max42): move to core.

@@ -1,29 +1,25 @@
 #include "trace_manager.h"
 #include "private.h"
 #include "config.h"
-#include "trace_service_proxy.h"
+
+#include <yt/core/tracing/proto/span.pb.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/scheduler_thread.h>
-
-#include <yt/core/net/address.h>
-#include <yt/core/net/local_address.h>
+#include <yt/core/concurrency/action_queue.h>
 
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/shutdown.h>
 
-#include <yt/core/rpc/bus/channel.h>
-
-#include <util/network/init.h>
-
-#include <util/system/byteorder.h>
+#include <util/folder/path.h>
+#include <util/system/execpath.h>
+#include <util/system/env.h>
 
 namespace NYT::NTracing {
 
 using namespace NConcurrency;
-using namespace NRpc;
-using namespace NNet;
+
+struct TTraceSpanTag {};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,270 +27,145 @@ static const auto& Logger = TracingLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToProto(NProto::TSpan* proto, const TTraceContextPtr& traceContext)
+{
+    ToProto(proto->mutable_trace_id(), traceContext->GetTraceId());
+    proto->set_span_id(traceContext->GetSpanId());
+    proto->set_parent_span_id(traceContext->GetParentSpanId());
+    proto->set_follows_from_span_id(traceContext->GetSpanId());
+    proto->set_name(traceContext->GetName());
+    proto->set_start_time(traceContext->GetStartTime().NanoSeconds());
+    proto->set_duration(traceContext->GetDuration().NanoSeconds());
+
+    for (const auto& tag : traceContext->GetTags()) {
+        auto tag_proto = proto->add_tags();
+        tag_proto->set_key(tag.first);
+        tag_proto->set_value(tag.second);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTraceManager::TImpl
 {
 public:
     TImpl()
-        : InvokerQueue_(New<TInvokerQueue>(
-            EventCount_,
-            NProfiling::EmptyTagIds,
-            true,
-            false))
-        , Thread_(New<TThread>(this))
-        , Config_(New<TTraceManagerConfig>())
+        : ActionQueue_(New<TActionQueue>("Tracing"))
     { }
-
-    void Start()
-    {
-        Thread_->Start();
-        InvokerQueue_->SetThreadId(Thread_->GetId());
-    }
-
-    bool IsStarted() const
-    {
-        return Thread_->IsStarted();
-    }
 
     void Configure(TTraceManagerConfigPtr config)
     {
-        if (Y_UNLIKELY(!IsStarted())) {
-            Start();
-        }
-
         Config_ = std::move(config);
-
-        if (Config_->Address) {
-            Endpoint_ = GetLocalEndpoint();
-            Channel_ = NRpc::NBus::CreateBusChannelFactory(Config_->BusClient)->CreateChannel(*Config_->Address);
-
-            SendExecutor_ = New<TPeriodicExecutor>(
-                InvokerQueue_,
-                BIND(&TImpl::PushBatch, this),
-                Config_->SendPeriod);
-            SendExecutor_->Start();
-        }
+        CleanupExecutor_ = New<TPeriodicExecutor>(
+            ActionQueue_->GetInvoker(),
+            BIND(&TImpl::Cleanup, this),
+            Config_->CleanupPeriod);
+        CleanupExecutor_->Start();
+        Enabled_ = true;
     }
 
     void Shutdown()
     {
-        InvokerQueue_->Shutdown();
-        Thread_->Shutdown();
+        ActionQueue_->Shutdown();
     }
 
     void Enqueue(
-        const NTracing::TTraceContext& context,
-        const TString& serviceName,
-        const TString& spanName,
-        const TString& annotationName)
+        const NTracing::TTraceContextPtr& traceContext)
     {
-        if (!IsEnqueueEnabled(context)) {
+        if (!Enabled_) {
             return;
         }
 
-        NProto::TTraceEvent event;
-        event.set_trace_id(context.GetTraceId());
-        event.set_span_id(context.GetSpanId());
-        event.set_parent_span_id(context.GetParentSpanId());
-        event.set_timestamp(ToProto<i64>(TInstant::Now()));
-        event.set_service_name(serviceName);
-        event.set_span_name(spanName);
-        event.set_annotation_name(annotationName);
-        EnqueueEvent(event);
+        EventQueue_.Enqueue(traceContext);
     }
 
-    void Enqueue(
-        const NTracing::TTraceContext& context,
-        const TString& annotationKey,
-        const TString& annotationValue)
+    std::pair<i64, std::vector<TSharedRef>> ReadTraces(i64 startIndex, i64 limit)
     {
-        if (!IsEnqueueEnabled(context)) {
-            return;
+        std::vector<TSharedRef> traces;
+        traces.reserve(limit);
+
+        {
+            auto guard = Guard(BufferLock_);
+            startIndex = std::max(startIndex, StartIndex_);
+            for (int i = 0; i < limit && startIndex + i < StartIndex_ + TracesBuffer_.size(); ++i) {
+                traces.push_back(TracesBuffer_[startIndex + i]);
+            }
         }
 
-        NProto::TTraceEvent event;
-        event.set_trace_id(context.GetTraceId());
-        event.set_span_id(context.GetSpanId());
-        event.set_parent_span_id(context.GetParentSpanId());
-        event.set_timestamp(ToProto<i64>(TInstant::Now()));
-        event.set_annotation_key(annotationKey);
-        event.set_annotation_value(annotationValue);
-        EnqueueEvent(event);
+        return std::make_pair(startIndex, std::move(traces));
     }
 
 private:
-    class TThread
-        : public TSchedulerThread
-    {
-    public:
-        explicit TThread(TImpl* owner)
-            : TSchedulerThread(
-                owner->EventCount_,
-                "Tracing",
-                NProfiling::EmptyTagIds,
-                true,
-                false)
-            , Owner_(owner)
-        { }
-
-    private:
-        TImpl* const Owner_;
-
-        virtual EBeginExecuteResult BeginExecute() override
-        {
-            return Owner_->BeginExecute();
-        }
-
-        virtual void EndExecute() override
-        {
-            Owner_->EndExecute();
-        }
-    };
-
-    const std::shared_ptr<TEventCount> EventCount_ = std::make_shared<TEventCount>();
-    const TInvokerQueuePtr InvokerQueue_;
-    const TIntrusivePtr<TThread> Thread_;
-    TEnqueuedAction CurrentAction_;
-
-    TMultipleProducerSingleConsumerLockFreeStack<NProto::TTraceEvent> EventQueue_;
-
     TTraceManagerConfigPtr Config_;
-    NProto::TEndpoint Endpoint_;
-    IChannelPtr Channel_;
+    TActionQueuePtr ActionQueue_;
+    TMultipleProducerSingleConsumerLockFreeStack<TTraceContextPtr> EventQueue_;
+    TPeriodicExecutorPtr CleanupExecutor_;
 
-    std::vector<NProto::TTraceEvent> CurrentBatch_;
-    TPeriodicExecutorPtr SendExecutor_;
+    std::atomic<bool> Enabled_ = {false};
 
+    TSpinLock BufferLock_;
+    std::deque<TSharedRef> TracesBuffer_;
+    i64 StartIndex_ = 0;
+    i64 TracesBufferSize_ = 0;
 
-    EBeginExecuteResult BeginExecute()
+    void Cleanup()
     {
-        auto result = InvokerQueue_->BeginExecute(&CurrentAction_);
-        if (result != EBeginExecuteResult::QueueEmpty) {
-            return result;
+        auto startTime = TInstant::Now();
+        YT_LOG_DEBUG("Running tracing cleanup interation");
+        auto batch = EventQueue_.DequeueAll();
+
+        auto traceDir = GetEnv("YT_TRACE_DUMP_DIR", "");
+        if (!traceDir.empty()) {
+            auto binary = TFsPath(GetExecPath()).Basename();
+            auto traceFileName = Format("%s/%s.%d", traceDir, binary, getpid());
+
+            NProto::TSpanBatch protoBatch;
+            for (const auto& traceContext : batch) {
+                ToProto(protoBatch.add_spans(), traceContext);
+            }
+            
+            YT_LOG_DEBUG("Dumping tracing to file (Filename: %Qv, BatchSize: %v)",
+                traceFileName,
+                batch.size());
+            TString batchDump;
+            protoBatch.SerializeToString(&batchDump);
+            
+            TFileOutput output(TFile::ForAppend(traceFileName));
+            output << batchDump;
+            output.Finish();
         }
 
-        int eventsProcessed = 0;
-        while (EventQueue_.DequeueAll(true, [&] (NProto::TTraceEvent& event) {
-                if (eventsProcessed == 0) {
-                    EventCount_->CancelWait();
-                }
-
-                CurrentBatch_.push_back(std::move(event));
-                ++eventsProcessed;
-
-                if (CurrentBatch_.size() >= Config_->MaxBatchSize) {
-                    PushBatch();
-                }
-            }))
-        { }
-
-        return eventsProcessed > 0
-            ? EBeginExecuteResult::Success
-            : EBeginExecuteResult::QueueEmpty;
-    }
-
-    void EndExecute()
-    {
-        InvokerQueue_->EndExecute(&CurrentAction_);
-    }
-
-
-    bool IsPushEnabled()
-    {
-        return Config_->Address.operator bool() && Channel_;
-    }
-
-    void PushBatch()
-    {
-        if (CurrentBatch_.empty()) {
-            return;
+        for (const auto& trace : batch) {
+            PushTrace(trace);
         }
 
-        if (!IsPushEnabled()) {
-            CurrentBatch_.clear();
-            return;
-        }
-
-        TTraceServiceProxy proxy(Channel_);
-        auto req = proxy.SendBatch();
-        req->SetTimeout(Config_->RpcTimeout);
-        *req->mutable_endpoint() = Endpoint_;
-        for (const auto& event : CurrentBatch_) {
-            *req->add_events() = event;
-        }
-
-        YT_LOG_DEBUG("Events sent proxy (Count: %v)",
-            CurrentBatch_.size());
-
-        req->Invoke();
-        CurrentBatch_.clear();
-    }
-
-    bool IsEnqueueEnabled(const TTraceContext& context)
-    {
-        return context.IsVerbose() && Thread_->IsStarted() && !Thread_->IsShutdown();
-    }
-
-    void EnqueueEvent(const NProto::TTraceEvent& event)
-    {
-        if (Y_UNLIKELY(!IsStarted())) {
-            Start();
-        }
-
-        if (event.has_annotation_key()) {
-            YT_LOG_DEBUG("Event %v=%v %08" PRIx64 ":%08" PRIx64 ":%08" PRIx64,
-                event.annotation_key(),
-                event.annotation_value(),
-                event.trace_id(),
-                event.span_id(),
-                event.parent_span_id());
+        YT_LOG_DEBUG("Collected %v traces", batch.size());
+        auto duration = TInstant::Now() - startTime;
+        if (duration > Config_->CleanupPeriod) {
+            YT_LOG_WARNING("Trace cleanup interation took %v; disabling trace collection",
+                duration);
+            Enabled_ = false;
         } else {
-            YT_LOG_DEBUG("Event %v:%v %v %08" PRIx64 ":%08" PRIx64 ":%08" PRIx64,
-                event.service_name(),
-                event.span_name(),
-                event.annotation_name(),
-                event.trace_id(),
-                event.span_id(),
-                event.parent_span_id());
+            Enabled_ = true;
         }
-
-        // XXX(babenko): queuing is temporarily disabled
-#if 0
-        EventQueue_.Enqueue(event);
-        EventCount_->NotifyOne();
-#endif
     }
 
-    NProto::TEndpoint GetLocalEndpoint()
+    void PushTrace(const TTraceContextPtr& trace)
     {
-        auto* addressResolver = TAddressResolver::Get();
-        auto addressOrError = addressResolver->Resolve(GetLocalHostName()).Get();
-        if (!addressOrError.IsOK()) {
-            YT_LOG_FATAL(addressOrError, "Error determining local endpoint address");
+        NProto::TSpanBatch singleTrace;
+        ToProto(singleTrace.add_spans(), trace);
+
+        auto ref = SerializeProtoToRef(singleTrace);
+        auto guard = Guard(BufferLock_);
+
+        TracesBuffer_.push_back(ref);
+        TracesBufferSize_ += ref.size();
+
+        while (!TracesBuffer_.empty() && TracesBufferSize_ > Config_->TracesBufferSize) {
+            StartIndex_++;
+            TracesBufferSize_ -= TracesBuffer_.front().Size();
+            TracesBuffer_.pop_front();
         }
-
-        NProto::TEndpoint endpoint;
-        const auto& sockAddr = addressOrError.Value().GetSockAddr();
-        switch (sockAddr->sa_family) {
-            case AF_INET: {
-                auto* typedAddr = reinterpret_cast<const sockaddr_in*>(sockAddr);
-                endpoint.set_address(LittleToBig<ui32>(typedAddr->sin_addr.s_addr));
-                endpoint.set_port(Config_->EndpointPort);
-                break;
-            }
-            case AF_INET6: {
-                auto* typedAddr = reinterpret_cast<const sockaddr_in6*>(sockAddr);
-                // hack: ipv6 -> ipv4 :)
-                const ui32* fake = reinterpret_cast<const ui32*>(typedAddr->sin6_addr.s6_addr + 12);
-                endpoint.set_address(LittleToBig(*fake));
-                endpoint.set_port(Config_->EndpointPort);
-                break;
-            }
-
-            default:
-                YT_LOG_FATAL("Neither v4 nor v6 address is known for local endpoint");
-        }
-
-        return endpoint;
     }
 };
 
@@ -326,28 +197,14 @@ void TTraceManager::Shutdown()
     Impl_->Shutdown();
 }
 
-void TTraceManager::Enqueue(
-    const TTraceContext& context,
-    const TString& serviceName,
-    const TString& spanName,
-    const TString& annotationName)
+void TTraceManager::Enqueue(TTraceContextPtr traceContext)
 {
-    Impl_->Enqueue(
-        context,
-        serviceName,
-        spanName,
-        annotationName);
+    Impl_->Enqueue(std::move(traceContext));
 }
 
-void TTraceManager::Enqueue(
-    const TTraceContext& context,
-    const TString& annotationKey,
-    const TString& annotationValue)
+std::pair<i64, std::vector<TSharedRef>> TTraceManager::ReadTraces(i64 startIndex, i64 limit)
 {
-    Impl_->Enqueue(
-        context,
-        annotationKey,
-        annotationValue);
+    return Impl_->ReadTraces(startIndex, limit);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

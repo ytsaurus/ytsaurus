@@ -402,7 +402,7 @@ TEST_F(TLoggingTest, TraceSuppression)
     TLogManager::Get()->Configure(config);
 
     {
-        auto traceContext = NTracing::CreateRootTraceContext();
+        auto traceContext = NTracing::CreateRootTraceContext("Test");
         NTracing::TTraceContextGuard guard(traceContext);
 
         YT_LOG_INFO("Traced message");

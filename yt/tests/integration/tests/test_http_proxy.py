@@ -83,3 +83,15 @@ class TestHttpProxy(YTEnvSetup):
         versions = rsp.json()
         assert "details" in versions
         assert "summary" in versions
+
+    def test_dynamic_config(self):
+        monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
+        config_url = "http://localhost:{}/orchid/coordinator/dynamic_config".format(monitoring_port)
+
+        set("//sys/proxies/@config", {"tracing_user_sample_probability": {"prime": 1.0}})
+
+        def config_updated():
+            config = requests.get(config_url).json()
+            return "prime" in config["tracing_user_sample_probability"]
+
+        wait(config_updated)

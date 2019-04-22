@@ -398,7 +398,8 @@ TPoolsUpdateResult TFairShareTree::UpdatePools(const INodePtr& poolsNode)
 
     LastPoolsNodeUpdateError_ = TError();
 
-    (void)OnFairShareUpdateAt(TInstant::Now());
+    // TODO(ignat): do not ignore error.
+    Y_UNUSED(OnFairShareUpdateAt(TInstant::Now()));
 
     return {LastPoolsNodeUpdateError_, true};
 }
@@ -586,7 +587,7 @@ TError TFairShareTree::OnFairShareUpdateAt(TInstant now)
         TUpdateFairShareContext updateContext;
         RootElement_->Update(GlobalDynamicAttributes_, &updateContext);
 
-        if (updateContext.Errors.empty()) {
+        if (!updateContext.Errors.empty()) {
             error = TError("Found pool configuration issues during fair share update in tree %Qv", TreeId_)
                 << TErrorAttribute("pool_tree", TreeId_)
                 << std::move(updateContext.Errors);

@@ -9,6 +9,13 @@ namespace NYT::NMonitoring {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Initialize(
+    const NHttp::IServerPtr& monitoringServer,
+    TMonitoringManagerPtr* manager,
+    NYTree::IMapNodePtr* orchidRoot);
+
+NHttp::IHttpHandlerPtr CreateTracingHttpHandler();
+    
 NHttp::IHttpHandlerPtr GetOrchidYPathHttpHandler(
     const NYTree::IYPathServicePtr& service);
 

@@ -390,20 +390,22 @@ private:
     {
         const auto& request = context->Request();
 
+        NTracing::TChildTraceContextGuard span("Driver." + request.CommandName);
+        NTracing::AddTag("user", request.AuthenticatedUser);
+        NTracing::AddTag("request_id", request.Id);
+
+        YT_LOG_DEBUG("Command started (RequestId: %" PRIx64 ", Command: %v, User: %v)",
+            request.Id,
+            request.CommandName,
+            request.AuthenticatedUser);
+
         TError result;
-        TRACE_CHILD("Driver", request.CommandName) {
-            YT_LOG_DEBUG("Command started (RequestId: %" PRIx64 ", Command: %v, User: %v)",
-                request.Id,
-                request.CommandName,
-                request.AuthenticatedUser);
-
-            try {
-                executeCallback.Run(context);
-            } catch (const std::exception& ex) {
-                result = TError(ex);
-            }
+        try {
+            executeCallback.Run(context);
+        } catch (const std::exception& ex) {
+            result = TError(ex);
         }
-
+ 
         if (result.IsOK()) {
             YT_LOG_DEBUG("Command completed (RequestId: %" PRIx64 ", Command: %v, User: %v)",
                 request.Id,

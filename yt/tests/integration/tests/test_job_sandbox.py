@@ -48,7 +48,7 @@ class TestSandboxTmpfs(YTEnvSetup):
 
         jobs_path = op.get_path() + "/jobs"
         assert get(jobs_path + "/@count") == 1
-        content = remove_asan_warning(read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr"))
+        content = read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr")
         words = content.strip().split()
         assert ["file", "content"] == words
 
@@ -70,7 +70,7 @@ class TestSandboxTmpfs(YTEnvSetup):
 
         jobs_path = op.get_path() + "/jobs"
         assert get(jobs_path + "/@count") == 1
-        content = remove_asan_warning(read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr"))
+        content = read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr")
         words = content.strip().split()
         assert ["file", "content"] == words
 
@@ -92,7 +92,7 @@ class TestSandboxTmpfs(YTEnvSetup):
 
         jobs_path = op.get_path() + "/jobs"
         assert get(jobs_path + "/@count") == 1
-        content = remove_asan_warning(read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr"))
+        content = read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr")
         words = content.strip().split()
         assert ["file", "content"] == words
 
@@ -314,7 +314,7 @@ class TestSandboxTmpfs(YTEnvSetup):
 
         jobs_path = op.get_path() + "/jobs"
         assert get(jobs_path + "/@count") == 1
-        content = remove_asan_warning(read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr"))
+        content = read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr")
         words = content.strip().split()
         assert ["file", "content_1", "file", "content_2"] == words
 
@@ -427,7 +427,7 @@ class TestSandboxTmpfs(YTEnvSetup):
 
         jobs_path = op.get_path() + "/jobs"
         assert get(jobs_path + "/@count") == 1
-        content = remove_asan_warning(read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr"))
+        content = read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr")
         words = content.strip().split()
         assert ["file", "content_1", "file", "content_2"] == words
 
@@ -471,7 +471,7 @@ class TestDisabledSandboxTmpfs(YTEnvSetup):
 
         jobs_path = op.get_path() + "/jobs"
         assert get(jobs_path + "/@count") == 1
-        content = remove_asan_warning(read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr"))
+        content = read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr")
         words = content.strip().split()
         assert ["file", "content"] == words
 
