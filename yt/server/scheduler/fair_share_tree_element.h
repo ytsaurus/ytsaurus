@@ -81,6 +81,16 @@ struct TScheduleJobsProfilingCounters
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TFairShareSchedulingStage
+{
+    TFairShareSchedulingStage(const TString& nameInLogs, TScheduleJobsProfilingCounters profilingCounters);
+
+    const TString NameInLogs;
+    TScheduleJobsProfilingCounters ProfilingCounters;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFairShareContext
 {
 public:
@@ -91,7 +101,7 @@ public:
     TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element);
     const TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element) const;
 
-    void PrepareForStage(const TString& stageName, TScheduleJobsProfilingCounters* profilingCounters);
+    void StartStage(TFairShareSchedulingStage* schedulingStage);
 
     void ProfileStageTimingsAndLogStatistics();
 
@@ -112,10 +122,9 @@ public:
 
     struct TStageState
     {
-        TStageState(const TString& stageName, TScheduleJobsProfilingCounters* profilingCounters);
+        explicit TStageState(TFairShareSchedulingStage* schedulingStage);
 
-        TString Name;
-        TScheduleJobsProfilingCounters* ProfilingCounters;
+        TFairShareSchedulingStage* const SchedulingStage;
 
         TDuration TotalDuration;
         TDuration PrescheduleDuration;
@@ -130,7 +139,7 @@ public:
         TEnumIndexedVector<int, EDeactivationReason> DeactivationReasons;
     };
 
-    std::optional<TStageState> Stage;
+    std::optional<TStageState> StageState;
 
 private:
     void ProfileStageTimings();

@@ -315,8 +315,8 @@ private:
 
     TDynamicAttributesList GlobalDynamicAttributes_;
 
-    TScheduleJobsProfilingCounters NonPreemptiveProfilingCounters_;
-    TScheduleJobsProfilingCounters PreemptiveProfilingCounters_;
+    TFairShareSchedulingStage NonPreemptiveSchedulingStage_;
+    TFairShareSchedulingStage PreemptiveSchedulingStage_;
 
     NProfiling::TAggregateGauge FairShareUpdateTimeCounter_;
     NProfiling::TAggregateGauge FairShareLogTimeCounter_;
