@@ -289,10 +289,8 @@ protected:
     TFairShareStrategyTreeConfigPtr TreeConfig_ = New<TFairShareStrategyTreeConfig>();
     TFairShareTreeHostMock FairShareTreeHostMock_;
     TFairShareSchedulingStage SchedulingStageMock_ = TFairShareSchedulingStage(
-        "Test scheduling stage",
-        TScheduleJobsProfilingCounters(
-            "/test_scheduling_stage",
-            /* treeIdProfilingTags */ {}));
+        /* nameInLogs */ "Test scheduling stage",
+        TScheduleJobsProfilingCounters("/test_scheduling_stage", /* treeIdProfilingTags */ {}));
 
     TRootElementPtr CreateTestRootElement(ISchedulerStrategyHost* host)
     {
@@ -373,8 +371,8 @@ private:
     {
         TUpdateFairShareContext updateContext;
         rootElement->Update(*dynamicAttributesList, &updateContext);
-        context->Initialize(rootElement->GetTreeSize(), /*registeredSchedulingTagFilters*/ {});
-        rootElement->PrescheduleJob(context, /*starvingOnly*/ false, /*aggressiveStarvationEnabled*/ false);
+        context->Initialize(rootElement->GetTreeSize(), /* registeredSchedulingTagFilters */ {});
+        rootElement->PrescheduleJob(context, /* starvingOnly */ false, /* aggressiveStarvationEnabled */ false);
         context->PrescheduleCalled = true;
     }
 };
