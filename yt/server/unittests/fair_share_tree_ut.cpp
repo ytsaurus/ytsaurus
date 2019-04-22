@@ -288,6 +288,11 @@ protected:
     TSchedulerConfigPtr SchedulerConfig_ = New<TSchedulerConfig>();
     TFairShareStrategyTreeConfigPtr TreeConfig_ = New<TFairShareStrategyTreeConfig>();
     TFairShareTreeHostMock FairShareTreeHostMock_;
+    TFairShareSchedulingStage SchedulingStageMock_ = TFairShareSchedulingStage(
+        "Test scheduling stage",
+        TScheduleJobsProfilingCounters(
+            "/test_scheduling_stage",
+            /* treeIdProfilingTags */ {}));
 
     TRootElementPtr CreateTestRootElement(ISchedulerStrategyHost* host)
     {
@@ -354,7 +359,7 @@ protected:
         TFairShareContext context(schedulingContext, /* enableSchedulingInfoLogging */ true);
         TDynamicAttributesList dynamicAttributes;
 
-        context.PrepareForStage("Non preemptive", nullptr);
+        context.StartStage(&SchedulingStageMock_);
         PrepareForTestScheduling(rootElement, &context, &dynamicAttributes);
         operationElement->ScheduleJob(&context);
         context.FinishStage();

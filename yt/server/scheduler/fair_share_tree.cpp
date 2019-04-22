@@ -102,8 +102,16 @@ TFairShareTree::TFairShareTree(
     , TreeIdProfilingTag_(TProfileManager::Get()->RegisterTag("tree", TreeId_))
     , Logger(NLogging::TLogger(SchedulerLogger)
         .AddTag("TreeId: %v", treeId))
-    , NonPreemptiveProfilingCounters_("/non_preemptive", {TreeIdProfilingTag_})
-    , PreemptiveProfilingCounters_("/preemptive", {TreeIdProfilingTag_})
+    , NonPreemptiveSchedulingStage_(
+        "Non preemptive",
+        TScheduleJobsProfilingCounters(
+            "/non_preemptive",
+            {TreeIdProfilingTag_}))
+    , PreemptiveSchedulingStage_(
+        "Preemptive",
+        TScheduleJobsProfilingCounters(
+            "/preemptive",
+            {TreeIdProfilingTag_}))
     , FairShareUpdateTimeCounter_("/fair_share_update_time", {TreeIdProfilingTag_})
     , FairShareLogTimeCounter_("/fair_share_log_time", {TreeIdProfilingTag_})
     , AnalyzePreemptableJobsTimeCounter_("/analyze_preemptable_jobs_time", {TreeIdProfilingTag_})
@@ -863,17 +871,17 @@ void TFairShareTree::DoScheduleJobsWithoutPreemption(
                     context->Initialize(rootElement->GetTreeSize(), RegisteredSchedulingTagFilters_);
                 }
                 rootElement->PrescheduleJob(context, /* starvingOnly */ false, /* aggressiveStarvationEnabled */ false);
-                context->Stage->PrescheduleDuration = prescheduleTimer.GetElapsedTime();
+                context->StageState->PrescheduleDuration = prescheduleTimer.GetElapsedTime();
                 prescheduleExecuted = true;
                 context->PrescheduleCalled = true;
             }
-            ++context->Stage->ScheduleJobAttempts;
+            ++context->StageState->ScheduleJobAttempts;
             if (!rootElement->ScheduleJob(context)) {
                 break;
             }
         }
 
-        context->Stage->TotalDuration = scheduleTimer.GetElapsedTime();
+        context->StageState->TotalDuration = scheduleTimer.GetElapsedTime();
         context->ProfileStageTimingsAndLogStatistics();
     }
 }
@@ -945,11 +953,11 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
             if (!prescheduleExecuted) {
                 TWallTimer prescheduleTimer;
                 rootElement->PrescheduleJob(context, /* starvingOnly */ true, /* aggressiveStarvationEnabled */ false);
-                context->Stage->PrescheduleDuration = prescheduleTimer.GetElapsedTime();
+                context->StageState->PrescheduleDuration = prescheduleTimer.GetElapsedTime();
                 prescheduleExecuted = true;
             }
 
-            ++context->Stage->ScheduleJobAttempts;
+            ++context->StageState->ScheduleJobAttempts;
             if (!rootElement->ScheduleJob(context)) {
                 break;
             }
@@ -959,7 +967,7 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
             }
         }
 
-        context->Stage->TotalDuration = timer.GetElapsedTime();
+        context->StageState->TotalDuration = timer.GetElapsedTime();
         context->ProfileStageTimingsAndLogStatistics();
     }
 
@@ -1077,9 +1085,9 @@ void TFairShareTree::DoScheduleJobs(
     TFairShareContext context(schedulingContext, enableSchedulingInfoLogging);
 
     {
-        context.PrepareForStage("Non preemptive", &NonPreemptiveProfilingCounters_);
+        context.StartStage(&NonPreemptiveSchedulingStage_);
         DoScheduleJobsWithoutPreemption(rootElementSnapshot, &context, now);
-        context.SchedulingStatistics.NonPreemptiveScheduleJobAttempts = context.Stage->ScheduleJobAttempts;
+        context.SchedulingStatistics.NonPreemptiveScheduleJobAttempts = context.StageState->ScheduleJobAttempts;
         context.FinishStage();
     }
 
@@ -1106,9 +1114,9 @@ void TFairShareTree::DoScheduleJobs(
     }
 
     if (scheduleJobsWithPreemption) {
-        context.PrepareForStage("Preemptive", &PreemptiveProfilingCounters_);
+        context.StartStage(&PreemptiveSchedulingStage_);
         DoScheduleJobsWithPreemption(rootElementSnapshot, &context, now);
-        context.SchedulingStatistics.PreemptiveScheduleJobAttempts = context.Stage->ScheduleJobAttempts;
+        context.SchedulingStatistics.PreemptiveScheduleJobAttempts = context.StageState->ScheduleJobAttempts;
         context.FinishStage();
     } else {
         YT_LOG_DEBUG("Skip preemptive scheduling");
