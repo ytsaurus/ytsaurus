@@ -95,6 +95,9 @@ message TPodSpec
 
     // Contains dynamic attributes extracted from pod's metadata.
     optional NYP.NClient.NApi.NProto.TDynamicAttributes pod_dynamic_attributes = 12;
+
+    // Resource cache for the pod.
+    optional NYP.NClient.NApi.NProto.TPodSpec.TPodAgentResourceCache resource_cache = 14;
 }
 
 message TReqHeartbeat

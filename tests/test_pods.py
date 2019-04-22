@@ -899,5 +899,50 @@ class TestPods(object):
                 "labels": {"l1": 2},
                 "annotations": {"a1": "hello"}
             }
-        
 
+    def test_resource_cache(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        pod_set_id = yp_client.create_object("pod_set")
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
+                "resource_cache": {
+                    "spec": {
+                        "layers": [
+                            {
+                                "revision": 10,
+                                "layer": {
+                                    "id": "my_layer",
+                                    "url": "my_layer_url",
+                                    "checksum": "my_layer_checksum"
+                                }
+                            }
+                        ],
+                        "static_resources": [
+                            {
+                                "revision": 11,
+                                "resource": {
+                                    "id": "my_static_resource",
+                                    "url": "my_static_resource_url",
+                                    "verification": {
+                                        "checksum": "my_static_resource_checksum",
+                                        "check_period_ms": 20
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+            })
+
+        resource_cache_get = yp_client.get_object("pod", pod_id, selectors=["/spec/resource_cache"])[0]
+        assert len(resource_cache_get["spec"]["layers"]) == 1
+        assert resource_cache_get["spec"]["layers"][0]["revision"] == 10
+        assert resource_cache_get["spec"]["layers"][0]["layer"]["id"] == "my_layer"
+        assert resource_cache_get["spec"]["layers"][0]["layer"]["url"] == "my_layer_url"
+        assert resource_cache_get["spec"]["layers"][0]["layer"]["checksum"] == "my_layer_checksum"
+        assert len(resource_cache_get["spec"]["static_resources"]) == 1
+        assert resource_cache_get["spec"]["static_resources"][0]["revision"] == 11
+        assert resource_cache_get["spec"]["static_resources"][0]["resource"]["id"] == "my_static_resource"
+        assert resource_cache_get["spec"]["static_resources"][0]["resource"]["url"] == "my_static_resource_url"
+        assert resource_cache_get["spec"]["static_resources"][0]["resource"]["verification"]["checksum"] == "my_static_resource_checksum"
+        assert resource_cache_get["spec"]["static_resources"][0]["resource"]["verification"]["check_period_ms"] == 20

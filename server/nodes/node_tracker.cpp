@@ -527,6 +527,9 @@ public:
                 *protoSpec->mutable_pod_agent_payload() = pod->Spec().PodAgentPayload().Load();
             }
 
+            // ResourceCache
+            *protoSpec->mutable_resource_cache() = pod->Spec().ResourceCache().Load();
+
             // Copy some fields from pod status/spec.
             const auto& specEtc = pod->Spec().Etc().Load();
             const auto& statusEtc = pod->Status().Etc().Load();
@@ -646,7 +649,7 @@ public:
             entry.Address);
 
         {
-            auto guard = Guard(AgentNotificationQueueLock_);            
+            auto guard = Guard(AgentNotificationQueueLock_);
             AgentNotificationQueue_.emplace(std::move(entry));
         }
     }
