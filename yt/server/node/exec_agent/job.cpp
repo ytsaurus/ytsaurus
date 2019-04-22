@@ -1183,6 +1183,13 @@ private:
                 options.TmpfsVolumes.push_back(tmpfsVolume);
             }
 
+            if (userJobSpec.has_tmpfs_path()) {
+                TTmpfsVolume tmpfsVolume;
+                tmpfsVolume.Size = userJobSpec.tmpfs_size();
+                tmpfsVolume.Path = userJobSpec.tmpfs_path();
+                options.TmpfsVolumes.push_back(tmpfsVolume);
+            }
+
             if (userJobSpec.has_inode_limit()) {
                 options.InodeLimit = userJobSpec.inode_limit();
             }
