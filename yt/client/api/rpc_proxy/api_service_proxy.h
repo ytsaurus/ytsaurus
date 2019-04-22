@@ -16,7 +16,10 @@ class TApiServiceProxy
 {
 public:
     DEFINE_RPC_PROXY(TApiServiceProxy, ApiService,
-        .SetProtocolVersion(NRpc::TProtocolVersion{1, 0}));
+        .SetProtocolVersion({
+            YTRpcProxyProtocolVersionMajor,
+            YTRpcProxyClientProtocolVersionMinor
+        }));
 
     // Transaction server
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GenerateTimestamps);

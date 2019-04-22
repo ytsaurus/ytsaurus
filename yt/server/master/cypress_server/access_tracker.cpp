@@ -6,6 +6,8 @@
 
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
+#include <yt/server/master/cell_master/config.h>
+#include <yt/server/master/cell_master/config_manager.h>
 
 #include <yt/server/master/object_server/object_manager.h>
 
@@ -26,11 +28,8 @@ static const auto& Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAccessTracker::TAccessTracker(
-    TCypressManagerConfigPtr config,
-    NCellMaster::TBootstrap* bootstrap)
-    : Config_(config)
-    , Bootstrap_(bootstrap)
+TAccessTracker::TAccessTracker(NCellMaster::TBootstrap* bootstrap)
+    : Bootstrap_(bootstrap)
 { }
 
 void TAccessTracker::Start()
@@ -40,16 +39,23 @@ void TAccessTracker::Start()
     YCHECK(!FlushExecutor_);
     FlushExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
-        BIND(&TAccessTracker::OnFlush, MakeWeak(this)),
-        Config_->StatisticsFlushPeriod);
+        BIND(&TAccessTracker::OnFlush, MakeWeak(this)));
     FlushExecutor_->Start();
+
+    const auto& configManager = Bootstrap_->GetConfigManager();
+    configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
+    OnDynamicConfigChanged();
 }
 
 void TAccessTracker::Stop()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    const auto& configManager = Bootstrap_->GetConfigManager();
+    configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
+
     FlushExecutor_.Reset();
+
     Reset();
 }
 
@@ -141,6 +147,17 @@ void TAccessTracker::OnFlush()
     Reset();
 
     Y_UNUSED(WaitFor(asyncResult));
+}
+
+const TDynamicCypressManagerConfigPtr& TAccessTracker::GetDynamicConfig()
+{
+    const auto& configManager = Bootstrap_->GetConfigManager();
+    return configManager->GetConfig()->CypressManager;
+}
+
+void TAccessTracker::OnDynamicConfigChanged()
+{
+    FlushExecutor_->SetPeriod(GetDynamicConfig()->StatisticsFlushPeriod);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

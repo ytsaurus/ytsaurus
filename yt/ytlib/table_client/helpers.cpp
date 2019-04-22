@@ -299,7 +299,8 @@ void ValidateDynamicTableTimestamp(
         auto retained = attributes.Get<TTimestamp>("retained_timestamp");
         auto unflushed = attributes.Get<TTimestamp>("unflushed_timestamp");
         if (requested < retained || requested >= unflushed) {
-            THROW_ERROR_EXCEPTION("Requested timestamp is out of range for table %v",
+            THROW_ERROR_EXCEPTION(EErrorCode::TimestampOutOfRange,
+                "Requested timestamp is out of range for table %v",
                 path.GetPath())
                 << TErrorAttribute("requested_timestamp", requested)
                 << TErrorAttribute("retained_timestamp", retained)

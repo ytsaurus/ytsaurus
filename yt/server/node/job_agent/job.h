@@ -1,9 +1,9 @@
 #pragma once
 
-#include "public.h"
-#include "job_statistics.h"
 #include "statistics_reporter.h"
 #include "gpu_manager.h"
+
+#include <yt/server/lib/job_agent/job_statistics.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 

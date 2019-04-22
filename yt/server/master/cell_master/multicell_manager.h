@@ -72,6 +72,8 @@ public:
         TBootstrap* bootstrap);
     ~TMulticellManager();
 
+    void Initialize();
+
     void PostToMaster(
         const TCrossCellMessage& message,
         NObjectClient::TCellTag cellTag,

@@ -6,6 +6,7 @@
 #include "formats.h"
 #include "compression.h"
 #include "private.h"
+#include "config.h"
 
 #include <yt/core/json/json_writer.h>
 #include <yt/core/json/config.h>
@@ -21,6 +22,7 @@
 
 #include <util/string/ascii.h>
 #include <util/string/strip.h>
+#include <util/random/random.h>
 
 namespace NYT::NHttpProxy {
 
@@ -592,6 +594,24 @@ void TContext::SetupOutputParameters()
     };
 }
 
+void TContext::SetupTracing()
+{
+    if (auto trace = NTracing::GetCurrentTraceContext()) {
+        if (Api_->GetConfig()->ForceTracing) {
+            trace->SetSampled();
+        }
+
+        auto config = Api_->GetCoordinator()->GetDynamicConfig();
+        const auto& tracingConfig = config->TracingUserSampleProbability;
+        auto it = tracingConfig.find(DriverRequest_.AuthenticatedUser);
+        if (it != tracingConfig.end()) {
+            if (RandomNumber<double>() < it->second) {
+                trace->SetSampled();
+            }
+        }
+    }
+}
+
 void TContext::AddHeaders()
 {
     auto headers = Response_->GetHeaders();
@@ -624,6 +644,7 @@ void TContext::FinishPrepare()
     SetupInputStream();
     SetupOutputStream();
     SetupOutputParameters();
+    SetupTracing();
     AddHeaders();
 }
 
@@ -639,7 +660,8 @@ void TContext::Run()
     }
 
     if (MemoryOutput_) {
-        DriverRequest_.OutputStream->Close();
+        WaitFor(DriverRequest_.OutputStream->Close())
+            .ThrowOnError();
         Response_->GetHeaders()->Remove("Trailer");
         WaitFor(Response_->WriteBody(MergeRefsToRef<TDefaultSharedBlobTag>(MemoryOutput_->GetRefs())))
             .ThrowOnError();
@@ -705,11 +727,9 @@ void TContext::Finalize()
     }
 
     if (!Error_.IsOK() && dumpErrorIntoResponse && DriverRequest_.OutputStream) {
-        auto result = WaitFor(DriverRequest_.OutputStream->Write(DumpError(Error_)));
-        (void)result;
-    }
-
-    if (!Response_->IsHeadersFlushed()) {
+        Y_UNUSED(WaitFor(DriverRequest_.OutputStream->Write(DumpError(Error_))));
+        Y_UNUSED(WaitFor(DriverRequest_.OutputStream->Close()));
+    } else if (!Response_->IsHeadersFlushed()) {
         Response_->GetHeaders()->Remove("Trailer");
 
         if (Error_.FindMatching(NSecurityClient::EErrorCode::UserBanned)) {
@@ -732,8 +752,7 @@ void TContext::Finalize()
     } else {
         if (!Error_.IsOK()) {
             FillYTErrorTrailers(Response_, Error_);
-            auto result = WaitFor(Response_->Close());
-            (void)result;
+            Y_UNUSED(WaitFor(Response_->Close()));
         }
     }
 

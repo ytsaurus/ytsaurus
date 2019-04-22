@@ -1,7 +1,6 @@
 #include "database.h"
 
 #include "storage_table.h"
-#include "storage_stub.h"
 #include "type_helpers.h"
 #include "helpers.h"
 #include "query_context.h"

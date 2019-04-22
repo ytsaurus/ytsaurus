@@ -73,7 +73,7 @@ TB = 1024 * GB
 
 PACKAGING_TIMEOUT = 30 * 60
 
-INTEGRATION_TESTS_PARALLELISM = {"debug": 4, "release": 10}
+INTEGRATION_TESTS_PARALLELISM = {"debug": 4, "release": 10, "debug-asan": 3, "release-asan": 3}
 PYTHON_TESTS_PARALLELISM = 6
 YP_TESTS_PARALLELISM = 6
 
@@ -683,18 +683,22 @@ def package_rpc_bindings(options, build_context):
         # build_type, python_type, library_path, package_path, package_name
 
         # Pypi packages.
-        ("pypi", "2", "linux", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-driver-rpc"),
-        ("pypi", "3", "linux", "lib/pyshared-3-4/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python3-driver-rpc"),
-        ("pypi", "skynet", "linux", "lib/pyshared-skynet/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-skynet-driver-rpc"),
+        ("pypi", "2", "linux", "lib/pyshared-2-7/driver_rpc_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-driver-rpc"),
+        ("pypi", "3", "linux", "lib/pyshared-3-4/driver_rpc_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python3-driver-rpc"),
+        ("pypi", "skynet", "linux", "lib/pyshared-skynet/driver_rpc_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-skynet-driver-rpc"),
+
+        # Pypi packages for mac.
+        ("pypi", "2", "darwin", "lib/pyshared-2-7-darwin/driver_rpc_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-driver-rpc"),
+        ("pypi", "3", "darwin", "lib/pyshared-3-4-darwin/driver_rpc_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python3-driver-rpc"),
 
         # Python-friendly debian packages.
-        ("debian", "2", "linux", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-driver-rpc"),
-        ("debian", "3", "linux", "lib/pyshared-3-4/driver_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python3-driver-rpc"),
+        ("debian", "2", "linux", "lib/pyshared-2-7/driver_rpc_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python-driver-rpc"),
+        ("debian", "3", "linux", "lib/pyshared-3-4/driver_rpc_lib.so", "yandex-yt-python-driver-rpc", "yandex-yt-python3-driver-rpc"),
 
         # Non-python-friendly debian packages.
-        ("debian", "2", "linux", "lib/pyshared-2-7/driver_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-2-7-driver-rpc"),
-        ("debian", "3", "linux", "lib/pyshared-3-4/driver_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-3-4-driver-rpc"),
-        ("debian", "skynet", "linux", "lib/pyshared-skynet/driver_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-skynet-driver-rpc"),
+        ("debian", "2", "linux", "lib/pyshared-2-7/driver_rpc_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-2-7-driver-rpc"),
+        ("debian", "3", "linux", "lib/pyshared-3-4/driver_rpc_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-3-4-driver-rpc"),
+        ("debian", "skynet", "linux", "lib/pyshared-skynet/driver_rpc_lib.so", "yandex-yt-python-any-driver-rpc", "yandex-yt-python-skynet-driver-rpc"),
     ]
 
     perform_python_packaging(options, rpc_packages_path, args, configurations)
@@ -836,14 +840,16 @@ def run_sandbox_upload(options, build_context):
 
     cli = sandbox_client.SandboxClient(oauth_token=os.environ["TEAMCITY_SANDBOX_TOKEN"])
     task_description = """
-    YT version: {0}
-    Teamcity build id: {1}
-    Teamcity build type: {2}
-    Teamcity host: {3}
-    Teamcity build type id: {4}
-    Git branch: {5}
-    Git commit: {6}
+    {0}
+    YT version: {1}
+    Teamcity build id: {2}
+    Teamcity build type: {3}
+    Teamcity host: {4}
+    Teamcity build type id: {5}
+    Git branch: {6}
+    Git commit: {7}
     """.format(
+        "[yp] " if options.build_project == "yp" else "",
         build_context["yt_version"],
         options.build_number,
         options.type,
@@ -1010,13 +1016,11 @@ def run_yt_integration_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("Integration tests are skipped since all tests are disabled")
         return
-    if options.use_asan:
-        teamcity_message("Integration tests are skipped since they are not quite stable under ASAN")
-        return
 
     pytest_args = []
     if options.enable_parallel_testing:
-        pytest_args.extend(["--process-count", str(INTEGRATION_TESTS_PARALLELISM[options.ya_build_type])])
+        build_type = options.ya_build_type + ("-asan" if options.use_asan else "")
+        pytest_args.extend(["--process-count", str(INTEGRATION_TESTS_PARALLELISM[build_type])])
 
     run_pytest(options, "integration", "{0}/yt/tests/integration".format(options.checkout_directory),
                pytest_args=pytest_args)

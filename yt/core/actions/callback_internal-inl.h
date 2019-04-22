@@ -15,9 +15,8 @@ inline TBindStateBase::TBindStateBase(
     const TSourceLocation& location
 #endif
     )
-    : TraceContext(NTracing::GetCurrentTraceContext())
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
-    , Location(location)
+    : Location(location)
 #endif
 { }
 
@@ -39,8 +38,8 @@ inline void* TCallbackBase::GetHandle() const
 
 inline void TCallbackBase::Swap(TCallbackBase& other)
 {
-    TIntrusivePtr<TBindStateBase> tempBindState = std::move(other.BindState);
-    TUntypedInvokeFunction tempUntypedInvoke = std::move(other.UntypedInvoke);
+    auto tempBindState = std::move(other.BindState);
+    auto tempUntypedInvoke = std::move(other.UntypedInvoke);
 
     other.BindState = std::move(BindState);
     other.UntypedInvoke = std::move(UntypedInvoke);

@@ -17,12 +17,12 @@ public:
         NProfiling::EMetricType metricType,
         const NProfiling::TTagIdList& tagIds = NProfiling::EmptyTagIds);
 
-    void Publish(const NProfiling::TProfiler* profiler);
+    void BuildAndPublish(const NProfiling::TProfiler* profiler);
 
 private:
     using TKey = std::pair<TString, NProfiling::TTagIdList>;
     using TValue = std::pair<NProfiling::TValue, NProfiling::EMetricType>;
-    THashMap<TKey, TValue> Metrics_;
+    std::deque<std::pair<TKey, TValue>> Metrics_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

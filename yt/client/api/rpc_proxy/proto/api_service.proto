@@ -446,7 +446,9 @@ message TReqModifyRows
     required NYT.NProto.TGuid transaction_id = 1;
     required string path = 2;
     repeated ERowModificationType row_modification_types = 3;
+    // COMPAT(lukyan): Remove after RPC protocol version update
     repeated uint32 row_read_locks = 7;
+    repeated uint64 row_locks = 8;
 
     optional bool require_sync_replica = 4;
     optional NYT.NProto.TGuid upstream_replica_id = 5;

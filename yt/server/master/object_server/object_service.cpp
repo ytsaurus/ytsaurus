@@ -34,6 +34,8 @@
 
 #include <yt/core/actions/cancelable_context.h>
 
+#include <yt/core/concurrency/rw_spinlock.h>
+
 #include <atomic>
 #include <queue>
 
@@ -63,6 +65,58 @@ static NProfiling::TMonotonicCounter WriteRequestCounter("/write_request_count")
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TStickyUserErrorCache
+{
+public:
+    explicit TStickyUserErrorCache(TDuration expireTime)
+        : ExpireTime_(NProfiling::DurationToCpuDuration(expireTime))
+    { }
+
+    TError Get(const TString& userName)
+    {
+        auto now = NProfiling::GetCpuInstant();
+        {
+            TReaderGuard guard(Lock_);
+            auto it = Map_.find(userName);
+            if (it == Map_.end()) {
+                return {};
+            }
+            if (now < it->second.second) {
+                return it->second.first;
+            }
+        }
+        TError expiredError;
+        {
+            TWriterGuard guard(Lock_);
+            auto it = Map_.find(userName);
+            if (it != Map_.end() && now > it->second.second) {
+                // Prevent destructing the error under spin lock.
+                expiredError = std::move(it->second.first);
+                Map_.erase(it);
+            }
+        }
+        return {};
+    }
+
+    void Put(const TString& userName, const TError& error)
+    {
+        auto now = NProfiling::GetCpuInstant();
+        {
+            TWriterGuard guard(Lock_);
+            Map_.emplace(userName, std::make_pair(error, now + ExpireTime_));
+        }
+    }
+
+private:
+    const NProfiling::TCpuDuration ExpireTime_;
+
+    TReaderWriterSpinLock Lock_;
+    //! Maps user name to (error, deadline) pairs.
+    THashMap<TString, std::pair<TError, NProfiling::TCpuInstant>> Map_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TObjectService)
 
 class TObjectService
@@ -80,6 +134,7 @@ public:
             ObjectServerLogger)
         , Config_(std::move(config))
         , AutomatonInvoker_(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ObjectService))
+        , StickyUserErrorCache_(Config_->StickyUserErrorExpireTime)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetMaxQueueSize(10000)
@@ -135,6 +190,8 @@ private:
 
     std::atomic<bool> ProcessSessionsCallbackEnqueued_ = {false};
 
+    TStickyUserErrorCache StickyUserErrorCache_;
+
 
     static IInvokerPtr GetRpcInvoker()
     {
@@ -149,6 +206,8 @@ private:
 
     TUserBucket* GetOrCreateBucket(const TString& userName);
     void OnUserCharged(TUser* user, const TUserWorkload& workload);
+
+    void SetStickyUserError(const TString& userName, const TError& error);
 
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, GCCollect);
@@ -288,7 +347,7 @@ private:
         std::unique_ptr<TMutation> Mutation;
         TRequestHeader RequestHeader;
         TSharedRefArray RequestMessage;
-        NTracing::TTraceContext TraceContext;
+        NTracing::TTraceContextPtr TraceContext;
     };
 
     std::vector<TSubrequest> Subrequests_;
@@ -393,7 +452,9 @@ private:
             subrequest.RequestMessage = updatedSubrequestMessage;
             subrequest.Context = subcontext;
             subrequest.AsyncResponseMessage = subcontext->GetAsyncResponseMessage();
-            subrequest.TraceContext = NTracing::CreateChildTraceContext();
+            subrequest.TraceContext = NRpc::CreateCallTraceContext(
+                subrequestHeader.service(),
+                subrequestHeader.method());
             if (mutating) {
                 subrequest.Mutation = ObjectManager_->CreateExecuteMutation(UserName_, subcontext);
                 subrequest.Mutation->SetMutationId(subcontext->GetMutationId(), subcontext->IsRetry());
@@ -478,16 +539,22 @@ private:
 
         if (NeedsUserAccessValidation_) {
             NeedsUserAccessValidation_ = false;
-            SecurityManager_->ValidateUserAccess(User_);
+            auto error = SecurityManager_->CheckUserAccess(User_);
+            if (!error.IsOK()) {
+                Owner_->SetStickyUserError(UserName_, error);
+                THROW_ERROR error;
+            }
         }
 
         if (!RequestQueueSizeIncreased_) {
             if (!SecurityManager_->TryIncreaseRequestQueueSize(User_)) {
-                THROW_ERROR_EXCEPTION(
+                auto error = TError(
                     NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded,
                     "User %Qv has exceeded its request queue size limit",
                     User_->GetName())
                     << TErrorAttribute("limit", User_->GetRequestQueueSizeLimit());
+                Owner_->SetStickyUserError(UserName_, error);
+                THROW_ERROR error;
             }
             RequestQueueSizeIncreased_ = true;
         }
@@ -575,11 +642,9 @@ private:
             return true;
         }
 
-        NTracing::TraceEvent(
-            subrequest.TraceContext,
-            subrequest.RequestHeader.service(),
-            subrequest.RequestHeader.method(),
-            NTracing::ServerReceiveAnnotation);
+        if (subrequest.TraceContext) {
+            subrequest.TraceContext->ResetStartTime();
+        }
 
         Revisions_[CurrentSubrequestIndex_] = HydraFacade_->GetHydraManager()->GetAutomatonVersion().ToRevision();
 
@@ -682,12 +747,8 @@ private:
             return;
         }
 
-        if (subrequest->Context) {
-            NTracing::TraceEvent(
-                subrequest->TraceContext,
-                subrequest->RequestHeader.service(),
-                subrequest->RequestHeader.method(),
-                NTracing::ServerSendAnnotation);
+        if (subrequest->TraceContext) {
+            subrequest->TraceContext->Finish();
         }
 
         if (++SubresponseCount_ == SubrequestCount_) {
@@ -936,12 +997,24 @@ void TObjectService::OnUserCharged(TUser* user, const TUserWorkload& workload)
     bucket->ExcessTime = actualExcessTime + workload.Time;
 }
 
+void TObjectService::SetStickyUserError(const TString& userName, const TError& error)
+{
+    StickyUserErrorCache_.Put(userName, error);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 {
     Y_UNUSED(request);
     Y_UNUSED(response);
+
+    const auto& userName = context->GetUser();
+    auto error = StickyUserErrorCache_.Get(userName);
+    if (!error.IsOK()) {
+        context->Reply(error);
+        return;
+    }
 
     auto session = New<TExecuteSession>(this, context);
     if (!session->Prepare()) {

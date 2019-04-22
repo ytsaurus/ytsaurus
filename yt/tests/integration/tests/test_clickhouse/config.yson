@@ -22,11 +22,11 @@
         ];
         "writers" = {
             "info" = {
-                "file_name" = "./clickhouse-0.log";
+                "file_name" = "./clickhouse.log";
                 "type" = "file";
             };
             "debug" = {
-                "file_name" = "./clickhouse-0.debug.log";
+                "file_name" = "./clickhouse.debug.log";
                 "type" = "file";
             };
             "stderr" = {

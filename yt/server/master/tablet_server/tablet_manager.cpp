@@ -287,6 +287,15 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        // Destroy finished tablet actions associated with the bundle.
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        for (auto* action : cellBundle->TabletActions()) {
+            YCHECK(IsObjectAlive(action));
+            YCHECK(action->IsFinished());
+            action->SetTabletCellBundle(nullptr);
+            objectManager->UnrefObject(action);
+        }
+
         // Remove tablet cell bundle from maps.
         YCHECK(NameToTabletCellBundleMap_.erase(cellBundle->GetName()) == 1);
 
@@ -2338,7 +2347,7 @@ public:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
 
-        if (!table->IsForeign()) {
+        if (!create && !table->IsForeign()) {
             securityManager->ValidatePermission(table, EPermission::Mount);
         }
 
@@ -6006,7 +6015,7 @@ private:
                         continue;
                     }
 
-                    if (snapshotId <= thresholdId) {
+                    if (snapshotId < thresholdId) {
                         YT_LOG_INFO("Removing tablet cell snapshot (CellId: %v, SnapshotId: %v)",
                             cellId,
                             snapshotId);
@@ -6052,7 +6061,7 @@ private:
                         continue;
                     }
 
-                    if (changelogId <= thresholdId) {
+                    if (changelogId < thresholdId) {
                         YT_LOG_INFO("Removing tablet cell changelog (CellId: %v, ChangelogId: %v)",
                             cellId,
                             changelogId);
@@ -6068,7 +6077,7 @@ private:
                                         cellId,
                                         changelogId);
                                 }
-                            }));;
+                            }));
                         ++changelogsRemoved;
                     }
                 }

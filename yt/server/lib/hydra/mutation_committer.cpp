@@ -55,6 +55,52 @@ TCommitterBase::TCommitterBase(
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochUserAutomatonInvoker, AutomatonThread);
 }
 
+void TCommitterBase::SuspendLogging()
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YCHECK(!LoggingSuspended_);
+
+    YT_LOG_DEBUG("Mutations logging suspended");
+
+    LoggingSuspended_ = true;
+    LoggingSuspensionTimer_.emplace();
+    LoggingSuspensionTimeoutCookie_ = TDelayedExecutor::Submit(
+        BIND(&TCommitterBase::OnLoggingSuspensionTimeout, MakeWeak(this))
+            .Via(EpochContext_->EpochUserAutomatonInvoker),
+        Config_->MutationLoggingSuspensionTimeout);
+
+    DoSuspendLogging();
+}
+
+void TCommitterBase::ResumeLogging()
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YCHECK(LoggingSuspended_);
+
+    YT_LOG_DEBUG("Mutations logging resumed");
+
+    Profiler.Update(LoggingSuspensionTimeGauge_, NProfiling::DurationToValue(LoggingSuspensionTimer_->GetElapsedTime()));
+
+    LoggingSuspended_ = false;
+    LoggingSuspensionTimer_.reset();
+    TDelayedExecutor::CancelAndClear(LoggingSuspensionTimeoutCookie_);
+
+    DoResumeLogging();
+}
+
+bool TCommitterBase::IsLoggingSuspended() const
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    return LoggingSuspended_;
+}
+
+void TCommitterBase::OnLoggingSuspensionTimeout()
+{
+    LoggingFailed_.Fire(TError("Mutation logging is suspended for too long")
+        << TErrorAttribute("timeout", Config_->MutationLoggingSuspensionTimeout));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLeaderCommitter::TBatch
@@ -421,24 +467,13 @@ TFuture<void> TLeaderCommitter::GetQuorumFlushResult()
         : PrevBatchQuorumFlushResult_;
 }
 
-void TLeaderCommitter::SuspendLogging()
+void TLeaderCommitter::DoSuspendLogging()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YCHECK(!LoggingSuspended_);
-
-    YT_LOG_DEBUG("Mutations logging suspended");
-
-    LoggingSuspended_ = true;
     YCHECK(PendingMutations_.empty());
 }
 
-void TLeaderCommitter::ResumeLogging()
+void TLeaderCommitter::DoResumeLogging()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YCHECK(LoggingSuspended_);
-
-    YT_LOG_DEBUG("Mutations logging resumed");
-
     for (auto& pendingMutation : PendingMutations_) {
         auto version = DecoratedAutomaton_->GetLoggedVersion();
 
@@ -460,9 +495,7 @@ void TLeaderCommitter::ResumeLogging()
 
         pendingMutation.CommitPromise.SetFrom(std::move(commitResult));
     }
-
     PendingMutations_.clear();
-    LoggingSuspended_ = false;
 }
 
 void TLeaderCommitter::Stop()
@@ -630,38 +663,18 @@ TFuture<void> TFollowerCommitter::DoAcceptMutations(
     return result;
 }
 
-bool TFollowerCommitter::IsLoggingSuspended() const
+void TFollowerCommitter::DoSuspendLogging()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    return LoggingSuspended_;
-}
-
-void TFollowerCommitter::SuspendLogging()
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YCHECK(!LoggingSuspended_);
-
-    YT_LOG_DEBUG("Mutations logging suspended");
-
-    LoggingSuspended_ = true;
     YCHECK(PendingMutations_.empty());
 }
 
-void TFollowerCommitter::ResumeLogging()
+void TFollowerCommitter::DoResumeLogging()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YCHECK(LoggingSuspended_);
-
-    YT_LOG_DEBUG("Mutations logging resumed");
-
     for (auto& pendingMutation : PendingMutations_) {
         auto result = DoAcceptMutations(pendingMutation.ExpectedVersion, pendingMutation.RecordsData);
         pendingMutation.Promise.SetFrom(std::move(result));
     }
-
     PendingMutations_.clear();
-    LoggingSuspended_ = false;
 }
 
 TFuture<TMutationResponse> TFollowerCommitter::Forward(TMutationRequest&& request)

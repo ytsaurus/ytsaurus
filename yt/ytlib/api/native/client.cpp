@@ -300,18 +300,9 @@ public:
             .Run(path, timestamp);
     }
 
-    std::vector<TTableMountInfoPtr> ExtractTableInfos()
-    {
-        auto guard = Guard(TableInfosSpinLock_);
-        return std::move(TableInfos_);
-    }
-
 private:
     const NTabletClient::ITableMountCachePtr MountTableCache_;
     const IInvokerPtr Invoker_;
-
-    TSpinLock TableInfosSpinLock_;
-    std::vector<TTableMountInfoPtr> TableInfos_;
 
     static TTableSchema GetTableSchema(
         const TRichYPath& path,
@@ -335,12 +326,6 @@ private:
             .ValueOrThrow();
 
         tableInfo->ValidateNotReplicated();
-
-        // NB: This access may come from distinct threads as connection's invoker is typically a thread pool.
-        {
-            auto guard = Guard(TableInfosSpinLock_);
-            TableInfos_.push_back(tableInfo);
-        }
 
         TDataSplit result;
         SetObjectId(&result, tableInfo->TableId);
@@ -1007,26 +992,22 @@ private:
 
     TTransactionId GetTransactionId(const TTransactionalOptions& options, bool allowNullTransaction)
     {
-        auto transaction = GetTransaction(options, allowNullTransaction, true);
-        return transaction ? transaction->GetId() : NullTransactionId;
-    }
-
-    NTransactionClient::TTransactionPtr GetTransaction(
-        const TTransactionalOptions& options,
-        bool allowNullTransaction,
-        bool pingTransaction)
-    {
         if (!options.TransactionId) {
             if (!allowNullTransaction) {
                 THROW_ERROR_EXCEPTION("A valid master transaction is required");
             }
-            return nullptr;
+            return {};
         }
 
-        TTransactionAttachOptions attachOptions;
-        attachOptions.Ping = pingTransaction;
-        attachOptions.PingAncestors = options.PingAncestors;
-        return TransactionManager_->Attach(options.TransactionId, attachOptions);
+        if (options.Ping) {
+            // XXX(babenko): this is just to make a ping; shall we even support this?
+            TTransactionAttachOptions attachOptions;
+            attachOptions.Ping = options.Ping;
+            attachOptions.PingAncestors = options.PingAncestors;
+            TransactionManager_->Attach(options.TransactionId, attachOptions);
+        }
+
+        return options.TransactionId;
     }
 
     void SetTransactionId(
@@ -2060,8 +2041,6 @@ private:
         const auto& query = fragment->Query;
         const auto& dataSource = fragment->Ranges;
 
-        auto tableInfos = queryPreparer->ExtractTableInfos();
-
         for (size_t index = 0; index < query->JoinClauses.size(); ++index) {
             if (query->JoinClauses[index]->ForeignKeyPrefix == 0 && !options.AllowJoinWithoutIndex) {
                 const auto& ast = std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
@@ -2097,7 +2076,6 @@ private:
 
         auto statistics = WaitFor(queryExecutor->Execute(
             query,
-            tableInfos,
             externalCGInfo,
             dataSource,
             writer,
@@ -6072,7 +6050,7 @@ private:
             result.UserCounts = std::move(countingFilter.UserCounts);
             result.StateCounts = std::move(countingFilter.StateCounts);
             result.TypeCounts = std::move(countingFilter.TypeCounts);
-            result.FailedJobsCount = countingFilter.FailedJobsCount;;
+            result.FailedJobsCount = countingFilter.FailedJobsCount;
         }
 
         return result;

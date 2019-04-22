@@ -19,26 +19,6 @@ class TestCypress(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 0
 
-    DELTA_MASTER_CONFIG = {
-        "cypress_manager": {
-            # See test_map_node_children_limit
-            "max_node_child_count" : 100,
-
-            # See test_string_node_length_limit
-            "max_string_node_length" : 300,
-
-            # See test_attribute_size_limit
-            "max_attribute_size" : 300,
-
-            # See test_map_node_key_length_limit
-            "max_map_node_key_length": 300,
-
-            # To make expiration tests run faster
-            "expiration_check_period": 10,
-            "expiration_backoff_time": 10
-        }
-    }
-
     def test_root(self):
         # should not crash
         get("//@")
@@ -1114,6 +1094,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/my_uint", output_format=yson_format) == 123456
 
     def test_map_node_children_limit(self):
+        set("//sys/@config/cypress_manager/max_node_child_count", 100)
         create("map_node", "//tmp/test_node")
         for i in xrange(100):
             create("map_node", "//tmp/test_node/" + str(i))
@@ -1121,6 +1102,7 @@ class TestCypress(YTEnvSetup):
             create("map_node", "//tmp/test_node/100")
 
     def test_string_node_length_limit(self):
+        set("//sys/@config/cypress_manager/max_string_node_length", 300)
         set("//tmp/test_node", "x" * 300)
         remove("//tmp/test_node")
 
@@ -1134,6 +1116,7 @@ class TestCypress(YTEnvSetup):
             set("//tmp/test_node", ["x" * 301])
 
     def test_attribute_size_limit(self):
+        set("//sys/@config/cypress_manager/max_attribute_size", 300)
         set("//tmp/test_node", {})
 
         # The limit is 300 but this is for binary YSON.
@@ -1144,6 +1127,7 @@ class TestCypress(YTEnvSetup):
             set("//tmp/test_node/@test_attr", "x" * 301)
 
     def test_map_node_key_length_limits(self):
+        set("//sys/@config/cypress_manager/max_map_node_key_length", 300)
         set("//tmp/" + "a" * 300, 0)
         with pytest.raises(YtError):
             set("//tmp/" + "a" * 301, 0)
@@ -1974,15 +1958,12 @@ class TestCypressMulticellRpcProxy(TestCypressMulticell, TestCypressRpcProxy):
 
 ##################################################################
 
-class TestCypressWithoutSet(YTEnvSetup):
+class TestCypressForbidSet(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 0
 
-    DELTA_MASTER_CONFIG = {
-        "cypress_manager": {
-            "forbid_set_command": True,
-        }
-    }
+    def setup(self):
+        set("//sys/@config/cypress_manager/forbid_set_command", True)
 
     def test_map(self):
         with pytest.raises(YtError):

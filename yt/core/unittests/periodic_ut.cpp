@@ -60,10 +60,10 @@ TEST_W(TPeriodicTest, Simple)
     WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(250)))
         .ThrowOnError();
     WaitFor(executor->GetExecutedEvent())
-        .ThrowOnError();;
+        .ThrowOnError();
     EXPECT_EQ(6, count.load());
     WaitFor(executor->Stop())
-        .ThrowOnError();;
+        .ThrowOnError();
 }
 
 TEST_W(TPeriodicTest, ParallelStop)
@@ -166,7 +166,8 @@ TEST_W(TPeriodicTest, ParallelOnExecuted2)
     {
         auto future1 = executor->GetExecutedEvent();
         auto future2 = executor->GetExecutedEvent();
-        WaitFor(Combine(std::vector<TFuture<void>>({future1, future2})));
+        WaitFor(Combine(std::vector<TFuture<void>>({future1, future2})))
+            .ThrowOnError();
     }
     EXPECT_EQ(2, count);
 

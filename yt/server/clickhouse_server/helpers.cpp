@@ -58,6 +58,14 @@ void ConvertToFieldRow(const NTableClient::TUnversionedRow& row, DB::Field* fiel
     }
 }
 
+void ConvertToFieldRow(const NTableClient::TUnversionedRow& row, int count, DB::Field* field)
+{
+    auto* value = row.Begin();
+    for (int index = 0; index < count; ++index) {
+        *(field++) = ConvertToField(*(value++));
+    }
+}
+
 Field ConvertToField(const NTableClient::TUnversionedValue& value)
 {
     switch (value.Type) {
@@ -159,9 +167,7 @@ TClickHouseTablePtr FetchClickHouseTable(
         EPermission::Read,
         logger);
 
-    return CreateClickHouseTable(
-        path.GetPath(),
-        userObject->Schema);
+    return std::make_shared<TClickHouseTable>(path.GetPath(), userObject->Schema);
 }
 
 /////////////////////////////////////////////////////////////////////////////

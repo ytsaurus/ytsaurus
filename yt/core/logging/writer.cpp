@@ -285,7 +285,14 @@ void TFileLogWriter::Open()
     try {
         NFS::MakeDirRecursive(NFS::GetDirectoryName(FileName_));
 
-        File_.reset(new TFile(FileName_, OpenAlways|ForAppend|WrOnly|Seq|CloseOnExec));
+        TFlags<EOpenModeFlag> openMode;
+        if (EnableCompression_) {
+            openMode = OpenAlways|RdWr|CloseOnExec;
+        } else {
+            openMode = OpenAlways|ForAppend|WrOnly|Seq|CloseOnExec;
+        }
+
+        File_.reset(new TFile(FileName_, openMode));
 
         if (EnableCompression_) {
             CompressedOutput_.reset(new TRandomAccessGZipFile(File_.get()));

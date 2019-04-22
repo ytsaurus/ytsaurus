@@ -14,7 +14,7 @@ namespace NYT {
 
 inline void TAllocationHolder::operator delete(void* ptr) noexcept
 {
-    NYTAlloc::Free(ptr);
+    NYTAlloc::FreeNonNull(ptr);
 }
 
 inline TMutableRef TAllocationHolder::GetRef() const
@@ -38,7 +38,7 @@ TDerived* TAllocationHolder::Allocate(size_t size, TRefCountedTypeCookie cookie)
         new (instance) TDerived(TMutableRef(instance + 1, size), cookie);
     } catch (const std::exception& ex) {
         // Do not forget to free the memory.
-        NYTAlloc::Free(ptr);
+        NYTAlloc::FreeNonNull(ptr);
         throw;
     }
 

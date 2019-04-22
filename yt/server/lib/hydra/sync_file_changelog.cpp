@@ -5,6 +5,7 @@
 #include "format.h"
 
 #include <yt/ytlib/chunk_client/io_engine.h>
+
 #include <yt/ytlib/hydra/hydra_manager.pb.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
@@ -14,6 +15,8 @@
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/serialize.h>
 #include <yt/core/misc/string.h>
+
+#include <yt/core/tracing/trace_context.h>
 
 #include <util/system/align.h>
 
@@ -75,6 +78,7 @@ TErrorOr<TRecordInfo> TryReadRecord(TInput& input)
     TChangelogRecordHeader header;
 
     NFS::ExpectIOErrors([&] () {
+        NTracing::TNullTraceContextGuard nullTraceContextGuard;
         totalSize += ReadPodPadded(input, header);
     });
 
@@ -89,23 +93,25 @@ TErrorOr<TRecordInfo> TryReadRecord(TInput& input)
     struct TSyncChangelogRecordTag { };
     auto data = TSharedMutableRef::Allocate<TSyncChangelogRecordTag>(header.DataSize, false);
     if (input.Avail() < header.DataSize) {
-        return TError("Not enough bytes available in data file to read record data: need %v, got %v",
+        return TError("Not enough bytes available in data file to read record data: expected %v, got %v",
             header.DataSize,
             input.Avail());
     }
 
     NFS::ExpectIOErrors([&] () {
+        NTracing::TNullTraceContextGuard nullTraceContextGuard;
         totalSize += ReadPadded(input, data);
     });
 
     if (header.PaddingSize > 0) {
         if (input.Avail() < header.PaddingSize) {
-            return TError("Not enough bytes available in data file to read record data: need %v, got %v",
+            return TError("Not enough bytes available in data file to read record data: expected %v, got %v",
                 header.PaddingSize,
                 input.Avail());
         }
 
         NFS::ExpectIOErrors([&] () {
+            NTracing::TNullTraceContextGuard nullTraceContextGuard;
             totalSize += header.PaddingSize;
             input.Skip(header.PaddingSize);
         });
@@ -117,7 +123,10 @@ TErrorOr<TRecordInfo> TryReadRecord(TInput& input)
 
     auto checksum = GetChecksum(data);
     if (header.Checksum != checksum) {
-        return TError("Record data checksum mismatch of record %v (%v != %v)", header.RecordId, header.Checksum, checksum);
+        return TError("Record data checksum mismatch in record %v: %llx != %llx",
+            header.RecordId,
+            header.Checksum,
+            checksum);
     }
 
     return TRecordInfo(header.RecordId, totalSize);
@@ -233,7 +242,8 @@ public:
             ValidateSignature(header);
 
             // Read meta.
-            auto serializedMeta = TSharedMutableRef::Allocate(header.MetaSize);
+            struct TMetaTag { };
+            auto serializedMeta = TSharedMutableRef::Allocate<TMetaTag>(header.MetaSize);
 
             NFS::ExpectIOErrors([&] () {
                 ReadPadded(*dataFile, serializedMeta);
@@ -275,9 +285,11 @@ public:
 
         try {
             NFS::ExpectIOErrors([&] () {
-                DataFile_->FlushData();
-                DataFile_->Close();
-
+                {
+                    NTracing::TNullTraceContextGuard nullTraceContextGuard;
+                    DataFile_->FlushData();
+                    DataFile_->Close();
+                }
                 IndexFile_.Close();
             });
         } catch (const std::exception& ex) {
@@ -651,24 +663,28 @@ private:
     void CreateDataFile()
     {
         NFS::ExpectIOErrors([&] () {
-            auto tempFileName = FileName_ + NFS::TempFileSuffix;
-            TFileWrapper tempFile(tempFileName, WrOnly | CloseOnExec | CreateAlways);
+            {
+                NTracing::TNullTraceContextGuard nullTraceContextGuard;
 
-            TChangelogHeader header(
-                SerializedMeta_.Size(),
-                TChangelogHeader::NotTruncatedRecordCount,
-                Alignment_);
-            WritePod(tempFile, header);
+                auto tempFileName = FileName_ + NFS::TempFileSuffix;
+                TFileWrapper tempFile(tempFileName, WrOnly | CloseOnExec | CreateAlways);
 
-            Write(tempFile, SerializedMeta_);
-            WriteZeroes(tempFile, header.PaddingSize);
+                TChangelogHeader header(
+                    SerializedMeta_.Size(),
+                    TChangelogHeader::NotTruncatedRecordCount,
+                    Alignment_);
+                WritePod(tempFile, header);
 
-            YCHECK(tempFile.GetPosition() == header.HeaderSize);
+                Write(tempFile, SerializedMeta_);
+                WriteZeroes(tempFile, header.PaddingSize);
 
-            tempFile.FlushData();
-            tempFile.Close();
+                YCHECK(tempFile.GetPosition() == header.HeaderSize);
 
-            NFS::Replace(tempFileName, FileName_);
+                tempFile.FlushData();
+                tempFile.Close();
+
+                NFS::Replace(tempFileName, FileName_);
+            }
 
             DataFile_ = IOEngine_->Open(FileName_, RdWr | Seq | CloseOnExec).Get().ValueOrThrow();
         });

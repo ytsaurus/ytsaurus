@@ -194,7 +194,7 @@ TProfiler TProfiler::AddTags(const TTagIdList& tagIds) const
     for (auto tagId : tagIds) {
         allTagIds.push_back(tagId);
     }
-    return TProfiler(PathPrefix_, tagIds);
+    return TProfiler(PathPrefix_, allTagIds);
 }
 
 void TProfiler::Enqueue(

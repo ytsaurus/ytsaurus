@@ -133,7 +133,12 @@ namespace NYT {
 
 namespace NDetail {
 
-template <class TRunnable, class TSignature, class TBoundArgs>
+template <
+    bool CaptureTraceContext,
+    class TRunnable,
+    class TSignature,
+    class TBoundArgs
+>
 struct TBindState;
 
 template <class S1, class S2>
@@ -178,16 +183,16 @@ public:
         : TCallbackBase(std::move(other))
     { }
 
-    template <class TRunnable, class TSignature, class TBoundArgs>
+    template <bool CaptureTraceContext, class TRunnable, class TSignature, class TBoundArgs>
     explicit TCallback(TIntrusivePtr<
-            NYT::NDetail::TBindState<TRunnable, TSignature, TBoundArgs>
+            NYT::NDetail::TBindState<CaptureTraceContext, TRunnable, TSignature, TBoundArgs>
        >&& bindState)
         : TCallbackBase(std::move(bindState))
     {
         // Force the assignment to a local variable of TTypedInvokeFunction
         // so the compiler will typecheck that the passed in Run() method has
         // the correct type.
-        TTypedInvokeFunction invokeFunction = &NYT::NDetail::TBindState<TRunnable, TSignature, TBoundArgs>::TInvokerType::Run;
+        auto invokeFunction = &NYT::NDetail::TBindState<CaptureTraceContext, TRunnable, TSignature, TBoundArgs>::TInvokerType::Run;
         UntypedInvoke = reinterpret_cast<TUntypedInvokeFunction>(invokeFunction);
     }
 
@@ -197,7 +202,7 @@ public:
         typedef NYT::NDetail::TCallbackRunnableAdapter<R(TArgs...), R2(TArgs2...)> TRunnable;
         typedef R2(TSignature2)(TArgs2...);
         return TCallback<R2(TArgs2...)>(
-            New<NYT::NDetail::TBindState<TRunnable, TSignature2, void()>>(
+            New<NYT::NDetail::TBindState<false, TRunnable, TSignature2, void()>>(
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
                 BindState->Location,
 #endif

@@ -41,7 +41,6 @@ DECLARE_ENTITY_TYPE(TUser, TUserId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TGroup, TGroupId, NObjectClient::TDirectObjectIdHash)
 
 DECLARE_REFCOUNTED_CLASS(TSerializableClusterResources)
-DECLARE_REFCOUNTED_STRUCT(ISecurityManager)
 
 class TSubject;
 
@@ -49,7 +48,7 @@ struct TAccessControlEntry;
 struct TAccessControlList;
 class TAccessControlDescriptor;
 
-DECLARE_REFCOUNTED_STRUCT(TSerializableAccessControlEntry);
+DECLARE_REFCOUNTED_STRUCT(TSerializableAccessControlEntry)
 
 struct TPermissionCheckTarget;
 struct TPermissionCheckOptions;
@@ -65,7 +64,8 @@ using TInternedSecurityTags = TInternedObject<TSecurityTags>;
 using TSecurityTagsRegistry = TInternRegistry<TSecurityTags>;
 using TSecurityTagsRegistryPtr = TInternRegistryPtr<TSecurityTags>;
 
-DECLARE_REFCOUNTED_CLASS(TSecurityManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicSecurityManagerConfig)
+
 DECLARE_REFCOUNTED_CLASS(TSecurityManager)
 DECLARE_REFCOUNTED_CLASS(TRequestTracker)
 

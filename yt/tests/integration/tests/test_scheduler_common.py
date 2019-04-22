@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait, require_ytserver_root_privileges
+from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait, require_ytserver_root_privileges, is_asan_build
 from yt_commands import *
 
 from yt.yson import *
@@ -318,7 +318,7 @@ class TestJobStderr(YTEnvSetup):
         jobs_path = op.get_path() + "/jobs"
         assert get(jobs_path + "/@count") == 1
         stderr_path = "{0}/{1}/stderr".format(jobs_path, ls(jobs_path)[0])
-        stderr = remove_asan_warning(read_file(stderr_path, verbose=False).strip())
+        stderr = read_file(stderr_path, verbose=False).strip()
 
         # Stderr buffer size is equal to 1000000, we should add it to limit
         assert len(stderr) <= 4000000
@@ -989,7 +989,7 @@ class TestSchedulerCommon(YTEnvSetup):
         jobs_path = op.get_path() + "/jobs"
         assert get(jobs_path + "/@count") == 1
         for job_id in ls(jobs_path):
-            assert remove_asan_warning(read_file(jobs_path + "/" + job_id + "/stderr")) == \
+            assert read_file(jobs_path + "/" + job_id + "/stderr") == \
                 "/bin/bash: /non_existed_command: No such file or directory\n"
 
     def test_pipe_statistics(self):
@@ -3518,8 +3518,8 @@ fi
         assert len(jobs) == 1
         assert exists(get_fail_context_path_new(op, jobs[0]))
         assert exists(get_fail_context_path(op, jobs[0]))
-        assert remove_asan_warning(read_file(get_stderr_path(op, jobs[0]))) == "Oh no!\n"
-        assert remove_asan_warning(read_file(get_stderr_path_new(op, jobs[0]))) == "Oh no!\n"
+        assert read_file(get_stderr_path(op, jobs[0])) == "Oh no!\n"
+        assert read_file(get_stderr_path_new(op, jobs[0])) == "Oh no!\n"
 
     def test_rewrite_operation_path(self):
         get_stderr_path = lambda op, job_id: "//sys/operations/" + op.id + "/jobs/" + job_id + "/stderr"
@@ -3546,7 +3546,7 @@ fi
         assert lock("//sys/operations/" + op.id, rewrite_operation_path=True, mode="snapshot", tx=tx)
 
         jobs = ls("//sys/operations/" + op.id + "/jobs", rewrite_operation_path=True)
-        assert remove_asan_warning(read_file(get_stderr_path(op, jobs[0]), rewrite_operation_path=True)) == "XYZ\n"
+        assert read_file(get_stderr_path(op, jobs[0]), rewrite_operation_path=True) == "XYZ\n"
 
 ##################################################################
 
@@ -3633,6 +3633,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
         }
     }
 
+    @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
     def test_controller_memory_usage(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -3847,7 +3848,7 @@ class TestPorts(YTEnvSetup):
         jobs = ls(jobs_path)
         assert len(jobs) == 1
 
-        stderr = remove_asan_warning(read_file(op.get_path() + "/jobs/" + jobs[0] + "/stderr"))
+        stderr = read_file(op.get_path() + "/jobs/" + jobs[0] + "/stderr")
         assert "FAILED" not in stderr
         ports = __builtin__.map(int, stderr.split())
         assert len(ports) == 2
@@ -3862,7 +3863,7 @@ class TestPorts(YTEnvSetup):
 
         server_socket = None
         try:
-            try: 
+            try:
                 server_socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
                 server_socket.bind(("::1", 20001))
             except Exception as err:

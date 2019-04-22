@@ -17,13 +17,13 @@ message TReqExecute
     repeated TDataRanges data_sources = 3;
     // TODO(kiselyovp) move codec to header
     required int32 response_codec = 4; // ECodec
-    repeated TTableMountInfo mount_infos = 7;
+    reserved 7; // deprecated
 }
 
 message TRspExecute
 {
     required TQueryStatistics query_statistics = 1;
-    // Attachements contains wire-encoded data.
+    // Attachments contain wire-encoded data.
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,12 +37,12 @@ message TReqRead
     required int32 request_codec = 4; // ECodec
     required int32 response_codec = 5; // ECodec
     optional string retention_config = 6;
-    // Attachement contains wire-encoded data.
+    // Attachment contains wire-encoded data.
 }
 
 message TRspRead
 {
-    // Attachement contains wire-encoded data.
+    // Attachment contains wire-encoded data.
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,12 +57,12 @@ message TReqMultiread
     repeated NYT.NProto.TGuid tablet_ids = 5;
     repeated int64 mount_revisions = 6;
 
-    // Attachement contains wire-encoded data.
+    // Attachment contains wire-encoded data.
 }
 
 message TRspMultiread
 {
-    // Attachement contains wire-encoded data.
+    // Attachment contains wire-encoded data.
 }
 
 ////////////////////////////////////////////////////////////////////////////////

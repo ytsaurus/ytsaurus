@@ -31,6 +31,8 @@
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
+#include <yt/core/alloc/statistics_producer.h>
+
 #include <yt/core/ytree/virtual.h>
 
 #include <util/string/hex.h>
@@ -86,31 +88,14 @@ TBootstrap::TBootstrap(TSkynetManagerConfigPtr config)
 
     HttpClient_ = CreateClient(Config_->HttpClient, Poller_);
 
-    MonitoringManager_ = New<TMonitoringManager>();
-    MonitoringManager_->Register(
-        "/ref_counted",
-        CreateRefCountedTrackerStatisticsProducer());
-
-    OrchidRoot_ = GetEphemeralNodeFactory(true)->CreateMap();
-    SetNodeByYPath(
-        OrchidRoot_,
-        "/monitoring",
-        CreateVirtualNode(MonitoringManager_->GetService()));
-    SetNodeByYPath(
-        OrchidRoot_,
-        "/profiling",
-        CreateVirtualNode(TProfileManager::Get()->GetService()));
-    SetBuildAttributes(OrchidRoot_, "skynet_manager");
-
     if (Config_->MonitoringServer) {
         Config_->MonitoringServer->Port = Config_->MonitoringPort;
         MonitoringHttpServer_ = NHttp::CreateServer(
             Config_->MonitoringServer);
-
-        MonitoringHttpServer_->AddHandler(
-            "/orchid/",
-            GetOrchidYPathHttpHandler(OrchidRoot_));
     }
+
+    NMonitoring::Initialize(MonitoringHttpServer_, &MonitoringManager_, &OrchidRoot_);
+    SetBuildAttributes(OrchidRoot_, "skynet_manager");
 
     auto peerId = GetOrGeneratePeerId(Config_->PeerIdFile);
     PeerListener_ = CreateListener(TNetworkAddress::CreateIPv6Any(Config_->SkynetPort), Poller_);

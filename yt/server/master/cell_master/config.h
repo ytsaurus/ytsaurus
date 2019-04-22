@@ -92,19 +92,31 @@ public:
     //! Applies to follower-to-leader forwarding and cross-cell interactions.
     TMasterConnectionConfigPtr MasterConnection;
 
-    TDuration CellStatisticsGossipPeriod;
-
     TMulticellManagerConfig()
     {
         RegisterParameter("master_connection", MasterConnection)
             .DefaultNew();
+    }
+};
 
+DEFINE_REFCOUNTED_TYPE(TMulticellManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicMulticellManagerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration CellStatisticsGossipPeriod;
+
+    TDynamicMulticellManagerConfig()
+    {
         RegisterParameter("cell_statistics_gossip_period", CellStatisticsGossipPeriod)
             .Default(TDuration::Seconds(1));
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TMulticellManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TDynamicMulticellManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,17 +145,11 @@ public:
 
     NChunkServer::TChunkManagerConfigPtr ChunkManager;
 
-    NJournalServer::TJournalManagerConfigPtr JournalManager;
-
-    NObjectServer::TObjectManagerConfigPtr ObjectManager;
-
     NObjectServer::TObjectServiceConfigPtr ObjectService;
 
-    NCypressServer::TCypressManagerConfigPtr CypressManager;
-
-    NSecurityServer::TSecurityManagerConfigPtr SecurityManager;
-
     NTabletServer::TTabletManagerConfigPtr TabletManager;
+
+    NCypressServer::TCypressManagerConfigPtr CypressManager;
 
     NTabletServer::TReplicatedTableTrackerConfigPtr ReplicatedTableTracker;
 
@@ -177,6 +183,10 @@ public:
     NChunkServer::TDynamicChunkManagerConfigPtr ChunkManager;
     NTabletServer::TDynamicTabletManagerConfigPtr TabletManager;
     NNodeTrackerServer::TDynamicNodeTrackerConfigPtr NodeTracker;
+    NObjectServer::TDynamicObjectManagerConfigPtr ObjectManager;
+    NSecurityServer::TDynamicSecurityManagerConfigPtr SecurityManager;
+    NCypressServer::TDynamicCypressManagerConfigPtr CypressManager;
+    TDynamicMulticellManagerConfigPtr MulticellManager;
 
     TDynamicClusterConfig()
     {
@@ -187,6 +197,14 @@ public:
         RegisterParameter("tablet_manager", TabletManager)
             .DefaultNew();
         RegisterParameter("node_tracker", NodeTracker)
+            .DefaultNew();
+        RegisterParameter("object_manager", ObjectManager)
+            .DefaultNew();
+        RegisterParameter("security_manager", SecurityManager)
+            .DefaultNew();
+        RegisterParameter("cypress_manager", CypressManager)
+            .DefaultNew();
+        RegisterParameter("multicell_manager", MulticellManager)
             .DefaultNew();
     }
 };

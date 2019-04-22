@@ -3,57 +3,131 @@
 #include "public.h"
 
 #include <yt/core/misc/property.h>
+#include <yt/core/misc/guid.h>
+
+#include <yt/core/profiling/public.h>
+
+#include <atomic>
 
 namespace NYT::NTracing {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTraceContext
+//! TSpanContext represents span identity propagated across the network.
+//!
+//! See https://opentracing.io/specification/
+struct TSpanContext
 {
-public:
-    TTraceContext();
-    TTraceContext(
-        TTraceId traceId,
-        TSpanId spanId,
-        TSpanId parentSpanId);
+    TTraceId TraceId = InvalidTraceId;
+    TSpanId SpanId = InvalidSpanId;
+    bool Sampled = false;
+    bool Debug = false;
 
-    bool IsEnabled() const;
-    bool IsVerbose() const;
-
-    TTraceContext CreateChild() const;
-
-    DEFINE_BYVAL_RO_PROPERTY(TTraceId, TraceId);
-    DEFINE_BYVAL_RO_PROPERTY(TSpanId, SpanId);
-    DEFINE_BYVAL_RO_PROPERTY(TSpanId, ParentSpanId);
+    TSpanContext CreateChild();
 };
 
-void FormatValue(TStringBuilderBase* builder, const TTraceContext& context, TStringBuf /*spec*/);
-TString ToString(const TTraceContext& context);
-
-TTraceContext CreateChildTraceContext();
-TTraceContext CreateRootTraceContext(bool verbose = true);
-
-extern const TTraceContext NullTraceContext;
+void FormatValue(TStringBuilderBase* builder, TSpanContext spanContext, TStringBuf spec);
+TString ToString(TSpanContext spanContext);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TFollowsFrom {};
+
+//! TTraceContext accumulates information associated with single tracing span.
+class TTraceContext
+    : public TIntrinsicRefCounted
+{
+public:
+    TTraceContext(
+        TSpanContext parent,
+        const TString& name,
+        TTraceContextPtr parentContext = nullptr);
+    TTraceContext(
+        TFollowsFrom,
+        TSpanContext parent,
+        const TString& name,
+        TTraceContextPtr parentContext = nullptr);
+
+    void Finish();
+
+    bool IsSampled() const;
+    bool IsDebug() const;
+
+    TSpanContext GetContext() const;
+    TTraceId GetTraceId() const;
+    TSpanId GetSpanId() const;
+    TSpanId  GetParentSpanId() const;
+    TSpanId  GetFollowsFromSpanId() const;
+
+    TString GetName() const;
+
+    TInstant GetStartTime() const;
+    TDuration GetDuration() const;
+
+    using TTagList = SmallVector<std::pair<TString, TString>, 4>;
+    const TTagList& GetTags() const;
+
+    void SetName(const TString& name);
+    void SetSampled();
+    void AddTag(const TString& tagKey, const TString& tagValue);
+    void ResetStartTime();
+
+    TTraceContextPtr CreateChild(const TString& name);
+
+    void IncrementElapsedCpuTime(NProfiling::TCpuDuration delta);
+    NProfiling::TCpuDuration GetElapsedCpuTime() const;
+    void FlushElapsedTime();
+    TDuration GetElapsedTime() const;
+
+private:
+    const TSpanId ParentSpanId_ = InvalidSpanId;
+    const TSpanId FollowsFromSpanId_ = InvalidSpanId;
+
+    TSpinLock Lock_;
+    NProfiling::TCpuInstant StartTime_;
+    NProfiling::TCpuDuration Duration_;
+    TSpanContext SpanContext_;
+    TString Name_;
+    TTagList Tags_;
+    bool Finished_ = false;
+
+    std::atomic<NProfiling::TCpuDuration> ElapsedCpuTime_ = {0};
+    TTraceContextPtr ParentContext_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TTraceContext)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTraceContext* GetCurrentTraceContext();
+TTraceId GetCurrentTraceId();
+void FlushCurrentTraceContextTime();
+
+TTraceContextPtr CreateRootTraceContext(const TString& spanName);
+TTraceContextPtr CreateChildTraceContext(const TString& spanName);
+
+template <class T>
+void AddTag(const TString& tagName, const T& tagValue);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! TTraceContextGuard installs trace into the current fiber implicit trace slot.
 class TTraceContextGuard
 {
 public:
-    explicit TTraceContextGuard(const TTraceContext& context);
+    explicit TTraceContextGuard(TTraceContextPtr traceContext);
     TTraceContextGuard(TTraceContextGuard&& other);
     ~TTraceContextGuard();
-
-    const TTraceContext& GetContext() const;
 
     bool IsActive() const;
     void Release();
 
 private:
-    TTraceContext Context_;
     bool Active_;
-
+    TTraceContextPtr OldTraceContext_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TNullTraceContextGuard
 {
@@ -67,37 +141,25 @@ public:
 
 private:
     bool Active_;
-
+    TTraceContextPtr OldTraceContext_;
 };
-
-const TTraceContext& GetCurrentTraceContext();
-bool IsVerboseTracing();
-
-void PushContext(const TTraceContext& context);
-void PopContext();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTraceSpanGuard
+class TTraceContextFinishGuard
 {
 public:
-    TTraceSpanGuard(
-        const TTraceContext& parentContext,
-        const TString& serviceName,
-        const TString& spanName);
-    TTraceSpanGuard(TTraceSpanGuard&& other);
-    ~TTraceSpanGuard();
+    explicit TTraceContextFinishGuard(TTraceContextPtr traceContext);
+    ~TTraceContextFinishGuard();
 
-    bool IsActive() const;
-    const TTraceContext& GetContext() const;
-    void Release();
+    TTraceContextFinishGuard(const TTraceContextFinishGuard&) = delete;
+    TTraceContextFinishGuard(TTraceContextFinishGuard&&) = default;
+
+    TTraceContextFinishGuard& operator=(const TTraceContextFinishGuard&) = delete;
+    TTraceContextFinishGuard& operator=(TTraceContextFinishGuard&&) = default;
 
 private:
-    TString ServiceName_;
-    TString SpanName_;
-    TTraceContext Context_;
-    bool Active_;
-
+    TTraceContextPtr TraceContext_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,79 +167,20 @@ private:
 class TChildTraceContextGuard
 {
 public:
-    TChildTraceContextGuard(
-        const TString& serviceName,
-        const TString& spanName);
+    explicit TChildTraceContextGuard(const TString& spanName);
     TChildTraceContextGuard(TChildTraceContextGuard&& other) = default;
 
-    bool IsActive() const;
-    void Release();
-
-    //! Needed for TRACE_CHILD.
-    operator bool() const
-    {
-        return false;
-    }
-
 private:
-    TTraceSpanGuard SpanGuard_;
-    TTraceContextGuard ContextGuard_;
-
+    TTraceContextGuard TraceContextGuard_;
+    TTraceContextFinishGuard FinishGuard_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+// For internal use only.
 
-extern const TString ClientSendAnnotation;
-extern const TString ClientReceiveAnnotation;
-extern const TString ServerSendAnnotation;
-extern const TString ServerReceiveAnnotation;
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TraceEvent(
-    const TString& serviceName,
-    const TString& spanName,
-    const TString& annotationName);
-
-void TraceEvent(
-    const TString& annotationKey,
-    const TString& annotationValue);
-
-template <class T>
-void TraceEvent(
-    const TString& annotationKey,
-    const T& annotationValue);
-
-void TraceEvent(
-    const TTraceContext& context,
-    const TString& serviceName,
-    const TString& spanName,
-    const TString& annotationName);
-
-void TraceEvent(
-    const TTraceContext& context,
-    const TString& annotationKey,
-    const TString& annotationValue);
-
-template <class T>
-void TraceEvent(
-    const TTraceContext& context,
-    const TString& annotationKey,
-    const T& annotationValue);
-
-////////////////////////////////////////////////////////////////////////////////
-
-#define TRACE_ANNOTATION(head, ...) \
-    do { \
-        if (::NYT::NTracing::IsVerboseTracing(head)) { \
-            ::NYT::NTracing::TraceEvent(head, __VA_ARGS__); \
-        } \
-    } while (false)
-
-#define TRACE_CHILD(serviceName, spanName) \
-    if (auto TRACE_CHILD__Guard = ::NYT::NTracing::TChildTraceContextGuard(serviceName, spanName)) \
-    { Y_UNREACHABLE(); } \
-    else
+TTraceContextPtr SwitchTraceContext(TTraceContextPtr traceContext);
+void InstallTraceContext(NProfiling::TCpuInstant now, TTraceContextPtr newTraceContext);
+TTraceContextPtr UninstallTraceContext(NProfiling::TCpuInstant now);
 
 ////////////////////////////////////////////////////////////////////////////////
 

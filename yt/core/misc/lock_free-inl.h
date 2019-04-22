@@ -132,4 +132,88 @@ bool TMultipleProducerSingleConsumerLockFreeStack<T>::IsEmpty() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+struct TSingleProducerSingleConsumerQueue<T>::TNode
+{
+    std::atomic<TNode*> Next = {nullptr};
+    size_t Offset = 0;
+    T Data[BufferSize];
+};
+
+template <class T>
+TSingleProducerSingleConsumerQueue<T>::TSingleProducerSingleConsumerQueue()
+{
+    auto initialNode = new TNode();
+    Head_ = initialNode;
+    Tail_ = initialNode;
+}
+
+template <class T>
+TSingleProducerSingleConsumerQueue<T>::~TSingleProducerSingleConsumerQueue()
+{
+    auto current = Head_;
+    while (current) {
+        auto next = current->Next.load();
+        delete current;
+        current = next;
+    }
+}
+
+template <class T>
+void TSingleProducerSingleConsumerQueue<T>::Push(T&& element)
+{
+    auto count = Count_.load();
+    size_t position = count - Tail_->Offset;
+
+    if (Y_UNLIKELY(position == BufferSize)) {
+        auto oldTail = Tail_;
+        Tail_ = new TNode();
+        Tail_->Offset = count;
+        oldTail->Next.store(Tail_);
+        position = 0;
+    }
+
+    Tail_->Data[position] = std::move(element);
+    Count_ = count + 1;
+}
+
+template <class T>
+T* TSingleProducerSingleConsumerQueue<T>::Front() const
+{
+    if (Y_UNLIKELY(Offset_ >= CachedCount_)) {
+        auto count = Count_.load();
+        CachedCount_ = count;
+
+        if (Offset_ >= count) {
+            return nullptr;
+        }
+    }
+
+    while (Y_UNLIKELY(Offset_ >= Head_->Offset + BufferSize)) {
+        auto next = Head_->Next.load();
+        YCHECK(next);
+        delete Head_;
+        Head_ = next;
+    }
+
+    auto position = Offset_ - Head_->Offset;
+    return &Head_->Data[position];
+}
+
+template <class T>
+void TSingleProducerSingleConsumerQueue<T>::Pop()
+{
+    ++Offset_;
+}
+
+template <class T>
+bool TSingleProducerSingleConsumerQueue<T>::IsEmpty() const
+{
+    auto count = Count_.load();
+    Y_ASSERT(Offset_ <= count);
+    return Offset_ == count;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

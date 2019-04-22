@@ -17,6 +17,7 @@
 #include <yt/server/master/cell_master/multicell_manager.h>
 #include <yt/server/master/cell_master/serialize.h>
 #include <yt/server/master/cell_master/config.h>
+#include <yt/server/master/cell_master/config_manager.h>
 
 #include <yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/server/master/chunk_server/chunk_requisition.h>
@@ -254,12 +255,9 @@ class TSecurityManager::TImpl
     : public TMasterAutomatonPart
 {
 public:
-    TImpl(
-        TSecurityManagerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap)
+    explicit TImpl(NCellMaster::TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::SecurityManager)
-        , Config_(config)
-        , RequestTracker_(New<TRequestTracker>(config, bootstrap))
+        , RequestTracker_(New<TRequestTracker>(bootstrap))
     {
         RegisterLoader(
             "SecurityManager.Keys",
@@ -304,6 +302,9 @@ public:
 
     void Initialize()
     {
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TAccountTypeHandler>(this));
         objectManager->RegisterHandler(New<TUserTypeHandler>(this));
@@ -1213,21 +1214,23 @@ public:
         }
     }
 
-    void ValidateUserAccess(TUser* user)
+    TError CheckUserAccess(TUser* user)
     {
         if (user->GetBanned()) {
-            THROW_ERROR_EXCEPTION(
+            return TError(
                 NSecurityClient::EErrorCode::UserBanned,
                 "User %Qv is banned",
                 user->GetName());
         }
 
         if (user == GetOwnerUser()) {
-            THROW_ERROR_EXCEPTION(
+            return TError(
                 NSecurityClient::EErrorCode::AuthenticationError,
                 "Cannot authenticate as %Qv",
                 user->GetName());
         }
+
+        return {};
     }
 
 
@@ -1277,8 +1280,6 @@ private:
     friend class TUserTypeHandler;
     friend class TGroupTypeHandler;
 
-
-    const TSecurityManagerConfigPtr Config_;
 
     const TRequestTrackerPtr RequestTracker_;
 
@@ -1347,6 +1348,9 @@ private:
     // COMPAT(shakurov)
     bool RecomputeAccountResourceUsage_ = false;
     bool ValidateAccountResourceUsage_ = false;
+
+    // COMPAT(shakurov)
+    bool NeedAdjustUserReadRateLimits_ = false;
 
     static i64 GetDiskSpaceToCharge(i64 diskSpace, NErasure::ECodec erasureCodec, TReplicationPolicy policy)
     {
@@ -1604,6 +1608,16 @@ private:
         // COMPAT(savrus) COMPAT(shakurov)
         ValidateAccountResourceUsage_ = context.GetVersion() >= 700;
         RecomputeAccountResourceUsage_ = context.GetVersion() < 708;
+
+        // COMPAT(shakurov)
+        NeedAdjustUserReadRateLimits_ = context.GetVersion() < 829;
+    }
+
+    virtual void OnBeforeSnapshotLoaded() override
+    {
+        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
+
+        NeedAdjustUserReadRateLimits_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1637,6 +1651,22 @@ private:
             // Initialize statistics for this cell.
             // NB: This also provides the necessary data migration for pre-0.18 versions.
             InitializeUserStatistics(user);
+        }
+
+        // COMPAT(shakurov)
+        // Multiply user read rate limits by the number of peers to compensate
+        // for the subsequent division by the same number.
+        if (NeedAdjustUserReadRateLimits_) {
+            // The number of primary cell peers from which reading occurs.
+            // Those peers are usually the followers, except when there's only one peer.
+            const auto primaryCellReadPeerCount =
+                std::max(1, static_cast<int>(Bootstrap_->GetConfig()->PrimaryMaster->Peers.size()) - 1);
+
+            for (const auto& [userId, user] : UserMap_) {
+                auto limit = user->GetRequestRateLimit(EUserWorkloadType::Read);
+                limit *= primaryCellReadPeerCount;
+                user->SetRequestRateLimit(limit, EUserWorkloadType::Read);
+            }
         }
 
         GroupNameMap_.clear();
@@ -2051,6 +2081,7 @@ private:
     {
         TMasterAutomatonPart::OnRecoveryComplete();
 
+        OnDynamicConfigChanged();
         RequestTracker_->Start();
     }
 
@@ -2060,14 +2091,12 @@ private:
 
         AccountStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
-            BIND(&TImpl::OnAccountStatisticsGossip, MakeWeak(this)),
-            Config_->AccountStatisticsGossipPeriod);
+            BIND(&TImpl::OnAccountStatisticsGossip, MakeWeak(this)));
         AccountStatisticsGossipExecutor_->Start();
 
         UserStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
-            BIND(&TImpl::OnUserStatisticsGossip, MakeWeak(this)),
-            Config_->UserStatisticsGossipPeriod);
+            BIND(&TImpl::OnUserStatisticsGossip, MakeWeak(this)));
         UserStatisticsGossipExecutor_->Start();
     }
 
@@ -2647,6 +2676,22 @@ private:
             return name;
         }
     }
+
+
+    const TDynamicSecurityManagerConfigPtr& GetDynamicConfig()
+    {
+        return Bootstrap_->GetConfigManager()->GetConfig()->SecurityManager;
+    }
+
+    void OnDynamicConfigChanged()
+    {
+        if (AccountStatisticsGossipExecutor_) {
+            AccountStatisticsGossipExecutor_->SetPeriod(GetDynamicConfig()->AccountStatisticsGossipPeriod);
+        }
+        if (UserStatisticsGossipExecutor_) {
+            UserStatisticsGossipExecutor_->SetPeriod(GetDynamicConfig()->UserStatisticsGossipPeriod);
+        }
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Account, TAccount, AccountMap_)
@@ -2750,10 +2795,8 @@ void TSecurityManager::TGroupTypeHandler::DoZombifyObject(TGroup* group)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSecurityManager::TSecurityManager(
-    TSecurityManagerConfigPtr config,
-    NCellMaster::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(config, bootstrap))
+TSecurityManager::TSecurityManager(NCellMaster::TBootstrap* bootstrap)
+    : Impl_(New<TImpl>(bootstrap))
 { }
 
 TSecurityManager::~TSecurityManager() = default;
@@ -3015,9 +3058,9 @@ void TSecurityManager::SetUserBanned(TUser* user, bool banned)
     Impl_->SetUserBanned(user, banned);
 }
 
-void TSecurityManager::ValidateUserAccess(TUser* user)
+TError TSecurityManager::CheckUserAccess(TUser* user)
 {
-    Impl_->ValidateUserAccess(user);
+    return Impl_->CheckUserAccess(user);
 }
 
 void TSecurityManager::ChargeUser(TUser* user, const TUserWorkload& workload)

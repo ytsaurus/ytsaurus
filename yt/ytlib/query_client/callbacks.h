@@ -25,7 +25,6 @@ struct IExecutor
 {
     virtual TFuture<TQueryStatistics> Execute(
         TConstQueryPtr query,
-        const std::vector<NTabletClient::TTableMountInfoPtr>& mountInfos,
         TConstExternalCGInfoPtr externalCGInfo,
         TDataRanges dataSource,
         IUnversionedRowsetWriterPtr writer,

@@ -31,7 +31,7 @@ static_assert(
     EValueType::Uint64 < EValueType::Double,
     "Incorrect type order.");
 
-DEFINE_ENUM_WITH_UNDERLYING_TYPE(ELogicalValueType, ui32,
+DEFINE_ENUM_WITH_UNDERLYING_TYPE(ESimpleLogicalValueType, ui32,
     ((Null)        (0x02))
 
     ((Int64)       (0x03))
@@ -56,29 +56,29 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(ELogicalValueType, ui32,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline constexpr EValueType GetPhysicalType(ELogicalValueType type)
+inline constexpr EValueType GetPhysicalType(ESimpleLogicalValueType type)
 {
     switch (type) {
-        case ELogicalValueType::Null:
-        case ELogicalValueType::Int64:
-        case ELogicalValueType::Uint64:
-        case ELogicalValueType::Double:
-        case ELogicalValueType::Boolean:
-        case ELogicalValueType::String:
-        case ELogicalValueType::Any:
+        case ESimpleLogicalValueType::Null:
+        case ESimpleLogicalValueType::Int64:
+        case ESimpleLogicalValueType::Uint64:
+        case ESimpleLogicalValueType::Double:
+        case ESimpleLogicalValueType::Boolean:
+        case ESimpleLogicalValueType::String:
+        case ESimpleLogicalValueType::Any:
             return static_cast<EValueType>(type);
 
-        case ELogicalValueType::Int8:
-        case ELogicalValueType::Int16:
-        case ELogicalValueType::Int32:
+        case ESimpleLogicalValueType::Int8:
+        case ESimpleLogicalValueType::Int16:
+        case ESimpleLogicalValueType::Int32:
             return EValueType::Int64;
 
-        case ELogicalValueType::Uint8:
-        case ELogicalValueType::Uint16:
-        case ELogicalValueType::Uint32:
+        case ESimpleLogicalValueType::Uint8:
+        case ESimpleLogicalValueType::Uint16:
+        case ESimpleLogicalValueType::Uint32:
             return EValueType::Uint64;
 
-        case ELogicalValueType::Utf8:
+        case ESimpleLogicalValueType::Utf8:
             return EValueType::String;
 
         default:
@@ -86,7 +86,7 @@ inline constexpr EValueType GetPhysicalType(ELogicalValueType type)
     }
 }
 
-inline constexpr ELogicalValueType GetLogicalType(EValueType type)
+inline constexpr ESimpleLogicalValueType GetLogicalType(EValueType type)
 {
     switch (type) {
         case EValueType::Null:
@@ -96,7 +96,7 @@ inline constexpr ELogicalValueType GetLogicalType(EValueType type)
         case EValueType::Boolean:
         case EValueType::String:
         case EValueType::Any:
-            return static_cast<ELogicalValueType>(type);
+            return static_cast<ESimpleLogicalValueType>(type);
 
         default:
             Y_UNREACHABLE();

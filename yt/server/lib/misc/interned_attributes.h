@@ -41,6 +41,9 @@
     XX(ChunkReader, chunk_reader) \
     XX(ChunkReplicaCount, chunk_replica_count) \
     XX(ChunkReplicatorEnabled, chunk_replicator_enabled) \
+    XX(ChunkRefreshEnabled, chunk_refresh_enabled) \
+    XX(ChunkRequisitionUpdateEnabled, chunk_requisition_update_enabled) \
+    XX(ChunkSealerEnabled, chunk_sealer_enabled) \
     XX(ChunkRowCount, chunk_row_count) \
     XX(ChunkType, chunk_type) \
     XX(ChunkWriter, chunk_writer) \

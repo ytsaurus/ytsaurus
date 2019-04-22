@@ -3,7 +3,6 @@
 #include "private.h"
 
 #include "column_builder.h"
-#include "system_columns.h"
 #include "table_schema.h"
 
 #include <yt/ytlib/api/native/public.h>
@@ -20,13 +19,12 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(max42): This interface is redundant.
 struct ITableReader
 {
     virtual ~ITableReader() = default;
 
     virtual std::vector<TClickHouseColumn> GetColumns() const = 0;
-
-    virtual const std::vector<TClickHouseTablePtr>& GetTables() const = 0;
 
     /// Reads bunch of values and appends it to the column buffers.
     virtual bool Read(const TColumnBuilderList& columns) = 0;
@@ -37,14 +35,7 @@ using TTableReaderList = std::vector<ITableReaderPtr>;
 ////////////////////////////////////////////////////////////////////////////////
 
 ITableReaderPtr CreateTableReader(
-    std::vector<TClickHouseTablePtr> tables,
     std::vector<TClickHouseColumn> columns,
-    TSystemColumns systemColumns,
-    NTableClient::ISchemafulReaderPtr chunkReader);
-
-// Just read single table
-ITableReaderPtr CreateTableReader(
-    TClickHouseTablePtr table,
     NTableClient::ISchemafulReaderPtr chunkReader);
 
 ITableReaderPtr CreateTableReader(

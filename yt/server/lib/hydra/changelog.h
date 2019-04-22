@@ -122,6 +122,8 @@ struct IChangelogStore
     //! If the requested changelog is not found then returns |nullptr|.
     TFuture<IChangelogPtr> TryOpenChangelog(int id);
 
+    //! Aborts the locks being held by the instance; cf. #IChangelogStoreFactory::Lock.
+    virtual void Abort() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChangelogStore)

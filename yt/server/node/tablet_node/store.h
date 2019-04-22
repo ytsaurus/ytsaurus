@@ -203,8 +203,7 @@ struct ISortedStore
     virtual TError CheckRowLocks(
         TUnversionedRow row,
         TTransaction* transaction,
-        ui32 readLockMask,
-        ui32 writeLockMask) = 0;
+        NTableClient::TLockMask lockMask) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISortedStore)

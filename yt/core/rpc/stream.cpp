@@ -145,7 +145,7 @@ void TAttachmentsInputStream::Abort(const TError& error)
     DoAbort(guard, error);
 }
 
-void TAttachmentsInputStream::AbortUnlessClosed(const TError& error)
+void TAttachmentsInputStream::AbortUnlessClosed(const TError& error, bool fireAborted)
 {
     auto guard = Guard(Lock_);
 
@@ -155,10 +155,11 @@ void TAttachmentsInputStream::AbortUnlessClosed(const TError& error)
 
     DoAbort(
         guard,
-        error.IsOK() ? TError("Request is already completed") : error);
+        error.IsOK() ? TError("Request is already completed") : error,
+        fireAborted);
 }
 
-void TAttachmentsInputStream::DoAbort(TGuard<TSpinLock>& guard, const TError& error)
+void TAttachmentsInputStream::DoAbort(TGuard<TSpinLock>& guard, const TError& error, bool fireAborted)
 {
     if (!Error_.IsOK()) {
         return;
@@ -174,7 +175,9 @@ void TAttachmentsInputStream::DoAbort(TGuard<TSpinLock>& guard, const TError& er
         promise.Set(error);
     }
 
-    Aborted_.Fire();
+    if (fireAborted) {
+        Aborted_.Fire();
+    }
 }
 
 void TAttachmentsInputStream::OnTimeout()
@@ -319,7 +322,7 @@ void TAttachmentsOutputStream::Abort(const TError& error)
     DoAbort(guard, error);
 }
 
-void TAttachmentsOutputStream::AbortUnlessClosed(const TError& error)
+void TAttachmentsOutputStream::AbortUnlessClosed(const TError& error, bool fireAborted)
 {
     auto guard = Guard(Lock_);
 
@@ -329,10 +332,11 @@ void TAttachmentsOutputStream::AbortUnlessClosed(const TError& error)
 
     DoAbort(
         guard,
-        error.IsOK() ? TError("Request is already completed") : error);
+        error.IsOK() ? TError("Request is already completed") : error,
+        fireAborted);
 }
 
-void TAttachmentsOutputStream::DoAbort(TGuard<TSpinLock>& guard, const TError& error)
+void TAttachmentsOutputStream::DoAbort(TGuard<TSpinLock>& guard, const TError& error, bool fireAborted)
 {
     if (!Error_.IsOK()) {
         return;
@@ -362,7 +366,9 @@ void TAttachmentsOutputStream::DoAbort(TGuard<TSpinLock>& guard, const TError& e
         }
     }
 
-    Aborted_.Fire();
+    if (fireAborted) {
+        Aborted_.Fire();
+    }
 }
 
 void TAttachmentsOutputStream::OnTimeout()
@@ -478,11 +484,9 @@ namespace NDetail {
 
 TRpcClientInputStream::TRpcClientInputStream(
     IClientRequestPtr request,
-    TFuture<void> invokeResult,
-    TSharedRef firstReadResult)
+    TFuture<void> invokeResult)
     : Request_(std::move(request))
     , InvokeResult_(std::move(invokeResult))
-    , FirstReadResult_(std::move(firstReadResult))
 {
     YCHECK(Request_);
     Underlying_ = Request_->GetResponseAttachmentsStream();
@@ -491,10 +495,15 @@ TRpcClientInputStream::TRpcClientInputStream(
 
 TFuture<TSharedRef> TRpcClientInputStream::Read()
 {
-    if (FirstRead_.exchange(false)) {
-        return MakeFuture(std::move(FirstReadResult_));
-    }
-    return Underlying_->Read();
+    return Underlying_->Read().Apply(BIND ([=] (const TSharedRef& ref) {
+        if (ref) {
+            return MakeFuture(ref);
+        }
+
+        return InvokeResult_.Apply(BIND ([] () {
+            return TSharedRef();
+        }));
+    }));
 }
 
 TRpcClientInputStream::~TRpcClientInputStream()
@@ -505,23 +514,28 @@ TRpcClientInputStream::~TRpcClientInputStream()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void CheckWriterFeedback(
+TError CheckWriterFeedback(
     const TSharedRef& ref,
     EWriterFeedback expectedFeedback)
 {
     NProto::TWriterFeedback protoFeedback;
     if (!TryDeserializeProto(&protoFeedback, ref)) {
-        THROW_ERROR_EXCEPTION("Failed to deserialize writer feedback");
+        return TError("Failed to deserialize writer feedback");
     }
 
     EWriterFeedback actualFeedback;
-    actualFeedback = CheckedEnumCast<EWriterFeedback>(protoFeedback.feedback());
+    if (!TryEnumCast(protoFeedback.feedback(), &actualFeedback)) {
+        return TError("Invalid writer feedback value %v",
+            static_cast<int>(protoFeedback.feedback()));
+    }
 
     if (actualFeedback != expectedFeedback) {
-        THROW_ERROR_EXCEPTION("Received a wrong kind of writer feedback: %v instead of %v",
+        return TError("Received a wrong kind of writer feedback: %v instead of %v",
             actualFeedback,
             expectedFeedback);
     }
+
+    return TError();
 }
 
 TFuture<void> ExpectWriterFeedback(
@@ -530,7 +544,7 @@ TFuture<void> ExpectWriterFeedback(
 {
     YCHECK(input);
     return input->Read().Apply(BIND([=] (const TSharedRef& ref) {
-        CheckWriterFeedback(ref, expectedFeedback);
+        return MakeFuture(CheckWriterFeedback(ref, expectedFeedback));
     }));
 }
 
@@ -551,6 +565,7 @@ TRpcClientOutputStream::TRpcClientOutputStream(
     bool feedbackEnabled)
     : Request_(std::move(request))
     , InvokeResult_(std::move(invokeResult))
+    , CloseResult_(NewPromise<void>())
     , FeedbackEnabled_(feedbackEnabled)
 {
     YCHECK(Request_);
@@ -594,8 +609,10 @@ TFuture<void> TRpcClientOutputStream::Write(const TSharedRef& data)
 
 TFuture<void> TRpcClientOutputStream::Close()
 {
-    Underlying_->Close();
-    return InvokeResult_;
+    CloseResult_.TrySetFrom(Underlying_->Close());
+    return CloseResult_.ToFuture().Apply(BIND([=] () {
+        return InvokeResult_;
+    }));
 }
 
 void TRpcClientOutputStream::AbortOnError(const TError& error)
@@ -642,16 +659,12 @@ void TRpcClientOutputStream::OnFeedback(const TErrorOr<TSharedRef>& refOrError)
 
             if (ConfirmationQueue_.empty()) {
                 guard.Release();
-                Underlying_->Close();
+                CloseResult_.TrySetFrom(Underlying_->Close());
                 return;
             }
             error = TError("Expected a positive writer feedback, received a null ref");
         } else {
-            try {
-                CheckWriterFeedback(ref, EWriterFeedback::Success);
-            } catch (const TErrorException& ex) {
-                error = ex.Error();
-            }
+            error = CheckWriterFeedback(ref, EWriterFeedback::Success);
         }
     }
 
@@ -701,9 +714,18 @@ void HandleInputStreamingRequest(
     const IServiceContextPtr& context,
     const TCallback<TFuture<TSharedRef>()>& blockGenerator)
 {
+    auto inputStream = context->GetRequestAttachmentsStream();
+    YCHECK(inputStream);
+    WaitFor(ExpectEndOfStream(inputStream))
+        .ThrowOnError();
+
     auto outputStream = context->GetResponseAttachmentsStream();
     YCHECK(outputStream);
-    while (auto block = WaitFor(blockGenerator()).ValueOrThrow()) {
+    auto getNextBlock = [&] () {
+        return WaitFor(blockGenerator())
+            .ValueOrThrow();
+    };
+    while (auto block = getNextBlock()) {
         WaitFor(outputStream->Write(block))
             .ThrowOnError();
     }
@@ -733,13 +755,18 @@ void HandleOutputStreamingRequest(
     auto outputStream = context->GetResponseAttachmentsStream();
     YCHECK(outputStream);
 
+    auto getNextBlock = [&] () {
+        return WaitFor(inputStream->Read())
+            .ValueOrThrow();
+    };
+
     if (feedbackEnabled) {
         auto handshakeRef = GenerateWriterFeedbackMessage(
             NDetail::EWriterFeedback::Handshake);
         WaitFor(outputStream->Write(handshakeRef))
             .ThrowOnError();
 
-        while (auto block = WaitFor(inputStream->Read()).ValueOrThrow()) {
+        while (auto block = getNextBlock()) {
             WaitFor(blockHandler(block))
                 .ThrowOnError();
 
@@ -749,11 +776,12 @@ void HandleOutputStreamingRequest(
                 .ThrowOnError();
         }
 
-        outputStream->Close();
+        WaitFor(outputStream->Close())
+            .ThrowOnError();
     } else {
         WaitFor(outputStream->Close())
             .ThrowOnError();
-        while (auto block = WaitFor(inputStream->Read()).ValueOrThrow()) {
+        while (auto block = getNextBlock()) {
             WaitFor(blockHandler(block))
                 .ThrowOnError();
         }

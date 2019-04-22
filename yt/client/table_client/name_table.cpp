@@ -88,6 +88,17 @@ TStringBuf TNameTable::GetName(int id) const
     return IdToName_[id];
 }
 
+TStringBuf TNameTable::GetNameOrThrow(int id) const
+{
+    TGuard<TSpinLock> guard(SpinLock_);
+    if (id < 0 || id >= IdToName_.size()) {
+        THROW_ERROR_EXCEPTION("Invalid column id %v: expected id in range [0,%v]",
+            id,
+            IdToName_.size() - 1);
+    }
+    return IdToName_[id];
+}
+
 int TNameTable::RegisterName(TStringBuf name)
 {
     TGuard<TSpinLock> guard(SpinLock_);

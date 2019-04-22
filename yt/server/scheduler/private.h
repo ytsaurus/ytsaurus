@@ -31,9 +31,9 @@ class TJobMetrics;
 
 using TOperationElementByIdMap = THashMap<TOperationId, TOperationElement*>;
 
-using TJobCounter = THashMap<std::tuple<EJobType, EJobState>, int>;
-using TAbortedJobCounter = THashMap<std::tuple<EJobType, EJobState, EAbortReason>, int>;
-using TCompletedJobCounter = THashMap<std::tuple<EJobType, EJobState, EInterruptReason>, int>;
+using TJobCounter = THashMap<std::tuple<EJobType, EJobState>, i64>;
+using TAbortedJobCounter = THashMap<std::tuple<EJobType, EJobState, EAbortReason>, i64>;
+using TCompletedJobCounter = THashMap<std::tuple<EJobType, EJobState, EInterruptReason>, i64>;
 
 DEFINE_ENUM(ESchedulableStatus,
     (Normal)

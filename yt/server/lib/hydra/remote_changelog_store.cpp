@@ -59,16 +59,16 @@ public:
         ITransactionPtr prerequisiteTransaction,
         TVersion reachableVersion,
         const NProfiling::TTagIdList& profilerTags)
-        : Config_(config)
+        : Config_(std::move(config))
         , Options_(options)
         , Path_(remotePath)
         , Client_(client)
-        , PrerequisiteTransaction_(prerequisiteTransaction)
+        , PrerequisiteTransaction_(std::move(prerequisiteTransaction))
         , ReachableVersion_(reachableVersion)
         , ProfilerTags_(profilerTags)
-    {
-        Logger.AddTag("Path: %v", Path_);
-    }
+        , Logger(NLogging::TLogger(HydraLogger)
+            .AddTag("Path: %v", Path_))
+    { }
 
     virtual TVersion GetReachableVersion() const override
     {
@@ -89,6 +89,13 @@ public:
             .Run(id);
     }
 
+    virtual void Abort() override
+    {
+        if (PrerequisiteTransaction_) {
+            PrerequisiteTransaction_->Abort();
+        }
+    }
+
 private:
     const TRemoteChangelogStoreConfigPtr Config_;
     const TRemoteChangelogStoreOptionsPtr Options_;
@@ -98,7 +105,7 @@ private:
     const TVersion ReachableVersion_;
     const NProfiling::TTagIdList ProfilerTags_;
 
-    NLogging::TLogger Logger = HydraLogger;
+    const NLogging::TLogger Logger;
 
 
     IChangelogPtr DoCreateChangelog(int id, const TChangelogMeta& meta)

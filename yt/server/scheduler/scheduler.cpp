@@ -167,11 +167,7 @@ public:
         , InitialConfig_(Config_)
         , Bootstrap_(bootstrap)
         , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
-        , TotalResourceLimitsProfiler_(SchedulerProfiler.AppendPath("/total_resource_limits"))
-        , TotalResourceUsageProfiler_(SchedulerProfiler.AppendPath("/total_resource_usage"))
-        , TotalCompletedJobTimeCounter_("/total_completed_job_time")
-        , TotalFailedJobTimeCounter_("/total_failed_job_time")
-        , TotalAbortedJobTimeCounter_("/total_aborted_job_time")
+        , OrchidWorkerPool_(New<TThreadPool>(Config_->OrchidWorkerThreadCount, "OrchidWorker"))
     {
         YCHECK(config);
         YCHECK(bootstrap);
@@ -341,7 +337,7 @@ public:
         auto staticOrchidProducer = BIND(&TImpl::BuildStaticOrchid, MakeStrong(this));
         auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer)
             ->Via(GetControlInvoker(EControlQueue::Orchid))
-            ->Cached(Config_->StaticOrchidCacheUpdatePeriod, OrchidActionQueue_->GetInvoker());
+            ->Cached(Config_->StaticOrchidCacheUpdatePeriod, OrchidWorkerPool_->GetInvoker());
         StaticOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(staticOrchidService.Get()));
         YCHECK(StaticOrchidService_);
 
@@ -1127,6 +1123,11 @@ public:
         return Bootstrap_->GetControlInvoker(queue);
     }
 
+    virtual IInvokerPtr GetProfilingInvoker() const override
+    {
+        return ProfilingActionQueue_->GetInvoker();
+    }
+
     virtual IYsonConsumer* GetEventLogConsumer() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1258,7 +1259,8 @@ private:
 
     TOperationsCleanerPtr OperationsCleaner_;
 
-    const TActionQueuePtr OrchidActionQueue_ = New<TActionQueue>("OrchidWorker");
+    const TThreadPoolPtr OrchidWorkerPool_;
+    const TActionQueuePtr ProfilingActionQueue_ = New<TActionQueue>("ProfilingWorker");
 
     ISchedulerStrategyPtr Strategy_;
 
@@ -1280,12 +1282,12 @@ private:
 
     TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>> CachedExecNodeMemoryDistributionByTags_;
 
-    TProfiler TotalResourceLimitsProfiler_;
-    TProfiler TotalResourceUsageProfiler_;
+    TProfiler TotalResourceLimitsProfiler_{SchedulerProfiler.AppendPath("/total_resource_limits")};
+    TProfiler TotalResourceUsageProfiler_{SchedulerProfiler.AppendPath("/total_resource_usage")};
 
-    TMonotonicCounter TotalCompletedJobTimeCounter_;
-    TMonotonicCounter TotalFailedJobTimeCounter_;
-    TMonotonicCounter TotalAbortedJobTimeCounter_;
+    TMonotonicCounter TotalCompletedJobTimeCounter_{"/total_completed_job_time"};
+    TMonotonicCounter TotalFailedJobTimeCounter_{"/total_failed_job_time"};
+    TMonotonicCounter TotalAbortedJobTimeCounter_{"/total_aborted_job_time"};
 
     TEnumIndexedVector<TTagId, EJobState> JobStateToTag_;
     TEnumIndexedVector<TTagId, EJobType> JobTypeToTag_;
@@ -1713,7 +1715,6 @@ private:
             .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation))
             .Item("start_time").Value(operation->GetStartTime())
             .Item("finish_time").Value(operation->GetFinishTime())
-            .Item("controller_time_statistics").Value(operation->ControllerTimeStatistics())
             .Item("error").Value(error)
             .DoIf(progress.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("progress").Value(progress);
@@ -2195,11 +2196,9 @@ private:
             const auto& controller = operation->GetController();
 
             {
-                TWallTimer timer;
                 auto result = WaitFor(controller->Prepare())
                     .ValueOrThrow();
 
-                operation->UpdateControllerTimeStatistics("/prepare", timer.GetElapsedTime());
                 operation->ControllerAttributes().PrepareAttributes = std::move(result.Attributes);
             }
 
@@ -2251,7 +2250,6 @@ private:
                 operation->Transactions() = std::move(result.Transactions);
                 operation->ControllerAttributes().InitializeAttributes = std::move(result.Attributes);
                 operation->BriefSpec() = BuildBriefSpec(operation);
-                operation->Transactions() = std::move(result.Transactions);
             }
 
             ValidateOperationState(operation, EOperationState::Reviving);

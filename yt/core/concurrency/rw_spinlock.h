@@ -13,18 +13,49 @@ namespace NYT::NConcurrency {
 //! Single-writer multiple-readers spin lock.
 /*!
  *  Reader-side calls are pretty cheap.
- *  If no writers are present then readers never spin.
  *  The lock is unfair.
  */
 class TReaderWriterSpinLock
 {
 public:
+    //! Acquires the reader lock.
+    /*!
+     *  Optimized for the case of read-intensive workloads.
+     *  Cheap (just one atomic increment and no spinning if no writers are present).
+     *  Don't use this call if forks are possible: forking at some
+     *  intermediate point inside #AcquireReader may leave the lock
+     *  forever stuck for the child process.
+     */
     void AcquireReader() noexcept;
+    //! Acquires the reader lock.
+    /*!
+     *  A more expensive version of #AcquireReader (includes at least
+     *  one atomic load and CAS; also may spin even if just readers are present).
+     *  In contrast to #AcquireReader, this call is safe to use in presence of forks.
+     */
+    void AcquireReaderForkFriendly() noexcept;
+    //! Releases the reader lock.
+    /*!
+     *  Cheap (just one atomic decrement).
+     */
     void ReleaseReader() noexcept;
 
+    //! Acquires the writer lock.
+    /*!
+     *  Rather cheap (just one CAS).
+     */
     void AcquireWriter() noexcept;
+    //! Releases the writer lock.
+    /*!
+     *  Cheap (just one atomic store).
+     */
     void ReleaseWriter() noexcept;
 
+    //! Returns true if the lock is taken (either by a reader of writer).
+    /*!
+     *  This is inherently racy.
+     *  Only use for debugging and diagnostic purposes.
+     */
     bool IsLocked() noexcept;
 
 private:
@@ -37,8 +68,8 @@ private:
 
 
     bool TryAcquireReader();
+    bool TryAcquireReaderForkFriendly();
     bool TryAcquireWriter();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

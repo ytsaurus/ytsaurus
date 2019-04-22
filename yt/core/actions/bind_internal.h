@@ -496,24 +496,31 @@ struct TInvoker;
 template <class TTypedBindState, class R, class... TRunArgs>
 struct TInvoker<TTypedBindState, R, NMpl::TTypesPack<>, NMpl::TTypesPack<TRunArgs...>, NMpl::TSequence<>>
 {
-    typedef R(TUnboundSignature)(TRunArgs...);
+    using TUnboundSignature = R(TRunArgs...);
 
     static R Run(TBindStateBase* stateBase, TRunArgs&&... runArgs)
     {
         auto* state = static_cast<TTypedBindState*>(stateBase);
+        if constexpr(TTypedBindState::CaptureTraceContext) {
+            NTracing::TTraceContextGuard guard(state->TraceContext);
+            return DoRun(stateBase, std::forward<TRunArgs>(runArgs)...);
+        } else {
+            return DoRun(stateBase, std::forward<TRunArgs>(runArgs)...);
+        }
+    }
 
+    static R DoRun(TBindStateBase* stateBase, TRunArgs&&... runArgs)
+    {
         static_assert(!TTypedBindState::IsMethod::Value,
             "The target object for a bound method have to be bound.");
 
-        typedef TInvokerHelper<
+        auto* state = static_cast<TTypedBindState*>(stateBase);
+        return TInvokerHelper<
             TTypedBindState::IsWeakMethod::Value,
             typename TTypedBindState::TRunnable,
             R,
             void(TRunArgs...)
-        > TInvokerHelperType;
-
-        NTracing::TTraceContextGuard guard(state->TraceContext);
-        return TInvokerHelperType::Run(
+        >::Run(
             state->Runnable,
             std::forward<TRunArgs>(runArgs)...);
     }
@@ -522,24 +529,31 @@ struct TInvoker<TTypedBindState, R, NMpl::TTypesPack<>, NMpl::TTypesPack<TRunArg
 template <class TTypedBindState, class R, class BA0, class... TBoundArgs, class... TRunArgs, unsigned... BoundIndexes>
 struct TInvoker<TTypedBindState, R, NMpl::TTypesPack<BA0, TBoundArgs...>, NMpl::TTypesPack<TRunArgs...>, NMpl::TSequence<0, BoundIndexes...>>
 {
-    typedef R(TUnboundSignature)(TRunArgs...);
+    using TUnboundSignature = R(TRunArgs...);
 
     static R Run(TBindStateBase* stateBase, TRunArgs&&... runArgs)
     {
         auto* state = static_cast<TTypedBindState*>(stateBase);
+        if constexpr(TTypedBindState::CaptureTraceContext) {
+            NTracing::TTraceContextGuard guard(state->TraceContext);
+            return DoRun(stateBase, std::forward<TRunArgs>(runArgs)...);
+        } else {
+            return DoRun(stateBase, std::forward<TRunArgs>(runArgs)...);
+        }
+    }
 
-        typedef TInvokerHelper<
+    static R DoRun(TBindStateBase* stateBase, TRunArgs&&... runArgs)
+    {
+        auto* state = static_cast<TTypedBindState*>(stateBase);
+
+        using TBoundUnwrapTraits0 = TUnwrapTraits<typename std::tuple_element<0, typename TTypedBindState::TTuple>::type>;
+        using TBoundArg0 = typename TBoundUnwrapTraits0::TType;
+        return TInvokerHelper<
             TTypedBindState::IsWeakMethod::Value,
             typename TTypedBindState::TRunnable,
             R,
             void(BA0, TBoundArgs..., TRunArgs...)
-        > TInvokerHelperType;
-
-        typedef TUnwrapTraits<typename std::tuple_element<0, typename TTypedBindState::TTuple>::type> TBoundUnwrapTraits0;
-        typedef typename TBoundUnwrapTraits0::TType TBoundArg0;
-
-        NTracing::TTraceContextGuard guard(state->TraceContext);
-        return TInvokerHelperType::Run(
+        >::Run(
             state->Runnable,
             TMaybeCopyHelper<BA0>::Do(
                 TMaybeLockHelper<TTypedBindState::IsMethod::Value, TBoundArg0>(
@@ -566,7 +580,12 @@ struct TInvoker<TTypedBindState, R, NMpl::TTypesPack<BA0, TBoundArgs...>, NMpl::
 // (ab)using a function type.
 //
 
-template <class TRunnable, class TSignature, class TBoundArgs>
+template <
+    bool CaptureTraceContext,
+    class TRunnable,
+    class TSignature,
+    class TBoundArgs
+>
 struct TBindState;
 
 template <bool IsMethod, class... S>
@@ -579,21 +598,53 @@ struct TBindStateIsWeakMethodHelper<IsMethod, S0, S...>
     : public TIsWeakMethodHelper<IsMethod, S0>
 { };
 
-template <class TRunnable_, class R, class... TArgs, class... S>
-struct TBindState<TRunnable_, R(TArgs...), void(S...)>
-    : public TBindStateBase
+
+template <bool CaptureTraceContext>
+struct TBindStateTraceContextMixin
+{ };
+
+template <>
+struct TBindStateTraceContextMixin<true>
 {
-    typedef TRunnable_ TRunnable;
+    TBindStateTraceContextMixin()
+        : TraceContext(NTracing::GetCurrentTraceContext())
+    { }
 
-    typedef TIsMethodHelper<TRunnable> IsMethod;
-    typedef TBindStateIsWeakMethodHelper<IsMethod::Value, S...> IsWeakMethod;
+    NTracing::TTraceContextPtr TraceContext;
+};
 
-    typedef NMpl::TSplitVariadic<sizeof...(S), NMpl::TTypesPack<>, NMpl::TTypesPack<TArgs...>> TSplitVariadicType;
-    typedef typename TSplitVariadicType::THead TBoundArgsPack;
-    typedef typename TSplitVariadicType::TTail TRunArgsPack;
+template <>
+struct TBindStateTraceContextMixin<false>
+{ };
 
-    typedef TInvoker<TBindState, R, TBoundArgsPack, TRunArgsPack, typename NMpl::TGenerateSequence<TBoundArgsPack::Size>::TType> TInvokerType;
-    typedef typename TInvokerType::TUnboundSignature TUnboundSignature;
+template <
+    bool CaptureTraceContext_,
+    class TRunnable_,
+    class R,
+    class... TArgs,
+    class... S
+>
+struct TBindState<
+    CaptureTraceContext_,
+    TRunnable_,
+    R(TArgs...),
+    void(S...)
+>
+    : public TBindStateBase
+    , public TBindStateTraceContextMixin<CaptureTraceContext_>
+{
+    static constexpr bool CaptureTraceContext = CaptureTraceContext_;
+    using TRunnable = TRunnable_ ;
+
+    using IsMethod = TIsMethodHelper<TRunnable>;
+    using IsWeakMethod = TBindStateIsWeakMethodHelper<IsMethod::Value, S...>;
+
+    using TSplitVariadicType = NMpl::TSplitVariadic<sizeof...(S), NMpl::TTypesPack<>, NMpl::TTypesPack<TArgs...>>;
+    using TBoundArgsPack = typename TSplitVariadicType::THead;
+    using TRunArgsPack = typename TSplitVariadicType::TTail;
+
+    using TInvokerType = TInvoker<TBindState, R, TBoundArgsPack, TRunArgsPack, typename NMpl::TGenerateSequence<TBoundArgsPack::Size>::TType>;
+    using TUnboundSignature = typename TInvokerType::TUnboundSignature;
 
     template <class... P>
     TBindState(
@@ -631,7 +682,7 @@ struct TBindState<TRunnable_, R(TArgs...), void(S...)>
 
     TRunnable Runnable;
 
-    typedef std::tuple<S...> TTuple;
+    using TTuple = std::tuple<S...>;
     TTuple State;
 };
 

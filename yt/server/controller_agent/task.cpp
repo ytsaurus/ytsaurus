@@ -372,7 +372,7 @@ void TTask::ScheduleJob(
         joblet->JobId,
         jobType,
         neededResources.ToJobResources(),
-        TaskHost_->IsJobInterruptible());
+        IsJobInterruptible());
 
     joblet->Restarted = restarted;
     joblet->JobType = jobType;
@@ -439,6 +439,11 @@ void TTask::ScheduleJob(
 void TTask::RegisterSpeculativeJob(const TJobletPtr& joblet)
 {
     CompetitiveJobManager_.AddSpeculativeCandidate(joblet);
+}
+
+bool TTask::IsJobInterruptible() const
+{
+    return TaskHost_->IsJobInterruptible();
 }
 
 std::optional<EAbortReason> TTask::ShouldAbortJob(const TJobletPtr& joblet)
@@ -600,14 +605,10 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
 
 void TTask::ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie)
 {
-    auto list = HasInputLocality()
-        ? GetChunkPoolOutput()->GetStripeList(joblet->OutputCookie)
-        : nullptr;
-
     releaseOutputCookie();
 
     if (HasInputLocality()) {
-        for (const auto& stripe : list->Stripes) {
+        for (const auto& stripe : joblet->InputStripeList->Stripes) {
             TaskHost_->AddTaskLocalityHint(stripe, this);
         }
     }

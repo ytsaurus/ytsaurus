@@ -37,7 +37,6 @@ using namespace ::testing;
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A unit to measure all sizes in this file.
-static constexpr i64 KB = 1024;
 static constexpr i32 Inf32 = std::numeric_limits<i32>::max();
 static constexpr i64 Inf64 = std::numeric_limits<i64>::max();
 

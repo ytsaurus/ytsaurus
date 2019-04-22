@@ -77,6 +77,12 @@ int TInputDataSlice::GetTableIndex() const
     return ChunkSlices[0]->GetInputChunk()->GetTableIndex();
 }
 
+int TInputDataSlice::GetRangeIndex() const
+{
+    YCHECK(ChunkSlices.size() > 0);
+    return ChunkSlices[0]->GetInputChunk()->GetRangeIndex();
+}
+
 TInputChunkPtr TInputDataSlice::GetSingleUnversionedChunkOrThrow() const
 {
     if (!IsTrivial()) {

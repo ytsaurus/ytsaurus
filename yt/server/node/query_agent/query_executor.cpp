@@ -303,7 +303,6 @@ public:
         TColumnEvaluatorCachePtr columnEvaluatorCache,
         TEvaluatorPtr evaluator,
         TConstQueryPtr query,
-        const std::vector<NTabletClient::TTableMountInfoPtr>& mountInfos,
         TConstExternalCGInfoPtr externalCGInfo,
         std::vector<TDataRanges> dataSources,
         IUnversionedRowsetWriterPtr writer,
@@ -315,7 +314,6 @@ public:
         , ColumnEvaluatorCache_(std::move(columnEvaluatorCache))
         , Evaluator_(std::move(evaluator))
         , Query_(std::move(query))
-        , MountInfos_(mountInfos)
         , ExternalCGInfo_(std::move(externalCGInfo))
         , DataSources_(std::move(dataSources))
         , Writer_(std::move(writer))
@@ -361,7 +359,6 @@ private:
 
     const TConstQueryPtr Query_;
 
-    const std::vector<NTabletClient::TTableMountInfoPtr> MountInfos_;
     const TConstExternalCGInfoPtr ExternalCGInfo_;
     const std::vector<TDataRanges> DataSources_;
     const IUnversionedRowsetWriterPtr Writer_;
@@ -535,7 +532,6 @@ private:
 
                         auto asyncResult = remoteExecutor->Execute(
                             subquery,
-                            MountInfos_,
                             ExternalCGInfo_,
                             std::move(dataSource),
                             pipe->GetWriter(),
@@ -579,7 +575,6 @@ private:
 
                             auto asyncResult = remoteExecutor->Execute(
                                 foreignQuery,
-                                MountInfos_,
                                 ExternalCGInfo_,
                                 std::move(dataSource),
                                 pipe->GetWriter(),
@@ -1260,7 +1255,6 @@ public:
     // IQuerySubexecutor implementation.
     virtual TFuture<TQueryStatistics> Execute(
         TConstQueryPtr query,
-        const std::vector<NTabletClient::TTableMountInfoPtr>& mountInfos,
         TConstExternalCGInfoPtr externalCGInfo,
         std::vector<TDataRanges> dataSources,
         IUnversionedRowsetWriterPtr writer,
@@ -1277,7 +1271,6 @@ public:
             ColumnEvaluatorCache_,
             Evaluator_,
             std::move(query),
-            mountInfos,
             std::move(externalCGInfo),
             std::move(dataSources),
             std::move(writer),
