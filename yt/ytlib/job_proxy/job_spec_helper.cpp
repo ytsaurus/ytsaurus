@@ -2,6 +2,10 @@
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/ytlib/chunk_client/data_source.pb.h>
+#include <yt/ytlib/chunk_client/data_source.h>
+#include <yt/ytlib/chunk_client/job_spec_extensions.h>
+
 #include <yt/ytlib/scheduler/public.h>
 
 #include <yt/ytlib/job_tracker_client/proto/job.pb.h>
@@ -18,12 +22,14 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using namespace NYTree;
-using namespace NYson;
-using namespace NScheduler;
-using namespace NScheduler::NProto;
+using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NNodeTrackerClient;
+using namespace NScheduler;
+using namespace NScheduler::NProto;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,6 +44,10 @@ public:
         JobIOConfig_ = ConvertTo<TJobIOConfigPtr>(TYsonString(schedulerJobSpecExt.io_config()));
         InputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
         InputNodeDirectory_->MergeFrom(schedulerJobSpecExt.input_node_directory());
+        auto dataSourceDirectoryExt = FindProtoExtension<TDataSourceDirectoryExt>(GetSchedulerJobSpecExt().extensions());
+        if (dataSourceDirectoryExt) {
+            DataSourceDirectory_ = FromProto<TDataSourceDirectoryPtr>(*dataSourceDirectoryExt);
+        }
     }
 
     virtual NJobTrackerClient::EJobType GetJobType() const override
@@ -60,9 +70,14 @@ public:
         return InputNodeDirectory_;
     }
 
-    virtual const NScheduler::NProto::TSchedulerJobSpecExt& GetSchedulerJobSpecExt() const override
+    virtual const TSchedulerJobSpecExt& GetSchedulerJobSpecExt() const override
     {
         return JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    }
+
+    virtual const TDataSourceDirectoryPtr& GetDataSourceDirectory() const override
+    {
+        return DataSourceDirectory_;
     }
 
     virtual int GetKeySwitchColumnCount() const override
@@ -116,6 +131,7 @@ private:
     TJobSpec JobSpec_;
     TJobIOConfigPtr JobIOConfig_;
     TNodeDirectoryPtr InputNodeDirectory_;
+    TDataSourceDirectoryPtr DataSourceDirectory_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
