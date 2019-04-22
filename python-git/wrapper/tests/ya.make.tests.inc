@@ -41,7 +41,7 @@ PEERDIR(
     ${YT_PYTHON_ROOT}/python/yt/environment/arcadia_interop
     ${YT_ROOT}/yt/python/yt_driver_bindings
     ${YT_ROOT}/yt/python/yt_driver_rpc_bindings
-    ${YT_YSON_BINDINGS_ROOT}/yt_yson_bindings
+    ${YT_ROOT}/yt/python/yt_yson_bindings
 
     contrib/python/flaky
 )
