@@ -3,17 +3,14 @@
 
 set -o pipefail
 
-export YT_PROXY=locke.yt.yandex.net
+export YT_PROXY=locke
 
-# Tokens belong to teamcity@ user
 export YT_TOKEN=${TEAMCITY_YT_TOKEN}
-# robot-yt-openstack token
 export SANDBOX_TOKEN=${TEAMCITY_SANDBOX_TOKEN}
 
 export PYTHONPATH="$(pwd)"
 
 YT="$(pwd)/yt/wrapper/bin/yt"
-
 UBUNTU_CODENAME=$(lsb_release -c -s)
 
 sandbox_request() {
