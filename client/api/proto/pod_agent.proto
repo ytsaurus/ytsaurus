@@ -422,6 +422,15 @@ message TBox {
 
     TRootfsVolume rootfs = 2;
 
+    // если указано true
+    // pod agent создает bind volume из <pod_chroot>/place/berkanavt/supervisor в <box_chroot>/place/berkanavt/supervisor
+    // На файловой системе box'а обязательно наличие директории /place/berkanavt/supervisor и следующих симлинков (без них скачивание/раздача работать не будут совсем):
+    //   /skynet => /Berkanavt/supervisor/base/active
+    //   /usr/local/bin/sky => /skynet/tools/sky
+    //   /Berkanavt => /place/berkanavt
+    // Эти директории и симлинки можно добавить с помощью небольшого слоя sbr:922226367
+    bool bind_skynet = 11;
+
     //TODO: валидация должна гарантировать, что не может быть двух вольюмов в этом списке, у которых совпадает mountPoint
     //TODO: валидация уникальности id в списке
     repeated TMountedVolume volumes = 8;
