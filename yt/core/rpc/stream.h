@@ -216,6 +216,7 @@ private:
 
     NConcurrency::IAsyncZeroCopyOutputStreamPtr Underlying_;
     TFuture<void> InvokeResult_;
+    TPromise<void> CloseResult_;
 
     NConcurrency::IAsyncZeroCopyInputStreamPtr FeedbackStream_;
     bool FeedbackEnabled_;

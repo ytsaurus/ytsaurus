@@ -565,6 +565,7 @@ TRpcClientOutputStream::TRpcClientOutputStream(
     bool feedbackEnabled)
     : Request_(std::move(request))
     , InvokeResult_(std::move(invokeResult))
+    , CloseResult_(NewPromise<void>())
     , FeedbackEnabled_(feedbackEnabled)
 {
     YCHECK(Request_);
@@ -608,8 +609,10 @@ TFuture<void> TRpcClientOutputStream::Write(const TSharedRef& data)
 
 TFuture<void> TRpcClientOutputStream::Close()
 {
-    Underlying_->Close();
-    return InvokeResult_;
+    CloseResult_.TrySetFrom(Underlying_->Close());
+    return CloseResult_.ToFuture().Apply(BIND([=] () {
+        return InvokeResult_;
+    }));
 }
 
 void TRpcClientOutputStream::AbortOnError(const TError& error)
@@ -656,7 +659,7 @@ void TRpcClientOutputStream::OnFeedback(const TErrorOr<TSharedRef>& refOrError)
 
             if (ConfirmationQueue_.empty()) {
                 guard.Release();
-                Underlying_->Close();
+                CloseResult_.TrySetFrom(Underlying_->Close());
                 return;
             }
             error = TError("Expected a positive writer feedback, received a null ref");
