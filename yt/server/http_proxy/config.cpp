@@ -1,4 +1,5 @@
 #include "config.h"
+#include "private.h"
 
 #include <yt/core/ytree/fluent.h>
 
@@ -98,6 +99,14 @@ INodePtr ConvertFromLegacyConfig(const INodePtr& legacyConfig)
 
     if (auto node = legacyConfig->AsMap()->FindChild("disable_cors_check")) {
         config->AsMap()->GetChild("api")->AsMap()->AddChild("disable_cors_check", CloneNode(node));
+    }
+
+    if (auto node = legacyConfig->AsMap()->FindChild("api")) {
+        if (auto forceTracing = node->AsMap()->FindChild("force_tracing")) {
+            config->AsMap()->GetChild("api")->AsMap()->AddChild(
+                "force_tracing",
+                CloneNode(forceTracing));
+        }
     }
 
     if (auto node = proxy->FindChild("address_resolver")) {

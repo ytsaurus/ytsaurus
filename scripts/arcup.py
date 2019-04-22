@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from __future__ import print_function
+
 import argparse
 import collections
 import contextlib
@@ -35,6 +37,7 @@ YALL_BUILD_MODES = [
     ["--target-platform=linux", "--yall-asan-build"],
 ]
 
+
 # TODO: to git-svn
 def svn_get_last_modified_revision(url):
     svn = Svn()
@@ -44,6 +47,7 @@ def svn_get_last_modified_revision(url):
     assert len(commit_lst) == 1
     return commit_lst[0].get("revision")
 
+
 def git_submodule_staged_commit(git, submodule_path):
     with changed_dir(git.work_dir):
         out = git.call("submodule", "status", "--cached", ":/" + submodule_path)
@@ -52,6 +56,7 @@ def git_submodule_staged_commit(git, submodule_path):
         raise RuntimeError("Unexpected output of git submodule status:\n{}\n".format(out))
     return m.group(2)
 
+
 def git_get_submodule_head_version(git, submodule_path):
     out = git.call("ls-tree", "HEAD", submodule_path).rstrip("\n")
     assert "\n" not in out
@@ -59,8 +64,9 @@ def git_get_submodule_head_version(git, submodule_path):
     if not m:
         raise RuntimeError("Unexpected output of git ls-tree:\n{}".format(out))
     if m.group(2) != "commit":
-        raise ValueError, "{} is not a submodule".format(submodule_path)
+        raise ValueError("{} is not a submodule".format(submodule_path))
     return m.group(3)
+
 
 def iter_arcadia_submodules(git):
     ArcadiaSubmodule = collections.namedtuple("ArcadiaSubmodule", ["path", "gitrepo", "commit"])
@@ -81,11 +87,13 @@ def iter_arcadia_submodules(git):
             commit = git_get_submodule_head_version(git, ":/" + path)
             result.append(ArcadiaSubmodule(path, url, commit))
     if not result:
-        raise RuntimeError, "No arcadia submodules found"
+        raise RuntimeError("No arcadia submodules found")
     return result
+
 
 class CheckError(Exception):
     pass
+
 
 class Command(object):
     Result = collections.namedtuple("Result", ["returncode", "stdout", "stderr"])
@@ -117,8 +125,10 @@ class Command(object):
         result = self._impl(args)
         return result.returncode == 0
 
+
 class StepIncompleteError(RuntimeError):
     pass
+
 
 class Step(object):
     def __init__(self, project_root):
@@ -160,8 +170,10 @@ class Step(object):
         assert re.match("^[-_.a-zA-Z0-9]*$", fname)
         return os.path.join(self.project_root, ".arcup", self.name + ".step")
 
+
 class ArcupPlanStep(Step):
     name = "000-arcup-plan"
+
     def __init__(self, project_root, revision=None):
         super(ArcupPlanStep, self).__init__(project_root)
         if (
@@ -174,8 +186,8 @@ class ArcupPlanStep(Step):
 
     def run_impl(self):
         result = {}
-        if self.revision is "None":
-            raise ValueError, "revision is unknown"
+        if self.revision is None:
+            raise ValueError("revision is unknown")
 
         git = Git(self.project_root)
         ensure_git_tree_clean(git)
@@ -184,7 +196,7 @@ class ArcupPlanStep(Step):
         result["revision"] = self.revision
         result["tmp-branch-name"] = "tmp-yarcup"
         result["arcadia-svn-url"] = ARC
-        now_str = date= datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
         result["submodule-branch-suffix"] = "{revision}/{date}".format(revision=self.revision, date=now_str)
 
         arcadia_submodules = result.setdefault("arcadia-submodules", [])
@@ -214,6 +226,7 @@ class ArcupPlanStep(Step):
         ]
 
         return result
+
 
 class ReplaceSvnStuffStep(Step):
     """
@@ -289,7 +302,7 @@ class ReplaceSvnStuffStep(Step):
                 if item.status == "unversioned":
                     continue
                 elif item.status != "normal":
-                    raise RuntimeError, "Path {0} has unexpected svn status {1}".format(item.path, item.status)
+                    raise RuntimeError("Path {0} has unexpected svn status {1}".format(item.path, item.status))
 
                 # git can't deal with directories so we just skip them
                 if not os.path.isfile(item.path):
@@ -343,24 +356,28 @@ class ReplaceSvnStuffStep(Step):
 
             if files_by_submodule:
                 unknown_submodules = "".join("  - {}\n".format(s) for s in sorted(files_by_submodule.keys()))
-                raise ArcupError("Svn delivered unknown directory. New submodule have to be created for them.\n"
-                                 "List of unknown directories:\n{unknown_submodules}\n"
-                                 "What should you do:\n"
-                                 "1. Abort current update\n"
-                                 "  $ {argv0} abort\n"
-                                 "2. For each directory listed above create a git repo at\n"
-                                 "  github.yandex-team.ru:yt/arcadia-snapshot-<directory>\n"
-                                 "3. Add newly created directory as submodule:\n"
-                                 "  $ git submodule add git@github.yandex-team.ru:yt/arcadia-snapshot-<directory> <directory>\n"
-                                 "4. Retry update.\n"
-                                 .format(
-                                     unknown_submodules=unknown_submodules,
-                                     argv0=ARGV0))
+                raise ArcupError(
+                    "Svn delivered unknown directory. New submodule have to be created for them.\n"
+                    "List of unknown directories:\n{unknown_submodules}\n"
+                    "What should you do:\n"
+                    "1. Abort current update\n"
+                    "  $ {argv0} abort\n"
+                    "2. For each directory listed above create a git repo at\n"
+                    "  github.yandex-team.ru:yt/arcadia-snapshot-<directory>\n"
+                    "3. Add newly created directory as submodule:\n"
+                    "  $ git submodule add git@github.yandex-team.ru:yt/arcadia-snapshot-<directory> <directory>\n"
+                    "4. Retry update.\n"
+                    .format(
+                        unknown_submodules=unknown_submodules,
+                        argv0=ARGV0
+                    )
+                )
 
             force_remove(".svn")
             force_remove(tmp_ya_cache)
 
             return result
+
 
 class RebaseArcadiaSubmoduleStep(Step):
     def __init__(self, project_root, submodule_path):
@@ -391,7 +408,7 @@ class RebaseArcadiaSubmoduleStep(Step):
                 self.revision_before_arcup = item["commit"]
                 break
         else:
-            raise RuntimeError, "Submodule {} is not found".format(self.submodule_path)
+            raise RuntimeError("Submodule {} is not found".format(self.submodule_path))
 
         #
         # Check if current submodule is already added to stage
@@ -403,12 +420,18 @@ class RebaseArcadiaSubmoduleStep(Step):
             }
             return result
         if expect_added:
-            raise RuntimeError, "Expectation failure"
+            raise RuntimeError("Expectation failure")
 
         #
         # Find out range of commit that we need to reapply
         git = Git(self.submodule_full_path())
-        log_str = git.call("log", "--grep=^arcadia-snapshot:[r0-9]*$", "-z", "--format=format:%H", self.revision_before_arcup)
+        log_str = git.call(
+            "log",
+            "--grep=^arcadia-snapshot:[r0-9]*$",
+            "-z",
+            "--format=format:%H",
+            self.revision_before_arcup,
+        )
         arcadia_snapshot_commit = None
         if log_str:
             arcadia_snapshot_commit = log_str.split("\000", 1)[0]
@@ -431,7 +454,7 @@ class RebaseArcadiaSubmoduleStep(Step):
                 msg = "`git rebase' failed with error:\n" + str(e)
                 try:
                     git.call("rebase", "--abort")
-                except CheckkError as e:
+                except CheckError as e:
                     msg = "`git rebase --abort' also failed:\n" + str(e)
                 self.raise_cannot_rebase(msg, rebase_args=rebase_args)
 
@@ -477,6 +500,7 @@ class RebaseArcadiaSubmoduleStep(Step):
 
         raise ArcupError(msg)
 
+
 class RebaseAllArcadiaSubmodulesStep(Step):
     """
     Result:
@@ -505,6 +529,7 @@ class RebaseAllArcadiaSubmodulesStep(Step):
                 "rebased-commit": cur_result["rebased-commit"],
             }
         return result
+
 
 class PushSubmoduleStep(Step):
     """
@@ -536,6 +561,7 @@ class PushSubmoduleStep(Step):
         submodule_git.call("push", "origin", final_branch)
         return {}
 
+
 class PushAllSubmodulesStep(Step):
     """
     Result:
@@ -552,6 +578,7 @@ class PushAllSubmodulesStep(Step):
         for submodule in rebase_result["rebased-submodules"]:
             PushSubmoduleStep(self.project_root, submodule).run()
         return {}
+
 
 class CommitUpdatesStep(Step):
     """
@@ -571,6 +598,7 @@ class CommitUpdatesStep(Step):
         commit_message = "Updated arcadia dependencies to r{}".format(revision)
         git.call("commit", "--message", commit_message)
         return {}
+
 
 class Git(Command):
     def __init__(self, repo=None, git_dir=None, work_dir=None):
@@ -624,11 +652,14 @@ class Svn(Command):
         call_args.extend(args)
         return super(Svn, self)._impl(call_args, **kwargs)
 
+
 class ArcupError(RuntimeError):
     pass
 
+
 class ArcupTodoError(ArcupError):
     pass
+
 
 def ensure_git_tree_clean(git):
     # git.call("update-index", "--refresh", "-q")
@@ -636,6 +667,7 @@ def ensure_git_tree_clean(git):
         raise ArcupError("git repository has unstaged changes")
     # TODO(ermolovd) actually git diff-index exit code might be > 1 when git error occures
     # we should check it
+
 
 def svn_status(path):
     SvnStatusEntry = collections.namedtuple("SvnStatusEntry", ["path", "status"])
@@ -646,6 +678,7 @@ def svn_status(path):
         wc_status, = item.findall("wc-status")
         yield SvnStatusEntry(path, wc_status.get("item"))
 
+
 @contextlib.contextmanager
 def changed_dir(path):
     oldpath = os.getcwd()
@@ -655,6 +688,7 @@ def changed_dir(path):
     finally:
         os.chdir(oldpath)
 
+
 def force_remove(path):
     if not os.path.exists(path):
         return
@@ -662,6 +696,7 @@ def force_remove(path):
         shutil.rmtree(path)
     else:
         os.remove(path)
+
 
 def do_continue():
     plan = ArcupPlanStep(PROJECT_PATH).load_result()
@@ -674,11 +709,13 @@ def do_continue():
 
     ReplaceSvnStuffStep(PROJECT_PATH).run()
     RebaseAllArcadiaSubmodulesStep(PROJECT_PATH).run()
-    print >>sys.stderr, (
+    print(
         "All dependencies are checkouted.\n"
         "Now you can use:\n"
         " $ {argv0} complete\n"
-        "to push arcadia-dependency submodules and commit changes to main git repo.\n".format(argv0=ARGV0))
+        "to push arcadia-dependency submodules and commit changes to main git repo.\n".format(argv0=ARGV0),
+        file=sys.stderr
+    )
 
 
 def do_complete():
@@ -706,6 +743,7 @@ def do_complete():
             "Everything is probably ok, though cleanup should be completed manualy.\n"
         )
 
+
 def cleanup_svn_working_copy(repo_path):
     repo_path = os.path.realpath(repo_path)
     status = list(svn_status(repo_path))
@@ -729,6 +767,7 @@ def cleanup_svn_working_copy(repo_path):
         else:
             os.remove(item.path)
 
+
 def do_cleanup(clean_working_copy=True):
     svn_dir = os.path.join(PROJECT_PATH, ".svn")
     if os.path.exists(svn_dir):
@@ -737,6 +776,7 @@ def do_cleanup(clean_working_copy=True):
         shutil.rmtree(svn_dir)
     if os.path.exists(ARCUP_WORKING_PATH):
         shutil.rmtree(os.path.join(ARCUP_WORKING_PATH))
+
 
 def subcommand_up(args):
     if args.revision is None:
@@ -759,12 +799,11 @@ def subcommand_up(args):
 
     do_continue()
 
+
 def subcommand_abort(args):
     planstep = ArcupPlanStep(PROJECT_PATH)
     if not planstep.has_result():
         raise ArcupError("There is no arcup in progress")
-    plan = planstep.load_result()
-
     do_cleanup()
 
     git = Git(PROJECT_PATH)
@@ -774,14 +813,18 @@ def subcommand_abort(args):
         # git submodule doesn't want to work when cwd is not PROJECT_PATH
         git.call("submodule", "update", "--init", "--recursive")
 
+
 def subcommand_continue(args):
     do_continue()
+
 
 def subcommand_complete(args):
     do_complete()
 
+
 def normalized_revision(rev):
     return int(rev.strip("r"))
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -831,7 +874,7 @@ if __name__ == "__main__":
     try:
         args.subcommand(args)
     except ArcupError as e:
-        print >>sys.stderr, "ERROR:"
-        print >>sys.stderr, e
-        print >>sys.stderr, "Error occurred, exiting..."
+        print("ERROR:", file=sys.stderr)
+        print(e, file=sys.stderr)
+        print("Error occurred, exiting...", file=sys.stderr)
         exit(1)

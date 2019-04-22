@@ -705,57 +705,57 @@ TEST_W(TSchedulerTest, FiberTiming)
     CheckCurrentFiberRunDuration(TDuration::MilliSeconds(900), TDuration::MilliSeconds(1100));
 }
 
-void CheckTraceContextTime(const NTracing::TTraceContextPtr& context, TDuration lo, TDuration hi)
+void CheckTraceContextTime(const NTracing::TTraceContextPtr& traceContext, TDuration lo, TDuration hi)
 {
-    auto actual = context->GetElapsedTime();
+    auto actual = traceContext->GetElapsedTime();
     EXPECT_LE(actual, hi);
     EXPECT_GE(actual, lo);
 }
 
 TEST_W(TSchedulerTest, TraceContextZeroTiming)
 {
-    auto context = NTracing::CreateRootTraceContext();
+    auto traceContext = NTracing::CreateRootTraceContext("Test");
 
     {
-        NTracing::TTraceContextGuard guard(context);
+        NTracing::TTraceContextGuard guard(traceContext);
         Sleep(TDuration::Seconds(0));
     }
 
-    CheckTraceContextTime(context, TDuration::MilliSeconds(0), TDuration::MilliSeconds(100));
+    CheckTraceContextTime(traceContext, TDuration::MilliSeconds(0), TDuration::MilliSeconds(100));
 }
 
 TEST_W(TSchedulerTest, TraceContextThreadSleepTiming)
 {
-    auto context = NTracing::CreateRootTraceContext();
+    auto traceContext = NTracing::CreateRootTraceContext("Test");
 
     {
-        NTracing::TTraceContextGuard guard(context);
+        NTracing::TTraceContextGuard guard(traceContext);
         Sleep(TDuration::Seconds(1));
     }
 
-    CheckTraceContextTime(context, TDuration::MilliSeconds(900), TDuration::MilliSeconds(1100));
+    CheckTraceContextTime(traceContext, TDuration::MilliSeconds(900), TDuration::MilliSeconds(1100));
 }
 
 TEST_W(TSchedulerTest, TraceContextFiberSleepTiming)
 {
-    auto context = NTracing::CreateRootTraceContext();
+    auto traceContext = NTracing::CreateRootTraceContext("Test");
 
     {
-        NTracing::TTraceContextGuard guard(context);
+        NTracing::TTraceContextGuard guard(traceContext);
         WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(1)))
             .ThrowOnError();
     }
 
-    CheckTraceContextTime(context, TDuration::MilliSeconds(0), TDuration::MilliSeconds(100));
+    CheckTraceContextTime(traceContext, TDuration::MilliSeconds(0), TDuration::MilliSeconds(100));
 }
 
 TEST_W(TSchedulerTest, TraceContextTimingPropagationViaBind)
 {
-    auto context = NTracing::CreateRootTraceContext();
+    auto traceContext = NTracing::CreateRootTraceContext("Test");
     auto actionQueue = New<TActionQueue>();
 
     {
-        NTracing::TTraceContextGuard guard(context);
+        NTracing::TTraceContextGuard guard(traceContext);
         auto asyncResult = BIND([] {
             Sleep(TDuration::MilliSeconds(700));
         })
@@ -766,7 +766,7 @@ TEST_W(TSchedulerTest, TraceContextTimingPropagationViaBind)
             .ThrowOnError();
     }
 
-    CheckTraceContextTime(context, TDuration::MilliSeconds(900), TDuration::MilliSeconds(1100));
+    CheckTraceContextTime(traceContext, TDuration::MilliSeconds(900), TDuration::MilliSeconds(1100));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

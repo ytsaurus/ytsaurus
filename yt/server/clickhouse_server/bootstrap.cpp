@@ -107,29 +107,16 @@ void TBootstrap::DoRun()
 {
     YT_LOG_INFO("Starting ClickHouse server");
 
-    MonitoringManager_ = New<TMonitoringManager>();
-    MonitoringManager_->Register(
-        "/yt_alloc",
-        NYTAlloc::CreateStatisticsProducer());
-    MonitoringManager_->Register(
-        "/ref_counted",
-        CreateRefCountedTrackerStatisticsProducer());
-    MonitoringManager_->Start();
+    Config_->MonitoringServer->Port = MonitoringPort_;
+    HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
 
-    auto orchidRoot = GetEphemeralNodeFactory(true)->CreateMap();
+    NYTree::IMapNodePtr orchidRoot;
+    NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &orchidRoot);
+
     SetNodeByYPath(
         orchidRoot,
         "/config",
         ConfigNode_);
-    SetNodeByYPath(
-        orchidRoot,
-        "/profiling",
-        CreateVirtualNode(TProfileManager::Get()->GetService()));
-    SetNodeByYPath(
-        orchidRoot,
-        "/monitoring",
-        CreateVirtualNode(MonitoringManager_->GetService()));
-
     SetBuildAttributes(orchidRoot, "clickhouse_server");
 
     // TODO(max42): make configurable.
@@ -155,13 +142,6 @@ void TBootstrap::DoRun()
         GetControlInvoker()));
 
     RpcServer_->Configure(Config_->RpcServer);
-
-    Config_->MonitoringServer->Port = MonitoringPort_;
-    HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
-
-    HttpServer_->AddHandler(
-        "/orchid/",
-        GetOrchidYPathHttpHandler(orchidRoot));
 
     NApi::NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;

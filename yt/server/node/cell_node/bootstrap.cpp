@@ -269,13 +269,7 @@ void TBootstrap::DoRun()
     skynetHttpConfig->BindRetryBackoff = Config->BusServer->BindRetryBackoff;
     SkynetHttpServer = NHttp::CreateServer(skynetHttpConfig);
 
-    MonitoringManager_ = New<TMonitoringManager>();
-    MonitoringManager_->Register(
-        "/yt_alloc",
-        NYTAlloc::CreateStatisticsProducer());
-    MonitoringManager_->Register(
-        "/ref_counted",
-        CreateRefCountedTrackerStatisticsProducer());
+    NMonitoring::Initialize(HttpServer, &MonitoringManager_, &OrchidRoot);
 
     auto createBatchingChunkService = [&] (const auto& config) {
         RpcServer->RegisterService(CreateBatchingChunkService(
@@ -583,16 +577,6 @@ void TBootstrap::DoRun()
         MasterCacheServices.push_back(initMasterCacheSerivce(masterConfig));
     }
 
-    OrchidRoot = GetEphemeralNodeFactory(true)->CreateMap();
-
-    SetNodeByYPath(
-        OrchidRoot,
-        "/monitoring",
-        CreateVirtualNode(MonitoringManager_->GetService()));
-    SetNodeByYPath(
-        OrchidRoot,
-        "/profiling",
-        CreateVirtualNode(TProfileManager::Get()->GetService()));
     SetNodeByYPath(
         OrchidRoot,
         "/config",
@@ -618,10 +602,6 @@ void TBootstrap::DoRun()
             ->Via(GetControlInvoker())));
     SetBuildAttributes(OrchidRoot, "node");
 
-    HttpServer->AddHandler(
-        "/orchid/",
-        NMonitoring::GetOrchidYPathHttpHandler(OrchidRoot));
-
     SkynetHttpServer->AddHandler(
         "/read_skynet_part",
         MakeSkynetHttpHandler(this));
@@ -643,7 +623,6 @@ void TBootstrap::DoRun()
     ChunkCache->Initialize();
     ExecSlotManager->Initialize();
     JobController->Initialize();
-    MonitoringManager_->Start();
     PeerBlockUpdater->Start();
     PeerBlockDistributor->Start();
     MasterConnector->Start();

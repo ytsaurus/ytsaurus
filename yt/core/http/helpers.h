@@ -37,10 +37,8 @@ NTracing::TTraceId GetTraceId(const IRequestPtr& req);
 void SetTraceId(const IResponseWriterPtr& rsp, NTracing::TTraceId traceId);
 
 NTracing::TSpanId GetSpanId(const IRequestPtr& req);
-void SetSpanId(const IResponseWriterPtr &rsp, NTracing::TSpanId traceId);
 
-NTracing::TSpanId GetParentSpanId(const IRequestPtr& req);
-void SetParentSpanId(const IResponseWriterPtr &rsp, NTracing::TSpanId traceId);
+NTracing::TTraceContextPtr GetOrCreateTraceContext(const IRequestPtr& req);
 
 ////////////////////////////////////////////////////////////////////////////////
 

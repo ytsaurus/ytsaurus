@@ -1349,6 +1349,9 @@ private:
     bool RecomputeAccountResourceUsage_ = false;
     bool ValidateAccountResourceUsage_ = false;
 
+    // COMPAT(shakurov)
+    bool NeedAdjustUserReadRateLimits_ = false;
+
     static i64 GetDiskSpaceToCharge(i64 diskSpace, NErasure::ECodec erasureCodec, TReplicationPolicy policy)
     {
         auto isErasure = erasureCodec != NErasure::ECodec::None;
@@ -1605,6 +1608,16 @@ private:
         // COMPAT(savrus) COMPAT(shakurov)
         ValidateAccountResourceUsage_ = context.GetVersion() >= 700;
         RecomputeAccountResourceUsage_ = context.GetVersion() < 708;
+
+        // COMPAT(shakurov)
+        NeedAdjustUserReadRateLimits_ = context.GetVersion() < 829;
+    }
+
+    virtual void OnBeforeSnapshotLoaded() override
+    {
+        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
+
+        NeedAdjustUserReadRateLimits_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1638,6 +1651,22 @@ private:
             // Initialize statistics for this cell.
             // NB: This also provides the necessary data migration for pre-0.18 versions.
             InitializeUserStatistics(user);
+        }
+
+        // COMPAT(shakurov)
+        // Multiply user read rate limits by the number of peers to compensate
+        // for the subsequent division by the same number.
+        if (NeedAdjustUserReadRateLimits_) {
+            // The number of primary cell peers from which reading occurs.
+            // Those peers are usually the followers, except when there's only one peer.
+            const auto primaryCellReadPeerCount =
+                std::max(1, static_cast<int>(Bootstrap_->GetConfig()->PrimaryMaster->Peers.size()) - 1);
+
+            for (const auto& [userId, user] : UserMap_) {
+                auto limit = user->GetRequestRateLimit(EUserWorkloadType::Read);
+                limit *= primaryCellReadPeerCount;
+                user->SetRequestRateLimit(limit, EUserWorkloadType::Read);
+            }
         }
 
         GroupNameMap_.clear();

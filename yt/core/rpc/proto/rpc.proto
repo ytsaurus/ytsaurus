@@ -65,9 +65,15 @@ message TTracingExt
         optional TTracingExt tracing_ext = 106;
     }
 
-    optional uint64 trace_id = 1;
-    optional uint64 span_id = 2;
-    optional uint64 parent_span_id = 3;
+    optional uint64 trace_id_old = 1;
+    optional uint64 span_id_old = 2;
+    reserved 3; // parent_span_id is removed.
+
+    optional NYT.NProto.TGuid trace_id = 4;
+    optional fixed64 span_id = 5;
+
+    optional bool sampled = 6 [default = false];
+    optional bool debug = 7 [default = false];
 }
 
 message TBalancingExt

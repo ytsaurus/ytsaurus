@@ -2347,7 +2347,7 @@ public:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
 
-        if (!table->IsForeign()) {
+        if (!create && !table->IsForeign()) {
             securityManager->ValidatePermission(table, EPermission::Mount);
         }
 
