@@ -8,6 +8,7 @@
 
 #include <yt/client/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
+#include <yt/ytlib/chunk_client/data_source.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/async_stream.h>
@@ -172,9 +173,16 @@ private:
     {
         InitializeReader();
 
-        auto writer = CreateSchemalessWriterForFormat(
+        std::vector<TTableSchema> schemas;
+        auto dataSourceDirectory = JobSpecHelper_->GetDataSourceDirectory();
+        for (const auto& dataSource : dataSourceDirectory->DataSources()) {
+            schemas.emplace_back(dataSource.Schema().value_or(TTableSchema()));
+        }
+
+        auto writer = CreateStaticTableWriterForFormat(
             format,
             Reader_->GetNameTable(),
+            schemas,
             asyncOutput,
             true,
             JobSpecHelper_->GetJobIOConfig()->ControlAttributes,
@@ -196,7 +204,6 @@ private:
         }).AsyncVia(SerializedInvoker_);
     }
 
-
     TCallback<TFuture<void>()> PrepareInputActionsQuery(
         const TQuerySpec& querySpec,
         const TFormat& format,
@@ -215,10 +222,11 @@ private:
             RunQuery(
                 querySpec,
                 readerFactory,
-                [&] (TNameTablePtr nameTable) {
-                    auto schemalessWriter = CreateSchemalessWriterForFormat(
+                [&] (TNameTablePtr nameTable, const TTableSchema& schema) {
+                    auto schemalessWriter = CreateStaticTableWriterForFormat(
                         format,
                         nameTable,
+                        {schema},
                         asyncOutput,
                         true,
                         JobSpecHelper_->GetJobIOConfig()->ControlAttributes,
