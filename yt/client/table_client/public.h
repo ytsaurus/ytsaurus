@@ -222,6 +222,8 @@ DECLARE_REFCOUNTED_STRUCT(IWireProtocolRowsetWriter)
 
 struct IValueConsumer;
 
+class TComplexTypeFieldDescriptor;
+
 DECLARE_REFCOUNTED_CLASS(TLogicalType)
 DECLARE_REFCOUNTED_CLASS(TSimpleLogicalType)
 DECLARE_REFCOUNTED_CLASS(TOptionalLogicalType)

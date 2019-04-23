@@ -137,6 +137,33 @@ int TListLogicalType::GetTypeComplexity() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TComplexTypeFieldDescriptor::TComplexTypeFieldDescriptor(TString columnName, TLogicalTypePtr type)
+    : Descriptor_(std::move(columnName))
+    , Type_(std::move(type))
+{ }
+
+TComplexTypeFieldDescriptor TComplexTypeFieldDescriptor::OptionalElement() const
+{
+    return TComplexTypeFieldDescriptor(Descriptor_ + ".<optional-element>", Type_->AsOptionalTypeRef().GetElement());
+}
+
+TComplexTypeFieldDescriptor TComplexTypeFieldDescriptor::ListElement() const
+{
+    return TComplexTypeFieldDescriptor(Descriptor_ + ".<list-element>", Type_->AsListTypeRef().GetElement());
+}
+
+const TString& TComplexTypeFieldDescriptor::GetDescription() const
+{
+    return Descriptor_;
+}
+
+const TLogicalTypePtr& TComplexTypeFieldDescriptor::GetType() const
+{
+    return Type_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::pair<std::optional<ESimpleLogicalValueType>, bool> SimplifyLogicalType(const TLogicalTypePtr& logicalType)
 {
     switch (logicalType->GetMetatype()) {
