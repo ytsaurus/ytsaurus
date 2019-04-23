@@ -123,6 +123,28 @@ private:
 };
 DEFINE_REFCOUNTED_TYPE(TListLogicalType);
 
+////////////////////////////////////////////////////////////////////////////////
+
+// Class builds descriptors of a complex value field.
+// Such descriptors are useful for generating error messages when working with complex types.
+class TComplexTypeFieldDescriptor
+{
+public:
+    TComplexTypeFieldDescriptor(TString columnName, TLogicalTypePtr type);
+
+    TComplexTypeFieldDescriptor OptionalElement() const;
+    TComplexTypeFieldDescriptor ListElement() const;
+
+    const TString& GetDescription() const;
+    const TLogicalTypePtr& GetType() const;
+
+private:
+    const TString Descriptor_;
+    const TLogicalTypePtr Type_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 extern TLogicalTypePtr NullLogicalType;
 
 ////////////////////////////////////////////////////////////////////////////////
