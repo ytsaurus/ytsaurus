@@ -46,6 +46,8 @@ using namespace NYT::NNet;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const TString DnsRecordClass = "IN";
+static const TString FastboneVlanId = "fastbone";
+static const TString FastboneFqdnPrefix = "fb-";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -576,16 +578,26 @@ private:
         }
     }
 
+    static void ExtendPodFqdn(
+        const NClient::NApi::NProto::TPodSpec_TIP6AddressRequest& request,
+        TString* fqdn)
+    {
+        if (request.has_dns_prefix()) {
+            *fqdn = Format("%v.%v",
+                request.dns_prefix(),
+                *fqdn);
+        }
+        if (request.vlan_id() == FastboneVlanId) {
+            *fqdn = FastboneFqdnPrefix + *fqdn;
+        }
+    }
+
     TString BuildPersistentIP6AddressFqdn(
         TPod* pod,
         const NClient::NApi::NProto::TPodSpec_TIP6AddressRequest& request)
     {
         auto fqdn = BuildPersistentPodFqdn(pod);
-        if (request.has_dns_prefix()) {
-            fqdn = Format("%v.%v",
-                request.dns_prefix(),
-                fqdn);
-        }
+        ExtendPodFqdn(request, &fqdn);
         ValidatePodFqdn(fqdn);
         return fqdn;
     }
@@ -595,11 +607,7 @@ private:
         const NClient::NApi::NProto::TPodSpec_TIP6AddressRequest& request)
     {
         auto fqdn = BuildTransientPodFqdn(pod);
-        if (request.has_dns_prefix()) {
-            fqdn = Format("%v.%v",
-                request.dns_prefix(),
-                fqdn);
-        }
+        ExtendPodFqdn(request, &fqdn);
         ValidatePodFqdn(fqdn);
         return fqdn;
     }

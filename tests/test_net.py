@@ -167,7 +167,8 @@ class TestNet(object):
                 "ip6_address_requests": [
                     {"vlan_id": "somevlan", "network_id": "somenet", "enable_dns": False},
                     {"vlan_id": "somevlan", "network_id": "somenet", "enable_dns": True},
-                    {"vlan_id": "somevlan", "network_id": "somenet", "enable_dns": True, "dns_prefix": "abc"}
+                    {"vlan_id": "somevlan", "network_id": "somenet", "enable_dns": True, "dns_prefix": "abc"},
+                    {"vlan_id": "fastbone", "network_id": "somenet", "enable_dns": True},
                 ]
             }})
 
@@ -177,25 +178,29 @@ class TestNet(object):
                 },
                 "spec": {
                     "ip6_subnets": [
-                        {"vlan_id": "somevlan", "subnet": "1:2:3:4::/64"}
+                        {"vlan_id": "somevlan", "subnet": "1:2:3:4::/64"},
+                        {"vlan_id": "fastbone", "subnet": "1:3:3:4::/64"}
                     ]
                 }
             })
 
         yp_client.update_object("pod", pod_id,  set_updates=[{"path": "/spec/node_id", "value": node_id}])
         allocations = yp_client.get_object("pod", pod_id, selectors=["/status/ip6_address_allocations"])[0]
-        assert len(allocations) == 3
+        assert len(allocations) == 4
         assert "persistent_fqdn" not in allocations[0]
         assert "transient_fqdn" not in allocations[0]
         assert allocations[1]["persistent_fqdn"] == "{}.test.yp-c.yandex.net".format(pod_id)
         assert allocations[1]["transient_fqdn"] == "{}-1.{}.test.yp-c.yandex.net".format(node_id, pod_id)
         assert allocations[2]["persistent_fqdn"] == "abc.{}.test.yp-c.yandex.net".format(pod_id)
         assert allocations[2]["transient_fqdn"] == "abc.{}-1.{}.test.yp-c.yandex.net".format(node_id, pod_id)
+        assert allocations[3]["persistent_fqdn"] == "fb-{}.test.yp-c.yandex.net".format(pod_id)
+        assert allocations[3]["transient_fqdn"] == "fb-{}-1.{}.test.yp-c.yandex.net".format(node_id, pod_id)
 
-        assert len(yp_client.select_objects("dns_record_set", selectors=["/meta"])) == 6
+        assert len(yp_client.select_objects("dns_record_set", selectors=["/meta"])) == 9
 
         check_dns_allocation(yp_client, allocations[1]["persistent_fqdn"], allocations[1]["transient_fqdn"], allocations[1]["address"])
         check_dns_allocation(yp_client, allocations[2]["persistent_fqdn"], allocations[2]["transient_fqdn"], allocations[2]["address"])
+        check_dns_allocation(yp_client, allocations[3]["persistent_fqdn"], allocations[3]["transient_fqdn"], allocations[3]["address"])
 
         yp_client.update_object("pod", pod_id, set_updates=[{
             "path": "/spec/ip6_address_requests",
