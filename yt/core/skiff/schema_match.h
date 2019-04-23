@@ -13,23 +13,18 @@ extern const TString KeySwitchColumnName;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDenseFieldDescription
+class TFieldDescription
 {
-    TString Name;
-    NSkiff::TSkiffSchemaPtr DeoptionalizedSchema;
-    bool Required = false;
+public:
+    DEFINE_BYREF_RO_PROPERTY(TString, Name);
+    DEFINE_BYREF_RO_PROPERTY(TSkiffSchemaPtr, Schema);
 
-    TDenseFieldDescription(TString name, const NSkiff::TSkiffSchemaPtr& deoptionalizedSchema, bool isRequired);
-};
+public:
+    TFieldDescription(TString name, TSkiffSchemaPtr schema);
 
-////////////////////////////////////////////////////////////////////////////////
-
-struct TSparseFieldDescription
-{
-    TString Name;
-    NSkiff::TSkiffSchemaPtr DeoptionalizedSchema;
-
-    TSparseFieldDescription(TString name, const NSkiff::TSkiffSchemaPtr& deoptionalizedSchema);
+    bool IsRequired() const;
+    std::optional<EWireType> Simplify() const;
+    EWireType ValidatedSimplify() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,10 +32,10 @@ struct TSparseFieldDescription
 struct TSkiffTableDescription
 {
     // Dense fields of the row.
-    std::vector<TDenseFieldDescription> DenseFieldDescriptionList;
+    std::vector<TFieldDescription> DenseFieldDescriptionList;
 
     // Sparse fields of the row.
-    std::vector<TSparseFieldDescription> SparseFieldDescriptionList;
+    std::vector<TFieldDescription> SparseFieldDescriptionList;
 
     // Indexes of $key_switch/$row_index/$range_index field inside dense part of the row.
     std::optional<size_t> KeySwitchFieldIndex;
@@ -62,11 +57,11 @@ struct TSkiffTableColumnIds
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<TSkiffTableDescription> CreateTableDescriptionList(
-    const std::vector<NSkiff::TSkiffSchemaPtr>& skiffSchema,
+    const std::vector<TSkiffSchemaPtr>& skiffSchema,
     const TString& rangeIndexColumnName,
     const TString& rowIndexColumnName);
 
-std::vector<NSkiff::TSkiffSchemaPtr> ParseSkiffSchemas(
+std::vector<TSkiffSchemaPtr> ParseSkiffSchemas(
     const NYTree::IMapNodePtr& skiffSchemaRegistry,
     const NYTree::IListNodePtr& tableSkiffSchemas);
 

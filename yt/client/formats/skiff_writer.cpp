@@ -90,23 +90,21 @@ struct TSkiffEncodingInfo
         return result;
     }
 
-    static TSkiffEncodingInfo Dense(TSkiffSchemaPtr schema, bool required, ui32 fieldIndex)
+    static TSkiffEncodingInfo Dense(EWireType wireType, bool required, ui32 fieldIndex)
     {
         TSkiffEncodingInfo result;
         result.EncodingPart = ESkiffWriterColumnType::Dense;
-        result.WireType = schema->GetWireType();
-        result.SkiffType = schema;
+        result.WireType = wireType;
         result.FieldIndex = fieldIndex;
         result.Required = required;
         return result;
     }
 
-    static TSkiffEncodingInfo Sparse(TSkiffSchemaPtr schema, ui32 fieldIndex)
+    static TSkiffEncodingInfo Sparse(EWireType wireType, ui32 fieldIndex)
     {
         TSkiffEncodingInfo result;
         result.EncodingPart = ESkiffWriterColumnType::Sparse;
-        result.WireType = schema->GetWireType();
-        result.SkiffType = schema;
+        result.WireType = wireType;
         result.FieldIndex = fieldIndex;
         result.Required = true;
         return result;
@@ -195,28 +193,28 @@ public:
 
             for (size_t i = 0; i < denseFieldDescriptionList.size(); ++i) {
                 const auto& denseField = denseFieldDescriptionList[i];
-                const auto id = NameTable_->GetIdOrRegisterName(denseField.Name);
+                const auto id = NameTable_->GetIdOrRegisterName(denseField.Name());
                 ResizeToContainIndex(&knownFields, id);
                 YCHECK(knownFields[id].EncodingPart == ESkiffWriterColumnType::Unknown);
                 knownFields[id] = TSkiffEncodingInfo::Dense(
-                    denseField.DeoptionalizedSchema,
-                    denseField.Required,
+                    denseField.ValidatedSimplify(),
+                    denseField.IsRequired(),
                     i);
 
                 denseFieldWriterInfos.emplace_back(
-                    denseField.DeoptionalizedSchema->GetWireType(),
+                    denseField.ValidatedSimplify(),
                     id,
-                    denseField.Required);
+                    denseField.IsRequired());
             }
 
             const auto& sparseFieldDescriptionList = commonTableDescription.SparseFieldDescriptionList;
             for (size_t i = 0; i < sparseFieldDescriptionList.size(); ++i) {
                 const auto& sparseField = sparseFieldDescriptionList[i];
-                auto id = NameTable_->GetIdOrRegisterName(sparseField.Name);
+                auto id = NameTable_->GetIdOrRegisterName(sparseField.Name());
                 ResizeToContainIndex(&knownFields, id);
                 YCHECK(knownFields[id].EncodingPart == ESkiffWriterColumnType::Unknown);
                 knownFields[id] = TSkiffEncodingInfo::Sparse(
-                    sparseField.DeoptionalizedSchema,
+                    sparseField.ValidatedSimplify(),
                     i);
             }
 

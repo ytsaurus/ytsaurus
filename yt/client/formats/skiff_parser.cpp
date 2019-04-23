@@ -166,11 +166,11 @@ static TSkiffTableColumnIds PrepareTableDescription(
     TSkiffTableColumnIds result;
 
     for (const auto& field : commonDescription.DenseFieldDescriptionList) {
-        auto columnId = nameTable->GetIdOrRegisterName(field.Name);
+        auto columnId = nameTable->GetIdOrRegisterName(field.Name());
         result.DenseFieldColumnIds.push_back(columnId);
     }
     for (const auto& field : commonDescription.SparseFieldDescriptionList) {
-        auto columnId = nameTable->GetIdOrRegisterName(field.Name);
+        auto columnId = nameTable->GetIdOrRegisterName(field.Name());
         result.SparseFieldColumnIds.push_back(columnId);
     }
     return result;
