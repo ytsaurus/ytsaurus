@@ -1,9 +1,8 @@
 import yt.logger as logger
-from .config import get_config, get_option, get_backend_type
+from .config import get_config, get_option
 from .common import require, chunk_iter_stream, chunk_iter_string, parse_bool, set_param, get_value, get_disk_size, MB
-from .driver import _create_http_client_from_rpc
+from .driver import _create_http_client_from_rpc, get_command_list
 from .errors import YtError, YtResponseError, YtCypressTransactionLockConflict
-from .http_helpers import get_api_commands
 from .heavy_commands import make_write_request, make_read_request
 from .cypress_commands import (remove, exists, set_attribute, mkdir, find_free_subpath,
                                create, link, get, set)
@@ -423,10 +422,8 @@ def upload_file_to_cache(filename, hash=None, progress_monitor=None, client=None
     use_legacy = get_config(client)["use_legacy_file_cache"]
     if use_legacy is None:
         use_legacy = \
-            get_backend_type(client) == "native" or \
-            "put_file_to_cache" not in get_api_commands(client) or \
-            "get_file_from_cache" not in get_api_commands(client) or \
-            get_config(client)["remote_temp_files_directory"] is not None
+            "put_file_to_cache" not in get_command_list(client) or \
+            "get_file_from_cache" not in get_command_list(client)
 
     if use_legacy:
         return _upload_file_to_cache_legacy(filename, hash, client=client)
@@ -474,10 +471,8 @@ def _touch_file_in_cache(filepath, client=None):
     use_legacy = get_config(client)["use_legacy_file_cache"]
     if use_legacy is None:
         use_legacy = \
-            get_backend_type(client) == "native" or \
-            "put_file_to_cache" not in get_api_commands(client) or \
-            "get_file_from_cache" not in get_api_commands(client) or \
-            get_config(client)["remote_temp_files_directory"] is not None
+            "put_file_to_cache" not in get_command_list(client) or \
+            "get_file_from_cache" not in get_command_list(client)
 
     if use_legacy:
         try:
