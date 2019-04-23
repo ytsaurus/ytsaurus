@@ -32,6 +32,7 @@ public:
 
 class TSecurityManager
     : public NSecurityServer::IUsersManager
+    , public NSecurityServer::IResourceLimitsManager
 {
 public:
     TSecurityManager(
@@ -56,10 +57,10 @@ public:
         const TString& mediumName,
         NTabletClient::EInMemoryMode inMemoryMode);
 
-    void ValidateResourceLimits(
+    virtual void ValidateResourceLimits(
         const TString& account,
         const TString& mediumName,
-        NTabletClient::EInMemoryMode inMemoryMode);
+        NTabletClient::EInMemoryMode inMemoryMode) override;
 
 private:
     class TImpl;
