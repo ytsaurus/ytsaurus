@@ -388,13 +388,18 @@ def update_table_attributes(yt_client, table_path, pushed_row_count):
         logger.info("Attributes updated (processed_row_count: %d%s)",
                     new_processed_row_count, last_saved_ts_message)
 
-def push_to_logbroker_one_portion(yt_client, logbroker, table_path, session_count, range_row_count, max_range_count):
+def push_to_logbroker_one_portion(yt_client, logbroker, table_path, session_count, range_row_count, max_range_count, strict_check):
     pushed_row_count = 0
     with yt_client.Transaction():
         yt_client.lock(table_path, mode="snapshot")
 
         tasks, pushed_row_count = make_read_tasks(yt_client, table_path, session_count, range_row_count, max_range_count)
         if not tasks:
+            return
+
+        # To push data by strictly by fixed portions we are necessary to add this condition.
+        # More details in ticket YTADMINREQ-17212.
+        if strict_check and pushed_row_count != session_count * range_row_count * max_range_count:
             return
 
         if session_count == 1:
@@ -462,7 +467,7 @@ def acquire_yt_lock(yt_client, lock_path, queue):
         os._exit(1)
 
 
-def push_to_logbroker(yt_client, logbroker, daemon, table_path, session_count, range_row_count, max_range_count, sentry_endpoint, lock_path):
+def push_to_logbroker(yt_client, logbroker, daemon, table_path, session_count, range_row_count, max_range_count, sentry_endpoint, lock_path, strict_check):
     try:
         from raven.handlers.logging import SentryHandler
     except ImportError:
@@ -482,7 +487,7 @@ def push_to_logbroker(yt_client, logbroker, daemon, table_path, session_count, r
         lock_thread.start()
         lock_queue.get()
 
-    options = dict(yt_client=yt_client, logbroker=logbroker, table_path=table_path, session_count=session_count, range_row_count=range_row_count, max_range_count=max_range_count)
+    options = dict(yt_client=yt_client, logbroker=logbroker, table_path=table_path, session_count=session_count, range_row_count=range_row_count, max_range_count=max_range_count, strict_check=strict_check)
 
     if daemon:
         while True:
