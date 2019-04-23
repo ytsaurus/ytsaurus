@@ -178,7 +178,7 @@ BlockInputStreamPtr TStorageDistributedBase::CreateLocalStream(
     const Context& context,
     QueryProcessingStage::Enum processedStage)
 {
-    InterpreterSelectQuery interpreter(queryAst, context, Names{}, processedStage);
+    InterpreterSelectQuery interpreter(queryAst, context, SelectQueryOptions(processedStage));
     BlockInputStreamPtr stream = interpreter.execute().in;
 
     // Materialization is needed, since from remote servers the constants come materialized.
@@ -197,7 +197,7 @@ BlockInputStreamPtr TStorageDistributedBase::CreateRemoteStream(
 {
     std::string query = queryToString(queryAst);
 
-    Block header = materializeBlock(InterpreterSelectQuery(queryAst, context, Names{}, processedStage).getSampleBlock());
+    Block header = materializeBlock(InterpreterSelectQuery(queryAst, context, SelectQueryOptions(processedStage).analyze()).getSampleBlock());
 
     auto stream = std::make_shared<RemoteBlockInputStream>(
         remoteNode->GetConnection(),

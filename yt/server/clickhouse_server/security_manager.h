@@ -2,13 +2,13 @@
 
 #include "private.h"
 
-#include <Interpreters/ISecurityManager.h>
+#include <Interpreters/IUsersManager.h>
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<DB::ISecurityManager> CreateSecurityManager(
+std::unique_ptr<DB::IUsersManager> CreateSecurityManager(
     TBootstrap* bootstrap,
     TString cliqueId);
 
