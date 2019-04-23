@@ -310,7 +310,7 @@ private:
 
         auto storageHomePath = Config_->Engine->CypressRootPath;
 
-        auto securityManager = CreateSecurityManager(Bootstrap_, CliqueId_);
+        auto securityManager = CreateUsersManager(Bootstrap_, CliqueId_);
         auto dictionariesConfigRepository = CreateDictionaryConfigRepository(Config_->Engine->Dictionaries);
         auto geoDictionariesLoader = std::make_unique<GeoDictionariesLoader>();
         auto runtimeComponentsFactory = CreateRuntimeComponentsFactory(

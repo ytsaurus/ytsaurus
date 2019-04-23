@@ -8,7 +8,7 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<DB::IUsersManager> CreateSecurityManager(
+std::unique_ptr<DB::IUsersManager> CreateUsersManager(
     TBootstrap* bootstrap,
     TString cliqueId);
 
