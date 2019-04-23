@@ -1183,7 +1183,8 @@ private:
                 options.TmpfsVolumes.push_back(tmpfsVolume);
             }
 
-            if (userJobSpec.has_tmpfs_path()) {
+            // COMPAT(ignat).
+            if (options.TmpfsVolumes.empty() && userJobSpec.has_tmpfs_path()) {
                 TTmpfsVolume tmpfsVolume;
                 tmpfsVolume.Size = userJobSpec.tmpfs_size();
                 tmpfsVolume.Path = userJobSpec.tmpfs_path();
