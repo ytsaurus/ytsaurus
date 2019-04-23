@@ -67,7 +67,8 @@ def parse_push_to_logbroker(args):
                       table_path=args.table_path,
                       session_count=args.session_count,
                       range_row_count=args.range_row_count,
-                      max_range_count=args.max_range_count)
+                      max_range_count=args.max_range_count,
+                      strict_check=args.strict_check)
 
 def add_push_to_logbroker_parser(subparsers, parent_parser):
     parser = subparsers.add_parser("push-to-logbroker",
@@ -79,6 +80,7 @@ def add_push_to_logbroker_parser(subparsers, parent_parser):
                         help="Number of rows per one range", default=10000)
     parser.add_argument("--max-range-count", type=int,
                         help="Number of ranges per one task", default=10)
+    parser.add_argument("--strict-check", action="store_true")
     parser.add_argument("--logbroker-url", required=True,
                         help="Url of logbroker")
     parser.add_argument("--logbroker-port", type=int,
