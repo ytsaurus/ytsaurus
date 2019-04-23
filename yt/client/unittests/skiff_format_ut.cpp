@@ -315,13 +315,15 @@ ISchemalessFormatWriterPtr CreateSkiffWriter(
     NSkiff::TSkiffSchemaPtr skiffSchema,
     TNameTablePtr nameTable,
     IOutputStream* outputStream,
-    int keyColumnCount = 0)
+    int keyColumnCount = 0,
+    const std::vector<TTableSchema>& tableSchemaList = {})
 {
     auto controlAttributesConfig = New<TControlAttributesConfig>();
     controlAttributesConfig->EnableKeySwitch = (keyColumnCount > 0);
     return CreateWriterForSkiff(
         {skiffSchema},
         nameTable,
+        tableSchemaList,
         NConcurrency::CreateAsyncAdapter(outputStream),
         false,
         controlAttributesConfig,
@@ -330,7 +332,7 @@ ISchemalessFormatWriterPtr CreateSkiffWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSkiffWriter, TestAllWireTypes)
+void TestAllWireTypes(bool useSchema)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Int64)->SetName("int64"),
@@ -360,11 +362,26 @@ TEST(TSkiffWriter, TestAllWireTypes)
             CreateSimpleTypeSchema(EWireType::String32),
         })->SetName("opt_string32"),
     });
+    std::vector<TTableSchema> tableSchemas;
+    if (useSchema) {
+        tableSchemas.emplace_back(TTableSchema({
+            TColumnSchema("int64", EValueType::Int64),
+            TColumnSchema("uint64", EValueType::Uint64),
+            TColumnSchema("double", EValueType::Double),
+            TColumnSchema("boolean", EValueType::Boolean),
+            TColumnSchema("string32", EValueType::String),
+            TColumnSchema("opt_int64", SimpleLogicalType(ESimpleLogicalValueType::Int64, false)),
+            TColumnSchema("opt_uint64", SimpleLogicalType(ESimpleLogicalValueType::Uint64, false)),
+            TColumnSchema("opt_double", SimpleLogicalType(ESimpleLogicalValueType::Double, false)),
+            TColumnSchema("opt_boolean", SimpleLogicalType(ESimpleLogicalValueType::Boolean, false)),
+            TColumnSchema("opt_string32", SimpleLogicalType(ESimpleLogicalValueType::String, false)),
+        }));
+    }
     auto nameTable = New<TNameTable>();
     TString result;
     {
         TStringOutput resultStream(result);
-        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream);
+        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, 0, tableSchemas);
 
         writer->Write({
             MakeRow({
@@ -447,6 +464,17 @@ TEST(TSkiffWriter, TestAllWireTypes)
     // end
     ASSERT_EQ(checkedSkiffParser.HasMoreData(), false);
     checkedSkiffParser.ValidateFinished();
+}
+
+
+TEST(TSkiffWriter, TestAllWireTypesNoSchema)
+{
+    TestAllWireTypes(false);
+}
+
+TEST(TSkiffWriter, TestAllWireTypesWithSchema)
+{
+    TestAllWireTypes(true);
 }
 
 TEST(TSkiffWriter, TestYsonWireType)
@@ -1109,6 +1137,220 @@ TEST(TSkiffWriter, TestRowIndexOnlyOrRangeIndexOnly)
     }
 }
 
+TEST(TSkiffWriter, TestComplexType)
+{
+    auto skiffSchema = CreateTupleSchema({
+        CreateTupleSchema({
+            CreateSimpleTypeSchema(EWireType::String32)->SetName("name"),
+            CreateRepeatedVariant8Schema({
+                CreateTupleSchema({
+                    CreateSimpleTypeSchema(EWireType::Int64)->SetName("x"),
+                    CreateSimpleTypeSchema(EWireType::Int64)->SetName("y"),
+                })
+            })->SetName("points")
+        })->SetName("value"),
+    });
+
+    {
+        TStringStream resultStream;
+        auto nameTable = New<TNameTable>();
+        auto tableSchema = TTableSchema({
+            TColumnSchema("value", StructLogicalType({
+                {"name",   SimpleLogicalType(ESimpleLogicalValueType::String, true)},
+                {
+                    "points",
+                    ListLogicalType(
+                        StructLogicalType({
+                            {"x", SimpleLogicalType(ESimpleLogicalValueType::Int64, true)},
+                            {"y", SimpleLogicalType(ESimpleLogicalValueType::Int64, true)},
+                        })
+                    )
+                }
+            })),
+        });
+        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, /*keyColumnCount*/ 0, {tableSchema});
+
+        // Row 0.
+        writer->Write({
+            MakeRow({
+                MakeUnversionedAnyValue("[foo;[[0; 1];[2;3]]]", nameTable->GetIdOrRegisterName("value")),
+                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+            }).Get(),
+        });
+        writer->Close()
+            .Get()
+            .ThrowOnError();
+
+        TStringInput resultInput(resultStream.Str());
+        TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
+
+        // row 0
+        ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
+        ASSERT_EQ(checkedSkiffParser.ParseString32(), "foo");
+        ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 0);
+        ASSERT_EQ(checkedSkiffParser.ParseInt64(), 0);
+        ASSERT_EQ(checkedSkiffParser.ParseInt64(), 1);
+        ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 0);
+        ASSERT_EQ(checkedSkiffParser.ParseInt64(), 2);
+        ASSERT_EQ(checkedSkiffParser.ParseInt64(), 3);
+        ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), EndOfSequenceTag<ui8>());
+
+        ASSERT_EQ(checkedSkiffParser.HasMoreData(), false);
+        checkedSkiffParser.ValidateFinished();
+    }
+}
+
+TEST(TSkiffWriter, TestEmptyComplexType)
+{
+    auto skiffSchema = CreateTupleSchema({
+        CreateVariant8Schema({
+            CreateSimpleTypeSchema(EWireType::Nothing),
+            CreateTupleSchema({
+                CreateSimpleTypeSchema(EWireType::String32)->SetName("name"),
+                CreateSimpleTypeSchema(EWireType::String32)->SetName("value"),
+            })
+        })->SetName("value"),
+    });
+
+    {
+        TStringStream resultStream;
+        auto nameTable = New<TNameTable>();
+        auto tableSchema = TTableSchema({
+            TColumnSchema("value", OptionalLogicalType(
+                StructLogicalType({
+                    {"name",   SimpleLogicalType(ESimpleLogicalValueType::String, true)},
+                    {"value",   SimpleLogicalType(ESimpleLogicalValueType::String, true)},
+                }))
+            ),
+        });
+        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, /*keyColumnCount*/ 0, {tableSchema});
+
+        // Row 0.
+        writer->Write({
+            MakeRow({
+                MakeUnversionedNullValue(nameTable->GetIdOrRegisterName("value")),
+                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+            }).Get(),
+        });
+        writer->Close()
+            .Get()
+            .ThrowOnError();
+
+        TStringInput resultInput(resultStream.Str());
+        TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
+
+        // row 0
+        ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
+        ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 0);
+
+        ASSERT_EQ(checkedSkiffParser.HasMoreData(), false);
+        checkedSkiffParser.ValidateFinished();
+    }
+}
+
+TEST(TSkiffWriter, TestSparseComplexType)
+{
+    auto skiffSchema = CreateTupleSchema({
+        CreateRepeatedVariant16Schema({
+            CreateTupleSchema({
+                CreateSimpleTypeSchema(EWireType::String32)->SetName("name"),
+                CreateSimpleTypeSchema(EWireType::String32)->SetName("value"),
+            })->SetName("value"),
+        })->SetName("$sparse_columns"),
+    });
+
+    {
+        TStringStream resultStream;
+        auto nameTable = New<TNameTable>();
+        auto tableSchema = TTableSchema({
+            TColumnSchema("value", OptionalLogicalType(
+                StructLogicalType({
+                    {"name",   SimpleLogicalType(ESimpleLogicalValueType::String, true)},
+                    {"value",   SimpleLogicalType(ESimpleLogicalValueType::String, true)},
+                }))
+            ),
+        });
+        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, /*keyColumnCount*/ 0, {tableSchema});
+
+        // Row 0.
+        writer->Write({
+            MakeRow({
+                MakeUnversionedAnyValue("[foo;bar;]", nameTable->GetIdOrRegisterName("value")),
+                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+            }).Get(),
+        });
+        writer->Close()
+            .Get()
+            .ThrowOnError();
+
+        TStringInput resultInput(resultStream.Str());
+        TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
+
+        // row 0
+        ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
+        ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
+        ASSERT_EQ(checkedSkiffParser.ParseString32(), "foo");
+        ASSERT_EQ(checkedSkiffParser.ParseString32(), "bar");
+        ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), EndOfSequenceTag<ui16>());
+
+        ASSERT_EQ(checkedSkiffParser.HasMoreData(), false);
+        checkedSkiffParser.ValidateFinished();
+    }
+}
+
+TEST(TSkiffWriter, TestSparseComplexTypeWithExtraOptional)
+{
+    auto skiffSchema = CreateTupleSchema({
+        CreateRepeatedVariant16Schema({
+            CreateVariant8Schema({
+                CreateSimpleTypeSchema(EWireType::Nothing),
+                CreateTupleSchema({
+                        CreateSimpleTypeSchema(EWireType::String32)->SetName("name"),
+                        CreateSimpleTypeSchema(EWireType::String32)->SetName("value"),
+                })
+            })->SetName("value"),
+        })->SetName("$sparse_columns"),
+    });
+
+    TStringStream resultStream;
+    auto nameTable = New<TNameTable>();
+    auto tableSchema = TTableSchema({
+        TColumnSchema("value", OptionalLogicalType(
+            StructLogicalType({
+                {"name", SimpleLogicalType(ESimpleLogicalValueType::String, true)},
+                {"value", SimpleLogicalType(ESimpleLogicalValueType::String, true)},
+            }))
+        ),
+    });
+
+    auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, /*keyColumnCount*/ 0, {tableSchema});
+
+    // Row 0.
+    writer->Write({
+        MakeRow({
+            MakeUnversionedAnyValue("[foo;bar;]", nameTable->GetIdOrRegisterName("value")),
+            MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+        }).Get(),
+    });
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    TStringInput resultInput(resultStream.Str());
+    TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
+
+    // row 0
+    ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
+    ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
+    ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 1);
+    ASSERT_EQ(checkedSkiffParser.ParseString32(), "foo");
+    ASSERT_EQ(checkedSkiffParser.ParseString32(), "bar");
+    ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), EndOfSequenceTag<ui16>());
+
+    ASSERT_EQ(checkedSkiffParser.HasMoreData(), false);
+    checkedSkiffParser.ValidateFinished();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TSkiffParser, Simple)
@@ -1378,6 +1620,41 @@ TEST(TSkiffParser, TestOtherColumns)
     ASSERT_EQ(GetString(collectedRows.GetRowValue(1, "name")), "row_1");
     ASSERT_EQ(GetString(collectedRows.GetRowValue(1, "bar")), "qux");
     ASSERT_EQ(ConvertToYsonTextStringStable(GetAny(collectedRows.GetRowValue(1, "baz"))), "{\"boolean\"=%false;}");
+}
+
+TEST(TSkiffParser, TestComplexColumn)
+{
+    auto skiffSchema = CreateTupleSchema({
+        CreateTupleSchema({
+            CreateSimpleTypeSchema(EWireType::String32)->SetName("key"),
+            CreateSimpleTypeSchema(EWireType::Int64)->SetName("value"),
+        })->SetName("column")
+    });
+
+    TCollectingValueConsumer collectedRows(
+        TTableSchema({
+            TColumnSchema("column", NTableClient::StructLogicalType({
+                {"key", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::String, true)},
+                {"value", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::Int64, true)}
+            }))
+        }));
+    auto parser = CreateParserForSkiff(skiffSchema, &collectedRows);
+
+    TStringStream dataStream;
+    TCheckedSkiffWriter checkedSkiffWriter(CreateVariant16Schema({skiffSchema}), &dataStream);
+
+    // Row 0.
+    checkedSkiffWriter.WriteVariant16Tag(0);
+    checkedSkiffWriter.WriteString32("row_0");
+    checkedSkiffWriter.WriteInt64(42);
+
+    checkedSkiffWriter.Finish();
+
+    parser->Read(dataStream.Str());
+    parser->Finish();
+
+    ASSERT_EQ(collectedRows.Size(), 1);
+    ASSERT_EQ(ConvertToYsonTextStringStable(GetAny(collectedRows.GetRowValue(0, "column"))), "[\"row_0\";42;]");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
