@@ -2,8 +2,11 @@
 #include "config.h"
 
 #include "schemaless_writer_adapter.h"
+#include "skiff_yson_converter.h"
 
 #include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/logical_type.h>
+#include <yt/client/table_client/schema.h>
 
 #include <yt/core/concurrency/async_stream.h>
 
@@ -14,6 +17,7 @@
 
 #include <yt/core/skiff/schema_match.h>
 
+#include <yt/core/yson/pull_parser.h>
 #include <yt/core/yson/writer.h>
 
 #include <util/generic/buffer.h>
@@ -55,6 +59,36 @@ void ResizeToContainIndex(std::vector<T>* vec, size_t index)
         vec->resize(index + 1);
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TIndexedSchemas
+{
+public:
+    explicit TIndexedSchemas(const std::vector<TTableSchema>& tableSchemas)
+    {
+        for (size_t tableIndex = 0; tableIndex < tableSchemas.size(); ++tableIndex) {
+            const auto& columns = tableSchemas[tableIndex].Columns();
+            for (const auto& column : columns) {
+                Columns_[std::pair<int,TString>(tableIndex, column.Name())] = column;
+            }
+        }
+    }
+
+    const TColumnSchema* GetColumnSchema(int tableIndex, TStringBuf columnName) const
+    {
+        auto it = Columns_.find(std::pair<int,TString>(tableIndex, columnName));
+        if (it == Columns_.end()) {
+            return nullptr;
+        } else {
+            return &it->second;
+        }
+    }
+
+private:
+    // (TableIndex, ColumnName) -> ColumnSchema
+    THashMap<std::pair<int, TString>, TColumnSchema> Columns_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -149,6 +183,35 @@ TUnversionedValueToSkiffConverter CreateSimpleValueConverter(EWireType wireType,
             Y_UNREACHABLE();
     }
 }
+
+TUnversionedValueToSkiffConverter CreateComplexValueConverter(
+    TComplexTypeFieldDescriptor descriptor,
+    const TSkiffSchemaPtr& skiffSchema,
+    bool isSparse)
+{
+    TYsonToSkiffConverterConfig config;
+    config.ExpectTopLevelOptionalSet = isSparse;
+    auto ysonToSkiff = CreateYsonToSkiffConverter(std::move(descriptor), skiffSchema, config);
+    return [ysonToSkiff=ysonToSkiff] (const TUnversionedValue& value, TCheckedInDebugSkiffWriter* skiffWriter, TWriteContext* context) {
+        TMemoryInput input;
+        if (value.Type == EValueType::Any) {
+            input.Reset(value.Data.String, value.Length);
+        } else if (value.Type == EValueType::Null) {
+            static const auto empty = AsStringBuf("#");
+            input.Reset(empty.Data(), empty.Size());
+        } else {
+            THROW_ERROR_EXCEPTION("Internal error: unexpected value type; expected: %Qlv or %Qlv actual: %Qlv",
+                EValueType::Any,
+                EValueType::Null,
+                value.Type);
+        }
+        NYson::TYsonPullParser parser(&input, NYson::EYsonType::Node);
+        NYson::TYsonPullParserCursor cursor(&parser);
+        ysonToSkiff(&cursor, skiffWriter);
+    };
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TSkiffEncodingInfo
 {
@@ -245,11 +308,11 @@ struct TSkiffWriterTableDescription
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSkiffSchemalessWriter
+class TSkiffWriter
     : public TSchemalessFormatWriterBase
 {
 public:
-    TSkiffSchemalessWriter(
+    TSkiffWriter(
         TNameTablePtr nameTable,
         NConcurrency::IAsyncOutputStreamPtr output,
         bool enableContextSaving,
@@ -263,13 +326,16 @@ public:
             keyColumnCount)
     { }
 
-    void Init(const std::vector<TSkiffSchemaPtr>& tableSkiffSchemas)
+    void Init(const std::vector<TTableSchema>& schemas, const std::vector<TSkiffSchemaPtr>& tableSkiffSchemas)
     {
         auto streamSchema = CreateVariant16Schema(tableSkiffSchemas);
         SkiffWriter_.emplace(streamSchema, GetOutputStream());
 
+        auto indexedSchemas = TIndexedSchemas(schemas);
+
         auto tableDescriptionList = CreateTableDescriptionList(tableSkiffSchemas, RangeIndexColumnName, RowIndexColumnName);
         for (const auto& commonTableDescription : tableDescriptionList) {
+            auto tableIndex = TableDescriptionList_.size();
             TableDescriptionList_.emplace_back();
             auto& writerTableDescription = TableDescriptionList_.back();
             writerTableDescription.HasOtherColumns = commonTableDescription.HasOtherColumns;
@@ -283,6 +349,21 @@ public:
 
             auto& denseFieldWriterInfos = writerTableDescription.DenseFieldInfos;
 
+            auto createComplexValueConverter = [&] (const TFieldDescription& field, bool isSparse) -> std::optional<TUnversionedValueToSkiffConverter> {
+                auto columnSchema = indexedSchemas.GetColumnSchema(tableIndex, field.Name());
+
+                if (!columnSchema || columnSchema->SimplifiedLogicalType()) {
+                    // NB: we don't create complex value converter for simple types:
+                    //   1. Complex value converter expects unversioned values of type ANY and simple types have other types.
+                    //   2. For historical reasons we don't check skiff schema that strictly for simple types,
+                    //      e.g we allow column to be optional in table schema and be required in skiff schema
+                    //      (runtime check is used in such cases).
+                    return {};
+                }
+                auto descriptor = TComplexTypeFieldDescriptor(field.Name(), columnSchema->LogicalType());
+                return CreateComplexValueConverter(std::move(descriptor), field.Schema(), isSparse);
+            };
+
             for (size_t i = 0; i < denseFieldDescriptionList.size(); ++i) {
                 const auto& denseField = denseFieldDescriptionList[i];
                 const auto id = NameTable_->GetIdOrRegisterName(denseField.Name());
@@ -290,9 +371,14 @@ public:
                 YCHECK(knownFields[id].EncodingPart == ESkiffWriterColumnType::Unknown);
                 knownFields[id] = TSkiffEncodingInfo::Dense(i);
 
-                denseFieldWriterInfos.emplace_back(
-                    CreateSimpleValueConverter(denseField.ValidatedSimplify(), denseField.IsRequired()),
-                    id);
+                auto simplified = denseField.Simplify();
+                TUnversionedValueToSkiffConverter converter;
+                if (auto complexConverter = createComplexValueConverter(denseField, /*sparse*/ false)) {
+                    converter = *complexConverter;
+                } else {
+                    converter = CreateSimpleValueConverter(*simplified, denseField.IsRequired());
+                }
+                denseFieldWriterInfos.emplace_back(converter, id);
             }
 
             const auto& sparseFieldDescriptionList = commonTableDescription.SparseFieldDescriptionList;
@@ -301,9 +387,14 @@ public:
                 auto id = NameTable_->GetIdOrRegisterName(sparseField.Name());
                 ResizeToContainIndex(&knownFields, id);
                 YCHECK(knownFields[id].EncodingPart == ESkiffWriterColumnType::Unknown);
-                knownFields[id] = TSkiffEncodingInfo::Sparse(
-                    CreateSimpleValueConverter(sparseField.ValidatedSimplify(), true),
-                    i);
+
+                TUnversionedValueToSkiffConverter converter;
+                if (auto complexConverter = createComplexValueConverter(sparseField, /*sparse*/ true)) {
+                    converter = *complexConverter;
+                } else {
+                    converter = CreateSimpleValueConverter(sparseField.ValidatedSimplify(), true);
+                }
+                knownFields[id] = TSkiffEncodingInfo::Sparse(converter, i);
             }
 
             const auto systemColumnMaxId = Max(GetTableIndexColumnId(), GetRangeIndexColumnId(), GetRowIndexColumnId());
@@ -561,6 +652,7 @@ private:
 ISchemalessFormatWriterPtr CreateWriterForSkiff(
     const NYTree::IAttributeDictionary& attributes,
     NTableClient::TNameTablePtr nameTable,
+    const std::vector<NTableClient::TTableSchema>& schemas,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     TControlAttributesConfigPtr controlAttributesConfig,
@@ -571,6 +663,7 @@ ISchemalessFormatWriterPtr CreateWriterForSkiff(
     return CreateWriterForSkiff(
         skiffSchemas,
         std::move(nameTable),
+        schemas,
         std::move(output),
         enableContextSaving,
         std::move(controlAttributesConfig),
@@ -581,19 +674,20 @@ ISchemalessFormatWriterPtr CreateWriterForSkiff(
 ISchemalessFormatWriterPtr CreateWriterForSkiff(
     const std::vector<TSkiffSchemaPtr>& tableSkiffSchemas,
     NTableClient::TNameTablePtr nameTable,
+    const std::vector<NTableClient::TTableSchema>& schemas,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount)
 {
-    auto result = New<TSkiffSchemalessWriter>(
+    auto result = New<TSkiffWriter>(
         nameTable,
         output,
         enableContextSaving,
         controlAttributesConfig,
         keyColumnCount
     );
-    result->Init(tableSkiffSchemas);
+    result->Init(schemas, tableSkiffSchemas);
     return result;
 }
 

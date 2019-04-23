@@ -355,6 +355,7 @@ ISchemalessFormatWriterPtr CreateStaticTableWriterForFormat(
             return CreateWriterForSkiff(
                 format.Attributes(),
                 nameTable,
+                tableSchemas,
                 std::move(output),
                 enableContextSaving,
                 controlAttributesConfig,

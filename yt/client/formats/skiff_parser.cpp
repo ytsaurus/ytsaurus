@@ -1,4 +1,5 @@
 #include "skiff_parser.h"
+#include "skiff_yson_converter.h"
 
 #include "helpers.h"
 #include "parser.h"
@@ -17,6 +18,7 @@
 
 #include <util/generic/strbuf.h>
 #include <util/stream/zerocopy.h>
+#include <util/stream/buffer.h>
 
 namespace NYT::NFormats {
 
@@ -113,6 +115,42 @@ TSkiffToUnversionedValueConverter CreateSimpleValueConverter(
     }
 }
 
+class TComplexValueConverter
+{
+public:
+    TComplexValueConverter(TSkiffToYsonConverter converter, ui16 columnId)
+        : Converter_(std::move(converter))
+        , ColumnId_(columnId)
+    { }
+
+    void operator() (TCheckedInDebugSkiffParser* parser, IValueConsumer* valueConsumer)
+    {
+        Buffer_.Clear();
+        {
+            TBufferOutput out(Buffer_);
+            NYson::TBufferedBinaryYsonWriter ysonWriter(&out);
+            Converter_(parser, &ysonWriter);
+            ysonWriter.Flush();
+        }
+        auto value = TStringBuf(Buffer_.Data(), Buffer_.Size());
+        valueConsumer->OnValue(MakeUnversionedAnyValue(value, ColumnId_));
+    }
+
+private:
+    const TSkiffToYsonConverter Converter_;
+    const ui16 ColumnId_;
+    TBuffer Buffer_;
+};
+
+TSkiffToUnversionedValueConverter CreateComplexValueConverter(
+    NTableClient::TComplexTypeFieldDescriptor descriptor,
+    const TSkiffSchemaPtr& skiffSchema,
+    ui16 columnId)
+{
+    auto converter = CreateSkiffToYsonConverter(std::move(descriptor), skiffSchema);
+    return TComplexValueConverter(converter, columnId);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSkiffParserImpl
@@ -123,6 +161,11 @@ public:
         , ValueConsumer_(valueConsumer)
         , OtherColumnsConsumer_(ValueConsumer_)
     {
+        THashMap<TString, const TColumnSchema*> columnSchemas;
+        for (const auto& column : valueConsumer->GetSchema().Columns()) {
+            columnSchemas[column.Name()] = &column;
+        }
+
         auto genericTableDescriptions = CreateTableDescriptionList(
             SkiffSchemaList_, RangeIndexColumnName, RowIndexColumnName);
 
@@ -130,22 +173,42 @@ public:
             auto& parserTableDescription = TableDescriptions_.emplace_back();
             parserTableDescription.HasOtherColumns = genericTableDescription.HasOtherColumns;
             for (const auto& fieldDescription : genericTableDescription.DenseFieldDescriptionList) {
-                auto converter = CreateSimpleValueConverter(
-                    fieldDescription.ValidatedSimplify(),
-                    fieldDescription.IsRequired(),
-                    ValueConsumer_->GetNameTable()->GetIdOrRegisterName(fieldDescription.Name()),
-                    &YsonToUnversionedValueConverter_
-                );
+                const auto columnId = ValueConsumer_->GetNameTable()->GetIdOrRegisterName(fieldDescription.Name());
+                TSkiffToUnversionedValueConverter converter;
+                auto columnSchema = columnSchemas.FindPtr(fieldDescription.Name());
+                if (columnSchema && !(*columnSchema)->SimplifiedLogicalType()) {
+                    converter = CreateComplexValueConverter(
+                        TComplexTypeFieldDescriptor(fieldDescription.Name(), (*columnSchema)->LogicalType()),
+                        fieldDescription.Schema(),
+                        columnId);
+                } else {
+                    converter = CreateSimpleValueConverter(
+                        fieldDescription.ValidatedSimplify(),
+                        fieldDescription.IsRequired(),
+                        columnId,
+                        &YsonToUnversionedValueConverter_
+                    );
+                }
                 parserTableDescription.DenseFieldConverters.emplace_back(converter);
             }
 
             for (const auto& fieldDescription : genericTableDescription.SparseFieldDescriptionList) {
-                auto converter = CreateSimpleValueConverter(
-                    fieldDescription.ValidatedSimplify(),
-                    fieldDescription.IsRequired(),
-                    ValueConsumer_->GetNameTable()->GetIdOrRegisterName(fieldDescription.Name()),
-                    &YsonToUnversionedValueConverter_
-                );
+                const auto columnId = ValueConsumer_->GetNameTable()->GetIdOrRegisterName(fieldDescription.Name());
+                TSkiffToUnversionedValueConverter converter;
+                auto columnSchema = columnSchemas.FindPtr(fieldDescription.Name());
+                if (columnSchema && !(*columnSchema)->SimplifiedLogicalType()) {
+                    converter = CreateComplexValueConverter(
+                        TComplexTypeFieldDescriptor(fieldDescription.Name(), (*columnSchema)->LogicalType()),
+                        fieldDescription.Schema(),
+                        columnId);
+                } else {
+                    converter = CreateSimpleValueConverter(
+                        fieldDescription.ValidatedSimplify(),
+                        fieldDescription.IsRequired(),
+                        columnId,
+                        &YsonToUnversionedValueConverter_
+                    );
+                }
                 parserTableDescription.SparseFieldConverters.emplace_back(converter);
             }
         }

@@ -25,11 +25,11 @@ inline bool IsSimpleType(EWireType type)
         case EWireType::Tuple:
         case EWireType::Variant8:
         case EWireType::Variant16:
+        case EWireType::RepeatedVariant8:
         case EWireType::RepeatedVariant16:
             return false;
-        default:
-            Y_UNREACHABLE();
     }
+    Y_UNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
