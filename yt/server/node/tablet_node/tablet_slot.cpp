@@ -545,6 +545,7 @@ public:
             Options_,
             Format("//sys/tablet_cells/%v/changelogs", GetCellId()),
             Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetSecurityManager(),
             PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId,
             ProfilingTagIds_);
         ChangelogStoreFactoryThunk_->SetUnderlying(changelogStoreFactory);
