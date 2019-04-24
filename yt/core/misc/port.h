@@ -28,7 +28,7 @@
 // Configure SSE usage.
 #ifdef __SSE4_2__
     #define YT_USE_SSE42
-    #ifndef __APPLE__
+    #if defined(__PCLMUL__) && !defined(__APPLE__)
         #define YT_USE_CRC_PCLMUL
     #endif
 #endif
