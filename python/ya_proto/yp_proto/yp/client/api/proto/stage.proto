@@ -2,65 +2,52 @@ syntax = "proto3";
 
 package NYP.NClient.NApi.NProto;
 
-import "yp/client/api/proto/conditions.proto";
-import "yp/client/api/proto/data_model.proto";
-import "yp/client/api/proto/deploy.proto";
-import "yp/client/api/proto/multi_cluster_replica_set.proto";
-import "yp/client/api/proto/replica_set.proto";
-import "yp/client/api/proto/pod_agent.proto";
+import "yp_proto/yp/client/api/proto/conditions.proto";
+import "yp_proto/yp/client/api/proto/data_model.proto";
+import "yp_proto/yp/client/api/proto/deploy.proto";
+import "yp_proto/yp/client/api/proto/multi_cluster_replica_set.proto";
+import "yp_proto/yp/client/api/proto/replica_set.proto";
+import "yp_proto/yp/client/api/proto/pod_agent.proto";
 
 import "yt/core/yson/proto/protobuf_interop.proto";
 
 option java_package = "ru.yandex.yp.client.api";
-option java_outer_classname = "EnvironmentApi";
+option java_outer_classname = "Stage";
 option java_multiple_files = true;
 
 option (NYP.NClient.NApi.NProto.object_type) = {
-    camel_case_name: "Environment"
-    snake_case_name: "environment"
+    camel_case_name: "Stage"
+    snake_case_name: "stage"
     type_value: 19
 };
 
-// Environment - see https://wiki.yandex-team.ru/drug/Environment/
+// Stage - see https://wiki.yandex-team.ru/deploy/Stage
 
-// TODO(risenberg): dctl uses this, remove after switching to auto-generation.
-message TEnvironment
-{
-    TEnvironmentMeta meta = 1;
-    TEnvironmentSpec spec = 2;
-    TEnvironmentStatus status = 3;
-}
-
-message TEnvironmentMeta
-{
-    string id = 1;
-}
-
-message TEnvironmentSpec
+message TStageSpec
 {
     // Should be incremented on any update
     // TODO: will be moved to meta after YP-710.
     // For now you can write a manually generated timestamp there.
-    uint64 revision = 1;
-    // <component id> -> <component spec>.
-    map<string, TComponentSpec> components = 2 [(NYT.NYson.NProto.yson_map) = true];
+    uint64 revision = 1 [(NYP.NClient.NApi.NProto.etc) = true];
+    // <unit id> -> <unit spec>.
+    map<string, TDeployUnitSpec> deploy_units = 2 [(NYT.NYson.NProto.yson_map) = true, (NYP.NClient.NApi.NProto.etc) = true];
     // In form "abc:service:<int id>".
-    string abc_service_id = 3;
+    string account_id = 3;
 }
 
-message TEnvironmentStatus
+message TStageStatus
 {
-    // <component id> -> <component status>.
-    map<string, TComponentStatus> components = 1 [(NYT.NYson.NProto.yson_map) = true];
+    // <unit id> -> <unit status>.
+    map<string, TDeployUnitStatus> deploy_units = 1 [(NYT.NYson.NProto.yson_map) = true];
     // Revision of spec last treated by controller.
-    // Other environment-wide status fields refer to this revision.
-    // Component specs may refer to other revisions, as specified inside them.
+    // Other stage-wide status fields refer to this revision.
+    // Unit specs may refer to other revisions, as specified inside them.
     uint64 revision = 2;
-    // Environment spec has been accepted by controller as valid.
+    // Stage spec has been accepted by controller as valid.
     NYP.NClient.NApi.NProto.TCondition validated = 3;
 }
 
-// Component
+// Deploy unit
 
 // Network settings for requests from infrastructure.
 message TNetworkDefaults
@@ -68,7 +55,7 @@ message TNetworkDefaults
     string network_id = 1;
 }
 
-message TComponentSpec
+message TDeployUnitSpec
 {
     TNetworkDefaults network_defaults = 1;
 
@@ -96,26 +83,28 @@ message TComponentSpec
     TTvmConfig tvm_config = 2;
 }
 
-message TComponentStatus
+message TDeployUnitStatus
 {
-    // Spec that is currently being deployed. May be older than contents of TEnvironmentSpec.
-    TComponentSpec current_target = 1;
+    // Spec that is currently being deployed. May be older than contents of TStageSpec.
+    TDeployUnitSpec current_target = 1;
     // Deploy of current_target has started, but has not completed yet.
     NYP.NClient.NApi.NProto.TCondition in_progress = 2;
     // Deploy of current_target has been completed.
-    // Does not switch back to false if something breaks later (TODO: this will probably change).
+    // May switch back to false if something breaks later.
     NYP.NClient.NApi.NProto.TCondition ready = 3;
     // Summary of deploy progress.
     TDeployProgress progress = 4;
-    // Revision of environment from which 'current_target' was derived.
+    // Revision of stage from which 'current_target' was derived.
     uint64 target_revision = 5;
 
     message TReplicaSetDeploy
     {
         message TPerClusterStatus
         {
-            string replica_set_ref = 1;
-            string endpoint_set_ref = 2;
+            // Created replica set id in this cluster.
+            string replica_set_id = 1;
+            // Created endpoint set id in this cluster.
+            string endpoint_set_id = 2;
         }
 
         // <cluster id> -> <cluster status>.
@@ -126,15 +115,17 @@ message TComponentStatus
     {
         message TPerClusterStatus
         {
-            string endpoint_set_ref = 1;
+            // Endpoint set created in this cluster for replica set.
+            string endpoint_set_id = 1;
         }
 
-        string replica_set_ref = 1;
+        // Created multi cluster replica set id.
+        string replica_set_id = 1;
         // <cluster id> -> <cluster status>.
         map<string, TPerClusterStatus> cluster_statuses = 2 [(NYT.NYson.NProto.yson_map) = true];
     }
 
-    // Details for specific component types.
+    // Details for specific deploy primitives.
     oneof details
     {
         TReplicaSetDeploy replica_set = 10;

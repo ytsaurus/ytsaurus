@@ -20,6 +20,7 @@
 #include "replica_set_type_handler.h"
 #include "dns_record_set_type_handler.h"
 #include "multi_cluster_replica_set_type_handler.h"
+#include "stage_type_handler.h"
 #include "object.h"
 #include "db_schema.h"
 #include "transaction_manager.h"
@@ -79,6 +80,7 @@ public:
         RegisterTypeHandler(CreatePodSetTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateEndpointTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateEndpointSetTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateStageTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateNetworkProjectTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateNodeSegmentTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateVirtualServiceTypeHandler(Bootstrap_));

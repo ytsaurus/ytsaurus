@@ -67,6 +67,10 @@ public:
     using TMultiClusterReplicaSets = TOneToManyAttribute<TAccount, TMultiClusterReplicaSet>;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TMultiClusterReplicaSets, MultiClusterReplicaSets);
 
+    static const TOneToManyAttributeSchema<TAccount, TStage> StagesSchema;
+    using TStages = TOneToManyAttribute<TAccount, TStage>;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TStages, Stages);
+
     virtual bool IsBuiltin() const override;
 };
 

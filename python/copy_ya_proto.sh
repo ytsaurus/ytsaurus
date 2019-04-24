@@ -8,7 +8,6 @@ YP_PROTOS="
     yp/client/api/proto/data_model.proto
     yp/client/api/proto/deploy.proto
     yp/client/api/proto/enums.proto
-    yp/client/api/proto/environment.proto
     yp/client/api/proto/dynamic_resource.proto
     yp/client/api/proto/discovery_service.proto
     yp/client/api/proto/object_service.proto
@@ -17,6 +16,7 @@ YP_PROTOS="
     yp/client/api/proto/resource_cache.proto
     yp/client/api/proto/secrets.proto
     yp/client/api/proto/dynamic_attributes.proto
+    yp/client/api/proto/stage.proto
 "
 
 PROTO_PATHS=""

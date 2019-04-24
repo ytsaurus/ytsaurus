@@ -658,6 +658,46 @@ extern const struct TMultiClusterReplicaSetsTable
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const struct TStagesTable
+    : public TDBTable
+    , public TObjectTableBase
+{
+    TStagesTable()
+        : TDBTable("stages")
+    {
+        Key = {&TObjectTableBase::Fields.Meta_Id};
+    }
+
+    struct TFields
+        : public TObjectTableBase::TFields
+    {
+        TDBField Spec_AccountId{"spec.account_id", NTableClient::EValueType::String};
+        TDBField Spec_Etc{"spec.other", NTableClient::EValueType::Any};
+        TDBField Status{"status", NTableClient::EValueType::Any};
+    } Fields;
+} StagesTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const struct TAccountToStagesTable
+    : public TDBTable
+{
+    TAccountToStagesTable()
+        : TDBTable("account_to_stages")
+    {
+        Key = {&Fields.AccountId, &Fields.StageId};
+    }
+
+    struct TFields
+        : public TObjectTableBase::TFields
+    {
+        TDBField AccountId{"account_id", NTableClient::EValueType::String};
+        TDBField StageId{"stage_id", NTableClient::EValueType::String};
+    } Fields;
+} AccountToStagesTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
 extern const std::vector<const TDBTable*> Tables;
 
 ////////////////////////////////////////////////////////////////////////////////

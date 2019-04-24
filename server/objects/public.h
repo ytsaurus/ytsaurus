@@ -74,6 +74,7 @@ class TSchema;
 class TInternetAddress;
 class TAccount;
 class TMultiClusterReplicaSet;
+class TStage;
 
 class TAttributeSchema;
 
@@ -135,6 +136,8 @@ DEFINE_ENUM(EObjectType,
     ((ResourceCache)          (15))
     ((MultiClusterReplicaSet) (16))
     ((DynamicResource)        (17))
+    ((Node2)                  (18))
+    ((Stage)                  (19))
     ((NetworkModule)         (100)) // internal, not present in data_model.proto
     ((Schema)                (256))
 );

@@ -4,6 +4,7 @@ import argparse
 
 import google.protobuf.descriptor_pb2 as protobuf_descriptor_pb2
 import yp_proto.yp.client.api.proto.data_model_pb2 as data_model_pb2
+import yt.core.yson.proto.protobuf_interop_pb2 as protobuf_interop_pb2
 
 
 def get_modules():
@@ -11,6 +12,7 @@ def get_modules():
     import yp_proto.yp.client.api.proto.resource_cache_pb2 as resource_cache_pb2
     import yp_proto.yp.client.api.proto.multi_cluster_replica_set_pb2 as multi_cluster_replica_set_pb2
     import yp_proto.yp.client.api.proto.dynamic_resource_pb2 as dynamic_resource_pb2
+    import yp_proto.yp.client.api.proto.stage_pb2 as stage_pb2
 
     return [
         data_model_pb2,
@@ -18,6 +20,7 @@ def get_modules():
         multi_cluster_replica_set_pb2,
         resource_cache_pb2,
         dynamic_resource_pb2,
+        stage_pb2,
     ]
 
 
@@ -26,15 +29,17 @@ def get_types(module):
 
     def traverse(type):
         types.append(type)
-        for nested_type in type.nested_type:
+        for nested_type in type.nested_types:
             traverse(nested_type)
     descriptor = protobuf_descriptor_pb2.FileDescriptorProto.FromString(module.DESCRIPTOR.serialized_pb)
     for type in descriptor.message_type:
-        traverse(type)
+        message_descriptor = module.__dict__[type.name].DESCRIPTOR
+        traverse(message_descriptor)
     return types
 
 
 def print_field(field):
+    options = ""
     if field.label == protobuf_descriptor_pb2.FieldDescriptorProto.LABEL_REQUIRED:
         raise Exception("Required fields are not supported")
     elif field.label == protobuf_descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL:
@@ -44,13 +49,23 @@ def print_field(field):
     else:
         raise Exception("Unknown label {}".format(field.label))
 
-    if field.type == protobuf_descriptor_pb2.FieldDescriptorProto.TYPE_MESSAGE or \
-       field.type == protobuf_descriptor_pb2.FieldDescriptorProto.TYPE_ENUM:
-        field_type = field.type_name[1:]
-        PYTHON_PREFIX = "NYtPython."
-        YT_PREFIX = "NYT."
-        if field_type.startswith(PYTHON_PREFIX):
-            field_type = YT_PREFIX + field_type[len(PYTHON_PREFIX):]
+    if field.type == protobuf_descriptor_pb2.FieldDescriptorProto.TYPE_MESSAGE:
+        if field.GetOptions().Extensions[protobuf_interop_pb2.yson_map]:
+            # map is translated to repeated entry field
+            assert field.label == protobuf_descriptor_pb2.FieldDescriptorProto.LABEL_REPEATED
+            label = ""
+            key_type = field.message_type.fields_by_name["key"]
+
+            # other cases do not exist yet
+            assert key_type.type == protobuf_descriptor_pb2.FieldDescriptorProto.TYPE_STRING
+            value_type = field.message_type.fields_by_name["value"]
+
+            options = " [({}) = true]".format(protobuf_interop_pb2.yson_map.full_name)
+            field_type = "map<string, {}>".format(value_type.message_type.full_name)
+        else:
+            field_type = patch_prefix(field.message_type.full_name)
+    elif field.type == protobuf_descriptor_pb2.FieldDescriptorProto.TYPE_ENUM:
+        field_type = patch_prefix(field.enum_type.full_name)
     elif field.type == protobuf_descriptor_pb2.FieldDescriptorProto.TYPE_STRING:
         field_type = "string"
     elif field.type == protobuf_descriptor_pb2.FieldDescriptorProto.TYPE_UINT32:
@@ -60,7 +75,16 @@ def print_field(field):
     else:
         raise Exception("Unknown type {}".format(field.type))
 
-    print "    {}{} {} = {};".format(label, field_type, field.name, field.number)
+    print "    {}{} {} = {}{};".format(label, field_type, field.name, field.number, options)
+
+
+def patch_prefix(type_name):
+    PYTHON_PREFIX = "NYtPython."
+    YT_PREFIX = "NYT."
+    if type_name.startswith(PYTHON_PREFIX):
+        return YT_PREFIX + type_name[len(PYTHON_PREFIX):]
+    else:
+        return type_name
 
 
 def print_imports():
@@ -89,11 +113,12 @@ def generate_client():
         options += module.DESCRIPTOR.GetOptions().Extensions[data_model_pb2.object_type]
         descriptor = protobuf_descriptor_pb2.FileDescriptorProto.FromString(module.DESCRIPTOR.serialized_pb)
         for message_type in descriptor.message_type:
+            message_descriptor = module.__dict__[message_type.name].DESCRIPTOR
             T = "T"
             META_BASE = "MetaBase"
-            name = message_type.name
+            name = message_descriptor.name
             if name.startswith(T) and name.endswith(META_BASE):
-                meta_base_dict[name[len(T):-len(META_BASE)]] = message_type
+                meta_base_dict[name[len(T):-len(META_BASE)]] = message_descriptor
 
     print """\
 // AUTOMATICALLY GENERATED, DO NOT EDIT!
@@ -137,7 +162,7 @@ option java_outer_classname = "Autogen";
         if option.camel_case_name in meta_base_dict:
             print "    // Custom fields:"
             meta_base_type = meta_base_dict[option.camel_case_name]
-            for field in meta_base_type.field:
+            for field in meta_base_type.fields:
                 print_field(field)
 
         print "}"
@@ -168,10 +193,10 @@ package NYP.NServer.NObjects.NProto;
     print_separator()
     for module in get_modules():
         for message_type in get_types(module):
-            etc_type_name = message_type.options.Extensions[data_model_pb2.etc_type_name]
+            etc_type_name = message_type.GetOptions().Extensions[data_model_pb2.etc_type_name]
             if len(etc_type_name) == 0:
                 etc_type_name = message_type.name + "Etc"
-            etc_fields = list([field for field in message_type.field if field.options.Extensions[data_model_pb2.etc] == [True]])
+            etc_fields = list([field for field in message_type.fields if field.GetOptions().Extensions[data_model_pb2.etc] == [True]])
             if len(etc_fields) == 0:
                 continue
 

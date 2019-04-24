@@ -1,6 +1,7 @@
 #include "account_type_handler.h"
 #include "type_handler_detail.h"
 #include "account.h"
+#include "stage.h"
 #include "pod.h"
 #include "pod_set.h"
 #include "replica_set.h"

@@ -8,6 +8,7 @@ SET(YP_TEST_SRCDIR yp/tests)
 SET(YP_TEST_SRCS
     __init__.py
     conftest.py
+    templates.py
     test_accounts.py
     test_acls.py
     test_admin_cli.py
@@ -27,6 +28,7 @@ SET(YP_TEST_SRCS
     test_internet_address.py
     test_labels.py
     test_local_cli.py
+    test_multi_cluster_replica_sets.py
     test_net.py
     test_network_projects.py
     test_node_segments.py
@@ -42,6 +44,7 @@ SET(YP_TEST_SRCS
     test_schemas.py
     # test_secrets.py # TEMPORARY DISABLE
     test_ssl.py
+    test_stages.py
     test_sweep.py
     test_timestamps.py
     test_transactions.py

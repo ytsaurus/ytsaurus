@@ -538,6 +538,8 @@ TStringBuf GetCapitalizedHumanReadableTypeName(EObjectType type)
             return AsStringBuf("Network module");
         case EObjectType::MultiClusterReplicaSet:
             return AsStringBuf("Multi-cluster replica set");
+        case EObjectType::Stage:
+            return AsStringBuf("Stage");
         default:
             Y_UNREACHABLE();
     }
@@ -586,6 +588,8 @@ TStringBuf GetLowercaseHumanReadableTypeName(EObjectType type)
             return AsStringBuf("network module");
         case EObjectType::MultiClusterReplicaSet:
             return AsStringBuf("multi-cluster replica set");
+        case EObjectType::Stage:
+            return AsStringBuf("stage");
         default:
             Y_UNREACHABLE();
     }
