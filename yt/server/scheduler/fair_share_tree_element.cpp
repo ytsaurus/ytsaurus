@@ -93,8 +93,8 @@ TScheduleJobsProfilingCounters::TScheduleJobsProfilingCounters(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairShareSchedulingStage::TFairShareSchedulingStage(const TString& nameInLogs, TScheduleJobsProfilingCounters profilingCounters)
-    : NameInLogs(nameInLogs)
+TFairShareSchedulingStage::TFairShareSchedulingStage(const TString& loggingName, TScheduleJobsProfilingCounters profilingCounters)
+    : LoggingName(loggingName)
     , ProfilingCounters(std::move(profilingCounters))
 { }
 
@@ -196,7 +196,7 @@ void TFairShareContext::LogStageStatistics()
     YCHECK(StageState);
 
     YT_LOG_DEBUG("%v scheduling statistics (ActiveTreeSize: %v, ActiveOperationCount: %v, DeactivationReasons: %v, CanStartMoreJobs: %v, Address: %v)",
-        StageState->SchedulingStage->NameInLogs,
+        StageState->SchedulingStage->LoggingName,
         StageState->ActiveTreeSize,
         StageState->ActiveOperationCount,
         StageState->DeactivationReasons,
