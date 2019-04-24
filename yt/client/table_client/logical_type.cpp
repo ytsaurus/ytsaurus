@@ -31,6 +31,11 @@ const TOptionalLogicalType& TLogicalType::AsOptionalTypeRef() const
     return dynamic_cast<const TOptionalLogicalType&>(*this);
 }
 
+const TListLogicalType& TLogicalType::AsListTypeRef() const
+{
+    return dynamic_cast<const TListLogicalType&>(*this);
+}
+
 TString ToString(const TLogicalType& logicalType)
 {
 
@@ -38,7 +43,9 @@ TString ToString(const TLogicalType& logicalType)
         case ELogicalMetatype::Simple:
             return CamelCaseToUnderscoreCase(ToString(logicalType.AsSimpleTypeRef().GetElement()));
         case ELogicalMetatype::Optional:
-            return Format("optional<%v>", *logicalType.AsOptionalTypeRef().GetElement());
+            return Format("Optional<%v>", *logicalType.AsOptionalTypeRef().GetElement());
+        case ELogicalMetatype::List:
+            return Format("List<%v>", *logicalType.AsListTypeRef().GetElement());
     }
     Y_UNREACHABLE();
 }
@@ -99,6 +106,28 @@ int TSimpleLogicalType::GetTypeComplexity() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TListLogicalType::TListLogicalType(TLogicalTypePtr element)
+    : TLogicalType(ELogicalMetatype::List)
+    , Element_(element)
+{ }
+
+const TLogicalTypePtr& TListLogicalType::GetElement() const
+{
+    return Element_;
+}
+
+size_t TListLogicalType::GetMemoryUsage() const
+{
+    return sizeof(*this) + Element_->GetMemoryUsage();
+}
+
+int TListLogicalType::GetTypeComplexity() const
+{
+    return 1 + Element_->GetTypeComplexity();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::pair<std::optional<ESimpleLogicalValueType>, bool> SimplifyLogicalType(const TLogicalTypePtr& logicalType)
 {
     switch (logicalType->GetMetatype()) {
@@ -112,6 +141,8 @@ std::pair<std::optional<ESimpleLogicalValueType>, bool> SimplifyLogicalType(cons
                 return std::make_pair(std::nullopt, false);
             }
         }
+        case ELogicalMetatype::List:
+            return std::make_pair(std::nullopt, true);
     }
     Y_UNREACHABLE();
 }
@@ -131,6 +162,8 @@ bool operator == (const TLogicalType& lhs, const TLogicalType& rhs)
             return lhs.AsSimpleTypeRef().GetElement() == rhs.AsSimpleTypeRef().GetElement();
         case ELogicalMetatype::Optional:
             return *lhs.AsOptionalTypeRef().GetElement() == *rhs.AsOptionalTypeRef().GetElement();
+        case ELogicalMetatype::List:
+            return *lhs.AsListTypeRef().GetElement() == *rhs.AsListTypeRef().GetElement();
     }
     Y_UNREACHABLE();
 }
@@ -229,6 +262,9 @@ void ToProto(NProto::TLogicalType* protoLogicalType, const TLogicalTypePtr& logi
         case ELogicalMetatype::Optional:
             ToProto(protoLogicalType->mutable_optional(), logicalType->AsOptionalTypeRef().GetElement());
             return;
+        case ELogicalMetatype::List:
+            ToProto(protoLogicalType->mutable_list(), logicalType->AsListTypeRef().GetElement());
+            return;
     }
     Y_UNREACHABLE();
 }
@@ -243,6 +279,12 @@ void FromProto(TLogicalTypePtr* logicalType, const NProto::TLogicalType& protoLo
             TLogicalTypePtr element;
             FromProto(&element, protoLogicalType.optional());
             *logicalType = OptionalLogicalType(element);
+            return;
+        }
+        case NProto::TLogicalType::TypeCase::kList: {
+            TLogicalTypePtr element;
+            FromProto(&element, protoLogicalType.list());
+            *logicalType = ListLogicalType(element);
             return;
         }
         case NProto::TLogicalType::TypeCase::TYPE_NOT_SET:
@@ -264,6 +306,13 @@ void Serialize(const TLogicalTypePtr& logicalType, NYson::IYsonConsumer* consume
                 .BeginMap()
                     .Item("metatype").Value(metatype)
                     .Item("element").Value(logicalType->AsOptionalTypeRef().GetElement())
+                .EndMap();
+            return;
+        case ELogicalMetatype::List:
+            NYTree::BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("metatype").Value(metatype)
+                    .Item("element").Value(logicalType->AsListTypeRef().GetElement())
                 .EndMap();
             return;
     }
@@ -299,6 +348,12 @@ void Deserialize(TLogicalTypePtr& logicalType, NYTree::INodePtr node)
             auto elementNode = mapNode->GetChild("element");
             auto element = NYTree::ConvertTo<TLogicalTypePtr>(elementNode);
             logicalType = OptionalLogicalType(std::move(element));
+            return;
+        }
+        case ELogicalMetatype::List: {
+            auto elementNode = mapNode->GetChild("element");
+            auto element = NYTree::ConvertTo<TLogicalTypePtr>(elementNode);
+            logicalType = ListLogicalType(std::move(element));
             return;
         }
     }
@@ -368,6 +423,11 @@ TLogicalTypePtr SimpleLogicalType(ESimpleLogicalValueType element, bool required
     }
 }
 
+inline TLogicalTypePtr ListLogicalType(TLogicalTypePtr element)
+{
+    return New<TListLogicalType>(element);
+}
+
 TLogicalTypePtr NullLogicalType = Singleton<TSimpleTypeStore>()->GetSimpleType(ESimpleLogicalValueType::Null);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -383,6 +443,8 @@ size_t THash<NYT::NTableClient::TLogicalType>::operator()(const NYT::NTableClien
             return typeHash ^ static_cast<size_t>(logicalType.AsSimpleTypeRef().GetElement());
         case ELogicalMetatype::Optional:
             return typeHash ^ (*this)(*logicalType.AsOptionalTypeRef().GetElement());
+        case ELogicalMetatype::List:
+            return typeHash ^ (*this)(*logicalType.AsListTypeRef().GetElement());
     }
     Y_UNREACHABLE();
 }

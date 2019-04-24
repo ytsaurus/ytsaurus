@@ -19,7 +19,8 @@ namespace NYT::NTableClient {
 DEFINE_ENUM(ELogicalMetatype,
     (Simple)
     (Optional)
-    // In the future there would be List, Variant, Struct, Tuple, etc
+    (List)
+    // In the future there will be Tuple, Variant, Struct, etc
 );
 
 class TLogicalType
@@ -31,6 +32,7 @@ public:
 
     const TSimpleLogicalType& AsSimpleTypeRef() const;
     const TOptionalLogicalType& AsOptionalTypeRef() const;
+    const TListLogicalType& AsListTypeRef() const;
 
     virtual size_t GetMemoryUsage() const = 0;
     virtual int GetTypeComplexity() const = 0;
@@ -103,12 +105,29 @@ DEFINE_REFCOUNTED_TYPE(TSimpleLogicalType);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TListLogicalType
+    : public TLogicalType
+{
+public:
+    explicit TListLogicalType(TLogicalTypePtr element);
+
+    const TLogicalTypePtr& GetElement() const;
+
+    virtual size_t GetMemoryUsage() const override;
+    virtual int GetTypeComplexity() const override;
+
+private:
+    TLogicalTypePtr Element_;
+};
+DEFINE_REFCOUNTED_TYPE(TListLogicalType);
+
 extern TLogicalTypePtr NullLogicalType;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogicalTypePtr OptionalLogicalType(TLogicalTypePtr element);
 TLogicalTypePtr SimpleLogicalType(ESimpleLogicalValueType element, bool required);
+TLogicalTypePtr OptionalLogicalType(TLogicalTypePtr element);
+TLogicalTypePtr ListLogicalType(TLogicalTypePtr element);
 
 ////////////////////////////////////////////////////////////////////////////////
 
