@@ -22,7 +22,7 @@
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/helpers.h>
-#include <yt/ytlib/chunk_client/chunk_meta_fetcher.h>
+#include <yt/ytlib/chunk_client/chunk_spec_fetcher.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
@@ -99,6 +99,7 @@ TString GetDataSliceStatisticsDebugString(const std::vector<TInputDataSlicePtr>&
 
 // TODO(max42): rename
 class TDataSliceFetcher
+    : public TRefCounted
 {
 public:
     // TODO(max42): use from bootstrap?
@@ -109,18 +110,52 @@ public:
 public:
     TDataSliceFetcher(
         NNative::IClientPtr client,
+        IInvokerPtr invoker,
         std::vector<TRichYPath> inputTablePaths,
         const KeyCondition* keyCondition,
         TRowBufferPtr rowBuffer,
         TSubqueryConfigPtr config)
         : Client_(std::move(client))
+        , Invoker_(std::move(invoker))
         , InputTablePaths_(std::move(inputTablePaths))
         , KeyCondition_(keyCondition)
         , RowBuffer_(std::move(rowBuffer))
         , Config_(std::move(config))
     {}
 
-    void Fetch()
+    TFuture<void> Fetch()
+    {
+        return BIND(&TDataSliceFetcher::DoFetch, MakeWeak(this))
+            .AsyncVia(Invoker_)
+            .Run();
+    }
+
+private:
+    const NLogging::TLogger& Logger = ServerLogger;
+
+    NApi::NNative::IClientPtr Client_;
+
+    IInvokerPtr Invoker_;
+
+    std::vector<TRichYPath> InputTablePaths_;
+    const KeyCondition* KeyCondition_;
+
+    int KeyColumnCount_ = 0;
+    TKeyColumns KeyColumns_;
+
+    DataTypes KeyColumnDataTypes_;
+
+    std::vector<TInputTable> InputTables_;
+
+    std::vector<TInputChunkPtr> PartiallyNeededChunks_;
+
+    TRowBufferPtr RowBuffer_;
+
+    TSubqueryConfigPtr Config_;
+
+    std::vector<TInputChunkPtr> InputChunks_;
+
+    void DoFetch()
     {
         CollectTablesAttributes();
         ValidateSchema();
@@ -145,29 +180,6 @@ public:
             }
         }
     }
-
-private:
-    const NLogging::TLogger& Logger = ServerLogger;
-
-    NApi::NNative::IClientPtr Client_;
-
-    std::vector<TRichYPath> InputTablePaths_;
-    const KeyCondition* KeyCondition_;
-
-    int KeyColumnCount_ = 0;
-    TKeyColumns KeyColumns_;
-
-    DataTypes KeyColumnDataTypes_;
-
-    std::vector<TInputTable> InputTables_;
-
-    std::vector<TInputChunkPtr> PartiallyNeededChunks_;
-
-    TRowBufferPtr RowBuffer_;
-
-    TSubqueryConfigPtr Config_;
-
-    std::vector<TInputChunkPtr> InputChunks_;
 
     // TODO(max42): get rid of duplicating code.
     void CollectBasicAttributes()
@@ -291,6 +303,21 @@ private:
             InputTables_.size(),
             totalChunkCount);
 
+        auto chunkSpecFetcher = New<TChunkSpecFetcher>(
+            Client_,
+            NodeDirectory_,
+            Invoker_,
+            Config_->MaxChunksPerFetch,
+            Config_->MaxChunksPerLocateRequest,
+            [=] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
+                req->set_fetch_all_meta_extensions(false);
+                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+                req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
+                SetTransactionId(req, NullTransactionId);
+                SetSuppressAccessTracking(req, true);
+            },
+            Logger);
+
         for (size_t tableIndex = 0; tableIndex < InputTables_.size(); ++tableIndex) {
             auto& table = InputTables_[tableIndex];
     
@@ -308,38 +335,19 @@ private:
     
             DataSourceDirectory_->DataSources().push_back(std::move(dataSource));
     
-            YT_LOG_DEBUG("Fetching input table (Path: %v)",
-                table.Path.GetPath());
-
-            auto chunkSpecs = FetchChunkSpecs(
-                Client_,
-                NodeDirectory_,
-                table.CellTag,
-                FromObjectId(table.ObjectId),
-                table.Path.GetRanges(),
-                table.ChunkCount,
-                100000, // MaxChunksPerFetch
-                10000,  // MaxChunksPerLocateRequest
-                [=] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
-                    req->set_fetch_all_meta_extensions(false);
-                    req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                    req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
-                    SetTransactionId(req, NullTransactionId);
-                    SetSuppressAccessTracking(req, true);
-                },
-                Logger);
-    
-            for (int i = 0; i < static_cast<int>(chunkSpecs.size()); ++i) {
-                auto& chunk = chunkSpecs[i];
-                chunk.set_table_index(static_cast<int>(tableIndex));
-            }
-    
-            for (const auto& chunkSpec : chunkSpecs) {
-                auto inputChunk = New<TInputChunk>(chunkSpec);
-                InputChunks_.emplace_back(std::move(inputChunk));
-            }
+            chunkSpecFetcher->Add(FromObjectId(table.ObjectId), table.CellTag, table.ChunkCount, table.Path.GetRanges());
         }
-        
+
+        WaitFor(chunkSpecFetcher->Fetch())
+            .ThrowOnError();
+
+        YT_LOG_INFO("Chunks fetched (ChunkCount: %v)", chunkSpecFetcher->ChunkSpecs().size());
+
+        for (const auto& chunkSpec : chunkSpecFetcher->ChunkSpecs()) {
+            auto inputChunk = New<TInputChunk>(chunkSpec);
+            InputChunks_.emplace_back(std::move(inputChunk));
+        }
+
         LogStatistics("FetchChunks");
     }
 
@@ -379,7 +387,7 @@ private:
             KeyColumns_,
             false /* sliceByKeys */,
             NodeDirectory_,
-            GetCurrentInvoker(),
+            Invoker_,
             nullptr /* fetcherChunkScraper */,
             Client_,
             RowBuffer_,
@@ -402,10 +410,13 @@ private:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TDataSliceFetcher);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<TInputDataSlicePtr> FetchDataSlices(
     NNative::IClientPtr client,
+    const IInvokerPtr& invoker,
     std::vector<TString> inputTablePaths,
     const KeyCondition* keyCondition,
     TRowBufferPtr rowBuffer,
@@ -417,18 +428,20 @@ std::vector<TInputDataSlicePtr> FetchDataSlices(
         inputTableRichPaths.emplace_back(TRichYPath::Parse(path));
     }
 
-    TDataSliceFetcher dataSliceFetcher(
+    auto dataSliceFetcher = New<TDataSliceFetcher>(
         std::move(client),
+        invoker,
         std::move(inputTableRichPaths),
         keyCondition,
         std::move(rowBuffer),
         std::move(config));
-    dataSliceFetcher.Fetch();
+    WaitFor(dataSliceFetcher->Fetch())
+        .ThrowOnError();
 
-    specTemplate.NodeDirectory = std::move(dataSliceFetcher.NodeDirectory());
-    specTemplate.DataSourceDirectory = std::move(dataSliceFetcher.DataSourceDirectory());
+    specTemplate.NodeDirectory = std::move(dataSliceFetcher->NodeDirectory());
+    specTemplate.DataSourceDirectory = std::move(dataSliceFetcher->DataSourceDirectory());
 
-    return std::move(dataSliceFetcher.DataSlices());
+    return std::move(dataSliceFetcher->DataSlices());
 }
 
 NChunkPools::TChunkStripeListPtr SubdivideDataSlices(const std::vector<TInputDataSlicePtr>& dataSlices, int jobCount)

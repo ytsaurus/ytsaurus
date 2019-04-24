@@ -327,6 +327,13 @@ public:
         return EPeerState::None;
     }
 
+    int GetConfigVersion() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return CellDescriptor_.ConfigVersion;
+    }
+
     EPeerState GetAutomatonState() const
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -810,6 +817,9 @@ private:
                 }))
             ->AddChild("state", IYPathService::FromMethod(
                 &TImpl::GetControlState,
+                MakeWeak(this)))
+            ->AddChild("config_version", IYPathService::FromMethod(
+                &TImpl::GetConfigVersion,
                 MakeWeak(this)))
             ->AddChild("prerequisite_transaction_id", IYPathService::FromMethod(
                 &TImpl::GetPrerequisiteTransactionId,

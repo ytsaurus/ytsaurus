@@ -26,11 +26,6 @@
 
 #include <yt/core/misc/core_dumper.h>
 #include <yt/core/misc/ref_counted_tracker.h>
-#include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
-
-#include <yt/core/alloc/statistics_producer.h>
-
-#include <yt/core/profiling/profile_manager.h>
 
 #include <yt/core/ytree/virtual.h>
 
@@ -92,37 +87,13 @@ void TBootstrap::DoRun()
     Config_->MonitoringServer->Port = Config_->MonitoringPort;
     Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
     Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
-    MonitoringHttpServer_ = NHttp::CreateServer(
-        Config_->MonitoringServer);
+    MonitoringHttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
 
-    MonitoringManager_ = New<TMonitoringManager>();
-    MonitoringManager_->Register(
-        "/yt_alloc",
-        NYTAlloc::CreateStatisticsProducer());
-    MonitoringManager_->Register(
-        "/ref_counted",
-        CreateRefCountedTrackerStatisticsProducer());
-    MonitoringManager_->Start();
-
-    auto orchidRoot = NYTree::GetEphemeralNodeFactory(true)->CreateMap();
-    SetNodeByYPath(
-        orchidRoot,
-        "/monitoring",
-        CreateVirtualNode(MonitoringManager_->GetService()));
-    SetNodeByYPath(
-        orchidRoot,
-        "/profiling",
-        CreateVirtualNode(TProfileManager::Get()->GetService()));
-    SetNodeByYPath(
-        orchidRoot,
-        "/config",
-        ConfigNode_);
-
+    NYTree::IMapNodePtr orchidRoot;
+    NMonitoring::Initialize(MonitoringHttpServer_, &MonitoringManager_, &orchidRoot);
+    
+    SetNodeByYPath(orchidRoot, "/config", ConfigNode_);
     SetBuildAttributes(orchidRoot, "proxy");
-
-    MonitoringHttpServer_->AddHandler(
-        "/orchid/",
-        NMonitoring::GetOrchidYPathHttpHandler(orchidRoot));
 
     YT_LOG_INFO("Listening for monitoring HTTP requests on port %v", Config_->MonitoringPort);
     MonitoringHttpServer_->Start();

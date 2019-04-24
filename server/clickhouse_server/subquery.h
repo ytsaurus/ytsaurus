@@ -19,6 +19,7 @@ namespace NYT::NClickHouseServer {
 //! Fetch data slices for given input tables and fill given subquery spec template.
 std::vector<NChunkClient::TInputDataSlicePtr> FetchDataSlices(
     NApi::NNative::IClientPtr client,
+    const IInvokerPtr& invoker,
     std::vector<TString> inputTablePaths,
     const DB::KeyCondition* keyCondition,
     NTableClient::TRowBufferPtr rowBuffer,
