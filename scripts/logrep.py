@@ -5,6 +5,7 @@ import argparse
 import collections
 import datetime
 import errno
+import getpass
 import gzip
 import hashlib
 import json
@@ -246,7 +247,7 @@ class RemoteTask(object):
         logging.info("copying script to {}".format(host))
         with open(__file__, "r") as source_file:
             hash_value = hashlib.md5(source_file.read()).hexdigest()
-        remote_file_name = "/tmp/logrep_{}.py".format(hash_value)
+        remote_file_name = "/tmp/logrep_{}_{}.py".format(hash_value, getpass.getuser())
         subprocess.check_call(
             ["scp"] + SSH_OPTS + [__file__, "{}:{}".format(host, remote_file_name)]
         )
