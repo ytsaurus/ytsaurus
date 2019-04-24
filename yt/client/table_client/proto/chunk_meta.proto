@@ -9,6 +9,7 @@ message TLogicalType
     oneof type {
         int32 simple = 1;
         TLogicalType optional = 2;
+        TLogicalType list = 3;
     }
 }
 

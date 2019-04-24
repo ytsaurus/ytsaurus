@@ -25,7 +25,7 @@ DECLARE_REFCOUNTED_CLASS(TRootElement)
 
 DECLARE_REFCOUNTED_STRUCT(IFairShareTreeSnapshot)
 
-struct TFairShareContext;
+class TFairShareContext;
 
 class TJobMetrics;
 

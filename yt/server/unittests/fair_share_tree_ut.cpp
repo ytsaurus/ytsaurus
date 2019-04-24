@@ -288,6 +288,9 @@ protected:
     TSchedulerConfigPtr SchedulerConfig_ = New<TSchedulerConfig>();
     TFairShareStrategyTreeConfigPtr TreeConfig_ = New<TFairShareStrategyTreeConfig>();
     TFairShareTreeHostMock FairShareTreeHostMock_;
+    TFairShareSchedulingStage SchedulingStageMock_ = TFairShareSchedulingStage(
+        /* nameInLogs */ "Test scheduling stage",
+        TScheduleJobsProfilingCounters("/test_scheduling_stage", /* treeIdProfilingTags */ {}));
 
     TRootElementPtr CreateTestRootElement(ISchedulerStrategyHost* host)
     {
@@ -307,7 +310,7 @@ protected:
             &FairShareTreeHostMock_,
             name,
             New<TPoolConfig>(),
-            /*defaultConfigured*/ true,
+            /* defaultConfigured */ true,
             TreeConfig_,
             // TODO(ignat): eliminate profiling from test.
             NProfiling::TProfileManager::Get()->RegisterTag("pool", name),
@@ -350,11 +353,14 @@ protected:
         const TOperationElementPtr& operationElement,
         const TExecNodePtr& execNode)
     {
-        auto schedulingContext = CreateSchedulingContext(SchedulerConfig_, execNode, /*runningJobs*/ {});
-        TFairShareContext context(schedulingContext);
+        auto schedulingContext = CreateSchedulingContext(SchedulerConfig_, execNode, /* runningJobs */ {});
+        TFairShareContext context(schedulingContext, /* enableSchedulingInfoLogging */ true);
         TDynamicAttributesList dynamicAttributes;
+
+        context.StartStage(&SchedulingStageMock_);
         PrepareForTestScheduling(rootElement, &context, &dynamicAttributes);
         operationElement->ScheduleJob(&context);
+        context.FinishStage();
     }
 
 private:
@@ -365,9 +371,9 @@ private:
     {
         TUpdateFairShareContext updateContext;
         rootElement->Update(*dynamicAttributesList, &updateContext);
-        context->Initialize(rootElement->GetTreeSize(), /*registeredSchedulingTagFilters*/ {});
-        rootElement->PrescheduleJob(context, /*starvingOnly*/ false, /*aggressiveStarvationEnabled*/ false);
-        context->PrescheduledCalled = true;
+        context->Initialize(rootElement->GetTreeSize(), /* registeredSchedulingTagFilters */ {});
+        rootElement->PrescheduleJob(context, /* starvingOnly */ false, /* aggressiveStarvationEnabled */ false);
+        context->PrescheduleCalled = true;
     }
 };
 

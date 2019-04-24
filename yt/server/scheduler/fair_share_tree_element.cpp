@@ -1,6 +1,7 @@
 #include "fair_share_tree_element.h"
 
 #include "scheduling_context.h"
+#include "fair_share_tree.h"
 
 #include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/profile_manager.h>
@@ -70,8 +71,38 @@ TJobResources ToJobResources(const TResourceLimitsConfigPtr& config, TJobResourc
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairShareContext::TFairShareContext(const ISchedulingContextPtr& schedulingContext)
+TScheduleJobsProfilingCounters::TScheduleJobsProfilingCounters(
+    const TString& prefix,
+    const NProfiling::TTagIdList& treeIdProfilingTags)
+    : PrescheduleJobTime(prefix + "/preschedule_job_time", treeIdProfilingTags)
+    , TotalControllerScheduleJobTime(prefix + "/controller_schedule_job_time/total", treeIdProfilingTags)
+    , ExecControllerScheduleJobTime(prefix + "/controller_schedule_job_time/exec", treeIdProfilingTags)
+    , StrategyScheduleJobTime(prefix + "/strategy_schedule_job_time", treeIdProfilingTags)
+    , ScheduleJobCount(prefix + "/schedule_job_count", treeIdProfilingTags)
+    , ScheduleJobFailureCount(prefix + "/schedule_job_failure_count", treeIdProfilingTags)
+{
+    for (auto reason : TEnumTraits<NControllerAgent::EScheduleJobFailReason>::GetDomainValues()) {
+        auto tags = GetFailReasonProfilingTags(reason);
+        tags.insert(tags.end(), treeIdProfilingTags.begin(), treeIdProfilingTags.end());
+
+        ControllerScheduleJobFail[reason] = NProfiling::TMonotonicCounter(
+            prefix + "/controller_schedule_job_fail",
+            tags);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFairShareSchedulingStage::TFairShareSchedulingStage(const TString& loggingName, TScheduleJobsProfilingCounters profilingCounters)
+    : LoggingName(loggingName)
+    , ProfilingCounters(std::move(profilingCounters))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFairShareContext::TFairShareContext(const ISchedulingContextPtr& schedulingContext, bool enableSchedulingInfoLogging)
     : SchedulingContext(schedulingContext)
+    , EnableSchedulingInfoLogging(enableSchedulingInfoLogging)
 { }
 
 void TFairShareContext::Initialize(int treeSize, const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters)
@@ -99,6 +130,78 @@ const TDynamicAttributes& TFairShareContext::DynamicAttributesFor(const TSchedul
     int index = element->GetTreeIndex();
     YCHECK(index != UnassignedTreeIndex && index < DynamicAttributesList.size());
     return DynamicAttributesList[index];
+}
+
+TFairShareContext::TStageState::TStageState(TFairShareSchedulingStage* schedulingStage)
+    : SchedulingStage(schedulingStage)
+{ }
+
+void TFairShareContext::StartStage(TFairShareSchedulingStage* schedulingStage)
+{
+    YCHECK(!StageState);
+    StageState.emplace(TStageState(schedulingStage));
+}
+
+void TFairShareContext::ProfileStageTimingsAndLogStatistics()
+{
+    YCHECK(StageState);
+
+    ProfileStageTimings();
+
+    if (StageState->ScheduleJobAttempts > 0 && EnableSchedulingInfoLogging) {
+        LogStageStatistics();
+    }
+}
+
+void TFairShareContext::FinishStage()
+{
+    YCHECK(StageState);
+    StageState = std::nullopt;
+}
+
+void TFairShareContext::ProfileStageTimings()
+{
+    YCHECK(StageState);
+
+    auto* profilingCounters = &StageState->SchedulingStage->ProfilingCounters;
+
+    Profiler.Update(
+        profilingCounters->PrescheduleJobTime,
+        StageState->PrescheduleDuration.MicroSeconds());
+
+    Profiler.Update(
+        profilingCounters->StrategyScheduleJobTime,
+        (StageState->TotalDuration - StageState->PrescheduleDuration - StageState->TotalScheduleJobDuration).MicroSeconds());
+
+    Profiler.Update(
+        profilingCounters->TotalControllerScheduleJobTime,
+        StageState->TotalScheduleJobDuration.MicroSeconds());
+
+    Profiler.Update(
+        profilingCounters->ExecControllerScheduleJobTime,
+        StageState->ExecScheduleJobDuration.MicroSeconds());
+
+    Profiler.Increment(profilingCounters->ScheduleJobCount, StageState->ScheduleJobAttempts);
+    Profiler.Increment(profilingCounters->ScheduleJobFailureCount, StageState->ScheduleJobFailureCount);
+
+    for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
+        Profiler.Increment(
+            profilingCounters->ControllerScheduleJobFail[reason],
+            StageState->FailedScheduleJob[reason]);
+    }
+}
+
+void TFairShareContext::LogStageStatistics()
+{
+    YCHECK(StageState);
+
+    YT_LOG_DEBUG("%v scheduling statistics (ActiveTreeSize: %v, ActiveOperationCount: %v, DeactivationReasons: %v, CanStartMoreJobs: %v, Address: %v)",
+        StageState->SchedulingStage->LoggingName,
+        StageState->ActiveTreeSize,
+        StageState->ActiveOperationCount,
+        StageState->DeactivationReasons,
+        SchedulingContext->CanStartMoreJobs(),
+        SchedulingContext->GetNodeDescriptor().Address);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1025,7 +1128,7 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext* context, bool
     auto& attributes = context->DynamicAttributesFor(this);
 
     if (!IsAlive()) {
-        ++context->DeactivationReasons[EDeactivationReason::IsNotAlive];
+        ++context->StageState->DeactivationReasons[EDeactivationReason::IsNotAlive];
         attributes.Active = false;
         return;
     }
@@ -1034,7 +1137,7 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext* context, bool
         SchedulingTagFilterIndex_ != EmptySchedulingTagFilterIndex &&
         !context->CanSchedule[SchedulingTagFilterIndex_])
     {
-        ++context->DeactivationReasons[EDeactivationReason::UnmatchedSchedulingTag];
+        ++context->StageState->DeactivationReasons[EDeactivationReason::UnmatchedSchedulingTag];
         attributes.Active = false;
         return;
     }
@@ -1055,7 +1158,7 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext* context, bool
     TSchedulerElement::PrescheduleJob(context, starvingOnly, aggressiveStarvationEnabled);
 
     if (attributes.Active) {
-        ++context->ActiveTreeSize;
+        ++context->StageState->ActiveTreeSize;
     }
 }
 
@@ -2390,7 +2493,7 @@ void TOperationElement::PrescheduleJob(TFairShareContext* context, bool starving
     attributes.Active = true;
 
     auto onOperationDeactivated = [&] (EDeactivationReason reason) {
-        ++context->DeactivationReasons[reason];
+        ++context->StageState->DeactivationReasons[reason];
         OnOperationDeactivated(reason);
         attributes.Active = false;
     };
@@ -2427,8 +2530,8 @@ void TOperationElement::PrescheduleJob(TFairShareContext* context, bool starving
         return;
     }
 
-    ++context->ActiveTreeSize;
-    ++context->ActiveOperationCount;
+    ++context->StageState->ActiveTreeSize;
+    ++context->StageState->ActiveOperationCount;
 
     TSchedulerElement::PrescheduleJob(context, starvingOnly, aggressiveStarvationEnabled);
 }
@@ -2461,14 +2564,14 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
         while (parent) {
             parent->UpdateDynamicAttributes(context->DynamicAttributesList);
             if (!context->DynamicAttributesList[parent->GetTreeIndex()].Active) {
-                ++context->DeactivationReasons[EDeactivationReason::NoBestLeafDescendant];
+                ++context->StageState->DeactivationReasons[EDeactivationReason::NoBestLeafDescendant];
             }
             parent = parent->GetMutableParent();
         }
     };
 
     auto disableOperationElement = [&] (EDeactivationReason reason) {
-        ++context->DeactivationReasons[reason];
+        ++context->StageState->DeactivationReasons[reason];
         OnOperationDeactivated(reason);
         context->DynamicAttributesFor(this).Active = false;
         updateAncestorsAttributes();
@@ -2504,15 +2607,15 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
     NProfiling::TWallTimer timer;
     auto scheduleJobResult = DoScheduleJob(context, availableResources, &precommittedResources);
     auto scheduleJobDuration = timer.GetElapsedTime();
-    context->TotalScheduleJobDuration += scheduleJobDuration;
-    context->ExecScheduleJobDuration += scheduleJobResult->Duration;
+    context->StageState->TotalScheduleJobDuration += scheduleJobDuration;
+    context->StageState->ExecScheduleJobDuration += scheduleJobResult->Duration;
 
     if (!scheduleJobResult->StartDescriptor) {
         for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
-            context->FailedScheduleJob[reason] += scheduleJobResult->Failed[reason];
+            context->StageState->FailedScheduleJob[reason] += scheduleJobResult->Failed[reason];
         }
 
-        ++context->ScheduleJobFailureCount;
+        ++context->StageState->ScheduleJobFailureCount;
         disableOperationElement(EDeactivationReason::ScheduleJobFailed);
 
         bool enableBackoff = scheduleJobResult->IsBackoffNeeded();
