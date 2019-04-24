@@ -83,9 +83,9 @@ struct TScheduleJobsProfilingCounters
 
 struct TFairShareSchedulingStage
 {
-    TFairShareSchedulingStage(const TString& nameInLogs, TScheduleJobsProfilingCounters profilingCounters);
+    TFairShareSchedulingStage(const TString& loggingName, TScheduleJobsProfilingCounters profilingCounters);
 
-    const TString NameInLogs;
+    const TString LoggingName;
     TScheduleJobsProfilingCounters ProfilingCounters;
 };
 
