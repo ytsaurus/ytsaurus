@@ -423,7 +423,7 @@ TLogicalTypePtr SimpleLogicalType(ESimpleLogicalValueType element, bool required
     }
 }
 
-inline TLogicalTypePtr ListLogicalType(TLogicalTypePtr element)
+TLogicalTypePtr ListLogicalType(TLogicalTypePtr element)
 {
     return New<TListLogicalType>(element);
 }
