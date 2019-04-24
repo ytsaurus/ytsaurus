@@ -50,61 +50,47 @@ upload_to_sandbox() {
 
     local archive_path="$1" && shift
 
+    local ya_bin="$YT_SRC_DIR/ya"
+
     local task;
     local task_id;
     local task_params;
 
-    task=$(cat <<EOF
-{
-    "type": "REMOTE_COPY_RESOURCE",
-    "context":
-    {
-        "resource_type": "YT_LOCAL",
-        "remote_file_protocol": "http",
-        "remote_file_name": "http://locke.yt.yandex.net/api/v3/read_file?path=${archive_path}&disposition=attachment",
-        "created_resource_name": "yt.tar",
-        "resource_attrs": "ttl=inf,\
-                           backup_task=true,\
-                           yt_version=${yt_version},\
-                           yt_local_version=${yt_local_version},\
-                           yt_python_version=${yt_python_version},\
-                           yt_yson_bindings_version=${yt_yson_bindings_version},\
-                           yt_platform=${UBUNTU_CODENAME}"
-    }
-}
-EOF
-)
-    task_id=$(echo -ne "$task" | \
-              sandbox_request "POST" "task" -d @- | \
-              python2 -c 'import sys, json; print json.load(sys.stdin)["id"]')
+    "$ya_bin" upload \
+        ${archive_local_path} \
+        --ttl=inf \
+        --attr backup_task=true \
+        --attr yt_version="$yt_version" \
+        --attr yt_local_version="$yt_local_version" \
+        --attr yt_python_version="$yt_python_version" \
+        --attr yt_yson_bindings_version="$yt_yson_bindings_version" \
+        --attr yt_platform="${UBUNTU_CODENAME}" \
+        --token "${SANDBOX_TOKEN}" \
+        --description "Upload YT local archive" \
+        --type YT_LOCAL \
+        --owner TEAMCITY
 
-    echo "Created sandbox task: $task_id"
-
-    task_params=$(cat <<EOF
-{
-    "description": "Upload YT local archive",
-    "notifications": [
-        {
-            "transport": "email",
-            "recipients": ["asaitgalin", "alexeyche", "vartyukh", "ignat"],
-            "statuses": ["SUCCESS"]
-        },
-        {
-            "transport": "email",
-            "recipients": ["asaitgalin", "ignat"],
-            "statuses": ["FAILURE", "TIMEOUT", "EXCEPTION"]
-        }
-    ],
-    "owner": "TEAMCITY"
-}
-EOF
-)
-
-    echo -ne "$task_params" | sandbox_request "PUT" "task/${task_id}" -d @-
-
-    echo -ne "[$task_id]" | sandbox_request "PUT" "batch/tasks/start" -d @-
-
-    echo "Successfully started sandbox task $task_id"
+#    task_params=$(cat <<EOF
+#{
+#    "description": "Upload YT local archive",
+#    "notifications": [
+#        {
+#            "transport": "email",
+#            "recipients": ["asaitgalin", "alexeyche", "vartyukh", "ignat"],
+#            "statuses": ["SUCCESS"]
+#        },
+#        {
+#            "transport": "email",
+#            "recipients": ["asaitgalin", "ignat"],
+#            "statuses": ["FAILURE", "TIMEOUT", "EXCEPTION"]
+#        }
+#    ],
+#    "owner": "TEAMCITY"
+#}
+#EOF
+#)
+#
+#    echo -ne "$task_params" | sandbox_request "PUT" "task/${task_id}" -d @-
 }
 
 YANDEX_YT_LOCAL_VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
@@ -147,18 +133,19 @@ create_and_upload_archive() {
     "$(dirname "$0")/prepare_archive_directory.sh" "$yt_version" \
                                                    "$yt_python_version" \
                                                    "$yt_yson_bindings_version"
-    local archive_local_path="$(cat yt_local_archive_path)"
+    local path_prepared_files_for_archive="$(cat yt_local_archive_path)"
     rm -rf "yt_local_archive_path"
 
     # Remove debug symbols from libraries and binaries.
-    strip_debug_info "$archive_local_path"
+    strip_debug_info "$path_prepared_files_for_archive"
 
     # Pack directory to tar archive without compression.
-    local archive_local_name="$(mktemp /tmp/${archive_name}.XXXXXX)"
-    tar cvf "$archive_local_name" -C "$archive_local_path" .
-    rm -rf "$archive_local_path"
+    local archive_local_dir="$(mktemp /tmp/${archive_name}.XXXXXX --directory)"
+    local archive_local_path="$archive_local_dir/yt.tar"
+    tar cvf "$archive_local_path" -C "$path_prepared_files_for_archive" .
+    rm -rf "$path_prepared_files_for_archive"
 
-    cat "$archive_local_name" | $YT write-file "$archive_path"
+    cat "$archive_local_path" | $YT write-file "$archive_path"
     $YT set //home/files/${archive_name}/@packages_versions "{\
           yandex-yt=\"$yt_version\"; \
           yandex-yt-local=\"$yt_local_version\";\
@@ -167,13 +154,13 @@ create_and_upload_archive() {
 
     $YT link "$archive_path" "//home/files/yt_local_archive.tar" --force
 
-    rm -rf "$archive_local_name"
-
     upload_to_sandbox "$yt_version" \
                       "$yt_local_version" \
                       "$yt_python_version" \
                       "$yt_yson_bindings_version" \
-                      "$archive_path"
+                      "$archive_local_path"
+
+    rm -rf "$archive_local_path"
 
     $YT set "${archive_path}/@success" "%true"
 

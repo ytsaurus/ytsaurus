@@ -294,7 +294,8 @@ def build_packages(options):
             package_version = run_captured(
                 "dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True).strip()
             run(["dch", "-r", package_version, "'Resigned by teamcity'"])
-        run(["./deploy.sh", package], cwd=options.checkout_directory, env={"TMPDIR": options.working_directory})
+        run(["./deploy.sh", package], cwd=options.checkout_directory,
+            env={"TMPDIR": options.working_directory, "YT_SRC_DIR": options.yt_source_directory})
 
 @cleanup_step
 def clean_failed_tests(options, build_context, max_allowed_size=None):
