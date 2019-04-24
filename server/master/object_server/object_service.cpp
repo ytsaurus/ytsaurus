@@ -452,7 +452,9 @@ private:
             subrequest.RequestMessage = updatedSubrequestMessage;
             subrequest.Context = subcontext;
             subrequest.AsyncResponseMessage = subcontext->GetAsyncResponseMessage();
-            subrequest.TraceContext = NTracing::CreateChildTraceContext();
+            subrequest.TraceContext = NRpc::CreateCallTraceContext(
+                subrequestHeader.service(),
+                subrequestHeader.method());
             if (mutating) {
                 subrequest.Mutation = ObjectManager_->CreateExecuteMutation(UserName_, subcontext);
                 subrequest.Mutation->SetMutationId(subcontext->GetMutationId(), subcontext->IsRetry());
@@ -641,11 +643,7 @@ private:
         }
 
         if (subrequest.TraceContext) {
-            NTracing::TraceEvent(
-                *subrequest.TraceContext,
-                subrequest.RequestHeader.service(),
-                subrequest.RequestHeader.method(),
-                NTracing::ServerReceiveAnnotation);
+            subrequest.TraceContext->ResetStartTime();
         }
 
         Revisions_[CurrentSubrequestIndex_] = HydraFacade_->GetHydraManager()->GetAutomatonVersion().ToRevision();
@@ -750,11 +748,7 @@ private:
         }
 
         if (subrequest->TraceContext) {
-            NTracing::TraceEvent(
-                *subrequest->TraceContext,
-                subrequest->RequestHeader.service(),
-                subrequest->RequestHeader.method(),
-                NTracing::ServerSendAnnotation);
+            subrequest->TraceContext->Finish();
         }
 
         if (++SubresponseCount_ == SubrequestCount_) {

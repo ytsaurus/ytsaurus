@@ -126,6 +126,7 @@ void TStorageDistributedBase::Prepare(
     auto tablePaths = GetTablePaths();
     auto dataSlices = FetchDataSlices(
         queryContext->Client(),
+        queryContext->Bootstrap->GetSerializedWorkerInvoker(),
         tablePaths,
         keyCondition.get(),
         queryContext->RowBuffer,

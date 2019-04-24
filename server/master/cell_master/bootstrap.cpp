@@ -616,47 +616,6 @@ void TBootstrap::DoInitialize()
         HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic));
     CellDirectorySynchronizer_->Start();
 
-    MonitoringManager_ = New<TMonitoringManager>();
-    MonitoringManager_->Register(
-        "/yt_alloc",
-        NYTAlloc::CreateStatisticsProducer());
-    MonitoringManager_->Register(
-        "/ref_counted",
-        CreateRefCountedTrackerStatisticsProducer());
-    MonitoringManager_->Register(
-        "/hydra",
-        HydraFacade_->GetHydraManager()->GetMonitoringProducer());
-    MonitoringManager_->Register(
-        "/election",
-        HydraFacade_->GetElectionManager()->GetMonitoringProducer());
-
-    auto orchidRoot = GetEphemeralNodeFactory(true)->CreateMap();
-    SetNodeByYPath(
-        orchidRoot,
-        "/monitoring",
-        CreateVirtualNode(MonitoringManager_->GetService()));
-    SetNodeByYPath(
-        orchidRoot,
-        "/profiling",
-        CreateVirtualNode(TProfileManager::Get()->GetService()));
-    SetNodeByYPath(
-        orchidRoot,
-        "/config",
-        ConfigNode_);
-    SetNodeByYPath(
-        orchidRoot,
-        "/chunk_manager",
-        CreateVirtualNode(ChunkManager_->GetOrchidService()));
-    SetNodeByYPath(
-        orchidRoot,
-        "/hive",
-        CreateVirtualNode(HiveManager_->GetOrchidService()));
-
-    OrchidHttpHandler_ = NMonitoring::GetOrchidYPathHttpHandler(orchidRoot);
-
-    SetBuildAttributes(orchidRoot, "master");
-
-    RpcServer_->RegisterService(CreateOrchidService(orchidRoot, GetControlInvoker())); // null realm
     RpcServer_->RegisterService(timestampManager->GetRpcService()); // null realm
     RpcServer_->RegisterService(HiveManager_->GetRpcService()); // cell realm
     for (const auto& service : TransactionSupervisor_->GetRpcServices()) {
@@ -715,14 +674,37 @@ void TBootstrap::DoRun()
 {
     HydraFacade_->Initialize();
 
-    MonitoringManager_->Start();
-
     YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
     HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
-    HttpServer_->AddHandler("/orchid/", OrchidHttpHandler_);
+
+    NYTree::IMapNodePtr orchidRoot;
+    NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &orchidRoot);
+    MonitoringManager_->Register(
+        "/hydra",
+        HydraFacade_->GetHydraManager()->GetMonitoringProducer());
+    MonitoringManager_->Register(
+        "/election",
+        HydraFacade_->GetElectionManager()->GetMonitoringProducer());
+
+    SetNodeByYPath(
+        orchidRoot,
+        "/config",
+        ConfigNode_);
+    SetNodeByYPath(
+        orchidRoot,
+        "/chunk_manager",
+        CreateVirtualNode(ChunkManager_->GetOrchidService()));
+    SetNodeByYPath(
+        orchidRoot,
+        "/hive",
+        CreateVirtualNode(HiveManager_->GetOrchidService()));
+
+    SetBuildAttributes(orchidRoot, "master");
+
     HttpServer_->Start();
 
     YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
+    RpcServer_->RegisterService(CreateOrchidService(orchidRoot, GetControlInvoker()));
     RpcServer_->Start();
 
     AnnotationSetter_->Start();

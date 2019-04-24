@@ -4,6 +4,8 @@
 
 #include <yt/core/misc/shutdownable.h>
 
+#include <yt/core/misc/ref.h>
+
 #include <yt/core/ytree/public.h>
 
 #include <util/generic/singleton.h>
@@ -26,16 +28,9 @@ public:
 
     virtual void Shutdown() override;
 
-    void Enqueue(
-        const NTracing::TTraceContext& context,
-        const TString& serviceName,
-        const TString& spanName,
-        const TString& annotationName);
+    void Enqueue(NTracing::TTraceContextPtr traceContext);
 
-    void Enqueue(
-        const NTracing::TTraceContext& context,
-        const TString& annotationKey,
-        const TString& annotationValue);
+    std::pair<i64, std::vector<TSharedRef>> ReadTraces(i64 startIndex, i64 limit);
 
 private:
     TTraceManager();

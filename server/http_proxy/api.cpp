@@ -61,6 +61,11 @@ const TCoordinatorPtr& TApi::GetCoordinator() const
     return Coordinator_;
 }
 
+const TApiConfigPtr& TApi::GetConfig() const
+{
+    return Config_;
+}
+
 bool TApi::IsUserBannedInCache(const TString& user)
 {
     auto now = TInstant::Now();

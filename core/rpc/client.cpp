@@ -259,11 +259,11 @@ void TClientRequest::SetMultiplexingBand(EMultiplexingBand band)
 
 TClientContextPtr TClientRequest::CreateClientContext()
 {
-    auto traceContext = NTracing::CreateChildTraceContext();
+    auto traceContext = CreateCallTraceContext(GetService(), GetMethod());
     if (traceContext) {
         SetTraceContext(&Header(), traceContext);
-        if (traceContext->IsVerbose()) {
-            TraceRequest(*traceContext);
+        if (traceContext->IsSampled()) {
+            TraceRequest(traceContext);
         }
     }
 
@@ -368,23 +368,9 @@ const IInvokerPtr& TClientRequest::GetInvoker() const
         : TDispatcher::Get()->GetLightInvoker();
 }
 
-void TClientRequest::TraceRequest(const NTracing::TTraceContext& traceContext)
+void TClientRequest::TraceRequest(const NTracing::TTraceContextPtr& traceContext)
 {
-    NTracing::TraceEvent(
-        traceContext,
-        GetService(),
-        GetMethod(),
-        NTracing::ClientSendAnnotation);
-
-    NTracing::TraceEvent(
-        traceContext,
-        RequestIdAnnotation,
-        GetRequestId());
-
-    NTracing::TraceEvent(
-        traceContext,
-        ClientHostAnnotation,
-        NNet::GetLocalHostName());
+    traceContext->AddTag(RequestIdAnnotation, ToString(GetRequestId()));
 }
 
 void TClientRequest::SetCodecsInHeader()
@@ -465,8 +451,6 @@ void TClientResponse::DoHandleError(const TError& error)
 
 void TClientResponse::Finish(const TError& error)
 {
-    NTracing::TTraceContextGuard guard(ClientContext_->GetTraceContext());
-
     TraceResponse();
 
     const auto& requestAttachmentsStream = ClientContext_->GetRequestAttachmentsStream();
@@ -486,11 +470,7 @@ void TClientResponse::TraceResponse()
 {
     const auto& traceContext = ClientContext_->GetTraceContext();
     if (traceContext) {
-        NTracing::TraceEvent(
-            *traceContext,
-            ClientContext_->GetService(),
-            ClientContext_->GetMethod(),
-            NTracing::ClientReceiveAnnotation);
+        traceContext->Finish();
     }
 }
 

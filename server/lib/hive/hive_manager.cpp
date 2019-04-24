@@ -1204,14 +1204,7 @@ private:
         request.Type = message.type();
         request.Data = TSharedRef::FromString(message.data());
 
-        auto traceContext = GetTraceContext(message);
-        TTraceContextGuard traceContextGuard(traceContext);
-
-        TRACE_ANNOTATION_WITH_CONTEXT(
-            traceContext,
-            HiveTracingService,
-            request.Type,
-            ServerReceiveAnnotation);
+        TTraceContextGuard traceContextGuard(GetTraceContext(message));
 
         {
             TMutationContext mutationContext(GetCurrentMutationContext(), request);
@@ -1221,52 +1214,48 @@ private:
 
             static_cast<IAutomaton*>(Automaton_)->ApplyMutation(&mutationContext);
         }
-
-        TRACE_ANNOTATION_WITH_CONTEXT(
-            traceContext,
-            HiveTracingService,
-            request.Type,
-            ServerSendAnnotation);
     }
 
 
     static TTraceContextPtr GetTraceContext(const TEncapsulatedMessage& message)
     {
-        if (!message.has_trace_id()) {
+        TTraceId traceId = InvalidTraceId;
+        if (message.has_trace_id_old()) {
+            traceId.Parts64[0] = message.trace_id_old();
+        }
+        if (message.has_trace_id()) {
+            traceId = FromProto<TTraceId>(message.trace_id());
+        }
+
+        auto sourceSpan = InvalidSpanId;
+        if (message.has_span_id()) {
+            sourceSpan = message.span_id();
+        }
+
+        if (traceId == InvalidTraceId || sourceSpan == InvalidSpanId) {
             return nullptr;
         }
 
-        if (message.trace_id() == InvalidTraceId) {
-            return nullptr;
-        }
-
+        auto spanName = "HiveMessage." + message.type();
         return New<TTraceContext>(
-            message.trace_id(),
-            message.span_id(),
-            message.parent_span_id());
+            TFollowsFrom{},
+            TSpanContext{traceId, sourceSpan, message.is_sampled(), message.is_debug()},
+            spanName);
     }
 
     static void AnnotateWithTraceContext(TEncapsulatedMessage* message)
     {
-        auto traceContext = CreateChildTraceContext();
+        auto traceContext = GetCurrentTraceContext();
         if (!traceContext) {
             return;
         }
 
-        TRACE_ANNOTATION_WITH_CONTEXT(
-            traceContext,
-            HiveTracingService,
-            message->type(),
-            ClientSendAnnotation);
-
-        TRACE_ANNOTATION_WITH_CONTEXT(
-            traceContext,
-            ClientHostAnnotation,
-            GetLocalHostName());
-
-        message->set_trace_id(traceContext->GetTraceId());
+        auto traceId = traceContext->GetTraceId();
+        ToProto(message->mutable_trace_id(), traceId);
         message->set_span_id(traceContext->GetSpanId());
-        message->set_parent_span_id(traceContext->GetParentSpanId());
+
+        // COMPAT(prime)
+        message->set_trace_id_old(traceId.Parts64[0]);
     }
 
 

@@ -177,21 +177,20 @@ public:
         const TClientBlockReadOptions& blockReadOptions,
         const TQueryOptions& options) override
     {
-        TRACE_CHILD("QueryClient", "Execute") {
-            auto execute = query->IsOrdered()
-                ? &TQueryExecutor::DoExecuteOrdered
-                : &TQueryExecutor::DoExecute;
+        NTracing::TChildTraceContextGuard guard("QueryClient.Execute");
+        auto execute = query->IsOrdered()
+            ? &TQueryExecutor::DoExecuteOrdered
+            : &TQueryExecutor::DoExecute;
 
-            return BIND(execute, MakeStrong(this))
-                .AsyncVia(Invoker_)
-                .Run(
-                    std::move(query),
-                    std::move(externalCGInfo),
-                    std::move(dataSource),
-                    options,
-                    blockReadOptions,
-                    std::move(writer));
-        }
+        return BIND(execute, MakeStrong(this))
+            .AsyncVia(Invoker_)
+            .Run(
+                std::move(query),
+                std::move(externalCGInfo),
+                std::move(dataSource),
+                options,
+                blockReadOptions,
+                std::move(writer));
     }
 
 private:
@@ -663,51 +662,51 @@ private:
     {
         auto Logger = MakeQueryLogger(query);
 
-        TRACE_CHILD("QueryClient", "Delegate") {
-            auto channel = NodeChannelFactory_->CreateChannel(address);
-            auto config = Connection_->GetConfig();
+        NTracing::TChildTraceContextGuard guard("QueryClient.Delegate");
+        auto channel = NodeChannelFactory_->CreateChannel(address);
+        auto config = Connection_->GetConfig();
 
-            TQueryServiceProxy proxy(channel);
+        TQueryServiceProxy proxy(channel);
 
-            auto req = proxy.Execute();
-            // TODO(babenko): set proper band
-            if (options.Deadline != TInstant::Max()) {
-                req->SetTimeout(options.Deadline - Now());
-            }
-
-            TDuration serializationTime;
-            {
-                NProfiling::TCpuTimingGuard timingGuard(&serializationTime);
-
-                ToProto(req->mutable_query(), query);
-                req->mutable_query()->set_input_row_limit(options.InputRowLimit);
-                req->mutable_query()->set_output_row_limit(options.OutputRowLimit);
-                ToProto(req->mutable_external_functions(), externalCGInfo->Functions);
-                externalCGInfo->NodeDirectory->DumpTo(req->mutable_node_directory());
-                ToProto(req->mutable_options(), options);
-                ToProto(req->mutable_data_sources(), dataSources);
-                req->set_response_codec(static_cast<int>(config->SelectRowsResponseCodec));
-            }
-
-            auto queryFingerprint = InferName(query, true);
-            YT_LOG_DEBUG("Sending subquery (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v, SerializationTime: %v, "
-                "RequestSize: %v)",
-                queryFingerprint,
-                query->GetReadSchema(),
-                query->GetTableSchema(),
-                serializationTime,
-                req->ByteSize());
-
-            TRACE_ANNOTATION("serialization_time", serializationTime);
-            TRACE_ANNOTATION("request_size", req->ByteSize());
-
-            auto resultReader = New<TQueryResponseReader>(
-                req->Invoke(),
-                query->GetTableSchema(),
-                config->SelectRowsResponseCodec,
-                Logger);
-            return std::make_pair(resultReader, resultReader->GetQueryResult());
+        auto req = proxy.Execute();
+        // TODO(babenko): set proper band
+        if (options.Deadline != TInstant::Max()) {
+            req->SetTimeout(options.Deadline - Now());
         }
+
+        TDuration serializationTime;
+        {
+            NProfiling::TCpuTimingGuard timingGuard(&serializationTime);
+
+            ToProto(req->mutable_query(), query);
+            req->mutable_query()->set_input_row_limit(options.InputRowLimit);
+            req->mutable_query()->set_output_row_limit(options.OutputRowLimit);
+            ToProto(req->mutable_external_functions(), externalCGInfo->Functions);
+            externalCGInfo->NodeDirectory->DumpTo(req->mutable_node_directory());
+            ToProto(req->mutable_options(), options);
+            ToProto(req->mutable_data_sources(), dataSources);
+            req->set_response_codec(static_cast<int>(config->SelectRowsResponseCodec));
+        }
+
+        auto queryFingerprint = InferName(query, true);
+        YT_LOG_DEBUG("Sending subquery (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v, SerializationTime: %v, "
+            "RequestSize: %v)",
+            queryFingerprint,
+            query->GetReadSchema(),
+            query->GetTableSchema(),
+            serializationTime,
+            req->ByteSize());
+
+        // TODO(prime): put these into the trace log
+        // TRACE_ANNOTATION("serialization_time", serializationTime);
+        // TRACE_ANNOTATION("request_size", req->ByteSize());
+
+        auto resultReader = New<TQueryResponseReader>(
+            req->Invoke(),
+            query->GetTableSchema(),
+            config->SelectRowsResponseCodec,
+            Logger);
+        return std::make_pair(resultReader, resultReader->GetQueryResult());
     }
 };
 

@@ -1,5 +1,7 @@
 #include "http_integration.h"
 
+#include "monitoring_manager.h"
+
 #include <yt/core/json/config.h>
 #include <yt/core/json/json_writer.h>
 
@@ -16,6 +18,15 @@
 
 #include <yt/core/http/http.h>
 #include <yt/core/http/helpers.h>
+#include <yt/core/http/server.h>
+
+#include <yt/core/alloc/statistics_producer.h>
+
+#include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
+
+#include <yt/core/profiling/profile_manager.h>
+
+#include <yt/core/tracing/trace_manager.h>
 
 #include <util/string/vector.h>
 #include <util/string/cgiparam.h>
@@ -27,6 +38,79 @@ using namespace NYson;
 using namespace NHttp;
 using namespace NConcurrency;
 using namespace NJson;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTraceHandlerTag {};
+
+class TTracingHttpHandler
+    : public IHttpHandler
+{
+public:
+    virtual void HandleRequest(
+        const IRequestPtr& req,
+        const IResponseWriterPtr& rsp) override
+    {
+        TCgiParameters params(req->GetUrl().RawQuery);
+        auto startIndex = FromString<i64>(params.Get("start_index"));
+        auto limit = FromString<i64>(params.Get("limit"));
+
+        if (auto processCheck = req->GetHeaders()->Find("X-YT-Check-Process-Id")) {
+            if (*processCheck != ToString(ProcessId_)) {
+                rsp->SetStatus(EStatusCode::PreconditionFailed);
+                WaitFor(rsp->Close())
+                    .ThrowOnError();
+                return;
+            }
+        }
+
+        auto [realStartIndex, traces] = NTracing::TTraceManager::Get()->ReadTraces(startIndex, limit);
+
+        rsp->GetHeaders()->Add("X-YT-Trace-Start-Index", ToString(realStartIndex));
+        rsp->GetHeaders()->Add("X-YT-Process-Id", ToString(ProcessId_));
+        rsp->GetHeaders()->Add("Content-Type", "application/x-protobuf");
+        rsp->SetStatus(EStatusCode::OK);
+
+        WaitFor(rsp->WriteBody(MergeRefsToRef<TTraceHandlerTag>(traces)))
+            .ThrowOnError();
+    }
+
+private:
+    const TGuid ProcessId_ = TGuid::Create();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Initialize(
+    const NHttp::IServerPtr& monitoringServer,
+    TMonitoringManagerPtr* manager,
+    NYTree::IMapNodePtr* orchidRoot)
+{
+    *manager = New<TMonitoringManager>();
+    (*manager)->Register("/yt_alloc", NYTAlloc::CreateStatisticsProducer());
+    (*manager)->Register("/ref_counted", CreateRefCountedTrackerStatisticsProducer());
+    (*manager)->Start();
+
+    *orchidRoot = NYTree::GetEphemeralNodeFactory(true)->CreateMap();
+    SetNodeByYPath(
+        *orchidRoot,
+        "/monitoring",
+        CreateVirtualNode((*manager)->GetService()));
+    SetNodeByYPath(
+        *orchidRoot,
+        "/profiling",
+        CreateVirtualNode(NProfiling::TProfileManager::Get()->GetService()));
+
+    if (monitoringServer) {
+        monitoringServer->AddHandler(
+            "/orchid/",
+            GetOrchidYPathHttpHandler(*orchidRoot));
+
+        monitoringServer->AddHandler(
+            "/tracing/traces",
+            New<TTracingHttpHandler>());
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,9 +126,16 @@ public:
         const IRequestPtr& req,
         const IResponseWriterPtr& rsp) override
     {
+        const auto orchidPrefix = AsStringBuf("/orchid");
+    
         TString path{req->GetUrl().Path};
-        YCHECK(path.size() >= AsStringBuf("/orchid").size());
-        path = path.substr(AsStringBuf("/orchid").size(), TString::npos);
+        if (!path.StartsWith(orchidPrefix)) {
+            THROW_ERROR_EXCEPTION("HTTP request must start with %Qv prefix",
+                orchidPrefix)
+                << TErrorAttribute("path", path);
+        }
+        
+        path = path.substr(orchidPrefix.size(), TString::npos);
         TCgiParameters params(req->GetUrl().RawQuery);
 
         auto ypathReq = TYPathProxy::Get(path);
@@ -55,7 +146,8 @@ public:
                 try {
                     TYsonString(param.second).Validate();
                 } catch (const std::exception& ex) {
-                    THROW_ERROR_EXCEPTION("Error parsing value of query parameter %Qv", param.first)
+                    THROW_ERROR_EXCEPTION("Error parsing value of query parameter %Qv",
+                        param.first)
                         << ex;
                 }
 

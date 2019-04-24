@@ -73,29 +73,13 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     MonitoringServer_ = NHttp::CreateServer(
         Config_->MonitoringServer);
 
-    MonitoringManager_ = New<TMonitoringManager>();
-    MonitoringManager_->Register(
-        "/ref_counted",
-        CreateRefCountedTrackerStatisticsProducer());
-    MonitoringManager_->Start();
+    NYTree::IMapNodePtr orchidRoot;
+    NMonitoring::Initialize(MonitoringServer_, &MonitoringManager_, &orchidRoot);
 
-    auto orchidRoot = NYTree::GetEphemeralNodeFactory(true)->CreateMap();
-    SetNodeByYPath(
-        orchidRoot,
-        "/monitoring",
-        CreateVirtualNode(MonitoringManager_->GetService()));
-    SetNodeByYPath(
-        orchidRoot,
-        "/profiling",
-        CreateVirtualNode(TProfileManager::Get()->GetService()));
     SetNodeByYPath(
         orchidRoot,
         "/config",
         ConfigNode_);
-
-    MonitoringServer_->AddHandler(
-        "/orchid/",
-        NMonitoring::GetOrchidYPathHttpHandler(orchidRoot));
 
     SetBuildAttributes(orchidRoot, "http_proxy");
 
@@ -105,6 +89,11 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     SetupClients();
 
     Coordinator_ = New<TCoordinator>(Config_, this);
+    SetNodeByYPath(
+        orchidRoot,
+        "/coordinator",
+        CreateVirtualNode(Coordinator_->CreateOrchidService()));
+
     HostsHandler_ = New<THostsHandler>(Coordinator_);
     PingHandler_ = New<TPingHandler>(Coordinator_);
     DiscoverVersionsHandlerV1_ = New<TDiscoverVersionsHandlerV1>(Connection_, RootClient_);

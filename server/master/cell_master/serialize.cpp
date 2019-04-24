@@ -6,7 +6,7 @@ namespace NYT::NCellMaster {
 
 int GetCurrentSnapshotVersion()
 {
-    return 828;
+    return 829;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -49,6 +49,7 @@ bool ValidateSnapshotVersion(int version)
         version == 826 || // babenko: columnar ACLs
         version == 827 || // babenko: security tags
         version == 828 || // ifsmirnov: TCumulativeStatistics in chunk lists
+        version == 829 || // shakurov: multiply TUser::ReadRequestRateLimit_ by the number of followers
         false;
 }
 
