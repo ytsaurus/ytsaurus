@@ -135,6 +135,30 @@ private:
         return *optionalKind;
     }
 
+    static void ValidateDiskSpec(
+        const TResource::TSpec::TDiskSpec& diskSpec)
+    {
+        auto validate = [] (double value, TStringBuf name) {
+            if (value < 1e-8 || value > 1e8) {
+                THROW_ERROR_EXCEPTION("Parameter %v must be in range [1e-8, 1e8], but the actual value is %.9lf",
+                    name,
+                    value);
+            }
+        };
+        if (diskSpec.has_read_bandwidth_factor()) {
+            validate(diskSpec.read_bandwidth_factor(), "/spec/disk/read_bandwidth_factor");
+        }
+        if (diskSpec.has_write_bandwidth_factor()) {
+            validate(diskSpec.write_bandwidth_factor(), "/spec/disk/write_bandwidth_factor");
+        }
+        if (diskSpec.has_read_operation_rate_divisor()) {
+            validate(diskSpec.read_operation_rate_divisor(), "/spec/disk/read_operation_rate_divisor");
+        }
+        if (diskSpec.has_write_operation_rate_divisor()) {
+            validate(diskSpec.write_operation_rate_divisor(), "/spec/disk/write_operation_rate_divisor");
+        }
+    }
+
     static void ValidateSpec(
         TTransaction* /*transaction*/,
         TResource* resource,
@@ -147,6 +171,9 @@ private:
                 resource->GetId(),
                 oldKind,
                 newKind);
+        }
+        if (newKind == EResourceKind::Disk) {
+            ValidateDiskSpec(spec.disk());
         }
     }
 

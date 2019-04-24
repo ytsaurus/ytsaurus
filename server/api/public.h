@@ -12,9 +12,6 @@ DEFINE_ENUM(EMasterInterface,
     (Agent)
 );
 
-DECLARE_REFCOUNTED_CLASS(TGetUserAccessAllowedToConfig)
-DECLARE_REFCOUNTED_CLASS(TObjectServiceConfig)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYP::NServer::NApi

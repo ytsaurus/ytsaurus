@@ -1089,7 +1089,7 @@ private:
                             return rowsetOrError.Value();
                         }));
 
-                    asyncResults.push_back(asyncResult.As<void>());
+                    asyncResults.push_back(rectangleRequest.AsyncResult.As<void>());
                 }
 
                 return Combine(std::move(asyncResults));
@@ -2366,6 +2366,8 @@ private:
         TAttributeSchema* schema,
         const TSetUpdateRequest& request)
     {
+        YCHECK(request.Path.Empty());
+
         if (request.Value->GetType() != ENodeType::Map) {
             THROW_ERROR_EXCEPTION("Attribute %v cannot be updated from %Qlv values",
                 schema->GetPath(),

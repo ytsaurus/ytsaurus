@@ -57,6 +57,8 @@
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
+#include <yt/core/alloc/statistics_producer.h>
+
 #include <yt/core/net/local_address.h>
 
 #include <yt/core/ytree/ephemeral_node_factory.h>
@@ -334,40 +336,30 @@ private:
         AccountingManager_->Initialize();
         Scheduler_->Initialize();
 
-        MonitoringManager_ = New<NMonitoring::TMonitoringManager>();
-        MonitoringManager_->Register(
-            "/ref_counted",
-            CreateRefCountedTrackerStatisticsProducer());
-
-        auto orchidRoot = GetEphemeralNodeFactory(true)->CreateMap();
-        SetNodeByYPath(
-            orchidRoot,
-            "/monitoring",
-            CreateVirtualNode(MonitoringManager_->GetService()));
-        SetNodeByYPath(
-            orchidRoot,
-            "/profiling",
-            CreateVirtualNode(NProfiling::TProfileManager::Get()->GetService()));
-        SetBuildAttributes(orchidRoot, "yp_master");
-
-        ObjectService_ = NApi::CreateObjectService(Bootstrap_, Config_->ObjectService);
-        ClientDiscoveryService_ = NApi::CreateDiscoveryService(Bootstrap_, EMasterInterface::Client);
-        SecureClientDiscoveryService_ = NApi::CreateDiscoveryService(Bootstrap_, EMasterInterface::SecureClient);
-        AgentDiscoveryService_ = NApi::CreateDiscoveryService(Bootstrap_, EMasterInterface::Agent);
-        NodeTrackerService_ = NNodes::CreateNodeTrackerService(Bootstrap_, Config_->NodeTracker);
-
         if (Config_->MonitoringServer) {
             HttpMonitoringServer_ = NHttp::CreateServer(
                 Config_->MonitoringServer,
                 HttpPoller_);
-            HttpMonitoringServer_->AddHandler(
-                "/orchid/",
-                NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
 
             HttpMonitoringServer_->AddHandler(
                 "/health_check",
                 BIND(&TImpl::HealthCheckHandler, this));
         }
+
+        NYTree::IMapNodePtr orchidRoot;
+        NMonitoring::Initialize(HttpMonitoringServer_, &MonitoringManager_, &orchidRoot);
+
+        SetNodeByYPath(
+            orchidRoot,
+            "/access_control",
+            CreateVirtualNode(AccessControlManager_->CreateOrchidService()->Via(GetControlInvoker())));
+        SetBuildAttributes(orchidRoot, "yp_master");
+
+        ObjectService_ = NApi::CreateObjectService(Bootstrap_);
+        ClientDiscoveryService_ = NApi::CreateDiscoveryService(Bootstrap_, EMasterInterface::Client);
+        SecureClientDiscoveryService_ = NApi::CreateDiscoveryService(Bootstrap_, EMasterInterface::SecureClient);
+        AgentDiscoveryService_ = NApi::CreateDiscoveryService(Bootstrap_, EMasterInterface::Agent);
+        NodeTrackerService_ = NNodes::CreateNodeTrackerService(Bootstrap_, Config_->NodeTracker);
 
         if (Config_->InternalBusServer) {
             InternalBusServer_ = NYT::NBus::CreateTcpBusServer(Config_->InternalBusServer);
@@ -447,8 +439,6 @@ private:
         if (AgentGrpcServer_) {
             AgentGrpcServer_->Start();
         }
-
-        MonitoringManager_->Start();
     }
 
     void HealthCheckHandler(

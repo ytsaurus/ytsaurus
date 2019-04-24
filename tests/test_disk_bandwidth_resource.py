@@ -8,7 +8,7 @@ from .conftest import (
     is_error_pod_scheduling_status,
 )
 
-from yp.common import wait
+from yp.common import wait, YtResponseError
 
 import pytest
 
@@ -47,15 +47,15 @@ class TestDiskBandwidthResource(object):
 
         read_bandwidth_factor = 0.5
         write_bandwidth_factor = 1.33
-        read_operation_rate_factor = 1.0 / (10 ** 6)
+        read_operation_rate_divisor = 10.0 ** 6
 
         def create_node(total_bandwidth):
             node_ids = create_nodes(yp_client, 1, disk_spec=dict(
                 total_bandwidth=total_bandwidth,
                 read_bandwidth_factor=read_bandwidth_factor,
                 write_bandwidth_factor=write_bandwidth_factor,
-                read_operation_rate_factor=read_operation_rate_factor,
-                # Parameter #write_operation_rate_factor is missed intentionally.
+                read_operation_rate_divisor=read_operation_rate_divisor,
+                # Parameter #write_operation_rate_divisor is missed intentionally.
             ))
             assert len(node_ids) == 1
             return node_ids[0]
@@ -81,7 +81,7 @@ class TestDiskBandwidthResource(object):
         assert "read_bandwidth_limit" not in volume_allocation
         assert volume_allocation["write_bandwidth_guarantee"] == int(pod_bandwidth_guarantee * write_bandwidth_factor)
         assert "write_bandwidth_limit" not in volume_allocation
-        assert volume_allocation["read_operation_rate_guarantee"] == int(pod_bandwidth_guarantee * read_operation_rate_factor)
+        assert volume_allocation["read_operation_rate_guarantee"] == int(pod_bandwidth_guarantee / read_operation_rate_divisor)
         assert "read_operation_rate_limit" not in volume_allocation
         assert volume_allocation["write_operation_rate_guarantee"] == 0
         assert "write_operation_rate_limit" not in volume_allocation
@@ -111,7 +111,7 @@ class TestDiskBandwidthResource(object):
         volume_allocation2 = get_pod_only_disk_volume_allocation(pod_id2)
         assert volume_allocation2["read_bandwidth_limit"] == int(pod_bandwidth_limit * read_bandwidth_factor)
         assert volume_allocation2["write_bandwidth_limit"] == int(pod_bandwidth_limit * write_bandwidth_factor)
-        assert volume_allocation2["read_operation_rate_limit"] == int(pod_bandwidth_limit * read_operation_rate_factor)
+        assert volume_allocation2["read_operation_rate_limit"] == int(pod_bandwidth_limit / read_operation_rate_divisor)
         assert volume_allocation2["write_operation_rate_limit"] == 0
 
         # Test. Bandwidth accounting is correct.
@@ -148,7 +148,7 @@ class TestDiskBandwidthResource(object):
         assert "read_bandwidth_limit" not in exclusive_volume_allocation
         assert exclusive_volume_allocation["write_bandwidth_guarantee"] == int(pod_bandwidth_guarantee * write_bandwidth_factor)
         assert "write_bandwidth_limit" not in exclusive_volume_allocation
-        assert exclusive_volume_allocation["read_operation_rate_guarantee"] == int(pod_bandwidth_guarantee * read_operation_rate_factor)
+        assert exclusive_volume_allocation["read_operation_rate_guarantee"] == int(pod_bandwidth_guarantee / read_operation_rate_divisor)
         assert "read_operation_rate_limit" not in exclusive_volume_allocation
         assert exclusive_volume_allocation["write_operation_rate_guarantee"] == 0
         assert "write_operation_rate_limit" not in exclusive_volume_allocation
@@ -175,3 +175,22 @@ class TestDiskBandwidthResource(object):
         assert set([pod_id, pod_id2]) == scheduled_pod_ids
 
         assert 2 * pod_bandwidth_guarantee == resource_status["used"]["disk"]["bandwidth"]
+
+    def test_factors_and_divisors_validation(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        def get_disk_spec(parameter_name, value):
+            disk_spec = {
+                "total_bandwidth": 1,
+            }
+            disk_spec[parameter_name] = value
+            return disk_spec
+
+        for bad_value in (1e-9, -100.0, 0.0, -1e-9, 1e10):
+            for parameter_name in ("read_operation_rate_divisor",
+                                   "write_operation_rate_divisor",
+                                   "read_bandwidth_factor",
+                                   "write_bandwidth_factor"):
+                with pytest.raises(YtResponseError) as error:
+                    create_nodes(yp_client, 1, disk_spec=get_disk_spec(parameter_name, bad_value))
+                create_nodes(yp_client, 1, disk_spec=get_disk_spec(parameter_name, 1.0))

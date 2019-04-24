@@ -76,6 +76,7 @@ TResolveResult ResolveAttribute(
             } else {
                 auto* etcChild = current->FindEtcChild();
                 if (etcChild) {
+                    addReadPermission(etcChild);
                     return {etcChild, TYPath(remainingPath)};
                 } else {
                     THROW_ERROR_EXCEPTION("Attribute %v has no child with key %Qv",

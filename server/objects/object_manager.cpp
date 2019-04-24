@@ -64,7 +64,6 @@ public:
     TImpl(TBootstrap* bootstrap, TObjectManagerConfigPtr config)
         : Bootstrap_(bootstrap)
         , Config_(std::move(config))
-        , SweepQueue_(New<TActionQueue>("Sweep"))
         , SweepExecutor_(New<TPeriodicExecutor>(
             SweepQueue_->GetInvoker(),
             BIND(&TImpl::OnSweep, MakeWeak(this)),
@@ -130,7 +129,7 @@ private:
     TBootstrap* const Bootstrap_;
     const TObjectManagerConfigPtr Config_;
 
-    const TActionQueuePtr SweepQueue_;
+    const TActionQueuePtr SweepQueue_ = New<TActionQueue>("Sweep");
     const TPeriodicExecutorPtr SweepExecutor_;
 
     TEnumIndexedVector<std::unique_ptr<IObjectTypeHandler>, EObjectType> TypeHandlers_;

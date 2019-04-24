@@ -162,7 +162,7 @@ message TCacheResource {
 }
 
 message TLayer {
-    reserved 2;
+    reserved "resource"; reserved 2;
 
     // Уникальный идентификатор (произвольная строка)
     string id = 1;

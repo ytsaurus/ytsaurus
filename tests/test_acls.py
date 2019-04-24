@@ -261,7 +261,6 @@ class TestAcls(object):
         assert_items_equal(yp_client.get_user_access_allowed_to([]), [])
 
         yp_client.create_object("user", attributes=dict(meta=dict(id="u1")))
-        yp_env.sync_access_control()
 
         def create_network_project(acl, inherit_acl):
             return yp_client.create_object(
@@ -273,6 +272,7 @@ class TestAcls(object):
             )
 
         network_project_id1 = create_network_project(acl=[], inherit_acl=False)
+        yp_env.sync_access_control()
 
         # User is not granted the access. Superuser is always granted the access.
         # Different users / permissions in the one request.
@@ -307,6 +307,7 @@ class TestAcls(object):
             ],
             inherit_acl=True,
         )
+        yp_env.sync_access_control()
 
         # User is granted the access.
         assert_items_equal(
@@ -340,6 +341,7 @@ class TestAcls(object):
             ],
             inherit_acl=True,
         )
+        yp_env.sync_access_control()
 
         # Several objects in the response.
         response = yp_client.get_user_access_allowed_to([
@@ -396,7 +398,6 @@ class TestAcls(object):
             meta=dict(id="g1"),
             spec=dict(members=["u1"]),
         ))
-        yp_env.sync_access_control()
 
         yp_client.update_object("network_project", network_project_id2, set_updates=[
             dict(
@@ -407,6 +408,7 @@ class TestAcls(object):
                 ]
             ),
         ])
+        yp_env.sync_access_control()
 
         # User is not granted the access because of group ace with action = "deny".
         assert_items_equal(
@@ -437,6 +439,9 @@ class TestAcls(object):
                     ])),
                 )
             )
+
+        yp_env.sync_access_control()
+
         assert_items_equal(
             set(
                 yp_client.get_user_access_allowed_to([
@@ -653,10 +658,8 @@ class TestAcls(object):
 @pytest.mark.usefixtures("yp_env_configurable")
 class TestApiGetUserAccessAllowedTo(object):
     YP_MASTER_CONFIG = dict(
-        object_service = dict(
-            get_user_access_allowed_to = dict(
-                allowed_object_types = ["pod"],
-            )
+        access_control_manager = dict(
+            cluster_state_allowed_object_types = ["pod"],
         )
     )
 
@@ -664,6 +667,7 @@ class TestApiGetUserAccessAllowedTo(object):
         yp_client = yp_env_configurable.yp_client
 
         u1 = yp_client.create_object("user")
+
         yp_env_configurable.sync_access_control()
 
         # Method is not supported for the 'network_project' object type.
@@ -715,6 +719,8 @@ class TestApiGetUserAccessAllowedTo(object):
                 )
             ]
         )))
+
+        yp_env_configurable.sync_access_control()
 
         assert_items_equal(
             yp_client.get_user_access_allowed_to([

@@ -10,9 +10,7 @@ namespace NYP::NServer::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYT::NRpc::IServicePtr CreateObjectService(
-    NMaster::TBootstrap* bootstrap,
-    TObjectServiceConfigPtr config);
+NYT::NRpc::IServicePtr CreateObjectService(NMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

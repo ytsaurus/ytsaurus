@@ -119,6 +119,8 @@ class TestCli(object):
     def test_get_user_access_allowed_to(self, yp_env):
         cli = create_cli(yp_env)
 
+        yp_env.sync_access_control()
+
         result_str = cli.check_output([
             "get-user-access-allowed-to",
             "root",

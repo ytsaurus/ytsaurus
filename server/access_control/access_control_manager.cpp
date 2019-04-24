@@ -19,14 +19,15 @@
 
 #include <yt/ytlib/api/native/client.h>
 
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/fls.h>
+#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/thread_affinity.h>
+
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
-
-#include <yt/core/concurrency/rw_spinlock.h>
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/thread_affinity.h>
-#include <yt/core/concurrency/fls.h>
 
 namespace NYP::NServer::NAccessControl {
 
@@ -373,10 +374,11 @@ class TClusterObjectSnapshot
     : public TRefCounted
 {
 public:
-    void AddObjects(std::vector<std::unique_ptr<TObject>> objects)
+    void AddObjects(NObjects::EObjectType objectType, std::vector<std::unique_ptr<TObject>> objects)
     {
+        YCHECK(ObjectTypes_.emplace(objectType).second);
         for (auto& object : objects) {
-            YCHECK(Objects_[object->GetType()].emplace(object->Id(), std::move(object)).second);
+            YCHECK(Objects_[objectType].emplace(object->Id(), std::move(object)).second);
         }
     }
 
@@ -399,7 +401,23 @@ public:
         return result;
     }
 
+    bool ContainsObjectType(NObjects::EObjectType objectType) const
+    {
+        return ObjectTypes_.find(objectType) != ObjectTypes_.end();
+    }
+
+    void ValidateContainsObjectType(NObjects::EObjectType objectType) const
+    {
+        if (!ContainsObjectType(objectType)) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::NoSuchMethod,
+                "Cluster access control object snapshot does not contain %v objects",
+                GetLowercaseHumanReadableTypeName(objectType));
+        }
+    }
+
 private:
+    THashSet<NObjects::EObjectType> ObjectTypes_;
     TEnumIndexedVector<THashMap<TObjectId, std::unique_ptr<TObject>>, EObjectType> Objects_;
 };
 
@@ -414,8 +432,7 @@ std::vector<std::unique_ptr<TObject>> SelectObjects(
     std::vector<const TDBField*> fields{
         &ObjectsTable.Fields.Meta_Id,
         &ObjectsTable.Fields.Meta_Acl,
-        &ObjectsTable.Fields.Meta_InheritAcl,
-    };
+        &ObjectsTable.Fields.Meta_InheritAcl};
     auto* typeHandler = transaction->GetSession()->GetTypeHandler(type);
     bool hasParentIdField = false;
     if (typeHandler->GetParentType() != EObjectType::Null) {
@@ -459,17 +476,54 @@ std::vector<std::unique_ptr<TObject>> SelectObjects(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClusterObjectSnapshotPtr BuildHierarchyObjectsSnapshot(
+TClusterObjectSnapshotPtr BuildClusterObjectSnapshot(
     const TTransactionPtr& transaction,
-    EObjectType hierarchyLeafObjectType)
+    const std::vector<NObjects::EObjectType>& leafObjectTypes)
 {
-    auto snapshot = New<TClusterObjectSnapshot>();
-    auto objectType = hierarchyLeafObjectType;
-    while (objectType != EObjectType::Null) {
-        snapshot->AddObjects(SelectObjects(transaction, objectType));
-        auto* typeHandler = transaction->GetSession()->GetTypeHandler(objectType);
-        objectType = GetAccessControlParentType(typeHandler);
+    THashSet<NObjects::EObjectType> visitedObjectTypes;
+    for (auto leafObjectType : leafObjectTypes) {
+        auto objectType = leafObjectType;
+        while (objectType != NObjects::EObjectType::Null
+            && visitedObjectTypes.emplace(objectType).second)
+        {
+            auto* typeHandler = transaction->GetSession()->GetTypeHandler(objectType);
+            objectType = GetAccessControlParentType(typeHandler);
+        }
     }
+
+    struct TResult
+    {
+        NObjects::EObjectType ObjectType;
+        std::vector<std::unique_ptr<TObject>> Objects;
+    };
+
+    std::vector<TFuture<std::shared_ptr<TResult>>> asyncResults;
+    asyncResults.reserve(visitedObjectTypes.size());
+
+    for (auto objectType : visitedObjectTypes) {
+        asyncResults.push_back(
+            BIND([=] {
+                YT_LOG_DEBUG("Started loading cluster object snapshot (ObjectType: %v)",
+                    objectType);
+                auto objects = SelectObjects(transaction, objectType);
+                auto result = std::make_shared<TResult>();
+                result->ObjectType = objectType;
+                result->Objects = std::move(objects);
+                YT_LOG_DEBUG("Finished loading cluster object snapshot (ObjectType: %v, ObjectCount: %v)",
+                    objectType,
+                    result->Objects.size());
+                return result;
+            }).AsyncVia(GetCurrentInvoker()).Run());
+    }
+
+    auto results = WaitFor(Combine(asyncResults))
+        .ValueOrThrow();
+
+    auto snapshot = New<TClusterObjectSnapshot>();
+    for (const auto& result : results) {
+        snapshot->AddObjects(result->ObjectType, std::move(result->Objects));
+    }
+
     return snapshot;
 }
 
@@ -598,11 +652,16 @@ public:
         TAccessControlManagerConfigPtr config)
         : Bootstrap_(bootstrap)
         , Config_(std::move(config))
+        , ClusterStateUpdateQueue_(New<TActionQueue>("AccessControlClusterStateUpdate"))
         , ClusterStateUpdateExecutor_(New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(),
+            ClusterStateUpdateQueue_->GetInvoker(),
             BIND(&TImpl::OnUpdateClusterState, MakeWeak(this)),
             Config_->ClusterStateUpdatePeriod))
-    { }
+    {
+        VERIFY_INVOKER_THREAD_AFFINITY(
+            ClusterStateUpdateQueue_->GetInvoker(),
+            ClusterStateUpdateThread);
+    }
 
     void Initialize()
     {
@@ -698,24 +757,28 @@ public:
     }
 
     std::vector<TObjectId> GetUserAccessAllowedTo(
-        const TTransactionPtr& transaction,
-        NObjects::TObject* user,
+        const NObjects::TObjectId& userId,
         NObjects::EObjectType objectType,
         EAccessControlPermission permission)
     {
-        auto clusterObjectSnapshot = BuildHierarchyObjectsSnapshot(transaction, objectType);
+        auto clusterObjectSnapshot = GetClusterObjectSnapshot();
+
+        clusterObjectSnapshot->ValidateContainsObjectType(objectType);
         auto objects = clusterObjectSnapshot->GetObjects(objectType);
+
         auto snapshotAccessControlHierarchy = TSnapshotAccessControlHierarchy(
             Bootstrap_->GetObjectManager(),
             clusterObjectSnapshot);
+
         auto clusterSubjectSnapshot = GetClusterSubjectSnapshot();
+
         objects.erase(
             std::remove_if(
                 objects.begin(),
                 objects.end(),
                 [&] (TObject* object) {
                     auto permissionCheckResult = CheckPermissionImpl(
-                        user->GetId(),
+                        userId,
                         object,
                         permission,
                         clusterSubjectSnapshot,
@@ -723,11 +786,13 @@ public:
                     return permissionCheckResult.Action == EAccessControlAction::Deny;
                 }),
             objects.end());
+
         std::vector<TObjectId> objectIds;
         objectIds.reserve(objects.size());
         for (auto* object : objects) {
             objectIds.push_back(object->Id());
         }
+
         return objectIds;
     }
 
@@ -833,17 +898,30 @@ public:
         }
     }
 
+    NYTree::IYPathServicePtr CreateOrchidService()
+    {
+        auto orchidProducer = BIND(&TImpl::BuildOrchid, MakeStrong(this));
+        return NYTree::IYPathService::FromProducer(std::move(orchidProducer));
+    }
+
 private:
     NMaster::TBootstrap* const Bootstrap_;
     const TAccessControlManagerConfigPtr Config_;
 
+    const TActionQueuePtr ClusterStateUpdateQueue_;
     const TPeriodicExecutorPtr ClusterStateUpdateExecutor_;
 
     TReaderWriterSpinLock ClusterSubjectSnapshotLock_;
     TClusterSubjectSnapshotPtr ClusterSubjectSnapshot_;
 
+    TReaderWriterSpinLock ClusterObjectSnapshotLock_;
+    TClusterObjectSnapshotPtr ClusterObjectSnapshot_;
+
+    std::atomic<TTimestamp> ClusterStateTimestamp = NTransactionClient::NullTimestamp;
+
     static NConcurrency::TFls<std::optional<TObjectId>> AuthenticatedUserId_;
 
+    DECLARE_THREAD_AFFINITY_SLOT(ClusterStateUpdateThread);
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 private:
@@ -902,7 +980,7 @@ private:
         if (!ClusterSubjectSnapshot_) {
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::Unavailable,
-                "Cluster access control state is not loaded yet");
+                "Cluster access control subject snapshot is not loaded yet");
         }
         return ClusterSubjectSnapshot_;
     }
@@ -911,6 +989,23 @@ private:
     {
         TWriterGuard guard(ClusterSubjectSnapshotLock_);
         std::swap(ClusterSubjectSnapshot_, snapshot);
+    }
+
+    TClusterObjectSnapshotPtr GetClusterObjectSnapshot()
+    {
+        TReaderGuard guard(ClusterObjectSnapshotLock_);
+        if (!ClusterObjectSnapshot_) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Cluster access control object snapshot is not loaded yet");
+        }
+        return ClusterObjectSnapshot_;
+    }
+
+    void SetClusterObjectSnapshot(TClusterObjectSnapshotPtr snapshot)
+    {
+        TWriterGuard guard(ClusterObjectSnapshotLock_);
+        std::swap(ClusterObjectSnapshot_, snapshot);
     }
 
     void OnConnected()
@@ -927,21 +1022,10 @@ private:
         ClusterStateUpdateExecutor_->Stop();
     }
 
-    void OnUpdateClusterState()
+    void UpdateClusterSubjectSnapshot(const NObjects::TTransactionPtr& transaction)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
         try {
             YT_LOG_DEBUG("Started loading cluster subject snapshot");
-
-            YT_LOG_DEBUG("Starting cluster subject snapshot transaction");
-
-            const auto& transactionManager = Bootstrap_->GetTransactionManager();
-            auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction())
-                .ValueOrThrow();
-
-            YT_LOG_DEBUG("Cluster subject snapshot transaction started (Timestamp: %llx)",
-                transaction->GetStartTimestamp());
 
             int userCount = 0;
             int groupCount = 0;
@@ -997,6 +1081,47 @@ private:
         }
     }
 
+    void UpdateClusterObjectSnapshot(const NObjects::TTransactionPtr& transaction)
+    {
+        try {
+            YT_LOG_DEBUG("Started loading cluster object snapshot");
+
+            auto snapshot = BuildClusterObjectSnapshot(
+                transaction,
+                Config_->ClusterStateAllowedObjectTypes);
+
+            SetClusterObjectSnapshot(std::move(snapshot));
+
+            YT_LOG_DEBUG("Finished loading cluster object snapshot");
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Error loading cluster object snapshot");
+        }
+    }
+
+    void OnUpdateClusterState()
+    {
+        VERIFY_THREAD_AFFINITY(ClusterStateUpdateThread);
+
+        try {
+            YT_LOG_DEBUG("Starting cluster snapshots transaction");
+
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction())
+                .ValueOrThrow();
+
+            YT_LOG_DEBUG("Cluster snapshots transaction started (Timestamp: %llx)",
+                transaction->GetStartTimestamp());
+
+            UpdateClusterSubjectSnapshot(transaction);
+
+            UpdateClusterObjectSnapshot(transaction);
+
+            ClusterStateTimestamp = transaction->GetStartTimestamp();
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Error loading cluster snapshots");
+        }
+    }
+
     TString GetUserQueryString()
     {
         const auto& ytConnector = Bootstrap_->GetYTConnector();
@@ -1044,6 +1169,21 @@ private:
         auto group = std::make_unique<TGroup>(std::move(groupId), std::move(spec));
         snapshot->AddSubject(std::move(group));
     }
+
+    TTimestamp GetClusterStateTimestamp() const
+    {
+        return ClusterStateTimestamp;
+    }
+
+    void BuildOrchid(NYson::IYsonConsumer* consumer)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        NYTree::BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("cluster_state_timestamp").Value(GetClusterStateTimestamp())
+            .EndMap();
+    }
 };
 
 NConcurrency::TFls<std::optional<TObjectId>> TAccessControlManager::TImpl::AuthenticatedUserId_;
@@ -1082,14 +1222,12 @@ TUserIdList TAccessControlManager::GetObjectAccessAllowedFor(
 }
 
 std::vector<TObjectId> TAccessControlManager::GetUserAccessAllowedTo(
-    const TTransactionPtr& transaction,
-    NObjects::TObject* user,
+    const NObjects::TObjectId& userId,
     NObjects::EObjectType objectType,
     EAccessControlPermission permission)
 {
     return Impl_->GetUserAccessAllowedTo(
-        transaction,
-        user,
+        userId,
         objectType,
         permission);
 }
@@ -1124,6 +1262,11 @@ void TAccessControlManager::ValidatePermission(
 void TAccessControlManager::ValidateSuperuser(TStringBuf doWhat)
 {
     return Impl_->ValidateSuperuser(doWhat);
+}
+
+NYTree::IYPathServicePtr TAccessControlManager::CreateOrchidService()
+{
+    return Impl_->CreateOrchidService();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

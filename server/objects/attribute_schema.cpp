@@ -283,13 +283,14 @@ void TAttributeSchema::SetParent(TAttributeSchema* parent)
 
 TAttributeSchema* TAttributeSchema::SetComposite()
 {
+    YCHECK(!Etc_);
     Composite_ = true;
     return this;
 }
 
 void TAttributeSchema::AddChild(TAttributeSchema* child)
 {
-    Composite_ = true;
+    SetComposite();
     child->SetParent(this);
     if (child->IsEtc()) {
         YCHECK(!EtcChild_);

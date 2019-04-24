@@ -103,8 +103,15 @@ private:
             PROFILE_TIMING("/loop/time/update_accounts_status") {
                 accountingManager->UpdateAccountsStatus(Owner_->Cluster_);
             }
+            PROFILE_TIMING("/loop/time/abort_requested_pod_eviction_at_up_nodes") {
+                ExecutePodEvictionStateTransition(
+                    TLoopIteration::AbortRequestedPodEvictionAtUpNode,
+                    "abort_requested_pod_eviction_at_up_node");
+            }
             PROFILE_TIMING("/loop/time/request_pod_eviction_at_nodes_with_requested_maintenance") {
-                RequestPodEvictionAtNodesWithRequestedMaintenance();
+                ExecutePodEvictionStateTransition(
+                    TLoopIteration::RequestPodEvictionAtNodeWithRequestedMaintenance,
+                    "request_pod_eviction_at_node_with_requested_maintenance");
             }
             PROFILE_TIMING("/loop/time/revoke_pods_with_acknowledged_eviction") {
                 RevokePodsWithAcknowledgedEviction();
@@ -155,7 +162,72 @@ private:
             YT_LOG_DEBUG("State reconciled");
         }
 
-        void RequestPodEvictionAtNodesWithRequestedMaintenance()
+        static void AbortRequestedPodEvictionAtUpNode(
+            const TTransactionPtr& transaction,
+            TPod* pod)
+        {
+            if (pod->StatusEtc().eviction().state() != NClient::NApi::NProto::ES_REQUESTED) {
+                return;
+            }
+
+            auto* node = pod->GetNode();
+            if (!node) {
+                return;
+            }
+
+            if (node->GetHfsmState() != EHfsmState::Up) {
+                return;
+            }
+
+            auto* transactionPod = transaction->GetPod(pod->GetId());
+            YT_LOG_DEBUG("Pod eviction aborted (PodId: %v, NodeId: %v, HfsmState: %v)",
+                pod->GetId(),
+                node->GetId(),
+                node->GetHfsmState());
+
+            transactionPod->UpdateEvictionStatus(
+                EEvictionState::None,
+                EEvictionReason::None,
+                Format("Eviction aborted due to node %Qv being in %Qlv state",
+                    node->GetId(),
+                    node->GetHfsmState()));
+        }
+
+        static void RequestPodEvictionAtNodeWithRequestedMaintenance(
+            const TTransactionPtr& transaction,
+            TPod* pod)
+        {
+            if (pod->StatusEtc().eviction().state() != NClient::NApi::NProto::ES_NONE) {
+                return;
+            }
+
+            auto* node = pod->GetNode();
+            if (!node) {
+                return;
+            }
+
+            if (node->GetHfsmState() != EHfsmState::PrepareMaintenance &&
+                node->GetHfsmState() != EHfsmState::Down)
+            {
+                return;
+            }
+
+            auto* transactionPod = transaction->GetPod(pod->GetId());
+            YT_LOG_DEBUG("Pod eviction requested by HFSM (PodId: %v, NodeId: %v, HfsmState: %v)",
+                pod->GetId(),
+                node->GetId(),
+                node->GetHfsmState());
+
+            transactionPod->UpdateEvictionStatus(
+                EEvictionState::Requested,
+                EEvictionReason::Hfsm,
+                Format("Eviction requested due to node %Qv being in %Qlv state",
+                    node->GetId(),
+                    node->GetHfsmState()));
+        }
+
+        template <typename TTransition>
+        void ExecutePodEvictionStateTransition(TTransition&& transition, TStringBuf transitionName)
         {
             try {
                 const auto& transactionManager = Owner_->Bootstrap_->GetTransactionManager();
@@ -164,37 +236,14 @@ private:
 
                 auto pods = Owner_->Cluster_->GetPods();
                 for (auto* pod : pods) {
-                    if (pod->StatusEtc().eviction().state() == NClient::NApi::NProto::ES_REQUESTED) {
-                        continue;
-                    }
-
-                    auto* node = pod->GetNode();
-                    if (!node) {
-                        continue;
-                    }
-
-                    if (node->GetHfsmState() != EHfsmState::PrepareMaintenance &&
-                        node->GetHfsmState() != EHfsmState::Down)
-                    {
-                        continue;
-                    }
-
-                    auto* transactionPod = transaction->GetPod(pod->GetId());
-                    YT_LOG_DEBUG("Pod eviction requested by HFSM (PodId: %v, NodeId: %v, HfsmState: %v)",
-                        pod->GetId(),
-                        node->GetId(),
-                        node->GetHfsmState());
-                    transactionPod->UpdateEvictionStatus(
-                        EEvictionState::Requested,
-                        EEvictionReason::Hfsm,
-                        Format("Eviction requested due to node %Qv being in %Qlv state",
-                            node->GetId(),
-                            node->GetHfsmState()));
+                    transition(transaction, pod);
                 }
+
                 WaitFor(transaction->Commit())
                     .ThrowOnError();
             } catch (const std::exception& ex) {
-                YT_LOG_DEBUG(ex, "Error committing pod eviction state transitions");
+                YT_LOG_DEBUG(ex, "Error executing pod eviction state transition %Qv",
+                    transitionName);
             }
         }
 

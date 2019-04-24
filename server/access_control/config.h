@@ -33,11 +33,20 @@ class TAccessControlManagerConfig
 {
 public:
     TDuration ClusterStateUpdatePeriod;
+    std::vector<NObjects::EObjectType> ClusterStateAllowedObjectTypes;
 
     TAccessControlManagerConfig()
     {
         RegisterParameter("cluster_state_update_period", ClusterStateUpdatePeriod)
             .Default(TDuration::Seconds(1));
+        RegisterParameter("cluster_state_allowed_object_types", ClusterStateAllowedObjectTypes)
+            .Default({
+                NObjects::EObjectType::NetworkProject,
+                NObjects::EObjectType::Account,
+                NObjects::EObjectType::EndpointSet,
+                NObjects::EObjectType::MultiClusterReplicaSet,
+                NObjects::EObjectType::ReplicaSet,
+                NObjects::EObjectType::PodSet});
     }
 };
 

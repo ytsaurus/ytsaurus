@@ -509,10 +509,18 @@ void UpdatePodDiskVolumeAllocations(
                 volumeBandwidthGuarantee * diskSpec.read_bandwidth_factor());
             volumeAllocation->set_write_bandwidth_guarantee(
                 volumeBandwidthGuarantee * diskSpec.write_bandwidth_factor());
+
+            auto readOperationRateFactor = diskSpec.has_read_operation_rate_divisor()
+                ? 1.0 / diskSpec.read_operation_rate_divisor()
+                : 0.0;
+            auto writeOperationRateFactor = diskSpec.has_write_operation_rate_divisor()
+                ? 1.0 / diskSpec.write_operation_rate_divisor()
+                : 0.0;
+
             volumeAllocation->set_read_operation_rate_guarantee(
-                volumeBandwidthGuarantee * diskSpec.read_operation_rate_factor());
+                volumeBandwidthGuarantee * readOperationRateFactor);
             volumeAllocation->set_write_operation_rate_guarantee(
-                volumeBandwidthGuarantee * diskSpec.write_operation_rate_factor());
+                volumeBandwidthGuarantee * writeOperationRateFactor);
 
             auto optionalVolumeBandwidthLimit = GetDiskVolumeRequestOptionalBandwidthLimit(volumeRequest);
             if (optionalVolumeBandwidthLimit) {
@@ -522,9 +530,9 @@ void UpdatePodDiskVolumeAllocations(
                 volumeAllocation->set_write_bandwidth_limit(
                     volumeBandwidthLimit * diskSpec.write_bandwidth_factor());
                 volumeAllocation->set_read_operation_rate_limit(
-                    volumeBandwidthLimit * diskSpec.read_operation_rate_factor());
+                    volumeBandwidthLimit * readOperationRateFactor);
                 volumeAllocation->set_write_operation_rate_limit(
-                    volumeBandwidthLimit * diskSpec.write_operation_rate_factor());
+                    volumeBandwidthLimit * writeOperationRateFactor);
             }
         }
         volumeAllocation->mutable_labels()->CopyFrom(volumeRequest.labels());

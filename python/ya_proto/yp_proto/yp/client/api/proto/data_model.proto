@@ -419,6 +419,7 @@ message TResourceSpec
 
     message TDiskSpec
     {
+        reserved 9, 10;
         // E.g. ssd, hdd etc.
         required string storage_class = 1;
         // In bytes.
@@ -439,11 +440,11 @@ message TResourceSpec
         // using total_bandwidth and the following factor.
         optional double write_bandwidth_factor = 8;
         // Total provided read operations per second is estimated
-        // using total_bandwidth and the following factor.
-        optional double read_operation_rate_factor = 9;
+        // using total_bandwidth and the following divisor.
+        optional double read_operation_rate_divisor = 11;
         // Total provided write operations per second is estimated
-        // using total_bandwidth and the following factor.
-        optional double write_operation_rate_factor = 10;
+        // using total_bandwidth and the following divisor.
+        optional double write_operation_rate_divisor = 12;
     }
 
     oneof concrete_spec

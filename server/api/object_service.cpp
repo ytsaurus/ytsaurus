@@ -1,6 +1,5 @@
 #include "object_service.h"
 #include "private.h"
-#include "config.h"
 
 #include <yp/server/master/bootstrap.h>
 #include <yp/server/master/yt_connector.h>
@@ -45,13 +44,12 @@ class TObjectService
     : public NMaster::TServiceBase
 {
 public:
-    TObjectService(TBootstrap* bootstrap, TObjectServiceConfigPtr config)
+    explicit TObjectService(TBootstrap* bootstrap)
         : TServiceBase(
             bootstrap,
             NClient::NApi::TObjectServiceProxy::GetDescriptor(),
             NApi::Logger,
             bootstrap->GetAuthenticationManager()->GetRpcAuthenticator())
-        , Config_(std::move(config))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamp));
 
@@ -74,8 +72,6 @@ public:
     }
 
 private:
-    const TObjectServiceConfigPtr Config_;
-
     class TTransactionWrapper
     {
     public:
@@ -851,32 +847,13 @@ private:
     {
         context->SetRequestInfo("SubrequestCount: %v", request->subrequests_size());
 
-        const auto& allowedObjectTypes = Config_->GetUserAccessAllowedTo->AllowedObjectTypes;
-        for (const auto& subrequest : request->subrequests()) {
-            auto objectType = CheckedEnumCastToObjectType(subrequest.object_type());
-            if (std::find(allowedObjectTypes.begin(), allowedObjectTypes.end(), objectType) ==
-                allowedObjectTypes.end())
-            {
-                THROW_ERROR_EXCEPTION(
-                    NRpc::EErrorCode::NoSuchMethod,
-                    "GetUserAccessAllowedTo method is not supported for %Qlv object type",
-                    objectType);
-            }
-        }
-
-        const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction())
-            .ValueOrThrow();
-
         const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
         for (const auto& subrequest : request->subrequests()) {
-            auto* user = transaction->GetObject(EObjectType::User, subrequest.user_id());
             auto objectType = CheckedEnumCastToObjectType(subrequest.object_type());
             auto permission = CheckedEnumCast<NAccessControl::EAccessControlPermission>(
                 subrequest.permission());
             auto objectIds = accessControlManager->GetUserAccessAllowedTo(
-                transaction,
-                user,
+                subrequest.user_id(),
                 objectType,
                 permission);
             ToProto(response->add_subresponses()->mutable_object_ids(), objectIds);
@@ -886,9 +863,9 @@ private:
     }
 };
 
-IServicePtr CreateObjectService(TBootstrap* bootstrap, TObjectServiceConfigPtr config)
+IServicePtr CreateObjectService(TBootstrap* bootstrap)
 {
-    return New<TObjectService>(bootstrap, std::move(config));
+    return New<TObjectService>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

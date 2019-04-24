@@ -22,6 +22,7 @@ SET(YP_TEST_SRCS
     test_dynamic_resource.py
     test_endpoint_sets.py
     test_endpoints.py
+    test_eviction.py
     test_grpc_stubs.py
     test_http_api.py
     test_ids.py

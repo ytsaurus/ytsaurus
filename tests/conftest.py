@@ -5,6 +5,7 @@ from yp.local import YpInstance, ACTUAL_DB_VERSION, OBJECT_TYPES, reset_yp
 from yp.logger import logger
 
 from yt.wrapper.common import generate_uuid
+from yt.wrapper.ypath import ypath_join
 
 from yt.common import update, get_value
 
@@ -248,16 +249,15 @@ class YpTestEnvironment(object):
                                       db_version=db_version,
                                       port_locks_path=os.path.join(self.test_sandbox_base_path, "ports"),
                                       local_yt_options=local_yt_options)
+
+        self._prepare()
         if start:
             self._start()
-        else:
-            self._prepare()
-        self.yt_client = self.yp_instance.create_yt_client()
-        self.sync_access_control()
 
     def _prepare(self):
         self.yp_instance.prepare()
         self.yp_client = None
+        self.yt_client = self.yp_instance.create_yt_client()
 
     def _start(self):
         try:
@@ -273,13 +273,40 @@ class YpTestEnvironment(object):
                 return True
 
             wait(touch_pod_set)
+
+            self.sync_access_control()
         except:
             save_yatest_working_files(self.test_sandbox_path)
             raise
 
     def sync_access_control(self):
-        # TODO(babenko): improve
-        time.sleep(1.0)
+        instances_path = "//yp/master/instances"
+
+        def get_state_timestamp(master_address):
+            return self.yt_client.get(ypath_join(
+                instances_path,
+                master_address,
+                "/orchid/access_control/cluster_state_timestamp",
+            ))
+
+        expected_timestamp = self.yp_client.generate_timestamp()
+
+        master_addresses = self.yt_client.list(instances_path)
+        assert len(master_addresses) > 0
+
+        synced_master_addresses = set()
+
+        def is_state_updated():
+            for master_address in master_addresses:
+                if master_address in synced_master_addresses:
+                    continue
+                if get_state_timestamp(master_address) > expected_timestamp:
+                    synced_master_addresses.add(master_address)
+                else:
+                    return False
+            return True
+
+        wait(is_state_updated, iter=5, sleep_backoff=1)
 
     def cleanup(self):
         try:

@@ -14,8 +14,6 @@
 
 #include <yp/server/accounting/config.h>
 
-#include <yp/server/api/config.h>
-
 #include <yt/ytlib/program/config.h>
 
 #include <yt/ytlib/api/native/config.h>
@@ -107,7 +105,6 @@ public:
     NScheduler::TSchedulerConfigPtr Scheduler;
     NAccessControl::TAccessControlManagerConfigPtr AccessControlManager;
     NAccounting::TAccountingManagerConfigPtr AccountingManager;
-    NApi::TObjectServiceConfigPtr ObjectService;
     NAuth::TAuthenticationManagerConfigPtr AuthenticationManager;
     TSecretVaultServiceConfigPtr SecretVaultService;
     int WorkerThreadPoolSize;
@@ -144,8 +141,6 @@ public:
         RegisterParameter("access_control_manager", AccessControlManager)
             .DefaultNew();
         RegisterParameter("accounting_manager", AccountingManager)
-            .DefaultNew();
-        RegisterParameter("object_service", ObjectService)
             .DefaultNew();
         RegisterParameter("authentication_manager", AuthenticationManager)
             .DefaultNew();

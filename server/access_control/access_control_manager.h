@@ -8,6 +8,8 @@
 
 #include <yt/core/rpc/public.h>
 
+#include <yt/core/ytree/public.h>
+
 namespace NYP::NServer::NAccessControl {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,8 +79,7 @@ public:
         EAccessControlPermission permission);
 
     std::vector<NObjects::TObjectId> GetUserAccessAllowedTo(
-        const NObjects::TTransactionPtr& transaction,
-        NObjects::TObject* user,
+        const NObjects::TObjectId& userId,
         NObjects::EObjectType objectType,
         EAccessControlPermission permission);
 
@@ -91,6 +92,8 @@ public:
         NObjects::TObject* object,
         EAccessControlPermission permission);
     void ValidateSuperuser(TStringBuf doWhat);
+
+    NYTree::IYPathServicePtr CreateOrchidService();
 
 private:
     class TImpl;
