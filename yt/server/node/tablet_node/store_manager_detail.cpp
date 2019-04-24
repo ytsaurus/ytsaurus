@@ -300,7 +300,7 @@ bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
 
 IChunkStorePtr TStoreManagerBase::PeekStoreForPreload()
 {
-    YT_LOG_DEBUG("Peeking store for preload");
+    YT_LOG_TRACE("Peeking store for preload");
 
     for (size_t size = Tablet_->PreloadStoreIds().size(); size != 0; --size) {
         auto id = Tablet_->PreloadStoreIds().front();
