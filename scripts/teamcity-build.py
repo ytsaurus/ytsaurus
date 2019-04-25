@@ -849,7 +849,7 @@ def run_sandbox_upload(options, build_context):
     Git branch: {6}
     Git commit: {7}
     """.format(
-        "[yp] " if options.build_project == "yp" else "",
+        "[yp] " if "yp" in options.build_project else "",
         build_context["yt_version"],
         options.build_number,
         options.type,
