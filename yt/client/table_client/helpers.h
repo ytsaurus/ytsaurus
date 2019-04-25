@@ -170,7 +170,7 @@ NYson::TYsonString UnversionedValueToYson(TUnversionedValue unversionedValue, bo
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TReader, class TRow>
-TFuture<void> AsyncReadRows(TIntrusivePtr<TReader> reader, std::vector<TRow>* rows);
+TFuture<void> AsyncReadRows(const TIntrusivePtr<TReader>& reader, std::vector<TRow>* rows);
 
 ////////////////////////////////////////////////////////////////////////////////
 

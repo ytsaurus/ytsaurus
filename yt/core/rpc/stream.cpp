@@ -551,7 +551,7 @@ TFuture<void> ExpectWriterFeedback(
 }
 
 TFuture<void> ExpectHandshake(
-    const NConcurrency::IAsyncZeroCopyInputStreamPtr& input,
+    const IAsyncZeroCopyInputStreamPtr& input,
     bool feedbackEnabled)
 {
     return feedbackEnabled
@@ -706,7 +706,26 @@ TSharedRef GenerateWriterFeedbackMessage(
     return SerializeProtoToRef(protoFeedback);
 }
 
-/////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<IAsyncZeroCopyOutputStreamPtr> CreateRpcClientOutputStreamFromInvokedRequest(
+    IClientRequestPtr request,
+    TFuture<void> invokeResult,
+    bool feedbackEnabled)
+{
+    auto handshakeResult = NDetail::ExpectHandshake(
+        request->GetResponseAttachmentsStream(),
+        feedbackEnabled);
+
+    return handshakeResult.Apply(BIND([=] () {
+        return New<NDetail::TRpcClientOutputStream>(
+            std::move(request),
+            std::move(invokeResult),
+            feedbackEnabled);
+    })).template As<IAsyncZeroCopyOutputStreamPtr>();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail
 

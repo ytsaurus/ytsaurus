@@ -1,5 +1,4 @@
 #include "table_writer.h"
-
 #include "helpers.h"
 
 #include <yt/client/api/table_writer.h>
@@ -36,31 +35,25 @@ public:
     {
         ValidateNotClosed();
 
-        auto promise = NewPromise<void>();
-
-        {
-            auto guard = Guard(EventLock_);
-            if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
-                THROW_ERROR_EXCEPTION("Write() was called before waiting for GetReadyEvent()");
-            }
-
-            ReadyEvent_ = promise;
+        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+            THROW_ERROR_EXCEPTION("Write() was called before waiting for GetReadyEvent()");
         }
+
+        ReadyEvent_ = NewPromise<void>();
 
         auto rowData = SerializeRowsetWithNameTableDelta(
             NameTable_,
             rows,
             &NameTableSize_);
-        promise.TrySetFrom(Underlying_->Write(rowData));
+        ReadyEvent_.TrySetFrom(Underlying_->Write(rowData));
 
-        return promise.IsSet() && promise.Get().IsOK();
+        return ReadyEvent_.IsSet() && ReadyEvent_.Get().IsOK();
     }
 
     virtual TFuture<void> GetReadyEvent() override
     {
         ValidateNotClosed();
 
-        auto guard = Guard(EventLock_);
         return ReadyEvent_;
     }
 
@@ -85,14 +78,13 @@ public:
 private:
     const IAsyncZeroCopyOutputStreamPtr Underlying_;
     const TTableSchema Schema_;
+    const TNameTablePtr NameTable_;
 
-    TNameTablePtr NameTable_;
     size_t NameTableSize_ = 0;
 
-    TSpinLock EventLock_;
     TPromise<void> ReadyEvent_;
 
-    std::atomic<bool> Closed_ = {false};
+    bool Closed_ = false;
 
     void ValidateNotClosed()
     {

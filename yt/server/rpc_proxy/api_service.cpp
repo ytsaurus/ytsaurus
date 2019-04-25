@@ -2944,7 +2944,7 @@ private:
             context,
             BIND(&IFileWriter::Write, fileWriter),
             BIND(&IFileWriter::Close, fileWriter),
-            false);
+            false /* feedbackEnabled */);
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -3037,7 +3037,7 @@ private:
                 return journalWriter->Write(rows);
             }),
             BIND(&IJournalWriter::Close, journalWriter),
-            true);
+            true /* feedbackEnabled */);
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -3075,9 +3075,11 @@ private:
         NApi::NRpcProxy::NProto::TReadTableMeta meta;
         meta.set_start_row_index(tableReader->GetStartRowIndex());
         ToProto(meta.mutable_key_columns(), tableReader->GetKeyColumns());
-        ToProto(meta.mutable_omitted_inaccessible_columns(), tableReader->GetOmittedInaccessibleColumns());
+        ToProto(meta.mutable_omitted_inaccessible_columns(),
+            tableReader->GetOmittedInaccessibleColumns());
         meta.mutable_payload()->set_total_row_count(tableReader->GetTotalRowCount());
-        ToProto(meta.mutable_payload()->mutable_data_statistics(), tableReader->GetDataStatistics());
+        ToProto(meta.mutable_payload()->mutable_data_statistics(),
+            tableReader->GetDataStatistics());
 
         auto metaRef = SerializeProtoToRef(meta);
         WaitFor(outputStream->Write(metaRef))
@@ -3088,31 +3090,33 @@ private:
         rows.reserve(Config_->ReadBufferRowCount);
         bool finished = false;
 
-        HandleInputStreamingRequest(
-            context,
-            BIND([&] {
-                if (finished) {
-                    return MakeFuture(TSharedRef());
+        auto blockGenerator = BIND([&] {
+            if (finished) {
+                return MakeFuture(TSharedRef());
+            }
+
+            return AsyncReadRows(tableReader, &rows).Apply(BIND([&] {
+                if (rows.empty()) {
+                    finished = true;
                 }
 
-                return AsyncReadRows(tableReader, &rows).Apply(BIND([&] {
-                    if (rows.empty()) {
-                        finished = true;
-                    }
+                auto rowsetData = NApi::NRpcProxy::SerializeRowsetWithNameTableDelta(
+                    tableReader->GetNameTable(),
+                    rows,
+                    &nameTableSize);
 
-                    auto rowsetData = NApi::NRpcProxy::SerializeRowsetWithNameTableDelta(
-                        tableReader->GetNameTable(),
-                        rows,
-                        &nameTableSize);
+                NApi::NRpcProxy::NProto::TTableReaderPayload payload;
+                payload.set_total_row_count(tableReader->GetTotalRowCount());
+                ToProto(payload.mutable_data_statistics(), tableReader->GetDataStatistics());
+                auto payloadRef = SerializeProtoToRef(payload);
 
-                    NApi::NRpcProxy::NProto::TTableReaderPayload payload;
-                    payload.set_total_row_count(tableReader->GetTotalRowCount());
-                    ToProto(payload.mutable_data_statistics(), tableReader->GetDataStatistics());
-                    auto payloadRef = SerializeProtoToRef(payload);
-
-                    return PackRefs(std::vector{rowsetData, payloadRef});
-                }));
+                return PackRefs(std::vector{rowsetData, payloadRef});
             }));
+        });
+
+        HandleInputStreamingRequest(
+            context,
+            blockGenerator);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteTable)
@@ -3168,7 +3172,7 @@ private:
             context,
             blockHandler,
             BIND(&ITableWriter::Close, tableWriter),
-            false);
+            false /* feedbackEnabled */);
     }
 
     ////////////////////////////////////////////////////////////////////////////////
