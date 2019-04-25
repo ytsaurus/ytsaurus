@@ -1234,6 +1234,7 @@ class TestAccounts(YTEnvSetup):
         wait(lambda: get("//sys/accounts/tmp/@resource_usage/node_count") == node_count)
         wait(lambda: get("//sys/accounts/tmp/@committed_resource_usage/node_count") == committed_node_count)
 
+    @flaky(max_runs=3)
     def test_totals(self):
         self._set_account_zero_limits("chunk_wise_accounting_migration")
 
