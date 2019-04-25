@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from .helpers import (TEST_DIR, get_test_file_path, check, set_config_option, get_tests_sandbox,
-                      ENABLE_JOB_CONTROL, dumps_yt_config, get_python, wait, remove_asan_warning, get_operation_path)
+                      ENABLE_JOB_CONTROL, dumps_yt_config, get_python, wait, get_operation_path)
 
 # Necessary for tests.
 try:
@@ -234,7 +234,7 @@ class TestOperations(object):
         assert len(row_list) > 0
         assert yt.has_attribute(stderr_table, "part_size")
         for r in row_list:
-            assert remove_asan_warning(r["data"]) == "map\n"
+            assert r["data"] == "map\n"
 
 
         yt.run_reduce("echo reduce >&2 ; cat",
@@ -244,7 +244,7 @@ class TestOperations(object):
         assert len(row_list) > 0
         assert yt.has_attribute(stderr_table, "part_size")
         for r in row_list:
-            assert remove_asan_warning(r["data"]) == "reduce\n"
+            assert r["data"] == "reduce\n"
 
         yt.run_map_reduce(
             "echo mr-map >&2 ; cat",
@@ -256,7 +256,7 @@ class TestOperations(object):
         assert len(row_list) > 0
         assert yt.has_attribute(stderr_table, "part_size")
         for r in row_list:
-            assert remove_asan_warning(r["data"]) in ["mr-map\n", "mr-reduce\n"]
+            assert r["data"] in ["mr-map\n", "mr-reduce\n"]
 
     def test_stderr_table_inside_transaction(self):
         table = TEST_DIR + "/table"
@@ -278,7 +278,7 @@ class TestOperations(object):
         assert len(row_list) > 0
         assert yt.has_attribute(stderr_table, "part_size")
         for r in row_list:
-            assert remove_asan_warning(r["data"]) == "map\n"
+            assert r["data"] == "map\n"
 
     @add_failed_operation_stderrs_to_error_message
     def test_run_join_operation(self):
@@ -334,7 +334,7 @@ class TestOperations(object):
         def check(op):
             stderrs = op.get_stderrs()
             assert len(stderrs) == 1
-            assert remove_asan_warning(stderrs[0]["stderr"]) == "aaa\n"
+            assert stderrs[0]["stderr"] == "aaa\n"
 
         op = yt.run_operation(VanillaSpecBuilder().task("sample", {"command": "echo 'aaa' >&2", "job_count": 1}))
         check(op)
@@ -1126,7 +1126,7 @@ print(op.id)
 
         stderrs_list = get_stderrs(operation.id, False)
         for stderr in stderrs_list:
-            assert remove_asan_warning(stderr["stderr"]) == "Job with stderr"
+            assert stderr["stderr"] == "Job with stderr"
         assert len(stderrs_list) == 10
 
         assert yt.format_operation_stderrs(stderrs_list)
@@ -1363,7 +1363,7 @@ print(op.id)
 
             stderrs = op.get_stderrs()
             assert len(stderrs) == 1
-            assert remove_asan_warning(stderrs[0]["stderr"]) == "AAA\n"
+            assert stderrs[0]["stderr"] == "AAA\n"
 
     def test_list_operations(self):
         if yt.config["backend"] == "rpc":
@@ -1731,5 +1731,5 @@ print(op.id)
             op = yt.run_map("echo -e -n '\\xF1\\xF2\\xF3\\xF4' >&2; cat", input_table, output_table)
             stderrs = op.get_stderrs()
             assert len(stderrs) == 1
-            assert remove_asan_warning(stderrs[0]["stderr"]) == "\xF1\xF2\xF3\xF4"
+            assert stderrs[0]["stderr"] == "\xF1\xF2\xF3\xF4"
 
