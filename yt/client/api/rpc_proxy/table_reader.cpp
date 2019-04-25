@@ -194,7 +194,13 @@ private:
                     THROW_ERROR_EXCEPTION("Reader abandoned");
                 }
 
-                return this_->DeserializeRows(rowData);
+                auto rowsWithPayload = this_->DeserializeRows(rowData);
+                if (rowsWithPayload.Rows.Empty()) {
+                    return ExpectEndOfStream(this_->Underlying_).Apply(BIND([=] () {
+                        return std::move(rowsWithPayload);
+                    }));
+                }
+                return MakeFuture(std::move(rowsWithPayload));
             }));
     }
 

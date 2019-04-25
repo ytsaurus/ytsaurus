@@ -52,8 +52,6 @@
 #include <yt/core/rpc/service_detail.h>
 #include <yt/core/rpc/stream.h>
 
-
-
 namespace NYT::NRpcProxy {
 
 using namespace NApi;
@@ -3085,18 +3083,27 @@ private:
         WaitFor(outputStream->Write(metaRef))
             .ThrowOnError();
 
-        auto nameTableSizeHolder = std::make_unique<size_t>(0);
-        auto rowsHolder = std::make_unique<std::vector<TUnversionedRow>>();
-        rowsHolder->reserve(Config_->ReadBufferRowCount);
+        size_t nameTableSize = 0;
+        std::vector<TUnversionedRow> rows;
+        rows.reserve(Config_->ReadBufferRowCount);
+        bool finished = false;
 
         HandleInputStreamingRequest(
             context,
-            BIND([=, nameTableSizeHolder = std::move(nameTableSizeHolder), rowsHolder = std::move(rowsHolder)] () {
-                return AsyncReadRows(tableReader, rowsHolder.get()).Apply(BIND([=, &rows = *rowsHolder, nameTableSize = nameTableSizeHolder.get()] {
+            BIND([&] {
+                if (finished) {
+                    return MakeFuture(TSharedRef());
+                }
+
+                return AsyncReadRows(tableReader, &rows).Apply(BIND([&] {
+                    if (rows.empty()) {
+                        finished = true;
+                    }
+
                     auto rowsetData = NApi::NRpcProxy::SerializeRowsetWithNameTableDelta(
                         tableReader->GetNameTable(),
                         rows,
-                        nameTableSize);
+                        &nameTableSize);
 
                     NApi::NRpcProxy::NProto::TTableReaderPayload payload;
                     payload.set_total_row_count(tableReader->GetTotalRowCount());
@@ -3141,17 +3148,17 @@ private:
         WaitFor(outputStream->Write(metaRef))
             .ThrowOnError();
 
-        auto descriptor = std::make_unique<NApi::NRpcProxy::NProto::TRowsetDescriptor>();
-        descriptor->set_wire_format_version(1);
-        descriptor->set_rowset_kind(NApi::NRpcProxy::NProto::RK_UNVERSIONED);
+        NApi::NRpcProxy::NProto::TRowsetDescriptor descriptor;
+        descriptor.set_wire_format_version(1);
+        descriptor.set_rowset_kind(NApi::NRpcProxy::NProto::RK_UNVERSIONED);
 
-        auto blockHandler = BIND([=, descriptor = std::move(descriptor)] (const TSharedRef& block) {
+        auto blockHandler = BIND([&] (const TSharedRef& block) {
             // Here we assume our local tableWriter wouldn't modify its own name table,
             // so we don't have to use an id mapping.
             auto rows = NApi::NRpcProxy::DeserializeRowsetWithNameTableDelta(
                 block,
                 tableWriter->GetNameTable(),
-                descriptor.get());
+                &descriptor);
 
             tableWriter->Write(rows);
             return tableWriter->GetReadyEvent();

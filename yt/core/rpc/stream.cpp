@@ -495,12 +495,12 @@ TRpcClientInputStream::TRpcClientInputStream(
 
 TFuture<TSharedRef> TRpcClientInputStream::Read()
 {
-    return Underlying_->Read().Apply(BIND ([=] (const TSharedRef& ref) {
+    return Underlying_->Read().Apply(BIND ([invokeResult = InvokeResult_] (const TSharedRef& ref) mutable {
         if (ref) {
             return MakeFuture(ref);
         }
 
-        return InvokeResult_.Apply(BIND ([] () {
+        return invokeResult.Apply(BIND ([] () {
             return TSharedRef();
         }));
     }));
