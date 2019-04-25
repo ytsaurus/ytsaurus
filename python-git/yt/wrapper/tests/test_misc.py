@@ -747,7 +747,6 @@ class TestCellId(object):
             client.COMMAND_PARAMS["master_cell_id"] = cell_id
             assert client.get("//sys/@cell_id") == cell_id
 
-
 @pytest.mark.usefixtures("yt_env")
 class TestGenerateTimestamp(object):
     def test_generate_timestamp(self):
