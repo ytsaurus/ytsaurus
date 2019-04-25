@@ -13,7 +13,9 @@ class TAtomicObject
 {
 public:
     TAtomicObject() = default;
-    TAtomicObject(const T& other);
+
+    template <class U>
+    TAtomicObject(U&& u);
 
     template <class U>
     void Store(U&& u);

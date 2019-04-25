@@ -10,8 +10,9 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TAtomicObject<T>::TAtomicObject(const T& other)
-    : Object_(other.Load())
+template <class U>
+TAtomicObject<T>::TAtomicObject(U&& u)
+    : Object_(std::forward<U>(u))
 { }
 
 template <class T>
