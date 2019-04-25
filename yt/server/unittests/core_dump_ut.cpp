@@ -1,12 +1,14 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/server/lib/core_dump/core_dump.h>
+#include <yt/ytlib/core_dump/helpers.h>
 
 #include <util/system/tempfile.h>
 #include <util/stream/file.h>
 
 namespace NYT::NCoreDump {
 namespace {
+
+////////////////////////////////////////////////////////////////////////////////
 
 TEST(TCoreDumpTest, WriteSparseFile)
 {
@@ -36,6 +38,8 @@ TEST(TCoreDumpTest, WriteSparseFile)
     TFileInput input(filename);
     EXPECT_TRUE(input.ReadAll() == dump);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NYT::NCoreDump

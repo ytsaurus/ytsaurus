@@ -812,19 +812,32 @@ class Operation(object):
     def get_error(self):
         state = self.get_state(verbose=False)
         if state == "failed":
-            error = get(self.get_path() + "/@result/error", verbose=False, is_raw=True)
+            error = get(self.get_path() + "/@result/error", verbose=False)
             jobs_path = self.get_path() + "/jobs"
             jobs = get(jobs_path, verbose=False)
+            job_errors = []
             for job in jobs:
                 job_error_path = jobs_path + "/{0}/@error".format(job)
                 job_stderr_path = jobs_path + "/{0}/stderr".format(job)
                 if exists(job_error_path, verbose=False):
-                    error = error + "\n\n" + get(job_error_path, verbose=False, is_raw=True)
+                    job_error = get(job_error_path, verbose=False)
+                    message = job_error["message"]
                     if "stderr" in jobs[job]:
-                        error = error + "\n" + read_file(job_stderr_path, verbose=False)
-            return YtError(error)
+                        message = message + "\n" + read_file(job_stderr_path, verbose=False)
+                    job_errors.append(YtError(message=message,
+                                              code=job_error.get("code", 1),
+                                              attributes=job_error.get("attributes"),
+                                              inner_errors=job_error.get("inner_errors")))
+            inner_errors = error.get("inner_errors", [])
+            if len(job_errors) > 0:
+                inner_errors.append(YtError(message="Some of the jobs have failed", inner_errors=job_errors))
+
+            return YtError(message=error["message"],
+                           code=error.get("code"),
+                           attributes=error["attributes"],
+                           inner_errors=inner_errors)
         if state == "aborted":
-            return YtError(message = "Operation {0} aborted".format(self.id))
+            return YtError(message="Operation {0} aborted".format(self.id))
 
     def build_progress(self):
         try:

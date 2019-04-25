@@ -434,6 +434,20 @@ inline void FormatValue(TStringBuilderBase* builder, std::nullopt_t, TStringBuf 
     builder->AppendString(AsStringBuf("<null>"));
 }
 
+// std::pair
+template <class T1, class T2>
+struct TValueFormatter<std::pair<T1, T2>>
+{
+    static void Do(TStringBuilderBase* builder, const std::pair<T1, T2>& value, TStringBuf format)
+    {
+        builder->AppendChar('{');
+        FormatValue(builder, value.first, format);
+        builder->AppendString(AsStringBuf(", "));
+        FormatValue(builder, value.second, format);
+        builder->AppendChar('}');
+    }
+};
+
 template <class T>
 struct TValueFormatter<std::optional<T>>
 {

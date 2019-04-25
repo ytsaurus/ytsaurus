@@ -15,7 +15,10 @@ import random
 import socket
 import sys
 import time
+import subprocess
 import __builtin__
+
+from distutils.spawn import find_executable
 
 from collections import defaultdict
 
@@ -3015,11 +3018,19 @@ class TestSafeAssertionsMode(YTEnvSetup):
         "controller_agent": {
             "enable_controller_failure_spec_option": True,
         },
-        "core_dumper": {
-            "component_name": "",
-            "path": "/dev/null",
-        }
     }
+
+    @classmethod
+    def modify_controller_agent_config(cls, config):
+        cls.core_path = os.path.join(cls.path_to_run, "_cores")
+        os.mkdir(cls.core_path)
+        os.chmod(cls.core_path, 0777)
+        config["core_dumper"] = {
+            "path": cls.core_path,
+            # Pattern starts with the underscore to trick teamcity; we do not want it to
+            # pay attention to the created core.
+            "pattern": "_core.%CORE_PID.%CORE_SIG.%CORE_THREAD_NAME-%CORE_REASON",
+        }
 
     @unix_only
     def test_assertion_failure(self):
@@ -3036,9 +3047,39 @@ class TestSafeAssertionsMode(YTEnvSetup):
         with pytest.raises(YtError):
             op.track()
 
-        # Note that exception in on job completed is not a failed assertion, so it doesn't affect this counter.
-        # TODO(max42): uncomment this when metrics are exported properly (after Ignat's scheduler resharding).
-        # assert len(get("//sys/scheduler/orchid/profiling/controller_agent/assertions_failed")) == 1
+        err = op.get_error()
+        print >>sys.stderr, "=== error ==="
+        print >>sys.stderr, err
+
+        assert err.contains_code(211)  # NScheduler::EErrorCode::OperationControllerCrashed
+
+        # Core path is either attribute of an error itself, or of the only inner error when it is
+        # wrapped with 'Operation has failed to prepare' error.
+        core_path = err.attributes.get("core_path") or err.inner_errors[0].get("attributes", {}).get("core_path")
+        assert core_path != YsonEntity()
+
+        # Wait until core is finished. This may take a really long time under debug :(
+        controller_agent_address = get(op.get_path() + "/@controller_agent_address")
+        wait(lambda: get("//sys/controller_agents/instances/{}"
+                         "/orchid/core_dumper/active_core_dump_count".format(controller_agent_address)) == 0,
+             iter=2000)
+        assert os.path.exists(core_path)
+        child = subprocess.Popen(["gdb", "--batch", "-ex", "bt",
+                                  find_executable("ytserver-controller-agent"), core_path],
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE)
+        stdout, stderr = child.communicate()
+        print >>sys.stderr, "=== stderr ==="
+        print >>sys.stderr, stderr
+        print >>sys.stderr, "=== stdout ==="
+        print >>sys.stderr, stdout
+        assert child.returncode == 0
+        assert "AssertionFailureInPrepare" in stdout
+
+    def test_unexpected_exception(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out")
 
         op = map(
             dont_track=True,
@@ -3048,19 +3089,8 @@ class TestSafeAssertionsMode(YTEnvSetup):
             command="cat")
         with pytest.raises(YtError):
             op.track()
-
-        # assert len(get("//sys/scheduler/orchid/profiling/controller_agent/assertions_failed")) == 1
-
-        op = map(
-            dont_track=True,
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            spec={"testing": {"controller_failure": "assertion_failure_in_prepare"}},
-            command="cat")
-        with pytest.raises(YtError):
-            op.track()
-
-        # assert len(get("//sys/scheduler/orchid/profiling/controller_agent/assertions_failed")) == 2
+        print >>sys.stderr, op.get_error()
+        assert op.get_error().contains_code(213)  # NScheduler::EErrorCode::TestingError
 
 ##################################################################
 

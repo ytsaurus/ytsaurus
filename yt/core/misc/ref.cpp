@@ -91,7 +91,7 @@ TString ToString(const TMutableRef& ref)
     return ToString(TRef(ref));
 }
 
-TString ToString(const TSharedRef& ref)
+TString     ToString(const TSharedRef& ref)
 {
     return ToString(TRef(ref));
 }
