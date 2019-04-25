@@ -495,12 +495,14 @@ TRpcClientInputStream::TRpcClientInputStream(
 
 TFuture<TSharedRef> TRpcClientInputStream::Read()
 {
-    return Underlying_->Read().Apply(BIND ([invokeResult = InvokeResult_] (const TSharedRef& ref) mutable {
+    return Underlying_->Read()
+        .Apply(BIND([invokeResult = InvokeResult_] (const TSharedRef& ref) mutable
+    {
         if (ref) {
             return MakeFuture(ref);
         }
 
-        return invokeResult.Apply(BIND ([] () {
+        return invokeResult.Apply(BIND([] () {
             return TSharedRef();
         }));
     }));
@@ -610,8 +612,8 @@ TFuture<void> TRpcClientOutputStream::Write(const TSharedRef& data)
 TFuture<void> TRpcClientOutputStream::Close()
 {
     CloseResult_.TrySetFrom(Underlying_->Close());
-    return CloseResult_.ToFuture().Apply(BIND([=] () {
-        return InvokeResult_;
+    return CloseResult_.ToFuture().Apply(BIND([invokeResult = InvokeResult_] () {
+        return invokeResult;
     }));
 }
 
