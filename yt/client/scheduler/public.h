@@ -50,6 +50,8 @@ DEFINE_ENUM(EErrorCode,
     ((NoSuchJob)                              (203))
     ((OperationFailedOnJobRestart)            (210))
     ((OperationFailedWithInconsistentLocking) (211))
+    ((OperationControllerCrashed)             (212))
+    ((TestingError)                           (213))
 );
 
 DEFINE_ENUM(EUnavailableChunkAction,

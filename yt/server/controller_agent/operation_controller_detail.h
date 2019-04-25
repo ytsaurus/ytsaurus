@@ -112,7 +112,7 @@ class TOperationControllerBase
 
     // All potentially faulty controller interface methods are
     // guarded by enclosing into an extra method.
-#define IMPLEMENT_SAFE_METHOD(returnType, method, signature, args, catchStdException) \
+#define IMPLEMENT_SAFE_METHOD_WITH_RETURN_VALUE(returnType, method, signature, args, catchStdException, returnValue) \
 public: \
     virtual returnType method signature final \
     { \
@@ -125,11 +125,11 @@ public: \
             return Safe ## method args; \
         } catch (const TAssertionFailedException& ex) { \
             ProcessSafeException(ex); \
-            return returnType(); \
+            return returnValue; \
         } catch (const std::exception& ex) { \
             if (catchStdException) { \
                 ProcessSafeException(ex); \
-                return returnType(); \
+                return returnValue; \
             } \
             throw; \
         } \
@@ -137,7 +137,16 @@ public: \
 private: \
     returnType Safe ## method signature;
 
-    IMPLEMENT_SAFE_METHOD(TOperationControllerPrepareResult, Prepare, (), (), false)
+#define IMPLEMENT_SAFE_METHOD(returnType, method, signature, args, catchStdException) \
+    IMPLEMENT_SAFE_METHOD_WITH_RETURN_VALUE(returnType, method, signature, args, catchStdException, returnType())
+
+    IMPLEMENT_SAFE_METHOD_WITH_RETURN_VALUE(
+        TOperationControllerPrepareResult,
+        Prepare,
+        (),
+        (),
+        false,
+        (Error_.ThrowOnError(), TOperationControllerPrepareResult()))
     IMPLEMENT_SAFE_METHOD(TOperationControllerMaterializeResult, Materialize, (), (), false)
 
     IMPLEMENT_SAFE_METHOD(void, OnJobStarted, (std::unique_ptr<TStartedJobSummary> jobSummary), (std::move(jobSummary)), true)
@@ -1050,6 +1059,9 @@ private:
     TOperationAlertMap Alerts_;
 
     std::unique_ptr<IJobSplitter> JobSplitter_;
+
+    //! Error that lead to operation failure.
+    TError Error_;
 
     void InitializeOrchid();
 

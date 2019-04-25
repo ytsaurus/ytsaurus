@@ -152,6 +152,12 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/controller_agent",
         CreateVirtualNode(ControllerAgent_->CreateOrchidService()->Via(GetControlInvoker())));
+    if (CoreDumper_) {
+        SetNodeByYPath(
+            orchidRoot,
+            "/core_dumper",
+            CreateVirtualNode(CoreDumper_->CreateOrchidService()));
+    }
 
     SetBuildAttributes(orchidRoot, "controller_agent");
 

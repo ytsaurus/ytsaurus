@@ -1987,7 +1987,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     if (Config->EnableControllerFailureSpecOption && Spec_->TestingOperationOptions &&
         Spec_->TestingOperationOptions->ControllerFailure == EControllerFailureType::ExceptionThrownInOnJobCompleted)
     {
-        THROW_ERROR_EXCEPTION("Testing exception");
+        THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::TestingError, "Testing exception");
     }
 
     if (State != EControllerState::Running) {
@@ -4029,6 +4029,8 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
         FlushOperationNode(/* checkFlushResult */ false);
     }
 
+    Error_ = error;
+
     Host->OnOperationFailed(error);
 }
 
@@ -4137,11 +4139,14 @@ void TOperationControllerBase::ProcessSafeException(const TAssertionFailedExcept
 {
     TControllerAgentCounterManager::Get()->IncrementAssertionsFailed(OperationType);
 
-    OnOperationFailed(TError("Operation controller crashed; please file a ticket at YTADMINREQ and attach a link to this operation")
-        << TErrorAttribute("failed_condition", ex.GetExpression())
-        << TErrorAttribute("stack_trace", ex.GetStackTrace())
-        << TErrorAttribute("core_path", ex.GetCorePath())
-        << TErrorAttribute("operation_id", OperationId));
+    OnOperationFailed(
+        TError(
+            NScheduler::EErrorCode::OperationControllerCrashed,
+            "Operation controller crashed; please file a ticket at YTADMINREQ and attach a link to this operation")
+            << TErrorAttribute("failed_condition", ex.GetExpression())
+            << TErrorAttribute("stack_trace", ex.GetStackTrace())
+            << TErrorAttribute("core_path", ex.GetCorePath())
+            << TErrorAttribute("operation_id", OperationId));
 }
 
 EJobState TOperationControllerBase::GetStatisticsJobState(const TJobletPtr& joblet, const EJobState& state)
@@ -7756,7 +7761,7 @@ TString TOperationControllerBase::WriteCoreDump() const
     if (!coreDumper) {
         THROW_ERROR_EXCEPTION("Core dumper is not set up");
     }
-    return coreDumper->WriteCoreDump(CoreNotes_).Path;
+    return coreDumper->WriteCoreDump(CoreNotes_, "rpc_call").Path;
 }
 
 void TOperationControllerBase::RegisterOutputRows(i64 count, int tableIndex)
