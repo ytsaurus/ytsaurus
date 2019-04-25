@@ -8,8 +8,6 @@
 
 #include <yt/ytlib/api/native/client.h>
 
-#include <yt/client/object_client/helpers.h>
-
 #include <yt/core/concurrency/fls.h>
 #include <yt/core/concurrency/scheduler.h>
 
@@ -19,7 +17,6 @@ namespace NYT::NTabletNode {
 
 using namespace NApi;
 using namespace NConcurrency;
-using namespace NObjectClient;
 using namespace NSecurityClient;
 using namespace NTabletClient;
 using namespace NYPath;
@@ -40,9 +37,9 @@ TAuthenticatedUserGuard::TAuthenticatedUserGuard(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTablePermissionKey
+struct TPermissionKey
 {
-    TObjectId TableId;
+    TString Object;
     TString User;
     EPermission Permission;
 
@@ -50,26 +47,26 @@ struct TTablePermissionKey
     operator size_t() const
     {
         size_t result = 0;
-        HashCombine(result, TableId);
+        HashCombine(result, Object);
         HashCombine(result, User);
         HashCombine(result, Permission);
         return result;
     }
 
     // Comparer.
-    bool operator == (const TTablePermissionKey& other) const
+    bool operator == (const TPermissionKey& other) const
     {
         return
-            TableId == other.TableId &&
+            Object == other.Object &&
             User == other.User &&
             Permission == other.Permission;
     }
 
     // Formatter.
-    friend TString ToString(const TTablePermissionKey& key)
+    friend TString ToString(const TPermissionKey& key)
     {
         return Format("%v:%v:%v",
-            key.TableId,
+            key.Object,
             key.User,
             key.Permission);
     }
@@ -77,13 +74,13 @@ struct TTablePermissionKey
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TTablePermissionCache)
+DECLARE_REFCOUNTED_CLASS(TPermissionCache)
 
-class TTablePermissionCache
-    : public TAsyncExpiringCache<TTablePermissionKey, void>
+class TPermissionCache
+    : public TAsyncExpiringCache<TPermissionKey, void>
 {
 public:
-    TTablePermissionCache(
+    TPermissionCache(
         TAsyncExpiringCacheConfigPtr config,
         NCellNode::TBootstrap* bootstrap)
         : TAsyncExpiringCache(std::move(config))
@@ -93,19 +90,19 @@ public:
 private:
     NCellNode::TBootstrap* const Bootstrap_;
 
-    virtual TFuture<void> DoGet(const TTablePermissionKey& key) override
+    virtual TFuture<void> DoGet(const TPermissionKey& key) override
     {
-        YT_LOG_DEBUG("Table permission check started (Key: %v)",
+        YT_LOG_DEBUG("Permission check started (Key: %v)",
             key);
 
         auto client = Bootstrap_->GetMasterClient();
         auto options = TCheckPermissionOptions();
         options.ReadFrom = EMasterChannelKind::Cache;
-        return client->CheckPermission(key.User, FromObjectId(key.TableId), key.Permission, options).Apply(
+        return client->CheckPermission(key.User, key.Object, key.Permission, options).Apply(
             BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TCheckPermissionResponse>& responseOrError) {
                 if (!responseOrError.IsOK()) {
-                    auto wrappedError = TError("Error checking permission for table %v",
-                        key.TableId)
+                    auto wrappedError = TError("Error checking permission for object %v",
+                        key.Object)
                         << responseOrError;
                     YT_LOG_WARNING(wrappedError);
                     THROW_ERROR wrappedError;
@@ -113,7 +110,7 @@ private:
 
                 const auto& response = responseOrError.Value();
 
-                YT_LOG_DEBUG("Table permission check complete (Key: %v, Action: %v)",
+                YT_LOG_DEBUG("Permission check complete (Key: %v, Action: %v)",
                     key,
                     response.Action);
 
@@ -121,13 +118,13 @@ private:
 
                 auto error = response.ToError(key.User, key.Permission);
                 if (!error.IsOK()) {
-                    THROW_ERROR error << TErrorAttribute("object", key.TableId);
+                    THROW_ERROR error << TErrorAttribute("object", key.Object);
                 }
             }));
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TTablePermissionCache)
+DEFINE_REFCOUNTED_TYPE(TPermissionCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -248,7 +245,7 @@ public:
         NCellNode::TBootstrap* bootstrap)
         : Config_(std::move(config))
         , Bootstrap_(bootstrap)
-        , TablePermissionCache_(New<TTablePermissionCache>(Config_->TablePermissionCache, Bootstrap_))
+        , PermissionCache_(New<TPermissionCache>(Config_->PermissionCache, Bootstrap_))
         , ResourceLimitsCache_(New<TResourceLimitsCache>(Config_->ResourceLimitsCache, Bootstrap_))
     { }
 
@@ -270,7 +267,7 @@ public:
     }
 
     TFuture<void> CheckPermission(
-        const TTabletSnapshotPtr& tabletSnapshot,
+        const TString& path,
         EPermission permission)
     {
         auto optionalUser = GetAuthenticatedUserName();
@@ -278,15 +275,15 @@ public:
             return VoidFuture;
         }
 
-        TTablePermissionKey key{tabletSnapshot->TableId, *optionalUser, permission};
-        return TablePermissionCache_->Get(key);
+        TPermissionKey key{path, *optionalUser, permission};
+        return PermissionCache_->Get(key);
     }
 
     void ValidatePermission(
-        const TTabletSnapshotPtr& tabletSnapshot,
+        const TString& path,
         EPermission permission)
     {
-        auto asyncResult = CheckPermission(std::move(tabletSnapshot), permission);
+        auto asyncResult = CheckPermission(path, permission);
         auto optionalResult = asyncResult.TryGet();
         TError result;
         if (optionalResult) {
@@ -322,7 +319,7 @@ private:
     const TSecurityManagerConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;
 
-    const TTablePermissionCachePtr TablePermissionCache_;
+    const TPermissionCachePtr PermissionCache_;
     const TResourceLimitsCachePtr ResourceLimitsCache_;
 
     TFls<std::optional<TString>> AuthenticatedUser_;
@@ -356,18 +353,11 @@ std::optional<TString> TSecurityManager::GetAuthenticatedUserName()
     return Impl_->GetAuthenticatedUserName();
 }
 
-TFuture<void> TSecurityManager::CheckPermission(
-    const TTabletSnapshotPtr& tabletSnapshot,
-    EPermission permission)
-{
-    return Impl_->CheckPermission(std::move(tabletSnapshot), permission);
-}
-
 void TSecurityManager::ValidatePermission(
-    const TTabletSnapshotPtr& tabletSnapshot,
+    const TString& path,
     EPermission permission)
 {
-    Impl_->ValidatePermission(std::move(tabletSnapshot), permission);
+    Impl_->ValidatePermission(path, permission);
 }
 
 TFuture<void> TSecurityManager::CheckResourceLimits(

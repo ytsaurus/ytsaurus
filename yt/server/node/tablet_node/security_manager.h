@@ -44,12 +44,8 @@ public:
     virtual void ResetAuthenticatedUser() override;
     virtual std::optional<TString> GetAuthenticatedUserName() override;
 
-    TFuture<void> CheckPermission(
-        const TTabletSnapshotPtr& tabletSnapshot,
-        NYTree::EPermission permission);
-
     void ValidatePermission(
-        const TTabletSnapshotPtr& tabletSnapshot,
+        const TString& path,
         NYTree::EPermission permission);
 
     TFuture<void> CheckResourceLimits(

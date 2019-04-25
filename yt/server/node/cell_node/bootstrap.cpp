@@ -169,7 +169,7 @@ TBootstrap::TBootstrap(TCellNodeConfigPtr config, INodePtr configNode)
     : Config(std::move(config))
     , ConfigNode(std::move(configNode))
     , QueryThreadPool(BIND([this] () {
-        return CreateFairShareThreadPool(Config->QueryAgent->ThreadPoolSize, "Query");
+        return CreateTwoLevelFairShareThreadPool(Config->QueryAgent->ThreadPoolSize, "Query");
     }))
 {
     WarnForUnrecognizedOptions(Logger, Config);
@@ -647,9 +647,12 @@ const IInvokerPtr& TBootstrap::GetControlInvoker() const
     return ControlQueue->GetInvoker();
 }
 
-IInvokerPtr TBootstrap::GetQueryPoolInvoker(const TFairShareThreadPoolTag& tag) const
+IInvokerPtr TBootstrap::GetQueryPoolInvoker(
+    const TString& poolName,
+    double weight,
+    const TFairShareThreadPoolTag& tag) const
 {
-    return QueryThreadPool->GetInvoker(tag);
+    return QueryThreadPool->GetInvoker(poolName, weight, tag);
 }
 
 const IInvokerPtr& TBootstrap::GetLookupPoolInvoker() const

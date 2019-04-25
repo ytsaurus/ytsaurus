@@ -39,6 +39,8 @@
 
 #include <yt/client/object_client/helpers.h>
 
+#include <yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/client/query_client/query_statistics.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
@@ -69,6 +71,7 @@
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/tls_cache.h>
 #include <yt/core/misc/chunked_memory_pool.h>
+#include <yt/core/misc/async_expiring_cache.h>
 
 namespace NYT::NQueryAgent {
 
@@ -195,6 +198,8 @@ public:
     }
 };
 
+const TYPath QueryPoolsPath = "//sys/ql_pools";
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -307,7 +312,8 @@ public:
         std::vector<TDataRanges> dataSources,
         IUnversionedRowsetWriterPtr writer,
         const TClientBlockReadOptions& blockReadOptions,
-        const TQueryOptions& options)
+        const TQueryOptions& options,
+        IInvokerPtr invoker)
         : Config_(std::move(config))
         , FunctionImplCache_(std::move(functionImplCache))
         , Bootstrap_(bootstrap)
@@ -321,7 +327,7 @@ public:
         , BlockReadOptions_(blockReadOptions)
         , Logger(MakeQueryLogger(Query_))
         , TabletSnapshots_(Bootstrap_->GetTabletSlotManager(), Logger)
-        , Invoker_(Bootstrap_->GetQueryPoolInvoker(ToString(Options_.ReadSessionId)))
+        , Invoker_(std::move(invoker))
     { }
 
     TFuture<TQueryStatistics> Execute(TServiceProfilerGuard& profilerGuard)
@@ -1230,6 +1236,65 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+double GetPoolWeight(const NApi::NNative::IClientPtr& client, const TString& key)
+{
+    TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Cache));
+    auto batchReq = proxy.ExecuteBatch();
+
+    auto getReq = TYPathProxy::Get(key + "/@weight");
+
+    ToProto(getReq->mutable_attributes()->mutable_keys(), std::vector<TString>{"weight"});
+    batchReq->AddRequest(getReq, "get_attributes");
+
+    auto batchRsp = WaitFor(batchReq->Invoke())
+        .ValueOrThrow();
+
+    auto getRspOrError = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_attributes")[0];
+
+    THROW_ERROR_EXCEPTION_IF_FAILED(
+        getRspOrError,
+        "Failed to get pool %Qv weight from Cypress",
+        key);
+
+    auto getRsp = getRspOrError
+        .ValueOrThrow();
+
+    return ConvertTo<double>(NYson::TYsonString(getRsp->value()));
+}
+
+DECLARE_REFCOUNTED_CLASS(TPoolWeightCache)
+
+class TPoolWeightCache
+    : public TAsyncExpiringCache<TString, double>
+{
+public:
+    TPoolWeightCache(
+        TAsyncExpiringCacheConfigPtr config,
+        TWeakPtr<NApi::NNative::IClient> client,
+        IInvokerPtr invoker)
+        : TAsyncExpiringCache(std::move(config))
+        , Client_(client)
+        , Invoker_(invoker)
+    { }
+
+private:
+    const TWeakPtr<NApi::NNative::IClient> Client_;
+    const IInvokerPtr Invoker_;
+
+    virtual TFuture<double> DoGet(const TString& key) override
+    {
+        if (auto client = Client_.Lock()) {
+            return BIND(GetPoolWeight, std::move(client), key)
+                .AsyncVia(Invoker_)
+                .Run();
+        } else {
+            return MakeFuture<double>(TError("Client destroyed"));
+        }
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TPoolWeightCache)
+
 class TQuerySubexecutor
     : public IQuerySubexecutor
 {
@@ -1250,6 +1315,10 @@ public:
             ->GetMasterClient()
             ->GetNativeConnection()
             ->GetColumnEvaluatorCache())
+        , PoolWeightCache_(New<TPoolWeightCache>(
+            config->PoolWeightCache,
+            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetQueryPoolInvoker({}, 1.0, {})))
     { }
 
     // IQuerySubexecutor implementation.
@@ -1264,6 +1333,25 @@ public:
     {
         ValidateReadTimestamp(options.Timestamp);
 
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto maybeUser = securityManager->GetAuthenticatedUserName();
+
+        double weight = 1.0;
+
+        if (options.ExecutionPool) {
+            auto path = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(*options.ExecutionPool);
+
+            securityManager->ValidatePermission(path, EPermission::Use);
+
+            weight = WaitFor(PoolWeightCache_->Get(path))
+                .ValueOrThrow();
+        }
+
+        auto queryInvoker = Bootstrap_->GetQueryPoolInvoker(
+            options.ExecutionPool.value_or(""),
+            weight,
+            ToString(options.ReadSessionId));
+
         auto execution = New<TQueryExecution>(
             Config_,
             FunctionImplCache_,
@@ -1275,7 +1363,8 @@ public:
             std::move(dataSources),
             std::move(writer),
             blockReadOptions,
-            options);
+            options,
+            queryInvoker);
 
         return execution->Execute(profilerGuard);
     }
@@ -1286,6 +1375,7 @@ private:
     TBootstrap* const Bootstrap_;
     const TEvaluatorPtr Evaluator_;
     const TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
+    const TPoolWeightCachePtr PoolWeightCache_;
 
 };
 
