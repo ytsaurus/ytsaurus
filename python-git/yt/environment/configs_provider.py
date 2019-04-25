@@ -66,6 +66,10 @@ def create_configs_provider(version):
     assert isinstance(version, tuple), "version must be a (MAJOR, MINOR) tuple"
     assert all(isinstance(component, int) for component in version), "version components must be integral"
 
+    max_version = max(VERSION_TO_CONFIGS_PROVIDER_CLASS.keys())
+    if version > max_version:
+        version = max_version
+
     if version not in VERSION_TO_CONFIGS_PROVIDER_CLASS:
         raise YtError("Cannot create config provider for version {0}".format(version))
 
