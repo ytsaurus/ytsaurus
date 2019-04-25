@@ -59,7 +59,7 @@ TApiServiceProxy TClientBase::CreateApiServiceProxy(NRpc::IChannelPtr channel)
         channel = GetChannel();
     }
     TApiServiceProxy proxy(channel);
-    auto config = GetRpcProxyConnection()->GetConfig();
+    const auto& config = GetRpcProxyConnection()->GetConfig();
     proxy.SetDefaultRequestCodec(config->RequestCodec);
     proxy.SetDefaultResponseCodec(config->ResponseCodec);
     proxy.SetDefaultEnableLegacyRpcCodecs(config->EnableLegacyRpcCodecs);

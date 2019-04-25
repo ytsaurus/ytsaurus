@@ -222,17 +222,18 @@ TIntrusivePtr<NApi::IRowset<TRow>> DeserializeRowset(
     const NProto::TRowsetDescriptor& descriptor,
     const TSharedRef& data);
 
-//! Serializes an unversioned rowset and a name table expect for the first
-//! #nameTableSize names in it, then updates #nameTableSize. #nameTableSize needs
-//! to be tracked to accommodate for potential simultaneous name table updates.
+//! Serializes an unversioned rowset and a name table except for the first
+//! #nameTableSize names in it, then updates #nameTableSize. #nameTableSize
+//! needs to be tracked to accommodate for potential simultaneous name table
+//! updates.
 TSharedRef SerializeRowsetWithNameTableDelta(
     const NTableClient::TNameTablePtr& nameTable,
     TRange<NTableClient::TUnversionedRow> rows,
     size_t* nameTableSize);
 
-//! Deserializes an unversioned rowset and new rows for the #nameTable, updates
-//! the #nameTable and #descriptor. If #idMapping is specified, it is applied to
-//! the rowset and updated too.
+//! Deserializes an unversioned rowset and new columns for the #nameTable,
+//! updates the #nameTable and #descriptor. If #idMapping is specified, it is
+//! applied to the rowset and updated too.
 TSharedRange<NTableClient::TUnversionedRow> DeserializeRowsetWithNameTableDelta(
     const TSharedRef& data,
     const NTableClient::TNameTablePtr& nameTable,

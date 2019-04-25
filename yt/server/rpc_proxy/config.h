@@ -42,7 +42,7 @@ public:
         RegisterParameter("client_cache", ClientCache)
             .Default(New<TSlruCacheConfig>(1000));
         RegisterParameter("read_buffer_row_count", ReadBufferRowCount)
-            .Default((i64) 3); // TODO(kiselyovp) change to 10000
+            .Default((i64) 10000);
     }
 };
 

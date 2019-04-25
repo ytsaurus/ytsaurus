@@ -1,5 +1,4 @@
 #include "table_reader.h"
-
 #include "helpers.h"
 
 #include <yt/client/api/rowset.h>
@@ -7,8 +6,6 @@
 
 #include <yt/client/chunk_client/proto/data_statistics.pb.h>
 #include <yt/client/table_client/name_table.h>
-
-#include <yt/client/table_client/row_buffer.h>
 
 #include <yt/core/rpc/stream.h>
 
@@ -67,7 +64,6 @@ public:
 
     virtual TFuture<void> GetReadyEvent() override
     {
-        auto guard = Guard(EventLock_);
         return ReadyEvent_;
     }
 
@@ -75,21 +71,16 @@ public:
     {
         YCHECK(rows->capacity() > 0);
         rows->clear();
+        StoredRows_.clear();
 
-        {
-            auto guard = Guard(EventLock_);
-            if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
-                return true;
-            }
+        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+            return true;
+        }
 
-            if (Finished_) {
-                return false;
-            }
-
+        if (!Finished_) {
             ReadyEvent_ = NewPromise<void>();
         }
 
-        UserRows_.clear();
         while (AsyncRowsWithPayload_ && AsyncRowsWithPayload_.IsSet() && AsyncRowsWithPayload_.Get().IsOK()
             && !Finished_ && rows->size() < rows->capacity())
         {
@@ -97,7 +88,6 @@ public:
             const auto& currentPayload = AsyncRowsWithPayload_.Get().Value().Payload;
 
             if (currentRows.Empty()) {
-                auto guard = Guard(EventLock_);
                 ReadyEvent_.Set();
                 Finished_ = true;
                 ApplyReaderPayload(currentPayload);
@@ -114,7 +104,7 @@ public:
             }
             CurrentRowsOffset_ = newOffset;
 
-            UserRows_.push_back(currentRows);
+            StoredRows_.push_back(currentRows);
             ApplyReaderPayload(currentPayload);
 
             if (CurrentRowsOffset_ == currentRows.size()) {
@@ -123,12 +113,8 @@ public:
             }
         }
 
-        {
-            auto guard = Guard(EventLock_);
-            ReadyEvent_ .TrySetFrom(AsyncRowsWithPayload_);
-        }
-
-        return true;
+        ReadyEvent_ .TrySetFrom(AsyncRowsWithPayload_);
+        return !rows->empty();
     }
 
     virtual const TNameTablePtr& GetNameTable() const override
@@ -159,6 +145,7 @@ private:
     const i64 StartRowIndex_;
     const TKeyColumns KeyColumns_;
     const std::vector<TString> OmittedInaccessibleColumns_;
+    const TNameTablePtr NameTable_;
 
     NChunkClient::NProto::TDataStatistics DataStatistics_;
     i64 TotalRowCount_;
@@ -166,14 +153,12 @@ private:
     size_t RowCount_ = 0;
     size_t DataWeight_ = 0;
 
-    TNameTablePtr NameTable_;
     TNameTableToSchemaIdMapping IdMapping_;
     NApi::NRpcProxy::NProto::TRowsetDescriptor RowsetDescriptor_;
 
-    TSpinLock EventLock_;
     TPromise<void> ReadyEvent_;
 
-    std::vector<TRows> UserRows_;
+    std::vector<TRows> StoredRows_;
     TFuture<TRowsWithPayload> AsyncRowsWithPayload_;
     size_t CurrentRowsOffset_ = 0;
 
@@ -188,15 +173,15 @@ private:
     TFuture<TRowsWithPayload> GetRowsWithPayload()
     {
         return Underlying_->Read()
-            .Apply(BIND([weakThis = MakeWeak(this)] (const TSharedRef& rowData) {
+            .Apply(BIND([this, weakThis = MakeWeak(this)] (const TSharedRef& rowData) {
                 auto this_ = weakThis.Lock();
                 if (!this_) {
                     THROW_ERROR_EXCEPTION("Reader abandoned");
                 }
 
-                auto rowsWithPayload = this_->DeserializeRows(rowData);
+                auto rowsWithPayload = DeserializeRows(rowData);
                 if (rowsWithPayload.Rows.Empty()) {
-                    return ExpectEndOfStream(this_->Underlying_).Apply(BIND([=] () {
+                    return ExpectEndOfStream(Underlying_).Apply(BIND([=] () {
                         return std::move(rowsWithPayload);
                     }));
                 }
@@ -209,13 +194,14 @@ private:
         std::vector<TSharedRef> parts;
         UnpackRefsOrThrow(rowData, &parts);
         if (parts.size() != 2) {
-            THROW_ERROR_EXCEPTION("Error deserializing rows in table reader: expected %v packed refs, got %v",
+            THROW_ERROR_EXCEPTION(
+                "Error deserializing rows in table reader: expected %v packed refs, got %v",
                 2,
                 parts.size());
         }
 
-        auto rowsetData = parts[0];
-        auto payloadRef = parts[1];
+        const auto& rowsetData = parts[0];
+        const auto& payloadRef = parts[1];
 
         auto rows = DeserializeRowsetWithNameTableDelta(
             rowsetData,

@@ -26,30 +26,12 @@ TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateRpcClientInputStream(
 }
 
 template <class TRequestMessage, class TResponse>
-TFuture<NConcurrency::IAsyncZeroCopyOutputStreamPtr> CreateRpcClientOutputStreamFromInvokedRequest(
-    TIntrusivePtr<TTypedClientRequest<TRequestMessage, TResponse>> request,
-    TFuture<void> invokeResult,
-    bool feedbackEnabled = false)
-{
-    auto handshakeResult = NDetail::ExpectHandshake(
-        request->GetResponseAttachmentsStream(),
-        feedbackEnabled);
-
-    return handshakeResult.Apply(BIND([=] () {
-        return New<NDetail::TRpcClientOutputStream>(
-            std::move(request),
-            std::move(invokeResult),
-            feedbackEnabled);
-    })).template As<NConcurrency::IAsyncZeroCopyOutputStreamPtr>();
-}
-
-template <class TRequestMessage, class TResponse>
 TFuture<NConcurrency::IAsyncZeroCopyOutputStreamPtr> CreateRpcClientOutputStream(
     TIntrusivePtr<TTypedClientRequest<TRequestMessage, TResponse>> request,
     bool feedbackEnabled)
 {
     auto invokeResult = request->Invoke().template As<void>();
-    return CreateRpcClientOutputStreamFromInvokedRequest(
+    return NDetail::CreateRpcClientOutputStreamFromInvokedRequest(
         std::move(request),
         std::move(invokeResult),
         feedbackEnabled);
@@ -64,7 +46,7 @@ TFuture<NConcurrency::IAsyncZeroCopyOutputStreamPtr> CreateRpcClientOutputStream
     auto metaHandlerResult = request->GetResponseAttachmentsStream()->Read()
         .Apply(metaHandler);
     return metaHandlerResult.Apply(BIND ([=] () {
-        return CreateRpcClientOutputStreamFromInvokedRequest(
+        return NDetail::CreateRpcClientOutputStreamFromInvokedRequest(
             std::move(request),
             std::move(invokeResult));
     }));

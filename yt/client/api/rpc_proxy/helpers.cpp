@@ -1380,13 +1380,14 @@ TSharedRange<NTableClient::TUnversionedRow> DeserializeRowsetWithNameTableDelta(
     std::vector<TSharedRef> parts;
     UnpackRefsOrThrow(data, &parts);
     if (parts.size() != 2) {
-        THROW_ERROR_EXCEPTION("Error deserializing rowset with name table delta: expected %v packed refs, got %v",
+        THROW_ERROR_EXCEPTION(
+            "Error deserializing rowset with name table delta: expected %v packed refs, got %v",
             2,
             parts.size());
     }
 
-    auto descriptorDeltaRef = parts[0];
-    auto mergedRowRefs = parts[1];
+    const auto& descriptorDeltaRef = parts[0];
+    const auto& mergedRowRefs = parts[1];
 
     NApi::NRpcProxy::NProto::TRowsetDescriptor descriptorDelta;
     if (!TryDeserializeProto(&descriptorDelta, descriptorDeltaRef)) {
@@ -1406,7 +1407,7 @@ TSharedRange<NTableClient::TUnversionedRow> DeserializeRowsetWithNameTableDelta(
     if (idMapping) {
         idMapping->resize(newRemoteNameTableSize);
         for (int id = oldRemoteNameTableSize; id < newRemoteNameTableSize; ++id) {
-            auto name = descriptor->columns(id).name();
+            const auto& name = descriptor->columns(id).name();
             (*idMapping)[id] = nameTable->GetIdOrRegisterName(name);
         }
 
@@ -1423,7 +1424,7 @@ TSharedRange<NTableClient::TUnversionedRow> DeserializeRowsetWithNameTableDelta(
         }
     } else {
         for (int id = oldRemoteNameTableSize; id < newRemoteNameTableSize; ++id) {
-            auto name = descriptor->columns(id).name();
+            const auto& name = descriptor->columns(id).name();
             auto newId = nameTable->RegisterNameOrThrow(name);
             if (newId != id) {
                 THROW_ERROR_EXCEPTION("Name table id for name %Qv mismatch: expected %v, got %v",
