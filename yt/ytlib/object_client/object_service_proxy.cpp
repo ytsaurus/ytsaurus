@@ -254,7 +254,7 @@ void TObjectServiceProxy::TReqExecuteBatch::InvokeNextBatch()
         // them being rejected by the response keeper.
         auto subbatchReq = Slice(CurBatchBegin_, lastBatchEnd, CurBatchEnd_);
         CurReqFuture_ = subbatchReq->DoInvoke();
-        YT_LOG_DEBUG("Subbatch request invoked (BatchRequestId: %v, SubbatchRequestId: %v, SubbatchBegin: %v, SubbatchEnd: %v, SubbatchRetriesEnd: %v",
+        YT_LOG_DEBUG("Subbatch request invoked (BatchRequestId: %v, SubbatchRequestId: %v, SubbatchBegin: %v, SubbatchEnd: %v, SubbatchRetriesEnd: %v)",
             GetRequestId(),
             subbatchReq->GetRequestId(),
             CurBatchBegin_,
@@ -280,7 +280,7 @@ void TObjectServiceProxy::TReqExecuteBatch::OnSubbatchResponse(const TErrorOr<TR
         return;
     }
 
-    YT_LOG_DEBUG("Subbatch response received (BatchRequestId: %v, SubbatchRequestId: %v, SubbatchBegin: %v, SubbatchSubresponseCount: %v",
+    YT_LOG_DEBUG("Subbatch response received (BatchRequestId: %v, SubbatchRequestId: %v, SubbatchBegin: %v, SubbatchSubresponseCount: %v)",
         GetRequestId(),
         rsp->GetRequestId(),
         CurBatchBegin_,
