@@ -476,8 +476,8 @@ class TestTableCommands(object):
             assert os.listdir(yt.config["local_temp_directory"]) == []
 
             params = OperationParameters(input_format=None, output_format=None, operation_type="map", job_type="mapper", group_by=None)
-            with pytest.raises(Exception):
-                with py_wrapper.TempfilesManager(remove_temp_files=True, directory=get_local_temp_directory(client)) as tempfiles_manager:
+            with pytest.raises(AttributeError):
+                with py_wrapper.TempfilesManager(remove_temp_files=True, directory=py_wrapper.get_local_temp_directory(client)) as tempfiles_manager:
                     py_wrapper.wrap(function=foo,
                                     file_manager=None,
                                     tempfiles_manager=tempfiles_manager,

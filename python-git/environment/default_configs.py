@@ -151,6 +151,17 @@ b"""
         user_statistics_flush_period = 50;
         request_rate_smoothing_period = 60000;
     };
+
+    cypress_manager = {
+        statistics_flush_period = 50;
+        expiration_check_period = 100;
+        expiration_backoff_time = 100;
+        enable_unlock_command = %true;
+    };
+
+    multicell_manager = {
+        cell_statistics_gossip_period = 80;
+    };
 }
 """)
 
@@ -239,6 +250,7 @@ b"""
         enable_snapshot_loading = %true;
 
         snapshot_period = 100000000;
+        snapshot_timeout = 5000;
 
         transactions_refresh_period = 500;
 
