@@ -32,7 +32,7 @@
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/throughput_throttler.h>
-#include <yt/core/concurrency/fair_share_thread_pool.h>
+#include <yt/core/concurrency/two_level_fair_share_thread_pool.h>
 
 #include <yt/core/rpc/public.h>
 
@@ -53,7 +53,10 @@ public:
 
     const TCellNodeConfigPtr& GetConfig() const;
     const IInvokerPtr& GetControlInvoker() const;
-    IInvokerPtr GetQueryPoolInvoker(const NConcurrency::TFairShareThreadPoolTag& tag) const;
+    IInvokerPtr GetQueryPoolInvoker(
+        const TString& poolName,
+        double weight,
+        const NConcurrency::TFairShareThreadPoolTag& tag) const;
     const IInvokerPtr& GetLookupPoolInvoker() const;
     const IInvokerPtr& GetTableReplicatorPoolInvoker() const;
     const IInvokerPtr& GetTransactionTrackerInvoker() const;
@@ -123,7 +126,7 @@ private:
     const NYTree::INodePtr ConfigNode;
 
     NConcurrency::TActionQueuePtr ControlQueue;
-    TLazyIntrusivePtr<NConcurrency::IFairShareThreadPool> QueryThreadPool;
+    TLazyIntrusivePtr<NConcurrency::ITwoLevelFairShareThreadPool> QueryThreadPool;
     NConcurrency::TThreadPoolPtr LookupThreadPool;
     NConcurrency::TThreadPoolPtr TableReplicatorThreadPool;
     NConcurrency::TActionQueuePtr TransactionTrackerQueue;

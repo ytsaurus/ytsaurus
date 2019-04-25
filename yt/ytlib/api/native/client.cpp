@@ -2063,6 +2063,7 @@ private:
         queryOptions.AllowFullScan = options.AllowFullScan;
         queryOptions.ReadSessionId = TReadSessionId::Create();
         queryOptions.MemoryLimitPerNode = options.MemoryLimitPerNode;
+        queryOptions.ExecutionPool = options.ExecutionPool;
         queryOptions.Deadline = options.Timeout.value_or(Connection_->GetConfig()->DefaultSelectRowsTimeout).ToDeadLine();
 
         TClientBlockReadOptions blockReadOptions;

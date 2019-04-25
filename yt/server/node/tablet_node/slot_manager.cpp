@@ -17,6 +17,8 @@
 
 #include <yt/ytlib/tablet_client/public.h>
 
+#include <yt/client/object_client/helpers.h>
+
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/rw_spinlock.h>
 #include <yt/core/concurrency/thread_affinity.h>
@@ -213,7 +215,8 @@ public:
         TTimestamp timestamp)
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidatePermission(tabletSnapshot, permission);
+
+        securityManager->ValidatePermission(NObjectClient::FromObjectId(tabletSnapshot->TableId), permission);
 
         if (timestamp != AsyncLastCommittedTimestamp) {
             const auto& hydraManager = tabletSnapshot->HydraManager;
