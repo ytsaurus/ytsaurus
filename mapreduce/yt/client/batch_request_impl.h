@@ -80,7 +80,11 @@ public:
     virtual NThreading::TFuture<ILockPtr> Lock(
         const TYPath& path,
         ELockMode mode,
-        const TLockOptions& options = TLockOptions()) override;
+        const TLockOptions& options) override;
+
+    virtual NThreading::TFuture<void> Unlock(
+        const TYPath& path,
+        const TUnlockOptions& options) override;
 
     virtual NThreading::TFuture<void> AbortOperation(const TOperationId& operationId) override;
 

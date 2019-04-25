@@ -410,6 +410,17 @@ TFuture<TLockId> TRawBatchRequest::Lock(
         Nothing());
 }
 
+TFuture<void> TRawBatchRequest::Unlock(
+    const TTransactionId& transaction,
+    const TYPath& path,
+    const TUnlockOptions& options)
+{
+    return AddRequest<TVoidResponseParser>(
+        "unlock",
+        SerializeParamsForUnlock(transaction, path, options),
+        Nothing());
+}
+
 TFuture<TMaybe<TYPath>> TRawBatchRequest::GetFileFromCache(
     const TString& md5Signature,
     const TYPath& cachePath,

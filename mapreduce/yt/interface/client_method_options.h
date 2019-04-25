@@ -370,6 +370,12 @@ struct TLockOptions
     FLUENT_FIELD_OPTION(TString, ChildKey);
 };
 
+// https://wiki.yandex-team.ru/yt/userdoc/api/#unlock
+struct TUnlockOptions
+{
+    using TSelf = TUnlockOptions;
+};
+
 template <class TDerived>
 struct TTabletOptions
 {

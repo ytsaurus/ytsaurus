@@ -153,6 +153,7 @@ namespace NTesting {
         MOCK_CONST_METHOD0(GetId, const TTransactionId&());
 
         MOCK_METHOD3(Lock, ILockPtr(const TYPath& path, ELockMode mode, const TLockOptions& options));
+        MOCK_METHOD2(Unlock, void(const TYPath& path, const TUnlockOptions& options));
 
         MOCK_METHOD0(Commit, void());
         MOCK_METHOD0(Abort, void());

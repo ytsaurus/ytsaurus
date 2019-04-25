@@ -93,7 +93,7 @@ public:
     //
     // Try to lock given path.
     //
-    // Lock will be held until transaction is commited/aborted.
+    // Lock will be held until transaction is commited/aborted or `Unlock` method is called.
     // Lock modes:
     //   LM_EXCLUSIVE: if exclusive lock is taken no other transaction can take exclusive or shared lock.
     //   LM_SHARED: if shared lock is taken other transactions can take shared lock but not exclusive.
@@ -109,6 +109,19 @@ public:
         const TYPath& path,
         ELockMode mode,
         const TLockOptions& options = TLockOptions()) = 0;
+
+    //
+    // Remove all the locks (including pending ones)
+    // for this transaction from a Cypress node at `path`.
+    //
+    // If the locked version of the node differs from the original one,
+    // an error will be thrown.
+    //
+    // Command is successful even if the node has no locks.
+    // Only explicit (created by `Lock` method) locks are removed.
+    virtual void Unlock(
+        const TYPath& path,
+        const TUnlockOptions& options = TUnlockOptions()) = 0;
 
     //
     // Commit transaction. All changes that are made by transactions become visible globaly or to parent transaction.

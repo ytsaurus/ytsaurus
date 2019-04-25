@@ -276,6 +276,37 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
         UNIT_ASSERT_NO_EXCEPTION(waitableAcquired.GetValue(TDuration::Seconds(5)));
     }
 
+    // TODO(levysotsky): Uncomment this test after sync with Arcadia
+    // (we need https://github.yandex-team.ru/yt/yt/commit/b75d9e9b32eb08b8f0ed0dfc2fec455df5778fd2).
+    //Y_UNIT_TEST(TestUnlock)
+    //{
+    //    TZeroWaitLockPollIntervalGuard g;
+
+    //    TTestFixture fixture;
+    //    auto client = fixture.GetClient();
+    //    auto workingDir = fixture.GetWorkingDir();
+    //    TYPath path = workingDir + "/node";
+
+    //    client->Set("//sys/@config/cypress_manager/enable_unlock_command", true);
+
+    //    client->Set(path, 1);
+
+    //    auto tx = client->StartTransaction();
+    //    tx->Lock(path, ELockMode::LM_EXCLUSIVE);
+
+    //    auto batchRequest = client->CreateBatchRequest();
+    //    auto unlockFuture = batchRequest->WithTransaction(tx).Unlock(path);
+
+    //    auto otherTx = client->StartTransaction();
+    //    UNIT_ASSERT_EXCEPTION(otherTx->Set(path, 2), TErrorResponse);
+
+    //    batchRequest->ExecuteBatch();
+    //    UNIT_ASSERT_NO_EXCEPTION(unlockFuture.GetValueSync());
+
+    //    UNIT_ASSERT_NO_EXCEPTION(otherTx->Set(path, 2));
+    //    UNIT_ASSERT_VALUES_EQUAL(otherTx->Get(path).AsInt64(), 2);
+    //}
+
     Y_UNIT_TEST(TestWaitableLock)
     {
         TZeroWaitLockPollIntervalGuard g;

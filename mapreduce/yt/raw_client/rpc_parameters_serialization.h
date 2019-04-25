@@ -61,6 +61,11 @@ TNode SerializeParamsForLock(
     ELockMode mode,
     const TLockOptions& options);
 
+TNode SerializeParamsForUnlock(
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const TUnlockOptions& options);
+
 TNode SerializeParamsForConcatenate(
     const TTransactionId& transactionId,
     const TVector<TYPath>& sourcePaths,

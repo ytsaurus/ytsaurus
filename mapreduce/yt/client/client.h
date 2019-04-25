@@ -261,6 +261,10 @@ public:
         ELockMode mode,
         const TLockOptions& options) override;
 
+    void Unlock(
+        const TYPath& path,
+        const TUnlockOptions& options) override;
+
     void Commit() override;
 
     void Abort() override;

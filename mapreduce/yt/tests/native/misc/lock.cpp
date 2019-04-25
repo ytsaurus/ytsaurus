@@ -189,6 +189,31 @@ Y_UNIT_TEST_SUITE(Lock)
 
         UNIT_ASSERT_VALUES_EQUAL(lock->GetLockedNodeId(), expectedId);
     }
+
+    Y_UNIT_TEST(TestUnlock)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        TYPath path = workingDir + "/node";
+
+        client->Set("//sys/@config/cypress_manager/enable_unlock_command", true);
+
+        client->Set(path, 1);
+        auto tx = client->StartTransaction();
+        auto lock = tx->Lock(path, ELockMode::LM_EXCLUSIVE);
+
+        auto otherTx = client->StartTransaction();
+        UNIT_ASSERT_EXCEPTION(otherTx->Set(path, 2), TErrorResponse);
+
+        tx->Unlock(path);
+
+        UNIT_ASSERT_NO_EXCEPTION(otherTx->Set(path, 2));
+        UNIT_ASSERT_VALUES_EQUAL(otherTx->Get(path).AsInt64(), 2);
+
+        // No exception when unlocking node without locks.
+        UNIT_ASSERT_NO_EXCEPTION(tx->Unlock(path));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

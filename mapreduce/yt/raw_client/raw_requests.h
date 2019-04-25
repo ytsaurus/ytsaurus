@@ -112,6 +112,13 @@ TLockId Lock(
     const TLockOptions& options = TLockOptions(),
     IRequestRetryPolicyPtr retryPolicy = nullptr);
 
+void Unlock(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const TUnlockOptions& options = TUnlockOptions(),
+    IRequestRetryPolicyPtr retryPolicy = nullptr);
+
 void Concatenate(
     const TAuth& auth,
     const TTransactionId& transactionId,

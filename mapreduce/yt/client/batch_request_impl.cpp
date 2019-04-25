@@ -88,6 +88,13 @@ TFuture<ILockPtr> TBatchRequest::Lock(
     return Impl_->Lock(DefaultTransaction_, path, mode, options).Apply(convert);
 }
 
+NThreading::TFuture<void> TBatchRequest::Unlock(
+    const TYPath& path,
+    const TUnlockOptions& options = TUnlockOptions())
+{
+    return Impl_->Unlock(DefaultTransaction_, path, options);
+}
+
 TFuture<TLockId> TBatchRequest::Create(
     const TYPath& path,
     ENodeType type,

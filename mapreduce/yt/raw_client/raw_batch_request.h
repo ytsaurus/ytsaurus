@@ -102,7 +102,12 @@ public:
     NThreading::TFuture<TLockId> Lock(
         const TTransactionId& transaction,
         const TYPath& path,
-        ELockMode mode, const TLockOptions& options);
+        ELockMode mode,
+        const TLockOptions& options);
+    NThreading::TFuture<void> Unlock(
+        const TTransactionId& transaction,
+        const TYPath& path,
+        const TUnlockOptions& options);
     NThreading::TFuture<TMaybe<TYPath>> GetFileFromCache(
         const TString& md5Signature,
         const TYPath& cachePath,
