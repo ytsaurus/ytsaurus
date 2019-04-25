@@ -18,8 +18,12 @@ template <class T>
 template <class U>
 void TAtomicObject<T>::Store(U&& u)
 {
-    NConcurrency::TWriterGuard guard(Spinlock_);
-    Object_ = std::forward<U>(u);
+    T newObject = std::forward<U>(u);
+    {
+        NConcurrency::TWriterGuard guard(Spinlock_);
+        // NB: Using swap to avoid destructing the old object while holding the lock.
+        std::swap(Object_, newObject);
+    }
 }
 
 template <class T>
