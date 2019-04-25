@@ -17,7 +17,7 @@ class IBatchRequestBase
 public:
     virtual ~IBatchRequestBase() = default;
 
-    virtual NThreading::TFuture<TLockId> Create(
+    virtual NThreading::TFuture<TNodeId> Create(
         const TYPath& path,
         ENodeType type,
         const TCreateOptions& options = TCreateOptions()) = 0;
@@ -60,6 +60,10 @@ public:
         const TYPath& path,
         ELockMode mode,
         const TLockOptions& options = TLockOptions()) = 0;
+
+    virtual NThreading::TFuture<void> Unlock(
+        const TYPath& path,
+        const TUnlockOptions& options = TUnlockOptions()) = 0;
 
     virtual NThreading::TFuture<void> AbortOperation(const TOperationId& operationId) = 0;
 

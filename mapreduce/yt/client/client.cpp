@@ -615,6 +615,13 @@ ILockPtr TTransaction::Lock(
     return ::MakeIntrusive<TLock>(lockId, GetParentClientImpl(), options.Waitable_);
 }
 
+void TTransaction::Unlock(
+    const TYPath& path,
+    const TUnlockOptions& options)
+{
+    NRawClient::Unlock(Auth_, TransactionId_, path, options);
+}
+
 void TTransaction::Commit()
 {
     if (PingableTx_) {

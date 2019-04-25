@@ -233,6 +233,18 @@ TNode SerializeParamsForLock(
     return result;
 }
 
+TNode SerializeParamsForUnlock(
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const TUnlockOptions& options)
+{
+    TNode result;
+    SetTransactionIdParam(&result, transactionId);
+    SetPathParam(&result, path);
+    Y_UNUSED(options);
+    return result;
+}
+
 TNode SerializeParamsForConcatenate(
     const TTransactionId& transactionId,
     const TVector<TYPath>& sourcePaths,

@@ -208,6 +208,19 @@ TLockId Lock(
     return ParseGuidFromResponse(RetryRequestWithPolicy(auth, header, "", retryPolicy).Response);
 }
 
+void Unlock(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const TUnlockOptions& options,
+    IRequestRetryPolicyPtr retryPolicy)
+{
+    THttpHeader header("POST", "unlock");
+    header.AddMutationId();
+    header.MergeParameters(SerializeParamsForUnlock(transactionId, path, options));
+    RetryRequestWithPolicy(auth, header, "", retryPolicy);
+}
+
 void Concatenate(
     const TAuth& auth,
     const TTransactionId& transactionId,
