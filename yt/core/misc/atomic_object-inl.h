@@ -19,12 +19,20 @@ template <class T>
 template <class U>
 void TAtomicObject<T>::Store(U&& u)
 {
-    T newObject = std::forward<U>(u);
+    // NB: Using exchange to avoid destructing the old object while holding the lock.
+    auto ignored = Exchange(std::forward<U>(u));
+}
+
+template <class T>
+template <class U>
+T TAtomicObject<T>::Exchange(U&& u)
+{
+    T tmpObject = std::forward<U>(u);
     {
         NConcurrency::TWriterGuard guard(Spinlock_);
-        // NB: Using swap to avoid destructing the old object while holding the lock.
-        std::swap(Object_, newObject);
+        std::swap(Object_, tmpObject);
     }
+    return tmpObject;
 }
 
 template <class T>
