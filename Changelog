@@ -6,6 +6,7 @@
 #    yt/server/cell_master/serialize.cpp - if the version differs, then the update should be done with master snapshots (+ --set-read-only).
 #    yt/server/tablet_node/serialize.cpp - if the version differs, then the update should be done with tablet cell recreation.
 
+* renadeen: Operation snapshot version has changed, operations will be restarted
 * max42: ============================ ALL ENTRIES SHOULD BE IN ENGLISH ABOVE THIS LINE ==============================
 * shakurov: Multiplied TUser::ReadRequestRateLimit_ by the number of followers. Update masters via snapshot.
 * savrus: Изменилась валидация прав при создании таблиц с несколькими таблетами. Обновлять через снепшот.
