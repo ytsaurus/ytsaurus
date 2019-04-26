@@ -1780,12 +1780,24 @@ class TestSchedulerRevive(YTEnvSetup):
 class TestJobRevivalBase(YTEnvSetup):
     def _wait_for_single_job(self, op_id):
         path = get_operation_cypress_path(op_id) + "/controller_orchid"
-        while True:
-            if get(path + "/state", default=None) == "running":
+        for i in xrange(500):
+            time.sleep(0.1)
+            if get(path + "/state", default=None) != "running":
+                continue
+
+            jobs = None
+            try:
                 jobs = ls(path + "/running_jobs")
-                if len(jobs) > 0:
-                    assert len(jobs) == 1
-                    return jobs[0]
+            except YtError as err:
+                if err.is_resolve_error():
+                    continue
+                raise
+
+            if len(jobs) > 0:
+                assert len(jobs) == 1
+                return jobs[0]
+
+        assert False, "Wait failed"
 
     def _kill_and_start(self, components):
         if "controller_agents" in components:
