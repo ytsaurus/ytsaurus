@@ -2,12 +2,15 @@
 #include "private.h"
 #include "operation_controller.h"
 #include "config.h"
+#include "serialize.h"
 
 #include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
 
 #include <yt/server/lib/scheduler/config.h>
 
 #include <yt/core/misc/numeric_helpers.h>
+
+#include <util/generic/cast.h>
 
 namespace NYT::NControllerAgent {
 
@@ -29,7 +32,7 @@ public:
 
     TJobSplitter(TJobSplitterConfigPtr config, TOperationId operationId)
         : Config_(config)
-        , Statistics_(std::move(config))
+        , JobTimeTracker_(std::move(config))
         , OperationId_(operationId)
         , Logger(NLogging::TLogger(ControllerLogger)
             .AddTag("OperationId: %v", OperationId_))
@@ -37,26 +40,72 @@ public:
         YCHECK(Config_);
     }
 
-    virtual bool IsJobSplittable(TJobId jobId) const override
+    virtual EJobSplitterVerdict ExamineJob(TJobId jobId) override
     {
         auto it = RunningJobs_.find(jobId);
         YCHECK(it != RunningJobs_.end());
-        const auto& job = it->second;
-        auto residual = IsResidual();
-        auto interruptHint = Statistics_.GetInterruptHint(jobId);
-        auto isSplittable = job.IsSplittable(Config_);
-        YT_LOG_TRACE("Checking if job is splittable (Residual: %v, GetInterruptHint: %v, IsSplittable: %v)",
-            residual,
-            interruptHint,
-            isSplittable);
-        return (residual || interruptHint) && isSplittable;
+        auto& job = it->second;
+
+        auto minJobTime = std::max(
+            Config_->MinJobTime,
+            job.GetPrepareWithoutDownloadDuration() * Config_->ExecToPrepareTimeRatio);
+
+        auto isLongAmongRunning = JobTimeTracker_.IsLongJob(jobId);
+        auto isResidual = IsResidual();
+
+        auto now = GetInstant();
+        if (job.GetSplitDeadline() && now >= job.GetSplitDeadline().value()) {
+            YT_LOG_DEBUG("Split timeout expired, requesting speculative launch (JobId: %v)", jobId);
+            return EJobSplitterVerdict::LaunchSpeculative;
+        }
+
+        if (job.GetExecDuration() > minJobTime) {
+            if (job.GetRowCount() > 0 &&
+                job.GetRemainingDuration() > minJobTime &&
+                isLongAmongRunning)
+            {
+                YT_LOG_DEBUG("Job splitter detected long job among running (JobId: %v)", jobId);
+                if (job.GetIsSplittable() && job.GetTotalDataWeight() > Config_->MinTotalDataWeight) {
+                    job.OnSplitRequested(Config_->SplitTimeoutBeforeSpeculate);
+                    return EJobSplitterVerdict::Split;
+                } else {
+                    return EJobSplitterVerdict::LaunchSpeculative;
+                }
+            }
+
+            if (job.GetRowCount() > 0 &&
+                job.GetRemainingDuration() > minJobTime &&
+                isResidual)
+            {
+                YT_LOG_DEBUG("Job splitter detected residual job (JobId: %v)", jobId);
+                if (job.GetIsSplittable() && job.GetTotalDataWeight() > Config_->MinTotalDataWeight) {
+                    job.OnSplitRequested(Config_->SplitTimeoutBeforeSpeculate);
+                    return EJobSplitterVerdict::Split;
+                } else {
+                    return EJobSplitterVerdict::LaunchSpeculative;
+                }
+            }
+
+            auto noProgressJobExecTimeThreshold = MaxSuccessJobPrepareDuration_ * Config_->NoProgressJobExecToPrepareTimeRatio;
+            if (job.GetRowCount() == 0 &&
+                isResidual &&
+                noProgressJobExecTimeThreshold > TDuration::Zero() &&
+                job.GetExecDuration() > noProgressJobExecTimeThreshold)
+            {
+                YT_LOG_DEBUG("Job splitter detected long job without any progress (JobId: %v)", jobId);
+                return EJobSplitterVerdict::LaunchSpeculative;
+            }
+        }
+
+        return EJobSplitterVerdict::DoNothing;
     }
 
     virtual void OnJobStarted(
         TJobId jobId,
-        const TChunkStripeListPtr& inputStripeList) override
+        const TChunkStripeListPtr& inputStripeList,
+        bool isInterruptible) override
     {
-        RunningJobs_.emplace(jobId, TRunningJob(inputStripeList, this));
+        RunningJobs_.emplace(jobId, TRunningJob(inputStripeList, this, isInterruptible));
         MaxRunningJobCount_ = std::max<i64>(MaxRunningJobCount_, RunningJobs_.size());
     }
 
@@ -65,7 +114,7 @@ public:
         auto it = RunningJobs_.find(summary.Id);
         YCHECK(it != RunningJobs_.end());
         auto& job = it->second;
-        job.UpdateCompletionTime(&Statistics_, summary);
+        job.UpdateCompletionTime(&JobTimeTracker_, summary);
     }
 
     virtual void OnJobFailed(const TFailedJobSummary& summary) override
@@ -81,6 +130,10 @@ public:
     virtual void OnJobCompleted(const TCompletedJobSummary& summary) override
     {
         OnJobFinished(summary);
+        auto prepareDuration = summary.PrepareDuration.value_or(TDuration());
+        if (prepareDuration > MaxSuccessJobPrepareDuration_) {
+            MaxSuccessJobPrepareDuration_ = prepareDuration;
+        }
     }
 
     virtual int EstimateJobCount(
@@ -98,7 +151,7 @@ public:
         double expectedExecDuration = execDuration / processedRowCount * unreadRowCount;
 
         auto getMedianCompletionDuration = [&] () {
-            auto medianCompletionTime = Statistics_.GetMedianCompletionTime();
+            auto medianCompletionTime = JobTimeTracker_.GetMedianCompletionTime();
             if (!IsResidual() && medianCompletionTime) {
                 return medianCompletionTime.SecondsFloat() - GetInstant().SecondsFloat();
             }
@@ -148,11 +201,11 @@ public:
                     fluent
                         .Item(ToString(pair.first)).BeginMap()
                             .Do(BIND(&TRunningJob::BuildRunningJobInfo, &job))
-                            .Item("candidate").Value(Statistics_.GetInterruptHint(pair.first))
+                            .Item("candidate").Value(JobTimeTracker_.IsLongJob(pair.first))
                         .EndMap();
                 })
             .Item("statistics").BeginMap()
-                .Do(BIND(&TStatistics::BuildStatistics, &Statistics_))
+                .Do(BIND(&TJobTimeTracker::BuildStatistics, &JobTimeTracker_))
             .EndMap()
             .Item("config").Value(Config_);
     }
@@ -163,7 +216,7 @@ public:
 
         Persist(context, Config_);
         Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, RunningJobs_);
-        Persist(context, Statistics_);
+        Persist(context, JobTimeTracker_);
         Persist(context, MaxRunningJobCount_);
         Persist(context, OperationId_);
 
@@ -176,13 +229,13 @@ public:
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TJobSplitter, 0x1ddf34ff);
 
-    class TStatistics
+    class TJobTimeTracker
     {
     public:
         //! Used only for persistence.
-        TStatistics() = default;
+        TJobTimeTracker() = default;
 
-        explicit TStatistics(TJobSplitterConfigPtr config)
+        explicit TJobTimeTracker(TJobSplitterConfigPtr config)
             : Config_(std::move(config))
         { }
 
@@ -205,30 +258,33 @@ private:
                 return;
             }
 
-            if (GetInstant() < NextUpdateTime_) {
+            auto now = GetInstant();
+            if (now < NextUpdateTime_) {
                 return;
             }
 
-            NextUpdateTime_ = GetInstant() + Config_->UpdatePeriod;
-
-            int medianIndex = JobIdToCompletionTime_.size() / 2;
-            int percentileIndex = static_cast<int>(std::floor(static_cast<double>(JobIdToCompletionTime_.size()) * Config_->CandidatePercentile));
-            percentileIndex = std::max(percentileIndex, medianIndex);
+            NextUpdateTime_ = now + Config_->UpdatePeriod;
 
             std::vector<std::pair<TInstant, TJobId>> samples;
             samples.reserve(JobIdToCompletionTime_.size());
             for (const auto& pair : JobIdToCompletionTime_) {
                 samples.emplace_back(pair.second, pair.first);
             }
+
+            int medianIndex = JobIdToCompletionTime_.size() / 2;
             std::nth_element(samples.begin(), samples.begin() + medianIndex, samples.end());
             MedianCompletionTime_ = samples[medianIndex].first;
 
+            int percentileIndex = static_cast<int>(std::floor(static_cast<double>(JobIdToCompletionTime_.size()) * Config_->CandidatePercentile));
+            percentileIndex = std::max(percentileIndex, medianIndex);
             std::nth_element(samples.begin() + medianIndex, samples.begin() + percentileIndex, samples.end());
-            InterruptCandidateSet_.clear();
+            LongJobSet_.clear();
+            const auto medianJobTimeRemaining = MedianCompletionTime_ - now;
             for (auto it = samples.begin() + percentileIndex; it < samples.end(); ++it) {
-                if (it->first.SecondsFloat() / MedianCompletionTime_.SecondsFloat() >= ExcessFactor) {
+                auto jobTimeRemaining = it->first - now;
+                if (jobTimeRemaining.SecondsFloat() / medianJobTimeRemaining.SecondsFloat() >= ExcessFactor) {
                     // If we are going to split job at least into 2 + epsilon parts.
-                    InterruptCandidateSet_.insert(it->second);
+                    LongJobSet_.insert(it->second);
                 }
             }
         }
@@ -238,9 +294,9 @@ private:
             return MedianCompletionTime_;
         }
 
-        bool GetInterruptHint(TJobId jobId) const
+        bool IsLongJob(TJobId jobId) const
         {
-            return InterruptCandidateSet_.find(jobId) != InterruptCandidateSet_.end();
+            return LongJobSet_.contains(jobId);
         }
 
         void BuildStatistics(TFluentMap fluent) const
@@ -256,7 +312,7 @@ private:
 
             Persist(context, Config_);
             Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, JobIdToCompletionTime_);
-            Persist<TSetSerializer<TDefaultSerializer, TUnsortedTag>>(context, InterruptCandidateSet_);
+            Persist<TSetSerializer<TDefaultSerializer, TUnsortedTag>>(context, LongJobSet_);
             Persist(context, NextUpdateTime_);
             Persist(context, MedianCompletionTime_);
         }
@@ -264,7 +320,7 @@ private:
     private:
         TJobSplitterConfigPtr Config_;
         THashMap<TJobId, TInstant> JobIdToCompletionTime_;
-        THashSet<TJobId> InterruptCandidateSet_;
+        THashSet<TJobId> LongJobSet_;
         TInstant NextUpdateTime_;
         TInstant MedianCompletionTime_ = GetInstant();
     };
@@ -275,14 +331,14 @@ private:
         //! Used only for persistence.
         TRunningJob() = default;
 
-        TRunningJob(const TChunkStripeListPtr& inputStripeList, TJobSplitter* owner)
-            : Owner_(owner)
-            , TotalRowCount_(inputStripeList->TotalRowCount)
+        TRunningJob(const TChunkStripeListPtr& inputStripeList, TJobSplitter* owner, bool isSplittable)
+            : TotalRowCount_(inputStripeList->TotalRowCount)
             , TotalDataWeight_(inputStripeList->TotalDataWeight)
-            , IsSplittable_(inputStripeList->IsSplittable)
+            , IsSplittable_(inputStripeList->IsSplittable && isSplittable)
+            , Owner_(owner)
         { }
 
-        void UpdateCompletionTime(TStatistics* statistics, const TJobSummary& summary)
+        void UpdateCompletionTime(TJobTimeTracker* jobTimeTracker, const TJobSummary& summary)
         {
             PrepareWithoutDownloadDuration_ = summary.PrepareDuration.value_or(TDuration()) - summary.DownloadDuration.value_or(TDuration());
             if (!summary.ExecDuration) {
@@ -303,35 +359,15 @@ private:
                 : TDuration::Zero();
             CompletionTime_ = GetInstant() + RemainingDuration_;
 
-            statistics->SetSample(CompletionTime_, summary.Id);
-            statistics->Update();
+            jobTimeTracker->SetSample(CompletionTime_, summary.Id);
+            jobTimeTracker->Update();
         }
 
-        bool IsSplittable(const TJobSplitterConfigPtr& config) const
+        void OnSplitRequested(TDuration splitTimeout)
         {
-            auto minJobTime = std::max(
-                config->MinJobTime,
-                PrepareWithoutDownloadDuration_ * config->ExecToPrepareTimeRatio);
-            const auto& Logger = Owner_->Logger;
-            YT_LOG_TRACE("Checking if job is splittable (IsSplittable: %v, RowCount: %v, ExecDuration: %v, "
-                "RemainingDuration: %v, MinJobTime: %v, TotalDataWeight: %v, MinTotalDataWeight: %v)",
-                IsSplittable_,
-                RowCount_,
-                ExecDuration_,
-                RemainingDuration_,
-                minJobTime,
-                TotalDataWeight_,
-                config->MinTotalDataWeight);
-            return IsSplittable_ &&
-                RowCount_ > 0 &&                     // don't split job that hasn't read anything;
-                ExecDuration_ > minJobTime &&
-                RemainingDuration_ > minJobTime &&
-                TotalDataWeight_ > config->MinTotalDataWeight;
-        }
-
-        i64 GetTotalRowCount() const
-        {
-            return TotalRowCount_;
+            if (!SplitDeadline_) {
+                SplitDeadline_ = GetInstant() + splitTimeout;
+            }
         }
 
         void BuildRunningJobInfo(TFluentMap fluent) const
@@ -341,7 +377,8 @@ private:
                 .Item("splittable").Value(IsSplittable_)
                 .Item("total_row_count").Value(TotalRowCount_)
                 .Item("seconds_per_row").Value(SecondsPerRow_)
-                .Item("remaining_duration").Value(CompletionTime_ - GetInstant());
+                .Item("remaining_duration").Value(CompletionTime_ - GetInstant())
+                .Item("interrupt_deadline").Value(SplitDeadline_);
         }
 
         void Persist(const TPersistenceContext& context)
@@ -358,27 +395,31 @@ private:
             Persist(context, RowCount_);
             Persist(context, SecondsPerRow_);
             Persist(context, IsSplittable_);
+            Persist(context, SplitDeadline_);
         }
+
+        DEFINE_BYVAL_RO_PROPERTY(i64, RowCount, 0)
+        DEFINE_BYVAL_RO_PROPERTY(i64, TotalRowCount, 1)
+        DEFINE_BYVAL_RO_PROPERTY(i64, TotalDataWeight, 1)
+        DEFINE_BYVAL_RO_PROPERTY(TDuration, PrepareWithoutDownloadDuration)
+        DEFINE_BYVAL_RO_PROPERTY(TDuration, ExecDuration)
+        DEFINE_BYVAL_RO_PROPERTY(TDuration, RemainingDuration)
+        DEFINE_BYVAL_RO_PROPERTY(bool, IsSplittable)
+        DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, SplitDeadline)
 
     private:
         TJobSplitter* Owner_ = nullptr;
 
-        i64 TotalRowCount_ = 1;
-        i64 TotalDataWeight_ = 1;
-        TDuration PrepareWithoutDownloadDuration_;
-        TDuration ExecDuration_;
-        TDuration RemainingDuration_;
         TInstant CompletionTime_;
-        i64 RowCount_ = 0;
         double SecondsPerRow_ = 0;
-        bool IsSplittable_ = true;
     };
 
     TJobSplitterConfigPtr Config_;
 
     THashMap<TJobId, TRunningJob> RunningJobs_;
-    TStatistics Statistics_;
+    TJobTimeTracker JobTimeTracker_;
     i64 MaxRunningJobCount_ = 0;
+    TDuration MaxSuccessJobPrepareDuration_;
 
     TOperationId OperationId_;
 
@@ -388,17 +429,15 @@ private:
     {
         auto it = RunningJobs_.find(summary.Id);
         YCHECK(it != RunningJobs_.end());
-        Statistics_.RemoveSample(summary.Id);
+        JobTimeTracker_.RemoveSample(summary.Id);
         RunningJobs_.erase(it);
-        Statistics_.Update();
+        JobTimeTracker_.Update();
     }
 
     bool IsResidual() const
     {
-        constexpr i64 MinSmallJobCount = 10;
-
         i64 runningJobCount = RunningJobs_.size();
-        i64 smallJobCount = std::max(MinSmallJobCount, static_cast<i64>(Config_->ResidualJobFactor * static_cast<double>(MaxRunningJobCount_)));
+        int smallJobCount = std::max(Config_->ResidualJobCountMinThreshold, static_cast<int>(Config_->ResidualJobFactor * MaxRunningJobCount_));
         return runningJobCount <= smallJobCount;
     }
 };

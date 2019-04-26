@@ -92,7 +92,7 @@ public:
         bool treeIsTentative,
         NScheduler::TScheduleJobResult* scheduleJobResult);
 
-    void RegisterSpeculativeJob(const TJobletPtr& joblet);
+    bool TryRegisterSpeculativeJob(const TJobletPtr& joblet);
     std::optional<EAbortReason> ShouldAbortJob(const TJobletPtr& joblet);
 
     virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary);

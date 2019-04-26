@@ -1,17 +1,19 @@
 #include "serialize.h"
 
+#include <util/generic/cast.h>
+
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 int GetCurrentSnapshotVersion()
 {
-    return 300103;
+    return ToUnderlying(TEnumTraits<ESnapshotVersion>::GetDomainValues().Back());
 }
 
 bool ValidateSnapshotVersion(int version)
 {
-    return version >= 300030 && version <= GetCurrentSnapshotVersion();
+    return version >= ToUnderlying(ESnapshotVersion::JobSplitterSpeculative) && version <= GetCurrentSnapshotVersion();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

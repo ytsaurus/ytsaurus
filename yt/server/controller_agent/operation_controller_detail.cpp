@@ -86,6 +86,7 @@
 
 #include <yt/core/ytree/virtual.h>
 
+#include <util/generic/cast.h>
 #include <util/generic/vector.h>
 
 #include <functional>
@@ -2299,9 +2300,17 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
 
         if (JobSplitter_) {
             JobSplitter_->OnJobRunning(*jobSummary);
-            if (GetPendingJobCount() == 0 && joblet->Task->IsJobInterruptible() && JobSplitter_->IsJobSplittable(jobId)) {
-                YT_LOG_DEBUG("Job is ready to be split (JobId: %v)", jobId);
-                Host->InterruptJob(jobId, EInterruptReason::JobSplit);
+            if (GetPendingJobCount() == 0) {
+                auto verdict = JobSplitter_->ExamineJob(jobId);
+                if (verdict == EJobSplitterVerdict::Split) {
+                    YT_LOG_DEBUG("Job is going to be split (JobId: %v)", jobId);
+                    Host->InterruptJob(jobId, EInterruptReason::JobSplit);
+                } else if (verdict == EJobSplitterVerdict::LaunchSpeculative) {
+                    YT_LOG_DEBUG("Job can be speculated (JobId: %v)", jobId);
+                    if (joblet->Task->TryRegisterSpeculativeJob(joblet)) {
+                        UpdateTask(joblet->Task);
+                    }
+                }
             }
         }
 
@@ -6441,8 +6450,7 @@ TJobletPtr TOperationControllerBase::GetJobletOrThrow(TJobId jobId) const
 
 void TOperationControllerBase::UnregisterJoblet(const TJobletPtr& joblet)
 {
-    const auto& jobId = joblet->JobId;
-    YCHECK(JobletMap.erase(jobId) == 1);
+    YCHECK(JobletMap.erase(joblet->JobId) == 1);
 }
 
 std::vector<TJobId> TOperationControllerBase::GetJobIdsByTreeId(const TString& treeId)
@@ -7445,10 +7453,6 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, TotalEstimatedInputDataWeight);
     Persist(context, UnavailableInputChunkCount);
     Persist(context, UnavailableIntermediateChunkCount);
-    if (context.GetVersion() < 300101 && context.IsLoad()) {
-        TProgressCounterPtr unused;
-        Persist(context, unused);
-    }
     Persist(context, InputNodeDirectory_);
     Persist(context, InputTables_);
     Persist(context, OutputTables_);
@@ -7488,13 +7492,10 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, AvailableExecNodesObserved_);
     Persist(context, BannedNodeIds_);
     Persist(context, PathToOutputTable_);
-    // COMPAT(levysotsky)
-    if (context.GetVersion() >= 300031) {
-        Persist(context, Acl);
-    }
+    Persist(context, Acl);
 
     // NB: Keep this at the end of persist as it requires some of the previous
-    // fields to be already intialized.
+    // fields to be already initialized.
     if (context.IsLoad()) {
         for (const auto& task : Tasks) {
             task->Initialize();
@@ -7770,7 +7771,7 @@ void TOperationControllerBase::RegisterTestingSpeculativeJobIfNeeded(const TTask
     if (Spec_->TestingOperationOptions->RegisterSpeculativeJobOnJobScheduled) {
         const auto& joblet = JobletMap[jobId];
         if (!joblet->Speculative) {
-            task->RegisterSpeculativeJob(joblet);
+            task->TryRegisterSpeculativeJob(joblet);
         }
     }
 }
