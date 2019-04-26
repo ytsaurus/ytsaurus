@@ -47,10 +47,10 @@ class TestRuntimeParameters(YTEnvSetup):
 
         default_tree_parameters_path = op.get_path() + "/@runtime_parameters/scheduling_options_per_pool_tree/default"
 
-        assert are_almost_equal(get(default_tree_parameters_path + "/weight"), 3.0)
-        assert get(default_tree_parameters_path + "/resource_limits/user_slots") == 0
+        wait(lambda: are_almost_equal(get(default_tree_parameters_path + "/weight"), 3.0))
+        wait(lambda: get(default_tree_parameters_path + "/resource_limits/user_slots") == 0)
 
-        assert are_almost_equal(get(progress_path + "/weight"), 3.0)
+        wait(lambda: are_almost_equal(get(progress_path + "/weight"), 3.0))
         # wait() is essential since resource limits are copied from runtime parameters only during fair-share update.
         wait(lambda: get(progress_path + "/resource_limits")["user_slots"] == 0, iter=5)
 
@@ -59,7 +59,7 @@ class TestRuntimeParameters(YTEnvSetup):
 
         wait(lambda: op.get_state() == "running", iter=10)
 
-        assert are_almost_equal(get(progress_path + "/weight"), 3.0)
+        wait(lambda: are_almost_equal(get(progress_path + "/weight"), 3.0))
         # wait() is essential since resource limits are copied from runtime parameters only during fair-share update.
         wait(lambda: get(progress_path + "/resource_limits")["user_slots"] == 0, iter=5)
 
@@ -74,7 +74,7 @@ class TestRuntimeParameters(YTEnvSetup):
         update_op_parameters(op.id, parameters={"pool": "changed_pool"})
 
         path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/pool".format(op.id)
-        assert get(path) == "changed_pool"
+        wait(lambda: get(path) == "changed_pool")
 
     def test_running_operation_counts_on_change_pool(self):
         create("map_node", "//sys/pools/initial_pool")
@@ -114,7 +114,7 @@ class TestRuntimeParameters(YTEnvSetup):
         update_op_parameters(op.id, parameters={"scheduling_options_per_pool_tree": {"custom": {"pool": "custom_pool2"}}})
 
         path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/custom/pool".format(op.id)
-        assert get(path) == "custom_pool2"
+        wait(lambda: get(path) == "custom_pool2")
 
     def test_operation_count_validation_on_change_pool(self):
         set("//sys/pools/initial_pool", {})

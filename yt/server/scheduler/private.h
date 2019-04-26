@@ -31,7 +31,11 @@ class TFairShareContext;
 
 class TJobMetrics;
 
-using TOperationElementByIdMap = THashMap<TOperationId, TOperationElement*>;
+using TRawOperationElementMap = THashMap<TOperationId, TOperationElement*>;
+using TOperationElementMap = THashMap<TOperationId, TOperationElementPtr>;
+
+using TRawPoolMap = THashMap<TString, TPool*>;
+using TPoolMap = THashMap<TString, TPoolPtr>;
 
 using TJobCounter = THashMap<std::tuple<EJobType, EJobState>, i64>;
 using TAbortedJobCounter = THashMap<std::tuple<EJobType, EJobState, EAbortReason>, i64>;

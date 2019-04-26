@@ -30,10 +30,12 @@ public:
         IOutputStream* eventLogOutputStream);
 
     virtual IInvokerPtr GetProfilingInvoker() const override;
+    virtual IInvokerPtr GetFairShareUpdateInvoker() const override;
 
     virtual NScheduler::TJobResources GetResourceLimits(const NScheduler::TSchedulingTagFilter& filter) override;
 
-    TInstant GetConnectionTime() const override;
+    virtual void Disconnect(const TError& error) override;
+    virtual TInstant GetConnectionTime() const override;
 
     virtual NScheduler::TMemoryDistribution GetExecNodeMemoryDistribution(
         const NScheduler::TSchedulingTagFilter& filter) const override;

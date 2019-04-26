@@ -39,6 +39,11 @@ struct TSchedulerStrategyHostMock
         YT_ABORT();
     }
 
+    virtual IInvokerPtr GetFairShareUpdateInvoker() const override
+    {
+        Y_UNREACHABLE();
+    }
+
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) override
     {
         if (!filter.IsEmpty()) {
@@ -50,6 +55,11 @@ struct TSchedulerStrategyHostMock
             totalResources += resources.ToJobResources();
         }
         return totalResources;
+    }
+
+    virtual void Disconnect(const TError& error) override
+    {
+        YT_ABORT();
     }
 
     virtual TInstant GetConnectionTime() const override
@@ -382,9 +392,9 @@ private:
         TDynamicAttributesList* dynamicAttributesList)
     {
         TUpdateFairShareContext updateContext;
-        rootElement->Update(*dynamicAttributesList, &updateContext);
-        context->Initialize(rootElement->GetTreeSize(), /* registeredSchedulingTagFilters */ {});
-        rootElement->PrescheduleJob(context, /* starvingOnly */ false, /* aggressiveStarvationEnabled */ false);
+        rootElement->Update(dynamicAttributesList, &updateContext);
+        context->Initialize(rootElement->GetTreeSize(), /*registeredSchedulingTagFilters*/ {});
+        rootElement->PrescheduleJob(context, /*starvingOnly*/ false, /*aggressiveStarvationEnabled*/ false);
         context->PrescheduleCalled = true;
     }
 };
@@ -426,7 +436,7 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     auto dynamicAttributes = TDynamicAttributesList(4);
 
     TUpdateFairShareContext updateContext;
-    rootElement->Update(dynamicAttributes, &updateContext);
+    rootElement->Update(&dynamicAttributes, &updateContext);
 
     EXPECT_EQ(0.1, rootElement->Attributes().DemandRatio);
     EXPECT_EQ(0.1, poolA->Attributes().DemandRatio);
@@ -477,7 +487,7 @@ TEST_F(TFairShareTreeTest, TestUpdatePreemptableJobsList)
     auto dynamicAttributes = TDynamicAttributesList(2);
 
     TUpdateFairShareContext updateContext;
-    rootElement->Update(dynamicAttributes, &updateContext);
+    rootElement->Update(&dynamicAttributes, &updateContext);
 
     EXPECT_EQ(1.6, operationElementX->Attributes().DemandRatio);
     EXPECT_EQ(1.0, operationElementX->Attributes().FairShareRatio);
@@ -527,7 +537,7 @@ TEST_F(TFairShareTreeTest, TestBestAllocationRatio)
     auto dynamicAttributes = TDynamicAttributesList(4);
 
     TUpdateFairShareContext updateContext;
-    rootElement->Update(dynamicAttributes, &updateContext);
+    rootElement->Update(&dynamicAttributes, &updateContext);
 
     EXPECT_EQ(1.125, operationElementX->Attributes().DemandRatio);
     EXPECT_EQ(0.375, operationElementX->Attributes().BestAllocationRatio);
@@ -613,7 +623,7 @@ TEST_F(TFairShareTreeTest, TestMaxPossibleUsageRatioWithoutLimit)
     auto dynamicAttributes = TDynamicAttributesList(4);
 
     TUpdateFairShareContext updateContext;
-    rootElement->Update(dynamicAttributes, &updateContext);
+    rootElement->Update(&dynamicAttributes, &updateContext);
     EXPECT_EQ(0.15, pool->Attributes().MaxPossibleUsageRatio);
 }
 

@@ -70,7 +70,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         assert False
 
     def test_root_pool(self):
-        assert are_almost_equal(get(scheduler_orchid_default_pool_tree_path() + "/pools/<Root>/fair_share_ratio"), 0.0)
+        wait(lambda: are_almost_equal(get(scheduler_orchid_default_pool_tree_path() + "/pools/<Root>/fair_share_ratio"), 0.0))
 
     def test_scheduler_guaranteed_resources_ratio(self):
         create("map_node", "//sys/pools/big_pool", attributes={"min_share_ratio": 1.0})
@@ -354,8 +354,8 @@ class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
 
         wait_breakpoint(job_count=10)
 
-        assert op1.get_job_count("running") == 5
-        assert op2.get_job_count("running") == 5
+        wait(lambda: op1.get_job_count("running") == 5)
+        wait(lambda: op2.get_job_count("running") == 5)
 
 
 class TestStrategies(YTEnvSetup):
@@ -1203,17 +1203,17 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
         time.sleep(3)
 
         for op in ops:
-            assert are_almost_equal(get_fair_share_ratio(op.id), 1.0 / 2.0)
-            assert are_almost_equal(get_usage_ratio(op.id), 1.0 / 2.0)
-            assert len(op.get_running_jobs()) == 3
+            wait(lambda: are_almost_equal(get_fair_share_ratio(op.id), 1.0 / 2.0))
+            wait(lambda: are_almost_equal(get_usage_ratio(op.id), 1.0 / 2.0))
+            wait(lambda: len(op.get_running_jobs()) == 3)
 
         op = map(dont_track=True, command="sleep 1000; cat", in_=["//tmp/t_in"], out="//tmp/t_out",
                  spec={"pool": "special_pool", "job_count": 1, "locality_timeout": 0, "mapper": {"cpu_limit": 2}})
         time.sleep(3)
 
-        assert are_almost_equal(get_fair_share_ratio(op.id), 1.0 / 3.0)
-        assert are_almost_equal(get_usage_ratio(op.id), 1.0 / 3.0)
-        assert len(op.get_running_jobs()) == 1
+        wait(lambda: are_almost_equal(get_fair_share_ratio(op.id), 1.0 / 3.0))
+        wait(lambda: are_almost_equal(get_usage_ratio(op.id), 1.0 / 3.0))
+        wait(lambda: len(op.get_running_jobs()) == 1)
 
 ##################################################################
 
@@ -1562,7 +1562,7 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
         create("map_node", "//sys/pools/test_parent")
         create("map_node", "//sys/pools/test_pool")
         self.wait_pool_exists("test_pool")
-        assert self.get_pool_parent("test_pool") == "<Root>"
+        wait(lambda: self.get_pool_parent("test_pool") == "<Root>")
 
         move("//sys/pools/test_pool", "//sys/pools/test_parent/test_pool")
         wait(lambda: self.get_pool_parent("test_pool") == "test_parent")
@@ -1582,7 +1582,7 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
     def test_move_to_root_pool(self):
         set("//sys/pools/test_parent", {"test_pool": {}})
         self.wait_pool_exists("test_pool")
-        assert self.get_pool_parent("test_pool") == "test_parent"
+        wait(lambda: self.get_pool_parent("test_pool") == "test_parent")
 
         move("//sys/pools/test_parent/test_pool", "//sys/pools/test_pool")
 
@@ -1591,7 +1591,7 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
     def test_parent_child_swap_is_forbidden(self):
         set("//sys/pools/test_parent", {"test_pool": {}})
         self.wait_pool_exists("test_pool")
-        assert self.get_pool_parent("test_pool") == "test_parent"
+        wait(lambda: self.get_pool_parent("test_pool") == "test_parent")
 
         tx = start_transaction()
         move("//sys/pools/test_parent/test_pool", "//sys/pools/test_pool", tx=tx)
@@ -1601,7 +1601,7 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
         wait(lambda: get("//sys/scheduler/@alerts"))
         alert_message = get("//sys/scheduler/@alerts")[0]["inner_errors"][0]["inner_errors"][0]["message"]
         assert "Path to pool \"test_parent\" changed in more than one place; make pool tree changes more gradually" == alert_message
-        assert self.get_pool_parent("test_pool") == "test_parent"
+        wait(lambda: self.get_pool_parent("test_pool") == "test_parent")
 
     def test_duplicate_pools_are_forbidden(self):
         tx = start_transaction()

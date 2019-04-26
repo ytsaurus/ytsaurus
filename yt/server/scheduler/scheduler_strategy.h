@@ -27,6 +27,9 @@ struct ISchedulerStrategyHost
     virtual ~ISchedulerStrategyHost() = default;
 
     virtual IInvokerPtr GetProfilingInvoker() const = 0;
+    virtual IInvokerPtr GetFairShareUpdateInvoker() const = 0;
+
+    virtual void Disconnect(const TError& error) = 0;
 
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) = 0;
     virtual std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(const TSchedulingTagFilter& filter) const = 0;
@@ -86,7 +89,7 @@ struct ISchedulerStrategy
     //! Stops all activities, resets all state.
     virtual void OnMasterDisconnected() = 0;
 
-    //! Called periodically to build new tree snapshot.
+    //! Called periodically to build new tree snapshots.
     virtual void OnFairShareUpdateAt(TInstant now) = 0;
 
     //! Called periodically to log scheduling tree state.
