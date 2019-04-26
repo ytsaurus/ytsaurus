@@ -2,6 +2,8 @@
 
 CODENAME="$(lsb_release --short --codename)"
 
+CURRENT_DIR="$(dirname $0)"
+
 clean() {
     rm -rf yt/wrapper/tests.sandbox/* .pybuild *.egg-info
     python setup.py clean
@@ -16,7 +18,7 @@ found_debian_version() {
         for version in $(
             curl -s "http://dist.yandex.ru/$repo/$branch/all/Packages.gz" \
                 | zcat \
-                | ./find_package.py $package); do
+                | $CURRENT_DIR/find_package.py $package); do
             if [ "$version" = "$target_version" ]; then
                 echo 1
                 return
@@ -141,7 +143,7 @@ if [ -z "$SKIP_WHEEL" ]; then
     # See PEP-425, PEP-513 and https://github.com/pypa/manylinux for more details.
     # This is why oldest distributions are chosen - precise.
     PYPI_PACKAGE_NAME=$(python -c "import setup; import sys; sys.stdout.write(setup.PACKAGE_NAME)")
-    if [ "$CODENAME" = "precise" ] && [ "$(./find_pypi_package.py "$PYPI_PACKAGE_NAME")" = "0" ]; then
+    if [ "$CODENAME" = "precise" ] && [ "$($CURRENT_DIR/find_pypi_package.py "$PYPI_PACKAGE_NAME")" = "0" ]; then
         # TODO(ignat): ignore error code since new version of distutils. 
         # For yandex-yt-python it would be fixed here: YT-10356.
         python setup.py bdist_wheel --universal upload -r yandex
