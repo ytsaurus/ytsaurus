@@ -6,6 +6,7 @@ option java_outer_classname = "PodApi";
 package NInfra.NPodAgent.API;
 
 import "yp/client/api/proto/data_model.proto";
+import "yp/client/api/proto/dynamic_attributes.proto";
 import "yp/client/api/proto/pod_agent.proto";
 import "yp/client/api/proto/secrets.proto";
 
@@ -14,19 +15,23 @@ import "yp/client/api/proto/secrets.proto";
 // NOTE: В будущем Pod-agent будет принимать только это сообщение, сейчас он все еще принимает TPodAgentSpec отдельно для обратной совместимости
 // NOTE: Валидация - все alias секретов различны
 message TPodAgentRequest {
-    reserved 4;
+    reserved 4, 6;
 
-    // Конфигурация Пода
+    // The following section of fields contains values obtained from pod spec/status.
     TPodAgentSpec spec = 1;
-
-    // Секреты (raw, unencrypted)
-    repeated NYP.NClient.NApi.NProto.TSecret secrets = 2;
-
-    // Кэш ресурсы для пода
     TPodAgentResourceCacheSpec resource_cache_spec = 3;
 
-    // Подсети пода, подсеть с id=boxes_subnet будет использоваться для выдачи ip каждому box
+    NYP.NClient.NApi.NProto.TPodSpec.TResourceRequests resource_requests = 7;
+
+    // subnet with id=boxes_subnet will be used for delegating ip for each box
     repeated NYP.NClient.NApi.NProto.TPodStatus.TIP6SubnetAllocation ip6_subnet_allocations = 5;
+
+    // Contains (raw, unencrypted) secrets to be injected into the pod.
+    // These are obtained via TVM magic from secret descriptors provided in /pod/spec/secrets.
+    repeated NYP.NClient.NApi.NProto.TSecret secrets = 2;
+
+    // Contains dynamic attributes extracted from pod's metadata.
+    NYP.NClient.NApi.NProto.TDynamicAttributes pod_dynamic_attributes = 8;
 }
 
 // Спека для получения расширенного debug состояния pod_agent
