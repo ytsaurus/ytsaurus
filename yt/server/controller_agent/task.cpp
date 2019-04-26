@@ -693,6 +693,7 @@ void TTask::OnStripeRegistrationFailed(
 
 void TTask::OnTaskCompleted()
 {
+    YCHECK(CompetitiveJobManager_.GetProgressCounter()->GetTotal() == 0);
     YT_LOG_DEBUG("Task completed");
 }
 
