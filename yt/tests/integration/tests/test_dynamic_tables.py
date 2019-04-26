@@ -12,8 +12,6 @@ from datetime import datetime, timedelta
 
 from collections import Counter
 
-import itertools
-
 import __builtin__
 
 ##################################################################
@@ -891,6 +889,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assigned_node_cpu = get_cpu(peer)
         assert int(empty_node_cpu - assigned_node_cpu) == 0
 
+    @skip_if_rpc_driver_backend
     def test_bundle_node_list(self):
         create_tablet_cell_bundle("b", attributes={"node_tag_filter": "b"})
 
@@ -1014,7 +1013,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         sync_mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=2, target_cell_ids=[cells[1], cells[2]])
         assert [None, cells[1], cells[2]] == [tablet.get("cell_id") for tablet in get("//tmp/t/@tablets")]
 
-    @skip_if_rpc_driver_backend
     def test_modification_access_time(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
