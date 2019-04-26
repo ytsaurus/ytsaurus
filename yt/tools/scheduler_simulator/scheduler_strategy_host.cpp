@@ -26,6 +26,11 @@ IInvokerPtr TSchedulerStrategyHost::GetProfilingInvoker() const
     return GetCurrentInvoker();
 }
 
+IInvokerPtr TSchedulerStrategyHost::GetFairShareUpdateInvoker() const
+{
+    return GetCurrentInvoker();
+}
+
 TJobResources TSchedulerStrategyHost::GetResourceLimits(const TSchedulingTagFilter& filter)
 {
     auto it = FilterToJobResources_.find(filter);
@@ -43,6 +48,11 @@ TJobResources TSchedulerStrategyHost::GetResourceLimits(const TSchedulingTagFilt
     FilterToJobResources_.insert({filter, result});
 
     return result;
+}
+
+void TSchedulerStrategyHost::Disconnect(const TError& error)
+{
+    YT_VERIFY(false);
 }
 
 TInstant TSchedulerStrategyHost::GetConnectionTime() const

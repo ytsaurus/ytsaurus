@@ -392,7 +392,7 @@ public:
     }
 
 
-    void Disconnect(const TError& error)
+    virtual void Disconnect(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1111,6 +1111,13 @@ public:
         return ProfilingActionQueue_->GetInvoker();
     }
 
+    virtual IInvokerPtr GetFairShareUpdateInvoker() const override
+    {
+        return GetControlInvoker(EControlQueue::FairShareStrategy);
+        // TODO(ignat): make tree thread-safe and enable this separate thread for fair share updates.
+        // return FairShareUpdateActionQueue_->GetInvoker();
+    }
+
     virtual IYsonConsumer* GetEventLogConsumer() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1244,6 +1251,7 @@ private:
 
     const TThreadPoolPtr OrchidWorkerPool_;
     const TActionQueuePtr ProfilingActionQueue_ = New<TActionQueue>("ProfilingWorker");
+    const TActionQueuePtr FairShareUpdateActionQueue_ = New<TActionQueue>("FairShareUpdate");
 
     ISchedulerStrategyPtr Strategy_;
 
