@@ -74,9 +74,6 @@ def _get_driver(driver):
     else:
         return driver
 
-# TODO(kiselyovp) remove skip_if_rpc_driver_backend
-# decorator from some tests
-
 def init_drivers(clusters):
     for instance in clusters:
         if instance.master_count > 0:
