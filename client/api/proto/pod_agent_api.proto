@@ -5,7 +5,6 @@ option java_outer_classname = "PodApi";
 
 package NInfra.NPodAgent.API;
 
-import "yp/client/api/proto/autogen.proto";
 import "yp/client/api/proto/data_model.proto";
 import "yp/client/api/proto/pod_agent.proto";
 import "yp/client/api/proto/secrets.proto";
@@ -28,9 +27,6 @@ message TPodAgentRequest {
 
     // Подсети пода, подсеть с id=boxes_subnet будет использоваться для выдачи ip каждому box
     repeated NYP.NClient.NApi.NProto.TPodStatus.TIP6SubnetAllocation ip6_subnet_allocations = 5;
-
-    // В будущем pod agent будет читать только это поле DEPLOY-292
-    NYP.NClient.NApi.NProto.TPod pod = 6;
 }
 
 // Спека для получения расширенного debug состояния pod_agent
