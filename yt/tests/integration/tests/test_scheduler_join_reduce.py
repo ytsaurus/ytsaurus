@@ -29,7 +29,6 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
                     "min_job_time": 5000,
                     "min_total_data_size": 1024,
                     "update_period": 100,
-                    "median_excess_duration": 3000,
                     "candidate_percentile": 0.8,
                     "max_jobs_per_split": 3,
                 }
