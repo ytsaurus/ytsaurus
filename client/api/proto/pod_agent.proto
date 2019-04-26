@@ -422,6 +422,9 @@ message TBox {
 
     TRootfsVolume rootfs = 2;
 
+    // Ограничения на meta контейнер Box
+    TComputeResources compute_resources = 12;
+
     // если указано true
     // pod agent создает bind volume из <pod_chroot>/place/berkanavt/supervisor в <box_chroot>/place/berkanavt/supervisor
     // На файловой системе box'а обязательно наличие директории /place/berkanavt/supervisor и следующих симлинков (без них скачивание/раздача работать не будут совсем):
