@@ -62,6 +62,15 @@ const TLogicalTypePtr& TOptionalLogicalType::GetElement() const
     return Element_;
 }
 
+std::optional<ESimpleLogicalValueType> TOptionalLogicalType::Simplify() const
+{
+    if (GetElement()->GetMetatype() == ELogicalMetatype::Simple) {
+        return GetElement()->AsSimpleTypeRef().GetElement();
+    } else {
+        return std::nullopt;
+    }
+}
+
 size_t TOptionalLogicalType::GetMemoryUsage() const
 {
     if (Element_->GetMetatype() == ELogicalMetatype::Simple) {
@@ -133,14 +142,8 @@ std::pair<std::optional<ESimpleLogicalValueType>, bool> SimplifyLogicalType(cons
     switch (logicalType->GetMetatype()) {
         case ELogicalMetatype::Simple:
             return std::make_tuple(std::make_optional(logicalType->AsSimpleTypeRef().GetElement()), true);
-        case ELogicalMetatype::Optional: {
-            const auto& typeArgument = logicalType->AsOptionalTypeRef().GetElement();
-            if (typeArgument->GetMetatype() == ELogicalMetatype::Simple) {
-                return std::make_tuple(std::make_optional(typeArgument->AsSimpleTypeRef().GetElement()), false);
-            } else {
-                return std::make_pair(std::nullopt, false);
-            }
-        }
+        case ELogicalMetatype::Optional:
+            return std::make_pair(logicalType->AsOptionalTypeRef().Simplify(), false);
         case ELogicalMetatype::List:
             return std::make_pair(std::nullopt, true);
     }

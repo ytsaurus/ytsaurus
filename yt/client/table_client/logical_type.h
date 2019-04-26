@@ -77,6 +77,8 @@ public:
 
     const TLogicalTypePtr& GetElement() const;
 
+    std::optional<ESimpleLogicalValueType> Simplify() const;
+
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
 
