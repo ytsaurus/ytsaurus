@@ -332,7 +332,8 @@ class GrepTask(RemoteTask):
             raise LogrepError("Cannot find log files for time interval: {} - {}".format(self.start_time, self.end_time))
 
         for f in file_to_grep_list:
-            logging.info("would grep {}".format(f))
+            first_line = get_first_file_line(f).strip()
+            logging.info("would grep {} ({})".format(f, shorten(first_line, 50)))
 
         cmd = ["zfgrep", "--text", "--no-filename", self.pattern] + file_to_grep_list
         logging.info("running {}".format(" ".join(map(shell_quote, cmd))))
@@ -518,6 +519,13 @@ def get_first_file_line(filename):
         open_func = open
     with open_func(filename) as inf:
         return inf.readline()
+
+
+def shorten(line, num):
+    assert num > 3
+    if len(line) > num - 3:
+        return line[:num - 3] + "..."
+    return line
 
 
 #
