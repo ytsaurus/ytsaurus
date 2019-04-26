@@ -109,12 +109,12 @@ void TCompetitiveJobManager::OnJobCompleted(const TJobletPtr& joblet)
 
 bool TCompetitiveJobManager::OnJobFailed(const TJobletPtr& joblet)
 {
-    return OnUnsuccessfulJobFinish(joblet, [=] (const TProgressCounterPtr& counter) { JobCounter_->Failed(1); });
+    return OnUnsuccessfulJobFinish(joblet, [=] (const TProgressCounterPtr& counter) { counter->Failed(1); });
 }
 
 bool TCompetitiveJobManager::OnJobAborted(const TJobletPtr& joblet, EAbortReason reason)
 {
-    return OnUnsuccessfulJobFinish(joblet, [=] (const TProgressCounterPtr& counter) { JobCounter_->Aborted(1, reason); });
+    return OnUnsuccessfulJobFinish(joblet, [=] (const TProgressCounterPtr& counter) { counter->Aborted(1, reason); });
 }
 
 bool TCompetitiveJobManager::OnUnsuccessfulJobFinish(
