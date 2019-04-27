@@ -69,6 +69,8 @@ namespace NYT::NClickHouseServer {
 using namespace DB;
 using namespace NProfiling;
 
+const auto& Logger = ServerLogger;
+
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,19 +91,12 @@ std::string GetCanonicalPath(std::string path)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-const auto& Logger = ServerLogger;
-
-}
-
 class TClickHouseHost::TImpl
     : public IServer
     , public TRefCounted
 {
 private:
     TBootstrap* const Bootstrap_;
-    const ILoggerPtr AppLogger;
     const ICoordinationServicePtr CoordinationService;
     const TClickHouseServerBootstrapConfigPtr Config_;
     const TString CliqueId_;
@@ -130,7 +125,6 @@ private:
 public:
     TImpl(
         TBootstrap* bootstrap,
-        ILoggerPtr logger,
         ICoordinationServicePtr coordinationService,
         TClickHouseServerBootstrapConfigPtr config,
         std::string cliqueId,
@@ -138,7 +132,6 @@ public:
         ui16 tcpPort,
         ui16 httpPort)
         : Bootstrap_(bootstrap)
-        , AppLogger(std::move(logger))
         , CoordinationService(std::move(coordinationService))
         , Config_(std::move(config))
         , CliqueId_(std::move(cliqueId))
@@ -152,10 +145,9 @@ public:
     {
         VERIFY_INVOKER_AFFINITY(GetControlInvoker());
 
-        SetupRootLogger();
+        SetupLogger();
         EngineConfig_ = new Poco::Util::LayeredConfiguration();
         EngineConfig_->add(ConvertToPocoConfig(ConvertToNode(Config_->Engine)));
-        SetupLoggers();
         SetupExecutionClusterNodeTracker();
         SetupContext();
         WarmupDictionaries();
@@ -167,41 +159,6 @@ public:
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
             Config_->ProfilingPeriod);
         ProfilingExecutor_->Start();
-    }
-
-    void Shutdown()
-    {
-        ClusterNodeTicket->Release();
-        ExecutionClusterNodeTracker->StopTrack();
-
-        Poco::Logger* log = &logger();
-
-        Cancelled = true;
-
-        for (auto& server: Servers) {
-            server->stop();
-        }
-
-        Servers.clear();
-        ServerPool.reset();
-
-        AsynchronousMetrics.reset();
-        SessionCleaner.reset();
-
-        // Ask to cancel background jobs all table engines, and also query_log.
-        // It is important to do early, not in destructor of Context, because
-        // table engines could use Context on destroy.
-        LOG_INFO(log, "Shutting down storages.");
-        Context->shutdown();
-        LOG_DEBUG(log, "Shutted down storages.");
-
-        // Explicitly destroy Context. It is more convenient than in destructor of Server,
-        // because logger is still available.
-        // At this moment, no one could own shared part of Context.
-        Context.reset();
-        LOG_DEBUG(log, "Destroyed global context.");
-
-        ExecutionClusterNodeTracker.reset();
     }
 
     Poco::Logger& logger() const override
@@ -277,26 +234,19 @@ private:
     THashMap<TString, int> UserToRunningInitialQueryCount_;
     THashMap<TString, int> UserToRunningSecondaryQueryCount_;
 
-    void SetupRootLogger()
+    void SetupLogger()
     {
-        LogChannel = WrapToLogChannel(AppLogger);
+        LogChannel = CreateLogChannel(EngineLogger);
 
         auto& rootLogger = Poco::Logger::root();
         rootLogger.close();
         rootLogger.setChannel(LogChannel);
-
-        // default logging level during bootstrapping stage
-        rootLogger.setLevel("information");
-    }
-
-    void SetupLoggers()
-    {
-        logger().setLevel(Config_->Engine->LogLevel);
+        rootLogger.setLevel(Config_->Engine->LogLevel);
     }
 
     void SetupExecutionClusterNodeTracker()
     {
-        LOG_INFO(&logger(), "Starting cluster node tracker...");
+        YT_LOG_INFO("Starting cluster node tracker");
 
         ExecutionClusterNodeTracker = CreateClusterNodeTracker(
             CoordinationService,
@@ -306,7 +256,7 @@ private:
 
     void SetupContext()
     {
-        Poco::Logger* log = &logger();
+        YT_LOG_INFO("Setting up context");
 
         auto storageHomePath = Config_->Engine->CypressRootPath;
 
@@ -338,9 +288,9 @@ private:
         RegisterTableDictionarySource(Bootstrap_);
 
         // Initialize DateLUT early, to not interfere with running time of first query.
-        LOG_DEBUG(log, "Initializing DateLUT.");
+        YT_LOG_INFO("Initializing DateLUT");
         DateLUT::instance();
-        LOG_TRACE(log, "Initialized DateLUT with time zone `" << DateLUT::instance().getTimeZone() << "'.");
+        YT_LOG_INFO("DateLUT initialized (TimeZone: %v)", DateLUT::instance().getTimeZone());
 
         // Limit on total number of concurrently executed queries.
         Context->getProcessList().setMaxSize(EngineConfig_->getInt("max_concurrent_queries", 0));
@@ -367,7 +317,7 @@ private:
             // Clearing old temporary files.
             for (Poco::DirectoryIterator it(tmpPath), end; it != end; ++it) {
                 if (it->isFile() && startsWith(it.name(), "tmp")) {
-                    LOG_DEBUG(log, "Removing old temporary file " << it->path());
+                    YT_LOG_DEBUG("Removing old temporary file (Path: %v)", it->path());
                     it->remove();
                 }
             }
@@ -399,7 +349,6 @@ private:
         // Default database that wraps connection to YT cluster.
         {
             auto defaultDatabase = CreateDatabase(ExecutionClusterNodeTracker);
-            LOG_INFO(log, "Main database is available under names 'default' and " << CliqueId_);
             Context->addDatabase("default", defaultDatabase);
             Context->addDatabase(CliqueId_, defaultDatabase);
         }
@@ -416,7 +365,7 @@ private:
 
     void SetupHandlers()
     {
-        Poco::Logger* log = &logger();
+        YT_LOG_INFO("Setting up handlers");
 
         const auto& settings = Context->getSettingsRef();
 
@@ -442,11 +391,7 @@ private:
 #endif
                     )
                 {
-                    LOG_ERROR(log,
-                        "Cannot resolve listen_host (" << host << "), error: " << e.message() << ". "
-                        "If it is an IPv6 address and your host has disabled IPv6, then consider to "
-                        "specify IPv4 address to listen in <listen_host> element of configuration "
-                        "file. Example: <listen_host>0.0.0.0</listen_host>");
+                    YT_LOG_ERROR("Cannot resolve listen_host (Host: %v, Error: %v)", host, e.message());
                 }
 
                 throw;
@@ -475,8 +420,6 @@ private:
                         *ServerPool,
                         socket,
                         httpParams));
-
-                    LOG_INFO(log, "Listening http://" + socketAddress.toString());
                 }
 
                 // TCP
@@ -492,19 +435,13 @@ private:
                         *ServerPool,
                         socket,
                         new Poco::Net::TCPServerParams()));
-
-                    LOG_INFO(log, "Listening tcp: " + socketAddress.toString());
                 }
             } catch (const Poco::Net::NetException& e) {
                 if (!(tryListen && e.code() == POCO_EPROTONOSUPPORT)) {
                     throw;
                 }
 
-                LOG_ERROR(log, "Listen [" << listenHost << "]: " << e.what() << ": " << e.message()
-                    << "  If it is an IPv6 or IPv4 address and your host has disabled IPv6 or IPv4, then consider to "
-                    "specify not disabled IPv4 or IPv6 address to listen in <listen_host> element of configuration "
-                    "file. Example for disabled IPv6: <listen_host>0.0.0.0</listen_host> ."
-                    " Example for disabled IPv4: <listen_host>::</listen_host>");
+                YT_LOG_ERROR("Error setting up listenHost (ListenHost: %v, What: %v, Error: %v)", listenHost, e.what(), e.message());
             }
         }
 
@@ -512,7 +449,7 @@ private:
             server->start();
         }
 
-        LOG_INFO(log, "Ready for connections.");
+        YT_LOG_INFO("Handlers set up");
     }
 
     void EnterExecutionCluster()
@@ -531,7 +468,6 @@ private:
 
 TClickHouseHost::TClickHouseHost(
     TBootstrap* bootstrap,
-    ILoggerPtr logger,
     ICoordinationServicePtr coordinationService,
     TClickHouseServerBootstrapConfigPtr config,
     std::string cliqueId,
@@ -540,7 +476,6 @@ TClickHouseHost::TClickHouseHost(
     ui16 httpPort)
     : Impl_(New<TImpl>(
         bootstrap,
-        std::move(logger),
         std::move(coordinationService),
         std::move(config),
         std::move(cliqueId),
@@ -552,11 +487,6 @@ TClickHouseHost::TClickHouseHost(
 void TClickHouseHost::Start()
 {
     Impl_->Start();
-}
-
-void TClickHouseHost::Shutdown()
-{
-    Impl_->Shutdown();
 }
 
 void TClickHouseHost::AdjustQueryCount(const TString& user, EQueryKind queryKind, int delta)

@@ -8,6 +8,7 @@ namespace NYT::NClickHouseServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger ServerLogger;
+extern const NLogging::TLogger EngineLogger;
 extern const NProfiling::TProfiler ServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,7 +58,6 @@ DECLARE_SHARED_STRUCT(ICliqueAuthorizationManager);
 DECLARE_SHARED_STRUCT(IColumnBuilder);
 DECLARE_SHARED_STRUCT(ICoordinationService);
 DECLARE_SHARED_STRUCT(IDocument);
-DECLARE_SHARED_STRUCT(ILogger);
 DECLARE_SHARED_STRUCT(IQueryContext);
 DECLARE_SHARED_STRUCT(ITableReader);
 DECLARE_SHARED_STRUCT(TClickHouseTable);
