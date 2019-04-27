@@ -509,6 +509,10 @@ void TOperationControllerBase::InitOutputTables()
 
 void TOperationControllerBase::InitializeStructures()
 {
+    if (Spec_->TestingOperationOptions && Spec_->TestingOperationOptions->AllocationSize) {
+        TestingAllocationVector_.resize(*Spec_->TestingOperationOptions->AllocationSize, 'a');
+    }
+
     InputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
     DataFlowGraph_ = New<TDataFlowGraph>(InputNodeDirectory_);
     InitializeOrchid();

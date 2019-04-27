@@ -3647,67 +3647,77 @@ class TestControllerMemoryUsage(YTEnvSetup):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
-        write_table("<append=%true>//tmp/t_in", [{"b": 0}])
-        for i in range(40):
-            write_table("<append=%true>//tmp/t_in", [{"a": 0}])
-
-        events = events_on_fs()
+        write_table("<append=%true>//tmp/t_in", [{"a": 0}])
 
         controller_agents = ls("//sys/controller_agents/instances")
         assert len(controller_agents) == 1
 
         controller_agent_orchid = "//sys/controller_agents/instances/{}/orchid/controller_agent".format(controller_agents[0])
 
+        def check(tag_number, operation, usage_lower_bound, usage_upper_bound):
+            state = operation.get_state()
+            if state != "running":
+                return False
+            statistics = get(controller_agent_orchid + "/tagged_memory_statistics/" + tag_number)
+            if statistics["operation_id"] == YsonEntity():
+                return False
+            assert statistics["operation_id"] == operation.id
+            assert statistics["usage"] > usage_lower_bound
+            assert statistics["usage"] < usage_upper_bound
+            return True
+
         for entry in get(controller_agent_orchid + "/tagged_memory_statistics", verbose=False):
             assert entry["operation_id"] == YsonEntity()
             assert entry["alive"] == False
 
-        op = map(dont_track=True,
-                 in_="//tmp/t_in",
-                 out="<sorted_by=[a]>//tmp/t_out",
-                 command=events.wait_event_cmd("start") + '; grep b - && sleep 3600 || python -c "print \'{a=\' + \'x\' * 250 * 1024 + \'}\'"',
-                 spec={
-                     "data_size_per_job": 1,
-                     "job_io": {"table_writer": {"max_key_weight": 256 * 1024}}
-                 })
-        time.sleep(2)
+        op_small = map(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out="<sorted_by=[a]>//tmp/t_out",
+            command="sleep 3600")
 
-        usage_before = get(op.get_path() + "/controller_orchid/memory_usage")
-        # Normal controller footprint should not exceed a few megabytes.
-        assert usage_before < 4 * 10**6
-        print >>sys.stderr, "usage_before =", usage_before
+        small_usage_path = op_small.get_path() + "/controller_orchid/memory_usage"
+        wait(lambda: exists(small_usage_path))
+        usage = get(small_usage_path)
 
-        events.notify_event("start")
+        print >>sys.stderr, "small_usage =", usage
+        assert usage < 4 * 10**6
 
-        def check():
-            state = op.get_state()
-            if state != "running":
-                return False
-            statistics = get(controller_agent_orchid + "/tagged_memory_statistics/0")
-            if statistics["operation_id"] == YsonEntity():
-                return False
-            assert statistics["operation_id"] == op.id
-            return True
+        wait(lambda: check("0", op_small, 0, 4 * 10**6))
 
-        wait(check)
+        op_small.abort()
 
-        # After all jobs are finished, controller should contain at least 40
-        # pairs of boundary keys of length 250kb, resulting in about 20mb of
-        # memory. First job should stuck, protecting this check from the race
-        # against operation completion.
-        # NB: all these checks should have form of wait(...) since memory usage may sometimes decrease,
-        # so waiting for only one of the conditions and immediately checking the remaining ones is not enough.
-        wait(lambda: get(op.get_path() + "/controller_orchid/memory_usage") > 10 * 10**6)
-        wait(lambda: get(controller_agent_orchid + "/tagged_memory_statistics/0/usage") > 10 * 10**6)
-        wait(lambda: get_operation(op.id, attributes=["memory_usage"], include_runtime=True)["memory_usage"] > 10 * 10**6)
 
-        op.abort()
+        op_large = map(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out="<sorted_by=[a]>//tmp/t_out",
+            command="sleep 3600",
+            spec={
+                "testing": {
+                    "allocation_size": 20 * 1024 * 1024,
+                }
+            })
+
+        large_usage_path = op_large.get_path() + "/controller_orchid/memory_usage"
+        wait(lambda: exists(large_usage_path))
+        usage = get(large_usage_path)
+
+        print >>sys.stderr, "large_usage =", usage
+        assert usage > 10 * 10**6
+        wait(lambda: get_operation(op_large.id, attributes=["memory_usage"], include_runtime=True)["memory_usage"] > 10 * 10**6)
+
+        # We rely on the assign order of tags in controller agent. Tags are given to operations consequently.
+        # This test suite must consist only of this tests.
+        wait(lambda: check("1", op_large, 10 * 10**6, 30 * 10**6))
+
+        op_large.abort()
 
         time.sleep(5)
 
         for i, entry in enumerate(get(controller_agent_orchid + "/tagged_memory_statistics", verbose=False)):
-            if i == 0:
-                assert entry["operation_id"] == op.id
+            if i <= 1:
+                assert entry["operation_id"] in (op_small.id, op_large.id)
             else:
                 assert entry["operation_id"] == YsonEntity()
             assert entry["alive"] == False
@@ -3749,21 +3759,26 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
         cls.controller_agent_counter += 1
         if cls.controller_agent_counter > 2:
             cls.controller_agent_counter -= 2
-        config["controller_agent"]["total_controller_memory_limit"] = cls.controller_agent_counter * 20 * 1024 ** 2
+        config["controller_agent"]["total_controller_memory_limit"] = cls.controller_agent_counter * 50 * 1024 ** 2
 
     @flaky(max_runs=5)
     def test_strategy(self):
         create("table", "//tmp/t_in", attributes={"replication_factor": 1})
-        write_table("//tmp/t_in", [{"a": 0}])
+        write_table("<append=%true>//tmp/t_in", [{"a": 0}])
 
         ops = []
         for i in xrange(45):
             out = "//tmp/t_out" + str(i)
             create("table", out, attributes={"replication_factor": 1})
             op = map(
-                command="sleep 100",
+                command="sleep 1000",
                 in_="//tmp/t_in",
                 out=out,
+                spec={
+                    "testing": {
+                        "allocation_size": 1024 ** 2,
+                    }
+                },
                 dont_track=True)
             wait(lambda: op.get_state() == "running")
             ops.append(op)

@@ -337,6 +337,8 @@ public:
 
     std::optional<TDuration> DelayInsideSuspend;
 
+    std::optional<i64> AllocationSize;
+
     //! Intentionally fails the operation controller. Used only for testing purposes.
     EControllerFailureType ControllerFailure;
 
