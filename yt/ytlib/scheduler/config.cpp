@@ -161,6 +161,10 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default(false);
     RegisterParameter("register_speculative_job_on_job_scheduled", RegisterSpeculativeJobOnJobScheduled)
         .Default(false);
+    RegisterParameter("allocation_size", AllocationSize)
+        .GreaterThanOrEqual(0)
+        .LessThanOrEqual(1_GB)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

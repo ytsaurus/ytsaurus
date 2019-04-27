@@ -460,6 +460,8 @@ protected:
 
     NYTree::IYPathServicePtr Orchid_;
 
+    std::vector<char> TestingAllocationVector_;
+
     virtual bool IsTransactionNeeded(ETransactionType type) const;
 
     TFuture<NApi::ITransactionPtr> StartTransaction(
