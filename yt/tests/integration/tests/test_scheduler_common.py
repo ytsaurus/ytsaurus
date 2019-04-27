@@ -3644,6 +3644,10 @@ class TestControllerMemoryUsage(YTEnvSetup):
 
     @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
     def test_controller_memory_usage(self):
+        # In this test we rely on the assignment order of memory tags.
+        # Tags are given to operations sequentially during lifetime of controller agent.
+        # So this test should pass only if it is the first test in this test suite.
+
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
@@ -3707,8 +3711,6 @@ class TestControllerMemoryUsage(YTEnvSetup):
         assert usage > 10 * 10**6
         wait(lambda: get_operation(op_large.id, attributes=["memory_usage"], include_runtime=True)["memory_usage"] > 10 * 10**6)
 
-        # We rely on the assign order of tags in controller agent. Tags are given to operations consequently.
-        # This test suite must consist only of this tests.
         wait(lambda: check("1", op_large, 10 * 10**6, 30 * 10**6))
 
         op_large.abort()
