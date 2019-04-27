@@ -6,7 +6,6 @@
 
 #include "config.h"
 #include "directory.h"
-#include "logger.h"
 #include "query_context.h"
 #include "security_manager.h"
 
@@ -65,7 +64,6 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ServerLogger;
-const NLogging::TLogger EngineLogger("Engine");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -152,15 +150,12 @@ void TBootstrap::DoRun()
 
     ClientCache_ = New<NApi::NNative::TClientCache>(Config_->ClientCache, Connection_);
 
-    auto logger = CreateLogger(EngineLogger);
-
     RootClient_ = ClientCache_->GetClient(Config_->User);
 
     CoordinationService = CreateCoordinationService(RootClient_, CliqueId_);
 
     ClickHouseHost_ = New<TClickHouseHost>(
         this,
-        logger,
         CoordinationService,
         Config_,
         CliqueId_,
