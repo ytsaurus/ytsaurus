@@ -15,6 +15,8 @@
 
 #include <yt/core/misc/async_cache.h>
 
+#include <yt/core/profiling/timing.h>
+
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,6 +57,15 @@ protected:
     virtual TFuture<void> AsyncRemove() override;
 
 private:
+    struct TReadMetaSession
+        : public TIntrinsicRefCounted
+    {
+        NProfiling::TWallTimer Timer;
+        TBlockReadOptions Options;
+    };
+
+    using TReadMetaSessionPtr = TIntrusivePtr<TReadMetaSession>;
+
     struct TReadBlockSetSession
         : public TIntrinsicRefCounted
     {
@@ -66,6 +77,7 @@ private:
             TCachedBlockCookie Cookie;
         };
 
+        NProfiling::TWallTimer Timer;
         std::vector<TBlockEntry> Entries;
         std::vector<NChunkClient::TBlock> Blocks;
         TBlockReadOptions Options;
@@ -77,7 +89,6 @@ private:
 
     NConcurrency::TReaderWriterSpinLock BlocksExtLock_;
     TWeakPtr<NChunkClient::TRefCountedBlocksExt> WeakBlocksExt_;
-
 
     //! Returns true if location must be disabled.
     static bool IsFatalError(const TError& error);
@@ -92,6 +103,9 @@ private:
     void DoReadBlockSet(
         const TReadBlockSetSessionPtr& session,
         TPendingIOGuard pendingIOGuard);
+
+    void ProfileReadBlockSetLatency(const TReadBlockSetSessionPtr& session);
+    void ProfileReadMetaLatency(const TReadMetaSessionPtr& session);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlobChunkBase)
