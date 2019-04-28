@@ -76,6 +76,9 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    auto session = New<TReadMetaSession>();
+    session->Options = options;
+
     const auto& chunkMetaManager = Bootstrap_->GetChunkMetaManager();
     auto cookie = chunkMetaManager->BeginInsertCachedMeta(Id_);
     auto result = cookie.GetValue();
@@ -98,10 +101,12 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
         }
     } catch (const std::exception& ex) {
         cookie.Cancel(ex);
+        return MakeFuture<TRefCountedChunkMetaPtr>(ex);
     }
 
     return
-        result.Apply(BIND([=] (const TCachedChunkMetaPtr& cachedMeta) {
+        result.Apply(BIND([=, this_ = MakeStrong(this), session = std::move(session)] (const TCachedChunkMetaPtr& cachedMeta) {
+            ProfileReadMetaLatency(session);
             return FilterMeta(cachedMeta->GetMeta(), extensionTags);
         })
        .AsyncVia(CreateFixedPriorityInvoker(Bootstrap_->GetChunkBlockManager()->GetReaderInvoker(), priority)));
@@ -212,9 +217,10 @@ TFuture<void> TBlobChunkBase::OnBlocksExtLoaded(
                 pendingDataSize);
             // Note that outer Apply checks that the return value is of type
             // TError and returns the TFuture<void> instead of TFuture<TError> here.
-            TBlobChunkBase::DoReadBlockSet(
+            DoReadBlockSet(
                 session,
                 std::move(pendingIOGuard));
+            ProfileReadBlockSetLatency(session);
         }).AsyncVia(CreateFixedPriorityInvoker(
             Bootstrap_->GetChunkBlockManager()->GetReaderInvoker(),
             session->Options.WorkloadDescriptor.GetPriority())));
@@ -327,6 +333,26 @@ void TBlobChunkBase::DoReadBlockSet(
 
         currentIndex = endIndex;
     }
+
+    ProfileReadBlockSetLatency(session);
+}
+
+void TBlobChunkBase::ProfileReadBlockSetLatency(const TReadBlockSetSessionPtr& session)
+{
+    const auto& locationProfiler = Location_->GetProfiler();
+    auto& performanceCounters = Location_->GetPerformanceCounters();
+    locationProfiler.Update(
+        performanceCounters.BlobBlockReadLatencies[session->Options.WorkloadDescriptor.Category],
+        session->Timer.GetElapsedValue());
+}
+
+void TBlobChunkBase::ProfileReadMetaLatency(const TReadMetaSessionPtr& session)
+{
+    const auto& locationProfiler = Location_->GetProfiler();
+    auto& performanceCounters = Location_->GetPerformanceCounters();
+    locationProfiler.Update(
+        performanceCounters.BlobBlockReadLatencies[session->Options.WorkloadDescriptor.Category],
+        session->Timer.GetElapsedValue());
 }
 
 TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
@@ -375,8 +401,9 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
         }
     }
 
-    // Fast path: we can serve request right away.
+    // Fast path: we can serve the request right away.
     if (!diskFetchNeeded && asyncResults.empty()) {
+        ProfileReadBlockSetLatency(session);
         return MakeFuture(std::move(session->Blocks));
     }
 

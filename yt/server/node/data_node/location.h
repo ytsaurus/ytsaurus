@@ -58,6 +58,8 @@ struct TLocationPerformanceCounters
     NProfiling::TAggregateGauge BlobBlockReadTime;
     NProfiling::TAggregateGauge BlobBlockReadThroughput;
     NProfiling::TMonotonicCounter BlobBlockReadBytes;
+    TEnumIndexedVector<NProfiling::TAggregateGauge, EWorkloadCategory> BlobBlockReadLatencies;
+    TEnumIndexedVector<NProfiling::TAggregateGauge, EWorkloadCategory> BlobChunkMetaReadLatencies;
     NProfiling::TAggregateGauge BlobBlockWriteSize;
     NProfiling::TAggregateGauge BlobBlockWriteTime;
     NProfiling::TAggregateGauge BlobBlockWriteThroughput;

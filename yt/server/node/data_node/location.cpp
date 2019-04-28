@@ -79,6 +79,13 @@ TLocation::TLocation(
     PerformanceCounters_.BlobBlockReadTime = {"/blob_block_read_time", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.BlobBlockReadThroughput = {"/blob_block_read_throughput", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.BlobBlockReadBytes = {"/blob_block_read_bytes"};
+    for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
+        NProfiling::TTagIdList tagIds{
+            profileManager->RegisterTag("category", category)
+        };
+        PerformanceCounters_.BlobBlockReadLatencies[category] = {"/blob_block_read_latency", tagIds};
+        PerformanceCounters_.BlobChunkMetaReadLatencies[category] = {"/blob_chunk_meta_read_latency", tagIds};
+    }
     PerformanceCounters_.BlobBlockWriteSize = {"/blob_block_write_size", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.BlobBlockWriteTime = {"/blob_block_write_time", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.BlobBlockWriteThroughput = {"/blob_block_write_throughput", {}, NProfiling::EAggregateMode::All};
@@ -90,10 +97,10 @@ TLocation::TLocation(
     PerformanceCounters_.JournalChunkOpenTime = {"/journal_chunk_open_time", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.JournalChunkOpenTime = {"/journal_chunk_remove_time", {}, NProfiling::EAggregateMode::All};
     for (auto type : TEnumTraits<ESessionType>::GetDomainValues()) {
-        NProfiling::TTagIdList perTypeTagIds = {
+        NProfiling::TTagIdList tagIds{
             profileManager->RegisterTag("type", type)
         };
-        PerformanceCounters_.SessionCount[type] = {"/session_count", perTypeTagIds};
+        PerformanceCounters_.SessionCount[type] = {"/session_count", tagIds};
     }
     PerformanceCounters_.AvailableSpace = {"/available_space", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.Full = {"/full"};
