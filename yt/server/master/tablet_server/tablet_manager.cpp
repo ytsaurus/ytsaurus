@@ -5641,7 +5641,7 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->AbortTransaction(transaction, true);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite aborted (CellId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction aborted (CellId: %v, TransactionId: %v)",
             cell->GetId(),
             transactionId);
     }
@@ -5666,7 +5666,7 @@ private:
         // COMPAT(savrus) Don't check since we didn't have them in earlier versions.
         TransactionToCellMap_.erase(transaction);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite aborted (CellId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction aborted (CellId: %v, TransactionId: %v)",
             cellId,
             transactionId);
     }
