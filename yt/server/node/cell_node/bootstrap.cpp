@@ -238,6 +238,7 @@ void TBootstrap::DoRun()
 
     MasterClient_ = MasterConnection_->CreateNativeClient(TClientOptions(NSecurityClient::RootUserName));
 
+    MasterCacheQueue_ = New<TActionQueue>("MasterCache");
     LookupThreadPool_ = New<TThreadPool>(
         Config_->QueryAgent->LookupThreadPoolSize,
         "Lookup");
@@ -560,6 +561,7 @@ void TBootstrap::DoRun()
     auto initMasterCacheSerivce = [&] (const auto& masterConfig) {
         return CreateMasterCacheService(
             Config_->MasterCacheService,
+            MasterCacheQueue_->GetInvoker(),
             CreateDefaultTimeoutChannel(
                 CreatePeerChannel(
                     masterConfig,
