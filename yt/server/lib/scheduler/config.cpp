@@ -424,6 +424,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("max_offline_node_age", MaxOfflineNodeAge)
         .Default(TDuration::Hours(12));
 
+    RegisterParameter("max_node_unseen_period_to_abort_jobs", MaxNodeUnseenPeriodToAbortJobs)
+        .Default(TDuration::Minutes(5));
+
     RegisterParameter("orchid_worker_thread_count", OrchidWorkerThreadCount)
         .Default(4)
         .GreaterThan(0);

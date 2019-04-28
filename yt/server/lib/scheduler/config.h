@@ -454,6 +454,7 @@ public:
     bool PoolChangeIsAllowed;
 
     TDuration MaxOfflineNodeAge;
+    TDuration MaxNodeUnseenPeriodToAbortJobs;
 
     //! The number of threads in OrchidWorker thread pool used for serving reads from
     //! the scheduler's orchid.
