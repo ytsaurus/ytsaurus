@@ -132,6 +132,7 @@ private:
     NConcurrency::TActionQueuePtr TransactionTrackerQueue_;
     NConcurrency::TThreadPoolPtr StorageHeavyThreadPool_;
     NConcurrency::TThreadPoolPtr StorageLightThreadPool_;
+    NConcurrency::TActionQueuePtr MasterCacheQueue_;
 
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     NBus::IBusServerPtr BusServer_;
