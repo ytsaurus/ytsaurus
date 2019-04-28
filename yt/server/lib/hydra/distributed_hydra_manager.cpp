@@ -571,7 +571,7 @@ private:
                     } catch (const std::exception& ex) {
                         auto error = TError("Error logging mutations")
                             << ex;
-                        Restart(epochId, error);
+                        Restart(epochContext, error);
                         THROW_ERROR error;
                     }
                     break;
@@ -593,7 +593,7 @@ private:
                     } catch (const std::exception& ex) {
                         auto error = TError("Error postponing mutations during recovery")
                             << ex;
-                        Restart(epochId, error);
+                        Restart(epochContext, error);
                         THROW_ERROR error;
                     }
                     break;
@@ -690,7 +690,7 @@ private:
                 "Invalid logged version")
                 << TErrorAttribute("expected_version", ToString(version))
                 << TErrorAttribute("actual_version", ToString(DecoratedAutomaton_->GetLoggedVersion()));
-            Restart(epochId, error);
+            Restart(epochContext, error);
             context->Reply(error);
             return;
         }
@@ -782,7 +782,7 @@ private:
                     } catch (const std::exception& ex) {
                         auto error = TError("Error rotating changelog")
                             << ex;
-                        Restart(epochId, error);
+                        Restart(epochContext, error);
                         THROW_ERROR error;
                     }
 
@@ -807,7 +807,7 @@ private:
                     } catch (const std::exception& ex) {
                         auto error = TError("Error postponing changelog rotation during recovery")
                             << ex;
-                        Restart(epochId, error);
+                        Restart(epochContext, error);
                         THROW_ERROR error;
                     }
 
@@ -915,38 +915,39 @@ private:
             tagIds);
     }
 
-    void Restart(TEpochId epochId, const TError& error)
+    void Restart(const TEpochContextPtr& epochContext, const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
+        if (epochContext->Restarting.test_and_set()) {
+            return;
+        }
 
         YT_LOG_DEBUG(error, "Requesting Hydra instance restart");
 
         CancelableControlInvoker_->Invoke(BIND(
             &TDistributedHydraManager::DoRestart,
             MakeWeak(this),
-            epochId,
+            epochContext,
             error));
     }
 
-    void Restart(const TEpochContextPtr& epochContext, const TError& error)
+    void Restart(const TWeakPtr<TEpochContext>& weakEpochContext, const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        Restart(epochContext->EpochId, error);
+        if (auto epochContext = weakEpochContext.Lock()) {
+            Restart(epochContext, error);
+        }
     }
 
-    void DoRestart(TEpochId epochId, const TError& error)
+    void DoRestart(const TEpochContextPtr& epochContext, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (!ControlEpochContext_ ||
-            ControlEpochContext_->EpochId != epochId ||
-            ControlEpochContext_->Restarting)
-        {
+        if (ControlEpochContext_ != epochContext) {
             return;
         }
-
-        ControlEpochContext_->Restarting = true;
 
         YT_LOG_WARNING(error, "Restarting Hydra instance");
 
@@ -1068,13 +1069,13 @@ private:
         Restart(AutomatonEpochContext_, wrappedError);
     }
 
-    void OnLeaderLeaseLost(TEpochId epochId, const TError& error)
+    void OnLeaderLeaseLost(const TWeakPtr<TEpochContext>& weakEpochContext, const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto wrappedError = TError("Leader lease is lost")
             << error;
-        Restart(epochId, wrappedError);
+        Restart(weakEpochContext, wrappedError);
     }
 
 
@@ -1104,17 +1105,17 @@ private:
         result.Subscribe(BIND(
             &TDistributedHydraManager::OnChangelogRotated,
             MakeWeak(this),
-            AutomatonEpochContext_->EpochId));
+            MakeWeak(AutomatonEpochContext_)));
     }
 
-    void OnChangelogRotated(TEpochId epochId, const TError& error)
+    void OnChangelogRotated(const TWeakPtr<TEpochContext>& weakEpochContext, const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (!error.IsOK()) {
             auto wrappedError = TError("Distributed changelog rotation failed")
                 << error;
-            Restart(epochId, wrappedError);
+            Restart(weakEpochContext, wrappedError);
             return;
         }
 
@@ -1141,7 +1142,7 @@ private:
             LeaderLease_,
             LeaderLeaseCheck_.ToVector());
         epochContext->LeaseTracker->GetLeaseLost().Subscribe(
-            BIND(&TDistributedHydraManager::OnLeaderLeaseLost, MakeWeak(this), epochContext->EpochId));
+            BIND(&TDistributedHydraManager::OnLeaderLeaseLost, MakeWeak(this), MakeWeak(epochContext)));
 
         epochContext->LeaderCommitter = New<TLeaderCommitter>(
             Config_,
