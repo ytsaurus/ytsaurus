@@ -295,7 +295,7 @@ message TEnvVar {
 }
 
 enum EContainerULimitType {
-    // address space 
+    // address space
     EContainerULimit_AS = 0 [(NYT.NYson.NProto.enum_value_name) = "as"];
 
     // core file size
@@ -424,6 +424,9 @@ message TBox {
 
     // Ограничения на meta контейнер Box
     TComputeResources compute_resources = 12;
+
+    // Переменные окружения - прокидываются во все init контейнеры бокса
+    repeated TEnvVar env = 13;
 
     // если указано true
     // pod agent создает bind volume из <pod_chroot>/place/berkanavt/supervisor в <box_chroot>/place/berkanavt/supervisor
