@@ -18,9 +18,9 @@ func rangomPath() ypath.Path {
 	return ypath.Path("//tmp/yt-go-lock-test-" + uuid.Must(uuid.NewV4()).String())
 }
 
-func isCtxDone(ctx context.Context) bool {
+func isDone(c <-chan struct{}) bool {
 	select {
-	case <-ctx.Done():
+	case <-c:
 		return true
 	default:
 		return false
@@ -35,14 +35,42 @@ func TestLockAcquire(t *testing.T) {
 	_, err := env.YT.CreateNode(env.Ctx, path, yt.NodeFile, &yt.CreateNodeOptions{})
 	require.NoError(t, err)
 
-	lock := ytlock.NewLock(env.Ctx, env.YT, path)
-	ctx, err := lock.Acquire()
-	require.Nil(t, err)
+	lock := ytlock.NewLock(env.YT, path)
+	lost, err := lock.Acquire(env.Ctx)
+	require.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond)
-	if isCtxDone(ctx) {
-		t.Fatalf("Failed to acquire lock")
-	}
+	require.False(t, isDone(lost), "Lock is lost")
+}
+
+func TestCreateIfMissing(t *testing.T) {
+	env, cancel := yttest.NewEnv(t)
+	defer cancel()
+
+	path := rangomPath()
+	lock := ytlock.NewLockOptions(env.YT, path, ytlock.Options{CreateIfMissing: true, LockMode: yt.LockExclusive})
+	_, err := lock.Acquire(env.Ctx)
+	require.NoError(t, err)
+}
+
+func TestLockReleaseAbortsTx(t *testing.T) {
+	env, cancel := yttest.NewEnv(t)
+	defer cancel()
+
+	path := rangomPath()
+	_, err := env.YT.CreateNode(env.Ctx, path, yt.NodeFile, &yt.CreateNodeOptions{})
+	require.NoError(t, err)
+
+	lock := ytlock.NewLock(env.YT, path)
+
+	_, err = lock.Acquire(env.Ctx)
+	require.NoError(t, err)
+
+	err = lock.Release(env.Ctx)
+	require.NoError(t, err)
+
+	_, err = lock.Acquire(env.Ctx)
+	require.NoError(t, err)
 }
 
 func TestConcurrentLocks(t *testing.T) {
@@ -53,32 +81,25 @@ func TestConcurrentLocks(t *testing.T) {
 	_, err := env.YT.CreateNode(env.Ctx, path, yt.NodeFile, &yt.CreateNodeOptions{})
 	require.NoError(t, err)
 
-	firstLock := ytlock.NewLock(env.Ctx, env.YT, path)
-	firstCtx, err := firstLock.Acquire()
-	defer firstLock.Release()
+	firstLock := ytlock.NewLock(env.YT, path)
+	firstLost, err := firstLock.Acquire(env.Ctx)
+	defer func() { _ = firstLock.Release(env.Ctx) }()
 	require.Nil(t, err)
-	require.Equal(t, isCtxDone(firstCtx), false, "First lock should be acuired")
+	require.False(t, isDone(firstLost), "First lock should be acquired")
 
 	time.Sleep(100 * time.Millisecond)
 
-	secondLock := ytlock.NewLock(env.Ctx, env.YT, path)
-	_, err = secondLock.Acquire()
-	defer secondLock.Release()
-	require.NotNil(t, err)
+	secondLock := ytlock.NewLock(env.YT, path)
+	_, err = secondLock.Acquire(env.Ctx)
+	require.Error(t, err)
+	require.True(t, yt.ContainsErrorCode(err, yt.CodeConcurrentTransactionLockConflict))
 
-	firstLock.Release()
+	require.NoError(t, firstLock.Release(env.Ctx))
 	t.Logf("Released first lock")
 
-	var secondCtx context.Context
-	deadline := time.Now().Add(5 * time.Minute)
-	for time.Now().Before(deadline) {
-		secondCtx, err = secondLock.Acquire()
-		if err == nil {
-			return
-		}
-	}
-	require.Nil(t, err)
-	require.Equal(t, isCtxDone(secondCtx), false, "Second lock should be acuired")
+	secondLost, err := secondLock.Acquire(env.Ctx)
+	require.NoError(t, err)
+	require.False(t, isDone(secondLost), "Second lock should be acuired")
 }
 
 func TestLockCtxTermination(t *testing.T) {
@@ -86,10 +107,17 @@ func TestLockCtxTermination(t *testing.T) {
 	defer cancel()
 
 	parentCtx, parentCancel := context.WithCancel(env.Ctx)
-	path := rangomPath()
-	lock := ytlock.NewLock(parentCtx, env.YT, path)
-	ctx, _ := lock.Acquire()
-	parentCancel()
 
-	require.Equal(t, isCtxDone(ctx), true, "Lock context should be terminated by parent context")
+	path := rangomPath()
+	_, err := env.YT.CreateNode(env.Ctx, path, yt.NodeFile, &yt.CreateNodeOptions{})
+	require.NoError(t, err)
+
+	lock := ytlock.NewLock(env.YT, path)
+	lost, err := lock.Acquire(parentCtx)
+	require.NoError(t, err)
+
+	parentCancel()
+	time.Sleep(time.Second)
+
+	require.True(t, isDone(lost), "Lock context should be terminated by parent context")
 }

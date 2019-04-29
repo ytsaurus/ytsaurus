@@ -3,7 +3,6 @@ package internal
 import (
 	"context"
 	"io"
-	"sync"
 	"time"
 
 	"a.yandex-team.ru/yt/go/yson"
@@ -15,80 +14,12 @@ import (
 
 type TxInterceptor struct {
 	Encoder
-
-	sync.Mutex
-	committed, aborted bool
-	finished           chan struct{}
-	stop               *StopGroup
-
-	id        yt.TxID
-	ctx       context.Context
-	client    Encoder
-	txTimeout time.Duration
+	Client *Encoder
+	pinger *pinger
 }
 
 type TransactionParams interface {
 	TransactionOptions() **yt.TransactionOptions
-}
-
-func (t *TxInterceptor) checkState() error {
-	return t.updateState(false, false)
-}
-
-func (t *TxInterceptor) updateState(commit, abort bool) error {
-	t.Lock()
-	defer t.Unlock()
-
-	if t.committed {
-		return yt.ErrTxCommitted
-	} else if t.aborted {
-		return yt.ErrTxAborted
-	}
-
-	if commit {
-		t.committed = true
-	}
-
-	if abort {
-		t.aborted = true
-	}
-
-	return nil
-}
-
-func (t *TxInterceptor) abort() {
-	_ = t.Abort()
-	close(t.finished)
-}
-
-func (t *TxInterceptor) pinger() {
-	ticker := time.NewTicker(t.txTimeout / 4)
-	defer ticker.Stop()
-	defer t.stop.Done()
-
-	for {
-		select {
-		case <-t.stop.C():
-			t.abort()
-			return
-
-		case <-t.ctx.Done():
-			t.abort()
-			return
-
-		case <-ticker.C:
-			if err := t.checkState(); err != nil {
-				close(t.finished)
-				return
-			}
-
-			err := t.client.PingTx(t.ctx, t.id, nil)
-			if yt.ContainsErrorCode(err, yt.CodeNoSuchTransaction) {
-				t.abort()
-				return
-			}
-		}
-	}
 }
 
 func NewTx(ctx context.Context, e Encoder, stop *StopGroup, options *yt.StartTxOptions) (*TxInterceptor, error) {
@@ -108,13 +39,9 @@ func NewTx(ctx context.Context, e Encoder, stop *StopGroup, options *yt.StartTxO
 	}
 
 	tx := &TxInterceptor{
-		Encoder:   e,
-		id:        txID,
-		ctx:       ctx,
-		client:    e,
-		finished:  make(chan struct{}),
-		stop:      stop,
-		txTimeout: time.Duration(*updatedOptions.Timeout),
+		Encoder: e,
+		Client:  &e,
+		pinger:  newPinger(ctx, &e, txID, time.Duration(*updatedOptions.Timeout), stop),
 	}
 
 	tx.Encoder.Invoke = tx.Encoder.Invoke.Wrap(tx.Intercept)
@@ -124,54 +51,54 @@ func NewTx(ctx context.Context, e Encoder, stop *StopGroup, options *yt.StartTxO
 	tx.Encoder.InvokeWriteRow = tx.Encoder.InvokeWriteRow.Wrap(tx.WriteRow)
 
 	if !stop.TryAdd() {
-		tx.abort()
+		// In this rare event, leave tx running on the master.
 		return tx, xerrors.New("client is stopped")
 	}
 
-	go tx.pinger()
+	go tx.pinger.run()
 
 	return tx, nil
 }
 
 func (t *TxInterceptor) ID() yt.TxID {
-	return t.id
+	return t.pinger.txID
 }
 
 func (t *TxInterceptor) Finished() <-chan struct{} {
-	return t.finished
+	return t.pinger.finished
 }
 
 func (t *TxInterceptor) BeginTx(ctx context.Context, options *yt.StartTxOptions) (tx yt.Tx, err error) {
-	if err = t.checkState(); err != nil {
+	if err = t.pinger.check(); err != nil {
 		return
 	}
 
 	if options == nil {
 		options = &yt.StartTxOptions{}
 	}
-	options.ParentID = &t.id
+	options.ParentID = &t.pinger.txID
 
-	return NewTx(ctx, t.client, t.stop, options)
+	return NewTx(ctx, t.Encoder, t.pinger.stop, options)
 }
 
 func (t *TxInterceptor) Abort() (err error) {
-	if err = t.updateState(false, true); err != nil {
+	if err = t.pinger.tryAbort(); err != nil {
 		return
 	}
 
-	return t.client.AbortTx(t.ctx, t.id, nil)
+	return t.Client.AbortTx(t.pinger.ctx, t.pinger.txID, nil)
 }
 
 func (t *TxInterceptor) Commit() (err error) {
-	if err = t.updateState(true, false); err != nil {
+	if err = t.pinger.tryCommit(); err != nil {
 		return
 	}
 
-	return t.client.CommitTx(t.ctx, t.id, nil)
+	return t.Client.CommitTx(t.pinger.ctx, t.pinger.txID, nil)
 }
 
 func (t *TxInterceptor) setTx(call *Call) error {
-	if err := t.checkState(); err != nil {
+	if err := t.pinger.check(); err != nil {
 		return err
 	}
 
@@ -181,46 +108,46 @@ func (t *TxInterceptor) setTx(call *Call) error {
 	}
 
 	txOpts := params.TransactionOptions()
-	*txOpts = &yt.TransactionOptions{TransactionID: t.id}
+	*txOpts = &yt.TransactionOptions{TransactionID: t.pinger.txID}
 	return nil
 }
 
-func (t *TxInterceptor) Intercept(ctx context.Context, call *Call, invoke CallInvoker) (res *CallResult, err error) {
+func (t *TxInterceptor) Intercept(ctx context.Context, call *Call, next CallInvoker) (res *CallResult, err error) {
 	if err = t.setTx(call); err != nil {
 		return
 	}
 
-	return invoke(ctx, call)
+	return next(ctx, call)
 }
 
-func (t *TxInterceptor) Read(ctx context.Context, call *Call, invoke ReadInvoker) (r io.ReadCloser, err error) {
+func (t *TxInterceptor) Read(ctx context.Context, call *Call, next ReadInvoker) (r io.ReadCloser, err error) {
 	if err = t.setTx(call); err != nil {
 		return
 	}
 
-	return invoke(ctx, call)
+	return next(ctx, call)
 }
 
-func (t *TxInterceptor) Write(ctx context.Context, call *Call, invoke WriteInvoker) (w io.WriteCloser, err error) {
+func (t *TxInterceptor) Write(ctx context.Context, call *Call, next WriteInvoker) (w io.WriteCloser, err error) {
 	if err = t.setTx(call); err != nil {
 		return
 	}
 
-	return invoke(ctx, call)
+	return next(ctx, call)
 }
 
-func (t *TxInterceptor) ReadRow(ctx context.Context, call *Call, invoke ReadRowInvoker) (r yt.TableReader, err error) {
+func (t *TxInterceptor) ReadRow(ctx context.Context, call *Call, next ReadRowInvoker) (r yt.TableReader, err error) {
 	if err = t.setTx(call); err != nil {
 		return
 	}
 
-	return invoke(ctx, call)
+	return next(ctx, call)
 }
 
-func (t *TxInterceptor) WriteRow(ctx context.Context, call *Call, invoke WriteRowInvoker) (w yt.TableWriter, err error) {
+func (t *TxInterceptor) WriteRow(ctx context.Context, call *Call, next WriteRowInvoker) (w yt.TableWriter, err error) {
 	if err = t.setTx(call); err != nil {
 		return
 	}
 
-	return invoke(ctx, call)
+	return next(ctx, call)
 }
