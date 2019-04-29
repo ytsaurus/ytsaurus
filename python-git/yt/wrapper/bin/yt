@@ -675,12 +675,15 @@ def add_alter_table_replica_parser(add_parser):
 def select_rows(**args):
     if args["disable_code_cache"]:
         args["enable_code_cache"] = False
+    args.pop("disable_code_cache")
 
     if args["forbid_full_scan"]:
         args["allow_full_scan"] = False
+    args.pop("forbid_full_scan")
 
     if args["forbid_join_without_index"]:
         args["allow_join_without_index"] = False
+    args.pop("forbid_join_without_index")
 
     write_silently(chunk_iter_stream(yt.select_rows(raw=True, **args), yt.config["read_buffer_size"]))
 
