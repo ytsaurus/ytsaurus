@@ -162,7 +162,7 @@ func (l *Lock) Acquire(ctx context.Context) (lost <-chan struct{}, err error) {
 	return
 }
 
-// Release closes lock context and releases distributed lock by aborting transaction.
+// Release releases distributed lock by aborting transaction.
 //
 // Error might indicate, that we failed to receive acknowledgement from the master, but lock will be released eventually.
 func (l *Lock) Release(ctx context.Context) error {
