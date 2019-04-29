@@ -147,7 +147,7 @@ class DynamicTableRequestRetrier(Retrier):
 def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
                 fail_on_incomplete_result=None, verbose_logging=None, enable_code_cache=None, max_subqueries=None,
                 workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None, format=None, raw=None,
-                client=None):
+                execution_pool=None, client=None):
     """Executes a SQL-like query on dynamic table.
 
     .. seealso:: `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
@@ -176,6 +176,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     set_param(params, "workload_descriptor", workload_descriptor)
     set_param(params, "allow_full_scan", allow_full_scan)
     set_param(params, "allow_join_without_index", allow_join_without_index)
+    set_param(params, "execution_pool", execution_pool)
 
     _check_transaction_type(client)
 
