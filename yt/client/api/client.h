@@ -936,7 +936,7 @@ struct TJob
     std::optional<double> Progress;
     std::optional<ui64> StderrSize;
     std::optional<ui64> FailContextSize;
-    std::optional<bool> HasSpec;
+    bool HasSpec = false;
     NYson::TYsonString Error;
     NYson::TYsonString BriefStatistics;
     NYson::TYsonString InputPaths;

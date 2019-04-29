@@ -4133,7 +4133,7 @@ private:
         result.reserve(attributes.size());
         for (const auto& attribute : attributes) {
             if (!SupportedOperationAttributes.contains(attribute)) {
-                THROW_ERROR_EXCEPTION("Attribute %Qv is not allowed",
+                THROW_ERROR_EXCEPTION("Operation attribute %Qv is not supported",
                     attribute);
             }
             if (attribute == "id") {
@@ -6945,6 +6945,7 @@ private:
         "error",
         "statistics",
         "events",
+        "has_spec",
     };
 
     std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& attributes)
@@ -6953,7 +6954,7 @@ private:
         result.reserve(attributes.size() + 2); // Plus 2 as operation_id and job_id are split into hi and lo.
         for (const auto& attribute : attributes) {
             if (!SupportedJobAttributes.contains(attribute)) {
-                THROW_ERROR_EXCEPTION("Job attribute %Qv is not allowed", attribute);
+                THROW_ERROR_EXCEPTION("Job attribute %Qv is not supported", attribute);
             }
             if (attribute.EndsWith("_id")) {
                 result.push_back(attribute + "_hi");
@@ -7000,6 +7001,7 @@ private:
             "error",
             "statistics",
             "events",
+            "has_spec",
         };
 
         std::vector<int> columnIndexes;
@@ -7052,6 +7054,7 @@ private:
             }
         };
 
+        using std::placeholders::_1;
         return BuildYsonStringFluently()
             .BeginMap()
                 .DoIf(columnFilter.ContainsIndex(table.Index.OperationIdHi), [&] (TFluentMap fluent) {
@@ -7064,14 +7067,15 @@ private:
                     fluent.Item("state").Value(state);
                 })
 
-                .Do(std::bind(tryAddInstantFluentItem, std::placeholders::_1, "start_time", table.Index.StartTime))
-                .Do(std::bind(tryAddInstantFluentItem, std::placeholders::_1, "finish_time", table.Index.FinishTime))
+                .Do(std::bind(tryAddInstantFluentItem, _1, "start_time", table.Index.StartTime))
+                .Do(std::bind(tryAddInstantFluentItem, _1, "finish_time", table.Index.FinishTime))
 
-                .Do(std::bind(TryAddFluentItem<TString>,     std::placeholders::_1, "address",     row, columnFilter, table.Index.Address))
-                .Do(std::bind(TryAddFluentItem<TString>,     std::placeholders::_1, "type",        row, columnFilter, table.Index.Type))
-                .Do(std::bind(TryAddFluentItem<TYsonString>, std::placeholders::_1, "error",       row, columnFilter, table.Index.Error))
-                .Do(std::bind(TryAddFluentItem<TYsonString>, std::placeholders::_1, "statistics",  row, columnFilter, table.Index.Statistics))
-                .Do(std::bind(TryAddFluentItem<TYsonString>, std::placeholders::_1, "events",      row, columnFilter, table.Index.Events))
+                .Do(std::bind(TryAddFluentItem<bool>,        _1, "has_spec",   row, columnFilter, table.Index.HasSpec))
+                .Do(std::bind(TryAddFluentItem<TString>,     _1, "address",    row, columnFilter, table.Index.Address))
+                .Do(std::bind(TryAddFluentItem<TString>,     _1, "type",       row, columnFilter, table.Index.Type))
+                .Do(std::bind(TryAddFluentItem<TYsonString>, _1, "error",      row, columnFilter, table.Index.Error))
+                .Do(std::bind(TryAddFluentItem<TYsonString>, _1, "statistics", row, columnFilter, table.Index.Statistics))
+                .Do(std::bind(TryAddFluentItem<TYsonString>, _1, "events",     row, columnFilter, table.Index.Events))
             .EndMap();
     }
 
