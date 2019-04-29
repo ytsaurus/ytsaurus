@@ -56,4 +56,20 @@ func TestTransactions(t *testing.T) {
 
 		require.NoError(t, tx.Commit())
 	})
+
+	t.Run("TransactionAbortByContextCancel", func(t *testing.T) {
+		canceledCtx, cancel := context.WithCancel(ctx)
+
+		tx, err := env.YT.BeginTx(canceledCtx, nil)
+		require.NoError(t, err)
+
+		cancel()
+		time.Sleep(time.Second)
+
+		require.Equal(t, yt.ErrTxAborted, tx.Commit())
+
+		err = env.YT.PingTx(ctx, tx.ID(), nil)
+		require.Error(t, err)
+		require.True(t, yt.ContainsErrorCode(err, yt.CodeNoSuchTransaction))
+	})
 }

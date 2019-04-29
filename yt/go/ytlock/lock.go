@@ -3,7 +3,7 @@ package ytlock
 
 import (
 	"context"
-	"time"
+	"sync"
 
 	"a.yandex-team.ru/yt/go/yson"
 
@@ -36,120 +36,140 @@ func FindConflictWinner(err error) *WinnerTx {
 	return nil
 }
 
-const (
-	DefaultBackoff = 10 * time.Second
-)
-
 type Options struct {
 	// Fail if LockPath is missing.
-	FailIfMissing   bool
-	NumberOfRetries int
-	ConflictBackoff time.Duration
-	LockType        yt.LockMode
+	CreateIfMissing bool
+	LockMode        yt.LockMode
 }
 
-func (o *Options) conflictBackoff() time.Duration {
-	if o.ConflictBackoff == 0 {
-		return DefaultBackoff
-	}
-
-	return o.ConflictBackoff
-}
-
-// Lock object represents cypress lock
-type Lock struct {
-	Path    ypath.Path
-	Options Options
-	Yc      yt.Client
-
-	// Implementation details
-	initialCtx context.Context
-	ctx        context.Context
-	ctxCancel  context.CancelFunc
-}
-
-// NewLock creates Lock object using default Options
-func NewLock(ctx context.Context, yc yt.Client, path ypath.Path) (l Lock) {
+// NewLock creates Lock object using default Options.
+func NewLock(yc yt.Client, path ypath.Path) (l Lock) {
 	defaultOptions := Options{
-		FailIfMissing:   true,
-		NumberOfRetries: 0,
-		ConflictBackoff: DefaultBackoff,
-		LockType:        yt.LockExclusive,
+		CreateIfMissing: true,
+		LockMode:        yt.LockExclusive,
 	}
-	return NewLockWithOptions(ctx, yc, path, defaultOptions)
+	return NewLockOptions(yc, path, defaultOptions)
 }
 
-// NewLockWithOptions creates Lock object with specified options
-func NewLockWithOptions(ctx context.Context, yc yt.Client, path ypath.Path, opt Options) (l Lock) {
-	l.initialCtx = ctx
+// NewLockOptions creates Lock object with specified options.
+func NewLockOptions(yc yt.Client, path ypath.Path, opt Options) (l Lock) {
 	l.Yc = yc
 	l.Path = path
 	l.Options = opt
 	return
 }
 
-// wrapError wraps error in a way that is relevant to given lock
-func (l Lock) wrapError(err error) error {
-	if err != nil {
-		return xerrors.Errorf("ytlock: with %q: %w", l.Path, err)
+// Lock object represents cypress lock.
+type Lock struct {
+	Path    ypath.Path
+	Options Options
+	Yc      yt.Client
+
+	l         sync.Mutex
+	acquiring bool
+	tx        yt.Tx
+}
+
+func (l *Lock) startAcquire() (err error) {
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	if l.acquiring {
+		return xerrors.New("another acquire is in progress")
 	}
 
+	if l.tx != nil {
+		select {
+		case <-l.tx.Finished():
+			l.tx = nil
+		default:
+			return xerrors.New("lock is already acquired")
+		}
+	}
+
+	l.acquiring = true
 	return nil
 }
 
-// setup creates master transaction and tries to acquire lock, i.e. create cypress LockNode.
-// It also handles transaction abortion, in concurrent fasion.
-func (l Lock) setup() error {
-	tx, err := l.Yc.BeginTx(l.ctx, nil)
-	if err != nil {
-		return l.wrapError(err)
-	}
-	go func() {
-		<-tx.Finished()
-		// Transaction finised, i.e. lock got released on server side
-		l.ctxCancel()
-	}()
+func (l *Lock) abortAcquire() {
+	l.l.Lock()
+	defer l.l.Unlock()
 
-	_, err = tx.LockNode(l.ctx, l.Path, l.Options.LockType, nil)
-	if yt.ContainsErrorCode(err, yt.CodeResolveError) && !l.Options.FailIfMissing {
-		_, err = tx.CreateNode(l.ctx, l.Path, yt.NodeMap, &yt.CreateNodeOptions{Recursive: true})
-	}
-	err = l.wrapError(err)
-	return err
+	l.acquiring = false
 }
 
-// Acquire acquires cypress lock and returns lock context.
-//
-// Lock context "doneness" should be checked frequently, due to the fact that it could get closed
-// without explicit lock release, which means that distributed lock is lost. This could happen
-// is case of transaction being aborted remotely, network partition or coordination service downtime.
-//
-// If lock context is done, there is no need to call Release explicitly.
-func (l *Lock) Acquire() (ctx context.Context, err error) {
-	// Add 1 to retry counter so that it works in case of value == 0
-	retries := l.Options.NumberOfRetries + 1
-	for retries > 0 {
-		l.ctx, l.ctxCancel = context.WithCancel(l.initialCtx)
-		ctx = l.ctx
-		err = l.setup()
+func (l *Lock) finishAcquire(tx yt.Tx) {
+	l.l.Lock()
+	defer l.l.Unlock()
 
-		if err == nil {
-			return
-		}
+	l.acquiring = false
+	l.tx = tx
+}
 
-		select {
-		case <-ctx.Done():
-			err = ctx.Err()
-			return
-		case <-time.After(l.Options.conflictBackoff()):
-		}
-		retries--
+func (l *Lock) startAbort() yt.Tx {
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	tx := l.tx
+	l.tx = nil
+	return tx
+}
+
+// Acquire acquires cypress lock.
+//
+// Returned lost channel is closed when lock is lost because of some external event, e.g.
+// transaction being aborted remotely, network partition or coordination service downtime.
+//
+// If lock is lost, there is no need to call Release explicitly.
+func (l *Lock) Acquire(ctx context.Context) (lost <-chan struct{}, err error) {
+	if err = l.startAcquire(); err != nil {
+		return
 	}
+
+	var tx yt.Tx
+	tx, err = l.Yc.BeginTx(ctx, nil)
+	if err != nil {
+		l.abortAcquire()
+		return
+	}
+	lost = tx.Finished()
+
+	defer func() {
+		if tx != nil {
+			l.abortAcquire()
+			_ = tx.Abort()
+		}
+	}()
+
+	_, err = tx.LockNode(ctx, l.Path, l.Options.LockMode, nil)
+	if yt.ContainsErrorCode(err, yt.CodeResolveError) && l.Options.CreateIfMissing {
+		_, err = l.Yc.CreateNode(ctx, l.Path, yt.NodeMap, &yt.CreateNodeOptions{Recursive: true, IgnoreExisting: true})
+		if err != nil {
+			return
+		}
+
+		_, err = tx.LockNode(ctx, l.Path, l.Options.LockMode, nil)
+		if err != nil {
+			return
+		}
+	} else if err != nil {
+		return
+	}
+
+	l.finishAcquire(tx)
+	tx = nil
+
 	return
 }
 
-// Release closes lock context and releases distributed lock by aborting transaction
-func (l Lock) Release() {
-	l.ctxCancel()
-	<-l.ctx.Done()
+// Release closes lock context and releases distributed lock by aborting transaction.
+//
+// Error might indicate, that we failed to receive acknowledgement from the master, but lock will be released eventually.
+func (l *Lock) Release(ctx context.Context) error {
+	tx := l.startAbort()
+	if tx != nil {
+		return tx.Abort()
+	}
+
+	return nil
 }
