@@ -673,18 +673,6 @@ def add_alter_table_replica_parser(add_parser):
 
 @copy_docstring_from(yt.select_rows)
 def select_rows(**args):
-    if args["disable_code_cache"]:
-        args["enable_code_cache"] = False
-    args.pop("disable_code_cache")
-
-    if args["forbid_full_scan"]:
-        args["allow_full_scan"] = False
-    args.pop("forbid_full_scan")
-
-    if args["forbid_join_without_index"]:
-        args["allow_join_without_index"] = False
-    args.pop("forbid_join_without_index")
-
     write_silently(chunk_iter_stream(yt.select_rows(raw=True, **args), yt.config["read_buffer_size"]))
 
 def add_select_rows_parser(add_parser):
@@ -696,19 +684,15 @@ def add_select_rows_parser(add_parser):
         parser.add_argument("--input-row-limit", type=int)
         parser.add_argument("--output-row-limit", type=int)
         parser.add_argument("--verbose-logging", action="store_true")
-
-        group = parser.add_mutually_exclusive_group()
-        group.add_argument("--disable-code-cache", action="store_true")
-        group.add_argument("--enable-code-cache", action="store_true")
-
-        group = parser.add_mutually_exclusive_group()
-        group.add_argument("--forbid-full-scan", action="store_true")
-        group.add_argument("--allow-full-scan", action="store_true")
-
-        group = parser.add_mutually_exclusive_group()
-        group.add_argument("--forbid-join-without-index", action="store_true")
-        group.add_argument("--allow-join-without-index", action="store_true")
-
+        group = parser.add_mutually_exclusive_group(required=False)
+        group.add_argument("--enable-code-cache", dest="enable_code_cache", action="store_true")
+        group.add_argument("--disable-code-cache", dest="enable_code_cache", action="store_false")
+        group = parser.add_mutually_exclusive_group(required=False)
+        group.add_argument("--allow-full-scan", dest="allow_full_scan", action="store_true")
+        group.add_argument("--forbid-full-scan", dest="allow_full_scan", action="store_false")
+        group = parser.add_mutually_exclusive_group(required=False)
+        group.add_argument("--allow-join-without-index", dest="allow_join_without_index", action="store_true")
+        group.add_argument("--forbid-join-without-index", dest="allow_join_without_index", action="store_false")
         parser.add_argument("--execution-pool", type=str)
         parser.add_argument("--format", action=ParseFormat)
 
