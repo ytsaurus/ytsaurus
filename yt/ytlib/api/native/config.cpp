@@ -144,7 +144,7 @@ TConnectionConfig::TConnectionConfig()
         .Default(TDuration::Seconds(60));
 
     RegisterParameter("use_tablet_service", UseTabletService)
-        .Default(false);
+        .Default(true);
 
     RegisterParameter("idle_channel_ttl", IdleChannelTtl)
         .Default(TDuration::Minutes(30));
