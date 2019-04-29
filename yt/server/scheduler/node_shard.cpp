@@ -646,6 +646,8 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
+    auto now = TInstant::Now();
+
     if (HasOngoingNodesAttributesUpdate_) {
         auto error = TError("Node shard is handling nodes attributes update for too long, skipping new update");
         YT_LOG_WARNING(error);
@@ -693,6 +695,15 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
             YT_LOG_WARNING("Node is not registered at scheduler but online at master (NodeId: %v, NodeAddress: %v)",
                 nodeId,
                 address);
+        }
+
+        if (newState == NNodeTrackerClient::ENodeState::Online) {
+            TLeaseManager::RenewLease(execNode->GetLease());
+            if (execNode->GetSchedulerState() == ENodeState::Offline &&
+                execNode->GetLastSeenTime() + Config_->MaxNodeUnseenPeriodToAbortJobs < now)
+            {
+                AbortAllJobsAtNode(execNode);
+            }
         }
 
         execNode->SetIOWeights(ioWeights);
