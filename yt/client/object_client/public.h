@@ -114,6 +114,8 @@ DEFINE_ENUM(EObjectType,
     ((ForeignChunkMap)            (122))
     ((ChunkList)                  (101))
     ((ChunkListMap)               (406))
+    ((ChunkView)                  (123))
+    ((ChunkViewMap)               (430))
     ((Medium)                     (408))
     ((MediumMap)                  (409))
 

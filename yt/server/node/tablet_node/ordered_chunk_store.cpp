@@ -143,7 +143,8 @@ TOrderedChunkStore::TOrderedChunkStore(
     : TStoreBase(config, id, tablet)
     , TChunkStoreBase(
         config,
-        id,
+        id /*storeId*/,
+        id /*chunkId*/,
         tablet,
         blockCache,
         chunkRegistry,

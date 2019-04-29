@@ -671,7 +671,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         chunkData->MemoryTrackerGuard.UpdateSize(allocatedMemory - preallocatedMemory);
     }
 
-    FinalizeChunkData(chunkData, store->GetId(), meta, tabletSnapshot);
+    FinalizeChunkData(chunkData, store->GetChunkId(), meta, tabletSnapshot);
 
     YT_LOG_INFO(
         "Store preload completed (MemoryUsage: %v, LookupHashTable: %v)",

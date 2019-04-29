@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/ytlib/chunk_client/public.h>
+
 #include <yt/client/api/public.h>
 
 #include <yt/client/chunk_client/read_limit.h>
@@ -48,7 +50,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TSharedRange<TRowRange> ranges,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
-    bool produceAllVersions);
+    bool produceAllVersions,
+    const TSharedRange<TRowRange>& singletonClippingRange = {});
 
 IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,

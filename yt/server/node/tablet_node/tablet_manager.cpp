@@ -3024,6 +3024,7 @@ private:
             .Item("sampling_time").Value(partition->GetSamplingTime())
             .Item("sampling_request_time").Value(partition->GetSamplingRequestTime())
             .Item("compaction_time").Value(partition->GetCompactionTime())
+            .Item("allowed_split_time").Value(partition->GetAllowedSplitTime())
             .Item("uncompressed_data_size").Value(partition->GetUncompressedDataSize())
             .Item("compressed_data_size").Value(partition->GetCompressedDataSize())
             .Item("unmerged_row_count").Value(partition->GetUnmergedRowCount())
@@ -3274,9 +3275,28 @@ private:
     {
         switch (type) {
             case EStoreType::SortedChunk: {
+                NChunkClient::TReadRange readRange;
+                TChunkId chunkId;
+
+                if (descriptor) {
+                    if (descriptor->has_chunk_view_descriptor()) {
+                        const auto& chunkViewDescriptor = descriptor->chunk_view_descriptor();
+                        if (chunkViewDescriptor.has_read_range()) {
+                            readRange = FromProto<NChunkClient::TReadRange>(chunkViewDescriptor.read_range());
+                        }
+                        chunkId = FromProto<TChunkId>(chunkViewDescriptor.underlying_chunk_id());
+                    } else {
+                        chunkId = storeId;
+                    }
+                } else {
+                    YCHECK(IsRecovery());
+                }
+
                 auto store = New<TSortedChunkStore>(
                     Config_,
                     storeId,
+                    chunkId,
+                    readRange,
                     tablet,
                     Bootstrap_->GetBlockCache(),
                     Bootstrap_->GetChunkRegistry(),
@@ -3296,6 +3316,10 @@ private:
                     Bootstrap_->GetMemoryUsageTracker());
 
             case EStoreType::OrderedChunk: {
+                if (!IsRecovery()) {
+                    YCHECK(descriptor);
+                    YCHECK(!descriptor->has_chunk_view_descriptor());
+                }
                 auto store = New<TOrderedChunkStore>(
                     Config_,
                     storeId,

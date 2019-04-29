@@ -558,13 +558,15 @@ public:
         TSharedRange<TRowRange> ranges,
         const TColumnFilter& columnFilter,
         TTimestamp timestamp,
-        bool produceAllVersions)
+        bool produceAllVersions,
+        const TSharedRange<TRowRange>& singletonClippingRange)
         : TCacheBasedVersionedChunkReaderBase<TBlockReader>(
             chunkState,
             columnFilter,
             timestamp,
             produceAllVersions)
         , Ranges_(std::move(ranges))
+        , ClippingRange_(singletonClippingRange)
     { }
 
 private:
@@ -574,6 +576,8 @@ private:
     TSharedRange<TRowRange> Ranges_;
     size_t RangeIndex_ = 0;
 
+    TSharedRange<TRowRange> ClippingRange_;
+
     bool UpdateLimits()
     {
         if (RangeIndex_ >= Ranges_.Size()) {
@@ -582,6 +586,18 @@ private:
 
         LowerBound_ = Ranges_[RangeIndex_].first;
         UpperBound_ = Ranges_[RangeIndex_].second;
+
+        if (RangeIndex_ == 0 && ClippingRange_) {
+            if (auto clippingLowerBound = ClippingRange_.Front().first) {
+                LowerBound_ = std::max(LowerBound_, clippingLowerBound);
+            }
+        }
+
+        if (RangeIndex_ == Ranges_.Size() - 1 && ClippingRange_) {
+            if (auto clippingUpperBound = ClippingRange_.Front().second) {
+                UpperBound_ = std::min(UpperBound_, clippingUpperBound);
+            }
+        }
 
         ++RangeIndex_;
 
@@ -672,7 +688,8 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     TSharedRange<TRowRange> ranges,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
-    bool produceAllVersions)
+    bool produceAllVersions,
+    const TSharedRange<TRowRange>& singletonClippingRange)
 {
     auto createGenericVersionedReader = [&] {
         if (produceAllVersions && !columnFilter.IsUniversal()) {
@@ -691,7 +708,8 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
             std::move(ranges),
             columnFilter,
             timestamp,
-            produceAllVersions);
+            produceAllVersions,
+            singletonClippingRange);
     };
 
     if (produceAllVersions && timestamp != AllCommittedTimestamp) {
@@ -709,7 +727,8 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 std::move(ranges),
                 columnFilter,
                 chunkTimestamp,
-                produceAllVersions);
+                produceAllVersions,
+                singletonClippingRange);
         }
 
         case ETableChunkFormat::VersionedSimple:
@@ -718,7 +737,8 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 std::move(ranges),
                 columnFilter,
                 timestamp,
-                produceAllVersions);
+                produceAllVersions,
+                singletonClippingRange);
 
         case ETableChunkFormat::UnversionedColumnar:
         case ETableChunkFormat::VersionedColumnar:

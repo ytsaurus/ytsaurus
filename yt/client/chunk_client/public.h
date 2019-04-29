@@ -51,10 +51,14 @@ DEFINE_ENUM(EErrorCode,
     ((MissingExtension)          (724))
     ((BandwidthThrottlingFailed) (725))
     ((ReaderTimeout)             (726))
+    ((NoSuchChunkView)           (727))
 );
 
 using TChunkId = NObjectClient::TObjectId;
 extern const TChunkId NullChunkId;
+
+using TChunkViewId = NObjectClient::TObjectId;
+extern const TChunkViewId NullChunkViewId;
 
 using TChunkListId = NObjectClient::TObjectId;
 extern const TChunkListId NullChunkListId;

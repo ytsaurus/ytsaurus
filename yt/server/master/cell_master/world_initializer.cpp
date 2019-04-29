@@ -426,6 +426,11 @@ private:
                 EObjectType::ForeignChunkMap);
 
             ScheduleCreateNode(
+                "//sys/chunk_views",
+                transactionId,
+                EObjectType::ChunkViewMap);
+
+            ScheduleCreateNode(
                 "//sys/chunk_lists",
                 transactionId,
                 EObjectType::ChunkListMap);

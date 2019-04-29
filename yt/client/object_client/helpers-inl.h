@@ -43,6 +43,7 @@ inline bool IsVersionedType(EObjectType type)
         type == EObjectType::RackMap ||
         type == EObjectType::DataCenterMap ||
         type == EObjectType::ChunkListMap ||
+        type == EObjectType::ChunkViewMap ||
         type == EObjectType::MediumMap ||
         type == EObjectType::TransactionMap ||
         type == EObjectType::TopmostTransactionMap ||

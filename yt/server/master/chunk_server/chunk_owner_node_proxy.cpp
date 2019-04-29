@@ -367,6 +367,11 @@ private:
         return true;
     }
 
+    virtual bool OnChunkView(TChunkView* /*chunkView*/) override
+    {
+        return false;
+    }
+
     virtual void OnFinish(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1092,7 +1097,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
     if (fetchLastKey) {
         TOwningKey lastKey;
         if (!IsEmpty(snapshotChunkList)) {
-            lastKey = GetMaxKey(snapshotChunkList);
+            lastKey = GetUpperBoundKey(snapshotChunkList);
         }
         ToProto(response->mutable_last_key(), lastKey);
     }
