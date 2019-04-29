@@ -731,9 +731,7 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
     if (job.FailContextSize) {
         protoJob->set_fail_context_size(*job.FailContextSize);
     }
-    if (job.HasSpec) {
-        protoJob->set_has_spec(*job.HasSpec);
-    }
+    protoJob->set_has_spec(job.HasSpec);
 
     if (job.Error) {
         protoJob->set_error(job.Error.GetData());
@@ -781,9 +779,8 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
     if (protoJob.has_has_spec()) {
         job->HasSpec = protoJob.has_spec();
     } else {
-        job->HasSpec.reset();
+        job->HasSpec = false;
     }
-
     if (protoJob.has_error()) {
         job->Error = NYson::TYsonString(protoJob.error());
     } else {

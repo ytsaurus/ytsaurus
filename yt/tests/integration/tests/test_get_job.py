@@ -46,20 +46,16 @@ class TestGetJob(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
-        job_id_file = os.path.join(self._tmpdir, "jobids")
         before_start_time = datetime.datetime.utcnow()
         op = map(
             dont_track=True,
             label="get_job",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command=with_breakpoint("echo $YT_JOB_ID > {0} ; cat ; BREAKPOINT".format(job_id_file)),
+            command=with_breakpoint("echo SOME-STDERR > 2 ; cat ; BREAKPOINT"),
         )
 
-        wait_breakpoint()
-
-        with open(job_id_file) as inf:
-            job_id = inf.read().strip()
+        job_id, = wait_breakpoint()
 
         job_info = retry(lambda: get_job(op.id, job_id))
 
@@ -73,6 +69,13 @@ class TestGetJob(YTEnvSetup):
         attributes = ["job_id", "state", "start_time"]
         job_info = retry(lambda: get_job(op.id, job_id, attributes=attributes))
         assert __builtin__.set(job_info.keys()) == __builtin__.set(attributes)
+
+        release_breakpoint()
+        op.track()
+        def has_spec():
+            job_info = retry(lambda: get_job(op.id, job_id))
+            assert "has_spec" in job_info and job_info["has_spec"]
+        wait_assert(has_spec)
 
 ##################################################################
 

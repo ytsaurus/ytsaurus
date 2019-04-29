@@ -445,6 +445,12 @@ class TestListJobs(YTEnvSetup):
         release_breakpoint()
         op.track()
 
+        def any_has_spec():
+            res = checked_list_jobs(op.id, data_source=data_source)
+            assert any("has_spec" in job and job["has_spec"] for job in res["jobs"])
+        wait_assert(any_has_spec)
+
+
     @pytest.mark.parametrize("data_source", ["runtime", "archive"])
     def test_aborted_jobs(self, data_source):
         input_table, output_table = self._create_tables()
