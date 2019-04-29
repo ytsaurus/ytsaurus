@@ -518,6 +518,7 @@ struct TLockNodeResult
 {
     NCypressClient::TLockId LockId;
     NCypressClient::TNodeId NodeId;
+    std::optional<i64> Revision;
 };
 
 struct TUnlockNodeOptions
