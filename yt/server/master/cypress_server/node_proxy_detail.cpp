@@ -1205,6 +1205,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
     response->set_cell_tag(TrunkNode->GetExternalCellTag() == NotReplicatedCellTag
         ? Bootstrap_->GetCellTag()
         : TrunkNode->GetExternalCellTag());
+    response->set_revision(lock->GetTrunkNode()->GetRevision());
 
     context->SetResponseInfo("LockId: %v",
         lockId);

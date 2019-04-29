@@ -42,17 +42,18 @@ class TestLocks(YTEnvSetup):
 
         abort_transaction(tx)
 
-    # Uncomment when new response format will be supported in api/v4.
-    #def test_lock_full_response(self):
-    #    create("map_node", "//tmp/node")
+    def test_lock_full_response(self):
+        driver = get_driver(api_version=4)
+        create("map_node", "//tmp/node", driver=driver)
 
-    #    tx = start_transaction()
-    #    rsp = lock("//tmp/node", mode="snapshot", tx=tx, full_response=True)
-    #    assert rsp.keys() == ["lock_id", "node_id"]
-    #    assert rsp["lock_id"] == get("//tmp/node/@locks/0/id")
+        tx = start_transaction(driver=driver)
+        rsp = lock("//tmp/node", mode="snapshot", tx=tx, full_response=True, driver=driver)
+        assert rsp.keys() == ["lock_id", "node_id", "revision"]
+        assert rsp["lock_id"] == get("//tmp/node/@locks/0/id")
 
-    #    set("//tmp/node", {})
-    #    assert rsp["node_id"] == get("//tmp/node/@id", tx=tx)
+        set("//tmp/node", {}, driver=driver)
+        assert rsp["node_id"] == get("//tmp/node/@id", tx=tx, driver=driver)
+        assert rsp["revision"] == get("//tmp/node/@revision", tx=tx, driver=driver)
 
     def test_shared_lock_inside_tx(self):
         tx_outer = start_transaction()

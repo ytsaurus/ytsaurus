@@ -15,7 +15,6 @@ import copy as pycopy
 import decorator
 import os
 import random
-import re
 import stat
 import string
 import sys
@@ -34,6 +33,7 @@ is_multicell = None
 path_to_run_tests = None
 _zombie_responses = []
 _events_on_fs = None
+default_api_version = 3
 
 # TODO(levysotsky): Move error codes to separate file in python repo.
 AuthorizationErrorCode = 901
@@ -63,11 +63,11 @@ def is_debug():
 
     return is_debug_build()
 
-def get_driver(cell_index=0, cluster="primary"):
+def get_driver(cell_index=0, cluster="primary", api_version=default_api_version):
     if cluster not in clusters_drivers:
         return None
 
-    return clusters_drivers[cluster][cell_index]
+    return clusters_drivers[cluster][cell_index][api_version]
 
 def get_native_driver():
     return _native_driver
@@ -89,12 +89,20 @@ def force_native_driver(func):
     return decorator.decorate(func, wrapper)
 
 def init_drivers(clusters):
+    def create_drivers(config):
+        drivers = {}
+        for api_version in (3, 4):
+            config = pycopy.deepcopy(config)
+            config["api_version"] = api_version
+            drivers[api_version] = Driver(config=config)
+        return drivers
+
     for instance in clusters:
         if instance.master_count > 0:
             prefix = "" if instance.driver_backend == "native" else "rpc_"
             secondary_driver_configs = [instance.configs[prefix + "driver_secondary_" + str(i)]
                                         for i in xrange(instance.secondary_master_cell_count)]
-            driver = Driver(config=instance.configs[prefix + "driver"])
+            drivers = create_drivers(instance.configs[prefix + "driver"])
 
             # Setup driver logging for all instances in the environment as in the primary cluster.
             if instance._cluster_name == "primary":
@@ -102,17 +110,19 @@ def init_drivers(clusters):
 
                 global _native_driver
                 if instance.driver_backend == "native":
-                    _native_driver = driver
+                    _native_driver = drivers[3]
                 else:
                     native_config = pycopy.deepcopy(instance.configs["driver"])
                     native_config["connection_type"] = "native"
+                    native_config["api_version"] = default_api_version
                     _native_driver = Driver(config=native_config)
 
             secondary_drivers = []
             for secondary_driver_config in secondary_driver_configs:
-                secondary_drivers.append(Driver(config=secondary_driver_config))
 
-            clusters_drivers[instance._cluster_name] = [driver] + secondary_drivers
+                secondary_drivers.append(create_drivers(secondary_driver_config))
+
+            clusters_drivers[instance._cluster_name] = [drivers] + secondary_drivers
 
 def wait_assert(check_fn, *args, **kwargs):
     last_exception = []
@@ -135,15 +145,17 @@ def wait_assert(check_fn, *args, **kwargs):
 
 def wait_drivers():
     for cluster in clusters_drivers.values():
+        cell_tag = 0
         def driver_is_ready():
-            return get("//@", driver=cluster[0])
+            return get("//@", driver=cluster[cell_tag][default_api_version])
 
         wait(driver_is_ready, ignore_exceptions=True)
 
 def terminate_drivers():
     for cluster in clusters_drivers:
-        for driver in clusters_drivers[cluster]:
-            driver.terminate()
+        for drivers_by_cell_tag in clusters_drivers[cluster]:
+            for driver in drivers_by_cell_tag.itervalues():
+                driver.terminate()
     clusters_drivers.clear()
 
 def get_branch(dict, path):
@@ -226,6 +238,12 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
 
     driver = _get_driver(parameters.pop("driver", None))
 
+    command_rewrites = {
+        "start_tx": "start_transaction"
+    }
+    if driver.get_config()["api_version"] == 4 and command_name in command_rewrites:
+        command_name = command_rewrites[command_name]
+
     authenticated_user = None
     if "authenticated_user" in parameters:
         authenticated_user = parameters["authenticated_user"]
@@ -302,6 +320,11 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
         if verbose:
             print(result, file=sys.stderr)
         return result
+
+def unwrap_v4_result(result, driver):
+    if driver is not None and driver.get_config()["api_version"] == 4 and isinstance(result, dict) and len(result.keys()) == 1:
+        return result.values()[0]
+    return result
 
 def execute_command_with_output_format(command_name, kwargs, input_stream=None):
     has_output_format = "output_format" in kwargs
@@ -400,6 +423,7 @@ def remove(path, **kwargs):
     return execute_command("remove", kwargs)
 
 def get(path, is_raw=False, **kwargs):
+    driver = kwargs.get("driver")
     kwargs["path"] = path
     if "default" in kwargs and "verbose_error" not in kwargs:
         kwargs["verbose_error"] = False
@@ -409,7 +433,7 @@ def get(path, is_raw=False, **kwargs):
         if err.is_resolve_error() and "default" in kwargs:
             return kwargs["default"]
         raise
-    return result if is_raw else yson.loads(result)
+    return result if is_raw else unwrap_v4_result(yson.loads(result), driver=driver)
 
 def get_job(operation_id, job_id, is_raw=False, **kwargs):
     kwargs["operation_id"] = operation_id
@@ -537,7 +561,8 @@ def get_in_sync_replicas(path, data, **kwargs):
     return yson.loads(execute_command("get_in_sync_replicas", kwargs, input_stream=_prepare_rows_stream(data)))
 
 def start_transaction(**kwargs):
-    return yson.loads(execute_command("start_tx", kwargs))
+    driver = kwargs.get("driver")
+    return unwrap_v4_result(yson.loads(execute_command("start_tx", kwargs)), driver=driver)
 
 def commit_transaction(tx, **kwargs):
     kwargs["transaction_id"] = tx
@@ -1367,10 +1392,10 @@ def wait_for_chunk_replicator(driver=None):
 
 def get_cluster_drivers(primary_driver=None):
     if primary_driver is None:
-        return clusters_drivers["primary"]
+        return [drivers_by_cell_tag[default_api_version] for drivers_by_cell_tag in clusters_drivers["primary"]]
     for drivers in clusters_drivers.values():
-        if drivers[0] == primary_driver:
-            return drivers
+        if drivers[0][default_api_version] == primary_driver:
+            return [drivers_by_cell_tag[default_api_version] for drivers_by_cell_tag in drivers]
     raise "Failed to get cluster drivers"
 
 def wait_for_cells(cell_ids=None, driver=None):
@@ -1533,7 +1558,8 @@ def create_dynamic_table(path, **attributes):
 def sync_control_chunk_replicator(enabled):
     print("Setting chunk replicator state to", enabled, file=sys.stderr)
     set("//sys/@config/chunk_manager/enable_chunk_replicator", enabled, recursive=True)
-    wait(lambda: all(get("//sys/@chunk_replicator_enabled", driver=driver) == enabled for driver in clusters_drivers["primary"]))
+    wait(lambda: all(get("//sys/@chunk_replicator_enabled", driver=drivers_by_cell_tag[default_api_version]) == enabled
+                     for drivers_by_cell_tag in clusters_drivers["primary"]))
 
 def get_singular_chunk_id(path, **kwargs):
     chunk_ids = get(path + "/@chunk_ids", **kwargs)
