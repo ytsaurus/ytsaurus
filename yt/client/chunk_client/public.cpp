@@ -9,6 +9,7 @@ namespace NYT::NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 const TChunkId NullChunkId = NObjectClient::NullObjectId;
+const TChunkViewId NullChunkViewId = NObjectClient::NullObjectId;
 const TChunkListId NullChunkListId = NObjectClient::NullObjectId;
 const TChunkTreeId NullChunkTreeId = NObjectClient::NullObjectId;
 

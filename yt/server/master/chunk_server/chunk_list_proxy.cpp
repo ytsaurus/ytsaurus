@@ -1,5 +1,6 @@
 #include "chunk_list_proxy.h"
 #include "private.h"
+#include "chunk_view.h"
 #include "chunk_list.h"
 #include "chunk_manager.h"
 #include "helpers.h"
@@ -34,7 +35,7 @@ public:
     { }
 
 private:
-    typedef TNonversionedObjectProxyBase<TChunkList> TBase;
+    using TBase = TNonversionedObjectProxyBase<TChunkList>;
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
@@ -64,29 +65,48 @@ private:
         switch (chunkTree->GetType()) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk: {
-                consumer->OnStringScalar(ToString(chunkTree->GetId()));
+                BuildYsonFluently(consumer)
+                    .Value(chunkTree->GetId());
+                break;
+            }
+
+            case EObjectType::ChunkView: {
+                const auto* chunkView = chunkTree->AsChunkView();
+                const auto& readRange = chunkView->ReadRange();
+                BuildYsonFluently(consumer)
+                    .BeginAttributes()
+                        .Item("id").Value(chunkView->GetId())
+                        .Item("type").Value("chunk_view")
+                        .DoIf(readRange.LowerLimit().HasKey(), [&] (TFluentMap fluent) {
+                            fluent.Item("lower_limit").Value(readRange.LowerLimit().GetKey());
+                        })
+                        .DoIf(readRange.UpperLimit().HasKey(), [&] (TFluentMap fluent) {
+                            fluent.Item("upper_limit").Value(readRange.UpperLimit().GetKey());
+                        })
+                    .EndAttributes()
+                    .BeginList()
+                        .Item().Do([&] (TFluentAny fluent) {
+                            TraverseTree(chunkView->GetUnderlyingChunk(), fluent.GetConsumer());
+                        })
+                    .EndList();
                 break;
             }
 
             case EObjectType::ChunkList: {
                 const auto* chunkList = chunkTree->AsChunkList();
-                consumer->OnBeginAttributes();
-                consumer->OnKeyedItem("id");
-                consumer->OnStringScalar(ToString(chunkList->GetId()));
-                consumer->OnKeyedItem("rank");
-                consumer->OnInt64Scalar(chunkList->Statistics().Rank);
-                consumer->OnEndAttributes();
-
-                consumer->OnBeginList();
-                for (const auto* child : chunkList->Children()) {
-                    consumer->OnListItem();
-                    if (child) {
-                        TraverseTree(child, consumer);
-                    } else {
-                        consumer->OnEntity();
-                    }
-                }
-                consumer->OnEndList();
+                BuildYsonFluently(consumer)
+                    .BeginAttributes()
+                        .Item("id").Value(chunkList->GetId())
+                        .Item("rank").Value(chunkList->Statistics().Rank)
+                        .Item("type").Value("chunk_list")
+                    .EndAttributes()
+                    .DoListFor(chunkList->Children(), [&] (TFluentList fluent, const TChunkTree* child) {
+                        if (child) {
+                            TraverseTree(child, fluent.GetConsumer());
+                        } else {
+                            fluent.Item().Entity();
+                        }
+                    });
                 break;
             }
 

@@ -115,7 +115,7 @@ public:
 
     // ISortedStore implementation.
     virtual TOwningKey GetMinKey() const override;
-    virtual TOwningKey GetMaxKey() const override;
+    virtual TOwningKey GetUpperBoundKey() const override;
 
     i64 GetMaxDataWeight() const;
     TOwningKey GetMaxDataWeightWitnessKey() const;

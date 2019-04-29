@@ -25,6 +25,12 @@ struct IChunkVisitor
         const NChunkClient::TReadLimit& endLimit) = 0;
 
     virtual void OnFinish(const TError& error) = 0;
+
+    /*!
+     *  \note Return |false| to traverse underlying chunk
+     *      or |true| to skip it.
+     */
+    virtual bool OnChunkView(TChunkView* chunkView) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkVisitor)
@@ -78,6 +84,12 @@ std::vector<TChunk*> EnumerateChunksInChunkTree(
     TChunkList* root,
     const NChunkClient::TReadLimit& lowerBound = NChunkClient::TReadLimit(),
     const NChunkClient::TReadLimit& upperBound = NChunkClient::TReadLimit());
+
+void EnumerateChunksAndChunkViewsInChunkTree(
+    TChunkList* root,
+    std::vector<TChunkTree*>* chunksOrViews);
+
+std::vector<TChunkTree*> EnumerateChunksAndChunkViewsInChunkTree(TChunkList* root);
 
 ////////////////////////////////////////////////////////////////////////////////
 

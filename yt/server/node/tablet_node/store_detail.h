@@ -191,6 +191,7 @@ public:
     TChunkStoreBase(
         TTabletManagerConfigPtr config,
         TStoreId id,
+        NChunkClient::TChunkId chunkId,
         TTablet* tablet,
         NChunkClient::IBlockCachePtr blockCache,
         NDataNode::TChunkRegistryPtr chunkRegistry,
@@ -249,6 +250,8 @@ public:
 
     virtual void Preload(TInMemoryChunkDataPtr chunkData) override;
 
+    virtual NChunkClient::TChunkId GetChunkId() const override;
+
 protected:
     const NChunkClient::IBlockCachePtr BlockCache_;
     const NDataNode::TChunkRegistryPtr ChunkRegistry_;
@@ -277,8 +280,12 @@ protected:
     NChunkClient::NProto::TMiscExt MiscExt_;
     NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_;
 
+    NChunkClient::TChunkId ChunkId_;
+
+    void OnLocalReaderFailed();
+
     NChunkClient::IBlockCachePtr GetBlockCache();
-    
+
     virtual void PrecacheProperties();
 
     bool ValidateBlockCachePreloaded();

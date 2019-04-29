@@ -533,6 +533,9 @@ public:
     //! Minimum interval between resampling.
     TDuration ResamplingPeriod;
 
+    //! Retry delay after unsuccessful partition balancing.
+    TDuration SplitRetryDelay;
+
 
     TPartitionBalancerConfig()
     {
@@ -553,6 +556,8 @@ public:
             .Default(8);
         RegisterParameter("resampling_period", ResamplingPeriod)
             .Default(TDuration::Minutes(1));
+        RegisterParameter("split_retry_delay", SplitRetryDelay)
+            .Default(TDuration::Seconds(30));
     }
 };
 

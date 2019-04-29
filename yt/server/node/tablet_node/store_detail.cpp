@@ -496,6 +496,7 @@ DEFINE_REFCOUNTED_TYPE(TPreloadedBlockCache)
 TChunkStoreBase::TChunkStoreBase(
     TTabletManagerConfigPtr config,
     TStoreId id,
+    TChunkId chunkId,
     TTablet* tablet,
     IBlockCachePtr blockCache,
     TChunkRegistryPtr chunkRegistry,
@@ -511,10 +512,22 @@ TChunkStoreBase::TChunkStoreBase(
     , Client_(std::move(client))
     , LocalDescriptor_(localDescriptor)
     , ChunkMeta_(New<TRefCountedChunkMeta>())
+    , ChunkId_(chunkId)
 {
+    /* If store is over chunk, chunkId == storeId.
+     * If store is over chunk view, chunkId and storeId are different,
+     * because storeId represents the id of the chunk view.
+     *
+     * ChunkId is null during recovery of a sorted chunk store because it is is not known
+     * at the moment of store creation and will be loaded separately.
+     * Consider TTabletManagerImpl::DoCreateStore, TSortedChunkStore::Load.
+     */
     YCHECK(
-        TypeFromId(StoreId_) == EObjectType::Chunk ||
-        TypeFromId(StoreId_) == EObjectType::ErasureChunk);
+        !ChunkId_ ||
+        TypeFromId(ChunkId_) == EObjectType::Chunk ||
+        TypeFromId(ChunkId_) == EObjectType::ErasureChunk);
+
+    YCHECK(TypeFromId(StoreId_) == EObjectType::ChunkView || StoreId_ == ChunkId_ || !ChunkId_);
 
     StoreState_ = EStoreState::Persistent;
 }
@@ -721,7 +734,7 @@ IChunkReaderPtr TChunkStoreBase::GetChunkReader(const NConcurrency::IThroughputT
 
     auto createRemoveChunkReader = [&] {
         TChunkSpec chunkSpec;
-        ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
+        ToProto(chunkSpec.mutable_chunk_id(), ChunkId_);
         chunkSpec.set_erasure_codec(MiscExt_.erasure_codec());
         *chunkSpec.mutable_chunk_meta() = *ChunkMeta_;
         CachedWeakChunk_.Reset();
@@ -757,7 +770,7 @@ IChunkReaderPtr TChunkStoreBase::GetChunkReader(const NConcurrency::IThroughputT
         }
 
         if (ReaderConfig_->PreferLocalReplicas) {
-            auto chunk = ChunkRegistry_->FindChunk(StoreId_);
+            auto chunk = ChunkRegistry_->FindChunk(ChunkId_);
             if (isLocalChunkValid(chunk)) {
                 createLocalChunkReader(chunk);
                 return;
@@ -874,7 +887,7 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
     PreloadedBlockCache_ = New<TPreloadedBlockCache>(
         this,
         chunkData,
-        StoreId_,
+        ChunkId_,
         BlockCache_);
 
     ChunkState_ = New<TChunkState>(
@@ -884,6 +897,11 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
         chunkData->LookupHashTable,
         PerformanceCounters_,
         GetKeyComparer());
+}
+
+TChunkId TChunkStoreBase::GetChunkId() const
+{
+    return ChunkId_;
 }
 
 IBlockCachePtr TChunkStoreBase::GetBlockCache()
@@ -913,7 +931,8 @@ bool TChunkStoreBase::ValidateBlockCachePreloaded()
         THROW_ERROR_EXCEPTION("Chunk data is not preloaded yet")
             << TErrorAttribute("tablet_id", TabletId_)
             << TErrorAttribute("table_path", TablePath_)
-            << TErrorAttribute("store_id", StoreId_);
+            << TErrorAttribute("store_id", StoreId_)
+            << TErrorAttribute("chunk_id", ChunkId_);
     }
 
     return true;

@@ -5,6 +5,7 @@
 #include "chunk_owner_base.h"
 #include "chunk_placement.h"
 #include "chunk_tree_traverser.h"
+#include "chunk_view.h"
 #include "job.h"
 #include "chunk_scanner.h"
 #include "chunk_replica.h"
@@ -2218,6 +2219,11 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
         {
             Owner_->ScheduleRequisitionUpdate(chunk);
             return true;
+        }
+
+        virtual bool OnChunkView(TChunkView* /* chunkView */) override
+        {
+            return false;
         }
 
         virtual void OnFinish(const TError& error) override

@@ -9,6 +9,8 @@
 #include "chunk_replicator.h"
 #include "chunk_sealer.h"
 #include "chunk_tree_balancer.h"
+#include "chunk_view.h"
+#include "chunk_view_proxy.h"
 #include "config.h"
 #include "helpers.h"
 #include "job.h"
@@ -363,6 +365,35 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkManager::TChunkViewTypeHandler
+    : public TObjectTypeHandlerWithMapBase<TChunkView>
+{
+public:
+    explicit TChunkViewTypeHandler(TImpl* owner);
+
+    virtual EObjectType GetType() const override
+    {
+        return EObjectType::ChunkView;
+    }
+
+private:
+    TImpl* const Owner_;
+
+
+    virtual TString DoGetName(const TChunkView* chunkView) override
+    {
+        return Format("chunk view %v", chunkView->GetId());
+    }
+
+    virtual IObjectProxyPtr DoGetProxy(TChunkView* chunkView, TTransaction* transaction) override;
+
+    virtual void DoDestroyObject(TChunkView* chunkView) override;
+
+    virtual void DoUnstageObject(TChunkView* chunkView, bool recursive) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkManager::TImpl
     : public TMasterAutomatonPart
 {
@@ -422,6 +453,7 @@ public:
             objectManager->RegisterHandler(New<TErasureChunkTypeHandler>(this, type));
         }
         objectManager->RegisterHandler(New<TJournalChunkTypeHandler>(this));
+        objectManager->RegisterHandler(New<TChunkViewTypeHandler>(this));
         objectManager->RegisterHandler(New<TChunkListTypeHandler>(this));
         objectManager->RegisterHandler(New<TMediumTypeHandler>(this));
 
@@ -692,6 +724,39 @@ public:
         OnChunkSealed(chunk);
 
         ScheduleChunkRefresh(chunk);
+    }
+
+    TChunkView* CreateChunkView(TChunkTree* underlyingTree, NChunkClient::TReadRange readRange)
+    {
+        switch (underlyingTree->GetType()) {
+            case EObjectType::Chunk:
+            case EObjectType::ErasureChunk: {
+                auto* underlyingChunk = underlyingTree->As<TChunk>();
+                auto* chunkView = DoCreateChunkView(underlyingChunk, std::move(readRange));
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk view created (Id: %v, ChunkId: %v)",
+                    chunkView->GetId(),
+                    underlyingChunk->GetId());
+                return chunkView;
+            }
+
+            case EObjectType::ChunkView: {
+                auto* underlyingChunkView = underlyingTree->As<TChunkView>();
+                auto* chunkView = DoCreateChunkView(underlyingChunkView, std::move(readRange));
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk view created (Id: %v, ChunkId: %v, BaseChunkViewId: %v)",
+                    chunkView->GetId(),
+                    underlyingChunkView->GetUnderlyingChunk()->GetId(),
+                    underlyingChunkView->GetId());
+                return chunkView;
+            }
+
+            default:
+                Y_UNREACHABLE();
+        }
+    }
+
+    TChunkView* CloneChunkView(TChunkView* chunkView, NChunkClient::TReadRange readRange)
+    {
+        return CreateChunkView(chunkView->GetUnderlyingChunk(), readRange);
     }
 
     TChunkList* CreateChunkList(EChunkListKind kind)
@@ -1031,6 +1096,10 @@ public:
                 ScheduleChunkRequisitionUpdate(chunkTree->AsChunk());
                 break;
 
+            case EObjectType::ChunkView:
+                ScheduleChunkRequisitionUpdate(chunkTree->AsChunkView()->GetUnderlyingChunk());
+                break;
+
             case EObjectType::ChunkList:
                 ScheduleChunkRequisitionUpdate(chunkTree->AsChunkList());
                 break;
@@ -1086,6 +1155,18 @@ public:
                 id);
         }
         return chunk;
+    }
+
+    TChunkView* GetChunkViewOrThrow(TChunkViewId id)
+    {
+        auto* chunkView = FindChunkView(id);
+        if (!IsObjectAlive(chunkView)) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::NoSuchChunkView,
+                "No such chunk view %v",
+                id);
+        }
+        return chunkView;
     }
 
     TChunkList* GetChunkListOrThrow(TChunkListId id)
@@ -1236,6 +1317,8 @@ public:
                 return FindChunk(id);
             case EObjectType::ChunkList:
                 return FindChunkList(id);
+            case EObjectType::ChunkView:
+                return FindChunkView(id);
             default:
                 return nullptr;
         }
@@ -1297,6 +1380,7 @@ public:
     }
 
     DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk);
+    DECLARE_ENTITY_MAP_ACCESSORS(ChunkView, TChunkView);
     DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList);
     DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(Medium, Media, TMedium)
 
@@ -1305,6 +1389,7 @@ private:
     friend class TRegularChunkTypeHandler;
     friend class TErasureChunkTypeHandler;
     friend class TChunkListTypeHandler;
+    friend class TChunkViewTypeHandler;
     friend class TMediumTypeHandler;
 
     const TChunkManagerConfigPtr Config_;
@@ -1323,6 +1408,8 @@ private:
     i64 ChunksDestroyed_ = 0;
     i64 ChunkReplicasAdded_ = 0;
     i64 ChunkReplicasRemoved_ = 0;
+    i64 ChunkViewsCreated_ = 0;
+    i64 ChunkViewsDestroyed_ = 0;
     i64 ChunkListsCreated_ = 0;
     i64 ChunkListsDestroyed_ = 0;
 
@@ -1335,6 +1422,7 @@ private:
     TIntrusiveLinkedList<TChunk, TChunkToJournalLinkedListNode> JournalChunks_;
 
     NHydra::TEntityMap<TChunk> ChunkMap_;
+    NHydra::TEntityMap<TChunkView> ChunkViewMap_;
     NHydra::TEntityMap<TChunkList> ChunkListMap_;
 
     NHydra::TEntityMap<TMedium> MediumMap_;
@@ -1487,6 +1575,37 @@ private:
         ++ChunkListsDestroyed_;
     }
 
+
+    TChunkView* DoCreateChunkView(TChunk* underlyingChunk, NChunkClient::TReadRange readRange)
+    {
+        ++ChunkViewsCreated_;
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto id = objectManager->GenerateId(EObjectType::ChunkView, NullObjectId);
+        auto chunkViewHolder = std::make_unique<TChunkView>(id);
+        auto* chunkView = ChunkViewMap_.Insert(id, std::move(chunkViewHolder));
+        chunkView->SetUnderlyingChunk(underlyingChunk);
+        chunkView->SetReadRange(std::move(readRange));
+        Bootstrap_->GetObjectManager()->RefObject(underlyingChunk);
+        return chunkView;
+    }
+
+    TChunkView* DoCreateChunkView(TChunkView* underlyingChunkView, NChunkClient::TReadRange readRange)
+    {
+        readRange.LowerLimit() = underlyingChunkView->GetAdjustedLowerReadLimit(readRange.LowerLimit());
+        readRange.UpperLimit() = underlyingChunkView->GetAdjustedUpperReadLimit(readRange.UpperLimit());
+        return DoCreateChunkView(underlyingChunkView->GetUnderlyingChunk(), readRange);
+    }
+
+    void DestroyChunkView(TChunkView* chunkView)
+    {
+        YCHECK(!chunkView->GetStagingTransaction());
+
+        auto* underlyingChunk = chunkView->GetUnderlyingChunk();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        objectManager->UnrefObject(underlyingChunk);
+
+        ++ChunkViewsDestroyed_;
+    }
 
     void OnNodeRegistered(TNode* node)
     {
@@ -2260,6 +2379,7 @@ private:
         ChunkMap_.SaveKeys(context);
         ChunkListMap_.SaveKeys(context);
         MediumMap_.SaveKeys(context);
+        ChunkViewMap_.SaveKeys(context);
     }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
@@ -2269,6 +2389,7 @@ private:
         MediumMap_.SaveValues(context);
         Save(context, ChunkRequisitionRegistry_);
         Save(context, ChunkListsAwaitingRequisitionTraverse_);
+        ChunkViewMap_.SaveValues(context);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -2276,6 +2397,11 @@ private:
         ChunkMap_.LoadKeys(context);
         ChunkListMap_.LoadKeys(context);
         MediumMap_.LoadKeys(context);
+
+        // COMPAT(ifsmirnov)
+        if (context.GetVersion() >= 830) {
+            ChunkViewMap_.LoadKeys(context);
+        }
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -2290,6 +2416,11 @@ private:
         // COMPAT(shakurov)
         if (context.GetVersion() >= 809) {
             Load(context, ChunkListsAwaitingRequisitionTraverse_);
+        }
+
+        // COMPAT(ifsmirnov)
+        if (context.GetVersion() >= 830) {
+            ChunkViewMap_.LoadValues(context);
         }
 
         // COMPAT(shakurov)
@@ -2369,6 +2500,7 @@ private:
         JournalChunks_.Clear();
         ChunkMap_.Clear();
         ChunkListMap_.Clear();
+        ChunkViewMap_.Clear();
         ForeignChunks_.clear();
         TotalReplicaCount_ = 0;
 
@@ -2388,6 +2520,8 @@ private:
         ChunksDestroyed_ = 0;
         ChunkReplicasAdded_ = 0;
         ChunkReplicasRemoved_ = 0;
+        ChunkViewsCreated_ = 0;
+        ChunkViewsDestroyed_ = 0;
         ChunkListsCreated_ = 0;
         ChunkListsDestroyed_ = 0;
 
@@ -2536,6 +2670,10 @@ private:
 
                     case EObjectType::ChunkList:
                         childStatistics.Accumulate(child->AsChunkList()->Statistics());
+                        break;
+
+                    case EObjectType::ChunkView:
+                        childStatistics.Accumulate(child->AsChunkView()->GetStatistics());
                         break;
 
                     default:
@@ -2941,6 +3079,10 @@ private:
         Profiler.Enqueue("/chunk_replicas_added", ChunkReplicasAdded_, EMetricType::Counter);
         Profiler.Enqueue("/chunk_replicas_removed", ChunkReplicasRemoved_, EMetricType::Counter);
 
+        Profiler.Enqueue("/chunk_view_count", ChunkViewMap_.GetSize(), EMetricType::Gauge);
+        Profiler.Enqueue("/chunk_views_created", ChunkViewsCreated_, EMetricType::Counter);
+        Profiler.Enqueue("/chunk_views_destroyed", ChunkViewsDestroyed_, EMetricType::Counter);
+
         Profiler.Enqueue("/chunk_list_count", ChunkListMap_.GetSize(), EMetricType::Gauge);
         Profiler.Enqueue("/chunk_lists_created", ChunkListsCreated_, EMetricType::Counter);
         Profiler.Enqueue("/chunk_lists_destroyed", ChunkListsDestroyed_, EMetricType::Counter);
@@ -3094,6 +3236,7 @@ private:
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, Chunk, TChunk, ChunkMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, ChunkView, TChunkView, ChunkViewMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, ChunkList, TChunkList, ChunkListMap_)
 
 DEFINE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(TChunkManager::TImpl, Medium, Media, TMedium, MediumMap_)
@@ -3182,6 +3325,33 @@ void TChunkManager::TChunkListTypeHandler::DoUnstageObject(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChunkManager::TChunkViewTypeHandler::TChunkViewTypeHandler(TImpl* owner)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->ChunkViewMap_)
+    , Owner_(owner)
+{ }
+
+IObjectProxyPtr TChunkManager::TChunkViewTypeHandler::DoGetProxy(
+    TChunkView* chunkView,
+    TTransaction* /*transaction*/)
+{
+    return CreateChunkViewProxy(Bootstrap_, &Metadata_, chunkView);
+}
+
+void TChunkManager::TChunkViewTypeHandler::DoDestroyObject(TChunkView* chunkView)
+{
+    TObjectTypeHandlerWithMapBase::DoDestroyObject(chunkView);
+    Owner_->DestroyChunkView(chunkView);
+}
+
+void TChunkManager::TChunkViewTypeHandler::DoUnstageObject(
+    TChunkView* /*chunkView*/,
+    bool /*recursive*/)
+{
+    Y_UNREACHABLE();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TChunkManager::TMediumTypeHandler::TMediumTypeHandler(TImpl* owner)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->MediumMap_)
     , Owner_(owner)
@@ -3236,6 +3406,11 @@ void TChunkManager::Initialize()
 TChunk* TChunkManager::GetChunkOrThrow(TChunkId id)
 {
     return Impl_->GetChunkOrThrow(id);
+}
+
+TChunkView* TChunkManager::GetChunkViewOrThrow(TChunkId id)
+{
+    return Impl_->GetChunkViewOrThrow(id);
 }
 
 TChunkList* TChunkManager::GetChunkListOrThrow(TChunkListId id)
@@ -3378,6 +3553,20 @@ void TChunkManager::DetachFromChunkList(
     Impl_->DetachFromChunkList(chunkList, child);
 }
 
+TChunkView* TChunkManager::CreateChunkView(
+    TChunkTree* underlyingTree,
+    NChunkClient::TReadRange readRange)
+{
+    return Impl_->CreateChunkView(underlyingTree, std::move(readRange));
+}
+
+TChunkView* TChunkManager::CloneChunkView(
+    TChunkView* chunkView,
+    NChunkClient::TReadRange readRange)
+{
+    return Impl_->CloneChunkView(chunkView, std::move(readRange));
+}
+
 void TChunkManager::RebalanceChunkTree(TChunkList* chunkList)
 {
     Impl_->RebalanceChunkTree(chunkList);
@@ -3508,6 +3697,7 @@ TChunkRequisitionRegistry* TChunkManager::GetChunkRequisitionRegistry()
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkView, TChunkView, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, *Impl_)
 
 DELEGATE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(TChunkManager, Medium, Media, TMedium, *Impl_)

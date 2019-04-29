@@ -1833,7 +1833,7 @@ TOwningKey TSortedDynamicStore::GetMinKey() const
     return MinKey();
 }
 
-TOwningKey TSortedDynamicStore::GetMaxKey() const
+TOwningKey TSortedDynamicStore::GetUpperBoundKey() const
 {
     return MaxKey();
 }

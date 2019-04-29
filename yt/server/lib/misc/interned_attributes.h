@@ -36,6 +36,7 @@
     XX(ChildIds, child_ids) \
     XX(ChildKey, child_key) \
     XX(ChunkCount, chunk_count) \
+    XX(ChunkId, chunk_id) \
     XX(ChunkIds, chunk_ids) \
     XX(ChunkListId, chunk_list_id) \
     XX(ChunkReader, chunk_reader) \
@@ -139,6 +140,7 @@
     XX(LockMode, lock_mode) \
     XX(LockedNodeIds, locked_node_ids) \
     XX(Locks, locks) \
+    XX(LowerLimit, lower_limit) \
     XX(MasterMetaSize, master_meta_size) \
     XX(MaxBlockSize, max_block_size) \
     XX(MaxKey, max_key) \
@@ -277,6 +279,7 @@
     XX(UnmergedRowCount, unmerged_row_count) \
     XX(Unregistered, unregistered) \
     XX(UpdateMode, update_mode) \
+    XX(UpperLimit, upper_limit) \
     XX(UpstreamReplicaId, upstream_replica_id) \
     XX(UsableAccounts, usable_accounts) \
     XX(UsedSpace, used_space) \

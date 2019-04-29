@@ -131,6 +131,8 @@ struct IChunkStore
 
     virtual bool IsCompactionAllowed() const = 0;
     virtual void UpdateCompactionAttempt() = 0;
+
+    virtual NChunkClient::TChunkId GetChunkId() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkStore)
@@ -144,10 +146,17 @@ struct ISortedStore
     virtual void SetPartition(TPartition* partition) = 0;
 
     //! Returns the minimum key in the store, inclusive.
+    //! Result is guaranteed to have the same width as schema key columns.
     virtual TOwningKey GetMinKey() const = 0;
 
-    //! Returns the maximum key in the store, inclusive.
-    virtual TOwningKey GetMaxKey() const = 0;
+    //! Returns the maximum key in the store, exclusive.
+    //! Result is NOT guaranteed to have the same width as schema key columns,
+    //! it can be wider or narrower and contain sentinel values.
+    //!
+    //! Motivation: it is impossible to get exclusive upper bound of chunk keys
+    //! having the same width as schema key columns, and it is necessary to have
+    //! the upper bound exclusive because such bounds come from chunk view.
+    virtual TOwningKey GetUpperBoundKey() const = 0;
 
     //! Creates a reader for the range from |lowerKey| (inclusive) to |upperKey| (exclusive).
     /*!

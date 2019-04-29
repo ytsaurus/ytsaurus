@@ -9,7 +9,7 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Base class for both TChunkList and TChunk.
+//! Base class for TChunkList, TChunk and TChunkView.
 class TChunkTree
     : public NObjectServer::TStagedObject
 {
@@ -21,6 +21,9 @@ public:
 
     TChunk* AsChunk();
     const TChunk* AsChunk() const;
+
+    TChunkView* AsChunkView();
+    const TChunkView* AsChunkView() const;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

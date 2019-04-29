@@ -63,8 +63,7 @@ public:
     { }
 
 private:
-    typedef TNonversionedObjectProxyBase<TChunk> TBase;
-
+    using TBase = TNonversionedObjectProxyBase<TChunk>;
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
