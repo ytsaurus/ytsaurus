@@ -179,6 +179,10 @@ void TListLogicalType::Validate(const TComplexTypeFieldDescriptor& descriptor) c
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TComplexTypeFieldDescriptor::TComplexTypeFieldDescriptor(TLogicalTypePtr type)
+    : Type_(std::move(type))
+{ }
+
 TComplexTypeFieldDescriptor::TComplexTypeFieldDescriptor(TString columnName, TLogicalTypePtr type)
     : Descriptor_(std::move(columnName))
     , Type_(std::move(type))

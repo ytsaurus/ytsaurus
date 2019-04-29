@@ -136,6 +136,7 @@ DEFINE_REFCOUNTED_TYPE(TListLogicalType);
 class TComplexTypeFieldDescriptor
 {
 public:
+    explicit TComplexTypeFieldDescriptor(TLogicalTypePtr type);
     TComplexTypeFieldDescriptor(TString columnName, TLogicalTypePtr type);
 
     TComplexTypeFieldDescriptor OptionalElement() const;
