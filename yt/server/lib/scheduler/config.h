@@ -454,6 +454,7 @@ public:
     bool PoolChangeIsAllowed;
 
     TDuration MaxOfflineNodeAge;
+    TDuration MaxNodeUnseenPeriodToAbortJobs;
 
     //! By default, when the scheduler encounters a malformed operation spec during revival, it disconnects.
     //! This serves as a safeguard protecting us from accidentially failing all operations in case a bug
