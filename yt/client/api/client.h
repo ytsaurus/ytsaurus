@@ -911,6 +911,7 @@ struct TOperation
     NYson::TYsonString Result;
 
     NYson::TYsonString SlotIndexPerPoolTree;
+    NYson::TYsonString Alerts;
 };
 
 struct TListOperationsResult

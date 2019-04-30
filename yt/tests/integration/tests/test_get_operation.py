@@ -96,6 +96,7 @@ class TestGetOperation(YTEnvSetup):
                 "unrecognized_spec",
                 "full_spec",
                 "slot_index_per_pool_tree",
+                "alerts"
             ]
             return {key: attrs[key] for key in PROPER_ATTRS if key in attrs}
 
@@ -155,6 +156,9 @@ class TestGetOperation(YTEnvSetup):
             assert sorted(list(res_get_operation)) == ["progress", "state"]
             assert sorted(list(res_cypress)) == ["progress", "state"]
             assert res_get_operation["state"] == res_cypress["state"]
+            assert ("alerts" in res_get_operation) == ("alerts" in res_cypress)
+            if "alerts" in res_get_operation and "alerts" in res_cypress:
+                assert res_get_operation["alerts"] == res_cypress["alerts"]
 
         release_breakpoint()
         op.track()
