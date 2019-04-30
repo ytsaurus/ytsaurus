@@ -30,7 +30,7 @@ TMaybe<TDuration> TAttemptLimitedRetryPolicy::OnRetriableError(const TErrorRespo
     if (IsAttemptLimitExceeded()) {
         return Nothing();
     }
-    return NYT::GetRetryInterval(e);
+    return NYT::GetBackoffDuration(e);
 }
 
 void TAttemptLimitedRetryPolicy::OnIgnoredError(const TErrorResponse& /*e*/)
@@ -81,7 +81,7 @@ static std::pair<bool,TDuration> GetRetryInfo(const TErrorResponse& errorRespons
     return std::make_pair(retriable, retryInterval);
 }
 
-TDuration GetRetryInterval(const TErrorResponse& errorResponse)
+TDuration GetBackoffDuration(const TErrorResponse& errorResponse)
 {
     return GetRetryInfo(errorResponse).second;
 }
