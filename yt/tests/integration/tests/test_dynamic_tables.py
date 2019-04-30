@@ -2540,6 +2540,8 @@ class TestTabletActions(DynamicTablesBase):
         sync_remove_tablet_cells([cell_id])
         assert exists("//sys/tablet_actions/{}".format(action_id))
         remove_tablet_cell_bundle("b")
+        assert exists("//sys/tablet_actions/{}".format(action_id))
+        remove("#{}".format(action_id))
         assert not exists("//sys/tablet_actions/{}".format(action_id))
 
 ##################################################################
