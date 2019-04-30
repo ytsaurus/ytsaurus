@@ -213,7 +213,7 @@ class TestOperations(object):
                                      {"b": "max"},
                            {"a": "x", "b": "name", "c": 0.5}
                        ])
-        operation = yt.run_map("PYTHONPATH=. ./capitalize_b.py",
+        operation = yt.run_map("PYTHONPATH=. {} capitalize_b.py".format(get_python()),
                                TablePath(table, columns=["b"]), other_table,
                                local_files=get_test_file_path("capitalize_b.py"),
                                format=yt.DsvFormat())
@@ -540,7 +540,7 @@ class TestOperations(object):
         yt.write_table(table, [{"x": "1", "y": "1"}])
         yt.write_table(append_table, [{"x": "1", "y": "1"}])
 
-        yt.run_map("PYTHONPATH=. ./many_output.py yt",
+        yt.run_map("PYTHONPATH=. {} many_output.py yt".format(get_python()),
                    table,
                    output_tables + [TablePath(append_table, append=True)],
                    local_files=get_test_file_path("many_output.py"),
