@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from yt.packages.six import iteritems, integer_types, text_type, binary_type, b, PY3
+from yt.packages.six import iteritems, integer_types, text_type, binary_type, b
 from yt.packages.six.moves import map as imap
 
 from yt.test_helpers import wait
@@ -19,7 +19,6 @@ except ImportError:
 import collections
 import glob
 import os
-import re
 import shutil
 import sys
 import stat
@@ -180,7 +179,7 @@ def build_python_egg(egg_contents_dir, temp_dir=None):
 
     _, egg_filename = tempfile.mkstemp(dir=temp_dir, suffix=".egg")
     try:
-        subprocess.check_call(["python", "setup.py", "bdist_egg"], cwd=dir_)
+        subprocess.check_call([get_python(), "setup.py", "bdist_egg"], cwd=dir_)
 
         eggs = glob.glob(os.path.join(dir_, "dist", "*.egg"))
         assert len(eggs) == 1
