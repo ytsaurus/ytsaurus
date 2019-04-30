@@ -10,6 +10,8 @@
 
 #include <util/datetime/base.h>
 
+#include <util/system/tls.h>
+
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -174,6 +176,8 @@ private:
     TPromise<void> Stopped_ = NewPromise<void>();
     TPromise<void> Exited_ = NewPromise<void>();
 
+    Y_POD_STATIC_THREAD(bool) InDelayedSleeperThread_;
+
     /*!
      * If |true| is returned then it is guaranteed that all entries enqueued up to this call
      * are (or will be) dequeued and taken care of by the Sleeper Thread.
@@ -189,7 +193,10 @@ private:
                     guard->Release();
                 }
                 // Must wait for the Sleeper Thread to finish to prevent simultaneous access to shared state.
-                Stopped_.Get();
+                // Also must avoid deadlock when EnsureStarted in called within Sleeper Thread; cf. YT-10766.
+                if (!InDelayedSleeperThread_) {
+                    Stopped_.Get();
+                }
                 return false;
             } else {
                 return true;
@@ -235,6 +242,7 @@ private:
     void SleeperThreadMain()
     {
         TThread::CurrentThreadSetName("DelayedSleeper");
+        InDelayedSleeperThread_ = true;
 
         // Run the main loop.
         while (!Stopping_) {
@@ -347,6 +355,8 @@ private:
         closure.Run();
     }
 };
+
+Y_POD_THREAD(bool) TDelayedExecutor::TImpl::InDelayedSleeperThread_;
 
 ////////////////////////////////////////////////////////////////////////////////
 
