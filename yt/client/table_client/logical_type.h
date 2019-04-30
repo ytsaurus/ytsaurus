@@ -20,6 +20,7 @@ DEFINE_ENUM(ELogicalMetatype,
     (Simple)
     (Optional)
     (List)
+    (Struct)
     // In the future there will be Tuple, Variant, Struct, etc
 );
 
@@ -33,6 +34,7 @@ public:
     const TSimpleLogicalType& AsSimpleTypeRef() const;
     const TOptionalLogicalType& AsOptionalTypeRef() const;
     const TListLogicalType& AsListTypeRef() const;
+    const TStructLogicalType& AsStructTypeRef() const;
 
     virtual size_t GetMemoryUsage() const = 0;
     virtual int GetTypeComplexity() const = 0;
@@ -138,6 +140,7 @@ public:
 
     TComplexTypeFieldDescriptor OptionalElement() const;
     TComplexTypeFieldDescriptor ListElement() const;
+    TComplexTypeFieldDescriptor StructField(size_t i) const;
 
     const TString& GetDescription() const;
     const TLogicalTypePtr& GetType() const;
@@ -149,6 +152,31 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TStructLogicalType
+    : public TLogicalType
+{
+public:
+    struct TField
+    {
+        TString Name;
+        TLogicalTypePtr Type;
+    };
+
+public:
+    explicit TStructLogicalType(std::vector<TField> fields);
+    const std::vector<TField>& GetFields() const;
+
+    virtual size_t GetMemoryUsage() const override;
+    virtual int GetTypeComplexity() const override;
+    virtual void Validate(const TComplexTypeFieldDescriptor& descriptor) const override;
+
+private:
+    std::vector<TField> Fields_;
+};
+DEFINE_REFCOUNTED_TYPE(TStructLogicalType);
+
+////////////////////////////////////////////////////////////////////////////////
+
 extern TLogicalTypePtr NullLogicalType;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -156,6 +184,7 @@ extern TLogicalTypePtr NullLogicalType;
 TLogicalTypePtr SimpleLogicalType(ESimpleLogicalValueType element, bool required);
 TLogicalTypePtr OptionalLogicalType(TLogicalTypePtr element);
 TLogicalTypePtr ListLogicalType(TLogicalTypePtr element);
+TLogicalTypePtr StructLogicalType(std::vector<TStructLogicalType::TField> fields);
 
 ////////////////////////////////////////////////////////////////////////////////
 

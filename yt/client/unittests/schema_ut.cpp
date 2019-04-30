@@ -186,6 +186,21 @@ TEST(TTableSchemaTest, ColumnSchemaValidation)
     ValidateColumnSchema(
         TColumnSchema("Name", EValueType::String)
             .SetAggregate(TString("sum")));
+
+    // Struct field validation
+    expectBad(
+        TColumnSchema("Column", StructLogicalType({
+            {"", SimpleLogicalType(ESimpleLogicalValueType::Int8, true)}
+        })));
+    expectBad(
+        TColumnSchema("Column", StructLogicalType({
+            {TString(257, 'a'), SimpleLogicalType(ESimpleLogicalValueType::Int8, true)}
+        })));
+
+    expectBad(
+        TColumnSchema("Column", StructLogicalType({
+            {"\255", SimpleLogicalType(ESimpleLogicalValueType::Int8, true)}
+        })));
 }
 
 TEST(TTableSchemaTest, ValidateTableSchemaTest)

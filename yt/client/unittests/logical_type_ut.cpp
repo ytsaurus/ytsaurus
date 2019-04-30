@@ -38,6 +38,10 @@ TEST(TLogicalTypeTest, TestSimplifyLogicalType)
     EXPECT_EQ(
         SimplifyLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64, true))),
         TPair(std::nullopt, true));
+
+    EXPECT_EQ(
+        SimplifyLogicalType(StructLogicalType({{"value", SimpleLogicalType(ESimpleLogicalValueType::Int64, true)}})),
+        TPair(std::nullopt, true));
 }
 
 static const std::vector<TLogicalTypePtr> ComplexTypeExampleList = {
@@ -63,6 +67,20 @@ static const std::vector<TLogicalTypePtr> ComplexTypeExampleList = {
     ListLogicalType(
         ListLogicalType(
             SimpleLogicalType(ESimpleLogicalValueType::String, true))),
+
+    // Structs
+    StructLogicalType({
+        {"key", SimpleLogicalType(ESimpleLogicalValueType::Utf8, true)},
+        {"value", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8, true))},
+    }),
+    StructLogicalType({
+        {"value", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8, true))},
+        {"key", SimpleLogicalType(ESimpleLogicalValueType::Utf8, true)},
+    }),
+    StructLogicalType({
+        {"key", SimpleLogicalType(ESimpleLogicalValueType::Int64, true)},
+        {"value", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64, true))},
+    }),
 };
 
 TEST(TLogicalTypeTest, TestAllTypesAreInExamples)
