@@ -135,15 +135,8 @@ fi
 
 # Upload python wheel
 if [ -z "$SKIP_WHEEL" ]; then
-    # THIS COMMENT SEEMS TO BE OUTDATED, NO MORE BINARY PACKAGES HERE!
-    # Wheels are tagged only with interpreter type and platform (e.g. win32, macosx, etc.)
-    # and not linux distribution aware. To preserve binary compatibility with as many
-    # Ubuntu distributions as possible wheel should be built only on the oldest
-    # distribution (since all new distributions have backward compatibility).
-    # See PEP-425, PEP-513 and https://github.com/pypa/manylinux for more details.
-    # This is why oldest distributions are chosen - precise.
     PYPI_PACKAGE_NAME=$(python -c "import setup; import sys; sys.stdout.write(setup.PACKAGE_NAME)")
-    if [ "$CODENAME" = "precise" ] && [ "$($CURRENT_DIR/find_pypi_package.py "$PYPI_PACKAGE_NAME")" = "0" ]; then
+    if [ "$($CURRENT_DIR/find_pypi_package.py "$PYPI_PACKAGE_NAME")" = "0" ]; then
         # TODO(ignat): ignore error code since new version of distutils. 
         # For yandex-yt-python it would be fixed here: YT-10356.
         python setup.py bdist_wheel --universal upload -r yandex
