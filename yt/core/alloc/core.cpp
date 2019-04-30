@@ -1020,7 +1020,7 @@ public:
             BuggyKernelLogged_ = true;
         }
         if (MlockallFailed_ && !MlockallFailedLogged_) {
-            YT_LOG_WARNING("Failed lock process memory");
+            YT_LOG_WARNING("Failed to lock process memory");
             MlockallFailedLogged_ = true;
         }
         if (PopulateUnavailable_.load() && !PopulateUnavailableLogged_) {
