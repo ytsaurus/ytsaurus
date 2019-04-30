@@ -84,7 +84,7 @@ size_t TStreamReaderBase::DoRead(void* buf, size_t len)
             if (attempt == retryCount) {
                 throw;
             }
-            NDetail::TWaitProxy::Get()->Sleep(TConfig::Get()->RetryInterval);
+            NDetail::TWaitProxy::Get()->Sleep(GetBackoffDuration(e));
         }
         Input_ = nullptr;
     }

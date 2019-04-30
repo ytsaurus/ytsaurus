@@ -32,8 +32,15 @@ IRequestRetryPolicyPtr CreateDefaultRetryPolicy();
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Check if error returned by YT can be retried
 bool IsRetriable(const TErrorResponse& errorResponse);
+
+// Get backoff duration for errors returned by YT.
 TDuration GetBackoffDuration(const TErrorResponse& errorResponse);
+
+// Get backoff duration for errors that are not TErrorResponse.
+TDuration GetBackoffDuration(const yexception& error);
+TDuration GetBackoffDuration();
 
 ////////////////////////////////////////////////////////////////////////////////
 
