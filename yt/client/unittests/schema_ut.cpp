@@ -1,3 +1,5 @@
+#include "logical_type_helpers.h"
+
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/client/table_client/schema.h>
@@ -6,13 +8,6 @@
 #include <yt/core/ytree/convert.h>
 
 namespace NYT::NTableClient {
-
-////////////////////////////////////////////////////////////////////////////////
-
-void PrintTo(const TLogicalType& type, std::ostream *os)
-{
-    *os << ToString(type);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
