@@ -847,6 +847,11 @@ void ValidateColumnSchema(
                 MaxColumnNameLength);
         }
 
+        {
+            TComplexTypeFieldDescriptor descriptor(name, columnSchema.LogicalType());
+            columnSchema.LogicalType()->Validate(descriptor);
+        }
+
         if (!columnSchema.SimplifiedLogicalType()) {
             THROW_ERROR_EXCEPTION("Bad type %Qlv, complex types are not allowed yet",
                 *columnSchema.LogicalType());

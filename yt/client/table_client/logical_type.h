@@ -36,6 +36,7 @@ public:
 
     virtual size_t GetMemoryUsage() const = 0;
     virtual int GetTypeComplexity() const = 0;
+    virtual void Validate(const TComplexTypeFieldDescriptor& descriptor) const = 0;
 
 private:
     const ELogicalMetatype Metatype_;
@@ -81,6 +82,7 @@ public:
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
+    virtual void Validate(const TComplexTypeFieldDescriptor& descriptor) const override;
 
 private:
     const TLogicalTypePtr Element_;
@@ -99,6 +101,7 @@ public:
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
+    virtual void Validate(const TComplexTypeFieldDescriptor& descriptor) const override;
 
 private:
     ESimpleLogicalValueType Element_;
@@ -117,6 +120,7 @@ public:
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
+    virtual void Validate(const TComplexTypeFieldDescriptor& descriptor) const override;
 
 private:
     TLogicalTypePtr Element_;
