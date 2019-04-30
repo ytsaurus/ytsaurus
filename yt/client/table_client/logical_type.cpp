@@ -440,14 +440,14 @@ TLogicalTypePtr NullLogicalType = Singleton<TSimpleTypeStore>()->GetSimpleType(E
 size_t THash<NYT::NTableClient::TLogicalType>::operator()(const NYT::NTableClient::TLogicalType& logicalType) const
 {
     using namespace NYT::NTableClient;
-    size_t typeHash = static_cast<size_t>(logicalType.GetMetatype()) << 32;
+    const size_t typeHash = static_cast<size_t>(logicalType.GetMetatype());
     switch (logicalType.GetMetatype()) {
         case ELogicalMetatype::Simple:
-            return typeHash ^ static_cast<size_t>(logicalType.AsSimpleTypeRef().GetElement());
+            return CombineHashes(static_cast<size_t>(logicalType.AsSimpleTypeRef().GetElement()), typeHash);
         case ELogicalMetatype::Optional:
-            return typeHash ^ (*this)(*logicalType.AsOptionalTypeRef().GetElement());
+            return CombineHashes((*this)(*logicalType.AsOptionalTypeRef().GetElement()), typeHash);
         case ELogicalMetatype::List:
-            return typeHash ^ (*this)(*logicalType.AsListTypeRef().GetElement());
+            return CombineHashes((*this)(*logicalType.AsListTypeRef().GetElement()), typeHash);
     }
     Y_UNREACHABLE();
 }
