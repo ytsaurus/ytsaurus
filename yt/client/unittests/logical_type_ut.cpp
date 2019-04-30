@@ -77,6 +77,26 @@ TEST(TLogicalTypeTest, TestAllTypesAreInExamples)
     EXPECT_EQ(actualMetatypes, std::set<ELogicalMetatype>(allMetatypes.begin(), allMetatypes.end()));
 }
 
+TEST(TLogicalTypeTest, TestAllExamplesHaveDifferentHash)
+{
+    std::map<int, TLogicalTypePtr> hashToType;
+    auto hashFunction = THash<TLogicalType>();
+    for (const auto& example : ComplexTypeExampleList) {
+        auto hash = hashFunction(*example);
+        auto it = hashToType.find(hash);
+        if (it != hashToType.end()) {
+            ADD_FAILURE() << Format(
+                "Type %Qv and %Qv have the same hash %v",
+                *it->second,
+                *example,
+                hash);
+        } else {
+            hashToType[hash] = example;
+        }
+
+    }
+}
+
 class TLogicalTypeTestExamples
     : public ::testing::TestWithParam<TLogicalTypePtr>
 { };
