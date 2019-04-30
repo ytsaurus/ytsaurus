@@ -56,7 +56,7 @@ void RetryHeavyWriteRequest(
             if (!IsRetriable(e) || attempt + 1 == retryCount) {
                 throw;
             }
-            NDetail::TWaitProxy::Get()->Sleep(GetRetryInterval(e));
+            NDetail::TWaitProxy::Get()->Sleep(GetBackoffDuration(e));
             continue;
 
         } catch (yexception& e) {

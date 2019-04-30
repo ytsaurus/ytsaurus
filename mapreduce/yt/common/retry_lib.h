@@ -33,7 +33,7 @@ IRequestRetryPolicyPtr CreateDefaultRetryPolicy();
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsRetriable(const TErrorResponse& errorResponse);
-TDuration GetRetryInterval(const TErrorResponse& errorResponse);
+TDuration GetBackoffDuration(const TErrorResponse& errorResponse);
 
 ////////////////////////////////////////////////////////////////////////////////
 

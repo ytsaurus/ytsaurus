@@ -75,7 +75,7 @@ size_t TStreamReaderBase::DoRead(void* buf, size_t len)
             if (!IsRetriable(e) || attempt == retryCount) {
                 throw;
             }
-            NDetail::TWaitProxy::Get()->Sleep(GetRetryInterval(e));
+            NDetail::TWaitProxy::Get()->Sleep(GetBackoffDuration(e));
         } catch (yexception& e) {
             LOG_ERROR("RSP %s - failed: %s (attempt %d of %d)", GetActiveRequestId().data(), e.what(), attempt, retryCount);
             if (Request_) {
