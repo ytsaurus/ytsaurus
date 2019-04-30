@@ -181,7 +181,7 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
             if (attempt == lastAttempt) {
                 throw;
             }
-            NDetail::TWaitProxy::Get()->Sleep(TConfig::Get()->RetryInterval);
+            NDetail::TWaitProxy::Get()->Sleep(GetBackoffDuration(e));
             continue;
         }
 

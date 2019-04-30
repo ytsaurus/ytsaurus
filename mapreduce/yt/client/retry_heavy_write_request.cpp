@@ -68,7 +68,7 @@ void RetryHeavyWriteRequest(
             if (attempt + 1 == retryCount) {
                 throw;
             }
-            NDetail::TWaitProxy::Get()->Sleep(TConfig::Get()->RetryInterval);
+            NDetail::TWaitProxy::Get()->Sleep(GetBackoffDuration(e));
             continue;
         }
 

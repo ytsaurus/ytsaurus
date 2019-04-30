@@ -513,7 +513,7 @@ private:
                 return Nothing();
             }
             if (e.IsConcurrentTransactionLockConflict()) {
-                return TConfig::Get()->RetryInterval;
+                return GetBackoffDuration();
             }
             return TAttemptLimitedRetryPolicy::OnRetriableError(e);
         }

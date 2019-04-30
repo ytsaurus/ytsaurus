@@ -17,12 +17,12 @@ void TAttemptLimitedRetryPolicy::NotifyNewAttempt()
     ++Attempt_;
 }
 
-TMaybe<TDuration> TAttemptLimitedRetryPolicy::OnGenericError(const yexception& /*e*/)
+TMaybe<TDuration> TAttemptLimitedRetryPolicy::OnGenericError(const yexception& e)
 {
     if (IsAttemptLimitExceeded()) {
         return Nothing();
     }
-    return TConfig::Get()->RetryInterval;
+    return GetBackoffDuration(e);
 }
 
 TMaybe<TDuration> TAttemptLimitedRetryPolicy::OnRetriableError(const TErrorResponse& e)
@@ -30,7 +30,7 @@ TMaybe<TDuration> TAttemptLimitedRetryPolicy::OnRetriableError(const TErrorRespo
     if (IsAttemptLimitExceeded()) {
         return Nothing();
     }
-    return NYT::GetBackoffDuration(e);
+    return GetBackoffDuration(e);
 }
 
 void TAttemptLimitedRetryPolicy::OnIgnoredError(const TErrorResponse& /*e*/)
@@ -89,6 +89,16 @@ TDuration GetBackoffDuration(const TErrorResponse& errorResponse)
 bool IsRetriable(const TErrorResponse& errorResponse)
 {
     return GetRetryInfo(errorResponse).first;
+}
+
+TDuration GetBackoffDuration(const yexception& /*error*/)
+{
+    return GetBackoffDuration();
+}
+
+TDuration GetBackoffDuration()
+{
+    return TConfig::Get()->RetryInterval;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
