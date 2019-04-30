@@ -43,9 +43,9 @@ TString ToString(const TLogicalType& logicalType)
         case ELogicalMetatype::Simple:
             return CamelCaseToUnderscoreCase(ToString(logicalType.AsSimpleTypeRef().GetElement()));
         case ELogicalMetatype::Optional:
-            return Format("Optional<%v>", *logicalType.AsOptionalTypeRef().GetElement());
+            return Format("optional<%v>", *logicalType.AsOptionalTypeRef().GetElement());
         case ELogicalMetatype::List:
-            return Format("List<%v>", *logicalType.AsListTypeRef().GetElement());
+            return Format("list<%v>", *logicalType.AsListTypeRef().GetElement());
     }
     Y_UNREACHABLE();
 }
