@@ -90,6 +90,11 @@ int TOptionalLogicalType::GetTypeComplexity() const
     }
 }
 
+void TOptionalLogicalType::Validate(const TComplexTypeFieldDescriptor& descriptor) const
+{
+    Element_->Validate(descriptor.OptionalElement());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSimpleLogicalType::TSimpleLogicalType(ESimpleLogicalValueType element)
@@ -113,6 +118,9 @@ int TSimpleLogicalType::GetTypeComplexity() const
     return 1;
 }
 
+void TSimpleLogicalType::Validate(const TComplexTypeFieldDescriptor& /*descriptor*/) const
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TListLogicalType::TListLogicalType(TLogicalTypePtr element)
@@ -133,6 +141,11 @@ size_t TListLogicalType::GetMemoryUsage() const
 int TListLogicalType::GetTypeComplexity() const
 {
     return 1 + Element_->GetTypeComplexity();
+}
+
+void TListLogicalType::Validate(const TComplexTypeFieldDescriptor& descriptor) const
+{
+    Element_->Validate(descriptor.ListElement());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
