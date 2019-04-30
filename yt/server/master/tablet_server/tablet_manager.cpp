@@ -289,13 +289,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        // Destroy finished tablet actions associated with the bundle.
-        const auto& objectManager = Bootstrap_->GetObjectManager();
+        // Unbind tablet actions associated with the bundle.
         for (auto* action : cellBundle->TabletActions()) {
-            YCHECK(IsObjectAlive(action));
-            YCHECK(action->IsFinished());
             action->SetTabletCellBundle(nullptr);
-            objectManager->UnrefObject(action);
         }
 
         // Remove tablet cell bundle from maps.

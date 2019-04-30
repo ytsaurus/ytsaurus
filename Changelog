@@ -6,6 +6,7 @@
 #    yt/server/cell_master/serialize.cpp - if the version differs, then the update should be done with master snapshots (+ --set-read-only).
 #    yt/server/tablet_node/serialize.cpp - if the version differs, then the update should be done with tablet cell recreation.
 
+* ifsmirnov: Tablet cell bundle destruction semantics changed (once again). Update masters with snapshot.
 * shakurov: Transactional semantics for @expiration_time. Master servers must be updated via snapshot.
 * ifsmirnov: TChunkView introduced. Update masters via snapshot.
 * renadeen: Operation snapshot version has changed, operations will be restarted
