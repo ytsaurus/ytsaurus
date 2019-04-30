@@ -20,6 +20,7 @@ type WinnerTx struct {
 	Timeout   yson.Duration `yson:"duration"`
 }
 
+// FindConflictWinner returns information about a process holding the lock that caused the conflict.
 func FindConflictWinner(err error) *WinnerTx {
 	if ytErr := yt.FindErrorCode(err, yt.CodeConcurrentTransactionLockConflict); ytErr != nil {
 		var winner WinnerTx
@@ -37,13 +38,13 @@ func FindConflictWinner(err error) *WinnerTx {
 }
 
 type Options struct {
-	// Fail if LockPath is missing.
+	// Create map node if path is missing.
 	CreateIfMissing bool
 	LockMode        yt.LockMode
 }
 
 // NewLock creates Lock object using default Options.
-func NewLock(yc yt.Client, path ypath.Path) (l Lock) {
+func NewLock(yc yt.Client, path ypath.Path) (l *Lock) {
 	defaultOptions := Options{
 		CreateIfMissing: true,
 		LockMode:        yt.LockExclusive,
@@ -52,11 +53,12 @@ func NewLock(yc yt.Client, path ypath.Path) (l Lock) {
 }
 
 // NewLockOptions creates Lock object with specified options.
-func NewLockOptions(yc yt.Client, path ypath.Path, opt Options) (l Lock) {
-	l.Yc = yc
-	l.Path = path
-	l.Options = opt
-	return
+func NewLockOptions(yc yt.Client, path ypath.Path, opts Options) (l *Lock) {
+	return &Lock{
+		Yc:      yc,
+		Path:    path,
+		Options: opts,
+	}
 }
 
 // Lock object represents cypress lock.
@@ -121,6 +123,8 @@ func (l *Lock) startAbort() yt.Tx {
 // transaction being aborted remotely, network partition or coordination service downtime.
 //
 // If lock is lost, there is no need to call Release explicitly.
+//
+// Lock is automatically released when provided ctx is canceled.
 func (l *Lock) Acquire(ctx context.Context) (lost <-chan struct{}, err error) {
 	if err = l.startAcquire(); err != nil {
 		return
