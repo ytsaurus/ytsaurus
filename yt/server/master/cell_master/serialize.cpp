@@ -6,7 +6,7 @@ namespace NYT::NCellMaster {
 
 int GetCurrentSnapshotVersion()
 {
-    return 830;
+    return 831;
 }
 
 bool ValidateSnapshotVersion(int version)
