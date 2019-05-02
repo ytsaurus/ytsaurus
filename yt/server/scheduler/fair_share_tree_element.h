@@ -190,28 +190,24 @@ protected:
     const TString TreeId_;
 };
 
+// This is node of shared state tree.
+// Each state corresponds to some scheduler element and all its snapshots.
+// There are three general scenarios:
+// 1. Get local resource usage of particular element - we take read lock on ResourceUsageLock_ of the state.
+// 2. Apply update of some property from leaf to root (increase or decrease of resource usage for example)
+// - we take read lock on SharedStateTreeLock provided by IFairShareTreeHost for whole operation
+// and make local updates of particular states under write lock on corresponding ResourceUsageLock_.
+// 3. Modify tree structure (attach, change or detach parent of element)
+// - we take write lock on SharedStateTreeLock for whole operation.
+// If we need to update properties of the particular state we also take the write lock on ResourceUsageLock_ for this update
+// Essentially SharedStateTreeLock protects tree structure.
+// We take this lock if we need to access the parent link of some element
 class TSchedulerElementSharedState
     : public TIntrinsicRefCounted
 {
-    // This is node of shared state tree.
-    // Each state corresponds to some scheduler element and all its snapshots.
-    // There are three general scenarios:
-
-    // 1. Get local resource usage of particular element - we take read lock on ResourceUsageLock_ of the state.
-
-    // 2. Apply update of some property from leaf to root (increase or decrease of resource usage for example)
-    // - we take read lock on SharedStateTreeLock provided by IFairShareTreeHost for whole operation
-    // and make local updates of particular states under write lock on corresponding ResourceUsageLock_.
-
-    // 3. Modify tree structure (attach, change or detach parent of element)
-    // - we take write lock on SharedStateTreeLock for whole operation.
-    // If we need to update properties of the particular state we also take the write lock on ResourceUsageLock_ for this update
-
-    // Essentially SharedStateTreeLock protects tree structure.
-    // We take this lock if we need to access the parent link of some element
-
 public:
     explicit TSchedulerElementSharedState(IFairShareTreeHost* host);
+
     TJobResources GetResourceUsage();
     TJobResources GetTotalResourceUsageWithPrecommit();
     TJobMetrics GetJobMetrics();
@@ -246,23 +242,19 @@ public:
     void SetResourceLimits(TJobResources resourceLimits);
 
 private:
-    IFairShareTreeHost* FairShareTreeHost_;
+    IFairShareTreeHost* const FairShareTreeHost_;
+
+    NConcurrency::TPaddedReaderWriterSpinLock ResourceUsageLock_;
     TJobResources ResourceUsage_;
     TJobResources ResourceLimits_ = InfiniteJobResources();
     TJobResources ResourceUsagePrecommit_;
+
+    NConcurrency::TPaddedReaderWriterSpinLock JobMetricsLock_;
     TJobMetrics JobMetrics_;
 
-    NConcurrency::TReaderWriterSpinLock ResourceUsageLock_;
-
-    NConcurrency::TReaderWriterSpinLock JobMetricsLock_;
-
-    TSchedulerElementSharedStatePtr Parent_ = nullptr;
-
-    // NB: Avoid false sharing between ResourceUsageLock_ and others.
-    [[maybe_unused]] char Padding[64];
+    TSchedulerElementSharedStatePtr Parent_;
 
     std::atomic<bool> Alive_ = {true};
-
     std::atomic<double> FairShareRatio_ = {0.0};
 
     bool IncreaseLocalResourceUsagePrecommitWithCheck(
