@@ -131,7 +131,6 @@ private:
     TProfiler Profiler_;
     TProfiler ResourceLimitsProfiler_;
     TProfiler ResourceUsageProfiler_;
-    TEnumIndexedVector<TTagId, EJobOrigin> JobOriginToTag_;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr ResourceAdjustmentExecutor_;
@@ -242,10 +241,6 @@ TJobController::TImpl::TImpl(
 
 void TJobController::TImpl::Initialize()
 {
-    for (auto origin : TEnumTraits<EJobOrigin>::GetDomainValues()) {
-        JobOriginToTag_[origin] = TProfileManager::Get()->RegisterTag("origin", FormatEnum(origin));
-    }
-
     if (Bootstrap_->GetExecSlotManager()->ExternalJobMemory()) {
         YT_LOG_INFO("Using external user job memory");
         ExternalMemoryUsageTracker_ = New<TNodeMemoryTracker>(
@@ -1197,8 +1192,13 @@ IYPathServicePtr TJobController::TImpl::GetOrchidService()
 void TJobController::TImpl::OnProfiling()
 {
     auto jobs = GetJobsByOrigin();
+    static const TEnumMemberTagCache<EJobOrigin> JobOriginTagCache("origin");
     for (auto origin : TEnumTraits<EJobOrigin>::GetDomainValues()) {
-        Profiler_.Enqueue("/active_job_count", jobs[origin].size(), EMetricType::Gauge, {JobOriginToTag_[origin]});
+        Profiler_.Enqueue(
+            "/active_job_count",
+            jobs[origin].size(),
+            EMetricType::Gauge,
+            {JobOriginTagCache.GetTag(origin)});
     }
     ProfileResources(ResourceUsageProfiler_, GetResourceUsage());
     ProfileResources(ResourceLimitsProfiler_, GetResourceLimits());
