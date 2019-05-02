@@ -27,11 +27,12 @@ static const auto& Profiler = SchedulerProfiler;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const double RatioComputationPrecision = std::numeric_limits<double>::epsilon();
-static const double RatioComparisonPrecision = sqrt(RatioComputationPrecision);
+static const double RatioComparisonPrecision = std::sqrt(RatioComputationPrecision);
+static const TString MissingCustomProfilingTag("missing");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const char* MissingCustomProfilingTag = "missing";
+namespace {
 
 TTagId GetCustomProfilingTag(const TString& tagName)
 {
@@ -47,7 +48,13 @@ TTagId GetCustomProfilingTag(const TString& tagName)
     return it->second;
 };
 
-////////////////////////////////////////////////////////////////////////////////
+TJobResources ComputeAvailableResources(
+    const TJobResources& resourceLimits,
+    const TJobResources& resourceUsage,
+    const TJobResources& resourceDiscount)
+{
+    return resourceLimits - resourceUsage + resourceDiscount;
+}
 
 TJobResources ToJobResources(const TResourceLimitsConfigPtr& config, TJobResources defaultValue)
 {
@@ -68,6 +75,8 @@ TJobResources ToJobResources(const TResourceLimitsConfigPtr& config, TJobResourc
     }
     return defaultValue;
 }
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2196,19 +2205,20 @@ TEnumIndexedVector<int, EDeactivationReason> TOperationElement::GetDeactivationR
 
 std::optional<NProfiling::TTagId> TOperationElement::GetCustomProfilingTag()
 {
-    if (GetParent() == nullptr) {
+    if (!GetParent()) {
         return std::nullopt;
     }
 
-    auto tagName = Spec_->CustomProfilingTag;
     THashSet<TString> allowedProfilingTags;
-    auto parent = GetParent();
+    const auto* parent = GetParent();
     while (parent) {
         for (const auto& tag : parent->GetAllowedProfilingTags()) {
             allowedProfilingTags.insert(tag);
         }
         parent = parent->GetParent();
     }
+
+    auto tagName = Spec_->CustomProfilingTag;
     if (tagName && (
             allowedProfilingTags.find(*tagName) == allowedProfilingTags.end() ||
             (TreeConfig_->CustomProfilingTagFilter && NRe2::TRe2::FullMatch(NRe2::StringPiece(*tagName), *TreeConfig_->CustomProfilingTagFilter))

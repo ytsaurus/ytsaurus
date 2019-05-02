@@ -979,14 +979,6 @@ DEFINE_REFCOUNTED_TYPE(TRootElement)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TJobResources ComputeAvailableResources(
-    const TJobResources& resourceLimits,
-    const TJobResources& resourceUsage,
-    const TJobResources& resourceDiscount)
-{
-    return resourceLimits - resourceUsage + resourceDiscount;
-}
-
 } // namespace NYT::NScheduler
 
 #define FAIR_SHARE_TREE_ELEMENT_INL_H_
