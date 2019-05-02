@@ -2520,8 +2520,7 @@ void TOperationElement::PrescheduleJob(TFairShareContext* context, bool starving
         onOperationDeactivated(EDeactivationReason::IsBlocked);
         return;
     }
-
-	if (Controller_->IsSaturatedInTentativeTree(
+    if (Controller_->IsSaturatedInTentativeTree(
         context->SchedulingContext->GetNow(),
         TreeId_,
         TreeConfig_->TentativeTreeSaturationDeactivationPeriod))
