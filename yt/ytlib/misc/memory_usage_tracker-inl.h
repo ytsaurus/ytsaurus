@@ -27,12 +27,11 @@ TMemoryUsageTracker<ECategory>::TMemoryUsageTracker(
 {
     Profiler.Update(TotalFreeCounter_, totalLimit);
 
-    auto* profileManager = NProfiling::TProfileManager::Get();
-    for (auto value : TEnumTraits<ECategory>::GetDomainValues()) {
-        auto tagId = profileManager->RegisterTag("category", value);
-        Categories_[value].UsedCounter = NProfiling::TAggregateGauge(
+    static const NProfiling::TEnumMemberTagCache<ECategory> CategoryTagCache("category");
+    for (auto category : TEnumTraits<ECategory>::GetDomainValues()) {
+        Categories_[category].UsedCounter = NProfiling::TAggregateGauge(
             "/used",
-            {tagId},
+            {CategoryTagCache.GetTag(category)},
             NProfiling::EAggregateMode::Max);
     }
 

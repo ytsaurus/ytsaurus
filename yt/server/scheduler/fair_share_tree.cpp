@@ -41,17 +41,9 @@ static const auto& Profiler = SchedulerProfiler;
 
 TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
 {
-    static THashMap<EScheduleJobFailReason, TTagId> tagId;
-
-    auto it = tagId.find(reason);
-    if (it == tagId.end()) {
-        it = tagId.emplace(
-            reason,
-            TProfileManager::Get()->RegisterTag("reason", FormatEnum(reason))
-        ).first;
-    }
-    return {it->second};
-};
+    static const NProfiling::TEnumMemberTagCache<EScheduleJobFailReason> ReasonTagCache("reason");
+    return {ReasonTagCache.GetTag(reason)};
+}
 
 namespace {
 

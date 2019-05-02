@@ -141,6 +141,8 @@ TLocation::TLocation(
         DataNodeLogger,
         Profiler_);
 
+    static const NProfiling::TEnumMemberTagCache<EIODirection> DirectionTagCache("direction");
+    static const NProfiling::TEnumMemberTagCache<EIOCategory> CategoryTagCache("category");
     auto initializeCounters = [&] (const TString& path, auto getCounter) {
         for (auto direction : TEnumTraits<EIODirection>::GetDomainValues()) {
             for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
@@ -149,8 +151,8 @@ TLocation::TLocation(
                 counter = TCounter(
                     path,
                     {
-                        profileManager->RegisterTag("direction", direction),
-                        profileManager->RegisterTag("category", category)
+                        DirectionTagCache.GetTag(direction),
+                        CategoryTagCache.GetTag(category)
                     });
             }
         }
