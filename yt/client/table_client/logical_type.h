@@ -146,8 +146,8 @@ public:
     const TLogicalTypePtr& GetType() const;
 
 private:
-    const TString Descriptor_;
-    const TLogicalTypePtr Type_;
+    TString Descriptor_;
+    TLogicalTypePtr Type_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
