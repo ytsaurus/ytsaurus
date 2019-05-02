@@ -211,10 +211,7 @@ TSchedulerElementFixedState::TSchedulerElementFixedState(
     IFairShareTreeHost* treeHost,
     const TFairShareStrategyTreeConfigPtr& treeConfig,
     const TString& treeId)
-    : ResourceDemand_(ZeroJobResources())
-    , ResourceLimits_(InfiniteJobResources())
-    , MaxPossibleResourceUsage_(ZeroJobResources())
-    , Host_(host)
+    : Host_(host)
     , TreeHost_(treeHost)
     , TreeConfig_(treeConfig)
     , TotalResourceLimits_(host->GetResourceLimits(treeConfig->NodesFilter))
@@ -403,7 +400,7 @@ bool TSchedulerElementSharedState::IncreaseLocalResourceUsagePrecommitWithCheck(
     auto availableResourceLimits = ComputeAvailableResources(
         ResourceLimits_,
         ResourceUsage_ + ResourceUsagePrecommit_,
-        ZeroJobResources());
+        {});
 
     if (!Dominates(availableResourceLimits, delta)) {
         return false;
@@ -421,7 +418,7 @@ bool TSchedulerElementSharedState::TryIncreaseHierarchicalResourceUsagePrecommit
 {
     TReaderGuard guard(FairShareTreeHost_->GetSharedStateTreeLock());
 
-    auto availableResourceLimits = InfiniteJobResources();
+    auto availableResourceLimits = TJobResources::Infinite();
 
     TSchedulerElementSharedState* failedParent = nullptr;
 
@@ -550,7 +547,7 @@ void TSchedulerElement::UpdateAttributes()
 
     auto maxPossibleResourceUsage = Min(TotalResourceLimits_, MaxPossibleResourceUsage_);
 
-    if (usage == ZeroJobResources()) {
+    if (usage == TJobResources()) {
         Attributes_.DominantResource = GetDominantResource(demand, TotalResourceLimits_);
     } else {
         Attributes_.DominantResource = GetDominantResource(usage, TotalResourceLimits_);
@@ -873,8 +870,8 @@ TJobResources TSchedulerElement::ComputeResourceLimitsBase(const TResourceLimits
     auto delay = DurationToCpuDuration(TreeConfig_->TotalResourceLimitsConsiderDelay);
     auto maxShareLimits = connectionTime + delay < GetCpuInstant()
         ? GetHost()->GetResourceLimits(TreeConfig_->NodesFilter & GetSchedulingTagFilter()) * GetMaxShareRatio()
-        : InfiniteJobResources();
-    auto perTypeLimits = ToJobResources(resourceLimitsConfig, InfiniteJobResources());
+        : TJobResources::Infinite();
+    auto perTypeLimits = ToJobResources(resourceLimitsConfig, TJobResources::Infinite());
     return Min(maxShareLimits, perTypeLimits);
 }
 
@@ -945,8 +942,8 @@ void TCompositeSchedulerElement::UpdateBottomUp(TDynamicAttributesList& dynamicA
 
     Attributes_.BestAllocationRatio = 0.0;
     PendingJobCount_ = 0;
-    ResourceDemand_ = ZeroJobResources();
-    auto maxPossibleChildrenResourceUsage_ = ZeroJobResources();
+    ResourceDemand_ = {};
+    TJobResources maxPossibleChildrenResourceUsage;
     for (const auto& child : EnabledChildren_) {
         child->UpdateBottomUp(dynamicAttributesList);
 
@@ -956,9 +953,9 @@ void TCompositeSchedulerElement::UpdateBottomUp(TDynamicAttributesList& dynamicA
 
         PendingJobCount_ += child->GetPendingJobCount();
         ResourceDemand_ += child->ResourceDemand();
-        maxPossibleChildrenResourceUsage_ += child->MaxPossibleResourceUsage();
+        maxPossibleChildrenResourceUsage += child->MaxPossibleResourceUsage();
     }
-    MaxPossibleResourceUsage_ = Min(maxPossibleChildrenResourceUsage_, ResourceLimits_);
+    MaxPossibleResourceUsage_ = Min(maxPossibleChildrenResourceUsage, ResourceLimits_);
     TSchedulerElement::UpdateBottomUp(dynamicAttributesList);
 }
 
@@ -992,7 +989,7 @@ void TCompositeSchedulerElement::UpdateTopDown(TDynamicAttributesList& dynamicAt
 
 TJobResources TCompositeSchedulerElement::ComputePossibleResourceUsage(TJobResources limit) const
 {
-    auto additionalUsage = ZeroJobResources();
+    TJobResources additionalUsage;
 
     for (const auto& child : EnabledChildren_) {
         auto childUsage = child->ComputePossibleResourceUsage(limit);
@@ -1692,7 +1689,7 @@ double TPool::GetMinShareRatio() const
 
 TJobResources TPool::GetMinShareResources() const
 {
-    return ToJobResources(Config_->MinShareResources, ZeroJobResources());
+    return ToJobResources(Config_->MinShareResources, {});
 }
 
 double TPool::GetMaxShareRatio() const
@@ -1901,13 +1898,13 @@ TJobResources TOperationElementSharedState::Disable()
 
     Enabled_ = false;
 
-    auto resourceUsage = ZeroJobResources();
+    TJobResources resourceUsage;
     for (const auto& pair : JobPropertiesMap_) {
         resourceUsage += pair.second.ResourceUsage;
     }
 
-    NonpreemptableResourceUsage_ = ZeroJobResources();
-    AggressivelyPreemptableResourceUsage_ = ZeroJobResources();
+    NonpreemptableResourceUsage_ = {};
+    AggressivelyPreemptableResourceUsage_ = {};
     RunningJobCount_ = 0;
     PreemptableJobs_.clear();
     AggressivelyPreemptableJobs_.clear();
@@ -1932,7 +1929,7 @@ TJobResources TOperationElementSharedState::IncreaseJobResourceUsage(
     TWriterGuard guard(JobPropertiesMapLock_);
 
     if (!Enabled_) {
-        return ZeroJobResources();
+        return {};
     }
 
     IncreaseJobResourceUsage(GetJobProperties(jobId), resourcesDelta);
@@ -2114,7 +2111,7 @@ std::optional<TJobResources> TOperationElementSharedState::AddJob(TJobId jobId, 
             /* preemptable */ true,
             /* aggressivelyPreemptable */ true,
             --PreemptableJobs_.end(),
-            ZeroJobResources()));
+            {}));
     YCHECK(it.second);
 
     ++RunningJobCount_;
@@ -2458,11 +2455,11 @@ TJobResources TOperationElement::ComputePossibleResourceUsage(TJobResources limi
         return usage * GetMinResourceRatio(limit, usage);
     } else {
         auto remainingDemand = ResourceDemand() - usage;
-        if (remainingDemand == ZeroJobResources()) {
+        if (remainingDemand == TJobResources()) {
             return usage;
         }
 
-        auto remainingLimit = Max(ZeroJobResources(), limit - usage);
+        auto remainingLimit = Max({}, limit - usage);
         // TODO(asaitgalin): Move this to MaxPossibleResourceUsage computation.
         return Min(ResourceDemand(), usage + remainingDemand * GetMinResourceRatio(remainingLimit, remainingDemand));
     }
@@ -2680,7 +2677,7 @@ double TOperationElement::GetMinShareRatio() const
 
 TJobResources TOperationElement::GetMinShareResources() const
 {
-    return ToJobResources(Spec_->MinShareResources, ZeroJobResources());
+    return ToJobResources(Spec_->MinShareResources, {});
 }
 
 double TOperationElement::GetMaxShareRatio() const
@@ -2982,10 +2979,10 @@ TControllerScheduleJobResultPtr TOperationElement::DoScheduleJob(
 
 TJobResources TOperationElement::ComputeResourceDemand() const
 {
-    if (Operation_->IsSchedulable()) {
-        return GetLocalResourceUsage() + Controller_->GetNeededResources();
+    if (!Operation_->IsSchedulable()) {
+        return {};
     }
-    return ZeroJobResources();
+    return GetLocalResourceUsage() + Controller_->GetNeededResources();
 }
 
 TJobResources TOperationElement::ComputeResourceLimits() const

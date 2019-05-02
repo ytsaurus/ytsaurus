@@ -22,7 +22,6 @@ TSchedulingContextBase::TSchedulingContextBase(
     TExecNodePtr node,
     const std::vector<TJobPtr>& runningJobs)
     : NodeShardId_(nodeShardId)
-    , ResourceUsageDiscount_(ZeroJobResources())
     , ResourceUsage_(node->GetResourceUsage())
     , ResourceLimits_(node->GetResourceLimits())
     , DiskInfo_(node->GetDiskInfo())

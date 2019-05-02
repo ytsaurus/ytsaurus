@@ -1824,7 +1824,7 @@ void TNodeShard::AddNodeResources(const TExecNodePtr& node)
         ExecNodeCount_ += 1;
     } else {
         // Check that we succesfully reset all resource limits to zero for node with zero user slots.
-        YCHECK(node->GetResourceLimits() == ZeroJobResources());
+        YCHECK(node->GetResourceLimits() == TJobResources());
     }
 }
 
@@ -1849,8 +1849,8 @@ void TNodeShard::UpdateNodeResources(
         if (node->GetResourceLimits().GetUserSlots() > 0 && node->GetMasterState() == NNodeTrackerClient::ENodeState::Online) {
             ExecNodeCount_ -= 1;
         }
-        node->SetResourceLimits(ZeroJobResources());
-        node->SetResourceUsage(ZeroJobResources());
+        node->SetResourceLimits({});
+        node->SetResourceUsage({});
     }
 
     if (node->GetMasterState() == NNodeTrackerClient::ENodeState::Online) {
