@@ -206,11 +206,10 @@ private:
 
     void AdjustResources();
 
-    TNodeMemoryTracker* GetUserMemoryUsageTracker();
-    TNodeMemoryTracker* GetSystemMemoryUsageTracker();
-
-    const TNodeMemoryTracker* GetUserMemoryUsageTracker() const;
-    const TNodeMemoryTracker* GetSystemMemoryUsageTracker() const;
+    const TNodeMemoryTrackerPtr& GetUserMemoryUsageTracker();
+    const TNodeMemoryTrackerPtr& GetSystemMemoryUsageTracker();
+    const TNodeMemoryTrackerPtr& GetUserMemoryUsageTracker() const;
+    const TNodeMemoryTrackerPtr& GetSystemMemoryUsageTracker() const;
 
     i64 GetUserJobsFreeMemoryWatermark() const;
 
@@ -333,14 +332,14 @@ TNodeResources TJobController::TImpl::GetResourceLimits() const
         result.set_gpu(Bootstrap_->GetGpuManager()->GetTotalGpuCount());
     }
 
-    const auto* userTracker = GetUserMemoryUsageTracker();
+    const auto& userTracker = GetUserMemoryUsageTracker();
     result.set_user_memory(std::min(
         userTracker->GetLimit(EMemoryCategory::UserJobs),
         // NB: The sum of per-category limits can be greater than the total memory limit.
         // Therefore we need bound memory limit by actually available memory.
         userTracker->GetUsed(EMemoryCategory::UserJobs) + userTracker->GetTotalFree() - GetUserJobsFreeMemoryWatermark()));
 
-    const auto* systemTracker = GetSystemMemoryUsageTracker();
+    const auto& systemTracker = GetSystemMemoryUsageTracker();
     result.set_system_memory(std::min(
         systemTracker->GetLimit(EMemoryCategory::SystemJobs),
         systemTracker->GetUsed(EMemoryCategory::SystemJobs) + systemTracker->GetTotalFree() - Config_->FreeMemoryWatermark));
@@ -377,8 +376,8 @@ void TJobController::TImpl::AdjustResources()
 {
     auto optionalMemoryLimit = Bootstrap_->GetExecSlotManager()->GetMemoryLimit();
     if (optionalMemoryLimit) {
-        auto* tracker = GetUserMemoryUsageTracker();
-        tracker->SetTotalLimit(*optionalMemoryLimit);
+        const auto& memoryTracker = GetUserMemoryUsageTracker();
+        memoryTracker->SetTotalLimit(*optionalMemoryLimit);
     }
 
     auto usage = GetResourceUsage(false);
@@ -695,7 +694,12 @@ void TJobController::TImpl::InterruptJob(const IJobPtr& job)
     }
 }
 
-void TJobController::TImpl::RemoveJob(const IJobPtr& job, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext, bool archiveProfile)
+void TJobController::TImpl::RemoveJob(
+    const IJobPtr& job,
+    bool archiveJobSpec,
+    bool archiveStderr,
+    bool archiveFailContext,
+    bool archiveProfile)
 {
     YCHECK(job->GetPhase() >= EJobPhase::Cleanup);
     YCHECK(job->GetResourceUsage() == ZeroNodeResources());
@@ -1200,30 +1204,30 @@ void TJobController::TImpl::OnProfiling()
     ProfileResources(ResourceLimitsProfiler_, GetResourceLimits());
 }
 
-TNodeMemoryTracker* TJobController::TImpl::GetUserMemoryUsageTracker()
+const TNodeMemoryTrackerPtr& TJobController::TImpl::GetUserMemoryUsageTracker()
 {
     if (Bootstrap_->GetExecSlotManager()->ExternalJobMemory()) {
-        return ExternalMemoryUsageTracker_.Get();
+        return ExternalMemoryUsageTracker_;
     } else {
         return Bootstrap_->GetMemoryUsageTracker();
     }
 }
 
-TNodeMemoryTracker* TJobController::TImpl::GetSystemMemoryUsageTracker()
+const TNodeMemoryTrackerPtr& TJobController::TImpl::GetSystemMemoryUsageTracker()
 {
     return Bootstrap_->GetMemoryUsageTracker();
 }
 
-const TNodeMemoryTracker* TJobController::TImpl::GetUserMemoryUsageTracker() const
+const TNodeMemoryTrackerPtr& TJobController::TImpl::GetUserMemoryUsageTracker() const
 {
     if (Bootstrap_->GetExecSlotManager()->ExternalJobMemory()) {
-        return ExternalMemoryUsageTracker_.Get();
+        return ExternalMemoryUsageTracker_;
     } else {
         return Bootstrap_->GetMemoryUsageTracker();
     }
 }
 
-const TNodeMemoryTracker* TJobController::TImpl::GetSystemMemoryUsageTracker() const
+const TNodeMemoryTrackerPtr& TJobController::TImpl::GetSystemMemoryUsageTracker() const
 {
     return Bootstrap_->GetMemoryUsageTracker();
 }

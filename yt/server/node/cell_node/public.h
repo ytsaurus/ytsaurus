@@ -16,8 +16,9 @@ DECLARE_REFCOUNTED_CLASS(TResourceLimitsConfig)
 DECLARE_REFCOUNTED_CLASS(TCellNodeConfig)
 DECLARE_REFCOUNTED_CLASS(TBatchingChunkServiceConfig)
 
-using TNodeMemoryTracker = NNodeTrackerClient::TNodeMemoryTracker;
-using TNodeMemoryTrackerGuard = NNodeTrackerClient::TNodeMemoryTrackerGuard;
+using NNodeTrackerClient::TNodeMemoryTracker;
+using NNodeTrackerClient::TNodeMemoryTrackerPtr;
+using NNodeTrackerClient::TNodeMemoryTrackerGuard;
 
 ////////////////////////////////////////////////////////////////////////////////
 

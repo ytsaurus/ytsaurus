@@ -27,10 +27,10 @@ using namespace NChunkClient::NProto;
 
 struct TChunkWriteCounters
 {
-    explicit TChunkWriteCounters(const TTagIdList& list)
-        : DiskSpace("/chunk_writer/disk_space", list)
-        , DataWeight("/chunk_writer/data_weight", list)
-        , CompressionCpuTime("/chunk_writer/compression_cpu_time", list)
+    explicit TChunkWriteCounters(const TTagIdList& tagIds)
+        : DiskSpace("/chunk_writer/disk_space", tagIds)
+        , DataWeight("/chunk_writer/data_weight", tagIds)
+        , CompressionCpuTime("/chunk_writer/compression_cpu_time", tagIds)
     { }
 
     TMonotonicCounter DiskSpace;
@@ -41,7 +41,7 @@ struct TChunkWriteCounters
 using TChunkWriteProfilerTrait = TTagListProfilerTrait<TChunkWriteCounters>;
 
 void ProfileChunkWriter(
-    TTabletSnapshotPtr tabletSnapshot,
+    const TTabletSnapshotPtr& tabletSnapshot,
     const TDataStatistics& dataStatistics,
     const TCodecStatistics& codecStatistics,
     TTagId methodTag)
@@ -59,13 +59,15 @@ void ProfileChunkWriter(
     TabletNodeProfiler.Increment(counters.CompressionCpuTime, DurationToValue(compressionCpuTime));
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct TChunkReadCounters
 {
-    explicit TChunkReadCounters(const TTagIdList& list)
-        : CompressedDataSize("/chunk_reader/compressed_data_size", list)
-        , UnmergedDataWeight("/chunk_reader/unmerged_data_weight", list)
-        , DecompressionCpuTime("/chunk_reader/decompression_cpu_time", list)
-        , ChunkReaderStatisticsCounters("/chunk_reader_statistics", list)
+    explicit TChunkReadCounters(const TTagIdList& tagIds)
+        : CompressedDataSize("/chunk_reader/compressed_data_size", tagIds)
+        , UnmergedDataWeight("/chunk_reader/unmerged_data_weight", tagIds)
+        , DecompressionCpuTime("/chunk_reader/decompression_cpu_time", tagIds)
+        , ChunkReaderStatisticsCounters("/chunk_reader_statistics", tagIds)
     { }
 
     TMonotonicCounter CompressedDataSize;
@@ -77,7 +79,7 @@ struct TChunkReadCounters
 using TChunkReadProfilerTrait = TTagListProfilerTrait<TChunkReadCounters>;
 
 void ProfileChunkReader(
-    TTabletSnapshotPtr tabletSnapshot,
+    const TTabletSnapshotPtr& tabletSnapshot,
     const TDataStatistics& dataStatistics,
     const TCodecStatistics& codecStatistics,
     const TChunkReaderStatisticsPtr& chunkReaderStatistics,
@@ -97,8 +99,8 @@ void ProfileChunkReader(
 
 struct TDynamicMemoryUsageCounters
 {
-    explicit TDynamicMemoryUsageCounters(const TTagIdList& list)
-        : DynamicMemoryUsage("/dynamic_memory_usage", list)
+    explicit TDynamicMemoryUsageCounters(const TTagIdList& tagIds)
+        : DynamicMemoryUsage("/dynamic_memory_usage", tagIds)
     { }
 
     TSimpleGauge DynamicMemoryUsage;
@@ -106,14 +108,18 @@ struct TDynamicMemoryUsageCounters
 
 using TDynamicMemoryProfilerTrait = TTagListProfilerTrait<TDynamicMemoryUsageCounters>;
 
-////////////////////////////////////////////////////////////////////////////////
-
 void ProfileDynamicMemoryUsage(
     const NProfiling::TTagIdList& tags,
-    i64 delta)
+    ETabletDynamicMemoryType memoryType,
+    i64 memoryUsage)
 {
-    auto& counters = GetLocallyGloballyCachedValue<TDynamicMemoryProfilerTrait>(tags);
-    TabletNodeProfiler.Increment(counters.DynamicMemoryUsage, delta);
+    static const NProfiling::TEnumMemberTagCache<ETabletDynamicMemoryType> MemoryTypeTagCache("memory_type");
+    
+    auto allTags = tags;
+    allTags.push_back(MemoryTypeTagCache.GetTag(memoryType));
+    
+    auto& counters = GetLocallyGloballyCachedValue<TDynamicMemoryProfilerTrait>(allTags);
+    TabletNodeProfiler.Update(counters.DynamicMemoryUsage, memoryUsage);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

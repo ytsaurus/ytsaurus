@@ -35,8 +35,6 @@
 
 #include <yt/core/ytree/fluent.h>
 
-#include <yt/core/concurrency/delayed_executor.h>
-
 namespace NYT::NTabletNode {
 
 using namespace NApi;
@@ -85,14 +83,25 @@ TStoreBase::TStoreBase(
         .AddTag("StoreId: %v, TabletId: %v",
             StoreId_,
             TabletId_))
-{ }
+{
+    UpdateTabletDynamicMemoryUsage(+1);
+}
 
 TStoreBase::~TStoreBase()
 {
-    i64 delta = -MemoryUsage_;
-    MemoryUsage_ = 0;
-    MemoryUsageUpdated_.Fire(delta);
-    RuntimeData_->DynamicMemoryPoolSize += delta;
+    YT_LOG_DEBUG("Store destroyed");
+    UpdateTabletDynamicMemoryUsage(-1);
+}
+
+void TStoreBase::SetMemoryTracker(NNodeTrackerClient::TNodeMemoryTrackerPtr memoryTracker)
+{
+    YCHECK(!MemoryTracker_);
+    MemoryTracker_ = std::move(memoryTracker);
+    DynamicMemoryTrackerGuard_ = NNodeTrackerClient::TNodeMemoryTrackerGuard::Acquire(
+        MemoryTracker_,
+        GetMemoryCategory(),
+        DynamicMemoryUsage_,
+        MemoryUsageGranularity);
 }
 
 TStoreId TStoreBase::GetId() const
@@ -112,34 +121,14 @@ EStoreState TStoreBase::GetStoreState() const
 
 void TStoreBase::SetStoreState(EStoreState state)
 {
+    UpdateTabletDynamicMemoryUsage(-1);
     StoreState_ = state;
+    UpdateTabletDynamicMemoryUsage(+1);
 }
 
-i64 TStoreBase::GetMemoryUsage() const
+i64 TStoreBase::GetDynamicMemoryUsage() const
 {
-    return MemoryUsage_;
-}
-
-void TStoreBase::SubscribeMemoryUsageUpdated(const TCallback<void(i64 delta)>& callback)
-{
-    MemoryUsageUpdated_.Subscribe(callback);
-    callback.Run(+GetMemoryUsage());
-}
-
-void TStoreBase::UnsubscribeMemoryUsageUpdated(const TCallback<void(i64 delta)>& callback)
-{
-    MemoryUsageUpdated_.Unsubscribe(callback);
-    callback.Run(-GetMemoryUsage());
-}
-
-void TStoreBase::SetMemoryUsage(i64 value)
-{
-    if (std::abs(value - MemoryUsage_) > MemoryUsageGranularity) {
-        i64 delta = value - MemoryUsage_;
-        MemoryUsage_ = value;
-        MemoryUsageUpdated_.Fire(delta);
-        RuntimeData_->DynamicMemoryPoolSize += delta;
-    }
+    return DynamicMemoryUsage_;
 }
 
 TOwningKey TStoreBase::RowToKey(TUnversionedRow row) const
@@ -161,11 +150,8 @@ void TStoreBase::Save(TSaveContext& context) const
 void TStoreBase::Load(TLoadContext& context)
 {
     using NYT::Load;
-    Load(context, StoreState_);
+    SetStoreState(Load<EStoreState>(context));
 }
-
-void TStoreBase::OnAftereStoreLoaded()
-{ }
 
 void TStoreBase::BuildOrchidYson(TFluentMap fluent)
 {
@@ -235,6 +221,39 @@ TOrderedChunkStorePtr TStoreBase::AsOrderedChunk()
     Y_UNREACHABLE();
 }
 
+void TStoreBase::SetDynamicMemoryUsage(i64 value)
+{
+    RuntimeData_->DynamicMemoryUsagePerType[DynamicMemoryTypeFromState(StoreState_)] +=
+        (value - DynamicMemoryUsage_);
+    DynamicMemoryUsage_ = value;
+    if (DynamicMemoryTrackerGuard_) {
+        DynamicMemoryTrackerGuard_.SetSize(value);
+    }
+}
+
+ETabletDynamicMemoryType TStoreBase::DynamicMemoryTypeFromState(EStoreState state)
+{
+    switch (state) {
+        case EStoreState::ActiveDynamic:
+            return ETabletDynamicMemoryType::Active;
+
+        case EStoreState::PassiveDynamic:
+            return ETabletDynamicMemoryType::Passive;
+
+        case EStoreState::Removed:
+            return ETabletDynamicMemoryType::Backing;
+
+        default:
+            return ETabletDynamicMemoryType::Other;
+    }
+}
+
+void TStoreBase::UpdateTabletDynamicMemoryUsage(i64 multiplier)
+{
+    RuntimeData_->DynamicMemoryUsagePerType[DynamicMemoryTypeFromState(StoreState_)] +=
+        DynamicMemoryUsage_ * multiplier;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TDynamicStoreBufferTag
@@ -250,16 +269,12 @@ TDynamicStoreBase::TDynamicStoreBase(
         TDynamicStoreBufferTag(),
         Config_->PoolChunkSize))
 {
-    StoreState_ = EStoreState::ActiveDynamic;
-    UpdateMemoryProfilingCallback();
+    SetStoreState(EStoreState::ActiveDynamic);
 }
 
-TDynamicStoreBase::~TDynamicStoreBase()
-{ }
-
-void TDynamicStoreBase::OnAftereStoreLoaded()
+EMemoryCategory TDynamicStoreBase::GetMemoryCategory() const
 {
-    UpdateMemoryProfilingCallback();
+    return EMemoryCategory::TabletDynamic;
 }
 
 i64 TDynamicStoreBase::GetLockCount() const
@@ -304,8 +319,6 @@ void TDynamicStoreBase::SetStoreState(EStoreState state)
         OnSetPassive();
     }
     TStoreBase::SetStoreState(state);
-
-    UpdateMemoryProfilingCallback();
 }
 
 i64 TDynamicStoreBase::GetCompressedDataSize() const
@@ -386,55 +399,6 @@ void TDynamicStoreBase::UpdateTimestampRange(TTimestamp commitTimestamp)
         MinTimestamp_ = std::min(MinTimestamp_, commitTimestamp);
         MaxTimestamp_ = std::max(MaxTimestamp_, commitTimestamp);
     }
-}
-
-void TDynamicStoreBase::UpdateMemoryProfilingCallback()
-{
-    if (MemoryProfilingCallback_) {
-        UnsubscribeMemoryUsageUpdated(MemoryProfilingCallback_);
-    }
-
-    TStringBuf memoryType;
-    switch (StoreState_) {
-        case EStoreState::ActiveDynamic:
-            memoryType = "active";
-            break;
-
-        case EStoreState::PassiveDynamic:
-            memoryType = "passive";
-            break;
-
-        case EStoreState::Removed:
-            memoryType = "backing";
-            break;
-
-        default:
-            memoryType = "other";
-            break;
-    }
-
-    auto tags = Tablet_->GetProfilerTags();
-    tags.push_back(NProfiling::TProfileManager::Get()->RegisterTag("memory_type", memoryType));
-
-    auto callback = BIND([tags = std::move(tags)] (i64 delta) {
-        ProfileDynamicMemoryUsage(tags, delta);
-    });
-
-    TDelayedExecutorCookie cookie;
-    MemoryProfilingCallback_ = BIND([=] (i64 delta) mutable {
-        callback(delta);
-
-        if (cookie) {
-            NConcurrency::TDelayedExecutor::CancelAndClear(cookie);
-        }
-
-        // Update profiler counter after it's interval expires.
-        cookie = NConcurrency::TDelayedExecutor::Submit(
-            BIND(callback, 0),
-            TDuration::Seconds(2));
-    });
-
-    SubscribeMemoryUsageUpdated(MemoryProfilingCallback_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -529,7 +493,7 @@ TChunkStoreBase::TChunkStoreBase(
 
     YCHECK(TypeFromId(StoreId_) == EObjectType::ChunkView || StoreId_ == ChunkId_ || !ChunkId_);
 
-    StoreState_ = EStoreState::Persistent;
+    SetStoreState(EStoreState::Persistent);
 }
 
 void TChunkStoreBase::Initialize(const TAddStoreDescriptor* descriptor)
@@ -808,6 +772,11 @@ IChunkReaderPtr TChunkStoreBase::GetChunkReader(const NConcurrency::IThroughputT
 void TChunkStoreBase::PrecacheProperties()
 {
     MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_->extensions());
+}
+
+EMemoryCategory TChunkStoreBase::GetMemoryCategory() const
+{
+    return EMemoryCategory::TabletStatic;
 }
 
 bool TChunkStoreBase::IsPreloadAllowed() const

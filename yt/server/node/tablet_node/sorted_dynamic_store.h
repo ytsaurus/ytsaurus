@@ -35,9 +35,7 @@ public:
     TSortedDynamicStore(
         TTabletManagerConfigPtr config,
         TStoreId id,
-        TTablet* tablet,
-        NNodeTrackerClient::TNodeMemoryTracker* memoryTracker = nullptr);
-    virtual ~TSortedDynamicStore();
+        TTablet* tablet);
 
 
     //! Returns the reader to be used during flush.
@@ -157,8 +155,6 @@ private:
     class TLookupReader;
     class TLookupHashTable;
 
-    NNodeTrackerClient::TNodeMemoryTracker* MemoryTracker_;
-
     const TSortedDynamicRowKeyComparer RowKeyComparer_;
     const std::unique_ptr<TSkipList<TSortedDynamicRow, TSortedDynamicRowKeyComparer>> Rows_;
     std::unique_ptr<TLookupHashTable> LookupHashTable_;
@@ -227,7 +223,7 @@ private:
     ui32 GetLatestRevision() const;
     ui32 RegisterRevision(TTimestamp timestamp);
 
-    void OnMemoryUsageUpdated();
+    void OnDynamicMemoryUsageUpdated();
 
     void InsertIntoLookupHashTable(const TUnversionedValue* keyBegin, TSortedDynamicRow dynamicRow);
 };

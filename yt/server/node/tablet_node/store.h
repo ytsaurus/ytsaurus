@@ -44,10 +44,8 @@ struct IStore
     virtual EStoreState GetStoreState() const = 0;
     virtual void SetStoreState(EStoreState state) = 0;
 
-    //! Returns the number of bytes currently used by the store.
-    virtual i64 GetMemoryUsage() const = 0;
-    //! Raised whenever the store memory usage is changed.
-    DECLARE_INTERFACE_SIGNAL(void(i64 delta), MemoryUsageUpdated);
+    //! Returns the number of dynamic bytes currently used by the store.
+    virtual i64 GetDynamicMemoryUsage() const = 0;
 
     //! Serializes the synchronous part of the state.
     virtual void Save(TSaveContext& context) const = 0;
