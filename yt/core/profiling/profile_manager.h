@@ -103,6 +103,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Registers tags for all members of enum type #T and provides
+//! fast access to tag ids.
+template <class T>
+class TEnumMemberTagCache
+{
+public:
+    explicit TEnumMemberTagCache(const TString& key);
+    TTagId GetTag(T value) const;
+
+private:
+    TEnumIndexedVector<TTagId, T> Tags_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NProfiling
 
 template <>
