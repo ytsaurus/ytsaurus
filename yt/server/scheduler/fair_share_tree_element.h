@@ -523,16 +523,16 @@ protected:
     void UpdateFifo(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* context);
     void UpdateFairShare(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* context);
 
-    TSchedulerElementPtr GetBestActiveChild(const TDynamicAttributesList& dynamicAttributesList) const;
-    TSchedulerElementPtr GetBestActiveChildFifo(const TDynamicAttributesList& dynamicAttributesList) const;
-    TSchedulerElementPtr GetBestActiveChildFairShare(const TDynamicAttributesList& dynamicAttributesList) const;
+    TSchedulerElement* GetBestActiveChild(const TDynamicAttributesList& dynamicAttributesList) const;
+    TSchedulerElement* GetBestActiveChildFifo(const TDynamicAttributesList& dynamicAttributesList) const;
+    TSchedulerElement* GetBestActiveChildFairShare(const TDynamicAttributesList& dynamicAttributesList) const;
 
     static void AddChild(TChildMap* map, TChildList* list, const TSchedulerElementPtr& child);
     static void RemoveChild(TChildMap* map, TChildList* list, const TSchedulerElementPtr& child);
     static bool ContainsChild(const TChildMap& map, const TSchedulerElementPtr& child);
 
 private:
-    bool HasHigherPriorityInFifoMode(const TSchedulerElementPtr& lhs, const TSchedulerElementPtr& rhs) const;
+    bool HasHigherPriorityInFifoMode(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompositeSchedulerElement)
