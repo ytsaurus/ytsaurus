@@ -94,7 +94,7 @@ struct TFairShareSchedulingStage
 class TFairShareContext
 {
 public:
-    explicit TFairShareContext(const ISchedulingContextPtr& schedulingContext, bool enableSchedulingInfoLogging);
+    TFairShareContext(const ISchedulingContextPtr& schedulingContext, bool enableSchedulingInfoLogging);
 
     void Initialize(int treeSize, const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters);
 
@@ -738,15 +738,14 @@ private:
         TJobResources ResourceUsage;
     };
 
-    THashMap<TJobId, TJobProperties> JobPropertiesMap_;
     NConcurrency::TReaderWriterSpinLock JobPropertiesMapLock_;
+    THashMap<TJobId, TJobProperties> JobPropertiesMap_;
+    TInstant LastScheduleJobSuccessTime_;
 
     TSpinLock PreemptionStatusStatisticsLock_;
     TPreemptionStatusStatisticsVector PreemptionStatusStatistics_;
 
     TEnumIndexedVector<std::atomic<int>, EDeactivationReason> DeactivationReasons_;
-
-    TInstant LastScheduleJobSuccessTime_;
     TEnumIndexedVector<std::atomic<int>, EDeactivationReason> DeactivationReasonsFromLastNonStarvingTime_;
 
     bool Enabled_ = false;
