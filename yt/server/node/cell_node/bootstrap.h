@@ -62,6 +62,7 @@ public:
     const IInvokerPtr& GetTransactionTrackerInvoker() const;
     const IInvokerPtr& GetStorageHeavyInvoker() const;
     const IInvokerPtr& GetStorageLightInvoker() const;
+    const IInvokerPtr& GetJobThrottlerInvoker() const;
     const NApi::NNative::IClientPtr& GetMasterClient() const;
     const NApi::NNative::IConnectionPtr& GetMasterConnection() const;
     const NRpc::IServerPtr& GetRpcServer() const;
@@ -133,6 +134,7 @@ private:
     NConcurrency::TThreadPoolPtr StorageHeavyThreadPool_;
     NConcurrency::TThreadPoolPtr StorageLightThreadPool_;
     NConcurrency::TActionQueuePtr MasterCacheQueue_;
+    NConcurrency::TActionQueuePtr JobThrottlerQueue_;
 
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     NBus::IBusServerPtr BusServer_;

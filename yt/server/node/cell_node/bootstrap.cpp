@@ -239,6 +239,7 @@ void TBootstrap::DoRun()
     MasterClient_ = MasterConnection_->CreateNativeClient(TClientOptions(NSecurityClient::RootUserName));
 
     MasterCacheQueue_ = New<TActionQueue>("MasterCache");
+    JobThrottlerQueue_ = New<TActionQueue>("JobThrottler");
     LookupThreadPool_ = New<TThreadPool>(
         Config_->QueryAgent->LookupThreadPoolSize,
         "Lookup");
@@ -535,7 +536,7 @@ void TBootstrap::DoRun()
 
     RpcServer_->RegisterService(CreateJobProberService(this));
 
-    RpcServer_->RegisterService(New<TSupervisorService>(this));
+    RpcServer_->RegisterService(CreateSupervisorService(this));
 
     SchedulerConnector_ = New<TSchedulerConnector>(Config_->ExecAgent->SchedulerConnector, this);
 
@@ -679,6 +680,11 @@ const IInvokerPtr& TBootstrap::GetStorageHeavyInvoker() const
 const IInvokerPtr& TBootstrap::GetStorageLightInvoker() const
 {
     return StorageLightThreadPool_->GetInvoker();
+}
+
+const IInvokerPtr& TBootstrap::GetJobThrottlerInvoker() const
+{
+    return JobThrottlerQueue_->GetInvoker();
 }
 
 const NNative::IClientPtr& TBootstrap::GetMasterClient() const
