@@ -84,10 +84,10 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const TTabletSnapshotPtr& tabletSnapshot,
     const IChunkStorePtr& store,
     NChunkClient::TReadSessionId readSessionId,
-    NNodeTrackerClient::TNodeMemoryTracker* memoryUsageTracker,
+    const NNodeTrackerClient::TNodeMemoryTrackerPtr& memoryTracker,
     const IInvokerPtr& compressionInvoker,
     const NConcurrency::IThroughputThrottlerPtr& throttler,
-    NProfiling::TTagId preloadTag = {});
+    NProfiling::TTagId preloadTag);
 
 ////////////////////////////////////////////////////////////////////////////////
 

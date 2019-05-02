@@ -186,11 +186,6 @@ TOrderedDynamicStore::TOrderedDynamicStore(
     YT_LOG_DEBUG("Ordered dynamic store created");
 }
 
-TOrderedDynamicStore::~TOrderedDynamicStore()
-{
-    YT_LOG_DEBUG("Ordered dynamic memory store destroyed");
-}
-
 ISchemafulReaderPtr TOrderedDynamicStore::CreateFlushReader()
 {
     YCHECK(FlushRowCount_ != -1);
@@ -234,7 +229,7 @@ TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
 
     CommitRow(dynamicRow);
     UpdateTimestampRange(context->CommitTimestamp);
-    OnMemoryUsageUpdated();
+    OnDynamicMemoryUsageUpdated();
 
     auto dataWeight = GetDataWeight(row);
     ++PerformanceCounters_->DynamicRowWriteCount;
@@ -405,7 +400,7 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
         FlushRowCount_ = GetRowCount();
     }
 
-    OnMemoryUsageUpdated();
+    OnDynamicMemoryUsageUpdated();
 }
 
 TOrderedDynamicStorePtr TOrderedDynamicStore::AsOrderedDynamic()
@@ -448,9 +443,9 @@ void TOrderedDynamicStore::AllocateCurrentSegment(int index)
     Segments_[CurrentSegmentIndex_] = std::make_unique<TOrderedDynamicRowSegment>(CurrentSegmentCapacity_);
 }
 
-void TOrderedDynamicStore::OnMemoryUsageUpdated()
+void TOrderedDynamicStore::OnDynamicMemoryUsageUpdated()
 {
-    SetMemoryUsage(GetUncompressedDataSize());
+    SetDynamicMemoryUsage(GetUncompressedDataSize());
 }
 
 void TOrderedDynamicStore::CommitRow(TOrderedDynamicRow row)

@@ -74,7 +74,7 @@ public:
     const NTabletNode::TVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const;
     const NExecAgent::TSlotManagerPtr& GetExecSlotManager() const;
     const NJobAgent::TGpuManagerPtr& GetGpuManager() const;
-    TNodeMemoryTracker* GetMemoryUsageTracker() const;
+    const TNodeMemoryTrackerPtr& GetMemoryUsageTracker() const;
     const NDataNode::TChunkStorePtr& GetChunkStore() const;
     const NDataNode::TChunkCachePtr& GetChunkCache() const;
     const NDataNode::TChunkRegistryPtr& GetChunkRegistry() const;

@@ -71,13 +71,13 @@ public:
 
     bool IsOutOfMemory() const
     {
-        const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
+        const auto& tracker = Bootstrap_->GetMemoryUsageTracker();
         return tracker->IsExceeded(EMemoryCategory::TabletDynamic);
     }
 
     bool IsRotationForced(i64 passiveUsage) const
     {
-        const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
+        const auto& tracker = Bootstrap_->GetMemoryUsageTracker();
         return
             tracker->GetUsed(EMemoryCategory::TabletDynamic) - passiveUsage >
             tracker->GetLimit(EMemoryCategory::TabletDynamic) * Config_->ForcedRotationsMemoryRatio;

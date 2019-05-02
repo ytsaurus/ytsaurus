@@ -16,6 +16,8 @@
 
 #include <yt/ytlib/api/native/public.h>
 
+#include <yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/core/actions/signal.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
@@ -43,9 +45,8 @@ public:
     virtual EStoreState GetStoreState() const override;
     virtual void SetStoreState(EStoreState state) override;
 
-    virtual i64 GetMemoryUsage() const override;
-    virtual void SubscribeMemoryUsageUpdated(const TCallback<void(i64 delta)>& callback) override;
-    virtual void UnsubscribeMemoryUsageUpdated(const TCallback<void(i64 delta)>& callback) override;
+    void SetMemoryTracker(NNodeTrackerClient::TNodeMemoryTrackerPtr memoryTracker);
+    virtual i64 GetDynamicMemoryUsage() const override;
 
     virtual void Save(TSaveContext& context) const override;
     virtual void Load(TLoadContext& context) override;
@@ -89,18 +90,22 @@ protected:
 
     const NLogging::TLogger Logger;
 
+    NNodeTrackerClient::TNodeMemoryTrackerPtr MemoryTracker_;
+    NNodeTrackerClient::TNodeMemoryTrackerGuard DynamicMemoryTrackerGuard_;
 
-    void SetMemoryUsage(i64 value);
 
     TOwningKey RowToKey(TUnversionedRow row) const;
     TOwningKey RowToKey(TSortedDynamicRow row) const;
 
-    virtual void OnAftereStoreLoaded();
+    virtual NNodeTrackerClient::EMemoryCategory GetMemoryCategory() const = 0;
+
+    void SetDynamicMemoryUsage(i64 value);
 
 private:
-    i64 MemoryUsage_ = 0;
-    TCallbackList<void(i64 delta)> MemoryUsageUpdated_;
+    i64 DynamicMemoryUsage_ = 0;
 
+    static ETabletDynamicMemoryType DynamicMemoryTypeFromState(EStoreState state);
+    void UpdateTabletDynamicMemoryUsage(i64 multiplier);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -114,8 +119,6 @@ public:
         TTabletManagerConfigPtr config,
         TStoreId id,
         TTablet* tablet);
-
-    ~TDynamicStoreBase();
 
     i64 Lock();
     i64 Unlock();
@@ -166,15 +169,11 @@ protected:
     i64 StoreLockCount_ = 0;
     i64 StoreValueCount_ = 0;
 
-    TCallback<void(i64 delta)> MemoryProfilingCallback_;
-
     void UpdateTimestampRange(TTimestamp commitTimestamp);
 
     virtual void OnSetPassive() = 0;
 
-    void UpdateMemoryProfilingCallback();
-
-    virtual void OnAftereStoreLoaded() override;
+    virtual NNodeTrackerClient::EMemoryCategory GetMemoryCategory() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -287,6 +286,7 @@ protected:
     NChunkClient::IBlockCachePtr GetBlockCache();
 
     virtual void PrecacheProperties();
+    virtual NNodeTrackerClient::EMemoryCategory GetMemoryCategory() const override;
 
     bool ValidateBlockCachePreloaded();
 

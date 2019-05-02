@@ -373,6 +373,7 @@ public:
     TDuration ReplicatorHardBackoffTime;
 
     TDuration TabletCellDecommissionCheckPeriod;
+    TDuration TabletProfilingPeriod;
 
     TTabletManagerConfig()
     {
@@ -405,6 +406,8 @@ public:
             .Default(TDuration::Seconds(60));
 
         RegisterParameter("tablet_cell_decommission_check_period", TabletCellDecommissionCheckPeriod)
+            .Default(TDuration::Seconds(10));
+        RegisterParameter("tablet_profiling_period", TabletProfilingPeriod)
             .Default(TDuration::Seconds(10));
     }
 };

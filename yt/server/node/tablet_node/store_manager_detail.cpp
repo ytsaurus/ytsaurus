@@ -415,9 +415,9 @@ void TStoreManagerBase::Rotate(bool createNewStore)
     YCHECK(activeStore);
     activeStore->SetStoreState(EStoreState::PassiveDynamic);
 
-    YT_LOG_INFO_UNLESS(IsRecovery(), "Rotating store (StoreId: %v, StoreMemoryUsage: %v)",
+    YT_LOG_INFO_UNLESS(IsRecovery(), "Rotating store (StoreId: %v, DynamicMemoryUsage: %v)",
         activeStore->GetId(),
-        activeStore->GetMemoryUsage());
+        activeStore->GetDynamicMemoryUsage());
 
     if (activeStore->GetLockCount() > 0) {
         YT_LOG_INFO_UNLESS(IsRecovery(), "Active store is locked and will be kept (StoreId: %v, LockCount: %v)",

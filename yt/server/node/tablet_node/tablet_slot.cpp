@@ -847,9 +847,6 @@ private:
             ->AddChild("dynamic_config_version", IYPathService::FromMethod(
                 &TImpl::GetDynamicConfigVersion,
                 MakeWeak(this)))
-            ->AddChild("memory_usage", IYPathService::FromMethod(
-                &TImpl::GetMemoryUsage,
-                MakeWeak(this)))
             ->AddChild("life_stage", IYPathService::FromMethod(
                 &TTabletManager::GetTabletCellLifeStage,
                 MakeWeak(TabletManager_))
@@ -872,18 +869,6 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return Options_;
-    }
-
-    TYsonString GetMemoryUsage() const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return BuildYsonStringFluently()
-            .BeginMap()
-                .Item("dynamic_stores").Value(TabletManager_->GetDynamicStoresMemoryUsage())
-                .Item("static_stores").Value(TabletManager_->GetStaticStoresMemoryUsage())
-                .Item("write_log").Value(TabletManager_->GetWriteLogsMemoryUsage())
-            .EndMap();
     }
 
 
