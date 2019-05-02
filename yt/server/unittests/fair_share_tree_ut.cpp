@@ -41,7 +41,7 @@ struct TSchedulerStrategyHostMock
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) override
     {
         if (!filter.IsEmpty()) {
-            return ZeroJobResources();
+            return {};
         }
 
         TJobResources totalResources;
@@ -463,7 +463,7 @@ TEST_F(TFairShareTreeTest, TestUpdatePreemptableJobsList)
         operationElementX->OnJobStarted(
             jobId,
             jobResources.ToJobResources(),
-            /* precommitedResources */ ZeroJobResources());
+            /* precommitedResources */ {});
     }
 
     auto dynamicAttributes = TDynamicAttributesList(2);

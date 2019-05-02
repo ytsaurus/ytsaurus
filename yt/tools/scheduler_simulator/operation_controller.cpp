@@ -106,7 +106,7 @@ public:
     {
         YCHECK(InitializationFinished_);
 
-        TJobResources neededResources = ZeroJobResources();
+        TJobResources neededResources;
         for (const auto& job : PendingJobs_) {
             neededResources += job.ResourceLimits;
         }
@@ -205,7 +205,7 @@ private:
     int CompletedJobCount_ = 0;
     int AbortedJobCount_ = 0;
     int RunningJobCount_ = 0;
-    TJobResources NeededResources_ = ZeroJobResources();
+    TJobResources NeededResources_;
     SmallVector<TJobBucket*, TEnumTraits<EJobType>::GetDomainSize()> ActiveBuckets_;
     ///////////////////////
 
@@ -454,7 +454,7 @@ void TSimulatorOperationController::UpdateMinNeededJobResources()
 
 TJobResourcesWithQuotaList TSimulatorOperationController::GetMinNeededJobResources() const
 {
-    return {ZeroJobResourcesWithQuota()};
+    return {{}};
 }
 
 TString TSimulatorOperationController::GetLoggingProgress() const

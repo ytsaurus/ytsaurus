@@ -1513,7 +1513,7 @@ protected:
         YT_LOG_DEBUG("Examining online nodes");
 
         const auto& nodeDescriptors = GetOnlineExecNodeDescriptors();
-        auto maxResourceLimits = ZeroJobResources();
+        TJobResources maxResourceLimits;
         double maxIOWeight = 0;
         for (const auto& pair : nodeDescriptors) {
             const auto& descriptor = pair.second;

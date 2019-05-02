@@ -63,6 +63,15 @@ ITERATE_JOB_RESOURCES(XX)
 #undef XX
 { }
 
+TJobResources TJobResources::Infinite()
+{
+    TJobResources result;
+#define XX(name, Name) result.Set##Name(std::numeric_limits<decltype(result.Get##Name())>::max() / 4);
+    ITERATE_JOB_RESOURCES(XX)
+#undef XX
+    return result;
+}
+
 TNodeResources TJobResources::ToNodeResources() const
 {
     TNodeResources result;
@@ -79,6 +88,29 @@ void TJobResources::Persist(const TStreamPersistenceContext& context)
     #define XX(name, Name) Persist(context, Name##_);
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
+}
+
+TJobResourcesWithQuota::TJobResourcesWithQuota(const TJobResources& jobResources)
+    : TJobResources(jobResources)
+{
+    SetDiskQuota(0);
+}
+
+TJobResourcesWithQuota TJobResourcesWithQuota::Infinite()
+{
+    return TJobResourcesWithQuota(TJobResources::Infinite());
+}
+
+TJobResources TJobResourcesWithQuota::ToJobResources() const
+{
+    return *this;
+}
+
+void TJobResourcesWithQuota::Persist(const TStreamPersistenceContext& context)
+{
+    using NYT::Persist;
+    TJobResources::Persist(context);
+    Persist(context, DiskQuota_);
 }
 
 TString FormatResource(
@@ -277,44 +309,6 @@ TJobResources GetAdjustedResourceLimits(
     }
 
     return adjustedLimits;
-}
-
-const TJobResources& ZeroJobResources()
-{
-    static auto value = TJobResources();
-    return value;
-}
-
-const TJobResourcesWithQuota& ZeroJobResourcesWithQuota()
-{
-    static auto value = TJobResourcesWithQuota();
-    return value;
-}
-
-TJobResources GetInfiniteResources()
-{
-    TJobResources result;
-    #define XX(name, Name) result.Set##Name(std::numeric_limits<decltype(result.Get##Name())>::max() / 4);
-    ITERATE_JOB_RESOURCES(XX)
-    #undef XX
-    return result;
-}
-
-TJobResourcesWithQuota GetInfiniteResourcesWithQuota()
-{
-    return TJobResourcesWithQuota(GetInfiniteResources());
-}
-
-const TJobResources& InfiniteJobResources()
-{
-    static auto result = GetInfiniteResources();
-    return result;
-}
-
-const TJobResourcesWithQuota& InfiniteJobResourcesWithQuota()
-{
-    static auto result = GetInfiniteResourcesWithQuota();
-    return result;
 }
 
 TJobResources operator + (const TJobResources& lhs, const TJobResources& rhs)

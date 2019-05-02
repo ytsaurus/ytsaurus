@@ -47,7 +47,7 @@ void Deserialize(TJobDescription& value, NYTree::INodePtr node)
     auto listNode = node->AsList();
     auto duration = listNode->GetChild(0)->AsDouble()->GetValue();
     value.Duration = TDuration::MilliSeconds(i64(duration * 1000));
-    value.ResourceLimits = ZeroJobResources();
+    value.ResourceLimits = {};
     value.ResourceLimits.SetMemory(listNode->GetChild(1)->AsInt64()->GetValue());
     value.ResourceLimits.SetCpu(TCpuResource(listNode->GetChild(2)->AsDouble()->GetValue()));
     value.ResourceLimits.SetUserSlots(listNode->GetChild(3)->AsInt64()->GetValue());

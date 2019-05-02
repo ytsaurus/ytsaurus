@@ -146,7 +146,7 @@ TJobResources TTask::GetTotalNeededResources() const
 {
     i64 count = GetPendingJobCount();
     // NB: Don't call GetMinNeededResources if there are no pending jobs.
-    return count == 0 ? ZeroJobResources() : GetMinNeededResources().ToJobResources() * count;
+    return count == 0 ? TJobResources() : GetMinNeededResources().ToJobResources() * count;
 }
 
 bool TTask::IsStderrTableEnabled() const

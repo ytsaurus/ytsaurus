@@ -973,7 +973,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto resourceLimits = ZeroJobResources();
+        TJobResources resourceLimits;
         for (const auto& nodeShard : NodeShards_) {
             resourceLimits += nodeShard->GetResourceLimits(filter);
         }
@@ -2902,7 +2902,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto resourceUsage = ZeroJobResources();
+        TJobResources resourceUsage;
         for (const auto& nodeShard : NodeShards_) {
             resourceUsage += nodeShard->GetResourceUsage(filter);
         }

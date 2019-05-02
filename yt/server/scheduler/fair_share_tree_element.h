@@ -41,7 +41,7 @@ struct TDynamicAttributes
     double SatisfactionRatio = 0.0;
     bool Active = false;
     TSchedulerElement* BestLeafDescendant = nullptr;
-    TJobResources ResourceUsageDiscount = ZeroJobResources();
+    TJobResources ResourceUsageDiscount;
 };
 
 typedef std::vector<TDynamicAttributes> TDynamicAttributesList;
@@ -156,7 +156,7 @@ class TSchedulerElementFixedState
 {
 public:
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceDemand);
-    DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
+    DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits, TJobResources::Infinite());
     DEFINE_BYREF_RO_PROPERTY(TJobResources, MaxPossibleResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(TSchedulableAttributes, Attributes);
     DEFINE_BYVAL_RW_PROPERTY(int, SchedulingTagFilterIndex, EmptySchedulingTagFilterIndex);
@@ -248,7 +248,7 @@ private:
 
     NConcurrency::TPaddedReaderWriterSpinLock ResourceUsageLock_;
     TJobResources ResourceUsage_;
-    TJobResources ResourceLimits_ = InfiniteJobResources();
+    TJobResources ResourceLimits_ = TJobResources::Infinite();
     TJobResources ResourceUsagePrecommit_;
 
     NConcurrency::TPaddedReaderWriterSpinLock JobMetricsLock_;

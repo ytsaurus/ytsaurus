@@ -691,7 +691,7 @@ void TFairShareTree::RegisterJobsFromRevivedOperation(TOperationId operationId, 
         element->OnJobStarted(
             job->GetId(),
             job->ResourceUsage(),
-            /* precommittedResources */ ZeroJobResources(),
+            /* precommittedResources */ {},
             /* force */ true);
     }
 }
@@ -964,9 +964,9 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
     context->SchedulingStatistics.ScheduledDuringPreemption = startedAfterPreemption - startedBeforePreemption;
 
     // Reset discounts.
-    context->SchedulingContext->ResourceUsageDiscount() = ZeroJobResources();
+    context->SchedulingContext->ResourceUsageDiscount() = {};
     for (const auto& pool : discountedPools) {
-        context->DynamicAttributesFor(pool).ResourceUsageDiscount = ZeroJobResources();
+        context->DynamicAttributesFor(pool).ResourceUsageDiscount = {};
     }
 
     // Preempt jobs if needed.
@@ -1120,7 +1120,7 @@ void TFairShareTree::PreemptJob(
 {
     context->SchedulingContext->ResourceUsage() -= job->ResourceUsage();
     operationElement->IncreaseJobResourceUsage(job->GetId(), -job->ResourceUsage());
-    job->ResourceUsage() = ZeroJobResources();
+    job->ResourceUsage() = {};
 
     context->SchedulingContext->PreemptJob(job);
 }
