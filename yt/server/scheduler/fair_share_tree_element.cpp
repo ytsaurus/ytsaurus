@@ -1079,7 +1079,7 @@ void TCompositeSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList&
     attributes.Active = false;
     attributes.BestLeafDescendant = nullptr;
 
-    while (auto bestChild = GetBestActiveChild(dynamicAttributesList)) {
+    while (auto* bestChild = GetBestActiveChild(dynamicAttributesList)) {
         const auto& bestChildAttributes = dynamicAttributesList[bestChild->GetTreeIndex()];
         auto childBestLeafDescendant = bestChildAttributes.BestLeafDescendant;
         if (!childBestLeafDescendant->IsAlive()) {
@@ -1338,7 +1338,12 @@ void TCompositeSchedulerElement::UpdateFifo(TDynamicAttributesList& dynamicAttri
     YCHECK(!Cloned_);
 
     auto children = EnabledChildren_;
-    std::sort(children.begin(), children.end(), BIND(&TCompositeSchedulerElement::HasHigherPriorityInFifoMode, MakeStrong(this)));
+    std::sort(
+        children.begin(),
+        children.end(),
+        [&] (const auto& lhs, const auto& rhs) {
+            return HasHigherPriorityInFifoMode(lhs.Get(), rhs.Get());
+        });
 
     double remainingFairShareRatio = Attributes_.FairShareRatio;
 
@@ -1488,7 +1493,7 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
     }
 }
 
-TSchedulerElementPtr TCompositeSchedulerElement::GetBestActiveChild(const TDynamicAttributesList& dynamicAttributesList) const
+TSchedulerElement* TCompositeSchedulerElement::GetBestActiveChild(const TDynamicAttributesList& dynamicAttributesList) const
 {
     switch (Mode_) {
         case ESchedulingMode::Fifo:
@@ -1500,12 +1505,12 @@ TSchedulerElementPtr TCompositeSchedulerElement::GetBestActiveChild(const TDynam
     }
 }
 
-TSchedulerElementPtr TCompositeSchedulerElement::GetBestActiveChildFifo(const TDynamicAttributesList& dynamicAttributesList) const
+TSchedulerElement* TCompositeSchedulerElement::GetBestActiveChildFifo(const TDynamicAttributesList& dynamicAttributesList) const
 {
     TSchedulerElement* bestChild = nullptr;
     for (const auto& child : EnabledChildren_) {
         if (child->IsActive(dynamicAttributesList)) {
-            if (bestChild && HasHigherPriorityInFifoMode(bestChild, child)) {
+            if (bestChild && HasHigherPriorityInFifoMode(bestChild, child.Get())) {
                 continue;
             }
 
@@ -1515,7 +1520,7 @@ TSchedulerElementPtr TCompositeSchedulerElement::GetBestActiveChildFifo(const TD
     return bestChild;
 }
 
-TSchedulerElementPtr TCompositeSchedulerElement::GetBestActiveChildFairShare(const TDynamicAttributesList& dynamicAttributesList) const
+TSchedulerElement* TCompositeSchedulerElement::GetBestActiveChildFairShare(const TDynamicAttributesList& dynamicAttributesList) const
 {
     TSchedulerElement* bestChild = nullptr;
     double bestChildSatisfactionRatio = std::numeric_limits<double>::max();
@@ -1566,7 +1571,7 @@ bool TCompositeSchedulerElement::ContainsChild(
     return map.find(child) != map.end();
 }
 
-bool TCompositeSchedulerElement::HasHigherPriorityInFifoMode(const TSchedulerElementPtr& lhs, const TSchedulerElementPtr& rhs) const
+bool TCompositeSchedulerElement::HasHigherPriorityInFifoMode(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const
 {
     for (auto parameter : FifoSortParameters_) {
         switch (parameter) {
