@@ -17,10 +17,12 @@ using namespace NControllerAgent;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulingContextBase::TSchedulingContextBase(
+    int nodeShardId,
     TSchedulerConfigPtr config,
     TExecNodePtr node,
     const std::vector<TJobPtr>& runningJobs)
-    : ResourceUsageDiscount_(ZeroJobResources())
+    : NodeShardId_(nodeShardId)
+    , ResourceUsageDiscount_(ZeroJobResources())
     , ResourceUsage_(node->GetResourceUsage())
     , ResourceLimits_(node->GetResourceLimits())
     , DiskInfo_(node->GetDiskInfo())

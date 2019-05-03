@@ -190,6 +190,8 @@ protected:
     const TString TreeId_;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 // This is node of shared state tree.
 // Each state corresponds to some scheduler element and all its snapshots.
 // There are three general scenarios:
@@ -275,6 +277,8 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerElementSharedState)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerElement
     : public TSchedulerElementFixedState
@@ -431,6 +435,8 @@ protected:
     std::vector<EFifoSortParameter> FifoSortParameters_;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TCompositeSchedulerElement
     : public TSchedulerElement
     , public TCompositeSchedulerElementFixedState
@@ -542,6 +548,8 @@ protected:
     bool DefaultConfigured_ = true;
     std::optional<TString> UserName_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TPool
     : public TCompositeSchedulerElement
@@ -681,7 +689,7 @@ public:
     void UpdatePreemptionStatusStatistics(EOperationPreemptionStatus status);
     TPreemptionStatusStatisticsVector GetPreemptionStatusStatistics() const;
 
-    void OnOperationDeactivated(EDeactivationReason reason);
+    void OnOperationDeactivated(const TFairShareContext& context, EDeactivationReason reason);
     TEnumIndexedVector<int, EDeactivationReason> GetDeactivationReasons() const;
     void ResetDeactivationReasonsFromLastNonStarvingTime();
     TEnumIndexedVector<int, EDeactivationReason> GetDeactivationReasonsFromLastNonStarvingTime() const;
@@ -703,7 +711,7 @@ private:
     TJobResources AggressivelyPreemptableResourceUsage_;
 
     std::atomic<int> UpdatePreemptableJobsListCount_ = {0};
-    int UpdatePreemptableJobsListLoggingPeriod_;
+    const int UpdatePreemptableJobsListLoggingPeriod_;
 
     struct TJobProperties
     {
@@ -737,8 +745,13 @@ private:
     TSpinLock PreemptionStatusStatisticsLock_;
     TPreemptionStatusStatisticsVector PreemptionStatusStatistics_;
 
-    TEnumIndexedVector<std::atomic<int>, EDeactivationReason> DeactivationReasons_;
-    TEnumIndexedVector<std::atomic<int>, EDeactivationReason> DeactivationReasonsFromLastNonStarvingTime_;
+    struct TStateShard
+    {
+        TEnumIndexedVector<std::atomic<int>, EDeactivationReason> DeactivationReasons;
+        TEnumIndexedVector<std::atomic<int>, EDeactivationReason> DeactivationReasonsFromLastNonStarvingTime;
+        char Padding[64];
+    };
+    std::array<TStateShard, MaxNodeShardCount> StateShards_;
 
     bool Enabled_ = false;
 
@@ -842,7 +855,7 @@ public:
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
 
-    void OnOperationDeactivated(EDeactivationReason reason);
+    void OnOperationDeactivated(const TFairShareContext& context, EDeactivationReason reason);
     TEnumIndexedVector<int, EDeactivationReason> GetDeactivationReasons() const;
     TEnumIndexedVector<int, EDeactivationReason> GetDeactivationReasonsFromLastNonStarvingTime() const;
 
@@ -866,10 +879,10 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
 
 private:
-    TOperationElementSharedStatePtr OperationElementSharedState_;
-    TFairShareStrategyOperationControllerPtr Controller_;
+    const TOperationElementSharedStatePtr OperationElementSharedState_;
+    const TFairShareStrategyOperationControllerPtr Controller_;
 
-    bool IsRunningInThisPoolTree_ = false;
+    bool RunningInThisPoolTree_ = false;
     TSchedulingTagFilter SchedulingTagFilter_;
 
     TInstant LastNonStarvingTime_;
