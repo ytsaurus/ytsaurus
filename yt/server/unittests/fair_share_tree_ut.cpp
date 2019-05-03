@@ -353,7 +353,11 @@ protected:
         const TOperationElementPtr& operationElement,
         const TExecNodePtr& execNode)
     {
-        auto schedulingContext = CreateSchedulingContext(SchedulerConfig_, execNode, /* runningJobs */ {});
+        auto schedulingContext = CreateSchedulingContext(
+            0,
+            SchedulerConfig_,
+            execNode,
+            /* runningJobs */ {});
         TFairShareContext context(schedulingContext, /* enableSchedulingInfoLogging */ true);
         TDynamicAttributesList dynamicAttributes;
 

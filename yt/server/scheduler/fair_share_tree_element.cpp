@@ -2137,17 +2137,20 @@ TPreemptionStatusStatisticsVector TOperationElementSharedState::GetPreemptionSta
     return PreemptionStatusStatistics_;
 }
 
-void TOperationElementSharedState::OnOperationDeactivated(EDeactivationReason reason)
+void TOperationElementSharedState::OnOperationDeactivated(const TFairShareContext& context, EDeactivationReason reason)
 {
-    ++DeactivationReasons_[reason];
-    ++DeactivationReasonsFromLastNonStarvingTime_[reason];
+    auto& shard = StateShards_[context.SchedulingContext->GetNodeShardId()];
+    ++shard.DeactivationReasons[reason];
+    ++shard.DeactivationReasonsFromLastNonStarvingTime[reason];
 }
 
 TEnumIndexedVector<int, EDeactivationReason> TOperationElementSharedState::GetDeactivationReasons() const
 {
     TEnumIndexedVector<int, EDeactivationReason> result;
-    for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
-        result[reason] = DeactivationReasons_[reason];
+    for (const auto& shard : StateShards_) {
+        for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
+            result[reason] += shard.DeactivationReasons[reason].load();
+        }
     }
     return result;
 }
@@ -2155,16 +2158,20 @@ TEnumIndexedVector<int, EDeactivationReason> TOperationElementSharedState::GetDe
 TEnumIndexedVector<int, EDeactivationReason> TOperationElementSharedState::GetDeactivationReasonsFromLastNonStarvingTime() const
 {
     TEnumIndexedVector<int, EDeactivationReason> result;
-    for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
-        result[reason] = DeactivationReasonsFromLastNonStarvingTime_[reason];
+    for (const auto& shard : StateShards_) {
+        for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
+            result[reason] += shard.DeactivationReasonsFromLastNonStarvingTime[reason].load();
+        }
     }
     return result;
 }
 
 void TOperationElementSharedState::ResetDeactivationReasonsFromLastNonStarvingTime()
 {
-    for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
-        DeactivationReasonsFromLastNonStarvingTime_[reason] = 0;
+    for (auto& shard : StateShards_) {
+        for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
+            shard.DeactivationReasonsFromLastNonStarvingTime[reason].store(0);
+        }
     }
 }
 
@@ -2175,9 +2182,9 @@ TInstant TOperationElementSharedState::GetLastScheduleJobSuccessTime() const
     return LastScheduleJobSuccessTime_;
 }
 
-void TOperationElement::OnOperationDeactivated(EDeactivationReason reason)
+void TOperationElement::OnOperationDeactivated(const TFairShareContext& context, EDeactivationReason reason)
 {
-    OperationElementSharedState_->OnOperationDeactivated(reason);
+    OperationElementSharedState_->OnOperationDeactivated(context, reason);
 }
 
 TEnumIndexedVector<int, EDeactivationReason> TOperationElement::GetDeactivationReasons() const
@@ -2494,7 +2501,7 @@ void TOperationElement::PrescheduleJob(TFairShareContext* context, bool starving
 
     auto onOperationDeactivated = [&] (EDeactivationReason reason) {
         ++context->StageState->DeactivationReasons[reason];
-        OnOperationDeactivated(reason);
+        OnOperationDeactivated(*context, reason);
         attributes.Active = false;
     };
 
@@ -2571,7 +2578,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
 
     auto disableOperationElement = [&] (EDeactivationReason reason) {
         ++context->StageState->DeactivationReasons[reason];
-        OnOperationDeactivated(reason);
+        OnOperationDeactivated(*context, reason);
         context->DynamicAttributesFor(this).Active = false;
         updateAncestorsAttributes();
     };
@@ -3051,7 +3058,7 @@ void TOperationElement::ChangeParent(NYT::NScheduler::TCompositeSchedulerElement
     YCHECK(Parent_);
 
     auto oldParentId = Parent_->GetId();
-    if (IsRunningInThisPoolTree_) {
+    if (RunningInThisPoolTree_) {
         Parent_->IncreaseRunningOperationCount(-1);
     }
     Parent_->IncreaseOperationCount(-1);
@@ -3060,7 +3067,7 @@ void TOperationElement::ChangeParent(NYT::NScheduler::TCompositeSchedulerElement
     Parent_ = parent;
     SharedState_->ChangeParent(parent->SharedState_.Get());
 
-    IsRunningInThisPoolTree_ = false;  // for consistency
+    RunningInThisPoolTree_ = false;  // for consistency
     Parent_->IncreaseOperationCount(1);
     Parent_->AddChild(this);
 
@@ -3076,7 +3083,7 @@ void TOperationElement::DetachParent()
     YCHECK(Parent_);
 
     auto parentId = Parent_->GetId();
-    if (IsRunningInThisPoolTree_) {
+    if (RunningInThisPoolTree_) {
         Parent_->IncreaseRunningOperationCount(-1);
     }
     Parent_->IncreaseOperationCount(-1);
@@ -3093,7 +3100,7 @@ void TOperationElement::DetachParent()
 void TOperationElement::MarkOperationRunningInPool()
 {
     Parent_->IncreaseRunningOperationCount(1);
-    IsRunningInThisPoolTree_ = true;
+    RunningInThisPoolTree_ = true;
 
     YT_LOG_INFO("Operation is running in pool (OperationId: %v, Pool: %v)",
         OperationId_,

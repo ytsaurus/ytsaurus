@@ -289,7 +289,7 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("node_shard_count", NodeShardCount)
         .Default(4)
-        .GreaterThan(0);
+        .InRange(1, MaxNodeShardCount);
 
     RegisterParameter("connect_retry_backoff_time", ConnectRetryBackoffTime)
         .Default(TDuration::Seconds(15));

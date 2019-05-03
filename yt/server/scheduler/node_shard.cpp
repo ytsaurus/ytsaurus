@@ -522,6 +522,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         response->set_scheduling_skipped(true);
     } else {
         auto schedulingContext = CreateSchedulingContext(
+            Id_,
             Config_,
             node,
             runningJobs);

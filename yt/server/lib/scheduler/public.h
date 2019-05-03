@@ -111,6 +111,8 @@ DEFINE_ENUM(ENodeState,
     (Online)
 );
 
+static constexpr int MaxNodeShardCount = 32;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyConfig)
