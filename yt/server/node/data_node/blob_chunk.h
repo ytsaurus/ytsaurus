@@ -71,16 +71,18 @@ private:
     {
         struct TBlockEntry
         {
-            int LocalIndex = -1;
             int BlockIndex = -1;
             bool Cached = false;
             TCachedBlockCookie Cookie;
+            NChunkClient::TBlock Block;
         };
 
         NProfiling::TWallTimer Timer;
         std::vector<TBlockEntry> Entries;
-        std::vector<NChunkClient::TBlock> Blocks;
+        int ActiveEntryCount = 0;
         TBlockReadOptions Options;
+        std::vector<TFuture<void>> AsyncResults;
+        TPromise<std::vector<NChunkClient::TBlock>> Promise = NewPromise<std::vector<NChunkClient::TBlock>>();
     };
 
     using TReadBlockSetSessionPtr = TIntrusivePtr<TReadBlockSetSession>;
@@ -93,11 +95,14 @@ private:
     //! Returns true if location must be disabled.
     static bool IsFatalError(const TError& error);
 
+    void CompleteSession(const TIntrusivePtr<TReadBlockSetSession>& session);
+    static void FailSession(const TIntrusivePtr<TReadBlockSetSession>& session, const TError& error);
+
     void DoReadMeta(
         TChunkReadGuard readGuard,
         TCachedChunkMetaCookie cookie,
         const TBlockReadOptions& options);
-    TFuture<void> OnBlocksExtLoaded(
+    void OnBlocksExtLoaded(
         const TReadBlockSetSessionPtr& session,
         const NChunkClient::TRefCountedBlocksExtPtr& blocksExt);
     void DoReadBlockSet(
