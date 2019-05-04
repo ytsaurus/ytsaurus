@@ -78,8 +78,8 @@ TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
             }
 
             int blockCount = endLocalIndex - startLocalIndex;
-            auto subfutures = DoReadBlocks(options, startBlockIndex, blockCount);
-            futures.push_back(std::move(subfutures));
+            auto subfuture = DoReadBlocks(options, startBlockIndex, blockCount);
+            futures.push_back(std::move(subfuture));
 
             localIndex = endLocalIndex;
         }
@@ -188,7 +188,7 @@ std::vector<TBlock> TFileReader::OnDataBlock(
             if (checksum != blockInfo.checksum()) {
                 DumpBrokenBlock(blockIndex, blockInfo, block);
                 THROW_ERROR_EXCEPTION(
-                    "Incorrect checksum of block %v in chunk data file %Qv: expected %v, actual %v",
+                    "Incorrect checksum of block %v in chunk data file %v: expected %v, actual %v",
                     blockIndex,
                     FileName_,
                     blockInfo.checksum(),
