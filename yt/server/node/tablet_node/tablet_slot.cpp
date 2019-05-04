@@ -316,8 +316,8 @@ public:
             return EPeerState::Stopped;
         }
 
-        if (HydraManager_) {
-            return HydraManager_->GetControlState();
+        if (auto hydraManager = GetHydraManager()) {
+            return hydraManager->GetControlState();
         }
 
         if (Initialized_) {
@@ -338,7 +338,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        return HydraManager_ ? HydraManager_->GetAutomatonState() : EPeerState::None;
+        auto hydraManager = GetHydraManager();
+        return hydraManager ? hydraManager->GetAutomatonState() : EPeerState::None;
     }
 
     TPeerId GetPeerId() const
@@ -357,6 +358,9 @@ public:
 
     const IHydraManagerPtr& GetHydraManager() const
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto guard = Guard(HydraManagerLock_);
         return HydraManager_;
     }
 
@@ -381,7 +385,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TSpinLock> guard(InvokersSpinLock_);
+        TGuard<TSpinLock> guard(InvokersLock_);
         return EpochAutomatonInvokers_[queue];
     }
 
@@ -389,7 +393,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TSpinLock> guard(InvokersSpinLock_);
+        TGuard<TSpinLock> guard(InvokersLock_);
         return GuardedAutomatonInvokers_[queue];
     }
 
@@ -552,7 +556,7 @@ public:
 
         auto cellConfig = CellDescriptor_.ToConfig(Bootstrap_->GetLocalNetworks());
 
-        if (HydraManager_) {
+        if (GetHydraManager()) {
             ElectionManager_->SetEpochId(PrerequisiteTransactionId_);
             CellManager_->Reconfigure(cellConfig);
 
@@ -586,7 +590,8 @@ public:
             hydraManagerOptions.WriteChangelogsAtFollowers = false;
             hydraManagerOptions.WriteSnapshotsAtFollowers = false;
             hydraManagerOptions.ProfilingTagIds = ProfilingTagIds_;
-            HydraManager_ = CreateDistributedHydraManager(
+
+            auto hydraManager = CreateDistributedHydraManager(
                 Config_->HydraManager,
                 Bootstrap_->GetControlInvoker(),
                 GetAutomatonInvoker(EAutomatonThreadQueue::Mutation),
@@ -597,28 +602,29 @@ public:
                 ChangelogStoreFactoryThunk_,
                 SnapshotStoreThunk_,
                 hydraManagerOptions);
+            SetHydraManager(hydraManager);
 
-            HydraManager_->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
-            HydraManager_->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
+            hydraManager->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
+            hydraManager->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
 
-            HydraManager_->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
-            HydraManager_->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
+            hydraManager->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
+            hydraManager->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
 
-            HydraManager_->SubscribeLeaderLeaseCheck(
+            hydraManager->SubscribeLeaderLeaseCheck(
                 BIND(&TImpl::OnLeaderLeaseCheckThunk, MakeWeak(this))
                     .AsyncVia(Bootstrap_->GetControlInvoker()));
 
             {
-                TGuard<TSpinLock> guard(InvokersSpinLock_);
+                TGuard<TSpinLock> guard(InvokersLock_);
                 for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
                     auto unguardedInvoker = GetAutomatonInvoker(queue);
-                    GuardedAutomatonInvokers_[queue] = HydraManager_->CreateGuardedAutomatonInvoker(unguardedInvoker);
+                    GuardedAutomatonInvokers_[queue] = hydraManager->CreateGuardedAutomatonInvoker(unguardedInvoker);
                 }
             }
 
             ElectionManager_ = New<TElectionManager>(
                 Bootstrap_->GetControlInvoker(),
-                HydraManager_->GetElectionCallbacks(),
+                hydraManager->GetElectionCallbacks(),
                 CellManager_,
                 Logger);
             ElectionManager_->SetEpochId(PrerequisiteTransactionId_);
@@ -632,7 +638,7 @@ public:
                 masterConnection->GetCellDirectory(),
                 GetCellId(),
                 GetAutomatonInvoker(),
-                HydraManager_,
+                hydraManager,
                 Automaton_);
 
             // NB: Tablet Manager must register before Transaction Manager since the latter
@@ -653,7 +659,7 @@ public:
                 Config_->TransactionSupervisor,
                 GetAutomatonInvoker(),
                 Bootstrap_->GetTransactionTrackerInvoker(),
-                HydraManager_,
+                hydraManager,
                 Automaton_,
                 GetResponseKeeper(),
                 TransactionManager_,
@@ -671,7 +677,7 @@ public:
 
             TabletManager_->Initialize();
 
-            HydraManager_->Initialize();
+            hydraManager->Initialize();
 
             for (const auto& service : TransactionSupervisor_->GetRpcServices()) {
                 rpcServer->RegisterService(service);
@@ -779,6 +785,7 @@ private:
 
     TElectionManagerPtr ElectionManager_;
 
+    TSpinLock HydraManagerLock_;
     IHydraManagerPtr HydraManager_;
 
     TResponseKeeperPtr ResponseKeeper_;
@@ -794,7 +801,7 @@ private:
 
     TTabletAutomatonPtr Automaton_;
 
-    TSpinLock InvokersSpinLock_;
+    TSpinLock InvokersLock_;
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochAutomatonInvokers_;
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> GuardedAutomatonInvokers_;
 
@@ -808,6 +815,12 @@ private:
 
     NLogging::TLogger Logger;
 
+
+    void SetHydraManager(IHydraManagerPtr hydraManager)
+    {
+        auto guard = Guard(HydraManagerLock_);
+        std::swap(HydraManager_, hydraManager);
+    }
 
     IYPathServicePtr CreateOrchidService()
     {
@@ -878,34 +891,45 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TSpinLock> guard(InvokersSpinLock_);
-        std::fill(EpochAutomatonInvokers_.begin(), EpochAutomatonInvokers_.end(), GetNullInvoker());
+        {
+            TGuard<TSpinLock> guard(InvokersLock_);
+            std::fill(EpochAutomatonInvokers_.begin(), EpochAutomatonInvokers_.end(), GetNullInvoker());
+        }
     }
 
     void ResetGuardedInvokers()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TSpinLock> guard(InvokersSpinLock_);
-        std::fill(GuardedAutomatonInvokers_.begin(), GuardedAutomatonInvokers_.end(), GetNullInvoker());
+        {
+            TGuard<TSpinLock> guard(InvokersLock_);
+            std::fill(GuardedAutomatonInvokers_.begin(), GuardedAutomatonInvokers_.end(), GetNullInvoker());
+        }
     }
 
 
     void OnStartEpoch()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        TGuard<TSpinLock> guard(InvokersSpinLock_);
-        for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
-            EpochAutomatonInvokers_[queue] = HydraManager_
-                ->GetAutomatonCancelableContext()
-                ->CreateInvoker(GetAutomatonInvoker(queue));
+        auto hydraManager = GetHydraManager();
+        if (!hydraManager) {
+            return;
+        }
+
+        {
+            TGuard<TSpinLock> guard(InvokersLock_);
+            for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
+                EpochAutomatonInvokers_[queue] = hydraManager
+                    ->GetAutomatonCancelableContext()
+                    ->CreateInvoker(GetAutomatonInvoker(queue));
+            }
         }
     }
 
     void OnStopEpoch()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         ResetEpochInvokers();
     }
@@ -937,11 +961,11 @@ private:
         CellManager_.Reset();
 
         // Stop everything and release the references to break cycles.
-        if (HydraManager_) {
-            WaitFor(HydraManager_->Finalize())
+        if (auto hydraManager = GetHydraManager()) {
+            WaitFor(hydraManager->Finalize())
                 .ThrowOnError();
         }
-        HydraManager_.Reset();
+        SetHydraManager(nullptr);
 
         if (ElectionManager_) {
             ElectionManager_->Finalize();
