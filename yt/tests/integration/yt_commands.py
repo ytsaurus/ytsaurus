@@ -189,7 +189,7 @@ def prepare_path(path):
     attributes = {}
     if isinstance(path, yson.YsonString):
         attributes = path.attributes
-    result = yson.loads(execute_command("parse_ypath", parameters={"path": path}, verbose=False))
+    result = execute_command("parse_ypath", parameters={"path": path}, verbose=False, parse_yson=True)
     update_inplace(result.attributes, attributes)
     return result
 
@@ -213,7 +213,8 @@ def retry(func, retry_timeout=timedelta(seconds=10), retry_interval=timedelta(mi
     return func()
 
 def execute_command(command_name, parameters, input_stream=None, output_stream=None,
-                    verbose=None, verbose_error=None, ignore_result=False, return_response=False):
+                    verbose=None, verbose_error=None, ignore_result=False, return_response=False,
+                    parse_yson=None, unwrap_v4_result=True):
     global _zombie_responses
 
     if "verbose" in parameters:
@@ -319,12 +320,11 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
         result = output_stream.getvalue()
         if verbose:
             print(result, file=sys.stderr)
+        if parse_yson:
+            result = yson.loads(result)
+            if unwrap_v4_result and driver.get_config()["api_version"] == 4 and isinstance(result, dict) and len(result.keys()) == 1:
+                result = result.values()[0]
         return result
-
-def unwrap_v4_result(result, driver):
-    if driver is not None and driver.get_config()["api_version"] == 4 and isinstance(result, dict) and len(result.keys()) == 1:
-        return result.values()[0]
-    return result
 
 def execute_command_with_output_format(command_name, kwargs, input_stream=None):
     has_output_format = "output_format" in kwargs
@@ -361,7 +361,7 @@ def get_job_input_paths(job_id, **kwargs):
 
 def get_table_columnar_statistics(paths, **kwargs):
     kwargs["paths"] = paths
-    return yson.loads(execute_command("get_table_columnar_statistics", kwargs))
+    return execute_command("get_table_columnar_statistics", kwargs, parse_yson=True)
 
 def get_job_stderr(operation_id, job_id, **kwargs):
     kwargs["operation_id"] = operation_id
@@ -374,16 +374,15 @@ def get_job_fail_context(operation_id, job_id, **kwargs):
     return execute_command("get_job_fail_context", kwargs)
 
 def list_operations(**kwargs):
-    return yson.loads(execute_command("list_operations", kwargs));
+    return execute_command("list_operations", kwargs, parse_yson=True)
 
 def list_jobs(operation_id, **kwargs):
     kwargs["operation_id"] = operation_id
-    return yson.loads(execute_command("list_jobs", kwargs))
+    return execute_command("list_jobs", kwargs, parse_yson=True)
 
 def strace_job(job_id, **kwargs):
     kwargs["job_id"] = job_id
-    result = execute_command("strace_job", kwargs)
-    return yson.loads(result)
+    return execute_command("strace_job", kwargs, parse_yson=True)
 
 def signal_job(job_id, signal_name, **kwargs):
     kwargs["job_id"] = job_id
@@ -398,7 +397,7 @@ def poll_job_shell(job_id, authenticated_user=None, **kwargs):
     kwargs = {"job_id": job_id, "parameters": kwargs}
     if authenticated_user:
         kwargs["authenticated_user"] = authenticated_user
-    return yson.loads(execute_command("poll_job_shell", kwargs))
+    return execute_command("poll_job_shell", kwargs, parse_yson=True)
 
 def abort_job(job_id, **kwargs):
     kwargs["job_id"] = job_id
@@ -412,7 +411,7 @@ def interrupt_job(job_id, interrupt_timeout=10000, **kwargs):
 def lock(path, waitable=False, **kwargs):
     kwargs["path"] = path
     kwargs["waitable"] = waitable
-    return yson.loads(execute_command("lock", kwargs))
+    return execute_command("lock", kwargs, parse_yson=True)
 
 def unlock(path, **kwargs):
     kwargs["path"] = path
@@ -420,66 +419,65 @@ def unlock(path, **kwargs):
 
 def remove(path, **kwargs):
     kwargs["path"] = path
-    return execute_command("remove", kwargs)
+    execute_command("remove", kwargs)
 
 def get(path, is_raw=False, **kwargs):
-    driver = kwargs.get("driver")
     kwargs["path"] = path
     if "default" in kwargs and "verbose_error" not in kwargs:
         kwargs["verbose_error"] = False
+    if "return_only_value" not in kwargs:
+        kwargs["return_only_value"] = True
     try:
-        result = execute_command("get", kwargs)
-    except YtResponseError, err:
+        return execute_command("get", kwargs, parse_yson=not is_raw)
+    except YtResponseError as err:
         if err.is_resolve_error() and "default" in kwargs:
             return kwargs["default"]
         raise
-    return result if is_raw else unwrap_v4_result(yson.loads(result), driver=driver)
 
-def get_job(operation_id, job_id, is_raw=False, **kwargs):
+def get_job(operation_id, job_id, **kwargs):
     kwargs["operation_id"] = operation_id
     kwargs["job_id"] = job_id
-    result = execute_command("get_job", kwargs)
-    return result if is_raw else yson.loads(result)
+    return execute_command("get_job", kwargs, parse_yson=True)
 
 def set(path, value, is_raw=False, **kwargs):
     if not is_raw:
         value = yson.dumps(value)
     kwargs["path"] = path
-    return execute_command("set", kwargs, input_stream=StringIO(value))
+    execute_command("set", kwargs, input_stream=StringIO(value))
 
 def create(object_type, path, **kwargs):
+    driver = kwargs.get("driver")
     kwargs["type"] = object_type
     kwargs["path"] = path
-    return yson.loads(execute_command("create", kwargs))
+    return execute_command("create", kwargs, parse_yson=True)
 
 def copy(source_path, destination_path, **kwargs):
     kwargs["source_path"] = source_path
     kwargs["destination_path"] = destination_path
-    return yson.loads(execute_command("copy", kwargs))
+    return execute_command("copy", kwargs, parse_yson=True)
 
 def move(source_path, destination_path, **kwargs):
     kwargs["source_path"] = source_path
     kwargs["destination_path"] = destination_path
-    return yson.loads(execute_command("move", kwargs))
+    return execute_command("move", kwargs, parse_yson=True)
 
 def link(target_path, link_path, **kwargs):
     kwargs["target_path"] = target_path
     kwargs["link_path"] = link_path
-    return yson.loads(execute_command("link", kwargs))
+    return execute_command("link", kwargs, parse_yson=True)
 
 def exists(path, **kwargs):
     kwargs["path"] = path
-    res = execute_command("exists", kwargs)
-    return yson.loads(res)
+    return execute_command("exists", kwargs, parse_yson=True)
 
 def concatenate(source_paths, destination_path, **kwargs):
     kwargs["source_paths"] = source_paths
     kwargs["destination_path"] = destination_path
-    return execute_command("concatenate", kwargs)
+    execute_command("concatenate", kwargs)
 
 def ls(path, **kwargs):
     kwargs["path"] = path
-    return yson.loads(execute_command("list", kwargs))
+    return execute_command("list", kwargs, parse_yson=True)
 
 @force_native_driver
 def read_table(path, **kwargs):
@@ -558,26 +556,25 @@ def lookup_rows(path, data, **kwargs):
 
 def get_in_sync_replicas(path, data, **kwargs):
     kwargs["path"] = path
-    return yson.loads(execute_command("get_in_sync_replicas", kwargs, input_stream=_prepare_rows_stream(data)))
+    return execute_command("get_in_sync_replicas", kwargs, input_stream=_prepare_rows_stream(data), parse_yson=True)
 
 def start_transaction(**kwargs):
-    driver = kwargs.get("driver")
-    return unwrap_v4_result(yson.loads(execute_command("start_tx", kwargs)), driver=driver)
+    return execute_command("start_tx", kwargs, parse_yson=True)
 
 def commit_transaction(tx, **kwargs):
     kwargs["transaction_id"] = tx
-    return execute_command("commit_tx", kwargs)
+    execute_command("commit_tx", kwargs)
 
 def ping_transaction(tx, **kwargs):
     kwargs["transaction_id"] = tx
-    return execute_command("ping_tx", kwargs)
+    execute_command("ping_tx", kwargs)
 
 def abort_transaction(tx, **kwargs):
     kwargs["transaction_id"] = tx
-    return execute_command("abort_tx", kwargs)
+    execute_command("abort_tx", kwargs)
 
 def generate_timestamp(**kwargs):
-    return yson.loads(execute_command("generate_timestamp", kwargs))
+    return execute_command("generate_timestamp", kwargs, parse_yson=True)
 
 def mount_table(path, **kwargs):
     clear_metadata_caches(kwargs.get("driver"))
@@ -616,17 +613,17 @@ def reshard_table(path, arg=None, **kwargs):
 def reshard_table_automatic(path, **kwargs):
     clear_metadata_caches(kwargs.get("driver"))
     kwargs["path"] = path
-    return yson.loads(execute_command("reshard_table_automatic", kwargs))
+    return execute_command("reshard_table_automatic", kwargs, parse_yson=True)
 
 def alter_table(path, **kwargs):
-    kwargs["path"] = path;
+    kwargs["path"] = path
     return execute_command("alter_table", kwargs)
 
 def balance_tablet_cells(bundle, tables=None, **kwargs):
     kwargs["bundle"] = bundle
     if tables is not None:
         kwargs["tables"] = tables
-    return yson.loads(execute_command("balance_tablet_cells", kwargs))
+    return execute_command("balance_tablet_cells", kwargs, parse_yson=True)
 
 def write_file(path, data, **kwargs):
     kwargs["path"] = path
@@ -676,7 +673,7 @@ def make_batch_request(command_name, input=None, **kwargs):
 
 def execute_batch(requests, **kwargs):
     kwargs["requests"] = requests
-    return yson.loads(execute_command("execute_batch", kwargs))
+    return execute_command("execute_batch", kwargs, parse_yson=True)
 
 def get_batch_error(result):
     if "error" in result:
@@ -695,27 +692,27 @@ def check_permission(user, permission, path, **kwargs):
     kwargs["user"] = user
     kwargs["permission"] = permission
     kwargs["path"] = path
-    return yson.loads(execute_command("check_permission", kwargs))
+    return execute_command("check_permission", kwargs, parse_yson=True)
 
 def check_permission_by_acl(user, permission, acl, **kwargs):
     kwargs["user"] = user
     kwargs["permission"] = permission
     kwargs["acl"] = acl
-    return yson.loads(execute_command("check_permission_by_acl", kwargs))
+    return execute_command("check_permission_by_acl", kwargs, parse_yson=True)
 
 def get_file_from_cache(md5, cache_path, **kwargs):
     kwargs["md5"] = md5
     kwargs["cache_path"] = cache_path
-    return yson.loads(execute_command("get_file_from_cache", kwargs))
+    return execute_command("get_file_from_cache", kwargs, parse_yson=True)
 
 def put_file_to_cache(path, md5, **kwargs):
     kwargs["path"] = path
     kwargs["md5"] = md5
-    return yson.loads(execute_command("put_file_to_cache", kwargs))
+    return execute_command("put_file_to_cache", kwargs, parse_yson=True)
 
 def discover_proxies(type_, **kwargs):
     kwargs["type"] = type_
-    return yson.loads(execute_command("discover_proxies", kwargs))
+    return execute_command("discover_proxies", kwargs, parse_yson=True)
 
 ###########################################################################
 
@@ -942,7 +939,7 @@ def start_op(op_type, **kwargs):
 
     kwargs["operation_type"] = op_type
 
-    operation.id = yson.loads(execute_command("start_op", kwargs))
+    operation.id = execute_command("start_op", kwargs, parse_yson=True)
 
     if track:
         operation.track()
@@ -1040,7 +1037,7 @@ def build_snapshot(*args, **kwargs):
     get_driver().build_snapshot(*args, **kwargs)
 
 def get_version():
-    return yson.loads(execute_command("get_version", {}))
+    return execute_command("get_version", {}, parse_yson=True)
 
 def gc_collect(driver=None):
     _get_driver(driver=driver).gc_collect()
@@ -1117,7 +1114,7 @@ def create_tablet_cell(**kwargs):
     kwargs["type"] = "tablet_cell"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
-    return yson.loads(execute_command("create", kwargs))
+    return execute_command("create", kwargs, parse_yson=True)
 
 def create_tablet_cell_bundle(name, initialize_options=True, **kwargs):
     kwargs["type"] = "tablet_cell_bundle"
@@ -1154,7 +1151,7 @@ def create_table_replica(table_path, cluster_name, replica_path, **kwargs):
     kwargs["attributes"]["table_path"] = table_path
     kwargs["attributes"]["cluster_name"] = cluster_name
     kwargs["attributes"]["replica_path"] = replica_path
-    return yson.loads(execute_command("create", kwargs))
+    return execute_command("create", kwargs, parse_yson=True)
 
 def remove_table_replica(replica_id):
     remove("#{0}".format(replica_id))
