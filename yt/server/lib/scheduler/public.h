@@ -128,7 +128,7 @@ DECLARE_REFCOUNTED_STRUCT(TRefCountedExecNodeDescriptorMap);
 
 class TSchedulingTagFilter;
 
-DECLARE_REFCOUNTED_STRUCT(TScheduleJobResult)
+DECLARE_REFCOUNTED_STRUCT(TControllerScheduleJobResult)
 
 struct TJobStartDescriptor;
 struct TOperationControllerInitializeAttributes;

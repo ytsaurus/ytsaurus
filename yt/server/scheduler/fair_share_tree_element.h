@@ -900,7 +900,7 @@ private:
         bool enableBackoff,
         NProfiling::TCpuInstant now);
 
-    TScheduleJobResultPtr DoScheduleJob(
+    TControllerScheduleJobResultPtr DoScheduleJob(
         TFairShareContext* context,
         const TJobResources& availableResources,
         TJobResources* precommittedResources);

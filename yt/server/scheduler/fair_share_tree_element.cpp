@@ -2922,7 +2922,7 @@ TJobResources TOperationElement::GetHierarchicalAvailableResources(const TFairSh
     return availableResources;
 }
 
-TScheduleJobResultPtr TOperationElement::DoScheduleJob(
+TControllerScheduleJobResultPtr TOperationElement::DoScheduleJob(
     TFairShareContext* context,
     const TJobResources& availableResources,
     TJobResources* precommittedResources)
@@ -2955,7 +2955,7 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(
             Controller_->AbortJob(jobId, EAbortReason::SchedulingResourceOvercommit);
 
             // Reset result.
-            scheduleJobResult = New<TScheduleJobResult>();
+            scheduleJobResult = New<TControllerScheduleJobResult>();
             scheduleJobResult->RecordFail(EScheduleJobFailReason::ResourceOvercommit);
         }
     } else if (scheduleJobResult->Failed[EScheduleJobFailReason::Timeout] > 0) {

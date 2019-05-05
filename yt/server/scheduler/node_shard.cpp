@@ -1231,7 +1231,7 @@ int TNodeShard::GetTotalNodeCount()
     return TotalNodeCount_;
 }
 
-TFuture<TScheduleJobResultPtr> TNodeShard::BeginScheduleJob(
+TFuture<TControllerScheduleJobResultPtr> TNodeShard::BeginScheduleJob(
     TIncarnationId incarnationId,
     TOperationId operationId,
     TJobId jobId)
@@ -1244,7 +1244,7 @@ TFuture<TScheduleJobResultPtr> TNodeShard::BeginScheduleJob(
     YCHECK(pair.second);
 
     auto& entry = pair.first->second;
-    entry.Promise = NewPromise<TScheduleJobResultPtr>();
+    entry.Promise = NewPromise<TControllerScheduleJobResultPtr>();
     entry.IncarnationId = incarnationId;
     entry.OperationId = operationId;
     entry.OperationIdToJobIdsIterator = OperationIdToJobIterators_.emplace(operationId, pair.first);
@@ -1271,7 +1271,7 @@ void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
         response.has_job_type(),
         CpuDurationToDuration(GetCpuInstant() - entry.StartTime).MilliSeconds());
 
-    auto result = New<TScheduleJobResult>();
+    auto result = New<TControllerScheduleJobResult>();
     if (response.has_job_type()) {
         result->StartDescriptor.emplace(
             jobId,

@@ -381,7 +381,7 @@ struct IOperationController
      *  \note Invoker affinity: Cancellable controller invoker
      */
     //! Called during heartbeat processing to request actions the node must perform.
-    virtual NScheduler::TScheduleJobResultPtr ScheduleJob(
+    virtual NScheduler::TControllerScheduleJobResultPtr ScheduleJob(
         ISchedulingContext* context,
         const NScheduler::TJobResourcesWithQuota& jobLimits,
         const TString& treeId) = 0;

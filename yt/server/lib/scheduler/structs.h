@@ -28,7 +28,7 @@ struct TJobStartDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TScheduleJobResult
+struct TControllerScheduleJobResult
     : public TIntrinsicRefCounted
 {
     void RecordFail(NControllerAgent::EScheduleJobFailReason reason);
@@ -41,7 +41,7 @@ struct TScheduleJobResult
     TIncarnationId IncarnationId;
 };
 
-DEFINE_REFCOUNTED_TYPE(TScheduleJobResult)
+DEFINE_REFCOUNTED_TYPE(TControllerScheduleJobResult)
 
 ////////////////////////////////////////////////////////////////////////////////
 
