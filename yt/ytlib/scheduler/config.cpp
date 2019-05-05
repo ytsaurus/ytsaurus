@@ -149,6 +149,8 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default(ESchedulingDelayType::Sync);
     RegisterParameter("delay_inside_revive", DelayInsideRevive)
         .Default();
+    RegisterParameter("delay_inside_prepare", DelayInsidePrepare)
+        .Default();
     RegisterParameter("delay_inside_suspend", DelayInsideSuspend)
         .Default();
     RegisterParameter("delay_inside_operation_commit", DelayInsideOperationCommit)

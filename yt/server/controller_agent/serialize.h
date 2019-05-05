@@ -24,6 +24,7 @@ bool ValidateSnapshotVersion(int version);
 
 DEFINE_ENUM(ESnapshotVersion,
     ((JobSplitterSpeculative) (300104))
+    ((InputOutputTableLock)   (300105))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

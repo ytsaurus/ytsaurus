@@ -681,8 +681,18 @@ void TOperationControllerBase::LockInputs()
     LockUserFiles();
 }
 
+void TOperationControllerBase::SleepInPrepare()
+{
+    auto delay = Spec_->TestingOperationOptions->DelayInsidePrepare;
+    if (delay) {
+        TDelayedExecutor::WaitForDuration(*delay);
+    }
+}
+
 TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 {
+    SleepInPrepare();
+
     // Testing purpose code.
     if (Config->EnableControllerFailureSpecOption &&
         Spec_->TestingOperationOptions)
@@ -4546,7 +4556,9 @@ void TOperationControllerBase::LockInputTables()
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to lock input table %v", path);
         const auto& rsp = rspOrError.Value();
         table->ObjectId = FromProto<TObjectId>(rsp->node_id());
+        table->Revision = rsp->revision();
         table->CellTag = FromProto<TCellTag>(rsp->cell_tag());
+        InputTablesByPath_[path].push_back(table);
     }
 }
 
@@ -4825,6 +4837,32 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             THROW_ERROR_EXCEPTION_IF_FAILED(
                 GetCumulativeError(batchRspOrError),
                 "Error locking output tables");
+
+            const auto& batchRsp = batchRspOrError.Value()->GetResponses<TCypressYPathProxy::TRspLock>();
+            for (int index = 0; index < UpdatingTables_.size(); ++index) {
+                const auto& table = UpdatingTables_[index];
+                const auto& rsp = batchRsp[index].Value();
+
+                auto objectId = FromProto<TObjectId>(rsp->node_id());
+                i64 revision = rsp->revision();
+
+                auto it = InputTablesByPath_.find(table->Path.GetPath());
+                if (it != InputTablesByPath_.end()) {
+                    for (const auto& inputTable : it->second) {
+                        // Check case of remote copy operation.
+                        if (CellTagFromId(inputTable->ObjectId) != CellTagFromId(objectId)) {
+                            continue;
+                        }
+                        if (inputTable->ObjectId != objectId || inputTable->Revision != revision) {
+                            THROW_ERROR_EXCEPTION("Table %v has changed between taking input and output locks", inputTable->GetPath())
+                                << TErrorAttribute("input_object_id", inputTable->ObjectId)
+                                << TErrorAttribute("input_revision", inputTable->Revision)
+                                << TErrorAttribute("output_object_id", objectId)
+                                << TErrorAttribute("output_revision", revision);
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -7509,6 +7547,10 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     }
 
     Persist(context, BannedTreeIds_);
+
+    if (context.GetVersion() >= ToUnderlying(ESnapshotVersion::InputOutputTableLock)) {
+        Persist(context, InputTablesByPath_);
+    }
 }
 
 void TOperationControllerBase::InitAutoMergeJobSpecTemplates()

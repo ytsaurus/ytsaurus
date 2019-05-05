@@ -432,6 +432,8 @@ protected:
     // All output tables plus stderr and core tables (if present).
     std::vector<TOutputTablePtr> UpdatingTables_;
 
+    THashMap<TString, std::vector<TInputTablePtr>> InputTablesByPath_;
+
     TIntermediateTablePtr IntermediateTable = New<TIntermediateTable>();
 
     THashMap<TUserJobSpecPtr, std::vector<TUserFile>> UserJobFiles_;
@@ -1109,6 +1111,7 @@ private:
 
     void SleepInCommitStage(NScheduler::EDelayInsideOperationCommitStage desiredStage);
     void SleepInRevive();
+    void SleepInPrepare();
 
     //! An internal helper for invoking OnOperationFailed with an error
     //! built by data from `ex`.
