@@ -180,7 +180,7 @@ public:
     virtual bool IsOperationCompleted() const override ;
 
     //! Called during heartbeat processing to request actions the node must perform.
-    virtual TFuture<TScheduleJobResultPtr> ScheduleJob(
+    virtual TFuture<TControllerScheduleJobResultPtr> ScheduleJob(
         const ISchedulingContextPtr& context,
         const TJobResourcesWithQuota& nodeLimits,
         const TString& /* treeId */) override;
@@ -414,14 +414,14 @@ bool TSimulatorOperationController::FindJobToSchedule(
     return false;
 }
 
-TFuture<TScheduleJobResultPtr> TSimulatorOperationController::ScheduleJob(
+TFuture<TControllerScheduleJobResultPtr> TSimulatorOperationController::ScheduleJob(
     const ISchedulingContextPtr& context,
     const TJobResourcesWithQuota& nodeLimits,
     const TString& /* treeId */)
 {
     auto guard = Guard(Lock_);
 
-    auto scheduleJobResult = New<TScheduleJobResult>();
+    auto scheduleJobResult = New<TControllerScheduleJobResult>();
 
     TJobDescription jobToSchedule;
     EScheduleJobFailReason failReason;
