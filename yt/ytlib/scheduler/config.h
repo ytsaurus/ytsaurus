@@ -333,6 +333,8 @@ public:
     std::optional<TDuration> DelayInsideOperationCommit;
     std::optional<EDelayInsideOperationCommitStage> DelayInsideOperationCommitStage;
 
+    std::optional<TDuration> DelayInsidePrepare;
+
     std::optional<TDuration> DelayInsideRevive;
 
     std::optional<TDuration> DelayInsideSuspend;
