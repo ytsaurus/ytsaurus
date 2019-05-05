@@ -26,7 +26,7 @@ public:
         int maxConcurrentScheduleJobCalls,
         TDuration scheduleJobFailBackoffTime) const;
 
-    TScheduleJobResultPtr ScheduleJob(
+    TControllerScheduleJobResultPtr ScheduleJob(
         const ISchedulingContextPtr& schedulingContext,
         const TJobResources& availableResources,
         TDuration timeLimit,

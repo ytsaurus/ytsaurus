@@ -264,7 +264,7 @@ void TTask::ScheduleJob(
     const TJobResourcesWithQuota& jobLimits,
     const TString& treeId,
     bool treeIsTentative,
-    TScheduleJobResult* scheduleJobResult)
+    TControllerScheduleJobResult* scheduleJobResult)
 {
     if (auto failReason = GetScheduleFailReason(context)) {
         scheduleJobResult->RecordFail(*failReason);

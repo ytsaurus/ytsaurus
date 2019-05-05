@@ -3324,7 +3324,7 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
     }
 }
 
-TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
+TControllerScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     ISchedulingContext* context,
     const TJobResourcesWithQuota& jobLimits,
     const TString& treeId)
@@ -3341,7 +3341,7 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     TForbidContextSwitchGuard contextSwitchGuard;
 
     TWallTimer timer;
-    auto scheduleJobResult = New<TScheduleJobResult>();
+    auto scheduleJobResult = New<TControllerScheduleJobResult>();
     DoScheduleJob(context, jobLimits, treeId, scheduleJobResult.Get());
     if (scheduleJobResult->StartDescriptor) {
         AvailableExecNodesObserved_ = true;
@@ -3545,7 +3545,7 @@ void TOperationControllerBase::DoScheduleJob(
     ISchedulingContext* context,
     const TJobResourcesWithQuota& jobLimits,
     const TString& treeId,
-    TScheduleJobResult* scheduleJobResult)
+    TControllerScheduleJobResult* scheduleJobResult)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->ScheduleJobControllerQueue));
 
@@ -3577,7 +3577,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
     ISchedulingContext* context,
     const TJobResourcesWithQuota& jobLimits,
     const TString& treeId,
-    TScheduleJobResult* scheduleJobResult)
+    TControllerScheduleJobResult* scheduleJobResult)
 {
     const auto& nodeResourceLimits = context->ResourceLimits();
     const auto& address = context->GetNodeDescriptor().Address;
@@ -3678,7 +3678,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
     ISchedulingContext* context,
     const TJobResourcesWithQuota& jobLimits,
     const TString& treeId,
-    TScheduleJobResult* scheduleJobResult)
+    TControllerScheduleJobResult* scheduleJobResult)
 {
     auto now = NProfiling::CpuInstantToInstant(context->GetNow());
     const auto& nodeResourceLimits = context->ResourceLimits();

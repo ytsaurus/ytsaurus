@@ -152,7 +152,7 @@ private: \
     IMPLEMENT_SAFE_METHOD(void, Complete, (), (), false)
 
     IMPLEMENT_SAFE_METHOD(
-        NScheduler::TScheduleJobResultPtr,
+        NScheduler::TControllerScheduleJobResultPtr,
         ScheduleJob,
         (ISchedulingContext* context, const NScheduler::TJobResourcesWithQuota& jobLimits, const TString& treeId),
         (context, jobLimits, treeId),
@@ -512,19 +512,19 @@ protected:
         ISchedulingContext* context,
         const NScheduler::TJobResourcesWithQuota& jobLimits,
         const TString& treeId,
-        NScheduler::TScheduleJobResult* scheduleJobResult);
+        NScheduler::TControllerScheduleJobResult* scheduleJobResult);
 
     void DoScheduleLocalJob(
         ISchedulingContext* context,
         const NScheduler::TJobResourcesWithQuota& jobLimits,
         const TString& treeId,
-        NScheduler::TScheduleJobResult* scheduleJobResult);
+        NScheduler::TControllerScheduleJobResult* scheduleJobResult);
 
     void DoScheduleNonLocalJob(
         ISchedulingContext* context,
         const NScheduler::TJobResourcesWithQuota& jobLimits,
         const TString& treeId,
-        NScheduler::TScheduleJobResult* scheduleJobResult);
+        NScheduler::TControllerScheduleJobResult* scheduleJobResult);
 
 
     TJobletPtr FindJoblet(TJobId jobId) const;

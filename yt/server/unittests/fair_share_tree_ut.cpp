@@ -125,7 +125,7 @@ public:
         : JobResourcesList(jobResourcesList)
     { }
 
-    MOCK_METHOD3(ScheduleJob, TFuture<TScheduleJobResultPtr>(
+    MOCK_METHOD3(ScheduleJob, TFuture<TControllerScheduleJobResultPtr>(
         const ISchedulingContextPtr& context,
         const TJobResourcesWithQuota& jobLimits,
         const TString& treeId));
@@ -650,7 +650,7 @@ TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
         .WillRepeatedly(testing::Invoke([&](auto context, auto jobLimits, auto treeId) {
             heartbeatsInScheduling.fetch_add(1);
             EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
-            return MakeFuture<TScheduleJobResultPtr>(TErrorOr<TScheduleJobResultPtr>(New<TScheduleJobResult>()));
+            return MakeFuture<TControllerScheduleJobResultPtr>(TErrorOr<TControllerScheduleJobResultPtr>(New<TControllerScheduleJobResult>()));
         }));
 
     std::vector<TFuture<void>> futures;
