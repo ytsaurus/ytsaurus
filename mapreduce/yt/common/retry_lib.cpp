@@ -50,9 +50,26 @@ bool TAttemptLimitedRetryPolicy::IsAttemptLimitExceeded() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IRequestRetryPolicyPtr CreateDefaultRetryPolicy()
+class TDefaultClientRetryPolicy
+    : public IClientRetryPolicy
+{
+public:
+    IRequestRetryPolicyPtr CreatePolicyForGenericRequest() override
+    {
+        return CreateDefaultRequestRetryPolicy();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IRequestRetryPolicyPtr CreateDefaultRequestRetryPolicy()
 {
     return MakeIntrusive<TAttemptLimitedRetryPolicy>(static_cast<ui32>(TConfig::Get()->RetryCount));
+}
+
+IClientRetryPolicyPtr CreateDefaultClientRetryPolicy()
+{
+    return MakeIntrusive<TDefaultClientRetryPolicy>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "format.h"
+#include "retry_policy.h"
 
 #include <util/datetime/base.h>
 
@@ -458,6 +459,10 @@ struct TCreateClientOptions
 
     FLUENT_FIELD(TString, Token);
     FLUENT_FIELD(TString, TokenPath);
+
+    // Policy that controls retries of all requests issued by client.
+    // If nullptr is specified default retry policy is used.
+    FLUENT_FIELD_DEFAULT(IClientRetryPolicyPtr, RetryPolicy, nullptr);
 };
 
 struct TExecuteBatchOptions

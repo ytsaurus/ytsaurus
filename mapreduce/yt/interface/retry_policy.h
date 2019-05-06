@@ -1,5 +1,6 @@
 #pragma once
 
+#include "fwd.h"
 #include "errors.h"
 
 #include <util/datetime/base.h>
@@ -28,12 +29,28 @@ public:
     // Library code calls this function before any request attempt.
     virtual void NotifyNewAttempt() = 0;
 
-    // Return Nothing() if retries must not be continued.
-    virtual TMaybe<TDuration> OnGenericError(const yexception& e) = 0;
+    // OnRetriableError is called whenever client gets YT error that can be retried (e.g. operation limit exceeded).
+    // OnGenericError is called whenever request failed due to generic error like network error.
+    //
+    // Both methods must return nothing if policy doesn't want to retry this error.
+    // Otherwise method should return backoff time.
     virtual TMaybe<TDuration> OnRetriableError(const TErrorResponse& e) = 0;
+    virtual TMaybe<TDuration> OnGenericError(const yexception& e) = 0;
+
+    // OnIgnoredError is called whenever client gets an error but is going to ignore it.
     virtual void OnIgnoredError(const TErrorResponse& /*e*/) = 0;
 };
 using IRequestRetryPolicyPtr = ::TIntrusivePtr<IRequestRetryPolicy>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+// IClientRetryPolicy controls creation of policies for individual requests.
+class IClientRetryPolicy
+    : public virtual TThrRefBase
+{
+public:
+    virtual IRequestRetryPolicyPtr CreatePolicyForGenericRequest() = 0;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

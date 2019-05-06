@@ -30,7 +30,7 @@ TResponseInfo RetryRequestWithPolicy(
     bool retryWithSameMutationId = false;
 
     if (!retryPolicy) {
-        retryPolicy = CreateDefaultRetryPolicy();
+        retryPolicy = CreateDefaultRequestRetryPolicy();
     }
 
     while (true) {
