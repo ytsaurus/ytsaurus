@@ -141,6 +141,7 @@ using TNameTableToSchemaIdMapping = SmallVector<int, TypicalColumnCount>;
 union TUnversionedValueData;
 
 enum class EValueType : ui8;
+enum class ESimpleLogicalValueType : ui32;
 
 class TColumnFilter;
 
