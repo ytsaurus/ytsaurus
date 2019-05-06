@@ -231,6 +231,10 @@ message TGenericVolume {
     // NOTE: не обрабатывается - porto не умеет во вложенные квоты по диску
     uint64 quota_bytes = 5;
 
+    // place, где будет расположен volume
+    // передается as is в porto
+    string place = 6;
+
     // Слои, из которых собирается volume
     //NOTE: Валидация ids в списке должны быть уникальные
     repeated string layer_refs = 4;
