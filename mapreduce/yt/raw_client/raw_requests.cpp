@@ -34,7 +34,7 @@ void ExecuteBatch(
 
     IRequestRetryPolicyPtr defaultRetryPolicy = nullptr;
     if (!retryPolicy) {
-        defaultRetryPolicy = CreateDefaultRetryPolicy();
+        defaultRetryPolicy = CreateDefaultRequestRetryPolicy();
         retryPolicy = defaultRetryPolicy.Get();
     }
 

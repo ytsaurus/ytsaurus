@@ -20,6 +20,7 @@
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/finally_guard.h>
+#include <mapreduce/yt/common/retry_lib.h>
 
 #include <mapreduce/yt/http/http.h>
 #include <mapreduce/yt/http/requests.h>
@@ -62,9 +63,11 @@ const size_t TClientBase::BUFFER_SIZE = 64 << 20;
 
 TClientBase::TClientBase(
     const TAuth& auth,
-    const TTransactionId& transactionId)
+    const TTransactionId& transactionId,
+    IClientRetryPolicyPtr retryPolicy)
     : Auth_(auth)
     , TransactionId_(transactionId)
+    , RetryPolicy_(std::move(retryPolicy))
 { }
 
 ITransactionPtr TClientBase::StartTransaction(
@@ -577,6 +580,11 @@ const TAuth& TClientBase::GetAuth() const
     return Auth_;
 }
 
+const IClientRetryPolicyPtr& TClientBase::GetRetryPolicy() const
+{
+    return RetryPolicy_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransaction::TTransaction(
@@ -585,7 +593,7 @@ TTransaction::TTransaction(
     const TTransactionId& transactionId,
     bool isOwning,
     const TStartTransactionOptions& options)
-    : TClientBase(auth, transactionId)
+    : TClientBase(auth, transactionId, parentClient->GetRetryPolicy())
     , PingableTx_(isOwning ?
         new TPingableTransaction(
             auth,
@@ -655,8 +663,9 @@ TClientPtr TTransaction::GetParentClientImpl()
 
 TClient::TClient(
     const TAuth& auth,
-    const TTransactionId& globalId)
-    : TClientBase(auth, globalId)
+    const TTransactionId& globalId,
+    IClientRetryPolicyPtr retryPolicy)
+    : TClientBase(auth, globalId, retryPolicy)
 { }
 
 TClient::~TClient() = default;
@@ -1011,7 +1020,11 @@ IClientPtr CreateClient(
     }
     TConfig::ValidateToken(auth.Token);
 
-    return new NDetail::TClient(auth, globalTxId);
+    auto retryPolicy = options.RetryPolicy_;
+    if (!retryPolicy) {
+        retryPolicy = CreateDefaultClientRetryPolicy();
+    }
+    return new NDetail::TClient(auth, globalTxId, retryPolicy);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

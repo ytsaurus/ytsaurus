@@ -22,9 +22,10 @@ class TClientBase
     : virtual public IClientBase
 {
 public:
-    explicit TClientBase(
+    TClientBase(
         const TAuth& auth,
-        const TTransactionId& transactionId);
+        const TTransactionId& transactionId,
+        IClientRetryPolicyPtr retryPolicy);
 
     ITransactionPtr StartTransaction(
         const TStartTransactionOptions& options) override;
@@ -194,12 +195,15 @@ public:
 
     const TAuth& GetAuth() const;
 
+    const IClientRetryPolicyPtr& GetRetryPolicy() const;
+
 protected:
     virtual TClientPtr GetParentClientImpl() = 0;
 
 protected:
     const TAuth Auth_;
     TTransactionId TransactionId_;
+    IClientRetryPolicyPtr RetryPolicy_;
 
 private:
     ::TIntrusivePtr<TClientReader> CreateClientReader(
@@ -287,7 +291,8 @@ class TClient
 public:
     TClient(
         const TAuth& auth,
-        const TTransactionId& globalId);
+        const TTransactionId& globalId,
+        IClientRetryPolicyPtr retryPolicy);
 
     ~TClient();
 
