@@ -237,6 +237,9 @@ public:
     // owns these attributes will be skipped as well.
     void SkipComplexValue();
 
+   // Transfer complex value is similar to SkipComplexValue except it feeds passed consumer with skipped value.
+    void TransferComplexValue(IYsonConsumer* consumer);
+
 private:
     TYsonItem Current_;
     TYsonPullParser* Parser_;
