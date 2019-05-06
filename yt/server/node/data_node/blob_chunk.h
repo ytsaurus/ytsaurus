@@ -73,13 +73,14 @@ private:
         {
             int BlockIndex = -1;
             bool Cached = false;
+            std::atomic_flag Latch = ATOMIC_FLAG_INIT;
             TCachedBlockCookie Cookie;
             NChunkClient::TBlock Block;
         };
 
         NProfiling::TWallTimer Timer;
-        std::vector<TBlockEntry> Entries;
-        int ActiveEntryCount = 0;
+        std::unique_ptr<TBlockEntry[]> Entries;
+        int EntryCount = 0;
         TBlockReadOptions Options;
         std::vector<TFuture<void>> AsyncResults;
         TPromise<std::vector<NChunkClient::TBlock>> Promise = NewPromise<std::vector<NChunkClient::TBlock>>();
