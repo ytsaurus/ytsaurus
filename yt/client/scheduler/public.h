@@ -44,11 +44,12 @@ DEFINE_ENUM(EOperationState,
 );
 
 DEFINE_ENUM(EErrorCode,
-    ((NoSuchOperation)              (200))
-    ((InvalidOperationState)        (201))
-    ((TooManyOperations)            (202))
-    ((NoSuchJob)                    (203))
-    ((OperationFailedOnJobRestart)  (210))
+    ((NoSuchOperation)                        (200))
+    ((InvalidOperationState)                  (201))
+    ((TooManyOperations)                      (202))
+    ((NoSuchJob)                              (203))
+    ((OperationFailedOnJobRestart)            (210))
+    ((OperationFailedWithInconsistentLocking) (211))
 );
 
 DEFINE_ENUM(EUnavailableChunkAction,
