@@ -205,7 +205,8 @@ private:
                 if (!Owner->AliveFollowers.contains(id)) {
                     YT_LOG_INFO("Follower is up (PeerId: %v)", id);
                     YCHECK(Owner->AliveFollowers.insert(id).second);
-                    YCHECK(Owner->AlivePeers.insert(id).second); // peers is a superset of followers
+                    // Peers are a superset of followers.
+                    YCHECK(Owner->AlivePeers.insert(id).second);
                     Owner->FireAlivePeerSetChanged();
                 }
             } else {
@@ -254,7 +255,7 @@ private:
                         Owner->FireAlivePeerSetChanged();
                     }
                 } else {
-                    if(Owner->AlivePeers.erase(id) > 0) {
+                    if (Owner->AlivePeers.erase(id) > 0) {
                         YT_LOG_WARNING(error, "Error pinging observer, considered down (PeerId: %v)",
                             id);
                         Owner->FireAlivePeerSetChanged();
