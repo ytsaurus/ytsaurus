@@ -134,8 +134,9 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
     ProfileReadBlockSetLatency(session);
 
     std::vector<TBlock> blocks;
-    blocks.reserve(session->Entries.size());
-    for (auto& entry : session->Entries) {
+    blocks.reserve(session->EntryCount);
+    for (int entryIndex = 0; entryIndex < session->EntryCount; ++entryIndex) {
+        auto& entry = session->Entries[entryIndex];
         blocks.push_back(std::move(entry.Block));
     }
     session->Promise.TrySet(std::move(blocks));
@@ -193,7 +194,7 @@ void TBlobChunkBase::OnBlocksExtLoaded(
     int pendingBlockCount = 0;
     bool diskFetchNeeded = false;
     const auto& config = Bootstrap_->GetConfig()->DataNode;
-    for (int entryIndex = 0; entryIndex < static_cast<int>(session->Entries.size()); ++entryIndex) {
+    for (int entryIndex = 0; entryIndex < session->EntryCount; ++entryIndex) {
         auto& entry = session->Entries[entryIndex];
         if (entry.Cached) {
             continue;
@@ -220,11 +221,11 @@ void TBlobChunkBase::OnBlocksExtLoaded(
         pendingBlockCount += 1;
         if (pendingDataSize >= config->MaxBytesPerRead ||
             pendingBlockCount >= config->MaxBlocksPerRead) {
-            session->ActiveEntryCount = entryIndex;
+            session->EntryCount = entryIndex;
             YT_LOG_DEBUG("Read session trimmed (PendingDataSize: %v, PendingBlockCount: %v, TrimmedBlockCount: %v)",
                 pendingDataSize,
                 pendingBlockCount,
-                session->ActiveEntryCount);
+                session->EntryCount);
             break;
         }
     }
@@ -267,8 +268,11 @@ void TBlobChunkBase::OnBlocksExtLoaded(
 
     session->Promise.OnCanceled(BIND([session] {
         TError error("Read session canceled");
-        for (auto& entry : session->Entries) {
-            entry.Cookie.Cancel(error);
+        for (int entryIndex = 0; entryIndex < session->EntryCount; ++entryIndex) {
+            auto& entry = session->Entries[entryIndex];
+            if (!entry.Cached && !entry.Latch.test_and_set()) {
+                entry.Cookie.Cancel(error);
+            }
         }
         for (auto& asyncResult : session->AsyncResults) {
             asyncResult.Cancel();
@@ -285,7 +289,7 @@ void TBlobChunkBase::DoReadBlockSet(
     auto reader = readerCache->GetReader(this);
 
     int currentEntryIndex = 0;
-    while (currentEntryIndex < session->ActiveEntryCount) {
+    while (currentEntryIndex < session->EntryCount) {
         if (session->Entries[currentEntryIndex].Cached) {
             ++currentEntryIndex;
             continue;
@@ -296,7 +300,7 @@ void TBlobChunkBase::DoReadBlockSet(
         int endEntryIndex = currentEntryIndex;
         int firstBlockIndex = session->Entries[beginEntryIndex].BlockIndex;
         while (
-            endEntryIndex < session->Entries.size() &&
+            endEntryIndex < session->EntryCount &&
             !session->Entries[endEntryIndex].Cached &&
             session->Entries[endEntryIndex].BlockIndex == firstBlockIndex + (endEntryIndex - beginEntryIndex))
         {
@@ -343,8 +347,7 @@ void TBlobChunkBase::DoReadBlockSet(
             auto& entry = session->Entries[entryIndex];
             entry.Block = block;
             bytesRead += block.Size();
-
-            if (entry.Cookie.IsActive()) {
+            if (!entry.Cached && !entry.Latch.test_and_set()) {
                 // NB: Copy block to move data to undumpable memory and to
                 // prevent cache from holding the whole block sequence.
                 {
@@ -410,9 +413,9 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
     // Initialize session.
     auto session = New<TReadBlockSetSession>();
     session->Options = options;
-    session->Entries.resize(blockIndexes.size());
-    session->ActiveEntryCount = static_cast<int>(blockIndexes.size());
-    for (int entryIndex = 0; entryIndex < static_cast<int>(blockIndexes.size()); ++entryIndex) {
+    session->EntryCount = static_cast<int>(blockIndexes.size());
+    session->Entries.reset(new TReadBlockSetSession::TBlockEntry[session->EntryCount]);
+    for (int entryIndex = 0; entryIndex < session->EntryCount; ++entryIndex) {
         auto& entry = session->Entries[entryIndex];
         entry.BlockIndex = blockIndexes[entryIndex];
     }
