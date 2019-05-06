@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/server/node/data_node/config.h>
-
 #include <yt/server/lib/hive/config.h>
 
 #include <yt/server/lib/hydra/config.h>
