@@ -4844,7 +4844,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                 const auto& rsp = batchRsp[index].Value();
 
                 auto objectId = FromProto<TObjectId>(rsp->node_id());
-                i64 revision = rsp->revision();
+                ui64 revision = rsp->revision();
 
                 auto it = InputTablesByPath_.find(table->Path.GetPath());
                 if (it != InputTablesByPath_.end()) {
@@ -4854,7 +4854,10 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                             continue;
                         }
                         if (inputTable->ObjectId != objectId || inputTable->Revision != revision) {
-                            THROW_ERROR_EXCEPTION("Table %v has changed between taking input and output locks", inputTable->GetPath())
+                            THROW_ERROR_EXCEPTION(
+                                NScheduler::EErrorCode::OperationFailedWithInconsistentLocking,
+                                "Table %v has changed between taking input and output locks",
+                                inputTable->GetPath())
                                 << TErrorAttribute("input_object_id", inputTable->ObjectId)
                                 << TErrorAttribute("input_revision", inputTable->Revision)
                                 << TErrorAttribute("output_object_id", objectId)
