@@ -1,8 +1,8 @@
 #include "logical_type_helpers.h"
 
 #include <yt/client/table_client/logical_type.h>
-#include <iostream>
 
+#include <iostream>
 
 namespace NYT::NTableClient {
 
