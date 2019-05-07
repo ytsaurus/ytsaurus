@@ -208,9 +208,15 @@ message TMountedStaticResource {
 }
 
 message TRootfsVolume {
+    reserved 2, 3, 5;
+
     // Квота на размер
     // NOTE: не обрабатывается - porto не умеет во вложенные квоты по диску
     uint64 quota_bytes = 1;
+
+    // place, где будет расположен volume
+    // передается as is в porto
+    string place = 6;
 
     // Слои, из которых собирается volume
     // как и в porto, слои идут в порядке top-layer;...;bottom-layer
@@ -225,7 +231,7 @@ message TFileStorage {
 }
 
 message TGenericVolume {
-    reserved 1,2,3;
+    reserved 1, 2, 3;
 
     // Квота на размер
     // NOTE: не обрабатывается - porto не умеет во вложенные квоты по диску
