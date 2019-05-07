@@ -2632,7 +2632,7 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         requests.append(make_batch_request("remove", path="#" + cells[0]))
         requests.append(make_batch_request("mount_table", path="//tmp/t", cell_id=cells[0], freeze=freeze))
         rsps = execute_batch(requests)
-        assert len(rsps[1]) == 0
+        assert len(rsps[1]["output"]) == 0
 
         expected_state = "frozen" if freeze  else "mounted"
         assert get("//tmp/t/@expected_tablet_state") == expected_state

@@ -239,10 +239,24 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
     driver = _get_driver(parameters.pop("driver", None))
 
     command_rewrites = {
-        "start_tx": "start_transaction"
+        "start_tx": "start_transaction",
+        "abort_tx": "abort_transaction",
+        "commit_tx": "commit_transaction",
+        "ping_tx": "ping_transaction",
+
+        "start_op": "start_operation",
+        "abort_op": "abort_operation",
+        "suspend_op": "suspend_operation",
+        "resume_op": "resume_operation",
+        "complete_op": "complete_operation",
+        "update_op_parameters": "update_operation_parameters",
     }
     if driver.get_config()["api_version"] == 4 and command_name in command_rewrites:
         command_name = command_rewrites[command_name]
+
+    if command_name in ("merge", "erase", "map", "sort", "reduce", "join_reduce", "map_reduce", "remote_copy"):
+        parameters["operation_type"] = command_name
+        command_name = "start_operation"
 
     authenticated_user = None
     if "authenticated_user" in parameters:
@@ -323,6 +337,8 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
             result = yson.loads(result)
             if unwrap_v4_result and driver.get_config()["api_version"] == 4 and isinstance(result, dict) and len(result.keys()) == 1:
                 result = result.values()[0]
+            if driver.get_config()["api_version"] == 3 and command_name == "lock":
+                result = {"lock_id": result}
         return result
 
 def execute_command_with_output_format(command_name, kwargs, input_stream=None):
@@ -427,7 +443,7 @@ def get(path, is_raw=False, **kwargs):
     if "return_only_value" not in kwargs:
         kwargs["return_only_value"] = True
     try:
-        return execute_command("get", kwargs, parse_yson=not is_raw)
+        return execute_command("get", kwargs, parse_yson=not is_raw, unwrap_v4_result=False)
     except YtResponseError as err:
         if err.is_resolve_error() and "default" in kwargs:
             return kwargs["default"]
@@ -445,7 +461,6 @@ def set(path, value, is_raw=False, **kwargs):
     execute_command("set", kwargs, input_stream=StringIO(value))
 
 def create(object_type, path, **kwargs):
-    driver = kwargs.get("driver")
     kwargs["type"] = object_type
     kwargs["path"] = path
     return execute_command("create", kwargs, parse_yson=True)
@@ -691,13 +706,13 @@ def check_permission(user, permission, path, **kwargs):
     kwargs["user"] = user
     kwargs["permission"] = permission
     kwargs["path"] = path
-    return execute_command("check_permission", kwargs, parse_yson=True)
+    return execute_command("check_permission", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 def check_permission_by_acl(user, permission, acl, **kwargs):
     kwargs["user"] = user
     kwargs["permission"] = permission
     kwargs["acl"] = acl
-    return execute_command("check_permission_by_acl", kwargs, parse_yson=True)
+    return execute_command("check_permission_by_acl", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 def get_file_from_cache(md5, cache_path, **kwargs):
     kwargs["md5"] = md5
