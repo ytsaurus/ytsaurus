@@ -145,6 +145,7 @@ message TResource {
 
     // URL для скачивания, протоколы: http, https, rbtorrent
     // Для записи строчки в файл URL должен быть равен "raw:<строка>"
+    // Только для тестов: можно указать путь к файлу на хосте "local:<filepath>"
     string url = 4;
 
     //TODO: not implemented
@@ -175,6 +176,7 @@ message TLayer {
 
     // URL для скачивания, протоколы: http, https, rbtorrent
     // Для записи строчки в файл URL должен быть равен "raw:<строка>"
+    // Только для тестов: можно указать путь к файлу на хосте "local:<filepath>"
     string url = 5;
 }
 
