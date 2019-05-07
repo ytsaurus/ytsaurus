@@ -221,7 +221,7 @@ void TBlobChunkBase::OnBlocksExtLoaded(
         pendingBlockCount += 1;
         if (pendingDataSize >= config->MaxBytesPerRead ||
             pendingBlockCount >= config->MaxBlocksPerRead) {
-            session->EntryCount = entryIndex;
+            session->EntryCount = entryIndex + 1;
             YT_LOG_DEBUG("Read session trimmed (PendingDataSize: %v, PendingBlockCount: %v, TrimmedBlockCount: %v)",
                 pendingDataSize,
                 pendingBlockCount,
