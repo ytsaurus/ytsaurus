@@ -96,7 +96,7 @@ class TestGetOperation(YTEnvSetup):
                 "unrecognized_spec",
                 "full_spec",
                 "slot_index_per_pool_tree",
-                "alerts"
+                "alerts",
             ]
             return {key: attrs[key] for key in PROPER_ATTRS if key in attrs}
 
