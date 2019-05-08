@@ -63,22 +63,25 @@ func ytTypeFor(typ reflect.Type) (ytTyp Type, err error) {
 func parseTag(fieldName string, typ reflect.Type, tag string) (c *Column, err error) {
 	c = &Column{Required: true}
 
+	c.Name = fieldName
 	if tag != "" {
 		parts := strings.Split(tag, ",")
 		if parts[0] == "-" {
 			return nil, nil
 		}
 
-		c.Name = parts[0]
+		if parts[0] != "" {
+			c.Name = parts[0]
+		}
 
 		for _, option := range parts[1:] {
 			switch option {
 			case "key":
 				c.SortOrder = SortAscending
+			case "omitempty":
+				c.Required = false
 			}
 		}
-	} else {
-		c.Name = fieldName
 	}
 
 	c.Type, err = ytTypeFor(typ)
