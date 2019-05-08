@@ -63,6 +63,8 @@
 
 #include <yt/server/lib/admin/admin_service.h>
 
+#include <yt/server/lib/core_dump/core_dumper.h>
+
 #include <yt/ytlib/api/native/config.h>
 #include <yt/ytlib/api/native/connection.h>
 
@@ -83,8 +85,6 @@
 #include <yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/client/object_client/helpers.h>
-
-#include <yt/ytlib/core_dump/core_dumper.h>
 
 #include <yt/core/bus/server.h>
 

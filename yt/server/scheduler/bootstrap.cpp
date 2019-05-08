@@ -16,6 +16,8 @@
 
 #include <yt/server/lib/scheduler/config.h>
 
+#include <yt/server/lib/core_dump/core_dumper.h>
+
 #include <yt/ytlib/program/build_attributes.h>
 
 #include <yt/ytlib/api/native/client.h>
@@ -29,8 +31,6 @@
 #include <yt/ytlib/scheduler/config.h>
 
 #include <yt/ytlib/security_client/public.h>
-
-#include <yt/ytlib/core_dump/core_dumper.h>
 
 #include <yt/core/bus/server.h>
 

@@ -19,9 +19,9 @@
 
 #ifdef _linux_
     #include <yt/contrib/coredumper/coredumper.h>
+    #include <sys/prctl.h>
 #endif
 
-#include <sys/prctl.h>
 
 #include <unistd.h>
 
@@ -46,9 +46,11 @@ public:
     {
         const auto& Logger = CoreDumpLogger;
 
+#ifdef _linux_
         if (prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY) != 0) {
             YT_LOG_ERROR(TError::FromSystem(), "Failed to call prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY)");
         }
+#endif
     }
 
     virtual TCoreDump WriteCoreDump(const std::vector<TString>& notes, const TString& reason) override

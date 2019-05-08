@@ -1,7 +1,7 @@
 #include <yt/server/lib/core_dump/core_processor_service_proxy.h>
+#include <yt/server/lib/core_dump/helpers.h>
 
 #include <yt/ytlib/program/program.h>
-#include <yt/ytlib/core_dump/helpers.h>
 
 #include <yt/core/misc/fs.h>
 
