@@ -122,7 +122,7 @@ StoragePtr TDatabase::GetTable(
         return nullptr;
     }
 
-    return CreateStorageTable(std::move(table), Cluster);
+    return CreateStorageTable(std::move(table));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -196,9 +196,7 @@ void TDatabase::createTable(
     const StoragePtr& /* table */,
     const ASTPtr& /* query */)
 {
-    throw Exception(
-        "TDatabase: createTable() is not supported",
-        ErrorCodes::NOT_IMPLEMENTED);
+    // Table already created, nothing to do here.
 }
 
 void TDatabase::removeTable(

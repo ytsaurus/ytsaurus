@@ -1,8 +1,8 @@
 #include "helpers.h"
 
 #include "table.h"
-
 #include "table_schema.h"
+#include "type_translation.h"
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -22,6 +22,7 @@
 
 #include <Interpreters/ExpressionActions.h>
 #include <Storages/MergeTree/KeyCondition.h>
+#include <Storages/ColumnsDescription.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -83,6 +84,34 @@ Field ConvertToField(const NTableClient::TUnversionedValue& value)
             return Field(value.Data.String, value.Length);
         default:
             THROW_ERROR_EXCEPTION("Unexpected data type %v", value.Type);
+    }
+}
+
+void ConvertToUnversionedValue(const DB::Field& field, TUnversionedValue* value)
+{
+    switch (value->Type) {
+        case EValueType::Int64:
+        case EValueType::Uint64:
+        case EValueType::Double: {
+            memcpy(&value->Data, &field.get<ui64>(), sizeof(value->Data));
+            break;
+        }
+        case EValueType::Boolean: {
+            if (field.get<ui64>() > 1) {
+                THROW_ERROR_EXCEPTION("Cannot convert value %v to boolean", field.get<ui64>());
+            }
+            memcpy(&value->Data, &field.get<ui64>(), sizeof(value->Data));
+            break;
+        }
+        case EValueType::String: {
+            const auto& str = field.get<std::string>();
+            value->Data.String = str.data();
+            value->Length = str.size();
+            break;
+        }
+        default: {
+            THROW_ERROR_EXCEPTION("Unexpected data type %v", value->Type);
+        }
     }
 }
 
@@ -161,13 +190,55 @@ TClickHouseTablePtr FetchClickHouseTable(
     const TRichYPath& path,
     const TLogger& logger)
 {
-    auto userObject = GetTableAttributes(
-        client,
-        path,
-        EPermission::Read,
-        logger);
+    try {
+        auto userObject = GetTableAttributes(
+            client,
+            path,
+            EPermission::Read,
+            logger);
 
-    return std::make_shared<TClickHouseTable>(path.GetPath(), userObject->Schema);
+        return std::make_shared<TClickHouseTable>(path, userObject->Schema);
+    } catch (TErrorException& ex) {
+        if (ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
+            return nullptr;
+        }
+        throw;
+    }
+}
+
+TTableSchema ConvertToTableSchema(const ColumnsDescription& columns, const TKeyColumns& keyColumns)
+{
+    std::vector<TString> columnOrder;
+    THashSet<TString> usedColumns;
+
+    for (const auto& keyColumnName : keyColumns) {
+        if (!columns.has(keyColumnName)) {
+            THROW_ERROR_EXCEPTION("Column %v is specified as key column, but is missing", keyColumnName);
+        }
+        columnOrder.emplace_back(keyColumnName);
+        usedColumns.emplace(keyColumnName);
+    }
+
+    for (const auto& column : columns) {
+        if (usedColumns.emplace(column.name).second) {
+            columnOrder.emplace_back(column.name);
+        }
+    }
+
+    std::vector<TColumnSchema> columnSchemas;
+    columnSchemas.reserve(columnOrder.size());
+    for (int index = 0; index < static_cast<int>(columnOrder.size()); ++index) {
+        const auto& name = columnOrder[index];
+        const auto& column = columns.get(name);
+        const auto& type = RepresentClickHouseType(column.type);
+        std::optional<ESortOrder> sortOrder;
+        if (index < static_cast<int>(keyColumns.size())) {
+            sortOrder = ESortOrder::Ascending;
+        }
+        columnSchemas.emplace_back(name, type, sortOrder);
+    }
+
+    return TTableSchema(columnSchemas);
 }
 
 /////////////////////////////////////////////////////////////////////////////

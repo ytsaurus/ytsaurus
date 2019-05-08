@@ -48,7 +48,7 @@ public:
 
     // Attribute accessors.
     // "append"
-    bool GetAppend() const;
+    bool GetAppend(bool defaultValue = false) const;
     void SetAppend(bool value);
 
     // "teleport"

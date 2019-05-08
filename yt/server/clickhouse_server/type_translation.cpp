@@ -1,4 +1,4 @@
-#include "types_translation.h"
+#include "type_translation.h"
 
 #include <yt/ytlib/table_client/schema.h>
 
@@ -69,6 +69,30 @@ EClickHouseColumnType RepresentYtType(EValueType valueType)
     }
 
     THROW_ERROR_EXCEPTION("YT value type %Qlv not supported", valueType);
+}
+
+EValueType RepresentClickHouseType(const DB::DataTypePtr& type)
+{
+    switch (type->getTypeId()) {
+        case DB::TypeIndex::Int64:
+        case DB::TypeIndex::Int32:
+        case DB::TypeIndex::Int16:
+        case DB::TypeIndex::Int8:
+            return EValueType::Int64;
+        case DB::TypeIndex::UInt64:
+        case DB::TypeIndex::UInt32:
+        case DB::TypeIndex::UInt16:
+        case DB::TypeIndex::UInt8:
+            return EValueType::Uint64;
+        case DB::TypeIndex::Float32:
+        case DB::TypeIndex::Float64:
+            return EValueType::Double;
+        case DB::TypeIndex::String:
+        case DB::TypeIndex::FixedString:
+            return EValueType::String;
+        default:
+            THROW_ERROR_EXCEPTION("Data type %v is not representable in YT", type->getFamilyName());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

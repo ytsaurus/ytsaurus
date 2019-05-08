@@ -3,8 +3,22 @@
 #include "query_helpers.h"
 #include "storage_distributed.h"
 #include "private.h"
-
+#include "config.h"
+#include "block_output_stream.h"
 #include "query_context.h"
+#include "helpers.h"
+
+#include <yt/ytlib/api/native/client.h>
+
+#include <yt/ytlib/table_client/schemaless_chunk_writer.h>
+
+#include <yt/client/table_client/name_table.h>
+
+#include <yt/client/object_client/public.h>
+
+#include <yt/client/ypath/rich.h>
+
+#include <yt/core/ytree/convert.h>
 
 #include <Common/Exception.h>
 #include <Common/typeid_cast.h>
@@ -12,8 +26,11 @@
 #include <Parsers/ASTLiteral.h>
 #include <Parsers/ASTIdentifier.h>
 #include <Parsers/ASTSelectQuery.h>
+#include <Parsers/ASTCreateQuery.h>
 #include <Parsers/ASTTablesInSelectQuery.h>
 #include <Parsers/queryToString.h>
+#include <Storages/StorageFactory.h>
+#include <Storages/MergeTree/MergeTreeData.h>
 
 #include <common/logger_useful.h>
 
@@ -21,6 +38,11 @@ namespace NYT::NClickHouseServer {
 
 using namespace NYPath;
 using namespace DB;
+using namespace NTableClient;
+using namespace NObjectClient;
+using namespace NConcurrency;
+using namespace NYPath;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,11 +53,8 @@ private:
     TClickHouseTablePtr Table;
 
 public:
-    TStorageTable(
-        TClickHouseTablePtr table,
-        IExecutionClusterPtr cluster)
+    TStorageTable(TClickHouseTablePtr table)
         : TStorageDistributedBase(
-            std::move(cluster),
             table->TableSchema,
             TClickHouseTableSchema::From(*table))
         , Table(std::move(table))
@@ -43,16 +62,32 @@ public:
 
     std::string getTableName() const override
     {
-        return std::string(Table->Path);
+        return std::string(Table->Path.GetPath());
     }
 
-    virtual QueryProcessingStage::Enum getQueryProcessingStage(const Context&) const
+    virtual QueryProcessingStage::Enum getQueryProcessingStage(const Context& /* context */) const
     {
         return QueryProcessingStage::WithMergeableState;
     }
 
+    virtual BlockOutputStreamPtr write(const ASTPtr& /* ptr */, const Context& context) override
+    {
+        auto* queryContext = GetQueryContext(context);
+        // Set append if it is not set.
+        Table->Path.SetAppend(Table->Path.GetAppend(true /* defaultValue */));
+        auto writer = WaitFor(CreateSchemalessTableWriter(
+            queryContext->Bootstrap->GetConfig()->TableWriterConfig,
+            New<TTableWriterOptions>(),
+            Table->Path,
+            New<TNameTable>(),
+            queryContext->Client(),
+            nullptr /* transaction */))
+            .ValueOrThrow();
+        return CreateBlockOutputStream(std::move(writer), queryContext->Logger);
+    }
+
 private:
-    virtual std::vector<TYPath> GetTablePaths() const override
+    virtual std::vector<TRichYPath> GetTablePaths() const override
     {
         return {Table->Path};
     }
@@ -115,16 +150,68 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::StoragePtr CreateStorageTable(
-    TClickHouseTablePtr table,
-    IExecutionClusterPtr cluster)
+DB::StoragePtr CreateStorageTableFromCH(StorageFactory::Arguments args)
 {
-    auto storage = std::make_shared<TStorageTable>(
-        std::move(table),
-        std::move(cluster));
+    auto* queryContext = GetQueryContext(args.local_context);
+    const auto& client = queryContext->Client();
+    const auto& Logger = queryContext->Logger;
+
+    TKeyColumns keyColumns;
+
+    if (args.storage_def->order_by) {
+        auto orderByAst = args.storage_def->order_by->ptr();
+        orderByAst = MergeTreeData::extractKeyExpressionList(orderByAst);
+        for (const auto& child : orderByAst->children) {
+            auto* identifier = dynamic_cast<ASTIdentifier*>(child.get());
+            if (!identifier) {
+                THROW_ERROR_EXCEPTION("CHYT does not support compound expressions as parts of key")
+                    << TErrorAttribute("expression", child->getColumnName());
+            }
+            keyColumns.emplace_back(identifier->getColumnName());
+        }
+    }
+
+    auto path = TRichYPath::Parse(TString(args.table_name));
+    YT_LOG_INFO("Creating table from CH engine (Path: %v, Columns: %v, KeyColumns: %v)",
+        path,
+        args.columns.toString(),
+        keyColumns);
+
+    auto schema = ConvertToTableSchema(args.columns, keyColumns);
+    YT_LOG_DEBUG("Inferred table schema (Schema: %v)", schema);
+
+    YT_LOG_INFO("Creating table");
+    NApi::TCreateNodeOptions options;
+    options.Attributes = ConvertToAttributes(BuildYsonStringFluently()
+        .BeginMap()
+            .Item("schema").Value(schema)
+        .EndMap());
+    WaitFor(client->CreateNode(path.GetPath(), NObjectClient::EObjectType::Table, options))
+        .ThrowOnError();
+    YT_LOG_INFO("Table created");
+
+    auto table = FetchClickHouseTable(client, path, Logger);
+    YCHECK(table);
+
+    return CreateStorageTable(std::move(table));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+DB::StoragePtr CreateStorageTable(TClickHouseTablePtr table)
+{
+    auto storage = std::make_shared<TStorageTable>(std::move(table));
     storage->startup();
 
     return storage;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+void RegisterStorageTable()
+{
+    auto& factory = StorageFactory::instance();
+    factory.registerStorage("YtTable", CreateStorageTableFromCH);
 }
 
 /////////////////////////////////////////////////////////////////////////////

@@ -17,6 +17,7 @@
 #include "security_manager.h"
 #include "poco_config.h"
 #include "config.h"
+#include "storage_table.h"
 
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/profiling/profile_manager.h>
@@ -181,6 +182,12 @@ public:
         return Cancelled;
     }
 
+    // TODO(max42): refactor.
+    IClusterNodeTrackerPtr GetExecutionClusterNodeTracker() const
+    {
+        return ExecutionClusterNodeTracker;
+    }
+
     void OnProfiling()
     {
         VERIFY_INVOKER_AFFINITY(ControlInvoker_);
@@ -284,8 +291,9 @@ private:
 
         RegisterFunctions();
         RegisterTableFunctions();
-        RegisterConcatenatingTableFunctions(ExecutionClusterNodeTracker);
+        RegisterConcatenatingTableFunctions();
         RegisterTableDictionarySource(Bootstrap_);
+        RegisterStorageTable();
 
         // Initialize DateLUT early, to not interfere with running time of first query.
         YT_LOG_INFO("Initializing DateLUT");
@@ -497,6 +505,11 @@ void TClickHouseHost::AdjustQueryCount(const TString& user, EQueryKind queryKind
 const IInvokerPtr& TClickHouseHost::GetControlInvoker() const
 {
     return Impl_->GetControlInvoker();
+}
+
+IClusterNodeTrackerPtr TClickHouseHost::GetExecutionClusterNodeTracker() const
+{
+    return Impl_->GetExecutionClusterNodeTracker();
 }
 
 TClickHouseHost::~TClickHouseHost() = default;

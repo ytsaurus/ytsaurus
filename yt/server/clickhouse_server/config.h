@@ -10,24 +10,24 @@
 
 #include <yt/client/ypath/rich.h>
 
+#include <yt/ytlib/table_client/config.h>
+
 #include <yt/core/concurrency/config.h>
 #include <yt/core/ytree/fluent.h>
 
 namespace NYT::NClickHouseServer {
 
-using namespace NYTree;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     // This field is overriden by DefaultProfile in TEngineConfig.
-    THashMap<TString, THashMap<TString, INodePtr>> Profiles;
-    IMapNodePtr Quotas;
-    IMapNodePtr UserTemplate;
-    IMapNodePtr Users;
+    THashMap<TString, THashMap<TString, NYTree::INodePtr>> Profiles;
+    NYTree::IMapNodePtr Quotas;
+    NYTree::IMapNodePtr UserTemplate;
+    NYTree::IMapNodePtr Users;
 
     TUserConfig()
     {
@@ -35,7 +35,7 @@ public:
             .Default();
 
         RegisterParameter("quotas", Quotas)
-            .Default(BuildYsonNodeFluently()
+            .Default(NYTree::BuildYsonNodeFluently()
                 .BeginMap()
                     .Item("default").BeginMap()
                         .Item("interval").BeginMap()
@@ -50,7 +50,7 @@ public:
                 .EndMap()->AsMap());
 
         RegisterParameter("user_template", UserTemplate)
-            .Default(BuildYsonNodeFluently()
+            .Default(NYTree::BuildYsonNodeFluently()
                 .BeginMap()
                     .Item("networks").BeginMap()
                         .Item("ip").Value("::/0")
@@ -61,7 +61,7 @@ public:
                 .EndMap()->AsMap());
 
         RegisterParameter("users", Users)
-            .Default(BuildYsonNodeFluently().BeginMap().EndMap()->AsMap());
+            .Default(NYTree::BuildYsonNodeFluently().BeginMap().EndMap()->AsMap());
     }
 };
 
@@ -70,7 +70,7 @@ DEFINE_REFCOUNTED_TYPE(TUserConfig);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDictionarySourceYtConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     NYPath::TRichYPath Path;
@@ -89,7 +89,7 @@ DEFINE_REFCOUNTED_TYPE(TDictionarySourceYtConfig);
 //! Extra supported configuration type is "yt".
 //! See: https://clickhouse.yandex/docs/en/query_language/dicts/external_dicts_dict_sources/
 class TDictionarySourceConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     // TODO(max42): proper value omission.
@@ -109,7 +109,7 @@ DEFINE_REFCOUNTED_TYPE(TDictionarySourceConfig);
 //! External dictionary configuration.
 //! See: https://clickhouse.yandex/docs/en/query_language/dicts/external_dicts_dict/
 class TDictionaryConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TString Name;
@@ -119,15 +119,15 @@ public:
 
     //! Layout configuration.
     //! See: https://clickhouse.yandex/docs/en/query_language/dicts/external_dicts_dict_layout/
-    IMapNodePtr Layout;
+    NYTree::IMapNodePtr Layout;
 
     //! Structure configuration.
     //! See: https://clickhouse.yandex/docs/en/query_language/dicts/external_dicts_dict_structure/
-    IMapNodePtr Structure;
+    NYTree::IMapNodePtr Structure;
 
     //! Lifetime configuration.
     //! See: https://clickhouse.yandex/docs/en/query_language/dicts/external_dicts_dict_lifetime/
-    INodePtr Lifetime;
+    NYTree::INodePtr Lifetime;
 
     TDictionaryConfig()
     {
@@ -144,7 +144,7 @@ DEFINE_REFCOUNTED_TYPE(TDictionaryConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSubqueryConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     NChunkClient::TFetcherConfigPtr ChunkSliceFetcher;
@@ -171,7 +171,7 @@ DEFINE_REFCOUNTED_TYPE(TSubqueryConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEngineConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! A map setting CH security policy.
@@ -192,7 +192,7 @@ public:
     //! ClickHouse settings.
     //! Refer to https://clickhouse.yandex/docs/en/operations/settings/settings/ for a complete list.
     //! This map is merged into `users/profiles/default`.
-    THashMap<TString, INodePtr> Settings;
+    THashMap<TString, NYTree::INodePtr> Settings;
 
     //! Hosts to listen.
     std::vector<TString> ListenHosts;
@@ -223,7 +223,7 @@ public:
 
         RegisterParameter("settings", Settings)
             .Optional()
-            .MergeBy(EMergeStrategy::Combine);
+            .MergeBy(NYTree::EMergeStrategy::Combine);
 
         RegisterParameter("dictionaries", Dictionaries)
             .Default();
@@ -238,10 +238,9 @@ public:
             .DefaultNew();
 
         RegisterPreprocessor([&] {
-            Settings["readonly"] = ConvertToNode(2);
-            Settings["max_memory_usage_for_all_queries"] = ConvertToNode(9_GB);
-            Settings["max_threads"] = ConvertToNode(32);
-            Settings["max_concurrent_queries_for_user"] = ConvertToNode(10);
+            Settings["max_memory_usage_for_all_queries"] = NYTree::ConvertToNode(9_GB);
+            Settings["max_threads"] = NYTree::ConvertToNode(32);
+            Settings["max_concurrent_queries_for_user"] = NYTree::ConvertToNode(10);
         });
 
         RegisterPostprocessor([&] {
@@ -253,7 +252,7 @@ public:
             Settings = userDefaultProfile;
         });
 
-        SetUnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
+        SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
     }
 };
 
@@ -280,6 +279,8 @@ public:
 
     TDuration ProfilingPeriod;
 
+    NTableClient::TTableWriterConfigPtr TableWriterConfig;
+
     TClickHouseServerBootstrapConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
@@ -300,6 +301,9 @@ public:
 
         RegisterParameter("profiling_period", ProfilingPeriod)
             .Default(TDuration::Seconds(1));
+
+        RegisterParameter("table_writer_config", TableWriterConfig)
+            .DefaultNew();
     }
 };
 
