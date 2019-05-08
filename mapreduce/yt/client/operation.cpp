@@ -1006,26 +1006,18 @@ void LogJob(const TOperationId& opId, const IJob* job, const char* type)
     }
 }
 
-TString DumpYPath(const TRichYPath& path)
-{
-    TStringStream stream;
-    TYsonWriter writer(&stream, YF_TEXT, YT_NODE);
-    Serialize(path, &writer);
-    return stream.Str();
-}
-
 void LogYPaths(const TOperationId& opId, const TVector<TRichYPath>& paths, const char* type)
 {
     for (size_t i = 0; i < paths.size(); ++i) {
         LOG_INFO("Operation %s; %s[%" PRISZT "] = %s",
-            GetGuidAsString(opId).data(), type, i, DumpYPath(paths[i]).data());
+            GetGuidAsString(opId).data(), type, i, paths[i].Path_.data());
     }
 }
 
-void LogYPath(const TOperationId& opId, const TRichYPath& output, const char* type)
+void LogYPath(const TOperationId& opId, const TRichYPath& path, const char* type)
 {
     LOG_INFO("Operation %s; %s = %s",
-        GetGuidAsString(opId).data(), type, DumpYPath(output).data());
+        GetGuidAsString(opId).data(), type, path.Path_.data());
 }
 
 } // namespace
