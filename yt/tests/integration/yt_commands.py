@@ -44,15 +44,14 @@ AsyncLastCommittedTimestamp  = 0x3fffffffffffff04
 MinTimestamp                 = 0x0000000000000001
 
 @contextlib.contextmanager
-def raises_with_codes(*codes):
+def raises_yt_error(code):
     try:
         yield
     except YtError as e:
-        not_contained = [c for c in codes if not e.contains_code(c)]
-        if not_contained:
-            raise AssertionError("Error codes {} are not found in error {}".format(
-                not_contained,
+        if not e.contains_code(code):
+            raise AssertionError("Raised error {} doesn't contain error code {}".format(
                 e,
+                code,
             ))
 
 def is_debug():
