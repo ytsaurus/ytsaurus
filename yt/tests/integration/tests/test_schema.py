@@ -372,6 +372,34 @@ class TestRequiredOption(YTEnvSetup):
             ]
         )
 
+        create("table", table,
+               force=True,
+               attributes={
+                   "schema": [
+                       {
+                           "name": "column1",
+                           "type": "string",
+                       }
+                   ],
+               })
+        write_table(table, [{"column1": "foo"}])
+
+        with pytest.raises(YtError):
+            alter_table(
+                table,
+                schema=[
+                    {
+                        "name": "column1",
+                        "type": "string",
+                    },
+                    {
+                        "name": "column2",
+                        "type": "string",
+                        "required": True,
+                    }
+                ]
+            )
+
     @pytest.mark.parametrize("sorted_table", [False, True])
     def test_infer_required_column(self, sorted_table):
         if sorted_table:
