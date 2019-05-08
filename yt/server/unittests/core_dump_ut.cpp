@@ -1,6 +1,6 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/ytlib/core_dump/helpers.h>
+#include <yt/server/lib/core_dump/helpers.h>
 
 #include <util/system/tempfile.h>
 #include <util/stream/file.h>

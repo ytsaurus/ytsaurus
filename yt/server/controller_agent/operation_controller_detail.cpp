@@ -13,6 +13,8 @@
 
 #include <yt/server/lib/scheduler/helpers.h>
 
+#include <yt/server/lib/core_dump/helpers.h>
+
 #include <yt/server/controller_agent/chunk_pools/helpers.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -28,7 +30,6 @@
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/core_dump/proto/core_info.pb.h>
-#include <yt/ytlib/core_dump/helpers.h>
 
 #include <yt/ytlib/event_log/event_log.h>
 

@@ -5,6 +5,8 @@
 
 #include <yt/server/lib/misc/address_helpers.h>
 
+#include <yt/server/lib/core_dump/core_dumper.h>
+
 #include <yt/server/rpc_proxy/api_service.h>
 #include <yt/server/rpc_proxy/discovery_service.h>
 #include <yt/server/rpc_proxy/proxy_coordinator.h>
@@ -19,8 +21,6 @@
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 
 #include <yt/ytlib/orchid/orchid_service.h>
-
-#include <yt/ytlib/core_dump/core_dumper.h>
 
 #include <yt/ytlib/auth/authentication_manager.h>
 
