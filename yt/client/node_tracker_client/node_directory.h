@@ -6,6 +6,8 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
+#include <yt/core/rpc/helpers.h>
+
 #include <yt/core/yson/public.h>
 
 #include <yt/core/misc/enum.h>
@@ -36,6 +38,8 @@ public:
     const TString& GetDefaultAddress() const;
 
     const TString& GetAddressOrThrow(const TNetworkPreferenceList& networks) const;
+    NRpc::TAddressWithNetwork GetAddressWithNetworkOrThrow(const TNetworkPreferenceList& networks) const;
+
     std::optional<TString> FindAddress(const TNetworkPreferenceList& networks) const;
 
     const std::optional<TString>& GetRack() const;
@@ -70,6 +74,7 @@ TString ToString(const TNodeDescriptor& descriptor);
 const TString& GetDefaultAddress(const TAddressMap& addresses);
 const TString& GetDefaultAddress(const NProto::TAddressMap& addresses);
 
+NRpc::TAddressWithNetwork GetAddressWithNetworkOrThrow(const TAddressMap& addresses, const TNetworkPreferenceList& networks);
 const TString& GetAddressOrThrow(const TAddressMap& addresses, const TNetworkPreferenceList& networks);
 std::optional<TString> FindAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks);
 

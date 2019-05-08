@@ -118,13 +118,13 @@ IChannelPtr CreateTabletReadChannel(
     const TNetworkPreferenceList& networks)
 {
     const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(cellDescriptor, options.ReadFrom);
-    auto primaryChannel = channelFactory->CreateChannel(primaryPeerDescriptor.GetAddressOrThrow(networks));
+    auto primaryChannel = channelFactory->CreateChannel(primaryPeerDescriptor.GetAddressWithNetworkOrThrow(networks));
     if (cellDescriptor.Peers.size() == 1 || !options.BackupRequestDelay) {
         return primaryChannel;
     }
 
     const auto& backupPeerDescriptor = GetBackupTabletPeerDescriptor(cellDescriptor, primaryPeerDescriptor);
-    auto backupChannel = channelFactory->CreateChannel(backupPeerDescriptor.GetAddressOrThrow(networks));
+    auto backupChannel = channelFactory->CreateChannel(backupPeerDescriptor.GetAddressWithNetworkOrThrow(networks));
 
     return CreateLatencyTamingChannel(
         std::move(primaryChannel),

@@ -1016,7 +1016,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
         CreateJob(jobId, operationId, resourceLimits, std::move(spec));
     };
 
-    THashMap<TString, std::vector<NJobTrackerClient::NProto::TJobStartInfo>> groupedStartInfos;
+    THashMap<TAddressWithNetwork, std::vector<NJobTrackerClient::NProto::TJobStartInfo>> groupedStartInfos;
     size_t attachmentIndex = 0;
     for (const auto& startInfo : response->jobs_to_start()) {
         auto operationId = FromProto<TJobId>(startInfo.operation_id());
@@ -1030,17 +1030,16 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
             startJob(startInfo, attachment);
         } else {
             auto addresses = FromProto<NNodeTrackerClient::TAddressMap>(startInfo.spec_service_addresses());
-            auto optionalAddress = FindAddress(addresses, Bootstrap_->GetLocalNetworks());
-            if (optionalAddress) {
-                const auto& address = *optionalAddress;
+            try {
+                auto addressWithNetwork = GetAddressWithNetworkOrThrow(addresses, Bootstrap_->GetLocalNetworks());
                 YT_LOG_DEBUG("Job spec will be fetched (OperationId: %v, JobId: %v, SpecServiceAddress: %v)",
                     operationId,
                     jobId,
-                    address);
-                groupedStartInfos[address].push_back(startInfo);
-            } else {
+                    addressWithNetwork.Address);
+                groupedStartInfos[addressWithNetwork].push_back(startInfo);
+            } catch (const std::exception& ex) {
                 YCHECK(SpecFetchFailedJobIds_.insert({jobId, operationId}).second);
-                YT_LOG_DEBUG("Job spec cannot be fetched since no suitable network exists (OperationId: %v, JobId: %v, SpecServiceAddresses: %v)",
+                YT_LOG_DEBUG(ex, "Job spec cannot be fetched since no suitable network exists (OperationId: %v, JobId: %v, SpecServiceAddresses: %v)",
                     operationId,
                     jobId,
                     GetValues(addresses));
@@ -1053,21 +1052,18 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
         return;
     }
 
-    auto getSpecServiceChannel = [&] (const auto& address) {
+    auto getSpecServiceChannel = [&] (const auto& addressWithNetwork) {
         const auto& client = Bootstrap_->GetMasterClient();
         const auto& channelFactory = client->GetNativeConnection()->GetChannelFactory();
-        // COMPAT(babenko)
-        return address
-            ? channelFactory->CreateChannel(address)
-            : client->GetSchedulerChannel();
+        return channelFactory->CreateChannel(addressWithNetwork);
     };
 
     std::vector<TFuture<void>> asyncResults;
     for (const auto& pair : groupedStartInfos) {
-        const auto& address = pair.first;
+        const auto& addressWithNetwork = pair.first;
         const auto& startInfos = pair.second;
 
-        auto channel = getSpecServiceChannel(address);
+        auto channel = getSpecServiceChannel(addressWithNetwork);
         TJobSpecServiceProxy jobSpecServiceProxy(channel);
         jobSpecServiceProxy.SetDefaultTimeout(Config_->GetJobSpecsTimeout);
         auto jobSpecRequest = jobSpecServiceProxy.GetJobSpecs();
@@ -1079,14 +1075,14 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
         }
 
         YT_LOG_DEBUG("Getting job specs (SpecServiceAddress: %v, Count: %v)",
-            address,
+            addressWithNetwork,
             startInfos.size());
 
         auto asyncResult = jobSpecRequest->Invoke().Apply(
             BIND([=, this_ = MakeStrong(this)] (const TJobSpecServiceProxy::TErrorOrRspGetJobSpecsPtr& rspOrError) {
                 if (!rspOrError.IsOK()) {
                     YT_LOG_DEBUG(rspOrError, "Error getting job specs (SpecServiceAddress: %v)",
-                        address);
+                        addressWithNetwork);
                     for (const auto& startInfo : startInfos) {
                         auto jobId = FromProto<TJobId>(startInfo.job_id());
                         auto operationId = FromProto<TOperationId>(startInfo.operation_id());
@@ -1096,7 +1092,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
                 }
 
                 YT_LOG_DEBUG("Job specs received (SpecServiceAddress: %v)",
-                    address);
+                    addressWithNetwork);
 
                 const auto& rsp = rspOrError.Value();
                 YCHECK(rsp->responses_size() == startInfos.size());

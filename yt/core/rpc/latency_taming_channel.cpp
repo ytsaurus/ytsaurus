@@ -298,6 +298,11 @@ public:
         return *EndpointAttributes_;
     }
 
+    virtual TNetworkId GetNetworkId() const override
+    {
+        return PrimaryChannel_->GetNetworkId();
+    }
+
     virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,

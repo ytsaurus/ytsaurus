@@ -61,11 +61,14 @@ class TTcpBusClientConfig
 {
 public:
     std::optional<TString> Address;
+    std::optional<TString> NetworkName;
     std::optional<TString> UnixDomainName;
 
     TTcpBusClientConfig()
     {
         RegisterParameter("address", Address)
+            .Default();
+        RegisterParameter("network_name", NetworkName)
             .Default();
         RegisterParameter("unix_domain_name", UnixDomainName)
             .Default();
@@ -78,6 +81,7 @@ public:
     }
 
     static TTcpBusClientConfigPtr CreateTcp(const TString& address);
+    static TTcpBusClientConfigPtr CreateTcp(const TString& address, const TString& network);
     static TTcpBusClientConfigPtr CreateUnixDomain(const TString& address);
 };
 
