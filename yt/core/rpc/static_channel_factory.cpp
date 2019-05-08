@@ -2,6 +2,8 @@
 
 namespace NYT::NRpc {
 
+using namespace NYT::NBus;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TStaticChannelFactoryPtr TStaticChannelFactory::Add(const TString& address, IChannelPtr channel)
@@ -17,6 +19,11 @@ IChannelPtr TStaticChannelFactory::CreateChannel(const TString& address)
         THROW_ERROR_EXCEPTION("Unknown address %Qv", address);
     }
     return it->second;
+}
+
+IChannelPtr TStaticChannelFactory::CreateChannel(const TAddressWithNetwork& addressWithNetwork)
+{
+    return CreateChannel(addressWithNetwork.Address);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

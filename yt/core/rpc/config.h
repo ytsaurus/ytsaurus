@@ -255,11 +255,15 @@ class TMultiplexingBandConfig
 {
 public:
     int TosLevel;
+    THashMap<TString, int> NetworkToTosLevel;
 
     TMultiplexingBandConfig()
     {
         RegisterParameter("tos_level", TosLevel)
             .Default(NYT::NBus::DefaultTosLevel);
+
+        RegisterParameter("network_to_tos_level", NetworkToTosLevel)
+            .Default();
     }
 };
 

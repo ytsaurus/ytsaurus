@@ -668,12 +668,12 @@ private:
         VERIFY_THREAD_AFFINITY(WriterThread);
 
         auto nodeDescriptor = NodeDirectory_->GetDescriptor(target);
-        auto address = nodeDescriptor.GetAddressOrThrow(Networks_);
-        YT_LOG_DEBUG("Starting write session (Address: %v)", address);
+        auto addressWithNetwork = nodeDescriptor.GetAddressWithNetworkOrThrow(Networks_);
+        YT_LOG_DEBUG("Starting write session (Address: %v)", addressWithNetwork);
 
         auto channel = CreateRetryingChannel(
             Config_->NodeChannel,
-            Client_->GetChannelFactory()->CreateChannel(address),
+            Client_->GetChannelFactory()->CreateChannel(addressWithNetwork),
             BIND([] (const TError& error) {
                 return error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).operator bool();
             }));
@@ -690,13 +690,13 @@ private:
         auto rspOrError = WaitFor(req->Invoke());
         if (!rspOrError.IsOK()) {
             if (Config_->BanFailedNodes) {
-                BannedNodeAddresses_.push_back(address);
+                BannedNodeAddresses_.push_back(addressWithNetwork.Address);
             }
-            YT_LOG_WARNING(rspOrError, "Failed to start write session on node %v", address);
+            YT_LOG_WARNING(rspOrError, "Failed to start write session on node %v", addressWithNetwork);
             return;
         }
 
-        YT_LOG_DEBUG("Write session started (Address: %v)", address);
+        YT_LOG_DEBUG("Write session started (Address: %v)", addressWithNetwork);
 
         auto node = New<TNode>(
             Nodes_.size(),

@@ -16,6 +16,20 @@ namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TAddressWithNetwork
+{
+    TString Address;
+    TString Network;
+};
+
+bool operator==(const TAddressWithNetwork& lhs, const TAddressWithNetwork& rhs);
+
+TString ToString(const TAddressWithNetwork& addressWithNetwork);
+
+void Serialize(const TAddressWithNetwork& addressWithNetwork, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool IsRetriableError(const TError& error);
 bool IsChannelFailureError(const TError& error);
 
@@ -72,3 +86,11 @@ void SetOrGenerateMutationId(const IClientRequestPtr& request, TMutationId id, b
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NRpc
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+struct THash<NYT::NRpc::TAddressWithNetwork>
+{
+    size_t operator()(const NYT::NRpc::TAddressWithNetwork& addressWithNetwork) const;
+};

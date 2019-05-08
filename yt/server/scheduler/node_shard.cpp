@@ -2376,8 +2376,8 @@ TJobPtr TNodeShard::GetJobOrThrow(TJobId jobId)
 
 TJobProberServiceProxy TNodeShard::CreateJobProberProxy(const TJobPtr& job)
 {
-    auto address = job->GetNode()->NodeDescriptor().GetAddressOrThrow(Bootstrap_->GetLocalNetworks());
-    return Host_->CreateJobProberProxy(address);
+    auto addressWithNetwork = job->GetNode()->NodeDescriptor().GetAddressWithNetworkOrThrow(Bootstrap_->GetLocalNetworks());
+    return Host_->CreateJobProberProxy(addressWithNetwork);
 }
 
 TNodeShard::TOperationState* TNodeShard::FindOperationState(TOperationId operationId)

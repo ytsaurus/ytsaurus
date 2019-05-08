@@ -137,6 +137,13 @@ public:
         return *EndpointAttributes_;
     }
 
+    virtual const TString& GetNetworkName() const override
+    {
+        return Config_->NetworkName
+            ? Config_->NetworkName.value()
+            : DefaultNetworkName;
+    }
+
     virtual IBusPtr CreateBus(IMessageHandlerPtr handler) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
