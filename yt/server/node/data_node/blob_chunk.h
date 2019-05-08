@@ -73,7 +73,6 @@ private:
         {
             int BlockIndex = -1;
             bool Cached = false;
-            std::atomic_flag Latch = ATOMIC_FLAG_INIT;
             TCachedBlockCookie Cookie;
             NChunkClient::TBlock Block;
         };

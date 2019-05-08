@@ -270,7 +270,7 @@ void TBlobChunkBase::OnBlocksExtLoaded(
         TError error("Read session canceled");
         for (int entryIndex = 0; entryIndex < session->EntryCount; ++entryIndex) {
             auto& entry = session->Entries[entryIndex];
-            if (!entry.Cached && !entry.Latch.test_and_set()) {
+            if (!entry.Cached) {
                 entry.Cookie.Cancel(error);
             }
         }
@@ -347,7 +347,7 @@ void TBlobChunkBase::DoReadBlockSet(
             auto& entry = session->Entries[entryIndex];
             entry.Block = block;
             bytesRead += block.Size();
-            if (!entry.Latch.test_and_set() && entry.Cookie.IsActive()) {
+            if (!entry.Cached) {
                 // NB: Copy block to move data to undumpable memory and to
                 // prevent cache from holding the whole block sequence.
                 {
