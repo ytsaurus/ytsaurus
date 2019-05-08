@@ -3051,7 +3051,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
         print >>sys.stderr, "=== error ==="
         print >>sys.stderr, err
 
-        assert err.contains_code(211)  # NScheduler::EErrorCode::OperationControllerCrashed
+        assert err.contains_code(212)  # NScheduler::EErrorCode::OperationControllerCrashed
 
         # Core path is either attribute of an error itself, or of the only inner error when it is
         # wrapped with 'Operation has failed to prepare' error.
