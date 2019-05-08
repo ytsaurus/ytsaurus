@@ -266,9 +266,7 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
 template <class TKey, class TValue, class THash>
 void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* cookie)
 {
-    YCHECK(cookie->Active_);
     YCHECK(value);
-
     auto key = value->GetKey();
 
     NConcurrency::TWriterGuard guard(SpinLock_);
@@ -571,10 +569,8 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie::TInsertCookie(TInsertCo
     : Key_(std::move(other.Key_))
     , Cache_(std::move(other.Cache_))
     , ValueFuture_(std::move(other.ValueFuture_))
-    , Active_(other.Active_)
-{
-    other.Active_ = false;
-}
+    , Active_(other.Active_.exchange(false))
+{ }
 
 template <class TKey, class TValue, class THash>
 TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie::~TInsertCookie()
@@ -590,8 +586,7 @@ typename TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie& TAsyncSlruCach
         Key_ = std::move(other.Key_);
         Cache_ = std::move(other.Cache_);
         ValueFuture_ = std::move(other.ValueFuture_);
-        Active_ = other.Active_;
-        other.Active_ = false;
+        Active_ = other.Active_.exchange(false);
     }
     return *this;
 }
@@ -619,18 +614,23 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie::IsActive() const
 template <class TKey, class TValue, class THash>
 void TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie::Cancel(const TError& error)
 {
-    if (Active_) {
-        Cache_->CancelInsert(Key_, error);
-        Active_ = false;
+    auto expected = true;
+    if (!Active_.compare_exchange_strong(expected, false)) {
+        return;
     }
+
+    Cache_->CancelInsert(Key_, error);
 }
 
 template <class TKey, class TValue, class THash>
 void TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie::EndInsert(TValuePtr value)
 {
-    YCHECK(Active_);
+    auto expected = true;
+    if (!Active_.compare_exchange_strong(expected, false)) {
+        return;
+    }
+
     Cache_->EndInsert(value, this);
-    Active_ = false;
 }
 
 template <class TKey, class TValue, class THash>
