@@ -94,6 +94,18 @@ type Schema struct {
 	Columns []Column `yson:",value"`
 }
 
+func (s Schema) Append(column ...Column) Schema {
+	s = s.Copy()
+	s.Columns = append(s.Columns, column...)
+	return s
+}
+
+func (s Schema) Prepend(column ...Column) Schema {
+	s = s.Copy()
+	s.Columns = append(column, s.Columns...)
+	return s
+}
+
 func (s Schema) Copy() Schema {
 	if s.Strict != nil {
 		strict := *s.Strict
