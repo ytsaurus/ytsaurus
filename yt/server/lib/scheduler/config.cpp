@@ -419,7 +419,7 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(TDuration::Seconds(30));
 
     RegisterParameter("pool_change_is_allowed", PoolChangeIsAllowed)
-        .Default(false);
+        .Default(true);
 
     RegisterParameter("skip_operations_with_malformed_spec_during_revival", SkipOperationsWithMalformedSpecDuringRevival)
         .Default(false);
