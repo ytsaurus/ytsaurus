@@ -178,6 +178,11 @@ message TLayer {
     // Для записи строчки в файл URL должен быть равен "raw:<строка>"
     // Только для тестов: можно указать путь к файлу на хосте "local:<filepath>"
     string url = 5;
+
+    // place, где будет расположен layer
+    // передается as is в porto
+    // NOTE: должен совпадать с place у volume, которые используют этот слой
+    string place = 6;
 }
 
 message TCacheLayer {
@@ -218,11 +223,12 @@ message TRootfsVolume {
 
     // place, где будет расположен volume
     // передается as is в porto
+    // NOTE: Валидация должен совпадать с place у слоев, из которых собирается volume
     string place = 6;
 
     // Слои, из которых собирается volume
     // как и в porto, слои идут в порядке top-layer;...;bottom-layer
-    //NOTE: Валидация ids в списке должны быть уникальные
+    // NOTE: Валидация ids в списке должны быть уникальные
     repeated string layer_refs = 4;
 }
 
@@ -241,10 +247,11 @@ message TGenericVolume {
 
     // place, где будет расположен volume
     // передается as is в porto
+    // NOTE: Валидация должен совпадать с place у слоев, из которых собирается volume
     string place = 6;
 
     // Слои, из которых собирается volume
-    //NOTE: Валидация ids в списке должны быть уникальные
+    // NOTE: Валидация ids в списке должны быть уникальные
     repeated string layer_refs = 4;
 }
 
