@@ -7,8 +7,9 @@
 #include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/helpers.h>
 
-#include <yt/server/lib/core_dump/proto/core_info.pb.h>
 #include <yt/server/lib/core_dump/helpers.h>
+
+#include <yt/ytlib/core_dump/proto/core_info.pb.h>
 
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 
