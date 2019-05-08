@@ -417,21 +417,16 @@ DEFINE_REFCOUNTED_TYPE(TDataSliceFetcher);
 std::vector<TInputDataSlicePtr> FetchDataSlices(
     NNative::IClientPtr client,
     const IInvokerPtr& invoker,
-    std::vector<TString> inputTablePaths,
+    std::vector<TRichYPath> inputTablePaths,
     const KeyCondition* keyCondition,
     TRowBufferPtr rowBuffer,
     TSubqueryConfigPtr config,
     TSubquerySpec& specTemplate)
 {
-    std::vector<TRichYPath> inputTableRichPaths;
-    for (const auto& path : inputTablePaths) {
-        inputTableRichPaths.emplace_back(TRichYPath::Parse(path));
-    }
-
     auto dataSliceFetcher = New<TDataSliceFetcher>(
         std::move(client),
         invoker,
-        std::move(inputTableRichPaths),
+        std::move(inputTablePaths),
         keyCondition,
         std::move(rowBuffer),
         std::move(config));
