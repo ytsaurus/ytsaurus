@@ -235,24 +235,29 @@ private:
 
             case EInternedAttributeKey::AvailableSpacePerMedium:
                 BuildYsonFluently(consumer)
-                    .DoMapFor(chunkManager->Media(),
-                        [&] (TFluentMap fluent, const std::pair<TMediumId, TMedium*>& pair) {
-                            const auto* medium = pair.second;
-                            if (medium->GetCache()) {
+                    .DoMapFor(statistics.SpacePerMedium.begin(), statistics.SpacePerMedium.end(),
+                        [&] (TFluentMap fluent, NChunkClient::TMediumMap<TDiskSpaceStatistics>::const_iterator it) {
+                            auto mediumIndex = it->first;
+                            const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+                            if (!medium || medium->GetCache()) {
                                 return;
                             }
                             fluent
-                                .Item(medium->GetName()).Value(statistics.SpacePerMedium[medium->GetIndex()].Available);
+                                .Item(medium->GetName()).Value(it->second.Available);
                         });
                 return true;
 
             case EInternedAttributeKey::UsedSpacePerMedium:
                 BuildYsonFluently(consumer)
-                    .DoMapFor(chunkManager->Media(),
-                        [&] (TFluentMap fluent, const std::pair<TMediumId, TMedium*>& pair) {
-                            const auto* medium = pair.second;
+                    .DoMapFor(statistics.SpacePerMedium.begin(), statistics.SpacePerMedium.end(),
+                        [&] (TFluentMap fluent, NChunkClient::TMediumMap<TDiskSpaceStatistics>::const_iterator it) {
+                            auto mediumIndex = it->first;
+                            const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+                            if (!medium) {
+                                return;
+                            }
                             fluent
-                                .Item(medium->GetName()).Value(statistics.SpacePerMedium[medium->GetIndex()].Used);
+                                .Item(medium->GetName()).Value(it->second.Used);
                         });
                 return true;
 

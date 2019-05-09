@@ -2404,6 +2404,9 @@ private:
         if (request->has_memory_limit_per_node()) {
             options.MemoryLimitPerNode = request->memory_limit_per_node();
         }
+        if (request->has_execution_pool()) {
+            options.ExecutionPool = request->execution_pool();
+        }
 
         context->SetRequestInfo("Query: %v, Timestamp: %llx",
             query,

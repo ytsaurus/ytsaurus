@@ -62,6 +62,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TSampleKeyListPtr, SampleKeys);
 
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CompactionTime);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, AllowedSplitTime);
 
 public:
     TPartition(

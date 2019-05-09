@@ -63,7 +63,9 @@ private:
     {
         auto modifiedQueryAst = queryAst->clone();
 
-        const auto& tableExpressions = GetAllTableExpressions(typeid_cast<ASTSelectQuery &>(*modifiedQueryAst));
+        auto& selectQuery = typeid_cast<ASTSelectQuery&>(*modifiedQueryAst);
+
+        const auto& tableExpressions = GetAllTableExpressions(selectQuery);
 
         bool anyTableFunction = false;
 
@@ -85,6 +87,7 @@ private:
                         "ytSubquery",
                         std::make_shared<ASTLiteral>(subquerySpec));
                 }
+
             } else {
                 tableFunction = makeASTFunction(
                     "ytSubquery",
@@ -97,6 +100,9 @@ private:
                 tableExpression->subquery = nullptr;
                 anyTableFunction = true;
             }
+
+            static_cast<ASTTableExpression&>(*tableExpression).sample_offset = nullptr;
+            static_cast<ASTTableExpression&>(*tableExpression).sample_size = nullptr;
         }
 
         if (!anyTableFunction) {

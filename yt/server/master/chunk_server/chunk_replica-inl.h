@@ -121,16 +121,16 @@ template <class T>
 Y_FORCE_INLINE TPtrWithIndexes<T>::TPtrWithIndexes(T* ptr, int replicaIndex, int mediumIndex)
     : Value_(
         reinterpret_cast<uintptr_t>(ptr) |
-        (static_cast<uintptr_t>(replicaIndex) << 56) |
-        (static_cast<uintptr_t>(mediumIndex) << 52))
+        (static_cast<uintptr_t>(replicaIndex) << 52) |
+        (static_cast<uintptr_t>(mediumIndex) << 57))
 {
     static_assert(
-        NChunkClient::ChunkReplicaIndexBound * NChunkClient::MediumIndexBound <= 0x100,
-        "Replica and medium indexes must fit into a single byte.");
+        NChunkClient::ChunkReplicaIndexBound * NChunkClient::MediumIndexBound <= 0x1000,
+        "Replica and medium indexes must fit into 12 bits.");
 
     Y_ASSERT((reinterpret_cast<uintptr_t>(ptr) & 0xfff0000000000000LL) == 0);
-    Y_ASSERT(replicaIndex >= 0 && replicaIndex <= 0xff);
-    Y_ASSERT(mediumIndex >= 0 && mediumIndex <= 0xf);
+    Y_ASSERT(replicaIndex >= 0 && replicaIndex <= 0x1f);
+    Y_ASSERT(mediumIndex >= 0 && mediumIndex <= 0x7f);
 }
 
 template <class T>
@@ -142,13 +142,13 @@ Y_FORCE_INLINE T* TPtrWithIndexes<T>::GetPtr() const
 template <class T>
 Y_FORCE_INLINE int TPtrWithIndexes<T>::GetReplicaIndex() const
 {
-    return Value_ >> 56;
+    return Value_ >> 52 & 0x1f;
 }
 
 template <class T>
 Y_FORCE_INLINE int TPtrWithIndexes<T>::GetMediumIndex() const
 {
-    return (Value_ >> 52) & 0xf;
+    return Value_ >> 57;
 }
 
 template <class T>

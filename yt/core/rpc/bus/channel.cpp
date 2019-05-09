@@ -251,16 +251,13 @@ private:
             // Mark the channel as terminated to disallow any further usage.
             {
                 auto guard = Guard(SpinLock_);
+
                 Terminated_ = true;
                 TerminationError_ = error;
 
                 existingRequests.reserve(ActiveRequestMap_.size());
-                for (const auto& pair : ActiveRequestMap_) {
-                    auto& requestControl = pair.second;
-
-                    IClientResponseHandlerPtr responseHandler;
-                    requestControl->Finalize(guard, &responseHandler);
-
+                for (auto& [requestId, requestControl] : ActiveRequestMap_) {
+                    auto responseHandler = requestControl->Finalize(guard);
                     existingRequests.emplace_back(std::move(requestControl), std::move(responseHandler));
                 }
 
@@ -360,7 +357,7 @@ private:
                 }
 
                 requestControl->ProfileCancel();
-                requestControl->Finalize(guard, &responseHandler);
+                responseHandler = requestControl->Finalize(guard);
                 ActiveRequestMap_.erase(it);
             }
 
@@ -479,7 +476,7 @@ private:
                 }
 
                 requestControl->ProfileTimeout();
-                requestControl->Finalize(guard, &responseHandler);
+                responseHandler = requestControl->Finalize(guard);
             }
 
             NotifyError(
@@ -605,9 +602,7 @@ private:
             }
 
             const auto& requestControl = it->second;
-            IClientResponseHandlerPtr handler;
-            requestControl->GetResponseHandler(guard, &handler);
-            return handler;
+            return requestControl->GetResponseHandler(guard);
         }
 
 
@@ -639,8 +634,7 @@ private:
                 }
 
                 if (!requestMessageOrError.IsOK()) {
-                    IClientResponseHandlerPtr responseHandler;
-                    requestControl->Finalize(guard, &responseHandler);
+                    auto responseHandler = requestControl->Finalize(guard);
                     guard.Release();
 
                     NotifyError(
@@ -653,8 +647,7 @@ private:
                 }
 
                 if (Terminated_) {
-                    IClientResponseHandlerPtr responseHandler;
-                    requestControl->Finalize(guard, &responseHandler);
+                    auto responseHandler = requestControl->Finalize(guard);
                     guard.Release();
 
                     NotifyError(
@@ -670,7 +663,7 @@ private:
                 auto pair = ActiveRequestMap_.insert(std::make_pair(requestId, requestControl));
                 if (!pair.second) {
                     existingRequestControl = std::move(pair.first->second);
-                    existingRequestControl->Finalize(guard, &existingResponseHandler);
+                    existingResponseHandler = existingRequestControl->Finalize(guard);
                     pair.first->second = requestControl;
                 }
 
@@ -749,7 +742,7 @@ private:
 
                 requestControl = std::move(it->second);
                 requestControl->ProfileReply(message);
-                requestControl->Finalize(guard, &responseHandler);
+                responseHandler = requestControl->Finalize(guard);
                 ActiveRequestMap_.erase(it);
             }
 
@@ -888,10 +881,10 @@ private:
                 requestControl = it->second;
                 requestControl->ProfileAck();
                 if (!error.IsOK()) {
-                    requestControl->Finalize(guard, &responseHandler);
+                    responseHandler = requestControl->Finalize(guard);
                     ActiveRequestMap_.erase(it);
                 } else {
-                    requestControl->GetResponseHandler(guard, &responseHandler);
+                    responseHandler = requestControl->GetResponseHandler(guard);
                 }
             }
 
@@ -1026,16 +1019,16 @@ private:
             TimeoutCookie_ = std::move(newTimeoutCookie);
         }
 
-        void GetResponseHandler(const TGuard<TSpinLock>&, IClientResponseHandlerPtr* responseHandler)
+        IClientResponseHandlerPtr GetResponseHandler(const TGuard<TSpinLock>&)
         {
-            *responseHandler = ResponseHandler_;
+            return ResponseHandler_;
         }
 
-        void Finalize(const TGuard<TSpinLock>&, IClientResponseHandlerPtr* responseHandler)
+        IClientResponseHandlerPtr Finalize(const TGuard<TSpinLock>&)
         {
-            *responseHandler = std::move(ResponseHandler_);
             TotalTime_ = DoProfile(MethodMetadata_->TotalTimeCounter);
             TDelayedExecutor::CancelAndClear(TimeoutCookie_);
+            return std::move(ResponseHandler_);
         }
 
         void ProfileRequest(const TSharedRefArray& requestMessage)

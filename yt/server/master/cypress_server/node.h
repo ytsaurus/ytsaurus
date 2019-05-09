@@ -48,7 +48,12 @@ public:
     using TBoxedT = std::variant<TNull, TTombstone, T>;
 
     template <class TOwner>
-    const T& Get(
+    T Get(
+        TVersionedBuiltinAttribute<T> TOwner::*member,
+        const TOwner* node) const;
+
+    template <class TOwner>
+    std::optional<T> TryGet(
         TVersionedBuiltinAttribute<T> TOwner::*member,
         const TOwner* node) const;
 
@@ -74,9 +79,13 @@ private:
         ::NYT::NCypressServer::TVersionedBuiltinAttribute<attrType> name##_; \
         \
     public: \
-        const attrType& Get##name() const \
+        attrType Get##name() const \
         { \
             return name##_.Get(&ownerType::name##_, this); \
+        } \
+        std::optional<attrType> TryGet##name() const     \
+        { \
+            return name##_.TryGet(&ownerType::name##_, this); \
         } \
         \
         void Set##name(attrType value) \
@@ -134,7 +143,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, ModificationTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, AccessTime);
 
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, ExpirationTime);
+    DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNodeBase, TInstant, ExpirationTime)
 
     DEFINE_BYVAL_RW_PROPERTY(i64, AccessCounter);
 

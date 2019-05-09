@@ -139,6 +139,8 @@ struct IHydraManager
      */
     virtual NYson::TYsonProducer GetMonitoringProducer() = 0;
 
+    virtual NElection::TPeerIdSet& AlivePeers() = 0;
+
     //! Raised within the automaton thread when the peer has started leading
     //! and enters recovery.
     DECLARE_INTERFACE_SIGNAL(void(), StartLeading);
@@ -168,6 +170,12 @@ struct IHydraManager
     //! A subscriber must start an appropriate synchronization process and return a future
     //! that gets set when sync is reached.
     DECLARE_INTERFACE_SIGNAL(TFuture<void>(), UpstreamSync);
+
+    //! Raised when the set of alive peers changes.
+    //! On leader, it's raised when pinging one of the followers fails.
+    //! On followers, it's raised when a ping from the leader brings news about
+    //! a peer going away (or coming back).
+    DECLARE_INTERFACE_SIGNAL(void (const NElection::TPeerIdSet&), AlivePeerSetChanged);
 
     // Extension methods.
     bool IsLeader() const;

@@ -66,6 +66,139 @@ SCHEMA = [
     },
 ]
 
+def optional_type(t):
+    return {
+        "metatype": "optional",
+        "element": t,
+    }
+
+class TestComplexTypes(YTEnvSetup):
+    def test_set_old_schema(self):
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema(
+                [
+                    {
+                        "name": "foo",
+                        "type": "int64",
+                    }
+                ],
+                strict=True,
+                unique_keys=False)
+        })
+
+        assert get("//tmp/table/@schema/0/type_v2") == optional_type("int64")
+
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema(
+                [
+                    {
+                        "name": "foo",
+                        "type": "uint8",
+                        "required": True,
+                    }
+                ],
+                strict=True,
+                unique_keys=False)
+        })
+
+        assert get("//tmp/table/@schema/0/type_v2") == "uint8"
+
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema(
+                [
+                    {
+                        "name": "foo",
+                        "type": "utf8",
+                        "required": False,
+                    }
+                ],
+                strict=True,
+                unique_keys=False
+            )
+        })
+
+        assert get("//tmp/table/@schema/0/type_v2") == optional_type("utf8")
+
+    def test_set_new_schema(self):
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema(
+                [
+                    {
+                        "name": "foo",
+                        "type_v2": optional_type("int8"),
+                    }
+                ],
+                strict=True,
+                unique_keys=False
+            )
+        })
+
+        assert get("//tmp/table/@schema/0/type") == "int8"
+        assert get("//tmp/table/@schema/0/required") == False
+
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema(
+                [
+                    {
+                        "name": "foo",
+                        "type_v2": "string",
+                    }
+                ],
+                strict=True,
+                unique_keys=False
+            )
+        })
+
+        assert get("//tmp/table/@schema/0/type") == "string"
+        assert get("//tmp/table/@schema/0/required") == True
+
+    def test_set_both_schemas(self):
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema([{
+                "name": "foo",
+                "type": "uint32",
+                "type_v2": "uint32"
+            }])
+        })
+
+        assert get("//tmp/table/@schema/0/type") == "uint32"
+        assert get("//tmp/table/@schema/0/required") == True
+        assert get("//tmp/table/@schema/0/type_v2") == "uint32"
+
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema([{
+                "name": "foo",
+                "type": "double",
+                "required": False,
+                "type_v2": optional_type("double")
+            }])
+        })
+
+        assert get("//tmp/table/@schema/0/type") == "double"
+        assert get("//tmp/table/@schema/0/required") == False
+        assert get("//tmp/table/@schema/0/type_v2") == optional_type("double")
+
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema([{
+                "name": "foo",
+                "type": "boolean",
+                "required": True,
+                "type_v2": "boolean"
+            }])
+        })
+
+        assert get("//tmp/table/@schema/0/type") == "boolean"
+        assert get("//tmp/table/@schema/0/required") == True
+        assert get("//tmp/table/@schema/0/type_v2") == "boolean"
+
+        with pytest.raises(YtError):
+            create("table", "//tmp/table", force=True, attributes={
+                "schema": make_schema([{
+                    "name": "foo",
+                    "type": "double",
+                    "type_v2": "string",
+                }])
+            })
 
 class TestLogicalType(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
@@ -262,7 +395,8 @@ class TestRequiredOption(YTEnvSetup):
 
         mode = "sorted" if sorted_table else "unordered"
         merge(in_=["//tmp/input1", "//tmp/input2"], out="//tmp/output", mode=mode)
-        assert get("//tmp/output/@schema") == schema
+
+        assert normalize_schema(get("//tmp/output/@schema")) == schema
 
     def test_infer_mixed_requiredness(self):
         table = "//tmp/input1"

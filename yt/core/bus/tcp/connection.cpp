@@ -301,12 +301,6 @@ void TTcpConnection::Abort(const TError& error)
     State_ = EState::Aborted;
     YCHECK(!error.IsOK());
 
-    // XXX(babenko,savrus) Hotfix for some unknown bug.
-    if (!CloseError_.IsOK()) {
-        YT_LOG_ERROR(CloseError_, "XXX Unexpected close error during connection abort");
-        return;
-    }
-
     CloseError_ = error << *EndpointAttributes_;
 
     // Construct a detailed error.

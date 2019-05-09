@@ -480,6 +480,51 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         assert sorted(read_table("//tmp/t_out")) == [{"foo": i} for i in xrange(10)]
 
+    def test_table_changed_during_operation_prepare(self):
+        self._prepare_tables()
+
+        op1 = map(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out="<append=true>//tmp/t_in",
+            command="cat",
+            spec={
+                "testing": {
+                    "delay_inside_prepare": 5000,
+                }
+            })
+        wait(lambda: op1.get_state() == "completed")
+
+        assert sorted(read_table("//tmp/t_in")) == [{"foo": "bar"} for _ in xrange(2)]
+
+        op2 = map(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out="<append=true>//tmp/t_in",
+            command="cat",
+            spec={
+                "testing": {
+                    "delay_inside_prepare": 5000,
+                }
+            })
+        wait(lambda: get("//tmp/t_in/@locks"))
+        write_table("<append=true>//tmp/t_in", [{"x": "y"}])
+        wait(lambda: op2.get_state() == "failed")
+
+        op3 = map(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out="<append=true>//tmp/t_in",
+            command="cat",
+            spec={
+                "testing": {
+                    "delay_inside_prepare": 5000,
+                }
+            })
+        wait(lambda: get("//tmp/t_in/@locks"))
+        write_table("//tmp/t_in", [{"x": "y"}])
+        wait(lambda: op3.get_state() == "failed")
+
 
 class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 1

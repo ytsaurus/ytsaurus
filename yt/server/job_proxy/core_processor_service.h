@@ -3,8 +3,7 @@
 #include "public.h"
 
 #include <yt/server/lib/core_dump/core_processor_service_proxy.h>
-
-#include <yt/ytlib/core_dump/public.h>
+#include <yt/server/lib/core_dump/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 

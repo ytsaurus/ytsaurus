@@ -19,7 +19,7 @@ IChunkWriterPtr CreateReplicationWriter(
     TReplicationWriterConfigPtr config,
     TRemoteWriterOptionsPtr options,
     TSessionId sessionId,
-    const TChunkReplicaList& targets,
+    const TChunkReplicaWithMediumList& targets,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     NApi::NNative::IClientPtr client,
     IBlockCachePtr blockCache = GetNullBlockCache(),

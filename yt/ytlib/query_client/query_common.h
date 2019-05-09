@@ -108,6 +108,7 @@ struct TQueryBaseOptions
     bool UseMultijoin = true;
     NChunkClient::TReadSessionId ReadSessionId;
     size_t MemoryLimitPerNode = std::numeric_limits<size_t>::max();
+    std::optional<TString> ExecutionPool;
 };
 
 struct TQueryOptions

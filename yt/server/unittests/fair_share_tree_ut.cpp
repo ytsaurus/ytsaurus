@@ -41,7 +41,7 @@ struct TSchedulerStrategyHostMock
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) override
     {
         if (!filter.IsEmpty()) {
-            return ZeroJobResources();
+            return {};
         }
 
         TJobResources totalResources;
@@ -125,7 +125,7 @@ public:
         : JobResourcesList(jobResourcesList)
     { }
 
-    MOCK_METHOD3(ScheduleJob, TFuture<TScheduleJobResultPtr>(
+    MOCK_METHOD3(ScheduleJob, TFuture<TControllerScheduleJobResultPtr>(
         const ISchedulingContextPtr& context,
         const TJobResourcesWithQuota& jobLimits,
         const TString& treeId));
@@ -288,6 +288,9 @@ protected:
     TSchedulerConfigPtr SchedulerConfig_ = New<TSchedulerConfig>();
     TFairShareStrategyTreeConfigPtr TreeConfig_ = New<TFairShareStrategyTreeConfig>();
     TFairShareTreeHostMock FairShareTreeHostMock_;
+    TFairShareSchedulingStage SchedulingStageMock_ = TFairShareSchedulingStage(
+        /* nameInLogs */ "Test scheduling stage",
+        TScheduleJobsProfilingCounters("/test_scheduling_stage", /* treeIdProfilingTags */ {}));
 
     TRootElementPtr CreateTestRootElement(ISchedulerStrategyHost* host)
     {
@@ -307,7 +310,7 @@ protected:
             &FairShareTreeHostMock_,
             name,
             New<TPoolConfig>(),
-            /*defaultConfigured*/ true,
+            /* defaultConfigured */ true,
             TreeConfig_,
             // TODO(ignat): eliminate profiling from test.
             NProfiling::TProfileManager::Get()->RegisterTag("pool", name),
@@ -350,11 +353,18 @@ protected:
         const TOperationElementPtr& operationElement,
         const TExecNodePtr& execNode)
     {
-        auto schedulingContext = CreateSchedulingContext(SchedulerConfig_, execNode, /*runningJobs*/ {});
-        TFairShareContext context(schedulingContext);
+        auto schedulingContext = CreateSchedulingContext(
+            0,
+            SchedulerConfig_,
+            execNode,
+            /* runningJobs */ {});
+        TFairShareContext context(schedulingContext, /* enableSchedulingInfoLogging */ true);
         TDynamicAttributesList dynamicAttributes;
+
+        context.StartStage(&SchedulingStageMock_);
         PrepareForTestScheduling(rootElement, &context, &dynamicAttributes);
         operationElement->ScheduleJob(&context);
+        context.FinishStage();
     }
 
 private:
@@ -365,9 +375,9 @@ private:
     {
         TUpdateFairShareContext updateContext;
         rootElement->Update(*dynamicAttributesList, &updateContext);
-        context->Initialize(rootElement->GetTreeSize(), /*registeredSchedulingTagFilters*/ {});
-        rootElement->PrescheduleJob(context, /*starvingOnly*/ false, /*aggressiveStarvationEnabled*/ false);
-        context->PrescheduledCalled = true;
+        context->Initialize(rootElement->GetTreeSize(), /* registeredSchedulingTagFilters */ {});
+        rootElement->PrescheduleJob(context, /* starvingOnly */ false, /* aggressiveStarvationEnabled */ false);
+        context->PrescheduleCalled = true;
     }
 };
 
@@ -453,7 +463,7 @@ TEST_F(TFairShareTreeTest, TestUpdatePreemptableJobsList)
         operationElementX->OnJobStarted(
             jobId,
             jobResources.ToJobResources(),
-            /* precommitedResources */ ZeroJobResources());
+            /* precommitedResources */ {});
     }
 
     auto dynamicAttributes = TDynamicAttributesList(2);
@@ -644,7 +654,7 @@ TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
         .WillRepeatedly(testing::Invoke([&](auto context, auto jobLimits, auto treeId) {
             heartbeatsInScheduling.fetch_add(1);
             EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
-            return MakeFuture<TScheduleJobResultPtr>(TErrorOr<TScheduleJobResultPtr>(New<TScheduleJobResult>()));
+            return MakeFuture<TControllerScheduleJobResultPtr>(TErrorOr<TControllerScheduleJobResultPtr>(New<TControllerScheduleJobResult>()));
         }));
 
     std::vector<TFuture<void>> futures;

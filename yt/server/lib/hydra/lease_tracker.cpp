@@ -32,6 +32,7 @@ void TLeaderLease::Invalidate()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Also pings non-voting peers.
 class TLeaseTracker::TFollowerPinger
     : public TRefCounted
 {
@@ -95,6 +96,10 @@ private:
         ToProto(req->mutable_epoch_id(), epochContext->EpochId);
         req->set_ping_revision(pingVersion.ToRevision());
         req->set_committed_revision(committedVersion.ToRevision());
+        for (auto peerId : Owner_->AlivePeers_) {
+            req->add_alive_peers(peerId);
+        }
+
         AsyncResults_.push_back(req->Invoke().Apply(
             BIND(&TFollowerPinger::OnResponse, MakeStrong(this), followerId)
                 .Via(epochContext->EpochControlInvoker)));
@@ -185,6 +190,16 @@ void TLeaseTracker::Start()
         BIND(&TLeaseTracker::OnLeaseCheck, MakeWeak(this)),
         Config_->LeaderLeaseCheckPeriod);
     LeaseCheckExecutor_->Start();
+}
+
+void TLeaseTracker::SetAlivePeers(const TPeerIdSet& alivePeers)
+{
+    AlivePeers_ = alivePeers;
+}
+
+bool TLeaseTracker::IsPeerAlive(TPeerId peerId) const
+{
+    return AlivePeers_.contains(peerId);
 }
 
 TFuture<void> TLeaseTracker::GetLeaseAcquired()

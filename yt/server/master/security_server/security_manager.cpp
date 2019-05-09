@@ -509,7 +509,7 @@ public:
         auto resources = node->GetDeltaResourceUsage()
             .SetNodeCount(0)
             .SetChunkCount(0);
-        resources.DiskSpace.fill(0);
+        resources.DiskSpace.clear();
 
         UpdateTabletResourceUsage(node, oldAccount, -resources, oldCommitted);
         UpdateTabletResourceUsage(node, newAccount, resources, newCommitted);
@@ -528,7 +528,9 @@ public:
 
         Y_ASSERT(resourceUsageDelta.NodeCount == 0);
         Y_ASSERT(resourceUsageDelta.ChunkCount == 0);
-        Y_ASSERT(resourceUsageDelta.DiskSpace == TPerMediumArray<i64>{});
+        for (const auto& item : resourceUsageDelta.DiskSpace) {
+            Y_ASSERT(item.second == 0);
+        }
 
         account->ClusterStatistics().ResourceUsage += resourceUsageDelta;
         account->LocalStatistics().ResourceUsage += resourceUsageDelta;
@@ -1134,8 +1136,11 @@ public:
         const auto& committedUsage = account->ClusterStatistics().CommittedResourceUsage;
         const auto& limits = account->ClusterResourceLimits();
 
-        for (int index = 0; index < NChunkClient::MaxMediumCount; ++index) {
-            if (delta.DiskSpace[index] > 0 && usage.DiskSpace[index] + delta.DiskSpace[index] > limits.DiskSpace[index]) {
+        for (const auto& [index, deltaSpace] : delta.DiskSpace) {
+            auto usageSpace = usage.DiskSpace.lookup(index);
+            auto limitsSpace = limits.DiskSpace.lookup(index);
+
+            if (usageSpace + deltaSpace > limitsSpace) {
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 const auto* medium = chunkManager->GetMediumByIndex(index);
                 THROW_ERROR_EXCEPTION(
@@ -1739,7 +1744,7 @@ private:
             auto* account = node->GetAccount();
             auto usage = node->GetDeltaResourceUsage();
             usage.ChunkCount = 0;
-            usage.DiskSpace.fill(0);
+            usage.DiskSpace.clear();
 
             auto& stat = statMap[account];
             stat.NodeUsage += usage;

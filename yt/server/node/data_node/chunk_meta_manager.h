@@ -27,7 +27,7 @@ public:
     TCachedChunkMeta(
         TChunkId chunkId,
         NChunkClient::TRefCountedChunkMetaPtr meta,
-        NCellNode::TNodeMemoryTracker* memoryTracker);
+        NCellNode::TNodeMemoryTrackerPtr memoryTracker);
 
     i64 GetSize() const;
 
@@ -54,7 +54,7 @@ public:
     TCachedBlocksExt(
         TChunkId chunkId,
         NChunkClient::TRefCountedBlocksExtPtr blocksExt,
-        NCellNode::TNodeMemoryTracker* memoryTracker);
+        NCellNode::TNodeMemoryTrackerPtr memoryTracker);
 
     i64 GetSize() const;
 

@@ -53,6 +53,8 @@ public:
     TJobResources() = default;
     TJobResources(const NNodeTrackerClient::NProto::TNodeResources& nodeResources);
 
+    static TJobResources Infinite();
+
     NNodeTrackerClient::NProto::TNodeResources ToNodeResources() const;
 
     void Persist(const TStreamPersistenceContext& context);
@@ -65,41 +67,21 @@ public:
     XX(user_memory,           Memory) \
     XX(network,               Network)
 
-#define MAKE_JOB_METHODS(Base, Field) \
-    using Base::Get ## Field; \
-    using Base::Set ## Field;
-
-struct TJobResourcesWithQuota
-    : private TJobResources
+class TJobResourcesWithQuota
+    : public TJobResources
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(i64, DiskQuota)
 
-    MAKE_JOB_METHODS(TJobResources, UserSlots)
-    MAKE_JOB_METHODS(TJobResources, Cpu)
-    MAKE_JOB_METHODS(TJobResources, Gpu)
-    MAKE_JOB_METHODS(TJobResources, Memory)
-    MAKE_JOB_METHODS(TJobResources, Network)
-
+public:
     TJobResourcesWithQuota() = default;
+    TJobResourcesWithQuota(const TJobResources& jobResources);
 
-    TJobResourcesWithQuota(const TJobResources& jobResources)
-        : TJobResources(jobResources)
-    {
-        SetDiskQuota(0);
-    }
+    static TJobResourcesWithQuota Infinite();
 
-    TJobResources ToJobResources() const
-    {
-        return *this;
-    }
+    TJobResources ToJobResources() const;
 
-    void Persist(const TStreamPersistenceContext& context)
-    {
-        using NYT::Persist;
-        TJobResources::Persist(context);
-        Persist(context, DiskQuota_);
-    }
+    void Persist(const TStreamPersistenceContext& context);
 };
 
 using TJobResourcesWithQuotaList = SmallVector<TJobResourcesWithQuota, 8>;
@@ -143,11 +125,6 @@ TJobResources GetAdjustedResourceLimits(
     const TJobResources& demand,
     const TJobResources& limits,
     const TMemoryDistribution& execNodeMemoryDistribution);
-
-const TJobResources& ZeroJobResources();
-const TJobResourcesWithQuota& ZeroJobResourcesWithQuota();
-const TJobResources& InfiniteJobResources();
-const TJobResourcesWithQuota& InfiniteJobResourcesWithQuota();
 
 TJobResources  operator +  (const TJobResources& lhs, const TJobResources& rhs);
 TJobResources& operator += (TJobResources& lhs, const TJobResources& rhs);

@@ -24,7 +24,9 @@ message TReplicateChunkJobSpecExt
     // Nodes where new replicas must be created.
     // Replica indexes are not used.
     // Medium indexes indicate destination medium.
-    repeated fixed32 target_replicas = 5;
+    // COMPAT(aozeritsky)
+    repeated fixed32 target_replicas_old = 5;
+    repeated fixed64 target_replicas = 6;
 }
 
 message TRemoveChunkJobSpecExt
@@ -63,7 +65,9 @@ message TRepairChunkJobSpecExt
     // Nodes where repaired replicas must be created.
     // Replica indexes indicate specific chunk parts to be repaired.
     // Medium indexes are same and indicate destination medium.
-    repeated fixed32 target_replicas = 5;
+    // COMPAT(aozeritsky)
+    repeated fixed32 target_replicas_old = 5;
+    repeated fixed64 target_replicas = 7;
 
     // True, if this repair job was scheduled as a part of node decommission.
     optional bool decommission = 6;

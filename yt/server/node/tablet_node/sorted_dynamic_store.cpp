@@ -817,12 +817,10 @@ private:
 TSortedDynamicStore::TSortedDynamicStore(
     TTabletManagerConfigPtr config,
     TStoreId id,
-    TTablet* tablet,
-    TNodeMemoryTracker* memoryTracker)
+    TTablet* tablet)
     : TStoreBase(config, id, tablet)
     , TDynamicStoreBase(config, id, tablet)
     , TSortedStoreBase(config, id, tablet)
-    , MemoryTracker_(memoryTracker)
     , RowKeyComparer_(Tablet_->GetRowKeyComparer())
     , Rows_(new TSkipList<TSortedDynamicRow, TSortedDynamicRowKeyComparer>(
         RowBuffer_->GetPool(),
@@ -843,11 +841,6 @@ TSortedDynamicStore::TSortedDynamicStore(
 
     YT_LOG_DEBUG("Sorted dynamic store created (LookupHashTable: %v)",
         static_cast<bool>(LookupHashTable_));
-}
-
-TSortedDynamicStore::~TSortedDynamicStore()
-{
-    YT_LOG_DEBUG("Sorted dynamic memory store destroyed");
 }
 
 IVersionedReaderPtr TSortedDynamicStore::CreateFlushReader()
@@ -1028,7 +1021,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(
         UpdateTimestampRange(commitTimestamp);
     }
 
-    OnMemoryUsageUpdated();
+    OnDynamicMemoryUsageUpdated();
 
     auto dataWeight = GetDataWeight(row);
     ++PerformanceCounters_->DynamicRowWriteCount;
@@ -1121,7 +1114,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(TVersionedRow row, TWriteContex
         UpdateTimestampRange(TimestampFromRevision(revision));
     }
 
-    OnMemoryUsageUpdated();
+    OnDynamicMemoryUsageUpdated();
 
     auto dataWeight = GetDataWeight(row);
     ++PerformanceCounters_->DynamicRowWriteCount;
@@ -1222,7 +1215,7 @@ TSortedDynamicRow TSortedDynamicStore::MigrateRow(
         newKeyProvider,
         existingKeyConsumer);
 
-    OnMemoryUsageUpdated();
+    OnDynamicMemoryUsageUpdated();
 
     return result;
 }
@@ -1833,7 +1826,7 @@ TOwningKey TSortedDynamicStore::GetMinKey() const
     return MinKey();
 }
 
-TOwningKey TSortedDynamicStore::GetMaxKey() const
+TOwningKey TSortedDynamicStore::GetUpperBoundKey() const
 {
     return MaxKey();
 }
@@ -2055,7 +2048,7 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
         FlushRevision_ = MaxRevision;
     }
 
-    OnMemoryUsageUpdated();
+    OnDynamicMemoryUsageUpdated();
 }
 
 TSortedDynamicStorePtr TSortedDynamicStore::AsSortedDynamic()
@@ -2083,10 +2076,10 @@ ui32 TSortedDynamicStore::RegisterRevision(TTimestamp timestamp)
     return GetLatestRevision();
 }
 
-void TSortedDynamicStore::OnMemoryUsageUpdated()
+void TSortedDynamicStore::OnDynamicMemoryUsageUpdated()
 {
     auto hashTableSize = LookupHashTable_ ? LookupHashTable_->GetByteSize() : 0;
-    SetMemoryUsage(GetUncompressedDataSize() + hashTableSize);
+    SetDynamicMemoryUsage(GetUncompressedDataSize() + hashTableSize);
 }
 
 void TSortedDynamicStore::InsertIntoLookupHashTable(

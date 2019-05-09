@@ -127,15 +127,18 @@ i64 TColumnSchema::GetMemoryUsage() const
 
 struct TSerializableColumnSchema
     : public TYsonSerializableLite
-    , public TColumnSchema
+    , private TColumnSchema
 {
     TSerializableColumnSchema()
     {
         RegisterParameter("name", Name_)
             .NonEmpty();
-        RegisterParameter("type", SimplifiedLogicalType_);
-        RegisterParameter("required", Required_)
-            .Default(false);
+        RegisterParameter("type", LogicalTypeV1_)
+            .Default(std::nullopt);
+        RegisterParameter("required", RequiredV1_)
+            .Default(std::nullopt);
+        RegisterParameter("type_v2", LogicalType_)
+            .Default();
         RegisterParameter("lock", Lock_)
             .Default();
         RegisterParameter("expression", Expression_)
@@ -154,15 +157,31 @@ struct TSerializableColumnSchema
             }
 
             try {
-                if (!SimplifiedLogicalType()) {
-                    THROW_ERROR_EXCEPTION("Type is missing");
+                if (LogicalType_) {
+                    // We must call SetLogicalType because it sets Required_ and SimplifiedLogicalType_ fields.
+                    SetLogicalType(LogicalType_);
+                    auto expectedLogicalTypeV1 = SimplifiedLogicalType().value_or(ESimpleLogicalValueType::Any);
+                    if (LogicalTypeV1_ && *LogicalTypeV1_ != expectedLogicalTypeV1) {
+                        THROW_ERROR_EXCEPTION("\"type_v2\" doesn't match \"type\"; \"type_v2\": %Qv \"type\": %Qlv expected \"type\": %Qlv",
+                            *LogicalType_,
+                            *LogicalTypeV1_,
+                            expectedLogicalTypeV1);
+                    }
+                    if (RequiredV1_ && *RequiredV1_ != Required()) {
+                        THROW_ERROR_EXCEPTION("\"type_v2\" doesn't match \"required\"; \"type_v2\": %Qv \"required\": %Qlv",
+                            *LogicalType_,
+                            *RequiredV1_);
+                    }
+                } else if (LogicalTypeV1_) {
+                    SetLogicalType(SimpleLogicalType(*LogicalTypeV1_, RequiredV1_.value_or(false)));
+                } else {
+                    THROW_ERROR_EXCEPTION("Column type is not specified");
                 }
-                // Required
+
                 if (SimplifiedLogicalType() == ESimpleLogicalValueType::Any && Required()) {
                     THROW_ERROR_EXCEPTION("Column of type %Qlv cannot be \"required\"",
                         ESimpleLogicalValueType::Any);
                 }
-                SetLogicalType(SimpleLogicalType(*SimplifiedLogicalType(), Required()));
 
                 // Lock
                 if (Lock() && Lock()->empty()) {
@@ -180,17 +199,29 @@ struct TSerializableColumnSchema
             }
         });
     }
+
+public:
+    void SetColumnSchema(const TColumnSchema& columnSchema)
+    {
+        static_cast<TColumnSchema&>(*this) = columnSchema;
+        LogicalTypeV1_ = columnSchema.SimplifiedLogicalType().value_or(ESimpleLogicalValueType::Any);
+        RequiredV1_ = columnSchema.Required();
+    }
+
+    const TColumnSchema& GetColumnSchema() const
+    {
+        return *this;
+    }
+
+private:
+    std::optional<ESimpleLogicalValueType> LogicalTypeV1_;
+    std::optional<bool> RequiredV1_;
 };
 
 void Serialize(const TColumnSchema& schema, IYsonConsumer* consumer)
 {
     TSerializableColumnSchema wrapper;
-    if (!schema.SimplifiedLogicalType()) {
-        THROW_ERROR_EXCEPTION("Type %Qv of column %Qv cannot be represented as old schema",
-            *schema.LogicalType(),
-            schema.Name());
-    }
-    static_cast<TColumnSchema&>(wrapper) = schema;
+    wrapper.SetColumnSchema(schema);
     Serialize(static_cast<const TYsonSerializableLite&>(wrapper), consumer);
 }
 
@@ -198,7 +229,7 @@ void Deserialize(TColumnSchema& schema, INodePtr node)
 {
     TSerializableColumnSchema wrapper;
     Deserialize(static_cast<TYsonSerializableLite&>(wrapper), node);
-    schema = static_cast<TColumnSchema&>(wrapper);
+    schema = wrapper.GetColumnSchema();
 }
 
 void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema)
@@ -814,6 +845,16 @@ void ValidateColumnSchema(
             THROW_ERROR_EXCEPTION("Column name is longer than maximum allowed: %v > %v",
                 columnSchema.Name().size(),
                 MaxColumnNameLength);
+        }
+
+        {
+            TComplexTypeFieldDescriptor descriptor(name, columnSchema.LogicalType());
+            columnSchema.LogicalType()->Validate(descriptor);
+        }
+
+        if (!columnSchema.SimplifiedLogicalType()) {
+            THROW_ERROR_EXCEPTION("Bad type %Qlv, complex types are not allowed yet",
+                *columnSchema.LogicalType());
         }
 
         if (columnSchema.SimplifiedLogicalType() == ESimpleLogicalValueType::Any && columnSchema.Required()) {

@@ -15,7 +15,7 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(TChunkReplica replica)
+TString ToString(TChunkReplicaWithMedium replica)
 {
     if (replica.GetReplicaIndex() == GenericChunkReplicaIndex) {
         return Format("%v@%v", replica.GetNodeId(), replica.GetMediumIndex());
@@ -24,6 +24,17 @@ TString ToString(TChunkReplica replica)
             replica.GetNodeId(),
             replica.GetReplicaIndex(),
             replica.GetMediumIndex());
+    }
+}
+
+TString ToString(TChunkReplica replica)
+{
+    if (replica.GetReplicaIndex() == GenericChunkReplicaIndex) {
+        return Format("%v", replica.GetNodeId());
+    } else {
+        return Format("%v/%v",
+            replica.GetNodeId(),
+            replica.GetReplicaIndex());
     }
 }
 
@@ -62,7 +73,7 @@ TChunkReplicaAddressFormatter::TChunkReplicaAddressFormatter(TNodeDirectoryPtr n
     : NodeDirectory_(std::move(nodeDirectory))
 { }
 
-void TChunkReplicaAddressFormatter::operator()(TStringBuilderBase* builder, TChunkReplica replica) const
+void TChunkReplicaAddressFormatter::operator()(TStringBuilderBase* builder, TChunkReplicaWithMedium replica) const
 {
     const auto* descriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
     if (descriptor) {
@@ -77,6 +88,22 @@ void TChunkReplicaAddressFormatter::operator()(TStringBuilderBase* builder, TChu
             replica.GetNodeId(),
             replica.GetReplicaIndex(),
             replica.GetMediumIndex());
+    }
+}
+
+void TChunkReplicaAddressFormatter::operator()(TStringBuilderBase* builder, TChunkReplica replica) const
+{
+    const auto* descriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
+    if (descriptor) {
+        builder->AppendFormat(
+            "%v/%v",
+            descriptor->GetDefaultAddress(),
+            replica.GetReplicaIndex());
+    } else {
+        builder->AppendFormat(
+            "<unresolved-%v>/%v",
+            replica.GetNodeId(),
+            replica.GetReplicaIndex());
     }
 }
 

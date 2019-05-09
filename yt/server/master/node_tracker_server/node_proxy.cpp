@@ -352,12 +352,15 @@ private:
 
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 BuildYsonFluently(consumer)
-                    .DoMapFor(0, NChunkClient::MaxMediumCount, [&] (TFluentMap fluent, int mediumIndex) {
-                        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+                    .DoMapFor(node->IOWeights().begin(), node->IOWeights().end(), [&] (
+                        TFluentMap fluent,
+                        NChunkClient::TMediumMap<double>::const_iterator item)
+                    {
+                        auto* medium = chunkManager->FindMediumByIndex(item->first);
                         if (IsObjectAlive(medium)) {
                             fluent
                                 .Item(medium->GetName())
-                                .Value(node->IOWeights()[mediumIndex]);
+                                .Value(item->second);
                         }
                     });
 
@@ -393,15 +396,18 @@ private:
                     break;
                 }
 
-                auto statistics = node->ComputeClusterStatistics();
+                const auto statistics = node->ComputeClusterStatistics();
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 BuildYsonFluently(consumer)
-                    .DoMapFor(0, NChunkClient::MaxMediumCount, [&] (TFluentMap fluent, int mediumIndex) {
-                        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+                    .DoMapFor(chunkManager->Media(), [&] (
+                        TFluentMap fluent,
+                        const std::pair<const TGuid, NChunkServer::TMedium*>& pair)
+                    {
+                        const auto* medium = pair.second;
                         if (IsObjectAlive(medium)) {
                             fluent
                                 .Item(medium->GetName())
-                                .Value(statistics.ChunkReplicaCount[mediumIndex]);
+                                .Value(statistics.ChunkReplicaCount.lookup(medium->GetIndex()));
                         }
                     });
                 return true;

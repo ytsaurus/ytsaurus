@@ -13,9 +13,11 @@ using namespace NProfiling;
 
 TControllerAgentCounterManager::TControllerAgentCounterManager()
 {
+    static const TEnumMemberTagCache<EOperationType> OperationTypeTagCache("operation_type");
     for (auto type : TEnumTraits<EOperationType>::GetDomainValues()) {
-        auto tag = TProfileManager::Get()->RegisterTag("operation_type", FormatEnum(type));
-        AssertionsFailed_[type] = TMonotonicCounter("/assertions_failed", {tag});
+        AssertionsFailed_[type] = TMonotonicCounter(
+            "/assertions_failed",
+            {OperationTypeTagCache.GetTag(type)});
     }
 }
 

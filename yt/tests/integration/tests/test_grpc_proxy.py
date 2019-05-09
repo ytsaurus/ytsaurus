@@ -261,6 +261,6 @@ class TestGrpcProxy(YTEnvSetup):
         assert error_found, "Request should fail!"
 
     def test_discovery(self):
-        proxies = discover_proxies(type_="grpc", driver=self.driver)["proxies"]
+        proxies = discover_proxies(type_="grpc", driver=self.driver)
         assert len(proxies) == self.NUM_RPC_PROXIES
         assert self.grpc_proxy_address in proxies

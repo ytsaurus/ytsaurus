@@ -52,6 +52,11 @@ private:
         return true;
     }
 
+    virtual bool OnChunkView(TChunkView* /* chunkView */) override
+    {
+        return false;
+    }
+
     virtual void OnSuccess() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);

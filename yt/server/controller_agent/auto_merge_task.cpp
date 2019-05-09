@@ -181,8 +181,9 @@ bool TAutoMergeTask::IsJobInterruptible() const
 void TAutoMergeTask::UpdateSelf()
 {
     RegisterNewTeleportChunks();
-    CanScheduleJob_ = TaskHost_->GetAutoMergeDirector()
-        ->CanScheduleMergeJob(CurrentChunkCount_);
+    CanScheduleJob_ = TaskHost_->GetAutoMergeDirector()->CanScheduleMergeJob(CurrentChunkCount_) ||
+        ChunkPool_->GetPendingJobCount() > 1;
+
     if (CanScheduleJob_) {
         TaskHost_->AddTaskPendingHint(this);
     }

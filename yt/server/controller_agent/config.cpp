@@ -89,6 +89,9 @@ TJobSplitterConfig::TJobSplitterConfig()
     RegisterParameter("exec_to_prepare_time_ratio", ExecToPrepareTimeRatio)
         .Default(20.0);
 
+    RegisterParameter("no_progress_job_exec_to_prepare_time_ratio", NoProgressJobExecToPrepareTimeRatio)
+        .Default(20.0);
+
     RegisterParameter("min_total_data_weight", MinTotalDataWeight)
         .Alias("min_total_data_size")
         .Default(1_GB);
@@ -96,18 +99,24 @@ TJobSplitterConfig::TJobSplitterConfig()
     RegisterParameter("update_period", UpdatePeriod)
         .Default(TDuration::Seconds(60));
 
-    RegisterParameter("median_excess_duration", MedianExcessDuration)
-        .Default(TDuration::Minutes(3));
-
     RegisterParameter("candidate_percentile", CandidatePercentile)
         .GreaterThanOrEqual(0.5)
         .LessThanOrEqual(1.0)
         .Default(0.8);
 
+    RegisterParameter("late_jobs_percentile", LateJobsPercentile)
+        .GreaterThanOrEqual(0.5)
+        .LessThanOrEqual(1.0)
+        .Default(0.95);
+
     RegisterParameter("residual_job_factor", ResidualJobFactor)
         .GreaterThan(0)
         .LessThanOrEqual(1.0)
         .Default(0.8);
+
+    RegisterParameter("residual_job_count_min_threshold", ResidualJobCountMinThreshold)
+        .GreaterThan(0)
+        .Default(10);
 
     RegisterParameter("max_jobs_per_split", MaxJobsPerSplit)
         .GreaterThan(0)
@@ -116,6 +125,9 @@ TJobSplitterConfig::TJobSplitterConfig()
     RegisterParameter("max_input_table_count", MaxInputTableCount)
         .GreaterThan(0)
         .Default(100);
+
+    RegisterParameter("split_timeout_before_speculate", SplitTimeoutBeforeSpeculate)
+        .Default(TDuration::Minutes(5));
 }
 
 TSuspiciousJobsOptions::TSuspiciousJobsOptions()

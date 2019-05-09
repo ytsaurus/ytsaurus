@@ -18,6 +18,7 @@ DEFINE_ENUM(EWireType,
     (Tuple)
     (Variant8)
     (Variant16)
+    (RepeatedVariant8)
     (RepeatedVariant16)
 );
 

@@ -6,9 +6,21 @@ import "yt/client/table_chunk_format/proto/column_meta.proto";
 
 message TLogicalType
 {
+    message TStructField
+    {
+        optional string name = 1;
+        optional TLogicalType type = 2;
+    }
+    message TStructLogicalType
+    {
+        repeated TStructField fields = 1;
+    }
+
     oneof type {
         int32 simple = 1;
         TLogicalType optional = 2;
+        TLogicalType list = 3;
+        TStructLogicalType struct_ = 4;
     }
 }
 

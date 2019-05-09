@@ -71,6 +71,14 @@ private:
     {
         const auto* account = GetThisImpl();
 
+        auto resourceUsage = [account] (const TClusterResources& resources) {
+            auto result = resources;
+            for (const auto& [mediumId, _] : account->ClusterResourceLimits().DiskSpace) {
+                result.DiskSpace[mediumId] += 0;
+            }
+            return result;
+        };
+
         switch (key) {
             case EInternedAttributeKey::Name:
                 BuildYsonFluently(consumer)
@@ -78,11 +86,11 @@ private:
                 return true;
 
             case EInternedAttributeKey::ResourceUsage:
-                SerializeClusterResources(account->ClusterStatistics().ResourceUsage, consumer);
+                SerializeClusterResources(resourceUsage(account->ClusterStatistics().ResourceUsage), consumer);
                 return true;
 
             case EInternedAttributeKey::CommittedResourceUsage:
-                SerializeClusterResources(account->ClusterStatistics().CommittedResourceUsage, consumer);
+                SerializeClusterResources(resourceUsage(account->ClusterStatistics().CommittedResourceUsage), consumer);
                 return true;
 
             case EInternedAttributeKey::MulticellStatistics: {

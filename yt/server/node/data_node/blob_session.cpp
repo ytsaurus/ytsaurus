@@ -106,11 +106,11 @@ TFuture<void> TBlobSession::DoPutBlocks(
     }
 
     // Make all acquisitions in advance to ensure that this error is retriable.
-    auto* tracker = Bootstrap_->GetMemoryUsageTracker();
+    const auto& memoryTracker = Bootstrap_->GetMemoryUsageTracker();
     std::vector<TNodeMemoryTrackerGuard> memoryTrackerGuards;
     for (const auto& block : blocks) {
         auto guardOrError = TNodeMemoryTrackerGuard::TryAcquire(
-            tracker,
+            memoryTracker,
             EMemoryCategory::BlobSession,
             block.Size());
         if (!guardOrError.IsOK()) {

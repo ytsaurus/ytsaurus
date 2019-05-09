@@ -61,6 +61,8 @@ private:
 
     NConcurrency::TPeriodicExecutorPtr FlushExecutor_;
 
+    int AlivePeerCount_ = 0;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -72,7 +74,8 @@ private:
 
     const TDynamicSecurityManagerConfigPtr& GetDynamicConfig();
     void OnDynamicConfigChanged();
-    void ReconfigureUsersThrottlers();
+    void ReconfigureUserThrottlers();
+    void OnAlivePeerSetChanged(const THashSet<NElection::TPeerId>& alivePeers);
 };
 
 DEFINE_REFCOUNTED_TYPE(TRequestTracker)

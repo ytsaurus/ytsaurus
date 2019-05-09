@@ -41,7 +41,6 @@ struct TOperationControllerPrepareResult;
 struct TOperationRevivalDescriptor;
 
 class TMasterConnector;
-
 class TBootstrap;
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -13,6 +13,8 @@
 
 #include <yt/server/lib/scheduler/helpers.h>
 
+#include <yt/server/lib/core_dump/helpers.h>
+
 #include <yt/server/controller_agent/chunk_pools/helpers.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -28,7 +30,6 @@
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/core_dump/proto/core_info.pb.h>
-#include <yt/ytlib/core_dump/helpers.h>
 
 #include <yt/ytlib/event_log/event_log.h>
 
@@ -86,6 +87,7 @@
 
 #include <yt/core/ytree/virtual.h>
 
+#include <util/generic/cast.h>
 #include <util/generic/vector.h>
 
 #include <functional>
@@ -508,6 +510,10 @@ void TOperationControllerBase::InitOutputTables()
 
 void TOperationControllerBase::InitializeStructures()
 {
+    if (Spec_->TestingOperationOptions && Spec_->TestingOperationOptions->AllocationSize) {
+        TestingAllocationVector_.resize(*Spec_->TestingOperationOptions->AllocationSize, 'a');
+    }
+
     InputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
     DataFlowGraph_ = New<TDataFlowGraph>(InputNodeDirectory_);
     InitializeOrchid();
@@ -676,8 +682,18 @@ void TOperationControllerBase::LockInputs()
     LockUserFiles();
 }
 
+void TOperationControllerBase::SleepInPrepare()
+{
+    auto delay = Spec_->TestingOperationOptions->DelayInsidePrepare;
+    if (delay) {
+        TDelayedExecutor::WaitForDuration(*delay);
+    }
+}
+
 TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 {
+    SleepInPrepare();
+
     // Testing purpose code.
     if (Config->EnableControllerFailureSpecOption &&
         Spec_->TestingOperationOptions)
@@ -1972,7 +1988,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     if (Config->EnableControllerFailureSpecOption && Spec_->TestingOperationOptions &&
         Spec_->TestingOperationOptions->ControllerFailure == EControllerFailureType::ExceptionThrownInOnJobCompleted)
     {
-        THROW_ERROR_EXCEPTION("Testing exception");
+        THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::TestingError, "Testing exception");
     }
 
     if (State != EControllerState::Running) {
@@ -2299,9 +2315,17 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
 
         if (JobSplitter_) {
             JobSplitter_->OnJobRunning(*jobSummary);
-            if (GetPendingJobCount() == 0 && joblet->Task->IsJobInterruptible() && JobSplitter_->IsJobSplittable(jobId)) {
-                YT_LOG_DEBUG("Job is ready to be split (JobId: %v)", jobId);
-                Host->InterruptJob(jobId, EInterruptReason::JobSplit);
+            if (GetPendingJobCount() == 0) {
+                auto verdict = JobSplitter_->ExamineJob(jobId);
+                if (verdict == EJobSplitterVerdict::Split) {
+                    YT_LOG_DEBUG("Job is going to be split (JobId: %v)", jobId);
+                    Host->InterruptJob(jobId, EInterruptReason::JobSplit);
+                } else if (verdict == EJobSplitterVerdict::LaunchSpeculative) {
+                    YT_LOG_DEBUG("Job can be speculated (JobId: %v)", jobId);
+                    if (joblet->Task->TryRegisterSpeculativeJob(joblet)) {
+                        UpdateTask(joblet->Task);
+                    }
+                }
             }
         }
 
@@ -3311,7 +3335,7 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
     }
 }
 
-TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
+TControllerScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     ISchedulingContext* context,
     const TJobResourcesWithQuota& jobLimits,
     const TString& treeId)
@@ -3328,7 +3352,7 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     TForbidContextSwitchGuard contextSwitchGuard;
 
     TWallTimer timer;
-    auto scheduleJobResult = New<TScheduleJobResult>();
+    auto scheduleJobResult = New<TControllerScheduleJobResult>();
     DoScheduleJob(context, jobLimits, treeId, scheduleJobResult.Get());
     if (scheduleJobResult->StartDescriptor) {
         AvailableExecNodesObserved_ = true;
@@ -3532,7 +3556,7 @@ void TOperationControllerBase::DoScheduleJob(
     ISchedulingContext* context,
     const TJobResourcesWithQuota& jobLimits,
     const TString& treeId,
-    TScheduleJobResult* scheduleJobResult)
+    TControllerScheduleJobResult* scheduleJobResult)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->ScheduleJobControllerQueue));
 
@@ -3564,7 +3588,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
     ISchedulingContext* context,
     const TJobResourcesWithQuota& jobLimits,
     const TString& treeId,
-    TScheduleJobResult* scheduleJobResult)
+    TControllerScheduleJobResult* scheduleJobResult)
 {
     const auto& nodeResourceLimits = context->ResourceLimits();
     const auto& address = context->GetNodeDescriptor().Address;
@@ -3665,7 +3689,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
     ISchedulingContext* context,
     const TJobResourcesWithQuota& jobLimits,
     const TString& treeId,
-    TScheduleJobResult* scheduleJobResult)
+    TControllerScheduleJobResult* scheduleJobResult)
 {
     auto now = NProfiling::CpuInstantToInstant(context->GetNow());
     const auto& nodeResourceLimits = context->ResourceLimits();
@@ -4006,6 +4030,8 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
         FlushOperationNode(/* checkFlushResult */ false);
     }
 
+    Error_ = error;
+
     Host->OnOperationFailed(error);
 }
 
@@ -4114,11 +4140,14 @@ void TOperationControllerBase::ProcessSafeException(const TAssertionFailedExcept
 {
     TControllerAgentCounterManager::Get()->IncrementAssertionsFailed(OperationType);
 
-    OnOperationFailed(TError("Operation controller crashed; please file a ticket at YTADMINREQ and attach a link to this operation")
-        << TErrorAttribute("failed_condition", ex.GetExpression())
-        << TErrorAttribute("stack_trace", ex.GetStackTrace())
-        << TErrorAttribute("core_path", ex.GetCorePath())
-        << TErrorAttribute("operation_id", OperationId));
+    OnOperationFailed(
+        TError(
+            NScheduler::EErrorCode::OperationControllerCrashed,
+            "Operation controller crashed; please file a ticket at YTADMINREQ and attach a link to this operation")
+            << TErrorAttribute("failed_condition", ex.GetExpression())
+            << TErrorAttribute("stack_trace", ex.GetStackTrace())
+            << TErrorAttribute("core_path", ex.GetCorePath())
+            << TErrorAttribute("operation_id", OperationId));
 }
 
 EJobState TOperationControllerBase::GetStatisticsJobState(const TJobletPtr& joblet, const EJobState& state)
@@ -4533,7 +4562,9 @@ void TOperationControllerBase::LockInputTables()
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to lock input table %v", path);
         const auto& rsp = rspOrError.Value();
         table->ObjectId = FromProto<TObjectId>(rsp->node_id());
+        table->Revision = rsp->revision();
         table->CellTag = FromProto<TCellTag>(rsp->cell_tag());
+        InputTablesByPath_[path].push_back(table);
     }
 }
 
@@ -4812,6 +4843,35 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             THROW_ERROR_EXCEPTION_IF_FAILED(
                 GetCumulativeError(batchRspOrError),
                 "Error locking output tables");
+
+            const auto& batchRsp = batchRspOrError.Value()->GetResponses<TCypressYPathProxy::TRspLock>();
+            for (int index = 0; index < UpdatingTables_.size(); ++index) {
+                const auto& table = UpdatingTables_[index];
+                const auto& rsp = batchRsp[index].Value();
+
+                auto objectId = FromProto<TObjectId>(rsp->node_id());
+                ui64 revision = rsp->revision();
+
+                auto it = InputTablesByPath_.find(table->Path.GetPath());
+                if (it != InputTablesByPath_.end()) {
+                    for (const auto& inputTable : it->second) {
+                        // Check case of remote copy operation.
+                        if (CellTagFromId(inputTable->ObjectId) != CellTagFromId(objectId)) {
+                            continue;
+                        }
+                        if (inputTable->ObjectId != objectId || inputTable->Revision != revision) {
+                            THROW_ERROR_EXCEPTION(
+                                NScheduler::EErrorCode::OperationFailedWithInconsistentLocking,
+                                "Table %v has changed between taking input and output locks",
+                                inputTable->GetPath())
+                                << TErrorAttribute("input_object_id", inputTable->ObjectId)
+                                << TErrorAttribute("input_revision", inputTable->Revision)
+                                << TErrorAttribute("output_object_id", objectId)
+                                << TErrorAttribute("output_revision", revision);
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -6441,8 +6501,7 @@ TJobletPtr TOperationControllerBase::GetJobletOrThrow(TJobId jobId) const
 
 void TOperationControllerBase::UnregisterJoblet(const TJobletPtr& joblet)
 {
-    const auto& jobId = joblet->JobId;
-    YCHECK(JobletMap.erase(jobId) == 1);
+    YCHECK(JobletMap.erase(joblet->JobId) == 1);
 }
 
 std::vector<TJobId> TOperationControllerBase::GetJobIdsByTreeId(const TString& treeId)
@@ -7445,10 +7504,6 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, TotalEstimatedInputDataWeight);
     Persist(context, UnavailableInputChunkCount);
     Persist(context, UnavailableIntermediateChunkCount);
-    if (context.GetVersion() < 300101 && context.IsLoad()) {
-        TProgressCounterPtr unused;
-        Persist(context, unused);
-    }
     Persist(context, InputNodeDirectory_);
     Persist(context, InputTables_);
     Persist(context, OutputTables_);
@@ -7488,13 +7543,10 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, AvailableExecNodesObserved_);
     Persist(context, BannedNodeIds_);
     Persist(context, PathToOutputTable_);
-    // COMPAT(levysotsky)
-    if (context.GetVersion() >= 300031) {
-        Persist(context, Acl);
-    }
+    Persist(context, Acl);
 
     // NB: Keep this at the end of persist as it requires some of the previous
-    // fields to be already intialized.
+    // fields to be already initialized.
     if (context.IsLoad()) {
         for (const auto& task : Tasks) {
             task->Initialize();
@@ -7504,6 +7556,10 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     }
 
     Persist(context, BannedTreeIds_);
+
+    if (context.GetVersion() >= ToUnderlying(ESnapshotVersion::InputOutputTableLock)) {
+        Persist(context, InputTablesByPath_);
+    }
 }
 
 void TOperationControllerBase::InitAutoMergeJobSpecTemplates()
@@ -7706,7 +7762,7 @@ TString TOperationControllerBase::WriteCoreDump() const
     if (!coreDumper) {
         THROW_ERROR_EXCEPTION("Core dumper is not set up");
     }
-    return coreDumper->WriteCoreDump(CoreNotes_).Path;
+    return coreDumper->WriteCoreDump(CoreNotes_, "rpc_call").Path;
 }
 
 void TOperationControllerBase::RegisterOutputRows(i64 count, int tableIndex)
@@ -7770,7 +7826,7 @@ void TOperationControllerBase::RegisterTestingSpeculativeJobIfNeeded(const TTask
     if (Spec_->TestingOperationOptions->RegisterSpeculativeJobOnJobScheduled) {
         const auto& joblet = JobletMap[jobId];
         if (!joblet->Speculative) {
-            task->RegisterSpeculativeJob(joblet);
+            task->TryRegisterSpeculativeJob(joblet);
         }
     }
 }

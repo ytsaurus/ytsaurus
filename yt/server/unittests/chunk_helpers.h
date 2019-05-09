@@ -4,6 +4,7 @@
 
 #include <yt/server/master/chunk_server/chunk.h>
 #include <yt/server/master/chunk_server/chunk_list.h>
+#include <yt/server/master/chunk_server/chunk_view.h>
 
 #include <yt/client/table_client/public.h>
 #include <yt/client/table_client/unversioned_row.h>
@@ -38,6 +39,11 @@ public:
         EChunkType chunkType = EChunkType::Table);
 
     TChunkList* CreateChunkList(EChunkListKind kind = EChunkListKind::Static);
+
+    TChunkView* CreateChunkView(
+        TChunk* underlyingChunk,
+        NTableClient::TOwningKey lowerLimit,
+        NTableClient::TOwningKey upperLimit);
 
 private:
     std::vector<std::unique_ptr<TChunkTree>> CreatedObjects_;

@@ -210,6 +210,9 @@ void TListOperationsCommand::BuildOperations(const TListOperationsResult& result
             })
             .DoIf(operation.SlotIndexPerPoolTree.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("slot_index_per_pool_tree").Value(operation.SlotIndexPerPoolTree);
+            })
+            .DoIf(operation.Alerts.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("alerts").Value(operation.Alerts);
             });
     };
 

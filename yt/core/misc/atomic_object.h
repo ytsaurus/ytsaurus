@@ -13,10 +13,16 @@ class TAtomicObject
 {
 public:
     TAtomicObject() = default;
-    TAtomicObject(const T& other);
+
+    template <class U>
+    TAtomicObject(U&& u);
 
     template <class U>
     void Store(U&& u);
+
+    //! Atomically replaces the old value with the new one and returns the old value.
+    template <class U>
+    T Exchange(U&& u);
 
     T Load() const;
 

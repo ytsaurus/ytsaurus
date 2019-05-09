@@ -1,5 +1,7 @@
 #include "object_service_proxy.h"
 
+#include "private.h"
+
 #include <yt/ytlib/object_client/object_ypath.pb.h>
 
 #include <yt/core/misc/checksum.h>
@@ -11,6 +13,10 @@ namespace NYT::NObjectClient {
 using namespace NYTree;
 using namespace NRpc;
 using namespace NBus;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = ObjectClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -248,6 +254,12 @@ void TObjectServiceProxy::TReqExecuteBatch::InvokeNextBatch()
         // them being rejected by the response keeper.
         auto subbatchReq = Slice(CurBatchBegin_, lastBatchEnd, CurBatchEnd_);
         CurReqFuture_ = subbatchReq->DoInvoke();
+        YT_LOG_DEBUG("Subbatch request invoked (BatchRequestId: %v, SubbatchRequestId: %v, SubbatchBegin: %v, SubbatchEnd: %v, SubbatchRetriesEnd: %v)",
+            GetRequestId(),
+            subbatchReq->GetRequestId(),
+            CurBatchBegin_,
+            CurBatchEnd_,
+            lastBatchEnd);
     }
 
     CurReqFuture_.Apply(BIND(&TObjectServiceProxy::TReqExecuteBatch::OnSubbatchResponse, MakeStrong(this)));
@@ -267,6 +279,12 @@ void TObjectServiceProxy::TReqExecuteBatch::OnSubbatchResponse(const TErrorOr<TR
         FullResponsePromise_.Set(rspOrErr);
         return;
     }
+
+    YT_LOG_DEBUG("Subbatch response received (BatchRequestId: %v, SubbatchRequestId: %v, SubbatchBegin: %v, SubbatchSubresponseCount: %v)",
+        GetRequestId(),
+        rsp->GetRequestId(),
+        CurBatchBegin_,
+        rsp->GetSize());
 
     // The remote side shouldn't backoff until there's at least one subresponse.
     YCHECK(rsp->GetSize() > 0 || GetTotalSubrequestCount() == 0);
@@ -385,6 +403,11 @@ void TObjectServiceProxy::TRspExecuteBatch::Append(const TRspExecuteBatchPtr& su
 int TObjectServiceProxy::TRspExecuteBatch::GetSize() const
 {
     return PartRanges_.size();
+}
+
+TGuid TObjectServiceProxy::TRspExecuteBatch::GetRequestId() const
+{
+    return FromProto<TGuid>(Header().request_id());
 }
 
 TErrorOr<TYPathResponsePtr> TObjectServiceProxy::TRspExecuteBatch::GetResponse(int index) const

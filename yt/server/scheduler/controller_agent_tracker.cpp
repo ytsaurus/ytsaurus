@@ -426,7 +426,7 @@ public:
     }
 
 
-    virtual TFuture<TScheduleJobResultPtr> ScheduleJob(
+    virtual TFuture<TControllerScheduleJobResultPtr> ScheduleJob(
         const ISchedulingContextPtr& context,
         const TJobResourcesWithQuota& jobLimits,
         const TString& treeId) override
@@ -456,7 +456,7 @@ public:
                     OperationId_,
                     jobId);
 
-                auto result = New<TScheduleJobResult>();
+                auto result = New<TControllerScheduleJobResult>();
                 result->RecordFail(EScheduleJobFailReason::NoAgentAssigned);
 
                 return MakeFuture(result);

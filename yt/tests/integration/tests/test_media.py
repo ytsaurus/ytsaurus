@@ -50,7 +50,7 @@ class TestMedia(YTEnvSetup):
         create_medium(cls.NON_DEFAULT_MEDIUM)
         create_medium(cls.NON_DEFAULT_TRANSIENT_MEDIUM, attributes={"transient": True})
         medium_count = len(get_media())
-        while (medium_count < 7):
+        while (medium_count < 127):
             create_medium("hdd" + str(medium_count))
             medium_count += 1
 
@@ -74,9 +74,14 @@ class TestMedia(YTEnvSetup):
 
         return chunk_count
 
+    def _remove_zeros(self, d):
+        for k in list(d.keys()):
+            if d[k] == 0:
+                del d[k]
+
     def _check_account_and_table_usage_equal(self, tbl):
-        account_usage = get("//sys/accounts/tmp/@resource_usage/disk_space_per_medium")
-        table_usage = get("//tmp/{0}/@resource_usage/disk_space_per_medium".format(tbl))
+        account_usage = self._remove_zeros(get("//sys/accounts/tmp/@resource_usage/disk_space_per_medium"))
+        table_usage = self._remove_zeros(get("//tmp/{0}/@resource_usage/disk_space_per_medium".format(tbl)))
         return account_usage == table_usage
 
     def _check_chunk_ok(self, ok, chunk_id, media):
@@ -86,6 +91,7 @@ class TestMedia(YTEnvSetup):
         for medium in media:
             if ok:
                 if not available or \
+                   medium not in replication_status or \
                    replication_status[medium]["underreplicated"] or \
                    replication_status[medium]["lost"] or \
                    replication_status[medium]["data_missing"] or \
@@ -94,6 +100,7 @@ class TestMedia(YTEnvSetup):
                    return False
             else:
                 if available or \
+                   medium not in replication_status or \
                    not replication_status[medium]["lost"] or \
                    not replication_status[medium]["data_missing"] or \
                    not replication_status[medium]["parity_missing"] or \
@@ -138,12 +145,12 @@ class TestMedia(YTEnvSetup):
     def test_rename(self):
         hdd4_index = get("//sys/media/hdd4/@index")
 
-        set("//sys/media/hdd4/@name", "hdd44")
-        assert exists("//sys/media/hdd44")
-        assert get("//sys/media/hdd44/@name") == "hdd44"
-        assert get("//sys/media/hdd44/@index") == hdd4_index
+        set("//sys/media/hdd4/@name", "hdd144")
+        assert exists("//sys/media/hdd144")
+        assert get("//sys/media/hdd144/@name") == "hdd144"
+        assert get("//sys/media/hdd144/@index") == hdd4_index
         assert not exists("//sys/media/hdd4")
-        set("//sys/media/hdd44/@name", "hdd4")
+        set("//sys/media/hdd144/@name", "hdd4")
 
     def test_rename_duplicate_name_fails(self):
         with pytest.raises(YtError): set("//sys/media/hdd4/@name", "hdd5")

@@ -1188,10 +1188,11 @@ private:
             stores.push_back(std::move(typedStore));
         }
 
-        Logger.AddTag("Eden: %v, PartitionRange: %v .. %v",
+        Logger.AddTag("Eden: %v, PartitionRange: %v .. %v, PartitionId: %v",
             partition->IsEden(),
             partition->GetPivotKey(),
-            partition->GetNextPivotKey());
+            partition->GetNextPivotKey(),
+            partition->GetId());
 
         partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Compacting);
 
@@ -1496,7 +1497,7 @@ private:
             return true;
         }
 
-        if (store->GetMaxKey() >= tablet->GetNextPivotKey()) {
+        if (store->GetUpperBoundKey() > tablet->GetNextPivotKey()) {
             return true;
         }
 

@@ -159,7 +159,9 @@ class Clique(object):
         if return_code != 0:
             raise YtError("ClickHouse query failed\n" + output)
 
-        return json.loads(stdout)
+        result = json.loads(stdout)
+        print >>sys.stderr, "Got", len(result["data"]), "rows"
+        return result
 
 
 @require_ytserver_root_privileges
@@ -341,6 +343,19 @@ class TestJobInput(ClickHouseTestBase):
             self._expect_row_count(clique, 'select i from "//tmp/t" where 5 <= i and i <= 8', exact=10)
             self._expect_row_count(clique, 'select i from "//tmp/t" where i in (-1, 2, 8, 8, 15)', exact=10)
 
+    def test_sampling(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/t", [{"a": i} for i in range(1000)], verbose=False)
+        with Clique(1) as clique:
+            self._expect_row_count(clique, 'select a from "//tmp/t" sample 0.1', min=85, max=115, verbose=False)
+            self._expect_row_count(clique, 'select a from "//tmp/t" sample 100', min=85, max=115, verbose=False)
+            self._expect_row_count(clique, 'select a from "//tmp/t" sample 2/20', min=85, max=115, verbose=False)
+            self._expect_row_count(clique, 'select a from "//tmp/t" sample 0.1 offset 42', min=85, max=115, verbose=False)
+            self._expect_row_count(clique, 'select a from "//tmp/t" sample 10000', exact=1000, verbose=False)
+            self._expect_row_count(clique, 'select a from "//tmp/t" sample 10000', exact=1000, verbose=False)
+            self._expect_row_count(clique, 'select a from "//tmp/t" sample 0', exact=0, verbose=False)
+            self._expect_row_count(clique, 'select a from "//tmp/t" sample 0.000000000001', exact=0, verbose=False)
+            self._expect_row_count(clique, 'select a from "//tmp/t" sample 1/100000000000', exact=0, verbose=False)
 
 class TestCompositeTypes(ClickHouseTestBase):
     def setup(self):

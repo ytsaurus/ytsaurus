@@ -278,7 +278,8 @@ def is_asan_build():
 # doesn't work with @patch_porto_env_only on the same class, wrap each method
 def require_ytserver_root_privileges(func_or_class):
     def check_root_privileges():
-        for binary in ["ytserver-exec", "ytserver-job-proxy", "ytserver-node", "ytserver-tools"]:
+        for binary in ["ytserver-exec", "ytserver-job-proxy", "ytserver-node",
+                       "ytserver-tools"]:
             binary_path = find_executable(binary)
             binary_stat = os.stat(binary_path)
             if (binary_stat.st_mode & stat.S_ISUID) == 0:
