@@ -33,7 +33,7 @@ is_multicell = None
 path_to_run_tests = None
 _zombie_responses = []
 _events_on_fs = None
-default_api_version = 3
+default_api_version = 4
 
 # TODO(levysotsky): Move error codes to separate file in python repo.
 AuthorizationErrorCode = 901
