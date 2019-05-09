@@ -1,4 +1,4 @@
-// package yttest contains testing helpers.
+// Package yttest contains testing helpers.
 package yttest
 
 import (

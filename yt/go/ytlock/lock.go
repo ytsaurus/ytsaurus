@@ -1,4 +1,4 @@
-// package ytlock is high level interface for yt lock.
+// Package ytlock is high level interface for yt lock.
 package ytlock
 
 import (

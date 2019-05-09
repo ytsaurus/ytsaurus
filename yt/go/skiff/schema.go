@@ -1,4 +1,4 @@
-// package skiff implements efficient serialization format, optimized for YT.
+// Package skiff implements efficient serialization format, optimized for YT.
 package skiff
 
 import (
