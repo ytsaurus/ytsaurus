@@ -37,8 +37,7 @@ void TExpirationTracker::Start()
         ExpiredNodes_.size());
     for (auto* trunkNode : ExpiredNodes_) {
         Y_ASSERT(!trunkNode->GetExpirationIterator());
-        auto expirationTime = trunkNode->GetExpirationTime();
-        if (expirationTime) {
+        if (auto expirationTime = trunkNode->TryGetExpirationTime()) {
             RegisterNodeExpiration(trunkNode, *expirationTime);
         }
     }
@@ -80,12 +79,11 @@ void TExpirationTracker::OnNodeExpirationTimeUpdated(TCypressNodeBase* trunkNode
         UnregisterNodeExpiration(trunkNode);
     }
 
-    if (trunkNode->GetExpirationTime()) {
-        auto expirationTime = *trunkNode->GetExpirationTime();
+    if (auto expirationTime = trunkNode->TryGetExpirationTime()) {
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Node expiration time set (NodeId: %v, ExpirationTime: %v)",
             trunkNode->GetId(),
-            expirationTime);
-        RegisterNodeExpiration(trunkNode, expirationTime);
+            *expirationTime);
+        RegisterNodeExpiration(trunkNode, *expirationTime);
     } else {
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Node expiration time reset (NodeId: %v)",
             trunkNode->GetId());
@@ -114,7 +112,7 @@ void TExpirationTracker::OnNodeRemovalFailed(TCypressNodeBase* trunkNode)
         return;
     }
 
-    if (!trunkNode->GetExpirationTime()) {
+    if (!trunkNode->TryGetExpirationTime()) {
         return;
     }
 

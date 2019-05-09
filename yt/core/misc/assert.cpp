@@ -50,7 +50,7 @@ void AssertTrapImpl(
                 std::vector<TString> coreNotes = {"Reason: SafeAssertion"};
                 auto contextCoreNotes = GetSafeAssertionsCoreNotes();
                 coreNotes.insert(coreNotes.end(), contextCoreNotes.begin(), contextCoreNotes.end());
-                auto coreDump = GetSafeAssertionsCoreDumper()->WriteCoreDump(coreNotes);
+                auto coreDump = GetSafeAssertionsCoreDumper()->WriteCoreDump(coreNotes, "safe_assertion");
                 corePath = coreDump.Path;
                 // A tricky way to return slot only after core is written.
                 coreDump.WrittenEvent.Subscribe(BIND([_ = std::move(semaphoreGuard)] (const TError&) { }));

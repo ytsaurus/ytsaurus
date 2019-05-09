@@ -5,8 +5,6 @@
 #include <yt/core/json/config.h>
 #include <yt/core/json/json_writer.h>
 
-#include <yt/core/misc/url.h>
-
 #include <yt/core/yson/parser.h>
 
 #include <yt/core/concurrency/scheduler.h>

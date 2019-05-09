@@ -15,6 +15,7 @@
 #include <yt/server/master/object_server/public.h>
 
 #include <yt/client/chunk_client/chunk_replica.h>
+#include <yt/client/chunk_client/read_limit.h>
 
 #include <yt/core/actions/signal.h>
 
@@ -71,6 +72,9 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk);
     TChunk* GetChunkOrThrow(TChunkId id);
 
+    DECLARE_ENTITY_MAP_ACCESSORS(ChunkView, TChunkView);
+    TChunkView* GetChunkViewOrThrow(TChunkViewId id);
+
     DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList);
     TChunkList* GetChunkListOrThrow(TChunkListId id);
 
@@ -112,6 +116,9 @@ public:
     void DetachFromChunkList(
         TChunkList* chunkList,
         TChunkTree* child);
+
+    TChunkView* CreateChunkView(TChunkTree* underlyingTree, NChunkClient::TReadRange readRange);
+    TChunkView* CloneChunkView(TChunkView* chunkView, NChunkClient::TReadRange readRange);
 
     void RebalanceChunkTree(TChunkList* chunkList);
 
@@ -158,7 +165,7 @@ public:
     //! Returns the total number of all chunk replicas.
     int GetTotalReplicaCount();
 
-    TPerMediumArray<EChunkStatus> ComputeChunkStatuses(TChunk* chunk);
+    TMediumMap<EChunkStatus> ComputeChunkStatuses(TChunk* chunk);
 
     //! Computes misc extension of a given journal chunk
     //! by querying a quorum of replicas (if the chunk is not sealed).
@@ -194,6 +201,7 @@ private:
     class TRegularChunkTypeHandler;
     class TErasureChunkTypeHandler;
     class TJournalChunkTypeHandler;
+    class TChunkViewTypeHandler;
     class TChunkListTypeHandler;
     class TMediumTypeHandler;
 

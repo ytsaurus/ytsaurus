@@ -1,5 +1,6 @@
 #include "chunk_tree_traverser.h"
 #include "chunk.h"
+#include "chunk_view.h"
 #include "chunk_list.h"
 #include "helpers.h"
 
@@ -279,7 +280,7 @@ protected:
                     PopStack();
                     return;
                 }
-                childUpperBound.SetKey(GetMaxKey(child));
+                childUpperBound.SetKey(GetUpperBoundKey(child));
             } else if (entry->LowerBound.HasKey()) {
                 childLowerBound.SetKey(GetMinKey(child));
             }
@@ -314,7 +315,7 @@ protected:
                 ++ChunkCount_;
                 *visitedChunkCount += 1;
                 break;
-             }
+            }
 
             default:
                 Y_UNREACHABLE();
@@ -429,7 +430,7 @@ protected:
         {
             if (entry->UpperBound.HasKey() || entry->LowerBound.HasKey()) {
                 childLowerBound.SetKey(GetMinKey(child));
-                childUpperBound.SetKey(GetMaxKey(child));
+                childUpperBound.SetKey(GetUpperBoundKey(child));
 
                 if (entry->UpperBound.HasKey() && entry->UpperBound.GetKey() <= childLowerBound.GetKey()) {
                     return;
@@ -450,8 +451,26 @@ protected:
             &subtreeStartLimit,
             &subtreeEndLimit);
 
-        YCHECK(child->GetType() == EObjectType::Chunk || child->GetType() == EObjectType::ErasureChunk);
-        auto* childChunk = child->AsChunk();
+        YCHECK(
+            child->GetType() == EObjectType::Chunk ||
+            child->GetType() == EObjectType::ErasureChunk ||
+            child->GetType() == EObjectType::ChunkView);
+
+        TChunk* childChunk = nullptr;
+        if (child->GetType() == EObjectType::ChunkView) {
+            auto* chunkView = child->AsChunkView();
+            if (Visitor_->OnChunkView(chunkView)) {
+                ++ChunkCount_;
+                *visitedChunkCount += 1;
+                return;
+            }
+
+            subtreeStartLimit = chunkView->GetAdjustedLowerReadLimit(subtreeStartLimit);
+            subtreeEndLimit = chunkView->GetAdjustedUpperReadLimit(subtreeEndLimit);
+            childChunk = chunkView->GetUnderlyingChunk();
+        } else {
+            childChunk = child->AsChunk();
+        }
         if (!Visitor_->OnChunk(childChunk, 0, subtreeStartLimit, subtreeEndLimit)) {
             Shutdown();
             return;
@@ -540,7 +559,7 @@ protected:
                 lowerBound.GetKey(),
                 // isLess
                 [] (const TOwningKey& key, const TChunkTree* chunkTree) {
-                    return key > GetMaxKey(chunkTree);
+                    return key > GetUpperBoundKey(chunkTree);
                 },
                 // isMissing
                 [] (const TChunkTree* chunkTree) {
@@ -910,6 +929,11 @@ public:
         : Chunks_(chunks)
     { }
 
+    virtual bool OnChunkView(TChunkView* chunkView) override
+    {
+        return false;
+    }
+
     virtual bool OnChunk(
         TChunk* chunk,
         i64 /*rowIndex*/,
@@ -927,7 +951,6 @@ public:
 
 private:
     std::vector<TChunk*>* const Chunks_;
-
 };
 
 void EnumerateChunksInChunkTree(
@@ -957,6 +980,63 @@ std::vector<TChunk*> EnumerateChunksInChunkTree(
         lowerLimit,
         upperLimit);
     return chunks;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void EnumerateChunksAndChunkViewsInChunkTree(
+    TChunkList* root,
+    std::vector<TChunkTree*>* chunks)
+{
+    class TVisitor
+        : public IChunkVisitor
+    {
+    public:
+        explicit TVisitor(std::vector<TChunkTree*>* chunksOrViews)
+            : ChunksOrViews_(chunksOrViews)
+        { }
+
+        virtual bool OnChunkView(TChunkView* chunkView) override
+        {
+            ChunksOrViews_->push_back(chunkView);
+            return true;
+        }
+
+        virtual bool OnChunk(
+            TChunk* chunk,
+            i64 /*rowIndex*/,
+            const NChunkClient::TReadLimit& /*startLimit*/,
+            const NChunkClient::TReadLimit& /*endLimit*/) override
+        {
+            ChunksOrViews_->push_back(chunk);
+            return true;
+        }
+
+        virtual void OnFinish(const TError& error) override
+        {
+            YCHECK(error.IsOK());
+        }
+
+    private:
+        std::vector<TChunkTree*>* const ChunksOrViews_;
+    };
+
+    auto visitor = New<TVisitor>(chunks);
+    TraverseChunkTree(
+        GetNonpreemptableChunkTraverserCallbacks(),
+        visitor,
+        root);
+}
+
+std::vector<TChunkTree*> EnumerateChunksAndChunkViewsInChunkTree(
+    TChunkList* root)
+{
+    std::vector<TChunkTree*> chunksOrViews;
+    chunksOrViews.reserve(root->Statistics().ChunkCount);
+    EnumerateChunksAndChunkViewsInChunkTree(
+        root,
+        &chunksOrViews);
+    return chunksOrViews;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

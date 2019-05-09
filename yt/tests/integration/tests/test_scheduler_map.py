@@ -48,7 +48,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
                     "min_job_time": 5000,
                     "min_total_data_size": 1024,
                     "update_period": 100,
-                    "median_excess_duration": 3000,
                     "candidate_percentile": 0.8,
                     "max_jobs_per_split": 3,
                     "max_input_table_count": 5,
@@ -530,7 +529,7 @@ print row + table_index
         set("//tmp/t2/@acl", [make_ace("allow", "u", "write")])
         effective_acl = get("//tmp/t2/@effective_acl")
 
-        schema = make_schema([{"name": "foo", "type": "int64"}], strict=True, unique_keys=False)
+        schema = make_schema([{"name": "foo", "type": "int64", "required": False}], strict=True, unique_keys=False)
         alter_table("//tmp/t2", schema=schema)
 
         op = map(
@@ -545,7 +544,7 @@ print row + table_index
         async_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
         assert exists(operation_path + "/output_0", tx=async_transaction_id)
         assert effective_acl == get(operation_path + "/output_0/@acl", tx=async_transaction_id)
-        assert schema == get(operation_path + "/output_0/@schema", tx=async_transaction_id)
+        assert schema == normalize_schema(get(operation_path + "/output_0/@schema", tx=async_transaction_id))
 
         for job_id in jobs[:2]:
             release_breakpoint(job_id=job_id)
@@ -718,9 +717,14 @@ print row + table_index
 
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_schema_validation(self, optimize_for):
-        schema = make_schema([
-                {"name": "key", "type": "int64"},
-                {"name": "value", "type": "string"}])
+        schema = make_schema(
+            [
+                {"name": "key", "type": "int64", "required": False},
+                {"name": "value", "type": "string", "required": False},
+            ],
+            strict=True,
+            unique_keys=False,
+        )
         create("table", "//tmp/input")
         create("table", "//tmp/output", attributes={
             "optimize_for": optimize_for,
@@ -736,7 +740,7 @@ print row + table_index
 
         assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
-        assert [c for c in get("//tmp/output/@schema")] == [c for c in schema]
+        assert normalize_schema(get("//tmp/output/@schema")) == schema
         assert_items_equal(read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in xrange(10)])
 
         map(in_="//tmp/input",
@@ -745,7 +749,7 @@ print row + table_index
 
         assert get("//tmp/output2/@schema_mode") == "strong"
         assert get("//tmp/output2/@schema/@strict")
-        assert [c for c in get("//tmp/output2/@schema")] == [c for c in schema]
+        assert normalize_schema(get("//tmp/output2/@schema")) == schema
         assert_items_equal(read_table("//tmp/output2"), [{"key": i, "value": "foo"} for i in xrange(10)])
 
         write_table("//tmp/input", {"key": "1", "value": "foo"})
@@ -1327,7 +1331,6 @@ class TestMapOnDynamicTables(YTEnvSetup):
                     "min_job_time": 5000,
                     "min_total_data_size": 1024,
                     "update_period": 100,
-                    "median_excess_duration": 3000,
                     "candidate_percentile": 0.8,
                     "max_jobs_per_split": 3,
                 },
@@ -1655,7 +1658,6 @@ class TestInputOutputFormats(YTEnvSetup):
                     "min_job_time": 5000,
                     "min_total_data_size": 1024,
                     "update_period": 100,
-                    "median_excess_duration": 3000,
                     "candidate_percentile": 0.8,
                     "max_jobs_per_split": 3,
                 },

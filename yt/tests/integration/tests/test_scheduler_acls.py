@@ -382,7 +382,7 @@ class TestSchedulerAcls(YTEnvSetup):
             if allow_access:
                 read_table(op.get_path() + "/intermediate", tx=scheduler_transaction_id, authenticated_user=self.no_rights_user)
             else:
-                with raises_with_codes(AuthorizationErrorCode):
+                with raises_yt_error(AuthorizationErrorCode):
                     read_table(op.get_path() + "/intermediate", tx=scheduler_transaction_id, authenticated_user=self.no_rights_user)
 
             release_breakpoint(breakpoint_name=breakpoint_name)

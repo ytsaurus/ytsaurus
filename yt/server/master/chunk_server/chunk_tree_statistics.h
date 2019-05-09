@@ -46,7 +46,7 @@ struct TChunkTreeStatistics
     //! Total number of chunk lists in the tree.
     int ChunkListCount = 0;
 
-    //! Chunks have zero ranks.
+    //! Chunks and chunk views have zero ranks.
     //! Chunk lists have rank |1 + maxChildRank|, where |maxChildRank = 0| if there are no children.
     int Rank = 0;
 

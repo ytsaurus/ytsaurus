@@ -38,7 +38,7 @@ public:
     void SetTotalLimit(i64 newLimit);
     void SetCategoryLimit(ECategory category, i64 newLimit);
 
-    // Always succeeds, can lead to an overcommit.
+    // Always succeeds, may lead to an overcommit.
     void Acquire(ECategory category, i64 size);
     TError TryAcquire(ECategory category, i64 size);
     void Release(ECategory category, i64 size);
@@ -77,6 +77,9 @@ class TMemoryUsageTrackerGuard
     : private TNonCopyable
 {
 public:
+    using TMemoryUsageTracker = NYT::TMemoryUsageTracker<ECategory>;
+    using TMemoryUsageTrackerPtr = TIntrusivePtr<TMemoryUsageTracker>;
+
     TMemoryUsageTrackerGuard() = default;
     TMemoryUsageTrackerGuard(const TMemoryUsageTrackerGuard& other) = delete;
     TMemoryUsageTrackerGuard(TMemoryUsageTrackerGuard&& other);
@@ -86,12 +89,12 @@ public:
     TMemoryUsageTrackerGuard& operator=(TMemoryUsageTrackerGuard&& other);
 
     static TMemoryUsageTrackerGuard Acquire(
-        TMemoryUsageTracker<ECategory>* tracker,
+        TMemoryUsageTrackerPtr tracker,
         ECategory category,
         i64 size,
         i64 granularity = 1);
     static TErrorOr<TMemoryUsageTrackerGuard> TryAcquire(
-        TMemoryUsageTracker<ECategory>* tracker,
+        TMemoryUsageTrackerPtr tracker,
         ECategory category,
         i64 size,
         i64 granularity = 1);
@@ -108,7 +111,7 @@ public:
     void UpdateSize(i64 sizeDelta);
 
 private:
-    TMemoryUsageTracker<ECategory>* Tracker_ = nullptr;
+    TMemoryUsageTrackerPtr Tracker_;
     ECategory Category_;
     i64 Size_ = 0;
     i64 AcquiredSize_ = 0;

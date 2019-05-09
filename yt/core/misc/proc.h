@@ -40,6 +40,8 @@ TMemoryUsage GetProcessMemoryUsage(int pid = -1);
 
 ui64 GetProcessCumulativeMajorPageFaults(int pid = -1);
 
+size_t GetCurrentProcessId();
+
 size_t GetCurrentThreadId();
 
 void ChownChmodDirectoriesRecursively(

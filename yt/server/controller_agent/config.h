@@ -132,13 +132,16 @@ class TJobSplitterConfig
 public:
     TDuration MinJobTime;
     double ExecToPrepareTimeRatio;
+    double NoProgressJobExecToPrepareTimeRatio;
     i64 MinTotalDataWeight;
     TDuration UpdatePeriod;
-    TDuration MedianExcessDuration;
     double ResidualJobFactor;
+    int ResidualJobCountMinThreshold;
     double CandidatePercentile;
+    double LateJobsPercentile;
     int MaxJobsPerSplit;
     int MaxInputTableCount;
+    TDuration SplitTimeoutBeforeSpeculate;
 
     TJobSplitterConfig();
 };

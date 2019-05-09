@@ -18,7 +18,6 @@ from teamcity.helpers import (
     cleanup_cgroups,
     clear_system_tmp,
     cwd,
-    format_yes_no,
     kill_by_name,
     ls,
     mkdirp,
@@ -142,6 +141,27 @@ def temporary_yt_token_file(options):
     finally:
         if os.path.exists(filename):
             os.remove(filename)
+
+@contextlib.contextmanager
+def inside_temporary_directory(dir=None):
+    curdir = os.getcwd()
+    directory = tempfile.mkdtemp(dir=dir)
+    os.chdir(directory)
+    try:
+        yield directory
+    finally:
+        shutil.rmtree(directory)
+        os.chdir(curdir)
+
+def reset_debian_changelog():
+    if not os.path.exists("debian"):
+        os.mkdir("debian")
+    if os.path.lexists("debian/changelog"):
+        os.remove("debian/changelog")
+
+def get_python_packages_config(options):
+    config_generator = os.path.join(get_lib_dir_for_python(options, "2.7"), "build_python_packages_config_generator")
+    return json.loads(run_captured([config_generator]))
 
 def get_lib_dir_for_python(options, python_version):
     return os.path.join(
@@ -488,24 +508,37 @@ def share_packages(options, build_context):
 
 
 @build_step
-def package_common_packages(options, build_context):
+def package_python_proto(options, build_context):
     if not options.package:
-        teamcity_message("Skipping packaging common packages")
+        teamcity_message("Skipping packaging yandex-yt-python-proto")
         return
 
-    if options.build_system != "ya":
-        return
+    config = get_python_packages_config(options)
 
-    artifacts_dir = get_artifacts_dir(options)
-    os.mkdir(artifacts_dir)
-    build_python_packages = os.path.join(options.checkout_directory, "scripts", "build-python-packages.py")
-    run([
-        build_python_packages,
-        "--source-dir", options.checkout_directory,
-        "--install-dir", get_lib_dir_for_python(options, "2.7"),
-        "--output-dir", artifacts_dir,
-        "--work-dir", options.working_directory,
-    ])
+    with inside_temporary_directory(dir=options.working_directory):
+        python_src_copy = os.path.realpath("python_src_copy")
+
+        shutil.copytree(
+            os.path.join(options.checkout_directory, "python"),
+            python_src_copy,
+            symlinks=True)
+
+        with cwd(os.path.join(python_src_copy, "yandex-yt-python-proto")):
+            reset_debian_changelog()
+            dch(version=config["yt_rpc_proxy_protocol_version"],
+                message="Proto package release.",
+                create_package="yandex-yt-python-proto")
+
+        run(["./build_proto.sh"], cwd=python_src_copy)
+
+        package_list = glob.glob("yandex-yt-python-proto*")
+        if not package_list:
+            teamcity_message("Failed to find yandex-yt-python-proto package after build")
+
+        artifacts_dir = get_artifacts_dir(options)
+        os.mkdir(artifacts_dir)
+        for file in package_list:
+            shutil.move(file, os.path.join(artifacts_dir, file))
 
 @build_step
 @only_for_projects("yt")
@@ -657,8 +690,7 @@ def package_rpc_bindings(options, build_context):
         teamcity_message("Skipping packaging rpc_bindings")
         return
 
-    config_generator = os.path.join(get_bin_dir(options), "build_python_packages_config_generator")
-    config = json.loads(run_captured([config_generator]))
+    config = get_python_packages_config(options)
 
     mkdirp(os.path.join(options.working_directory, "changelogs"))
     changelog_dir = os.path.join(
@@ -711,8 +743,7 @@ def package_driver_bindings(options, build_context):
         teamcity_message("Skipping packaging driver_bindings")
         return
 
-    config_generator = os.path.join(get_bin_dir(options), "build_python_packages_config_generator")
-    config = json.loads(run_captured([config_generator]))
+    config = get_python_packages_config(options)
 
     mkdirp(os.path.join(options.working_directory, "changelogs"))
     changelog_dir = os.path.join(
@@ -849,7 +880,7 @@ def run_sandbox_upload(options, build_context):
     Git branch: {6}
     Git commit: {7}
     """.format(
-        "[yp] " if options.build_project == "yp" else "",
+        "[yp] " if "yp" in options.build_project else "",
         build_context["yt_version"],
         options.build_number,
         options.type,

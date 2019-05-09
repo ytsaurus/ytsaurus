@@ -437,6 +437,8 @@ struct TSelectRowsOptions
     std::optional<TString> UdfRegistryPath;
     //! Memory limit per execution node
     size_t MemoryLimitPerNode = std::numeric_limits<size_t>::max();
+    //! Execution pool
+    std::optional<TString> ExecutionPool;
 };
 
 struct TGetNodeOptions
@@ -516,6 +518,7 @@ struct TLockNodeResult
 {
     NCypressClient::TLockId LockId;
     NCypressClient::TNodeId NodeId;
+    std::optional<i64> Revision;
 };
 
 struct TUnlockNodeOptions
@@ -908,6 +911,7 @@ struct TOperation
     NYson::TYsonString Result;
 
     NYson::TYsonString SlotIndexPerPoolTree;
+    NYson::TYsonString Alerts;
 };
 
 struct TListOperationsResult

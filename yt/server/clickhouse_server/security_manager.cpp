@@ -20,7 +20,7 @@
 
 #include <Common/Exception.h>
 #include <Interpreters/Users.h>
-#include <Interpreters/ISecurityManager.h>
+#include <Interpreters/IUsersManager.h>
 
 #include <util/generic/maybe.h>
 #include <util/system/rwlock.h>
@@ -40,11 +40,11 @@ static const auto& Logger = ServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSecurityManager
-    : public DB::ISecurityManager
+class TUsersManager
+    : public DB::IUsersManager
 {
 private:
-    THashMap<TString, DB::ISecurityManager::UserPtr> Users_;
+    THashMap<TString, DB::IUsersManager::UserPtr> Users_;
     std::optional<DB::User> UserTemplate_;
     TReaderWriterSpinLock SpinLock_;
 
@@ -55,7 +55,7 @@ private:
     NProfiling::TCpuInstant LastCurrentAclUpdateTime_;
 
 public:
-    TSecurityManager(TBootstrap* bootstrap, TString cliqueId)
+    TUsersManager(TBootstrap* bootstrap, TString cliqueId)
         : Bootstrap_(bootstrap)
         , CliqueId_(std::move(cliqueId))
     { }
@@ -77,13 +77,13 @@ public:
         const std::string& /* password */,
         const Poco::Net::IPAddress& /* address */) const override
     {
-        auto that = const_cast<TSecurityManager*>(this);
+        auto that = const_cast<TUsersManager*>(this);
         return that->GetOrRegisterUser(userName);
     }
 
     UserPtr getUser(const std::string& userName) const override
     {
-        auto that = const_cast<TSecurityManager*>(this);
+        auto that = const_cast<TUsersManager*>(this);
         return that->GetOrRegisterUser(userName);
     }
 
@@ -101,7 +101,7 @@ public:
                 TGuid::FromString(CliqueId_),
                 TGuid() /* jobId */,
                 EPermission::Read,
-                const_cast<TSecurityManager*>(this)->GetCurrentAcl(),
+                const_cast<TUsersManager*>(this)->GetCurrentAcl(),
                 Bootstrap_->GetRootClient(),
                 Logger);
             return true;
@@ -117,7 +117,7 @@ public:
     }
 
 private:
-    DB::ISecurityManager::UserPtr GetOrRegisterUser(TStringBuf userName)
+    DB::IUsersManager::UserPtr GetOrRegisterUser(TStringBuf userName)
     {
         {
             auto guard = TReaderGuard(SpinLock_);
@@ -181,7 +181,7 @@ private:
         LastCurrentAclUpdateTime_ = NProfiling::GetCpuInstant();
     }
 
-    DB::ISecurityManager::UserPtr CreateNewUserFromTemplate(TStringBuf userName)
+    DB::IUsersManager::UserPtr CreateNewUserFromTemplate(TStringBuf userName)
     {
         if (!UserTemplate_) {
             throw DB::Exception(
@@ -197,11 +197,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<DB::ISecurityManager> CreateSecurityManager(
+std::unique_ptr<DB::IUsersManager> CreateUsersManager(
     TBootstrap* bootstrap,
     TString cliqueId)
 {
-    return std::make_unique<TSecurityManager>(bootstrap, cliqueId);
+    return std::make_unique<TUsersManager>(bootstrap, cliqueId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

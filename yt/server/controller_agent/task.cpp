@@ -46,7 +46,7 @@ TTask::TTask()
     , CachedPendingJobCount_(-1)
     , CachedTotalJobCount_(-1)
     , CompletedFired_(false)
-    , CompetitiveJobManager_(std::bind(&TTask::AbortJobViaScheduler, this, _1, _2), Logger)
+    , CompetitiveJobManager_(std::bind(&TTask::AbortJobViaScheduler, this, _1, _2), Logger, 0)
 { }
 
 TTask::TTask(ITaskHostPtr taskHost, std::vector<TEdgeDescriptor> edgeDescriptors)
@@ -58,7 +58,10 @@ TTask::TTask(ITaskHostPtr taskHost, std::vector<TEdgeDescriptor> edgeDescriptors
     , CachedTotalJobCount_(0)
     , CompletedFired_(false)
     , InputChunkMapping_(New<TInputChunkMapping>())
-    , CompetitiveJobManager_(std::bind(&TTask::AbortJobViaScheduler, this, _1, _2), Logger)
+    , CompetitiveJobManager_(
+        std::bind(&TTask::AbortJobViaScheduler, this, _1, _2),
+        Logger,
+        taskHost->GetSpec()->MaxSpeculativeJobCountPerTask)
 { }
 
 TTask::TTask(ITaskHostPtr taskHost)
@@ -143,7 +146,7 @@ TJobResources TTask::GetTotalNeededResources() const
 {
     i64 count = GetPendingJobCount();
     // NB: Don't call GetMinNeededResources if there are no pending jobs.
-    return count == 0 ? ZeroJobResources() : GetMinNeededResources().ToJobResources() * count;
+    return count == 0 ? TJobResources() : GetMinNeededResources().ToJobResources() * count;
 }
 
 bool TTask::IsStderrTableEnabled() const
@@ -261,7 +264,7 @@ void TTask::ScheduleJob(
     const TJobResourcesWithQuota& jobLimits,
     const TString& treeId,
     bool treeIsTentative,
-    TScheduleJobResult* scheduleJobResult)
+    TControllerScheduleJobResult* scheduleJobResult)
 {
     if (auto failReason = GetScheduleFailReason(context)) {
         scheduleJobResult->RecordFail(*failReason);
@@ -270,6 +273,13 @@ void TTask::ScheduleJob(
 
     if (treeIsTentative && !TentativeTreeEligibility_.CanScheduleJob(treeId, treeIsTentative)) {
         scheduleJobResult->RecordFail(EScheduleJobFailReason::TentativeTreeDeclined);
+        return;
+    }
+
+    auto* chunkPoolOutput = GetChunkPoolOutput();
+    bool speculative = chunkPoolOutput->GetPendingJobCount() == 0;
+    if (speculative && treeIsTentative) {
+        scheduleJobResult->RecordFail(EScheduleJobFailReason::TentativeSpeculativeForbidden);
         return;
     }
 
@@ -282,10 +292,8 @@ void TTask::ScheduleJob(
     auto nodeId = context->GetNodeDescriptor().Id;
     const auto& address = context->GetNodeDescriptor().Address;
 
-    auto* chunkPoolOutput = GetChunkPoolOutput();
-    joblet->Speculative = chunkPoolOutput->GetPendingJobCount() == 0;
-
-    if (joblet->Speculative) {
+    if (speculative) {
+        joblet->Speculative = true;
         joblet->OutputCookie = CompetitiveJobManager_.PeekSpeculativeCandidate();
     } else {
         auto localityNodeId = HasInputLocality() ? nodeId : InvalidNodeId;
@@ -432,13 +440,13 @@ void TTask::ScheduleJob(
     OnJobStarted(joblet);
 
     if (TaskHost_->GetJobSplitter()) {
-        TaskHost_->GetJobSplitter()->OnJobStarted(joblet->JobId, joblet->InputStripeList);
+        TaskHost_->GetJobSplitter()->OnJobStarted(joblet->JobId, joblet->InputStripeList, IsJobInterruptible());
     }
 }
 
-void TTask::RegisterSpeculativeJob(const TJobletPtr& joblet)
+bool TTask::TryRegisterSpeculativeJob(const TJobletPtr& joblet)
 {
-    CompetitiveJobManager_.AddSpeculativeCandidate(joblet);
+    return CompetitiveJobManager_.TryRegisterSpeculativeCandidate(joblet);
 }
 
 bool TTask::IsJobInterruptible() const
@@ -685,6 +693,7 @@ void TTask::OnStripeRegistrationFailed(
 
 void TTask::OnTaskCompleted()
 {
+    YCHECK(CompetitiveJobManager_.GetProgressCounter()->GetTotal() == 0);
     YT_LOG_DEBUG("Task completed");
 }
 

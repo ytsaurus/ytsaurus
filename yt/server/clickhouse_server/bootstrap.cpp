@@ -6,11 +6,11 @@
 
 #include "config.h"
 #include "directory.h"
-#include "logger.h"
 #include "query_context.h"
 #include "security_manager.h"
 
 #include <yt/server/lib/admin/admin_service.h>
+#include <yt/server/lib/core_dump/core_dumper.h>
 
 #include <yt/ytlib/program/build_attributes.h>
 #include <yt/ytlib/program/configure_singletons.h>
@@ -21,7 +21,6 @@
 #include <yt/ytlib/monitoring/http_integration.h>
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 #include <yt/ytlib/orchid/orchid_service.h>
-#include <yt/ytlib/core_dump/core_dumper.h>
 
 #include <yt/client/api/client.h>
 #include <yt/client/api/client_cache.h>
@@ -65,7 +64,6 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ServerLogger;
-const NLogging::TLogger EngineLogger("Engine");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -152,15 +150,12 @@ void TBootstrap::DoRun()
 
     ClientCache_ = New<NApi::NNative::TClientCache>(Config_->ClientCache, Connection_);
 
-    auto logger = CreateLogger(EngineLogger);
-
     RootClient_ = ClientCache_->GetClient(Config_->User);
 
     CoordinationService = CreateCoordinationService(RootClient_, CliqueId_);
 
     ClickHouseHost_ = New<TClickHouseHost>(
         this,
-        logger,
         CoordinationService,
         Config_,
         CliqueId_,

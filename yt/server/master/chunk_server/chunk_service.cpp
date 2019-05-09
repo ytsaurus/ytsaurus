@@ -206,7 +206,9 @@ private:
                     auto* target = targets[index];
                     auto replica = TNodePtrWithIndexes(target, GenericChunkReplicaIndex, sessionId.MediumIndex);
                     builder.Add(replica);
-                    subresponse->add_replicas(ToProto<ui32>(replica));
+                    subresponse->add_replicas(ToProto<ui64>(replica));
+                    // COMPAT(aozeritsky)
+                    subresponse->add_replicas_old(ToProto<ui32>(replica));
                 }
 
                 YT_LOG_DEBUG("Write targets allocated "

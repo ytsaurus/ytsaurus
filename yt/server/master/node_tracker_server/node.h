@@ -32,7 +32,7 @@ namespace NYT::NNodeTrackerServer {
 
 struct TCellNodeStatistics
 {
-    NChunkClient::TPerMediumArray<i64> ChunkReplicaCount = {};
+    NChunkClient::TMediumMap<i64> ChunkReplicaCount;
 };
 
 TCellNodeStatistics& operator+=(TCellNodeStatistics& lhs, const TCellNodeStatistics& rhs);
@@ -62,10 +62,10 @@ public:
     using TJobId = NChunkServer::TJobId;
     using TJobPtr = NChunkServer::TJobPtr;
     template <typename T>
-    using TPerMediumArray = NChunkClient::TPerMediumArray<T>;
+    using TMediumMap = NChunkClient::TMediumMap<T>;
     using TMediumIndexSet = std::bitset<NChunkClient::MaxMediumCount>;
 
-    DEFINE_BYREF_RW_PROPERTY(TPerMediumArray<double>, IOWeights);
+    DEFINE_BYREF_RW_PROPERTY(TMediumMap<double>, IOWeights);
 
     // Transient property.
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, LastGossipState, ENodeState::Unknown);
@@ -112,16 +112,16 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(bool, Decommissioned);
 
     using TFillFactorIterator = std::optional<NChunkServer::TFillFactorToNodeIterator>;
-    using TFillFactorIterators = TPerMediumArray<TFillFactorIterator>;
+    using TFillFactorIterators = TMediumMap<TFillFactorIterator>;
 
     using TLoadFactorIterator = std::optional<NChunkServer::TLoadFactorToNodeIterator>;
-    using TLoadFactorIterators = TPerMediumArray<TLoadFactorIterator>;
+    using TLoadFactorIterators = TMediumMap<TLoadFactorIterator>;
 
     DEFINE_BYREF_RW_PROPERTY(TFillFactorIterators, FillFactorIterators);
     DEFINE_BYREF_RW_PROPERTY(TLoadFactorIterators, LoadFactorIterators);
-    TFillFactorIterator GetFillFactorIterator(int mediumIndex);
+    TFillFactorIterator GetFillFactorIterator(int mediumIndex) const;
     void SetFillFactorIterator(int mediumIndex, TFillFactorIterator iter);
-    TLoadFactorIterator GetLoadFactorIterator(int mediumIndex);
+    TLoadFactorIterator GetLoadFactorIterator(int mediumIndex) const;
     void SetLoadFactorIterator(int mediumIndex, TLoadFactorIterator iter);
 
     DEFINE_BYVAL_RO_PROPERTY(bool, DisableWriteSessions);
@@ -133,7 +133,7 @@ public:
 
     // NB: Randomize replica hashing to avoid collisions during balancing.
     using TMediumReplicaSet = THashSet<TChunkPtrWithIndexes>;
-    using TReplicaSet = TPerMediumArray<TMediumReplicaSet>;
+    using TReplicaSet = TMediumMap<TMediumReplicaSet>;
     DEFINE_BYREF_RO_PROPERTY(TReplicaSet, Replicas);
 
     //! Maps replicas to the leader timestamp when this replica was registered by a client.
@@ -295,20 +295,20 @@ private:
     NNodeTrackerClient::TNodeAddressMap NodeAddresses_;
     TString DefaultAddress_;
 
-    TPerMediumArray<int> HintedUserSessionCount_;
-    TPerMediumArray<int> HintedReplicationSessionCount_;
-    TPerMediumArray<int> HintedRepairSessionCount_;
+    TMediumMap<int> HintedUserSessionCount_;
+    TMediumMap<int> HintedReplicationSessionCount_;
+    TMediumMap<int> HintedRepairSessionCount_;
 
     int TotalHintedUserSessionCount_;
     int TotalHintedReplicationSessionCount_;
     int TotalHintedRepairSessionCount_;
 
-    TPerMediumArray<TMediumReplicaSet::iterator> RandomReplicaIters_;
+    TMediumMap<TMediumReplicaSet::iterator> RandomReplicaIters_;
 
-    TPerMediumArray<ui64> VisitMarks_{};
+    TMediumMap<ui64> VisitMarks_{};
 
-    TPerMediumArray<std::optional<double>> FillFactors_;
-    TPerMediumArray<std::optional<int>> SessionCount_;
+    TMediumMap<std::optional<double>> FillFactors_;
+    TMediumMap<std::optional<int>> SessionCount_;
 
     ENodeState* LocalStatePtr_ = nullptr;
     ENodeState AggregatedState_ = ENodeState::Unknown;

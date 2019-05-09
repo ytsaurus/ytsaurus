@@ -444,7 +444,10 @@ std::vector<TInputDataSlicePtr> FetchDataSlices(
     return std::move(dataSliceFetcher->DataSlices());
 }
 
-NChunkPools::TChunkStripeListPtr SubdivideDataSlices(const std::vector<TInputDataSlicePtr>& dataSlices, int jobCount)
+NChunkPools::TChunkStripeListPtr SubdivideDataSlices(
+    const std::vector<TInputDataSlicePtr>& dataSlices,
+    int jobCount,
+    std::optional<double> samplingRate)
 {
     if (jobCount == 0) {
         jobCount = 1;
@@ -457,6 +460,20 @@ NChunkPools::TChunkStripeListPtr SubdivideDataSlices(const std::vector<TInputDat
     for (const auto& dataSlice : dataSlices) {
         totalDataWeight += dataSlice->GetDataWeight();
         totalRowCount += dataSlice->GetRowCount();
+    }
+
+    if (totalRowCount * samplingRate.value_or(1.0) < 1.0) {
+        return result;
+    }
+
+    int originalJobCount = jobCount;
+
+    constexpr int MaxJobCount = 1000 * 1000;
+
+    if (samplingRate) {
+        double rate = samplingRate.value();
+        rate = std::max(rate, static_cast<double>(jobCount) / MaxJobCount);
+        jobCount = std::floor(jobCount / rate);
     }
 
     int currentDataSliceIndex = 0;
@@ -508,8 +525,7 @@ NChunkPools::TChunkStripeListPtr SubdivideDataSlices(const std::vector<TInputDat
             i64 currentDataWeight =
                 static_cast<double>(upperRowIndex - currentLowerRowIndex) / dataSlice->GetRowCount() * dataSlice->GetDataWeight();
             bool finalDataSlice = false;
-            if (upperRowIndex < dataSliceUpperRowIndex ||
-                (upperRowIndex == dataSliceUpperRowIndex && currentDataSliceIndex == static_cast<int>(dataSlices.size()) - 1))
+            if (upperRowIndex < dataSliceUpperRowIndex || remainingStripeDataWeight - currentDataWeight <= 0)
             {
                 currentDataWeight = remainingStripeDataWeight;
                 finalDataSlice = true;
@@ -530,7 +546,7 @@ NChunkPools::TChunkStripeListPtr SubdivideDataSlices(const std::vector<TInputDat
                 currentLowerRowIndex = -1;
             }
 
-            if (finalDataSlice) {
+            if (finalDataSlice && !takeAllRemaining) {
                 break;
             }
         }
@@ -543,6 +559,17 @@ NChunkPools::TChunkStripeListPtr SubdivideDataSlices(const std::vector<TInputDat
     YCHECK(currentDataSliceIndex == static_cast<int>(dataSlices.size()));
     YCHECK(static_cast<int>(result->Stripes.size()) <= jobCount);
     YCHECK(result->GetAggregateStatistics().RowCount == totalRowCount);
+
+    if (originalJobCount != jobCount) {
+        TChunkStripeListPtr sampledList = New<TChunkStripeList>();
+        std::mt19937 gen;
+        std::shuffle(result->Stripes.begin(), result->Stripes.end(), gen);
+        for (int index = 0; index < std::min<int>(result->Stripes.size(), originalJobCount); ++index) {
+            auto stat = result->Stripes[index]->GetStatistics();
+            AddStripeToList(result->Stripes[index], stat.DataWeight, stat.RowCount, sampledList);
+        }
+        result.Swap(sampledList);
+    }
 
     return result;
 }

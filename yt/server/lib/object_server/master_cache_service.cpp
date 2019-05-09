@@ -13,7 +13,6 @@
 #include <yt/core/misc/string.h>
 #include <yt/core/misc/checksum.h>
 
-#include <yt/core/rpc/dispatcher.h>
 #include <yt/core/rpc/helpers.h>
 #include <yt/core/rpc/message.h>
 #include <yt/core/rpc/service_detail.h>
@@ -40,10 +39,11 @@ class TMasterCacheService
 public:
     TMasterCacheService(
         TMasterCacheServiceConfigPtr config,
+        IInvokerPtr invoker,
         IChannelPtr masterChannel,
         TRealmId masterCellId)
         : TServiceBase(
-            NRpc::TDispatcher::Get()->GetLightInvoker(),
+            std::move(invoker),
             TObjectServiceProxy::GetDescriptor(),
             ObjectServerLogger,
             masterCellId)
@@ -551,11 +551,13 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
 
 IServicePtr CreateMasterCacheService(
     TMasterCacheServiceConfigPtr config,
+    IInvokerPtr invoker,
     IChannelPtr masterChannel,
     TRealmId masterCellId)
 {
     return New<TMasterCacheService>(
         std::move(config),
+        std::move(invoker),
         std::move(masterChannel),
         masterCellId);
 }

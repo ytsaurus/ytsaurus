@@ -219,7 +219,8 @@ public:
         const TColumnFilter& columnFilter,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp,
-        bool produceAllVersions)
+        bool produceAllVersions,
+        const TSharedRange<TRowRange>& singletonClippingRange)
         : TSimpleVersionedChunkReaderBase(
             std::move(config),
             std::move(chunkMeta),
@@ -231,6 +232,7 @@ public:
             timestamp,
             produceAllVersions)
         , Ranges_(std::move(ranges))
+        , ClippingRange_(singletonClippingRange)
     {
         ReadyEvent_ = DoOpen(GetBlockSequence(), ChunkMeta_->Misc());
     }
@@ -265,9 +267,11 @@ public:
         i64 dataWeight = 0;
 
         while (rows->size() < rows->capacity()) {
-            if (CheckKeyLimit_ && KeyComparer_(BlockReader_->GetKey(), Ranges_[RangeIndex_].second) >= 0) {
+            if (CheckKeyLimit_ && KeyComparer_(
+                BlockReader_->GetKey(), GetCurrentRangeUpperKey()) >= 0)
+            {
                 if (++RangeIndex_ < Ranges_.Size()) {
-                    if (!BlockReader_->SkipToKey(Ranges_[RangeIndex_].first)) {
+                    if (!BlockReader_->SkipToKey(GetCurrentRangeLowerKey())) {
                         BlockEnded_ = true;
                         break;
                     } else {
@@ -311,6 +315,37 @@ private:
     size_t NextBlockIndex_ = 0;
     TSharedRange<TRowRange> Ranges_;
     size_t RangeIndex_ = 0;
+    TSharedRange<TRowRange> ClippingRange_;
+
+    const TKey& GetCurrentRangeLowerKey() const
+    {
+        return GetRangeLowerKey(RangeIndex_);
+    }
+
+    const TKey& GetCurrentRangeUpperKey() const
+    {
+        return GetRangeUpperKey(RangeIndex_);
+    }
+
+    const TKey& GetRangeLowerKey(int rangeIndex) const
+    {
+        if (rangeIndex == 0 && ClippingRange_) {
+            if (const auto& clippingLowerBound = ClippingRange_.Front().first) {
+                return std::max(clippingLowerBound, Ranges_[rangeIndex].first);
+            }
+        }
+        return Ranges_[rangeIndex].first;
+    }
+
+    const TKey& GetRangeUpperKey(int rangeIndex) const
+    {
+        if (rangeIndex + 1 == Ranges_.Size() && ClippingRange_) {
+            if (const auto& clippingUpperBound = ClippingRange_.Front().second) {
+                return std::min(clippingUpperBound, Ranges_[rangeIndex].second);
+            }
+        }
+        return Ranges_[rangeIndex].second;
+    }
 
     std::vector<TBlockFetcher::TBlockInfo> GetBlockSequence()
     {
@@ -319,34 +354,33 @@ private:
 
         std::vector<TBlockFetcher::TBlockInfo> blocks;
 
-        auto rangeIt = Ranges_.begin();
+        int rangeIndex = 0;
         auto blocksIt = blockIndexKeys.begin();
 
-        while (rangeIt != Ranges_.end()) {
+        while (rangeIndex != Ranges_.size()) {
             blocksIt = std::lower_bound(
                 blocksIt,
                 blockIndexKeys.end(),
-                rangeIt->first);
+                GetRangeLowerKey(rangeIndex));
 
             auto blockKeysEnd = std::lower_bound(
                 blocksIt,
                 blockIndexKeys.end(),
-                rangeIt->second);
+                GetRangeUpperKey(rangeIndex));
 
             if (blockKeysEnd != blockIndexKeys.end()) {
-                auto saved = rangeIt;
-                rangeIt = std::upper_bound(
-                    rangeIt,
-                    Ranges_.end(),
-                    *blockKeysEnd,
-                    [] (TKey key, const TRowRange& rowRange) {
-                        return key < rowRange.second;
+                auto saved = rangeIndex;
+                rangeIndex = LowerBound(
+                    rangeIndex,
+                    static_cast<int>(Ranges_.size()),
+                    [&] (int index) {
+                        return GetRangeUpperKey(index) <= *blockKeysEnd;
                     });
 
                 ++blockKeysEnd;
-                YCHECK(rangeIt > saved);
+                YCHECK(rangeIndex > saved);
             } else {
-                ++rangeIt;
+                ++rangeIndex;
             }
 
             for (auto it = blocksIt; it < blockKeysEnd; ++it) {
@@ -367,7 +401,7 @@ private:
         int chunkBlockIndex = BlockIndexes_[NextBlockIndex_];
         CheckBlockUpperKeyLimit(
             ChunkMeta_->BlockLastKeys()[chunkBlockIndex],
-            Ranges_[RangeIndex_].second,
+            GetCurrentRangeUpperKey(),
             ChunkMeta_->GetKeyColumnCount());
 
         YCHECK(CurrentBlock_ && CurrentBlock_.IsSet());
@@ -392,7 +426,7 @@ private:
     virtual void InitNextBlock() override
     {
         LoadBlock();
-        YCHECK(BlockReader_->SkipToKey(Ranges_[RangeIndex_].first));
+        YCHECK(BlockReader_->SkipToKey(GetCurrentRangeLowerKey()));
         ++NextBlockIndex_;
     }
 
@@ -1573,10 +1607,31 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TSharedRange<TRowRange> ranges,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
-    bool produceAllVersions)
+    bool produceAllVersions,
+    const TSharedRange<TRowRange>& singletonClippingRange)
 {
     const auto& blockCache = chunkState->BlockCache;
     const auto& performanceCounters = chunkState->PerformanceCounters;
+
+    auto getCappedBounds = [&ranges, &singletonClippingRange] {
+        TKey lowerBound = ranges.Front().first;
+        TKey upperBound = ranges.Back().second;
+
+        YCHECK(singletonClippingRange.Size() <= 1);
+        if (singletonClippingRange.Size() > 0) {
+            TKey clippedLowerBound = singletonClippingRange.Front().first;
+            TKey clippedUpperBound = singletonClippingRange.Front().second;
+            if (clippedLowerBound && clippedLowerBound > lowerBound) {
+                lowerBound = clippedLowerBound;
+            }
+            if (clippedUpperBound && clippedUpperBound < upperBound) {
+                upperBound = clippedUpperBound;
+            }
+        }
+
+        SmallVector<TRowRange, 1> cappedBounds(1, TRowRange(lowerBound, upperBound));
+        return MakeSharedRange(std::move(cappedBounds), ranges.GetHolder(), singletonClippingRange.GetHolder());
+    };
 
     switch (chunkMeta->GetChunkFormat()) {
         case ETableChunkFormat::VersionedSimple:
@@ -1590,15 +1645,12 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 columnFilter,
                 performanceCounters,
                 timestamp,
-                produceAllVersions);
+                produceAllVersions,
+                singletonClippingRange);
 
         case ETableChunkFormat::VersionedColumnar: {
             YCHECK(!ranges.Empty());
             IVersionedReaderPtr reader;
-
-            SmallVector<TRowRange, 1> cappedBounds(1, TRowRange(
-                ranges.Front().first,
-                ranges.Back().second));
 
             if (timestamp == AllCommittedTimestamp) {
                 reader = New<TColumnarVersionedRangeChunkReader<TCompactionColumnarRowBuilder>>(
@@ -1607,7 +1659,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     std::move(chunkReader),
                     blockCache,
                     blockReadOptions,
-                    MakeSharedRange(std::move(cappedBounds), ranges.GetHolder()),
+                    getCappedBounds(),
                     columnFilter,
                     performanceCounters,
                     timestamp);
@@ -1618,7 +1670,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     std::move(chunkReader),
                     blockCache,
                     blockReadOptions,
-                    MakeSharedRange(std::move(cappedBounds), ranges.GetHolder()),
+                    getCappedBounds(),
                     columnFilter,
                     performanceCounters,
                     timestamp);
@@ -1643,9 +1695,11 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 auto options = New<TTableReaderOptions>();
                 options->DynamicTable = true;
 
+                auto cappedBounds = getCappedBounds();
+
                 TReadRange readRange(
-                    TReadLimit(TOwningKey(ranges.Front().first)),
-                    TReadLimit(TOwningKey(ranges.Back().second)));
+                    TReadLimit(TOwningKey(cappedBounds.Front().first)),
+                    TReadLimit(TOwningKey(cappedBounds.Front().second)));
 
                 return CreateSchemalessChunkReader(
                     chunkState,

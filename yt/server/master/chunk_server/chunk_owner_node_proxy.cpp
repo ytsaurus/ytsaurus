@@ -303,7 +303,7 @@ private:
 
         for (auto replica : replicas) {
             NodeDirectoryBuilder_.Add(replica);
-            chunkSpec->add_replicas(NYT::ToProto<ui32>(replica));
+            chunkSpec->add_replicas(NYT::ToProto<ui64>(replica));
         }
 
         ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
@@ -365,6 +365,11 @@ private:
         }
 
         return true;
+    }
+
+    virtual bool OnChunkView(TChunkView* /*chunkView*/) override
+    {
+        return false;
     }
 
     virtual void OnFinish(const TError& error) override
@@ -1092,7 +1097,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
     if (fetchLastKey) {
         TOwningKey lastKey;
         if (!IsEmpty(snapshotChunkList)) {
-            lastKey = GetMaxKey(snapshotChunkList);
+            lastKey = GetUpperBoundKey(snapshotChunkList);
         }
         ToProto(response->mutable_last_key(), lastKey);
     }

@@ -68,7 +68,7 @@ const TDataStatistics& TMemoryWriter::GetDataStatistics() const
     Y_UNIMPLEMENTED();
 }
 
-TChunkReplicaList TMemoryWriter::GetWrittenChunkReplicas() const
+TChunkReplicaWithMediumList TMemoryWriter::GetWrittenChunkReplicas() const
 {
     Y_UNIMPLEMENTED();
 }

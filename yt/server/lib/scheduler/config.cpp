@@ -289,7 +289,7 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("node_shard_count", NodeShardCount)
         .Default(4)
-        .GreaterThan(0);
+        .InRange(1, MaxNodeShardCount);
 
     RegisterParameter("connect_retry_backoff_time", ConnectRetryBackoffTime)
         .Default(TDuration::Seconds(15));
@@ -419,13 +419,16 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(TDuration::Seconds(30));
 
     RegisterParameter("pool_change_is_allowed", PoolChangeIsAllowed)
-        .Default(false);
-
-    RegisterParameter("max_offline_node_age", MaxOfflineNodeAge)
-        .Default(TDuration::Hours(12));
+        .Default(true);
 
     RegisterParameter("skip_operations_with_malformed_spec_during_revival", SkipOperationsWithMalformedSpecDuringRevival)
         .Default(false);
+    
+    RegisterParameter("max_offline_node_age", MaxOfflineNodeAge)
+        .Default(TDuration::Hours(12));
+
+    RegisterParameter("max_node_unseen_period_to_abort_jobs", MaxNodeUnseenPeriodToAbortJobs)
+        .Default(TDuration::Minutes(5));
 
     RegisterParameter("orchid_worker_thread_count", OrchidWorkerThreadCount)
         .Default(4)

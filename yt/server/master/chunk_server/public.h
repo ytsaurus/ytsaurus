@@ -26,6 +26,7 @@ namespace NYT::NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 using NChunkClient::TChunkId;
+using NChunkClient::TChunkViewId;
 using NChunkClient::TChunkListId;
 using NChunkClient::TChunkTreeId;
 using NChunkClient::TMediumId;
@@ -41,8 +42,8 @@ using NChunkClient::MediumIndexBound;
 using NChunkClient::DefaultStoreMediumIndex;
 using NChunkClient::MaxMediumPriority;
 using NChunkClient::TDataCenterName;
-using NChunkClient::TPerMediumArray;
-using NChunkClient::TPerMediumIntArray;
+using NChunkClient::TMediumMap;
+using NChunkClient::TMediumIntMap;
 
 using NJobTrackerClient::TJobId;
 using NJobTrackerClient::EJobType;
@@ -61,6 +62,7 @@ using NNodeTrackerServer::TNodeList;
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENTITY_TYPE(TChunk, TChunkId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TChunkView, TChunkViewId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TChunkList, TChunkListId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TMedium, TMediumId, NObjectClient::TDirectObjectIdHash)
 

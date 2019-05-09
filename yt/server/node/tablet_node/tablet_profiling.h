@@ -11,23 +11,22 @@ namespace NYT::NTabletNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 void ProfileChunkWriter(
-    TTabletSnapshotPtr tabletSnapshot,
+    const TTabletSnapshotPtr& tabletSnapshot,
     const NChunkClient::NProto::TDataStatistics&,
     const NChunkClient::TCodecStatistics& codecStatistics,
     NProfiling::TTagId methodTag);
 
 void ProfileChunkReader(
-    TTabletSnapshotPtr tabletSnapshot,
+    const TTabletSnapshotPtr& tabletSnapshot,
     const NChunkClient::NProto::TDataStatistics& dataStatistics,
     const NChunkClient::TCodecStatistics& codecStatistics,
     const NChunkClient::TChunkReaderStatisticsPtr& chunkReaderStatistics,
     NProfiling::TTagId methodTag);
 
-////////////////////////////////////////////////////////////////////////////////
-
 void ProfileDynamicMemoryUsage(
     const NProfiling::TTagIdList& tags,
-    i64 delta);
+    ETabletDynamicMemoryType memoryType,
+    i64 memoryUsage);
 
 ////////////////////////////////////////////////////////////////////////////////
 

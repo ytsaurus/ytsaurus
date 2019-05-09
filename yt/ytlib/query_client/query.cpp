@@ -750,6 +750,9 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
     ToProto(serialized->mutable_read_session_id(), original.ReadSessionId);
     serialized->set_deadline(ToProto<ui64>(original.Deadline));
     serialized->set_memory_limit_per_node(original.MemoryLimitPerNode);
+    if (original.ExecutionPool) {
+        serialized->set_execution_pool(*original.ExecutionPool);
+    }
 }
 
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
@@ -769,6 +772,10 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
 
     if (serialized.has_memory_limit_per_node()) {
         original->MemoryLimitPerNode = serialized.memory_limit_per_node();
+    }
+
+    if (serialized.has_execution_pool()) {
+        original->ExecutionPool = serialized.execution_pool();
     }
 
     original->Deadline = serialized.has_deadline()

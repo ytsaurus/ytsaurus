@@ -143,7 +143,8 @@ TOrderedChunkStore::TOrderedChunkStore(
     : TStoreBase(config, id, tablet)
     , TChunkStoreBase(
         config,
-        id,
+        id /*storeId*/,
+        id /*chunkId*/,
         tablet,
         blockCache,
         chunkRegistry,
@@ -151,15 +152,8 @@ TOrderedChunkStore::TOrderedChunkStore(
         chunkMetaManager,
         client,
         localDescriptor)
-    , TOrderedStoreBase(config, id, tablet)
-{
-    YT_LOG_DEBUG("Ordered chunk store created");
-}
-
-TOrderedChunkStore::~TOrderedChunkStore()
-{
-    YT_LOG_DEBUG("Ordered chunk store destroyed");
-}
+    , TOrderedStoreBase(std::move(config), id, tablet)
+{ }
 
 void TOrderedChunkStore::Initialize(const TAddStoreDescriptor* descriptor)
 {

@@ -93,7 +93,7 @@ struct TRuntimeTabletData
     std::atomic<TTimestamp> UnflushedTimestamp = {MinTimestamp};
     std::atomic<TInstant> ModificationTime = {NProfiling::GetInstant()};
     std::atomic<TInstant> AccessTime = {TInstant::Zero()};
-    std::atomic<i64> DynamicMemoryPoolSize = {0};
+    TEnumIndexedVector<std::atomic<i64>, ETabletDynamicMemoryType> DynamicMemoryUsagePerType;
     TEnumIndexedVector<TAtomicObject<TError>, NTabletClient::ETabletBackgroundActivity> Errors;
 };
 
