@@ -252,6 +252,11 @@ void TAutoMergeTask::SetupCallbacks()
     TaskHost_->GetAutoMergeDirector()->SubscribeStateChanged(BIND(&TAutoMergeTask::UpdateSelf, MakeWeak(this)));
 }
 
+bool TAutoMergeTask::IsCompleted() const
+{
+    return TaskHost_->GetAutoMergeDirector()->IsTaskCompleted() && TTask::IsCompleted();
+}
+
 void TAutoMergeTask::Persist(const TPersistenceContext& context)
 {
     TTask::Persist(context);

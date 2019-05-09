@@ -60,7 +60,8 @@ public:
     //! that we should flush all remaining intermediate chunks.
     void OnTaskCompleted();
 
-    bool IsTaskCompleted();
+    //! Returns true if main task is completed.
+    bool IsTaskCompleted() const;
 
     //! Return maximum number of new task jobs that may be started in current situation.
     int GetTaskPendingJobCountLimit();
