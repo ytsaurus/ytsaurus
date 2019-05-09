@@ -55,13 +55,13 @@ private:
     void ValidateOpened()
     {
         if (!OpenResult_ || !OpenResult_.IsSet()) {
-            THROW_ERROR_EXCEPTION("Can't read from an unopened journal reader");
+            THROW_ERROR_EXCEPTION("Cannot read from an unopened journal reader");
         }
         OpenResult_.Get().ThrowOnError();
     }
 };
 
-IJournalReaderPtr CreateRpcProxyJournalReader(
+IJournalReaderPtr CreateJournalReader(
     TApiServiceProxy::TReqReadJournalPtr request)
 {
     return New<TJournalReader>(std::move(request));

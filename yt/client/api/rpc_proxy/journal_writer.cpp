@@ -66,7 +66,7 @@ private:
     void ValidateOpened()
     {
         if (!OpenResult_ || !OpenResult_.IsSet()) {
-            THROW_ERROR_EXCEPTION("Can't write into an unopened journal writer");
+            THROW_ERROR_EXCEPTION("Cannot write into an unopened journal writer");
         }
         OpenResult_.Get().ThrowOnError();
     }
@@ -79,7 +79,7 @@ private:
     }
 };
 
-IJournalWriterPtr CreateRpcProxyJournalWriter(
+IJournalWriterPtr CreateJournalWriter(
     TApiServiceProxy::TReqWriteJournalPtr request)
 {
     return New<TJournalWriter>(std::move(request));
