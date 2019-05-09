@@ -2210,7 +2210,12 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         }
     }
 
+    UpdateTask(joblet->Task);
     LogProgress();
+
+    if (IsCompleted()) {
+        OnOperationCompleted(/* interrupted */ false);
+    }
 }
 
 void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary, bool byScheduler)
@@ -2281,6 +2286,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     }
 
     CheckFailedJobsStatusReceived();
+    UpdateTask(joblet->Task);
     LogProgress();
 
     if (!byScheduler) {
@@ -2289,7 +2295,6 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
     if (IsCompleted()) {
         OnOperationCompleted(/* interrupted */ false);
-        return;
     }
 }
 

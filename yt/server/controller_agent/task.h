@@ -114,7 +114,7 @@ public:
 
     void DoCheckResourceDemandSanity(const TJobResourcesWithQuota& neededResources);
 
-    bool IsCompleted() const;
+    virtual bool IsCompleted() const;
 
     virtual bool IsActive() const;
 
