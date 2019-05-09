@@ -441,7 +441,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert len(row) == 0
 
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    @skip_if_rpc_driver_backend
     def test_lookup_versioned_retention(self, optimize_for):
         sync_create_cells(1)
         schema = [
@@ -803,7 +802,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         actual = lookup_rows("//tmp/t", [{"key2" : 1}])
         assert_items_equal(actual, expected)
 
-    @skip_if_rpc_driver_backend
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_aggregate_columns(self, optimize_for):
         sync_create_cells(1)
@@ -1746,7 +1744,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert expected == actual
 
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    @skip_if_rpc_driver_backend
     def test_versioned_lookup_unversioned_chunks(self, optimize_for):
         schema = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},

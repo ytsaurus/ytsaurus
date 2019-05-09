@@ -204,7 +204,7 @@ std::vector<TSharedRef>& TServiceContextBase::RequestAttachments()
     return RequestAttachments_;
 }
 
-NConcurrency::IAsyncZeroCopyInputStreamPtr TServiceContextBase::GetRequestAttachmentsStream()
+IAsyncZeroCopyInputStreamPtr TServiceContextBase::GetRequestAttachmentsStream()
 {
     return nullptr;
 }
@@ -226,7 +226,7 @@ std::vector<TSharedRef>& TServiceContextBase::ResponseAttachments()
     return ResponseAttachments_;
 }
 
-NConcurrency::IAsyncZeroCopyOutputStreamPtr TServiceContextBase::GetResponseAttachmentsStream()
+IAsyncZeroCopyOutputStreamPtr TServiceContextBase::GetResponseAttachmentsStream()
 {
     return nullptr;
 }
@@ -484,7 +484,7 @@ std::vector<TSharedRef>& TServiceContextWrapper::RequestAttachments()
     return UnderlyingContext_->RequestAttachments();
 }
 
-NConcurrency::IAsyncZeroCopyInputStreamPtr TServiceContextWrapper::GetRequestAttachmentsStream()
+IAsyncZeroCopyInputStreamPtr TServiceContextWrapper::GetRequestAttachmentsStream()
 {
     return UnderlyingContext_->GetRequestAttachmentsStream();
 }
@@ -499,7 +499,7 @@ const NProto::TRequestHeader& TServiceContextWrapper::RequestHeader() const
     return UnderlyingContext_->RequestHeader();
 }
 
-NConcurrency::IAsyncZeroCopyOutputStreamPtr TServiceContextWrapper::GetResponseAttachmentsStream()
+IAsyncZeroCopyOutputStreamPtr TServiceContextWrapper::GetResponseAttachmentsStream()
 {
     return UnderlyingContext_->GetResponseAttachmentsStream();
 }

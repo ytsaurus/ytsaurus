@@ -232,7 +232,7 @@ public:
         return TSharedRef(Begin() + startOffset, endOffset - startOffset, Holder_);
     }
 
-    //! Creates a TMutableRef for a part of existing range.
+    //! Creates a TSharedRef for a part of existing range.
     TSharedRef Slice(const void* begin, const void* end) const
     {
         Y_ASSERT(begin >= Begin());

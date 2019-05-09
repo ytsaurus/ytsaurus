@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait
+from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait, skip_if_rpc_driver_backend
 from yt_commands import *
 
 from flaky import flaky
@@ -165,6 +165,7 @@ class TestJobProber(YTEnvSetup):
         assert len(read_table("//tmp/t2")) == 4
 
     @unix_only
+    @skip_if_rpc_driver_backend
     def test_abandon_job_sorted_empty_output(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -184,6 +185,7 @@ class TestJobProber(YTEnvSetup):
         assert len(read_table("//tmp/t2")) == 0
 
     @unix_only
+    @skip_if_rpc_driver_backend
     def test_abandon_job_permissions(self):
         create_user("u1")
         create_user("u2")
@@ -273,6 +275,7 @@ class TestJobProber(YTEnvSetup):
 
     # Remove after YT-8596
     @flaky(max_runs=5)
+    @skip_if_rpc_driver_backend
     def test_poll_job_shell_command(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -302,6 +305,7 @@ class TestJobProber(YTEnvSetup):
         op.track()
         assert len(read_table("//tmp/t2")) == 0
 
+    @skip_if_rpc_driver_backend
     def test_poll_job_shell_permissions(self):
         create_user("u1")
         create_user("u2")
@@ -384,3 +388,11 @@ class TestJobProber(YTEnvSetup):
 class TestJobProberPorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
     USE_PORTO_FOR_SERVERS = True
+
+##################################################################
+
+class TestJobProberRpcProxy(TestJobProber):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_PROXY = True
+

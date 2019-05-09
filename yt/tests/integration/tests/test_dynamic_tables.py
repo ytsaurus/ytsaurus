@@ -892,7 +892,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assigned_node_cpu = get_cpu(peer)
         assert int(empty_node_cpu - assigned_node_cpu) == 0
 
-    @skip_if_rpc_driver_backend
     def test_bundle_node_list(self):
         create_tablet_cell_bundle("b", attributes={"node_tag_filter": "b"})
 
@@ -922,7 +921,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
 
-    @skip_if_rpc_driver_backend
     @pytest.mark.parametrize("is_sorted", [True, False])
     def test_column_selector_dynamic_tables(self, is_sorted):
         sync_create_cells(1)
