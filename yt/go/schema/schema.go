@@ -1,5 +1,7 @@
-// package schema defines schema of YT tables.
+// Package schema defines schema of YT tables.
 package schema
+
+import "reflect"
 
 type Type string
 
@@ -131,6 +133,10 @@ func (s Schema) SortedBy(keyColumns ...string) Schema {
 	}
 
 	return s
+}
+
+func (s Schema) Equal(other Schema) bool {
+	return reflect.DeepEqual(&s, &other)
 }
 
 // WithUniqueKeys returns copy of schema with UniqueKeys attribute set.

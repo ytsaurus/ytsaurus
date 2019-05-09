@@ -1,4 +1,4 @@
-// package guid implements YT flavor of uuid-s.
+// Package guid implements YT flavor of uuid-s.
 //
 // Unfortunately YT uses non standard text representation. Because of this we can't use gofrs/uuid directly.
 package guid

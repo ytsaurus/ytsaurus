@@ -1,4 +1,4 @@
-// package ypath defined type for working with YPath.
+// Package ypath defined type for working with YPath.
 //
 // YPath has two forms, simple and rich.
 //

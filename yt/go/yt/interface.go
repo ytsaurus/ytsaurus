@@ -1,4 +1,4 @@
-// package yt defines interfaces of different YT services.
+// Package yt defines interfaces of different YT services.
 //
 // All API methods follow the same conventions:
 //   - First argument is context.Context.

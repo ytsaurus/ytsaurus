@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"a.yandex-team.ru/yt/go/migrate"
+	"a.yandex-team.ru/yt/go/schema"
+
 	"a.yandex-team.ru/yt/go/yt"
 
 	"github.com/stretchr/testify/assert"
@@ -15,25 +18,25 @@ import (
 	"a.yandex-team.ru/yt/go/yttest"
 )
 
-const testTable = "//home/prime/table"
-
 type testKey struct {
-	Key string `yson:"key"`
+	Key string `yson:"table_key,key"`
 }
 
 type testRow struct {
-	Key   string `yson:"key"`
+	Key   string `yson:"table_key,key"`
 	Value string `yson:"value"`
 }
 
 func TestTablets(t *testing.T) {
-	t.SkipNow()
-
 	env, cancel := yttest.NewEnv(t)
 	defer cancel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 	defer cancel()
+
+	testTable := env.TmpPath().Child("table")
+	require.NoError(t, migrate.Create(env.Ctx, env.YT, testTable, schema.MustInfer(&testRow{})))
+	require.NoError(t, migrate.MountAndWait(env.Ctx, env.YT, testTable))
 
 	keys := []interface{}{
 		&testKey{"bar"},

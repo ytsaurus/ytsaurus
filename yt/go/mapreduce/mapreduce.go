@@ -1,4 +1,4 @@
-// package mapreduce is client to launching operations over YT.
+// Package mapreduce is client to launching operations over YT.
 package mapreduce
 
 import (

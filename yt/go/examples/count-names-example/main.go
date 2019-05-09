@@ -5,16 +5,12 @@ import (
 	"fmt"
 	"os"
 
-	"a.yandex-team.ru/yt/go/yt"
-
 	"a.yandex-team.ru/yt/go/guid"
-	"a.yandex-team.ru/yt/go/mapreduce/spec"
-
-	"a.yandex-team.ru/yt/go/ypath"
-
-	"a.yandex-team.ru/yt/go/yt/ythttp"
-
 	"a.yandex-team.ru/yt/go/mapreduce"
+	"a.yandex-team.ru/yt/go/mapreduce/spec"
+	"a.yandex-team.ru/yt/go/ypath"
+	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/yt/ythttp"
 )
 
 func init() {

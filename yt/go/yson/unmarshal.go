@@ -1,4 +1,4 @@
-// package yson implements encoding and decoding of YSON.
+// Package yson implements encoding and decoding of YSON.
 //
 // See https://wiki.yandex-team.ru/yt/userdoc/yson/ for introduction to YSON.
 //
