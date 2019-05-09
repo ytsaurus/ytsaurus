@@ -1262,7 +1262,7 @@ message TReqGetOperation
         NYT.NProto.TGuid operation_id = 1;
         string operation_alias = 4;
     }
-    // XXX(kiselyovp) change this to TAttributeKeys
+    // TODO(kiselyovp) change this to TAttributeKeys
     repeated string attributes = 2;
     optional bool include_runtime = 3 [default = false];
 
@@ -1465,6 +1465,94 @@ message TReqAbortJob
 }
 
 message TRspAbortJob
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// STREAMING
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqReadFile
+{
+    required string path = 1; // YPath
+
+    optional int64 offset = 2;
+    optional int64 length = 3;
+    optional bytes config = 4; // YSON-serialized TFileReaderConfig
+
+    optional TTransactionalOptions transactional_options = 100;
+    optional TSuppressableAccessTrackingOptions suppressable_access_tracking_options = 104;
+}
+
+message TReadFileMeta
+{
+    required uint64 revision = 1;
+}
+
+message TRspReadFile
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqWriteFile
+{
+    required string path = 1; // RichYPath
+
+    optional bool compute_md5 = 2 [default = false];
+    optional bytes config = 3; // YSON-serialized TFileWriterConfig
+
+    optional TTransactionalOptions transactional_options = 100;
+    optional TPrerequisiteOptions prerequisite_options = 101;
+}
+
+message TRspWriteFile
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqReadJournal
+{
+    required string path = 1; // YPath
+
+    optional int64 first_row_index = 2;
+    optional int64 row_count = 3;
+    optional bytes config = 4; // YSON-serialized TJournalReaderConfig
+
+    optional TTransactionalOptions transactional_options = 100;
+    optional TSuppressableAccessTrackingOptions suppressable_access_tracking_options = 104;
+}
+
+message TRspReadJournal
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqWriteJournal
+{
+    required string path = 1; // YPath
+
+    optional bytes config = 2; // YSON-serialized TJournalWriterConfig
+    optional bool enable_multiplexing = 3 [default = true];
+
+    optional TTransactionalOptions transactional_options = 100;
+    optional TPrerequisiteOptions prerequisite_options = 101;
+}
+
+message TRspWriteJournal
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqGetJobInput
+{
+    required NYT.NProto.TGuid job_id = 1;
+}
+
+message TRspGetJobInput
 {
 }
 

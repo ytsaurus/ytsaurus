@@ -1,9 +1,10 @@
 import hashlib
 import pytest
+from io import TextIOBase
 
-from yt_env_setup import YTEnvSetup
+from yt.common import YtError
+from yt_env_setup import YTEnvSetup, skip_if_rpc_driver_backend
 from yt_commands import *
-from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
@@ -243,3 +244,96 @@ class TestFiles(YTEnvSetup):
 
 class TestFilesMulticell(TestFiles):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+class TestFilesRpcProxy(TestFiles):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_PROXY = True
+
+class TestFileErrorsRpcProxy(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 2
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_PROXY = True
+    DELTA_DRIVER_CONFIG = {"default_streaming_stall_timeout": 1500}
+
+    class FaultyStringStream(TextIOBase):
+        def __init__(self, data):
+            self._position = 0
+            self._data = data
+
+        def read(self, size):
+            if size < 0:
+                raise ValueError()
+
+            if self._position == len(self._data):
+               raise RuntimeError("surprise")
+
+            result = self._data[self._position:self._position + size]
+            self._position = min(self._position + size, len(self._data))
+
+            return result
+
+    def test_faulty_client(self):
+        create("file", "//tmp/file")
+        write_file("//tmp/file", "abacaba")
+
+        tx = start_transaction()
+        with pytest.raises(YtError):
+            write_file(
+                "<append=true>//tmp/file",
+                None,
+                input_stream=self.FaultyStringStream("dabacaba"),
+                tx=tx)
+
+        wait(lambda: get("//sys/transactions/{0}/@nested_transaction_ids".format(tx)) == [])
+        assert read_file("//tmp/file") == "abacaba"
+
+    def test_faulty_server(self):
+        create("file", "//tmp/file")
+        write_file("//tmp/file", "abacaba")
+        assert read_file("//tmp/file") == "abacaba"
+
+        nodes = ls("//sys/cluster_nodes")
+        set_node_banned(nodes[0], True)
+
+        with pytest.raises(YtError):
+            write_file(
+                "<append=true>//tmp/file",
+                "dabacaba")
+
+        set_node_banned(nodes[1], True)
+        with pytest.raises(YtError):
+            read_file("//tmp/file")
+
+        set_node_banned(nodes[0], False)
+        set_node_banned(nodes[1], False)
+        assert retry(lambda: read_file("//tmp/file")) == "abacaba"
+
+class TestBigFilesRpcProxy(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 5
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_PROXY = True
+
+    def test_big_files(self):
+        alphabet_size = 25
+        data = ""
+        for i in xrange(alphabet_size):
+            data += chr(ord('a') + i) + data
+
+        create("file", "//tmp/abacaba")
+        write_file("//tmp/abacaba", data)
+
+        contents = read_file("//tmp/abacaba", verbose=False)
+        assert contents == data
+
+class TestBigFilesWithCompressionRpcProxy(TestBigFilesRpcProxy):
+    DELTA_DRIVER_CONFIG = {
+        "request_codec": "lz4",
+        "response_codec": "quick_lz",
+        "enable_legacy_rpc_codecs": False
+    }
+

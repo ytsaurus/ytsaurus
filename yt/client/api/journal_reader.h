@@ -20,6 +20,7 @@ struct IJournalReader
     //! Reads another portion of the journal.
     //! Each row is passed in its own TSharedRef.
     //! When no more rows remain, an empty vector is returned.
+    //! One must not call #Read again before the previous call is complete.
     virtual TFuture<std::vector<TSharedRef>> Read() = 0;
 };
 

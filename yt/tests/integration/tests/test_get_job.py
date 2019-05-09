@@ -1,8 +1,6 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
-from test_rpc_proxy import create_input_table
-
 import yt.environment.init_operation_archive as init_operation_archive
 
 from yt.common import date_string_to_datetime
@@ -44,12 +42,9 @@ class TestGetJob(YTEnvSetup):
         remove("//sys/operations_archive")
 
     def test_get_job(self):
-        create_input_table("//tmp/t1",
-            [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}],
-            [{"name": "foo", "type": "string"}],
-            driver_backend=self.DRIVER_BACKEND)
-
+        create("table", "//tmp/t1")
         create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
         job_id_file = os.path.join(self._tmpdir, "jobids")
         before_start_time = datetime.datetime.utcnow()
