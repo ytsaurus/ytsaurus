@@ -6,7 +6,7 @@
 #include <library/unittest/registar.h>
 
 #include <util/string/join.h>
-#include <util/string/iterator.h>
+#include <util/string/split.h>
 
 using namespace NYT;
 using namespace NYT::NTesting;
