@@ -53,7 +53,7 @@ class TestMonitoring(YTEnvSetup):
     @pytest.mark.parametrize("component", ["master"])
     def test_component_http_tracing(self, component):
         http_port = self.Env.configs[component][0]["monitoring_port"]
-        url = "http://localhost:{}/tracing/traces?start_index=0&limit=1000".format(http_port)
+        url = "http://localhost:{}/tracing/traces/v2?start_index=0&limit=1000".format(http_port)
         
         rsp = requests.get(url)
         assert rsp.status_code == 200
