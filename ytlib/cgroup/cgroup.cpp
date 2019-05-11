@@ -58,7 +58,7 @@ std::vector<TString> ReadAllValues(const TString& fileName)
         raw);
 
     TVector<TString> values;
-    Split(raw.data(), " \n", values);
+    StringSplitter(raw.data()).SplitBySet(" \n").SkipEmpty().Collect(&values);
     return std::vector<TString>(values.begin(), values.end());
 }
 
@@ -739,7 +739,7 @@ std::map<TString, TString> ParseProcessCGroups(const TString& str)
     std::map<TString, TString> result;
 
     TVector<TString> values;
-    Split(str.data(), ":\n", values);
+    StringSplitter(str.data()).SplitBySet(":\n").SkipEmpty().Collect(&values);
     for (size_t i = 0; i + 2 < values.size(); i += 3) {
         FromString<int>(values[i]);
 
@@ -747,7 +747,7 @@ std::map<TString, TString> ParseProcessCGroups(const TString& str)
         const TString& name = values[i + 2];
 
         TVector<TString> subsystems;
-        Split(subsystemsSet.data(), ",", subsystems);
+        StringSplitter(subsystemsSet.data()).Split(',').SkipEmpty().Collect(&subsystems);
         for (const auto& subsystem : subsystems) {
             if (!subsystem.StartsWith("name=")) {
                 int start = 0;
