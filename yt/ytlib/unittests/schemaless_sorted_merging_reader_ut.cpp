@@ -199,7 +199,8 @@ protected:
             reader->Interrupt();
             interrupted = true;
         }
-        WaitFor(reader->GetReadyEvent());
+        WaitFor(reader->GetReadyEvent())
+            .ThrowOnError();
         while (reader->Read(&rows)) {
             if (!rows.empty()) {
                 lastReadRow = ToString(rows.back());
@@ -209,7 +210,8 @@ protected:
                 reader->Interrupt();
                 interrupted = true;
             }
-            WaitFor(reader->GetReadyEvent());
+            WaitFor(reader->GetReadyEvent())
+                .ThrowOnError();
         }
         reader->GetInterruptDescriptor(NYT::TRange<TUnversionedRow>());
         EXPECT_EQ(readRowCount, expectedReadRowCount);
@@ -230,12 +232,14 @@ protected:
         auto reader = createReader(resultStorage);
         std::vector<TUnversionedRow> rows;
         rows.reserve(1);
-        WaitFor(reader->GetReadyEvent());
+        WaitFor(reader->GetReadyEvent())
+            .ThrowOnError();
         while (reader->Read(&rows)) {
             for (const auto& row : rows) {
                 result.emplace_back(ToString(row));
             }
-            WaitFor(reader->GetReadyEvent());
+            WaitFor(reader->GetReadyEvent())
+                .ThrowOnError();
         }
         return result;
     }

@@ -6,7 +6,6 @@ PY_ANY_MODULE(yson_lib PREFIX "")
 CXXFLAGS(
     ${YT_ARCADIA_CXXFLAGS}
     ${PYCXX_FLAGS}
-    -Wno-writable-strings
 )
 CFLAGS(${YT_ARCADIA_CFLAGS})
 
