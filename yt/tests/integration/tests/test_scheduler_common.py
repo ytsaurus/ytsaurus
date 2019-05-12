@@ -3074,7 +3074,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
         print >>sys.stderr, "=== stdout ==="
         print >>sys.stderr, stdout
         assert child.returncode == 0
-        assert "AssertionFailureInPrepare" in stdout
+        assert "OperationControllerBase" in stdout
 
     def test_unexpected_exception(self):
         create("table", "//tmp/t_in")
