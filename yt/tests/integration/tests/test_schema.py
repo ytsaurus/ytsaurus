@@ -295,7 +295,6 @@ class TestComplexTypes(YTEnvSetup):
                 "dynamic": True})
 
     def test_complex_types_disallowed_alter(self):
-        sync_create_cells(1)
         create("table", "//table", attributes={
             "schema": make_schema([
                 {
@@ -313,6 +312,18 @@ class TestComplexTypes(YTEnvSetup):
                 },
             ]))
 
+        with pytest.raises(YtError):
+            alter_table("//table", schema=make_schema([
+                {
+                    "name": "column",
+                    "type_v2": list_type("int64"),
+                },
+                {
+                    "name": "column2",
+                    "type_v2": list_type("int64"),
+                },
+            ]))
+
         alter_table("//table", schema=make_schema([
             {
                 "name": "column",
@@ -320,7 +331,7 @@ class TestComplexTypes(YTEnvSetup):
             },
             {
                 "name": "column2",
-                "type_v2": list_type("int64"),
+                "type_v2": optional_type(list_type("int64")),
             },
         ]))
 
