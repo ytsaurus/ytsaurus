@@ -50,6 +50,8 @@ public:
 
     void OnJobFinished(EJobState jobState);
 
+    void Disable(const TError& error );
+
 private:
     const TSlotManagerConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;
@@ -65,15 +67,20 @@ private:
 
     bool JobProxySocketNameDirectoryCreated_ = false;
 
+    TSpinLock SpinLock_;
+    std::optional<TError> PersistentAlert_;
+    std::optional<TError> TransientAlert_;
+
     //! If we observe too much consecutive aborts, we disable user slots on
     //! the node until restart and fire alert.
     std::atomic<int> ConsecutiveAbortedJobCount_ = {0};
-    std::atomic<bool> Enabled_ = {true};
 
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     void UpdateAliveLocations();
+    void ResetTransientAlert();
+    void PopulateAlerts(std::vector<TError>* alerts);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSlotManager)
