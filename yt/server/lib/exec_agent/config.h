@@ -188,6 +188,8 @@ public:
 
     int MaxConsecutiveAborts;
 
+    TDuration DisableJobsTimeout;
+
     TSlotManagerConfig()
     {
         RegisterParameter("locations", Locations);
@@ -211,6 +213,8 @@ public:
 
         RegisterParameter("max_consecutive_aborts", MaxConsecutiveAborts)
             .Default(500);
+        RegisterParameter("disable_jobs_timeout", DisableJobsTimeout)
+            .Default(TDuration::Minutes(10));
     }
 };
 
