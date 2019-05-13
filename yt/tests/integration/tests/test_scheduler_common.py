@@ -3060,9 +3060,16 @@ class TestSafeAssertionsMode(YTEnvSetup):
 
         # Wait until core is finished. This may take a really long time under debug :(
         controller_agent_address = get(op.get_path() + "/@controller_agent_address")
-        wait(lambda: get("//sys/controller_agents/instances/{}"
-                         "/orchid/core_dumper/active_core_dump_count".format(controller_agent_address)) == 0,
-             iter=2000)
+        
+        def check_core():
+            if not os.path.exists(core_path):
+                print >>sys.stderr, "size = n/a"
+            else:
+                print >>sys.stderr, "size =", os.stat(core_path).st_size
+            return get("//sys/controller_agents/instances/{}/orchid/core_dumper/active_core_dump_count".format(controller_agent_address)) == 0
+
+        wait(check_core, iter=200, sleep_backoff=5)
+
         assert os.path.exists(core_path)
         child = subprocess.Popen(["gdb", "--batch", "-ex", "bt",
                                   find_executable("ytserver-controller-agent"), core_path],
