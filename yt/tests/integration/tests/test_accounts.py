@@ -569,9 +569,11 @@ class TestAccounts(YTEnvSetup):
         wait(lambda: get_account_disk_space("max") == disk_space * 2)
         assert exists("//tmp/b/a")
 
+        multicell_sleep()
+
         create("file", "//tmp/b/a/f3")
         # Writing new data should fail...
-        with pytest.raises(YtError): wait(lambda: write_file("//tmp/b/a/f3", "some_data"))
+        with pytest.raises(YtError): wait(lambda: write_file("//tmp/b/a/f3", [{"some_data": i} for i in xrange(20)]))
 
         # Wait for upload tx to abort
         wait(lambda: get("//tmp/b/a/f3/@locks") == [])
