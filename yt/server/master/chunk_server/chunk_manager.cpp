@@ -636,7 +636,7 @@ public:
             }
 
             auto mediumIndex = replica.GetMediumIndex();
-            const auto* medium = GetMediumByIndex(mediumIndex);
+            const auto* medium = GetMediumByIndexOrThrow(mediumIndex);
             if (medium->GetCache()) {
                 YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk at a cache medium (ChunkId: %v, Medium: %v)",
                     id,
