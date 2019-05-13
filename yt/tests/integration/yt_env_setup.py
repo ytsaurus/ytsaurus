@@ -150,7 +150,7 @@ def _restore_default_bundle_options(driver=None):
     _retry_with_gc_collect(do, driver=driver)
 
 def _remove_operations(driver=None):
-    command_name = "abort_transaction" if driver.get_config()["api_version"] == 4 else "abort_tx"
+    command_name = "abort_operation" if driver.get_config()["api_version"] == 4 else "abort_op"
 
     if yt_commands.get("//sys/scheduler/instances/@count", driver=driver) == 0:
         return
