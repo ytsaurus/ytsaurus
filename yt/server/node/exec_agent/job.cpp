@@ -178,13 +178,19 @@ public:
         YT_LOG_INFO(error, "Job abort requested (Phase: %v)",
             JobPhase_);
 
+        auto startAbortion = [&] () {
+            SetJobStatePhase(EJobState::Aborting, EJobPhase::WaitingAbort);
+            DoSetResult(error);
+            TDelayedExecutor::Submit(BIND(&TJob::OnAbortionTimeout, MakeStrong(this))
+                .Via(Invoker_), Config_->JobAbortionTimeout);
+        };
+
         switch (JobPhase_) {
             case EJobPhase::Created:
             case EJobPhase::DownloadingArtifacts:
             case EJobPhase::Running:
-                SetJobStatePhase(EJobState::Aborting, EJobPhase::WaitingAbort);
+                startAbortion();
                 ArtifactsFuture_.Cancel();
-                DoSetResult(error);
 
                 // Do the actual cleanup asynchronously.
                 BIND(&TJob::Cleanup, MakeStrong(this))
@@ -199,8 +205,7 @@ public:
             case EJobPhase::PreparingRootVolume:
             case EJobPhase::PreparingProxy:
                 // Wait for the next event handler to complete the abortion.
-                SetJobStatePhase(EJobState::Aborting, EJobPhase::WaitingAbort);
-                DoSetResult(error);
+                startAbortion();
                 Slot_->CancelPreparation();
                 break;
 
@@ -942,6 +947,17 @@ private:
                     "Failed to prepare job proxy within timeout, aborting job");
             }
         });
+    }
+
+    void OnAbortionTimeout()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (JobState_ == EJobState::Aborting) {
+            auto error = TError("Failed to abort job %v within timeout", Id_)
+                << TErrorAttribute("job_abortion_timeout", Config_->JobAbortionTimeout);
+            Bootstrap_->GetExecSlotManager()->Disable(error);
+        }
     }
 
     void OnJobProxyFinished(const TError& error)
