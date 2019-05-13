@@ -220,7 +220,7 @@ public:
                     i);
             }
 
-            const auto systemColumnMaxId = Max(Max(GetTableIndexColumnId(), GetRangeIndexColumnId()), GetRowIndexColumnId());
+            const auto systemColumnMaxId = Max(GetTableIndexColumnId(), GetRangeIndexColumnId(), GetRowIndexColumnId());
             ResizeToContainIndex(&knownFields, systemColumnMaxId);
             knownFields[GetTableIndexColumnId()] = TSkiffEncodingInfo::Skip();
             knownFields[GetRangeIndexColumnId()] = TSkiffEncodingInfo::Skip();
