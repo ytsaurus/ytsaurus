@@ -142,9 +142,7 @@ public:
     {
         return RunPrepareAction<IVolumePtr>([&] () {
                 return JobEnvironment_->PrepareRootVolume(layers);
-            },
-            // Volume preparation is uncancellable since it includes tool invocation in a separate process.
-            true);
+            });
     }
 
     virtual IJobProbePtr GetJobProberClient() override

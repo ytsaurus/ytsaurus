@@ -1154,9 +1154,9 @@ public:
                 tag)
             .Via(GetCurrentInvoker()));
 
-        // This promise is intentionally uncancelable. If we decide to abort job cancel job preparation
+        // This promise is intentionally uncancelable. If we decide to abort job and cancel job preparation
         // this volume will hopefully be reused by another job.
-        return promise.ToFuture()
+        return promise.ToFuture().ToUncancelable()
             .Apply(BIND(createVolume, true))
             .As<IVolumePtr>();
     }
