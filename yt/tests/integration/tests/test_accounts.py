@@ -571,9 +571,13 @@ class TestAccounts(YTEnvSetup):
 
         multicell_sleep()
 
+        def write_multiple_chunks_to_file():
+            for i in xrange(20):
+                write_file("//tmp/b/a/f3", "some_data {0}".format(i))
+
         create("file", "//tmp/b/a/f3")
         # Writing new data should fail...
-        with pytest.raises(YtError): wait(lambda: write_file("//tmp/b/a/f3", [{"some_data": i} for i in xrange(20)]))
+        with pytest.raises(YtError): wait(write_multiple_chunks_to_file)
 
         # Wait for upload tx to abort
         wait(lambda: get("//tmp/b/a/f3/@locks") == [])
