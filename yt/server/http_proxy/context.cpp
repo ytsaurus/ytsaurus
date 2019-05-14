@@ -602,12 +602,8 @@ void TContext::SetupTracing()
         }
 
         auto config = Api_->GetCoordinator()->GetDynamicConfig();
-        const auto& tracingConfig = config->TracingUserSampleProbability;
-        auto it = tracingConfig.find(DriverRequest_.AuthenticatedUser);
-        if (it != tracingConfig.end()) {
-            if (RandomNumber<double>() < it->second) {
-                trace->SetSampled();
-            }
+        if (config->Tracing && IsTraceSampled(config->Tracing, DriverRequest_.AuthenticatedUser)) {
+            trace->SetSampled();
         }
     }
 }
