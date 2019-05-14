@@ -573,6 +573,10 @@ func writeSelectRowsOptions(w *yson.Writer, o *yt.SelectRowsOptions) {
 	if o == nil {
 		return
 	}
+	if o.FailOnIncompleteResult != nil {
+		w.MapKeyString("fail_on_incomplete_result")
+		w.Any(o.FailOnIncompleteResult)
+	}
 }
 
 func writeStartTabletTxOptions(w *yson.Writer, o *yt.StartTabletTxOptions) {
