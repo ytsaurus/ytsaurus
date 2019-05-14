@@ -40,6 +40,7 @@ struct TJobSummary
     std::optional<TDuration> PrepareDuration;
     std::optional<TDuration> DownloadDuration;
     std::optional<TDuration> ExecDuration;
+    std::optional<TDuration> PrepareRootFSDuration;
 
     // NB: The Statistics field will be set inside the controller in ParseStatistics().
     std::optional<NJobTrackerClient::TStatistics> Statistics;
