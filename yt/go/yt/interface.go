@@ -722,7 +722,9 @@ type DeleteRowsOptions struct {
 	*TransactionOptions
 }
 
-type SelectRowsOptions struct{}
+type SelectRowsOptions struct {
+	FailOnIncompleteResult *bool `http:"fail_on_incomplete_result,omitnil"`
+}
 
 type StartTabletTxOptions struct{}
 
