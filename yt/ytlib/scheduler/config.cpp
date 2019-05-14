@@ -10,7 +10,6 @@
 #include <yt/core/misc/fs.h>
 
 #include <util/string/split.h>
-#include <util/string/iterator.h>
 #include <util/folder/path.h>
 
 namespace NYT::NScheduler {
