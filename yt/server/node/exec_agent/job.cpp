@@ -149,6 +149,13 @@ public:
                 if (userJobSpec.has_disk_space_limit()) {
                     diskSpaceLimit = userJobSpec.disk_space_limit();
                 }
+
+                if (userJobSpec.has_prepare_time_limit()) {
+                    auto prepareTimeLimit = FromProto<TDuration>(userJobSpec.prepare_time_limit());
+                    TDelayedExecutor::Submit(BIND(&TJob::OnJobPreparationTimeout, MakeStrong(this), prepareTimeLimit)
+                        .Via(Invoker_), prepareTimeLimit);
+                }
+
             }
 
             if (!Config_->JobController->TestGpu) {
@@ -945,6 +952,21 @@ private:
                 THROW_ERROR_EXCEPTION(
                     EErrorCode::JobProxyPreparationTimeout,
                     "Failed to prepare job proxy within timeout, aborting job");
+            }
+        });
+    }
+
+    void OnJobPreparationTimeout(TDuration prepareTimeLimit)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        GuardedAction([&] {
+            if (JobPhase_ < EJobPhase::Running) {
+                THROW_ERROR_EXCEPTION(
+                    EErrorCode::JobPreparationTimeout,
+                    "Failed to prepare job within timeout")
+                    << TErrorAttribute("prepare_time_limit", prepareTimeLimit)
+                    << TErrorAttribute("job_start_time", StartTime_);
             }
         });
     }
