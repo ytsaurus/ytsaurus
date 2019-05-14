@@ -7093,6 +7093,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     if (config->JobTimeLimit) {
         jobSpec->set_job_time_limit(ToProto<i64>(*config->JobTimeLimit));
     }
+    jobSpec->set_prepare_time_limit(ToProto<i64>(config->PrepareTimeLimit));
     jobSpec->set_memory_limit(config->MemoryLimit);
     jobSpec->set_include_memory_mapped_files(config->IncludeMemoryMappedFiles);
     jobSpec->set_use_yamr_descriptors(config->UseYamrDescriptors);

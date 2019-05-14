@@ -557,6 +557,7 @@ public:
     int GpuLimit;
     int PortCount;
     std::optional<TDuration> JobTimeLimit;
+    TDuration PrepareTimeLimit;
     i64 MemoryLimit;
     double UserJobMemoryDigestDefaultValue;
     double UserJobMemoryDigestLowerBound;
