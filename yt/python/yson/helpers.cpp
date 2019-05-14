@@ -32,13 +32,22 @@ Py::Bytes EncodeStringObject(const Py::Object& obj, const std::optional<TString>
 {
     if (PyUnicode_Check(obj.ptr())) {
         if (!encoding) {
-            throw CreateYsonError(
-                Format(
-                    "Cannot encode unicode object %s to bytes "
-                    "since 'encoding' parameter is None",
-                    Py::Repr(obj)
-                ),
-                context);
+#if PY_MAJOR_VERSION >= 3
+            PyObject* bytesString = nullptr;
+#else
+            PyObject* bytesString = PyUnicode_AsEncodedString(obj.ptr(), "ascii", "strict");
+#endif
+            if (!bytesString) {
+                throw CreateYsonError(
+                    Format(
+                        "Cannot encode unicode object %s to bytes "
+                        "since 'encoding' parameter is None",
+                        Py::Repr(obj)
+                    ),
+                    context);
+            } else {
+                return Py::Bytes(bytesString, true);
+            }
         }
         return Py::Bytes(PyUnicode_AsEncodedString(obj.ptr(), encoding->data(), "strict"), true);
     } else {

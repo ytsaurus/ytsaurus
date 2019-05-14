@@ -74,8 +74,6 @@ public:
         PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GCCollect, "Runs garbage collection");
         PYCXX_ADD_KEYWORDS_METHOD(clear_metadata_caches, ClearMetadataCaches, "Clears metadata caches");
 
-        PYCXX_ADD_VARARGS_METHOD(__deepcopy__, DeepCopy, "Deep copy Driver object");
-
         behaviors().readyType();
     }
 
@@ -191,15 +189,12 @@ public:
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, ClearMetadataCaches)
 
-    Py::Object DeepCopy(const Py::Tuple& args)
-    {
-        Py::Callable classType(TDriver::type());
-        auto configDict = GetConfig(Py::Tuple(), Py::Dict());
-        return classType.apply(Py::TupleN(configDict), Py::Dict());
-    }
-    PYCXX_VARARGS_METHOD_DECL(TDriver, DeepCopy)
-
     PYCXX_DECLARE_DRIVER_METHODS(TDriver)
+
+    virtual Py::Type GetDriverType() const override
+    {
+        return TDriver::type();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

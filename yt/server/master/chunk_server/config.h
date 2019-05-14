@@ -317,7 +317,7 @@ public:
 
         RegisterParameter("min_chunk_balancing_fill_factor_diff", MinChunkBalancingFillFactorDiff)
             .InRange(0.0, 1.0)
-            .Default(1.0);
+            .Default(0.2);
         RegisterParameter("min_chunk_balancing_fill_factor", MinChunkBalancingFillFactor)
             .InRange(0.0, 1.0)
             .Default(0.1);
