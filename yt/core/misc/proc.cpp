@@ -16,7 +16,7 @@
 
 #include <util/stream/file.h>
 
-#include <util/string/iterator.h>
+#include <util/string/split.h>
 #include <util/string/vector.h>
 
 #include <util/system/info.h>
