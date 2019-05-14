@@ -106,16 +106,21 @@ func OnConflictDrop(ctx context.Context, yc yt.Client) ConflictFn {
 	}
 }
 
+type Table struct {
+	Schema     schema.Schema
+	Attributes map[string]interface{}
+}
+
 // EnsureTables creates and mounts dynamic tables.
 //
 // If table with a given path already exists, but have a different schema, onConflict handler is invoked.
 func EnsureTables(
 	ctx context.Context,
 	yc yt.Client,
-	tables map[ypath.Path]schema.Schema,
+	tables map[ypath.Path]Table,
 	onConflict ConflictFn,
 ) error {
-	for path, expectedSchema := range tables {
+	for path, table := range tables {
 		var attrs struct {
 			Schema  schema.Schema `yson:"schema"`
 			Dynamic bool          `yson:"dynamic"`
@@ -124,12 +129,17 @@ func EnsureTables(
 	retry:
 		if err := yc.GetNode(ctx, path.Attrs(), &attrs, nil); err != nil {
 			if yt.ContainsErrorCode(err, yt.CodeResolveError) {
+				attrs := make(map[string]interface{})
+				for k, v := range table.Attributes {
+					attrs[k] = v
+				}
+
+				attrs["dynamic"] = true
+				attrs["schema"] = table.Schema
+
 				_, err = yc.CreateNode(ctx, path, yt.NodeTable, &yt.CreateNodeOptions{
-					Recursive: true,
-					Attributes: map[string]interface{}{
-						"dynamic": true,
-						"schema":  expectedSchema,
-					},
+					Recursive:  true,
+					Attributes: attrs,
 				})
 
 				if err != nil {
@@ -137,8 +147,8 @@ func EnsureTables(
 				}
 			}
 		} else {
-			if !attrs.Schema.Equal(expectedSchema) {
-				err = onConflict(path, attrs.Schema, expectedSchema)
+			if !attrs.Schema.Equal(table.Schema) {
+				err = onConflict(path, attrs.Schema, table.Schema)
 				if err == RetryConflict {
 					goto retry
 				}

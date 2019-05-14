@@ -53,13 +53,13 @@ func TestCreateTables(t *testing.T) {
 	pathA := root.Child("table_a")
 	pathB := root.Child("table_b")
 
-	firstSchemas := map[ypath.Path]schema.Schema{
-		pathA: testSchema,
-		pathB: testSchema,
+	firstSchemas := map[ypath.Path]migrate.Table{
+		pathA: {Schema: testSchema},
+		pathB: {Schema: testSchema},
 	}
-	secondSchemas := map[ypath.Path]schema.Schema{
-		pathA: testSchema,
-		pathB: updatedSchema,
+	secondSchemas := map[ypath.Path]migrate.Table{
+		pathA: {Schema: testSchema},
+		pathB: {Schema: updatedSchema},
 	}
 
 	getIDs := func() (a, b yt.NodeID) {
@@ -68,11 +68,11 @@ func TestCreateTables(t *testing.T) {
 		return
 	}
 
-	checkSchemas := func(schemas map[ypath.Path]schema.Schema) {
+	checkSchemas := func(schemas map[ypath.Path]migrate.Table) {
 		for path, expected := range schemas {
 			var actual schema.Schema
 			require.NoError(t, env.YT.GetNode(env.Ctx, path.Attr("schema"), &actual, nil))
-			require.Equal(t, expected, actual)
+			require.Equal(t, expected.Schema, actual)
 		}
 	}
 
