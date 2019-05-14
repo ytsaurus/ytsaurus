@@ -316,6 +316,19 @@ public:
         }
     }
 
+    virtual std::optional<TDuration> GetPrepareRootFSDuration() const override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (!StartPrepareVolumeTime_) {
+            return std::nullopt;
+        } else if (!FinishPrepareVolumeTime_) {
+            return TInstant::Now() - *StartPrepareVolumeTime_;
+        } else {
+            return *FinishPrepareVolumeTime_ - *StartPrepareVolumeTime_;
+        }
+    }
+
     virtual std::optional<TDuration> GetDownloadDuration() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -689,6 +702,8 @@ private:
 
     std::optional<TInstant> PrepareTime_;
     std::optional<TInstant> CopyTime_;
+    std::optional<TInstant> StartPrepareVolumeTime_;
+    std::optional<TInstant> FinishPrepareVolumeTime_;
     std::optional<TInstant> ExecTime_;
     std::optional<TInstant> FinishTime_;
 
@@ -894,6 +909,7 @@ private:
             if (LayerArtifactKeys_.empty()) {
                 RunJobProxy();
             } else {
+                StartPrepareVolumeTime_ = TInstant::Now();
                 SetJobPhase(EJobPhase::PreparingRootVolume);
                 YT_LOG_INFO("Preparing root volume (LayerCount: %v)", LayerArtifactKeys_.size());
                 Slot_->PrepareRootVolume(LayerArtifactKeys_)
@@ -908,6 +924,7 @@ private:
     void OnVolumePrepared(const TErrorOr<IVolumePtr>& volumeOrError)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        FinishPrepareVolumeTime_ = TInstant::Now();
 
         GuardedAction([&] {
             ValidateJobPhase(EJobPhase::PreparingRootVolume);

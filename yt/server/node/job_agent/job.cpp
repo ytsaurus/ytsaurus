@@ -23,6 +23,10 @@ void FillJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, IJobPtr job
     if (downloadDuration) {
         jobStatus->set_download_duration(ToProto<i64>(*downloadDuration));
     }
+    auto prepareRootFSDuration = job->GetPrepareRootFSDuration();
+    if (prepareRootFSDuration) {
+        jobStatus->set_prepare_root_fs_duration(ToProto<i64>(*prepareRootFSDuration));
+    }
     auto execDuration = job->GetExecDuration();
     if (execDuration) {
         jobStatus->set_exec_duration(ToProto<i64>(*execDuration));

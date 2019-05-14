@@ -2368,6 +2368,9 @@ void TOperationControllerBase::FinalizeJoblet(
     if (jobSummary->DownloadDuration) {
         statistics.AddSample("/time/artifacts_download", jobSummary->DownloadDuration->MilliSeconds());
     }
+    if (jobSummary->PrepareRootFSDuration) {
+        statistics.AddSample("/time/prepare_root_fs", jobSummary->PrepareRootFSDuration->MilliSeconds());
+    }
     if (jobSummary->ExecDuration) {
         statistics.AddSample("/time/exec", jobSummary->ExecDuration->MilliSeconds());
     }
