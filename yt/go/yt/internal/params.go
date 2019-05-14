@@ -577,6 +577,14 @@ func writeSelectRowsOptions(w *yson.Writer, o *yt.SelectRowsOptions) {
 		w.MapKeyString("fail_on_incomplete_result")
 		w.Any(o.FailOnIncompleteResult)
 	}
+	if o.InputRowLimit != nil {
+		w.MapKeyString("input_row_limit")
+		w.Any(o.InputRowLimit)
+	}
+	if o.OutputRowLimit != nil {
+		w.MapKeyString("output_row_limit")
+		w.Any(o.OutputRowLimit)
+	}
 }
 
 func writeStartTabletTxOptions(w *yson.Writer, o *yt.StartTabletTxOptions) {

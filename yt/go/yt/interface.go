@@ -724,6 +724,8 @@ type DeleteRowsOptions struct {
 
 type SelectRowsOptions struct {
 	FailOnIncompleteResult *bool `http:"fail_on_incomplete_result,omitnil"`
+	InputRowLimit          *int  `http:"input_row_limit,omitnil"`
+	OutputRowLimit         *int  `http:"output_row_limit,omitnil"`
 }
 
 type StartTabletTxOptions struct{}
