@@ -180,6 +180,7 @@ public:
         auto req = TYPathProxy::Set(GetOperationPath(operationId));
         req->set_value(operationYson);
         req->set_recursive(true);
+        req->set_force(true);
         GenerateMutationId(req);
         batchReq->AddRequest(req);
 
