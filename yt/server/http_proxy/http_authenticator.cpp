@@ -96,11 +96,11 @@ TErrorOr<TAuthenticationResult> THttpAuthenticator::Authenticate(
         if (cookies.find("Session_id") == cookies.end()) {
             return TError(NRpc::EErrorCode::InvalidCredentials, "Request is missing \"Session_id\" cookie");
         }
-        if (cookies.find("sessionid2") == cookies.end()) {
-            return TError(NRpc::EErrorCode::InvalidCredentials, "Request is missing \"sessionid2\" cookie");
-        }
         credentials.SessionId = cookies["Session_id"];
-        credentials.SslSessionId = cookies["sessionid2"];
+
+        if (cookies.find("sessionid2") != cookies.end()) {
+            credentials.SslSessionId = cookies["sessionid2"];
+        }
 
         auto authResult = WaitFor(CookieAuthenticator_->Authenticate(credentials));
         if (!authResult.IsOK()) {
