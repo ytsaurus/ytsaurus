@@ -310,6 +310,52 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
 ##################################################################
 
+
+class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
+    NUM_MASTERS = 1
+    NUM_NODES = 10
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 100,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "scheduler_connector": {
+                "heartbeat_period": 100
+            }
+        }
+    }
+
+    def test_strategy_with_slow_controller(self):
+        spec = {
+            "testing": {
+                "scheduling_delay": 1000,
+                "scheduling_delay_type": "async"
+            }
+        }
+        op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=20, spec=spec)
+        op2 = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=20, spec=spec)
+
+        wait_breakpoint(job_count=10)
+
+        assert op1.get_job_count("running") == 5
+        assert op2.get_job_count("running") == 5
+
+        for j in op1.get_running_jobs().keys():
+            release_breakpoint(job_id=j)
+        for j in op2.get_running_jobs().keys():
+            release_breakpoint(job_id=j)
+
+        wait_breakpoint(job_count=10)
+
+        assert op1.get_job_count("running") == 5
+        assert op2.get_job_count("running") == 5
+
+
 class TestStrategies(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 2
