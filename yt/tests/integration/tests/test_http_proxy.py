@@ -88,10 +88,10 @@ class TestHttpProxy(YTEnvSetup):
         monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
         config_url = "http://localhost:{}/orchid/coordinator/dynamic_config".format(monitoring_port)
 
-        set("//sys/proxies/@config", {"tracing_user_sample_probability": {"prime": 1.0}})
+        set("//sys/proxies/@config", {"tracing": {"user_sample_rate": {"prime": 1.0}}})
 
         def config_updated():
             config = requests.get(config_url).json()
-            return "prime" in config["tracing_user_sample_probability"]
+            return "prime" in config["tracing"]["user_sample_rate"]
 
         wait(config_updated)
