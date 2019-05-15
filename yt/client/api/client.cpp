@@ -82,14 +82,16 @@ TError TCheckPermissionResult::ToError(const TString& user, EPermission permissi
             if (ObjectName && SubjectName) {
                 error = TError(
                     NSecurityClient::EErrorCode::AuthorizationError,
-                    "Access denied: %Qlv permission is denied for %Qv by ACE at %v",
+                    "Access denied for user %v: %Qlv permission is denied for %Qv by ACE at %v",
+                    user,
                     permission,
                     *SubjectName,
                     *ObjectName);
             } else {
                 error = TError(
                     NSecurityClient::EErrorCode::AuthorizationError,
-                    "Access denied: %Qlv permission is not allowed by any matching ACE",
+                    "Access denied for user %v: %Qlv permission is not allowed by any matching ACE",
+                    user,
                     permission);
             }
             error.Attributes().Set("user", user);
