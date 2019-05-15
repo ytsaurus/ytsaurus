@@ -834,6 +834,8 @@ class SchedulerReviveBase(YTEnvSetup):
 
         assert op.get_state() == "completed"
 
+    # NB: we hope that we check aborting state before operation comes to aborted state but we cannot guarantee that this happen.
+    @flaky(max_runs=3)
     def test_aborting(self):
         self._prepare_tables()
 
