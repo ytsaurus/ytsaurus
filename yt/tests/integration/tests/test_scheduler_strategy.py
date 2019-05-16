@@ -342,9 +342,6 @@ class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
 
         wait_breakpoint(job_count=10)
 
-        assert op1.get_job_count("running") == 5
-        assert op2.get_job_count("running") == 5
-
         for j in op1.get_running_jobs().keys():
             release_breakpoint(job_id=j)
         for j in op2.get_running_jobs().keys():
