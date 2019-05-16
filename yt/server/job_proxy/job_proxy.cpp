@@ -179,19 +179,6 @@ IThroughputThrottlerPtr TJobProxy::GetOutRpsThrottler() const
     return OutRpsThrottler_;
 }
 
-void TJobProxy::ValidateJobId(TJobId jobId)
-{
-    if (JobId_ != jobId) {
-        THROW_ERROR_EXCEPTION("Job id mismatch: expected %v, got %v",
-            JobId_,
-            jobId);
-    }
-
-    if (!Job_) {
-        THROW_ERROR_EXCEPTION("Job has not started yet");
-    }
-}
-
 void TJobProxy::SendHeartbeat()
 {
     auto req = SupervisorProxy_->OnJobProgress();
