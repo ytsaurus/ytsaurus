@@ -52,6 +52,10 @@ public:
         YT_LOG_INFO("Reloading dictionary (Revision: %v)", RevisionTracker_.GetRevision());
 
         auto table = FetchClickHouseTable(Bootstrap_->GetRootClient(), Path_, Logger);
+        if (!table) {
+            THROW_ERROR_EXCEPTION("Underlying dictionary table %v for does not exist", Path_);
+        }
+
         ValidateStructure(*table);
 
         auto reader = CreateTableReader(Bootstrap_->GetRootClient(), Path_, false /* unordered */, Logger);
