@@ -41,7 +41,7 @@ class Clique(object):
         config = update(Clique.base_config, config_patch) if config_patch is not None else Clique.base_config
 
         self.log_root = os.path.join(self.path_to_run, "logs", "clickhouse-{}".format(Clique.clique_index))
-        for writer_key, writer in Clique.base_config["logging"]["writers"].iteritems():
+        for writer_key, writer in config["logging"]["writers"].iteritems():
             if writer["type"] == "file":
                 writer["file_name"] = os.path.join(self.log_root, writer["file_name"])
         os.mkdir(self.log_root)
@@ -438,7 +438,7 @@ class TestMutations(ClickHouseTestBase):
             ]
 
     def test_create_table_simple(self):
-        with Clique(1) as clique:
+        with Clique(1, config_patch={"engine": {"create_table_default_attributes": {"foo": 42}}}) as clique:
             clique.make_query('create table "//tmp/t"(i64 Int64, ui64 UInt64, str String, dbl Float64, i32 Int32) '
                               'engine YtTable() order by (str, i64)')
             assert normalize_schema(get("//tmp/t/@schema")) == make_schema([
@@ -465,6 +465,14 @@ class TestMutations(ClickHouseTestBase):
             # Missing key column.
             with pytest.raises(YtError):
                 clique.make_query('create table "//tmp/t2"(i Int64) engine YtTable() order by j')
+
+            clique.make_query('create table "//tmp/t_snappy"(i Int64) engine YtTable(\'{compression_codec=snappy}\')')
+            assert get("//tmp/t_snappy/@compression_codec") == "snappy"
+
+            # Default optimize_for should be scan.
+            assert get("//tmp/t_snappy/@optimize_for") == "scan"
+
+            assert get("//tmp/t_snappy/@foo") == 42
 
     def test_create_table_as_select(self):
         create("table", "//tmp/s1", attributes={"schema": [{"name": "i64", "type": "int64"},

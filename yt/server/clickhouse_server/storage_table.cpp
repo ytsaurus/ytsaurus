@@ -20,6 +20,8 @@
 
 #include <yt/core/ytree/convert.h>
 
+#include <yt/core/yson/string.h>
+
 #include <Common/Exception.h>
 #include <Common/typeid_cast.h>
 #include <Parsers/ASTFunction.h>
@@ -43,6 +45,7 @@ using namespace NObjectClient;
 using namespace NConcurrency;
 using namespace NYPath;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -180,12 +183,25 @@ DB::StoragePtr CreateStorageTableFromCH(StorageFactory::Arguments args)
     auto schema = ConvertToTableSchema(args.columns, keyColumns);
     YT_LOG_DEBUG("Inferred table schema (Schema: %v)", schema);
 
-    YT_LOG_INFO("Creating table");
+    auto attributes = ConvertToAttributes(queryContext->Bootstrap->GetConfig()->Engine->CreateTableDefaultAttributes);
+    attributes->Set("schema", schema);
+
+    if (!args.engine_args.empty()) {
+        if (static_cast<int>(args.engine_args.size()) > 1) {
+            THROW_ERROR_EXCEPTION("YtTable accepts at most one argument");
+        }
+        const auto* ast = args.engine_args[0]->as<ASTLiteral>();
+        if (ast && ast->value.getType() == Field::Types::String) {
+            auto extraAttributes = ConvertToAttributes(TYsonString(TString(safeGet<String>(ast->value))));
+            attributes->MergeFrom(*extraAttributes);
+        } else {
+            THROW_ERROR_EXCEPTION("Extra attributes must be a string literal");
+        }
+    }
+
+    YT_LOG_INFO("Creating table (Attributes: %v)", ConvertToYsonString(attributes->ToMap(), EYsonFormat::Text));
     NApi::TCreateNodeOptions options;
-    options.Attributes = ConvertToAttributes(BuildYsonStringFluently()
-        .BeginMap()
-            .Item("schema").Value(schema)
-        .EndMap());
+    options.Attributes = std::move(attributes);
     WaitFor(client->CreateNode(path.GetPath(), NObjectClient::EObjectType::Table, options))
         .ThrowOnError();
     YT_LOG_INFO("Table created");
