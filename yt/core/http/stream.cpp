@@ -782,11 +782,11 @@ void THttpOutput::OnWriteFinish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const THashSet<TString> THttpOutput::FilteredHeaders_ = {
+const THashSet<TString, TCaseInsensitiveStringHasher, TCaseInsensitiveStringEqualityComparer> THttpOutput::FilteredHeaders_ = {
     "transfer-encoding",
     "content-length",
     "connection",
-    "host"
+    "host",
 };
 
 const TSharedRef THttpOutput::Http100Continue = TSharedRef::FromString("HTTP/1.1 100 Continue\r\n\r\n");
