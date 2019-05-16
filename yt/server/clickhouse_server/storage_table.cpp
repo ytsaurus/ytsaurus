@@ -180,12 +180,7 @@ DB::StoragePtr CreateStorageTableFromCH(StorageFactory::Arguments args)
         args.columns.toString(),
         keyColumns);
 
-    auto schema = ConvertToTableSchema(args.columns, keyColumns);
-    YT_LOG_DEBUG("Inferred table schema (Schema: %v)", schema);
-
     auto attributes = ConvertToAttributes(queryContext->Bootstrap->GetConfig()->Engine->CreateTableDefaultAttributes);
-    attributes->Set("schema", schema);
-
     if (!args.engine_args.empty()) {
         if (static_cast<int>(args.engine_args.size()) > 1) {
             THROW_ERROR_EXCEPTION("YtTable accepts at most one argument");
@@ -199,12 +194,26 @@ DB::StoragePtr CreateStorageTableFromCH(StorageFactory::Arguments args)
         }
     }
 
-    YT_LOG_INFO("Creating table (Attributes: %v)", ConvertToYsonString(attributes->ToMap(), EYsonFormat::Text));
+    // Underscore indicates that the columns should be ignored, and that schema should be taken from the attributes.
+    if (args.columns.getNamesOfPhysical() != std::vector<std::string>{"_"}) {
+        auto schema = ConvertToTableSchema(args.columns, keyColumns);
+        YT_LOG_DEBUG("Inferred table schema from columns (Schema: %v)", schema);
+        attributes->Set("schema", schema);
+    } else if (attributes->Contains("schema")) {
+        YT_LOG_DEBUG("Table schema is taken from attributes (Schema: %v)", attributes->FindYson("schema"));
+    } else {
+        THROW_ERROR_EXCEPTION(
+            "Table schema should be specified either by column list (possibly with ORDER BY) or by "
+            "YT schema in attributes (as the only storage argument in YSON under key `schema`, in this case "
+            "column list should consist of the only column named `_`)");
+    };
+
+    YT_LOG_DEBUG("Creating table (Attributes: %v)", ConvertToYsonString(attributes->ToMap(), EYsonFormat::Text));
     NApi::TCreateNodeOptions options;
     options.Attributes = std::move(attributes);
-    WaitFor(client->CreateNode(path.GetPath(), NObjectClient::EObjectType::Table, options))
-        .ThrowOnError();
-    YT_LOG_INFO("Table created");
+    auto id = WaitFor(client->CreateNode(path.GetPath(), NObjectClient::EObjectType::Table, options))
+        .ValueOrThrow();
+    YT_LOG_DEBUG("Table created (ObjectId: %v)", id);
 
     auto table = FetchClickHouseTable(client, path, Logger);
     YCHECK(table);

@@ -16,6 +16,7 @@ import psutil
 import subprocess
 import random
 import os
+import copy
 
 TEST_DIR = os.path.join(os.path.dirname(__file__))
 
@@ -474,6 +475,19 @@ class TestMutations(ClickHouseTestBase):
 
             assert get("//tmp/t_snappy/@foo") == 42
 
+            # Empty schema.
+            with pytest.raises(YtError):
+                clique.make_query('create table "//tmp/t2" engine YtTable()')
+
+            # Underscore indicates that the columns should be ignored and schema from attributes should
+            # be taken.
+            clique.make_query('create table "//tmp/t2"(_ UInt8) engine YtTable(\'{schema=[{name=a;type=int64}]}\')')
+            assert get("//tmp/t2/@schema/0/name") == "a"
+
+            # Column list has higher priority.
+            clique.make_query('create table "//tmp/t3"(b String) engine YtTable(\'{schema=[{name=a;type=int64}]}\')')
+            assert get("//tmp/t3/@schema/0/name") == "b"
+
     def test_create_table_as_select(self):
         create("table", "//tmp/s1", attributes={"schema": [{"name": "i64", "type": "int64"},
                                                            {"name": "ui64", "type": "uint64"},
@@ -492,6 +506,26 @@ class TestMutations(ClickHouseTestBase):
                 {"i64": -1, "ui64": 3, "str": "def", "dbl": 3.14, "bool": 1},
                 {"i64": 2, "ui64": 7, "str": "xyz", "dbl": 2.78, "bool": 0},
             ]
+
+    def test_create_table_as_table(self):
+        schema = [{"name": "i64", "type": "int64", "required": False, "sort_order": "ascending"},
+                  {"name": "ui64", "type": "uint64", "required": False},
+                  {"name": "str", "type": "string", "required": False},
+                  {"name": "dbl", "type": "double", "required": False},
+                  {"name": "bool", "type": "boolean", "required": False}]
+        schema_copied = copy.deepcopy(schema)
+        schema_copied[4]["type"] = "uint64"
+        create("table", "//tmp/s1", attributes={"schema": schema,
+                                                "compression_codec": "snappy"})
+
+        with Clique(1) as clique:
+            clique.make_query('show create table "//tmp/s1"')
+            clique.make_query('create table "//tmp/s2" as "//tmp/s1" engine YtTable() order by i64')
+            assert normalize_schema(get("//tmp/s2/@schema")) == make_schema(schema_copied, strict=True, unique_keys=False)
+
+            # This is wrong.
+            # assert get("//tmp/s2/@compression_codec") == "snappy"
+
 
 class TestCompositeTypes(ClickHouseTestBase):
     def setup(self):
