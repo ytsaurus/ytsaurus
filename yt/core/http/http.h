@@ -185,7 +185,9 @@ public:
 
     const SmallVector<TString, 1>& GetAll(const TString& header) const;
 
-    void WriteTo(IOutputStream* out, const THashSet<TString>* filtered = nullptr) const;
+    void WriteTo(
+        IOutputStream* out,
+        const THashSet<TString, TCaseInsensitiveStringHasher, TCaseInsensitiveStringEqualityComparer>* filtered = nullptr) const;
 
     THeadersPtr Duplicate() const;
 
