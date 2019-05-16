@@ -204,6 +204,8 @@ public:
     //! Subquery logic configuration.
     TSubqueryConfigPtr Subquery;
 
+    NYTree::INodePtr CreateTableDefaultAttributes;
+
     TEngineConfig()
     {
         RegisterParameter("users", Users)
@@ -236,6 +238,13 @@ public:
 
         RegisterParameter("subquery", Subquery)
             .DefaultNew();
+
+        RegisterParameter("create_table_default_attributes", CreateTableDefaultAttributes)
+            .MergeBy(NYTree::EMergeStrategy::Combine)
+            .Default(NYTree::BuildYsonNodeFluently()
+                .BeginMap()
+                    .Item("optimize_for").Value("scan")
+                .EndMap());
 
         RegisterPreprocessor([&] {
             Settings["max_memory_usage_for_all_queries"] = NYTree::ConvertToNode(9_GB);
