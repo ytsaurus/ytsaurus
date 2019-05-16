@@ -4,7 +4,7 @@ from test_dynamic_tables import DynamicTablesBase
 
 from yt_env_setup import YTEnvSetup, skip_if_rpc_driver_backend, parametrize_external
 from yt_commands import *
-from time import sleep
+from time import sleep, time
 from yt.yson import YsonEntity
 from yt.environment.helpers import assert_items_equal, wait
 from yt.wrapper import YtResponseError
@@ -964,7 +964,6 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 1, "value2": 50}], aggregate=True, update=True, require_sync_replica=False)
         wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test2", "value2": 150}])
 
-    @flaky(max_runs=5)
     def test_replication_lag(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema=self.AGGREGATE_SCHEMA)
@@ -989,12 +988,14 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 1, "value1": "test1"}], require_sync_replica=False)
         sleep(1.0)
 
-        shift = get_lag_time()
-        assert shift > 2000
-
+        base_lag_time = get_lag_time()
+        base_unix_time = time()
+        assert base_lag_time > 2000
         for i in xrange(10):
             sleep(1.0)
-            assert shift + i * 1000 <= get_lag_time() <= shift + (i + 4) * 1000
+            cur_unix_time = time()
+            cur_lag_time = get_lag_time()
+            assert abs((cur_lag_time - base_lag_time) - (cur_unix_time - base_unix_time) * 1000) <= 2000
 
         sync_enable_table_replica(replica_id)
         wait(lambda: get_lag_time() == 0)
