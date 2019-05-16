@@ -130,8 +130,6 @@ private:
     NConcurrency::IThroughputThrottlerPtr OutBandwidthThrottler_;
     NConcurrency::IThroughputThrottlerPtr OutRpsThrottler_;
 
-    void ValidateJobId(NJobTrackerClient::TJobId jobId);
-
     NJobTrackerClient::NProto::TJobResult DoRun();
     void SendHeartbeat();
     void OnHeartbeatResponse(const TError& error);
