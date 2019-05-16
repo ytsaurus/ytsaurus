@@ -156,9 +156,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert get_all_counters() == (0, 0, 0, 0)
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "test"}], require_sync_replica=False)
-        sleep(2)
-
-        assert get_all_counters() == (1, 1, 13, 13)
+        wait(lambda: get_all_counters() == (1, 1, 13, 13))
 
     @flaky(max_runs=5)
     @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA_SORTED, SIMPLE_SCHEMA_ORDERED])
