@@ -5784,6 +5784,8 @@ private:
 
         TSelectRowsOptions selectOptions;
         selectOptions.Timeout = deadline - Now();
+        selectOptions.InputRowLimit = std::numeric_limits<i64>::max();
+        selectOptions.MemoryLimitPerNode = 1_GB;
 
         auto rowsItemsId = WaitFor(SelectRows(builder.Build(), selectOptions))
             .ValueOrThrow();
