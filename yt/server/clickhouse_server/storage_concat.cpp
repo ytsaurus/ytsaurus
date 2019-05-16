@@ -85,6 +85,8 @@ private:
         tableExpression->table_function = std::move(tableFunction);
         tableExpression->database_and_table_name = nullptr;
         tableExpression->subquery = nullptr;
+        tableExpression->sample_offset = nullptr;
+        tableExpression->sample_size = nullptr;
 
         return modifiedQueryAst;
     }
