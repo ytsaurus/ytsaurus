@@ -683,3 +683,9 @@ class TestTableCommands(object):
         assert not isinstance(result[0], (YsonMap, dict))
         assert result[0]["x"] == "abacaba"
         assert result[1]["z"] == 2
+
+    def test_get_table_columnar_statistics(self):
+        res = yt.get_table_columnar_statistics(paths=["//sys/scheduler/event_log{timestamp}"])
+        assert res
+        assert res[0].get("column_data_weights", {}).get("timestamp", 0) > 0
+

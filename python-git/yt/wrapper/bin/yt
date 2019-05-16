@@ -1139,6 +1139,15 @@ def add_execute_parser(add_parser):
     add_structured_argument(parser, "execute_params")
     parser.set_defaults(func=execute)
 
+def get_table_columnar_statistics(**args):
+    print(yt.get_table_columnar_statistics(**args))
+
+def add_get_table_columnar_statistics_parser(add_parser):
+    parser = add_parser("get-table-columnar-statistics", help="get table columnar statistics")
+    add_ypath_argument(parser, "--path", required=True, action="append", dest="paths",
+                       help="Path to source table.")
+    parser.set_defaults(func=get_table_columnar_statistics)
+
 def execute_batch(**args):
     print(dump_data(yt.execute_batch(**args)))
 
@@ -1367,6 +1376,7 @@ def main():
     add_add_member_parser(add_parser)
     add_remove_member_parser(add_parser)
     add_check_permission_parser(add_parser)
+    add_get_table_columnar_statistics_parser(add_parser)
     add_execute_batch_parser(add_parser)
 
     add_run_job_shell_parser(add_parser)
