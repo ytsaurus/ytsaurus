@@ -15,7 +15,7 @@ import yt.logger as logger
 from yt.common import format_error, date_string_to_datetime, to_native_str, flatten
 
 from yt.packages.decorator import decorator
-from yt.packages.six import iteritems, itervalues
+from yt.packages.six import iteritems, itervalues, iterkeys
 from yt.packages.six.moves import builtins, filter as ifilter, map as imap
 
 import logging
@@ -297,6 +297,21 @@ class PrintOperationInfo(object):
             self.progress = progress
         elif state != self.state:
             self.log("operation %s %s", self.operation, state)
+            if state.is_finished():
+                try:
+                    attribute_names = {"alerts": "Alerts", "unrecognized_spec": "Unrecognized spec"}
+                    result = get_operation_attributes(self.operation, fields=builtins.list(iterkeys(attribute_names)), client=self.client)
+                    for attribute, readable_name in iteritems(attribute_names):
+                        attribute_value = result.get(attribute)
+                        if attribute_value:
+                            self.log("%s: %s", readable_name, str(attribute_value))
+                except YtResponseError as err:
+                    # TODO(ilpauzner): Make detection via error codes.
+                    if err.contains_text("alerts") and err.contains_text("is not allowed"):
+                        # Too old back-end, no support for alerts.
+                        pass
+                    else:
+                        raise
         self.state = state
 
     def log(self, *args, **kwargs):

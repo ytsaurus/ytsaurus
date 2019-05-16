@@ -1733,3 +1733,40 @@ print(op.id)
             assert len(stderrs) == 1
             assert stderrs[0]["stderr"] == "\xF1\xF2\xF3\xF4"
 
+    def test_operation_alert(self):
+        try:
+            config_patch = {
+                "operation_alerts": {
+                    "operation_too_long_alert_min_wall_time": 0,
+                    "operation_too_long_alert_estimate_duration_threshold": 5000
+                }
+            }
+
+            path = "//sys/controller_agents/instances"
+            children = yt.list(path)
+            assert len(children) == 1
+            path = "//sys/controller_agents/instances/{}/orchid/controller_agent/config".format(children[0])
+
+            old_config = yt.get(path)
+
+            yt.set("//sys/controller_agents/config", config_patch)
+
+            wait(lambda: yt.get(path) != old_config)
+
+            input_table = TEST_DIR + "/input"
+            output_table = TEST_DIR + "/output"
+            yt.write_table(input_table, [{"x": i} for i in xrange(100)])
+
+            op = yt.run_map("cat; sleep 120", input_table, output_table, spec={"data_size_per_job": 1}, sync=False)
+            wait(lambda: op.get_attributes(fields=["alerts"]).get("alerts", {}))
+        finally:
+            yt.remove("//sys/controller_agents/config", recursive=True, force=True)
+
+
+    def test_operations_spec(self):
+        input_table = TEST_DIR + "/input"
+        output_table = TEST_DIR + "/output"
+        yt.write_table(input_table, [{"x": 1}])
+
+        op = yt.run_map("cat; sleep 120", input_table, output_table, spec={"asdfghjkl" : 1234567890}, sync=False)
+        wait(lambda: op.get_attributes(fields=["unrecognized_spec"]).get("unrecognized_spec", {}))
