@@ -3,7 +3,7 @@ from .common import (flatten, require, update, get_value, set_param, datetime_to
 from .config import get_config, get_option
 from .cypress_commands import (exists, remove, get_attribute, copy,
                                move, mkdir, find_free_subpath, create, get, has_attribute)
-from .driver import make_request, _create_http_client_from_rpc
+from .driver import make_request, _create_http_client_from_rpc, make_formatted_request
 from .retries import default_chaos_monkey, run_chaos_monkey
 from .errors import YtIncorrectResponse, YtError, YtResponseError
 from .format import create_format, YsonFormat
@@ -795,3 +795,11 @@ def alter_table(path, schema=None, dynamic=None, upstream_replica_id=None, clien
     set_param(params, "upstream_replica_id", upstream_replica_id)
 
     return make_request("alter_table", params, client=client)
+
+def get_table_columnar_statistics(paths, client=None):
+    """ Gets columnar statistics of tables listed in paths
+    :param paths: paths to tables
+    :type paths: list of (str or :class:`TablePath <yt.wrapper.ypath.TablePath>`)
+    """
+    paths = list(imap(lambda path: TablePath(path, client=client), flatten(paths)))
+    return make_formatted_request("get_table_columnar_statistics", params={"paths": paths}, client=client, format=None)
