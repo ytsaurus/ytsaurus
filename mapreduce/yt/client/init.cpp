@@ -64,6 +64,10 @@ public:
 
     static void SetErrorTerminationHandler()
     {
+        if (Instance().OldHandler_ != nullptr) {
+            return;
+        }
+
         Instance().OldHandler_ = std::set_terminate(&TerminateHandler);
 
         SetAsyncSignalFunction(SIGINT, SignalHandler);
