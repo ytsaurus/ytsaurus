@@ -17,6 +17,15 @@ import yt.logger as logger
 import time
 import os
 
+def _split_stream_into_pieces(stream):
+    # NB: we first split every line in a stream into pieces <= 1 MB,
+    # then merge consequent lines into chunks >= 1 MB.
+    # This way, the resulting chunks' size is between 1 MB and 2 MB.
+    stream_split = split_lines_by_max_size(stream, MB)
+    stream_grouped = group_blobs_by_size(stream_split, MB)
+    for group in stream_grouped:
+        yield b"".join(group)
+
 class _FakeProgressReporter(object):
     def __init__(self, *args, **kwargs):
         pass
@@ -41,13 +50,7 @@ class _ProgressReporter(object):
         self._monitor.finish()
 
     def wrap_stream(self, stream):
-        # NB: we first split every line in a stream into pieces <= 1 MB,
-        # then merge consequent lines into chunks >= 1 MB.
-        # This way, the resulting chunks' size is between 1 MB and 2 MB.
-        stream_split = split_lines_by_max_size(stream, MB)
-        stream_grouped = group_blobs_by_size(stream_split, MB)
-        for group in stream_grouped:
-            chunk = b"".join(group)
+        for chunk in stream:
             self._monitor.update(len(chunk))
             yield chunk
 
@@ -145,6 +148,14 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
     # So, if stream is empty, we explicitly make it b"".
     stream = stream_or_empty_bytes(stream)
 
+    # NB: split stream into 1-2 MB pieces so that we can safely send them separately
+    # without a risk of triggering timeout.
+    chunk_size = get_config(client)["write_retries"]["chunk_size"]
+    if chunk_size is None:
+        chunk_size = DEFAULT_WRITE_CHUNK_SIZE
+    if chunk_size > 2 * MB:
+        stream = _split_stream_into_pieces(stream)
+
     path = YPathSupportingAppend(path, client=client)
     transaction_timeout = get_total_request_timeout(client)
 
@@ -173,9 +184,6 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
 
         with progress_reporter:
             if use_retries:
-                chunk_size = get_config(client)["write_retries"]["chunk_size"]
-                if chunk_size is None:
-                    chunk_size = DEFAULT_WRITE_CHUNK_SIZE
                 write_action = lambda chunk, params: _make_transactional_request(
                     command_name,
                     params,
