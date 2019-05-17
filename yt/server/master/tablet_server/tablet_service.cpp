@@ -94,6 +94,17 @@ public:
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+    static TTableNode* AsTableNodeSafe(TCypressNodeBase* node)
+    {
+        if (!node) {
+            return nullptr;
+        }
+        if (!IsTableType(node->GetType())) {
+            THROW_ERROR_EXCEPTION("%v is not a table", node->GetId());
+        }
+        return node->As<TTableNode>();
+    }
+
     void HydraPrepareMountTable(TTransaction* transaction, NTabletClient::NProto::TReqMount* request, bool persist)
     {
         int firstTabletIndex = request->first_tablet_index();
@@ -120,7 +131,7 @@ private:
         ValidateNoParentTransaction(transaction);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
+        auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
         if (Bootstrap_->IsPrimaryMaster()) {
             auto currentPath = cypressManager->GetNodePath(table, nullptr);
@@ -180,7 +191,7 @@ private:
             mountTimestamp);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = cypressManager->FindNode(TVersionedNodeId(tableId))->As<TTableNode>();
+        auto* table = AsTableNodeSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
 
         if (!IsObjectAlive(table)) {
             return;
@@ -229,7 +240,7 @@ private:
             mountTimestamp);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = cypressManager->FindNode(TVersionedNodeId(tableId))->As<TTableNode>();
+        auto* table = AsTableNodeSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
 
         if (!IsObjectAlive(table)) {
             return;
@@ -259,7 +270,7 @@ private:
         ValidateNoParentTransaction(transaction);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
+        auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
         if (Bootstrap_->IsPrimaryMaster()) {
             table->ValidateNoCurrentMountTransaction("Cannot unmount table");
@@ -293,7 +304,7 @@ private:
             lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = cypressManager->FindNode(TVersionedNodeId(tableId))->As<TTableNode>();
+        auto* table = AsTableNodeSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
 
         if (!IsObjectAlive(table)) {
             return;
@@ -330,7 +341,7 @@ private:
             lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = cypressManager->FindNode(TVersionedNodeId(tableId))->As<TTableNode>();
+        auto* table = AsTableNodeSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
 
         if (!IsObjectAlive(table)) {
             return;
@@ -358,7 +369,7 @@ private:
         ValidateNoParentTransaction(transaction);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
+        auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
         if (Bootstrap_->IsPrimaryMaster()) {
             table->ValidateNoCurrentMountTransaction("Cannot freeze table");
@@ -389,7 +400,7 @@ private:
             lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = cypressManager->FindNode(TVersionedNodeId(tableId))->As<TTableNode>();
+        auto* table = AsTableNodeSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
 
         if (!IsObjectAlive(table)) {
             return;
@@ -423,7 +434,7 @@ private:
             lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = cypressManager->FindNode(TVersionedNodeId(tableId))->As<TTableNode>();
+        auto* table = AsTableNodeSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
 
         if (!IsObjectAlive(table)) {
             return;
@@ -451,7 +462,7 @@ private:
         ValidateNoParentTransaction(transaction);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
+        auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
         if (Bootstrap_->IsPrimaryMaster()) {
             table->ValidateNoCurrentMountTransaction("Cannot unfreeze table");
@@ -482,7 +493,7 @@ private:
             lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = cypressManager->FindNode(TVersionedNodeId(tableId))->As<TTableNode>();
+        auto* table = AsTableNodeSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
 
         if (!IsObjectAlive(table)) {
             return;
@@ -517,7 +528,7 @@ private:
             lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = cypressManager->FindNode(TVersionedNodeId(tableId))->As<TTableNode>();
+        auto* table = AsTableNodeSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
 
         if (!IsObjectAlive(table)) {
             return;
@@ -545,7 +556,7 @@ private:
         ValidateNoParentTransaction(transaction);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
+        auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
         if (Bootstrap_->IsPrimaryMaster()) {
             table->ValidateNoCurrentMountTransaction("Cannot remount table");
@@ -576,7 +587,7 @@ private:
             lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = cypressManager->FindNode(TVersionedNodeId(tableId))->As<TTableNode>();
+        auto* table = AsTableNodeSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
 
         if (!IsObjectAlive(table)) {
             return;
@@ -608,7 +619,7 @@ private:
             lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = cypressManager->FindNode(TVersionedNodeId(tableId))->As<TTableNode>();
+        auto* table = AsTableNodeSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
 
         if (!IsObjectAlive(table)) {
             return;
@@ -640,7 +651,7 @@ private:
         ValidateNoParentTransaction(transaction);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
+        auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
         if (Bootstrap_->IsPrimaryMaster()) {
             table->ValidateNoCurrentMountTransaction("Cannot reshard table");
@@ -681,7 +692,7 @@ private:
             lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = cypressManager->FindNode(TVersionedNodeId(tableId))->As<TTableNode>();
+        auto* table = AsTableNodeSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
 
         if (!IsObjectAlive(table)) {
             return;
@@ -721,7 +732,7 @@ private:
             lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = cypressManager->FindNode(TVersionedNodeId(tableId))->As<TTableNode>();
+        auto* table = AsTableNodeSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
 
         if (!IsObjectAlive(table)) {
             return;
