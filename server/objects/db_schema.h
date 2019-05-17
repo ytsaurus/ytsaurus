@@ -255,13 +255,13 @@ extern const struct TResourceCachesTable
     TResourceCachesTable()
         : TDBTable("resource_caches")
     {
-        Key = {&Fields.Meta_ReplicaSetId, &TObjectTableBase::Fields.Meta_Id};
+        Key = {&Fields.Meta_PodSetId, &TObjectTableBase::Fields.Meta_Id};
     }
 
     struct TFields
         : public TObjectTableBase::TFields
     {
-        TDBField Meta_ReplicaSetId{"meta.replica_set_id", NTableClient::EValueType::String};
+        TDBField Meta_PodSetId{"meta.pod_set_id", NTableClient::EValueType::String};
         TDBField Spec{"spec", NTableClient::EValueType::Any};
         TDBField Status{"status", NTableClient::EValueType::Any};
     } Fields;

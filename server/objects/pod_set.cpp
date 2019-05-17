@@ -1,6 +1,7 @@
-#include "dynamic_resource.h"
 #include "pod_set.h"
 #include "pod.h"
+#include "dynamic_resource.h"
+#include "resource_cache.h"
 #include "node_segment.h"
 #include "account.h"
 #include "db_schema.h"
@@ -41,6 +42,7 @@ TPodSet::TPodSet(
     : TObject(id, TObjectId(), typeHandler, session)
     , Pods_(this)
     , DynamicResources_(this)
+    , ResourceCache_(this)
     , Spec_(this)
 { }
 

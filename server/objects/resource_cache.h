@@ -20,14 +20,14 @@ public:
 
     TResourceCache(
         const TObjectId& id,
-        const TObjectId& replicaSetId,
+        const TObjectId& podSetId,
         IObjectTypeHandler* typeHandler,
         ISession* session);
 
     virtual EObjectType GetType() const override;
 
-    using TReplicaSetAttribute = TParentAttribute<TReplicaSet>;
-    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TReplicaSetAttribute, ReplicaSet);
+    using TPodSetAttribute = TParentAttribute<TPodSet>;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TPodSetAttribute, PodSet);
 
     using TSpec = NYP::NClient::NApi::NProto::TResourceCacheSpec;
     static const TScalarAttributeSchema<TResourceCache, TSpec> SpecSchema;

@@ -30,6 +30,9 @@ public:
     using TDynamicResourcesAttribute = TChildrenAttribute<TDynamicResource>;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TDynamicResourcesAttribute, DynamicResources);
 
+    using TResourceCacheAttribute = TChildrenAttribute<TResourceCache>;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TResourceCacheAttribute, ResourceCache);
+
     class TSpec
     {
     public:

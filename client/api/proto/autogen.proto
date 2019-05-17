@@ -483,7 +483,7 @@ message TResourceCacheMeta
     bool inherit_acl = 10;
     repeated TAccessControlEntry acl = 11;
     // Custom fields:
-    string replica_set_id = 4;
+    string pod_set_id = 5;
 }
 
 message TResourceCache

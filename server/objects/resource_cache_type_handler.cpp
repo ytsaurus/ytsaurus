@@ -1,6 +1,6 @@
 #include "resource_type_handler.h"
 #include "type_handler_detail.h"
-#include "replica_set.h"
+#include "pod_set.h"
 #include "resource_cache.h"
 #include "db_schema.h"
 
@@ -17,7 +17,7 @@ public:
     {
         MetaAttributeSchema_
             ->AddChildren({
-                ParentIdAttributeSchema_ = MakeAttributeSchema("replica_set_id")
+                ParentIdAttributeSchema_ = MakeAttributeSchema("pod_set_id")
                     ->SetParentAttribute()
                     ->SetMandatory()
             });
@@ -37,12 +37,12 @@ public:
 
     virtual EObjectType GetParentType() override
     {
-        return EObjectType::ReplicaSet;
+        return EObjectType::PodSet;
     }
 
     virtual TObject* GetParent(TObject* object) override
     {
-        return object->As<TResourceCache>()->ReplicaSet().Load();
+        return object->As<TResourceCache>()->PodSet().Load();
     }
 
     virtual const TDBField* GetIdField() override
@@ -52,7 +52,7 @@ public:
 
     virtual const TDBField* GetParentIdField() override
     {
-        return &ResourceCachesTable.Fields.Meta_ReplicaSetId;
+        return &ResourceCachesTable.Fields.Meta_PodSetId;
     }
 
     virtual const TDBTable* GetTable() override
@@ -62,7 +62,7 @@ public:
 
     virtual TChildrenAttributeBase* GetParentChildrenAttribute(TObject* parent) override
     {
-        return &parent->As<TReplicaSet>()->ResourceCache();
+        return &parent->As<TPodSet>()->ResourceCache();
     }
 
     virtual std::unique_ptr<TObject> InstantiateObject(

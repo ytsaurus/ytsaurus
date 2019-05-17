@@ -42,9 +42,6 @@ public:
     };
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TSpec, Spec);
 
-    using TResourceCacheAttribute = TChildrenAttribute<TResourceCache>;
-    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TResourceCacheAttribute, ResourceCache);
-
     using TStatus = NYP::NClient::NApi::NProto::TReplicaSetStatus;
     static const TScalarAttributeSchema<TReplicaSet, TStatus> StatusSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TStatus>, Status);

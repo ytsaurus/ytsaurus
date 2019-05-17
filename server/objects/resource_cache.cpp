@@ -1,5 +1,5 @@
 #include "resource_cache.h"
-#include "replica_set.h"
+#include "pod_set.h"
 #include "db_schema.h"
 
 namespace NYP::NServer::NObjects {
@@ -20,11 +20,11 @@ const TScalarAttributeSchema<TResourceCache, TResourceCache::TStatus> TResourceC
 
 TResourceCache::TResourceCache(
     const TObjectId& id,
-    const TObjectId& replicaSetId,
+    const TObjectId& podSetId,
     IObjectTypeHandler* typeHandler,
     ISession* session)
-    : TObject(id, replicaSetId, typeHandler, session)
-    , ReplicaSet_(this)
+    : TObject(id, podSetId, typeHandler, session)
+    , PodSet_(this)
     , Spec_(this, &SpecSchema)
     , Status_(this, &StatusSchema)
 { }

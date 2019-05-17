@@ -21,7 +21,8 @@ option (NYP.NClient.NApi.NProto.object_type) = {
 
 message TResourceCacheMetaBase
 {
-    string replica_set_id = 4;
+    reserved 4;
+    string pod_set_id = 5;
 }
 
 message TResourceCacheSpec
