@@ -188,7 +188,7 @@ public:
         auto startAbortion = [&] () {
             SetJobStatePhase(EJobState::Aborting, EJobPhase::WaitingAbort);
             DoSetResult(error);
-            TDelayedExecutor::Submit(BIND(&TJob::OnAbortionTimeout, MakeStrong(this))
+            TDelayedExecutor::Submit(BIND(&TJob::OnJobAbortionTimeout, MakeStrong(this))
                 .Via(Invoker_), Config_->JobAbortionTimeout);
         };
 
@@ -988,7 +988,7 @@ private:
         });
     }
 
-    void OnAbortionTimeout()
+    void OnJobAbortionTimeout()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1048,15 +1048,6 @@ private:
         FinishTime_ = TInstant::Now();
         SetJobPhase(EJobPhase::Cleanup);
 
-        // NodeDirectory can be really huge, we better offload its cleanup.
-        WaitFor(BIND([this_ = MakeStrong(this), this] () {
-            auto* schedulerJobSpecExt = JobSpec_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-            schedulerJobSpecExt->clear_input_node_directory();
-        })
-            .AsyncVia(TDispatcher::Get()->GetCompressionPoolInvoker())
-            .Run())
-            .ThrowOnError();
-
         if (Slot_) {
             try {
                 YT_LOG_DEBUG("Clean processes (SlotIndex: %v)", Slot_->GetSlotIndex());
@@ -1066,6 +1057,16 @@ private:
                 YT_LOG_ERROR(ex, "Failed to clean processed (SlotIndex: %v)", Slot_->GetSlotIndex());
             }
         }
+
+        // NodeDirectory can be really huge, we better offload its cleanup.
+        // NB: do this after slot cleanup.
+        WaitFor(BIND([this_ = MakeStrong(this), this] () {
+            auto* schedulerJobSpecExt = JobSpec_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+            schedulerJobSpecExt->clear_input_node_directory();
+        })
+            .AsyncVia(TDispatcher::Get()->GetCompressionPoolInvoker())
+            .Run())
+            .ThrowOnError();
 
         YCHECK(JobResult_);
 
