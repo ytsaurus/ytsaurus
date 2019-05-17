@@ -507,7 +507,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     def test_mount_map_node_failure(self):
         sync_create_cells(1)
         with pytest.raises(YtError): mount_table("//tmp")
-        with pytest.raises(YtError): unount_table("//tmp")
+        with pytest.raises(YtError): unmount_table("//tmp")
         with pytest.raises(YtError): freeze_table("//tmp")
         with pytest.raises(YtError): unfreeze_table("//tmp")
         with pytest.raises(YtError): reshard_table("//tmp", [[]])
