@@ -3,6 +3,7 @@ from .common import (flatten, require, update, get_value, set_param, datetime_to
 from .config import get_config, get_option
 from .cypress_commands import (exists, remove, get_attribute, copy,
                                move, mkdir, find_free_subpath, create, get, has_attribute)
+from .default_config import DEFAULT_WRITE_CHUNK_SIZE
 from .driver import make_request, _create_http_client_from_rpc, make_formatted_request
 from .retries import default_chaos_monkey, run_chaos_monkey
 from .errors import YtIncorrectResponse, YtError, YtResponseError
@@ -196,12 +197,16 @@ def write_table(table, input_stream, format=None, table_writer=None,
         not is_stream_compressed and \
         "sorted_by" not in table.attributes
 
+    chunk_size = get_config(client)["write_retries"]["chunk_size"]
+    if chunk_size is None:
+        chunk_size = DEFAULT_WRITE_CHUNK_SIZE
+
     input_stream = _to_chunk_stream(
         input_stream,
         format,
         raw,
         split_rows=(enable_retries or enable_parallel_writing),
-        chunk_size=get_config(client)["write_retries"]["chunk_size"],
+        chunk_size=chunk_size,
         rows_chunk_size=get_config(client)["write_retries"]["rows_chunk_size"])
 
     if enable_parallel_writing:
