@@ -18,6 +18,7 @@ protected:
     bool IsValid() const;
     void Next();
     ui32 GetTableIndex() const;
+    ui32 GetRangeIndex() const;
     ui64 GetRowIndex() const;
     void NextKey();
     TMaybe<size_t> GetReadByteCount() const;

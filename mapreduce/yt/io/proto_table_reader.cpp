@@ -144,6 +144,11 @@ ui32 TProtoTableReader::GetTableIndex() const
     return NodeReader_->GetTableIndex();
 }
 
+ui32 TProtoTableReader::GetRangeIndex() const
+{
+    return NodeReader_->GetRangeIndex();
+}
+
 ui64 TProtoTableReader::GetRowIndex() const
 {
     return NodeReader_->GetRowIndex();
@@ -206,6 +211,11 @@ void TLenvalProtoTableReader::Next()
 ui32 TLenvalProtoTableReader::GetTableIndex() const
 {
     return TLenvalTableReader::GetTableIndex();
+}
+
+ui32 TLenvalProtoTableReader::GetRangeIndex() const
+{
+    return TLenvalTableReader::GetRangeIndex();
 }
 
 ui64 TLenvalProtoTableReader::GetRowIndex() const

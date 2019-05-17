@@ -1065,6 +1065,7 @@ TOperationId DoExecuteMap(
     .EndMap().EndMap();
 
     specNode["spec"]["job_io"]["control_attributes"]["enable_row_index"] = TNode(true);
+    specNode["spec"]["job_io"]["control_attributes"]["enable_range_index"] = TNode(true);
     if (!TConfig::Get()->TableWriter.Empty()) {
         specNode["spec"]["job_io"]["table_writer"] = TConfig::Get()->TableWriter;
     }
@@ -1162,6 +1163,7 @@ TOperationId DoExecuteReduce(
             .Item("control_attributes").BeginMap()
                 .Item("enable_key_switch").Value(true)
                 .Item("enable_row_index").Value(true)
+                .Item("enable_range_index").Value(true)
             .EndMap()
             .DoIf(!TConfig::Get()->TableWriter.Empty(), [&] (TFluentMap fluent) {
                 fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
@@ -1256,6 +1258,7 @@ TOperationId DoExecuteJoinReduce(
             .Item("control_attributes").BeginMap()
                 .Item("enable_key_switch").Value(true)
                 .Item("enable_row_index").Value(true)
+                .Item("enable_range_index").Value(true)
             .EndMap()
             .DoIf(!TConfig::Get()->TableWriter.Empty(), [&] (TFluentMap fluent) {
                 fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
@@ -1407,6 +1410,7 @@ TOperationId DoExecuteMapReduce(
         .Item("map_job_io").BeginMap()
             .Item("control_attributes").BeginMap()
                 .Item("enable_row_index").Value(true)
+                .Item("enable_range_index").Value(true)
             .EndMap()
             .DoIf(!TConfig::Get()->TableWriter.Empty(), [&] (TFluentMap fluent) {
                 fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);

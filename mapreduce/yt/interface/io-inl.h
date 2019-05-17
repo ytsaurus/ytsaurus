@@ -59,6 +59,7 @@ struct IReaderImplBase
     virtual bool IsValid() const = 0;
     virtual void Next() = 0;
     virtual ui32 GetTableIndex() const = 0;
+    virtual ui32 GetRangeIndex() const = 0;
     virtual ui64 GetRowIndex() const = 0;
     virtual void NextKey() = 0;
 
@@ -151,6 +152,11 @@ public:
     ui32 GetTableIndex() const
     {
         return Reader_->GetTableIndex();
+    }
+
+    ui32 GetRangeIndex() const
+    {
+        return Reader_->GetRangeIndex();
     }
 
     ui64 GetRowIndex() const
@@ -251,6 +257,11 @@ public:
     ui32 GetTableIndex() const
     {
         return Reader_->GetTableIndex();
+    }
+
+    ui32 GetRangeIndex() const
+    {
+        return Reader_->GetRangeIndex();
     }
 
     ui64 GetRowIndex() const

@@ -100,6 +100,7 @@ public:
     void MoveRow(T* result); // may be a template function
     bool IsValid() const;
     ui32 GetTableIndex() const;
+    ui32 GetRangeIndex() const;
     ui64 GetRowIndex() const;
     void Next();
 };

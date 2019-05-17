@@ -57,9 +57,6 @@ void TLenvalTableReader::Next()
                 return;
             }
 
-            TMaybe<ui64> rowIndex;
-            TMaybe<ui32> rangeIndex;
-
             while (value < 0) {
                 switch (value) {
                     case CONTROL_ATTR_KEY_SWITCH:
@@ -81,31 +78,20 @@ void TLenvalTableReader::Next()
                     case CONTROL_ATTR_ROW_INDEX: {
                         ui64 tmp = 0;
                         ReadInteger(&tmp);
-                        rowIndex = tmp;
+                        RowIndex_ = tmp;
                         ReadInteger(&value);
                         break;
                     }
                     case CONTROL_ATTR_RANGE_INDEX: {
                         ui32 tmp = 0;
                         ReadInteger(&tmp);
-                        rangeIndex = tmp;
+                        RangeIndex_ = tmp;
                         ReadInteger(&value);
                         break;
                     }
                     default:
                         ythrow yexception() <<
                             Sprintf("Invalid control integer %d in YaMR stream", value);
-                }
-            }
-
-            if (rowIndex) {
-                if (Input_.HasRangeIndices()) {
-                    if (rangeIndex) {
-                        RowIndex_ = rowIndex;
-                        RangeIndex_ = rangeIndex;
-                    }
-                } else {
-                    RowIndex_ = rowIndex;
                 }
             }
 
@@ -155,6 +141,12 @@ ui32 TLenvalTableReader::GetTableIndex() const
 {
     CheckValidity();
     return TableIndex_;
+}
+
+ui32 TLenvalTableReader::GetRangeIndex() const
+{
+    CheckValidity();
+    return RangeIndex_.GetOrElse(0);
 }
 
 ui64 TLenvalTableReader::GetRowIndex() const

@@ -489,6 +489,28 @@ REGISTER_REDUCER(TReducerThatSumsFirstThreeValues);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TInputRowTypeType>
+class TMapperThatWritesRowsAndRanges : public ::IMapper<TTableReader<TInputRowTypeType>, TNodeWriter>
+{
+public:
+    using TReader = TTableReader<TInputRowTypeType>;
+    using TWriter = TNodeWriter;
+    void Do(TReader* reader, TWriter* writer) override {
+        for (; reader->IsValid(); reader->Next()) {
+            auto row = TNode()
+                ("row_id", reader->GetRowIndex())
+                ("range_id", reader->GetRangeIndex());
+            writer->AddRow(row);
+        }
+    }
+};
+
+REGISTER_MAPPER(TMapperThatWritesRowsAndRanges<TNode>);
+REGISTER_MAPPER(TMapperThatWritesRowsAndRanges<TYaMRRow>);
+REGISTER_MAPPER(TMapperThatWritesRowsAndRanges<TEmbeddedMessage>);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMapperThatNumbersRows : public IMapper<TNodeReader, TNodeWriter>
 {
 public:
@@ -1722,6 +1744,91 @@ Y_UNIT_TEST_SUITE(Operations)
     Y_UNIT_TEST(RowIndices_Skiff)
     {
         TestRowIndices(ENodeReaderFormat::Skiff);
+    }
+
+    template<class TInputRowType>
+    void TestRangeIndices(ENodeReaderFormat nodeReaderFormat)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        TConfig::Get()->NodeReaderFormat = nodeReaderFormat;
+
+        TYPath inputTable = workingDir + "/input";
+        TYPath outputTable = workingDir + "/output";
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(
+                TRichYPath(inputTable)
+                    .Schema(TTableSchema().AddColumn("key", VT_STRING).AddColumn("value", VT_STRING)));
+            for (size_t i = 0; i < 20; ++i) {
+                writer->AddRow(TNode()("key", ToString(i))("value", ToString(i)));
+            }
+            writer->Finish();
+        }
+
+        auto path = TRichYPath(inputTable)
+            .AddRange(TReadRange()
+                .LowerLimit(TReadLimit().RowIndex(3))
+                .UpperLimit(TReadLimit().RowIndex(8))
+            )
+            .AddRange(TReadRange()
+                .LowerLimit(TReadLimit().RowIndex(10))
+                .UpperLimit(TReadLimit().RowIndex(12))
+            );
+
+        client->Map(
+            TMapOperationSpec()
+                .Ordered(true)
+                .AddInput<TInputRowType>(path)
+                .template AddOutput<TNode>(outputTable),
+            ::MakeIntrusive<TMapperThatWritesRowsAndRanges<TInputRowType>>(),
+            TOperationOptions()
+        );
+
+        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Yson;
+        {
+
+            auto reader = client->CreateTableReader<TNode>(outputTable);
+            TVector<ui32> actualRangeIndecies;
+            TVector<ui64> actualRowIndecies;
+            for (; reader->IsValid(); reader->Next()) {
+                auto row = reader->GetRow();
+                actualRangeIndecies.push_back(row["range_id"].AsUint64());
+                actualRowIndecies.push_back(row["row_id"].AsUint64());
+            }
+            const TVector<ui32> expectedRangeIndecies = {
+                0, 0, 0, 0, 0,
+                1, 1,
+            };
+            const TVector<ui64> expectedRowIndicies = {
+                3, 4, 5, 6, 7,
+                10, 11,
+            };
+            UNIT_ASSERT_VALUES_EQUAL(actualRangeIndecies, expectedRangeIndecies);
+            UNIT_ASSERT_VALUES_EQUAL(actualRowIndecies, expectedRowIndicies);
+        }
+    }
+
+    Y_UNIT_TEST(RangeIndices_Yson_TNode)
+    {
+        TestRangeIndices<TNode>(ENodeReaderFormat::Yson);
+    }
+
+    Y_UNIT_TEST(RangeIndices_Skiff_TNode)
+    {
+        TestRangeIndices<TNode>(ENodeReaderFormat::Skiff);
+    }
+
+    Y_UNIT_TEST(RangeIndices_TYaMRRow)
+    {
+        TestRangeIndices<TYaMRRow>(ENodeReaderFormat::Yson);
+    }
+
+    Y_UNIT_TEST(RangeIndices_Protobuf)
+    {
+        TestRangeIndices<TEmbeddedMessage>(ENodeReaderFormat::Yson);
     }
 
     Y_UNIT_TEST(SkiffForInputQuery)

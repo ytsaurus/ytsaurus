@@ -114,6 +114,12 @@ ui32 TSkiffTableReader::GetTableIndex() const
     return TableIndex_;
 }
 
+ui32 TSkiffTableReader::GetRangeIndex() const
+{
+    EnsureValidity();
+    return RangeIndex_.GetOrElse(0);
+}
+
 ui64 TSkiffTableReader::GetRowIndex() const
 {
     EnsureValidity();

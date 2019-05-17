@@ -284,11 +284,13 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
         TVector<i64> actualKeys;
         TVector<i64> actualRowIndices;
+        TVector<ui32> actualRangeIndecies;
         auto reader = client->CreateTableReader<TNode>(path);
         for (; reader->IsValid(); reader->Next()) {
             const auto& row = reader->GetRow();
             actualKeys.push_back(row["key"].AsInt64());
             actualRowIndices.push_back(reader->GetRowIndex());
+            actualRangeIndecies.push_back(reader->GetRangeIndex());
         }
 
         const TVector<i64> expectedKeys = {
@@ -307,8 +309,17 @@ Y_UNIT_TEST_SUITE(TableIo) {
             90,
             95,
         };
+        const TVector<ui32> expectedRangeIndicies = {
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+            3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+            4,
+            5,
+        };
         UNIT_ASSERT_VALUES_EQUAL(actualKeys, expectedKeys);
         UNIT_ASSERT_VALUES_EQUAL(actualRowIndices, expectedRowIndices);
+        UNIT_ASSERT_VALUES_EQUAL(actualRangeIndecies, expectedRangeIndicies);
     }
     INSTANTIATE_NODE_READER_TESTS(ReadMultipleRangesNode)
 
