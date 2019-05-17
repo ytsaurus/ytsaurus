@@ -807,7 +807,7 @@ class Operation(object):
 
     def get_running_jobs(self):
         jobs_path = self.get_path() + "/controller_orchid/running_jobs"
-        return get(jobs_path, verbose=False, default=[])
+        return get(jobs_path, verbose=False, default={})
 
     def get_state(self, **kwargs):
         try:
