@@ -781,11 +781,11 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         TJobResult jobResult;
-        ToProto(jobResult.mutable_error(), error.Truncate());
-        DoSetResult(jobResult);
+        ToProto(jobResult.mutable_error(), error);
+        DoSetResult(std::move(jobResult));
     }
 
-    void DoSetResult(const TJobResult& jobResult)
+    void DoSetResult(TJobResult jobResult)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         if (JobResult_) {
@@ -794,6 +794,12 @@ private:
                 return;
             }
         }
+
+        {
+            auto error = FromProto<TError>(jobResult.error());
+            ToProto(jobResult.mutable_error(), error.Truncate());
+        }
+
         JobResult_ = jobResult;
         FinishTime_ = TInstant::Now();
     }
