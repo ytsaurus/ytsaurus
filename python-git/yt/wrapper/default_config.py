@@ -7,6 +7,9 @@ from copy import deepcopy
 
 # pydoc :: default_config :: begin
 
+DEFAULT_WRITE_CHUNK_SIZE = 512 * common.MB
+DEFAULT_WRITE_PARALLEL_MAX_THREAD_COUNT = 10
+
 def retry_backoff_config(**kwargs):
     config_dict = {
         # Backoff options for failed requests.
@@ -368,9 +371,9 @@ default_config = {
     },
     "write_parallel": {
         # Number of threads.
-        "max_thread_count": 10,
+        "max_thread_count": None,  # automatically chosen
         # Always run parallel writing if it is possible.
-        "enable": False,
+        "enable": None,  # automatically chosen
         # This option allows to write table in unordered mode.
         "unordered": False,
         # The restriction on the number of chunks which will be passed to concatenate command.
@@ -455,7 +458,7 @@ default_config = {
             "decay_factor_bound": 0.3
         }}) \
         .update_template_dict({
-            "chunk_size": 512 * common.MB,
+            "chunk_size": None,  # automatically chosen
             # Parent transaction wrapping whole write process.
             # If "transaction_id" is not specified it will be automatically created.
             "transaction_id": None,

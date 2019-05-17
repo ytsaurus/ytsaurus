@@ -190,6 +190,11 @@ def chunk_iter_string(string, chunk_size):
         yield string[lower_index:upper_index]
         index += 1
 
+def get_stream_size_or_none(stream):
+    if PY3 and isinstance(stream, (bytes, str)) or not PY3 and isinstance(stream, basestring):
+        return len(stream)
+    return None
+
 def total_seconds(td):
     return float(td.microseconds + (td.seconds + td.days * 24 * 3600) * 10 ** 6) / 10 ** 6
 

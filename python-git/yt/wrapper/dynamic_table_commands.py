@@ -3,6 +3,7 @@ from .table_helpers import _prepare_command_format, _to_chunk_stream
 from .common import set_param, require, is_master_transaction, YtError, get_value
 from .config import get_config, get_option, get_command_param, get_backend_type
 from .cypress_commands import get
+from .default_config import DEFAULT_WRITE_CHUNK_SIZE
 from .errors import YtNoSuchService, YtTabletIsInIntermediateState, YtTabletTransactionLockConflict, YtNoSuchTablet, YtTabletNotMounted, YtResponseError
 from .transaction_commands import _make_transactional_request
 from .ypath import TablePath
@@ -220,12 +221,16 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
     set_param(params, "durability", durability)
     set_param(params, "require_sync_replica", require_sync_replica)
 
+    chunk_size = get_config(client)["write_retries"]["chunk_size"]
+    if chunk_size is None:
+        chunk_size = DEFAULT_WRITE_CHUNK_SIZE
+
     input_data = b"".join(_to_chunk_stream(
         input_stream,
         format,
         raw,
         split_rows=False,
-        chunk_size=get_config(client)["write_retries"]["chunk_size"],
+        chunk_size=chunk_size,
         rows_chunk_size=get_config(client)["write_retries"]["rows_chunk_size"]))
 
     retry_config = deepcopy(get_config(client)["dynamic_table_retries"])
@@ -268,12 +273,16 @@ def delete_rows(table, input_stream, atomicity=None, durability=None, format=Non
     set_param(params, "durability", durability)
     set_param(params, "require_sync_replica", require_sync_replica)
 
+    chunk_size = get_config(client)["write_retries"]["chunk_size"]
+    if chunk_size is None:
+        chunk_size = DEFAULT_WRITE_CHUNK_SIZE
+
     input_data = b"".join(_to_chunk_stream(
         input_stream,
         format,
         raw,
         split_rows=False,
-        chunk_size=get_config(client)["write_retries"]["chunk_size"],
+        chunk_size=chunk_size,
         rows_chunk_size=get_config(client)["write_retries"]["rows_chunk_size"]))
 
     retry_config = deepcopy(get_config(client)["dynamic_table_retries"])
@@ -315,12 +324,16 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
     set_param(params, "keep_missing_rows", keep_missing_rows)
     set_param(params, "versioned", versioned)
 
+    chunk_size = get_config(client)["write_retries"]["chunk_size"]
+    if chunk_size is None:
+        chunk_size = DEFAULT_WRITE_CHUNK_SIZE
+
     input_data = b"".join(_to_chunk_stream(
         input_stream,
         format,
         raw,
         split_rows=False,
-        chunk_size=get_config(client)["write_retries"]["chunk_size"],
+        chunk_size=chunk_size,
         rows_chunk_size=get_config(client)["write_retries"]["rows_chunk_size"]))
 
     _check_transaction_type(client)

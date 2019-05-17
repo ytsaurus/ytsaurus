@@ -1,6 +1,7 @@
 from .config import get_option, get_config, get_total_request_timeout, get_command_param
 from .common import (CustomTqdm, group_blobs_by_size, split_lines_by_max_size,
                      stream_or_empty_bytes, YtError, MB)
+from .default_config import DEFAULT_WRITE_CHUNK_SIZE
 from .retries import Retrier, IteratorRetrier, default_chaos_monkey
 from .errors import YtMasterCommunicationError, YtChunkUnavailable
 from .ypath import YPathSupportingAppend
@@ -173,6 +174,8 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
         with progress_reporter:
             if use_retries:
                 chunk_size = get_config(client)["write_retries"]["chunk_size"]
+                if chunk_size is None:
+                    chunk_size = DEFAULT_WRITE_CHUNK_SIZE
                 write_action = lambda chunk, params: _make_transactional_request(
                     command_name,
                     params,
