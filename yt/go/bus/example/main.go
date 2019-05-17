@@ -3,9 +3,10 @@ package main
 import (
 	"context"
 	"flag"
+	"time"
+
 	zp "go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"time"
 
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/core/log/zap"
@@ -37,7 +38,7 @@ var (
 func singleRun() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	client, err := bus.DialBus(ctx, bus.Config{
+	client, err := bus.Dial(ctx, bus.Options{
 		Address: *address,
 		Logger:  Log,
 	})
