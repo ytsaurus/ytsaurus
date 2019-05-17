@@ -25,6 +25,7 @@ public:
     bool IsValid() const override;
     void Next() override;
     ui32 GetTableIndex() const override;
+    ui32 GetRangeIndex() const override;
     ui64 GetRowIndex() const override;
     void NextKey() override;
     TMaybe<size_t> GetReadByteCount() const override;
@@ -51,6 +52,7 @@ public:
     bool IsValid() const override;
     void Next() override;
     ui32 GetTableIndex() const override;
+    ui32 GetRangeIndex() const override;
     ui64 GetRowIndex() const override;
     void NextKey() override;
     TMaybe<size_t> GetReadByteCount() const override;

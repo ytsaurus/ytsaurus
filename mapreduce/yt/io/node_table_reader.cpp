@@ -288,9 +288,6 @@ void TNodeTableReader::Next()
         ++*RowIndex_;
     }
 
-    TMaybe<ui64> rowIndex;
-    TMaybe<ui32> rangeIndex;
-
     while (true) {
         Row_ = RowQueue_.Dequeue();
 
@@ -312,20 +309,9 @@ void TNodeTableReader::Next()
                 } else if (entry.first == "table_index") {
                     TableIndex_ = static_cast<ui32>(entry.second.AsInt64());
                 } else if (entry.first == "row_index") {
-                    rowIndex = static_cast<ui64>(entry.second.AsInt64());
+                    RowIndex_ = static_cast<ui64>(entry.second.AsInt64());
                 } else if (entry.first == "range_index") {
-                    rangeIndex = static_cast<ui32>(entry.second.AsInt64());
-                }
-            }
-
-            if (rowIndex) {
-                if (Input_.HasRangeIndices()) {
-                    if (rangeIndex) {
-                        RowIndex_ = rowIndex;
-                        RangeIndex_ = rangeIndex;
-                    }
-                } else {
-                    RowIndex_ = rowIndex;
+                    RangeIndex_ = static_cast<ui32>(entry.second.AsInt64());
                 }
             }
 
@@ -350,6 +336,12 @@ ui32 TNodeTableReader::GetTableIndex() const
 {
     CheckValidity();
     return TableIndex_;
+}
+
+ui32 TNodeTableReader::GetRangeIndex() const
+{
+    CheckValidity();
+    return RangeIndex_.GetOrElse(0);
 }
 
 ui64 TNodeTableReader::GetRowIndex() const

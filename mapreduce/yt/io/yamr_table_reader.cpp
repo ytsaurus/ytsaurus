@@ -135,6 +135,11 @@ ui32 TYaMRTableReader::GetTableIndex() const
     return TLenvalTableReader::GetTableIndex();
 }
 
+ui32 TYaMRTableReader::GetRangeIndex() const
+{
+    return TLenvalTableReader::GetRangeIndex();
+}
+
 ui64 TYaMRTableReader::GetRowIndex() const
 {
     return TLenvalTableReader::GetRowIndex();

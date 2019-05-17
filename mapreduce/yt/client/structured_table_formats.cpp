@@ -35,7 +35,8 @@ NSkiff::TSkiffSchemaPtr TryCreateSkiffSchema(
         nodeReaderFormat,
         tables,
         TCreateSkiffSchemaOptions()
-            .HasKeySwitch(true));
+            .HasKeySwitch(true)
+            .HasRangeIndex(true));
 }
 
 TString CreateSkiffConfig(const NSkiff::TSkiffSchemaPtr& schema)

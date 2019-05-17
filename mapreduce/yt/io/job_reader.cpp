@@ -28,7 +28,7 @@ void TJobReader::ResetRetries()
 
 bool TJobReader::HasRangeIndices() const
 {
-    return false;
+    return true;
 }
 
 size_t TJobReader::DoRead(void* buf, size_t len)

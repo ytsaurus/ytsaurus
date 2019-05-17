@@ -70,7 +70,8 @@ public:
         for (ui32 tableIndex = 0; tableIndex < paths.size(); ++tableIndex) {
             const auto& path = Paths_[tableIndex];
             Y_ENSURE(!path.Ranges_.empty());
-            for (const auto& range : path.Ranges_) {
+            for (size_t rangeIndex = 0; rangeIndex < path.Ranges_.size(); ++rangeIndex) {
+                const auto& range = path.Ranges_[rangeIndex];
                 Y_ENSURE(range.LowerLimit_.RowIndex_.Defined(), "Lower limit must be specified as row index");
                 Y_ENSURE(range.UpperLimit_.RowIndex_.Defined(), "Upper limit must be specified as row index");
                 i64 lowerLimit = *range.LowerLimit_.RowIndex_;
@@ -80,6 +81,7 @@ public:
                     range.LowerLimit = lowerLimit;
                     range.UpperLimit = upperLimit;
                     range.TableIndex = tableIndex;
+                    range.RangeIndex = rangeIndex;
 
                     Ranges_.push_back(range);
                     lowerLimit = upperLimit;
@@ -108,6 +110,11 @@ public:
         return RangeIter_->TableIndex;
     }
 
+    ui32 GetRangeIndex() const
+    {
+        return RangeIter_->RangeIndex;
+    }
+
     bool IsValid() const override
     {
         return RangeIter_ != Ranges_.end();
@@ -128,6 +135,7 @@ private:
         i64 LowerLimit;
         i64 UpperLimit;
         ui32 TableIndex;
+        ui32 RangeIndex;
     };
 
     TVector<TRange> Ranges_;
@@ -176,6 +184,11 @@ public:
     }
 
     ui32 GetTableIndex() const override
+    {
+        Y_FAIL("Not implemented");
+    }
+
+    ui32 GetRangeIndex() const override
     {
         Y_FAIL("Not implemented");
     }
@@ -346,6 +359,12 @@ public:
     ui32 GetTableIndex() const override
     {
         return CurrentTableIndex_;
+    }
+
+    ui32 GetRangeIndex() const override
+    {
+        CheckValidity();
+        return CurrentReader_->GetRangeIndex();
     }
 
     ui64 GetRowIndex() const override
