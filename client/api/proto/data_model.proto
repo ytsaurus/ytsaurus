@@ -639,6 +639,12 @@ message TPodDynamicResourceSpec
         // How many copies including actual one should be kept. It's not recommended to use less than 2 (default).
         // If you set 1, your resource will be fully removed before downloading new revision
         optional uint64 cached_revisions_count = 7;
+
+        // Allow resource to be deduplicated via hardlinks if present.
+        // Supported only for rbtorrent URLs.
+        // Use only if you know what you are doing! Hardlinked data can be corrupted
+        // by other users of the resource on the same host.
+        optional bool allow_deduplication = 8;
     }
 
     optional TStorageOptions storage_options = 3;
