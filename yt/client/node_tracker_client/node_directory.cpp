@@ -34,7 +34,6 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const TString NullAddress("<null>");
-static const auto& Logger = NodeTrackerClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -445,10 +444,6 @@ void TNodeDirectory::DoAddCapturedDescriptor(TNodeId id, std::unique_ptr<TNodeDe
     Descriptors_.emplace_back(std::move(descriptorHolder));
     IdToDescriptor_[id] = capturedDescriptor;
     AddressToDescriptor_[capturedDescriptor->GetDefaultAddress()] = capturedDescriptor;
-    YT_LOG_DEBUG("Node descriptor added to directory (This: %v, NodeId: %v, NodeDescriptor: %v)",
-        this,
-        id,
-        *capturedDescriptor);
 }
 
 const TNodeDescriptor* TNodeDirectory::FindDescriptor(TNodeId id) const
