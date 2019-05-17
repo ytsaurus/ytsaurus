@@ -4487,6 +4487,7 @@ private:
             return;
         }
 
+        YCHECK(IsTableType(node->GetType()));
         auto* table = node->As<TTableNode>();
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Received update upstream tablet state request "
@@ -4520,6 +4521,7 @@ private:
             return;
         }
 
+        YCHECK(IsTableType(node->GetType()));
         auto* table = node->As<TTableNode>();
         auto transactionId = FromProto<TTransactionId>(request->last_mount_transaction_id());
         table->SetPrimaryLastMountTransactionId(transactionId);

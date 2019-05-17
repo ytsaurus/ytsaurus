@@ -504,6 +504,14 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 "schema": [{"data": "string"}]
             })
 
+    def test_mount_map_node_failure(self):
+        sync_create_cells(1)
+        with pytest.raises(YtError): mount_table("//tmp")
+        with pytest.raises(YtError): unount_table("//tmp")
+        with pytest.raises(YtError): freeze_table("//tmp")
+        with pytest.raises(YtError): unfreeze_table("//tmp")
+        with pytest.raises(YtError): reshard_table("//tmp", [[]])
+
     def test_mount_permission_denied(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
