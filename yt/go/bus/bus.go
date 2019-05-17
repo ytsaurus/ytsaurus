@@ -6,16 +6,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net"
 	"sync"
+
+	"a.yandex-team.ru/library/go/core/log/nop"
 
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/go/crc64"
 	"a.yandex-team.ru/yt/go/guid"
 )
 
-type Config struct {
+type Options struct {
 	Address string
 	Logger  log.Logger
 }
@@ -26,19 +27,13 @@ type packetFlags int16
 const (
 	packetMessage = packetType(0)
 	packetAck     = packetType(1)
-)
 
-const (
 	packetFlagsNone = packetFlags(0x0000)
-)
 
-const (
 	packetSignature = uint32(0x78616d4f)
-)
-
-const (
-	maxPartSize   = math.MaxInt32
-	fixHeaderSize = 36
+	maxPartSize     = 512 * 1024 * 1024
+	maxPartCount    = 64
+	fixHeaderSize   = 36
 )
 
 type fixedHeader struct {
@@ -50,8 +45,8 @@ type fixedHeader struct {
 	checksum  uint64
 }
 
-func (p *fixedHeader) data() []byte {
-	res := make([]byte, 36)
+func (p *fixedHeader) data(computeCRC bool) []byte {
+	res := make([]byte, fixHeaderSize)
 	binary.LittleEndian.PutUint32(res[0:4], p.signature)
 	binary.LittleEndian.PutUint16(res[4:6], uint16(p.typ))
 	binary.LittleEndian.PutUint16(res[6:8], uint16(p.flags))
@@ -63,7 +58,11 @@ func (p *fixedHeader) data() []byte {
 	binary.LittleEndian.PutUint32(res[20:24], d)
 
 	binary.LittleEndian.PutUint32(res[24:28], p.partCount)
-	binary.LittleEndian.PutUint64(res[28:36], p.checksum)
+
+	if computeCRC {
+		binary.LittleEndian.PutUint64(res[28:36], crc64.Checksum(res))
+	}
+
 	return res
 }
 
@@ -77,7 +76,7 @@ func (p *variableHeader) dataSize() int {
 	return (8+4)*len(p.sizes) + 8
 }
 
-func (p *variableHeader) data() []byte {
+func (p *variableHeader) data(computeCRC bool) []byte {
 	res := make([]byte, p.dataSize())
 	c := 0
 	for _, p := range p.sizes {
@@ -90,7 +89,9 @@ func (p *variableHeader) data() []byte {
 		c = c + 8
 	}
 
-	binary.LittleEndian.PutUint64(res[c:c+8], p.headerChecksum)
+	if computeCRC {
+		binary.LittleEndian.PutUint64(res[c:c+8], crc64.Checksum(res))
+	}
 	return res
 }
 
@@ -100,7 +101,7 @@ type tcpPacket struct {
 	data      [][]byte
 }
 
-func newPacket(data [][]byte) tcpPacket {
+func newPacket(data [][]byte, computeCRC bool) tcpPacket {
 	hdr := fixedHeader{
 		typ:       packetMessage,
 		flags:     packetFlagsNone,
@@ -114,13 +115,12 @@ func newPacket(data [][]byte) tcpPacket {
 		checksums: make([]uint64, len(data)),
 		sizes:     make([]uint32, len(data)),
 	}
+
 	for i, p := range data {
 		varHdr.sizes[i] = uint32(len(p))
-		d := crc64.New()
-		if _, err := d.Write(p); err != nil {
-			varHdr.checksums[i] = uint64(0)
-		} else {
-			varHdr.checksums[i] = d.Sum64()
+
+		if computeCRC {
+			varHdr.checksums[i] = crc64.Checksum(p)
 		}
 	}
 
@@ -132,38 +132,39 @@ func newPacket(data [][]byte) tcpPacket {
 }
 
 func (p *tcpPacket) writeTo(w io.Writer) (int, error) {
-	r := 0
-	l, err := w.Write(p.fixHeader.data())
-	if err != nil {
-		return l, err
-	}
-	r += l
-	l, err = w.Write(p.varHeader.data())
-	if err != nil {
-		return l, err
-	}
-	r += l
+	n := 0
 
-	// Data
+	l, err := w.Write(p.fixHeader.data(true))
+	if err != nil {
+		return n + l, err
+	}
+	n += l
+
+	l, err = w.Write(p.varHeader.data(true))
+	if err != nil {
+		return n + l, err
+	}
+	n += l
+
 	for _, p := range p.data {
 		l, err := w.Write(p)
 		if err != nil {
-			return l, err
+			return n + l, err
 		}
-		r += l
+		n += l
 	}
 
-	return r, nil
+	return n, nil
 }
 
-type Сlient struct {
-	config Config
-	conn   net.Conn
-	logger log.Logger
-	once   sync.Once
+type Bus struct {
+	options Options
+	conn    net.Conn
+	logger  log.Logger
+	once    sync.Once
 }
 
-func (c *Сlient) Close() {
+func (c *Bus) Close() {
 	c.once.Do(func() {
 		if err := c.conn.Close(); err != nil {
 			c.logger.Error("Connection close error", log.Error(err))
@@ -173,35 +174,36 @@ func (c *Сlient) Close() {
 	})
 }
 
-func (c *Сlient) Send(data [][]byte) error {
-	packet := newPacket(data)
+func (c *Bus) Send(data [][]byte) error {
+	packet := newPacket(data, true)
 	l, err := packet.writeTo(c.conn)
 	if err != nil {
 		c.logger.Error("Unable to send packet", log.Error(err))
 		return err
 	}
 
-	c.logger.Debug("Packet Send", log.Any("bytes", l))
+	c.logger.Debug("Packet sent", log.Any("bytes", l))
 	return nil
 }
 
-func (c *Сlient) Receive() ([][]byte, error) {
-	packet, err := c.receive(c.conn)
-	if err != nil {
-		c.logger.Error("Receive error", log.Error(err))
-		return nil, err
-	}
+func (c *Bus) Receive() ([][]byte, error) {
+	for {
+		packet, err := c.receive(c.conn)
+		if err != nil {
+			c.logger.Error("Receive error", log.Error(err))
+			return nil, err
+		}
 
-	if packet.fixHeader.typ == packetAck {
-		c.logger.Debug("Receive ack", log.Any("id", packet.fixHeader.packetID.String()))
-		return c.Receive()
-	}
+		if packet.fixHeader.typ == packetAck {
+			c.logger.Debug("Receive ack", log.Any("id", packet.fixHeader.packetID.String()))
+			continue
+		}
 
-	return packet.data, nil
+		return packet.data, nil
+	}
 }
 
-func (c *Сlient) receive(message io.Reader) (tcpPacket, error) {
-	// FixedHeader
+func (c *Bus) receive(message io.Reader) (tcpPacket, error) {
 	rawFHdr := make([]byte, fixHeaderSize)
 	if _, err := io.ReadFull(message, rawFHdr); err != nil {
 		return tcpPacket{}, err
@@ -223,6 +225,10 @@ func (c *Сlient) receive(message io.Reader) (tcpPacket, error) {
 	)
 	fhdr.partCount = binary.LittleEndian.Uint32(rawFHdr[24:28])
 	fhdr.checksum = binary.LittleEndian.Uint64(rawFHdr[28:])
+
+	if fhdr.partCount > maxPartCount {
+		return tcpPacket{}, fmt.Errorf("bus: too many parts: %d > %d", fhdr.partCount, maxPartCount)
+	}
 
 	// variableHeader
 	varHdr := variableHeader{
@@ -249,11 +255,7 @@ func (c *Сlient) receive(message io.Reader) (tcpPacket, error) {
 	res := make([][]byte, fhdr.partCount)
 	for i, d := range varHdr.sizes {
 		if d > maxPartSize {
-			return tcpPacket{}, fmt.Errorf(
-				"part is to big to receive, max %v, actual %v",
-				maxPartSize,
-				d,
-			)
+			return tcpPacket{}, fmt.Errorf("bus: part is to big, max %v, actual %v", maxPartSize, d)
 		}
 		partB := make([]byte, d)
 		if _, err := io.ReadFull(message, partB); err != nil {
@@ -261,6 +263,7 @@ func (c *Сlient) receive(message io.Reader) (tcpPacket, error) {
 		}
 		res[i] = partB
 	}
+
 	return tcpPacket{
 		data:      res,
 		fixHeader: fhdr,
@@ -268,19 +271,26 @@ func (c *Сlient) receive(message io.Reader) (tcpPacket, error) {
 	}, nil
 }
 
-func DialBus(ctx context.Context, config Config) (*Сlient, error) {
+func NewBus(conn net.Conn, options Options) *Bus {
+	logger := options.Logger
+	if logger == nil {
+		logger = &nop.Logger{}
+	}
+
+	return &Bus{
+		options: options,
+		conn:    conn,
+		logger:  log.With(logger, log.Any("busID", guid.New().String())),
+		once:    sync.Once{},
+	}
+}
+
+func Dial(ctx context.Context, options Options) (*Bus, error) {
 	var d net.Dialer
-	conn, err := d.DialContext(ctx, "tcp", config.Address)
+	conn, err := d.DialContext(ctx, "tcp", options.Address)
 	if err != nil {
 		return nil, err
 	}
 
-	cl := Сlient{
-		config: config,
-		conn:   conn,
-		logger: log.With(config.Logger, log.Any("busID", guid.New().String())),
-		once:   sync.Once{},
-	}
-
-	return &cl, nil
+	return NewBus(conn, options), nil
 }
