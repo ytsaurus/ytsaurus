@@ -82,19 +82,19 @@ DECLARE_REFCOUNTED_CLASS(TDispatcherConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TGuid TRequestId;
+using TRequestId = TGuid;
 extern const TRequestId NullRequestId;
 
-typedef TGuid TRealmId;
+using TRealmId = TGuid;
 extern const TRealmId NullRealmId;
 
-typedef TGuid TMutationId;
+using TMutationId = TGuid;
 extern const TMutationId NullMutationId;
 
 extern const TString RootUserName;
 
-typedef int TNetworkId;
-const TNetworkId DefaultNetworkId = 0;
+using TNetworkId = int;
+constexpr TNetworkId DefaultNetworkId = 0;
 
 DEFINE_ENUM(EMultiplexingBand,
     ((Default)               (0))
