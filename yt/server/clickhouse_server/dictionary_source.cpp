@@ -53,7 +53,7 @@ public:
 
         auto table = FetchClickHouseTable(Bootstrap_->GetRootClient(), Path_, Logger);
         if (!table) {
-            THROW_ERROR_EXCEPTION("Underlying dictionary table %v for does not exist", Path_);
+            THROW_ERROR_EXCEPTION("Underlying dictionary table %v does not exist", Path_);
         }
 
         ValidateStructure(*table);
