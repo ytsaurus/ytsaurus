@@ -113,3 +113,9 @@ func (d *digest) BlockSize() int {
 func (d *digest) Sum64() uint64 {
 	return bits.ReverseBytes64(d.crc)
 }
+
+func Checksum(p []byte) uint64 {
+	var d digest
+	d.update(p)
+	return d.Sum64()
+}
