@@ -211,7 +211,7 @@ public:
     explicit TSchedulerElementSharedState(IFairShareTreeHost* host);
 
     TJobResources GetResourceUsage();
-    TJobResources GetTotalResourceUsageWithPrecommit();
+    TJobResources GetResourceUsageWithPrecommit();
     TJobMetrics GetJobMetrics();
 
     void AttachParent(TSchedulerElementSharedState* parent);
@@ -233,7 +233,6 @@ public:
         const TJobResources& delta,
         const TJobResources& resourceDemand,
         const TJobResources& resourceDiscount);
-    double GetResourceUsageRatio(NNodeTrackerClient::EResourceType dominantResource, double dominantResourceLimit);
 
     bool GetAlive() const;
     void SetAlive(bool alive);
@@ -356,9 +355,9 @@ public:
     virtual void CheckForStarvation(TInstant now) = 0;
 
     TJobResources GetLocalResourceUsage() const;
-    TJobResources GetTotalLocalResourceUsageWithPrecommit() const;
     TJobMetrics GetJobMetrics() const;
-    double GetLocalResourceUsageRatio() const;
+    double GetResourceUsageRatio() const;
+    double GetResourceUsageRatioWithPrecommit() const;
 
     virtual TString GetTreeId() const;
 
@@ -411,6 +410,7 @@ protected:
 
 private:
     void UpdateAttributes();
+    double ComputeResourceUsageRatio(const TJobResources& jobResources) const;
 
     friend class TOperationElement;
     friend class TPool;

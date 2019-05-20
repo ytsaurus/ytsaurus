@@ -38,9 +38,11 @@ BlockInputStreams TStorageDistributedBase::read(
     auto* queryContext = GetQueryContext(context);
     const auto& Logger = queryContext->Logger;
 
+    const auto& cluster = queryContext->Bootstrap->GetHost()->GetExecutionClusterNodeTracker();
+
     SpecTemplate.InitialQueryId = queryContext->QueryId;
 
-    auto clusterNodes = Cluster->GetAvailableNodes();
+    auto clusterNodes = cluster->GetAvailableNodes();
     Prepare(clusterNodes.size(), queryInfo, context);
 
     YT_LOG_INFO("Preparing query to YT table storage (ColumnNames: %v, TableName: %v, NodeCount: %v, StripeCount: %v)",

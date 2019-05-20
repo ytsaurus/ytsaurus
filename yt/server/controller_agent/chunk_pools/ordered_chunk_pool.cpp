@@ -336,6 +336,7 @@ private:
             dataSizePerJob = DivCeil(dataSize, static_cast<i64>(splitJobCount));
         }
 
+        auto jobIndex = JobIndex_;
         // Teleport chunks do not affect the job split process since each original
         // job is already located between the teleport chunks.
         std::vector<TInputChunkPtr> teleportChunks;
@@ -346,7 +347,9 @@ private:
             int inputCookie = *dataSlice->Tag;
             AddPrimaryDataSlice(dataSlice, inputCookie, dataSizePerJob);
         }
-        EndJob();
+        // We wanted to create several jobs, but failed to do it => job is unsplittable.
+        auto unsplittable = splitJobCount > 1 && jobIndex == JobIndex_;
+        EndJob(unsplittable);
     }
 
     i64 GetDataWeightPerJob() const
@@ -374,7 +377,7 @@ private:
         CurrentJob()->AddDataSlice(dataSliceCopy, cookie, true /* isPrimary */);
     }
 
-    void EndJob()
+    void EndJob(bool unsplittable = false)
     {
         if (CurrentJob()->GetSliceCount() > 0) {
             if (Sampler_->Sample()) {
@@ -395,6 +398,9 @@ private:
                         << TErrorAttribute("actual_total_slice_count", TotalSliceCount_)
                         << TErrorAttribute("max_total_slice_count", MaxTotalSliceCount_)
                         << TErrorAttribute("current_job_count", JobIndex_);
+                }
+                if (unsplittable) {
+                    CurrentJob()->SetUnsplittable();
                 }
 
                 CurrentJob()->Finalize(false /* sortByPosition */);

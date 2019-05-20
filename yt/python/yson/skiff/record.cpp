@@ -96,7 +96,7 @@ Py::Object TSkiffRecord::GetSparseField(ui16 index)
 }
 
 
-void CheckFieldType(const Py::Object& value, NSkiff::TSkiffSchemaPtr schema, bool required)
+void CheckFieldType(const Py::Object& value, NSkiff::EWireType wireType, bool required)
 {
     thread_local PyObject* Zero = PyLong_FromLongLong(0);
     thread_local PyObject* SignedInt64Min = PyLong_FromLongLong(std::numeric_limits<i64>::min());
@@ -110,11 +110,11 @@ void CheckFieldType(const Py::Object& value, NSkiff::TSkiffSchemaPtr schema, boo
         return;
     }
 
-    switch (schema->GetWireType()) {
+    switch (wireType) {
         case NSkiff::EWireType::Int64:
         case NSkiff::EWireType::Uint64: {
             auto valueAsLongLong = Py::LongLong(value);
-            if (schema->GetWireType() == NSkiff::EWireType::Uint64 &&
+            if (wireType == NSkiff::EWireType::Uint64 &&
                 (
                     PyObject_RichCompareBool(Zero, valueAsLongLong.ptr(), Py_LE) != 1 ||
                     PyObject_RichCompareBool(valueAsLongLong.ptr(), UnsignedInt64Max, Py_LT) != 1
@@ -125,7 +125,7 @@ void CheckFieldType(const Py::Object& value, NSkiff::TSkiffSchemaPtr schema, boo
                     << TErrorAttribute("expected_type", "uint64")
                     << TErrorAttribute("value", ConvertStringObjectToString(valueAsLongLong.str()));
             }
-            if (schema->GetWireType() == NSkiff::EWireType::Int64 &&
+            if (wireType == NSkiff::EWireType::Int64 &&
                 (
                     PyObject_RichCompareBool(SignedInt64Min, valueAsLongLong.ptr(), Py_LE) != 1 ||
                     PyObject_RichCompareBool(valueAsLongLong.ptr(), SignedInt64Max, Py_LE) != 1
@@ -173,8 +173,8 @@ void TSkiffRecord::SetDenceField(ui16 index, const Py::Object& value)
     if (newFieldValue.ptr() == nullptr) {
         newFieldValue = Py::None();
     }
-    auto fieldDescription = Schema_->GetDenceField(index);
-    CheckFieldType(newFieldValue, fieldDescription.DeoptionalizedSchema, fieldDescription.Required);
+    auto fieldDescription = Schema_->GetDenseField(index);
+    CheckFieldType(newFieldValue, fieldDescription.ValidatedSimplify(), fieldDescription.IsRequired());
     DenseFields_[index] = newFieldValue;
 }
 
@@ -185,7 +185,7 @@ void TSkiffRecord::SetSparseField(ui16 index, const Py::Object& value)
         return;
     }
     auto fieldDescription = Schema_->GetSparseField(index - Schema_->GetDenseFieldsCount());
-    CheckFieldType(value, fieldDescription.DeoptionalizedSchema, false);
+    CheckFieldType(value, fieldDescription.ValidatedSimplify(), false);
     SparseFields_[index] = value;
 }
 
@@ -388,7 +388,7 @@ PyObject* TSkiffRecordItemsIterator::iternext()
 {
     auto schema = Record_->GetSchema();
     while (NextDenseFieldIndex_ < schema->GetDenseFieldsCount()) {
-        auto key = Py::String(schema->GetDenceField(NextDenseFieldIndex_).Name);
+        auto key = Py::String(schema->GetDenseField(NextDenseFieldIndex_).Name());
         auto value = Record_->GetDenseField(NextDenseFieldIndex_);
         ++NextDenseFieldIndex_;
 
@@ -402,7 +402,7 @@ PyObject* TSkiffRecordItemsIterator::iternext()
     }
 
     if (SparseFieldsIterator_ != Record_->GetSparseFields()->end()) {
-        auto key = Py::String(schema->GetSparseField(SparseFieldsIterator_->first - schema->GetDenseFieldsCount()).Name);
+        auto key = Py::String(schema->GetSparseField(SparseFieldsIterator_->first - schema->GetDenseFieldsCount()).Name());
         const auto& value = SparseFieldsIterator_->second;
         ++SparseFieldsIterator_;
 

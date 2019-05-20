@@ -653,15 +653,12 @@ void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
         addCachedChunkInfo(chunk);
     }
 
-    int mediumIndex = 0;
-    for (auto chunkCount : chunkCounts) {
-        if (chunkCount.second != 0) {
+    for (const auto&  [mediumIndex, chunkCount] : chunkCounts) {
+        if (chunkCount != 0) {
             auto* mediumChunkStatistics = request->add_chunk_statistics();
             mediumChunkStatistics->set_medium_index(mediumIndex);
-            mediumChunkStatistics->set_chunk_count(chunkCount.second);
+            mediumChunkStatistics->set_chunk_count(chunkCount);
         }
-
-        ++mediumIndex;
     }
 
     YT_LOG_INFO("Full node heartbeat sent to master (StoredChunkCount: %v, CachedChunkCount: %v, %v)",

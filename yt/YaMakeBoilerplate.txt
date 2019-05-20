@@ -6,23 +6,29 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya.make.environment.inc)
 SET(PROTO_NAMESPACE ${YT_ROOT})
 
 SET(YT_ARCADIA_CXXFLAGS
-  -Wno-sign-compare
-  -Wno-unused-function
-  -Wno-unused-parameter
-  -Wno-unused-value
-  -Wno-uninitialized
-  -Wno-type-limits
-  -Wno-missing-braces
-  -Wno-missing-field-initializers
-  -Wunused-result
-  -DYT_IN_ARCADIA
+    -Wno-sign-compare
+    -Wno-unused-function
+    -Wno-unused-parameter
+    -Wno-unused-value
+    -Wno-uninitialized
+    -Wno-type-limits
+    -Wno-missing-braces
+    -Wno-missing-field-initializers
+    -Wunused-result
+    -DYT_IN_ARCADIA
+)
+
+SET(YT_ARCADIA_CFLAGS
+    -D__SSE4_2__
+    -msse4.2
+    -mpclmul
 )
 
 IF(GCC)
-  SET(YT_ARCADIA_CXXFLAGS
-    ${YT_ARCADIA_CXXFLAGS}
-    -Wno-maybe-uninitialized
-  )
+    SET(YT_ARCADIA_CXXFLAGS
+        ${YT_ARCADIA_CXXFLAGS}
+        -Wno-maybe-uninitialized
+    )
 ENDIF()
 
 SET(YT_ABI_VERSION "${YT_VERSION_MAJOR}_${YT_VERSION_MINOR}")

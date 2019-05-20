@@ -21,11 +21,9 @@ class TStorageDistributedBase
 {
 public:
     TStorageDistributedBase(
-        IExecutionClusterPtr cluster,
         NTableClient::TTableSchema readSchema,
         TClickHouseTableSchema clickHouseSchema)
-        : Cluster(std::move(cluster))
-        , ClickHouseSchema(std::move(clickHouseSchema))
+        : ClickHouseSchema(std::move(clickHouseSchema))
         , ReadSchema(std::move(readSchema))
     { }
 
@@ -52,7 +50,7 @@ public:
     virtual bool supportsSampling() const override;
 
 protected:
-    virtual std::vector<NYPath::TYPath> GetTablePaths() const = 0;
+    virtual std::vector<NYPath::TRichYPath> GetTablePaths() const = 0;
 
     // TODO(max42): why is this different for different descendants?
     virtual DB::ASTPtr RewriteSelectQueryForTablePart(
@@ -62,7 +60,6 @@ protected:
     const TClickHouseTableSchema& GetSchema() const;
 
 private:
-    IExecutionClusterPtr Cluster;
     TClickHouseTableSchema ClickHouseSchema;
     NTableClient::TTableSchema ReadSchema;
     TSubquerySpec SpecTemplate;

@@ -25,13 +25,13 @@ TSkiffSchema::TSkiffSchema(
     ui16 index = 0;
     for (const auto& denseField : TableDescription_.DenseFieldDescriptionList)
     {
-        FieldIndeces_[denseField.Name] = index;
+        FieldIndeces_[denseField.Name()] = index;
         index += 1;
     }
 
     for (const auto& sparseField : TableDescription_.SparseFieldDescriptionList)
     {
-        FieldIndeces_[sparseField.Name] = index;
+        FieldIndeces_[sparseField.Name()] = index;
         index += 1;
     }
 }
@@ -58,12 +58,12 @@ size_t TSkiffSchema::Size()
     return GetDenseFieldsCount() + GetSparseFieldsCount();
 }
 
-TDenseFieldDescription TSkiffSchema::GetDenceField(ui16 index)
+TFieldDescription TSkiffSchema::GetDenseField(ui16 index)
 {
     return TableDescription_.DenseFieldDescriptionList[index];
 }
 
-TSparseFieldDescription TSkiffSchema::GetSparseField(ui16 index)
+TFieldDescription TSkiffSchema::GetSparseField(ui16 index)
 {
     return TableDescription_.SparseFieldDescriptionList[index];
 }
@@ -198,13 +198,13 @@ Py::Object TSkiffSchemaPython::GetFieldNames()
     Py::List result;
 
     for (ui16 index = 0; index < Schema_->GetDenseFieldsCount(); ++index) {
-        auto field = Schema_->GetDenceField(index);
-        result.append(Py::String(field.Name));
+        auto field = Schema_->GetDenseField(index);
+        result.append(Py::String(field.Name()));
     }
 
     for (ui16 index = Schema_->GetDenseFieldsCount(); index < Schema_->Size(); ++index) {
         auto field = Schema_->GetSparseField(index);
-        result.append(Py::String(field.Name));
+        result.append(Py::String(field.Name()));
     }
     return result;
 }

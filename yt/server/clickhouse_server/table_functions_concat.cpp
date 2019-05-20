@@ -17,6 +17,8 @@
 
 #include <yt/client/object_client/public.h>
 
+#include <yt/client/ypath/rich.h>
+
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/convert.h>
 
@@ -48,6 +50,7 @@ using namespace NApi;
 using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NYson;
+using namespace NYPath;
 using namespace NTableClient;
 
 namespace {
@@ -99,13 +102,13 @@ T EvaluateArgument(ASTPtr& argument, const Context& context)
 }
 
 // TODO(max42): unify with remaining functions.
-std::vector<TClickHouseTablePtr> FetchClickHouseTables(TQueryContext* queryContext, const std::vector<TYPath>& paths)
+std::vector<TClickHouseTablePtr> FetchClickHouseTables(TQueryContext* queryContext, const std::vector<NYPath::TRichYPath>& paths)
 {
     TObjectServiceProxy proxy(queryContext->Client()->GetMasterChannelOrThrow(EMasterChannelKind::Cache));
     auto batchReq = proxy.ExecuteBatch();
 
     for (auto& path : paths) {
-        auto req = TYPathProxy::Get(path + "/@");
+        auto req = TYPathProxy::Get(path.GetPath() + "/@");
         SetSuppressAccessTracking(req, true);
         std::vector<TString> attributeKeys {
             "schema",
@@ -171,13 +174,11 @@ class TConcatenateTablesList
     : public ITableFunction
 {
 private:
-    IExecutionClusterPtr Cluster;
     bool DropPrimaryKey;
 
 public:
-    TConcatenateTablesList(IExecutionClusterPtr cluster, bool dropPrimaryKey)
-        : Cluster(std::move(cluster))
-        , DropPrimaryKey(dropPrimaryKey)
+    TConcatenateTablesList(bool dropPrimaryKey)
+        : DropPrimaryKey(dropPrimaryKey)
     {}
 
     static std::string GetName()
@@ -205,25 +206,24 @@ public:
     }
 
 private:
-    std::vector<TString> EvaluateArguments(
+    std::vector<TRichYPath> EvaluateArguments(
         TArguments& arguments,
         const Context& context) const
     {
-        std::vector<TString> tableNames;
+        std::vector<TRichYPath> tableNames;
         tableNames.reserve(arguments.size());
         for (auto& argument : arguments) {
-            tableNames.push_back(ToString(EvaluateIdentifierArgument(argument, context)));
+            tableNames.push_back(TRichYPath::Parse(ToString(EvaluateIdentifierArgument(argument, context))));
         }
         return tableNames;
     }
 
-    StoragePtr Execute(const std::vector<TYPath>& tablePaths, TQueryContext* queryContext) const
+    StoragePtr Execute(const std::vector<TRichYPath>& tablePaths, TQueryContext* queryContext) const
     {
         auto tables = FetchClickHouseTables(queryContext, tablePaths);
 
         return CreateStorageConcat(
             std::move(tables),
-            Cluster,
             DropPrimaryKey);
     }
 };
@@ -238,19 +238,15 @@ class TListFilterAndConcatenateTables
     : public ITableFunction
 {
 private:
-    IExecutionClusterPtr Cluster;
-
     Poco::Logger* Logger;
 
     bool DropPrimaryKey;
 
 public:
     TListFilterAndConcatenateTables(
-        IExecutionClusterPtr cluster,
         Poco::Logger* logger,
         bool dropPrimaryKey)
-        : Cluster(std::move(cluster))
-        , Logger(logger)
+        : Logger(logger)
         , DropPrimaryKey(dropPrimaryKey)
     { }
 
@@ -262,7 +258,7 @@ public:
         auto& functionNode = typeid_cast<ASTFunction &>(*functionAst);
         auto& arguments = GetAllArguments(functionNode);
 
-        auto directory = TString(GetDirectoryRequiredArgument(arguments, context));
+        auto directory = TRichYPath(TString(GetDirectoryRequiredArgument(arguments, context)));
 
         YT_LOG_INFO("Listing directory (Path: %v)", directory);
 
@@ -270,21 +266,24 @@ public:
         options.Attributes = {"type", "path"};
         options.SuppressAccessTracking = true;
 
-        auto items = WaitFor(queryContext->Client()->ListNode(directory, options))
+        auto items = WaitFor(queryContext->Client()->ListNode(directory.GetPath(), options))
             .ValueOrThrow();
         auto itemList = ConvertTo<IListNodePtr>(items);
 
-        std::vector<TYPath> tablePaths;
+        std::vector<TRichYPath> tablePaths;
         for (const auto& child : itemList->GetChildren()) {
             const auto& attributes = child->Attributes();
             if (attributes.Get<NObjectClient::EObjectType>("type") == NObjectClient::EObjectType::Table) {
-                tablePaths.emplace_back(attributes.Get<TYPath>("path"));
+                auto richPath = TRichYPath(attributes.Get<TYPath>("path"), directory.Attributes());
+                tablePaths.emplace_back(richPath);
             }
         }
 
         YT_LOG_INFO("Tables listed (ItemCount: %v, TableCount: %v)", itemList->GetChildCount(), tablePaths.size());
 
-        std::sort(tablePaths.begin(), tablePaths.end());
+        std::sort(tablePaths.begin(), tablePaths.end(), [] (const auto& lhs, const auto& rhs) {
+            return lhs.GetPath() < rhs.GetPath();
+        });
 
         tablePaths = FilterTables(tablePaths, arguments, context);
 
@@ -299,8 +298,8 @@ protected:
         return Logger;
     }
 
-    virtual std::vector<TYPath> FilterTables(
-        const std::vector<TYPath>& tablePaths,
+    virtual std::vector<TRichYPath> FilterTables(
+        const std::vector<TRichYPath>& tablePaths,
         TArguments& arguments,
         const Context& context) const = 0;
 
@@ -326,7 +325,7 @@ private:
             throw Exception("No tables found by " + getName(), ErrorCodes::CANNOT_SELECT);
         }
 
-        return CreateStorageConcat(tables, Cluster, DropPrimaryKey);
+        return CreateStorageConcat(tables, DropPrimaryKey);
     }
 };
 
@@ -336,11 +335,8 @@ class TConcatenateTablesRange
     : public TListFilterAndConcatenateTables
 {
 public:
-    TConcatenateTablesRange(
-        IExecutionClusterPtr cluster,
-        bool dropPrimaryKey)
+    TConcatenateTablesRange(bool dropPrimaryKey)
         : TListFilterAndConcatenateTables(
-            std::move(cluster),
             &Poco::Logger::get("ConcatYtTablesRange"),
             dropPrimaryKey)
     { }
@@ -356,8 +352,8 @@ public:
     }
 
 private:
-    std::vector<TYPath> FilterTables(
-        const std::vector<TYPath>& tablePaths,
+    std::vector<TRichYPath> FilterTables(
+        const std::vector<TRichYPath>& tablePaths,
         TArguments& arguments,
         const Context& context) const override
     {
@@ -368,14 +364,14 @@ private:
             return tablePaths;
         }
 
-        std::vector<TYPath> result;
+        std::vector<TRichYPath> result;
 
         if (argumentCount == 2) {
             // [from, ...)
             auto from = TString(EvaluateArgument<std::string>(arguments[1], context));
 
             std::copy_if(tablePaths.begin(), tablePaths.end(), std::back_inserter(result), [&] (const auto& name) {
-                return BaseName(name) >= from;
+                return BaseName(name.GetPath()) >= from;
             });
         } else if (argumentCount == 3) {
             // [from, to] name range
@@ -383,7 +379,7 @@ private:
             auto to = TString(EvaluateArgument<std::string>(arguments[2], context));
 
             std::copy_if(tablePaths.begin(), tablePaths.end(), std::back_inserter(result), [&] (const auto& name) {
-                return BaseName(name) >= from && BaseName(name) <= to;
+                return BaseName(name.GetPath()) >= from && BaseName(name.GetPath()) <= to;
             });
         } else {
             throw Exception(
@@ -402,9 +398,8 @@ class TConcatenateTablesRegexp
     : public TListFilterAndConcatenateTables
 {
 public:
-    TConcatenateTablesRegexp(IExecutionClusterPtr cluster, bool dropPrimaryKey)
+    TConcatenateTablesRegexp(bool dropPrimaryKey)
         : TListFilterAndConcatenateTables(
-            std::move(cluster),
             &Poco::Logger::get("ConcatYtTablesRegexp"),
             dropPrimaryKey)
     {}
@@ -420,8 +415,8 @@ public:
     }
 
 private:
-    std::vector<TYPath> FilterTables(
-        const std::vector<TYPath>& tablePaths,
+    std::vector<TRichYPath> FilterTables(
+        const std::vector<TRichYPath>& tablePaths,
         TArguments& arguments,
         const Context& context) const override
     {
@@ -432,10 +427,10 @@ private:
 
         auto matcher = std::make_shared<OptimizedRegularExpression>(std::move(regexp));
 
-        std::vector<TYPath> result;
+        std::vector<TRichYPath> result;
 
         std::copy_if(tablePaths.begin(), tablePaths.end(), std::back_inserter(result), [&] (const auto& path) {
-            return matcher->match(BaseName(path));
+            return matcher->match(BaseName(path.GetPath()));
         });
 
         return result;
@@ -448,11 +443,8 @@ class TConcatenateTablesLike
     : public TListFilterAndConcatenateTables
 {
 public:
-    TConcatenateTablesLike(
-        IExecutionClusterPtr cluster,
-        bool dropPrimaryKey)
+    TConcatenateTablesLike(bool dropPrimaryKey)
         : TListFilterAndConcatenateTables(
-            std::move(cluster),
             &Poco::Logger::get("ConcatYtTablesLike"),
             dropPrimaryKey)
     {}
@@ -468,8 +460,8 @@ public:
     }
 
 private:
-    std::vector<TYPath> FilterTables(
-        const std::vector<TYPath>& tablePaths,
+    std::vector<TRichYPath> FilterTables(
+        const std::vector<TRichYPath>& tablePaths,
         TArguments& arguments,
         const Context& context) const override
     {
@@ -480,10 +472,10 @@ private:
 
         auto matcher = std::make_shared<Poco::Glob>(pattern);
 
-        std::vector<TString> result;
+        std::vector<TRichYPath> result;
 
         std::copy_if(tablePaths.begin(), tablePaths.end(), std::back_inserter(result), [&] (const auto& path) {
-            return matcher->match(BaseName(path));
+            return matcher->match(BaseName(path.GetPath()));
         });
 
         return result;
@@ -492,18 +484,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RegisterConcatenatingTableFunctions(IExecutionClusterPtr cluster)
+void RegisterConcatenatingTableFunctions()
 {
     auto& factory = TableFunctionFactory::instance();
 
 #define REGISTER_TABLE_FUNCTION(TFunction) \
     factory.registerFunction( \
         TFunction::GetName(), \
-        [=] { return std::make_shared<TFunction>(cluster, false); } \
+        [=] { return std::make_shared<TFunction>(false); } \
         ); \
     factory.registerFunction( \
         TFunction::GetName() + "DropPrimaryKey", \
-        [=] { return std::make_shared<TFunction>(cluster, true); } \
+        [=] { return std::make_shared<TFunction>(true); } \
         );
 
     REGISTER_TABLE_FUNCTION(TConcatenateTablesList);

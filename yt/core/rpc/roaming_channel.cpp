@@ -114,6 +114,11 @@ public:
         return Provider_->GetEndpointAttributes();
     }
 
+    virtual TNetworkId GetNetworkId() const override
+    {
+        return Provider_->GetNetworkId();
+    }
+
     virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,

@@ -26,6 +26,7 @@ using namespace NChunkClient;
 using namespace NYson;
 using namespace NYTree;
 using namespace NNet;
+using namespace NRpc;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -33,7 +34,6 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const TString NullAddress("<null>");
-static const auto& Logger = NodeTrackerClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -106,6 +106,11 @@ const TAddressMap& TNodeDescriptor::Addresses() const
 const TString& TNodeDescriptor::GetDefaultAddress() const
 {
     return DefaultAddress_;
+}
+
+TAddressWithNetwork TNodeDescriptor::GetAddressWithNetworkOrThrow(const TNetworkPreferenceList& networks) const
+{
+    return NNodeTrackerClient::GetAddressWithNetworkOrThrow(Addresses(), networks);
 }
 
 const TString& TNodeDescriptor::GetAddressOrThrow(const TNetworkPreferenceList& networks) const
@@ -439,10 +444,6 @@ void TNodeDirectory::DoAddCapturedDescriptor(TNodeId id, std::unique_ptr<TNodeDe
     Descriptors_.emplace_back(std::move(descriptorHolder));
     IdToDescriptor_[id] = capturedDescriptor;
     AddressToDescriptor_[capturedDescriptor->GetDefaultAddress()] = capturedDescriptor;
-    YT_LOG_DEBUG("Node descriptor added to directory (This: %v, NodeId: %v, NodeDescriptor: %v)",
-        this,
-        id,
-        *capturedDescriptor);
 }
 
 const TNodeDescriptor* TNodeDirectory::FindDescriptor(TNodeId id) const
@@ -552,6 +553,19 @@ const TString& GetAddressOrThrow(const TAddressMap& addresses, const TNetworkPre
     const auto it = SelectAddress(addresses, networks);
     if (it != addresses.cend()) {
         return it->second;
+    }
+
+    THROW_ERROR_EXCEPTION("Cannot select address for host %v since there is no compatible network",
+            GetDefaultAddress(addresses))
+            << TErrorAttribute("remote_networks", GetKeys(addresses))
+            << TErrorAttribute("local_networks", networks);
+}
+
+TAddressWithNetwork GetAddressWithNetworkOrThrow(const TAddressMap& addresses, const TNetworkPreferenceList& networks)
+{
+    const auto it = SelectAddress(addresses, networks);
+    if (it != addresses.cend()) {
+        return TAddressWithNetwork{it->second, it->first};
     }
 
     THROW_ERROR_EXCEPTION("Cannot select address for host %v since there is no compatible network",

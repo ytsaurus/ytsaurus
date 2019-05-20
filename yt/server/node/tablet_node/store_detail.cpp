@@ -150,7 +150,8 @@ void TStoreBase::Save(TSaveContext& context) const
 void TStoreBase::Load(TLoadContext& context)
 {
     using NYT::Load;
-    SetStoreState(Load<EStoreState>(context));
+    // NB: Beware of overloads!
+    TStoreBase::SetStoreState(Load<EStoreState>(context));
 }
 
 void TStoreBase::BuildOrchidYson(TFluentMap fluent)

@@ -1202,12 +1202,12 @@ public:
             .Run(path, chunkId, operationId, jobId, user);
     }
 
-    TJobProberServiceProxy CreateJobProberProxy(const TString& address) override
+    TJobProberServiceProxy CreateJobProberProxy(const TAddressWithNetwork& addressWithNetwork) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         const auto& channelFactory = GetMasterClient()->GetChannelFactory();
-        auto channel = channelFactory->CreateChannel(address);
+        auto channel = channelFactory->CreateChannel(addressWithNetwork);
 
         TJobProberServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(Config_->JobProberRpcTimeout);

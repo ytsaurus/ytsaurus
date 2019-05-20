@@ -47,8 +47,9 @@ public:
         if (credentials.UserIP.IsIP6() || credentials.UserIP.IsIP4()) {
             userIP = credentials.UserIP.FormatIP();
         } else {
-            // UserIP is not required for token authentication, but
-            // blackbox requires that parameter anyway.
+            // Sometimes userIP is missing (e.g. user is connecting
+            // from job using unix socket), but it is required by
+            // blackbox. Put placeholder in place of a real IP.
             userIP = LocalUserIP;
         }
 

@@ -149,6 +149,13 @@ public:
                 if (userJobSpec.has_disk_space_limit()) {
                     diskSpaceLimit = userJobSpec.disk_space_limit();
                 }
+
+                if (userJobSpec.has_prepare_time_limit()) {
+                    auto prepareTimeLimit = FromProto<TDuration>(userJobSpec.prepare_time_limit());
+                    TDelayedExecutor::Submit(BIND(&TJob::OnJobPreparationTimeout, MakeStrong(this), prepareTimeLimit)
+                        .Via(Invoker_), prepareTimeLimit);
+                }
+
             }
 
             if (!Config_->JobController->TestGpu) {
@@ -178,13 +185,19 @@ public:
         YT_LOG_INFO(error, "Job abort requested (Phase: %v)",
             JobPhase_);
 
+        auto startAbortion = [&] () {
+            SetJobStatePhase(EJobState::Aborting, EJobPhase::WaitingAbort);
+            DoSetResult(error);
+            TDelayedExecutor::Submit(BIND(&TJob::OnJobAbortionTimeout, MakeStrong(this))
+                .Via(Invoker_), Config_->JobAbortionTimeout);
+        };
+
         switch (JobPhase_) {
             case EJobPhase::Created:
             case EJobPhase::DownloadingArtifacts:
             case EJobPhase::Running:
-                SetJobStatePhase(EJobState::Aborting, EJobPhase::WaitingAbort);
+                startAbortion();
                 ArtifactsFuture_.Cancel();
-                DoSetResult(error);
 
                 // Do the actual cleanup asynchronously.
                 BIND(&TJob::Cleanup, MakeStrong(this))
@@ -199,8 +212,7 @@ public:
             case EJobPhase::PreparingRootVolume:
             case EJobPhase::PreparingProxy:
                 // Wait for the next event handler to complete the abortion.
-                SetJobStatePhase(EJobState::Aborting, EJobPhase::WaitingAbort);
-                DoSetResult(error);
+                startAbortion();
                 Slot_->CancelPreparation();
                 break;
 
@@ -301,6 +313,19 @@ public:
             return TInstant::Now() - *PrepareTime_;
         } else {
             return *ExecTime_ - *PrepareTime_;
+        }
+    }
+
+    virtual std::optional<TDuration> GetPrepareRootFSDuration() const override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (!StartPrepareVolumeTime_) {
+            return std::nullopt;
+        } else if (!FinishPrepareVolumeTime_) {
+            return TInstant::Now() - *StartPrepareVolumeTime_;
+        } else {
+            return *FinishPrepareVolumeTime_ - *StartPrepareVolumeTime_;
         }
     }
 
@@ -677,6 +702,8 @@ private:
 
     std::optional<TInstant> PrepareTime_;
     std::optional<TInstant> CopyTime_;
+    std::optional<TInstant> StartPrepareVolumeTime_;
+    std::optional<TInstant> FinishPrepareVolumeTime_;
     std::optional<TInstant> ExecTime_;
     std::optional<TInstant> FinishTime_;
 
@@ -754,11 +781,11 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         TJobResult jobResult;
-        ToProto(jobResult.mutable_error(), error.Truncate());
-        DoSetResult(jobResult);
+        ToProto(jobResult.mutable_error(), error);
+        DoSetResult(std::move(jobResult));
     }
 
-    void DoSetResult(const TJobResult& jobResult)
+    void DoSetResult(TJobResult jobResult)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         if (JobResult_) {
@@ -767,6 +794,12 @@ private:
                 return;
             }
         }
+
+        {
+            auto error = FromProto<TError>(jobResult.error());
+            ToProto(jobResult.mutable_error(), error.Truncate());
+        }
+
         JobResult_ = jobResult;
         FinishTime_ = TInstant::Now();
     }
@@ -882,6 +915,7 @@ private:
             if (LayerArtifactKeys_.empty()) {
                 RunJobProxy();
             } else {
+                StartPrepareVolumeTime_ = TInstant::Now();
                 SetJobPhase(EJobPhase::PreparingRootVolume);
                 YT_LOG_INFO("Preparing root volume (LayerCount: %v)", LayerArtifactKeys_.size());
                 Slot_->PrepareRootVolume(LayerArtifactKeys_)
@@ -896,6 +930,7 @@ private:
     void OnVolumePrepared(const TErrorOr<IVolumePtr>& volumeOrError)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        FinishPrepareVolumeTime_ = TInstant::Now();
 
         GuardedAction([&] {
             ValidateJobPhase(EJobPhase::PreparingRootVolume);
@@ -942,6 +977,32 @@ private:
                     "Failed to prepare job proxy within timeout, aborting job");
             }
         });
+    }
+
+    void OnJobPreparationTimeout(TDuration prepareTimeLimit)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        GuardedAction([&] {
+            if (JobPhase_ < EJobPhase::Running) {
+                THROW_ERROR_EXCEPTION(
+                    EErrorCode::JobPreparationTimeout,
+                    "Failed to prepare job within timeout")
+                    << TErrorAttribute("prepare_time_limit", prepareTimeLimit)
+                    << TErrorAttribute("job_start_time", StartTime_);
+            }
+        });
+    }
+
+    void OnJobAbortionTimeout()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (JobState_ == EJobState::Aborting) {
+            auto error = TError("Failed to abort job %v within timeout", Id_)
+                << TErrorAttribute("job_abortion_timeout", Config_->JobAbortionTimeout);
+            Bootstrap_->GetExecSlotManager()->Disable(error);
+        }
     }
 
     void OnJobProxyFinished(const TError& error)
@@ -993,15 +1054,6 @@ private:
         FinishTime_ = TInstant::Now();
         SetJobPhase(EJobPhase::Cleanup);
 
-        // NodeDirectory can be really huge, we better offload its cleanup.
-        WaitFor(BIND([this_ = MakeStrong(this), this] () {
-            auto* schedulerJobSpecExt = JobSpec_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-            schedulerJobSpecExt->clear_input_node_directory();
-        })
-            .AsyncVia(TDispatcher::Get()->GetCompressionPoolInvoker())
-            .Run())
-            .ThrowOnError();
-
         if (Slot_) {
             try {
                 YT_LOG_DEBUG("Clean processes (SlotIndex: %v)", Slot_->GetSlotIndex());
@@ -1011,6 +1063,16 @@ private:
                 YT_LOG_ERROR(ex, "Failed to clean processed (SlotIndex: %v)", Slot_->GetSlotIndex());
             }
         }
+
+        // NodeDirectory can be really huge, we better offload its cleanup.
+        // NB: do this after slot cleanup.
+        WaitFor(BIND([this_ = MakeStrong(this), this] () {
+            auto* schedulerJobSpecExt = JobSpec_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+            schedulerJobSpecExt->clear_input_node_directory();
+        })
+            .AsyncVia(TDispatcher::Get()->GetCompressionPoolInvoker())
+            .Run())
+            .ThrowOnError();
 
         YCHECK(JobResult_);
 

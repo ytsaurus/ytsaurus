@@ -1556,7 +1556,8 @@ public:
 
         bool wait;
         do {
-            WaitFor(reader->GetReadyEvent());
+            WaitFor(reader->GetReadyEvent())
+                .ThrowOnError();
             wait = reader->Read(&partial);
 
             for (const auto& row : partial) {
@@ -1702,11 +1703,13 @@ public:
         std::vector<TVersionedRow> partial;
         partial.reserve(1024);
 
-        WaitFor(reader->Open());
+        WaitFor(reader->Open())
+            .ThrowOnError();
 
         bool wait;
         do {
-            WaitFor(reader->GetReadyEvent());
+            WaitFor(reader->GetReadyEvent())
+                .ThrowOnError();
             wait = reader->Read(&partial);
 
             for (const auto& row : partial) {

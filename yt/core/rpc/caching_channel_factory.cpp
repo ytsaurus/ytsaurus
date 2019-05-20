@@ -9,6 +9,7 @@ namespace NYT::NRpc {
 
 using namespace NConcurrency;
 using namespace NYTree;
+using namespace NYT::NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,6 +35,11 @@ public:
     virtual const IAttributeDictionary& GetEndpointAttributes() const override
     {
         return UnderlyingChannel_->GetEndpointAttributes();
+    }
+
+    virtual TNetworkId GetNetworkId() const override
+    {
+        return UnderlyingChannel_->GetNetworkId();
     }
 
     void Touch()
@@ -107,6 +113,32 @@ public:
             << TErrorAttribute("ttl", ttl);
         for (const auto& idle : idleChannels) {
             idle.second->Terminate(error);
+        }
+    }
+
+    virtual IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
+    {
+        {
+            TReaderGuard guard(SpinLock_);
+            auto it = ChannelMap_.find(addressWithNetwork.Address);
+            if (it != ChannelMap_.end()) {
+                it->second->Touch();
+                return it->second;
+            }
+        }
+
+        auto underlyingChannel = UnderlyingFactory_->CreateChannel(addressWithNetwork);
+        auto wrappedChannel = New<TCachedChannel>(this, underlyingChannel, addressWithNetwork.Address);
+
+        {
+            TWriterGuard guard(SpinLock_);
+            auto it = ChannelMap_.find(addressWithNetwork.Address);
+            if (it == ChannelMap_.end()) {
+                YCHECK(ChannelMap_.insert(std::make_pair(addressWithNetwork.Address, wrappedChannel)).second);
+                return wrappedChannel;
+            } else {
+                return it->second;
+            }
         }
     }
 

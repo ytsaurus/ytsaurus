@@ -39,10 +39,8 @@ public:
     TStorageConcat(
         std::vector<TClickHouseTablePtr> tables,
         TTableSchema schema,
-        TClickHouseTableSchema clickHouseSchema,
-        IExecutionClusterPtr cluster)
+        TClickHouseTableSchema clickHouseSchema)
         : TStorageDistributedBase(
-            std::move(cluster),
             std::move(schema),
             std::move(clickHouseSchema))
         , Tables(std::move(tables))
@@ -55,9 +53,9 @@ public:
     }
 
 private:
-    virtual std::vector<TYPath> GetTablePaths() const override
+    virtual std::vector<TRichYPath> GetTablePaths() const override
     {
-        std::vector<TYPath> result;
+        std::vector<TRichYPath> result;
         for (const auto& table : Tables) {
             result.emplace_back(table->Path);
         }
@@ -87,6 +85,8 @@ private:
         tableExpression->table_function = std::move(tableFunction);
         tableExpression->database_and_table_name = nullptr;
         tableExpression->subquery = nullptr;
+        tableExpression->sample_offset = nullptr;
+        tableExpression->sample_size = nullptr;
 
         return modifiedQueryAst;
     }
@@ -186,7 +186,6 @@ std::pair<TTableSchema, TClickHouseTableSchema> GetCommonSchema(const std::vecto
 
 DB::StoragePtr CreateStorageConcat(
     std::vector<TClickHouseTablePtr> tables,
-    IExecutionClusterPtr cluster,
     bool dropPrimaryKey)
 {
     if (tables.empty()) {
@@ -200,10 +199,8 @@ DB::StoragePtr CreateStorageConcat(
     auto storage = std::make_shared<TStorageConcat>(
         std::move(tables),
         std::move(commonSchema.first),
-        std::move(commonSchema.second),
-        std::move(cluster));
+        std::move(commonSchema.second));
     storage->startup();
-
     return storage;
 }
 

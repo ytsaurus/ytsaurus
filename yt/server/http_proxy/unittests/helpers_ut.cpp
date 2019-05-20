@@ -93,14 +93,14 @@ TEST(TCompression, Segfault)
 
     out->Error = TError("Write failed");
     try {
-        compression->Write(TSharedRef::FromString("hello"));
-        compression->Close();
+        Y_UNUSED(compression->Write(TSharedRef::FromString("hello")));
+        Y_UNUSED(compression->Close());
     } catch (const std::exception& ) {
     }
 
     for (;;) {
         try {
-            compression->Write(TSharedRef::FromString("hello"));
+            Y_UNUSED(compression->Write(TSharedRef::FromString("hello")));
         } catch (const std::exception& ) {
             break;
         }

@@ -642,9 +642,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkMeta)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        auto mediumIndex = request->has_medium_index()
-            ? request->medium_index()
-            : AllMediaIndex;
+        auto mediumIndex = AllMediaIndex;
         auto partitionTag = request->has_partition_tag()
             ? std::make_optional(request->partition_tag())
             : std::nullopt;

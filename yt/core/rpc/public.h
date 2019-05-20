@@ -93,6 +93,9 @@ extern const TMutationId NullMutationId;
 
 extern const TString RootUserName;
 
+typedef int TNetworkId;
+const TNetworkId DefaultNetworkId = 0;
+
 DEFINE_ENUM(EMultiplexingBand,
     ((Default)               (0))
     ((Control)               (1))

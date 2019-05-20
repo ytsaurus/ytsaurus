@@ -21,7 +21,7 @@ using namespace NYTree;
 
 void SerializeField(
     const TString& name,
-    NSkiff::TSkiffSchemaPtr schema,
+    NSkiff::EWireType wireType,
     const Py::Object& object,
     bool required,
     const std::optional<TString>& encoding,
@@ -35,7 +35,7 @@ void SerializeField(
             skiffWriter->WriteVariant8Tag(1);
         }
     }
-    switch (schema->GetWireType()) {
+    switch (wireType) {
         case NSkiff::EWireType::Int64: {
             auto value = PyLong_AsLongLong(object.ptr());
             if (PyErr_Occurred()) {
@@ -87,10 +87,10 @@ void SerializeSkiff(
     const std::optional<TString>& encoding)
 {
     for (ui16 idx = 0; idx < schema->GetDenseFieldsCount(); ++idx) {
-        const auto& fieldInfo = schema->GetDenceField(idx);
+        const auto& fieldInfo = schema->GetDenseField(idx);
         const auto& object = record->GetDenseField(idx);
 
-        SerializeField(fieldInfo.Name, fieldInfo.DeoptionalizedSchema, object, fieldInfo.Required, encoding, skiffWriter);
+        SerializeField(fieldInfo.Name(), fieldInfo.ValidatedSimplify(), object, fieldInfo.IsRequired(), encoding, skiffWriter);
     }
 
     if (schema->GetSparseFieldsCount() > 0) {
@@ -103,7 +103,7 @@ void SerializeSkiff(
             }
 
             skiffWriter->WriteVariant16Tag(idx);
-            SerializeField(fieldInfo.Name, fieldInfo.DeoptionalizedSchema, object, /* required */ true, encoding, skiffWriter);
+            SerializeField(fieldInfo.Name(), fieldInfo.ValidatedSimplify(), object, /* required */ true, encoding, skiffWriter);
         }
         skiffWriter->WriteVariant16Tag(NSkiff::EndOfSequenceTag<ui16>());
     }

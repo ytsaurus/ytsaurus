@@ -128,6 +128,18 @@ class TestSpeculativeJobEngine(YTEnvSetup):
         assert job_counters["completed"] == 1
         assert job_counters["total"] == 1
 
+    # NB(renadeen): if this flaps - call me
+    def test_original_succeeds_but_speculative_fails_instead_of_abort(self):
+        op = self.run_vanilla_with_one_regular_and_one_speculative_job(command='BREAKPOINT; if [ "$YT_JOB_INDEX" = "1" ]; then exit 1; fi;')
+        original, speculative = get_sorted_jobs(op)
+
+        release_breakpoint(job_id=original["id"])
+        time.sleep(0.01)
+        release_breakpoint(job_id=speculative["id"])
+        op.track()
+
+        assert op.get_state() == "completed"
+
     def test_map_with_speculative_job(self):
         create_test_tables()
         op = map(
@@ -206,6 +218,13 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
         release_breakpoint(job_id=speculative["id"])
         op.track()
 
+    def test_speculative_with_automerge(self):
+        op = self.run_op_with_residual_speculative_job(spec={"auto_merge": {"mode": "relaxed"}})
+        regular, speculative = get_sorted_jobs(op)
+
+        release_breakpoint(job_id=speculative["id"])
+        op.track()
+
     def test_aborted_speculative_job_is_restarted(self):
         op = self.run_op_with_residual_speculative_job()
         regular, speculative = get_sorted_jobs(op)
@@ -259,7 +278,9 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-    def run_op_with_residual_speculative_job(self, command="BREAKPOINT; cat"):
+    def run_op_with_residual_speculative_job(self, command="BREAKPOINT; cat", spec=None):
+        spec = {} if spec is None else spec
+        spec["job_io"] = {"buffer_row_count": 1}
         create_test_tables(row_count=self.ROW_COUNT_TO_FILL_PIPE)
 
         # Job is unslplittable since min_total_data_size is very large
@@ -268,9 +289,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             command=with_breakpoint(command),
-            spec={
-                "job_io": {"buffer_row_count": 1}
-            }
+            spec=spec
         )
         wait_breakpoint(job_count=2)
         wait(lambda: get(op.get_path() + "/@brief_progress/jobs")["running"] == 2)

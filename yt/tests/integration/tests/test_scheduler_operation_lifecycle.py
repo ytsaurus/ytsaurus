@@ -3,9 +3,12 @@ import pytest
 from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 
+import yt.environment.init_operation_archive as init_operation_archive
+
 from flaky import flaky
 
 import os
+import sys
 import time
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -834,6 +837,8 @@ class SchedulerReviveBase(YTEnvSetup):
 
         assert op.get_state() == "completed"
 
+    # NB: we hope that we check aborting state before operation comes to aborted state but we cannot guarantee that this happen.
+    @flaky(max_runs=3)
     def test_aborting(self):
         self._prepare_tables()
 
@@ -1205,3 +1210,83 @@ class TestControllerAgent(YTEnvSetup):
 
         op.abort()
         self._wait_for_state(op, "aborted")
+
+
+class TestSchedulerErrorTruncate(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    NUM_SECONDARY_MASTER_CELLS = 1
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "statistics_reporter": {
+                "enabled": True,
+                "reporting_period": 10,
+                "min_repeat_delay": 10,
+                "max_repeat_delay": 10,
+            }
+        },
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "enable_job_reporter": True,
+            "enable_job_spec_reporter": True,
+            "enable_job_stderr_reporter": True,
+        }
+    }
+
+    @classmethod
+    def modify_node_config(cls, config):
+        config["cluster_connection"]["primary_master"]["rpc_timeout"] = 50000
+        for connection in config["cluster_connection"]["secondary_masters"]:
+            connection["rpc_timeout"] = 50000
+
+    def setup(self):
+        sync_create_cells(1)
+        init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
+        self._tmpdir = create_tmpdir("jobids")
+
+    def teardown(self):
+        remove("//sys/operations_archive")
+
+    def test_ignat(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        op = map(
+            command=with_breakpoint("BREAKPOINT; echo '{foo=bar}'"),
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={
+                "testing": {
+                    "delay_inside_revive": 10000,
+                }
+            },
+            dont_track=True)
+
+        wait(lambda: op.get_running_jobs())
+        running_job = op.get_running_jobs().keys()[0]
+
+        time.sleep(5)
+
+        self.Env.kill_master_cell()
+        time.sleep(10)
+        release_breakpoint()
+        time.sleep(50)
+        self.Env.start_master_cell()
+
+        wait(lambda: get_job(job_id=running_job, operation_id=op.id)["state"] == "aborted")
+
+        def find_truncated_errors(error):
+            assert len(error.get("inner_errors", [])) <= 2
+            if error.get("attributes", {}).get("inner_errors_truncated", False):
+                return True
+            return any([find_truncated_errors(inner_error) for inner_error in error.get("inner_errors", [])])
+
+        job_error = get_job(job_id=running_job, operation_id=op.id)["error"]
+        assert find_truncated_errors(job_error)
+

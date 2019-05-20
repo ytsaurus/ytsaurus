@@ -37,10 +37,10 @@ public:
             for (size_t fieldIndex = 0; fieldIndex < genericTableDescription.DenseFieldDescriptionList.size(); ++fieldIndex) {
                 const auto& denseFieldDescription = genericTableDescription.DenseFieldDescriptionList[fieldIndex];
                 parserTableDescription.DenseFields.emplace_back(
-                    denseFieldDescription.Name,
-                    denseFieldDescription.DeoptionalizedSchema->GetWireType(),
+                    denseFieldDescription.Name(),
+                    denseFieldDescription.ValidatedSimplify(),
                     tablesColumnIds[tableIndex].DenseFieldColumnIds[fieldIndex],
-                    denseFieldDescription.Required
+                    denseFieldDescription.IsRequired()
                 );
             }
 
@@ -52,8 +52,8 @@ public:
             {
                 const auto& fieldDescription = genericTableDescriptions[tableIndex].SparseFieldDescriptionList[fieldIndex];
                 parserTableDescription.SparseFields.emplace_back(
-                    fieldDescription.Name,
-                    fieldDescription.DeoptionalizedSchema->GetWireType(),
+                    fieldDescription.Name(),
+                    fieldDescription.ValidatedSimplify(),
                     tablesColumnIds[tableIndex].SparseFieldColumnIds[fieldIndex],
                     true
                 );

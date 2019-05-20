@@ -105,7 +105,7 @@ void Initialize(
             GetOrchidYPathHttpHandler(*orchidRoot));
 
         monitoringServer->AddHandler(
-            "/tracing/traces",
+            "/tracing/traces/v2",
             New<TTracingHttpHandler>());
     }
 }

@@ -1478,7 +1478,7 @@ void TFairShareTree::BuildElementYson(const TSchedulerElementPtr& element, TFlue
         .Item("guaranteed_resources_ratio").Value(attributes.GuaranteedResourcesRatio)
         .Item("guaranteed_resources").Value(guaranteedResources)
         .Item("max_possible_usage_ratio").Value(attributes.MaxPossibleUsageRatio)
-        .Item("usage_ratio").Value(element->GetLocalResourceUsageRatio())
+        .Item("usage_ratio").Value(element->GetResourceUsageRatio())
         .Item("demand_ratio").Value(attributes.DemandRatio)
         .Item("fair_share_ratio").Value(attributes.FairShareRatio)
         .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio)
@@ -1491,7 +1491,7 @@ void TFairShareTree::BuildEssentialElementYson(const TSchedulerElementPtr& eleme
     auto dynamicAttributes = GetGlobalDynamicAttributes(element);
 
     fluent
-        .Item("usage_ratio").Value(element->GetLocalResourceUsageRatio())
+        .Item("usage_ratio").Value(element->GetResourceUsageRatio())
         .Item("demand_ratio").Value(attributes.DemandRatio)
         .Item("fair_share_ratio").Value(attributes.FairShareRatio)
         .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio)
@@ -1675,7 +1675,7 @@ void TFairShareTree::ProfileSchedulerElement(TMetricsAccumulator& accumulator, c
         tags);
     accumulator.Add(
         profilingPrefix + "/usage_ratio_x100000",
-        static_cast<i64>(element->GetLocalResourceUsageRatio() * 1e5),
+        static_cast<i64>(element->GetResourceUsageRatio() * 1e5),
         EMetricType::Gauge,
         tags);
     accumulator.Add(

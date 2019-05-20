@@ -81,7 +81,7 @@ struct TTokenCredentials
 struct TCookieCredentials
 {
     TString SessionId;
-    TString SslSessionId;
+    std::optional<TString> SslSessionId;
 
     NNet::TNetworkAddress UserIP;
 };

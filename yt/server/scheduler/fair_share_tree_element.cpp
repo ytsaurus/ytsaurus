@@ -247,7 +247,7 @@ inline void TSchedulerElementSharedState::SetResourceLimits(TJobResources resour
     ResourceLimits_ = resourceLimits;
 }
 
-TJobResources TSchedulerElementSharedState::GetTotalResourceUsageWithPrecommit()
+TJobResources TSchedulerElementSharedState::GetResourceUsageWithPrecommit()
 {
     TReaderGuard guard(ResourceUsageLock_);
 
@@ -465,18 +465,6 @@ void TSchedulerElementSharedState::ApplyLocalJobMetricsDelta(const TJobMetrics& 
     JobMetrics_ += delta;
 }
 
-double TSchedulerElementSharedState::GetResourceUsageRatio(
-    EResourceType dominantResource,
-    double dominantResourceLimit)
-{
-    TReaderGuard guard(ResourceUsageLock_);
-
-    if (dominantResourceLimit == 0) {
-        return 0.0;
-    }
-    return GetResource(ResourceUsage_, dominantResource) / dominantResourceLimit;
-}
-
 void TSchedulerElementSharedState::CheckCycleAbsence(TSchedulerElementSharedState* newParent)
 {
     auto current = newParent;
@@ -608,7 +596,7 @@ TString TSchedulerElement::GetLoggingAttributesString(const TDynamicAttributesLi
         GetStatus(),
         Attributes_.DominantResource,
         Attributes_.DemandRatio,
-        GetLocalResourceUsageRatio(),
+        GetResourceUsageRatio(),
         Attributes_.FairShareRatio,
         dynamicAttributes.SatisfactionRatio,
         Attributes_.AdjustedMinShareRatio,
@@ -705,21 +693,27 @@ TJobResources TSchedulerElement::GetLocalResourceUsage() const
     return resourceUsage;
 }
 
-TJobResources TSchedulerElement::GetTotalLocalResourceUsageWithPrecommit() const
-{
-    return SharedState_->GetTotalResourceUsageWithPrecommit();
-}
-
 TJobMetrics TSchedulerElement::GetJobMetrics() const
 {
     return SharedState_->GetJobMetrics();
 }
 
-double TSchedulerElement::GetLocalResourceUsageRatio() const
+double TSchedulerElement::GetResourceUsageRatio() const
 {
-    return SharedState_->GetResourceUsageRatio(
-        Attributes_.DominantResource,
-        Attributes_.DominantLimit);
+    return ComputeResourceUsageRatio(SharedState_->GetResourceUsage());
+}
+
+double TSchedulerElement::GetResourceUsageRatioWithPrecommit() const
+{
+    return ComputeResourceUsageRatio(SharedState_->GetResourceUsageWithPrecommit());
+}
+
+double TSchedulerElement::ComputeResourceUsageRatio(const TJobResources& resourceUsage) const
+{
+    if (Attributes_.DominantLimit == 0) {
+        return 0.0;
+    }
+    return GetResource(resourceUsage, Attributes_.DominantResource) / Attributes_.DominantLimit;
 }
 
 TString TSchedulerElement::GetTreeId() const
@@ -736,7 +730,7 @@ TJobResources TSchedulerElement::GetLocalAvailableResourceDemand(const TFairShar
 {
     return ComputeAvailableResources(
         ResourceDemand(),
-        GetTotalLocalResourceUsageWithPrecommit(),
+        SharedState_->GetResourceUsageWithPrecommit(),
         context.DynamicAttributesFor(this).ResourceUsageDiscount);
 }
 
@@ -744,7 +738,7 @@ TJobResources TSchedulerElement::GetLocalAvailableResourceLimits(const TFairShar
 {
     return ComputeAvailableResources(
         ResourceLimits(),
-        GetTotalLocalResourceUsageWithPrecommit(),
+        SharedState_->GetResourceUsageWithPrecommit(),
         context.DynamicAttributesFor(this).ResourceUsageDiscount);
 }
 
@@ -788,7 +782,7 @@ double TSchedulerElement::ComputeLocalSatisfactionRatio() const
 {
     double minShareRatio = Attributes_.AdjustedMinShareRatio;
     double fairShareRatio = Attributes_.FairShareRatio;
-    double usageRatio = GetLocalResourceUsageRatio();
+    double usageRatio = GetResourceUsageRatioWithPrecommit();
 
     // Check for corner cases.
     if (fairShareRatio < RatioComputationPrecision) {
@@ -811,7 +805,7 @@ double TSchedulerElement::ComputeLocalSatisfactionRatio() const
 
 ESchedulableStatus TSchedulerElement::GetStatus(double defaultTolerance) const
 {
-    double usageRatio = GetLocalResourceUsageRatio();
+    double usageRatio = GetResourceUsageRatio();
     double demandRatio = Attributes_.DemandRatio;
 
     double tolerance =

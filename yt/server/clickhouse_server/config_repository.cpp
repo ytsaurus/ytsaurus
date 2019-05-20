@@ -46,7 +46,7 @@ public:
     {
         auto it = Dictionaries_.find(configFile);
         YCHECK(it != Dictionaries_.end());
-        return ConvertToPocoConfig(BuildYsonNodeFluently()
+        return ConvertToPocoConfig(NYTree::BuildYsonNodeFluently()
             .BeginMap()
                 .Item("dictionary").Value(it->second)
             .EndMap());

@@ -436,9 +436,9 @@ void TRichYPath::Load(TStreamLoadContext& context)
     Load(context, Attributes_);
 }
 
-bool TRichYPath::GetAppend() const
+bool TRichYPath::GetAppend(bool defaultValue) const
 {
-    return GetAttribute(*this, "append", false);
+    return GetAttribute(*this, "append", defaultValue);
 }
 
 void TRichYPath::SetAppend(bool value)

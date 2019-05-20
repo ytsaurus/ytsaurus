@@ -582,17 +582,7 @@ void TSelectRowsCommand::DoExecute(ICommandContextPtr context)
     WaitFor(writer->Close())
         .ThrowOnError();
 
-    YT_LOG_INFO("Query result statistics (RowsRead: %v, RowsWritten: %v, AsyncTime: %v, SyncTime: %v, ExecuteTime: %v, "
-        "ReadTime: %v, WriteTime: %v, IncompleteInput: %v, IncompleteOutput: %v)",
-        statistics.RowsRead,
-        statistics.RowsWritten,
-        statistics.AsyncTime.MilliSeconds(),
-        statistics.SyncTime.MilliSeconds(),
-        statistics.ExecuteTime.MilliSeconds(),
-        statistics.ReadTime.MilliSeconds(),
-        statistics.WriteTime.MilliSeconds(),
-        statistics.IncompleteInput,
-        statistics.IncompleteOutput);
+    YT_LOG_INFO("Query result statistics (%v)", statistics);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

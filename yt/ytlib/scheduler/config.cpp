@@ -489,8 +489,12 @@ TUserJobSpec::TUserJobSpec()
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(50);
     RegisterParameter("job_time_limit", JobTimeLimit)
+        .Alias("exec_time_limit")
         .Default()
         .GreaterThanOrEqual(TDuration::Seconds(1));
+    RegisterParameter("prepare_time_limit", PrepareTimeLimit)
+        .Default(TDuration::Minutes(45))
+        .GreaterThanOrEqual(TDuration::Minutes(1));
     RegisterParameter("memory_limit", MemoryLimit)
         .Default(512_MB)
         .GreaterThan(0)

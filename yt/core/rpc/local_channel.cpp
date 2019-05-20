@@ -4,6 +4,7 @@
 #include "message.h"
 #include "server.h"
 #include "service.h"
+#include "dispatcher.h"
 
 #include <yt/core/bus/bus.h>
 
@@ -53,6 +54,12 @@ public:
     virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override
     {
         return *EndpointAttributes;
+    }
+
+    virtual TNetworkId GetNetworkId() const override
+    {
+        static auto localNetworkId = TDispatcher::Get()->GetNetworkId(LocalNetworkName);
+        return localNetworkId;
     }
 
     virtual IClientRequestControlPtr Send(
