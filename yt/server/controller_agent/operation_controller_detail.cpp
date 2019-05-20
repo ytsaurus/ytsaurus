@@ -333,6 +333,11 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
     auto outputCompletionTransaction = attachTransaction(transactions.OutputCompletionId, OutputClient, false);
     auto debugCompletionTransaction = attachTransaction(transactions.DebugCompletionId, Client, false);
 
+    std::vector<ITransactionPtr> nestedInputTransactions;
+    for (auto transactionId : transactions.NestedInputIds) {
+        nestedInputTransactions.push_back(attachTransaction(transactionId, InputClient, true));
+    }
+
     bool cleanStart = false;
 
     // Check transactions.
@@ -363,6 +368,9 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
         // NB: Async transaction is not checked.
         if (IsTransactionNeeded(ETransactionType::Input)) {
             checkTransaction(inputTransaction, ETransactionType::Input, transactions.InputId);
+            for (int index = 0; index < nestedInputTransactions.size(); ++index) {
+                checkTransaction(nestedInputTransactions[index], ETransactionType::Input, transactions.NestedInputIds[index]);
+            }
         }
         if (IsTransactionNeeded(ETransactionType::Output)) {
             checkTransaction(outputTransaction, ETransactionType::Output, transactions.OutputId);
@@ -417,6 +425,9 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
             scheduleAbort(inputTransaction, InputClient);
             scheduleAbort(outputTransaction, OutputClient);
             scheduleAbort(debugTransaction, Client);
+            for (const auto& transaction : nestedInputTransactions) {
+                scheduleAbort(transaction, InputClient);
+            }
         } else {
             YT_LOG_INFO("Reusing operation transactions");
             InputTransaction = inputTransaction;
@@ -424,6 +435,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
             DebugTransaction = debugTransaction;
             AsyncTransaction = WaitFor(StartTransaction(ETransactionType::Async, Client))
                 .ValueOrThrow();
+            NestedInputTransactions = nestedInputTransactions;
         }
 
         WaitFor(Combine(asyncResults))
@@ -508,6 +520,40 @@ void TOperationControllerBase::InitOutputTables()
     }
 }
 
+std::vector<TTransactionId> TOperationControllerBase::GetNonTrivialInputTransactionIds()
+{
+    // NB: keep it sync with InitializeStructures.
+    std::vector<TTransactionId> inputTransactionIds;
+    for (const auto& path : GetInputTablePaths()) {
+        if (path.GetTransactionId()) {
+            inputTransactionIds.push_back(*path.GetTransactionId());
+        }
+    }
+    for (const auto& userJobSpec : GetUserJobSpecs()) {
+        for (const auto& path : userJobSpec->FilePaths) {
+            if (path.GetTransactionId()) {
+                inputTransactionIds.push_back(*path.GetTransactionId());
+            }
+        }
+
+        auto layerPaths = userJobSpec->LayerPaths;
+        if (Config->DefaultLayerPath && layerPaths.empty()) {
+            // If no layers were specified, we insert the default one.
+            layerPaths.insert(layerPaths.begin(), *Config->DefaultLayerPath);
+        }
+        if (Config->SystemLayerPath && !layerPaths.empty()) {
+            // This must be the top layer, so insert in the beginning.
+            layerPaths.insert(layerPaths.begin(), *Config->SystemLayerPath);
+        }
+        for (const auto& path : layerPaths) {
+            if (path.GetTransactionId()) {
+                inputTransactionIds.push_back(*path.GetTransactionId());
+            }
+        }
+    }
+    return inputTransactionIds;
+}
+
 void TOperationControllerBase::InitializeStructures()
 {
     if (Spec_->TestingOperationOptions && Spec_->TestingOperationOptions->AllocationSize) {
@@ -518,10 +564,16 @@ void TOperationControllerBase::InitializeStructures()
     DataFlowGraph_ = New<TDataFlowGraph>(InputNodeDirectory_);
     InitializeOrchid();
 
+    // NB: keep it sync with GetNonTrivialInputTransactionIds.
+    int nestedInputTransactionIndex = 0;
     for (const auto& path : GetInputTablePaths()) {
         auto table = New<TInputTable>();
         table->Path = path;
-        table->TransactionId = path.GetTransactionId().value_or(InputTransaction->GetId());
+        if (path.GetTransactionId()) {
+            table->TransactionId = NestedInputTransactions[nestedInputTransactionIndex++]->GetId();
+        } else {
+            table->TransactionId = InputTransaction->GetId();
+        }
         table->ColumnRenameDescriptors = path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors());
         InputTables_.emplace_back(std::move(table));
     }
@@ -547,7 +599,11 @@ void TOperationControllerBase::InitializeStructures()
         for (const auto& path : userJobSpec->FilePaths) {
             TUserFile file;
             file.Path = path;
-            file.TransactionId = path.GetTransactionId().value_or(InputTransaction->GetId());
+            if (path.GetTransactionId()) {
+                file.TransactionId = NestedInputTransactions[nestedInputTransactionIndex++]->GetId();
+            } else {
+                file.TransactionId = InputTransaction->GetId();
+            }
             file.Layer = false;
             files.emplace_back(std::move(file));
         }
@@ -565,6 +621,11 @@ void TOperationControllerBase::InitializeStructures()
             TUserFile file;
             file.Path = path;
             file.TransactionId = path.GetTransactionId().value_or(InputTransaction->GetId());
+            if (path.GetTransactionId()) {
+                file.TransactionId = NestedInputTransactions[nestedInputTransactionIndex++]->GetId();
+            } else {
+                file.TransactionId = InputTransaction->GetId();
+            }
             file.Layer = true;
             files.emplace_back(std::move(file));
         }
@@ -1042,6 +1103,10 @@ void TOperationControllerBase::StartTransactions()
         StartTransaction(ETransactionType::Debug, Client),
     };
 
+    for (const auto& transactionId : GetNonTrivialInputTransactionIds()) {
+        asyncResults.push_back(StartTransaction(ETransactionType::Input, InputClient, transactionId));
+    }
+
     auto results = WaitFor(CombineAll(asyncResults))
         .ValueOrThrow();
 
@@ -1050,6 +1115,9 @@ void TOperationControllerBase::StartTransactions()
         InputTransaction = results[1].ValueOrThrow();
         OutputTransaction = results[2].ValueOrThrow();
         DebugTransaction = results[3].ValueOrThrow();
+        for (int index = 4; index < results.size(); ++index) {
+            NestedInputTransactions.push_back(results[index].ValueOrThrow());
+        }
     }
 }
 
@@ -1602,6 +1670,9 @@ void TOperationControllerBase::CommitTransactions()
     }
     if (AsyncTransaction) {
         AsyncTransaction->Abort();
+    }
+    for (const auto& transaction : NestedInputTransactions) {
+        transaction->Abort();
     }
 }
 
@@ -2762,6 +2833,9 @@ TControllerTransactionIds TOperationControllerBase::GetTransactionIds()
     transactionIds.DebugId = getId(DebugTransaction);
     transactionIds.OutputCompletionId = getId(OutputCompletionTransaction);
     transactionIds.DebugCompletionId = getId(DebugCompletionTransaction);
+    for (const auto& transaction : NestedInputTransactions) {
+        transactionIds.NestedInputIds.push_back(getId(transaction));
+    }
 
     return transactionIds;
 }
@@ -2828,6 +2902,9 @@ void TOperationControllerBase::SafeAbort()
     abortTransaction(InputTransaction, InputClient, /* sync */ false);
     abortTransaction(OutputTransaction, OutputClient);
     abortTransaction(AsyncTransaction, Client, /* sync */ false);
+    for (const auto& transaction : NestedInputTransactions) {
+        abortTransaction(transaction, InputClient, /* sync */ false);
+    }
 
     WaitFor(Combine(abortTransactionFutures))
         .ThrowOnError();
@@ -6555,7 +6632,13 @@ void TOperationControllerBase::BuildInitializeMutableAttributes(TFluentMap fluen
         .Item("async_scheduler_transaction_id").Value(AsyncTransaction ? AsyncTransaction->GetId() : NullTransactionId)
         .Item("input_transaction_id").Value(InputTransaction ? InputTransaction->GetId() : NullTransactionId)
         .Item("output_transaction_id").Value(OutputTransaction ? OutputTransaction->GetId() : NullTransactionId)
-        .Item("debug_transaction_id").Value(DebugTransaction ? DebugTransaction->GetId() : NullTransactionId);
+        .Item("debug_transaction_id").Value(DebugTransaction ? DebugTransaction->GetId() : NullTransactionId)
+        .Item("nested_input_transaction_ids").DoListFor(NestedInputTransactions,
+            [] (TFluentList fluent, const ITransactionPtr& transaction) {
+                fluent
+                    .Item().Value(transaction->GetId());
+            }
+        );
 }
 
 void TOperationControllerBase::BuildPrepareAttributes(TFluentMap fluent) const

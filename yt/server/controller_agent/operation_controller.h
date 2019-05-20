@@ -42,6 +42,7 @@ struct TControllerTransactionIds
     NTransactionClient::TTransactionId DebugId;
     NTransactionClient::TTransactionId OutputCompletionId;
     NTransactionClient::TTransactionId DebugCompletionId;
+    std::vector<NTransactionClient::TTransactionId> NestedInputIds;
 };
 
 void ToProto(NProto::TControllerTransactionIds* transactionIdsProto, const NControllerAgent::TControllerTransactionIds& transactionIds);

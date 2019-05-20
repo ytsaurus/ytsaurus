@@ -2779,6 +2779,9 @@ private:
             scheduleAbort(transactions.InputTransaction);
             scheduleAbort(transactions.OutputTransaction);
             scheduleAbort(transactions.DebugTransaction);
+            for (const auto& transaction : transactions.NestedInputTransactions) {
+                scheduleAbort(transaction);
+            }
 
             try {
                 WaitFor(Combine(asyncResults))
@@ -2864,6 +2867,9 @@ private:
         abortTransaction(transactions.AsyncTransaction);
         abortTransaction(transactions.InputTransaction);
         abortTransaction(transactions.OutputTransaction);
+        for (const auto& transaction : transactions.NestedInputTransactions) {
+            abortTransaction(transaction);
+        }
 
         SetOperationFinalState(operation, EOperationState::Aborted, error);
 
