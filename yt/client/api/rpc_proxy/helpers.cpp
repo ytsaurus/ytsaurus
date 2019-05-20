@@ -1249,14 +1249,15 @@ void ValidateRowsetDescriptor(
 
 std::vector<TSharedRef> SerializeRowsetWithPartialNameTable(
     const NTableClient::TNameTablePtr& nameTable,
-    size_t startingId,
+    int startingId,
     TRange<NTableClient::TUnversionedRow> rows,
     NProto::TRowsetDescriptor* descriptor)
 {
+    descriptor->Clear();
     descriptor->set_wire_format_version(1);
     descriptor->set_rowset_kind(NProto::RK_UNVERSIONED);
     YCHECK(startingId <= nameTable->GetSize());
-    for (size_t id = startingId; id < nameTable->GetSize(); ++id) {
+    for (int id = startingId; id < nameTable->GetSize(); ++id) {
         auto* columnDescriptor = descriptor->add_columns();
         columnDescriptor->set_name(TString(nameTable->GetName(id)));
     }
@@ -1279,6 +1280,7 @@ std::vector<TSharedRef> SerializeRowset(
     TRange<TRow> rows,
     NProto::TRowsetDescriptor* descriptor)
 {
+    descriptor->Clear();
     descriptor->set_wire_format_version(1);
     descriptor->set_rowset_kind(TRowsetTraits<TRow>::Kind);
     for (const auto& column : schema.Columns()) {
@@ -1354,7 +1356,7 @@ template NApi::IVersionedRowsetPtr DeserializeRowset(
 TSharedRef SerializeRowsetWithNameTableDelta(
     const TNameTablePtr& nameTable,
     TRange<TUnversionedRow> rows,
-    size_t* nameTableSize)
+    int* nameTableSize)
 {
     NProto::TRowsetDescriptor descriptor;
     const auto& rowRefs = NApi::NRpcProxy::SerializeRowsetWithPartialNameTable(

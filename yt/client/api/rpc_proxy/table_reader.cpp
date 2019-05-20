@@ -27,11 +27,9 @@ public:
         const std::vector<TString>& omittedInaccessibleColumns,
         const NApi::NRpcProxy::NProto::TTableReaderPayload& payload)
         : Underlying_ (std::move(underlying))
-        , StartRowIndex_ (startRowIndex)
+        , StartRowIndex_(startRowIndex)
         , KeyColumns_(keyColumns)
         , OmittedInaccessibleColumns_(omittedInaccessibleColumns)
-        , NameTable_ (New<TNameTable>())
-        , ReadyEvent_ (NewPromise<void>())
     {
         YCHECK(Underlying_);
         RowsetDescriptor_.set_wire_format_version(1);
@@ -93,12 +91,12 @@ public:
                 ApplyReaderPayload(currentPayload);
                 continue;
             }
-            size_t readRowsCount = std::min(
+            i64 readRowsCount = std::min(
                 rows->capacity() - rows->size(),
                 currentRows.Size() - CurrentRowsOffset_);
             RowCount_ += readRowsCount;
-            size_t newOffset = CurrentRowsOffset_ + readRowsCount;
-            for (size_t rowIndex = CurrentRowsOffset_; rowIndex < newOffset; ++rowIndex) {
+            i64 newOffset = CurrentRowsOffset_ + readRowsCount;
+            for (i64 rowIndex = CurrentRowsOffset_; rowIndex < newOffset; ++rowIndex) {
                 rows->push_back(currentRows[rowIndex]);
                 DataWeight_ += GetDataWeight(currentRows[rowIndex]);
             }
@@ -145,22 +143,22 @@ private:
     const i64 StartRowIndex_;
     const TKeyColumns KeyColumns_;
     const std::vector<TString> OmittedInaccessibleColumns_;
-    const TNameTablePtr NameTable_;
+    const TNameTablePtr NameTable_ = New<TNameTable>();
 
     NChunkClient::NProto::TDataStatistics DataStatistics_;
     i64 TotalRowCount_;
 
-    size_t RowCount_ = 0;
+    i64 RowCount_ = 0;
     size_t DataWeight_ = 0;
 
     TNameTableToSchemaIdMapping IdMapping_;
     NApi::NRpcProxy::NProto::TRowsetDescriptor RowsetDescriptor_;
 
-    TPromise<void> ReadyEvent_;
+    TPromise<void> ReadyEvent_ = NewPromise<void>();
 
     std::vector<TRows> StoredRows_;
     TFuture<TRowsWithPayload> AsyncRowsWithPayload_;
-    size_t CurrentRowsOffset_ = 0;
+    i64 CurrentRowsOffset_ = 0;
 
     bool Finished_ = false;
 
@@ -218,7 +216,7 @@ private:
     }
 };
 
-TFuture<ITableReaderPtr> CreateRpcProxyTableReader(
+TFuture<ITableReaderPtr> CreateTableReader(
     TApiServiceProxy::TReqReadTablePtr request)
 {
     return NRpc::CreateRpcClientInputStream(std::move(request))

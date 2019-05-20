@@ -602,7 +602,7 @@ TFuture<ITableReaderPtr> TClientBase::CreateTableReader(
 
     ToProto(req->mutable_transactional_options(), options);
 
-    return CreateRpcProxyTableReader(std::move(req));
+    return NRpcProxy::CreateTableReader(std::move(req));
 }
 
 TFuture<ITableWriterPtr> TClientBase::CreateTableWriter(
@@ -624,7 +624,7 @@ TFuture<ITableWriterPtr> TClientBase::CreateTableWriter(
 
     ToProto(req->mutable_transactional_options(), options);
 
-    return CreateRpcProxyTableWriter(std::move(req));
+    return NRpcProxy::CreateTableWriter(std::move(req));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

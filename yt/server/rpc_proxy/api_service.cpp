@@ -3088,7 +3088,7 @@ private:
         WaitFor(outputStream->Write(metaRef))
             .ThrowOnError();
 
-        size_t nameTableSize = 0;
+        int nameTableSize = 0;
         std::vector<TUnversionedRow> rows;
         rows.reserve(Config_->ReadBufferRowCount);
         bool finished = false;
