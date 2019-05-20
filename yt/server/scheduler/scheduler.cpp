@@ -2748,7 +2748,7 @@ private:
         }
 
         auto operationProgress = WaitFor(BIND(&TImpl::RequestOperationProgress, MakeStrong(this), operation)
-            .AsyncVia(GetControlInvoker(EControlQueue::Operation))
+            .AsyncVia(operation->GetCancelableControlInvoker())
             .Run())
             .ValueOrThrow();
 
