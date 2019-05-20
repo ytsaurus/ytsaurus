@@ -22,10 +22,8 @@ public:
     TTableWriter(
         IAsyncZeroCopyOutputStreamPtr underlying,
         const TTableSchema& schema)
-        : Underlying_ (std::move(underlying))
+        : Underlying_(std::move(underlying))
         , Schema_(schema)
-        , NameTable_ (New<TNameTable>())
-        , ReadyEvent_ (MakePromise<void>(TError()))
     {
         YCHECK(Underlying_);
         NameTable_->SetEnableColumnNameValidation();
@@ -78,11 +76,11 @@ public:
 private:
     const IAsyncZeroCopyOutputStreamPtr Underlying_;
     const TTableSchema Schema_;
-    const TNameTablePtr NameTable_;
+    const TNameTablePtr NameTable_ = New<TNameTable>();
 
-    size_t NameTableSize_ = 0;
+    int NameTableSize_ = 0;
 
-    TPromise<void> ReadyEvent_;
+    TPromise<void> ReadyEvent_ = MakePromise<void>(TError());
 
     bool Closed_ = false;
 
@@ -94,7 +92,7 @@ private:
     }
 };
 
-TFuture<ITableWriterPtr> CreateRpcProxyTableWriter(
+TFuture<ITableWriterPtr> CreateTableWriter(
     TApiServiceProxy::TReqWriteTablePtr request)
 {
     auto schemaHolder = std::make_unique<TTableSchema>();

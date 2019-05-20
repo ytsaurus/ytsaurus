@@ -202,7 +202,7 @@ void ValidateRowsetDescriptor(
 
 std::vector<TSharedRef> SerializeRowsetWithPartialNameTable(
     const NTableClient::TNameTablePtr& nameTable,
-    size_t startingId,
+    int startingId,
     TRange<NTableClient::TUnversionedRow> rows,
     NProto::TRowsetDescriptor* descriptor);
 
@@ -229,7 +229,7 @@ TIntrusivePtr<NApi::IRowset<TRow>> DeserializeRowset(
 TSharedRef SerializeRowsetWithNameTableDelta(
     const NTableClient::TNameTablePtr& nameTable,
     TRange<NTableClient::TUnversionedRow> rows,
-    size_t* nameTableSize);
+    int* nameTableSize);
 
 //! Deserializes an unversioned rowset and new columns for the #nameTable,
 //! updates the #nameTable and #descriptor. If #idMapping is specified, it is
