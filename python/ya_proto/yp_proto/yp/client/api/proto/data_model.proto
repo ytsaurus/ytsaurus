@@ -580,6 +580,9 @@ message TPodMetaBase
 
 message TPodDynamicResourceSpec
 {
+    reserved 4;
+    reserved "url";
+
     // Resource identifier.
     optional string id = 1;
     
@@ -637,7 +640,7 @@ message TPodDynamicResourceSpec
         optional TVerification verification = 6;
 
         // How many copies including actual one should be kept. It's not recommended to use less than 2 (default).
-        // If you set 1, your resource will be fully removed before downloading new revision
+        // If you set 1, your resource will be fully removed before downloading new revision.
         optional uint64 cached_revisions_count = 7;
 
         // Allow resource to be deduplicated via hardlinks if present.
@@ -649,10 +652,11 @@ message TPodDynamicResourceSpec
 
     optional TStorageOptions storage_options = 3;
 
-    // url where to download the resource from
+    // URLs where to download the resource from
     // supported protocols: http, https, rbtorrent, raw
-    // (for raw resources use raw:<raw string>)
-    optional string url = 4;
+    // (for raw resources use "raw:data").
+    // URLs are tried in order until successful download.
+    repeated string urls = 5;
 }
 
 message TPodSpec

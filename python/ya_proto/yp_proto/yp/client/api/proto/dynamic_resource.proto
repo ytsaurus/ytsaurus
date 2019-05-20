@@ -23,13 +23,11 @@ message TDynamicResourceMetaBase {
 };
 
 message TDynamicResourceSpec {
+    reserved 2;
+    reserved "url";
+
     // resource revision, server-side incremented sequence, monotonic
     uint64 revision = 1;
-
-    // url where to download the resource from
-    // supported protocols: http, https, rbtorrent, raw
-    // (for raw resources use raw:<base64>)
-    string url = 2;
 
     // options how to handle resource inside the box
     TPodDynamicResourceSpec.TStorageOptions storage_options = 3;
@@ -37,6 +35,11 @@ message TDynamicResourceSpec {
     // size of the update window in pods
     uint32 update_window = 4;
 
+    // urls where to download the resource from
+    // supported protocols: http, https, rbtorrent, raw
+    // (for raw resources use "raw:data").
+    // Urls are tried in order until successful download
+    repeated string urls = 5;
 }
 
 message TDynamicResourceStatus {

@@ -15,7 +15,7 @@ class TestDynamicResource(object):
                 },
                 "spec": {
                     "revision": 42,
-                    "url": "nonexistent://",
+                    "urls": ["nonexistent://"],
                 },
                 "status": {
                     "revisions": [
@@ -50,13 +50,13 @@ class TestDynamicResource(object):
         assert result[0]["id"] == dynamic_resource_id
         assert result[0]["pod_set_id"] == pod_set_id
         assert result[1]["revision"] == 42
-        assert result[1]["url"] == "nonexistent://"
+        assert result[1]["urls"] == ["nonexistent://"]
         assert result[1].get("verification") is None
         assert len(result[2]["revisions"]) == 2
 
         spec = {
             "revision": 43,
-            "url": "something://",
+            "urls": ["something://"],
         }
 
         yp_client.update_object("dynamic_resource", dynamic_resource_id, set_updates=[{"path": "/spec", "value": spec}])
@@ -66,7 +66,7 @@ class TestDynamicResource(object):
 
         spec = {
             "revision": 44,
-            "url": "something://",
+            "urls": ["something://"],
             "storage_options": {
                 "verification": {
                     "checksum": "123",
