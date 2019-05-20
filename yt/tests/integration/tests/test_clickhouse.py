@@ -16,6 +16,7 @@ import psutil
 import subprocess
 import random
 import os
+import copy
 
 TEST_DIR = os.path.join(os.path.dirname(__file__))
 
@@ -41,7 +42,7 @@ class Clique(object):
         config = update(Clique.base_config, config_patch) if config_patch is not None else Clique.base_config
 
         self.log_root = os.path.join(self.path_to_run, "logs", "clickhouse-{}".format(Clique.clique_index))
-        for writer_key, writer in Clique.base_config["logging"]["writers"].iteritems():
+        for writer_key, writer in config["logging"]["writers"].iteritems():
             if writer["type"] == "file":
                 writer["file_name"] = os.path.join(self.log_root, writer["file_name"])
         os.mkdir(self.log_root)
@@ -157,11 +158,14 @@ class Clique(object):
         if verbose:
             print >>sys.stderr, output
         if return_code != 0:
-            raise YtError("ClickHouse query failed\n" + output)
+            raise YtError("ClickHouse query failed\n" + output, attributes={"query": query})
 
-        result = json.loads(stdout)
-        print >>sys.stderr, "Got", len(result["data"]), "rows"
-        return result
+        if stdout != "":
+            result = json.loads(stdout)
+            print >>sys.stderr, "Got", len(result["data"]), "rows"
+            return result
+        else:
+            return None
 
 
 @require_ytserver_root_privileges
@@ -209,19 +213,6 @@ class ClickHouseTestBase(YTEnvSetup):
 class TestClickHouseCommon(ClickHouseTestBase):
     def setup(self):
         self._setup()
-
-    def test_readonly(self):
-        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
-
-        with Clique(1) as clique:
-            try:
-                clique.make_query('insert into "//tmp/t" values(1)')
-            except YtError as err:
-                # 164 is an error code for READONLY.
-                assert "164" in str(err)
-                return
-
-        assert False
 
     @pytest.mark.parametrize("instance_count", [1, 5])
     def test_avg(self, instance_count):
@@ -356,6 +347,185 @@ class TestJobInput(ClickHouseTestBase):
             self._expect_row_count(clique, 'select a from "//tmp/t" sample 0', exact=0, verbose=False)
             self._expect_row_count(clique, 'select a from "//tmp/t" sample 0.000000000001', exact=0, verbose=False)
             self._expect_row_count(clique, 'select a from "//tmp/t" sample 1/100000000000', exact=0, verbose=False)
+
+
+class TestMutations(ClickHouseTestBase):
+    def setup(self):
+        self._setup()
+
+    def test_insert_values(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "i64", "type": "int64"},
+                                                          {"name": "ui64", "type": "uint64"},
+                                                          {"name": "str", "type": "string"},
+                                                          {"name": "dbl", "type": "double"},
+                                                          {"name": "bool", "type": "boolean"}]})
+        with Clique(1) as clique:
+            clique.make_query('insert into "//tmp/t"(i64) values (1), (-2)')
+            clique.make_query('insert into "//tmp/t"(ui64) values (7), (8)')
+            with pytest.raises(YtError):
+                clique.make_query('insert into "//tmp/t"(str) values (2)')
+            clique.make_query('insert into "//tmp/t"(i64, ui64, str, dbl, bool) values (-1, 1, \'abc\', 3.14, 1)')
+            with pytest.raises(YtError):
+                clique.make_query('insert into "//tmp/t"(bool) values (3)')
+            with pytest.raises(YtError):
+                clique.make_query('insert into "//tmp/t"(bool) values (2.4)')
+            assert read_table("//tmp/t") == [
+                {"i64": 1, "ui64": 0, "str": "", "dbl": 0.0, "bool": False},
+                {"i64": -2, "ui64": 0, "str": "", "dbl": 0.0, "bool": False},
+                {"i64": 0, "ui64": 7, "str": "", "dbl": 0.0, "bool": False},
+                {"i64": 0, "ui64": 8, "str": "", "dbl": 0.0, "bool": False},
+                {"i64": -1, "ui64": 1, "str": "abc", "dbl": 3.14, "bool": True},
+            ]
+            assert get("//tmp/t/@chunk_count") == 3
+            clique.make_query('insert into "<append=%false>//tmp/t" values (-2, 2, \'xyz\', 2.71, 0)')
+            assert read_table("//tmp/t") == [
+                {"i64": -2, "ui64": 2, "str": "xyz", "dbl": 2.71, "bool": False},
+            ]
+            assert get("//tmp/t/@chunk_count") == 1
+
+    def test_insert_select(self):
+        create("table", "//tmp/s1", attributes={"schema": [{"name": "i64", "type": "int64"},
+                                                           {"name": "ui64", "type": "uint64"},
+                                                           {"name": "str", "type": "string"},
+                                                           {"name": "dbl", "type": "double"},
+                                                           {"name": "bool", "type": "boolean"}]})
+        write_table("//tmp/s1", [
+            {"i64": 2, "ui64": 3, "str": "abc", "dbl": 3.14, "bool": True},
+            {"i64": -1, "ui64": 7, "str": "xyz", "dbl": 2.78, "bool": False},
+        ])
+
+        # Table with different order of columns.
+        create("table", "//tmp/s2", attributes={"schema": [{"name": "i64", "type": "int64"},
+                                                           {"name": "str", "type": "string"},
+                                                           {"name": "dbl", "type": "double"},
+                                                           {"name": "ui64", "type": "uint64"},
+                                                           {"name": "bool", "type": "boolean"}]})
+        write_table("//tmp/s2", [
+            {"i64": 4, "ui64": 9, "str": "def", "dbl": 12.3, "bool": False},
+            {"i64": -5, "ui64": 5, "str": "ijk", "dbl": -3.1, "bool": True},
+        ])
+
+        create("table", "//tmp/t", attributes={"schema": [{"name": "i64", "type": "int64"},
+                                                          {"name": "ui64", "type": "uint64"},
+                                                          {"name": "str", "type": "string"},
+                                                          {"name": "dbl", "type": "double"},
+                                                          {"name": "bool", "type": "boolean"}]})
+        with Clique(1) as clique:
+            clique.make_query('insert into "//tmp/t" select * from "//tmp/s1"')
+            assert read_table("//tmp/t") == [
+                {"i64": 2, "ui64": 3, "str": "abc", "dbl": 3.14, "bool": True},
+                {"i64": -1, "ui64": 7, "str": "xyz", "dbl": 2.78, "bool": False},
+            ]
+
+            # Number of columns does not match.
+            with pytest.raises(YtError):
+                clique.make_query('insert into "//tmp/t" select i64, ui64 from "//tmp/s1"')
+
+            # Columns are matched according to positions.
+            with pytest.raises(YtError):
+                clique.make_query('insert into "//tmp/t" select * from "//tmp/s2"')
+
+            clique.make_query('insert into "<append=%false>//tmp/t" select i64, ui64, str, dbl, bool from "//tmp/s2"')
+            assert read_table("//tmp/t") == [
+                {"i64": 4, "ui64": 9, "str": "def", "dbl": 12.3, "bool": False},
+                {"i64": -5, "ui64": 5, "str": "ijk", "dbl": -3.1, "bool": True},
+            ]
+
+            clique.make_query('insert into "//tmp/t"(i64, ui64) select max(i64), min(ui64) from "//tmp/s2"')
+            assert read_table("//tmp/t") == [
+                {"i64": 4, "ui64": 9, "str": "def", "dbl": 12.3, "bool": False},
+                {"i64": -5, "ui64": 5, "str": "ijk", "dbl": -3.1, "bool": True},
+                {"i64": 4, "ui64": 5, "str": "", "dbl": 0.0, "bool": False},
+            ]
+
+    def test_create_table_simple(self):
+        with Clique(1, config_patch={"engine": {"create_table_default_attributes": {"foo": 42}}}) as clique:
+            clique.make_query('create table "//tmp/t"(i64 Int64, ui64 UInt64, str String, dbl Float64, i32 Int32) '
+                              'engine YtTable() order by (str, i64)')
+            assert normalize_schema(get("//tmp/t/@schema")) == make_schema([
+                {"name": "str", "type": "string", "sort_order": "ascending", "required": False},
+                {"name": "i64", "type": "int64", "sort_order": "ascending", "required": False},
+                {"name": "ui64", "type": "uint64", "required": False},
+                {"name": "dbl", "type": "double", "required": False},
+                {"name": "i32", "type": "int64", "required": False},
+            ], strict=True, unique_keys=False)
+
+            # Table already exists.
+            with pytest.raises(YtError):
+                clique.make_query('create table "//tmp/t"(i64 Int64, ui64 UInt64, str String, dbl Float64, i32 Int32) '
+                                  'engine YtTable() order by (str, i64)')
+
+            # No non-trivial expressions.
+            with pytest.raises(YtError):
+                clique.make_query('create table "//tmp/t2"(i64 Int64) engine YtTable() order by (i64 * i64)')
+
+            # No fancy types.
+            with pytest.raises(YtError):
+                clique.make_query('create table "//tmp/t2"(d DateTime) engine YtTable()')
+
+            # Missing key column.
+            with pytest.raises(YtError):
+                clique.make_query('create table "//tmp/t2"(i Int64) engine YtTable() order by j')
+
+            clique.make_query('create table "//tmp/t_snappy"(i Int64) engine YtTable(\'{compression_codec=snappy}\')')
+            assert get("//tmp/t_snappy/@compression_codec") == "snappy"
+
+            # Default optimize_for should be scan.
+            assert get("//tmp/t_snappy/@optimize_for") == "scan"
+
+            assert get("//tmp/t_snappy/@foo") == 42
+
+            # Empty schema.
+            with pytest.raises(YtError):
+                clique.make_query('create table "//tmp/t2" engine YtTable()')
+
+            # Underscore indicates that the columns should be ignored and schema from attributes should
+            # be taken.
+            clique.make_query('create table "//tmp/t2"(_ UInt8) engine YtTable(\'{schema=[{name=a;type=int64}]}\')')
+            assert get("//tmp/t2/@schema/0/name") == "a"
+
+            # Column list has higher priority.
+            clique.make_query('create table "//tmp/t3"(b String) engine YtTable(\'{schema=[{name=a;type=int64}]}\')')
+            assert get("//tmp/t3/@schema/0/name") == "b"
+
+    def test_create_table_as_select(self):
+        create("table", "//tmp/s1", attributes={"schema": [{"name": "i64", "type": "int64"},
+                                                           {"name": "ui64", "type": "uint64"},
+                                                           {"name": "str", "type": "string"},
+                                                           {"name": "dbl", "type": "double"},
+                                                           {"name": "bool", "type": "boolean"}]})
+        write_table("//tmp/s1", [
+            {"i64": -1, "ui64": 3, "str": "def", "dbl": 3.14, "bool": True},
+            {"i64": 2, "ui64": 7, "str": "xyz", "dbl": 2.78, "bool": False},
+        ])
+
+        with Clique(1) as clique:
+            clique.make_query('create table "//tmp/t1" engine YtTable() order by i64 as select * from "//tmp/s1"')
+
+            assert read_table("//tmp/t1") == [
+                {"i64": -1, "ui64": 3, "str": "def", "dbl": 3.14, "bool": 1},
+                {"i64": 2, "ui64": 7, "str": "xyz", "dbl": 2.78, "bool": 0},
+            ]
+
+    def test_create_table_as_table(self):
+        schema = [{"name": "i64", "type": "int64", "required": False, "sort_order": "ascending"},
+                  {"name": "ui64", "type": "uint64", "required": False},
+                  {"name": "str", "type": "string", "required": False},
+                  {"name": "dbl", "type": "double", "required": False},
+                  {"name": "bool", "type": "boolean", "required": False}]
+        schema_copied = copy.deepcopy(schema)
+        schema_copied[4]["type"] = "uint64"
+        create("table", "//tmp/s1", attributes={"schema": schema,
+                                                "compression_codec": "snappy"})
+
+        with Clique(1) as clique:
+            clique.make_query('show create table "//tmp/s1"')
+            clique.make_query('create table "//tmp/s2" as "//tmp/s1" engine YtTable() order by i64')
+            assert normalize_schema(get("//tmp/s2/@schema")) == make_schema(schema_copied, strict=True, unique_keys=False)
+
+            # This is wrong.
+            # assert get("//tmp/s2/@compression_codec") == "snappy"
+
 
 class TestCompositeTypes(ClickHouseTestBase):
     def setup(self):

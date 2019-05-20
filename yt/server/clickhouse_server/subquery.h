@@ -20,7 +20,7 @@ namespace NYT::NClickHouseServer {
 std::vector<NChunkClient::TInputDataSlicePtr> FetchDataSlices(
     NApi::NNative::IClientPtr client,
     const IInvokerPtr& invoker,
-    std::vector<TString> inputTablePaths,
+    std::vector<NYPath::TRichYPath> inputTablePaths,
     const DB::KeyCondition* keyCondition,
     NTableClient::TRowBufferPtr rowBuffer,
     TSubqueryConfigPtr config,

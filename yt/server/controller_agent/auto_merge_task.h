@@ -86,6 +86,8 @@ public:
 
     virtual void SetupCallbacks() override;
 
+    virtual bool IsCompleted() const override;
+
     void Persist(const TPersistenceContext& context);
 
 protected:

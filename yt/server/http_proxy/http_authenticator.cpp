@@ -73,6 +73,15 @@ TErrorOr<TAuthenticationResult> THttpAuthenticator::Authenticate(
         return TAuthenticationResult{"root", "YT"};
     }
 
+    auto userIP = request->GetRemoteAddress();
+    auto realIP = GetBalancerRealIP(request);
+    if (realIP) {
+        auto parsedRealIP = NNet::TNetworkAddress::TryParse(*realIP);
+        if (parsedRealIP.IsOK()) {
+            userIP = parsedRealIP.ValueOrThrow();
+        }
+    }
+
     auto authorizationHeader = request->GetHeaders()->Find("Authorization");
     if (authorizationHeader) {
         TStringBuf prefix = "OAuth ";
@@ -81,6 +90,7 @@ TErrorOr<TAuthenticationResult> THttpAuthenticator::Authenticate(
         }
 
         TTokenCredentials credentials;
+        credentials.UserIP = userIP;
         credentials.Token = authorizationHeader->substr(prefix.size());
         if (!credentials.Token.empty()) {
             return WaitFor(TokenAuthenticator_->Authenticate(credentials));
@@ -92,15 +102,15 @@ TErrorOr<TAuthenticationResult> THttpAuthenticator::Authenticate(
         auto cookies = ParseCookies(*cookieHeader);
 
         TCookieCredentials credentials;
-        credentials.UserIP = request->GetRemoteAddress();
+        credentials.UserIP = userIP;
         if (cookies.find("Session_id") == cookies.end()) {
             return TError(NRpc::EErrorCode::InvalidCredentials, "Request is missing \"Session_id\" cookie");
         }
-        if (cookies.find("sessionid2") == cookies.end()) {
-            return TError(NRpc::EErrorCode::InvalidCredentials, "Request is missing \"sessionid2\" cookie");
-        }
         credentials.SessionId = cookies["Session_id"];
-        credentials.SslSessionId = cookies["sessionid2"];
+
+        if (cookies.find("sessionid2") != cookies.end()) {
+            credentials.SslSessionId = cookies["sessionid2"];
+        }
 
         auto authResult = WaitFor(CookieAuthenticator_->Authenticate(credentials));
         if (!authResult.IsOK()) {

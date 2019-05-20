@@ -4,8 +4,13 @@
 #include "service.h"
 
 #include <yt/core/ytree/helpers.h>
+#include <yt/core/ytree/fluent.h>
+
+#include <yt/core/yson/consumer.h>
 
 #include <yt/core/yson/protobuf_interop.h>
+
+#include <yt/core/misc/hash.h>
 
 #include <contrib/libs/protobuf/io/coded_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
@@ -13,8 +18,31 @@
 namespace NYT::NRpc {
 
 using namespace NYson;
+using namespace NYTree;
 using namespace NRpc::NProto;
 using namespace NTracing;
+using namespace NYT::NBus;
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool operator==(const TAddressWithNetwork& lhs, const TAddressWithNetwork& rhs)
+{
+    return lhs.Address == rhs.Address && lhs.Network == rhs.Network;
+}
+
+TString ToString(const TAddressWithNetwork& addressWithNetwork)
+{
+    return Format("%v/%v", addressWithNetwork.Address, addressWithNetwork.Network);
+}
+
+void Serialize(const TAddressWithNetwork& addressWithNetwork, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("address").Value(addressWithNetwork.Address)
+            .Item("network").Value(addressWithNetwork.Network)
+        .EndMap();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,6 +117,12 @@ public:
         , Timeout_(timeout)
     { }
 
+    virtual IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
+    {
+        auto underlyingChannel = UnderlyingFactory_->CreateChannel(addressWithNetwork);
+        return CreateDefaultTimeoutChannel(underlyingChannel, Timeout_);
+    }
+
     virtual IChannelPtr CreateChannel(const TString& address) override
     {
         auto underlyingChannel = UnderlyingFactory_->CreateChannel(address);
@@ -98,7 +132,6 @@ public:
 private:
     const IChannelFactoryPtr UnderlyingFactory_;
     const TDuration Timeout_;
-
 };
 
 IChannelFactoryPtr CreateDefaultTimeoutChannelFactory(
@@ -157,6 +190,12 @@ public:
         : UnderlyingFactory_(std::move(underlyingFactory))
         , User_(user)
     { }
+
+    virtual IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
+    {
+        auto underlyingChannel = UnderlyingFactory_->CreateChannel(addressWithNetwork);
+        return CreateAuthenticatedChannel(underlyingChannel, User_);
+    }
 
     virtual IChannelPtr CreateChannel(const TString& address) override
     {
@@ -226,6 +265,12 @@ public:
         : UnderlyingFactory_(underlyingFactory)
         , RealmId_(realmId)
     { }
+
+    virtual IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
+    {
+        auto underlyingChannel = UnderlyingFactory_->CreateChannel(addressWithNetwork);
+        return CreateRealmChannel(underlyingChannel, RealmId_);
+    }
 
     virtual IChannelPtr CreateChannel(const TString& address) override
     {
@@ -443,3 +488,15 @@ void SetOrGenerateMutationId(const IClientRequestPtr& request, TMutationId id, b
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NRpc
+
+////////////////////////////////////////////////////////////////////////////////
+
+size_t THash<NYT::NRpc::TAddressWithNetwork>::operator()(const NYT::NRpc::TAddressWithNetwork& addressWithNetwork) const
+{
+    size_t hash = 0;
+    NYT::HashCombine(hash, addressWithNetwork.Address);
+    NYT::HashCombine(hash, addressWithNetwork.Network);
+    return hash;
+}
+
+/////////////////////////////////////////////////////////////////////////////

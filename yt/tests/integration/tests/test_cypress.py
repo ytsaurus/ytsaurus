@@ -1438,12 +1438,12 @@ class TestCypress(YTEnvSetup):
             make_batch_request("set", path="//tmp/b", input="b")
         ])
         assert len(set_results) == 2
-        assert get_batch_output(set_results[0]) == None
-        assert get_batch_output(set_results[1]) == None
+        assert not get_batch_output(set_results[0])
+        assert not get_batch_output(set_results[1])
 
         get_results = execute_batch([
-            make_batch_request("get", path="//tmp/a"),
-            make_batch_request("get", path="//tmp/b")
+            make_batch_request("get", return_only_value=True, path="//tmp/a"),
+            make_batch_request("get", return_only_value=True, path="//tmp/b")
         ])
         assert len(get_results) == 2
         assert get_batch_output(get_results[0]) == "a"
@@ -1456,7 +1456,7 @@ class TestCypress(YTEnvSetup):
         for i in xrange(10):
             set("//tmp/{0}".format(i), i)
         get_results = execute_batch([
-            make_batch_request("get", path="//tmp/{0}".format(i)) for i in xrange(10)
+            make_batch_request("get", return_only_value=True, path="//tmp/{0}".format(i)) for i in xrange(10)
         ], concurrency=2)
         assert len(get_results) == 10
         for i in xrange(10):

@@ -313,9 +313,7 @@ void ValidateTableSchemaUpdate(
         }
     }
 
-    if (isTableDynamic) {
-        ValidateNoRequiredColumnsAdded(oldSchema, newSchema);
-    }
+    ValidateNoRequiredColumnsAdded(oldSchema, newSchema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

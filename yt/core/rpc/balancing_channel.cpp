@@ -3,6 +3,7 @@
 #include "caching_channel_factory.h"
 #include "client.h"
 #include "config.h"
+#include "dispatcher.h"
 #include "roaming_channel.h"
 #include "message.h"
 
@@ -718,6 +719,13 @@ public:
     virtual const IAttributeDictionary& GetEndpointAttributes() const override
     {
         return *EndpointAttributes_;
+    }
+
+    virtual TNetworkId GetNetworkId() const override
+    {
+        // NB(psushin): Assume that balanced channels always use default network.
+        // This is important for setting ToS level.
+        return DefaultNetworkId;
     }
 
     virtual TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& request) override

@@ -2210,7 +2210,12 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         }
     }
 
+    UpdateTask(joblet->Task);
     LogProgress();
+
+    if (IsCompleted()) {
+        OnOperationCompleted(/* interrupted */ false);
+    }
 }
 
 void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary, bool byScheduler)
@@ -2281,6 +2286,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     }
 
     CheckFailedJobsStatusReceived();
+    UpdateTask(joblet->Task);
     LogProgress();
 
     if (!byScheduler) {
@@ -2289,7 +2295,6 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
     if (IsCompleted()) {
         OnOperationCompleted(/* interrupted */ false);
-        return;
     }
 }
 
@@ -2362,6 +2367,9 @@ void TOperationControllerBase::FinalizeJoblet(
     }
     if (jobSummary->DownloadDuration) {
         statistics.AddSample("/time/artifacts_download", jobSummary->DownloadDuration->MilliSeconds());
+    }
+    if (jobSummary->PrepareRootFSDuration) {
+        statistics.AddSample("/time/prepare_root_fs", jobSummary->PrepareRootFSDuration->MilliSeconds());
     }
     if (jobSummary->ExecDuration) {
         statistics.AddSample("/time/exec", jobSummary->ExecDuration->MilliSeconds());
@@ -7088,6 +7096,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     if (config->JobTimeLimit) {
         jobSpec->set_job_time_limit(ToProto<i64>(*config->JobTimeLimit));
     }
+    jobSpec->set_prepare_time_limit(ToProto<i64>(config->PrepareTimeLimit));
     jobSpec->set_memory_limit(config->MemoryLimit);
     jobSpec->set_include_memory_mapped_files(config->IncludeMemoryMappedFiles);
     jobSpec->set_use_yamr_descriptors(config->UseYamrDescriptors);

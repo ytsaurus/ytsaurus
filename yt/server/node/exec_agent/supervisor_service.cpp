@@ -118,6 +118,13 @@ private:
         auto jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
 
+        auto jobPhase = job->GetPhase();
+        if (jobPhase != EJobPhase::PreparingProxy) {
+            THROW_ERROR_EXCEPTION("Cannot fetch job spec; job is in wrong phase")
+                  << TErrorAttribute("expected_phase", EJobPhase::PreparingProxy)
+                  << TErrorAttribute("actual_phase", jobPhase);
+        }
+
         *response->mutable_job_spec() = job->GetSpec();
         auto resources = job->GetResourceUsage();
 

@@ -77,6 +77,7 @@ struct IJob
     virtual TInstant GetStartTime() const = 0;
     virtual std::optional<TDuration> GetPrepareDuration() const = 0;
     virtual std::optional<TDuration> GetDownloadDuration() const = 0;
+    virtual std::optional<TDuration> GetPrepareRootFSDuration() const = 0;
     virtual std::optional<TDuration> GetExecDuration() const = 0;
 
     virtual TInstant GetStatisticsLastSendTime() const = 0;

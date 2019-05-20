@@ -890,7 +890,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assigned_node_cpu = get_cpu(peer)
         assert int(empty_node_cpu - assigned_node_cpu) == 0
 
-    @skip_if_rpc_driver_backend
     def test_bundle_node_list(self):
         create_tablet_cell_bundle("b", attributes={"node_tag_filter": "b"})
 
@@ -2628,7 +2627,7 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         requests.append(make_batch_request("remove", path="#" + cells[0]))
         requests.append(make_batch_request("mount_table", path="//tmp/t", cell_id=cells[0], freeze=freeze))
         rsps = execute_batch(requests)
-        assert len(rsps[1]) == 0
+        assert len(rsps[1]["output"]) == 0
 
         expected_state = "frozen" if freeze  else "mounted"
         assert get("//tmp/t/@expected_tablet_state") == expected_state

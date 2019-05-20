@@ -15,6 +15,8 @@
 
 #include <yt/core/concurrency/action_queue.h>
 
+#include <yt/core/utilex/random.h>
+
 namespace NYT::NExecAgent {
 
 using namespace NCellNode;
@@ -40,6 +42,10 @@ TSlotManager::TSlotManager(
 void TSlotManager::Initialize()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
+
+    Bootstrap_->GetMasterConnector()->SubscribePopulateAlerts(BIND(
+        &TSlotManager::PopulateAlerts,
+        MakeStrong(this)));
 
     YT_LOG_INFO("Initializing exec slots (Count: %v)", SlotCount_);
 
@@ -77,8 +83,7 @@ void TSlotManager::Initialize()
         } catch (const std::exception& ex) {
             auto alert = TError("Failed to initialize slot location %v", locationConfig->Path)
                 << ex;
-            YT_LOG_WARNING(alert);
-            Bootstrap_->GetMasterConnector()->RegisterAlert(alert);
+            Disable(alert);
         }
 
         ++locationIndex;
@@ -111,8 +116,7 @@ void TSlotManager::Initialize()
         } catch (const std::exception& ex) {
             auto alert = TError("Failed to create a job proxy socket name directory")
                 << ex;
-            YT_LOG_WARNING(alert);
-            Bootstrap_->GetMasterConnector()->RegisterAlert(alert);
+            Disable(alert);
         }
     }
 
@@ -192,7 +196,24 @@ bool TSlotManager::IsEnabled() const
         isEnabled = isEnabled && JobProxySocketNameDirectoryCreated_;
     }
 
-    return isEnabled && Enabled_;
+    TGuard<TSpinLock> guard(SpinLock_);
+    return isEnabled && !PersistentAlert_ && !TransientAlert_;
+}
+
+void TSlotManager::Disable(const TError& error)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+    TGuard<TSpinLock> guard(SpinLock_);
+
+    if (PersistentAlert_) {
+        return;
+    }
+
+    auto errorWrapper = TError("Scheduler jobs disabled")
+        << error;
+
+    YT_LOG_WARNING(errorWrapper);
+    PersistentAlert_ = errorWrapper;
 }
 
 std::optional<i64> TSlotManager::GetMemoryLimit() const
@@ -224,11 +245,33 @@ void TSlotManager::OnJobFinished(EJobState jobState)
         ConsecutiveAbortedJobCount_ = 0;
     }
 
-    if (Enabled_ && ConsecutiveAbortedJobCount_ > Config_->MaxConsecutiveAborts) {
-        Enabled_ = false;
-        Bootstrap_->GetMasterConnector()->RegisterAlert(TError(
-            "Too many consecutive job abortions; scheduler jobs are disabled")
-            << TErrorAttribute("max_consecutive_aborts", Config_->MaxConsecutiveAborts));
+    if (ConsecutiveAbortedJobCount_ > Config_->MaxConsecutiveAborts) {
+        TGuard guard(SpinLock_);
+        if (!TransientAlert_) {
+            auto delay = Config_->DisableJobsTimeout + RandomDuration(Config_->DisableJobsTimeout);
+            TransientAlert_ = TError("Too many consecutive job abortions; scheduler jobs disabled until %v", TInstant::Now() + delay)
+                << TErrorAttribute("max_consecutive_aborts", Config_->MaxConsecutiveAborts);
+            TDelayedExecutor::Submit(BIND(&TSlotManager::ResetTransientAlert, MakeStrong(this)), delay);
+        }
+    }
+}
+
+void TSlotManager::ResetTransientAlert()
+{
+    TGuard<TSpinLock> guard(SpinLock_);
+    TransientAlert_ = std::nullopt;
+    ConsecutiveAbortedJobCount_ = 0;
+}
+
+void TSlotManager::PopulateAlerts(std::vector<TError>* alerts)
+{
+    TGuard guard(SpinLock_);
+    if (TransientAlert_) {
+        alerts->push_back(*TransientAlert_);
+    }
+
+    if (PersistentAlert_) {
+        alerts->push_back(*PersistentAlert_);
     }
 }
 

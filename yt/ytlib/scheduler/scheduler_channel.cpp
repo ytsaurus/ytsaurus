@@ -56,6 +56,17 @@ public:
         return *EndpointAttributes_;
     }
 
+    virtual TNetworkId GetNetworkId() const override
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        if (CachedChannel_) {
+            return CachedChannel_->GetNetworkId();
+        } else {
+            return DefaultNetworkId;
+        }
+
+    }
+
     virtual TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /*request*/) override
     {
         {
@@ -79,7 +90,7 @@ public:
 
                 auto addresses = ConvertTo<TAddressMap>(TYsonString(rsp.Value()->value()));
 
-                auto channel = ChannelFactory_->CreateChannel(GetAddressOrThrow(addresses, Networks_));
+                auto channel = ChannelFactory_->CreateChannel(GetAddressWithNetworkOrThrow(addresses, Networks_));
                 channel = CreateFailureDetectingChannel(
                     channel,
                     BIND(&TSchedulerChannelProvider::OnChannelFailed, MakeWeak(this)));

@@ -204,8 +204,8 @@ TEST(TSkiffSchemaDescription, TestDescriptionDerivation)
     auto denseFieldDescriptionList = tableDescriptionList[0].DenseFieldDescriptionList;
     EXPECT_EQ(denseFieldDescriptionList.size(), 2);
 
-    EXPECT_EQ(denseFieldDescriptionList[0].Name, "Foo");
-    EXPECT_EQ(denseFieldDescriptionList[0].DeoptionalizedSchema->GetWireType(), EWireType::Uint64);
+    EXPECT_EQ(denseFieldDescriptionList[0].Name(), "Foo");
+    EXPECT_EQ(denseFieldDescriptionList[0].ValidatedSimplify(), EWireType::Uint64);
 }
 
 TEST(TSkiffSchemaDescription, TestKeySwitchColumn)

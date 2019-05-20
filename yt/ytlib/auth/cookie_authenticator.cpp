@@ -78,16 +78,23 @@ public:
         const TCookieCredentials& credentials) override
     {
         auto sessionIdMD5 = TMD5Hasher().Append(credentials.SessionId).GetHexDigestUpper();
-        auto sslSessionIdMD5 = TMD5Hasher().Append(credentials.SslSessionId).GetHexDigestUpper();
+        auto sslSessionIdMD5 = TMD5Hasher().Append(credentials.SslSessionId.value_or("")).GetHexDigestUpper();
         YT_LOG_DEBUG(
             "Authenticating user via session cookie (SessionIdMD5: %v, SslSessionIdMD5: %v)",
             sessionIdMD5,
             sslSessionIdMD5);
-        return BlackboxService_->Call("sessionid", {
-                {"sessionid", credentials.SessionId},
-                {"sslsessionid", credentials.SslSessionId},
-                {"host", Config_->Domain},
-                {"userip", credentials.UserIP.FormatIP()}})
+
+        THashMap<TString, TString> params = {
+            {"sessionid", credentials.SessionId},
+            {"host", Config_->Domain},
+            {"userip", credentials.UserIP.FormatIP()}
+        };
+
+        if (credentials.SslSessionId) {
+            params["sslsessionid"] = *credentials.SslSessionId;
+        }
+
+        return BlackboxService_->Call("sessionid", params)
             .Apply(BIND(
                 &TBlackboxCookieAuthenticator::OnCallResult,
                 MakeStrong(this),

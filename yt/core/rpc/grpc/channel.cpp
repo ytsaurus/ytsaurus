@@ -26,6 +26,7 @@ using namespace NRpc;
 using namespace NYTree;
 using namespace NYson;
 using namespace NConcurrency;
+using namespace NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,6 +74,11 @@ public:
     virtual const IAttributeDictionary& GetEndpointAttributes() const override
     {
         return *EndpointAttributes_;
+    }
+
+    virtual TNetworkId GetNetworkId() const override
+    {
+        return DefaultNetworkId;
     }
 
     virtual IClientRequestControlPtr Send(
@@ -525,6 +531,11 @@ public:
         auto config = New<TChannelConfig>();
         config->Address = address;
         return CreateGrpcChannel(config);
+    }
+
+    virtual IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
+    {
+        return CreateChannel(addressWithNetwork.Address);
     }
 };
 

@@ -1097,7 +1097,7 @@ private:
         const auto& cellDirectory = Connection_->GetCellDirectory();
         const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
         const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(cellDescriptor, EPeerKind::Leader);
-        return ChannelFactory_->CreateChannel(primaryPeerDescriptor.GetAddressOrThrow(Connection_->GetNetworks()));
+        return ChannelFactory_->CreateChannel(primaryPeerDescriptor.GetAddressWithNetworkOrThrow(Connection_->GetNetworks()));
     }
 
 
@@ -5784,6 +5784,8 @@ private:
 
         TSelectRowsOptions selectOptions;
         selectOptions.Timeout = deadline - Now();
+        selectOptions.InputRowLimit = std::numeric_limits<i64>::max();
+        selectOptions.MemoryLimitPerNode = 1_GB;
 
         auto rowsItemsId = WaitFor(SelectRows(builder.Build(), selectOptions))
             .ValueOrThrow();

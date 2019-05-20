@@ -24,6 +24,11 @@ const NYTree::IAttributeDictionary& TChannelWrapper::GetEndpointAttributes() con
     return UnderlyingChannel_->GetEndpointAttributes();
 }
 
+TNetworkId TChannelWrapper::GetNetworkId() const
+{
+    return UnderlyingChannel_->GetNetworkId();
+}
+
 IClientRequestControlPtr TChannelWrapper::Send(
     IClientRequestPtr request,
     IClientResponseHandlerPtr responseHandler,

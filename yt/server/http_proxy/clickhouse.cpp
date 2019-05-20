@@ -139,7 +139,7 @@ public:
                 .ValueOrThrow();
             YT_LOG_DEBUG("Got response from instance (StatusCode: %v)", ProxiedResponse_->GetStatusCode());
         } catch (const std::exception& ex) {
-            ReplyWithError(EStatusCode::InternalServerError, TError("ProxiedRequest failed")
+            ReplyWithError(EStatusCode::InternalServerError, TError("Proxied request failed")
                 << ex);
             return false;
         }
@@ -148,9 +148,12 @@ public:
 
     void ForwardProxiedResponse()
     {
-        YT_LOG_DEBUG("Forwarding back subresponse");
-        Response_->SetStatus(ProxiedResponse_->GetStatusCode());
+        YT_LOG_DEBUG("Getting proxied status code");
+        auto statusCode = ProxiedResponse_->GetStatusCode();
+        Response_->SetStatus(statusCode);
+        YT_LOG_DEBUG("Received status code, getting proxied headers (StatusCode: %v)", statusCode);
         Response_->GetHeaders()->MergeFrom(ProxiedResponse_->GetHeaders());
+        YT_LOG_DEBUG("Received headers, forwarding proxied response");
         PipeInputToOutput(ProxiedResponse_, Response_);
         YT_LOG_DEBUG("Proxied response forwarded");
     }

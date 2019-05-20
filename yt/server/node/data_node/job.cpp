@@ -243,6 +243,11 @@ public:
         return std::nullopt;
     }
 
+    virtual std::optional<TDuration> GetPrepareRootFSDuration() const override
+    {
+        return std::nullopt;
+    }
+
     virtual std::optional<TDuration> GetDownloadDuration() const override
     {
         return std::nullopt;

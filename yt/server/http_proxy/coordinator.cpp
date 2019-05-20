@@ -23,6 +23,9 @@
 #include <yt/build/build.h>
 
 #include <util/string/cgiparam.h>
+#include <util/string/split.h>
+
+#include <util/generic/vector.h>
 
 #include <util/random/shuffle.h>
 
@@ -77,10 +80,35 @@ TString TProxyEntry::GetHost() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTracingConfig::TTracingConfig()
+{
+    RegisterParameter("global_sample_rate", GlobalSampleRate)
+        .Default(0.0);
+    RegisterParameter("user_sample_rate", UserSampleRate)
+        .Default();
+}
+
+bool IsTraceSampled(const TTracingConfigPtr& config, const TString& user)
+{
+    auto p = RandomNumber<double>();
+    if (p < config->GlobalSampleRate) {
+        return true;
+    }
+
+    auto it = config->UserSampleRate.find(user);
+    if (it != config->UserSampleRate.end() && p < it->second) {
+        return true;
+    }
+
+    return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TDynamicConfig::TDynamicConfig()
 {
-    RegisterParameter("tracing_user_sample_probability", TracingUserSampleProbability)
-        .Default();
+    RegisterParameter("tracing", Tracing)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -561,6 +589,9 @@ std::vector<TInstance> TDiscoverVersionsHandler::ListComponent(
         }
 
         if (type == "node") {
+            if (nodeState) {
+                instance.State = *nodeState;
+            }
             instance.Online = (nodeState == TString("online"));
         }
 
@@ -568,28 +599,6 @@ std::vector<TInstance> TDiscoverVersionsHandler::ListComponent(
     }
 
     return instances;
-
-/*    
-    return BuildYsonStringFluently()
-        .DoMapFor(rspList->GetChildren(), [isDataNode] (TFluentMap fluent, const INodePtr& node) {
-            auto version = node->Attributes().Find<TString>("version");
-            auto startTime = node->Attributes().Find<TString>(isDataNode ? "register_time" : "start_time");
-            if (version && startTime) {
-                fluent
-                    .Item(node->GetValue<TString>())
-                    .BeginMap()
-                        .Item("start_time").Value(startTime)
-                        .Item("version").Value(version)
-                    .EndMap();
-            } else {
-                fluent
-                    .Item(node->GetValue<TString>())
-                    .BeginMap()
-                        .Item("error")
-                        .Value()
-                    .EndMap();
-            }
-        });*/
 }
 
 std::vector<TString> TDiscoverVersionsHandler::GetInstances(const TString& path, bool fromSubdirectories)
@@ -635,7 +644,10 @@ std::vector<TInstance> TDiscoverVersionsHandler::GetAttributes(
 
         TInstance result;
         result.Type = type;
-        result.Address = instances[i];
+
+        TVector<TString> parts;
+        Split(instances[i], "/", parts);
+        result.Address = parts.back();
         if (ysonOrError.IsOK()) {
             auto rspMap = ConvertToNode(ysonOrError.Value())->AsMap();
             auto version = ConvertTo<TString>(rspMap->GetChild("version"));
@@ -650,42 +662,6 @@ std::vector<TInstance> TDiscoverVersionsHandler::GetAttributes(
         results.push_back(result);
     }
     return results;
-/*    
-    auto batchReq = proxy.ExecuteBatch();
-
-    for (const auto& instance : instances) {
-        auto req = TYPathProxy::Get();
-        batchReq->AddRequest(req, instance);
-    }
-
-    auto batchRsp = WaitFor(batchReq->Invoke())
-        .ValueOrThrow();
-
-    return BuildYsonStringFluently()
-        .DoMapFor(instances, [&] (TFluentMap fluent, const TString& instance) {
-            auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(instance);
-            if (rspOrError.IsOK()) {
-                auto rsp = rspOrError.Value();
-                auto rspMap = ConvertToNode(TYsonString(rsp->value()))->AsMap();
-
-                auto version = ConvertTo<TString>(rspMap->GetChild("version"));
-                auto startTime = ConvertTo<TString>(rspMap->GetChild("start_time"));
-                fluent
-                    .Item(instance)
-                    .BeginMap()
-                        .Item("start_time").Value(startTime)
-                        .Item("version").Value(version)
-                    .EndMap();
-            } else {
-                fluent
-                    .Item(instance)
-                    .BeginMap()
-                        .Item("error")
-                        .Value(rspOrError)
-                    .EndMap();
-            }
-        });
-*/
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -771,11 +747,14 @@ void Serialize(const TInstance& instance, IYsonConsumer* consumer)
                 fluent
                     .Item("version").Value(instance.Version)
                     .Item("start_time").Value(instance.StartTime)
-                    .Item("banned").Value(instance.Banned)
-                    .Item("offline").Value(!instance.Online);
+                    .Item("banned").Value(instance.Banned);
+
+                if (instance.State != "") {
+                    fluent.Item("state").Value(instance.State);
+                }
             })
             .DoIf(!instance.Error.IsOK(), [&] (auto fluent) {
-                fluent.Item("error").Value(instance.Type);
+                fluent.Item("error").Value(instance.Error);
             })
         .EndMap();
 }

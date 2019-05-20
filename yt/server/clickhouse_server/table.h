@@ -4,7 +4,7 @@
 
 #include <yt/client/table_client/schema.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/client/ypath/rich.h>
 
 #include <util/generic/string.h>
 
@@ -75,6 +75,8 @@ struct TClickHouseColumn
     void SetSorted();
     void DropSorted();
     void SetNullable();
+
+    static std::optional<TClickHouseColumn> FromColumnSchema(const NTableClient::TColumnSchema& columnSchema);
 };
 
 bool operator == (const TClickHouseColumn& lhs, const TClickHouseColumn& rhs);
@@ -84,13 +86,13 @@ bool operator != (const TClickHouseColumn& lhs, const TClickHouseColumn& rhs);
 
 struct TClickHouseTable
 {
-    NYPath::TYPath Path;
+    NYPath::TRichYPath Path;
     std::vector<TClickHouseColumn> Columns;
     NTableClient::TTableSchema TableSchema;
 
     TClickHouseTable() = default;
 
-    TClickHouseTable(const NYPath::TYPath& path, const NTableClient::TTableSchema& tableSchema);
+    TClickHouseTable(const NYPath::TRichYPath& path, const NTableClient::TTableSchema& tableSchema);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
