@@ -864,6 +864,7 @@ def run_sandbox_upload(options, build_context):
     sandbox_ctx["git_commit"] = options.build_vcs_number
     sandbox_ctx["git_branch"] = options.git_branch
     sandbox_ctx["build_number"] = options.build_number
+    sandbox_ctx["build_project"] = options.build_project
 
     #
     # Start sandbox task
