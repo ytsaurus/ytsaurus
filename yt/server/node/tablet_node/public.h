@@ -11,6 +11,13 @@ bool IsInFreezeWorkflow(ETabletState state);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ETabletDynamicMemoryType,
+    (Active)
+    (Passive)
+    (Backing)
+    (Other)
+);
+
 DECLARE_REFCOUNTED_CLASS(TSlotManager)
 DECLARE_REFCOUNTED_CLASS(TTabletSlot)
 DECLARE_REFCOUNTED_CLASS(TTabletAutomaton)

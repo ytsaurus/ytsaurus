@@ -188,7 +188,7 @@ void ParseStatistics(TJobSummary* jobSummary, const TYsonString& lastObservedSta
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TScheduleJobStatistics::RecordJobResult(const TScheduleJobResult& scheduleJobResult)
+void TScheduleJobStatistics::RecordJobResult(const TControllerScheduleJobResult& scheduleJobResult)
 {
     for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
         Failed[reason] += scheduleJobResult.Failed[reason];

@@ -11,6 +11,8 @@
 
 #include <yt/server/lib/misc/address_helpers.h>
 
+#include <yt/server/lib/core_dump/core_dumper.h>
+
 #include <yt/ytlib/program/build_attributes.h>
 #include <yt/ytlib/program/config.h>
 
@@ -26,10 +28,9 @@
 
 #include <yt/ytlib/security_client/public.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
-#include <yt/ytlib/core_dump/core_dumper.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/core/bus/server.h>
 
@@ -152,6 +153,12 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/controller_agent",
         CreateVirtualNode(ControllerAgent_->CreateOrchidService()->Via(GetControlInvoker())));
+    if (CoreDumper_) {
+        SetNodeByYPath(
+            orchidRoot,
+            "/core_dumper",
+            CreateVirtualNode(CoreDumper_->CreateOrchidService()));
+    }
 
     SetBuildAttributes(orchidRoot, "controller_agent");
 

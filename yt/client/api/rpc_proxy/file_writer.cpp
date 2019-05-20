@@ -69,7 +69,7 @@ private:
     void ValidateOpened()
     {
         if (!OpenResult_ || !OpenResult_.IsSet()) {
-            THROW_ERROR_EXCEPTION("Can't write into an unopened file writer");
+            THROW_ERROR_EXCEPTION("Cannot write into an unopened file writer");
         }
         OpenResult_.Get().ThrowOnError();
     }
@@ -82,7 +82,7 @@ private:
     }
 };
 
-IFileWriterPtr CreateRpcProxyFileWriter(
+IFileWriterPtr CreateFileWriter(
     TApiServiceProxy::TReqWriteFilePtr request)
 {
     return New<TFileWriter>(std::move(request));

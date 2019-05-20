@@ -51,6 +51,7 @@ struct IAsyncYsonConsumer;
 enum class EYsonItemType : ui8;
 class TYsonItem;
 class TYsonPullParser;
+class TYsonPullParserCursor;
 
 ////////////////////////////////////////////////////////////////////////////////
 

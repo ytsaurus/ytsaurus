@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/client/tablet_client/public.h>
+
 #include <yt/core/misc/optional.h>
 
 namespace NYT::NSecurityServer {
@@ -17,16 +19,16 @@ class TAuthenticatedUserGuardBase
     : private TNonCopyable
 {
 public:
-    TAuthenticatedUserGuardBase(ISecurityManagerPtr securityManager, const std::optional<TString>& userName);
+    TAuthenticatedUserGuardBase(IUsersManagerPtr securityManager, const std::optional<TString>& userName);
     ~TAuthenticatedUserGuardBase();
 
 protected:
-    ISecurityManagerPtr SecurityManager_;
+    IUsersManagerPtr SecurityManager_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ISecurityManager
+struct IUsersManager
     : public virtual TRefCounted
 {
     //! Sets the authenticated user by user name.
@@ -39,8 +41,21 @@ struct ISecurityManager
     virtual std::optional<TString> GetAuthenticatedUserName() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(ISecurityManager)
+DEFINE_REFCOUNTED_TYPE(IUsersManager)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct IResourceLimitsManager
+    : public virtual TRefCounted
+{
+    virtual void ValidateResourceLimits(
+        const TString& account,
+        const TString& mediumName,
+        NTabletClient::EInMemoryMode inMemoryMode) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IResourceLimitsManager)
+
+/////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer

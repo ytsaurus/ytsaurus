@@ -22,9 +22,9 @@ def check_schema():
 
     yield
 
-    assert get("//tmp/table1/@schema") == get_schema(True)
-    assert get("//tmp/table2/@schema") == get_schema(True)
-    assert get("//tmp/table3/@schema") == get_schema(False)
+    assert normalize_schema(get("//tmp/table1/@schema")) == get_schema(True)
+    assert normalize_schema(get("//tmp/table2/@schema")) == get_schema(True)
+    assert normalize_schema(get("//tmp/table3/@schema")) == get_schema(False)
 
 def check_forked_schema():
     schema1 = make_schema(
@@ -51,8 +51,8 @@ def check_forked_schema():
 
     yield
 
-    assert get("//tmp/forked_schema_table/@schema") == schema2
-    assert get("//tmp/forked_schema_table/@schema", tx=tx) == schema1
+    assert normalize_schema(get("//tmp/forked_schema_table/@schema")) == schema2
+    assert normalize_schema(get("//tmp/forked_schema_table/@schema", tx=tx)) == schema1
 
 def check_removed_account():
     create_account("a1")

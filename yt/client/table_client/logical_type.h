@@ -19,7 +19,9 @@ namespace NYT::NTableClient {
 DEFINE_ENUM(ELogicalMetatype,
     (Simple)
     (Optional)
-    // In the future there would be List, Variant, Struct, Tuple, etc
+    (List)
+    (Struct)
+    // In the future there will be Tuple, Variant, Struct, etc
 );
 
 class TLogicalType
@@ -31,9 +33,12 @@ public:
 
     const TSimpleLogicalType& AsSimpleTypeRef() const;
     const TOptionalLogicalType& AsOptionalTypeRef() const;
+    const TListLogicalType& AsListTypeRef() const;
+    const TStructLogicalType& AsStructTypeRef() const;
 
     virtual size_t GetMemoryUsage() const = 0;
     virtual int GetTypeComplexity() const = 0;
+    virtual void Validate(const TComplexTypeFieldDescriptor& descriptor) const = 0;
 
 private:
     const ELogicalMetatype Metatype_;
@@ -75,8 +80,11 @@ public:
 
     const TLogicalTypePtr& GetElement() const;
 
+    std::optional<ESimpleLogicalValueType> Simplify() const;
+
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
+    virtual void Validate(const TComplexTypeFieldDescriptor& descriptor) const override;
 
 private:
     const TLogicalTypePtr Element_;
@@ -95,6 +103,7 @@ public:
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
+    virtual void Validate(const TComplexTypeFieldDescriptor& descriptor) const override;
 
 private:
     ESimpleLogicalValueType Element_;
@@ -103,12 +112,80 @@ DEFINE_REFCOUNTED_TYPE(TSimpleLogicalType);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TListLogicalType
+    : public TLogicalType
+{
+public:
+    explicit TListLogicalType(TLogicalTypePtr element);
+
+    const TLogicalTypePtr& GetElement() const;
+
+    virtual size_t GetMemoryUsage() const override;
+    virtual int GetTypeComplexity() const override;
+    virtual void Validate(const TComplexTypeFieldDescriptor& descriptor) const override;
+
+private:
+    TLogicalTypePtr Element_;
+};
+DEFINE_REFCOUNTED_TYPE(TListLogicalType);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Class builds descriptors of a complex value field.
+// Such descriptors are useful for generating error messages when working with complex types.
+class TComplexTypeFieldDescriptor
+{
+public:
+    explicit TComplexTypeFieldDescriptor(TLogicalTypePtr type);
+    TComplexTypeFieldDescriptor(TString columnName, TLogicalTypePtr type);
+
+    TComplexTypeFieldDescriptor OptionalElement() const;
+    TComplexTypeFieldDescriptor ListElement() const;
+    TComplexTypeFieldDescriptor StructField(size_t i) const;
+
+    const TString& GetDescription() const;
+    const TLogicalTypePtr& GetType() const;
+
+private:
+    TString Descriptor_;
+    TLogicalTypePtr Type_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStructLogicalType
+    : public TLogicalType
+{
+public:
+    struct TField
+    {
+        TString Name;
+        TLogicalTypePtr Type;
+    };
+
+public:
+    explicit TStructLogicalType(std::vector<TField> fields);
+    const std::vector<TField>& GetFields() const;
+
+    virtual size_t GetMemoryUsage() const override;
+    virtual int GetTypeComplexity() const override;
+    virtual void Validate(const TComplexTypeFieldDescriptor& descriptor) const override;
+
+private:
+    std::vector<TField> Fields_;
+};
+DEFINE_REFCOUNTED_TYPE(TStructLogicalType);
+
+////////////////////////////////////////////////////////////////////////////////
+
 extern TLogicalTypePtr NullLogicalType;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogicalTypePtr OptionalLogicalType(TLogicalTypePtr element);
 TLogicalTypePtr SimpleLogicalType(ESimpleLogicalValueType element, bool required);
+TLogicalTypePtr OptionalLogicalType(TLogicalTypePtr element);
+TLogicalTypePtr ListLogicalType(TLogicalTypePtr element);
+TLogicalTypePtr StructLogicalType(std::vector<TStructLogicalType::TField> fields);
 
 ////////////////////////////////////////////////////////////////////////////////
 

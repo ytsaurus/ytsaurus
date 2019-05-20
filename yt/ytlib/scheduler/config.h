@@ -257,6 +257,8 @@ public:
 
     std::optional<int> MaxUnpreemptableRunningJobCount;
 
+    int MaxSpeculativeJobCountPerTask;
+
     TStrategyOperationSpec();
 
 private:
@@ -331,9 +333,13 @@ public:
     std::optional<TDuration> DelayInsideOperationCommit;
     std::optional<EDelayInsideOperationCommitStage> DelayInsideOperationCommitStage;
 
+    std::optional<TDuration> DelayInsidePrepare;
+
     std::optional<TDuration> DelayInsideRevive;
 
     std::optional<TDuration> DelayInsideSuspend;
+
+    std::optional<i64> AllocationSize;
 
     //! Intentionally fails the operation controller. Used only for testing purposes.
     EControllerFailureType ControllerFailure;
@@ -513,6 +519,9 @@ public:
 
     //! These tags are propagated to all operation outputs (unless overridden).
     std::vector<NSecurityClient::TSecurityTag> AdditionalSecurityTags;
+
+    // Maximum number of speculative jobs, running or pending.
+    int MaxSpeculativeJobCount;
 
     TOperationSpecBase();
 

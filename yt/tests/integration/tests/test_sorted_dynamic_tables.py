@@ -5,9 +5,12 @@ from test_dynamic_tables import DynamicTablesBase
 
 from yt_env_setup import wait, skip_if_rpc_driver_backend, parametrize_external
 from yt_commands import *
-from yt.yson import YsonEntity, loads
+from yt.yson import YsonEntity, loads, dumps
 
 from time import sleep
+from random import randint, choice, sample
+from string import ascii_lowercase
+
 import random
 
 from yt.environment.helpers import assert_items_equal
@@ -1839,6 +1842,133 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert lookup_rows("//tmp/t", [{"key": 1}], versioned=True, timestamp=ts0) == []
         assert len(lookup_rows("//tmp/t", [{"key": 1}], versioned=True, timestamp=ts1)) == 1
 
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    @pytest.mark.parametrize("in_memory_mode", ["none", "uncompressed"])
+    def test_stress_chunk_view(self, optimize_for, in_memory_mode):
+        random.seed(98765)
+
+        set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
+
+        sync_create_cells(1)
+
+        key_range=100
+        num_writes_per_iteration=50
+        num_deletes_per_iteration=10
+        num_write_iterations=3
+        num_lookup_iterations=30
+
+        def random_row():
+            return {"key": randint(1, key_range), "value": "".join(choice(ascii_lowercase) for i in range(5))}
+
+        # Prepare both tables.
+        self._create_simple_table("//tmp/t", optimize_for=optimize_for, in_memory_mode=in_memory_mode)
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        sync_mount_table("//tmp/t")
+        self._create_simple_table("//tmp/correct")
+        sync_mount_table("//tmp/correct")
+
+        if in_memory_mode != "none":
+            self._wait_for_in_memory_stores_preload("//tmp/t")
+            self._wait_for_in_memory_stores_preload("//tmp/correct")
+
+        for iter in range(num_write_iterations):
+            insert_keys = [random_row() for i in range(num_writes_per_iteration)]
+            delete_keys = [{"key": randint(1, key_range)} for i in range(num_deletes_per_iteration)]
+
+            insert_rows("//tmp/t", insert_keys)
+            delete_rows("//tmp/t", delete_keys)
+            insert_rows("//tmp/correct", insert_keys)
+            delete_rows("//tmp/correct", delete_keys)
+
+            sync_flush_table("//tmp/t")
+            num_pivots = randint(0, 5)
+            pivots = [[]] + [ [i] for i in sorted(sample(range(1, key_range+1), num_pivots)) ]
+            sync_unmount_table("//tmp/t")
+            sync_reshard_table("//tmp/t", pivots)
+            sync_mount_table("//tmp/t")
+
+            if in_memory_mode != "none":
+                self._wait_for_in_memory_stores_preload("//tmp/t")
+
+        for iter in range(num_lookup_iterations):
+            # Lookup keys.
+            keys = [{"key": randint(1, key_range)} for i in range(num_deletes_per_iteration)]
+
+            expected = list(lookup_rows("//tmp/correct", keys))
+            actual = list(lookup_rows("//tmp/t", keys))
+            assert expected == actual
+
+            # Lookup ranges.
+            ranges_count = randint(1, 5)
+            keys = sorted(sample(range(1, key_range+1), ranges_count * 2))
+            query = '* from [{}] where ' + ' or '.join(
+                    '({} <= key and key < {})'.format(l, r)
+                    for l, r
+                    in zip(keys[::2], keys[1::2]))
+            expected = list(select_rows(query.format("//tmp/correct")))
+            actual = list(select_rows(query.format("//tmp/t")))
+            assert sorted(expected) == sorted(actual)
+
+    def test_save_chunk_view_to_snapshot(self):
+        [cell_id] = sync_create_cells(1)
+        print get("//sys/cluster_nodes", attributes=["tablet_slots"])
+        print get("//sys/tablet_cell_bundles/default/@options")
+        set("//sys/@config/tablet_manager/tablet_cell_balancer/rebalance_wait_time", 500)
+        set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_tablet_cell_balancer", True)
+
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(2)])
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [1]])
+        sync_mount_table("//tmp/t")
+
+        print get("//sys/tablet_cells/{}/@peers".format(cell_id))
+        build_snapshot(cell_id=cell_id)
+
+        peer = get("//sys/tablet_cells/{}/@peers/0/address".format(cell_id))
+        set("//sys/cluster_nodes/{}/@banned".format(peer), True)
+
+        wait(lambda: get("//sys/tablet_cells/{}/@health".format(cell_id)) == "good")
+
+        assert list(lookup_rows("//tmp/t", [{"key": 0}])) == [{"key": 0, "value": "0"}]
+        assert list(lookup_rows("//tmp/t", [{"key": 1}])) == [{"key": 1, "value": "1"}]
+
+    def test_partition_balancer_chunk_view(self):
+        [cell_id] = sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@chunk_writer", {"block_size": 64})
+        set("//tmp/t/@compression_codec", "none")
+        set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        set("//tmp/t/@max_partition_data_size", 640)
+        set("//tmp/t/@desired_partition_data_size", 512)
+        set("//tmp/t/@min_partition_data_size", 256)
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in xrange(20)])
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [1], [18]])
+        sync_mount_table("//tmp/t")
+
+
+        tablet_id = get("//tmp/t/@tablets/1/tablet_id")
+        address = get_tablet_leader_address(tablet_id)
+        orchid = self._find_tablet_orchid(address, tablet_id)
+        assert len(orchid["partitions"]) == 1
+
+        build_snapshot(cell_id=cell_id)
+
+        peer = get("//sys/tablet_cells/{}/@peers/0/address".format(cell_id))
+        set("//sys/cluster_nodes/{}/@banned".format(peer), True)
+        wait(lambda: get("//sys/tablet_cells/{}/@health".format(cell_id)) == "good")
+
+        set("//tmp/t/@enable_compaction_and_partitioning", True)
+        remount_table("//tmp/t")
+        address = get_tablet_leader_address(tablet_id)
+        wait(lambda : len(self._find_tablet_orchid(address, tablet_id)["partitions"]) > 1)
+
     def test_rff_requires_async_last_committed(self):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 3}})
         sync_create_cells(1, tablet_cell_bundle="b")
@@ -2400,7 +2530,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert get("#" + chunk_id + "/@compressed_data_size") > 1024 * 10
         assert get("#" + chunk_id + "/@max_block_size") < 1024 * 2
 
-    def test_reshard_with_uncovered_chunk_fails(self):
+    def test_reshard_with_uncovered_chunk(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         set("//tmp/t/@min_data_ttl", 0)
@@ -2428,12 +2558,20 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         sync_unmount_table("//tmp/t")
 
+        def get_chunk_under_chunk_view(chunk_view_id):
+            return get("#{0}/@chunk_id".format(chunk_view_id))
+
         tablet_chunk_lists = get_tablet_chunk_lists()
-        assert get("#{0}/@child_ids".format(tablet_chunk_lists[0])) == [chunk_id]
+        assert get_chunk_under_chunk_view(get("#{0}/@child_ids/0".format(tablet_chunk_lists[0]))) == chunk_id
         assert chunk_id not in get("#{0}/@child_ids".format(tablet_chunk_lists[1]))
-        assert get("#{0}/@child_ids".format(tablet_chunk_lists[2])) == [chunk_id]
-        with pytest.raises(YtError):
-            reshard_table("//tmp/t", [[]])
+        assert get_chunk_under_chunk_view(get("#{0}/@child_ids/0".format(tablet_chunk_lists[2]))) == chunk_id
+
+        sync_reshard_table("//tmp/t", [[]])
+
+        # Avoiding compaction.
+        sync_mount_table("//tmp/t", freeze=True)
+        assert list(lookup_rows("//tmp/t", [{"key": i} for i in xrange(3)])) == [
+            {"key": i, "value": str(i)} for i in (0, 2)]
 
     def test_required_columns(self):
         schema = [
@@ -2514,7 +2652,58 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in xrange(16)])
         sync_flush_table("//tmp/t")
-        wait(lambda: len(self._find_tablet_orchid(address, tablet_id)["partitions"]) > 0)
+        wait(lambda: len(self._find_tablet_orchid(address, tablet_id)["partitions"]) > 1)
+
+    def test_partitioning_with_alter(self):
+        # Creating two chunks with @eden=%false:
+        # - [1]
+        # - [1;1]
+        # Three partitions should be created upon mount.
+        sync_create_cells(1)
+        schema = [
+            {"name": "k1", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "int64"},
+        ]
+        self._create_simple_table("//tmp/t", schema=schema)
+
+        # Create [1] chunk.
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"k1": 1}])
+        sync_unmount_table("//tmp/t")
+        set("//tmp/t/@forced_compaction_revision", 1)
+        chunk_id = get("//tmp/t/@chunk_ids/0")
+        sync_mount_table("//tmp/t")
+        wait(lambda: get("//tmp/t/@chunk_ids/0") != chunk_id)
+        assert not get("#{}/@eden".format(get("//tmp/t/@chunk_ids/0")))
+
+        # Create [1;1] chunk.
+        sync_unmount_table("//tmp/t")
+        schema = schema[:1] + [{"name": "k2", "type": "int64", "sort_order": "ascending"}] + schema[1:]
+        alter_table("//tmp/t", schema=schema)
+        sync_reshard_table("//tmp/t", [[], [1,1]])
+        sync_mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1)
+        insert_rows("//tmp/t", [{"k1": 1, "k2": 1}])
+        sync_unmount_table("//tmp/t")
+        set("//tmp/t/@forced_compaction_revision", 1)
+        chunk_id = get("//tmp/t/@chunk_ids/1")
+        sync_mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1)
+        wait(lambda: get("//tmp/t/@chunk_ids/1") != chunk_id)
+        assert not get("#{}/@eden".format(get("//tmp/t/@chunk_ids/1")))
+
+        sync_unmount_table("//tmp/t")
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        sync_reshard_table("//tmp/t", [[]])
+        sync_mount_table("//tmp/t")
+        wait(lambda: get("//tmp/t/@tablet_statistics/partition_count") > 0)
+        assert get("//tmp/t/@tablet_statistics/partition_count") == 3
+
+        expected = [
+            {"k1": 1L, "k2": yson.YsonEntity(), "value": yson.YsonEntity()},
+            {"k1": 1L, "k2": 1L, "value": yson.YsonEntity()},
+        ]
+
+        assert list(lookup_rows("//tmp/t", [{"k1": 1}, {"k1": 1, "k2": 1}])) == expected
+        assert list(select_rows("* from [//tmp/t] order by k1,k2 limit 100")) == expected
 
     def test_lookup_rich_ypath(self):
         sync_create_cells(1)

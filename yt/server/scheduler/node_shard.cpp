@@ -522,6 +522,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         response->set_scheduling_skipped(true);
     } else {
         auto schedulingContext = CreateSchedulingContext(
+            Id_,
             Config_,
             node,
             runningJobs);
@@ -646,6 +647,8 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
+    auto now = TInstant::Now();
+
     if (HasOngoingNodesAttributesUpdate_) {
         auto error = TError("Node shard is handling nodes attributes update for too long, skipping new update");
         YT_LOG_WARNING(error);
@@ -693,6 +696,15 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
             YT_LOG_WARNING("Node is not registered at scheduler but online at master (NodeId: %v, NodeAddress: %v)",
                 nodeId,
                 address);
+        }
+
+        if (newState == NNodeTrackerClient::ENodeState::Online) {
+            TLeaseManager::RenewLease(execNode->GetLease());
+            if (execNode->GetSchedulerState() == ENodeState::Offline &&
+                execNode->GetLastSeenTime() + Config_->MaxNodeUnseenPeriodToAbortJobs < now)
+            {
+                AbortAllJobsAtNode(execNode);
+            }
         }
 
         execNode->SetIOWeights(ioWeights);
@@ -1220,7 +1232,7 @@ int TNodeShard::GetTotalNodeCount()
     return TotalNodeCount_;
 }
 
-TFuture<TScheduleJobResultPtr> TNodeShard::BeginScheduleJob(
+TFuture<TControllerScheduleJobResultPtr> TNodeShard::BeginScheduleJob(
     TIncarnationId incarnationId,
     TOperationId operationId,
     TJobId jobId)
@@ -1233,7 +1245,7 @@ TFuture<TScheduleJobResultPtr> TNodeShard::BeginScheduleJob(
     YCHECK(pair.second);
 
     auto& entry = pair.first->second;
-    entry.Promise = NewPromise<TScheduleJobResultPtr>();
+    entry.Promise = NewPromise<TControllerScheduleJobResultPtr>();
     entry.IncarnationId = incarnationId;
     entry.OperationId = operationId;
     entry.OperationIdToJobIdsIterator = OperationIdToJobIterators_.emplace(operationId, pair.first);
@@ -1260,7 +1272,7 @@ void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
         response.has_job_type(),
         CpuDurationToDuration(GetCpuInstant() - entry.StartTime).MilliSeconds());
 
-    auto result = New<TScheduleJobResult>();
+    auto result = New<TControllerScheduleJobResult>();
     if (response.has_job_type()) {
         result->StartDescriptor.emplace(
             jobId,
@@ -1812,7 +1824,7 @@ void TNodeShard::AddNodeResources(const TExecNodePtr& node)
         ExecNodeCount_ += 1;
     } else {
         // Check that we succesfully reset all resource limits to zero for node with zero user slots.
-        YCHECK(node->GetResourceLimits() == ZeroJobResources());
+        YCHECK(node->GetResourceLimits() == TJobResources());
     }
 }
 
@@ -1837,8 +1849,8 @@ void TNodeShard::UpdateNodeResources(
         if (node->GetResourceLimits().GetUserSlots() > 0 && node->GetMasterState() == NNodeTrackerClient::ENodeState::Online) {
             ExecNodeCount_ -= 1;
         }
-        node->SetResourceLimits(ZeroJobResources());
-        node->SetResourceUsage(ZeroJobResources());
+        node->SetResourceLimits({});
+        node->SetResourceUsage({});
     }
 
     if (node->GetMasterState() == NNodeTrackerClient::ENodeState::Online) {

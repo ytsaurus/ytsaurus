@@ -43,14 +43,14 @@ public:
         const NChunkClient::NProto::TChunkMeta& chunkMeta,
         const TTableSchema& schema,
         const TColumnRenameDescriptors& renameDescriptors = {},
-        NNodeTrackerClient::TNodeMemoryTracker* memoryTracker = nullptr);
+        NNodeTrackerClient::TNodeMemoryTrackerPtr memoryTracker = nullptr);
 
     static TFuture<TCachedVersionedChunkMetaPtr> Load(
         NChunkClient::IChunkReaderPtr chunkReader,
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         const TTableSchema& schema,
         const TColumnRenameDescriptors& renameDescriptors = {},
-        NNodeTrackerClient::TNodeMemoryTracker* memoryTracker = nullptr);
+        NNodeTrackerClient::TNodeMemoryTrackerPtr memoryTracker = nullptr);
 
     virtual i64 GetMemoryUsage() const override;
 
@@ -64,7 +64,7 @@ private:
         const NChunkClient::NProto::TChunkMeta& chunkMeta,
         const TTableSchema& schema,
         const TColumnRenameDescriptors& renameDescriptors,
-        NNodeTrackerClient::TNodeMemoryTracker* memoryTracker);
+        NNodeTrackerClient::TNodeMemoryTrackerPtr memoryTracker);
 
     void ValidateChunkMeta();
     void ValidateSchema(const TTableSchema& readerSchema);

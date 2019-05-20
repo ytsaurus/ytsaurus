@@ -59,7 +59,7 @@ struct TScheduleJobStatistics
     : public TIntrinsicRefCounted
     , public IPersistent
 {
-    void RecordJobResult(const NScheduler::TScheduleJobResult& scheduleJobResult);
+    void RecordJobResult(const NScheduler::TControllerScheduleJobResult& scheduleJobResult);
 
     TEnumIndexedVector<int, EScheduleJobFailReason> Failed;
     TDuration Duration;

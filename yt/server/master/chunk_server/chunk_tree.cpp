@@ -1,5 +1,6 @@
 #include "chunk_tree.h"
 #include "chunk.h"
+#include "chunk_view.h"
 #include "chunk_list.h"
 
 namespace NYT::NChunkServer {
@@ -28,6 +29,18 @@ const TChunk* TChunkTree::AsChunk() const
         GetType() == EObjectType::ErasureChunk ||
         GetType() == EObjectType::JournalChunk);
     return As<TChunk>();
+}
+
+TChunkView* TChunkTree::AsChunkView()
+{
+    Y_ASSERT(GetType() == EObjectType::ChunkView);
+    return As<TChunkView>();
+}
+
+const TChunkView* TChunkTree::AsChunkView() const
+{
+    Y_ASSERT(GetType() == EObjectType::ChunkView);
+    return As<TChunkView>();
 }
 
 TChunkList* TChunkTree::AsChunkList()

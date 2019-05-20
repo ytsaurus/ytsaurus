@@ -71,7 +71,7 @@ struct TNode
 {
     const int Index;
     const TNodeDescriptor Descriptor;
-    const TChunkReplica ChunkReplica;
+    const TChunkReplicaWithMedium ChunkReplica;
     const IChannelPtr Channel;
 
     TError Error;
@@ -86,7 +86,7 @@ struct TNode
     TNode(
         int index,
         const TNodeDescriptor& descriptor,
-        TChunkReplica chunkReplica,
+        TChunkReplicaWithMedium chunkReplica,
         IChannelPtr channel,
         NLogging::TLogger logger)
         : Index(index)
@@ -177,7 +177,7 @@ public:
         TReplicationWriterConfigPtr config,
         TRemoteWriterOptionsPtr options,
         TSessionId sessionId,
-        const TChunkReplicaList& initialTargets,
+        const TChunkReplicaWithMediumList& initialTargets,
         TNodeDirectoryPtr nodeDirectory,
         NNative::IClientPtr client,
         IThroughputThrottlerPtr throttler,
@@ -284,11 +284,11 @@ public:
         Y_UNREACHABLE();
     }
 
-    virtual TChunkReplicaList GetWrittenChunkReplicas() const override
+    virtual TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TChunkReplicaList chunkReplicas;
+        TChunkReplicaWithMediumList chunkReplicas;
         for (const auto& node : Nodes_) {
             if (node->IsAlive() && node->IsFinished) {
                 chunkReplicas.push_back(node->ChunkReplica);
@@ -322,7 +322,7 @@ private:
     const TReplicationWriterConfigPtr Config_;
     const TRemoteWriterOptionsPtr Options_;
     const TSessionId SessionId_;
-    const TChunkReplicaList InitialTargets_;
+    const TChunkReplicaWithMediumList InitialTargets_;
     const NNative::IClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
     const IThroughputThrottlerPtr Throttler_;
@@ -417,7 +417,7 @@ private:
         }
     }
 
-    TChunkReplicaList AllocateTargets()
+    TChunkReplicaWithMediumList AllocateTargets()
     {
         VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -462,7 +462,7 @@ private:
             Logger);
     }
 
-    void StartSessions(const TChunkReplicaList& targets)
+    void StartSessions(const TChunkReplicaWithMediumList& targets)
     {
         VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -663,7 +663,7 @@ private:
         }
     }
 
-    void StartChunk(TChunkReplica target)
+    void StartChunk(TChunkReplicaWithMedium target)
     {
         VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -1132,7 +1132,7 @@ IChunkWriterPtr CreateReplicationWriter(
     TReplicationWriterConfigPtr config,
     TRemoteWriterOptionsPtr options,
     TSessionId sessionId,
-    const TChunkReplicaList& targets,
+    const TChunkReplicaWithMediumList& targets,
     TNodeDirectoryPtr nodeDirectory,
     NNative::IClientPtr client,
     IBlockCachePtr blockCache,

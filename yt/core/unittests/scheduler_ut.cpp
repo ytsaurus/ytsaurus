@@ -11,6 +11,11 @@
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/fair_share_thread_pool.h>
+#include <yt/core/concurrency/two_level_fair_share_thread_pool.h>
+
+#include <yt/core/profiling/timing.h>
+
+#include <yt/core/logging/log.h>
 
 #include <yt/core/actions/cancelable_context.h>
 #include <yt/core/actions/invoker_util.h>
@@ -35,6 +40,8 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto SleepQuantum = TDuration::MilliSeconds(100);
+
+const NLogging::TLogger Logger("SchedulerTest");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1011,36 +1018,216 @@ TEST_F(TSuspendableInvokerTest, VerifySerializedActionsOrder)
 
 class TFairShareSchedulerTest
     : public TSchedulerTest
-    , public ::testing::WithParamInterface<std::tuple<int, int, TDuration>>
+    , public ::testing::WithParamInterface<std::tuple<int, int, int, TDuration>>
 { };
+
+using NProfiling::GetCpuInstant;
+using NProfiling::CpuDurationToDuration;
+
+const auto FSSleepQuantum = SleepQuantum * 3;
+const auto FSWorkTime = FSSleepQuantum * 5;
 
 TEST_P(TFairShareSchedulerTest, Test)
 {
     size_t numThreads = std::get<0>(GetParam());
     size_t numWorkers = std::get<1>(GetParam());
-    auto work = std::get<2>(GetParam());
+    size_t numPools = std::get<2>(GetParam());
+    auto work = std::get<3>(GetParam());
+
 
     YCHECK(numWorkers > 0);
     YCHECK(numThreads > 0);
+    YCHECK(numPools > 0);
+    YCHECK(numWorkers > numPools);
     YCHECK(numThreads <= numWorkers);
 
-    auto threadPool = CreateFairShareThreadPool(numThreads, "MyFairSharePool");
+    auto threadPool = CreateTwoLevelFairShareThreadPool(numThreads, "MyFairSharePool");
+
     std::vector<TDuration> progresses(numWorkers);
+    std::vector<TDuration> pools(numPools);
+
+    auto getShift = [&] (size_t id) {
+        return FSSleepQuantum * (id + 1) / 2 / numWorkers;
+    };
+
     std::vector<TFuture<void>> futures;
+
+    TSpinLock lock;
+
+    for (size_t id = 0; id < numWorkers; ++id) {
+        auto invoker = threadPool->GetInvoker(Format("pool%v", id % numPools), 1.0, Format("worker%v", id));
+        auto worker = [&, id] () mutable {
+
+            auto instant = GetCpuInstant();
+
+            auto initialShift = getShift(id);
+            {
+                TGuard<TSpinLock> guard(lock);
+
+                pools[id % numPools] += initialShift;
+                progresses[id] += initialShift;
+            }
+
+            Sleep(initialShift - CpuDurationToDuration(GetCpuInstant() - instant));
+            EXPECT_LE(CpuDurationToDuration(GetCpuInstant() - instant), initialShift * 1.1);
+            Yield();
+
+            while (progresses[id] < work + initialShift) {
+                auto instant = GetCpuInstant();
+                {
+                    TGuard<TSpinLock> guard(lock);
+
+                    if (numThreads == 1) {
+                        auto minPool = TDuration::Max();
+                        auto minPoolIndex = numPools;
+                        for (size_t id = 0; id < numPools; ++id) {
+                            bool hasBucketsInPool = false;
+                            for (size_t workerId = id; workerId < numWorkers; workerId += numPools) {
+                                if (progresses[workerId] < work + getShift(workerId)) {
+                                    hasBucketsInPool = true;
+                                }
+                            }
+                            if (hasBucketsInPool && pools[id] < minPool) {
+                                minPool = pools[id];
+                                minPoolIndex = id;
+                            }
+                        }
+
+                        if (pools[id % numPools].MilliSeconds() != minPool.MilliSeconds()) {
+                            YT_LOG_TRACE("Pools time: [%v]",
+                                MakeFormattableView(
+                                    pools,
+                                    [&] (auto* builder, const auto& pool) {
+                                        builder->AppendFormat("%v", pool.MilliSeconds());
+                                    }));
+                        }
+
+                        EXPECT_EQ(pools[id % numPools].MilliSeconds(), minPool.MilliSeconds());
+
+                        auto min = TDuration::Max();
+                        for (size_t id = minPoolIndex; id < numWorkers; id += numPools) {
+                            if (progresses[id] < min && progresses[id] < work + getShift(id)) {
+                                min = progresses[id];
+                            }
+                        }
+
+                        if (progresses[id].MilliSeconds() != min.MilliSeconds()) {
+                            YT_LOG_TRACE("Pools time: [%v]",
+                                MakeFormattableView(
+                                    pools,
+                                    [&] (auto* builder, const auto& pool) {
+                                        builder->AppendFormat("%v", pool.MilliSeconds());
+                                    }));
+
+                            YT_LOG_TRACE("Progresses time: [%v]",
+                                MakeFormattableView(
+                                    progresses,
+                                    [&] (auto* builder, const auto& progress) {
+                                        builder->AppendFormat("%v", progress.MilliSeconds());
+                                    }));
+                        }
+
+                        EXPECT_EQ(progresses[id].MilliSeconds(), min.MilliSeconds());
+                    }
+
+                    pools[id % numPools] += FSSleepQuantum;
+                    progresses[id] += FSSleepQuantum;
+                }
+
+                Sleep(FSSleepQuantum - CpuDurationToDuration(GetCpuInstant() - instant));
+                EXPECT_LE(CpuDurationToDuration(GetCpuInstant() - instant), FSSleepQuantum * 1.1);
+                Yield();
+            }
+        };
+
+        auto result = BIND(worker)
+            .AsyncVia(invoker)
+            .Run();
+
+        futures.push_back(result);
+    }
+
+    WaitFor(Combine(futures))
+        .ThrowOnError();
+}
+
+TEST_P(TFairShareSchedulerTest, Test2)
+{
+    size_t numThreads = std::get<0>(GetParam());
+    size_t numWorkers = std::get<1>(GetParam());
+    size_t numPools = std::get<2>(GetParam());
+    auto work = std::get<3>(GetParam());
+
+
+    YCHECK(numWorkers > 0);
+    YCHECK(numThreads > 0);
+    YCHECK(numPools > 0);
+    YCHECK(numWorkers > numPools);
+    YCHECK(numThreads <= numWorkers);
+
+    if (numPools != 1) {
+        return;
+    }
+
+    auto threadPool = CreateFairShareThreadPool(numThreads, "MyFairSharePool");
+
+    std::vector<TDuration> progresses(numWorkers);
+
+    auto getShift = [&] (size_t id) {
+        return FSSleepQuantum * (id + 1) / 2 / numWorkers;
+    };
+
+    std::vector<TFuture<void>> futures;
+
+    TSpinLock lock;
 
     for (size_t id = 0; id < numWorkers; ++id) {
         auto invoker = threadPool->GetInvoker(Format("worker%v", id));
-        auto worker = [&, id] () {
-            double factor = (id + 1);
+        auto worker = [&, id] () mutable {
 
-            while (progresses[id] < work) {
-                if (numThreads == 1) {
-                    auto min = *std::min_element(progresses.begin(), progresses.end());
-                    EXPECT_EQ(progresses[id].MilliSeconds(), min.MilliSeconds());
+            auto instant = GetCpuInstant();
+
+            auto initialShift = getShift(id);
+            {
+                TGuard<TSpinLock> guard(lock);
+                progresses[id] += initialShift;
+            }
+
+            Sleep(initialShift - CpuDurationToDuration(GetCpuInstant() - instant));
+            EXPECT_LE(CpuDurationToDuration(GetCpuInstant() - instant), initialShift * 1.1);
+            Yield();
+
+            while (progresses[id] < work + initialShift) {
+                auto instant = GetCpuInstant();
+                {
+                    TGuard<TSpinLock> guard(lock);
+
+                    if (numThreads == 1) {
+                        auto min = TDuration::Max();
+                        for (size_t id = 0; id < numWorkers; ++id) {
+                            if (progresses[id] < min && progresses[id] < work + getShift(id)) {
+                                min = progresses[id];
+                            }
+                        }
+
+                        if (progresses[id].MilliSeconds() != min.MilliSeconds()) {
+                            YT_LOG_TRACE("Progresses time: [%v]",
+                                MakeFormattableView(
+                                    progresses,
+                                    [&] (TStringBuilderBase* builder, const auto& progress) {
+                                        builder->AppendFormat("%v", progress.MilliSeconds());
+                                    }));
+                        }
+
+                        EXPECT_EQ(progresses[id].MilliSeconds(), min.MilliSeconds());
+                    }
+
+                    progresses[id] += FSSleepQuantum;
                 }
 
-                progresses[id] += SleepQuantum * factor;
-                Sleep(SleepQuantum * factor);
+                Sleep(FSSleepQuantum - CpuDurationToDuration(GetCpuInstant() - instant));
+                EXPECT_LE(CpuDurationToDuration(GetCpuInstant() - instant), FSSleepQuantum * 1.1);
+
                 Yield();
             }
         };
@@ -1060,8 +1247,11 @@ INSTANTIATE_TEST_CASE_P(
     Test,
     TFairShareSchedulerTest,
     ::testing::Values(
-        std::make_tuple(1, 3, TDuration::Seconds(3)),
-        std::make_tuple(5, 7, TDuration::Seconds(3))));
+        std::make_tuple(1, 5, 1, FSWorkTime),
+        std::make_tuple(1, 7, 3, FSWorkTime),
+        std::make_tuple(5, 7, 1, FSWorkTime),
+        std::make_tuple(5, 7, 3, FSWorkTime)
+        ));
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -15,7 +15,10 @@ import random
 import socket
 import sys
 import time
+import subprocess
 import __builtin__
+
+from distutils.spawn import find_executable
 
 from collections import defaultdict
 
@@ -252,7 +255,6 @@ class TestJobStderr(YTEnvSetup):
                     "min_job_time": 5000,
                     "min_total_data_size": 1024,
                     "update_period": 100,
-                    "median_excess_duration": 3000,
                     "candidate_percentile": 0.8,
                     "max_jobs_per_split": 3,
                 },
@@ -470,7 +472,6 @@ class TestUserFiles(YTEnvSetup):
                     "min_job_time": 5000,
                     "min_total_data_size": 1024,
                     "update_period": 100,
-                    "median_excess_duration": 3000,
                     "candidate_percentile": 0.8,
                     "max_jobs_per_split": 3,
                 },
@@ -774,7 +775,6 @@ class TestSchedulerCommon(YTEnvSetup):
                     "min_job_time": 5000,
                     "min_total_data_size": 1024,
                     "update_period": 100,
-                    "median_excess_duration": 3000,
                     "candidate_percentile": 0.8,
                     "max_jobs_per_split": 3,
                 },
@@ -1783,12 +1783,24 @@ class TestSchedulerRevive(YTEnvSetup):
 class TestJobRevivalBase(YTEnvSetup):
     def _wait_for_single_job(self, op_id):
         path = get_operation_cypress_path(op_id) + "/controller_orchid"
-        while True:
-            if get(path + "/state", default=None) == "running":
+        for i in xrange(500):
+            time.sleep(0.1)
+            if get(path + "/state", default=None) != "running":
+                continue
+
+            jobs = None
+            try:
                 jobs = ls(path + "/running_jobs")
-                if len(jobs) > 0:
-                    assert len(jobs) == 1
-                    return jobs[0]
+            except YtError as err:
+                if err.is_resolve_error():
+                    continue
+                raise
+
+            if len(jobs) > 0:
+                assert len(jobs) == 1
+                return jobs[0]
+
+        assert False, "Wait failed"
 
     def _kill_and_start(self, components):
         if "controller_agents" in components:
@@ -3006,11 +3018,19 @@ class TestSafeAssertionsMode(YTEnvSetup):
         "controller_agent": {
             "enable_controller_failure_spec_option": True,
         },
-        "core_dumper": {
-            "component_name": "",
-            "path": "/dev/null",
-        }
     }
+
+    @classmethod
+    def modify_controller_agent_config(cls, config):
+        cls.core_path = os.path.join(cls.path_to_run, "_cores")
+        os.mkdir(cls.core_path)
+        os.chmod(cls.core_path, 0777)
+        config["core_dumper"] = {
+            "path": cls.core_path,
+            # Pattern starts with the underscore to trick teamcity; we do not want it to
+            # pay attention to the created core.
+            "pattern": "_core.%CORE_PID.%CORE_SIG.%CORE_THREAD_NAME-%CORE_REASON",
+        }
 
     @unix_only
     def test_assertion_failure(self):
@@ -3027,9 +3047,39 @@ class TestSafeAssertionsMode(YTEnvSetup):
         with pytest.raises(YtError):
             op.track()
 
-        # Note that exception in on job completed is not a failed assertion, so it doesn't affect this counter.
-        # TODO(max42): uncomment this when metrics are exported properly (after Ignat's scheduler resharding).
-        # assert len(get("//sys/scheduler/orchid/profiling/controller_agent/assertions_failed")) == 1
+        err = op.get_error()
+        print >>sys.stderr, "=== error ==="
+        print >>sys.stderr, err
+
+        assert err.contains_code(212)  # NScheduler::EErrorCode::OperationControllerCrashed
+
+        # Core path is either attribute of an error itself, or of the only inner error when it is
+        # wrapped with 'Operation has failed to prepare' error.
+        core_path = err.attributes.get("core_path") or err.inner_errors[0].get("attributes", {}).get("core_path")
+        assert core_path != YsonEntity()
+
+        # Wait until core is finished. This may take a really long time under debug :(
+        controller_agent_address = get(op.get_path() + "/@controller_agent_address")
+        wait(lambda: get("//sys/controller_agents/instances/{}"
+                         "/orchid/core_dumper/active_core_dump_count".format(controller_agent_address)) == 0,
+             iter=2000)
+        assert os.path.exists(core_path)
+        child = subprocess.Popen(["gdb", "--batch", "-ex", "bt",
+                                  find_executable("ytserver-controller-agent"), core_path],
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE)
+        stdout, stderr = child.communicate()
+        print >>sys.stderr, "=== stderr ==="
+        print >>sys.stderr, stderr
+        print >>sys.stderr, "=== stdout ==="
+        print >>sys.stderr, stdout
+        assert child.returncode == 0
+        assert "AssertionFailureInPrepare" in stdout
+
+    def test_unexpected_exception(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out")
 
         op = map(
             dont_track=True,
@@ -3039,19 +3089,8 @@ class TestSafeAssertionsMode(YTEnvSetup):
             command="cat")
         with pytest.raises(YtError):
             op.track()
-
-        # assert len(get("//sys/scheduler/orchid/profiling/controller_agent/assertions_failed")) == 1
-
-        op = map(
-            dont_track=True,
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            spec={"testing": {"controller_failure": "assertion_failure_in_prepare"}},
-            command="cat")
-        with pytest.raises(YtError):
-            op.track()
-
-        # assert len(get("//sys/scheduler/orchid/profiling/controller_agent/assertions_failed")) == 2
+        print >>sys.stderr, op.get_error()
+        assert op.get_error().contains_code(213)  # NScheduler::EErrorCode::TestingError
 
 ##################################################################
 
@@ -3635,70 +3674,82 @@ class TestControllerMemoryUsage(YTEnvSetup):
 
     @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
     def test_controller_memory_usage(self):
+        # In this test we rely on the assignment order of memory tags.
+        # Tags are given to operations sequentially during lifetime of controller agent.
+        # So this test should pass only if it is the first test in this test suite.
+
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
-        write_table("<append=%true>//tmp/t_in", [{"b": 0}])
-        for i in range(40):
-            write_table("<append=%true>//tmp/t_in", [{"a": 0}])
-
-        events = events_on_fs()
+        write_table("<append=%true>//tmp/t_in", [{"a": 0}])
 
         controller_agents = ls("//sys/controller_agents/instances")
         assert len(controller_agents) == 1
 
         controller_agent_orchid = "//sys/controller_agents/instances/{}/orchid/controller_agent".format(controller_agents[0])
 
+        def check(tag_number, operation, usage_lower_bound, usage_upper_bound):
+            state = operation.get_state()
+            if state != "running":
+                return False
+            statistics = get(controller_agent_orchid + "/tagged_memory_statistics/" + tag_number)
+            if statistics["operation_id"] == YsonEntity():
+                return False
+            assert statistics["operation_id"] == operation.id
+            assert statistics["usage"] > usage_lower_bound
+            assert statistics["usage"] < usage_upper_bound
+            return True
+
         for entry in get(controller_agent_orchid + "/tagged_memory_statistics", verbose=False):
             assert entry["operation_id"] == YsonEntity()
             assert entry["alive"] == False
 
-        op = map(dont_track=True,
-                 in_="//tmp/t_in",
-                 out="<sorted_by=[a]>//tmp/t_out",
-                 command=events.wait_event_cmd("start") + '; grep b - && sleep 3600 || python -c "print \'{a=\' + \'x\' * 250 * 1024 + \'}\'"',
-                 spec={
-                     "data_size_per_job": 1,
-                     "job_io": {"table_writer": {"max_key_weight": 256 * 1024}}
-                 })
-        time.sleep(2)
+        op_small = map(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out="<sorted_by=[a]>//tmp/t_out",
+            command="sleep 3600")
 
-        usage_before = get(op.get_path() + "/controller_orchid/memory_usage")
-        # Normal controller footprint should not exceed a few megabytes.
-        assert usage_before < 4 * 10**6
-        print >>sys.stderr, "usage_before =", usage_before
+        small_usage_path = op_small.get_path() + "/controller_orchid/memory_usage"
+        wait(lambda: exists(small_usage_path))
+        usage = get(small_usage_path)
 
-        events.notify_event("start")
+        print >>sys.stderr, "small_usage =", usage
+        assert usage < 4 * 10**6
 
-        def check():
-            state = op.get_state()
-            if state != "running":
-                return False
-            statistics = get(controller_agent_orchid + "/tagged_memory_statistics/0")
-            if statistics["operation_id"] == YsonEntity():
-                return False
-            assert statistics["operation_id"] == op.id
-            return True
+        wait(lambda: check("0", op_small, 0, 4 * 10**6))
 
-        wait(check)
+        op_small.abort()
 
-        # After all jobs are finished, controller should contain at least 40
-        # pairs of boundary keys of length 250kb, resulting in about 20mb of
-        # memory. First job should stuck, protecting this check from the race
-        # against operation completion.
-        # NB: all these checks should have form of wait(...) since memory usage may sometimes decrease,
-        # so waiting for only one of the conditions and immediately checking the remaining ones is not enough.
-        wait(lambda: get(op.get_path() + "/controller_orchid/memory_usage") > 10 * 10**6)
-        wait(lambda: get(controller_agent_orchid + "/tagged_memory_statistics/0/usage") > 10 * 10**6)
-        wait(lambda: get_operation(op.id, attributes=["memory_usage"], include_runtime=True)["memory_usage"] > 10 * 10**6)
 
-        op.abort()
+        op_large = map(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out="<sorted_by=[a]>//tmp/t_out",
+            command="sleep 3600",
+            spec={
+                "testing": {
+                    "allocation_size": 20 * 1024 * 1024,
+                }
+            })
+
+        large_usage_path = op_large.get_path() + "/controller_orchid/memory_usage"
+        wait(lambda: exists(large_usage_path))
+        usage = get(large_usage_path)
+
+        print >>sys.stderr, "large_usage =", usage
+        assert usage > 10 * 10**6
+        wait(lambda: get_operation(op_large.id, attributes=["memory_usage"], include_runtime=True)["memory_usage"] > 10 * 10**6)
+
+        wait(lambda: check("1", op_large, 10 * 10**6, 30 * 10**6))
+
+        op_large.abort()
 
         time.sleep(5)
 
         for i, entry in enumerate(get(controller_agent_orchid + "/tagged_memory_statistics", verbose=False)):
-            if i == 0:
-                assert entry["operation_id"] == op.id
+            if i <= 1:
+                assert entry["operation_id"] in (op_small.id, op_large.id)
             else:
                 assert entry["operation_id"] == YsonEntity()
             assert entry["alive"] == False
@@ -3740,21 +3791,26 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
         cls.controller_agent_counter += 1
         if cls.controller_agent_counter > 2:
             cls.controller_agent_counter -= 2
-        config["controller_agent"]["total_controller_memory_limit"] = cls.controller_agent_counter * 20 * 1024 ** 2
+        config["controller_agent"]["total_controller_memory_limit"] = cls.controller_agent_counter * 50 * 1024 ** 2
 
     @flaky(max_runs=5)
     def test_strategy(self):
         create("table", "//tmp/t_in", attributes={"replication_factor": 1})
-        write_table("//tmp/t_in", [{"a": 0}])
+        write_table("<append=%true>//tmp/t_in", [{"a": 0}])
 
         ops = []
         for i in xrange(45):
             out = "//tmp/t_out" + str(i)
             create("table", out, attributes={"replication_factor": 1})
             op = map(
-                command="sleep 100",
+                command="sleep 1000",
                 in_="//tmp/t_in",
                 out=out,
+                spec={
+                    "testing": {
+                        "allocation_size": 1024 ** 2,
+                    }
+                },
                 dont_track=True)
             wait(lambda: op.get_state() == "running")
             ops.append(op)

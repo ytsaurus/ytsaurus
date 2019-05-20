@@ -9,6 +9,7 @@
 #include <yt/core/yson/consumer.h>
 
 #include <yt/core/ytree/public.h>
+#include <yt/core/ytree/serialize.h>
 
 namespace NYT::NChunkClient {
 
@@ -101,6 +102,8 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(TReadLimit, LowerLimit);
     DEFINE_BYREF_RW_PROPERTY(TReadLimit, UpperLimit);
+
+    void Persist(const TStreamPersistenceContext& context);
 
 private:
     void InitCopy(const NProto::TReadRange& range);

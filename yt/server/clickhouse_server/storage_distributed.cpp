@@ -8,12 +8,15 @@
 #include "query_context.h"
 #include "subquery.h"
 
+#include <yt/ytlib/chunk_client/input_data_slice.h>
+
 #include <Common/Exception.h>
 #include <DataStreams/materializeBlock.h>
 #include <DataStreams/MaterializingBlockInputStream.h>
 #include <DataStreams/RemoteBlockInputStream.h>
 #include <Interpreters/InterpreterSelectQuery.h>
 #include <Parsers/queryToString.h>
+#include <Parsers/ASTSampleRatio.h>
 #include <Storages/MergeTree/KeyCondition.h>
 
 #include <library/string_utils/base64/base64.h>
@@ -100,6 +103,11 @@ BlockInputStreams TStorageDistributedBase::read(
     return streams;
 }
 
+bool TStorageDistributedBase::supportsSampling() const
+{
+    return true;
+}
+
 QueryProcessingStage::Enum TStorageDistributedBase::getQueryProcessingStage(const Context& context) const
 {
     const auto& settings = context.getSettingsRef();
@@ -107,8 +115,8 @@ QueryProcessingStage::Enum TStorageDistributedBase::getQueryProcessingStage(cons
     // Set processing stage
 
     return settings.distributed_group_by_no_merge
-                     ? QueryProcessingStage::Complete
-                     : QueryProcessingStage::WithMergeableState;
+        ? QueryProcessingStage::Complete
+        : QueryProcessingStage::WithMergeableState;
 }
 
 void TStorageDistributedBase::Prepare(
@@ -132,7 +140,25 @@ void TStorageDistributedBase::Prepare(
         queryContext->RowBuffer,
         queryContext->Bootstrap->GetConfig()->Engine->Subquery,
         SpecTemplate);
-    StripeList = SubdivideDataSlices(dataSlices, subqueryCount);
+
+    i64 totalRowCount = 0;
+    for (const auto& dataSlice : dataSlices) {
+        totalRowCount += dataSlice->GetRowCount();
+    }
+
+    std::optional<double> samplingRate;
+    const auto& selectQuery = queryInfo.query->as<ASTSelectQuery&>();
+    if (auto selectSampleSize = selectQuery.sample_size()) {
+        auto ratio = selectSampleSize->as<ASTSampleRatio&>().ratio;
+        auto rate = static_cast<double>(ratio.numerator) / ratio.denominator;
+        if (rate > 1.0) {
+            rate /= totalRowCount;
+        }
+        rate = std::max(0.0, std::min(1.0, rate));
+        samplingRate = rate;
+    }
+
+    StripeList = SubdivideDataSlices(dataSlices, subqueryCount, samplingRate);
 }
 
 Settings TStorageDistributedBase::PrepareLeafJobSettings(const Settings& settings)
@@ -178,7 +204,7 @@ BlockInputStreamPtr TStorageDistributedBase::CreateLocalStream(
     const Context& context,
     QueryProcessingStage::Enum processedStage)
 {
-    InterpreterSelectQuery interpreter(queryAst, context, Names{}, processedStage);
+    InterpreterSelectQuery interpreter(queryAst, context, SelectQueryOptions(processedStage));
     BlockInputStreamPtr stream = interpreter.execute().in;
 
     // Materialization is needed, since from remote servers the constants come materialized.
@@ -188,7 +214,7 @@ BlockInputStreamPtr TStorageDistributedBase::CreateLocalStream(
 }
 
 BlockInputStreamPtr TStorageDistributedBase::CreateRemoteStream(
-    const IClusterNodePtr remoteNode,
+    const IClusterNodePtr& remoteNode,
     const ASTPtr& queryAst,
     const Context& context,
     const ThrottlerPtr& throttler,
@@ -197,7 +223,7 @@ BlockInputStreamPtr TStorageDistributedBase::CreateRemoteStream(
 {
     std::string query = queryToString(queryAst);
 
-    Block header = materializeBlock(InterpreterSelectQuery(queryAst, context, Names{}, processedStage).getSampleBlock());
+    Block header = materializeBlock(InterpreterSelectQuery(queryAst, context, SelectQueryOptions(processedStage).analyze()).getSampleBlock());
 
     auto stream = std::make_shared<RemoteBlockInputStream>(
         remoteNode->GetConnection(),
@@ -212,6 +238,42 @@ BlockInputStreamPtr TStorageDistributedBase::CreateRemoteStream(
     stream->setPoolMode(PoolMode::GET_MANY);
 
     return stream;
+}
+
+void TStorageDistributedBase::startup()
+{
+    if (ClickHouseSchema.Columns.empty()) {
+        THROW_ERROR_EXCEPTION("CHYT does not support tables without schema")
+            << TErrorAttribute("path", getTableName());
+    }
+    setColumns(DB::ColumnsDescription(ClickHouseSchema.Columns));
+    SpecTemplate.Columns = ClickHouseSchema.Columns;
+    SpecTemplate.ReadSchema = ReadSchema;
+}
+
+std::string TStorageDistributedBase::getName() const
+{
+    return "YTStaticTable";
+}
+
+bool TStorageDistributedBase::isRemote() const
+{
+    return true;
+}
+
+bool TStorageDistributedBase::supportsIndexForIn() const
+{
+    return ClickHouseSchema.HasPrimaryKey();
+}
+
+bool TStorageDistributedBase::mayBenefitFromIndexForIn(const DB::ASTPtr& /* queryAst */, const DB::Context& /* context */) const
+{
+    return supportsIndexForIn();
+}
+
+const TClickHouseTableSchema& TStorageDistributedBase::GetSchema() const
+{
+    return ClickHouseSchema;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

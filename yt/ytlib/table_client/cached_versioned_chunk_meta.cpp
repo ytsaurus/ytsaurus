@@ -37,11 +37,11 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::Create(
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const TTableSchema& schema,
     const TColumnRenameDescriptors& renameDescriptors,
-    TNodeMemoryTracker* memoryTracker)
+    TNodeMemoryTrackerPtr memoryTracker)
 {
     try {
         auto cachedMeta = New<TCachedVersionedChunkMeta>();
-        cachedMeta->Init(chunkId, chunkMeta, schema, renameDescriptors, memoryTracker);
+        cachedMeta->Init(chunkId, chunkMeta, schema, renameDescriptors, std::move(memoryTracker));
         return cachedMeta;
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error caching meta of chunk %v",
@@ -55,12 +55,12 @@ TFuture<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::Load(
     const TClientBlockReadOptions& blockReadOptions,
     const TTableSchema& schema,
     const TColumnRenameDescriptors& renameDescriptors,
-    TNodeMemoryTracker* memoryTracker)
+    TNodeMemoryTrackerPtr memoryTracker)
 {
     auto chunkId = chunkReader->GetChunkId();
     return chunkReader->GetMeta(blockReadOptions)
         .Apply(BIND([=] (const TRefCountedChunkMetaPtr& chunkMeta) {
-            return TCachedVersionedChunkMeta::Create(chunkId, *chunkMeta, schema, renameDescriptors, memoryTracker);
+            return TCachedVersionedChunkMeta::Create(chunkId, *chunkMeta, schema, renameDescriptors, std::move(memoryTracker));
         }));
 }
 
@@ -69,7 +69,7 @@ void TCachedVersionedChunkMeta::Init(
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const TTableSchema& schema,
     const TColumnRenameDescriptors& renameDescriptors,
-    TNodeMemoryTracker* memoryTracker)
+    TNodeMemoryTrackerPtr memoryTracker)
 {
     ChunkId_ = chunkId;
 
@@ -93,7 +93,7 @@ void TCachedVersionedChunkMeta::Init(
 
     if (memoryTracker) {
         MemoryTrackerGuard_ = TNodeMemoryTrackerGuard::Acquire(
-            memoryTracker,
+            std::move(memoryTracker),
             EMemoryCategory::VersionedChunkMeta,
             GetMemoryUsage());
     }

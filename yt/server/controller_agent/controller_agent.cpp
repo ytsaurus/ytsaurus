@@ -72,7 +72,7 @@ struct TAgentToSchedulerScheduleJobResponse
 {
     TJobId JobId;
     TOperationId OperationId;
-    TScheduleJobResultPtr Result;
+    TControllerScheduleJobResultPtr Result;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -1263,7 +1263,7 @@ private:
             TAgentToSchedulerScheduleJobResponse response;
             response.JobId = jobId;
             response.OperationId = operationId;
-            response.Result = New<TScheduleJobResult>();
+            response.Result = New<TControllerScheduleJobResult>();
             response.Result->RecordFail(EScheduleJobFailReason::UnknownNode);
             outbox->Enqueue(std::move(response));
         };
@@ -1341,7 +1341,7 @@ private:
                             jobLimitsWithQuota,
                             treeId);
                         if (!response.Result) {
-                            response.Result = New<TScheduleJobResult>();
+                            response.Result = New<TControllerScheduleJobResult>();
                         }
 
                         outbox->Enqueue(std::move(response));

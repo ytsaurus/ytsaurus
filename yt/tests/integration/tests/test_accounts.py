@@ -2,6 +2,7 @@ import pytest
 from time import sleep
 from operator import itemgetter
 from copy import deepcopy
+from flaky import flaky
 
 from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
@@ -1234,6 +1235,7 @@ class TestAccounts(YTEnvSetup):
         wait(lambda: get("//sys/accounts/tmp/@resource_usage/node_count") == node_count)
         wait(lambda: get("//sys/accounts/tmp/@committed_resource_usage/node_count") == committed_node_count)
 
+    @flaky(max_runs=3)
     def test_totals(self):
         self._set_account_zero_limits("chunk_wise_accounting_migration")
 
@@ -1247,7 +1249,7 @@ class TestAccounts(YTEnvSetup):
                 "tablet_static_memory": 0
             }
             for r in resources:
-                result["disk_space_per_medium"]["default"] += r["disk_space_per_medium"]["default"]
+                result["disk_space_per_medium"]["default"] += r["disk_space_per_medium"].get("default", 0)
                 result["disk_space"] += r["disk_space"]
                 result["chunk_count"] += r["chunk_count"]
                 result["node_count"] += r["node_count"]
@@ -1257,7 +1259,7 @@ class TestAccounts(YTEnvSetup):
             return result
 
         def resources_equal(a, b):
-            return (a["disk_space_per_medium"]["default"] == b["disk_space_per_medium"]["default"] and
+            return (a["disk_space_per_medium"]["default"] == b["disk_space_per_medium"].get("default", 0) and
                     a["disk_space"] == b["disk_space"] and
                     a["chunk_count"] == b["chunk_count"] and
                     a["node_count"] == b["node_count"] and

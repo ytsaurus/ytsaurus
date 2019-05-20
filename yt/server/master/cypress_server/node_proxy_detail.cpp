@@ -391,16 +391,19 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
         }
 
         case EInternedAttributeKey::ExpirationTime: {
-            ValidateNoTransaction();
             ValidatePermission(EPermissionCheckScope::This|EPermissionCheckScope::Descendants, EPermission::Remove);
 
-            auto* node = GetThisImpl();
             const auto& cypressManager = Bootstrap_->GetCypressManager();
-            if (node == cypressManager->GetRootNode()) {
+
+            if (TrunkNode == cypressManager->GetRootNode()) {
                 THROW_ERROR_EXCEPTION("Cannot set \"expiration_time\" for the root");
             }
 
             auto time = ConvertTo<TInstant>(value);
+
+            auto lockRequest = TLockRequest::MakeSharedAttribute(GetUninternedAttributeKey(key));
+            auto* node = LockThisImpl(lockRequest);
+
             cypressManager->SetExpirationTime(node, time);
 
             return true;
@@ -443,9 +446,8 @@ bool TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(TInternedAttribute
 {
     switch (key) {
         case EInternedAttributeKey::ExpirationTime: {
-            ValidateNoTransaction();
-
-            auto* node = GetThisImpl();
+            auto lockRequest = TLockRequest::MakeSharedAttribute(GetUninternedAttributeKey(key));
+            auto* node = LockThisImpl(lockRequest);
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             cypressManager->SetExpirationTime(node, std::nullopt);
 
@@ -487,7 +489,6 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     TObjectProxyBase::ListSystemAttributes(descriptors);
 
     const auto* node = GetThisImpl();
-    const auto* trunkNode = node->GetTrunkNode();
     bool hasKey = NodeHasKey(node);
     bool isExternal = node->IsExternal();
 
@@ -505,7 +506,7 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Key)
         .SetPresent(hasKey));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTime)
-        .SetPresent(trunkNode->GetExpirationTime().operator bool())
+        .SetPresent(node->TryGetExpirationTime().operator bool())
         .SetWritable(true)
         .SetRemovable(true));
     descriptors->push_back(EInternedAttributeKey::CreationTime);
@@ -610,13 +611,15 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
             return true;
         }
 
-        case EInternedAttributeKey::ExpirationTime:
-            if (!trunkNode->GetExpirationTime()) {
+        case EInternedAttributeKey::ExpirationTime: {
+            auto optionalExpirationTime = node->TryGetExpirationTime();
+            if (!optionalExpirationTime) {
                 break;
             }
             BuildYsonFluently(consumer)
-                .Value(*trunkNode->GetExpirationTime());
+                .Value(*optionalExpirationTime);
             return true;
+        }
 
         case EInternedAttributeKey::CreationTime:
             BuildYsonFluently(consumer)
@@ -1205,6 +1208,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
     response->set_cell_tag(TrunkNode->GetExternalCellTag() == NotReplicatedCellTag
         ? Bootstrap_->GetCellTag()
         : TrunkNode->GetExternalCellTag());
+    response->set_revision(lock->GetTrunkNode()->GetRevision());
 
     context->SetResponseInfo("LockId: %v",
         lockId);

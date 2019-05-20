@@ -126,4 +126,43 @@ ui64 TYsonPullParser::GetTotalReadSize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TYsonPullParserCursor::SkipComplexValue()
+{
+    bool isAttributes = false;
+    switch (Current_.GetType()) {
+        case EYsonItemType::BeginAttributes:
+            isAttributes = true;
+            // fallthrough
+        case EYsonItemType::BeginList:
+        case EYsonItemType::BeginMap: {
+            const auto nestingLevel = Parser_->GetNestingLevel();
+            while (Parser_->GetNestingLevel() >= nestingLevel) {
+                Parser_->Next();
+            }
+            Current_ = Parser_->Next();
+            if (isAttributes) {
+                SkipComplexValue();
+            }
+            return;
+        }
+        case EYsonItemType::EntityValue:
+        case EYsonItemType::BooleanValue:
+        case EYsonItemType::Int64Value:
+        case EYsonItemType::Uint64Value:
+        case EYsonItemType::DoubleValue:
+        case EYsonItemType::StringValue:
+            Next();
+            return;
+
+        case EYsonItemType::EndOfStream:
+        case EYsonItemType::EndAttributes:
+        case EYsonItemType::EndMap:
+        case EYsonItemType::EndList:
+            Y_UNREACHABLE();
+    }
+    Y_UNREACHABLE();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NYson

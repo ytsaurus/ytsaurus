@@ -346,7 +346,6 @@ void TLeaderRecovery::DoRun()
         WaitFor(TDelayedExecutor::MakeDelayed(Config_->LeaderLeaseGraceDelay - elapsedTime))
             .ThrowOnError();
     }
-
 }
 
 bool TLeaderRecovery::IsLeader() const

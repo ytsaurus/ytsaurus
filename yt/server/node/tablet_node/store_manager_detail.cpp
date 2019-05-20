@@ -300,7 +300,7 @@ bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
 
 IChunkStorePtr TStoreManagerBase::PeekStoreForPreload()
 {
-    YT_LOG_DEBUG("Peeking store for preload");
+    YT_LOG_TRACE("Peeking store for preload");
 
     for (size_t size = Tablet_->PreloadStoreIds().size(); size != 0; --size) {
         auto id = Tablet_->PreloadStoreIds().front();
@@ -415,9 +415,9 @@ void TStoreManagerBase::Rotate(bool createNewStore)
     YCHECK(activeStore);
     activeStore->SetStoreState(EStoreState::PassiveDynamic);
 
-    YT_LOG_INFO_UNLESS(IsRecovery(), "Rotating store (StoreId: %v, StoreMemoryUsage: %v)",
+    YT_LOG_INFO_UNLESS(IsRecovery(), "Rotating store (StoreId: %v, DynamicMemoryUsage: %v)",
         activeStore->GetId(),
-        activeStore->GetMemoryUsage());
+        activeStore->GetDynamicMemoryUsage());
 
     if (activeStore->GetLockCount() > 0) {
         YT_LOG_INFO_UNLESS(IsRecovery(), "Active store is locked and will be kept (StoreId: %v, LockCount: %v)",

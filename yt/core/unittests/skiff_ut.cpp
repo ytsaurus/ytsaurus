@@ -145,6 +145,94 @@ TEST(TSkiffTest, TestString)
     }
 }
 
+TEST(TSkiffTest, TestRepeatedVariant8)
+{
+
+    auto schema = CreateRepeatedVariant8Schema({
+        CreateSimpleTypeSchema(EWireType::Int64),
+        CreateSimpleTypeSchema(EWireType::Uint64),
+    });
+
+    {
+        TBufferStream bufferStream;
+        TCheckedSkiffWriter tokenWriter(schema, &bufferStream);
+
+        // row 0
+        tokenWriter.WriteVariant8Tag(0);
+        tokenWriter.WriteInt64(-8);
+
+        // row 2
+        tokenWriter.WriteVariant8Tag(1);
+        tokenWriter.WriteUint64(42);
+
+        // end
+        tokenWriter.WriteVariant8Tag(EndOfSequenceTag<ui8>());
+
+        tokenWriter.Finish();
+
+        {
+            TBufferInput input(bufferStream.Buffer());
+            TCheckedSkiffParser parser(schema, &input);
+
+            // row 1
+            ASSERT_EQ(parser.ParseVariant8Tag(), 0);
+            ASSERT_EQ(parser.ParseInt64(), -8);
+
+            // row 2
+            ASSERT_EQ(parser.ParseVariant8Tag(), 1);
+            ASSERT_EQ(parser.ParseUint64(), 42);
+
+            // end
+            ASSERT_EQ(parser.ParseVariant8Tag(), EndOfSequenceTag<ui8>());
+
+            parser.ValidateFinished();
+        }
+
+        {
+            TBufferInput input(bufferStream.Buffer());
+            TCheckedSkiffParser parser(schema, &input);
+
+            ASSERT_THROW(parser.ParseInt64(), std::exception);
+        }
+
+        {
+            TBufferInput input(bufferStream.Buffer());
+            TCheckedSkiffParser parser(schema, &input);
+
+            parser.ParseVariant8Tag();
+            ASSERT_THROW(parser.ParseUint64(), std::exception);
+        }
+
+        {
+            TBufferInput input(bufferStream.Buffer());
+            TCheckedSkiffParser parser(schema, &input);
+
+            parser.ParseVariant8Tag();
+            parser.ParseInt64();
+
+            ASSERT_THROW(parser.ValidateFinished(), std::exception);
+        }
+    }
+
+    {
+        TBufferStream bufferStream;
+        TCheckedSkiffWriter tokenWriter(schema, &bufferStream);
+
+        tokenWriter.WriteVariant8Tag(0);
+        ASSERT_THROW(tokenWriter.WriteUint64(5), std::exception);
+    }
+
+    {
+        TBufferStream bufferStream;
+        TCheckedSkiffWriter tokenWriter(schema, &bufferStream);
+
+        tokenWriter.WriteVariant8Tag(1);
+        tokenWriter.WriteUint64(5);
+
+        ASSERT_THROW(tokenWriter.Finish(), std::exception);
+    }
+}
+
 TEST(TSkiffTest, TestRepeatedVariant16)
 {
 

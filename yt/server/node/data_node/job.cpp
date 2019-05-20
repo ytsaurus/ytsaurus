@@ -496,7 +496,10 @@ private:
     {
         auto chunkId = FromProto<TChunkId>(JobSpecExt_.chunk_id());
         int sourceMediumIndex = JobSpecExt_.source_medium_index();
-        auto targetReplicas = FromProto<TChunkReplicaList>(JobSpecExt_.target_replicas());
+        // COMPAT(aozeritsky)
+        auto targetReplicas = JobSpecExt_.target_replicas().empty()
+            ? FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas_old())
+            : FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas());
         auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
         nodeDirectory->MergeFrom(JobSpecExt_.node_directory());
 
@@ -565,7 +568,7 @@ private:
 
             YT_LOG_DEBUG("Enqueuing blocks for replication (Blocks: %v-%v)",
                 currentBlockIndex,
-                currentBlockIndex + writeBlocks.size() - 1);
+                currentBlockIndex + static_cast<int>(writeBlocks.size()) - 1);
 
             auto writeResult = writer->WriteBlocks(writeBlocks);
             if (!writeResult) {
@@ -638,7 +641,10 @@ private:
         auto codecId = NErasure::ECodec(JobSpecExt_.erasure_codec());
         auto* codec = NErasure::GetCodec(codecId);
         auto sourceReplicas = FromProto<TChunkReplicaList>(JobSpecExt_.source_replicas());
-        auto targetReplicas = FromProto<TChunkReplicaList>(JobSpecExt_.target_replicas());
+        // COMPAT(aozeritsky)
+        auto targetReplicas = JobSpecExt_.target_replicas().empty()
+            ? FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas_old())
+            : FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas());
         auto decommission = JobSpecExt_.decommission();
 
         // Compute target medium index.
@@ -706,7 +712,7 @@ private:
                 Config_->RepairWriter,
                 options,
                 partSessionId,
-                TChunkReplicaList(1, targetReplicas[index]),
+                TChunkReplicaWithMediumList(1, targetReplicas[index]),
                 nodeDirectory,
                 Bootstrap_->GetMasterClient(),
                 GetNullBlockCache(),

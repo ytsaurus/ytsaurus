@@ -8,17 +8,17 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(ui32* value, TChunkReplica replica);
-void FromProto(TChunkReplica* replica, ui32 value);
+void ToProto(ui64* value, TChunkReplicaWithMedium replica);
+void FromProto(TChunkReplicaWithMedium* replica, ui64 value);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A compact representation of |(nodeId, replicaIndex, mediumIndex)| triplet.
-class TChunkReplica
+class TChunkReplicaWithMedium
 {
 public:
-    TChunkReplica();
-    TChunkReplica(int nodeId, int replicaIndex, int mediumIndex);
+    TChunkReplicaWithMedium();
+    TChunkReplicaWithMedium(int nodeId, int replicaIndex, int mediumIndex);
 
     int GetNodeId() const;
     int GetReplicaIndex() const;
@@ -29,7 +29,37 @@ private:
      *  Bits:
      *   0-23: node id
      *  24-28: replica index (5 bits)
-     *  29-31: medium index (3 bits)
+     *  29-37: medium index (8 bits)
+     */
+    ui64 Value;
+
+    explicit TChunkReplicaWithMedium(ui64 value);
+
+    friend void ToProto(ui64* value, TChunkReplicaWithMedium replica);
+    friend void FromProto(TChunkReplicaWithMedium* replica, ui64 value);
+
+    // COMPAT(aozeritsky)
+    friend void ToProto(ui32* value, TChunkReplicaWithMedium replica);
+    friend void FromProto(TChunkReplicaWithMedium* replica, ui32 value);
+};
+
+TString ToString(TChunkReplicaWithMedium replica);
+
+class TChunkReplica
+{
+public:
+    TChunkReplica();
+    TChunkReplica(int nodeId, int replicaIndex);
+    TChunkReplica(const TChunkReplicaWithMedium& replica);
+
+    int GetNodeId() const;
+    int GetReplicaIndex() const;
+
+private:
+    /*!
+     *  Bits:
+     *   0-23: node id
+     *  24-28: replica index (5 bits)
      */
     ui32 Value;
 
@@ -110,6 +140,8 @@ class TChunkReplicaAddressFormatter
 {
 public:
     explicit TChunkReplicaAddressFormatter(NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
+
+    void operator()(TStringBuilderBase* builder, TChunkReplicaWithMedium replica) const;
 
     void operator()(TStringBuilderBase* builder, TChunkReplica replica) const;
 

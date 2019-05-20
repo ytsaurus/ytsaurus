@@ -2063,6 +2063,7 @@ private:
         queryOptions.AllowFullScan = options.AllowFullScan;
         queryOptions.ReadSessionId = TReadSessionId::Create();
         queryOptions.MemoryLimitPerNode = options.MemoryLimitPerNode;
+        queryOptions.ExecutionPool = options.ExecutionPool;
         queryOptions.Deadline = options.Timeout.value_or(Connection_->GetConfig()->DefaultSelectRowsTimeout).ToDeadLine();
 
         TClientBlockReadOptions blockReadOptions;
@@ -3092,7 +3093,13 @@ private:
         auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspLock>(0)
             .ValueOrThrow();
 
-        return TLockNodeResult({FromProto<TLockId>(rsp->lock_id()), FromProto<TNodeId>(rsp->node_id())});
+        // COMPAT(ignat): remove check after master update.
+        std::optional<i64> revision;
+        if (rsp->revision() != 0) {
+            revision = rsp->revision();
+        }
+
+        return TLockNodeResult({FromProto<TLockId>(rsp->lock_id()), FromProto<TNodeId>(rsp->node_id()), revision});
     }
 
     void DoUnlockNode(
@@ -4115,6 +4122,7 @@ private:
         "memory_usage",
         "suspended",
         "slot_index_per_pool_tree",
+        "alerts",
     };
 
     // Map operation attribute names as they are requested in 'get_operation' or 'list_operations'
@@ -4413,6 +4421,7 @@ private:
                     SET_ITEM_YSON_STRING_VALUE("result")
                     SET_ITEM_YSON_STRING_VALUE("events")
                     SET_ITEM_YSON_STRING_VALUE("slot_index_per_pool_tree")
+                    SET_ITEM_YSON_STRING_VALUE("alerts")
                 .EndMap();
 #undef SET_ITEM_STRING_VALUE
 #undef SET_ITEM_YSON_STRING_VALUE
@@ -5415,6 +5424,10 @@ private:
             operation.SlotIndexPerPoolTree = nodeAttributes.FindYson("slot_index_per_pool_tree");
         }
 
+        if (!attributes || attributes->contains("alerts")) {
+            operation.Alerts = nodeAttributes.FindYson("alerts");
+        }
+
         if (!attributes || attributes->contains("annotations")) {
             operation.Annotations = nodeAttributes.FindYson("annotations");
         }
@@ -5921,6 +5934,10 @@ private:
 
             if (auto indexOrNull = columnFilter.FindPosition(tableIndex.SlotIndexPerPoolTree)) {
                 operation.SlotIndexPerPoolTree = getYson(row[*indexOrNull]);
+            }
+
+            if (auto indexOrNull = columnFilter.FindPosition(tableIndex.Alerts)) {
+                operation.Alerts = getYson(row[*indexOrNull]);
             }
 
             idToOperation.emplace(*operation.Id, std::move(operation));

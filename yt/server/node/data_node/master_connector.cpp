@@ -485,7 +485,7 @@ void TMasterConnector::ComputeTotalStatistics(TNodeStatistics* result)
     result->set_available_tablet_slots(slotManager->GetAvailableTabletSlotCount());
     result->set_used_tablet_slots(slotManager->GetUsedTabletSlotCount());
 
-    const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
+    const auto& tracker = Bootstrap_->GetMemoryUsageTracker();
     auto* protoMemory = result->mutable_memory();
     protoMemory->set_total_limit(tracker->GetTotalLimit());
     protoMemory->set_total_used(tracker->GetTotalUsed());
@@ -621,7 +621,7 @@ void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
 
     *request->mutable_statistics() = ComputeStatistics();
 
-    TPerMediumIntArray chunkCounts{};
+    TMediumIntMap chunkCounts;
 
     int storedChunkCount = 0;
     int cachedChunkCount = 0;
@@ -655,10 +655,10 @@ void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
 
     int mediumIndex = 0;
     for (auto chunkCount : chunkCounts) {
-        if (chunkCount != 0) {
+        if (chunkCount.second != 0) {
             auto* mediumChunkStatistics = request->add_chunk_statistics();
             mediumChunkStatistics->set_medium_index(mediumIndex);
-            mediumChunkStatistics->set_chunk_count(chunkCount);
+            mediumChunkStatistics->set_chunk_count(chunkCount.second);
         }
 
         ++mediumIndex;
@@ -773,7 +773,11 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             protoTabletStatistics->set_last_commit_timestamp(tabletSnapshot->RuntimeData->LastCommitTimestamp);
             protoTabletStatistics->set_last_write_timestamp(tabletSnapshot->RuntimeData->LastWriteTimestamp);
             protoTabletStatistics->set_unflushed_timestamp(tabletSnapshot->RuntimeData->UnflushedTimestamp);
-            protoTabletStatistics->set_dynamic_memory_pool_size(tabletSnapshot->RuntimeData->DynamicMemoryPoolSize);
+            i64 totalDynamicMemoryUsage = 0;
+            for (auto type : TEnumTraits<ETabletDynamicMemoryType>::GetDomainValues()) {
+                totalDynamicMemoryUsage += tabletSnapshot->RuntimeData->DynamicMemoryUsagePerType[type].load();
+            }
+            protoTabletStatistics->set_dynamic_memory_pool_size(totalDynamicMemoryUsage);
             protoTabletStatistics->set_modification_time(ToProto<ui64>(tabletSnapshot->RuntimeData->ModificationTime));
             protoTabletStatistics->set_access_time(ToProto<ui64>(tabletSnapshot->RuntimeData->AccessTime));
 

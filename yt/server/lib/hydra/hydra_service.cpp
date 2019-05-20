@@ -56,6 +56,10 @@ bool THydraServiceBase::IsUp(const TCtxDiscoverPtr& context)
     }
 
     auto hydraManager = GetHydraManager();
+    if (!hydraManager) {
+        return false;
+    }
+
     bool isLeader = hydraManager->IsActiveLeader();
     bool isFollower = hydraManager->IsActiveFollower();
     switch (kind) {

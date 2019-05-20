@@ -483,6 +483,13 @@ void Deserialize(TReadRange& readRange, NYTree::INodePtr node)
     }
 }
 
+void TReadRange::Persist(const TStreamPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, LowerLimit_);
+    Persist(context, UpperLimit_);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient

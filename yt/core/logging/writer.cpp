@@ -159,7 +159,8 @@ void TStreamLogWriterBase::OnException(const std::exception& ex)
 
     HandleEintr(::write, 2, formatter.GetData(), formatter.GetBytesWritten());
 
-    std::terminate();
+    _exit(100);
+    Y_UNREACHABLE();
 }
 
 void TStreamLogWriterBase::SetRateLimit(std::optional<size_t> limit)
