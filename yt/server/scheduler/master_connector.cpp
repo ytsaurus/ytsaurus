@@ -1033,6 +1033,7 @@ private:
                 "debug_transaction_id",
                 "output_completion_transaction_id",
                 "debug_completion_transaction_id",
+                "nested_input_transaction_ids",
             };
 
             auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
@@ -1114,6 +1115,15 @@ private:
                     attributes->Get<TTransactionId>("debug_completion_transaction_id", NullTransactionId),
                     true,
                     "debug completion");
+
+                auto nestedInputTransactionIds = attributes->Get<std::vector<TTransactionId>>("nested_input_transaction_ids", {});
+                for (auto transactionId : nestedInputTransactionIds) {
+                    transactions.NestedInputTransactions.push_back(attachTransaction(
+                        transactionId,
+                        true,
+                        "nested input transaction"
+                    ));
+                }
 
                 const auto& userTransactionId = operation->GetUserTransactionId();
                 auto userTransaction = attachTransaction(userTransactionId, false);

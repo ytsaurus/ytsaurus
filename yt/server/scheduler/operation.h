@@ -62,6 +62,7 @@ struct TOperationTransactions
     NApi::ITransactionPtr DebugTransaction;
     NApi::ITransactionPtr OutputCompletionTransaction;
     NApi::ITransactionPtr DebugCompletionTransaction;
+    std::vector<NApi::ITransactionPtr> NestedInputTransactions;
 };
 
 void ToProto(

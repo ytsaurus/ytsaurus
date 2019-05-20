@@ -8,6 +8,7 @@
 
 * aozeritsky: Update masters via snapshot.
 * shakurov: Changed Hydra service protocol. Update masters via snapshot.
+* ignat: Protocol between controller agent and scheduler has changed, update it simultaneously.
 * ifsmirnov: Tablet cell bundle destruction semantics changed (once again). Update masters with snapshot.
 * shakurov: Transactional semantics for @expiration_time. Master servers must be updated via snapshot.
 * ifsmirnov: TChunkView introduced. Update masters via snapshot.

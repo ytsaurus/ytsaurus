@@ -769,6 +769,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
+            "snapshot_period": 500,
             "operations_update_period": 10,
             "map_operation_options": {
                 "job_splitter": {
@@ -1353,6 +1354,48 @@ class TestSchedulerCommon(YTEnvSetup):
         map(command="cat", in_='<transaction_id="{}">//tmp/in'.format(custom_tx), out="//tmp/out")
 
         assert list(read_table("//tmp/out")) == [{"foo": "bar"}]
+
+    def test_nested_input_transactions(self):
+        custom_tx = start_transaction()
+        create("table", "//tmp/in", tx=custom_tx)
+        write_table("//tmp/in", {"foo": "bar"}, tx=custom_tx)
+
+        create("table", "//tmp/out")
+
+        with pytest.raises(YtError):
+            map(command="sleep 100", in_="//tmp/in", out="//tmp/out")
+
+        op = map(
+            dont_track=True,
+            command=with_breakpoint("BREAKPOINT; sleep 100"),
+            in_='<transaction_id="{}">//tmp/in'.format(custom_tx),
+            out="//tmp/out")
+
+        wait_breakpoint()
+
+        nested_input_transaction_ids = get(op.get_path() + "/@nested_input_transaction_ids")
+        assert len(nested_input_transaction_ids) == 1
+        nested_tx = nested_input_transaction_ids[0]
+
+        assert list(read_table("//tmp/in", tx=nested_tx)) == [{"foo": "bar"}]
+        assert get("#{}/@parent_id".format(nested_tx)) == custom_tx
+
+        wait(lambda: exists(op.get_path() + "/snapshot"))
+
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers()
+
+        wait(lambda: op.get_state() == "running")
+        assert get(op.get_path() + "/@nested_input_transaction_ids") == [nested_tx]
+
+        self.Env.kill_schedulers()
+        abort_transaction(nested_tx)
+        self.Env.start_schedulers()
+
+        wait(lambda: op.get_state() == "running")
+        new_nested_input_transaction_ids = get(op.get_path() + "/@nested_input_transaction_ids")
+        assert len(new_nested_input_transaction_ids) == 1
+        assert new_nested_input_transaction_ids[0] != nested_tx
 
     def test_ban_nodes_with_failed_jobs(self):
         create("table", "//tmp/t1")

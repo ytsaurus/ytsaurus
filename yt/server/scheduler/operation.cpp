@@ -64,6 +64,10 @@ void ToProto(
     ToProto(transactionIdsProto->mutable_debug_id(), getId(transactions.DebugTransaction));
     ToProto(transactionIdsProto->mutable_output_completion_id(), getId(transactions.OutputCompletionTransaction));
     ToProto(transactionIdsProto->mutable_debug_completion_id(), getId(transactions.DebugCompletionTransaction));
+
+    for (const auto& transaction : transactions.NestedInputTransactions) {
+        ToProto(transactionIdsProto->add_nested_input_ids(), getId(transaction));
+    }
 }
 
 void FromProto(
@@ -92,6 +96,11 @@ void FromProto(
     transactions->DebugTransaction = attachTransaction(FromProto<TTransactionId>(transactionIdsProto.debug_id()));
     transactions->OutputCompletionTransaction = attachTransaction(FromProto<TTransactionId>(transactionIdsProto.output_completion_id()));
     transactions->DebugCompletionTransaction = attachTransaction(FromProto<TTransactionId>(transactionIdsProto.debug_completion_id()));
+
+    auto nestedInputTransactionIds = FromProto<std::vector<TTransactionId>>(transactionIdsProto.nested_input_ids());
+    for (auto transactionId : nestedInputTransactionIds) {
+        transactions->NestedInputTransactions.push_back(attachTransaction(transactionId));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
