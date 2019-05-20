@@ -80,7 +80,8 @@ constexpr EValueType WireTypeToValueType()
     } else if constexpr (wireType == EWireType::String32) {
         return EValueType::String;
     } else {
-        static_assert(wireType == EWireType::Int64);
+        // Not compilable.
+        static_assert(wireType == EWireType::Int64, "Bad wireType");
     }
 }
 
@@ -125,7 +126,8 @@ void ConvertSimpleValueImpl(const TUnversionedValue& value, TCheckedInDebugSkiff
         }
         writer->WriteYson32(TStringBuf(context->TmpBuffer->data(), context->TmpBuffer->size()));
     } else {
-        static_assert(wireType == EWireType::Int64);
+        // Not compilable.
+        static_assert(wireType == EWireType::Int64, "Bad wireType");
     }
 }
 
