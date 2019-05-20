@@ -23,11 +23,11 @@ static const auto& Logger = DataNodeLogger;
 TCachedChunkMeta::TCachedChunkMeta(
     TChunkId chunkId,
     TRefCountedChunkMetaPtr meta,
-    TNodeMemoryTracker* memoryTracker)
+    TNodeMemoryTrackerPtr memoryTracker)
     : TAsyncCacheValueBase(chunkId)
     , Meta_(std::move(meta))
     , MemoryTrackerGuard_(std::make_unique<TNodeMemoryTrackerGuard>(TNodeMemoryTrackerGuard::Acquire(
-        memoryTracker,
+        std::move(memoryTracker),
         EMemoryCategory::ChunkMeta,
         Meta_->SpaceUsed())))
 { }
@@ -42,11 +42,11 @@ i64 TCachedChunkMeta::GetSize() const
 TCachedBlocksExt::TCachedBlocksExt(
     TChunkId chunkId,
     TRefCountedBlocksExtPtr blocksExt,
-    TNodeMemoryTracker* memoryTracker)
+    TNodeMemoryTrackerPtr memoryTracker)
     : TAsyncCacheValueBase(chunkId)
     , BlocksExt_(std::move(blocksExt))
     , MemoryTrackerGuard_(std::make_unique<TNodeMemoryTrackerGuard>(TNodeMemoryTrackerGuard::Acquire(
-        memoryTracker,
+        std::move(memoryTracker),
         EMemoryCategory::ChunkBlockMeta,
         BlocksExt_->SpaceUsed())))
 { }

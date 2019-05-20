@@ -560,6 +560,8 @@ TSelectRowsCommand::TSelectRowsCommand()
         .Default();
     RegisterParameter("memory_limit_per_node", Options.MemoryLimitPerNode)
         .Optional();
+    RegisterParameter("execution_pool", Options.ExecutionPool)
+        .Optional();
 }
 
 void TSelectRowsCommand::DoExecute(ICommandContextPtr context)

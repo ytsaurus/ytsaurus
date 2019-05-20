@@ -10,16 +10,29 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TAtomicObject<T>::TAtomicObject(const T& other)
-    : Object_(other.Load())
+template <class U>
+TAtomicObject<T>::TAtomicObject(U&& u)
+    : Object_(std::forward<U>(u))
 { }
 
 template <class T>
 template <class U>
 void TAtomicObject<T>::Store(U&& u)
 {
-    NConcurrency::TWriterGuard guard(Spinlock_);
-    Object_ = std::forward<U>(u);
+    // NB: Using exchange to avoid destructing the old object while holding the lock.
+    auto ignored = Exchange(std::forward<U>(u));
+}
+
+template <class T>
+template <class U>
+T TAtomicObject<T>::Exchange(U&& u)
+{
+    T tmpObject = std::forward<U>(u);
+    {
+        NConcurrency::TWriterGuard guard(Spinlock_);
+        std::swap(Object_, tmpObject);
+    }
+    return tmpObject;
 }
 
 template <class T>

@@ -568,7 +568,7 @@ void ValidateOperationAccess(
         jobId ? ToString(jobId) : "<unknown>",
         user,
         permissionSet,
-        ConvertToYsonString(acl));
+        ConvertToYsonString(acl, EYsonFormat::Text));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

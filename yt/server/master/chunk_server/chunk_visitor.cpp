@@ -68,6 +68,11 @@ bool TChunkIdsAttributeVisitor::OnChunk(
     return true;
 }
 
+bool TChunkIdsAttributeVisitor::OnChunkView(TChunkView* /* chunkView */)
+{
+    return false;
+}
+
 void TChunkIdsAttributeVisitor::OnSuccess()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);

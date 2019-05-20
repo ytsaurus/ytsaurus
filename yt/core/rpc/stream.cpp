@@ -223,61 +223,75 @@ TFuture<void> TAttachmentsOutputStream::Write(const TSharedRef& data)
     }
     if (Codec_ == NCompression::ECodec::None) {
         auto guard = Guard(Lock_);
-        OnWindowPacketReady({data, promise, std::move(timeoutCookie)}, guard);
+        TWindowPacket packet{
+            data,
+            promise,
+            std::move(timeoutCookie)
+        };
+        OnWindowPacketsReady(TMutableRange(&packet, 1), guard);
     } else {
         auto sequenceNumber = CompressionSequenceNumber_++;
         CompressionInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] {
             auto* codec = NCompression::GetCodec(Codec_);
             auto compressedData = codec->Compress(data);
             auto guard = Guard(Lock_);
+            std::vector<TWindowPacket> packets;
             Window_.AddPacket(
                 sequenceNumber,
                 {compressedData, promise, std::move(timeoutCookie)},
                 [&] (auto&& packet) {
-                    OnWindowPacketReady(std::move(packet), guard);
+                    packets.push_back(std::move(packet));
                 });
+            OnWindowPacketsReady(packets, guard);
         }));
     }
     return promise.ToFuture();
 }
 
-void TAttachmentsOutputStream::OnWindowPacketReady(TWindowPacket&& packet, TGuard<TSpinLock>& guard)
+void TAttachmentsOutputStream::OnWindowPacketsReady(TMutableRange<TWindowPacket> packets, TGuard<TSpinLock>& guard)
 {
     if (ClosePromise_) {
         guard.Release();
-        TDelayedExecutor::CancelAndClear(packet.TimeoutCookie);
-        packet.Promise.Set(TError("Stream is already closed"));
+        TError error("Stream is already closed");
+        for (auto& packet : packets) {
+            TDelayedExecutor::CancelAndClear(packet.TimeoutCookie);
+            packet.Promise.Set(error);
+        }
         return;
     }
 
     if (!Error_.IsOK()) {
         guard.Release();
-        TDelayedExecutor::CancelAndClear(packet.TimeoutCookie);
-        packet.Promise.Set(Error_);
+        for (auto& packet : packets) {
+            TDelayedExecutor::CancelAndClear(packet.TimeoutCookie);
+            packet.Promise.Set(Error_);
+        }
         return;
     }
 
-    WritePosition_ += GetStreamingAttachmentSize(packet.Data);
-    DataQueue_.push(std::move(packet.Data));
+    std::vector<TPromise<void>> promisesToSet;
+    for (auto& packet : packets) {
+        WritePosition_ += GetStreamingAttachmentSize(packet.Data);
+        DataQueue_.push(std::move(packet.Data));
 
-    TPromise<void> promiseToSet;
-    if (WritePosition_ - ReadPosition_ <= WindowSize_) {
-        TDelayedExecutor::CancelAndClear(packet.TimeoutCookie);
-        promiseToSet = std::move(packet.Promise);
+        if (WritePosition_ - ReadPosition_ <= WindowSize_) {
+            TDelayedExecutor::CancelAndClear(packet.TimeoutCookie);
+            promisesToSet.push_back(std::move(packet.Promise));
+        }
+
+        ConfirmationQueue_.push({
+            WritePosition_,
+            std::move(packet.Promise),
+            std::move(packet.TimeoutCookie)
+        });
     }
-
-    ConfirmationQueue_.push({
-        WritePosition_,
-        std::move(packet.Promise),
-        std::move(packet.TimeoutCookie)
-    });
 
     MaybeInvokePullCallback(guard);
 
     guard.Release();
 
-    if (promiseToSet) {
-        promiseToSet.Set();
+    for (auto& promise : promisesToSet) {
+        promise.Set();
     }
 }
 

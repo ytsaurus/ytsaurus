@@ -1825,6 +1825,24 @@ TKey WidenKey(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuff
     return WidenKeyPrefix(key, key.GetCount(), keyColumnCount, rowBuffer, sentinelType);
 }
 
+TOwningKey WidenKeySuccessor(const TOwningKey& key, ui32 keyColumnCount, EValueType sentinelType)
+{
+    YCHECK(keyColumnCount >= key.GetCount());
+
+    TUnversionedOwningRowBuilder builder;
+    for (ui32 index = 0; index < key.GetCount(); ++index) {
+        builder.AddValue(key[index]);
+    }
+
+    for (ui32 index = key.GetCount(); index < keyColumnCount; ++index) {
+        builder.AddValue(MakeUnversionedSentinelValue(sentinelType));
+    }
+
+    builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
+
+    return builder.FinishRow();
+}
+
 TKey WidenKeySuccessor(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
 {
     YCHECK(keyColumnCount >= key.GetCount());

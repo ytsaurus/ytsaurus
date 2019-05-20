@@ -164,6 +164,8 @@ void TPartition::StartEpoch()
     if (config->AutoCompactionPeriod) {
         CompactionTime_ -= RandomDuration(*config->AutoCompactionPeriod);
     }
+
+    AllowedSplitTime_ = TInstant::Zero();
 }
 
 void TPartition::StopEpoch()

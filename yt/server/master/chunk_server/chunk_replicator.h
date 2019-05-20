@@ -97,7 +97,7 @@ public:
 
     void TouchChunk(TChunk* chunk);
 
-    TPerMediumArray<EChunkStatus> ComputeChunkStatuses(TChunk* chunk);
+    TMediumMap<EChunkStatus> ComputeChunkStatuses(TChunk* chunk);
 
     void ScheduleJobs(
         TNode* node,
@@ -147,7 +147,7 @@ private:
 
     struct TChunkStatistics
     {
-        TPerMediumArray<TPerMediumChunkStatistics> PerMediumStatistics;
+        TMediumMap<TPerMediumChunkStatistics> PerMediumStatistics;
         // Aggregate status across all media. The only applicable statuses are:
         //   Lost - the chunk is lost on all media;
         //   DataMissing - the chunk is missing data parts on all media;
@@ -191,8 +191,8 @@ private:
     //! Medium index designates the medium where the chunk is missing some of
     //! its parts. It's always equal to the index of its queue.
     //! In each queue, a single chunk may only appear once.
-    TPerMediumArray<TChunkRepairQueue>  MissingPartChunkRepairQueues_ = {};
-    TPerMediumArray<TChunkRepairQueue>  DecommissionedPartChunkRepairQueues_ = {};
+    std::array<TChunkRepairQueue, MaxMediumCount>  MissingPartChunkRepairQueues_ = {};
+    std::array<TChunkRepairQueue, MaxMediumCount>  DecommissionedPartChunkRepairQueues_ = {};
     TDecayingMaxMinBalancer<int, double> MissingPartChunkRepairQueueBalancer_;
     TDecayingMaxMinBalancer<int, double> DecommissionedPartChunkRepairQueueBalancer_;
 
@@ -286,7 +286,7 @@ private:
         NErasure::ICodec* codec,
         bool allMediaTransient,
         bool allMediaDataPartsOnly,
-        const TPerMediumArray<NErasure::TPartIndexSet>& mediumToErasedIndexes,
+        const TMediumMap<NErasure::TPartIndexSet>& mediumToErasedIndexes,
         const TMediumSet& activeMedia);
     void ComputeJournalChunkStatisticsForMedium(
         TPerMediumChunkStatistics& result,
@@ -365,7 +365,7 @@ private:
     TChunkRequisitionRegistry* GetChunkRequisitionRegistry();
 
     TChunkRepairQueue& ChunkRepairQueue(int mediumIndex, EChunkRepairQueue queue);
-    TPerMediumArray<TChunkRepairQueue>& ChunkRepairQueues(EChunkRepairQueue queue);
+    std::array<TChunkRepairQueue, MaxMediumCount>& ChunkRepairQueues(EChunkRepairQueue queue);
     TDecayingMaxMinBalancer<int, double>& ChunkRepairQueueBalancer(EChunkRepairQueue queue);
 
     const TDynamicChunkManagerConfigPtr& GetDynamicConfig();

@@ -65,6 +65,8 @@ constexpr size_t InvalidFiberId = 0;
 
 using TFairShareThreadPoolTag = TString;
 
+DECLARE_REFCOUNTED_STRUCT(ITwoLevelFairShareThreadPool);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NConcurrency

@@ -14,7 +14,6 @@ TSchedulerStrategyHost::TSchedulerStrategyHost(
     const std::vector<NScheduler::TExecNodePtr>* execNodes,
     IOutputStream* eventLogOutputStream)
     : ExecNodes_(execNodes)
-    , TotalResourceLimits_(ZeroJobResources())
     , Writer_(eventLogOutputStream, NYson::EYsonFormat::Pretty, NYson::EYsonType::ListFragment)
 {
     for (const auto& execNode : *ExecNodes_) {

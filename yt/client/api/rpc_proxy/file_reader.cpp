@@ -38,7 +38,7 @@ private:
     const ui64 Revision_;
 };
 
-TFuture<IFileReaderPtr> CreateRpcProxyFileReader(
+TFuture<IFileReaderPtr> CreateFileReader(
     TApiServiceProxy::TReqReadFilePtr request)
 {
     return NRpc::CreateRpcClientInputStream(std::move(request))

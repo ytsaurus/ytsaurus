@@ -70,6 +70,27 @@ TChunkList* TChunkGeneratorBase::CreateChunkList(EChunkListKind kind)
     return ptr;
 }
 
+TChunkView* TChunkGeneratorBase::CreateChunkView(
+    TChunk* underlyingChunk,
+    NTableClient::TOwningKey lowerLimit,
+    NTableClient::TOwningKey upperLimit)
+{
+    NChunkClient::TReadRange readRange{
+        NChunkClient::TReadLimit(lowerLimit), NChunkClient::TReadLimit(upperLimit)};
+    auto chunkView = std::make_unique<TChunkView>(GenerateId(NCypressClient::EObjectType::ChunkView));
+
+    chunkView->SetUnderlyingChunk(underlyingChunk);
+    chunkView->SetReadRange(readRange);
+
+    chunkView->RefObject();
+    underlyingChunk->RefObject();
+
+    auto ptr = chunkView.get();
+    CreatedObjects_.push_back(std::move(chunkView));
+    return ptr;
+}
+
+
 NTableClient::TUnversionedOwningRow BuildKey(const TString& yson)
 {
     return NTableClient::YsonToKey(yson);

@@ -111,6 +111,8 @@ DEFINE_ENUM(ENodeState,
     (Online)
 );
 
+static constexpr int MaxNodeShardCount = 32;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyConfig)
@@ -128,7 +130,7 @@ DECLARE_REFCOUNTED_STRUCT(TRefCountedExecNodeDescriptorMap);
 
 class TSchedulingTagFilter;
 
-DECLARE_REFCOUNTED_STRUCT(TScheduleJobResult)
+DECLARE_REFCOUNTED_STRUCT(TControllerScheduleJobResult)
 
 struct TJobStartDescriptor;
 struct TOperationControllerInitializeAttributes;

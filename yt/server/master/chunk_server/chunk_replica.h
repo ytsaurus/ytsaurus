@@ -45,7 +45,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A compact representation for a triplet of T*, an 8-bit number and a 4-bit
+//! A compact representation for a triplet of T*, an 7-bit number and a 5-bit
 //! number - all fit into a single 8-byte pointer.
 template <class T>
 class TPtrWithIndexes
@@ -76,7 +76,7 @@ public:
 private:
     static_assert(sizeof (uintptr_t) == 8, "Pointer type must be of size 8.");
 
-    // Use compact 8-byte representation with indexes occupying the highest 8 bits.
+    // Use compact 8-byte representation with indexes occupying the highest 12 bits.
     uintptr_t Value_;
 };
 
@@ -85,6 +85,7 @@ private:
 TString ToString(TNodePtrWithIndexes value);
 TString ToString(TChunkPtrWithIndexes value);
 
+void ToProto(ui64* protoValue, TNodePtrWithIndexes value);
 void ToProto(ui32* protoValue, TNodePtrWithIndexes value);
 
 TChunkId EncodeChunkId(TChunkPtrWithIndexes chunkWithIndex);

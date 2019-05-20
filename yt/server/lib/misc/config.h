@@ -2,11 +2,11 @@
 
 #include "public.h"
 
+#include <yt/server/lib/core_dump/config.h>
+
 #include <yt/ytlib/chunk_client/config.h>
 
 #include <yt/ytlib/program/config.h>
-
-#include <yt/ytlib/core_dump/config.h>
 
 #include <yt/core/net/address.h>
 

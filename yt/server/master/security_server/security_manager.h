@@ -99,7 +99,7 @@ struct TUserWorkload
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSecurityManager
-    : public ISecurityManager
+    : public IUsersManager
 {
 public:
     explicit TSecurityManager(NCellMaster::TBootstrap* bootstrap);

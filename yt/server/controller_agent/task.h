@@ -90,9 +90,9 @@ public:
         const TJobResourcesWithQuota& jobLimits,
         const TString& treeId,
         bool treeIsTentative,
-        NScheduler::TScheduleJobResult* scheduleJobResult);
+        NScheduler::TControllerScheduleJobResult* scheduleJobResult);
 
-    void RegisterSpeculativeJob(const TJobletPtr& joblet);
+    bool TryRegisterSpeculativeJob(const TJobletPtr& joblet);
     std::optional<EAbortReason> ShouldAbortJob(const TJobletPtr& joblet);
 
     virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary);

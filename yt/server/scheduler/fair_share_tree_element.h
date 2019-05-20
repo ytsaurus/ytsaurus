@@ -41,7 +41,7 @@ struct TDynamicAttributes
     double SatisfactionRatio = 0.0;
     bool Active = false;
     TSchedulerElement* BestLeafDescendant = nullptr;
-    TJobResources ResourceUsageDiscount = ZeroJobResources();
+    TJobResources ResourceUsageDiscount;
 };
 
 typedef std::vector<TDynamicAttributes> TDynamicAttributesList;
@@ -66,14 +66,46 @@ struct TUpdateFairShareContext
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFairShareContext
+struct TScheduleJobsProfilingCounters
 {
-    explicit TFairShareContext(const ISchedulingContextPtr& schedulingContext);
+    TScheduleJobsProfilingCounters(const TString& prefix, const NProfiling::TTagIdList& treeIdProfilingTags);
+
+    NProfiling::TAggregateGauge PrescheduleJobTime;
+    NProfiling::TAggregateGauge TotalControllerScheduleJobTime;
+    NProfiling::TAggregateGauge ExecControllerScheduleJobTime;
+    NProfiling::TAggregateGauge StrategyScheduleJobTime;
+    NProfiling::TMonotonicCounter ScheduleJobCount;
+    NProfiling::TMonotonicCounter ScheduleJobFailureCount;
+    TEnumIndexedVector<NProfiling::TMonotonicCounter, NControllerAgent::EScheduleJobFailReason> ControllerScheduleJobFail;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TFairShareSchedulingStage
+{
+    TFairShareSchedulingStage(const TString& loggingName, TScheduleJobsProfilingCounters profilingCounters);
+
+    const TString LoggingName;
+    TScheduleJobsProfilingCounters ProfilingCounters;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFairShareContext
+{
+public:
+    TFairShareContext(const ISchedulingContextPtr& schedulingContext, bool enableSchedulingInfoLogging);
 
     void Initialize(int treeSize, const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters);
 
     TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element);
     const TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element) const;
+
+    void StartStage(TFairShareSchedulingStage* schedulingStage);
+
+    void ProfileStageTimingsAndLogStatistics();
+
+    void FinishStage();
 
     bool Initialized = false;
 
@@ -81,19 +113,38 @@ struct TFairShareContext
     TDynamicAttributesList DynamicAttributesList;
 
     const ISchedulingContextPtr SchedulingContext;
-    TDuration TotalScheduleJobDuration;
-    TDuration ExecScheduleJobDuration;
-    TEnumIndexedVector<int, NControllerAgent::EScheduleJobFailReason> FailedScheduleJob;
-
-    int ActiveOperationCount = 0;
-    int ActiveTreeSize = 0;
-    int ScheduleJobFailureCount = 0;
-    TEnumIndexedVector<int, EDeactivationReason> DeactivationReasons;
+    const bool EnableSchedulingInfoLogging;
 
     // Used to avoid unnecessary calculation of HasAggressivelyStarvingElements.
-    bool PrescheduledCalled = false;
+    bool PrescheduleCalled = false;
 
     TFairShareSchedulingStatistics SchedulingStatistics;
+
+    struct TStageState
+    {
+        explicit TStageState(TFairShareSchedulingStage* schedulingStage);
+
+        TFairShareSchedulingStage* const SchedulingStage;
+
+        TDuration TotalDuration;
+        TDuration PrescheduleDuration;
+        TDuration TotalScheduleJobDuration;
+        TDuration ExecScheduleJobDuration;
+        TEnumIndexedVector<int, NControllerAgent::EScheduleJobFailReason> FailedScheduleJob;
+
+        int ActiveOperationCount = 0;
+        int ActiveTreeSize = 0;
+        int ScheduleJobAttempts = 0;
+        int ScheduleJobFailureCount = 0;
+        TEnumIndexedVector<int, EDeactivationReason> DeactivationReasons;
+    };
+
+    std::optional<TStageState> StageState;
+
+private:
+    void ProfileStageTimings();
+
+    void LogStageStatistics();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,7 +156,7 @@ class TSchedulerElementFixedState
 {
 public:
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceDemand);
-    DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
+    DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits, TJobResources::Infinite());
     DEFINE_BYREF_RO_PROPERTY(TJobResources, MaxPossibleResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(TSchedulableAttributes, Attributes);
     DEFINE_BYVAL_RW_PROPERTY(int, SchedulingTagFilterIndex, EmptySchedulingTagFilterIndex);
@@ -139,28 +190,26 @@ protected:
     const TString TreeId_;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+// This is node of shared state tree.
+// Each state corresponds to some scheduler element and all its snapshots.
+// There are three general scenarios:
+// 1. Get local resource usage of particular element - we take read lock on ResourceUsageLock_ of the state.
+// 2. Apply update of some property from leaf to root (increase or decrease of resource usage for example)
+// - we take read lock on SharedStateTreeLock provided by IFairShareTreeHost for whole operation
+// and make local updates of particular states under write lock on corresponding ResourceUsageLock_.
+// 3. Modify tree structure (attach, change or detach parent of element)
+// - we take write lock on SharedStateTreeLock for whole operation.
+// If we need to update properties of the particular state we also take the write lock on ResourceUsageLock_ for this update
+// Essentially SharedStateTreeLock protects tree structure.
+// We take this lock if we need to access the parent link of some element
 class TSchedulerElementSharedState
     : public TIntrinsicRefCounted
 {
-    // This is node of shared state tree.
-    // Each state corresponds to some scheduler element and all its snapshots.
-    // There are three general scenarios:
-
-    // 1. Get local resource usage of particular element - we take read lock on ResourceUsageLock_ of the state.
-
-    // 2. Apply update of some property from leaf to root (increase or decrease of resource usage for example)
-    // - we take read lock on SharedStateTreeLock provided by IFairShareTreeHost for whole operation
-    // and make local updates of particular states under write lock on corresponding ResourceUsageLock_.
-
-    // 3. Modify tree structure (attach, change or detach parent of element)
-    // - we take write lock on SharedStateTreeLock for whole operation.
-    // If we need to update properties of the particular state we also take the write lock on ResourceUsageLock_ for this update
-
-    // Essentially SharedStateTreeLock protects tree structure.
-    // We take this lock if we need to access the parent link of some element
-
 public:
     explicit TSchedulerElementSharedState(IFairShareTreeHost* host);
+
     TJobResources GetResourceUsage();
     TJobResources GetTotalResourceUsageWithPrecommit();
     TJobMetrics GetJobMetrics();
@@ -195,23 +244,19 @@ public:
     void SetResourceLimits(TJobResources resourceLimits);
 
 private:
-    IFairShareTreeHost* FairShareTreeHost_;
+    IFairShareTreeHost* const FairShareTreeHost_;
+
+    NConcurrency::TPaddedReaderWriterSpinLock ResourceUsageLock_;
     TJobResources ResourceUsage_;
-    TJobResources ResourceLimits_ = InfiniteJobResources();
+    TJobResources ResourceLimits_ = TJobResources::Infinite();
     TJobResources ResourceUsagePrecommit_;
+
+    NConcurrency::TPaddedReaderWriterSpinLock JobMetricsLock_;
     TJobMetrics JobMetrics_;
 
-    NConcurrency::TReaderWriterSpinLock ResourceUsageLock_;
-
-    NConcurrency::TReaderWriterSpinLock JobMetricsLock_;
-
-    TSchedulerElementSharedStatePtr Parent_ = nullptr;
-
-    // NB: Avoid false sharing between ResourceUsageLock_ and others.
-    [[maybe_unused]] char Padding[64];
+    TSchedulerElementSharedStatePtr Parent_;
 
     std::atomic<bool> Alive_ = {true};
-
     std::atomic<double> FairShareRatio_ = {0.0};
 
     bool IncreaseLocalResourceUsagePrecommitWithCheck(
@@ -232,6 +277,8 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerElementSharedState)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerElement
     : public TSchedulerElementFixedState
@@ -388,6 +435,8 @@ protected:
     std::vector<EFifoSortParameter> FifoSortParameters_;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TCompositeSchedulerElement
     : public TSchedulerElement
     , public TCompositeSchedulerElementFixedState
@@ -474,16 +523,16 @@ protected:
     void UpdateFifo(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* context);
     void UpdateFairShare(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* context);
 
-    TSchedulerElementPtr GetBestActiveChild(const TDynamicAttributesList& dynamicAttributesList) const;
-    TSchedulerElementPtr GetBestActiveChildFifo(const TDynamicAttributesList& dynamicAttributesList) const;
-    TSchedulerElementPtr GetBestActiveChildFairShare(const TDynamicAttributesList& dynamicAttributesList) const;
+    TSchedulerElement* GetBestActiveChild(const TDynamicAttributesList& dynamicAttributesList) const;
+    TSchedulerElement* GetBestActiveChildFifo(const TDynamicAttributesList& dynamicAttributesList) const;
+    TSchedulerElement* GetBestActiveChildFairShare(const TDynamicAttributesList& dynamicAttributesList) const;
 
     static void AddChild(TChildMap* map, TChildList* list, const TSchedulerElementPtr& child);
     static void RemoveChild(TChildMap* map, TChildList* list, const TSchedulerElementPtr& child);
     static bool ContainsChild(const TChildMap& map, const TSchedulerElementPtr& child);
 
 private:
-    bool HasHigherPriorityInFifoMode(const TSchedulerElementPtr& lhs, const TSchedulerElementPtr& rhs) const;
+    bool HasHigherPriorityInFifoMode(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompositeSchedulerElement)
@@ -499,6 +548,8 @@ protected:
     bool DefaultConfigured_ = true;
     std::optional<TString> UserName_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TPool
     : public TCompositeSchedulerElement
@@ -586,7 +637,7 @@ DEFINE_REFCOUNTED_TYPE(TPool)
 class TOperationElementFixedState
 {
 protected:
-    explicit TOperationElementFixedState(
+    TOperationElementFixedState(
         IOperationStrategyHost* operation,
         TFairShareStrategyOperationControllerConfigPtr controllerConfig);
 
@@ -638,7 +689,7 @@ public:
     void UpdatePreemptionStatusStatistics(EOperationPreemptionStatus status);
     TPreemptionStatusStatisticsVector GetPreemptionStatusStatistics() const;
 
-    void OnOperationDeactivated(EDeactivationReason reason);
+    void OnOperationDeactivated(const TFairShareContext& context, EDeactivationReason reason);
     TEnumIndexedVector<int, EDeactivationReason> GetDeactivationReasons() const;
     void ResetDeactivationReasonsFromLastNonStarvingTime();
     TEnumIndexedVector<int, EDeactivationReason> GetDeactivationReasonsFromLastNonStarvingTime() const;
@@ -660,7 +711,7 @@ private:
     TJobResources AggressivelyPreemptableResourceUsage_;
 
     std::atomic<int> UpdatePreemptableJobsListCount_ = {0};
-    int UpdatePreemptableJobsListLoggingPeriod_;
+    const int UpdatePreemptableJobsListLoggingPeriod_;
 
     struct TJobProperties
     {
@@ -687,16 +738,20 @@ private:
         TJobResources ResourceUsage;
     };
 
-    THashMap<TJobId, TJobProperties> JobPropertiesMap_;
     NConcurrency::TReaderWriterSpinLock JobPropertiesMapLock_;
+    THashMap<TJobId, TJobProperties> JobPropertiesMap_;
+    TInstant LastScheduleJobSuccessTime_;
 
     TSpinLock PreemptionStatusStatisticsLock_;
     TPreemptionStatusStatisticsVector PreemptionStatusStatistics_;
 
-    TEnumIndexedVector<std::atomic<int>, EDeactivationReason> DeactivationReasons_;
-
-    TInstant LastScheduleJobSuccessTime_;
-    TEnumIndexedVector<std::atomic<int>, EDeactivationReason> DeactivationReasonsFromLastNonStarvingTime_;
+    struct TStateShard
+    {
+        TEnumIndexedVector<std::atomic<int>, EDeactivationReason> DeactivationReasons;
+        TEnumIndexedVector<std::atomic<int>, EDeactivationReason> DeactivationReasonsFromLastNonStarvingTime;
+        char Padding[64];
+    };
+    std::array<TStateShard, MaxNodeShardCount> StateShards_;
 
     bool Enabled_ = false;
 
@@ -800,7 +855,7 @@ public:
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
 
-    void OnOperationDeactivated(EDeactivationReason reason);
+    void OnOperationDeactivated(const TFairShareContext& context, EDeactivationReason reason);
     TEnumIndexedVector<int, EDeactivationReason> GetDeactivationReasons() const;
     TEnumIndexedVector<int, EDeactivationReason> GetDeactivationReasonsFromLastNonStarvingTime() const;
 
@@ -824,10 +879,10 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
 
 private:
-    TOperationElementSharedStatePtr OperationElementSharedState_;
-    TFairShareStrategyOperationControllerPtr Controller_;
+    const TOperationElementSharedStatePtr OperationElementSharedState_;
+    const TFairShareStrategyOperationControllerPtr Controller_;
 
-    bool IsRunningInThisPoolTree_ = false;
+    bool RunningInThisPoolTree_ = false;
     TSchedulingTagFilter SchedulingTagFilter_;
 
     TInstant LastNonStarvingTime_;
@@ -849,7 +904,7 @@ private:
         bool enableBackoff,
         NProfiling::TCpuInstant now);
 
-    TScheduleJobResultPtr DoScheduleJob(
+    TControllerScheduleJobResultPtr DoScheduleJob(
         TFairShareContext* context,
         const TJobResources& availableResources,
         TJobResources* precommittedResources);
@@ -923,14 +978,6 @@ public:
 DEFINE_REFCOUNTED_TYPE(TRootElement)
 
 ////////////////////////////////////////////////////////////////////////////////
-
-inline TJobResources ComputeAvailableResources(
-    const TJobResources& resourceLimits,
-    const TJobResources& resourceUsage,
-    const TJobResources& resourceDiscount)
-{
-    return resourceLimits - resourceUsage + resourceDiscount;
-}
 
 } // namespace NYT::NScheduler
 

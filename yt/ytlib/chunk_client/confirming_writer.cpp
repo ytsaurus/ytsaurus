@@ -143,7 +143,7 @@ public:
         return DataStatistics_;
     }
 
-    virtual TChunkReplicaList GetWrittenChunkReplicas() const override
+    virtual TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
     {
         YCHECK(UnderlyingWriter_);
         return UnderlyingWriter_->GetWrittenChunkReplicas();
@@ -223,7 +223,7 @@ private:
                 Config_,
                 Options_,
                 SessionId_,
-                TChunkReplicaList(),
+                TChunkReplicaWithMediumList(),
                 NodeDirectory_,
                 Client_,
                 BlockCache_,
@@ -295,6 +295,8 @@ private:
         *req->mutable_chunk_info() = UnderlyingWriter_->GetChunkInfo();
         req->mutable_chunk_meta()->Swap(&masterChunkMeta);
         req->set_request_statistics(true);
+        // COMPAT(aozeritsky)
+        ToProto(req->mutable_replicas_old(), replicas);
         ToProto(req->mutable_replicas(), replicas);
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());

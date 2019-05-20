@@ -17,6 +17,8 @@
 
 #include <yt/ytlib/tablet_client/public.h>
 
+#include <yt/client/object_client/helpers.h>
+
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/rw_spinlock.h>
 #include <yt/core/concurrency/thread_affinity.h>
@@ -69,13 +71,13 @@ public:
 
     bool IsOutOfMemory() const
     {
-        const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
+        const auto& tracker = Bootstrap_->GetMemoryUsageTracker();
         return tracker->IsExceeded(EMemoryCategory::TabletDynamic);
     }
 
     bool IsRotationForced(i64 passiveUsage) const
     {
-        const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
+        const auto& tracker = Bootstrap_->GetMemoryUsageTracker();
         return
             tracker->GetUsed(EMemoryCategory::TabletDynamic) - passiveUsage >
             tracker->GetLimit(EMemoryCategory::TabletDynamic) * Config_->ForcedRotationsMemoryRatio;
@@ -213,7 +215,8 @@ public:
         TTimestamp timestamp)
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidatePermission(tabletSnapshot, permission);
+
+        securityManager->ValidatePermission(NObjectClient::FromObjectId(tabletSnapshot->TableId), permission);
 
         if (timestamp != AsyncLastCommittedTimestamp) {
             const auto& hydraManager = tabletSnapshot->HydraManager;

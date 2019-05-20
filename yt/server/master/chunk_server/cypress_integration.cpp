@@ -1,6 +1,7 @@
 #include "cypress_integration.h"
 #include "private.h"
 #include "chunk.h"
+#include "chunk_view.h"
 #include "chunk_list.h"
 #include "medium.h"
 
@@ -155,6 +156,53 @@ INodeTypeHandlerPtr CreateChunkMapTypeHandler(
         type,
         BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualChunkMap>(bootstrap, owningNode, type);
+        }),
+        EVirtualNodeOptions::RedirectSelf);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualChunkViewMap
+    : public TVirtualMulticellMapBase
+{
+public:
+    TVirtualChunkViewMap(TBootstrap* bootstrap, INodePtr owningNode)
+        : TVirtualMulticellMapBase(bootstrap, owningNode)
+    { }
+
+private:
+    virtual std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
+    {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        return ToObjectIds(GetValues(chunkManager->ChunkViews(), sizeLimit));
+    }
+
+    virtual bool IsValid(TObjectBase* object) const
+    {
+        return object->GetType() == EObjectType::ChunkView;
+    }
+
+    virtual i64 GetSize() const override
+    {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        return chunkManager->ChunkViews().GetSize();
+    }
+
+    virtual TYPath GetWellKnownPath() const override
+    {
+        return "//sys/chunk_views";
+    }
+};
+
+INodeTypeHandlerPtr CreateChunkViewMapTypeHandler(TBootstrap* bootstrap)
+{
+    YCHECK(bootstrap);
+
+    return CreateVirtualTypeHandler(
+        bootstrap,
+        EObjectType::ChunkViewMap,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualChunkViewMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RedirectSelf);
 }

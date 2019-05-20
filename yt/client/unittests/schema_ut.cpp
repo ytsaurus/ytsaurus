@@ -1,3 +1,5 @@
+#include "logical_type_helpers.h"
+
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/client/table_client/schema.h>
@@ -6,12 +8,128 @@
 #include <yt/core/ytree/convert.h>
 
 namespace NYT::NTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 using namespace NYson;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TColumnSchema ColumnFromYson(const TString& yson)
+{
+    TColumnSchema column;
+    Deserialize(column, ConvertToNode(TYsonString(yson)));
+    return column;
+}
+
+TEST(TTableSchemaTest, ColumnTypeDeserialization)
+{
+    {
+        auto column = ColumnFromYson(
+            "{"
+            "  name=x;"
+            "  type=int64;"
+            "}");
+        EXPECT_EQ(*column.LogicalType(), *SimpleLogicalType(ESimpleLogicalValueType::Int64, false));
+    }
+
+    {
+        auto column = ColumnFromYson(
+            "{"
+            "  name=x;"
+            "  type=uint64;"
+            "  required=%true"
+            "}");
+        EXPECT_EQ(*column.LogicalType(), *SimpleLogicalType(ESimpleLogicalValueType::Uint64, true));
+    }
+
+    {
+        auto column = ColumnFromYson(
+            "{"
+            "  name=x;"
+            "  type_v2={"
+            "    metatype=list;"
+            "    element=utf8"
+            "  }"
+            "}");
+        EXPECT_EQ(*column.LogicalType(), *ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8, true)));
+    }
+
+    {
+        auto column = ColumnFromYson(
+            "{"
+            "  name=x;"
+            "  type_v2={"
+            "    metatype=list;"
+            "    element=utf8"
+            "  };"
+            "  required=%true;"
+            "}");
+        EXPECT_EQ(*column.LogicalType(), *ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8, true)));
+    }
+
+    {
+        auto column = ColumnFromYson(
+            "{"
+            "  name=x;"
+            "  type_v2={"
+            "    metatype=list;"
+            "    element=utf8"
+            "  };"
+            "  type=any;"
+            "}");
+        EXPECT_EQ(*column.LogicalType(), *ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8, true)));
+    }
+
+    {
+        auto column = ColumnFromYson(
+            "{"
+            "  name=x;"
+            "  type_v2={"
+            "    metatype=optional;"
+            "    element={"
+            "      metatype=optional;"
+            "      element=utf8;"
+            "    }"
+            "  };"
+            "  type=any;"
+            "  required=%false;"
+            "}");
+        EXPECT_EQ(*column.LogicalType(), *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8, false)));
+    }
+
+    EXPECT_ANY_THROW(
+        ColumnFromYson(
+            "{"
+            "  name=x;"
+            "  type_v2={"
+            "    metatype=optional;"
+            "    element={"
+            "      metatype=optional;"
+            "      element=utf8"
+            "    }"
+            "  };"
+            "  required=%true;"
+            "}"));
+
+    EXPECT_ANY_THROW(
+        ColumnFromYson(
+            "{"
+            "  name=x;"
+            "  type_v2={"
+            "    metatype=optional;"
+            "    element={"
+            "      metatype=optional;"
+            "      element=utf8"
+            "    }"
+            "  };"
+            "  type=utf8;"
+            "}"));
+
+}
 
 TEST(TTableSchemaTest, ColumnSchemaValidation)
 {
@@ -68,6 +186,21 @@ TEST(TTableSchemaTest, ColumnSchemaValidation)
     ValidateColumnSchema(
         TColumnSchema("Name", EValueType::String)
             .SetAggregate(TString("sum")));
+
+    // Struct field validation
+    expectBad(
+        TColumnSchema("Column", StructLogicalType({
+            {"", SimpleLogicalType(ESimpleLogicalValueType::Int8, true)}
+        })));
+    expectBad(
+        TColumnSchema("Column", StructLogicalType({
+            {TString(257, 'a'), SimpleLogicalType(ESimpleLogicalValueType::Int8, true)}
+        })));
+
+    expectBad(
+        TColumnSchema("Column", StructLogicalType({
+            {"\255", SimpleLogicalType(ESimpleLogicalValueType::Int8, true)}
+        })));
 }
 
 TEST(TTableSchemaTest, ValidateTableSchemaTest)

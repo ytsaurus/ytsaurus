@@ -21,7 +21,7 @@ struct TDiskSpaceStatistics
 struct TTotalNodeStatistics
 {
     TDiskSpaceStatistics TotalSpace;
-    std::array<TDiskSpaceStatistics, NChunkClient::MaxMediumCount> SpacePerMedium = {};
+    NChunkClient::TMediumMap<TDiskSpaceStatistics> SpacePerMedium;
 
     i64 ChunkReplicaCount = 0;
 

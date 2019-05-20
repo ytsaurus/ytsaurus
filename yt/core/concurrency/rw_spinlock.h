@@ -74,6 +74,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A variant of TReaderWriterSpinLock occupyig the whole cache line.
+class TPaddedReaderWriterSpinLock
+    : public TReaderWriterSpinLock
+{
+private:
+    [[maybe_unused]]
+    char Padding_[64 - sizeof(TReaderWriterSpinLock)];
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TReaderSpinlockTraits
 {
     static void Acquire(TReaderWriterSpinLock* spinlock)

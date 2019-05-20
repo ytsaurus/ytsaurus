@@ -32,6 +32,8 @@
 #include <yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/client/table_client/versioned_reader.h>
 
+#include <yt/client/object_client/helpers.h>
+
 #include <yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/core/concurrency/scheduler.h>
@@ -63,9 +65,100 @@ using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TFilteringReader
+    : public IVersionedReader
+{
+public:
+    TFilteringReader(
+        IVersionedReaderPtr underlyingReader,
+        int skipBefore,
+        int skipAfter)
+        : CurrentReaderIndex_(0)
+        , FakeRowsRead_(0)
+        , UnderlyingReader_(underlyingReader.Get())
+    {
+        if (skipBefore > 0) {
+            Readers_.push_back(CreateEmptyVersionedReader(skipBefore));
+        }
+        Readers_.push_back(std::move(underlyingReader));
+        if (skipAfter > 0) {
+            Readers_.push_back(CreateEmptyVersionedReader(skipAfter));
+        }
+    }
+
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        auto statistics = UnderlyingReader_->GetDataStatistics();
+        statistics.set_row_count(statistics.row_count() + FakeRowsRead_);
+        return statistics;
+    }
+
+    virtual TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return UnderlyingReader_->GetDecompressionStatistics();
+    }
+
+    virtual TFuture<void> Open() override
+    {
+        YCHECK(CurrentReaderIndex_ == 0);
+        for (auto& reader : Readers_) {
+            reader->Open();
+        }
+        return Readers_[CurrentReaderIndex_]->GetReadyEvent();
+    }
+
+    virtual TFuture<void> GetReadyEvent() override
+    {
+        if (CurrentReaderIndex_ == Readers_.size()) {
+            return VoidFuture;
+        }
+        return Readers_[CurrentReaderIndex_]->GetReadyEvent();
+    }
+
+    virtual bool IsFetchingCompleted() const override
+    {
+        return UnderlyingReader_->IsFetchingCompleted();
+    }
+
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
+    {
+        return UnderlyingReader_->GetFailedChunkIds();
+    }
+
+    virtual bool Read(std::vector<TVersionedRow>* rows) override
+    {
+        if (CurrentReaderIndex_ == Readers_.size()) {
+            return false;
+        }
+
+        rows->clear();
+
+        if (Readers_[CurrentReaderIndex_]->Read(rows)) {
+            if (Readers_[CurrentReaderIndex_].Get() != UnderlyingReader_) {
+                FakeRowsRead_ += rows->size();
+            }
+        } else {
+            ++CurrentReaderIndex_;
+        }
+
+        return true;
+    }
+
+private:
+    SmallVector<IVersionedReaderPtr, 3> Readers_;
+    int CurrentReaderIndex_;
+    int FakeRowsRead_;
+
+    IVersionedReader* UnderlyingReader_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSortedChunkStore::TSortedChunkStore(
     TTabletManagerConfigPtr config,
     TStoreId id,
+    NChunkClient::TChunkId chunkId,
+    const NChunkClient::TReadRange& readRange,
     TTablet* tablet,
     IBlockCachePtr blockCache,
     TChunkRegistryPtr chunkRegistry,
@@ -77,6 +170,7 @@ TSortedChunkStore::TSortedChunkStore(
     , TChunkStoreBase(
         config,
         id,
+        chunkId,
         tablet,
         blockCache,
         chunkRegistry,
@@ -87,7 +181,21 @@ TSortedChunkStore::TSortedChunkStore(
     , TSortedStoreBase(config, id, tablet)
     , KeyComparer_(tablet->GetRowKeyComparer())
 {
-    YT_LOG_DEBUG("Sorted chunk store created");
+    TKey lowerBound;
+    TKey upperBound;
+
+    if (readRange.LowerLimit().HasKey()) {
+        lowerBound = readRange.LowerLimit().GetKey();
+    }
+
+    if (readRange.UpperLimit().HasKey()) {
+        upperBound = readRange.UpperLimit().GetKey();
+    }
+
+    ReadRange_ = MakeSingletonRowRange(lowerBound, upperBound);
+
+    YT_LOG_DEBUG("Sorted chunk store created (Id: %v, ChunkId: %v, Type: %v, LowerBound: %v, UpperBound: %v)",
+        id, ChunkId_, TypeFromId(id), lowerBound, upperBound);
 }
 
 TSortedChunkStore::~TSortedChunkStore()
@@ -110,9 +218,9 @@ TOwningKey TSortedChunkStore::GetMinKey() const
     return MinKey_;
 }
 
-TOwningKey TSortedChunkStore::GetMaxKey() const
+TOwningKey TSortedChunkStore::GetUpperBoundKey() const
 {
-    return MaxKey_;
+    return UpperBoundKey_;
 }
 
 IVersionedReaderPtr TSortedChunkStore::CreateReader(
@@ -126,6 +234,13 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    ranges = FilterRowRangesByReadRange(ranges);
+
+    // Fast lane: ranges do not intersect with chunk view.
+    if (ranges.Empty()) {
+        return CreateEmptyVersionedReader();
+    }
+
     // Fast lane: check for in-memory reads.
     auto reader = CreateCacheBasedReader(
         ranges,
@@ -133,7 +248,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         produceAllVersions,
         columnFilter,
         blockReadOptions,
-        tabletSnapshot->TableSchema);
+        tabletSnapshot->TableSchema,
+        ReadRange_);
     if (reader) {
         return reader;
     }
@@ -141,6 +257,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     // Another fast lane: check for backing store.
     auto backingStore = GetSortedBackingStore();
     if (backingStore) {
+        YCHECK(!HasNontrivialReadRange());
         return backingStore->CreateReader(
             tabletSnapshot,
             ranges,
@@ -164,7 +281,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         std::move(ranges),
         columnFilter,
         timestamp,
-        produceAllVersions);
+        produceAllVersions,
+        ReadRange_);
 }
 
 IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
@@ -173,7 +291,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
     const TClientBlockReadOptions& blockReadOptions,
-    const TTableSchema& schema)
+    const TTableSchema& schema,
+    const TSharedRange<TRowRange>& singletonClippingRange)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -192,7 +311,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
         std::move(ranges),
         columnFilter,
         timestamp,
-        produceAllVersions);
+        produceAllVersions,
+        singletonClippingRange);
 }
 
 IVersionedReaderPtr TSortedChunkStore::CreateReader(
@@ -206,24 +326,40 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    int skippedBefore = 0;
+    int skippedAfter = 0;
+    auto filteredKeys = FilterKeysByReadRange(keys, &skippedBefore, &skippedAfter);
+
+    if (filteredKeys.Empty()) {
+        return CreateEmptyVersionedReader(keys.Size());
+    }
+
+    auto createFilteringReader = [&] (IVersionedReaderPtr underlyingReader) -> IVersionedReaderPtr {
+        if (skippedBefore == 0 && skippedAfter == 0) {
+            return std::move(underlyingReader);
+        }
+        return New<TFilteringReader>(std::move(underlyingReader), skippedBefore, skippedAfter);
+    };
+
     // Fast lane: check for in-memory reads.
     auto reader = CreateCacheBasedReader(
-        keys,
+        filteredKeys,
         timestamp,
         produceAllVersions,
         columnFilter,
         blockReadOptions,
         tabletSnapshot->TableSchema);
     if (reader) {
-        return reader;
+        return createFilteringReader(reader);
     }
 
     // Another fast lane: check for backing store.
     auto backingStore = GetSortedBackingStore();
     if (backingStore) {
+        YCHECK(!HasNontrivialReadRange());
         return backingStore->CreateReader(
             std::move(tabletSnapshot),
-            keys,
+            filteredKeys,
             timestamp,
             produceAllVersions,
             columnFilter,
@@ -236,16 +372,30 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     ValidateBlockSize(tabletSnapshot, chunkState, blockReadOptions.WorkloadDescriptor);
 
-    return CreateVersionedChunkReader(
+    return createFilteringReader(CreateVersionedChunkReader(
         ReaderConfig_,
         std::move(chunkReader),
         chunkState,
         chunkState->ChunkMeta,
         blockReadOptions,
-        keys,
+        filteredKeys,
         columnFilter,
         timestamp,
-        produceAllVersions);
+        produceAllVersions));
+}
+
+TSharedRange<TKey> TSortedChunkStore::FilterKeysByReadRange(
+    const TSharedRange<TKey>& keys,
+    int* skippedBefore,
+    int* skippedAfter) const
+{
+    return NTabletNode::FilterKeysByReadRange(ReadRange_.Front(), keys, skippedBefore, skippedAfter);
+}
+
+TSharedRange<TRowRange> TSortedChunkStore::FilterRowRangesByReadRange(
+    const TSharedRange<TRowRange>& ranges) const
+{
+    return NTabletNode::FilterRowRangesByReadRange(ReadRange_.Front(), ranges);
 }
 
 IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
@@ -297,6 +447,29 @@ TError TSortedChunkStore::CheckRowLocks(
         << TErrorAttribute("key", RowToKey(row));
 }
 
+void TSortedChunkStore::Save(TSaveContext& context) const
+{
+    TStoreBase::Save(context);
+
+    using NYT::Save;
+    Save(context, ChunkId_);
+    Save(context, TOwningKey(ReadRange_[0].first));
+    Save(context, TOwningKey(ReadRange_[0].second));
+}
+
+void TSortedChunkStore::Load(TLoadContext& context)
+{
+    TStoreBase::Load(context);
+
+    if (context.GetVersion() >= 100011) {
+        using NYT::Load;
+        Load(context, ChunkId_);
+        auto lowerBound = Load<TOwningKey>(context);
+        auto upperBound = Load<TOwningKey>(context);
+        ReadRange_ = MakeSingletonRowRange(lowerBound, upperBound);
+    }
+}
+
 TChunkStatePtr TSortedChunkStore::PrepareChunkState(
     IChunkReaderPtr chunkReader,
     const TClientBlockReadOptions& blockReadOptions)
@@ -304,7 +477,7 @@ TChunkStatePtr TSortedChunkStore::PrepareChunkState(
     VERIFY_THREAD_AFFINITY_ANY();
 
     TChunkSpec chunkSpec;
-    ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
+    ToProto(chunkSpec.mutable_chunk_id(), ChunkId_);
 
     NProfiling::TWallTimer metaWaitTimer;
     TFuture<TCachedVersionedChunkMetaPtr> asyncChunkMeta;
@@ -370,14 +543,93 @@ void TSortedChunkStore::PrecacheProperties()
     TChunkStoreBase::PrecacheProperties();
 
     auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_->extensions());
-    MinKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), KeyColumnCount_);
-    MaxKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), KeyColumnCount_);
+
+    MinKey_ = FromProto<TOwningKey>(boundaryKeysExt.min());
+    const auto& chunkViewLowerBound = ReadRange_.Front().first;
+    if (chunkViewLowerBound && chunkViewLowerBound > MinKey_) {
+        MinKey_ = TOwningKey(chunkViewLowerBound);
+    }
+    MinKey_ = WidenKey(MinKey_, KeyColumnCount_);
+
+    UpperBoundKey_ = FromProto<TOwningKey>(boundaryKeysExt.max());
+    const auto& chunkViewUpperBound = ReadRange_.Front().second;
+    if (chunkViewUpperBound && chunkViewUpperBound <= UpperBoundKey_) {
+        UpperBoundKey_ = TOwningKey(chunkViewUpperBound);
+    } else {
+        UpperBoundKey_ = WidenKeySuccessor(UpperBoundKey_, KeyColumnCount_);
+    }
 }
 
 ISortedStorePtr TSortedChunkStore::GetSortedBackingStore()
 {
     auto backingStore = GetBackingStore();
     return backingStore ? backingStore->AsSorted() : nullptr;
+}
+
+bool TSortedChunkStore::HasNontrivialReadRange() const
+{
+    return ReadRange_.Front().first || ReadRange_.Front().second;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSharedRange<TKey> FilterKeysByReadRange(
+    const NTableClient::TRowRange& readRange,
+    const TSharedRange<TKey>& keys,
+    int* skippedBefore,
+    int* skippedAfter)
+{
+    int begin = 0;
+    int end = keys.Size();
+
+    if (const auto& lowerLimit = readRange.first) {
+        begin = std::lower_bound(
+            keys.begin(),
+            keys.end(),
+            lowerLimit) - keys.begin();
+    }
+
+    if (const auto& upperLimit = readRange.second) {
+        end = std::lower_bound(
+            keys.begin(),
+            keys.end(),
+            upperLimit) - keys.begin();
+    }
+
+    *skippedBefore = begin;
+    *skippedAfter = keys.Size() - end;
+
+    return keys.Slice(begin, end);
+}
+
+TSharedRange<NTableClient::TRowRange> FilterRowRangesByReadRange(
+    const NTableClient::TRowRange& readRange,
+    const TSharedRange<NTableClient::TRowRange>& ranges)
+{
+    int begin = 0;
+    int end = ranges.Size();
+
+    if (const auto& lowerLimit = readRange.first) {
+        begin = std::lower_bound(
+            ranges.begin(),
+            ranges.end(),
+            lowerLimit,
+            [] (const auto& range, const auto& key) {
+                return range.second <= key;
+            }) - ranges.begin();
+    }
+
+    if (const auto& upperLimit = readRange.second) {
+        end = std::lower_bound(
+            ranges.begin(),
+            ranges.end(),
+            upperLimit,
+            [] (const auto& range, const auto& key) {
+                return range.first < key;
+            }) - ranges.begin();
+    }
+
+    return ranges.Slice(begin, end);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

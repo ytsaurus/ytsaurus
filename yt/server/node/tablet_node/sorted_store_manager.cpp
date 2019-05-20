@@ -295,6 +295,7 @@ void TSortedStoreManager::Mount(const std::vector<TAddStoreDescriptor>& storeDes
 {
     Tablet_->CreateInitialPartition();
 
+    // TODO(ifsmirnov): consider ReadRange of ChunkView here to make more precise partition borders.
     std::vector<std::tuple<TOwningKey, int, int>> chunkBoundaries;
     int descriptorIndex = 0;
     const auto& schema = Tablet_->PhysicalSchema();
@@ -585,6 +586,7 @@ bool TSortedStoreManager::SplitPartition(
     // NB: Set the state back to normal; otherwise if some of the below checks fail, we might get
     // a partition stuck in splitting state forever.
     partition->SetState(EPartitionState::Normal);
+    partition->SetAllowedSplitTime(TInstant::Now());
 
     if (Tablet_->PartitionList().size() >= Tablet_->GetConfig()->MaxPartitionCount) {
         return false;

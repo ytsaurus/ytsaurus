@@ -5,6 +5,7 @@ import argparse
 import collections
 import datetime
 import errno
+import getpass
 import gzip
 import hashlib
 import json
@@ -17,6 +18,7 @@ import socket
 import subprocess
 import sys
 import threading
+import time
 
 # NOTE: we should not import nonstandard libraries here because this script is being uploaded to remote server
 # which might miss such library
@@ -246,7 +248,7 @@ class RemoteTask(object):
         logging.info("copying script to {}".format(host))
         with open(__file__, "r") as source_file:
             hash_value = hashlib.md5(source_file.read()).hexdigest()
-        remote_file_name = "/tmp/logrep_{}.py".format(hash_value)
+        remote_file_name = "/tmp/logrep_{}_{}.py".format(hash_value, getpass.getuser())
         subprocess.check_call(
             ["scp"] + SSH_OPTS + [__file__, "{}:{}".format(host, remote_file_name)]
         )
@@ -330,7 +332,8 @@ class GrepTask(RemoteTask):
             raise LogrepError("Cannot find log files for time interval: {} - {}".format(self.start_time, self.end_time))
 
         for f in file_to_grep_list:
-            logging.info("would grep {}".format(f))
+            first_line = get_first_file_line(f).strip()
+            logging.info("would grep {} ({})".format(f, shorten(first_line, 50)))
 
         cmd = ["zfgrep", "--text", "--no-filename", self.pattern] + file_to_grep_list
         logging.info("running {}".format(" ".join(map(shell_quote, cmd))))
@@ -518,9 +521,21 @@ def get_first_file_line(filename):
         return inf.readline()
 
 
+def shorten(line, num):
+    assert num > 3
+    if len(line) > num - 3:
+        return line[:num - 3] + "..."
+    return line
+
+
 #
 # Time parsing
 #
+
+def utc_to_local(utc_dt):
+    epoch = time.mktime(utc_dt.timetuple())
+    offset = datetime.datetime.fromtimestamp(epoch) - datetime.datetime.utcfromtimestamp(epoch)
+    return utc_dt + offset
 
 def parse_time(time_str):
     if time_str == "now":
@@ -535,14 +550,15 @@ def parse_time(time_str):
         if result > now:
             raise LogrepError("Date {0} is in the future".format(result))
         return result
+    if re.match("\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d.\d*Z", time_str):
+        return utc_to_local(datetime.datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S.%fZ"))
     if re.match("\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d", time_str):
         return datetime.datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
     if re.match("\d{1,2} \w+ \d\d\d\d \d\d:\d\d:\d\d", time_str):
         return datetime.datetime.strptime(time_str, "%d %b %Y %H:%M:%S")
     if re.match("\w+ \w+ \d{1,2} \d\d:\d\d:\d\d \w+ \d\d\d\d", time_str):
         return datetime.datetime.strptime(time_str, "%a %b %d %H:%M:%S %Z %Y")
-    else:
-        raise LogrepError("Don't know how to parse time: {0}".format(time_str))
+    raise LogrepError("Don't know how to parse time: {0}".format(time_str))
 
 
 #
@@ -1078,7 +1094,7 @@ def subcommand_grep(instance_list, args):
 
 
 def subcommand_pgrep(instance_list, args):
-    verify_at_least_one_instance(instance_list)
+    verify_at_least_one_instance(instance_list, exactly=False)
 
     if args.instance_limit and len(instance_list) > args.instance_limit:
         raise LogrepError(

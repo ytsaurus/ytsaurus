@@ -6,6 +6,7 @@
 #include <yt/core/concurrency/delayed_executor.h>
 
 #include <yt/core/misc/ref.h>
+#include <yt/core/misc/range.h>
 #include <yt/core/misc/ring_queue.h>
 #include <yt/core/misc/sliding_window.h>
 #include <yt/core/misc/memory_zone.h>
@@ -141,7 +142,7 @@ private:
     ssize_t ReadPosition_ = 0;
     int PayloadSequenceNumber_ = 0;
 
-    void OnWindowPacketReady(TWindowPacket&& packet, TGuard<TSpinLock>& guard);
+    void OnWindowPacketsReady(TMutableRange<TWindowPacket> packets, TGuard<TSpinLock>& guard);
     void MaybeInvokePullCallback(TGuard<TSpinLock>& guard);
     bool CanPullMore(bool first) const;
     void DoAbort(

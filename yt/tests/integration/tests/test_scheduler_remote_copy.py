@@ -53,7 +53,12 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         assert not get("//tmp/t2/@sorted")
 
     def test_schema_inference(self):
-        schema = make_schema([{"name": "a", "type": "string"}], strict=True, unique_keys=False)
+        schema = make_schema(
+            [
+                {"name": "a", "type": "string", "required": False}
+            ],
+            strict=True,
+            unique_keys=False)
 
         create("table",
                "//tmp/t1",
@@ -66,7 +71,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": self.REMOTE_CLUSTER_NAME})
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
-        assert get("//tmp/t2/@schema") == schema
+        assert normalize_schema(get("//tmp/t2/@schema")) == schema
         assert get("//tmp/t2/@schema_mode") == "strong"
 
         create("table",

@@ -19,20 +19,45 @@ class TSkiffMultiTableParser<TConsumer>::TImpl
 public:
     TImpl(
         TConsumer* consumer,
-        const TSkiffSchemaList& skiffSchemaList,
+        TSkiffSchemaList skiffSchemaList,
         const std::vector<TSkiffTableColumnIds>& tablesColumnIds,
         const TString& rangeIndexColumnName,
         const TString& rowIndexColumnName)
         : Consumer_(consumer)
-        , SkiffSchemaList_(skiffSchemaList)
-        , TablesColumnIds_(tablesColumnIds)
+        , SkiffSchemaList_(std::move(skiffSchemaList))
     {
-        TableDescriptions_ = CreateTableDescriptionList(SkiffSchemaList_, rangeIndexColumnName, rowIndexColumnName);
+        auto genericTableDescriptions = CreateTableDescriptionList(SkiffSchemaList_, rangeIndexColumnName, rowIndexColumnName);
+        YCHECK(tablesColumnIds.size() == genericTableDescriptions.size());
 
-        YCHECK(tablesColumnIds.size() == TableDescriptions_.size());
-        for (size_t index = 0; index < TableDescriptions_.size(); ++index) {
-            YCHECK(tablesColumnIds[index].DenseFieldColumnIds.size() == TableDescriptions_[index].DenseFieldDescriptionList.size());
-            YCHECK(tablesColumnIds[index].SparseFieldColumnIds.size() == TableDescriptions_[index].SparseFieldDescriptionList.size());
+        for (size_t tableIndex = 0; tableIndex < genericTableDescriptions.size(); ++tableIndex) {
+            YCHECK(tablesColumnIds[tableIndex].DenseFieldColumnIds.size() == genericTableDescriptions[tableIndex].DenseFieldDescriptionList.size());
+            const auto& genericTableDescription = genericTableDescriptions[tableIndex];
+            auto& parserTableDescription = TableDescriptions_.emplace_back();
+            parserTableDescription.HasOtherColumns = genericTableDescription.HasOtherColumns;
+            for (size_t fieldIndex = 0; fieldIndex < genericTableDescription.DenseFieldDescriptionList.size(); ++fieldIndex) {
+                const auto& denseFieldDescription = genericTableDescription.DenseFieldDescriptionList[fieldIndex];
+                parserTableDescription.DenseFields.emplace_back(
+                    denseFieldDescription.Name,
+                    denseFieldDescription.DeoptionalizedSchema->GetWireType(),
+                    tablesColumnIds[tableIndex].DenseFieldColumnIds[fieldIndex],
+                    denseFieldDescription.Required
+                );
+            }
+
+            YCHECK(tablesColumnIds[tableIndex].SparseFieldColumnIds.size() == genericTableDescriptions[tableIndex].SparseFieldDescriptionList.size());
+
+            for (size_t fieldIndex = 0;
+                 fieldIndex < tablesColumnIds[tableIndex].SparseFieldColumnIds.size();
+                 ++fieldIndex)
+            {
+                const auto& fieldDescription = genericTableDescriptions[tableIndex].SparseFieldDescriptionList[fieldIndex];
+                parserTableDescription.SparseFields.emplace_back(
+                    fieldDescription.Name,
+                    fieldDescription.DeoptionalizedSchema->GetWireType(),
+                    tablesColumnIds[tableIndex].SparseFieldColumnIds[fieldIndex],
+                    true
+                );
+            }
         }
     }
 
@@ -88,26 +113,23 @@ public:
 
             Consumer_->OnBeginRow(tag);
 
-            for (ui16 i = 0; i < TableDescriptions_[tag].DenseFieldDescriptionList.size(); ++i) {
-                const auto& field = TableDescriptions_[tag].DenseFieldDescriptionList[i];
-                auto columnId = TablesColumnIds_[tag].DenseFieldColumnIds[i];
-                ParseField(columnId, field.Name, field.DeoptionalizedSchema->GetWireType(), field.Required);
+            for (const auto& field : TableDescriptions_[tag].DenseFields) {
+                ParseField(field.ColumnId, field.Name, field.WireType, field.Required);
             }
 
-            if (!TableDescriptions_[tag].SparseFieldDescriptionList.empty()) {
+            if (!TableDescriptions_[tag].SparseFields.empty()) {
                 for (auto sparseFieldIdx = Parser_->ParseVariant16Tag();
                     sparseFieldIdx != EndOfSequenceTag<ui16>();
                     sparseFieldIdx = Parser_->ParseVariant16Tag())
                 {
-                    if (sparseFieldIdx >= TableDescriptions_[tag].SparseFieldDescriptionList.size()) {
+                    if (sparseFieldIdx >= TableDescriptions_[tag].SparseFields.size()) {
                         THROW_ERROR_EXCEPTION("Bad sparse field index %Qv, total sparse field count %Qv",
                             sparseFieldIdx,
-                            TableDescriptions_[tag].SparseFieldDescriptionList.size());
+                            TableDescriptions_[tag].SparseFields.size());
                     }
 
-                    const auto& field = TableDescriptions_[tag].SparseFieldDescriptionList[sparseFieldIdx];
-                    auto columnId = TablesColumnIds_[tag].SparseFieldColumnIds[sparseFieldIdx];
-                    ParseField(columnId, field.Name, field.DeoptionalizedSchema->GetWireType(), true);
+                    const auto& field = TableDescriptions_[tag].SparseFields[sparseFieldIdx];
+                    ParseField(field.ColumnId, field.Name, field.WireType, true);
                 }
             }
 
@@ -126,13 +148,33 @@ public:
     }
 
 private:
+    struct TField
+    {
+        TString Name;
+        EWireType WireType;
+        ui16 ColumnId = 0;
+        bool Required = false;
+
+        TField(TString name, EWireType wireType, ui16 columnId, bool required)
+            : Name(std::move(name))
+            , WireType(wireType)
+            , ColumnId(columnId)
+            , Required(required)
+        { }
+    };
+
+    struct TTableDescription
+    {
+        std::vector<TField> DenseFields;
+        std::vector<TField> SparseFields;
+        bool HasOtherColumns = false;
+    };
+
     TConsumer* const Consumer_;
     TSkiffSchemaList SkiffSchemaList_;
 
     std::unique_ptr<TCheckedInDebugSkiffParser> Parser_;
-
-    const std::vector<TSkiffTableColumnIds> TablesColumnIds_;
-    std::vector<TSkiffTableDescription> TableDescriptions_;
+    std::vector<TTableDescription> TableDescriptions_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

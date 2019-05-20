@@ -15,7 +15,7 @@ struct IOperationControllerStrategyHost
     : public virtual TRefCounted
 {
     //! Called during heartbeat processing to request actions the node must perform.
-    virtual TFuture<TScheduleJobResultPtr> ScheduleJob(
+    virtual TFuture<TControllerScheduleJobResultPtr> ScheduleJob(
         const ISchedulingContextPtr& context,
         const TJobResourcesWithQuota& availableResources,
         const TString& treeId) = 0;

@@ -15,6 +15,8 @@
 
 #include <yt/core/misc/async_cache.h>
 
+#include <yt/core/profiling/timing.h>
+
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,20 +57,32 @@ protected:
     virtual TFuture<void> AsyncRemove() override;
 
 private:
+    struct TReadMetaSession
+        : public TIntrinsicRefCounted
+    {
+        NProfiling::TWallTimer Timer;
+        TBlockReadOptions Options;
+    };
+
+    using TReadMetaSessionPtr = TIntrusivePtr<TReadMetaSession>;
+
     struct TReadBlockSetSession
         : public TIntrinsicRefCounted
     {
         struct TBlockEntry
         {
-            int LocalIndex = -1;
             int BlockIndex = -1;
             bool Cached = false;
             TCachedBlockCookie Cookie;
+            NChunkClient::TBlock Block;
         };
 
-        std::vector<TBlockEntry> Entries;
-        std::vector<NChunkClient::TBlock> Blocks;
+        NProfiling::TWallTimer Timer;
+        std::unique_ptr<TBlockEntry[]> Entries;
+        int EntryCount = 0;
         TBlockReadOptions Options;
+        std::vector<TFuture<void>> AsyncResults;
+        TPromise<std::vector<NChunkClient::TBlock>> Promise = NewPromise<std::vector<NChunkClient::TBlock>>();
     };
 
     using TReadBlockSetSessionPtr = TIntrusivePtr<TReadBlockSetSession>;
@@ -78,20 +92,25 @@ private:
     NConcurrency::TReaderWriterSpinLock BlocksExtLock_;
     TWeakPtr<NChunkClient::TRefCountedBlocksExt> WeakBlocksExt_;
 
-
     //! Returns true if location must be disabled.
     static bool IsFatalError(const TError& error);
+
+    void CompleteSession(const TIntrusivePtr<TReadBlockSetSession>& session);
+    static void FailSession(const TIntrusivePtr<TReadBlockSetSession>& session, const TError& error);
 
     void DoReadMeta(
         TChunkReadGuard readGuard,
         TCachedChunkMetaCookie cookie,
         const TBlockReadOptions& options);
-    TFuture<void> OnBlocksExtLoaded(
+    void OnBlocksExtLoaded(
         const TReadBlockSetSessionPtr& session,
         const NChunkClient::TRefCountedBlocksExtPtr& blocksExt);
     void DoReadBlockSet(
         const TReadBlockSetSessionPtr& session,
         TPendingIOGuard pendingIOGuard);
+
+    void ProfileReadBlockSetLatency(const TReadBlockSetSessionPtr& session);
+    void ProfileReadMetaLatency(const TReadMetaSessionPtr& session);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlobChunkBase)

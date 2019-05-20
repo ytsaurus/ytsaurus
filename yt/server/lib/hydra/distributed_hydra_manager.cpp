@@ -110,6 +110,14 @@ public:
             return ToString(version);
         }
 
+        virtual void OnAlivePeerSetChanged(const TPeerIdSet& alivePeers) override
+        {
+            CancelableControlInvoker_->Invoke(BIND(
+                &TDistributedHydraManager::OnElectionAlivePeerSetChanged,
+                Owner_,
+                alivePeers));
+        }
+
     private:
         const TWeakPtr<TDistributedHydraManager> Owner_;
         const IInvokerPtr CancelableControlInvoker_;
@@ -339,6 +347,11 @@ public:
         });
     }
 
+    virtual TPeerIdSet& AlivePeers() override
+    {
+        return AlivePeers_;
+    }
+
     virtual TFuture<void> SyncWithUpstream() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -370,7 +383,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        
+
         // NB: This is monotonic: once in read-only mode, cannot leave it.
         if (ReadOnly_) {
             return MakeFuture<TMutationResponse>(TError(
@@ -434,6 +447,8 @@ public:
     DEFINE_SIGNAL(TFuture<void>(), LeaderLeaseCheck);
     DEFINE_SIGNAL(TFuture<void>(), UpstreamSync);
 
+    DEFINE_SIGNAL(void (const TPeerIdSet&), AlivePeerSetChanged);
+
 private:
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
 
@@ -466,6 +481,8 @@ private:
 
     TEpochContextPtr ControlEpochContext_;
     TEpochContextPtr AutomatonEpochContext_;
+
+    TPeerIdSet AlivePeers_;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, LookupChangelog)
     {
@@ -571,7 +588,7 @@ private:
                     } catch (const std::exception& ex) {
                         auto error = TError("Error logging mutations")
                             << ex;
-                        Restart(epochId, error);
+                        Restart(epochContext, error);
                         THROW_ERROR error;
                     }
                     break;
@@ -593,7 +610,7 @@ private:
                     } catch (const std::exception& ex) {
                         auto error = TError("Error postponing mutations during recovery")
                             << ex;
-                        Restart(epochId, error);
+                        Restart(epochContext, error);
                         THROW_ERROR error;
                     }
                     break;
@@ -614,7 +631,7 @@ private:
         auto epochId = FromProto<TEpochId>(request->epoch_id());
         auto pingVersion = TVersion::FromRevision(request->ping_revision());
         auto committedVersion = TVersion::FromRevision(request->committed_revision());
-
+        auto alivePeers = FromProto<TPeerIdSet>(request->alive_peers());
         context->SetRequestInfo("PingVersion: %v, CommittedVersion: %v, EpochId: %v",
             pingVersion,
             committedVersion,
@@ -646,6 +663,11 @@ private:
 
             default:
                 Y_UNREACHABLE();
+        }
+
+        if (alivePeers != AlivePeers_) {
+            AlivePeers_ = std::move(alivePeers);
+            AlivePeerSetChanged_.Fire(AlivePeers_);
         }
 
         response->set_state(static_cast<int>(ControlState_));
@@ -690,7 +712,7 @@ private:
                 "Invalid logged version")
                 << TErrorAttribute("expected_version", ToString(version))
                 << TErrorAttribute("actual_version", ToString(DecoratedAutomaton_->GetLoggedVersion()));
-            Restart(epochId, error);
+            Restart(epochContext, error);
             context->Reply(error);
             return;
         }
@@ -782,7 +804,7 @@ private:
                     } catch (const std::exception& ex) {
                         auto error = TError("Error rotating changelog")
                             << ex;
-                        Restart(epochId, error);
+                        Restart(epochContext, error);
                         THROW_ERROR error;
                     }
 
@@ -807,7 +829,7 @@ private:
                     } catch (const std::exception& ex) {
                         auto error = TError("Error postponing changelog rotation during recovery")
                             << ex;
-                        Restart(epochId, error);
+                        Restart(epochContext, error);
                         THROW_ERROR error;
                     }
 
@@ -915,38 +937,39 @@ private:
             tagIds);
     }
 
-    void Restart(TEpochId epochId, const TError& error)
+    void Restart(const TEpochContextPtr& epochContext, const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
+        if (epochContext->Restarting.test_and_set()) {
+            return;
+        }
 
         YT_LOG_DEBUG(error, "Requesting Hydra instance restart");
 
         CancelableControlInvoker_->Invoke(BIND(
             &TDistributedHydraManager::DoRestart,
             MakeWeak(this),
-            epochId,
+            epochContext,
             error));
     }
 
-    void Restart(const TEpochContextPtr& epochContext, const TError& error)
+    void Restart(const TWeakPtr<TEpochContext>& weakEpochContext, const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        Restart(epochContext->EpochId, error);
+        if (auto epochContext = weakEpochContext.Lock()) {
+            Restart(epochContext, error);
+        }
     }
 
-    void DoRestart(TEpochId epochId, const TError& error)
+    void DoRestart(const TEpochContextPtr& epochContext, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (!ControlEpochContext_ ||
-            ControlEpochContext_->EpochId != epochId ||
-            ControlEpochContext_->Restarting)
-        {
+        if (ControlEpochContext_ != epochContext) {
             return;
         }
-
-        ControlEpochContext_->Restarting = true;
 
         YT_LOG_WARNING(error, "Restarting Hydra instance");
 
@@ -1068,13 +1091,13 @@ private:
         Restart(AutomatonEpochContext_, wrappedError);
     }
 
-    void OnLeaderLeaseLost(TEpochId epochId, const TError& error)
+    void OnLeaderLeaseLost(const TWeakPtr<TEpochContext>& weakEpochContext, const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto wrappedError = TError("Leader lease is lost")
             << error;
-        Restart(epochId, wrappedError);
+        Restart(weakEpochContext, wrappedError);
     }
 
 
@@ -1104,17 +1127,17 @@ private:
         result.Subscribe(BIND(
             &TDistributedHydraManager::OnChangelogRotated,
             MakeWeak(this),
-            AutomatonEpochContext_->EpochId));
+            MakeWeak(AutomatonEpochContext_)));
     }
 
-    void OnChangelogRotated(TEpochId epochId, const TError& error)
+    void OnChangelogRotated(const TWeakPtr<TEpochContext>& weakEpochContext, const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (!error.IsOK()) {
             auto wrappedError = TError("Distributed changelog rotation failed")
                 << error;
-            Restart(epochId, wrappedError);
+            Restart(weakEpochContext, wrappedError);
             return;
         }
 
@@ -1141,7 +1164,7 @@ private:
             LeaderLease_,
             LeaderLeaseCheck_.ToVector());
         epochContext->LeaseTracker->GetLeaseLost().Subscribe(
-            BIND(&TDistributedHydraManager::OnLeaderLeaseLost, MakeWeak(this), epochContext->EpochId));
+            BIND(&TDistributedHydraManager::OnLeaderLeaseLost, MakeWeak(this), MakeWeak(epochContext)));
 
         epochContext->LeaderCommitter = New<TLeaderCommitter>(
             Config_,
@@ -1176,12 +1199,23 @@ private:
 
         StartLeading_.Fire();
 
+        epochContext->LeaseTracker->SetAlivePeers(GetAllPeers());
         epochContext->LeaseTracker->Start();
 
         SwitchTo(epochContext->EpochControlInvoker);
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         RecoverLeader();
+    }
+
+    TPeerIdSet GetAllPeers()
+    {
+        TPeerIdSet result;
+        result.reserve(CellManager_->GetTotalPeerCount());
+        for (TPeerId id = 0; id < CellManager_->GetTotalPeerCount(); ++id) {
+            result.insert(id);
+        }
+        return result;
     }
 
     void RecoverLeader()
@@ -1251,6 +1285,15 @@ private:
             TDelayedExecutor::WaitForDuration(Config_->RestartBackoffTime);
             Restart(epochContext, ex);
         }
+    }
+
+    void OnElectionAlivePeerSetChanged(const TPeerIdSet& alivePeers)
+    {
+        AlivePeers_ = alivePeers;
+        // Send the change to the followers.
+        ControlEpochContext_->LeaseTracker->SetAlivePeers(alivePeers);
+        // Fire the event here, on the leader.
+        AlivePeerSetChanged_.Fire(alivePeers);
     }
 
     void OnElectionStopLeading()

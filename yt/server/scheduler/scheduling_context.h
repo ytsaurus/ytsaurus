@@ -34,6 +34,8 @@ struct TFairShareSchedulingStatistics
 struct ISchedulingContext
     : public virtual TRefCounted
 {
+    virtual int GetNodeShardId() const = 0;
+
     virtual const TExecNodeDescriptor& GetNodeDescriptor() const = 0;
 
     virtual const TJobResources& ResourceLimits() const = 0;
@@ -72,6 +74,7 @@ struct ISchedulingContext
 DEFINE_REFCOUNTED_TYPE(ISchedulingContext)
 
 ISchedulingContextPtr CreateSchedulingContext(
+    int nodeShardId,
     TSchedulerConfigPtr config,
     TExecNodePtr node,
     const std::vector<TJobPtr>& runningJobs);

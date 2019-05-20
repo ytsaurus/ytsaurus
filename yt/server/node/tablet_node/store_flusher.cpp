@@ -138,7 +138,7 @@ private:
             ForcedRotationCandidates_.swap(candidates);
         }
 
-        const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
+        const auto& tracker = Bootstrap_->GetMemoryUsageTracker();
         auto otherUsage = tracker->GetUsed(EMemoryCategory::TabletDynamic) -
             ActiveMemoryUsage_ - PassiveMemoryUsage_ - BackingMemoryUsage_;
 
@@ -213,15 +213,15 @@ private:
             ScanStore(slot, tablet, store);
             if (store->GetStoreState() == EStoreState::PassiveDynamic) {
                 TGuard<TSpinLock> guard(SpinLock_);
-                PassiveMemoryUsage_ += store->GetMemoryUsage();
+                PassiveMemoryUsage_ += store->GetDynamicMemoryUsage();
             } else if (store->GetStoreState() == EStoreState::ActiveDynamic) {
                 TGuard<TSpinLock> guard(SpinLock_);
-                ActiveMemoryUsage_ += store->GetMemoryUsage();
+                ActiveMemoryUsage_ += store->GetDynamicMemoryUsage();
             } else if (store->GetStoreState() == EStoreState::Persistent) {
                 auto backingStore = store->AsChunk()->GetBackingStore();
                 if (backingStore) {
                     TGuard<TSpinLock> guard(SpinLock_);
-                    BackingMemoryUsage_ += backingStore->GetMemoryUsage();
+                    BackingMemoryUsage_ += backingStore->GetDynamicMemoryUsage();
                 }
             }
         }
@@ -230,7 +230,7 @@ private:
             TGuard<TSpinLock> guard(SpinLock_);
             if (storeManager->IsForcedRotationPossible()) {
                 const auto& store = tablet->GetActiveStore();
-                i64 memoryUsage = store->GetMemoryUsage();
+                i64 memoryUsage = store->GetDynamicMemoryUsage();
                 if (storeManager->IsRotationScheduled()) {
                     PassiveMemoryUsage_ += memoryUsage;
                 } else if (store->GetCompressedDataSize() >= Config_->StoreFlusher->MinForcedFlushDataSize) {

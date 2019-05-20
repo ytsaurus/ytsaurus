@@ -655,4 +655,25 @@ bool TYsonPullParser::IsOnValueBoundary(size_t nestingLevel) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TYsonPullParserCursor::TYsonPullParserCursor(TYsonItem current, TYsonPullParser* parser)
+    : Current_(std::move(current))
+    , Parser_(parser)
+{ }
+
+TYsonPullParserCursor::TYsonPullParserCursor(TYsonPullParser* parser)
+    : TYsonPullParserCursor(parser->Next(), parser)
+{ }
+
+const TYsonItem& TYsonPullParserCursor::GetCurrent() const
+{
+    return Current_;
+}
+
+void TYsonPullParserCursor::Next()
+{
+    Current_ = Parser_->Next();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NYson

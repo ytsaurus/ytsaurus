@@ -19,12 +19,12 @@ TJobStartDescriptor::TJobStartDescriptor(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TScheduleJobResult::RecordFail(EScheduleJobFailReason reason)
+void TControllerScheduleJobResult::RecordFail(EScheduleJobFailReason reason)
 {
     ++Failed[reason];
 }
 
-bool TScheduleJobResult::IsBackoffNeeded() const
+bool TControllerScheduleJobResult::IsBackoffNeeded() const
 {
     return
         !StartDescriptor &&
@@ -34,7 +34,7 @@ bool TScheduleJobResult::IsBackoffNeeded() const
         Failed[EScheduleJobFailReason::DataBalancingViolation] == 0;
 }
 
-bool TScheduleJobResult::IsScheduleStopNeeded() const
+bool TControllerScheduleJobResult::IsScheduleStopNeeded() const
 {
     return
         Failed[EScheduleJobFailReason::NotEnoughChunkLists] > 0 ||

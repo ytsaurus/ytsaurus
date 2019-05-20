@@ -496,7 +496,7 @@ TFuture<IFileReaderPtr> TClientBase::CreateFileReader(
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_suppressable_access_tracking_options(), options);
 
-    return CreateRpcProxyFileReader(std::move(req));
+    return NRpcProxy::CreateFileReader(std::move(req));
 }
 
 IFileWriterPtr TClientBase::CreateFileWriter(
@@ -520,7 +520,7 @@ IFileWriterPtr TClientBase::CreateFileWriter(
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_prerequisite_options(), options);
 
-    return CreateRpcProxyFileWriter(std::move(req));
+    return NRpcProxy::CreateFileWriter(std::move(req));
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -551,7 +551,7 @@ IJournalReaderPtr TClientBase::CreateJournalReader(
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_suppressable_access_tracking_options(), options);
 
-    return CreateRpcProxyJournalReader(std::move(req));
+    return NRpcProxy::CreateJournalReader(std::move(req));
 }
 
 IJournalWriterPtr TClientBase::CreateJournalWriter(
@@ -576,7 +576,7 @@ IJournalWriterPtr TClientBase::CreateJournalWriter(
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_prerequisite_options(), options);
 
-    return CreateRpcProxyJournalWriter(std::move(req));
+    return NRpcProxy::CreateJournalWriter(std::move(req));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -723,6 +723,9 @@ TFuture<TSelectRowsResult> TClientBase::SelectRows(
         req->set_udf_registry_path(*options.UdfRegistryPath);
     }
     req->set_memory_limit_per_node(options.MemoryLimitPerNode);
+    if (options.ExecutionPool) {
+        req->set_execution_pool(*options.ExecutionPool);
+    }
 
     return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspSelectRowsPtr>& rspOrError) {
         const auto& rsp = rspOrError.ValueOrThrow();

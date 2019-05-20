@@ -539,6 +539,9 @@ void TTablet::Load(TLoadContext& context)
             auto store = Context_->CreateStore(this, storeType, storeId, nullptr);
             YCHECK(StoreIdMap_.insert(std::make_pair(store->GetId(), store)).second);
             store->Load(context);
+            if (store->IsChunk()) {
+                YCHECK(store->AsChunk()->GetChunkId() != TChunkId{});
+            }
         }
     }
 
@@ -837,7 +840,7 @@ void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys
 
 TPartition* TTablet::GetContainingPartition(
     const TOwningKey& minKey,
-    const TOwningKey& maxKey)
+    const TOwningKey& upperBoundKey)
 {
     YCHECK(IsPhysicallySorted());
 
@@ -857,7 +860,7 @@ TPartition* TTablet::GetContainingPartition(
         return it->get();
     }
 
-    if ((*(it + 1))->GetPivotKey() > maxKey) {
+    if ((*(it + 1))->GetPivotKey() >= upperBoundKey) {
         return it->get();
     }
 
@@ -1262,7 +1265,7 @@ TPartition* TTablet::GetContainingPartition(const ISortedStorePtr& store)
         return Eden_.get();
     }
 
-    return GetContainingPartition(store->GetMinKey(), store->GetMaxKey());
+    return GetContainingPartition(store->GetMinKey(), store->GetUpperBoundKey());
 }
 
 const TSortedDynamicRowKeyComparer& TTablet::GetRowKeyComparer() const

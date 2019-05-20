@@ -278,7 +278,7 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
     return chunkSpecs;
 }
 
-TChunkReplicaList AllocateWriteTargets(
+TChunkReplicaWithMediumList AllocateWriteTargets(
     NNative::IClientPtr client,
     TSessionId sessionId,
     int desiredTargetCount,
@@ -336,7 +336,10 @@ TChunkReplicaList AllocateWriteTargets(
         throwOnError(FromProto<TError>(rsp.error()));
     }
 
-    auto replicas = FromProto<TChunkReplicaList>(rsp.replicas());
+    // COMPAT(aozeritsky)
+    auto replicas = rsp.replicas().empty()
+        ? FromProto<TChunkReplicaWithMediumList>(rsp.replicas_old())
+        : FromProto<TChunkReplicaWithMediumList>(rsp.replicas());
     if (replicas.empty()) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::MasterCommunicationFailed,
@@ -441,12 +444,9 @@ IChunkReaderPtr CreateRemoteReader(
 
         std::array<TNodeId, ::NErasure::MaxTotalPartCount> partIndexToNodeId;
         std::fill(partIndexToNodeId.begin(), partIndexToNodeId.end(), InvalidNodeId);
-        std::array<int, ::NErasure::MaxTotalPartCount> partIndexToMediumIndex;
-        std::fill(partIndexToMediumIndex.begin(), partIndexToMediumIndex.end(), DefaultStoreMediumIndex);
         for (auto replica : replicas) {
             auto replicaIndex = replica.GetReplicaIndex();
             partIndexToNodeId[replicaIndex] = replica.GetNodeId();
-            partIndexToMediumIndex[replicaIndex] = replica.GetMediumIndex();
         }
 
         auto* erasureCodec = GetCodec(erasureCodecId);
@@ -460,9 +460,8 @@ IChunkReaderPtr CreateRemoteReader(
         for (int index = 0; index < partCount; ++index) {
             TChunkReplicaList partReplicas;
             auto nodeId = partIndexToNodeId[index];
-            auto mediumIndex = partIndexToMediumIndex[index];
             if (nodeId != InvalidNodeId) {
-                partReplicas.push_back(TChunkReplica(nodeId, index, mediumIndex));
+                partReplicas.push_back(TChunkReplica(nodeId, index));
             }
 
             auto partId = ErasurePartIdFromChunkId(chunkId, index);
