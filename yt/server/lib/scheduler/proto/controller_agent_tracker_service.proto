@@ -146,7 +146,7 @@ message TScheduleJobResponse
 
     required NYT.NProto.TGuid job_id = 1;
     optional int32 job_type = 2; // EJobType
-    optional TJobResources resource_limits = 3;
+    optional TJobResourcesWithQuota resource_limits = 3;
     optional bool interruptible = 4;
     repeated TFailedCounter failed = 5;
     required uint64 duration = 6;

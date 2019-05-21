@@ -9,7 +9,7 @@ using namespace NControllerAgent;
 TJobStartDescriptor::TJobStartDescriptor(
     TJobId id,
     EJobType type,
-    const TJobResources& resourceLimits,
+    const TJobResourcesWithQuota& resourceLimits,
     bool interruptible)
     : Id(id)
     , Type(type)

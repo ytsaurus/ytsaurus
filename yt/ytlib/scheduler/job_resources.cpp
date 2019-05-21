@@ -491,6 +491,33 @@ bool CanSatisfyDiskRequest(
     return false;
 }
 
+bool CanSatisfyDiskRequests(
+    const NNodeTrackerClient::NProto::TDiskResources& diskInfo,
+    const std::vector<i64>& diskRequests)
+{
+    std::vector<i64> availableSpacePerDisk;
+    for (auto diskReport : diskInfo.disk_reports()) {
+        availableSpacePerDisk.push_back(diskReport.limit() - diskReport.usage());
+    }
+
+    std::vector<i64> sortedDiskRequests(diskRequests);
+    sort(sortedDiskRequests.begin(), sortedDiskRequests.end(), std::greater<i64>());
+
+    for (i64 request : sortedDiskRequests) {
+        auto it = std::lower_bound(availableSpacePerDisk.begin(), availableSpacePerDisk.end(), request);
+        if (it == availableSpacePerDisk.end()) {
+            return false;
+        }
+        *it -= request;
+        while (it != availableSpacePerDisk.begin()) {
+            std::swap(*it, *(it - 1));
+            --it;
+        }
+    }
+
+    return true;
+}
+
 i64 GetMaxAvailableDiskSpace(
     const NNodeTrackerClient::NProto::TDiskResources& diskInfo)
 {
