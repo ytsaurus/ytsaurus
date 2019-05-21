@@ -142,8 +142,8 @@ private:
         if (rspOrError.IsOK()) {
             YT_LOG_DEBUG("Orchid request succeeded");
             const auto& rsp = rspOrError.Value();
-            auto innerResponseMessage = TSharedRefArray(rsp->Attachments());
-            context->Reply(innerResponseMessage);
+            auto innerResponseMessage = TSharedRefArray(rsp->Attachments(), TSharedRefArray::TMoveParts{});
+            context->Reply(std::move(innerResponseMessage));
         } else {
             context->Reply(TError("Error executing Orchid request")
                 << TErrorAttribute("path", path)

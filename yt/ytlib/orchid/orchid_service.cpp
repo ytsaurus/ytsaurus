@@ -38,7 +38,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Execute)
     {
-        auto requestMessage = TSharedRefArray(request->Attachments());
+        auto requestMessage = TSharedRefArray(request->Attachments(), TSharedRefArray::TCopyParts{});
 
         TRequestHeader requestHeader;
         if (!ParseRequestHeader(requestMessage, &requestHeader)) {

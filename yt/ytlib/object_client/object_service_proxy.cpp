@@ -122,7 +122,7 @@ TSharedRefArray TObjectServiceProxy::TReqExecuteSubbatch::SerializeData() const
     data.push_back(std::move(body));
     data.insert(data.end(), Attachments_.begin(), Attachments_.end());
 
-    return TSharedRefArray(std::move(data));
+    return TSharedRefArray(std::move(data), TSharedRefArray::TMoveParts{});
 }
 
 size_t TObjectServiceProxy::TReqExecuteSubbatch::GetHash() const
@@ -439,9 +439,11 @@ TSharedRefArray TObjectServiceProxy::TRspExecuteBatch::GetResponseMessage(int in
         // This is an empty response.
         return TSharedRefArray();
     }
-    return TSharedRefArray(std::vector<TSharedRef>(
-        Attachments_.begin() + beginIndex,
-        Attachments_.begin() + endIndex));
+    return TSharedRefArray(
+        MakeRange(
+            Attachments_.begin() + beginIndex,
+            Attachments_.begin() + endIndex),
+        TSharedRefArray::TCopyParts{});
 }
 
 std::optional<i64> TObjectServiceProxy::TRspExecuteBatch::GetRevision(int index) const

@@ -22,7 +22,6 @@
     #include <sys/prctl.h>
 #endif
 
-
 #include <unistd.h>
 
 #include <any>
@@ -44,9 +43,8 @@ public:
         : Config_(std::move(config))
         , OrchidService_(IYPathService::FromProducer(BIND(&TCoreDumper::BuildYson, MakeWeak(this))))
     {
-        const auto& Logger = CoreDumpLogger;
-
 #ifdef _linux_
+        const auto& Logger = CoreDumpLogger;
         if (prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY) != 0) {
             YT_LOG_ERROR(TError::FromSystem(), "Failed to call prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY)");
         }

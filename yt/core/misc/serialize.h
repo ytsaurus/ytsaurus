@@ -520,7 +520,7 @@ struct TSharedRefArraySerializer
             }
         }
 
-        value = TSharedRefArray(std::move(parts));
+        value = TSharedRefArray(std::move(parts), TSharedRefArray::TMoveParts{});
     }
 };
 
