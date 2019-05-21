@@ -314,7 +314,7 @@ protected:
     {
         const auto& Logger = CypressServerLogger;
         bool forbidden = TBase::GetDynamicCypressManagerConfig()->ForbidSetCommand && !force;
-        if (path) {
+        if (path && !force) {
             YT_LOG_DEBUG("Validating possibly malicious \"set\" in Cypress (Path: %v, User: %v, Forbidden: %v)",
                 path,
                 user,
