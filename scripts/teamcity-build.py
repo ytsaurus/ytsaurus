@@ -864,15 +864,17 @@ def run_sandbox_upload(options, build_context):
     sandbox_ctx["git_commit"] = options.build_vcs_number
     sandbox_ctx["git_branch"] = options.git_branch
     sandbox_ctx["build_number"] = options.build_number
-    sandbox_ctx["build_project"] = options.build_project
+    if "yp" in options.build_project:
+        sandbox_ctx["build_project"] = "yp"
+    else:
+        sandbox_ctx["build_project"] = "yt"
 
     #
     # Start sandbox task
     #
 
     cli = sandbox_client.SandboxClient(oauth_token=os.environ["TEAMCITY_SANDBOX_TOKEN"])
-    task_description = """
-    {0}
+    task_description = """{0}
     YT version: {1}
     Teamcity build id: {2}
     Teamcity build type: {3}
@@ -881,7 +883,7 @@ def run_sandbox_upload(options, build_context):
     Git branch: {6}
     Git commit: {7}
     """.format(
-        "[yp] " if "yp" in options.build_project else "",
+        "\n[yp] " if "yp" in options.build_project else "",
         build_context["yt_version"],
         options.build_number,
         options.type,
