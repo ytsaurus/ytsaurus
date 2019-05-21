@@ -173,7 +173,6 @@ public:
 };
 
 static constexpr size_t MaxMarginSize = 10;
-static constexpr size_t Npos = -1;
 
 template <class TBlockStream, size_t MaxContextSize>
 class TReaderWithContext
@@ -182,17 +181,19 @@ class TReaderWithContext
 private:
     static_assert(MaxContextSize > MaxMarginSize, "MaxContextSize must be greater than MaxMarginSize.");
 
-    // Checkpoint points to the first byte of current buffer we want to append to context.
+    // Checkpoint points to the position that was current when CheckpointContext was called.
+    // If it is nullptr that means that CheckpointContext was never called or it was called inside previous block.
     const char* Checkpoint = nullptr;
-    size_t ContextSize = Npos;
+
+    // Context keeps context if CheckpointContext was called inside one of the previous blocks.
+    char Context[MaxContextSize];
+    size_t ContextSize = 0;
     size_t ContextPosition = 0;
 
-    char Context[MaxContextSize];
-
-    // LeftContextQueue keeps characters from previous blocks.
+    // PrevBlockTail keeps characters from previous blocks.
     // We save MaxMarginSize characters from the end of the current block when it ends.
     // It will allow us to keep a left margin of the current context even if it starts at the beginning of the block.
-    TStaticRingQueue<char, MaxMarginSize> LeftContextQueue;
+    TStaticRingQueue<char, MaxMarginSize> PrevBlockTail;
 
 public:
     TReaderWithContext(const TBlockStream& blockStream)
@@ -206,62 +207,65 @@ public:
         ContextPosition = 0;
     }
 
-    size_t GetContextPosition() const
+    // Return pair <context, context_position>.
+    std::pair<TString, size_t> GetContextFromCheckpoint()
     {
-        return ContextPosition;
-    }
-
-    TString GetContextFromCheckpoint()
-    {
-        TString result;
-        if (ContextSize == 0 && Checkpoint != nullptr) {
-            SaveLeftContextToContextBuffer();
-        }
-        result.append(Context, ContextSize);
-        if (Checkpoint != nullptr) {
-            YCHECK(ContextSize != Npos);
-            size_t remainingSize = MaxContextSize - ContextSize;
-            remainingSize = std::min<size_t>(remainingSize, TBlockStream::End() - Checkpoint);
-            result.append(Checkpoint, Checkpoint + remainingSize);
-        }
-        return result;
+        TString result(MaxContextSize, '\0');
+        size_t size, position;
+        SaveContext(result.Detach(), &size, &position);
+        result.resize(size);
+        return {result, position};
     }
 
     void RefreshBlock()
     {
-        if (Checkpoint != nullptr) {
-            YCHECK(ContextSize != Npos);
-            if (ContextSize == 0) {
-                SaveLeftContextToContextBuffer();
-            }
-            const auto sizeToCopy = std::min<size_t>(MaxContextSize - ContextSize, TBlockStream::End() - Checkpoint);
-            memcpy(Context + ContextSize, Checkpoint, sizeToCopy);
-            ContextSize += sizeToCopy;
-        }
-
-        LeftContextQueue.Append(TBlockStream::Begin(), TBlockStream::End());
+        SaveContext(Context, &ContextSize, &ContextPosition);
+        PrevBlockTail.Append(TBlockStream::Begin(), TBlockStream::End());
         TBlockStream::RefreshBlock();
-
-        if (ContextSize != Npos) {
-            // ContextSize is not equal to Npos if someone called CheckpointContext
-            // before any data was read by TBlockStream (when both Begin()/End() == nullptr).
-            Checkpoint = TBlockStream::Begin();
-        }
+        Checkpoint = nullptr;
     }
 
-    void SaveLeftContextToContextBuffer()
+private:
+    // dest must be at least of MaxContextSize capacity.
+    void SaveContext(char* dest, size_t* contextSize, size_t* contextPosition) const
     {
-        YCHECK(Checkpoint != nullptr);
-        size_t sizeFromBlock = std::min<size_t>(Checkpoint - TBlockStream::Begin(), MaxMarginSize);
-        if (sizeFromBlock < MaxMarginSize) {
-            size_t sizeFromDeque = std::min(MaxMarginSize - sizeFromBlock, LeftContextQueue.Size());
-            LeftContextQueue.CopyTailTo(sizeFromDeque, Context);
-            ContextSize = sizeFromDeque;
+        char* current = dest;
+        if (Checkpoint != nullptr) {
+            // Context inside current block.
+            const size_t sizeFromBlock = std::min<size_t>(Checkpoint - TBlockStream::Begin(), MaxMarginSize);
+            if (sizeFromBlock < MaxMarginSize) {
+                const size_t sizeFromPrevBlock = std::min(MaxMarginSize - sizeFromBlock, PrevBlockTail.Size());
+                PrevBlockTail.CopyTailTo(sizeFromPrevBlock, current);
+                current += sizeFromPrevBlock;
+            }
+            memcpy(current, Checkpoint - sizeFromBlock, sizeFromBlock);
+            current += sizeFromBlock;
+            *contextPosition = current - dest;
+            const size_t sizeAfterCheckpoint = std::min<size_t>(
+                MaxContextSize - (current - dest),
+                TBlockStream::End() - Checkpoint);
+            memcpy(current, Checkpoint, sizeAfterCheckpoint);
+            current += sizeAfterCheckpoint;
+        } else if (ContextSize > 0) {
+            // Context is inside one of the previous blocks.
+            *contextPosition = ContextPosition;
+            if (current != Context) {
+                memcpy(current, Context, ContextSize);
+            }
+            current += ContextSize;
+            if (ContextSize < MaxContextSize) {
+                const auto size = std::min<size_t>(MaxContextSize - ContextSize, TBlockStream::End() - TBlockStream::Begin());
+                memcpy(current, TBlockStream::Begin(), size);
+                current += size;
+            }
+        } else {
+            // Context is the beginning of the stream.
+            const auto toCopy = std::min<size_t>(MaxContextSize, TBlockStream::End() - TBlockStream::Begin());
+            memcpy(current, TBlockStream::Begin(), toCopy);
+            current += toCopy;
+            *contextPosition = 0;
         }
-
-        memcpy(Context + ContextSize, Checkpoint - sizeFromBlock, sizeFromBlock);
-        ContextSize += sizeFromBlock;
-        ContextPosition = ContextSize;
+        *contextSize = current - dest;
     }
 };
 
@@ -277,14 +281,9 @@ public:
     void CheckpointContext()
     { }
 
-    TString GetContextFromCheckpoint() const
+    std::pair<TString, size_t> GetContextFromCheckpoint() const
     {
-        return "<context is disabled>";
-    }
-
-    size_t GetContextPosition() const
-    {
-        return 0;
+        return {"<context is disabled>", 0};
     }
 };
 
