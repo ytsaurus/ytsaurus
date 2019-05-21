@@ -127,10 +127,14 @@ THolder<THttpRequest> TFileReader::CreateRequest(const TAuth& auth, const TTrans
     header.SetResponseCompression(::ToString(TConfig::Get()->AcceptEncoding));
 
     auto request = MakeHolder<THttpRequest>();
-
-    request->Connect(proxyName);
-    request->StartRequest(header);
-    request->FinishRequest();
+    try {
+        request->Connect(proxyName);
+        request->StartRequest(header);
+        request->FinishRequest();
+    } catch (const yexception& ex) {
+        LogRequestError(*request, header, ex.what(), "");
+        throw;
+    }
 
     LOG_DEBUG("RSP %s - file stream", request->GetRequestId().data());
 
@@ -177,9 +181,14 @@ THolder<THttpRequest> TBlobTableReader::CreateRequest(const TAuth& auth, const T
     header.SetResponseCompression(::ToString(TConfig::Get()->AcceptEncoding));
 
     auto request = MakeHolder<THttpRequest>();
-    request->Connect(proxyName);
-    request->StartRequest(header);
-    request->FinishRequest();
+    try {
+        request->Connect(proxyName);
+        request->StartRequest(header);
+        request->FinishRequest();
+    } catch (const yexception& ex) {
+        LogRequestError(*request, header, ex.what(), "");
+        throw;
+    }
 
     LOG_DEBUG("RSP %s - blob table stream", request->GetRequestId().data());
     return request;

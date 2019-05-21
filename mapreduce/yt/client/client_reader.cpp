@@ -24,10 +24,11 @@
 #include <library/json/json_writer.h>
 #include <library/json/json_reader.h>
 
-#include <util/stream/file.h>
-#include <util/string/cast.h>
-#include <util/stream/str.h>
 #include <util/random/random.h>
+#include <util/stream/file.h>
+#include <util/stream/str.h>
+#include <util/string/builder.h>
+#include <util/string/cast.h>
 
 namespace NYT {
 
@@ -119,61 +120,64 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
     const int lastAttempt = TConfig::Get()->ReadRetryCount - 1;
 
     for (int attempt = 0; attempt <= lastAttempt; ++attempt) {
-        TString requestId;
-        try {
-            TString proxyName = GetProxyForHeavyRequest(Auth_);
+        THttpHeader header("GET", GetReadTableCommand());
+        header.SetToken(Auth_.Token);
+        auto transactionId = (ReadTransaction_ ? ReadTransaction_->GetId() : ParentTransactionId_);
+        header.AddTransactionId(transactionId);
+        header.AddParameter("control_attributes", TNode()
+            ("enable_row_index", true)
+            ("enable_range_index", true));
+        header.SetOutputFormat(Format_);
 
-            THttpHeader header("GET", GetReadTableCommand());
-            header.SetToken(Auth_.Token);
-            auto transactionId = (ReadTransaction_ ? ReadTransaction_->GetId() : ParentTransactionId_);
-            header.AddTransactionId(transactionId);
-            header.AddParameter("control_attributes", TNode()
-                ("enable_row_index", true)
-                ("enable_range_index", true));
-            header.SetOutputFormat(Format_);
+        header.SetResponseCompression(ToString(TConfig::Get()->AcceptEncoding));
 
-            header.SetResponseCompression(ToString(TConfig::Get()->AcceptEncoding));
-
-            if (rowIndex.Defined()) {
-                auto& ranges = Path_.Ranges_;
-                if (ranges.empty()) {
-                    ranges.push_back(TReadRange());
-                } else {
-                    if (rangeIndex.GetOrElse(0) >= ranges.size()) {
-                        ythrow yexception()
-                            << "range index " << rangeIndex.GetOrElse(0)
-                            << " is out of range, input range count is " << ranges.size();
-                    }
-                    ranges.erase(ranges.begin(), ranges.begin() + rangeIndex.GetOrElse(0));
+        if (rowIndex.Defined()) {
+            auto& ranges = Path_.Ranges_;
+            if (ranges.empty()) {
+                ranges.push_back(TReadRange());
+            } else {
+                if (rangeIndex.GetOrElse(0) >= ranges.size()) {
+                    ythrow yexception()
+                        << "range index " << rangeIndex.GetOrElse(0)
+                        << " is out of range, input range count is " << ranges.size();
                 }
-                ranges.begin()->LowerLimit(TReadLimit().RowIndex(*rowIndex));
+                ranges.erase(ranges.begin(), ranges.begin() + rangeIndex.GetOrElse(0));
             }
+            ranges.begin()->LowerLimit(TReadLimit().RowIndex(*rowIndex));
+        }
 
-            header.MergeParameters(FormIORequestParameters(Path_, Options_));
+        header.MergeParameters(FormIORequestParameters(Path_, Options_));
 
-            Request_.Reset(new THttpRequest);
-            requestId = Request_->GetRequestId();
+        Request_.Reset(new THttpRequest);
 
+        try {
+            const auto proxyName = GetProxyForHeavyRequest(Auth_);
             Request_->Connect(proxyName);
             Request_->StartRequest(header);
             Request_->FinishRequest();
 
             Input_ = Request_->GetResponseStream();
 
-            LOG_DEBUG("RSP %s - table stream", requestId.data());
+            LOG_DEBUG("RSP %s - table stream", Request_->GetRequestId().data());
 
+            return;
         } catch (TErrorResponse& e) {
-            LOG_ERROR("RSP %s - attempt %d failed",
-                requestId.data(), attempt);
+            LogRequestError(
+                *Request_,
+                header,
+                e.what(),
+                TStringBuilder() << "attempt " << attempt);
 
             if (!IsRetriable(e) || attempt == lastAttempt) {
                 throw;
             }
             NDetail::TWaitProxy::Get()->Sleep(GetBackoffDuration(e));
-            continue;
         } catch (yexception& e) {
-            LOG_ERROR("RSP %s - %s - attempt %d failed",
-                requestId.data(), e.what(), attempt);
+            LogRequestError(
+                *Request_,
+                header,
+                e.what(),
+                TStringBuilder() << "attempt " << attempt);
 
             if (Request_) {
                 Request_->InvalidateConnection();
@@ -182,10 +186,7 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
                 throw;
             }
             NDetail::TWaitProxy::Get()->Sleep(GetBackoffDuration(e));
-            continue;
         }
-
-        return;
     }
 }
 
