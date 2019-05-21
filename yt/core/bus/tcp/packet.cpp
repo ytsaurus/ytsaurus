@@ -173,7 +173,7 @@ void TPacketDecoder::NextMessagePartPhase()
     while (true) {
         ++PartIndex_;
         if (PartIndex_ == FixedHeader_.PartCount) {
-            Message_ = TSharedRefArray(std::move(Parts_));
+            Message_ = TSharedRefArray(std::move(Parts_), TSharedRefArray::TMoveParts{});
             SetFinished();
             break;
         }

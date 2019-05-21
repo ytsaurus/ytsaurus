@@ -407,7 +407,7 @@ private:
             currentPartIndex += partCount;
 
             auto& subrequestHeader = subrequest.RequestHeader;
-            TSharedRefArray subrequestMessage(std::move(subrequestParts));
+            TSharedRefArray subrequestMessage(std::move(subrequestParts), TSharedRefArray::TMoveParts{});
             if (!ParseRequestHeader(subrequestMessage, &subrequestHeader)) {
                 THROW_ERROR_EXCEPTION(
                     NRpc::EErrorCode::ProtocolError,

@@ -59,7 +59,7 @@ TSharedRefArray CreateRequestMessage(
     const TSharedRef& body,
     const std::vector<TSharedRef>& attachments)
 {
-    std::vector<TSharedRef> parts;
+    SmallVector<TSharedRef, TypicalMessagePartCount> parts;
     parts.reserve(2 + attachments.size());
 
     parts.push_back(SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::Request}, header));
@@ -70,14 +70,14 @@ TSharedRefArray CreateRequestMessage(
         parts.push_back(attachment);
     }
 
-    return TSharedRefArray(std::move(parts));
+    return TSharedRefArray(std::move(parts), TSharedRefArray::TMoveParts{});
 }
 
 TSharedRefArray CreateRequestMessage(
     const NProto::TRequestHeader& header,
     const TSharedRefArray& data)
 {
-    std::vector<TSharedRef> parts;
+    SmallVector<TSharedRef, TypicalMessagePartCount> parts;
     parts.reserve(1 + data.Size());
 
     parts.push_back(SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::Request}, header));
@@ -86,7 +86,7 @@ TSharedRefArray CreateRequestMessage(
         parts.push_back(part);
     }
 
-    return TSharedRefArray(std::move(parts));
+    return TSharedRefArray(std::move(parts), TSharedRefArray::TMoveParts{});
 }
 
 TSharedRefArray CreateRequestCancelationMessage(
@@ -101,7 +101,7 @@ TSharedRefArray CreateResponseMessage(
     const TSharedRef& body,
     const std::vector<TSharedRef>& attachments)
 {
-    std::vector<TSharedRef> parts;
+    SmallVector<TSharedRef, TypicalMessagePartCount> parts;
     parts.reserve(2 + attachments.size());
 
     parts.push_back(SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::Response}, header));
@@ -112,7 +112,7 @@ TSharedRefArray CreateResponseMessage(
         parts.push_back(attachment);
     }
 
-    return TSharedRefArray(std::move(parts));
+    return TSharedRefArray(std::move(parts), TSharedRefArray::TMoveParts{});
 }
 
 TSharedRefArray CreateResponseMessage(
@@ -160,7 +160,7 @@ TSharedRefArray CreateStreamingPayloadMessage(
     const NProto::TStreamingPayloadHeader& header,
     const std::vector<TSharedRef>& attachments)
 {
-    std::vector<TSharedRef> parts;
+    SmallVector<TSharedRef, TypicalMessagePartCount> parts;
     parts.reserve(1 + attachments.size());
 
     parts.push_back(SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::StreamingPayload}, header));
@@ -169,15 +169,16 @@ TSharedRefArray CreateStreamingPayloadMessage(
         parts.push_back(attachment);
     }
 
-    return TSharedRefArray(std::move(parts));
+    return TSharedRefArray(std::move(parts), TSharedRefArray::TMoveParts{});
 }
 
 TSharedRefArray CreateStreamingFeedbackMessage(
     const NProto::TStreamingFeedbackHeader& header)
 {
-    std::vector<TSharedRef> parts;
-    parts.push_back(SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::StreamingFeedback}, header));
-    return TSharedRefArray(std::move(parts));
+    std::array<TSharedRef, 1> parts{
+        SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::StreamingFeedback}, header)
+    };
+    return TSharedRefArray(std::move(parts), TSharedRefArray::TMoveParts{});
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -245,7 +246,7 @@ TSharedRefArray SetRequestHeader(
     Y_ASSERT(GetMessageType(message) == EMessageType::Request);
     auto parts = message.ToVector();
     parts[0] = SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::Request}, header);
-    return TSharedRefArray(parts);
+    return TSharedRefArray(std::move(parts), TSharedRefArray::TMoveParts{});
 }
 
 bool ParseResponseHeader(
@@ -266,7 +267,7 @@ TSharedRefArray SetResponseHeader(
     Y_ASSERT(GetMessageType(message) == EMessageType::Response);
     auto parts = message.ToVector();
     parts[0] = SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::Response}, header);
-    return TSharedRefArray(parts);
+    return TSharedRefArray(std::move(parts), TSharedRefArray::TMoveParts{});
 }
 
 void MergeRequestHeaderExtensions(
@@ -320,12 +321,12 @@ bool ParseStreamingFeedbackHeader(
 
 i64 GetMessageBodySize(const TSharedRefArray& message)
 {
-    return message.Size() >= 2 ? message[1].Size() : 0;
+    return message.Size() >= 2 ? static_cast<i64>(message[1].Size()) : 0;
 }
 
 int GetMessageAttachmentCount(const TSharedRefArray& message)
 {
-    return std::max(message.Size() - 2, 0);
+    return std::max(static_cast<int>(message.Size()) - 2, 0);
 }
 
 i64 GetTotalMessageAttachmentSize(const TSharedRefArray& message)

@@ -18,58 +18,30 @@ class TRef
 {
 public:
     //! Creates a null TRef.
-    TRef()
-    { }
+    TRef() = default;
 
     //! Creates a TRef for a given block of memory.
-    TRef(const void* data, size_t size)
-        : TRange<char>(static_cast<const char*>(data), size)
-    { }
+    TRef(const void* data, size_t size);
 
     //! Creates a TRef for a given range of memory.
-    TRef(const void* begin, const void* end)
-        : TRange<char>(static_cast<const char*>(begin), static_cast<const char*>(end))
-    { }
+    TRef(const void* begin, const void* end);
 
 
     //! Creates a non-owning TRef for a given blob.
-    static TRef FromBlob(const TBlob& blob)
-    {
-        return TRef(blob.Begin(), blob.Size());
-    }
+    static TRef FromBlob(const TBlob& blob);
 
     //! Creates a non-owning TRef for a given string.
-    static TRef FromString(const TString& str)
-    {
-        return TRef(str.data(), str.length());
-    }
+    static TRef FromString(const TString& str);
 
     //! Creates a non-owning TRef for a given pod structure.
     template <class T>
-    static TRef FromPod(const T& data)
-    {
-        static_assert(TTypeTraits<T>::IsPod || std::is_pod<T>::value, "T must be a pod-type.");
-        return TRef(&data, sizeof (data));
-    }
+    static TRef FromPod(const T& data);
 
     //! Creates a TRef for a part of existing range.
-    TRef Slice(size_t startOffset, size_t endOffset) const
-    {
-        Y_ASSERT(endOffset >= startOffset && endOffset <= Size());
-        return TRef(Begin() + startOffset, endOffset - startOffset);
-    }
+    TRef Slice(size_t startOffset, size_t endOffset) const;
 
     //! Compares the content for bitwise equality.
-    static bool AreBitwiseEqual(TRef lhs, TRef rhs)
-    {
-        if (lhs.Size() != rhs.Size()) {
-            return false;
-        }
-        if (lhs.Size() == 0) {
-            return true;
-        }
-        return ::memcmp(lhs.Begin(), rhs.Begin(), lhs.Size()) == 0;
-    }
+    static bool AreBitwiseEqual(TRef lhs, TRef rhs);
 };
 
 extern const TRef EmptyRef;
@@ -83,54 +55,31 @@ class TMutableRef
 {
 public:
     //! Creates a null TMutableRef.
-    TMutableRef()
-    { }
+    TMutableRef() = default;
 
     //! Creates a TMutableRef for a given block of memory.
-    TMutableRef(void* data, size_t size)
-        : TMutableRange<char>(static_cast<char*>(data), size)
-    { }
+    TMutableRef(void* data, size_t size);
 
     //! Creates a TMutableRef for a given range of memory.
-    TMutableRef(void* begin, void* end)
-        : TMutableRange<char>(static_cast<char*>(begin), static_cast<char*>(end))
-    { }
+    TMutableRef(void* begin, void* end);
 
     //! Converts a TMutableRef to TRef.
-    operator TRef() const
-    {
-        return TRef(Begin(), Size());
-    }
+    operator TRef() const;
 
 
     //! Creates a non-owning TMutableRef for a given blob.
-    static TMutableRef FromBlob(TBlob& blob)
-    {
-        return TMutableRef(blob.Begin(), blob.Size());
-    }
+    static TMutableRef FromBlob(TBlob& blob);
 
     //! Creates a non-owning TMutableRef for a given pod structure.
     template <class T>
-    static TMutableRef FromPod(T& data)
-    {
-        static_assert(TTypeTraits<T>::IsPod || std::is_pod<T>::value, "T must be a pod-type.");
-        return TMutableRef(&data, sizeof (data));
-    }
+    static TMutableRef FromPod(T& data);
 
     //! Creates a non-owning TMutableRef for a given string.
     //! Ensures that the string is not shared.
-    static TMutableRef FromString(TString& str)
-    {
-        // NB: begin() invokes CloneIfShared().
-        return TMutableRef(str.begin(), str.length());
-    }
+    static TMutableRef FromString(TString& str);
 
     //! Creates a TMutableRef for a part of existing range.
-    TMutableRef Slice(size_t startOffset, size_t endOffset) const
-    {
-        Y_ASSERT(endOffset >= startOffset && endOffset <= Size());
-        return TMutableRef(Begin() + startOffset, endOffset - startOffset);
-    }
+    TMutableRef Slice(size_t startOffset, size_t endOffset) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -148,115 +97,57 @@ class TSharedRef
 {
 public:
     //! Creates a null TSharedRef.
-    TSharedRef()
-    { }
+    TSharedRef() = default;
 
     //! Creates a TSharedRef with a given holder.
-    TSharedRef(TRef ref, THolderPtr holder)
-        : TSharedRange<char>(ref, std::move(holder))
-    { }
+    TSharedRef(TRef ref, THolderPtr holder);
 
     //! Creates a TSharedRef from a pointer and length.
-    TSharedRef(const void* data, size_t length, THolderPtr holder)
-        : TSharedRange<char>(static_cast<const char*>(data), length, std::move(holder))
-    { }
+    TSharedRef(const void* data, size_t length, THolderPtr holder);
 
     //! Creates a TSharedRange from a range.
-    TSharedRef(const void* begin, const void* end, THolderPtr holder)
-        : TSharedRange<char>(static_cast<const char*>(begin), static_cast<const char*>(end), std::move(holder))
-    { }
+    TSharedRef(const void* begin, const void* end, THolderPtr holder);
 
     //! Converts a TSharedRef to TRef.
-    operator TRef() const
-    {
-        return TRef(Begin(), Size());
-    }
+    operator TRef() const;
 
 
     //! Creates a TSharedRef from a string.
     //! Since strings are ref-counted, no data is copied.
     //! The memory is marked with a given tag.
     template <class TTag>
-    static TSharedRef FromString(TString str)
-    {
-        return FromString(std::move(str), GetRefCountedTypeCookie<TTag>());
-    }
+    static TSharedRef FromString(TString str);
 
     //! Creates a TSharedRef from a string.
     //! Since strings are ref-counted, no data is copied.
     //! The memory is marked with TDefaultSharedBlobTag.
-    static TSharedRef FromString(TString str)
-    {
-        return FromString<TDefaultSharedBlobTag>(std::move(str));
-    }
+    static TSharedRef FromString(TString str);
 
     //! Creates a TSharedRef reference from a string.
     //! Since strings are ref-counted, no data is copied.
     //! The memory is marked with a given tag.
-    static TSharedRef FromString(TString str, TRefCountedTypeCookie tagCookie)
-    {
-        auto ref = TRef::FromString(str);
-        auto holder = New<TStringHolder>(std::move(str), tagCookie);
-        return TSharedRef(ref, std::move(holder));
-    }
+    static TSharedRef FromString(TString str, TRefCountedTypeCookie tagCookie);
 
     //! Creates a TSharedRef for a given blob taking ownership of its content.
-    static TSharedRef FromBlob(TBlob&& blob)
-    {
-        auto ref = TRef::FromBlob(blob);
-        auto holder = New<TBlobHolder>(std::move(blob));
-        return TSharedRef(ref, std::move(holder));
-    }
+    static TSharedRef FromBlob(TBlob&& blob);
 
     //! Creates a copy of a given TRef.
     //! The memory is marked with a given tag.
-    static TSharedRef MakeCopy(TRef ref, TRefCountedTypeCookie tagCookie)
-    {
-        auto blob = TBlob(tagCookie, ref.Size(), false, 1);
-        ::memcpy(blob.Begin(), ref.Begin(), ref.Size());
-        return FromBlob(std::move(blob));
-    }
+    static TSharedRef MakeCopy(TRef ref, TRefCountedTypeCookie tagCookie);
 
     //! Creates a copy of a given TRef.
     //! The memory is marked with a given tag.
     template <class TTag>
-    static TSharedRef MakeCopy(TRef ref)
-    {
-        return MakeCopy(ref, GetRefCountedTypeCookie<TTag>());
-    }
+    static TSharedRef MakeCopy(TRef ref);
 
     //! Creates a TSharedRef for a part of existing range.
-    TSharedRef Slice(size_t startOffset, size_t endOffset) const
-    {
-        Y_ASSERT(endOffset >= startOffset && endOffset <= Size());
-        return TSharedRef(Begin() + startOffset, endOffset - startOffset, Holder_);
-    }
+    TSharedRef Slice(size_t startOffset, size_t endOffset) const;
 
     //! Creates a TSharedRef for a part of existing range.
-    TSharedRef Slice(const void* begin, const void* end) const
-    {
-        Y_ASSERT(begin >= Begin());
-        Y_ASSERT(end <= End());
-        return TSharedRef(begin, end, Holder_);
-    }
+    TSharedRef Slice(const void* begin, const void* end) const;
 
     //! Creates a vector of slices with specified size.
-    std::vector<TSharedRef> Split(size_t partSize) const
-    {
-        YCHECK(partSize > 0);
-        std::vector<TSharedRef> result;
-        result.reserve(Size() / partSize + 1);
-        auto sliceBegin = Begin();
-        while (sliceBegin < End()) {
-            auto sliceEnd = sliceBegin + partSize;
-            if (sliceEnd < sliceBegin || sliceEnd > End()) {
-                sliceEnd = End();
-            }
-            result.push_back(Slice(sliceBegin, sliceEnd));
-            sliceBegin = sliceEnd;
-        }
-        return result;
-    }
+    std::vector<TSharedRef> Split(size_t partSize) const;
 
 private:
     class TBlobHolder
@@ -295,106 +186,57 @@ class TSharedMutableRef
 {
 public:
     //! Creates a null TSharedMutableRef.
-    TSharedMutableRef()
-    { }
+    TSharedMutableRef() = default;
 
     //! Creates a TSharedMutableRef with a given holder.
-    TSharedMutableRef(const TMutableRef& ref, THolderPtr holder)
-        : TSharedMutableRange<char>(ref, std::move(holder))
-    { }
+    TSharedMutableRef(const TMutableRef& ref, THolderPtr holder);
 
     //! Creates a TSharedMutableRef from a pointer and length.
-    TSharedMutableRef(void* data, size_t length, THolderPtr holder)
-        : TSharedMutableRange<char>(static_cast<char*>(data), length, std::move(holder))
-    { }
+    TSharedMutableRef(void* data, size_t length, THolderPtr holder);
 
     //! Creates a TSharedMutableRange from a range.
-    TSharedMutableRef(void* begin, void* end, THolderPtr holder)
-        : TSharedMutableRange<char>(static_cast<char*>(begin), static_cast<char*>(end), std::move(holder))
-    { }
+    TSharedMutableRef(void* begin, void* end, THolderPtr holder);
 
     //! Converts a TSharedMutableRef to TMutableRef.
-    operator TMutableRef() const
-    {
-        return TMutableRef(Begin(), Size());
-    }
+    operator TMutableRef() const;
 
     //! Converts a TSharedMutableRef to TSharedRef.
-    operator TSharedRef() const
-    {
-        return TSharedRef(Begin(), Size(), Holder_);
-    }
+    operator TSharedRef() const;
 
     //! Converts a TSharedMutableRef to TRef.
-    operator TRef() const
-    {
-        return TRef(Begin(), Size());
-    }
+    operator TRef() const;
 
 
     //! Allocates a new shared block of memory.
     //! The memory is marked with a given tag.
     template <class TTag>
-    static TSharedMutableRef Allocate(size_t size, bool initializeStorage = true)
-    {
-        return Allocate(size, initializeStorage, GetRefCountedTypeCookie<TTag>());
-    }
+    static TSharedMutableRef Allocate(size_t size, bool initializeStorage = true);
 
     //! Allocates a new shared block of memory.
     //! The memory is marked with TDefaultSharedBlobTag.
-    static TSharedMutableRef Allocate(size_t size, bool initializeStorage = true)
-    {
-        return Allocate<TDefaultSharedBlobTag>(size, initializeStorage);
-    }
+    static TSharedMutableRef Allocate(size_t size, bool initializeStorage = true);
 
     //! Allocates a new shared block of memory.
     //! The memory is marked with a given tag.
-    static TSharedMutableRef Allocate(size_t size, bool initializeStorage, TRefCountedTypeCookie tagCookie)
-    {
-        auto holder = NewWithExtraSpace<TAllocationHolder>(size, size, initializeStorage, tagCookie);
-        auto ref = holder->GetRef();
-        return TSharedMutableRef(ref, std::move(holder));
-    }
+    static TSharedMutableRef Allocate(size_t size, bool initializeStorage, TRefCountedTypeCookie tagCookie);
 
     //! Creates a TSharedMutableRef for the whole blob taking ownership of its content.
-    static TSharedMutableRef FromBlob(TBlob&& blob)
-    {
-        auto ref = TMutableRef::FromBlob(blob);
-        auto holder = New<TBlobHolder>(std::move(blob));
-        return TSharedMutableRef(ref, std::move(holder));
-    }
+    static TSharedMutableRef FromBlob(TBlob&& blob);
 
     //! Creates a copy of a given TRef.
     //! The memory is marked with a given tag.
-    static TSharedMutableRef MakeCopy(TRef ref, TRefCountedTypeCookie tagCookie)
-    {
-        auto blob = TBlob(tagCookie, ref.Size(), false);
-        ::memcpy(blob.Begin(), ref.Begin(), ref.Size());
-        return FromBlob(std::move(blob));
-    }
+    static TSharedMutableRef MakeCopy(TRef ref, TRefCountedTypeCookie tagCookie);
 
     //! Creates a copy of a given TRef.
     //! The memory is marked with a given tag.
     template <class TTag>
-    static TSharedMutableRef MakeCopy(TRef ref)
-    {
-        return MakeCopy(ref, GetRefCountedTypeCookie<TTag>());
-    }
+    static TSharedMutableRef MakeCopy(TRef ref);
 
     //! Creates a reference for a part of existing range.
-    TSharedMutableRef Slice(size_t startOffset, size_t endOffset) const
-    {
-        Y_ASSERT(endOffset >= startOffset && endOffset <= Size());
-        return TSharedMutableRef(Begin() + startOffset, endOffset - startOffset, Holder_);
-    }
+    TSharedMutableRef Slice(size_t startOffset, size_t endOffset) const;
 
     //! Creates a reference for a part of existing range.
-    TSharedMutableRef Slice(void* begin, void* end) const
-    {
-        Y_ASSERT(begin >= Begin());
-        Y_ASSERT(end <= End());
-        return TSharedMutableRef(begin, end, Holder_);
-    }
+    TSharedMutableRef Slice(void* begin, void* end) const;
 
 private:
     class TBlobHolder
@@ -431,15 +273,22 @@ private:
 class TSharedRefArray
 {
 public:
-    TSharedRefArray();
+    TSharedRefArray() = default;
     TSharedRefArray(const TSharedRefArray& other);
     TSharedRefArray(TSharedRefArray&& other) noexcept;
-    ~TSharedRefArray();
 
     explicit TSharedRefArray(const TSharedRef& part);
     explicit TSharedRefArray(TSharedRef&& part);
-    explicit TSharedRefArray(const std::vector<TSharedRef>& parts);
-    explicit TSharedRefArray(std::vector<TSharedRef>&& parts);
+
+    struct TCopyParts
+    { };
+    struct TMoveParts
+    { };
+
+    template <class TParts>
+    TSharedRefArray(const TParts& parts, TCopyParts);
+    template <class TParts>
+    TSharedRefArray(TParts&& parts, TMoveParts);
 
     TSharedRefArray& operator = (const TSharedRefArray& other);
     TSharedRefArray& operator = (TSharedRefArray&& other);
@@ -448,10 +297,10 @@ public:
 
     void Reset();
 
-    int Size() const;
+    size_t Size() const;
     i64 ByteSize() const;
     bool Empty() const;
-    const TSharedRef& operator [] (int index) const;
+    const TSharedRef& operator [] (size_t index) const;
 
     const TSharedRef* Begin() const;
     const TSharedRef* End() const;
@@ -467,18 +316,13 @@ private:
 
     explicit TSharedRefArray(TIntrusivePtr<TImpl> impl);
 
+    template <class... As>
+    static TIntrusivePtr<TImpl> NewImpl(size_t size, As... args);
 };
 
 // STL interop.
-inline const TSharedRef* begin(const TSharedRefArray& array)
-{
-    return array.Begin();
-}
-
-inline const TSharedRef* end(const TSharedRefArray& array)
-{
-    return array.End();
-}
+const TSharedRef* begin(const TSharedRefArray& array);
+const TSharedRef* end(const TSharedRefArray& array);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -490,33 +334,16 @@ TString ToString(const TSharedMutableRef& ref);
 size_t GetPageSize();
 size_t RoundUpToPage(size_t bytes);
 
+size_t GetByteSize(TRef ref);
+size_t GetByteSize(const TSharedRefArray& array);
 template <class T>
-size_t GetByteSize(const std::vector<T>& parts)
-{
-    size_t size = 0;
-    for (const auto& part : parts) {
-        size += part.Size();
-    }
-    return size;
-}
-
-inline size_t GetByteSize(TRef ref)
-{
-    return ref ? ref.Size() : 0;
-}
-
-inline size_t GetByteSize(const TSharedRefArray& array)
-{
-    size_t size = 0;
-    if (array) {
-        for (const auto& part : array) {
-            size += part.Size();
-        }
-    }
-    return size;
-}
+size_t GetByteSize(const std::vector<T>& parts);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+#define REF_INL_H_
+#include "ref-inl.h"
+#undef REF_INL_H_
 

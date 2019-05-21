@@ -96,13 +96,15 @@ extern const TString RootUserName;
 using TNetworkId = int;
 constexpr TNetworkId DefaultNetworkId = 0;
 
+constexpr int TypicalMessagePartCount = 8;
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(EMultiplexingBand,
     ((Default)               (0))
     ((Control)               (1))
     ((Heavy)                 (2))
 );
-
-////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EErrorCode,
     ((TransportError)               (static_cast<int>(NBus::EErrorCode::TransportError)))
@@ -117,8 +119,6 @@ DEFINE_ENUM(EErrorCode,
     ((InvalidCredentials)           (111))
     ((StreamingNotSupported)        (112))
 );
-
-////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EMessageFormat,
     ((Protobuf)    (0))

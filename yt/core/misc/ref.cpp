@@ -14,6 +14,82 @@ const TSharedRef EmptySharedRef(EmptyRef, nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TRef::AreBitwiseEqual(TRef lhs, TRef rhs)
+{
+    if (lhs.Size() != rhs.Size()) {
+        return false;
+    }
+    if (lhs.Size() == 0) {
+        return true;
+    }
+    return ::memcmp(lhs.Begin(), rhs.Begin(), lhs.Size()) == 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSharedRef TSharedRef::FromString(TString str, TRefCountedTypeCookie tagCookie)
+{
+    auto ref = TRef::FromString(str);
+    auto holder = New<TStringHolder>(std::move(str), tagCookie);
+    return TSharedRef(ref, std::move(holder));
+}
+
+TSharedRef TSharedRef::FromBlob(TBlob&& blob)
+{
+    auto ref = TRef::FromBlob(blob);
+    auto holder = New<TBlobHolder>(std::move(blob));
+    return TSharedRef(ref, std::move(holder));
+}
+
+TSharedRef TSharedRef::MakeCopy(TRef ref, TRefCountedTypeCookie tagCookie)
+{
+    auto blob = TBlob(tagCookie, ref.Size(), false, 1);
+    ::memcpy(blob.Begin(), ref.Begin(), ref.Size());
+    return FromBlob(std::move(blob));
+}
+
+std::vector<TSharedRef> TSharedRef::Split(size_t partSize) const
+{
+    YCHECK(partSize > 0);
+    std::vector<TSharedRef> result;
+    result.reserve(Size() / partSize + 1);
+    auto sliceBegin = Begin();
+    while (sliceBegin < End()) {
+        auto sliceEnd = sliceBegin + partSize;
+        if (sliceEnd < sliceBegin || sliceEnd > End()) {
+            sliceEnd = End();
+        }
+        result.push_back(Slice(sliceBegin, sliceEnd));
+        sliceBegin = sliceEnd;
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSharedMutableRef TSharedMutableRef::Allocate(size_t size, bool initializeStorage, TRefCountedTypeCookie tagCookie)
+{
+    auto holder = NewWithExtraSpace<TAllocationHolder>(size, size, initializeStorage, tagCookie);
+    auto ref = holder->GetRef();
+    return TSharedMutableRef(ref, std::move(holder));
+}
+
+TSharedMutableRef TSharedMutableRef::FromBlob(TBlob&& blob)
+{
+    auto ref = TMutableRef::FromBlob(blob);
+    auto holder = New<TBlobHolder>(std::move(blob));
+    return TSharedMutableRef(ref, std::move(holder));
+}
+
+TSharedMutableRef TSharedMutableRef::MakeCopy(TRef ref, TRefCountedTypeCookie tagCookie)
+{
+    auto blob = TBlob(tagCookie, ref.Size(), false);
+    ::memcpy(blob.Begin(), ref.Begin(), ref.Size());
+    return FromBlob(std::move(blob));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSharedRef::TBlobHolder::TBlobHolder(TBlob&& blob)
     : Blob_(std::move(blob))
 { }
@@ -91,7 +167,7 @@ TString ToString(const TMutableRef& ref)
     return ToString(TRef(ref));
 }
 
-TString     ToString(const TSharedRef& ref)
+TString ToString(const TSharedRef& ref)
 {
     return ToString(TRef(ref));
 }
@@ -114,159 +190,18 @@ size_t RoundUpToPage(size_t bytes)
     return (bytes + PageSize - 1) & (~(PageSize - 1));
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-class TSharedRefArray::TImpl
-    : public TIntrinsicRefCounted
+size_t GetByteSize(const TSharedRefArray& array)
 {
-public:
-    TImpl() = default;
-
-    explicit TImpl(int size)
-        : Parts(size)
-    { }
-
-    explicit TImpl(const TSharedRef& part)
-    {
-        Parts.push_back(part);
-    }
-
-    explicit TImpl(TSharedRef&& part)
-        : Parts(1)
-    {
-        Parts[0] = std::move(part);
-    }
-
-    explicit TImpl(const std::vector<TSharedRef>& parts)
-        : Parts(parts.begin(), parts.end())
-    { }
-
-    explicit TImpl(std::vector<TSharedRef>&& parts)
-        : Parts(parts.size())
-    {
-        for (int index = 0; index < static_cast<int>(parts.size()); ++index) {
-            Parts[index] = std::move(parts[index]);
+    size_t size = 0;
+    if (array) {
+        for (const auto& part : array) {
+            size += part.Size();
         }
     }
-
-
-    int Size() const
-    {
-        return static_cast<int>(Parts.size());
-    }
-
-    bool Empty() const
-    {
-        return Parts.empty();
-    }
-
-    const TSharedRef& operator [] (int index) const
-    {
-        Y_ASSERT(index >= 0 && index < Size());
-        return Parts[index];
-    }
-
-
-    const TSharedRef* Begin() const
-    {
-        return Parts.data();
-    }
-
-    const TSharedRef* End() const
-    {
-        return Parts.data() + Parts.size();
-    }
-
-
-    std::vector<TSharedRef> ToVector() const
-    {
-        return std::vector<TSharedRef>(Parts.begin(), Parts.end());
-    }
-
-
-    TSharedRef Pack() const
-    {
-        return PackRefs(Parts);
-    }
-
-    static TIntrusivePtr<TImpl> Unpack(const TSharedRef& packedRef)
-    {
-        if (!packedRef) {
-            return nullptr;
-        }
-
-        std::vector<TSharedRef> parts;
-        UnpackRefs(packedRef, &parts);
-        return New<TImpl>(std::move(parts));
-    }
-
-private:
-    SmallVector<TSharedRef, 4> Parts;
-
-};
+    return size;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TSharedRefArray::TSharedRefArray(TIntrusivePtr<TImpl> impl)
-    : Impl_(std::move(impl))
-{ }
-
-TSharedRefArray::TSharedRefArray()
-{ }
-
-TSharedRefArray::TSharedRefArray(const TSharedRefArray& other)
-    : Impl_(other.Impl_)
-{ }
-
-TSharedRefArray::TSharedRefArray(TSharedRefArray&& other) noexcept
-    : Impl_(std::move(other.Impl_))
-{ }
-
-TSharedRefArray::~TSharedRefArray()
-{ }
-
-TSharedRefArray::TSharedRefArray(const TSharedRef& part)
-    : Impl_(New<TImpl>(part))
-{ }
-
-TSharedRefArray::TSharedRefArray(TSharedRef&& part)
-    : Impl_(New<TImpl>(std::move(part)))
-{ }
-
-TSharedRefArray::TSharedRefArray(const std::vector<TSharedRef>& parts)
-    : Impl_(New<TImpl>(parts))
-{ }
-
-TSharedRefArray::TSharedRefArray(std::vector<TSharedRef>&& parts)
-    : Impl_(New<TImpl>(std::move(parts)))
-{ }
-
-TSharedRefArray& TSharedRefArray::operator=(const TSharedRefArray& other)
-{
-    Impl_ = other.Impl_;
-    return *this;
-}
-
-TSharedRefArray& TSharedRefArray::operator=(TSharedRefArray&& other)
-{
-    Impl_ = std::move(other.Impl_);
-    return *this;
-}
-
-void TSharedRefArray::Reset()
-{
-    Impl_.Reset();
-}
-
-TSharedRefArray::operator bool() const
-{
-    return Impl_.operator bool();
-}
-
-int TSharedRefArray::Size() const
-{
-    return Impl_ ? Impl_->Size() : 0;
-}
 
 i64 TSharedRefArray::ByteSize() const
 {
@@ -279,40 +214,33 @@ i64 TSharedRefArray::ByteSize() const
     return result;
 }
 
-bool TSharedRefArray::Empty() const
-{
-    return Impl_ ? Impl_->Empty() : true;
-}
-
-const TSharedRef& TSharedRefArray::operator[](int index) const
-{
-    Y_ASSERT(Impl_);
-    return (*Impl_)[index];
-}
-
-const TSharedRef* TSharedRefArray::Begin() const
-{
-    return Impl_ ? Impl_->Begin() : nullptr;
-}
-
-const TSharedRef* TSharedRefArray::End() const
-{
-    return Impl_ ? Impl_->End() : nullptr;
-}
-
 TSharedRef TSharedRefArray::Pack() const
 {
-    return Impl_ ? Impl_->Pack() : TSharedRef();
+    if (!Impl_) {
+        return {};
+    }
+
+    return PackRefs(MakeRange(Begin(), End()));
 }
 
 TSharedRefArray TSharedRefArray::Unpack(const TSharedRef& packedRef)
 {
-    return TSharedRefArray(TImpl::Unpack(packedRef));
+    if (!packedRef) {
+        return {};
+    }
+
+    std::vector<TSharedRef> parts;
+    UnpackRefs(packedRef, &parts);
+    return TSharedRefArray(NewImpl(static_cast<int>(parts.size()), std::move(parts), TMoveParts{}));
 }
 
 std::vector<TSharedRef> TSharedRefArray::ToVector() const
 {
-    return Impl_ ? Impl_->ToVector() : std::vector<TSharedRef>();
+    if (!Impl_) {
+        return {};
+    }
+
+    return std::vector<TSharedRef>(Begin(), End());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

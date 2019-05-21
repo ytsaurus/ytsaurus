@@ -1331,7 +1331,7 @@ void TObjectManager::HydraExecuteFollower(NProto::TReqExecute* request)
         parts[partIndex] = TSharedRef::FromString(request->request_parts(partIndex));
     }
 
-    auto requestMessage = TSharedRefArray(std::move(parts));
+    auto requestMessage = TSharedRefArray(std::move(parts), TSharedRefArray::TMoveParts{});
     auto context = CreateYPathContext(std::move(requestMessage));
     auto codicilData = MakeCodicilData(userName);
     HydraExecuteLeader(userName, codicilData, std::move(context), nullptr);
