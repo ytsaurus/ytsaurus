@@ -246,6 +246,16 @@ TRequestId TServiceContextBase::GetRequestId() const
     return RequestId_;
 }
 
+TTcpDispatcherStatistics TServiceContextBase::GetBusStatistics() const
+{
+    return {};
+}
+
+const IAttributeDictionary& TServiceContextBase::GetEndpointAttributes() const
+{
+    return EmptyAttributes();
+}
+
 std::optional<TInstant> TServiceContextBase::GetStartTime() const
 {
     return RequestHeader_->has_start_time()

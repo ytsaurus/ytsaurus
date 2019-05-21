@@ -25,6 +25,8 @@ public:
     virtual TSharedRefArray GetRequestMessage() const override;
 
     virtual TRequestId GetRequestId() const override;
+    virtual NYT::NBus::TTcpDispatcherStatistics GetBusStatistics() const override;
+    virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
 
     virtual std::optional<TInstant> GetStartTime() const override;
     virtual std::optional<TDuration> GetTimeout() const override;
