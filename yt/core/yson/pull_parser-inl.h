@@ -474,8 +474,7 @@ TYsonItem TYsonPullParser::Next()
         Lexer_.CheckpointContext();
         return NextImpl();
     } catch (const std::exception& ex) {
-        auto context = Lexer_.GetContextFromCheckpoint();
-        auto contextPosition = Lexer_.GetContextPosition();
+        auto [context, contextPosition] = Lexer_.GetContextFromCheckpoint();
         TStringStream markedContext;
         markedContext << EscapeC(context.substr(0, contextPosition)) << "  ERROR>>>  " << EscapeC(context.substr(contextPosition));
         THROW_ERROR_EXCEPTION("Error occurred while parsing YSON")
