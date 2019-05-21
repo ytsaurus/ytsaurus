@@ -361,4 +361,54 @@ Y_UNIT_TEST_SUITE(YtNodeTest) {
                 "{\"i\"=\"i\";\"ii\"=\"ii\";\"jj\"=\"jj\"};"
             "\"c\"=\"c\";\"ca\"=\"ca\"}");
     }
+
+    Y_UNIT_TEST(TestMapGetters) {
+        auto node = TNode::CreateMap()
+            ("string", "7")
+            ("int64", 3)
+            ("uint64", 5u)
+            ("double", -3.5)
+            ("list", TNode::CreateList().Add(5))
+            ("map", TNode::CreateMap()("key", "value"));
+        UNIT_ASSERT_VALUES_EQUAL(node.ChildAsString("string"), "7");
+        UNIT_ASSERT_VALUES_EQUAL(node.ChildConvertTo<i64>("string"), 7);
+
+        UNIT_ASSERT_VALUES_EQUAL(node.ChildAsInt64("int64"), 3);
+        UNIT_ASSERT_VALUES_EQUAL(node.ChildIntCast<ui64>("int64"), 3u);
+
+        UNIT_ASSERT_VALUES_EQUAL(node.ChildAsUint64("uint64"), 5u);
+        UNIT_ASSERT_VALUES_EQUAL(node.ChildIntCast<i64>("uint64"), 5);
+        UNIT_ASSERT_VALUES_EQUAL(node.ChildConvertTo<TString>("uint64"), "5");
+
+        UNIT_ASSERT_VALUES_EQUAL(node.ChildAsDouble("double"), -3.5);
+        UNIT_ASSERT_VALUES_EQUAL(node.ChildConvertTo<TString>("double"), "-3.5");
+
+        UNIT_ASSERT_VALUES_EQUAL(node.ChildAsList("list")[0].AsInt64(), 5);
+        UNIT_ASSERT_VALUES_EQUAL(node.ChildAsMap("map")["key"].AsString(), "value");
+    }
+
+    Y_UNIT_TEST(TestListGetters) {
+        auto node = TNode::CreateList()
+            .Add("7")
+            .Add(3)
+            .Add(5u)
+            .Add(-3.5)
+            .Add(TNode::CreateList().Add(5))
+            .Add(TNode::CreateMap()("key", "value"));
+        UNIT_ASSERT_VALUES_EQUAL(node.ChildAsString(0), "7");
+        UNIT_ASSERT_VALUES_EQUAL(node.ChildConvertTo<i64>(0), 7);
+
+        UNIT_ASSERT_VALUES_EQUAL(node.ChildAsInt64(1), 3);
+        UNIT_ASSERT_VALUES_EQUAL(node.ChildIntCast<ui64>(1), 3u);
+
+        UNIT_ASSERT_VALUES_EQUAL(node.ChildAsUint64(2), 5u);
+        UNIT_ASSERT_VALUES_EQUAL(node.ChildIntCast<i64>(2), 5);
+        UNIT_ASSERT_VALUES_EQUAL(node.ChildConvertTo<TString>(2), "5");
+
+        UNIT_ASSERT_VALUES_EQUAL(node.ChildAsDouble(3), -3.5);
+        UNIT_ASSERT_VALUES_EQUAL(node.ChildConvertTo<TString>(3), "-3.5");
+
+        UNIT_ASSERT_VALUES_EQUAL(node.ChildAsList(4)[0].AsInt64(), 5);
+        UNIT_ASSERT_VALUES_EQUAL(node.ChildAsMap(5)["key"].AsString(), "value");
+    }
 }
