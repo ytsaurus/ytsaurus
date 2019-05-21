@@ -168,6 +168,8 @@ public:
 
     const TNode& operator[](size_t index) const;
     TNode& operator[](size_t index);
+    const TNode& At(size_t index) const;
+    TNode& At(size_t index);
 
     TNode& Add() &;
     TNode Add() &&;
@@ -186,6 +188,44 @@ public:
     const TNode& operator[](const TStringBuf key) const;
     TNode& operator[](const TStringBuf key);
     const TNode& At(const TStringBuf key) const;
+    TNode& At(const TStringBuf key);
+
+    // map getters
+    // works the same way like simple getters
+    const TString& ChildAsString(const TStringBuf key) const;
+    i64 ChildAsInt64(const TStringBuf key) const;
+    ui64 ChildAsUint64(const TStringBuf key) const;
+    double ChildAsDouble(const TStringBuf key) const;
+    bool ChildAsBool(const TStringBuf key) const;
+    const TListType& ChildAsList(const TStringBuf key) const;
+    const TMapType& ChildAsMap(const TStringBuf key) const;
+    TListType& ChildAsList(const TStringBuf key);
+    TMapType& ChildAsMap(const TStringBuf key);
+
+    template<typename T>
+    T ChildIntCast(const TStringBuf key) const;
+
+    template<typename T>
+    T ChildConvertTo(const TStringBuf key) const;
+
+    // list getters
+    // works the same way like simple getters
+    const TString& ChildAsString(size_t index) const;
+    i64 ChildAsInt64(size_t index) const;
+    ui64 ChildAsUint64(size_t index) const;
+    double ChildAsDouble(size_t index) const;
+    bool ChildAsBool(size_t index) const;
+    const TListType& ChildAsList(size_t index) const;
+    const TMapType& ChildAsMap(size_t index) const;
+    TListType& ChildAsList(size_t index);
+    TMapType& ChildAsMap(size_t index);
+
+    template<typename T>
+    T ChildIntCast(size_t index) const;
+
+    template<typename T>
+    T ChildConvertTo(size_t index) const;
+
 
     // attributes
     bool HasAttributes() const;
@@ -336,18 +376,70 @@ inline bool TNode::ConvertTo<bool>() const {
 }
 
 template<typename T>
+inline T TNode::ChildIntCast(const TStringBuf key) const {
+    const auto& node = At(key);
+    try {
+        return node.IntCast<T>();
+    } catch (TTypeError& e) {
+        e << ", during getting key=" << key;
+        throw e;
+    } catch (...) {
+        ythrow TTypeError() << CurrentExceptionMessage() << ", during getting key=" << key;
+    }
+}
+
+template<typename T>
+inline T TNode::ChildIntCast(size_t index) const {
+    const auto& node = At(index);
+    try {
+        return node.IntCast<T>();
+    } catch (TTypeError& e) {
+        e << ", during getting index=" << index;
+        throw e;
+    } catch (...) {
+        ythrow TTypeError() << CurrentExceptionMessage() << ", during getting index=" << index;
+    }
+}
+
+template<typename T>
+inline T TNode::ChildConvertTo(const TStringBuf key) const {
+    const auto& node = At(key);
+    try {
+        return node.ConvertTo<T>();
+    } catch (TTypeError& e) {
+        e << ", during getting key=" << key;
+        throw e;
+    } catch (...) {
+        ythrow TTypeError() << CurrentExceptionMessage() << ", during getting key=" << key;
+    }
+}
+
+template<typename T>
+inline T TNode::ChildConvertTo(size_t index) const {
+    const auto& node = At(index);
+    try {
+        return node.ConvertTo<T>();
+    } catch (TTypeError& e) {
+        e << ", during getting index=" << index;
+        throw e;
+    } catch (...) {
+        ythrow TTypeError() << CurrentExceptionMessage() << ", during getting index=" << index;
+    }
+}
+
+template<typename T>
 inline bool TNode::IsOfType() const noexcept {
     return ::HoldsAlternative<T>(Value_);
 }
 
 template<typename T>
 inline T& TNode::As() {
-    return Get<T>(Value_);
+    return ::Get<T>(Value_);
 }
 
 template<typename T>
 inline const T& TNode::As() const {
-    return Get<T>(Value_);
+    return ::Get<T>(Value_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
