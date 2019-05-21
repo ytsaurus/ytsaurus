@@ -56,6 +56,8 @@ private:
     const TExecNodeDescriptor NodeDescriptor_;
     const THashSet<TString> NodeTags_;
 
+    std::vector<i64> DiskRequests_;
+
     bool CanSatisfyResourceRequest(const TJobResources& jobResources) const;
 };
 

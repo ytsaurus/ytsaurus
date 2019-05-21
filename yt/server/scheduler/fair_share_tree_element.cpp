@@ -2642,7 +2642,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
     }
 
     const auto& startDescriptor = *scheduleJobResult->StartDescriptor;
-    if (!OnJobStarted(startDescriptor.Id, startDescriptor.ResourceLimits, precommittedResources)) {
+    if (!OnJobStarted(startDescriptor.Id, startDescriptor.ResourceLimits.ToJobResources(), precommittedResources)) {
         Controller_->AbortJob(startDescriptor.Id, EAbortReason::SchedulingOperationDisabled);
         disableOperationElement(EDeactivationReason::OperationDisabled);
         SharedState_->IncreaseHierarchicalResourceUsagePrecommit(-precommittedResources);
@@ -2650,7 +2650,6 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
         return false;
     }
 
-    context->SchedulingContext->ResourceUsage() += startDescriptor.ResourceLimits;
     context->SchedulingContext->StartJob(
         GetTreeId(),
         OperationId_,
@@ -2951,7 +2950,7 @@ TControllerScheduleJobResultPtr TOperationElement::DoScheduleJob(
     if (scheduleJobResult->StartDescriptor) {
         const auto& startDescriptor = *scheduleJobResult->StartDescriptor;
         // Note: resourceDelta might be negative.
-        const auto resourceDelta = startDescriptor.ResourceLimits - *precommittedResources;
+        const auto resourceDelta = startDescriptor.ResourceLimits.ToJobResources() - *precommittedResources;
         bool successfullyPrecommitted = TryIncreaseHierarchicalResourceUsagePrecommit(resourceDelta);
         if (successfullyPrecommitted) {
             *precommittedResources += resourceDelta;

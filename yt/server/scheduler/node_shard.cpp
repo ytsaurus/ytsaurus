@@ -1277,7 +1277,7 @@ void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
         result->StartDescriptor.emplace(
             jobId,
             static_cast<EJobType>(response.job_type()),
-            FromProto<TJobResources>(response.resource_limits()),
+            FromProto<TJobResourcesWithQuota>(response.resource_limits()),
             response.interruptible());
     }
     for (const auto& protoCounter : response.failed()) {
