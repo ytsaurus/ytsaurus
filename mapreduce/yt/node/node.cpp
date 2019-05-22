@@ -145,14 +145,18 @@ TNode::TNode(TMapType map)
 TNode::TNode(const TNode& rhs)
     : TNode()
 {
-    Copy(rhs);
+    if (rhs.Attributes_) {
+        CreateAttributes();
+        *Attributes_ = *rhs.Attributes_;
+    }
+    Value_ = rhs.Value_;
 }
 
 TNode& TNode::operator=(const TNode& rhs)
 {
     if (this != &rhs) {
-        Clear();
-        Copy(rhs);
+        TNode tmp = rhs;
+        Move(std::move(tmp));
     }
     return *this;
 }
@@ -160,15 +164,14 @@ TNode& TNode::operator=(const TNode& rhs)
 TNode::TNode(TNode&& rhs)
     : TNode()
 {
-    if (this != &rhs) {
-        Move(std::move(rhs));
-    }
+    Move(std::move(rhs));
 }
 
 TNode& TNode::operator=(TNode&& rhs)
 {
     if (this != &rhs) {
-        Move(std::move(rhs));
+        TNode tmp = std::move(rhs);
+        Move(std::move(tmp));
     }
     return *this;
 }
@@ -789,18 +792,6 @@ void TNode::MoveWithoutAttributes(TNode&& rhs)
 {
     Value_ = std::move(rhs.Value_);
     rhs.Clear();
-}
-
-void TNode::Copy(const TNode& rhs)
-{
-    if (rhs.Attributes_) {
-        if (!Attributes_) {
-            CreateAttributes();
-        }
-        *Attributes_ = *rhs.Attributes_;
-    }
-
-    Value_ = rhs.Value_;
 }
 
 void TNode::Move(TNode&& rhs)
