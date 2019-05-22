@@ -416,7 +416,7 @@ void TGetJobCommand::DoExecute(ICommandContextPtr context)
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
-    ProduceSingleOutputValue(context, "job", result);
+    context->ProduceOutputValue(result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
