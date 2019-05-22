@@ -162,6 +162,29 @@ TEST(TValidateLogicalTypeTest, TestComplexOptionalType)
     EXPECT_BAD_TYPE(optionalOptionalInt, " [] ");
     EXPECT_BAD_TYPE(optionalOptionalInt, " [5; 5] ");
 
+    const auto optionalListInt = OptionalLogicalType(
+        ListLogicalType(
+            SimpleLogicalType(ESimpleLogicalValueType::Int64, true)
+        )
+    );
+    EXPECT_GOOD_TYPE(optionalListInt, "[5]");
+    EXPECT_GOOD_TYPE(optionalListInt, "[5; 5]");
+    EXPECT_GOOD_TYPE(optionalListInt, "[]");
+    EXPECT_BAD_TYPE(optionalListInt, "[[5]]");
+
+    const auto optionalOptionalListInt = OptionalLogicalType(
+        OptionalLogicalType(
+            ListLogicalType(
+                SimpleLogicalType(ESimpleLogicalValueType::Int64, true)
+            )
+        )
+    );
+    EXPECT_GOOD_TYPE(optionalOptionalListInt, "[[5]]");
+    EXPECT_GOOD_TYPE(optionalOptionalListInt, "[[5; 5]]");
+    EXPECT_GOOD_TYPE(optionalOptionalListInt, "[[]]");
+    EXPECT_BAD_TYPE(optionalOptionalListInt, "[[[5]]]");
+    EXPECT_BAD_TYPE(optionalOptionalListInt, "[5]");
+
     const auto optionalOptionalOptionalAny = OptionalLogicalType(
         OptionalLogicalType(
             SimpleLogicalType(ESimpleLogicalValueType::Any, false)
