@@ -182,12 +182,13 @@ private:
 
     void ValidateOptionalType(const TOptionalLogicalType& type, const TFieldId& fieldId)
     {
-        if (auto simplified = type.Simplify()) {
-            return ValidateSimpleType(*simplified, false, fieldId.OptionalElement());
-        }
-
         if (Cursor_.GetCurrent().GetType() == EYsonItemType::EntityValue) {
             Cursor_.Next();
+            return;
+        }
+
+        if (type.GetElement()->GetMetatype() != ELogicalMetatype::Optional) {
+            ValidateLogicalType(type.GetElement(), fieldId.OptionalElement());
             return;
         }
 
