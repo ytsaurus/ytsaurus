@@ -124,7 +124,7 @@ struct IServiceContext
      *  \note
      *  Can only be called after the context is replied.
      */
-    virtual TSharedRefArray GetResponseMessage() const = 0;
+    virtual const TSharedRefArray& GetResponseMessage() const = 0;
 
     //! Returns the error that was previously set by #Reply.
     /*!

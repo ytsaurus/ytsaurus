@@ -47,7 +47,7 @@ public:
     virtual void SetComplete() override;
 
     virtual TFuture<TSharedRefArray> GetAsyncResponseMessage() const override;
-    virtual TSharedRefArray GetResponseMessage() const override;
+    virtual const TSharedRefArray& GetResponseMessage() const override;
 
     virtual void SubscribeCanceled(const TClosure& callback) override;
     virtual void UnsubscribeCanceled(const TClosure& callback) override;
@@ -129,6 +129,8 @@ private:
 
 
     void Initialize();
+    void BuildResponseMessage();
+    void ReplyEpilogue();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -163,7 +165,7 @@ public:
     virtual void SetComplete() override;
 
     virtual TFuture<TSharedRefArray> GetAsyncResponseMessage() const override;
-    virtual TSharedRefArray GetResponseMessage() const override;
+    virtual const TSharedRefArray& GetResponseMessage() const override;
 
     virtual void SubscribeCanceled(const TClosure& callback) override;
     virtual void UnsubscribeCanceled(const TClosure& callback) override;
