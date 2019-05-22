@@ -362,6 +362,16 @@ Y_UNIT_TEST_SUITE(YtNodeTest) {
             "\"c\"=\"c\";\"ca\"=\"ca\"}");
     }
 
+    Y_UNIT_TEST(OperatorEqualSubnode) {
+        TNode node;
+        node["a"]["b"] = "c";
+
+        node = node["a"];
+        node = node["b"];
+
+        UNIT_ASSERT_VALUES_EQUAL(node.AsString(), "c");
+    }
+
     Y_UNIT_TEST(TestMapGetters) {
         auto node = TNode::CreateMap()
             ("string", "7")

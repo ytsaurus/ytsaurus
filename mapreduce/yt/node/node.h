@@ -241,7 +241,6 @@ public:
     void Load(IInputStream* input);
 
 private:
-    void Copy(const TNode& rhs);
     void Move(TNode&& rhs);
 
     void CheckType(EType type) const;
