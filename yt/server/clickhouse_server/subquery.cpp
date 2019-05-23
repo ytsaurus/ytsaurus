@@ -190,8 +190,12 @@ private:
         for (size_t i = 0; i < InputTablePaths_.size(); ++i) {
             InputTables_[i].Path = InputTablePaths_[i];
             if (InputTables_[i].Path.HasNontrivialRanges()) {
-                THROW_ERROR_EXCEPTION("Non-trivial ypath ranges are not supported yet (YT-9323)")
-                    << TErrorAttribute("path", InputTables_[i].Path);
+                for (const auto& range : InputTables_[i].Path.GetRanges()) {
+                    if (range.LowerLimit().HasKey() || range.UpperLimit().HasKey()) {
+                        THROW_ERROR_EXCEPTION("Keys in YPath ranges are not supported yet (CHYT-48)")
+                            << TErrorAttribute("path", InputTables_[i].Path);
+                    }
+                }
             }
         }
 
