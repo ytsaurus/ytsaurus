@@ -351,6 +351,19 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(
             AsStringBuf(";")));
     }
 
+    switch (podSpecEtc.out_of_memory_policy()) {
+        case NClient::NApi::NProto::EPodOutOfMemoryPolicy::OOMP_DEFAULT:
+            break;
+        case NClient::NApi::NProto::EPodOutOfMemoryPolicy::OOMP_REBUILD_POD:
+            result.emplace_back("oom_is_fatal", "true");
+            break;
+        case NClient::NApi::NProto::EPodOutOfMemoryPolicy::OOMP_KILL_PROCESS:
+            result.emplace_back("oom_is_fatal", "false");
+            break;
+        default:
+            Y_UNREACHABLE();
+    }
+
     // Sysctl properties
     std::vector<TString> sysctlProperties;
     for (const auto& property : podSpecEtc.sysctl_properties()) {

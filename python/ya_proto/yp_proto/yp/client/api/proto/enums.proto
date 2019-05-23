@@ -33,4 +33,16 @@ enum EPodHostNameKind
     [(NYT.NYson.NProto.enum_value_name) = "persistent"];
 }
 
+enum EPodOutOfMemoryPolicy
+{
+    OOMP_DEFAULT = 0
+    [(NYT.NYson.NProto.enum_value_name) = "default"];
+
+    OOMP_REBUILD_POD = 1
+    [(NYT.NYson.NProto.enum_value_name) = "rebuild-pod"];
+
+    OOMP_KILL_PROCESS = 2
+    [(NYT.NYson.NProto.enum_value_name) = "kill-process"];
+}
+
 ////////////////////////////////////////////////////////////////////////////////

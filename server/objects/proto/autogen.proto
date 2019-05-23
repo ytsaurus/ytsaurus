@@ -40,6 +40,7 @@ message TPodSpecEtc
     repeated NYP.NClient.NApi.NProto.TPodSpec.TSysctlProperty sysctl_properties = 11;
     NYP.NClient.NApi.NProto.TPodSpec.TVirtualServiceOptions virtual_service_options = 12;
     NYP.NClient.NApi.NProto.EPodHostNameKind host_name_kind = 15;
+    NYP.NClient.NApi.NProto.EPodOutOfMemoryPolicy out_of_memory_policy = 21;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

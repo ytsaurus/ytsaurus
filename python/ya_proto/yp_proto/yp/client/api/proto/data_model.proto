@@ -881,6 +881,12 @@ message TPodSpec
 
     // Resource cache for the pod
     optional TPodAgentResourceCache resource_cache = 20;
+
+    // Defines the behavior policy when OOM occurs on one of the containers.
+    // "oom_is_fatal: false" will be set if the OOMP_KILL_PROCESS parameter is passed.
+    // "oom_is_fatal: true" will be set if the OOMP_REBUILD_POD parameter is passed.
+    // Nothing will be set for "oom_is_fatal" property otherwise.
+    optional EPodOutOfMemoryPolicy out_of_memory_policy = 21;
 }
 
 enum EEvictionState

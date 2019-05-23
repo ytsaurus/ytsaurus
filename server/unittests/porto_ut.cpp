@@ -190,6 +190,31 @@ TEST(BuildPortoProperties, TestSubnetsPortoProperties)
         SortedProps(props.at("ip")));
 }
 
+TEST(BuildPortoProperties, TestOutOfMemoryPolicy)
+{
+    NProto::TPodSpecEtc podSpecEtc;
+    NProto::TPodStatusEtc podStatusEtc;
+
+    {
+        const auto props = BuildProps({}, podSpecEtc, podStatusEtc);
+        EXPECT_FALSE(props.contains("oom_is_fatal"));
+    }
+
+    podSpecEtc.set_out_of_memory_policy(NClient::NApi::NProto::OOMP_REBUILD_POD);
+
+    {
+        const auto props = BuildProps({}, podSpecEtc, podStatusEtc);
+        EXPECT_EQ("true", props.at("oom_is_fatal"));
+    }
+
+    podSpecEtc.set_out_of_memory_policy(NClient::NApi::NProto::OOMP_KILL_PROCESS);
+
+    {
+        const auto props = BuildProps({}, podSpecEtc, podStatusEtc);
+        EXPECT_EQ("false", props.at("oom_is_fatal"));
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
