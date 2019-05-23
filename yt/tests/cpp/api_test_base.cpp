@@ -36,8 +36,7 @@ void TApiTestBase::SetUpTestCase()
     }
 
     Connection_ = NApi::CreateConnection(config->GetChild("driver"));
-
-    CreateClient(NRpc::RootUserName);
+    Client_ = CreateClient(NRpc::RootUserName);
 }
 
 void TApiTestBase::TearDownTestCase()
@@ -46,11 +45,11 @@ void TApiTestBase::TearDownTestCase()
     Connection_.Reset();
 }
 
-void TApiTestBase::CreateClient(const TString& userName)
+IClientPtr TApiTestBase::CreateClient(const TString& userName)
 {
     TClientOptions clientOptions;
     clientOptions.PinnedUser = userName;
-    Client_ = Connection_->CreateClient(clientOptions);
+    return Connection_->CreateClient(clientOptions);
 }
 
 NApi::IConnectionPtr TApiTestBase::Connection_;
@@ -89,16 +88,10 @@ void TDynamicTablesTestBase::SetUpTestCase()
         .ThrowOnError();
 }
 
-void TDynamicTablesTestBase::CreateTableAndClient(
+void TDynamicTablesTestBase::CreateTable(
     const TString& tablePath,
-    const TString& schema,
-    const TString& userName)
+    const TString& schema)
 {
-    // Client for root is already created in TApiTestBase::SetUpTestCase
-    if (userName != RootUserName) {
-        CreateClient(userName);
-    }
-
     Table_ = tablePath;
     ASSERT_TRUE(tablePath.StartsWith("//tmp"));
 
@@ -175,19 +168,22 @@ std::tuple<TSharedRange<TUnversionedRow>, TNameTablePtr> TDynamicTablesTestBase:
 
 void TDynamicTablesTestBase::WriteUnversionedRow(
     std::vector<TString> names,
-    const TString& rowString)
+    const TString& rowString,
+    const IClientPtr& client)
 {
     auto preparedRow = PrepareUnversionedRow(names, rowString);
     WriteRows(
         std::get<1>(preparedRow),
-        std::get<0>(preparedRow));
+        std::get<0>(preparedRow),
+        client);
 }
 
 void TDynamicTablesTestBase::WriteRows(
     TNameTablePtr nameTable,
-    TSharedRange<TUnversionedRow> rows)
+    TSharedRange<TUnversionedRow> rows,
+    const IClientPtr& client)
 {
-    auto transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+    auto transaction = WaitFor(client->StartTransaction(NTransactionClient::ETransactionType::Tablet))
         .ValueOrThrow();
 
     transaction->WriteRows(
@@ -221,19 +217,22 @@ std::tuple<TSharedRange<TVersionedRow>, TNameTablePtr> TDynamicTablesTestBase::P
 void TDynamicTablesTestBase::WriteVersionedRow(
     std::vector<TString> names,
     const TString& keyYson,
-    const TString& valueYson)
+    const TString& valueYson,
+    const IClientPtr& client)
 {
     auto preparedRow = PrepareVersionedRow(names, keyYson, valueYson);
     WriteRows(
         std::get<1>(preparedRow),
-        std::get<0>(preparedRow));
+        std::get<0>(preparedRow),
+        client);
 }
 
 void TDynamicTablesTestBase::WriteRows(
     TNameTablePtr nameTable,
-    TSharedRange<TVersionedRow> rows)
+    TSharedRange<TVersionedRow> rows,
+    const IClientPtr& client)
 {
-    auto transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+    auto transaction = WaitFor(client->StartTransaction(NTransactionClient::ETransactionType::Tablet))
         .ValueOrThrow();
 
     transaction->WriteRows(
