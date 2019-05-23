@@ -1,4 +1,5 @@
 #include "net_manager.h"
+#include "internet_address_manager.h"
 #include "helpers.h"
 #include "config.h"
 #include "private.h"
@@ -112,13 +113,14 @@ public:
 
     void UpdatePodAddresses(
         const TTransactionPtr& transaction,
+        TInternetAddressManager* internetAddressManager,
         TPod* pod)
     {
         UnregisterDnsRecords(transaction, pod);
 
         if (ShouldReassignPodAddresses(transaction, pod)) {
-            ReleasePodAddresses(transaction, pod);
-            AcquirePodAddress(transaction, pod);
+            ReleasePodAddresses(transaction, internetAddressManager, pod);
+            AcquirePodAddress(transaction,internetAddressManager,  pod);
         }
 
         if (ShouldUpdateAddressAllocations(pod)) {
@@ -195,6 +197,10 @@ private:
             auto podAddress = TIP6Address::FromString(allocation.address());
 
             if (request.vlan_id() != allocation.vlan_id()) {
+                return true;
+            }
+
+            if (request.enable_internet() != allocation.has_internet_address()) {
                 return true;
             }
 
@@ -347,7 +353,7 @@ private:
         }
     }
 
-    void ReleasePodAddresses(const TTransactionPtr& transaction, TPod* pod)
+    void ReleasePodAddresses(const TTransactionPtr& transaction, TInternetAddressManager* internetAddressManager, TPod* pod)
     {
         const auto* node = pod->Spec().Node().LoadOld();
 
@@ -365,6 +371,8 @@ private:
             }
             return;
         }
+
+        internetAddressManager->RevokeInternetAddressesFromPod(transaction, pod);
 
         for (const auto& allocation : *ip6AddressAllocations) {
             auto address = TIP6Address::FromString(allocation.address());
@@ -392,7 +400,7 @@ private:
         ip6SubnetAllocations->Clear();
     }
 
-    void AcquirePodAddress(const TTransactionPtr& transaction, TPod* pod)
+    void AcquirePodAddress(const TTransactionPtr& transaction, TInternetAddressManager* internetAddressManager, TPod* pod)
     {
         if (pod->IsRemoving()) {
             return;
@@ -500,6 +508,8 @@ private:
         for (auto nonce : nonces) {
             RegisterIP6Nonce(transaction, node, nonce, pod);
         }
+
+        internetAddressManager->AssignInternetAddressesToPod(transaction, node, pod);
     }
 
     void UpdateVirtualServiceTunnel(const TTransactionPtr& transaction, TPod* pod)
@@ -689,10 +699,12 @@ void TNetManager::PrepareUpdatePodAddresses(TPod* pod)
 
 void TNetManager::UpdatePodAddresses(
     const TTransactionPtr& transaction,
+    TInternetAddressManager* internetAddressManager,
     TPod* pod)
 {
     Impl_->UpdatePodAddresses(
         transaction,
+        internetAddressManager,
         pod);
 }
 

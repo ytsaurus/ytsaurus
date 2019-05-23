@@ -26,6 +26,7 @@
 
 #include <yp/server/nodes/node_tracker.h>
 
+#include <yp/server/net/internet_address_manager.h>
 #include <yp/server/net/net_manager.h>
 
 #include <yp/server/scheduler/resource_manager.h>
@@ -665,9 +666,10 @@ public:
         const auto& netManager = Bootstrap_->GetNetManager();
 
         // TODO(avitella): Do it via scheduler.
+        NNet::TInternetAddressManager internetAddressManager;
         NScheduler::TResourceManagerContext resourceManagerContext{
             netManager.Get(),
-            nullptr,
+            &internetAddressManager,
         };
 
         for (auto* node : NodesAwaitingResourceValidation_) {

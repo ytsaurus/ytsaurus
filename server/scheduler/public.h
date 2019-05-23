@@ -19,8 +19,8 @@ class TTopologyZone;
 class TPod;
 class TPodSet;
 class TNodeSegment;
-class TInternetAddress;
 class TAccount;
+class TInternetAddress;
 class TNetworkModule;
 class TResource;
 

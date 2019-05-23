@@ -277,3 +277,27 @@ class TestInternetAddresses(object):
 
         yp_client.remove_object("pod", pod_id2)
         assert isinstance(yp_client.get_object("internet_address", inet_addr_id, selectors=["/status/pod_id"])[0], YsonEntity)
+
+    def test_internet_address_leak(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        pod_set_id = self._prepare_objects(yp_client)
+        node_id = self._create_node(yp_client, "netmodule1")
+        inet_addr_id = self._create_inet_addr(yp_client, "netmodule1", "1.2.3.4")
+
+        pod_id = self._create_pod(yp_client, pod_set_id, enable_internet=True)
+        self._wait_scheduled_state(yp_client, [pod_id], "assigned")
+
+        assert "pod_id" in yp_client.get_object("internet_address", inet_addr_id, selectors=["/status"])[0]
+
+        addr_requests = yp_client.get_object("pod", pod_id, selectors=["/spec/ip6_address_requests"])[0]
+        assert len(addr_requests) == 1
+
+        addr_requests[0].pop("enable_internet", None)
+
+        yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/ip6_address_requests", "value": addr_requests}])
+        assert "pod_id" not in yp_client.get_object("internet_address", inet_addr_id, selectors=["/status"])[0]
+
+        addr_requests[0]["enable_internet"] = True
+        with pytest.raises(YtResponseError):
+            yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/ip6_address_requests", "value": addr_requests}])

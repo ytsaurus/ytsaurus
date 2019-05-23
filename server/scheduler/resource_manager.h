@@ -1,9 +1,8 @@
 #pragma once
 
 #include "public.h"
-#include "internet_address_manager.h"
 
-#include <yp/server/net/net_manager.h>
+#include <yp/server/net/public.h>
 
 #include <yp/server/objects/public.h>
 
@@ -14,7 +13,7 @@ namespace NYP::NServer::NScheduler {
 struct TResourceManagerContext
 {
     NNet::TNetManager* NetManager = nullptr;
-    TInternetAddressManager* InternetAddressManager = nullptr;
+    NNet::TInternetAddressManager* InternetAddressManager = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

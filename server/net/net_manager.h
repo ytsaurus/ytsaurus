@@ -37,6 +37,7 @@ public:
     //! Drops previously assigned addresses and generates new (unique) ones.
     void UpdatePodAddresses(
         const NObjects::TTransactionPtr& transaction,
+        TInternetAddressManager* internetAddressManager,
         NObjects::TPod* pod);
 
 private:

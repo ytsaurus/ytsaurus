@@ -7,6 +7,7 @@
 #include "network_project.h"
 #include "db_schema.h"
 
+#include <yp/server/net/internet_address_manager.h>
 #include <yp/server/net/net_manager.h>
 
 #include <yp/server/master/bootstrap.h>
@@ -242,7 +243,7 @@ public:
         auto* pod = object->As<TPod>();
 
         auto* resourceRequests = pod->Spec().Etc()->mutable_resource_requests();
-        
+
         if (!resourceRequests->has_vcpu_limit() && !resourceRequests->has_vcpu_guarantee()) {
             resourceRequests->set_vcpu_limit(DefaultVcpuGuarantee);
             resourceRequests->set_vcpu_guarantee(DefaultVcpuGuarantee);
@@ -291,7 +292,7 @@ public:
 
         auto* pod = object->As<TPod>();
 
-        TInternetAddressManager internetAddressManager;
+        NNet::TInternetAddressManager internetAddressManager;
         TResourceManagerContext resourceManagerContext{
             Bootstrap_->GetNetManager().Get(),
             &internetAddressManager,

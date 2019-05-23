@@ -1,26 +1,18 @@
 #include "internet_address_manager.h"
-#include "internet_address.h"
-#include "cluster.h"
 
 #include <yp/server/objects/node.h>
 #include <yp/server/objects/pod.h>
 #include <yp/server/objects/internet_address.h>
 #include <yp/server/objects/transaction.h>
 
-namespace NYP::NServer::NScheduler {
+namespace NYP::NServer::NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TInternetAddressManager::ReconcileState(
-    const TClusterPtr& cluster)
+    THashMap<TString, TQueue<TString>> moduleIdToAddressIds)
 {
-    ModuleIdToAddressIds_.clear();
-    for (auto* address : cluster->GetInternetAddresses()) {
-        if (!address->Status().has_pod_id()) {
-            const auto& networkModuleId = address->Spec().network_module_id();
-            ModuleIdToAddressIds_[networkModuleId].push(address->GetId());
-        }
-    }
+    ModuleIdToAddressIds_ = std::move(moduleIdToAddressIds);
 }
 
 std::optional<TString> TInternetAddressManager::TakeInternetAddress(
@@ -43,8 +35,8 @@ std::optional<TString> TInternetAddressManager::TakeInternetAddress(
 
 void TInternetAddressManager::AssignInternetAddressesToPod(
     const NObjects::TTransactionPtr& transaction,
-    NObjects::TPod* pod,
-    NObjects::TNode* node)
+    const NObjects::TNode* node,
+    NObjects::TPod* pod)
 {
     const auto& ip6AddressRequests = pod->Spec().Etc().Load().ip6_address_requests();
 
@@ -92,4 +84,4 @@ void TInternetAddressManager::RevokeInternetAddressesFromPod(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYP::NServer::NScheduler
+} // namespace NYP::NServer::NNet

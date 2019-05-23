@@ -4,6 +4,7 @@
 #include "pod.h"
 #include "resource.h"
 #include "node.h"
+#include "internet_address.h"
 #include "schedule_queue.h"
 #include "allocation_plan.h"
 #include "helpers.h"
@@ -20,6 +21,7 @@
 
 #include <yp/server/accounting/accounting_manager.h>
 
+#include <yp/server/net/internet_address_manager.h>
 #include <yp/server/net/net_manager.h>
 
 #include <yt/core/concurrency/action_queue.h>
@@ -133,7 +135,7 @@ private:
     private:
         const TImplPtr Owner_;
 
-        TInternetAddressManager InternetAddressManager_;
+        NNet::TInternetAddressManager InternetAddressManager_;
 
         TAllocationPlan AllocationPlan_;
 
@@ -156,10 +158,25 @@ private:
 
             // TODO(babenko): profiling
             AllocationPlan_.Clear();
-            InternetAddressManager_.ReconcileState(Owner_->Cluster_);
+            ReconcileInternetAddressManagerState(Owner_->Cluster_, &InternetAddressManager_);
             Owner_->GlobalResourceAllocator_->ReconcileState(Owner_->Cluster_);
 
             YT_LOG_DEBUG("State reconciled");
+        }
+
+        static void ReconcileInternetAddressManagerState(
+            const TClusterPtr& cluster,
+            NNet::TInternetAddressManager* internetAddressManager)
+        {
+            THashMap<TString, TQueue<TString>> moduleIdToAddressIds;
+            for (auto* address : cluster->GetInternetAddresses()) {
+                if (!address->Status().has_pod_id()) {
+                    const auto& networkModuleId = address->Spec().network_module_id();
+                    moduleIdToAddressIds[networkModuleId].push(address->GetId());
+                }
+            }
+
+            internetAddressManager->ReconcileState(std::move(moduleIdToAddressIds));
         }
 
         static void AbortRequestedPodEvictionAtUpNode(

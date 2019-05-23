@@ -10,6 +10,8 @@ using TProjectId = ui32;
 using THostSubnet = ui64;
 using TNonce = ui16;
 
+class TInternetAddressManager;
+
 DECLARE_REFCOUNTED_CLASS(TNetManagerConfig)
 
 DECLARE_REFCOUNTED_STRUCT(TDnsSnapshot)

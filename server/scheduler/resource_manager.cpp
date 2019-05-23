@@ -6,6 +6,7 @@
 #include <yp/server/objects/pod.h>
 #include <yp/server/objects/transaction.h>
 
+#include <yp/server/net/internet_address_manager.h>
 #include <yp/server/net/net_manager.h>
 
 #include <yp/server/master/bootstrap.h>
@@ -133,13 +134,16 @@ public:
         const auto* oldNode = pod->Spec().Node().LoadOld();
 
         if (newNode != oldNode) {
-            FreePodResources(transaction, context, pod);
+            FreePodResources(pod);
         }
 
-        context->NetManager->UpdatePodAddresses(transaction, pod);
+        context->NetManager->UpdatePodAddresses(
+            transaction,
+            context->InternetAddressManager,
+            pod);
 
         if (newNode) {
-            AllocatePodResources(transaction, context, pod);
+            AllocatePodResources(pod);
         }
     }
 
@@ -209,13 +213,9 @@ private:
         }
     }
 
-    void AllocatePodResources(const TTransactionPtr& transaction, TResourceManagerContext* context, NObjects::TPod* pod)
+    void AllocatePodResources(NObjects::TPod* pod)
     {
         auto* node = pod->Spec().Node().Load();
-
-        if (context->InternetAddressManager) {
-            context->InternetAddressManager->AssignInternetAddressesToPod(transaction, pod, node);
-        }
 
         TLocalResourceAllocator allocator;
 
@@ -278,11 +278,8 @@ private:
             allocatorResponses);
     }
 
-    void FreePodResources(const TTransactionPtr& transaction, TResourceManagerContext* context, NObjects::TPod* pod)
+    void FreePodResources(NObjects::TPod* pod)
     {
-        if (context->InternetAddressManager) {
-            context->InternetAddressManager->RevokeInternetAddressesFromPod(transaction, pod);
-        }
         pod->Status().Etc()->mutable_scheduled_resource_allocations()->Clear();
         pod->Status().Etc()->mutable_disk_volume_allocations()->Clear();
     }
