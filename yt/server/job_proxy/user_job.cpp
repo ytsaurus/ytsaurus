@@ -1322,7 +1322,7 @@ private:
         auto rss = getMemoryUsage();
         auto tmpfsSizes = GetTmpfsSizes();
         i64 memoryLimit = UserJobSpec_.memory_limit();
-        i64 currentMemoryUsage = rss + std::accumulate(tmpfsSizes.begin(), tmpfsSizes.end(), 0);
+        i64 currentMemoryUsage = rss + std::accumulate(tmpfsSizes.begin(), tmpfsSizes.end(), 0ll);
 
         CumulativeMemoryUsageMbSec_ += (currentMemoryUsage / 1_MB) * MemoryWatchdogPeriod_.Seconds();
 
