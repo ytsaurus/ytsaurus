@@ -55,9 +55,7 @@ def run_pytest():
         "PATH": path,
         "PYTHONPATH": os.pathsep.join([
             os.path.join(yatest.common.source_path(), "yt", "python"),
-            os.path.join(yatest.common.source_path(), "yt", YT_ABI, "yt", "python", "yt_yson_bindings"),
-            os.path.join(yatest.common.source_path(), "yt", YT_ABI, "yt", "python", "yt_driver_bindings"),
-            os.path.join(yatest.common.source_path(), "yt", YT_ABI, "yt", "python", "yt_driver_rpc_bindings"),
+            os.path.join(yatest.common.source_path(), "yt", YT_ABI, "yt", "python"),
             os.path.join(bindings_build_dir, "yt", YT_ABI, "yt", "python", "yson_shared"),
             os.path.join(bindings_build_dir, "yt", YT_ABI, "yt", "python", "driver", "native_shared"),
             os.path.join(bindings_build_dir, "yt", YT_ABI, "yt", "python", "driver", "rpc_shared")
