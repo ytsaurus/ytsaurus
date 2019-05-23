@@ -1,4 +1,6 @@
 """An utility for plotting job statistics"""
+from __future__ import print_function
+
 from yt.common import YtError, flatten
 try:
     from yt.common import uuid_to_parts, parts_to_uuid
@@ -14,11 +16,12 @@ from plotly import __version__
 from plotly.offline import init_notebook_mode, iplot
 import plotly.graph_objs as go
 
-from datetime import datetime
 from collections import defaultdict, Iterable
-from itertools import groupby
+from datetime import datetime
 from functools import total_ordering
+from itertools import groupby
 import numbers
+import traceback
 
 
 def _format_lo_hi(id_lo, id_hi, id_as_parts=False):
@@ -154,15 +157,28 @@ def _get_hline(x0=0, x1=0, y=0, color="green", name="", showlegend=True, visible
     )
 
 
+def parse_job_id(job_info_json):
+    return parts_to_uuid(job_info_json["job_id_hi"], job_info_json["job_id_lo"])
+
+
+def try_parse_job_id(job_info_json):
+    try:
+        job_id = parse_job_id(job_info_json)
+        return job_id
+    except Exception:
+        pass
+    return "<unknown>"
+
+
 @total_ordering
 class JobInfo(object):
     """Object for job representation"""
     statistic_ids = {}
-    
+
     def __init__(self, job_info, operation_start=0):
         self.statistics = {}
         self._flatten_statistics_tree(job_info["statistics"], "$")
-        
+
         self.operation_start = float(operation_start)
         self.start_time = float(_get_event_time("created", job_info["events"]) - operation_start)
         self.start_running = float(_get_event_time("running", job_info["events"]) - operation_start)
@@ -170,14 +186,14 @@ class JobInfo(object):
         self.total_time = self.finish_time - self.start_time
         self.exec_time = self.finish_time - self.start_running
         self.prepare_time = self.start_running - self.start_time
-        
+
         self.state = job_info["state"] or job_info["transient_state"]
         self.type = job_info["type"]
         self.job_id_hi = job_info["job_id_hi"]
         self.job_id_lo = job_info["job_id_lo"]
         self.job_id = parts_to_uuid(self.job_id_hi, self.job_id_lo)
         self.node = job_info["address"].split(".")[0] if "address" in job_info else ""
-        
+
         self.input_compressed_data_size = job_info["statistics"]["data"]["input"]["compressed_data_size"]
         self.input_uncompressed_data_size = job_info["statistics"]["data"]["input"]["uncompressed_data_size"]
         self.input_data_weight = job_info["statistics"]["data"]["input"]["data_weight"]
@@ -194,13 +210,13 @@ class JobInfo(object):
         self.output_row_count = _get_statistic_from_output_tables(
             "row_count", job_info["statistics"]["data"]["output"]
         )
-        
+
         self.user_job_cpu = float(
-            _nested_dict_find(job_info["statistics"], "user_job/cpu/sys") + 
+            _nested_dict_find(job_info["statistics"], "user_job/cpu/sys") +
             _nested_dict_find(job_info["statistics"], "user_job/cpu/user")
         ) / 1000
         self.job_proxy_cpu = float(
-            _nested_dict_find(job_info["statistics"], "job_proxy/cpu/sys") + 
+            _nested_dict_find(job_info["statistics"], "job_proxy/cpu/sys") +
             _nested_dict_find(job_info["statistics"], "job_proxy/cpu/user")
         ) / 1000
         self.codec_decode = float(sum(
@@ -215,12 +231,12 @@ class JobInfo(object):
         self.input_busy_time = float(_nested_dict_find(
             job_info["statistics"], "user_job/pipes/input/busy_time"
         )) / 1000
-    
+
     def _insert_statistic(self, statistic, value):
         if statistic not in JobInfo.statistic_ids:
             JobInfo.statistic_ids[statistic] = len(JobInfo.statistic_ids)
         self.statistics[JobInfo.statistic_ids[statistic]] = value
-    
+
     def _flatten_statistics_tree(self, tree, path):
         if not isinstance(tree, Iterable):
             self._insert_statistic(path, tree)
@@ -259,24 +275,36 @@ class JobInfo(object):
         return (self.type, self.start_time) < (other.type, other.start_time)
 
 
-def get_jobs(op_id, cluster_name):
+def get_jobs(op_id, cluster_name, ignore_parsing_errors=False):
     """
     Get all jobs of operation as a list of JobInfo objects by operation id and a name of the cluster,
     e.g. 'jobs = get_jobs("7bd267f5-b8587ac7-3f403e8-2a46f9ce", "freud")'
     """
     client = yt.client.Yt(proxy = cluster_name)
     jobset = []
-    
+
     operation_start = _get_operation_start(op_id, client)
     chunk = _get_operation_info_by_chunks(op_id, client, 0, 0)
     if not operation_start or not chunk:
         print("There is no operation {} in the operations archive!".format(op_id))
         return
     while chunk:
-        for job_info in chunk:
-            state = job_info["state"] or job_info["transient_state"]
+        for job_info_json in chunk:
+            state = job_info_json["state"] or job_info_json["transient_state"]
             if state in ["completed", "failed"]:
-                jobset.append(JobInfo(job_info, operation_start))
+                try:
+                    job_info = JobInfo(job_info_json, operation_start)
+                    jobset.append(job_info)
+                except Exception:
+                    if not ignore_parsing_errors:
+                        raise
+                    formatted_exception = traceback.format_exc()
+                    print(
+                        "Error occurred while parsing job info for job {}:\n{}\n".format(
+                            try_parse_job_id(job_info_json),
+                            formatted_exception,
+                        )
+                    )
         start_job_id_hi, start_job_id_lo = chunk[-1]["job_id_hi"], chunk[-1]["job_id_lo"]
         chunk = _get_operation_info_by_chunks(op_id, client, start_job_id_hi, start_job_id_lo)
 
@@ -640,4 +668,3 @@ def print_jobset(jobset, sort_by="start_time", reverse=False, additional_fields=
                 print("\t{}:".format("additional_fields"))
                 for field in additional_fields:
                     print("\t\t{}: {}".format(field, job_info.get_statistic(field)))
-
