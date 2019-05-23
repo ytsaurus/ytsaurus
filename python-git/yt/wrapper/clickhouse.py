@@ -64,6 +64,7 @@ def get_clickhouse_clique_spec_builder(instance_count,
                                        enable_monitoring=None,
                                        set_container_cpu_limit=None,
                                        cypress_geodata_path=None,
+                                       core_table_path=None,
                                        spec=None):
     """Returns a spec builder for the clickhouse clique consisting of a given number of instances.
 
@@ -133,6 +134,7 @@ def get_clickhouse_clique_spec_builder(instance_count,
                 .port_count(4) \
                 .set_container_cpu_limit(set_container_cpu_limit) \
             .end_task() \
+            .core_table_path(core_table_path) \
             .max_failed_job_count(max_failed_job_count) \
             .spec(spec)
 
@@ -198,6 +200,7 @@ def start_clickhouse_clique(instance_count,
                             enable_monitoring=None,
                             enable_query_log=None,
                             cypress_geodata_path=None,
+                            core_table_path=None,
                             client=None,
                             **kwargs):
     """Starts a clickhouse clique consisting of a given number of instances.
@@ -239,6 +242,7 @@ def start_clickhouse_clique(instance_count,
                                                           memory_footprint=memory_footprint,
                                                           enable_monitoring=enable_monitoring,
                                                           cypress_geodata_path=cypress_geodata_path,
+                                                          core_table_path=core_table_path,
                                                           defaults=defaults,
                                                           **kwargs),
                        client=client,
