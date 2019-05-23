@@ -218,15 +218,15 @@ class TestClickHouseCommon(ClickHouseTestBase):
     def test_avg(self, instance_count):
         with Clique(instance_count) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
-            for i in range(10):
-                write_table("<append=%true>//tmp/t", {"a": i})
+            for i in range(5):
+                write_table("<append=%true>//tmp/t", [{"a": 2 * i}, {"a": 2 * i + 1}])
 
             assert abs(clique.make_query('select avg(a) from "//tmp/t"')["data"][0]["avg(a)"] - 4.5) < 1e-6
             with pytest.raises(YtError):
                 clique.make_query('select avg(b) from "//tmp/t"')
 
             # TODO(max42): support range selectors.
-            #assert abs(float(clique.make_query('select avg(a) from "//tmp/t[#2:#9]"')) - 5.0) < 1e-6
+            assert abs(clique.make_query('select avg(a) from "//tmp/t[#2:#9]"')["data"][0]["avg(a)"] - 5.0) < 1e-6
 
     # YT-9497
     def test_aggregation_with_multiple_string_columns(self):

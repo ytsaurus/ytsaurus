@@ -112,7 +112,7 @@ private:
 
             if (tableExpression->database_and_table_name) {
                 const auto& tableName = static_cast<ASTIdentifier&>(*tableExpression->database_and_table_name).name;
-                if (tableName != getTableName()) {
+                if (TRichYPath::Parse(TString(tableName)).GetPath() != TString(getTableName())) {
                     continue;
                 }
             }
