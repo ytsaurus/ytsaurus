@@ -851,7 +851,6 @@ public:
     NTableClient::TKeyColumns JoinBy;
 
     bool ConsiderOnlyPrimarySize;
-    bool UseNewController;
 
     TReduceOperationSpecBase();
 
