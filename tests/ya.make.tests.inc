@@ -34,6 +34,7 @@ SET(YP_TEST_SRCS
     test_network_projects.py
     test_node_segments.py
     test_nodes.py
+    test_object_service.py
     test_objects.py
     test_pods.py
     test_proto_conversion.py

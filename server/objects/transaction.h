@@ -92,6 +92,11 @@ TString ToString(const TObjectFilter& filter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TGetQueryOptions
+{
+    bool IgnoreNonexistent = false;
+};
+
 struct TGetQueryResult
 {
     std::deque<std::optional<TAttributeValueList>> Objects;
@@ -155,7 +160,8 @@ public:
     TGetQueryResult ExecuteGetQuery(
         EObjectType type,
         const std::vector<TObjectId>& ids,
-        const TAttributeSelector& selector);
+        const TAttributeSelector& selector,
+        const TGetQueryOptions& options);
     TSelectQueryResult ExecuteSelectQuery(
         EObjectType type,
         const std::optional<TObjectFilter>& filter,

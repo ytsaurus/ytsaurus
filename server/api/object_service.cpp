@@ -645,6 +645,9 @@ private:
             FromProto<std::vector<TString>>(request->selector().paths())
         };
 
+        TGetQueryOptions options;
+        options.IgnoreNonexistent = request->options().ignore_nonexistent();
+
         context->SetRequestInfo("ObjectId: %v, ObjectType: %v, Timestamp: %llx, Selector: %v",
             objectId,
             objectType,
@@ -665,7 +668,8 @@ private:
         auto result = transaction->ExecuteGetQuery(
             objectType,
             {objectId},
-            selector);
+            selector,
+            options);
 
         auto& object = result.Objects[0];
         YCHECK(object.has_value());
@@ -681,6 +685,9 @@ private:
         TAttributeSelector selector{
             FromProto<std::vector<TString>>(request->selector().paths())
         };
+
+        TGetQueryOptions options;
+        options.IgnoreNonexistent = request->options().ignore_nonexistent();
 
         std::vector<TObjectId> objectIds;
         objectIds.reserve(request->subrequests().size());
@@ -708,7 +715,8 @@ private:
         auto result = transaction->ExecuteGetQuery(
             objectType,
             objectIds,
-            selector);
+            selector,
+            options);
 
         response->mutable_subresponses()->Reserve(result.Objects.size());
         for (auto& object : result.Objects) {

@@ -312,6 +312,14 @@ message TRspUpdateObjects
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TGetObjectOptions {
+    // If true returns empty attribute value list for nonexistent objects.
+    // If false GetObject(-s) returns with error on nonexistent objects.
+    optional bool ignore_nonexistent = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqGetObject
 {
     // Provides snapshot isolation.
@@ -330,6 +338,9 @@ message TReqGetObject
 
     // Format to use in response.
     optional EPayloadFormat format = 5;
+
+    // Request options.
+    optional TGetObjectOptions options = 6;
 }
 
 message TRspGetObject
@@ -364,6 +375,9 @@ message TReqGetObjects
 
     // Format to use in response.
     optional EPayloadFormat format = 5;
+
+    // Request options.
+    optional TGetObjectOptions options = 6;
 }
 
 message TRspGetObjects

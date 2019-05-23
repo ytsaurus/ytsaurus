@@ -305,17 +305,20 @@ public:
     TGetQueryResult ExecuteGetQuery(
         EObjectType type,
         const std::vector<TObjectId>& ids,
-        const TAttributeSelector& selector)
+        const TAttributeSelector& selector,
+        const TGetQueryOptions& options)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* typeHandler = objectManager->GetTypeHandlerOrThrow(type);
 
         std::vector<TObject*> objects;
+        objects.reserve(ids.size());
+
         for (const auto& id : ids) {
             objects.push_back(GetObject(type, id));
-        }
-        for (const auto* object : objects) {
-            object->ValidateExists();
+            if (!options.IgnoreNonexistent) {
+                objects.back()->ValidateExists();
+            }
         }
 
         TExpressionList namesExpr;
@@ -328,12 +331,25 @@ public:
         namesExpr.emplace_back(New<TReferenceExpression>(TSourceLocation(), idField->Name, PrimaryTableAlias));
 
         TLiteralValueTupleList values;
-        for (const auto* object : objects) {
-            values.emplace_back();
-            if (typeHandler->GetParentIdField()) {
-                values.back().emplace_back(object->GetParentId());
+
+        TGetQueryResult result;
+        result.Objects.resize(ids.size());
+
+        for (size_t index = 0; index < ids.size(); ++index) {
+            const auto* object = objects[index];
+            if (!objects[index]->DoesExist()) {
+                result.Objects[index] = TAttributeValueList{};
+            } else {
+                values.emplace_back();
+                if (typeHandler->GetParentIdField()) {
+                    values.back().emplace_back(object->GetParentId());
+                }
+                values.back().emplace_back(object->GetId());
             }
-            values.back().emplace_back(object->GetId());
+        }
+
+        if (values.empty()) {
+            return result;
         }
 
         auto inExpression = New<TInExpression>(
@@ -374,9 +390,6 @@ public:
                 fetcher.Prefetch(row);
             }
         }
-
-        TGetQueryResult result;
-        result.Objects.resize(ids.size());
 
         THashMap<TObjectId, std::vector<size_t>> objectIdToIndexes;
         for (size_t index = 0; index < ids.size(); ++index) {
@@ -2613,12 +2626,14 @@ TSchema* TTransaction::GetSchema(EObjectType type)
 TGetQueryResult TTransaction::ExecuteGetQuery(
     EObjectType type,
     const std::vector<TObjectId>& ids,
-    const TAttributeSelector& selector)
+    const TAttributeSelector& selector,
+    const TGetQueryOptions& options)
 {
     return Impl_->ExecuteGetQuery(
         type,
         ids,
-        selector);
+        selector,
+        options);
 }
 
 TSelectQueryResult TTransaction::ExecuteSelectQuery(
