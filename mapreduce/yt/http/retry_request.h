@@ -37,7 +37,7 @@ struct TRequestConfig
 TResponseInfo RetryRequestWithPolicy(
     const TAuth& auth,
     THttpHeader& header,
-    TStringBuf body,
+    TMaybe<TStringBuf> body = {},
     IRequestRetryPolicyPtr retryPolicy = nullptr,
     const TRequestConfig& config = TRequestConfig());
 

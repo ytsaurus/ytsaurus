@@ -20,7 +20,7 @@ namespace NDetail {
 TResponseInfo RetryRequestWithPolicy(
     const TAuth& auth,
     THttpHeader& header,
-    TStringBuf body,
+    TMaybe<TStringBuf> body,
     IRequestRetryPolicyPtr retryPolicy,
     const TRequestConfig& config)
 {

@@ -91,7 +91,7 @@ TRichYPath CanonizePath(const TAuth& auth, const TRichYPath& path)
         THttpHeader header("GET", "parse_ypath");
         auto pathNode = PathToNode(path);
         header.AddParameter("path", pathNode);
-        auto requestResult = NDetail::RetryRequestWithPolicy(auth, header, TStringBuf(), nullptr);
+        auto requestResult = NDetail::RetryRequestWithPolicy(auth, header);
         auto response = NodeFromYsonString(requestResult.Response);
         for (const auto& item : pathNode.GetAttributes().AsMap()) {
             response.Attributes()[item.first] = item.second;
@@ -146,7 +146,7 @@ TTransactionId StartTransaction(
 
     header.AddParameter("attributes", attributes);
 
-    auto result = NDetail::RetryRequestWithPolicy(auth, header, TStringBuf());
+    auto result = NDetail::RetryRequestWithPolicy(auth, header);
     auto txId = ParseGuidFromResponse(result.Response);
     LOG_DEBUG("Transaction %s started", GetGuidAsString(txId).data());
     return txId;
@@ -160,7 +160,7 @@ static void TransactionRequest(
     THttpHeader header("POST", command);
     header.AddTransactionId(transactionId);
     header.AddMutationId();
-    NDetail::RetryRequestWithPolicy(auth, header, TStringBuf());
+    NDetail::RetryRequestWithPolicy(auth, header);
 }
 
 void AbortTransaction(
@@ -195,7 +195,7 @@ TString GetProxyForHeavyRequest(const TAuth& auth, IRequestRetryPolicyPtr retryP
         hostsEndpoint = hostsEndpoint.substr(1);
     }
     THttpHeader header("GET", hostsEndpoint, false);
-    auto result = NDetail::RetryRequestWithPolicy(auth, header, TStringBuf(), retryPolicy);
+    auto result = NDetail::RetryRequestWithPolicy(auth, header, {}, retryPolicy);
     ParseJsonStringArray(result.Response, hosts);
     if (hosts.empty()) {
         ythrow yexception() << "returned list of proxies is empty";
