@@ -77,12 +77,12 @@ public:
         TOperation* operation)
         : TOperationControllerBase(
             spec,
-            config,
+            std::move(config),
             options,
-            host,
+            std::move(host),
             operation)
-        , Spec_(spec)
-        , Options_(options)
+        , Spec_(std::move(spec))
+        , Options_(std::move(options))
     { }
 
     // Persistence.
@@ -839,12 +839,12 @@ public:
         TOperation* operation)
         : TSortedControllerBase(
             spec,
-            config,
+            std::move(config),
             options,
-            host,
+            std::move(host),
             operation)
-        , Spec_(spec)
-        , Options_(options)
+        , Spec_(std::move(spec))
+        , Options_(std::move(options))
     { }
 
     virtual bool IsRowCountPreserved() const override
@@ -1003,297 +1003,6 @@ private:
     std::optional<int> OutputTeleportTableIndex_;
 };
 
-class TSortedReduceController
-    : public TSortedReduceControllerBase
-{
-public:
-    TSortedReduceController(
-        TReduceOperationSpecPtr spec,
-        TControllerAgentConfigPtr config,
-        TReduceOperationOptionsPtr options,
-        IOperationControllerHostPtr host,
-        TOperation* operation)
-        : TSortedReduceControllerBase(
-            spec,
-            config,
-            options,
-            host,
-            operation)
-        , Spec_(spec)
-    { }
-
-    virtual bool ShouldSlicePrimaryTableByKeys() const override
-    {
-        return true;
-    }
-
-    virtual EJobType GetJobType() const override
-    {
-        return EJobType::SortedReduce;
-    }
-
-    virtual bool IsKeyGuaranteeEnabled() override
-    {
-        return true;
-    }
-
-    virtual void AdjustKeyColumns() override
-    {
-        auto specKeyColumns = Spec_->SortBy.empty() ? Spec_->ReduceBy : Spec_->SortBy;
-        YT_LOG_INFO("Spec key columns are %v", specKeyColumns);
-
-        SortKeyColumns_ = CheckInputTablesSorted(specKeyColumns, &TInputTable::IsPrimary);
-
-        if (SortKeyColumns_.size() < Spec_->ReduceBy.size() ||
-            !CheckKeyColumnsCompatible(SortKeyColumns_, Spec_->ReduceBy)) {
-            THROW_ERROR_EXCEPTION("Reduce key columns %v are not compatible with sort key columns %v",
-                Spec_->ReduceBy,
-                SortKeyColumns_);
-        }
-
-        PrimaryKeyColumns_ = Spec_->ReduceBy;
-        ForeignKeyColumns_ = Spec_->JoinBy;
-        if (!ForeignKeyColumns_.empty()) {
-            YT_LOG_INFO("Foreign key columns are %v", ForeignKeyColumns_);
-
-            CheckInputTablesSorted(ForeignKeyColumns_, &TInputTable::IsForeign);
-
-            if (Spec_->ReduceBy.size() < ForeignKeyColumns_.size() ||
-                !CheckKeyColumnsCompatible(Spec_->ReduceBy, ForeignKeyColumns_))
-            {
-                THROW_ERROR_EXCEPTION("Join key columns %v are not compatible with reduce key columns %v",
-                    ForeignKeyColumns_,
-                    Spec_->ReduceBy);
-            }
-        }
-    }
-
-    virtual void DoInitialize() override
-    {
-        TSortedReduceControllerBase::DoInitialize();
-
-        int foreignInputCount = 0;
-        for (auto& table : InputTables_) {
-            if (table->Path.GetForeign()) {
-                if (table->Path.GetTeleport()) {
-                    THROW_ERROR_EXCEPTION("Foreign table can not be specified as teleport");
-                }
-                if (table->Path.GetRanges().size() > 1) {
-                    THROW_ERROR_EXCEPTION("Reduce operation does not support foreign tables with multiple ranges");
-                }
-                ++foreignInputCount;
-            }
-        }
-
-        if (foreignInputCount == InputTables_.size()) {
-            THROW_ERROR_EXCEPTION("At least one non-foreign input table is required");
-        }
-
-        if (foreignInputCount == 0 && !Spec_->JoinBy.empty()) {
-            THROW_ERROR_EXCEPTION("At least one foreign input table is required");
-        }
-
-        if (foreignInputCount != 0 && Spec_->JoinBy.empty()) {
-            THROW_ERROR_EXCEPTION("Join key columns are required");
-        }
-
-        if (!Spec_->PivotKeys.empty()) {
-            TKey previousKey;
-            for (const auto& key : Spec_->PivotKeys) {
-                if (key < previousKey) {
-                    THROW_ERROR_EXCEPTION("Pivot keys should be sorted")
-                        << TErrorAttribute("lhs", previousKey)
-                        << TErrorAttribute("rhs", key);
-                }
-                previousKey = key;
-                if (key.GetCount() > Spec_->ReduceBy.size()) {
-                    THROW_ERROR_EXCEPTION("Pivot key can't be longer than reduce key column count")
-                        << TErrorAttribute("key", key)
-                        << TErrorAttribute("reduce_by", Spec_->ReduceBy);
-                }
-            }
-            for (auto& table : InputTables_) {
-                if (table->Path.GetTeleport()) {
-                    THROW_ERROR_EXCEPTION("Chunk teleportation is not supported when pivot keys are specified");
-                }
-            }
-        }
-    }
-
-protected:
-    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
-    {
-        return AsStringBuf("data_weight_per_job");
-    }
-
-    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
-    {
-        return {EJobType::SortedReduce};
-    }
-
-    virtual bool IsJobInterruptible() const override
-    {
-        return Spec_->PivotKeys.empty() && TSortedControllerBase::IsJobInterruptible();
-    }
-
-private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedReduceController, 0x761aad8e);
-
-    TReduceOperationSpecPtr Spec_;
-
-    virtual IChunkSliceFetcherFactoryPtr CreateChunkSliceFetcherFactory() override
-    {
-        if (Spec_->PivotKeys.empty()) {
-            return TSortedControllerBase::CreateChunkSliceFetcherFactory();
-        } else {
-            return nullptr;
-        }
-    }
-
-    virtual TSortedChunkPoolOptions GetSortedChunkPoolOptions() override
-    {
-        auto options = TSortedControllerBase::GetSortedChunkPoolOptions();
-        options.SortedJobOptions.PivotKeys = std::vector<TKey>(Spec_->PivotKeys.begin(), Spec_->PivotKeys.end());
-        return options;
-    }
-
-    virtual TYsonSerializablePtr GetTypedSpec() const override
-    {
-        return Spec_;
-    }
-};
-
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedReduceController);
-
-IOperationControllerPtr CreateSortedReduceController(
-    TControllerAgentConfigPtr config,
-    IOperationControllerHostPtr host,
-    TOperation* operation)
-{
-    auto options = config->ReduceOperationOptions;
-    auto spec = ParseOperationSpec<TReduceOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
-    return New<TSortedReduceController>(spec, config, options, host, operation);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TJoinReduceController
-    : public TSortedReduceControllerBase
-{
-public:
-    TJoinReduceController(
-        TJoinReduceOperationSpecPtr spec,
-        TControllerAgentConfigPtr config,
-        TReduceOperationOptionsPtr options,
-        IOperationControllerHostPtr host,
-        TOperation* operation)
-        : TSortedReduceControllerBase(
-            spec,
-            config,
-            options,
-            host,
-            operation)
-        , Spec_(spec)
-    { }
-
-    virtual bool ShouldSlicePrimaryTableByKeys() const override
-    {
-        return false;
-    }
-
-    virtual EJobType GetJobType() const override
-    {
-        return EJobType::JoinReduce;
-    }
-
-    virtual bool IsKeyGuaranteeEnabled() override
-    {
-        return false;
-    }
-
-    virtual void AdjustKeyColumns() override
-    {
-        YT_LOG_INFO("Spec key columns are %v", Spec_->JoinBy);
-        SortKeyColumns_ = ForeignKeyColumns_ = PrimaryKeyColumns_ = CheckInputTablesSorted(Spec_->JoinBy);
-    }
-
-    virtual void DoInitialize() override
-    {
-        TSortedReduceControllerBase::DoInitialize();
-
-        if (InputTables_.size() < 2) {
-            THROW_ERROR_EXCEPTION("At least two input tables are required");
-        }
-
-        int primaryInputCount = 0;
-        for (const auto& inputTable : InputTables_) {
-            if (!inputTable->Path.GetForeign()) {
-                ++primaryInputCount;
-            }
-            if (inputTable->Path.GetTeleport()) {
-                THROW_ERROR_EXCEPTION("Teleport tables are not supported in join-reduce");
-            }
-        }
-
-        if (primaryInputCount != 1) {
-            THROW_ERROR_EXCEPTION("You must specify exactly one non-foreign (primary) input table (%v specified)",
-                primaryInputCount);
-        }
-
-        // For join reduce tables with multiple ranges are not supported.
-        for (const auto& inputTable : InputTables_) {
-            auto& path = inputTable->Path;
-            auto ranges = path.GetRanges();
-            if (ranges.size() > 1) {
-                THROW_ERROR_EXCEPTION("Join reduce operation does not support tables with multiple ranges");
-            }
-        }
-
-        // Forbid teleport attribute for output tables.
-        if (GetOutputTeleportTableIndex()) {
-            THROW_ERROR_EXCEPTION("Teleport tables are not supported in join-reduce");
-        }
-    }
-
-    virtual i64 GetForeignInputDataWeight() const override
-    {
-        return Spec_->ConsiderOnlyPrimarySize ? 0 : ForeignInputDataWeight;
-    }
-
-    virtual TYsonSerializablePtr GetTypedSpec() const override
-    {
-        return Spec_;
-    }
-
-protected:
-    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
-    {
-        return AsStringBuf("data_weight_per_job");
-    }
-
-    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
-    {
-        return {EJobType::JoinReduce};
-    }
-
-private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TJoinReduceController, 0x1120ca9f);
-
-    TJoinReduceOperationSpecPtr Spec_;
-};
-
-DEFINE_DYNAMIC_PHOENIX_TYPE(TJoinReduceController);
-
-IOperationControllerPtr CreateJoinReduceController(
-    TControllerAgentConfigPtr config,
-    IOperationControllerHostPtr host,
-    TOperation* operation)
-{
-    auto options = config->JoinReduceOperationOptions;
-    auto spec = ParseOperationSpec<TJoinReduceOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
-    return New<TJoinReduceController>(spec, config, options, host, operation);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNewReduceController
@@ -1308,11 +1017,11 @@ public:
         TOperation* operation)
         : TSortedReduceControllerBase(
             spec,
-            config,
-            options,
-            host,
+            std::move(config),
+            std::move(options),
+            std::move(host),
             operation)
-        , Spec_(spec)
+        , Spec_(std::move(spec))
     { }
 
     virtual bool ShouldSlicePrimaryTableByKeys() const override
@@ -1506,17 +1215,10 @@ IOperationControllerPtr CreateAppropriateReduceController(
     auto options = isJoinReduce ? config->JoinReduceOperationOptions : config->ReduceOperationOptions;
     auto mergedSpec = UpdateSpec(options->SpecTemplate, operation->GetSpec());
     auto spec = ParseOperationSpec<TNewReduceOperationSpec>(mergedSpec);
-    if (spec->UseNewController) {
-        if (!spec->EnableKeyGuarantee) {
-            spec->EnableKeyGuarantee = !isJoinReduce;
-        }
-        return New<TNewReduceController>(spec, config, options, host, operation);
+    if (!spec->EnableKeyGuarantee) {
+        spec->EnableKeyGuarantee = !isJoinReduce;
     }
-    if (isJoinReduce) {
-        return New<TJoinReduceController>(ParseOperationSpec<TJoinReduceOperationSpec>(mergedSpec), config, options, host, operation);
-    } else {
-        return New<TSortedReduceController>(ParseOperationSpec<TReduceOperationSpec>(mergedSpec), config, options, host, operation);
-    }
+    return New<TNewReduceController>(std::move(spec), std::move(config), std::move(options), std::move(host), operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

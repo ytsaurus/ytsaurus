@@ -1035,13 +1035,6 @@ done
         assert completed["total"] >= 6
         assert interrupted["job_split"] >= 1
 
-
-class TestSchedulerNewJoinReduceCommands(TestSchedulerJoinReduceCommands):
-    @classmethod
-    def modify_controller_agent_config(cls, config):
-        TestSchedulerJoinReduceCommands.modify_controller_agent_config(config)
-        config["controller_agent"]["join_reduce_operation_options"]["spec_template"] = {"use_new_controller": True}
-
     @unix_only
     def test_join_reduce_two_primaries(self):
         create("table", "//tmp/in1")
@@ -1071,8 +1064,4 @@ class TestSchedulerNewJoinReduceCommands(TestSchedulerJoinReduceCommands):
 
 
 class TestSchedulerJoinReduceCommandsMulticell(TestSchedulerJoinReduceCommands):
-    NUM_SECONDARY_MASTER_CELLS = 2
-
-
-class TestSchedulerNewJoinReduceCommandsMulticell(TestSchedulerNewJoinReduceCommands):
     NUM_SECONDARY_MASTER_CELLS = 2

@@ -840,8 +840,6 @@ TReduceOperationSpecBase::TReduceOperationSpecBase()
         .NonEmpty();
     RegisterParameter("consider_only_primary_size", ConsiderOnlyPrimarySize)
         .Default(false);
-    RegisterParameter("use_new_controller", UseNewController)
-        .Default(true);
 
     RegisterPostprocessor([&] () {
         if (!JoinBy.empty()) {
