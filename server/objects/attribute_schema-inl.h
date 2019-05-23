@@ -6,6 +6,7 @@
 #endif
 
 #include "helpers.h"
+#include "type_info.h"
 
 #include <yt/core/misc/string.h>
 
@@ -229,7 +230,7 @@ TAttributeSchema* TAttributeSchema::SetAttribute(const TManyToOneAttributeSchema
             } else {
                 if (!schema.Nullable) {
                     THROW_ERROR_EXCEPTION("Cannot set null %v",
-                        GetLowercaseHumanReadableTypeName(TOne::Type));
+                        GetHumanReadableTypeName(TOne::Type));
                 }
                 auto* forwardAttribute = schema.ForwardAttributeGetter(typedMany);
                 auto* currentTypedOne = forwardAttribute->Load();
@@ -252,7 +253,7 @@ TAttributeSchema* TAttributeSchema::SetAttribute(const TManyToOneAttributeSchema
 
             if (!schema.Nullable) {
                 THROW_ERROR_EXCEPTION("Cannot set null %v",
-                    GetLowercaseHumanReadableTypeName(TOne::Type));
+                    GetHumanReadableTypeName(TOne::Type));
             }
 
             auto* typedMany = many->As<TMany>();

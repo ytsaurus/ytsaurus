@@ -4,6 +4,7 @@
 #include "db_schema.h"
 #include "private.h"
 #include "helpers.h"
+#include "type_info.h"
 
 #include <yt/client/table_client/row_buffer.h>
 
@@ -299,7 +300,7 @@ void TParentIdAttribute::LoadFromDB(ILoadContext* context)
                         ParentId_);
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Error loading parent id value for %v %v",
-                        GetLowercaseHumanReadableTypeName(Owner_->GetType()),
+                        GetHumanReadableTypeName(Owner_->GetType()),
                         GetObjectDisplayName(Owner_))
                         << ex;
                 }
@@ -467,7 +468,7 @@ void TScalarAttributeBase::LoadFromDB(ILoadContext* context)
                     THROW_ERROR_EXCEPTION("Error loading value of [%v.%v] for %v %v",
                         table->Name,
                         Schema_->Field->Name,
-                        GetLowercaseHumanReadableTypeName(Owner_->GetType()),
+                        GetHumanReadableTypeName(Owner_->GetType()),
                         GetObjectDisplayName(Owner_))
                         << ex;
                 }
@@ -496,7 +497,7 @@ void TScalarAttributeBase::StoreToDB(IStoreContext* context)
         THROW_ERROR_EXCEPTION("Error storing value of [%v.%v] for %v %v",
             table->Name,
             Schema_->Field->Name,
-            GetLowercaseHumanReadableTypeName(Owner_->GetType()),
+            GetHumanReadableTypeName(Owner_->GetType()),
             GetObjectDisplayName(Owner_))
             << ex;
     }

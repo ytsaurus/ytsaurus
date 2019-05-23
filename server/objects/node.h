@@ -10,6 +10,8 @@
 
 #include <yt/core/misc/ref_tracked.h>
 
+#include <contrib/libs/protobuf/google/protobuf/any.pb.h>
+
 namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,6 +50,10 @@ public:
 
         static const TScalarAttributeSchema<TNode, ui64> HeartbeatSequenceNumberSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<ui64>, HeartbeatSequenceNumber);
+
+        using THostManager = google::protobuf::Any;
+        static const TScalarAttributeSchema<TNode, THostManager> HostManagerSchema;
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<THostManager>, HostManager);
 
         using TEtc = NProto::TNodeStatusEtc;
         static const TScalarAttributeSchema<TNode, TEtc> EtcSchema;

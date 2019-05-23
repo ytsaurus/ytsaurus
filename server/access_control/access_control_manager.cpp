@@ -12,6 +12,7 @@
 #include <yp/server/objects/transaction.h>
 #include <yp/server/objects/transaction_manager.h>
 #include <yp/server/objects/type_handler.h>
+#include <yp/server/objects/type_info.h>
 
 #include <yt/client/api/rowset.h>
 
@@ -412,7 +413,7 @@ public:
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::NoSuchMethod,
                 "Cluster access control object snapshot does not contain %v objects",
-                GetLowercaseHumanReadableTypeName(objectType));
+                GetHumanReadableTypeName(objectType));
         }
     }
 
@@ -856,17 +857,17 @@ public:
                     NClient::NApi::EErrorCode::AuthorizationError,
                     "Access denied: %Qlv permission for %v %v is denied for %Qv by ACE at %v %v",
                     permission,
-                    GetLowercaseHumanReadableTypeName(object->GetType()),
+                    GetHumanReadableTypeName(object->GetType()),
                     GetObjectDisplayName(object),
                     result.SubjectId,
-                    GetLowercaseHumanReadableTypeName(result.ObjectType),
+                    GetHumanReadableTypeName(result.ObjectType),
                     result.ObjectId);
             } else {
                 error = TError(
                     NClient::NApi::EErrorCode::AuthorizationError,
                     "Access denied: %Qlv permission for %v %v is not allowed by any matching ACE",
                     permission,
-                    GetLowercaseHumanReadableTypeName(object->GetType()),
+                    GetHumanReadableTypeName(object->GetType()),
                     GetObjectDisplayName(object));
             }
             error.Attributes().Set("permission", permission);

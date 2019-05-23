@@ -41,6 +41,8 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Handshake));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetHostSpec));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SetHostStatus));
     }
 
 private:
@@ -58,7 +60,7 @@ private:
             address,
             version);
 
-        ValidateAgentCertificate(context, nodeId);
+        ValidateCallerCertificate(context, nodeId);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto transaction = WaitFor(transactionManager->StartReadWriteTransaction())
@@ -95,7 +97,7 @@ private:
             epochId,
             sequenceNumber);
 
-        ValidateAgentCertificate(context, nodeId);
+        ValidateCallerCertificate(context, nodeId);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto transaction = WaitFor(transactionManager->StartReadWriteTransaction())
@@ -118,34 +120,77 @@ private:
         context->Reply();
     }
 
-
-    void ValidateAgentCertificate(const NRpc::IServiceContextPtr& context, const TObjectId& nodeId)
+    DECLARE_RPC_SERVICE_METHOD(NClient::NNodes::NProto, GetHostSpec)
     {
-        if (!Config_->ValidateAgentCertificate) {
+        const auto& nodeId = request->node_id();
+
+        context->SetRequestInfo("NodeId: %v",
+            nodeId);
+
+        ValidateCallerCertificate(context, nodeId);
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction())
+            .ValueOrThrow();
+
+        auto* node = transaction->GetNode(nodeId);
+        const auto& spec = node->Spec().Load().host_manager();
+        *response->mutable_spec() = spec;
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NClient::NNodes::NProto, SetHostStatus)
+    {
+        const auto& nodeId = request->node_id();
+
+        context->SetRequestInfo("NodeId: %v",
+            nodeId);
+
+        ValidateCallerCertificate(context, nodeId);
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto transaction = WaitFor(transactionManager->StartReadWriteTransaction())
+            .ValueOrThrow();
+
+        auto* node = transaction->GetNode(nodeId);
+        node->Status().HostManager() = request->status();
+
+        WaitFor(transaction->Commit())
+            .ThrowOnError();
+
+        Y_UNUSED(response);
+        context->Reply();
+    }
+
+
+    void ValidateCallerCertificate(const NRpc::IServiceContextPtr& context, const TObjectId& nodeId)
+    {
+        if (!Config_->ValidateCallerCertificate) {
             return;
         }
 
         const auto& ext = context->GetRequestHeader().GetExtension(NYT::NRpc::NGrpc::NProto::TSslCredentialsExt::ssl_credentials_ext);
 
         if (!ext.has_peer_identity()) {
-            THROW_ERROR_EXCEPTION("Node %Qv did not provide SSL credentials",
+            THROW_ERROR_EXCEPTION("Caller %Qv did not provide SSL credentials",
                 nodeId);
         }
         if (ext.peer_identity() != nodeId) {
-            THROW_ERROR_EXCEPTION("Node %Qv has provided a wrong SSL identity %Qv",
+            THROW_ERROR_EXCEPTION("Caller %Qv has provided a wrong SSL identity %Qv",
                 nodeId,
                 ext.peer_identity());
         }
 
-        if (Config_->AgentCertificateIssuer) {
+        if (Config_->CallerCertificateIssuer) {
             if (!ext.has_issuer()) {
                 THROW_ERROR_EXCEPTION("Unable to determine an SSL certificate issuer for node %Qv",
                     nodeId);
             }
-            if (ext.issuer() != *Config_->AgentCertificateIssuer) {
-                THROW_ERROR_EXCEPTION("Node %Qv has provided an SSL certificate with a wrong issuer: expected %Qv, found %Qv",
+            if (ext.issuer() != *Config_->CallerCertificateIssuer) {
+                THROW_ERROR_EXCEPTION("Caller %Qv has provided an SSL certificate with a wrong issuer: expected %Qv, found %Qv",
                     nodeId,
-                    *Config_->AgentCertificateIssuer,
+                    *Config_->CallerCertificateIssuer,
                     ext.issuer());
             }
         }

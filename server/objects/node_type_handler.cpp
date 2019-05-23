@@ -48,6 +48,9 @@ public:
                 MakeAttributeSchema("heartbeat_sequence_number")
                     ->SetAttribute(TNode::TStatus::HeartbeatSequenceNumberSchema),
 
+                MakeAttributeSchema("host_manager")
+                    ->SetAttribute(TNode::TStatus::HostManagerSchema),
+
                 MakeEtcAttributeSchema()
                     ->SetUpdatable()
                     ->SetAttribute(TNode::TStatus::EtcSchema)

@@ -3,7 +3,10 @@ package NYP.NClient.NNodes.NProto;
 import "yp/client/api/proto/data_model.proto";
 import "yp/client/api/proto/secrets.proto";
 import "yp/client/api/proto/dynamic_attributes.proto";
+
 import "yt/core/misc/proto/error.proto";
+
+import "google/protobuf/any.proto";
 
 option java_package = "ru.yandex.yp.client.nodes";
 option java_outer_classname = "NodeTracker";
@@ -172,16 +175,51 @@ message TRspHeartbeat
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqGetHostSpec
+{
+    // Id (==fqdn) of the node.
+    required string node_id = 1;
+}
+
+message TRspGetHostSpec
+{
+    // Spec retrieved from /node/spec/host_manager.
+    required google.protobuf.Any spec = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSetHostStatus
+{
+    // Id (==fqdn) of the node.
+    required string node_id = 1;
+
+    // Status to push to /node/status/host_manager.
+    required google.protobuf.Any status = 2;
+}
+
+message TRspSetHostStatus
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Node-to-master communication.
+// The caller must be providing proper SSL credentials with each call.
 service NodeTrackerService
 {
-    // Called once upon agent initialization to establish the connection
+    // Called by Node Agent once upon initialization to establish the connection
     // and obtain the node id.
     rpc Handshake (TReqHandshake) returns (TRspHandshake);
 
-    // Called periodically to notify the master about pod status changes and
+    // Called by Node Agent periodically to notify the master about pod status changes and
     // to request pod spec updates.
     rpc Heartbeat (TReqHeartbeat) returns (TRspHeartbeat);
+
+    // Called by Host Manager to retrieve the host spec from DB.
+    rpc GetHostSpec (TReqGetHostSpec) returns (TRspGetHostSpec);
+
+    // Called by Host Manager to push the host status to DB.
+    rpc SetHostStatus (TReqSetHostStatus) returns (TRspSetHostStatus);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

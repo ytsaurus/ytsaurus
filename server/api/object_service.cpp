@@ -112,12 +112,15 @@ private:
             return Transaction_;
         }
 
-        void CommitIfOwned()
+        std::optional<TTimestamp> CommitIfOwned()
         {
-            if (Owned_) {
-                WaitFor(Transaction_->Commit())
-                    .ThrowOnError();
+            if (!Owned_) {
+                return {};
             }
+
+            auto result = WaitFor(Transaction_->Commit())
+                .ValueOrThrow();
+            return result.CommitTimestamp;
         }
 
     private:
@@ -381,10 +384,16 @@ private:
 
         auto* object = transaction->CreateObject(objectType, attributes);
 
-        transactionWrapper.CommitIfOwned();
+        auto optionalCommitTimestamp = transactionWrapper.CommitIfOwned();
 
         ToProto(response->mutable_object_id(), object->GetId());
-        context->SetResponseInfo("ObjectId: %v", object->GetId());
+        if (optionalCommitTimestamp) {
+            response->set_commit_timestamp(*optionalCommitTimestamp);
+        }
+
+        context->SetResponseInfo("ObjectId: %v, CommitTimestamp: %llx",
+            object->GetId(),
+            optionalCommitTimestamp);
         context->Reply();
     }
 
@@ -443,18 +452,22 @@ private:
         }
 
         updateContext->Commit();
-        transactionWrapper.CommitIfOwned();
+        auto optionalCommitTimestamp = transactionWrapper.CommitIfOwned();
 
         for (auto* object : objects) {
             auto* subresponse = response->add_subresponses();
             ToProto(subresponse->mutable_object_id(), object->GetId());
         }
+        if (optionalCommitTimestamp) {
+            response->set_commit_timestamp(*optionalCommitTimestamp);
+        }
 
-        context->SetResponseInfo("ObjectIds: %v",
+        context->SetResponseInfo("ObjectIds: %v, CommitTimestamp: %llx",
             MakeFormattableView(objects, [] (auto* builder, auto* object) {
                 builder->AppendFormat("%v",
                     object->GetId());
-            }));
+            }),
+            optionalCommitTimestamp);
         context->Reply();
     }
 
@@ -479,8 +492,14 @@ private:
         auto* object = transaction->GetObject(objectType, objectId);
         transaction->RemoveObject(object);
 
-        transactionWrapper.CommitIfOwned();
+        auto optionalCommitTimestamp = transactionWrapper.CommitIfOwned();
 
+        if (optionalCommitTimestamp) {
+            response->set_commit_timestamp(*optionalCommitTimestamp);
+        }
+
+        context->SetResponseInfo("CommitTimestamp: %llx",
+            optionalCommitTimestamp);
         context->Reply();
     }
 
@@ -529,10 +548,16 @@ private:
         for (auto* object : objects) {
             transaction->RemoveObject(object, updateContext.get());
         }
+
         updateContext->Commit();
+        auto optionalCommitTimestamp = transactionWrapper.CommitIfOwned();
 
-        transactionWrapper.CommitIfOwned();
+        if (optionalCommitTimestamp) {
+            response->set_commit_timestamp(*optionalCommitTimestamp);
+        }
 
+        context->SetResponseInfo("CommitTimestamp: %llx",
+            optionalCommitTimestamp);
         context->Reply();
     }
 
@@ -567,9 +592,14 @@ private:
 
         auto* object = transaction->GetObject(objectType, objectId);
         transaction->UpdateObject(object, updates);
+        auto optionalCommitTimestamp = transactionWrapper.CommitIfOwned();
 
-        transactionWrapper.CommitIfOwned();
+        if (optionalCommitTimestamp) {
+            response->set_commit_timestamp(*optionalCommitTimestamp);
+        }
 
+        context->SetResponseInfo("CommitTimestamp: %llx",
+            optionalCommitTimestamp);
         context->Reply();
     }
 
@@ -631,8 +661,14 @@ private:
         }
 
         updateContext->Commit();
-        transactionWrapper.CommitIfOwned();
+        auto optionalCommitTimestamp = transactionWrapper.CommitIfOwned();
 
+        if (optionalCommitTimestamp) {
+            response->set_commit_timestamp(*optionalCommitTimestamp);
+        }
+
+        context->SetResponseInfo("CommitTimestamp: %llx",
+            optionalCommitTimestamp);
         context->Reply();
     }
 
@@ -675,6 +711,10 @@ private:
         YCHECK(object.has_value());
         MoveAttributesToProto(format, objectType, selector, &(*object), response->mutable_result());
 
+        response->set_timestamp(transaction->GetStartTimestamp());
+
+        context->SetResponseInfo("Timestamp: %llx",
+            transaction->GetStartTimestamp());
         context->Reply();
     }
 
@@ -724,6 +764,11 @@ private:
             auto* subresponse = response->add_subresponses();
             MoveAttributesToProto(format, objectType, selector, &(*object), subresponse->mutable_result());
         }
+
+        response->set_timestamp(transaction->GetStartTimestamp());
+
+        context->SetResponseInfo("Timestamp: %llx",
+            transaction->GetStartTimestamp());
         context->Reply();
     }
 
@@ -778,7 +823,12 @@ private:
             auto* protoResult = response->add_results();
             MoveAttributesToProto(format, objectType, selector, &object, protoResult);
         }
-        context->SetResponseInfo("Count: %v", result.Objects.size());
+
+        response->set_timestamp(transaction->GetStartTimestamp());
+
+        context->SetResponseInfo("Count: %v, Timestamp: %llx",
+            result.Objects.size(),
+            transaction->GetStartTimestamp());
         context->Reply();
     }
 
@@ -815,6 +865,10 @@ private:
             subresponse->set_subject_id(result.SubjectId);
         }
 
+        response->set_timestamp(transaction->GetStartTimestamp());
+
+        context->SetResponseInfo("Timestamp: %llx",
+            transaction->GetStartTimestamp());
         context->Reply();
     }
 
@@ -848,6 +902,10 @@ private:
             ToProto(subresponse->mutable_user_ids(), userIds);
         }
 
+        response->set_timestamp(transaction->GetStartTimestamp());
+
+        context->SetResponseInfo("Timestamp: %llx",
+            transaction->GetStartTimestamp());
         context->Reply();
     }
 

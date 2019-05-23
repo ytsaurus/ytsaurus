@@ -136,7 +136,8 @@ DEFINE_ENUM(EObjectType,
     ((ResourceCache)          (15))
     ((MultiClusterReplicaSet) (16))
     ((DynamicResource)        (17))
-    ((Node2)                  (18))
+    // Node2 is an alias and must be processed at the Api layer without explicit declaration.
+    // ((Node2)                  (18))
     ((Stage)                  (19))
     ((NetworkModule)         (100)) // internal, not present in data_model.proto
     ((Schema)                (256))
@@ -191,6 +192,7 @@ DEFINE_ENUM(EEvictionReason,
     ((None)           (  0))
     ((Hfsm)           (100))
     ((Scheduler)      (200))
+    ((Client)         (300))
 );
 
 DEFINE_ENUM(ESchedulingState,

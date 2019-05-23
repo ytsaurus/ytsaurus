@@ -15,11 +15,7 @@ using namespace NYT::NYTree;
 void SchedulePodDynamicAttributesLoad(TPod* pod)
 {
     const auto& specDynamicAttributes = pod->Spec().DynamicAttributes().Load();
-
-    if (!specDynamicAttributes.labels().empty()) {
-        pod->Labels().ScheduleLoad();
-    }
-
+    pod->Labels().ScheduleLoad();
     for (const auto& key : specDynamicAttributes.annotations()) {
         pod->Annotations().ScheduleLoad(key);
     }
@@ -31,16 +27,11 @@ NClient::NApi::NProto::TDynamicAttributes BuildPodDynamicAttributes(TPod* pod)
 
     const auto& specDynamicAttributes = pod->Spec().DynamicAttributes().Load();
 
-    if (!specDynamicAttributes.labels().empty()) {
-        auto labels = pod->Labels().Load();
-        for (const auto& key : specDynamicAttributes.labels()) {
-            auto child = labels->FindChild(key);
-            if (child) {
-                auto* protoItem = result.mutable_labels()->add_attributes();
-                protoItem->set_key(key);
-                protoItem->set_value(ConvertToYsonString(child).GetData());
-            }
-        }
+    auto labels = pod->Labels().Load();
+    for (const auto& [key, child] : labels->GetChildren()) {
+        auto* protoItem = result.mutable_labels()->add_attributes();
+        protoItem->set_key(key);
+        protoItem->set_value(ConvertToYsonString(child).GetData());
     }
 
     for (const auto& key : specDynamicAttributes.annotations()) {

@@ -1,6 +1,7 @@
 #include "pod.h"
 #include "pod_set.h"
 #include "node.h"
+#include "node_segment.h"
 #include "account.h"
 #include "db_schema.h"
 
@@ -187,6 +188,81 @@ void TPod::UpdateSchedulingStatus(
     }
     scheduling->set_last_updated(ToProto<ui64>(TInstant::Now()));
     scheduling->clear_error();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Cf. YP-626
+bool IsUnsafePortoIssSpec(const NClient::NApi::NClusterApiProto::HostConfiguration& issSpec)
+{
+    auto findPropertyValue = [&] (const auto& map, const auto& key) {
+        auto it = map.find(key);
+        return it == map.end() ? TStringBuf() : TStringBuf(it->second);
+    };
+
+    for (const auto& instance : issSpec.instances()) {
+        if (instance.GettargetState() == "REMOVED") {
+            continue;
+        }
+        if (!instance.entity().has_instance()) {
+            continue;
+        }
+        const auto& entityInstance = instance.entity().instance();
+
+        // Check rbinds.
+        for (const auto& volume : entityInstance.volumes()) {
+            auto bindValue = findPropertyValue(volume.properties(), "bind");
+            if (bindValue && bindValue != "/usr/local/yasmagent /usr/local/yasmagent ro") {
+                return true;
+            }
+
+            auto backendValue = findPropertyValue(volume.properties(), "backend");
+            auto readOnlyValue = findPropertyValue(volume.properties(), "read_only");
+            auto storageValue = findPropertyValue(volume.properties(), "storage");
+            if ((backendValue == "bind" || backendValue == "rbind") &&
+                (readOnlyValue != "true" || storageValue != "/Berkanavt/supervisor"))
+            {
+                return true;
+            }
+        }
+
+        // Check constraints.
+        {
+            const auto& constraints = entityInstance.container().constraints();
+            auto it = constraints.find("meta.enable_porto");
+            if (it == constraints.end()) {
+                // "full" is the default
+                return true;
+            }
+            const auto& value = it->second;
+            if (value != "false" && value != "none" && value != "read-isolate" && value != "isolate") {
+                return true;
+            }
+        }
+
+    }
+    return false;
+}
+
+void ValidateIssPodSpecSafe(TPod* pod)
+{
+    const auto& issPayload = pod->Spec().IssPayload().Load();
+    if (!issPayload) {
+        return;
+    }
+    NClient::NApi::NClusterApiProto::HostConfiguration issSpec;
+    if (!TryDeserializeProto(&issSpec, TRef::FromString(issPayload))) {
+        THROW_ERROR_EXCEPTION("Error parsing /spec/iss_payload of pod %Qv",
+            pod->GetId());
+    }
+    auto* podSet = pod->PodSet().Load();
+    auto* nodeSegment = podSet->Spec().NodeSegment().Load();
+    if (IsUnsafePortoIssSpec(issSpec) && !nodeSegment->Spec().Load().enable_unsafe_porto()) {
+        THROW_ERROR_EXCEPTION("/spec/iss_payload of pod %Qv involves unsafe features; such pods cannot be allocated in %Qv segment since "
+            "/spec/enable_unsafe_porto is \"false\"",
+            pod->GetId(),
+            nodeSegment->GetId());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

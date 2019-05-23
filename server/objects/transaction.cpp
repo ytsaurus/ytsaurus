@@ -20,6 +20,7 @@
 #include "user.h"
 #include "group.h"
 #include "geometric_2d_set_cover.h"
+#include "type_info.h"
 
 #include <yp/server/master/bootstrap.h>
 #include <yp/server/master/yt_connector.h>
@@ -1774,9 +1775,9 @@ private:
                     THROW_ERROR_EXCEPTION(
                         NClient::NApi::EErrorCode::NoSuchObject,
                         "Parent %v %v of %v %v does not exist",
-                        GetLowercaseHumanReadableTypeName(pair.second->GetType()),
+                        GetHumanReadableTypeName(pair.second->GetType()),
                         GetObjectDisplayName(pair.second),
-                        GetLowercaseHumanReadableTypeName(pair.first->GetType()),
+                        GetHumanReadableTypeName(pair.first->GetType()),
                         GetObjectDisplayName(pair.first));
                 }
             }
@@ -2369,7 +2370,7 @@ private:
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error updating attribute %v of %v %v",
                 match.Schema->GetPath(),
-                GetLowercaseHumanReadableTypeName(object->GetType()),
+                GetHumanReadableTypeName(object->GetType()),
                 GetObjectDisplayName(object))
                 << ex;
         }

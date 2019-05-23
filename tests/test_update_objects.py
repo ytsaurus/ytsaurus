@@ -183,7 +183,7 @@ def create_pod_yp_object(yp_client, pod_set_id):
         ),
         Attribute(
             base_path="/spec/dynamic_attributes",
-            initial_value=dict(labels=["label"], annotations=["0"]),
+            initial_value=dict(annotations=["0"]),
             variable_subpath="/annotations/0",
             variable_value=StringValue(),
         ),

@@ -12,6 +12,7 @@ import "yt_proto/yt/core/ytree/proto/attributes.proto";
 import "yt_proto/yt/core/misc/proto/error.proto";
 
 import "google/protobuf/descriptor.proto";
+import "google/protobuf/any.proto";
 
 option java_package = "ru.yandex.yp.client.api";
 option java_outer_classname = "DataModel";
@@ -23,6 +24,7 @@ message TObjectTypeOption
     required string camel_case_name = 1;
     required string snake_case_name = 2;
     required int32 type_value = 3;
+    optional string human_readable_name = 4;
 }
 
 extend google.protobuf.FileOptions
@@ -296,6 +298,9 @@ message TNodeSpec
 
     // If true then YP Master instructs node agents to drop all unknown pods.
     optional bool force_remove_unknown_pods = 7;
+
+    // Currently this is an opaque data; cf. YP-809.
+    optional google.protobuf.Any host_manager = 8;
 }
 
 message TNodeStatus
@@ -346,6 +351,9 @@ message TNodeStatus
     // Contains ids of pods that are reported to be present at the node
     // but are neither known to exist nor were recently removed.
     repeated string unknown_pod_ids = 7 [(NYP.NClient.NApi.NProto.etc) = true];
+
+    // Currently this is an opaque data; cf. YP-809.
+    optional google.protobuf.Any host_manager = 9;
 }
 
 message TNodeControl
@@ -861,8 +869,8 @@ message TPodSpec
 
     message TDynamicAttributes
     {
-        // List of pod label keys to be delivered to the pod.
-        repeated string labels = 1;
+        // COMPAT(babenko): all labels are now passed by default
+        reserved "labels"; reserved 1;
 
         // List of pod annotation keys to be delivered to the pod.
         repeated string annotations = 2;
@@ -911,6 +919,9 @@ enum EEvictionReason
 
     ER_SCHEDULER = 200
     [(NYT.NYson.NProto.enum_value_name) = "scheduler"];
+
+    ER_CLIENT = 300
+    [(NYT.NYson.NProto.enum_value_name) = "client"];
 }
 
 enum ESchedulingState
@@ -1159,10 +1170,32 @@ message TPodControl
         optional string message = 1;
     }
 
+    message TRequestEviction
+    {
+        // Comment for the request.
+        optional string message = 1;
+    }
+
+    message TAbortEviction
+    {
+        // Comment for the abort.
+        optional string message = 1;
+    }
+
     // Acknowledges eviction of a pod.
     // Pod must have /status/eviction/state == "requested" prior to this call and
     // the latter changes it to "acknowledged".
     optional TAcknowledgeEviction acknowledge_eviction = 1;
+
+    // Requests eviction of a pod.
+    // Pod must have /status/eviction/state == "none" prior to this call and
+    // the latter changes it to "requested".
+    optional TRequestEviction request_eviction = 2;
+
+    // Aborts eviction of a pod.
+    // Pod must have /status/eviction/state == "requested" prior to this call and
+    // the latter changes it to "none".
+    optional TAbortEviction abort_eviction = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1263,7 +1296,11 @@ option (NYP.NClient.NApi.NProto.object_type) = {
 
 message TNodeSegmentSpec
 {
+    // Describes nodes belonging to this segment.
     required string node_filter = 1;
+
+    // If enable_unsafe_porto is false, all pods in this segment must be safe.
+    optional bool enable_unsafe_porto = 2;
 }
 
 message TNodeSegmentStatus
@@ -1351,6 +1388,7 @@ message TInternetAddressStatus
 option (NYP.NClient.NApi.NProto.object_type) = {
     camel_case_name: "DnsRecordSet"
     snake_case_name: "dns_record_set"
+    human_readable_name: "DNS record set"
     type_value: 14
 };
 

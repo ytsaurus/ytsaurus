@@ -529,16 +529,22 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
         seconds_per_iteration = (scheduler_config["loop_period"] + scheduler_config["failed_allocation_backoff_time"]) / 1000.0
         return seconds_per_iteration * (max_possible_iteration_period + 5)
 
-    def _get_default_resource_capacities(self):
+    def _get_default_node_configuration(self):
         return dict(
             cpu_total_capacity=10 ** 3,
             memory_total_capacity=10 ** 10,
             disk_spec=dict(total_capacity=10 ** 12),
+            vlan_id="backbone",
         )
+
+    def _get_nonexistent_vlan_id(self):
+        candidate = "somevlan"
+        assert candidate != self._get_default_node_configuration()["vlan_id"]
+        return candidate
 
     def _test_scheduling_error(self, yp_env_configurable, pod_spec, status_check):
         yp_client = yp_env_configurable.yp_client
-        create_nodes(yp_client, node_count=self._NODE_COUNT, **self._get_default_resource_capacities())
+        create_nodes(yp_client, node_count=self._NODE_COUNT, **self._get_default_node_configuration())
         pod_set_id = yp_client.create_object("pod_set", attributes=dict(spec=DEFAULT_POD_SET_SPEC))
         pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, pod_spec)
         wait(lambda: status_check(get_pod_scheduling_status(yp_client, pod_id)))
@@ -548,24 +554,57 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
             "{}: {}".format(allocation_error_string, self._SCHEDULER_SAMPLE_SIZE) in str(status["error"]) and \
             "{}: {}".format(allocation_error_string, self._NODE_COUNT) in str(status["error"])
 
-    def test_internet_address_scheduling_error(self, yp_env_configurable):
+    def _multiple_errors_status_check(self, allocation_error_strings, status):
+        for allocation_error_string in allocation_error_strings:
+            if not self._error_status_check(allocation_error_string, status):
+                return False
+        return True
+
+    def test_ip6_address_internet_scheduling_error(self, yp_env_configurable):
         pod_spec = dict(
             enable_scheduling=True,
             ip6_address_requests=[
                 dict(
-                    vlan_id="somevlan",
+                    vlan_id=self._get_default_node_configuration()["vlan_id"],
                     network_id="somenet",
                     enable_internet=True,
                 ),
             ],
         )
-        status_check = partial(self._error_status_check, "InternetAddressUnsatisfied")
+        status_check = partial(self._error_status_check, "IP6Address")
         self._test_scheduling_error(yp_env_configurable, pod_spec, status_check)
 
-    def test_antiaffinity_scheduling_error(self, yp_env_configurable):
+    def test_ip6_address_vlan_scheduling_error(self, yp_env_configurable):
+        pod_spec = dict(
+            enable_scheduling=True,
+            ip6_address_requests=[
+                dict(
+                    vlan_id=self._get_nonexistent_vlan_id(),
+                    network_id="somenet",
+                    enable_internet=False,
+                ),
+            ],
+        )
+        status_check = partial(self._error_status_check, "IP6Address")
+        self._test_scheduling_error(yp_env_configurable, pod_spec, status_check)
+
+    def test_ip6_subnet_vlan_scheduling_error(self, yp_env_configurable):
+        pod_spec = dict(
+            enable_scheduling=True,
+            ip6_subnet_requests=[
+                dict(
+                    vlan_id=self._get_nonexistent_vlan_id(),
+                    network_id="somenet",
+                ),
+            ],
+        )
+        status_check = partial(self._error_status_check, "IP6Subnet")
+        self._test_scheduling_error(yp_env_configurable, pod_spec, status_check)
+
+    def test_antiaffinity_vacancy_scheduling_error(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
 
-        create_nodes(yp_client, node_count=self._NODE_COUNT, **self._get_default_resource_capacities())
+        create_nodes(yp_client, node_count=self._NODE_COUNT, **self._get_default_node_configuration())
 
         pod_set_attributes = dict(
             spec=yt.common.update(
@@ -595,28 +634,28 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
         wait(preallocated_status_check)
 
         pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, pod_spec)
-        wait(lambda: self._error_status_check("AntiaffinityUnsatisfied", get_pod_scheduling_status(yp_client, pod_id)))
+        wait(lambda: self._error_status_check("AntiaffinityVacancy", get_pod_scheduling_status(yp_client, pod_id)))
 
     def test_cpu_scheduling_error(self, yp_env_configurable):
-        cpu_total_capacity = self._get_default_resource_capacities()["cpu_total_capacity"]
+        cpu_total_capacity = self._get_default_node_configuration()["cpu_total_capacity"]
         pod_spec = dict(
             enable_scheduling=True,
             resource_requests=dict(vcpu_guarantee=cpu_total_capacity + 1)
         )
-        status_check = partial(self._error_status_check, "CpuUnsatisfied")
+        status_check = partial(self._error_status_check, "Cpu")
         self._test_scheduling_error(yp_env_configurable, pod_spec, status_check)
 
     def test_memory_scheduling_error(self, yp_env_configurable):
-        memory_total_capacity = self._get_default_resource_capacities()["memory_total_capacity"]
+        memory_total_capacity = self._get_default_node_configuration()["memory_total_capacity"]
         pod_spec = dict(
             enable_scheduling=True,
             resource_requests=dict(memory_limit=memory_total_capacity + 1),
         )
-        status_check = partial(self._error_status_check, "MemoryUnsatisfied")
+        status_check = partial(self._error_status_check, "Memory")
         self._test_scheduling_error(yp_env_configurable, pod_spec, status_check)
 
     def test_disk_scheduling_error(self, yp_env_configurable):
-        disk_total_capacity = self._get_default_resource_capacities()["disk_spec"]["total_capacity"]
+        disk_total_capacity = self._get_default_node_configuration()["disk_spec"]["total_capacity"]
         pod_spec = dict(
             enable_scheduling=True,
             disk_volume_requests=[
@@ -627,13 +666,13 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
                 )
             ]
         )
-        status_check = partial(self._error_status_check, "DiskUnsatisfied")
+        status_check = partial(self._error_status_check, "Disk")
         self._test_scheduling_error(yp_env_configurable, pod_spec, status_check)
 
-    def test_cpu_memory_disk_scheduling_error(self, yp_env_configurable):
-        cpu_total_capacity = self._get_default_resource_capacities()["cpu_total_capacity"]
-        memory_total_capacity = self._get_default_resource_capacities()["memory_total_capacity"]
-        disk_total_capacity = self._get_default_resource_capacities()["disk_spec"]["total_capacity"]
+    def test_cpu_memory_disk_scheduling_errors(self, yp_env_configurable):
+        cpu_total_capacity = self._get_default_node_configuration()["cpu_total_capacity"]
+        memory_total_capacity = self._get_default_node_configuration()["memory_total_capacity"]
+        disk_total_capacity = self._get_default_node_configuration()["disk_spec"]["total_capacity"]
         pod_spec = dict(
             enable_scheduling=True,
             resource_requests=dict(
@@ -648,21 +687,17 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
                 )
             ]
         )
-        def status_check(status):
-            for allocation_error_string in ["CpuUnsatisfied", "MemoryUnsatisfied", "DiskUnsatisfied"]:
-                if not self._error_status_check(allocation_error_string, status):
-                    return False
-            return True
+        status_check = partial(self._multiple_errors_status_check, ("Cpu", "Memory", "Disk"))
         self._test_scheduling_error(yp_env_configurable, pod_spec, status_check)
 
     def test_pods_collision(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
 
-        create_nodes(yp_client, node_count=self._NODE_COUNT, **self._get_default_resource_capacities())
+        create_nodes(yp_client, node_count=self._NODE_COUNT, **self._get_default_node_configuration())
 
         pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
 
-        cpu_total_capacity = self._get_default_resource_capacities()["cpu_total_capacity"]
+        cpu_total_capacity = self._get_default_node_configuration()["cpu_total_capacity"]
         pod_spec = dict(
             enable_scheduling=True,
             resource_requests=dict(vcpu_guarantee=cpu_total_capacity + 1),

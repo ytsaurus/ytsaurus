@@ -355,7 +355,7 @@ class TestNet(object):
         wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/state"])[0] == "assigned")
         yp_client.remove_object("network_project", "somenet")
         # Must not throw
-        yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/iss_payload", "value": "123"}])
+        yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/iss", "value": {"instances": []}}])
 
     def test_virtual_service_tunnel(self, yp_env):
         yp_client = yp_env.yp_client

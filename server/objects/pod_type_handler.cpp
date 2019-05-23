@@ -2,6 +2,7 @@
 #include "type_handler_detail.h"
 #include "pod.h"
 #include "node.h"
+#include "node_segment.h"
 #include "pod_set.h"
 #include "account.h"
 #include "network_project.h"
@@ -163,7 +164,13 @@ public:
         ControlAttributeSchema_
             ->AddChildren({
                 MakeAttributeSchema("acknowledge_eviction")
-                    ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TAcknowledgeEviction>(std::bind(&TPodTypeHandler::AcknowledgeEviction, _1, _2, _3))
+                    ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TAcknowledgeEviction>(std::bind(&TPodTypeHandler::AcknowledgeEviction, _1, _2, _3)),
+
+                MakeAttributeSchema("request_eviction")
+                    ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TRequestEviction>(std::bind(&TPodTypeHandler::RequestEviction, this, _1, _2, _3)),
+
+                MakeAttributeSchema("abort_eviction")
+                    ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TAbortEviction>(std::bind(&TPodTypeHandler::AbortEviction, this, _1, _2, _3))
             });
 
         LabelsAttributeSchema_
@@ -372,6 +379,19 @@ private:
 
             ValidateNetworkRequests(transaction, pod);
         }
+
+        if (spec.IssPayload().IsChanged()) {
+            auto* podSet = pod->PodSet().Load();
+            auto* nodeSegment = podSet->Spec().NodeSegment().Load();
+            if (!nodeSegment->Spec().Load().enable_unsafe_porto()) {
+                ValidateIssPodSpecSafe(pod);
+            }
+        }
+    }
+
+    static NClient::NApi::NProto::EEvictionState GetEvictionState(const TPod* pod)
+    {
+        return pod->Status().Etc().Load().eviction().state();
     }
 
     static void AcknowledgeEviction(
@@ -379,7 +399,7 @@ private:
         TPod* pod,
         const NClient::NApi::NProto::TPodControl_TAcknowledgeEviction& control)
     {
-        if (pod->Status().Etc().Load().eviction().state() != NClient::NApi::NProto::ES_REQUESTED) {
+        if (GetEvictionState(pod) != NClient::NApi::NProto::ES_REQUESTED) {
             THROW_ERROR_EXCEPTION("No eviction is currently requested for pod %Qv",
                 pod->GetId());
         }
@@ -394,6 +414,63 @@ private:
             message);
 
         pod->UpdateEvictionStatus(EEvictionState::Acknowledged, EEvictionReason::None, message);
+    }
+
+    void RequestEviction(
+        TTransaction* /*transaction*/,
+        TPod* pod,
+        const NClient::NApi::NProto::TPodControl_TRequestEviction& control)
+    {
+        const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+        accessControlManager->ValidateSuperuser("request pod eviction");
+
+        if (GetEvictionState(pod) != NClient::NApi::NProto::ES_NONE) {
+            THROW_ERROR_EXCEPTION("Cannot request pod eviction for pod %Qv since current eviction state is not none",
+                pod->GetId());
+        }
+
+        // NB! Concurrent pod assignment and eviction status changes are not possible
+        // because any pod assignment change is guaranteed to overwrite eviction status.
+        if (!pod->Spec().Node().Load()) {
+            THROW_ERROR_EXCEPTION("Cannot request pod eviction because pod %Qv is not assigned to any node",
+                pod->GetId());
+        }
+
+        auto message = control.message();
+        if (!message) {
+            message = "Eviction requested by client";
+        }
+
+        YT_LOG_DEBUG("Pod eviction requested (PodId: %v, Message: %v)",
+            pod->GetId(),
+            message);
+
+        pod->UpdateEvictionStatus(EEvictionState::Requested, EEvictionReason::Client, message);
+    }
+
+    void AbortEviction(
+        TTransaction* /*transaction*/,
+        TPod* pod,
+        const NClient::NApi::NProto::TPodControl_TAbortEviction& control)
+    {
+        const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+        accessControlManager->ValidateSuperuser("abort pod eviction");
+
+        if (GetEvictionState(pod) != NClient::NApi::NProto::ES_REQUESTED) {
+            THROW_ERROR_EXCEPTION("No eviction is currently requested for pod %Qv",
+                pod->GetId());
+        }
+
+        auto message = control.message();
+        if (!message) {
+            message = "Eviction aborted by client";
+        }
+
+        YT_LOG_DEBUG("Pod eviction aborted (PodId: %v, Message: %v)",
+            pod->GetId(),
+            message);
+
+        pod->UpdateEvictionStatus(EEvictionState::None, EEvictionReason::None, message);
     }
 
     static void ValidateDiskVolumeRequests(TPod* pod)
@@ -452,23 +529,6 @@ private:
     }
 
 
-    bool AreLabelsDynamicAttributesChanged(TPod* pod)
-    {
-        const auto& specDynamicAttributes = pod->Spec().DynamicAttributes().Load();
-
-        auto oldLabels = pod->Labels().LoadOld();
-        auto newLabels = pod->Labels().Load();
-        for (const auto& key : specDynamicAttributes.labels()) {
-            auto oldValue = oldLabels->FindChild(key);
-            auto newValue = newLabels->FindChild(key);
-            if (!AreNodesEqual(oldValue, newValue)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     void BeforeLabelsUpdated(TTransaction* /*transaction*/, TPod* pod)
     {
         pod->Spec().DynamicAttributes().ScheduleLoad();
@@ -476,7 +536,7 @@ private:
 
     void OnLabelsUpdated(TTransaction* /*transaction*/, TPod* pod)
     {
-        if (AreLabelsDynamicAttributesChanged(pod)) {
+        if (pod->Labels().IsChanged()) {
             pod->Spec().UpdateTimestamp().Touch();
         }
     }

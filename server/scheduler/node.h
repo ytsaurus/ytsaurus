@@ -108,6 +108,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TDiskResources, DiskResources);
 
     bool IsSchedulable() const;
+    bool HasIP6SubnetInVlan(const TString& vlanId) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,6 +1,7 @@
 #include "object.h"
 #include "db_schema.h"
 #include "helpers.h"
+#include "type_info.h"
 
 namespace NYP::NServer::NObjects {
 

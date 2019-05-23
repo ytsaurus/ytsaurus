@@ -149,6 +149,16 @@ bool TNode::IsSchedulable() const
         !HasUnknownPods_;
 }
 
+bool TNode::HasIP6SubnetInVlan(const TString& vlanId) const
+{
+    for (const auto& subnet : Spec().ip6_subnets()) {
+        if (vlanId == subnet.vlan_id()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYP::NScheduler::NObjects

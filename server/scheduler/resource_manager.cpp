@@ -196,12 +196,12 @@ private:
                 }
             }
 
-            if (pod->Status().Etc().Load().eviction().state() != NClient::NApi::NProto::ES_NONE) {
-                pod->UpdateEvictionStatus(
-                    EEvictionState::None,
-                    EEvictionReason::None,
-                    "Eviction state reset due to pod assignment change");
-            }
+            // NB! Overwrite eviction status even if there is no actual eviction
+            // to prevent concurrent pod assignment / eviction status changes.
+            pod->UpdateEvictionStatus(
+                EEvictionState::None,
+                EEvictionReason::None,
+                "Eviction state reset due to pod assignment change");
         } else if (pod->Spec().EnableScheduling().IsChanged() &&
                    pod->Spec().EnableScheduling().Load() &&
                    !node &&

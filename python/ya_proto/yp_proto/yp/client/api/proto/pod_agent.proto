@@ -163,7 +163,7 @@ message TCacheResource {
 }
 
 message TLayer {
-    reserved 2;
+    reserved "resource"; reserved 2;
 
     // Уникальный идентификатор (произвольная строка)
     string id = 1;
@@ -178,6 +178,11 @@ message TLayer {
     // Для записи строчки в файл URL должен быть равен "raw:<строка>"
     // Только для тестов: можно указать путь к файлу на хосте "local:<filepath>"
     string url = 5;
+
+    // place, где будет расположен layer
+    // передается as is в porto
+    // NOTE: должен совпадать с place у volume, которые используют этот слой
+    string place = 6;
 }
 
 message TCacheLayer {
@@ -210,13 +215,20 @@ message TMountedStaticResource {
 }
 
 message TRootfsVolume {
+    reserved 2, 3, 5;
+
     // Квота на размер
     // NOTE: не обрабатывается - porto не умеет во вложенные квоты по диску
     uint64 quota_bytes = 1;
 
+    // place, где будет расположен volume
+    // передается as is в porto
+    // NOTE: Валидация должен совпадать с place у слоев, из которых собирается volume
+    string place = 6;
+
     // Слои, из которых собирается volume
     // как и в porto, слои идут в порядке top-layer;...;bottom-layer
-    //NOTE: Валидация ids в списке должны быть уникальные
+    // NOTE: Валидация ids в списке должны быть уникальные
     repeated string layer_refs = 4;
 }
 
@@ -227,14 +239,19 @@ message TFileStorage {
 }
 
 message TGenericVolume {
-    reserved 1,2,3;
+    reserved 1, 2, 3;
 
     // Квота на размер
     // NOTE: не обрабатывается - porto не умеет во вложенные квоты по диску
     uint64 quota_bytes = 5;
 
+    // place, где будет расположен volume
+    // передается as is в porto
+    // NOTE: Валидация должен совпадать с place у слоев, из которых собирается volume
+    string place = 6;
+
     // Слои, из которых собирается volume
-    //NOTE: Валидация ids в списке должны быть уникальные
+    // NOTE: Валидация ids в списке должны быть уникальные
     repeated string layer_refs = 4;
 }
 
@@ -297,7 +314,7 @@ message TEnvVar {
 }
 
 enum EContainerULimitType {
-    // address space 
+    // address space
     EContainerULimit_AS = 0 [(NYT.NYson.NProto.enum_value_name) = "as"];
 
     // core file size
@@ -423,6 +440,12 @@ message TBox {
     string id = 1;
 
     TRootfsVolume rootfs = 2;
+
+    // Ограничения на meta контейнер Box
+    TComputeResources compute_resources = 12;
+
+    // Переменные окружения - прокидываются во все init контейнеры бокса
+    repeated TEnvVar env = 13;
 
     // если указано true
     // pod agent создает bind volume из <pod_chroot>/place/berkanavt/supervisor в <box_chroot>/place/berkanavt/supervisor

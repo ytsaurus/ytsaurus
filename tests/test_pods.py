@@ -867,21 +867,17 @@ class TestPods(object):
         pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {})
         assert yp_client.get_object("pod", pod_id, selectors=["/meta/acl"])[0] == []
 
-    def test_dynamic_properties(self, yp_env):
+    def test_dynamic_attributes(self, yp_env):
         yp_client = yp_env.yp_client
 
         pod_set_id = yp_client.create_object("pod_set")
         pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
                 "dynamic_attributes": {
-                    "labels": ["l1", "l2"],
                     "annotations": ["a1", "a2"]
                 }
             })
 
         ts1 = yp_client.get_object("pod", pod_id, selectors=["/status/master_spec_timestamp"])[0]
-
-        yp_client.update_object("pod", pod_id, set_updates=[{"path": "/labels/l3", "value": 1}])
-        assert ts1 == yp_client.get_object("pod", pod_id, selectors=["/status/master_spec_timestamp"])[0]
 
         yp_client.update_object("pod", pod_id, set_updates=[{"path": "/annotations/a3", "value": 1}])
         assert ts1 == yp_client.get_object("pod", pod_id, selectors=["/status/master_spec_timestamp"])[0]
@@ -946,3 +942,231 @@ class TestPods(object):
         assert resource_cache_get["spec"]["static_resources"][0]["resource"]["url"] == "my_static_resource_url"
         assert resource_cache_get["spec"]["static_resources"][0]["resource"]["verification"]["checksum"] == "my_static_resource_checksum"
         assert resource_cache_get["spec"]["static_resources"][0]["resource"]["verification"]["check_period_ms"] == 20
+
+    def test_set_labels_on_create(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        pod_set_id = yp_client.create_object("pod_set")
+        yp_client.create_object("pod", attributes={
+                "meta": {
+                    "pod_set_id": pod_set_id
+                },
+                "labels": {
+                    "hello": "world"
+                },
+                "spec": {
+                    "dynamic_attributes": {
+                        "labels": ["hello"]
+                    }
+                }
+            })
+
+
+    UNSAFE_PORTO_SPECS = [
+        {
+            "iss": {
+                "instances": [
+                    {
+                        "targetState": "ACTIVE",
+                        "entity": {
+                            "instance": {
+                                # meta.enable_porto is "full" by default
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    ] + [
+        {
+            "iss": {
+                "instances": [
+                    {
+                        "targetState": "ACTIVE",
+                        "entity": {
+                            "instance": {
+                                "container": {
+                                    "constraints": [
+                                        {"key": "meta.enable_porto", "value": enable_porto}
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+        for enable_porto in ["read-only", "child-only", "true", "full"]
+    ] + [
+        {
+            "iss": {
+                "instances": [
+                    {
+                        "targetState": "ACTIVE",
+                        "entity": {
+                            "instance": {
+                                "volumes": [
+                                    {
+                                        "properties": [
+                                            {"key": "bind", "value": "not so /usr/local/yasmagent /usr/local/yasmagent ro"}
+                                        ]
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    ] + [
+        {
+            "iss": {
+                "instances": [
+                    {
+                        "targetState": "ACTIVE",
+                        "entity": {
+                            "instance": {
+                                "volumes": [
+                                    {
+                                        "properties": [
+                                            {"key": "backend", "value": backend},
+                                            {"key": "read_only", "value": readOnly},
+                                            {"key": "storage", "value": storage}
+                                        ]
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+        for backend in ["bind", "rbind"]
+        for readOnly, storage in [("false", "/Berkanavt/supervisor"), ("true", "not so /Berkanavt/supervisor")]
+    ]
+
+    SAFE_PORTO_SPECS = [
+        {
+            "iss": {
+                "instances": [
+                    {
+                        "targetState": "ACTIVE",
+                        "entity": {
+                            "instance": {
+                                "container": {
+                                    "constraints": [
+                                        {"key": "meta.enable_porto", "value": enable_porto}
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+        } for enable_porto in ["false", "none", "read-isolate", "isolate"]
+    ] + [
+        {
+            "iss": {
+                "instances": [
+                    {
+                        "targetState": "REMOVED",
+                        "entity": {
+                            "instance": {
+                                "container": {
+                                    "constraints": [
+                                        {"key": "meta.enable_porto", "value": "full"}
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    ] + [
+        {
+            "iss": {
+                "instances": [
+                    {
+                        "targetState": "ACTIVE",
+                        "entity": {
+                            "instance": {
+                                "container": {
+                                    "constraints": [
+                                        {"key": "meta.enable_porto", "value": "none"}
+                                    ]
+                                },
+                                "volumes": [
+                                    {
+                                        "properties": [
+                                            {"key": "backend", "value": backend},
+                                            {"key": "read_only", "value": "true"},
+                                            {"key": "storage", "value": "/Berkanavt/supervisor"}
+                                        ]
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+        for backend in ["bind", "rbind"]
+    ]
+
+    def test_unsafe_porto(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        segment_id = yp_client.create_object("node_segment", attributes={"spec": {"node_filter": "", "enable_unsafe_porto": False}})
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": {"node_segment_id": segment_id}})
+
+        for spec in self.UNSAFE_PORTO_SPECS:
+            with pytest.raises(YtResponseError):
+                yp_client.create_object("pod", attributes={
+                        "meta": {"pod_set_id": pod_set_id},
+                        "spec": spec
+                    })
+
+        yp_client.update_object("node_segment", segment_id, set_updates=[{"path": "/spec/enable_unsafe_porto", "value": True}])
+        for spec in self.UNSAFE_PORTO_SPECS:
+            yp_client.create_object("pod", attributes={
+                    "meta": {"pod_set_id": pod_set_id},
+                    "spec": spec
+                })
+
+    def test_safe_porto(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        segment_id = yp_client.create_object("node_segment", attributes={"spec": {"node_filter": "", "enable_unsafe_porto": False}})
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": {"node_segment_id": segment_id}})
+
+        for spec in self.SAFE_PORTO_SPECS:
+            yp_client.create_object("pod", attributes={
+                    "meta": {"pod_set_id": pod_set_id},
+                    "spec": spec
+                })
+
+    def test_update_segment_enable_unsafe_porto_success(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        segment_id = yp_client.create_object("node_segment", attributes={"spec": {"node_filter": "", "enable_unsafe_porto": True}})
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": {"node_segment_id": segment_id}})
+        yp_client.create_object("pod", attributes={
+                "meta": {"pod_set_id": pod_set_id},
+                "spec": self.SAFE_PORTO_SPECS[0]
+            })
+
+        yp_client.update_object("node_segment", segment_id, set_updates=[{"path": "/spec/enable_unsafe_porto", "value": False}])
+
+    def test_update_segment_enable_unsafe_porto_failure(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        segment_id = yp_client.create_object("node_segment", attributes={"spec": {"node_filter": "", "enable_unsafe_porto": True}})
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": {"node_segment_id": segment_id}})
+        yp_client.create_object("pod", attributes={
+                "meta": {"pod_set_id": pod_set_id},
+                "spec": self.UNSAFE_PORTO_SPECS[0]
+            })
+
+        with pytest.raises(YtResponseError):
+            yp_client.update_object("node_segment", segment_id, set_updates=[{"path": "/spec/enable_unsafe_porto", "value": False}])

@@ -1,5 +1,6 @@
 #include "type_handler_detail.h"
 #include "helpers.h"
+#include "type_info.h"
 
 #include <yp/server/master/bootstrap.h>
 
@@ -224,7 +225,7 @@ void TObjectTypeHandlerBase::ValidateMetaEtc(TTransaction* /*transaction*/, TObj
 
     if (metaEtcNew.has_name() && !IsObjectNameSupported()) {
         THROW_ERROR_EXCEPTION("Cannot set /meta/name for %v objects",
-            GetLowercaseHumanReadableTypeName(GetType()));
+            GetHumanReadableTypeName(GetType()));
     }
 }
 

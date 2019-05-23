@@ -27,6 +27,11 @@ const TScalarAttributeSchema<TNode, ui64> TNode::TStatus::HeartbeatSequenceNumbe
     [] (TNode* node) { return &node->Status().HeartbeatSequenceNumber(); }
 };
 
+const TScalarAttributeSchema<TNode, TNode::TStatus::THostManager> TNode::TStatus::HostManagerSchema{
+    &NodesTable.Fields.Status_HostManager,
+    [] (TNode* node) { return &node->Status().HostManager(); }
+};
+
 const TScalarAttributeSchema<TNode, TNode::TStatus::TEtc> TNode::TStatus::EtcSchema{
     &NodesTable.Fields.Status_Etc,
     [] (TNode* node) { return &node->Status().Etc(); }
@@ -37,6 +42,7 @@ TNode::TStatus::TStatus(TNode* node)
     , EpochId_(node, &EpochIdSchema)
     , LastSeenTime_(node, &LastSeenTimeSchema)
     , HeartbeatSequenceNumber_(node, &HeartbeatSequenceNumberSchema)
+    , HostManager_(node, &HostManagerSchema)
     , Etc_(node, &EtcSchema)
 { }
 

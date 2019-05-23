@@ -74,7 +74,9 @@ def is_error_pod_scheduling_status(scheduling_status):
         scheduling_status.get("node_id", None) is None
 
 
-def create_pod_with_boilerplate(yp_client, pod_set_id, spec, pod_id=None, transaction_id=None):
+def create_pod_with_boilerplate(yp_client, pod_set_id, spec=None, pod_id=None, transaction_id=None):
+    if spec is None:
+        spec = dict()
     meta = {
         "pod_set_id": pod_set_id
     }
@@ -97,7 +99,8 @@ def create_nodes(
         hfsm_state="up",
         cpu_total_capacity=100,
         memory_total_capacity=1000000000,
-        disk_spec=None):
+        disk_spec=None,
+        vlan_id="backbone"):
     disk_spec_defaults = dict(
         total_capacity=10 ** 11,
         total_volume_slots=10,
@@ -111,7 +114,7 @@ def create_nodes(
         node_id = yp_client.create_object("node", attributes={
                 "spec": {
                     "ip6_subnets": [
-                        {"vlan_id": "backbone", "subnet": "1:2:3:4::/64"}
+                        {"vlan_id": vlan_id, "subnet": "1:2:3:4::/64"}
                     ]
                 },
                 "labels" : {

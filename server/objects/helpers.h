@@ -110,8 +110,6 @@ NYT::NQueryClient::NAst::TExpressionPtr BuildAndExpression(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStringBuf GetCapitalizedHumanReadableTypeName(EObjectType type);
-TStringBuf GetLowercaseHumanReadableTypeName(EObjectType type);
 TString GetObjectDisplayName(const TObject* object);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -18,6 +18,7 @@
 #include <yp/server/objects/db_schema.h>
 #include <yp/server/objects/object.h>
 #include <yp/server/objects/helpers.h>
+#include <yp/server/objects/type_info.h>
 
 #include <yp/server/master/bootstrap.h>
 #include <yp/server/master/yt_connector.h>
@@ -79,7 +80,7 @@ public:
                 THROW_ERROR_EXCEPTION( \
                     NClient::NApi::EErrorCode::NoSuchObject, \
                     "No such %v %Qv", \
-                    GetLowercaseHumanReadableTypeName(EObjectType::name), \
+                    GetHumanReadableTypeName(EObjectType::name), \
                     id); \
             } \
             return object; \

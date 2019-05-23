@@ -14,8 +14,8 @@ class TNodeTrackerConfig
     : public NYT::NYTree::TYsonSerializable
 {
 public:
-    bool ValidateAgentCertificate;
-    std::optional<TString> AgentCertificateIssuer;
+    bool ValidateCallerCertificate;
+    std::optional<TString> CallerCertificateIssuer;
 
     bool EnableAgentNotification;
     TDuration AgentNotificationRpcTimeout;
@@ -23,11 +23,14 @@ public:
 
     TNodeTrackerConfig()
     {
-        RegisterParameter("validate_agent_certificate", ValidateAgentCertificate)
+        RegisterParameter("validate_caller_certificate", ValidateCallerCertificate)
             // COMPAT(babenko)
+            .Alias("validate_agent_certificate")
             .Alias("validate_agent_identity")
             .Default(false);
-        RegisterParameter("agent_certificate_issuer", AgentCertificateIssuer)
+        RegisterParameter("caller_certificate_issuer", CallerCertificateIssuer)
+            // COMPAT(babenko)
+            .Alias("agent_certificate_issuer")
             .Optional();
         RegisterParameter("enable_agent_notification", EnableAgentNotification)
             .Default(true);

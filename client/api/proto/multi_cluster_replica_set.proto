@@ -17,6 +17,7 @@ option java_multiple_files = true;
 option (NYP.NClient.NApi.NProto.object_type) = {
     camel_case_name: "MultiClusterReplicaSet"
     snake_case_name: "multi_cluster_replica_set"
+    human_readable_name: "multi-cluster replica set"
     type_value: 16
 };
 

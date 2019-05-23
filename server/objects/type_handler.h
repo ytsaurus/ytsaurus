@@ -33,19 +33,15 @@ struct IObjectTypeHandler
         const TObjectId& id,
         const TObjectId& parentId,
         ISession* session) = 0;
-
     virtual void BeforeObjectCreated(
         TTransaction* transaction,
         TObject* object) = 0;
-
     virtual void AfterObjectCreated(
         TTransaction* transaction,
         TObject* object) = 0;
-
     virtual void BeforeObjectRemoved(
         TTransaction* transaction,
         TObject* object) = 0;
-
     virtual void AfterObjectRemoved(
         TTransaction* transaction,
         TObject* object) = 0;

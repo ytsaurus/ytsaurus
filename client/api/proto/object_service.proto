@@ -175,6 +175,9 @@ message TRspCreateObject
 {
     // Object id.
     required string object_id = 1;
+
+    // Commit timestamp in case the request was issued outside of an explicit transaction.
+    optional uint64 commit_timestamp = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -212,6 +215,9 @@ message TRspCreateObjects
 
     // The i-th subresponse here contains the result for the i-th subrequest.
     repeated TSubresponse subresponses = 1;
+
+    // Commit timestamp in case the request was issued outside of an explicit transaction.
+    optional uint64 commit_timestamp = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -230,7 +236,10 @@ message TReqRemoveObject
 }
 
 message TRspRemoveObject
-{ }
+{
+    // Commit timestamp in case the request was issued outside of an explicit transaction.
+    optional uint64 commit_timestamp = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -254,7 +263,10 @@ message TReqRemoveObjects
 }
 
 message TRspRemoveObjects
-{ }
+{
+    // Commit timestamp in case the request was issued outside of an explicit transaction.
+    optional uint64 commit_timestamp = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -278,7 +290,10 @@ message TReqUpdateObject
 }
 
 message TRspUpdateObject
-{ }
+{
+    // Commit timestamp in case the request was issued outside of an explicit transaction.
+    optional uint64 commit_timestamp = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -308,7 +323,10 @@ message TReqUpdateObjects
 }
 
 message TRspUpdateObjects
-{ }
+{
+    // Commit timestamp in case the request was issued outside of an explicit transaction.
+    optional uint64 commit_timestamp = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -347,6 +365,10 @@ message TRspGetObject
 {
     // The result containing the requested attributes.
     required TAttributeValueList result = 1;
+
+    // If TReqGetObject.timestamp is missing, then this contains the actual timestamp
+    // used for reading the DB; otherwise this is just the copy of TRspGetObject.timestamp.
+    optional uint64 timestamp = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -390,6 +412,10 @@ message TRspGetObjects
  
     // The i-th subresponse here contains the result for the i-th subrequest.
     repeated TSubresponse subresponses = 1;
+
+    // If TReqGetObject.timestamp is missing, then this contains the actual timestamp
+    // used for reading the DB; otherwise this is just the copy of TRspGetObjects.timestamp.
+    optional uint64 timestamp = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -425,6 +451,10 @@ message TRspSelectObjects
     // The result set: each element of this list corresponds to a single
     // matching object.
     repeated TAttributeValueList results = 1;
+
+    // If TReqSelectObjects.timestamp is missing, then this contains the actual timestamp
+    // used for reading the DB; otherwise this is just the copy of TReqSelectObjects.timestamp.
+    optional uint64 timestamp = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -473,6 +503,10 @@ message TRspCheckObjectPermissions
 
     // The i-th subresponse here contains the result for the i-th subrequest.
     repeated TSubresponse subresponses = 1;
+
+    // If TReqCheckObjectPermissions.timestamp is missing, then this contains the actual timestamp
+    // used for reading the DB; otherwise this is just the copy of TReqCheckObjectPermissions.timestamp.
+    optional uint64 timestamp = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -509,6 +543,10 @@ message TRspGetObjectAccessAllowedFor
 
     // The i-th subresponse here contains the result for the i-th subrequest.
     repeated TSubresponse subresponses = 1;
+
+    // If TReqGetObjectAccessAllowedFor.timestamp is missing, then this contains the actual timestamp
+    // used for reading the DB; otherwise this is just the copy of TReqGetObjectAccessAllowedFor.timestamp.
+    optional uint64 timestamp = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

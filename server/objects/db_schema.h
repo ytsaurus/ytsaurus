@@ -100,6 +100,7 @@ extern const struct TNodesTable
         TDBField Status_EpochId{"status.epoch_id", NTableClient::EValueType::String};
         TDBField Status_LastSeenTime{"status.last_seen_time", NTableClient::EValueType::Uint64};
         TDBField Status_HeartbeatSequenceNumber{"status.heartbeat_sequence_number", NTableClient::EValueType::Uint64};
+        TDBField Status_HostManager{"status.host_manager", NTableClient::EValueType::Any};
         TDBField Status_Etc{"status.other", NTableClient::EValueType::Any};
     } Fields;
 } NodesTable;

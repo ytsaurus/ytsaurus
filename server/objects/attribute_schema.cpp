@@ -1,6 +1,7 @@
 #include "attribute_schema.h"
 #include "type_handler.h"
 #include "helpers.h"
+#include "type_info.h"
 
 #include <yt/core/ypath/tokenizer.h>
 
@@ -125,7 +126,7 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Error parsing value of annotation %Qv of %v %v",
                         key,
-                        GetLowercaseHumanReadableTypeName(object->GetType()),
+                        GetHumanReadableTypeName(object->GetType()),
                         GetObjectDisplayName(object))
                         << ex;
                 }
@@ -391,7 +392,7 @@ void TAttributeSchema::RunValidators(
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error validating %v for %v %v",
             GetPath(),
-            GetLowercaseHumanReadableTypeName(object->GetType()),
+            GetHumanReadableTypeName(object->GetType()),
             GetObjectDisplayName(object))
             << ex;
     }

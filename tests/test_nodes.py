@@ -2,6 +2,8 @@ from .conftest import ZERO_RESOURCE_REQUESTS
 
 from yp.common import YtResponseError
 
+from yt.yson import YsonEntity
+
 import pytest
 
 
@@ -65,3 +67,19 @@ class TestNodes(object):
             "path": "/control/update_hfsm_state",
             "value": {"state": "up", "message": "test"}}])
         assert yp_client.get_object("node", node_id, selectors=["/status/hfsm/state"])[0] == "up"
+
+    def test_host_spec(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        node_id = yp_client.create_object(object_type="node")
+        yp_client.get_object("node", node_id, selectors=["/spec/host_manager"])[0]
+
+        PAYLOAD = {"type_url": "yandex.ru/someurl", "value": "somevalue"}
+        yp_client.update_object("node", node_id, set_updates=[{"path": "/spec/host_manager", "value": PAYLOAD}])
+        assert yp_client.get_object("node", node_id, selectors=["/spec/host_manager"])[0] == PAYLOAD
+
+    def test_host_status(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        node_id = yp_client.create_object(object_type="node")
+        yp_client.get_object("node", node_id, selectors=["/status/host_manager"])[0]
