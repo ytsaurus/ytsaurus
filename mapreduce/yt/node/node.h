@@ -20,6 +20,10 @@ namespace NYT {
 class TNode
 {
 public:
+    class TLookupError
+        : public TWithBackTrace<yexception>
+    { };
+
     class TTypeError
         : public TWithBackTrace<yexception>
     { };
