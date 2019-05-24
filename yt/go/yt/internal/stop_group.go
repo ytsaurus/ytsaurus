@@ -40,8 +40,10 @@ func (l *StopGroup) C() <-chan struct{} {
 
 func (l *StopGroup) Stop() {
 	l.m.Lock()
-	l.done = true
-	close(l.c)
+	if !l.done {
+		l.done = true
+		close(l.c)
+	}
 
 	for l.count > 0 {
 		l.finished.Wait()
