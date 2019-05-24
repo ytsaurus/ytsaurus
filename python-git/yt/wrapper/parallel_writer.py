@@ -78,19 +78,20 @@ class ParallelWriter(object):
         return self._pool.imap(self._write_chunk, chunks)
 
     def write(self, blobs):
-        output_objects = []
-        for table in self._write_iterator(blobs):
-            output_objects.append(table)
-            if len(output_objects) >= get_config(self._client)["write_parallel"]["concatenate_size"]:
+        try:
+            output_objects = []
+            for table in self._write_iterator(blobs):
+                output_objects.append(table)
+                if len(output_objects) >= get_config(self._client)["write_parallel"]["concatenate_size"]:
+                    concatenate(output_objects, self._path, client=self._client)
+                    batch_apply(remove, output_objects, client=self._client)
+                    self._path.attributes["append"] = True
+                    output_objects = []
+            if output_objects:
                 concatenate(output_objects, self._path, client=self._client)
                 batch_apply(remove, output_objects, client=self._client)
-                self._path.attributes["append"] = True
-                output_objects = []
-        if output_objects:
-            concatenate(output_objects, self._path, client=self._client)
-            batch_apply(remove, output_objects, client=self._client)
-
-        self._pool.close()
+        finally:
+            self._pool.close()
 
 
 def _get_chunk_size_and_thread_count(size_hint, config):
