@@ -5708,6 +5708,8 @@ private:
 
             TSelectRowsOptions selectOptions;
             selectOptions.Timeout = deadline - Now();
+            selectOptions.InputRowLimit = std::numeric_limits<i64>::max();
+            selectOptions.MemoryLimitPerNode = 100_MB;
 
             auto resultCounts = WaitFor(SelectRows(builder.Build(), selectOptions))
                 .ValueOrThrow();
@@ -5785,7 +5787,7 @@ private:
         TSelectRowsOptions selectOptions;
         selectOptions.Timeout = deadline - Now();
         selectOptions.InputRowLimit = std::numeric_limits<i64>::max();
-        selectOptions.MemoryLimitPerNode = 1_GB;
+        selectOptions.MemoryLimitPerNode = 100_MB;
 
         auto rowsItemsId = WaitFor(SelectRows(builder.Build(), selectOptions))
             .ValueOrThrow();
@@ -6386,6 +6388,8 @@ private:
         TSelectRowsOptions selectRowsOptions;
         selectRowsOptions.Timestamp = AsyncLastCommittedTimestamp;
         selectRowsOptions.Timeout = deadline - Now();
+        selectRowsOptions.InputRowLimit = std::numeric_limits<i64>::max();
+        selectRowsOptions.MemoryLimitPerNode = 100_MB;
 
         TFuture<std::vector<TJob>> jobsInProgressFuture;
         if (includeInProgressJobs) {
