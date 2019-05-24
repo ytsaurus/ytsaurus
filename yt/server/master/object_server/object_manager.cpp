@@ -1167,7 +1167,7 @@ void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequ
     for (const auto& prerequisite : prerequisites.revisions()) {
         auto transactionId = FromProto<TTransactionId>(prerequisite.transaction_id());
         const auto& path = prerequisite.path();
-        i64 revision = prerequisite.revision();
+        ui64 revision = prerequisite.revision();
 
         auto* transaction = transactionId
             ? getPrerequisiteTransaction(transactionId)

@@ -117,7 +117,7 @@ struct TPrerequisiteRevisionConfig
 {
     NYTree::TYPath Path;
     NTransactionClient::TTransactionId TransactionId;
-    i64 Revision;
+    ui64 Revision;
 
     TPrerequisiteRevisionConfig()
     {
