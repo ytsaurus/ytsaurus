@@ -235,8 +235,16 @@ default_config = {
         "enable_local_files_usage_in_job": None,
         # Command to run python in jobs, by default it is simple "python".
         "python_binary": None,
-        # Enable wrapping of stdin and stdout streams to avoid their unintentional usage.
+        # Enable wrapping of Python stdin and stdout streams to avoid their unintentional usage.
         "safe_stream_mode": True,
+        # Protect stdout file descriptor from user writes. This differs from safe_stream_mode in
+        # that this option can prevent C/C++ code from writing to stdout as well as Python code.
+        # Available options:
+        #  * redirect_to_stderr - everything written to stdout by user code will be redirected to stderr;
+        #  * drop - user writes to stdout will be redirected to /dev/null;
+        #  * close - stdout will be closed for user writes. Warning: may lead to errors that are hard to debug;
+        #  * none - disable protection.
+        "stdout_fd_protection": "redirect_to_stderr",
         # Enables using tmpfs for modules archive.
         "enable_tmpfs_archive": True,
         # Add tmpfs archive size to memory limit.
