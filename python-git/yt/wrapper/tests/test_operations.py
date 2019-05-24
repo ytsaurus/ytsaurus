@@ -738,6 +738,28 @@ print(op.id)
         check([{"sum": 1}, {"sum": 2}, {"sum": 9}], list(yt.read_table(other_table)))
 
     @add_failed_operation_stderrs_to_error_message
+    def test_stdout_fd_protection(self):
+        def mapper(record):
+            # Pretend that we are C code writing to stdout.
+            os.write(1, b"Mapping record: " + repr(record).encode("utf-8"))
+            yield record
+
+        table = TEST_DIR + "/table"
+        output_table = TEST_DIR + "/my_table"
+        yt.write_table(table, [{"x": 1}, {"x": 2}])
+
+        for protection_type in ("none", "close"):
+            with set_config_option("pickling/stdout_fd_protection", protection_type):
+                with pytest.raises(yt.YtOperationFailedError):
+                    yt.run_map(mapper, table, output_table)
+
+        for protection_type in ("redirect_to_stderr", "drop"):
+            yt.write_table(output_table, [])
+            with set_config_option("pickling/stdout_fd_protection", protection_type):
+                yt.run_map(mapper, table, output_table)
+            check([{"x": 1}, {"x": 2}], list(yt.read_table(output_table)))
+
+    @add_failed_operation_stderrs_to_error_message
     def test_create_modules_archive(self):
         def foo(rec):
             yield rec
