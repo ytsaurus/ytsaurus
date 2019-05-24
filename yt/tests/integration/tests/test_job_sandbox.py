@@ -1,6 +1,7 @@
 from yt_env_setup import YTEnvSetup, patch_porto_env_only
 from yt_commands import *
 
+import yt.environment.init_operation_archive as init_operation_archive
 from yt.yson import *
 from yt.test_helpers import assert_items_equal, are_almost_equal
 
@@ -8,6 +9,7 @@ from flaky import flaky
 
 import pytest
 import time
+import datetime
 
 porto_delta_node_config = {
     "exec_agent": {
@@ -430,6 +432,106 @@ class TestSandboxTmpfs(YTEnvSetup):
         content = read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr")
         words = content.strip().split()
         assert ["file", "content_1", "file", "content_2"] == words
+
+class TestSandboxTmpfsOverflow(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "slot_manager": {
+                "job_environment": {
+                    "type": "cgroups",
+                    "memory_watchdog_period": 100,
+                    "supported_cgroups": ["cpuacct", "blkio", "cpu"],
+                },
+            },
+            "statistics_reporter": {
+                "enabled": True,
+                "reporting_period": 10,
+                "min_repeat_delay": 10,
+                "max_repeat_delay": 10,
+            },
+            "job_controller": {
+                "resource_limits": {
+                    "memory": 6 * 1024 ** 3,
+                }
+            },
+        },
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "enable_job_reporter": True,
+            "enable_job_spec_reporter": True,
+            "enable_job_stderr_reporter": True,
+        }
+    }
+
+    def setup(self):
+        sync_create_cells(1)
+        init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
+        self._tmpdir = create_tmpdir("jobids")
+
+    def test_multiple_tmpfs_overflow(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        op = map(
+            dont_track=True,
+            command=with_breakpoint(
+                "dd if=/dev/zero of=tmpfs_1/file  bs=1M  count=2048; ls tmpfs_1/ >&2; "
+                "dd if=/dev/zero of=tmpfs_2/file  bs=1M  count=2048; ls tmpfs_2/ >&2; "
+                "BREAKPOINT; "
+                "python -c 'import time; x = \"A\" * (200 * 1024 * 1024); time.sleep(100);'"),
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "tmpfs_volumes": [
+                        {
+                            "size": 2 * 1024 ** 3,
+                            "path": "tmpfs_1",
+                        },
+                        {
+                            "size": 2 * 1024 ** 3,
+                            "path": "tmpfs_2",
+                        },
+                    ],
+                    "memory_limit": 4 * 1024 ** 3 + 200 * 1024 * 1024,
+                },
+                "max_failed_job_count": 1
+            })
+
+        wait(lambda: op.get_state() == "running")
+
+        jobs = wait_breakpoint(timeout=datetime.timedelta(seconds=300))
+        assert len(jobs) == 1
+        job = jobs[0]
+
+        def get_tmpfs_size():
+            job_info = get_job(op.id, job)
+            try:
+                sum = 0
+                for key, value in job_info["statistics"]["user_job"]["tmpfs_volumes"].iteritems():
+                    sum += value["max_size"]["sum"]
+                return sum
+            except KeyError:
+                print >>sys.stderr, "JOB_INFO", job_info
+                return 0
+
+        wait(lambda: get_tmpfs_size() >= 4 * 1024 ** 3)
+
+        assert op.get_state() == "running"
+
+        release_breakpoint()
+
+        wait(lambda: op.get_state() == "failed")
+
+        assert op.get_error().contains_code(1200)
 
 ##################################################################
 
