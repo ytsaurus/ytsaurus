@@ -11,7 +11,7 @@ except ImportError:
     has_test_module = False
 
 from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager, TMPFS_SIZE_MULTIPLIER
-from yt.wrapper.common import get_disk_size
+from yt.wrapper.common import get_disk_size, MB
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message, get_stderrs, get_operation_error
 from yt.wrapper.table import TablePath
 from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder, VanillaSpecBuilder
@@ -750,12 +750,15 @@ print(op.id)
             yt.run_map(foo, table, table)
 
             with TempfilesManager(remove_temp_files=True, directory=yt.config["local_temp_directory"]) as tempfiles_manager:
-                yt.config["pickling"]["create_modules_archive_function"] = lambda: create_modules_archive_default(tempfiles_manager, False, None)
+                yt.config["pickling"]["create_modules_archive_function"] = \
+                        lambda: create_modules_archive_default(tempfiles_manager, False, None)
                 yt.run_map(foo, table, table)
 
             with TempfilesManager(remove_temp_files=True, directory=yt.config["local_temp_directory"]) as tempfiles_manager:
-                yt.config["pickling"]["create_modules_archive_function"] = lambda: create_modules_archive_default(tempfiles_manager, False, None)[0]["filename"]
-                yt.run_map(foo, table, table)
+                with set_config_option("pickling/modules_chunk_size", MB):
+                    yt.config["pickling"]["create_modules_archive_function"] = \
+                            lambda: create_modules_archive_default(tempfiles_manager, False, None)[0]["filename"]
+                    yt.run_map(foo, table, table)
 
             yt.config["pickling"]["create_modules_archive_function"] = CreateModulesArchive()
             yt.run_map(foo, table, table)
