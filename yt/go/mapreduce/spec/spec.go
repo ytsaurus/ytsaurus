@@ -19,10 +19,12 @@ type File struct {
 }
 
 type UserScript struct {
-	Command     string            `yson:"command"`
-	Format      interface{}       `yson:"format,omitempty"`
-	Environment map[string]string `yson:"environment,omitempty"`
-	FilePaths   []File            `yson:"file_paths,omitempty"`
+	Command         string            `yson:"command"`
+	Format          interface{}       `yson:"format,omitempty"`
+	Environment     map[string]string `yson:"environment,omitempty"`
+	FilePaths       []File            `yson:"file_paths,omitempty"`
+	StderrTablePath ypath.YPath       `yson:"stderr_table_path,omitempty"`
+	CoreTablePath   ypath.YPath       `yson:"core_table_path,omitempty"`
 
 	CPULimit    int   `yson:"cpu_limit,omitempty"`
 	MemoryLimit int64 `yson:"memory_limit,omitempty"`
