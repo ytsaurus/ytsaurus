@@ -175,15 +175,18 @@ public:
 
     bool HasOperation(TOperationId operationId);
 
+    virtual TResourceTree* GetResourceTree() override;
+
     virtual NProfiling::TAggregateGauge& GetProfilingCounter(const TString& name) override;
 
     std::vector<TOperationId> RunWaitingOperations();
 
-    virtual NConcurrency::TReaderWriterSpinLock* GetSharedStateTreeLock() override;
-
 private:
     TFairShareStrategyTreeConfigPtr Config_;
     TFairShareStrategyOperationControllerConfigPtr ControllerConfig_;
+
+    TResourceTreePtr ResourceTree_;
+
     ISchedulerStrategyHost* const Host_;
 
     std::vector<IInvokerPtr> FeasibleInvokers_;

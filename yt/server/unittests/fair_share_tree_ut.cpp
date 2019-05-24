@@ -4,6 +4,7 @@
 
 #include <yt/server/scheduler/fair_share_tree_element.h>
 #include <yt/server/scheduler/operation_controller.h>
+#include <yt/server/scheduler/resource_tree.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -260,19 +261,23 @@ class TFairShareTreeHostMock
     : public IFairShareTreeHost
 {
 public:
+    TFairShareTreeHostMock()
+        : ResourceTree_(New<TResourceTree>())
+    { }
+
     virtual NProfiling::TAggregateGauge& GetProfilingCounter(const TString& name) override
     {
         return FakeCounter_;
     }
 
-    virtual NConcurrency::TReaderWriterSpinLock* GetSharedStateTreeLock() override
+    virtual TResourceTree* GetResourceTree() override
     {
-        return &SharedStateTreeLock_;
+        return ResourceTree_.Get();
     }
 
 private:
     NProfiling::TAggregateGauge FakeCounter_;
-    NConcurrency::TReaderWriterSpinLock SharedStateTreeLock_;
+    TResourceTreePtr ResourceTree_;
 };
 
 class TFairShareTreeTest

@@ -52,10 +52,9 @@ typedef std::vector<TDynamicAttributes> TDynamicAttributesList;
 //! This interface must be thread-safe.
 struct IFairShareTreeHost
 {
-    virtual NProfiling::TAggregateGauge& GetProfilingCounter(const TString& name) = 0;
+    virtual TResourceTree* GetResourceTree() = 0;
 
-    // NB(renadeen): see TSchedulerElementSharedState for explanation
-    virtual NConcurrency::TReaderWriterSpinLock* GetSharedStateTreeLock() = 0;
+    virtual NProfiling::TAggregateGauge& GetProfilingCounter(const TString& name) = 0;
 };
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -192,42 +191,17 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// This is node of shared state tree.
-// Each state corresponds to some scheduler element and all its snapshots.
-// There are three general scenarios:
-// 1. Get local resource usage of particular element - we take read lock on ResourceUsageLock_ of the state.
-// 2. Apply update of some property from leaf to root (increase or decrease of resource usage for example)
-// - we take read lock on SharedStateTreeLock provided by IFairShareTreeHost for whole operation
-// and make local updates of particular states under write lock on corresponding ResourceUsageLock_.
-// 3. Modify tree structure (attach, change or detach parent of element)
-// - we take write lock on SharedStateTreeLock for whole operation.
-// If we need to update properties of the particular state we also take the write lock on ResourceUsageLock_ for this update
-// Essentially SharedStateTreeLock protects tree structure.
-// We take this lock if we need to access the parent link of some element
+
+// TODO(renadeen): rename to TResourceTreeElement and move to corresponding file.
 class TSchedulerElementSharedState
     : public TIntrinsicRefCounted
 {
 public:
-    explicit TSchedulerElementSharedState(IFairShareTreeHost* host);
+    explicit TSchedulerElementSharedState();
 
     TJobResources GetResourceUsage();
     TJobResources GetResourceUsageWithPrecommit();
     TJobMetrics GetJobMetrics();
-
-    void AttachParent(TSchedulerElementSharedState* parent);
-    void ChangeParent(TSchedulerElementSharedState* newParent);
-    void DetachParent();
-    void ReleaseResources();
-
-    bool TryIncreaseHierarchicalResourceUsagePrecommit(
-        const TJobResources &delta,
-        TJobResources *availableResourceLimitsOutput);
-    void IncreaseHierarchicalResourceUsagePrecommit(const TJobResources& delta);
-    void CommitHierarchicalResourceUsage(
-        const TJobResources& resourceUsageDelta,
-        const TJobResources& precommittedResources);
-    void IncreaseHierarchicalResourceUsage(const TJobResources& delta);
-    void ApplyHierarchicalJobMetricsDelta(const TJobMetrics& delta);
 
     bool CheckDemand(
         const TJobResources& delta,
@@ -243,8 +217,6 @@ public:
     void SetResourceLimits(TJobResources resourceLimits);
 
 private:
-    IFairShareTreeHost* const FairShareTreeHost_;
-
     NConcurrency::TPaddedReaderWriterSpinLock ResourceUsageLock_;
     TJobResources ResourceUsage_;
     TJobResources ResourceLimits_ = TJobResources::Infinite();
@@ -253,6 +225,7 @@ private:
     NConcurrency::TPaddedReaderWriterSpinLock JobMetricsLock_;
     TJobMetrics JobMetrics_;
 
+    // NB: all usages of this field must be in TResourceTree.
     TSchedulerElementSharedStatePtr Parent_;
 
     std::atomic<bool> Alive_ = {true};
@@ -268,11 +241,9 @@ private:
     void IncreaseLocalResourceUsage(const TJobResources& delta);
     void ApplyLocalJobMetricsDelta(const TJobMetrics& delta);
 
-    void DoIncreaseHierarchicalResourceUsagePrecommit(const TJobResources& delta);
-    void DoIncreaseHierarchicalResourceUsage(const TJobResources& delta);
-
-    void CheckCycleAbsence(TSchedulerElementSharedState* newParent);
     TJobResources GetResourceUsagePrecommit();
+
+    friend class TResourceTree;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerElementSharedState)
