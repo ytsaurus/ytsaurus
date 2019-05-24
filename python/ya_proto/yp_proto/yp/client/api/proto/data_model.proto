@@ -656,6 +656,10 @@ message TPodDynamicResourceSpec
         // Use only if you know what you are doing! Hardlinked data can be corrupted
         // by other users of the resource on the same host.
         optional bool allow_deduplication = 8;
+
+        // Download speed limit in MBits per second.
+        // Supported only for rbtorrent URLs.
+        optional uint64 max_dl_speed = 9;
     }
 
     optional TStorageOptions storage_options = 3;
