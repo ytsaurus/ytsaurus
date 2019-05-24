@@ -643,8 +643,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
 
         case EInternedAttributeKey::Revision:
             BuildYsonFluently(consumer)
-                // TODO(babenko): KWYT-630
-                .Value(static_cast<i64>(node->GetRevision()));
+                .Value(node->GetRevision());
             return true;
 
         case EInternedAttributeKey::AttributesRevision:
