@@ -356,7 +356,7 @@ TEST(TYsonPullParserTest, ContextInExceptions_ManyBlocks)
     GTEST_FAIL() << "Expected exception to be thrown";
 }
 
-TEST(TYsonTest, ContextInExceptions_ContextAtTheVeryBeginning)
+TEST(TYsonPullParserTest, ContextInExceptions_ContextAtTheVeryBeginning)
 {
     try {
         GetYsonPullSignature("! foo bar baz");
