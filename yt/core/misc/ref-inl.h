@@ -206,46 +206,91 @@ size_t GetByteSize(const std::vector<T>& parts)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSharedRefArray::TImpl
+class TSharedRefArrayImpl
     : public TIntrinsicRefCounted
-    , public TWithExtraSpace<TImpl>
+    , public TWithExtraSpace<TSharedRefArrayImpl>
 {
 public:
-    explicit TImpl(const TSharedRef& part)
-        : Size_(1)
+    TSharedRefArrayImpl(
+        size_t extraSpaceSize,
+        TRefCountedTypeCookie tagCookie,
+        size_t size)
+        : Size_(size)
+        , ExtraSpaceSize_(extraSpaceSize)
+        , TagCookie_(tagCookie)
     {
-        new (MutableBegin()) TSharedRef(part);
+        for (size_t index = 0; index < Size_; ++index) {
+            new (MutableBegin() + index) TSharedRef();
+        }
+        RegisterWithRefCountedTracker();
     }
 
-    explicit TImpl(TSharedRef&& part)
+    TSharedRefArrayImpl(
+        size_t extraSpaceSize,
+        TRefCountedTypeCookie tagCookie,
+        const TSharedRef& part)
         : Size_(1)
+        , ExtraSpaceSize_(extraSpaceSize)
+        , TagCookie_(tagCookie)
+    {
+        new (MutableBegin()) TSharedRef(part);
+        RegisterWithRefCountedTracker();
+    }
+
+    TSharedRefArrayImpl(
+        size_t extraSpaceSize,
+        TRefCountedTypeCookie tagCookie,
+        TSharedRef&& part)
+        : Size_(1)
+        , ExtraSpaceSize_(extraSpaceSize)
+        , TagCookie_(tagCookie)
     {
         new (MutableBegin()) TSharedRef(std::move(part));
+        RegisterWithRefCountedTracker();
     }
 
     template <class TParts>
-    TImpl(const TParts& parts, TCopyParts)
+    TSharedRefArrayImpl(
+        size_t extraSpaceSize,
+        TRefCountedTypeCookie tagCookie,
+        const TParts& parts,
+        TSharedRefArray::TCopyParts)
         : Size_(parts.size())
+        , ExtraSpaceSize_(extraSpaceSize)
+        , TagCookie_(tagCookie)
     {
         for (size_t index = 0; index < Size_; ++index) {
             new (MutableBegin() + index) TSharedRef(parts[index]);
         }
+        RegisterWithRefCountedTracker();
     }
 
     template <class TParts>
-    TImpl(TParts&& parts, TMoveParts)
+    TSharedRefArrayImpl(
+        size_t extraSpaceSize,
+        TRefCountedTypeCookie tagCookie,
+        TParts&& parts,
+        TSharedRefArray::TMoveParts)
         : Size_(parts.size())
+        , ExtraSpaceSize_(extraSpaceSize)
+        , TagCookie_(tagCookie)
     {
         for (size_t index = 0; index < Size_; ++index) {
             new (MutableBegin() + index) TSharedRef(std::move(parts[index]));
         }
+        RegisterWithRefCountedTracker();
     }
 
-    ~TImpl()
+    ~TSharedRefArrayImpl()
     {
         for (size_t index = 0; index < Size_; ++index) {
-            (MutableBegin() + index)->TSharedRef::~TSharedRef();
+            auto& part = MutableBegin()[index];
+            if (part.GetHolder() == this) {
+                part.Holder_.Release();
+            }
+            part.TSharedRef::~TSharedRef();
         }
+        UnregisterFromRefCountedTracker();
     }
 
 
@@ -277,17 +322,49 @@ public:
     }
 
 private:
-    size_t Size_;
+    friend class TSharedRefArrayBuilder;
+
+    const size_t Size_;
+    const size_t ExtraSpaceSize_;
+    const TRefCountedTypeCookie TagCookie_;
+
+
+    void RegisterWithRefCountedTracker()
+    {
+        TRefCountedTrackerFacade::AllocateTagInstance(TagCookie_);
+        TRefCountedTrackerFacade::AllocateSpace(TagCookie_, ExtraSpaceSize_);
+    }
+
+    void UnregisterFromRefCountedTracker()
+    {
+        TRefCountedTrackerFacade::FreeTagInstance(TagCookie_);
+        TRefCountedTrackerFacade::FreeSpace(TagCookie_, ExtraSpaceSize_);
+    }
+
 
     TSharedRef* MutableBegin()
     {
         return static_cast<TSharedRef*>(GetExtraSpacePtr());
     }
+
+    TSharedRef* MutableEnd()
+    {
+        return MutableBegin() + Size_;
+    }
+
+    char* GetBeginAllocationPtr()
+    {
+        return static_cast<char*>(static_cast<void*>(MutableEnd()));
+    }
 };
+
+DEFINE_REFCOUNTED_TYPE(TSharedRefArrayImpl)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE TSharedRefArray::TSharedRefArray(TIntrusivePtr<TImpl> impl)
+struct TSharedRefArrayTag { };
+
+Y_FORCE_INLINE TSharedRefArray::TSharedRefArray(TIntrusivePtr<TSharedRefArrayImpl> impl)
     : Impl_(std::move(impl))
 { }
 
@@ -300,21 +377,21 @@ Y_FORCE_INLINE TSharedRefArray::TSharedRefArray(TSharedRefArray&& other) noexcep
 { }
 
 Y_FORCE_INLINE TSharedRefArray::TSharedRefArray(const TSharedRef& part)
-    : Impl_(NewImpl(1, part))
+    : Impl_(NewImpl(1, 0, GetRefCountedTypeCookie<TSharedRefArrayTag>(), part))
 { }
 
 Y_FORCE_INLINE TSharedRefArray::TSharedRefArray(TSharedRef&& part)
-    : Impl_(NewImpl(1, std::move(part)))
+    : Impl_(NewImpl(1, 0, GetRefCountedTypeCookie<TSharedRefArrayTag>(), std::move(part)))
 { }
 
 template <class TParts>
-Y_FORCE_INLINE TSharedRefArray::TSharedRefArray(const TParts& parts, TCopyParts)
-    : Impl_(NewImpl(parts.size(), parts, TCopyParts{}))
+Y_FORCE_INLINE TSharedRefArray::TSharedRefArray(const TParts& parts, TSharedRefArray::TCopyParts)
+    : Impl_(NewImpl(parts.size(), 0, GetRefCountedTypeCookie<TSharedRefArrayTag>(), parts, TSharedRefArray::TCopyParts{}))
 { }
 
 template <class TParts>
-Y_FORCE_INLINE TSharedRefArray::TSharedRefArray(TParts&& parts, TMoveParts)
-    : Impl_(NewImpl(parts.size(), std::move(parts), TMoveParts{}))
+Y_FORCE_INLINE TSharedRefArray::TSharedRefArray(TParts&& parts, TSharedRefArray::TMoveParts)
+    : Impl_(NewImpl(parts.size(), 0, GetRefCountedTypeCookie<TSharedRefArrayTag>(), std::move(parts), TSharedRefArray::TMoveParts{}))
 { }
 
 Y_FORCE_INLINE TSharedRefArray& TSharedRefArray::operator=(const TSharedRefArray& other)
@@ -366,10 +443,17 @@ Y_FORCE_INLINE const TSharedRef* TSharedRefArray::End() const
 }
 
 template <class... As>
-TIntrusivePtr<TSharedRefArray::TImpl> TSharedRefArray::NewImpl(size_t size, As... args)
+TSharedRefArrayImplPtr TSharedRefArray::NewImpl(
+    size_t size,
+    size_t poolCapacity,
+    TRefCountedTypeCookie tagCookie,
+    As... args)
 {
-    return NewWithExtraSpace<TImpl>(
-        sizeof (TSharedRef) * size,
+    auto extraSpaceSize = sizeof (TSharedRef) * size + poolCapacity;
+    return NewWithExtraSpace<TSharedRefArrayImpl>(
+        extraSpaceSize,
+        extraSpaceSize,
+        tagCookie,
         std::forward<As>(args)...);
 }
 

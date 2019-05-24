@@ -231,7 +231,12 @@ TSharedRefArray TSharedRefArray::Unpack(const TSharedRef& packedRef)
 
     std::vector<TSharedRef> parts;
     UnpackRefs(packedRef, &parts);
-    return TSharedRefArray(NewImpl(static_cast<int>(parts.size()), std::move(parts), TMoveParts{}));
+    return TSharedRefArray(NewImpl(
+        static_cast<int>(parts.size()),
+        0,
+        GetRefCountedTypeCookie<TSharedRefArrayTag>(),
+        std::move(parts),
+        TMoveParts{}));
 }
 
 std::vector<TSharedRef> TSharedRefArray::ToVector() const
@@ -241,6 +246,44 @@ std::vector<TSharedRef> TSharedRefArray::ToVector() const
     }
 
     return std::vector<TSharedRef>(Begin(), End());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSharedRefArrayBuilder::TSharedRefArrayBuilder(
+    size_t size,
+    size_t poolCapacity,
+    TRefCountedTypeCookie tagCookie)
+    : AllocationCapacity_(poolCapacity)
+    , Impl_(TSharedRefArray::NewImpl(
+        size,
+        poolCapacity,
+        tagCookie,
+        size))
+    , CurrentAllocationPtr_(Impl_->GetBeginAllocationPtr())
+{ }
+
+void TSharedRefArrayBuilder::Add(TSharedRef part)
+{
+    Y_ASSERT(CurrentPartIndex_ < Impl_->Size());
+    Impl_->MutableBegin()[CurrentPartIndex_++] = std::move(part);
+}
+
+TMutableRef TSharedRefArrayBuilder::AllocateAndAdd(size_t size)
+{
+    Y_ASSERT(CurrentPartIndex_ < Impl_->Size());
+    Y_ASSERT(CurrentAllocationPtr_ + size <= Impl_->GetBeginAllocationPtr() + AllocationCapacity_);
+    TMutableRef ref(CurrentAllocationPtr_, size);
+    CurrentAllocationPtr_ += size;
+    TIntrusivePtr<TIntrinsicRefCounted> holder(Impl_.Get(), false);
+    TSharedRef sharedRef(ref, std::move(holder));
+    Add(std::move(sharedRef));
+    return ref;
+}
+
+TSharedRefArray TSharedRefArrayBuilder::Finish()
+{
+    return TSharedRefArray(std::move(Impl_));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
