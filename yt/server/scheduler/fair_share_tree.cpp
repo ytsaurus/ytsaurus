@@ -2,10 +2,10 @@
 #include "fair_share_tree_element.h"
 #include "public.h"
 #include "pools_config_parser.h"
+#include "resource_tree.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
 #include "fair_share_strategy_operation_controller.h"
-#include "fair_share_tree.h"
 
 #include <yt/server/lib/scheduler/config.h>
 
@@ -87,7 +87,8 @@ TFairShareTree::TFairShareTree(
     const std::vector<IInvokerPtr>& feasibleInvokers,
     const TString& treeId)
     : Config_(config)
-    , ControllerConfig_(controllerConfig)
+    , ControllerConfig_(std::move(controllerConfig))
+    , ResourceTree_(New<TResourceTree>())
     , Host_(host)
     , FeasibleInvokers_(feasibleInvokers)
     , TreeId_(treeId)
@@ -819,6 +820,11 @@ bool TFairShareTree::HasOperation(TOperationId operationId)
     return static_cast<bool>(FindOperationElement(operationId));
 }
 
+TResourceTree* TFairShareTree::GetResourceTree()
+{
+    return ResourceTree_.Get();
+}
+
 TAggregateGauge& TFairShareTree::GetProfilingCounter(const TString& name)
 {
     TGuard<TSpinLock> guard(CustomProfilingCountersLock_);
@@ -830,11 +836,6 @@ TAggregateGauge& TFairShareTree::GetProfilingCounter(const TString& name)
         it = CustomProfilingCounters_.emplace(name, std::move(ptr)).first;
     }
     return *it->second;
-}
-
-TReaderWriterSpinLock* TFairShareTree::GetSharedStateTreeLock()
-{
-    return &SharedStateTreeLock_;
 }
 
 void TFairShareTree::DoScheduleJobsWithoutPreemption(
