@@ -150,6 +150,8 @@ public:
     std::vector<TSharedRef> Split(size_t partSize) const;
 
 private:
+    friend class TSharedRefArrayImpl;
+
     class TBlobHolder
         : public TIntrinsicRefCounted
     {
@@ -269,6 +271,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TSharedRefArrayImpl)
+
 //! A smart-pointer to a ref-counted immutable sequence of TSharedRef-s.
 class TSharedRefArray
 {
@@ -311,18 +315,74 @@ public:
     static TSharedRefArray Unpack(const TSharedRef& packedRef);
 
 private:
-    class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
+    friend class TSharedRefArrayBuilder;
 
-    explicit TSharedRefArray(TIntrusivePtr<TImpl> impl);
+    TSharedRefArrayImplPtr Impl_;
+
+    explicit TSharedRefArray(TSharedRefArrayImplPtr impl);
 
     template <class... As>
-    static TIntrusivePtr<TImpl> NewImpl(size_t size, As... args);
+    static TSharedRefArrayImplPtr NewImpl(
+        size_t size,
+        size_t poolCapacity,
+        TRefCountedTypeCookie cookie,
+        As... args);
 };
 
 // STL interop.
 const TSharedRef* begin(const TSharedRefArray& array);
 const TSharedRef* end(const TSharedRefArray& array);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDefaultSharedRefArrayBuilderTag { };
+
+//! A helper for creating TSharedRefArray.
+class TSharedRefArrayBuilder
+{
+public:
+    //! Creates a builder instance.
+    /*
+     *  The user must provide the total (resulting) part count in #size.
+     *
+     *  Additionally, the user may request a certain memory pool of size #poolCapacity
+     *  to be created. Parts occupiying space in the above pool are created with #AllocateAndAdd
+     *  calls.
+     *
+     *  The pool (if any) and the array are created within a single memory allocation tagged with
+     *  #tagCookie.
+     *
+     *  If less than #size parts are added, the trailing ones are null.
+     */
+    explicit TSharedRefArrayBuilder(
+        size_t size,
+        size_t poolCapacity = 0,
+        TRefCountedTypeCookie tagCookie = GetRefCountedTypeCookie<TDefaultSharedRefArrayBuilderTag>());
+
+    //! Adds an existing TSharedRef part to the constructed array.
+    void Add(TSharedRef part);
+
+    //! Allocates #size memory from the pool and adds a part to the constuctured array.
+    /*!
+     *  The resulting TMutableRef enables the user to fill the just-created part appropriately.
+     *  The total sum of #size during all #AllocateAndAll calls must now exceed #allocationCapacity
+     *  passed to the ctor.
+     *
+     *  The memory is being claimed from the pool contiguously; the user must
+     *  take care of the alignment issues on its own.
+     */
+    TMutableRef AllocateAndAdd(size_t size);
+
+    //! Finalizes the construction; returns the constructed TSharedRefArray.
+    TSharedRefArray Finish();
+
+private:
+    const size_t AllocationCapacity_;
+    TSharedRefArrayImplPtr Impl_;
+    char* CurrentAllocationPtr_;
+    size_t CurrentPartIndex_ = 0;
+};
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
