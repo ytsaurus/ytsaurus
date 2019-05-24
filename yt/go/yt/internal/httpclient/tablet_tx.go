@@ -31,7 +31,7 @@ func (c *httpClient) BeginTabletTx(ctx context.Context, options *yt.StartTabletT
 	tx.c = c
 
 	txType := "tablet"
-	tx.txID, err = tx.StartTx(ctx, &yt.StartTxOptions{Type: &txType, Sticky: true})
+	tx.txID, err = tx.StartTx(ctx, &yt.StartTxOptions{Type: &txType, Sticky: true, Atomicity: options.Atomicity})
 	tx.ctx = ctx
 
 	return &tx, err

@@ -320,6 +320,9 @@ type StartTxOptions struct {
 
 	Attributes map[string]interface{} `http:"attributes,omitnil"`
 
+	// Internal option.
+	Atomicity *string `http:"atomicity,omitnil"`
+
 	*MutatingOptions
 }
 
@@ -728,7 +731,9 @@ type SelectRowsOptions struct {
 	OutputRowLimit         *int  `http:"output_row_limit,omitnil"`
 }
 
-type StartTabletTxOptions struct{}
+type StartTabletTxOptions struct {
+	Atomicity *string `http:"atomicity,omitnil"`
+}
 
 type TabletClient interface {
 	// http:verb:"select_rows"

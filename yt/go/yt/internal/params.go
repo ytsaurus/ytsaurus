@@ -283,6 +283,10 @@ func writeStartTxOptions(w *yson.Writer, o *yt.StartTxOptions) {
 		w.MapKeyString("attributes")
 		w.Any(o.Attributes)
 	}
+	if o.Atomicity != nil {
+		w.MapKeyString("atomicity")
+		w.Any(o.Atomicity)
+	}
 	writeMutatingOptions(w, o.MutatingOptions)
 }
 
@@ -590,6 +594,10 @@ func writeSelectRowsOptions(w *yson.Writer, o *yt.SelectRowsOptions) {
 func writeStartTabletTxOptions(w *yson.Writer, o *yt.StartTabletTxOptions) {
 	if o == nil {
 		return
+	}
+	if o.Atomicity != nil {
+		w.MapKeyString("atomicity")
+		w.Any(o.Atomicity)
 	}
 }
 
