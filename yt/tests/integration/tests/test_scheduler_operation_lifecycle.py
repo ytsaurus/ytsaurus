@@ -1252,7 +1252,7 @@ class TestSchedulerErrorTruncate(YTEnvSetup):
     def teardown(self):
         remove("//sys/operations_archive")
 
-    def test_ignat(self):
+    def test_error_truncate(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
         write_table("//tmp/t_in", {"foo": "bar"})
@@ -1279,7 +1279,14 @@ class TestSchedulerErrorTruncate(YTEnvSetup):
         time.sleep(50)
         self.Env.start_master_cell()
 
-        wait(lambda: get_job(job_id=running_job, operation_id=op.id)["state"] == "aborted")
+        def is_job_aborted():
+            try:
+                job_info = get_job(job_id=running_job, operation_id=op.id)
+                return job_info["state"] == "aborted"
+            except YtError:
+                return False
+
+        wait(is_job_aborted)
 
         def find_truncated_errors(error):
             assert len(error.get("inner_errors", [])) <= 2
