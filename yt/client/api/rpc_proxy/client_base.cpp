@@ -91,6 +91,9 @@ TFuture<ITransactionPtr> TClientBase::StartTransaction(
 
     req->set_type(static_cast<NProto::ETransactionType>(type));
     req->set_timeout(NYT::ToProto<i64>(timeout));
+    if (options.Deadline) {
+        req->set_deadline(ToProto<ui64>(*options.Deadline));
+    }
     if (options.Id) {
         ToProto(req->mutable_id(), options.Id);
     }
