@@ -7,6 +7,7 @@ from .helpers import TEST_DIR, set_config_option
 import yt.json_wrapper as json
 import yt.yson as yson
 
+from yt.common import datetime_to_string
 import yt.wrapper as yt
 
 from flaky import flaky
@@ -439,6 +440,15 @@ class TestCypressCommands(object):
             with pytest.raises(RuntimeError):
                 t.commit()
 
+        tx_id = yt.start_transaction(deadline=datetime.datetime.utcnow() + datetime.timedelta(seconds=5))
+        assert yt.exists("#" + tx_id)
+        time.sleep(6)
+        assert not yt.exists("#" + tx_id)
+
+        tx_id = yt.start_transaction(deadline=datetime_to_string(datetime.datetime.utcnow() + datetime.timedelta(seconds=5)))
+        assert yt.exists("#" + tx_id)
+        time.sleep(6)
+        assert not yt.exists("#" + tx_id)
 
     @pytest.mark.skipif("True")  # Enable when st/YT-4182 is done.
     def test_signal_in_transactions(self):

@@ -1,8 +1,10 @@
 from .config import get_config, get_command_param
 from .driver import make_request, make_formatted_request
-from .common import update, get_value, get_started_by
+from .common import update, get_value, get_started_by, set_param, datetime_to_string
 from .http_helpers import get_api_version
 from .batch_response import apply_function_to_result
+
+from datetime import datetime
 
 def transaction_params(transaction, client=None):
     return {"ping_ancestor_transactions": get_command_param("ping_ancestor_transactions", client),
@@ -14,7 +16,7 @@ def _make_transactional_request(command_name, params, **kwargs):
 def _make_formatted_transactional_request(command_name, params, format, **kwargs):
     return make_formatted_request(command_name, params, format, **kwargs)
 
-def start_transaction(parent_transaction=None, timeout=None, attributes=None, type="master", sticky=False, client=None):
+def start_transaction(parent_transaction=None, timeout=None, deadline=None, attributes=None, type="master", sticky=False, prerequisite_transaction_ids=None, client=None):
     """Starts transaction.
 
     :param str parent_transaction: parent transaction id.
@@ -29,11 +31,13 @@ def start_transaction(parent_transaction=None, timeout=None, attributes=None, ty
     """
     params = transaction_params(parent_transaction, client=client)
     timeout = get_value(timeout, get_config(client)["transaction_timeout"])
-    if timeout is not None:
-        params["timeout"] = int(timeout)
+    set_param(params, "timeout", timeout, int)
+    set_param(params, "deadline", deadline, lambda dt: datetime_to_string(dt) if isinstance(dt, datetime) else dt)
     params["attributes"] = update(get_started_by(), get_value(attributes, {}))
     params["type"] = type
     params["sticky"] = sticky
+    set_param(params, "prerequisite_transaction_ids", prerequisite_transaction_ids)
+
     command_name = "start_transaction" if get_api_version(client) == "v4" else "start_tx"
 
     def _process_result(request_result):
