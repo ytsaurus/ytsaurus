@@ -1,8 +1,10 @@
 #include "fair_share_tree_element.h"
 
-#include "scheduling_context.h"
 #include "fair_share_tree.h"
+#include "helpers.h"
 #include "resource_tree.h"
+#include "resource_tree_element.h"
+#include "scheduling_context.h"
 
 #include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/profile_manager.h>
@@ -47,14 +49,6 @@ TTagId GetCustomProfilingTag(const TString& tagName)
         ).first;
     }
     return it->second;
-};
-
-TJobResources ComputeAvailableResources(
-    const TJobResources& resourceLimits,
-    const TJobResources& resourceUsage,
-    const TJobResources& resourceDiscount)
-{
-    return resourceLimits - resourceUsage + resourceDiscount;
 }
 
 TJobResources ToJobResources(const TResourceLimitsConfigPtr& config, TJobResources defaultValue)
@@ -227,117 +221,6 @@ TSchedulerElementFixedState::TSchedulerElementFixedState(
     , TotalResourceLimits_(host->GetResourceLimits(treeConfig->NodesFilter))
     , TreeId_(treeId)
 { }
-
-////////////////////////////////////////////////////////////////////////////////
-
-TSchedulerElementSharedState::TSchedulerElementSharedState()
-{ }
-
-TJobResources TSchedulerElementSharedState::GetResourceUsage()
-{
-    TReaderGuard guard(ResourceUsageLock_);
-
-    return ResourceUsage_;
-}
-
-inline void TSchedulerElementSharedState::SetResourceLimits(TJobResources resourceLimits)
-{
-    TWriterGuard guard(ResourceUsageLock_);
-
-    ResourceLimits_ = resourceLimits;
-}
-
-TJobResources TSchedulerElementSharedState::GetResourceUsageWithPrecommit()
-{
-    TReaderGuard guard(ResourceUsageLock_);
-
-    return ResourceUsage_ + ResourceUsagePrecommit_;
-}
-
-TJobMetrics TSchedulerElementSharedState::GetJobMetrics()
-{
-    TReaderGuard guard(JobMetricsLock_);
-
-    return JobMetrics_;
-}
-
-void TSchedulerElementSharedState::CommitLocalResourceUsage(
-    const TJobResources& resourceUsageDelta,
-    const TJobResources& precommittedResources)
-{
-    TWriterGuard guard(ResourceUsageLock_);
-
-    ResourceUsage_ += resourceUsageDelta;
-    ResourceUsagePrecommit_ -= precommittedResources;
-}
-
-void TSchedulerElementSharedState::IncreaseLocalResourceUsage(const TJobResources& delta)
-{
-    TWriterGuard guard(ResourceUsageLock_);
-
-    ResourceUsage_ += delta;
-}
-
-void TSchedulerElementSharedState::IncreaseLocalResourceUsagePrecommit(const TJobResources& delta)
-{
-    TWriterGuard guard(ResourceUsageLock_);
-
-    ResourceUsagePrecommit_ += delta;
-}
-
-bool TSchedulerElementSharedState::CheckDemand(
-    const TJobResources& delta,
-    const TJobResources& resourceDemand,
-    const TJobResources& resourceDiscount)
-{
-    TReaderGuard guard(ResourceUsageLock_);
-
-    auto availableDemand = ComputeAvailableResources(
-        resourceDemand,
-        ResourceUsage_ + ResourceUsagePrecommit_,
-        resourceDiscount);
-
-    return Dominates(availableDemand, delta);
-}
-
-bool TSchedulerElementSharedState::IncreaseLocalResourceUsagePrecommitWithCheck(
-    const TJobResources& delta,
-    TJobResources* availableResourceLimitsOutput)
-{
-    TWriterGuard guard(ResourceUsageLock_);
-
-    // NB: Actually tree elements has resource usage discounts (used for scheduling with preemption)
-    // that should be considered in this check. But concurrent nature of this shared tree makes hard to consider
-    // these discounts here. The only consequence of discounts ignorance is possibly redundant jobs that would
-    // be aborted just after being scheduled.
-    auto availableResourceLimits = ComputeAvailableResources(
-        ResourceLimits_,
-        ResourceUsage_ + ResourceUsagePrecommit_,
-        {});
-
-    if (!Dominates(availableResourceLimits, delta)) {
-        return false;
-    }
-
-    ResourceUsagePrecommit_ += delta;
-
-    *availableResourceLimitsOutput = availableResourceLimits;
-    return true;
-}
-
-void TSchedulerElementSharedState::ApplyLocalJobMetricsDelta(const TJobMetrics& delta)
-{
-    TWriterGuard guard(JobMetricsLock_);
-
-    JobMetrics_ += delta;
-}
-
-TJobResources TSchedulerElementSharedState::GetResourceUsagePrecommit()
-{
-    TReaderGuard guard(ResourceUsageLock_);
-
-    return ResourceUsagePrecommit_;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -541,7 +424,7 @@ void TSchedulerElement::SetStarving(bool starving)
 
 TJobResources TSchedulerElement::GetLocalResourceUsage() const
 {
-    auto resourceUsage = SharedState_->GetResourceUsage();
+    auto resourceUsage = ResourceTreeElement_->GetResourceUsage();
     if (resourceUsage.GetUserSlots() > 0 && resourceUsage.GetMemory() == 0) {
         YT_LOG_WARNING("Found usage of schedulable element %Qv with non-zero "
             "user slots and zero memory (TreeId: %v)",
@@ -553,17 +436,17 @@ TJobResources TSchedulerElement::GetLocalResourceUsage() const
 
 TJobMetrics TSchedulerElement::GetJobMetrics() const
 {
-    return SharedState_->GetJobMetrics();
+    return ResourceTreeElement_->GetJobMetrics();
 }
 
 double TSchedulerElement::GetResourceUsageRatio() const
 {
-    return ComputeResourceUsageRatio(SharedState_->GetResourceUsage());
+    return ComputeResourceUsageRatio(ResourceTreeElement_->GetResourceUsage());
 }
 
 double TSchedulerElement::GetResourceUsageRatioWithPrecommit() const
 {
-    return ComputeResourceUsageRatio(SharedState_->GetResourceUsageWithPrecommit());
+    return ComputeResourceUsageRatio(ResourceTreeElement_->GetResourceUsageWithPrecommit());
 }
 
 double TSchedulerElement::ComputeResourceUsageRatio(const TJobResources& resourceUsage) const
@@ -581,14 +464,14 @@ TString TSchedulerElement::GetTreeId() const
 
 bool TSchedulerElement::CheckDemand(const TJobResources& delta, const TFairShareContext& context)
 {
-    return SharedState_->CheckDemand(delta, ResourceDemand(), context.DynamicAttributesFor(this).ResourceUsageDiscount);
+    return ResourceTreeElement_->CheckDemand(delta, ResourceDemand(), context.DynamicAttributesFor(this).ResourceUsageDiscount);
 }
 
 TJobResources TSchedulerElement::GetLocalAvailableResourceDemand(const TFairShareContext& context) const
 {
     return ComputeAvailableResources(
         ResourceDemand(),
-        SharedState_->GetResourceUsageWithPrecommit(),
+        ResourceTreeElement_->GetResourceUsageWithPrecommit(),
         context.DynamicAttributesFor(this).ResourceUsageDiscount);
 }
 
@@ -596,13 +479,13 @@ TJobResources TSchedulerElement::GetLocalAvailableResourceLimits(const TFairShar
 {
     return ComputeAvailableResources(
         ResourceLimits(),
-        SharedState_->GetResourceUsageWithPrecommit(),
+        ResourceTreeElement_->GetResourceUsageWithPrecommit(),
         context.DynamicAttributesFor(this).ResourceUsageDiscount);
 }
 
 void TSchedulerElement::IncreaseHierarchicalResourceUsage(const TJobResources& delta)
 {
-    TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsage(SharedState_, delta);
+    TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsage(ResourceTreeElement_, delta);
 }
 
 TSchedulerElement::TSchedulerElement(
@@ -611,14 +494,14 @@ TSchedulerElement::TSchedulerElement(
     const TFairShareStrategyTreeConfigPtr& treeConfig,
     const TString& treeId)
     : TSchedulerElementFixedState(host, treeHost, treeConfig, treeId)
-    , SharedState_(New<TSchedulerElementSharedState>())
+    , ResourceTreeElement_(New<TResourceTreeElement>())
 { }
 
 TSchedulerElement::TSchedulerElement(
     const TSchedulerElement& other,
     TCompositeSchedulerElement* clonedParent)
     : TSchedulerElementFixedState(other)
-    , SharedState_(other.SharedState_)
+    , ResourceTreeElement_(other.ResourceTreeElement_)
 {
     Parent_ = clonedParent;
     Cloned_ = true;
@@ -1636,7 +1519,7 @@ void TPool::UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList)
     YCHECK(!Cloned_);
 
     ResourceLimits_ = ComputeResourceLimits();
-    SharedState_->SetResourceLimits(ResourceLimits_);
+    ResourceTreeElement_->SetResourceLimits(ResourceLimits_);
     TCompositeSchedulerElement::UpdateBottomUp(dynamicAttributesList);
 }
 
@@ -1679,7 +1562,7 @@ void TPool::AttachParent(TCompositeSchedulerElement* parent)
 
     parent->AddChild(this);
     Parent_ = parent;
-    TreeHost_->GetResourceTree()->AttachParent(SharedState_, parent->SharedState_);
+    TreeHost_->GetResourceTree()->AttachParent(ResourceTreeElement_, parent->ResourceTreeElement_);
 
     YT_LOG_DEBUG("Pool %Qv is attached to pool %Qv",
         Id_,
@@ -1698,7 +1581,7 @@ void TPool::ChangeParent(TCompositeSchedulerElement* newParent)
     Parent_->RemoveChild(this);
 
     Parent_ = newParent;
-    TreeHost_->GetResourceTree()->ChangeParent(SharedState_, newParent->SharedState_);
+    TreeHost_->GetResourceTree()->ChangeParent(ResourceTreeElement_, newParent->ResourceTreeElement_);
 
     Parent_->AddChild(this);
     Parent_->IncreaseOperationCount(OperationCount());
@@ -1719,7 +1602,7 @@ void TPool::DetachParent()
 
     const auto& oldParentId = Parent_->GetId();
     Parent_->RemoveChild(this);
-    TreeHost_->GetResourceTree()->DetachParent(SharedState_);
+    TreeHost_->GetResourceTree()->DetachParent(ResourceTreeElement_);
 
     YT_LOG_DEBUG("Pool %Qv is detached from pool %Qv",
         Id_,
@@ -2101,7 +1984,7 @@ void TOperationElement::Disable()
     YT_LOG_DEBUG("Operation element disabled in strategy (OperationId: %v)", OperationId_);
 
     OperationElementSharedState_->Disable();
-    TreeHost_->GetResourceTree()->ReleaseResources(SharedState_);
+    TreeHost_->GetResourceTree()->ReleaseResources(ResourceTreeElement_);
 }
 
 void TOperationElement::Enable()
@@ -2285,7 +2168,7 @@ void TOperationElement::UpdateBottomUp(TDynamicAttributesList& dynamicAttributes
     Schedulable_ = Operation_->IsSchedulable();
     ResourceDemand_ = ComputeResourceDemand();
     ResourceLimits_ = ComputeResourceLimits();
-    SharedState_->SetResourceLimits(ResourceLimits_);
+    ResourceTreeElement_->SetResourceLimits(ResourceLimits_);
     MaxPossibleResourceUsage_ = ComputeMaxPossibleResourceUsage();
     PendingJobCount_ = ComputePendingJobCount();
     StartTime_ = Operation_->GetStartTime();
@@ -2494,7 +2377,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
             OperationId_,
             scheduleJobResult->Failed);
 
-        TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(SharedState_, -precommittedResources);
+        TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
         FinishScheduleJob(/*enableBackoff*/ enableBackoff, now);
         return false;
     }
@@ -2503,7 +2386,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
     if (!OnJobStarted(startDescriptor.Id, startDescriptor.ResourceLimits.ToJobResources(), precommittedResources)) {
         Controller_->AbortJob(startDescriptor.Id, EAbortReason::SchedulingOperationDisabled);
         disableOperationElement(EDeactivationReason::OperationDisabled);
-        TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(SharedState_, -precommittedResources);
+        TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
         FinishScheduleJob(/*enableBackoff*/ false, now);
         return false;
     }
@@ -2654,7 +2537,7 @@ bool TOperationElement::IsPreemptionAllowed(const TFairShareContext& context, co
 
 void TOperationElement::ApplyJobMetricsDelta(const TJobMetrics& delta)
 {
-    TreeHost_->GetResourceTree()->ApplyHierarchicalJobMetricsDelta(SharedState_, delta);
+    TreeHost_->GetResourceTree()->ApplyHierarchicalJobMetricsDelta(ResourceTreeElement_, delta);
 }
 
 void TOperationElement::IncreaseJobResourceUsage(TJobId jobId, const TJobResources& resourcesDelta)
@@ -2728,7 +2611,7 @@ bool TOperationElement::OnJobStarted(
 
     auto resourceUsageDelta = OperationElementSharedState_->AddJob(jobId, resourceUsage, force);
     if (resourceUsageDelta) {
-        TreeHost_->GetResourceTree()->CommitHierarchicalResourceUsage(SharedState_, *resourceUsageDelta, precommittedResources);
+        TreeHost_->GetResourceTree()->CommitHierarchicalResourceUsage(ResourceTreeElement_, *resourceUsageDelta, precommittedResources);
         UpdatePreemptableJobsList();
         return true;
     } else {
@@ -2897,7 +2780,7 @@ bool TOperationElement::TryIncreaseHierarchicalResourceUsagePrecommit(
     TJobResources* availableResourceLimitsOutput)
 {
     return TreeHost_->GetResourceTree()->TryIncreaseHierarchicalResourceUsagePrecommit(
-        SharedState_,
+        ResourceTreeElement_,
         delta,
         availableResourceLimitsOutput);
 }
@@ -2908,7 +2791,7 @@ void TOperationElement::AttachParent(NYT::NScheduler::TCompositeSchedulerElement
     YCHECK(!Parent_);
 
     Parent_ = newParent;
-    TreeHost_->GetResourceTree()->AttachParent(SharedState_, newParent->SharedState_);
+    TreeHost_->GetResourceTree()->AttachParent(ResourceTreeElement_, newParent->ResourceTreeElement_);
 
     newParent->IncreaseOperationCount(1);
     newParent->AddChild(this, enabled);
@@ -2931,7 +2814,7 @@ void TOperationElement::ChangeParent(NYT::NScheduler::TCompositeSchedulerElement
     Parent_->RemoveChild(this);
 
     Parent_ = parent;
-    TreeHost_->GetResourceTree()->ChangeParent(SharedState_, parent->SharedState_);
+    TreeHost_->GetResourceTree()->ChangeParent(ResourceTreeElement_, parent->ResourceTreeElement_);
 
     RunningInThisPoolTree_ = false;  // for consistency
     Parent_->IncreaseOperationCount(1);
@@ -2956,7 +2839,7 @@ void TOperationElement::DetachParent()
     Parent_->RemoveChild(this);
 
     Parent_ = nullptr;
-    TreeHost_->GetResourceTree()->DetachParent(SharedState_);
+    TreeHost_->GetResourceTree()->DetachParent(ResourceTreeElement_);
 
     YT_LOG_DEBUG("Operation attached to pool (OperationId: %v, Pool: %v)",
         GetId(),

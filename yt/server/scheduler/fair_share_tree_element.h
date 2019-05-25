@@ -1,10 +1,11 @@
 #pragma once
 
-#include "private.h"
+#include "fair_share_strategy_operation_controller.h"
 #include "job.h"
+#include "private.h"
+#include "resource_tree_element.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
-#include "fair_share_strategy_operation_controller.h"
 
 #include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/scheduling_tag.h>
@@ -192,64 +193,6 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 
-// TODO(renadeen): rename to TResourceTreeElement and move to corresponding file.
-class TSchedulerElementSharedState
-    : public TIntrinsicRefCounted
-{
-public:
-    explicit TSchedulerElementSharedState();
-
-    TJobResources GetResourceUsage();
-    TJobResources GetResourceUsageWithPrecommit();
-    TJobMetrics GetJobMetrics();
-
-    bool CheckDemand(
-        const TJobResources& delta,
-        const TJobResources& resourceDemand,
-        const TJobResources& resourceDiscount);
-
-    bool GetAlive() const;
-    void SetAlive(bool alive);
-
-    double GetFairShareRatio() const;
-    void SetFairShareRatio(double fairShareRatio);
-
-    void SetResourceLimits(TJobResources resourceLimits);
-
-private:
-    NConcurrency::TPaddedReaderWriterSpinLock ResourceUsageLock_;
-    TJobResources ResourceUsage_;
-    TJobResources ResourceLimits_ = TJobResources::Infinite();
-    TJobResources ResourceUsagePrecommit_;
-
-    NConcurrency::TPaddedReaderWriterSpinLock JobMetricsLock_;
-    TJobMetrics JobMetrics_;
-
-    // NB: all usages of this field must be in TResourceTree.
-    TSchedulerElementSharedStatePtr Parent_;
-
-    std::atomic<bool> Alive_ = {true};
-    std::atomic<double> FairShareRatio_ = {0.0};
-
-    bool IncreaseLocalResourceUsagePrecommitWithCheck(
-        const TJobResources& delta,
-        TJobResources* availableResourceLimitsOutput);
-    void IncreaseLocalResourceUsagePrecommit(const TJobResources& delta);
-    void CommitLocalResourceUsage(
-        const TJobResources& resourceUsageDelta,
-        const TJobResources& precommittedResources);
-    void IncreaseLocalResourceUsage(const TJobResources& delta);
-    void ApplyLocalJobMetricsDelta(const TJobMetrics& delta);
-
-    TJobResources GetResourceUsagePrecommit();
-
-    friend class TResourceTree;
-};
-
-DEFINE_REFCOUNTED_TYPE(TSchedulerElementSharedState)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TSchedulerElement
     : public TSchedulerElementFixedState
     , public TIntrinsicRefCounted
@@ -341,7 +284,7 @@ public:
     double ComputeLocalSatisfactionRatio() const;
 
 private:
-    TSchedulerElementSharedStatePtr SharedState_;
+    TResourceTreeElementPtr ResourceTreeElement_;
 
 protected:
     TSchedulerElement(
