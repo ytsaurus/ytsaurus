@@ -504,6 +504,9 @@ private:
         if (request->has_timeout()) {
             options.Timeout = FromProto<TDuration>(request->timeout());
         }
+        if (request->has_deadline()) {
+            options.Deadline = FromProto<TInstant>(request->deadline());
+        }
         if (request->has_id()) {
             FromProto(&options.Id, request->id());
         }
@@ -520,11 +523,12 @@ private:
             options.Attributes = NYTree::FromProto(request->attributes());
         }
 
-        context->SetRequestInfo("TransactionId: %v, ParentId: %v, Timeout: %v, AutoAbort: %v, "
+        context->SetRequestInfo("TransactionId: %v, ParentId: %v, Timeout: %v, Deadline: %v, AutoAbort: %v, "
             "Sticky: %v, Ping: %v, PingAncestors: %v, Atomicity: %v, Durability: %v",
             options.Id,
             options.ParentId,
             options.Timeout,
+            options.Deadline,
             options.AutoAbort,
             options.Sticky,
             options.Ping,
