@@ -1,6 +1,6 @@
 #include "resource_tree.h"
 
-#include "fair_share_tree_element.h"
+#include "resource_tree_element.h"
 
 namespace NYT::NScheduler {
 
@@ -8,7 +8,7 @@ namespace NYT::NScheduler {
 
 using namespace NConcurrency;
 
-void TResourceTree::AttachParent(const TSchedulerElementSharedStatePtr& element, const TSchedulerElementSharedStatePtr& parent)
+void TResourceTree::AttachParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& parent)
 {
     TWriterGuard guard(TreeLock_);
     YCHECK(!element->Parent_);
@@ -17,7 +17,7 @@ void TResourceTree::AttachParent(const TSchedulerElementSharedStatePtr& element,
     element->Parent_ = parent;
 }
 
-void TResourceTree::ChangeParent(const TSchedulerElementSharedStatePtr& element, const TSchedulerElementSharedStatePtr& newParent)
+void TResourceTree::ChangeParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& newParent)
 {
     TWriterGuard guard(TreeLock_);
 
@@ -35,14 +35,14 @@ void TResourceTree::ChangeParent(const TSchedulerElementSharedStatePtr& element,
     DoIncreaseHierarchicalResourceUsagePrecommit(newParent, element->ResourceUsagePrecommit_);
 }
 
-void TResourceTree::DetachParent(const TSchedulerElementSharedStatePtr& element)
+void TResourceTree::DetachParent(const TResourceTreeElementPtr& element)
 {
     TWriterGuard guard(TreeLock_);
     YCHECK(element->Parent_);
     element->Parent_ = nullptr;
 }
 
-void TResourceTree::ReleaseResources(const TSchedulerElementSharedStatePtr& element)
+void TResourceTree::ReleaseResources(const TResourceTreeElementPtr& element)
 {
     YCHECK(element->Parent_);
 
@@ -50,7 +50,7 @@ void TResourceTree::ReleaseResources(const TSchedulerElementSharedStatePtr& elem
     IncreaseHierarchicalResourceUsage(element, -element->GetResourceUsage());
 }
 
-void TResourceTree::CheckCycleAbsence(const TSchedulerElementSharedStatePtr& element, const TSchedulerElementSharedStatePtr& newParent)
+void TResourceTree::CheckCycleAbsence(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& newParent)
 {
     auto current = newParent.Get();
     while (current != nullptr) {
@@ -59,32 +59,32 @@ void TResourceTree::CheckCycleAbsence(const TSchedulerElementSharedStatePtr& ele
     }
 }
 
-void TResourceTree::IncreaseHierarchicalResourceUsage(const TSchedulerElementSharedStatePtr& element, const TJobResources& delta)
+void TResourceTree::IncreaseHierarchicalResourceUsage(const TResourceTreeElementPtr& element, const TJobResources& delta)
 {
     TReaderGuard guard(TreeLock_);
 
     DoIncreaseHierarchicalResourceUsage(element, delta);
 }
 
-void TResourceTree::DoIncreaseHierarchicalResourceUsage(const TSchedulerElementSharedStatePtr& element, const TJobResources& delta)
+void TResourceTree::DoIncreaseHierarchicalResourceUsage(const TResourceTreeElementPtr& element, const TJobResources& delta)
 {
-    TSchedulerElementSharedState* current = element.Get();
+    TResourceTreeElement* current = element.Get();
     while (current != nullptr) {
         current->IncreaseLocalResourceUsage(delta);
         current = current->Parent_.Get();
     }
 }
 
-void TResourceTree::IncreaseHierarchicalResourceUsagePrecommit(const TSchedulerElementSharedStatePtr& element, const TJobResources& delta)
+void TResourceTree::IncreaseHierarchicalResourceUsagePrecommit(const TResourceTreeElementPtr& element, const TJobResources& delta)
 {
     TReaderGuard guard(TreeLock_);
 
     DoIncreaseHierarchicalResourceUsagePrecommit(element, delta);
 }
 
-void TResourceTree::DoIncreaseHierarchicalResourceUsagePrecommit(const TSchedulerElementSharedStatePtr& element, const TJobResources& delta)
+void TResourceTree::DoIncreaseHierarchicalResourceUsagePrecommit(const TResourceTreeElementPtr& element, const TJobResources& delta)
 {
-    TSchedulerElementSharedState* current = element.Get();
+    TResourceTreeElement* current = element.Get();
     while (current != nullptr) {
         current->IncreaseLocalResourceUsagePrecommit(delta);
         current = current->Parent_.Get();
@@ -92,7 +92,7 @@ void TResourceTree::DoIncreaseHierarchicalResourceUsagePrecommit(const TSchedule
 }
 
 bool TResourceTree::TryIncreaseHierarchicalResourceUsagePrecommit(
-    const TSchedulerElementSharedStatePtr& element,
+    const TResourceTreeElementPtr& element,
     const TJobResources &delta,
     TJobResources *availableResourceLimitsOutput)
 {
@@ -100,9 +100,9 @@ bool TResourceTree::TryIncreaseHierarchicalResourceUsagePrecommit(
 
     auto availableResourceLimits = TJobResources::Infinite();
 
-    TSchedulerElementSharedState* failedParent = nullptr;
+    TResourceTreeElement* failedParent = nullptr;
 
-    TSchedulerElementSharedState* currentElement = element.Get();
+    TResourceTreeElement* currentElement = element.Get();
     while (currentElement) {
         TJobResources localAvailableResourceLimits;
         if (!currentElement->IncreaseLocalResourceUsagePrecommitWithCheck(delta, &localAvailableResourceLimits)) {
@@ -130,24 +130,24 @@ bool TResourceTree::TryIncreaseHierarchicalResourceUsagePrecommit(
 
 
 void TResourceTree::CommitHierarchicalResourceUsage(
-    const TSchedulerElementSharedStatePtr& element,
+    const TResourceTreeElementPtr& element,
     const TJobResources& resourceUsageDelta,
     const TJobResources& precommittedResources)
 {
     TReaderGuard guard(TreeLock_);
 
-    TSchedulerElementSharedState* current = element.Get();
+    TResourceTreeElement* current = element.Get();
     while (current != nullptr) {
         current->CommitLocalResourceUsage(resourceUsageDelta, precommittedResources);
         current = current->Parent_.Get();
     }
 }
 
-void TResourceTree::ApplyHierarchicalJobMetricsDelta(const TSchedulerElementSharedStatePtr& element, const TJobMetrics& delta)
+void TResourceTree::ApplyHierarchicalJobMetricsDelta(const TResourceTreeElementPtr& element, const TJobMetrics& delta)
 {
     TReaderGuard guard(TreeLock_);
 
-    TSchedulerElementSharedState* current = element.Get();
+    TResourceTreeElement* current = element.Get();
     while (current != nullptr) {
         current->ApplyLocalJobMetricsDelta(delta);
         current = current->Parent_.Get();

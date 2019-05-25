@@ -219,8 +219,6 @@ private:
     NConcurrency::TReaderWriterSpinLock NodeIdToLastPreemptiveSchedulingTimeLock_;
     THashMap<NNodeTrackerClient::TNodeId, NProfiling::TCpuInstant> NodeIdToLastPreemptiveSchedulingTime_;
 
-    NConcurrency::TReaderWriterSpinLock SharedStateTreeLock_;
-
     std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilters_;
     std::vector<int> FreeSchedulingTagFilterIndexes_;
     struct TSchedulingTagFilterEntry

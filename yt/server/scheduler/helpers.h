@@ -46,5 +46,12 @@ TListOperationsResult ListOperations(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TJobResources ComputeAvailableResources(
+    const TJobResources& resourceLimits,
+    const TJobResources& resourceUsage,
+    const TJobResources& resourceDiscount);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NScheduler
 

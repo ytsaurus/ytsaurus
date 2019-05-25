@@ -17,36 +17,36 @@ namespace NYT::NScheduler {
 // - we take read lock on TreeLock_ for whole operation and make local updates of particular states under write lock on corresponding ResourceUsageLock_.
 // 3. Modify tree structure (attach, change or detach parent of element)
 // - we take write lock on TreeLock_ for whole operation.
-// Only this class is allowed to access Parent_ field of TSchedulerElementSharedState
+// Only this class is allowed to access Parent_ field of TResourceTreeElement
 
 class TResourceTree
     : public TRefCounted
 {
 public:
-    void IncreaseHierarchicalResourceUsage(const TSchedulerElementSharedStatePtr& element, const TJobResources& delta);
-    void IncreaseHierarchicalResourceUsagePrecommit(const TSchedulerElementSharedStatePtr& element, const TJobResources& delta);
+    void IncreaseHierarchicalResourceUsage(const TResourceTreeElementPtr& element, const TJobResources& delta);
+    void IncreaseHierarchicalResourceUsagePrecommit(const TResourceTreeElementPtr& element, const TJobResources& delta);
     bool TryIncreaseHierarchicalResourceUsagePrecommit(
-        const TSchedulerElementSharedStatePtr& element,
+        const TResourceTreeElementPtr& element,
         const TJobResources &delta,
         TJobResources *availableResourceLimitsOutput);
     void CommitHierarchicalResourceUsage(
-        const TSchedulerElementSharedStatePtr& element,
+        const TResourceTreeElementPtr& element,
         const TJobResources& resourceUsageDelta,
         const TJobResources& precommittedResources);
 
-    void AttachParent(const TSchedulerElementSharedStatePtr& element, const TSchedulerElementSharedStatePtr& parent);
-    void ChangeParent(const TSchedulerElementSharedStatePtr& element, const TSchedulerElementSharedStatePtr& newParent);
-    void DetachParent(const TSchedulerElementSharedStatePtr& element);
-    void ReleaseResources(const TSchedulerElementSharedStatePtr& element);
+    void AttachParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& parent);
+    void ChangeParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& newParent);
+    void DetachParent(const TResourceTreeElementPtr& element);
+    void ReleaseResources(const TResourceTreeElementPtr& element);
 
-    void ApplyHierarchicalJobMetricsDelta(const TSchedulerElementSharedStatePtr& element, const TJobMetrics& delta);
+    void ApplyHierarchicalJobMetricsDelta(const TResourceTreeElementPtr& element, const TJobMetrics& delta);
 
 private:
     NConcurrency::TReaderWriterSpinLock TreeLock_;
 
-    void CheckCycleAbsence(const TSchedulerElementSharedStatePtr& element, const TSchedulerElementSharedStatePtr& newParent);
-    void DoIncreaseHierarchicalResourceUsage(const TSchedulerElementSharedStatePtr& element, const TJobResources& delta);
-    void DoIncreaseHierarchicalResourceUsagePrecommit(const TSchedulerElementSharedStatePtr& element, const TJobResources& delta);
+    void CheckCycleAbsence(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& newParent);
+    void DoIncreaseHierarchicalResourceUsage(const TResourceTreeElementPtr& element, const TJobResources& delta);
+    void DoIncreaseHierarchicalResourceUsagePrecommit(const TResourceTreeElementPtr& element, const TJobResources& delta);
 };
 
 

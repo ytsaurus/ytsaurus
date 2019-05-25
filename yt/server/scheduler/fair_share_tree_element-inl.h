@@ -9,28 +9,6 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline bool TSchedulerElementSharedState::GetAlive() const
-{
-    return Alive_.load(std::memory_order_relaxed);
-}
-
-inline void TSchedulerElementSharedState::SetAlive(bool alive)
-{
-    Alive_ = alive;
-}
-
-inline double TSchedulerElementSharedState::GetFairShareRatio() const
-{
-    return FairShareRatio_.load(std::memory_order_relaxed);
-}
-
-inline void TSchedulerElementSharedState::SetFairShareRatio(double fairShareRatio)
-{
-    FairShareRatio_ = fairShareRatio;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 inline int TSchedulerElement::GetTreeIndex() const
 {
     return TreeIndex_;
@@ -43,25 +21,25 @@ inline void TSchedulerElement::SetTreeIndex(int treeIndex)
 
 inline bool TSchedulerElement::IsAlive() const
 {
-    return SharedState_->GetAlive();
+    return ResourceTreeElement_->GetAlive();
 }
 
 inline void TSchedulerElement::SetAlive(bool alive)
 {
-    SharedState_->SetAlive(alive);
+    ResourceTreeElement_->SetAlive(alive);
 }
 
 inline void TSchedulerElement::SetFairShareRatio(double fairShareRatio)
 {
     // This version is global and used to balance preemption lists.
-    SharedState_->SetFairShareRatio(fairShareRatio);
+    ResourceTreeElement_->SetFairShareRatio(fairShareRatio);
     // This version is local for tree and used to compute satisfaction ratios.
     Attributes_.FairShareRatio = fairShareRatio;
 }
 
 inline double TSchedulerElement::GetFairShareRatio() const
 {
-    return SharedState_->GetFairShareRatio();
+    return ResourceTreeElement_->GetFairShareRatio();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
