@@ -552,6 +552,22 @@ func writeRemountTableOptions(w *yson.Writer, o *yt.RemountTableOptions) {
 	writeMutatingOptions(w, o.MutatingOptions)
 }
 
+func writeReshardTableOptions(w *yson.Writer, o *yt.ReshardTableOptions) {
+	if o == nil {
+		return
+	}
+	if o.PivotKeys != nil {
+		w.MapKeyString("pivot_keys")
+		w.Any(o.PivotKeys)
+	}
+	if o.TabletCount != nil {
+		w.MapKeyString("tablet_count")
+		w.Any(o.TabletCount)
+	}
+	writeTabletRangeOptions(w, o.TabletRangeOptions)
+	writeMutatingOptions(w, o.MutatingOptions)
+}
+
 func writeLookupRowsOptions(w *yson.Writer, o *yt.LookupRowsOptions) {
 	if o == nil {
 		return
@@ -2312,5 +2328,48 @@ func (p *RemountTableParams) TabletRangeOptions() **yt.TabletRangeOptions {
 }
 
 func (p *RemountTableParams) MutatingOptions() **yt.MutatingOptions {
+	return &p.options.MutatingOptions
+}
+
+type ReshardTableParams struct {
+	verb    Verb
+	path    ypath.Path
+	options *yt.ReshardTableOptions
+}
+
+func NewReshardTableParams(
+	path ypath.Path,
+	options *yt.ReshardTableOptions,
+) *ReshardTableParams {
+	if options == nil {
+		options = &yt.ReshardTableOptions{}
+	}
+	return &ReshardTableParams{
+		Verb("reshard_table"),
+		path,
+		options,
+	}
+}
+
+func (p *ReshardTableParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *ReshardTableParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("path", p.path),
+	}
+}
+
+func (p *ReshardTableParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("path")
+	w.Any(p.path)
+	writeReshardTableOptions(w, p.options)
+}
+
+func (p *ReshardTableParams) TabletRangeOptions() **yt.TabletRangeOptions {
+	return &p.options.TabletRangeOptions
+}
+
+func (p *ReshardTableParams) MutatingOptions() **yt.MutatingOptions {
 	return &p.options.MutatingOptions
 }

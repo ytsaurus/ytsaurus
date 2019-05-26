@@ -43,6 +43,7 @@ const (
 	VerbMountTable   Verb = "mount_table"
 	VerbUnmountTable Verb = "unmount_table"
 	VerbRemountTable Verb = "remount_table"
+	VerbReshardTable Verb = "reshard_table"
 )
 
 func (v Verb) hasInput() bool {
