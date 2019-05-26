@@ -35,11 +35,6 @@ func (w *writer) writeUint64(i uint64) {
 	w.pos += padding
 }
 
-func (w *writer) writeUint32(i uint32) {
-	binary.LittleEndian.PutUint32(w.buf[w.pos:w.pos+8], i)
-	w.pos += padding
-}
-
 func computePadding(i int) int {
 	return (padding - (i % padding)) % padding
 }
