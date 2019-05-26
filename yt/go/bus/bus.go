@@ -60,7 +60,7 @@ func (p *fixedHeader) data(computeCRC bool) []byte {
 	binary.LittleEndian.PutUint32(res[24:28], p.partCount)
 
 	if computeCRC {
-		binary.LittleEndian.PutUint64(res[28:36], crc64.Checksum(res))
+		binary.LittleEndian.PutUint64(res[28:36], crc64.Checksum(res[0:28]))
 	}
 
 	return res
@@ -90,18 +90,18 @@ func (p *variableHeader) data(computeCRC bool) []byte {
 	}
 
 	if computeCRC {
-		binary.LittleEndian.PutUint64(res[c:c+8], crc64.Checksum(res))
+		binary.LittleEndian.PutUint64(res[c:c+8], crc64.Checksum(res[:c]))
 	}
 	return res
 }
 
-type tcpPacket struct {
+type busMsg struct {
 	fixHeader fixedHeader
 	varHeader variableHeader
-	data      [][]byte
+	parts     [][]byte
 }
 
-func newPacket(data [][]byte, computeCRC bool) tcpPacket {
+func newPacket(data [][]byte, computeCRC bool) busMsg {
 	hdr := fixedHeader{
 		typ:       packetMessage,
 		flags:     packetFlagsNone,
@@ -124,14 +124,14 @@ func newPacket(data [][]byte, computeCRC bool) tcpPacket {
 		}
 	}
 
-	return tcpPacket{
+	return busMsg{
 		fixHeader: hdr,
 		varHeader: varHdr,
-		data:      data,
+		parts:     data,
 	}
 }
 
-func (p *tcpPacket) writeTo(w io.Writer) (int, error) {
+func (p *busMsg) writeTo(w io.Writer) (int, error) {
 	n := 0
 
 	l, err := w.Write(p.fixHeader.data(true))
@@ -146,7 +146,7 @@ func (p *tcpPacket) writeTo(w io.Writer) (int, error) {
 	}
 	n += l
 
-	for _, p := range p.data {
+	for _, p := range p.parts {
 		l, err := w.Write(p)
 		if err != nil {
 			return n + l, err
@@ -195,79 +195,92 @@ func (c *Bus) Receive() ([][]byte, error) {
 		}
 
 		if packet.fixHeader.typ == packetAck {
-			c.logger.Debug("Receive ack", log.Any("id", packet.fixHeader.packetID.String()))
+			c.logger.Debug("Receive ack", log.Any("id", packet.fixHeader.packetID))
 			continue
 		}
 
-		return packet.data, nil
+		return packet.parts, nil
 	}
 }
 
-func (c *Bus) receive(message io.Reader) (tcpPacket, error) {
-	rawFHdr := make([]byte, fixHeaderSize)
-	if _, err := io.ReadFull(message, rawFHdr); err != nil {
-		return tcpPacket{}, err
+func (c *Bus) receive(message io.Reader) (busMsg, error) {
+	rawFixHeader := make([]byte, fixHeaderSize)
+	if _, err := io.ReadFull(message, rawFixHeader); err != nil {
+		return busMsg{}, err
 	}
 
-	fhdr := fixedHeader{}
-	fhdr.signature = binary.LittleEndian.Uint32(rawFHdr[0:4])
-	if fhdr.signature != packetSignature {
-		return tcpPacket{}, errors.New("signature mismatch")
+	fixHeader := fixedHeader{}
+	fixHeader.signature = binary.LittleEndian.Uint32(rawFixHeader[0:4])
+	if fixHeader.signature != packetSignature {
+		return busMsg{}, errors.New("bus: signature mismatch")
 	}
 
-	fhdr.typ = packetType(binary.LittleEndian.Uint16(rawFHdr[4:6]))
-	fhdr.flags = packetFlags(binary.LittleEndian.Uint16(rawFHdr[6:8]))
-	fhdr.packetID = guid.FromParts(
-		binary.LittleEndian.Uint32(rawFHdr[8:12]),
-		binary.LittleEndian.Uint32(rawFHdr[12:16]),
-		binary.LittleEndian.Uint32(rawFHdr[16:20]),
-		binary.LittleEndian.Uint32(rawFHdr[20:24]),
+	fixHeader.typ = packetType(binary.LittleEndian.Uint16(rawFixHeader[4:6]))
+	fixHeader.flags = packetFlags(binary.LittleEndian.Uint16(rawFixHeader[6:8]))
+	fixHeader.packetID = guid.FromParts(
+		binary.LittleEndian.Uint32(rawFixHeader[8:12]),
+		binary.LittleEndian.Uint32(rawFixHeader[12:16]),
+		binary.LittleEndian.Uint32(rawFixHeader[16:20]),
+		binary.LittleEndian.Uint32(rawFixHeader[20:24]),
 	)
-	fhdr.partCount = binary.LittleEndian.Uint32(rawFHdr[24:28])
-	fhdr.checksum = binary.LittleEndian.Uint64(rawFHdr[28:])
+	fixHeader.partCount = binary.LittleEndian.Uint32(rawFixHeader[24:28])
+	fixHeader.checksum = binary.LittleEndian.Uint64(rawFixHeader[28:])
 
-	if fhdr.partCount > maxPartCount {
-		return tcpPacket{}, fmt.Errorf("bus: too many parts: %d > %d", fhdr.partCount, maxPartCount)
+	if fixHeader.checksum != crc64.Checksum(rawFixHeader[:28]) {
+		return busMsg{}, fmt.Errorf("bus: fixed header checksum mismatch")
+	}
+
+	if fixHeader.partCount > maxPartCount {
+		return busMsg{}, fmt.Errorf("bus: too many parts: %d > %d", fixHeader.partCount, maxPartCount)
 	}
 
 	// variableHeader
-	varHdr := variableHeader{
-		checksums: make([]uint64, fhdr.partCount),
-		sizes:     make([]uint32, fhdr.partCount),
+	varHeader := variableHeader{
+		checksums: make([]uint64, fixHeader.partCount),
+		sizes:     make([]uint32, fixHeader.partCount),
 	}
 
-	vSize := int((4+8)*fhdr.partCount + 8)
-	rV := make([]byte, vSize)
-	if _, err := io.ReadFull(message, rV); err != nil {
-		return tcpPacket{}, err
+	rawVarHeader := make([]byte, int((4+8)*fixHeader.partCount+8))
+	if _, err := io.ReadFull(message, rawVarHeader); err != nil {
+		return busMsg{}, err
 	}
 
 	p := 0
-	for i := range varHdr.sizes {
-		varHdr.sizes[i] = binary.LittleEndian.Uint32(rV[p : p+4])
+	for i := range varHeader.sizes {
+		varHeader.sizes[i] = binary.LittleEndian.Uint32(rawVarHeader[p : p+4])
 		p = p + 4
 	}
-	for i := range varHdr.checksums {
-		varHdr.checksums[i] = binary.LittleEndian.Uint64(rawFHdr[p : p+8])
+	for i := range varHeader.checksums {
+		varHeader.checksums[i] = binary.LittleEndian.Uint64(rawVarHeader[p : p+8])
 		p = p + 8
 	}
+	varHeader.headerChecksum = binary.LittleEndian.Uint64(rawVarHeader[p:])
 
-	res := make([][]byte, fhdr.partCount)
-	for i, d := range varHdr.sizes {
-		if d > maxPartSize {
-			return tcpPacket{}, fmt.Errorf("bus: part is to big, max %v, actual %v", maxPartSize, d)
-		}
-		partB := make([]byte, d)
-		if _, err := io.ReadFull(message, partB); err != nil {
-			return tcpPacket{}, err
-		}
-		res[i] = partB
+	if varHeader.headerChecksum != crc64.Checksum(rawVarHeader[:p]) {
+		return busMsg{}, fmt.Errorf("bus: variabled header checksum mismatch")
 	}
 
-	return tcpPacket{
-		data:      res,
-		fixHeader: fhdr,
-		varHeader: varHdr,
+	parts := make([][]byte, fixHeader.partCount)
+	for i, partSize := range varHeader.sizes {
+		if partSize > maxPartSize {
+			return busMsg{}, fmt.Errorf("bus: part is to big, max %v, actual %v", maxPartSize, partSize)
+		}
+
+		part := make([]byte, partSize)
+		if _, err := io.ReadFull(message, part); err != nil {
+			return busMsg{}, err
+		}
+		parts[i] = part
+
+		if varHeader.checksums[i] != crc64.Checksum(part) {
+			return busMsg{}, fmt.Errorf("bus: part checksum mismatch")
+		}
+	}
+
+	return busMsg{
+		parts:     parts,
+		fixHeader: fixHeader,
+		varHeader: varHeader,
 	}, nil
 }
 
@@ -280,14 +293,13 @@ func NewBus(conn net.Conn, options Options) *Bus {
 	return &Bus{
 		options: options,
 		conn:    conn,
-		logger:  log.With(logger, log.Any("busID", guid.New().String())),
-		once:    sync.Once{},
+		logger:  log.With(logger, log.Any("busID", guid.New())),
 	}
 }
 
 func Dial(ctx context.Context, options Options) (*Bus, error) {
-	var d net.Dialer
-	conn, err := d.DialContext(ctx, "tcp", options.Address)
+	var dialer net.Dialer
+	conn, err := dialer.DialContext(ctx, "tcp", options.Address)
 	if err != nil {
 		return nil, err
 	}
