@@ -137,6 +137,12 @@ func EnsureTables(
 				attrs["dynamic"] = true
 				attrs["schema"] = table.Schema
 
+				// TODO(prime@): remove this, when master is fixed
+				pivotKeys, needReshard := attrs["pivot_keys"]
+				if needReshard {
+					delete(attrs, "pivot_keys")
+				}
+
 				_, err = yc.CreateNode(ctx, path, yt.NodeTable, &yt.CreateNodeOptions{
 					Recursive:  true,
 					Attributes: attrs,
@@ -144,6 +150,16 @@ func EnsureTables(
 
 				if err != nil {
 					return err
+				}
+
+				if needReshard {
+					err = yc.ReshardTable(ctx, path, &yt.ReshardTableOptions{
+						PivotKeys: pivotKeys,
+					})
+
+					if err != nil {
+						return err
+					}
 				}
 			}
 		} else {
