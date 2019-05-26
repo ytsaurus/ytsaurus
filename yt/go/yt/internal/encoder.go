@@ -513,3 +513,11 @@ func (e *Encoder) RemountTable(
 ) (err error) {
 	return e.do(ctx, e.newCall(NewRemountTableParams(path, options)), func(res *CallResult) error { return nil })
 }
+
+func (e *Encoder) ReshardTable(
+	ctx context.Context,
+	path ypath.Path,
+	options *yt.ReshardTableOptions,
+) (err error) {
+	return e.do(ctx, e.newCall(NewReshardTableParams(path, options)), func(res *CallResult) error { return nil })
+}

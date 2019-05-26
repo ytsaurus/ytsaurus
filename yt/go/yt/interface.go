@@ -688,6 +688,14 @@ type RemountTableOptions struct {
 	*MutatingOptions
 }
 
+type ReshardTableOptions struct {
+	*TabletRangeOptions
+	*MutatingOptions
+
+	PivotKeys   interface{} `http:"pivot_keys,omitnil"`
+	TabletCount *int        `http:"tablet_count,omitnil"`
+}
+
 // Tx is high level API for master transactions.
 //
 // Create new tx by calling BeginTx() method on Client or other Tx.
@@ -798,6 +806,14 @@ type MountClient interface {
 		ctx context.Context,
 		path ypath.Path,
 		options *RemountTableOptions,
+	) (err error)
+
+	// http:verb:"reshard_table"
+	// http:params:"path"
+	ReshardTable(
+		ctx context.Context,
+		path ypath.Path,
+		options *ReshardTableOptions,
 	) (err error)
 }
 
