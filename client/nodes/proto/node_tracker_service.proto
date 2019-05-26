@@ -3,6 +3,7 @@ package NYP.NClient.NNodes.NProto;
 import "yp/client/api/proto/data_model.proto";
 import "yp/client/api/proto/secrets.proto";
 import "yp/client/api/proto/dynamic_attributes.proto";
+import "yp/client/api/proto/host_infra.proto";
 
 import "yt/core/misc/proto/error.proto";
 
@@ -101,6 +102,8 @@ message TPodSpec
 
     // Resource cache for the pod.
     optional NYP.NClient.NApi.NProto.TPodSpec.TPodAgentResourceCache resource_cache = 14;
+
+    optional NYP.NClient.NApi.NProto.THostInfraInfo host_infra = 15;
 }
 
 message TReqHeartbeat

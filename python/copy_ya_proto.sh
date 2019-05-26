@@ -10,6 +10,7 @@ YP_PROTOS="
     yp/client/api/proto/enums.proto
     yp/client/api/proto/dynamic_resource.proto
     yp/client/api/proto/discovery_service.proto
+    yp/client/api/proto/host_infra.proto
     yp/client/api/proto/object_service.proto
     yp/client/api/proto/replica_set.proto
     yp/client/api/proto/multi_cluster_replica_set.proto

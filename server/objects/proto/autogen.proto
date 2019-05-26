@@ -11,6 +11,7 @@ import "yp/client/api/proto/multi_cluster_replica_set.proto";
 import "yp/client/api/proto/resource_cache.proto";
 import "yp/client/api/proto/dynamic_resource.proto";
 import "yp/client/api/proto/stage.proto";
+import "yp/client/api/proto/host_infra.proto";
 import "yt/core/misc/proto/error.proto";
 import "yt/core/ytree/proto/attributes.proto";
 import "yt/core/yson/proto/protobuf_interop.proto";
@@ -41,6 +42,7 @@ message TPodSpecEtc
     NYP.NClient.NApi.NProto.TPodSpec.TVirtualServiceOptions virtual_service_options = 12;
     NYP.NClient.NApi.NProto.EPodHostNameKind host_name_kind = 15;
     NYP.NClient.NApi.NProto.EPodOutOfMemoryPolicy out_of_memory_policy = 21;
+    NYP.NClient.NApi.NProto.THostInfraInfo host_infra = 22;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

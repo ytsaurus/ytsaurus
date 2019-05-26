@@ -8,6 +8,7 @@ yp_proto/yp/client/api/proto/deploy.proto
 yp_proto/yp/client/api/proto/enums.proto
 yp_proto/yp/client/api/proto/dynamic_resource.proto
 yp_proto/yp/client/api/proto/discovery_service.proto
+yp_proto/yp/client/api/proto/host_infra.proto
 yp_proto/yp/client/api/proto/object_service.proto
 yp_proto/yp/client/api/proto/replica_set.proto
 yp_proto/yp/client/api/proto/multi_cluster_replica_set.proto

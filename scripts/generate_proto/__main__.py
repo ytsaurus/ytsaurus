@@ -13,6 +13,7 @@ def get_modules():
     import yp_proto.yp.client.api.proto.multi_cluster_replica_set_pb2 as multi_cluster_replica_set_pb2
     import yp_proto.yp.client.api.proto.dynamic_resource_pb2 as dynamic_resource_pb2
     import yp_proto.yp.client.api.proto.stage_pb2 as stage_pb2
+    import yp_proto.yp.client.api.proto.host_infra_pb2 as host_infra_pb2
 
     return [
         data_model_pb2,
@@ -21,6 +22,7 @@ def get_modules():
         resource_cache_pb2,
         dynamic_resource_pb2,
         stage_pb2,
+        host_infra_pb2
     ]
 
 
