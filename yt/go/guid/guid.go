@@ -4,6 +4,7 @@
 package guid
 
 import (
+	"encoding/binary"
 	"fmt"
 
 	"github.com/gofrs/uuid/v3"
@@ -23,6 +24,12 @@ func (g GUID) Parts() (a, b, c, d uint32) {
 	b = uint32(g[4]) | (uint32(g[5]) << 8) | (uint32(g[6]) << 16) | (uint32(g[7]) << 24)
 	c = uint32(g[8]) | (uint32(g[9]) << 8) | (uint32(g[10]) << 16) | (uint32(g[11]) << 24)
 	d = uint32(g[12]) | (uint32(g[13]) << 8) | (uint32(g[14]) << 16) | (uint32(g[15]) << 24)
+	return
+}
+
+func (g GUID) Halves() (a, b uint64) {
+	a = binary.LittleEndian.Uint64(g[0:8])
+	b = binary.LittleEndian.Uint64(g[8:16])
 	return
 }
 
@@ -47,6 +54,12 @@ func FromParts(a, b, c, d uint32) (g GUID) {
 	g[14] = byte(d >> 16)
 	g[15] = byte(d >> 24)
 
+	return
+}
+
+func FromHalves(a, b uint64) (g GUID) {
+	binary.LittleEndian.PutUint64(g[0:8], a)
+	binary.LittleEndian.PutUint64(g[8:16], b)
 	return
 }
 
