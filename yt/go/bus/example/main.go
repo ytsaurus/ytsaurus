@@ -3,98 +3,47 @@ package main
 import (
 	"context"
 	"flag"
-	"time"
+	"fmt"
+	"os"
 
-	zp "go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-
-	"a.yandex-team.ru/library/go/core/log"
-	"a.yandex-team.ru/library/go/core/log/zap"
 	"a.yandex-team.ru/yt/go/bus"
+	"a.yandex-team.ru/yt/go/proto/client/api/rpc_proxy"
+	"go.uber.org/zap"
 )
 
 var (
-	Counter = 0
-	Log     = zap.Must(zp.Config{
-		Level:            zp.NewAtomicLevelAt(zp.InfoLevel),
-		Encoding:         "console",
-		OutputPaths:      []string{"stdout"},
-		ErrorOutputPaths: []string{"stderr"},
-		EncoderConfig: zapcore.EncoderConfig{
-			MessageKey:     "msg",
-			LevelKey:       "level",
-			TimeKey:        "ts",
-			CallerKey:      "caller",
-			EncodeLevel:    zapcore.CapitalColorLevelEncoder,
-			EncodeTime:     zapcore.ISO8601TimeEncoder,
-			EncodeDuration: zapcore.StringDurationEncoder,
-			EncodeCaller:   zapcore.ShortCallerEncoder,
-		},
-	})
-	address = flag.String("address", "localhost:1234", "Address of YT bus server")
-	flood   = flag.Bool("flood", true, "Flood")
+	flagAddress = flag.String("address", "man2-4299-b52.hume.yt.gencfg-c.yandex.net:9013", "Address of YT rpc proxy")
 )
 
-func singleRun() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	client, err := bus.Dial(ctx, bus.Options{
-		Address: *address,
-		Logger:  Log,
-	})
-
+func testBus() error {
+	logger, err := zap.NewDevelopment()
 	if err != nil {
 		return err
 	}
+	_ = logger
 
-	defer client.Close()
-
-	if err != nil {
-		Log.Error("Blya", log.Error(err))
-		return err
-	}
-
-	if err != nil {
-		Log.Error("Blya", log.Error(err))
-		return err
-	}
-
-	if err := client.Send([][]byte{[]byte("hello world")}); err != nil {
-		Log.Error("Blya", log.Error(err))
-		return err
-	}
-
-	data, err := client.Receive()
+	ctx := context.Background()
+	conn, err := bus.NewClient(ctx, *flagAddress)
 	if err != nil {
 		return err
 	}
+	defer conn.Close()
 
-	for _, d := range data {
-		Log.Info("Receive data", log.Any("counter", Counter), log.Any("data", string(d)))
-		Counter++
+	var req rpc_proxy.TReqDiscoverProxies
+	var rsp rpc_proxy.TRspDiscoverProxies
+
+	if err := conn.Send(ctx, "DiscoveryService", "DiscoverProxies", &req, &rsp); err != nil {
+		return err
 	}
 
+	fmt.Printf("proxies = %s\n", rsp.String())
 	return nil
 }
 
 func main() {
 	flag.Parse()
-	Log.Info("Ping", log.Any("args", map[string]interface{}{
-		"address": *address,
-		"flood":   *flood,
-	}))
 
-	if err := singleRun(); err != nil {
-		Log.Error("Run error", log.Error(err))
-		return
-	}
-
-	if *flood {
-		for i := 0; i < 1000; i++ {
-			if err := singleRun(); err != nil {
-				Log.Error("Run error", log.Error(err))
-				return
-			}
-		}
+	if err := testBus(); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "err: %+v\n", err)
 	}
 }
