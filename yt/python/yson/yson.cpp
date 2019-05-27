@@ -547,6 +547,12 @@ private:
             }
         }
 
+        bool sortKeys = false;
+        if (HasArgument(args, kwargs, "sort_keys")) {
+            auto arg = ExtractArgument(args, kwargs, "sort_keys");
+            sortKeys = Py::Boolean(arg);
+        }
+
         ValidateArgumentsEmpty(args, kwargs);
 
         auto writer = NYson::CreateYsonWriter(
@@ -560,7 +566,7 @@ private:
         switch (ysonType) {
             case NYson::EYsonType::Node:
             case NYson::EYsonType::MapFragment:
-                Serialize(obj, writer.get(), encoding, ignoreInnerAttributes, ysonType);
+                Serialize(obj, writer.get(), encoding, ignoreInnerAttributes, ysonType, sortKeys);
                 break;
 
             case NYson::EYsonType::ListFragment: {
@@ -569,7 +575,7 @@ private:
                 TContext context;
                 while (auto* item = PyIter_Next(*iterator)) {
                     context.RowIndex = rowIndex;
-                    Serialize(Py::Object(item, true), writer.get(), encoding, ignoreInnerAttributes, NYson::EYsonType::Node, 0, &context);
+                    Serialize(Py::Object(item, true), writer.get(), encoding, ignoreInnerAttributes, NYson::EYsonType::Node, sortKeys, 0, &context);
                     ++rowIndex;
                 }
                 if (PyErr_Occurred()) {

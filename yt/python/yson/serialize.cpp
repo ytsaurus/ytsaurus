@@ -43,9 +43,14 @@ void SerializeLazyMapFragment(
     const std::optional<TString>& encoding,
     bool ignoreInnerAttributes,
     EYsonType ysonType,
+    bool sortKeys,
     int depth,
     TContext* context)
 {
+    if (sortKeys) {
+        throw Py::RuntimeError("sort_keys=True is not implemented for lazy map fragment");
+    }
+
     TLazyYsonMapBase* obj = reinterpret_cast<TLazyYsonMapBase*>(map.ptr());
     for (const auto& item: *obj->Dict->GetUnderlyingHashMap()) {
         const auto& key = item.first;
@@ -55,14 +60,13 @@ void SerializeLazyMapFragment(
             throw Py::RuntimeError(Format("Map key should be string, found '%s'", Py::Repr(key)));
         }
 
-
         auto encodedKey = EncodeStringObject(key, encoding, context);
         auto mapKey = ConvertToStringBuf(encodedKey);
         consumer->OnKeyedItem(mapKey);
         context->Push(mapKey);
 
         if (value.Value) {
-            Serialize(*value.Value, consumer, encoding, ignoreInnerAttributes, ysonType, depth + 1);
+            Serialize(*value.Value, consumer, encoding, ignoreInnerAttributes, ysonType, sortKeys, depth + 1);
         } else {
             consumer->OnRaw(TStringBuf(value.Data.Begin(), value.Data.Size()), NYson::EYsonType::Node);
         }
@@ -76,32 +80,59 @@ void SerializeMapFragment(
     const std::optional<TString> &encoding,
     bool ignoreInnerAttributes,
     EYsonType ysonType,
+    bool sortKeys,
     int depth,
     TContext* context)
 {
     if (IsYsonLazyMap(map.ptr())) {
-        SerializeLazyMapFragment(map, consumer, encoding, ignoreInnerAttributes, ysonType, depth, context);
+        SerializeLazyMapFragment(map, consumer, encoding, ignoreInnerAttributes, ysonType, sortKeys, depth, context);
         return;
     }
 
-    auto items = Py::Object(PyDict_CheckExact(*map) ? PyDict_Items(*map) : PyMapping_Items(*map), true);
-    auto iterator = CreateIterator(items);
-    while (auto* item = PyIter_Next(*iterator)) {
+    auto validateKeyType = [&] (const Py::Object& key) {
+        if (!PyBytes_Check(key.ptr()) && !PyUnicode_Check(key.ptr())) {
+            throw CreateYsonError(Format("Map key should be string, found '%s'", Py::Repr(key)), context);
+        }
+    };
+
+    auto onItem = [&] (PyObject* item) {
         auto itemGuard = Finally([item] () { Py::_XDECREF(item); });
 
         auto key = Py::Object(PyTuple_GetItem(item, 0), false);
         auto value = Py::Object(PyTuple_GetItem(item, 1), false);
 
-        if (!PyBytes_Check(key.ptr()) && !PyUnicode_Check(key.ptr())) {
-            throw CreateYsonError(Format("Map key should be string, found '%s'", Py::Repr(key)), context);
-        }
+        validateKeyType(key);
 
         auto encodedKey = EncodeStringObject(key, encoding, context);
         auto mapKey = ConvertToStringBuf(encodedKey);
         consumer->OnKeyedItem(mapKey);
         context->Push(mapKey);
-        Serialize(value, consumer, encoding, ignoreInnerAttributes, ysonType, depth + 1, context);
+        Serialize(value, consumer, encoding, ignoreInnerAttributes, ysonType, sortKeys, depth + 1, context);
         context->Pop();
+    };
+
+    auto items = Py::Object(PyDict_CheckExact(*map) ? PyDict_Items(*map) : PyMapping_Items(*map), true);
+    auto iterator = CreateIterator(items);
+
+    if (sortKeys) {
+        std::vector<std::pair<TStringBuf, PyObject*>> itemsSortedByKey;
+
+        while (auto* item = PyIter_Next(*iterator)) {
+            auto key = Py::Object(PyTuple_GetItem(item, 0), false);
+            validateKeyType(key);
+            auto encodedKey = EncodeStringObject(key, encoding, context);
+            auto mapKey = ConvertToStringBuf(encodedKey);
+            itemsSortedByKey.emplace_back(mapKey, item);
+        }
+
+        std::sort(itemsSortedByKey.begin(), itemsSortedByKey.end());
+        for (const auto& pair : itemsSortedByKey) {
+            onItem(pair.second);
+        }
+    } else {
+        while (auto* item = PyIter_Next(*iterator)) {
+            onItem(item);
+        }
     }
 }
 
@@ -190,6 +221,7 @@ void Serialize(
     const std::optional<TString>& encoding,
     bool ignoreInnerAttributes,
     EYsonType ysonType,
+    bool sortKeys,
     int depth,
     TContext* context)
 {
@@ -212,7 +244,7 @@ void Serialize(
             if (attributes.length() > 0) {
                 consumer->OnBeginAttributes();
                 context->PushAttributesStarted();
-                SerializeMapFragment(attributes, consumer, encoding, ignoreInnerAttributes, ysonType, depth, context);
+                SerializeMapFragment(attributes, consumer, encoding, ignoreInnerAttributes, ysonType, sortKeys, depth, context);
                 context->Pop();
                 consumer->OnEndAttributes();
             }
@@ -236,7 +268,7 @@ void Serialize(
         if (allowBeginEnd) {
             consumer->OnBeginMap();
         }
-        SerializeMapFragment(obj, consumer, encoding, ignoreInnerAttributes, ysonType, depth, context);
+        SerializeMapFragment(obj, consumer, encoding, ignoreInnerAttributes, ysonType, sortKeys, depth, context);
         if (allowBeginEnd) {
             consumer->OnEndMap();
         }
@@ -247,7 +279,7 @@ void Serialize(
         for (auto it = objList.begin(); it != objList.end(); ++it) {
             consumer->OnListItem();
             context->Push(index);
-            Serialize(*it, consumer, encoding, ignoreInnerAttributes, ysonType, depth + 1, context);
+            Serialize(*it, consumer, encoding, ignoreInnerAttributes, ysonType, sortKeys, depth + 1, context);
             context->Pop();
             ++index;
         }
