@@ -447,7 +447,7 @@ TSharedRefArrayImplPtr TSharedRefArray::NewImpl(
     size_t size,
     size_t poolCapacity,
     TRefCountedTypeCookie tagCookie,
-    As... args)
+    As&&... args)
 {
     auto extraSpaceSize = sizeof (TSharedRef) * size + poolCapacity;
     return NewWithExtraSpace<TSharedRefArrayImpl>(

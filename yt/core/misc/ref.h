@@ -326,7 +326,7 @@ private:
         size_t size,
         size_t poolCapacity,
         TRefCountedTypeCookie cookie,
-        As... args);
+        As&&... args);
 };
 
 // STL interop.
