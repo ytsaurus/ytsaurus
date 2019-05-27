@@ -104,7 +104,7 @@ private:
         TOperationIdOrAlias operationIdOrAlias = TOperationId();
         FromProto(&operationIdOrAlias, *request);
 
-        context->SetRawRequestInfo(GetOperationIdOrAliasContextInfo(operationIdOrAlias));
+        context->SetRequestInfo("%v", GetOperationIdOrAliasContextInfo(operationIdOrAlias));
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
@@ -160,7 +160,7 @@ private:
         TOperationIdOrAlias operationIdOrAlias = TOperationId();
         FromProto(&operationIdOrAlias, *request);
 
-        context->SetRawRequestInfo(GetOperationIdOrAliasContextInfo(operationIdOrAlias));
+        context->SetRequestInfo("%v", GetOperationIdOrAliasContextInfo(operationIdOrAlias));
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
@@ -182,7 +182,7 @@ private:
         TOperationIdOrAlias operationIdOrAlias = TOperationId();
         FromProto(&operationIdOrAlias, *request);
 
-        context->SetRawRequestInfo(GetOperationIdOrAliasContextInfo(operationIdOrAlias));
+        context->SetRequestInfo("%v", GetOperationIdOrAliasContextInfo(operationIdOrAlias));
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
@@ -205,7 +205,7 @@ private:
         TOperationIdOrAlias operationIdOrAlias = TOperationId();
         FromProto(&operationIdOrAlias, *request);
 
-        context->SetRawRequestInfo(GetOperationIdOrAliasContextInfo(operationIdOrAlias));
+        context->SetRequestInfo("%v", GetOperationIdOrAliasContextInfo(operationIdOrAlias));
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();

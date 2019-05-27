@@ -71,8 +71,8 @@ public:
     virtual const NProto::TRequestHeader& RequestHeader() const override;
     virtual NProto::TRequestHeader& RequestHeader() override;
 
-    virtual void SetRawRequestInfo(const TString& info) override;
-    virtual void SetRawResponseInfo(const TString& info) override;
+    virtual void SetRawRequestInfo(TString info, bool incremental) override;
+    virtual void SetRawResponseInfo(TString info, bool incremental) override;
 
     virtual const NLogging::TLogger& GetLogger() const override;
     virtual NLogging::ELogLevel GetLogLevel() const override;
@@ -102,8 +102,8 @@ protected:
     TSharedRef ResponseBody_;
     std::vector<TSharedRef> ResponseAttachments_;
 
-    TString RequestInfo_;
-    TString ResponseInfo_;
+    SmallVector<TString, 4> RequestInfos_;
+    SmallVector<TString, 4> ResponseInfos_;
 
     NCompression::ECodec ResponseCodec_ = NCompression::ECodec::None;
 
@@ -189,8 +189,8 @@ public:
     virtual const NProto::TRequestHeader& RequestHeader() const override;
     virtual NProto::TRequestHeader& RequestHeader() override;
 
-    virtual void SetRawRequestInfo(const TString& info) override;
-    virtual void SetRawResponseInfo(const TString& info) override;
+    virtual void SetRawRequestInfo(TString info, bool incremental) override;
+    virtual void SetRawResponseInfo(TString info, bool incremental) override;
 
     virtual const NLogging::TLogger& GetLogger() const override;
     virtual NLogging::ELogLevel GetLogLevel() const override;

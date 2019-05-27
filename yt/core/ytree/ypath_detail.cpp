@@ -1274,32 +1274,26 @@ public:
     TYPathServiceContext(
         TSharedRefArray requestMessage,
         NLogging::TLogger logger,
-        NLogging::ELogLevel logLevel,
-        TString loggingInfo)
+        NLogging::ELogLevel logLevel)
         : TServiceContextBase(
             std::move(requestMessage),
             std::move(logger),
             logLevel)
-        , LoggingInfo_(std::move(loggingInfo))
     { }
 
     TYPathServiceContext(
         std::unique_ptr<TRequestHeader> requestHeader,
         TSharedRefArray requestMessage,
         NLogging::TLogger logger,
-        NLogging::ELogLevel logLevel,
-        TString loggingInfo)
+        NLogging::ELogLevel logLevel)
         : TServiceContextBase(
             std::move(requestHeader),
             std::move(requestMessage),
             std::move(logger),
             logLevel)
-        , LoggingInfo_(std::move(loggingInfo))
     { }
 
 protected:
-    const TString LoggingInfo_;
-
     std::optional<NProfiling::TWallTimer> Timer_;
 
 
@@ -1315,9 +1309,6 @@ protected:
             GetRequestYPath(*RequestHeader_));
 
         TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
-        if (LoggingInfo_) {
-            delimitedBuilder->AppendString(LoggingInfo_);
-        }
 
         auto mutationId = GetMutationId();
         if (mutationId) {
@@ -1326,8 +1317,8 @@ protected:
 
         delimitedBuilder->AppendFormat("Retry: %v", IsRetry());
 
-        if (RequestInfo_) {
-            delimitedBuilder->AppendString(RequestInfo_);
+        for (const auto& info : RequestInfos_){
+            delimitedBuilder->AppendString(info);
         }
 
         YT_LOG_DEBUG(builder.Flush());
@@ -1344,12 +1335,9 @@ protected:
             GetRequestYPath(*RequestHeader_));
 
         TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
-        if (LoggingInfo_) {
-            delimitedBuilder->AppendString(LoggingInfo_);
-        }
 
-        if (ResponseInfo_) {
-            delimitedBuilder->AppendString(ResponseInfo_);
+        for (const auto& info : ResponseInfos_) {
+            delimitedBuilder->AppendString(info);
         }
 
         if (Timer_) {
@@ -1365,24 +1353,21 @@ protected:
 IServiceContextPtr CreateYPathContext(
     TSharedRefArray requestMessage,
     NLogging::TLogger logger,
-    NLogging::ELogLevel logLevel,
-    TString loggingInfo)
+    NLogging::ELogLevel logLevel)
 {
     Y_ASSERT(requestMessage);
 
     return New<TYPathServiceContext>(
         std::move(requestMessage),
         std::move(logger),
-        logLevel,
-        std::move(loggingInfo));
+        logLevel);
 }
 
 IServiceContextPtr CreateYPathContext(
     std::unique_ptr<TRequestHeader> requestHeader,
     TSharedRefArray requestMessage,
     NLogging::TLogger logger,
-    NLogging::ELogLevel logLevel,
-    TString loggingInfo)
+    NLogging::ELogLevel logLevel)
 {
     Y_ASSERT(requestMessage);
 
@@ -1390,8 +1375,7 @@ IServiceContextPtr CreateYPathContext(
         std::move(requestHeader),
         std::move(requestMessage),
         std::move(logger),
-        logLevel,
-        std::move(loggingInfo));
+        logLevel);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

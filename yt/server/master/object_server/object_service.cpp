@@ -436,16 +436,18 @@ private:
 
             auto updatedSubrequestMessage = SetRequestHeader(subrequestMessage, subrequestHeader);
 
+            auto subcontext = CreateYPathContext(
+                updatedSubrequestMessage,
+                ObjectServerLogger,
+                NLogging::ELogLevel::Debug);
+
             auto loggingInfo = Format("RequestId: %v, Mutating: %v, RequestPath: %v, User: %v",
                 RequestId_,
                 mutating,
                 path,
                 UserName_);
-            auto subcontext = CreateYPathContext(
-                updatedSubrequestMessage,
-                ObjectServerLogger,
-                NLogging::ELogLevel::Debug,
-                std::move(loggingInfo));
+            subcontext->SetRawRequestInfo(loggingInfo, true);
+            subcontext->SetRawResponseInfo(loggingInfo, true);
 
             subrequest.RequestMessage = updatedSubrequestMessage;
             subrequest.Context = subcontext;

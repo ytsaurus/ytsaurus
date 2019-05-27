@@ -361,14 +361,14 @@ void ExecuteVerb(
             return UnderlyingContext_->GetEndpointAttributes();
         }
 
-        virtual void SetRawRequestInfo(const TString& info) override
+        virtual void SetRawRequestInfo(TString info, bool incremental) override
         {
-            UnderlyingContext_->SetRawRequestInfo(info);
+            UnderlyingContext_->SetRawRequestInfo(std::move(info), incremental);
         }
 
-        virtual void SetRawResponseInfo(const TString& info) override
+        virtual void SetRawResponseInfo(TString info, bool incremental) override
         {
-            UnderlyingContext_->SetRawResponseInfo(info);
+            UnderlyingContext_->SetRawResponseInfo(std::move(info), incremental);
         }
 
     private:

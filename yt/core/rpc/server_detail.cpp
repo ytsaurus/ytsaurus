@@ -311,19 +311,36 @@ TRequestHeader& TServiceContextBase::RequestHeader()
     return *RequestHeader_;
 }
 
-void TServiceContextBase::SetRawRequestInfo(const TString& info)
+void TServiceContextBase::SetRawRequestInfo(TString info, bool incremental)
 {
-    RequestInfo_ = info;
-    if (Logger.IsLevelEnabled(LogLevel_)) {
+    Y_ASSERT(!Replied_);
+
+    if (!Logger.IsLevelEnabled(LogLevel_)) {
+        return;
+    }
+
+    if (!info.empty()) {
+        RequestInfos_.push_back(std::move(info));
+    }
+    if (!incremental) {
         LogRequest();
     }
 }
 
-void TServiceContextBase::SetRawResponseInfo(const TString& info)
+void TServiceContextBase::SetRawResponseInfo(TString info, bool incremental)
 {
     Y_ASSERT(!Replied_);
 
-    ResponseInfo_ = info;
+    if (!Logger.IsLevelEnabled(LogLevel_)) {
+        return;
+    }
+
+    if (!incremental) {
+        ResponseInfos_.clear();
+    }
+    if (!info.empty()) {
+        ResponseInfos_.push_back(std::move(info));
+    }
 }
 
 const NLogging::TLogger& TServiceContextBase::GetLogger() const
@@ -520,14 +537,14 @@ NProto::TRequestHeader& TServiceContextWrapper::RequestHeader()
     return UnderlyingContext_->RequestHeader();
 }
 
-void TServiceContextWrapper::SetRawRequestInfo(const TString& info)
+void TServiceContextWrapper::SetRawRequestInfo(TString info, bool incremental)
 {
-    UnderlyingContext_->SetRawRequestInfo(info);
+    UnderlyingContext_->SetRawRequestInfo(std::move(info), incremental);
 }
 
-void TServiceContextWrapper::SetRawResponseInfo(const TString& info)
+void TServiceContextWrapper::SetRawResponseInfo(TString info, bool incremental)
 {
-    UnderlyingContext_->SetRawResponseInfo(info);
+    UnderlyingContext_->SetRawResponseInfo(std::move(info), incremental);
 }
 
 const NLogging::TLogger& TServiceContextWrapper::GetLogger() const

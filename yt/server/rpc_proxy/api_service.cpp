@@ -1710,7 +1710,7 @@ private:
         TResumeOperationOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRawRequestInfo(GetOperationIdOrAliasContextInfo(operationIdOrAlias));
+        context->SetRequestInfo("%v", GetOperationIdOrAliasContextInfo(operationIdOrAlias));
 
         CompleteCallWith(
             context,
@@ -1730,7 +1730,7 @@ private:
         TCompleteOperationOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRawRequestInfo(GetOperationIdOrAliasContextInfo(operationIdOrAlias));
+        context->SetRequestInfo("%v", GetOperationIdOrAliasContextInfo(operationIdOrAlias));
 
         CompleteCallWith(
             context,
