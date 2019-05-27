@@ -714,6 +714,39 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(lambda: get("#{0}/@mode".format(replica_id1)) == "async")
         wait(lambda: get("#{0}/@mode".format(replica_id2)) == "sync")
 
+    def test_sync_replication_switch_bundle_health(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": "true"})
+        replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "sync"})
+        replica_id2 = create_table_replica("//tmp/t", "primary", "//tmp/r2", attributes={"mode": "async"})
+        self._create_replica_table("//tmp/r1", replica_id1)
+        self._create_replica_table("//tmp/r2", replica_id2)
+        sync_enable_table_replica(replica_id1)
+        sync_enable_table_replica(replica_id2)
+
+        wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.replica_driver) == "good")
+
+        nodes = ls("//sys/nodes", driver=self.replica_driver)
+        for node in nodes:
+            set("//sys/nodes/" + node + "/@banned", "true", driver=self.replica_driver)
+
+        wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.replica_driver) != "good")
+
+        for i in range(5):
+            try:
+                insert_rows("//tmp/t", [{"key": i, "value1": "test%d"%(i), "value2": i}])
+            except:
+                pass
+
+        get("#{0}/@errors".format(replica_id1))
+        wait(lambda: get("#{0}/@mode".format(replica_id1)) == "async")
+        wait(lambda: get("#{0}/@mode".format(replica_id2)) == "sync")
+
+        for node in nodes:
+            set("//sys/nodes/" + node + "/@banned", "false", driver=self.replica_driver)
+
+        wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.replica_driver) == "good")
+
     def test_cannot_sync_write_into_disabled_replica(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t")

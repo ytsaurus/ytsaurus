@@ -8,6 +8,8 @@
 
 #include <yt/core/rpc/helpers.h>
 
+#include <yt/core/misc/async_expiring_cache.h>
+
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/config.h>
 #include <yt/server/master/cell_master/config_manager.h>
@@ -91,6 +93,38 @@ private:
     NTabletServer::TReplicatedTableTrackerConfigPtr Config_;
     bool Enabled_ = false;
 
+    static TAsyncExpiringCacheConfigPtr GetAsyncExpiringCacheConfig() {
+        auto config = New<TAsyncExpiringCacheConfig>();
+        config->ExpireAfterAccessTime = TDuration::Seconds(1);
+        config->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(1);
+        config->ExpireAfterFailedUpdateTime = TDuration::Seconds(1);
+        return config;
+    }
+
+    class TBundleHealthCache
+        : public TAsyncExpiringCache<std::pair<NApi::IConnectionPtr, TString>, ETabletCellHealth>
+    {
+    public:
+        TBundleHealthCache()
+            : TAsyncExpiringCache(GetAsyncExpiringCacheConfig())
+        { }
+
+    protected:
+        virtual TFuture<ETabletCellHealth> DoGet(const std::pair<NApi::IConnectionPtr, TString>& key) override
+        {
+            auto& [connection, bundleName] = key;
+            auto client = connection->CreateClient(NApi::TClientOptions(RootUserName));
+
+            return client->GetNode("//sys/tablet_cell_bundles/" + bundleName + "/@health")
+                .Apply(BIND([] (const TErrorOr<NYson::TYsonString>& error) {
+                    return ConvertTo<ETabletCellHealth>(error.ValueOrThrow());
+                }));
+        }
+    };
+
+    using TBundleHealthCachePtr = TIntrusivePtr<TBundleHealthCache>;
+    TBundleHealthCachePtr BundleHealthCache_ = New<TBundleHealthCache>();
+
     class TReplica
         : public TRefCounted
     {
@@ -100,6 +134,7 @@ private:
             ETableReplicaMode mode,
             const TString& clusterName,
             const TYPath& path,
+            const TBundleHealthCachePtr& bundleHealthCache,
             IConnectionPtr connection,
             IInvokerPtr checkerInvoker,
             TDuration lag)
@@ -107,6 +142,7 @@ private:
             , Mode_(mode)
             , ClusterName_(clusterName)
             , Path_(path)
+            , BundleHealthCache_(bundleHealthCache)
             , Connection_(std::move(connection))
             , Client_(Connection_ ? Connection_->CreateClient(NApi::TClientOptions(RootUserName)) : NApi::IClientPtr())
             , CheckerInvoker_(std::move(checkerInvoker))
@@ -139,10 +175,28 @@ private:
                 }
             }));
 
+            auto check3 = CheckBundleHealth();
+
             return Combine(std::vector<TFuture<void>>{
                 check1,
-                check2
+                check2,
+                check3
             });
+        }
+
+        TFuture<void> CheckBundleHealth()
+        {
+            return GetTabletCellBundleName()
+                .Apply(BIND([connection = Connection_, bundleHealthCache = BundleHealthCache_, path = Path_] (const TErrorOr<TString>& tabletCellBundleNameOrError) {
+                    return bundleHealthCache->Get({connection, tabletCellBundleNameOrError.ValueOrThrow()});
+                })).Apply(BIND([path = Path_] (const TErrorOr<ETabletCellHealth>& tabletCellHealthOrError) {
+                    auto tabletCellHealth = tabletCellHealthOrError.ValueOrThrow();
+                    if (tabletCellHealth != ETabletCellHealth::Good) {
+                        THROW_ERROR_EXCEPTION(
+                            "Bad tablet cell health %v for %v",
+                            tabletCellHealth, path);
+                    }
+                }));
         }
 
         TFuture<void> SetMode(TBootstrap* const bootstrap, ETableReplicaMode mode)
@@ -184,15 +238,60 @@ private:
                 .Via(CheckerInvoker_));
         }
 
+        bool operator == (const TReplica& other) const
+        {
+            return Id_ == other.Id_
+                && ClusterName_ == other.ClusterName_
+                && Path_ == other.Path_;
+        }
+
+        bool operator != (const TReplica& other) const
+        {
+            return !(operator==(other));
+        }
+
+        void Merge(const TReplica& other)
+        {
+            Mode_ = other.Mode_;
+            if (Connection_ != other.Connection_) {
+                Connection_ = other.Connection_;
+                Client_.Reset();
+            }
+            Lag_ = other.Lag_;
+        }
+
     private:
         const TObjectId Id_;
         ETableReplicaMode Mode_;
         const TString ClusterName_;
         const TYPath Path_;
-        const NApi::IConnectionPtr Connection_;
+        TBundleHealthCachePtr BundleHealthCache_;
+        NApi::IConnectionPtr Connection_;
         NApi::IClientPtr Client_;
         const IInvokerPtr CheckerInvoker_;
-        const TDuration Lag_;
+        TDuration Lag_;
+        TFuture<TString> TabletCellBundleName_ = MakeFuture<TString>(TErrorOr<TString>(TError("initialization")));
+        const TDuration TabletCellBundleNameTTL_ = TDuration::Seconds(300);
+        const TDuration RetryOnFailure = TDuration::Seconds(60);
+        TInstant LastUpdateTime_ = TInstant::Zero();
+
+        TFuture<TString> GetTabletCellBundleName()
+        {
+            auto now = TInstant::Now();
+            const auto& interval = (TabletCellBundleName_.IsSet() && !TabletCellBundleName_.Get().IsOK())
+                ? RetryOnFailure
+                : TabletCellBundleNameTTL_;
+
+            if (LastUpdateTime_ + interval > now) {
+                LastUpdateTime_ = now;
+                TabletCellBundleName_ = Client_->GetNode(Path_ + "/@" + "tablet_cell_bundle")
+                    .Apply(BIND([] (const TErrorOr<NYson::TYsonString>& bundleNameOrError) {
+                        return ConvertTo<TString>(bundleNameOrError.ValueOrThrow());
+                    }));
+            }
+
+            return TabletCellBundleName_;
+        }
     };
 
     using TReplicaPtr = TIntrusivePtr<TReplica>;
@@ -226,7 +325,14 @@ private:
         void SetReplicas(std::vector<TReplicaPtr>& replicas)
         {
             auto guard = Guard(Lock_);
-            Replicas_.swap(replicas);
+            Replicas_.resize(replicas.size());
+            for (int i = 0; i < static_cast<int>(replicas.size()); ++i) {
+                if (!Replicas_[i] || *Replicas_[i] != *replicas[i]) {
+                    Replicas_[i] = replicas[i];
+                } else {
+                    Replicas_[i]->Merge(*replicas[i]);
+                }
+            }
         }
 
         TFuture<void> Check(TBootstrap* const bootstrap)
@@ -505,12 +611,15 @@ private:
 
         TTablePtr table;
 
+        bool newTable = false;
+
         {
             auto lock = Guard(Lock_);
             auto it = Tables_.find(id);
             if (it == Tables_.end()) {
                 table = New<TTable>(id, config);
                 Tables_.insert(std::make_pair(id, table));
+                newTable = true;
             } else {
                 table = it->second;
             }
@@ -556,12 +665,14 @@ private:
                     replica->GetMode(),
                     replica->GetClusterName(),
                     replica->GetReplicaPath(),
+                    BundleHealthCache_,
                     connection,
                     CheckerThreadPool_->GetInvoker(),
                     replica->ComputeReplicationLagTime(lastestTimestamp)));
         }
 
-        YT_LOG_DEBUG("Table added (TableId: %v, Replicas: %v, SyncReplicas: %v, AsyncReplicas: %v, SkippedReplicas: %v, DesiredSyncReplicas: %v)",
+        YT_LOG_DEBUG("Table %v (TableId: %v, Replicas: %v, SyncReplicas: %v, AsyncReplicas: %v, SkippedReplicas: %v, DesiredSyncReplicas: %v)",
+            newTable ? "added" : "updated",
             object->GetId(),
             object->Replicas().size(),
             syncReplicas,
