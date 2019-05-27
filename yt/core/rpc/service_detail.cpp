@@ -315,8 +315,6 @@ private:
 
     TDelayedExecutorCookie TimeoutCookie_;
 
-    TString GlobalRequestInfo_;
-
     bool Cancelable_ = false;
     TSingleShotCallbackList<void()> Canceled_;
 
@@ -484,7 +482,7 @@ private:
                 ResponseCodec_);
         }
 
-        GlobalRequestInfo_ = builder.Flush();
+        RequestInfos_.push_back(builder.Flush());
     }
 
     void Finalize()
@@ -702,12 +700,8 @@ private:
 
         TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
 
-        if (GlobalRequestInfo_) {
-            delimitedBuilder->AppendString(GlobalRequestInfo_);
-        }
-
-        if (RequestInfo_) {
-            delimitedBuilder->AppendString(RequestInfo_);
+        for (const auto& info : RequestInfos_) {
+            delimitedBuilder->AppendString(info);
         }
 
         if (RuntimeInfo_->Descriptor.Cancelable && !Cancelable_) {
@@ -737,8 +731,8 @@ private:
             GetTotalMessageAttachmentSize(responseMessage),
             GetMessageAttachmentCount(responseMessage));
 
-        if (ResponseInfo_) {
-            delimitedBuilder->AppendString(ResponseInfo_);
+        for (const auto& info : ResponseInfos_) {
+            delimitedBuilder->AppendString(info);
         }
 
         delimitedBuilder->AppendFormat("ExecutionTime: %v, TotalTime: %v",
