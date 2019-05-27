@@ -4,6 +4,8 @@ option java_package = "ru.yandex.yt.rpcproxy";
 option java_outer_classname = "ApiProtos";
 option java_multiple_files = true;
 
+option go_package = "a.yandex-team.ru/yt/go/proto/client/api/rpc_proxy";
+
 import "yt/core/misc/proto/guid.proto";
 import "yt/core/misc/proto/error.proto";
 import "yt/core/ytree/proto/attributes.proto";
