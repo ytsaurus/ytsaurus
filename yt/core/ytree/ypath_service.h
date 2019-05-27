@@ -118,12 +118,15 @@ protected:
 
 DEFINE_REFCOUNTED_TYPE(IYPathService)
 
-class ICachedYPathService
-    : public virtual TRefCounted
+////////////////////////////////////////////////////////////////////////////////
+
+struct ICachedYPathService
+    : public virtual IYPathService
 {
-public:
     virtual void SetCachePeriod(TDuration period) = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(ICachedYPathService)
 
 ////////////////////////////////////////////////////////////////////////////////
 
