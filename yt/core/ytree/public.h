@@ -41,6 +41,7 @@ struct IAttributeOwner;
 struct ISystemAttributeProvider;
 
 DECLARE_REFCOUNTED_STRUCT(IYPathService)
+DECLARE_REFCOUNTED_STRUCT(ICachedYPathService)
 
 DECLARE_REFCOUNTED_CLASS(TYPathRequest)
 DECLARE_REFCOUNTED_CLASS(TYPathResponse)
