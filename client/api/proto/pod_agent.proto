@@ -473,6 +473,7 @@ message THttpGet {
     uint32 port = 1;
 
     // Путь к ручке, например: "/ping"
+    // treat empty string as "/"
     string path = 2;
     // Только для Readiness check и Liveness check
     string expected_answer = 3;
