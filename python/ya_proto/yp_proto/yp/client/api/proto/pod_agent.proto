@@ -525,10 +525,12 @@ message TUtilityContainer {
     // параметры обработки корок
     string core_command = 6;
 
-    // uid of container processes, @see porto.md
+    // user of container processes
+    // treat empty string as root
     string user = 7;
 
-    // gid of container processes, @see porto.md
+    // group of container processes
+    // treat empty string as root
     string group = 8;
 }
 
