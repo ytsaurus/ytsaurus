@@ -745,8 +745,10 @@ bool operator==(const TColumnSchema& lhs, const TColumnSchema& rhs)
            && *lhs.LogicalType() == *rhs.LogicalType()
            && lhs.Required() == rhs.Required()
            && lhs.SortOrder() == rhs.SortOrder()
+           && lhs.Lock() == rhs.Lock()
+           && lhs.Expression() == rhs.Expression()
            && lhs.Aggregate() == rhs.Aggregate()
-           && lhs.Expression() == rhs.Expression();
+           && lhs.Group() == rhs.Group();
 }
 
 bool operator!=(const TColumnSchema& lhs, const TColumnSchema& rhs)
