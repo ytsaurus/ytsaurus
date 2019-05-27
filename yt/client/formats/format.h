@@ -76,8 +76,8 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessFormatWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// This function historically creates format for reading dynamic tables
-// It slightly differes from format for static tables :(
+// This function historically creates format for reading dynamic tables.
+// It slightly differs from format for static tables. :(
 NTableClient::IUnversionedRowsetWriterPtr CreateSchemafulWriterForFormat(
     const TFormat& Format,
     const NTableClient::TTableSchema& schema,
