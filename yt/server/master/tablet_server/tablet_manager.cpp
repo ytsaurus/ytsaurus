@@ -3936,9 +3936,23 @@ private:
     {
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
-            if (!IsObjectAlive(cell))
+            if (!IsObjectAlive(cell)) {
                 continue;
+            }
+
             cell->LocalStatistics().Health = cell->GetHealth();
+        }
+
+        for (const auto& pair : TabletCellBundleMap_) {
+            auto* bundle = pair.second;
+            if (!IsObjectAlive(bundle)) {
+                continue;
+            }
+
+            bundle->Health() = ETabletCellHealth::Good;
+            for (const auto& cell : bundle->TabletCells()) {
+                bundle->Health() = TTabletCell::CombineHealths(cell->LocalStatistics().Health, bundle->Health());
+            }
         }
     }
 

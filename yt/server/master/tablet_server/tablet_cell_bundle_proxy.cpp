@@ -99,6 +99,8 @@ private:
             .SetOpaque(true));
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletActions)
             .SetOpaque(true));
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::Health)
+            .SetReplicated(true));
 
         TBase::ListSystemAttributes(attributes);
     }
@@ -183,6 +185,12 @@ private:
                             .Item("expiration_time").Value(action->GetExpirationTime())
                         .EndMap();
                     });
+                return true;
+            }
+
+            case EInternedAttributeKey::Health: {
+                BuildYsonFluently(consumer)
+                    .Value(cellBundle->Health());
                 return true;
             }
 

@@ -6,7 +6,7 @@ namespace NYT::NCellMaster {
 
 int GetCurrentSnapshotVersion()
 {
-    return 833;
+    return 834;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -54,6 +54,7 @@ bool ValidateSnapshotVersion(int version)
         version == 831 || // shakurov: versioned @expiration_time
         version == 832 || // aozeritsky: TClusterResources::DiskSpace serialization
         version == 833 || // shakurov: YT-10852
+        version == 834 || // aozeritsky: TTabletCellBundle::Health_ added
         false;
 }
 
