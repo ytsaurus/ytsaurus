@@ -1296,23 +1296,46 @@ public:
 protected:
     std::optional<NProfiling::TWallTimer> Timer_;
 
+    const NProto::TYPathHeaderExt* YPathExt_ = nullptr;
+
+    const NProto::TYPathHeaderExt& GetYPathExt()
+    {
+        if (!YPathExt_) {
+            YPathExt_ = &RequestHeader_->GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+        }
+        return *YPathExt_;
+    }
+
 
     virtual void DoReply() override
     { }
 
     virtual void LogRequest() override
     {
+        const auto& ypathExt = GetYPathExt();
+
         TStringBuilder builder;
         builder.AppendFormat("%v:%v %v <- ",
             GetService(),
             GetMethod(),
-            GetRequestYPath(*RequestHeader_));
+            ypathExt.path());
 
         TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
+
+        auto requestId = GetRequestId();
+        if (requestId) {
+            delimitedBuilder->AppendFormat("RequestId: %v", requestId);
+        }
+
+        delimitedBuilder->AppendFormat("Mutating: %v", ypathExt.mutating());
 
         auto mutationId = GetMutationId();
         if (mutationId) {
             delimitedBuilder->AppendFormat("MutationId: %v", mutationId);
+        }
+
+        if (RequestHeader_->has_user()) {
+            delimitedBuilder->AppendFormat("User: %v", RequestHeader_->user());
         }
 
         delimitedBuilder->AppendFormat("Retry: %v", IsRetry());
@@ -1328,13 +1351,26 @@ protected:
 
     virtual void LogResponse() override
     {
+        const auto& ypathExt = GetYPathExt();
+
         TStringBuilder builder;
         builder.AppendFormat("%v:%v %v -> ",
             GetService(),
             GetMethod(),
-            GetRequestYPath(*RequestHeader_));
+            ypathExt.path());
 
         TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
+
+        auto requestId = GetRequestId();
+        if (requestId) {
+            delimitedBuilder->AppendFormat("RequestId: %v", requestId);
+        }
+
+        delimitedBuilder->AppendFormat("Mutating: %v", ypathExt.mutating());
+
+        if (RequestHeader_->has_user()) {
+            delimitedBuilder->AppendFormat("User: %v", RequestHeader_->user());
+        }
 
         for (const auto& info : ResponseInfos_) {
             delimitedBuilder->AppendString(info);

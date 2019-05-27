@@ -1324,17 +1324,24 @@ void TObjectManager::HydraExecuteFollower(NProto::TReqExecute* request)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    const auto& userName = request->user_name();
-
-    std::vector<TSharedRef> parts(request->request_parts_size());
-    for (int partIndex = 0; partIndex < request->request_parts_size(); ++partIndex) {
-        parts[partIndex] = TSharedRef::FromString(request->request_parts(partIndex));
+    TSharedRefArrayBuilder requestMessageBuilder(request->request_parts_size());
+    for (const auto& part : request->request_parts()) {
+        // NB: This is a mutating request and these are always synchronous;
+        // non-owning shared ref should be OK.
+        requestMessageBuilder.Add(TSharedRef(TRef::FromString(part), nullptr));
     }
 
-    auto requestMessage = TSharedRefArray(std::move(parts), TSharedRefArray::TMoveParts{});
-    auto context = CreateYPathContext(std::move(requestMessage));
+    auto requestMessage = requestMessageBuilder.Finish();
+
+    auto context = CreateYPathContext(
+        std::move(requestMessage),
+        ObjectServerLogger,
+        NLogging::ELogLevel::Debug);
+
+    const auto& userName = request->user_name();
     auto codicilData = MakeCodicilData(userName);
-    HydraExecuteLeader(userName, codicilData, std::move(context), nullptr);
+
+    HydraExecuteLeader(userName, codicilData, context, nullptr);
 }
 
 void TObjectManager::HydraDestroyObjects(NProto::TReqDestroyObjects* request)

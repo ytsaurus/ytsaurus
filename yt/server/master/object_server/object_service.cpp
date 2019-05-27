@@ -418,18 +418,15 @@ private:
             subrequestHeader.set_user(UserName_);
 
             auto* ypathExt = subrequestHeader.MutableExtension(TYPathHeaderExt::ypath_header_ext);
-            const auto& path = ypathExt->path();
-            bool mutating = ypathExt->mutating();
 
             // COMPAT(savrus) Support old mount/unmount/etc interface.
-            if (mutating && (subrequestHeader.method() == "Mount" ||
+            if (ypathExt->mutating() && (subrequestHeader.method() == "Mount" ||
                 subrequestHeader.method() == "Unmount" ||
                 subrequestHeader.method() == "Freeze" ||
                 subrequestHeader.method() == "Unfreeze" ||
                 subrequestHeader.method() == "Remount" ||
                 subrequestHeader.method() == "Reshard"))
             {
-                mutating = false;
                 ypathExt->set_mutating(false);
                 SetSuppressAccessTracking(&subrequestHeader, true);
             }
@@ -441,20 +438,12 @@ private:
                 ObjectServerLogger,
                 NLogging::ELogLevel::Debug);
 
-            auto loggingInfo = Format("RequestId: %v, Mutating: %v, RequestPath: %v, User: %v",
-                RequestId_,
-                mutating,
-                path,
-                UserName_);
-            subcontext->SetRawRequestInfo(loggingInfo, true);
-            subcontext->SetRawResponseInfo(loggingInfo, true);
-
-            subrequest.RequestMessage = updatedSubrequestMessage;
+            subrequest.RequestMessage = std::move(updatedSubrequestMessage);
             subrequest.Context = subcontext;
             subrequest.TraceContext = NRpc::CreateCallTraceContext(
                 subrequestHeader.service(),
                 subrequestHeader.method());
-            if (mutating) {
+            if (ypathExt->mutating()) {
                 subrequest.Mutation = ObjectManager_->CreateExecuteMutation(UserName_, subcontext);
                 subrequest.Mutation->SetMutationId(subcontext->GetMutationId(), subcontext->IsRetry());
             }
