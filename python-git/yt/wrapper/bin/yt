@@ -340,7 +340,11 @@ def find(**args):
 
     attributes = dict([(x, args[x]) for x in ["account", "owner"] if args[x] is not None])
     if args["attribute_filter"] is not None:
-        attributes.update(yson._loads_from_native_str(args["attribute_filter"], yson_type="map_fragment"))
+        try:
+            attributes_filter = yson._loads_from_native_str(args["attribute_filter"], yson_type="map_fragment")
+        except yson.YsonError as err:
+            raise yt.YtError("Specified attribute filter must be a valid yson map fragment", inner_errors=[err])
+        attributes.update(attributes_filter)
 
     long_format_attributes = builtins.list(LONG_FORMAT_ATTRIBUTES) if args["long_format"] else []
 
