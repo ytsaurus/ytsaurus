@@ -30,9 +30,8 @@ public:
 
 private:
     const TMutableRef Ref_;
-
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    TRefCountedTypeCookie Cookie_ = NullRefCountedTypeCookie;
+    const TRefCountedTypeCookie Cookie_;
 #endif
 };
 
