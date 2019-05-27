@@ -3759,7 +3759,15 @@ private:
             return result;
         }
 
-        SetTouchedAttribute(destination);
+        try {
+            SetTouchedAttribute(destination);
+        } catch (const NYT::TErrorException& ex) {
+            YT_LOG_DEBUG(
+                ex.Error(),
+                "Failed to set touched attribute on file (Destination: %v)",
+                destination);
+            return result;
+        }
 
         result.Path = destination;
         return result;
