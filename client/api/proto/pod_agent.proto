@@ -153,6 +153,11 @@ message TResource {
         bool default_storage = 5;
         string file_storage_ref = 6; //Указатель на файловый сторедж
     }
+
+    // place, где будет расположен ресурс
+    // ресурс будт скачан на porto volume, созданный с этим place
+    // NOTE: должен совпадать с place у volume, которые используют этот ресурс
+    string place = 7;
 }
 
 message TCacheResource {
