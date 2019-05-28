@@ -17,7 +17,6 @@
 #include <yt/core/misc/intrusive_linked_list.h>
 #include <yt/core/misc/memory_tag.h>
 #include <yt/core/misc/memory_zone.h>
-#include <yt/core/misc/align.h>
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/stack_trace.h>

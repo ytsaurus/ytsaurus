@@ -89,10 +89,10 @@ public:
         WriteUint64(size);
         EnsureAlignedUpCapacity(size);
         YCHECK(message.SerializePartialToArray(Current_, size));
-        memset(Current_ + size, 0, AlignUp(size) - size);
+        memset(Current_ + size, 0, AlignUpSpace(size, SerializationAlignment));
 
-        NSan::CheckMemIsInitialized(Current_, AlignUp(size));
-        Current_ += AlignUp(size);
+        NSan::CheckMemIsInitialized(Current_, AlignUp<size_t>(size, SerializationAlignment));
+        Current_ += AlignUp<size_t>(size, SerializationAlignment);
     }
 
     size_t WriteSchemafulRow(
@@ -152,7 +152,7 @@ public:
         TRange<TUnversionedValue> valueRange,
         const TNameTableToSchemaIdMapping* idMapping = nullptr)
     {
-        size_t bytes = AlignUp(8); // -1 or value count
+        size_t bytes = AlignUp<size_t>(8, SerializationAlignment); // -1 or value count
         bytes += EstimateUnversionedValueRangeByteSize(valueRange);
         EnsureCapacity(bytes);
 
@@ -229,7 +229,7 @@ private:
 
     void EnsureAlignedUpCapacity(size_t more)
     {
-        EnsureCapacity(AlignUp(more));
+        EnsureCapacity(AlignUp<size_t>(more, SerializationAlignment));
     }
 
     void UnsafeWriteRaw(const void* buffer, size_t size)
@@ -237,10 +237,10 @@ private:
         NSan::CheckMemIsInitialized(buffer, size);
 
         memcpy(Current_, buffer, size);
-        memset(Current_ + size, 0, AlignUp(size) - size);
+        memset(Current_ + size, 0, AlignUp<size_t>(size, SerializationAlignment) - size);
 
-        NSan::CheckMemIsInitialized(Current_, AlignUp(size));
-        Current_ += AlignUp(size);
+        NSan::CheckMemIsInitialized(Current_, AlignUp<size_t>(size, SerializationAlignment));
+        Current_ += AlignUp<size_t>(size, SerializationAlignment);
         Y_ASSERT(Current_ <= EndPreallocated_);
     }
 
@@ -254,16 +254,16 @@ private:
         // Do not use #UnsafeWriteRaw here to allow compiler to optimize memcpy & AlignUp.
         // Both of them are constexprs.
         memcpy(Current_, &value, sizeof(T));
-        memset(Current_ + sizeof(T), 0, AlignUp(sizeof(T)) - sizeof(T));
+        memset(Current_ + sizeof(T), 0, AlignUpSpace(sizeof(T), SerializationAlignment));
 
-        NSan::CheckMemIsInitialized(Current_, AlignUp(sizeof(T)));
-        Current_ += AlignUp(sizeof(T));
+        NSan::CheckMemIsInitialized(Current_, AlignUp<size_t>(sizeof(T), SerializationAlignment));
+        Current_ += AlignUp<size_t>(sizeof(T), SerializationAlignment);
         Y_ASSERT(Current_ <= EndPreallocated_);
     }
 
     void WriteUint64(ui64 value)
     {
-        EnsureCapacity(AlignUp(sizeof(ui64)));
+        EnsureCapacity(AlignUp<size_t>(sizeof(ui64), SerializationAlignment));
         UnsafeWritePod(value);
     }
 
@@ -388,12 +388,12 @@ private:
     size_t EstimateSchemafulValueRangeByteSize(TRange<TUnversionedValue> values)
     {
         size_t bytes = 0;
-        bytes += AlignUp(TBitmapTraits<ui64>::GetByteCapacity(values.Size())); // null bitmap
+        bytes += AlignUp<size_t>(TBitmapTraits<ui64>::GetByteCapacity(values.Size()), SerializationAlignment); // null bitmap
         for (const auto& value : values) {
             if (IsStringLikeType(value.Type)) {
-                bytes += AlignUp(8 + value.Length);
+                bytes += AlignUp<size_t>(8 + value.Length, SerializationAlignment);
             } else if (value.Type != EValueType::Null) {
-                bytes += AlignUp(8);
+                bytes += AlignUp<size_t>(8, SerializationAlignment);
             }
         }
         return bytes;
@@ -403,11 +403,11 @@ private:
     {
         size_t bytes = 0;
         for (const auto& value : values) {
-            bytes += AlignUp(8);
+            bytes += AlignUp<size_t>(8, SerializationAlignment);
             if (IsStringLikeType(value.Type)) {
-                bytes += AlignUp(value.Length);
+                bytes += AlignUp<size_t>(value.Length, SerializationAlignment);
             } else if (value.Type != EValueType::Null) {
-                bytes += AlignUp(8);
+                bytes += AlignUp<size_t>(8, SerializationAlignment);
             }
         }
         return bytes;
@@ -417,11 +417,11 @@ private:
     {
         size_t bytes = 0;
         for (const auto& value : values) {
-            bytes += AlignUp(16);
+            bytes += AlignUp<size_t>(16, SerializationAlignment);
             if (IsStringLikeType(value.Type)) {
-                bytes += AlignUp(value.Length);
+                bytes += AlignUp<size_t>(value.Length, SerializationAlignment);
             } else if (value.Type != EValueType::Null) {
-                bytes += AlignUp(8);
+                bytes += AlignUp<size_t>(8, SerializationAlignment);
             }
         }
         return bytes;
@@ -429,7 +429,7 @@ private:
 
     size_t EstimateSchemafulRowByteSize(TUnversionedRow row)
     {
-        size_t bytes = AlignUp(8); // -1 or value count
+        size_t bytes = (8, SerializationAlignment); // -1 or value count
         if (row) {
             bytes += EstimateSchemafulValueRangeByteSize(
                 TRange<TUnversionedValue>(row.Begin(), row.GetCount()));
@@ -439,7 +439,7 @@ private:
 
     size_t EstimateUnversionedRowByteSize(TUnversionedRow row)
     {
-        size_t bytes = AlignUp(8); // -1 or value count
+        size_t bytes = AlignUp<size_t>(8, SerializationAlignment); // -1 or value count
         if (row) {
             bytes += EstimateUnversionedValueRangeByteSize(
                 TRange<TUnversionedValue>(row.Begin(), row.GetCount()));
@@ -449,12 +449,13 @@ private:
 
     size_t EstimateVersionedRowByteSize(TVersionedRow row)
     {
-        size_t bytes = AlignUp(8); // -1 or value count
+        size_t bytes = AlignUp<size_t>(8, SerializationAlignment); // -1 or value count
         if (row) {
-            bytes += AlignUp(8); // -1 or value count
-            bytes += AlignUp(sizeof(TTimestamp) * (
+            bytes += AlignUp<size_t>(8, SerializationAlignment); // -1 or value count
+            bytes += AlignUp<size_t>(sizeof(TTimestamp) * (
                 row.GetWriteTimestampCount() +
-                row.GetDeleteTimestampCount())); // timestamps
+                row.GetDeleteTimestampCount()), // timestamps
+                SerializationAlignment);
             bytes += EstimateSchemafulValueRangeByteSize(
                 TRange<TUnversionedValue>(row.BeginKeys(), row.EndKeys()));
             bytes += EstimateVersionedValueRangeByteSize(
@@ -621,7 +622,7 @@ public:
             reinterpret_cast<const ui8*>(Current_),
             static_cast<int>(size));
         message->ParsePartialFromCodedStream(&chunkStream);
-        Current_ += AlignUp(size);
+        Current_ += AlignUp<size_t>(size, SerializationAlignment);
     }
 
     TUnversionedRow ReadSchemafulRow(const TSchemaData& schemaData, bool deep)
@@ -736,7 +737,7 @@ private:
 
         memcpy(buffer, Current_, size);
         Current_ += size;
-        Current_ += GetPaddingSize(size);
+        Current_ += AlignUpSpace(size, SerializationAlignment);
     }
 
     const char* PeekRaw(size_t size)
@@ -745,7 +746,7 @@ private:
 
         auto result = Current_;
         Current_ += size;
-        Current_ += GetPaddingSize(size);
+        Current_ += AlignUpSpace(size, SerializationAlignment);
         return result;
     }
 
@@ -756,7 +757,7 @@ private:
 
         memcpy(value, Current_, sizeof(T));
         Current_ += sizeof(T);
-        Current_ += GetPaddingSize(sizeof(T));
+        Current_ += AlignUpSpace(sizeof(T), SerializationAlignment);
     }
 
     ui64 ReadUint64()
