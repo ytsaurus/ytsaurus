@@ -4498,7 +4498,7 @@ private:
         auto deadline = timeout.ToDeadLine();
 
         TOperationId operationId;
-        Visit(operationIdOrAlias,
+        Visit(operationIdOrAlias.Payload,
             [&] (const TOperationId& id) {
                 operationId = id;
             },

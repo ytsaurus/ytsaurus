@@ -300,7 +300,7 @@ private:
 
 protected:
     // Is calculated by two fields above.
-    NScheduler::TOperationIdOrAlias OperationIdOrAlias = NScheduler::TOperationId();
+    NScheduler::TOperationIdOrAlias OperationIdOrAlias;
 
 public:
     TSimpleOperationCommandBase()

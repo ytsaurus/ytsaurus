@@ -20,7 +20,7 @@ void FromProto(TOperationIdOrAlias* operationIdOrAlias, const TProtoClass& enclo
 
     switch (enclosingProtoMessage.operation_id_or_alias_case()) {
         case TProtoClass::OperationIdOrAliasCase::kOperationId: {
-            *operationIdOrAlias = FromProto<TOperationId>(enclosingProtoMessage.operation_id());
+            operationIdOrAlias->Payload = FromProto<TOperationId>(enclosingProtoMessage.operation_id());
             break;
         }
         case TProtoClass::OperationIdOrAliasCase::kOperationAlias: {
@@ -29,7 +29,7 @@ void FromProto(TOperationIdOrAlias* operationIdOrAlias, const TProtoClass& enclo
                 THROW_ERROR_EXCEPTION("Operation alias should start with %Qv", OperationAliasPrefix)
                     << TErrorAttribute("operation_alias", operationAlias);
             }
-            *operationIdOrAlias = operationAlias;
+            operationIdOrAlias->Payload = operationAlias;
             break;
         }
         case TProtoClass::OperationIdOrAliasCase::OPERATION_ID_OR_ALIAS_NOT_SET: {
@@ -43,7 +43,7 @@ void ToProto(TProtoClassPtr enclosingProtoMessage, const TOperationIdOrAlias& op
 {
     using NYT::ToProto;
 
-    Visit(operationIdOrAlias,
+    Visit(operationIdOrAlias.Payload,
         [&] (const TOperationId& operationId) {
             ToProto(enclosingProtoMessage->mutable_operation_id(), operationId);
         },

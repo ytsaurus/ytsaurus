@@ -50,8 +50,6 @@
 #include <yt/core/rpc/service_detail.h>
 #include <yt/core/rpc/stream.h>
 
-
-
 namespace NYT::NRpcProxy {
 
 using namespace NApi;
@@ -1654,8 +1652,7 @@ private:
             return;
         }
 
-        TOperationIdOrAlias operationIdOrAlias = TOperationId();
-        NScheduler::FromProto(&operationIdOrAlias, *request);
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
         TAbortOperationOptions options;
         SetTimeoutOptions(&options, context.Get());
@@ -1663,8 +1660,8 @@ private:
             options.AbortMessage = request->abort_message();
         }
 
-        context->SetRequestInfo("%v, AbortMessage: %v",
-            GetOperationIdOrAliasContextInfo(operationIdOrAlias),
+        context->SetRequestInfo("OperationId: %v, AbortMessage: %v",
+            operationIdOrAlias,
             options.AbortMessage);
 
         CompleteCallWith(
@@ -1679,8 +1676,7 @@ private:
             return;
         }
 
-        TOperationIdOrAlias operationIdOrAlias = TOperationId();
-        NScheduler::FromProto(&operationIdOrAlias, *request);
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
         TSuspendOperationOptions options;
         SetTimeoutOptions(&options, context.Get());
@@ -1688,8 +1684,8 @@ private:
             options.AbortRunningJobs = request->abort_running_jobs();
         }
 
-        context->SetRequestInfo("%v, AbortRunningJobs: %v",
-            GetOperationIdOrAliasContextInfo(operationIdOrAlias),
+        context->SetRequestInfo("OperationId: %v, AbortRunningJobs: %v",
+            operationIdOrAlias,
             options.AbortRunningJobs);
 
         CompleteCallWith(
@@ -1704,13 +1700,13 @@ private:
             return;
         }
 
-        TOperationIdOrAlias operationIdOrAlias = TOperationId();
-        NScheduler::FromProto(&operationIdOrAlias, *request);
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
         TResumeOperationOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRequestInfo("%v", GetOperationIdOrAliasContextInfo(operationIdOrAlias));
+        context->SetRequestInfo("OperationId: %v",
+            operationIdOrAlias);
 
         CompleteCallWith(
             context,
@@ -1724,13 +1720,13 @@ private:
             return;
         }
 
-        TOperationIdOrAlias operationIdOrAlias = TOperationId();
-        NScheduler::FromProto(&operationIdOrAlias, *request);
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
         TCompleteOperationOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRequestInfo("%v", GetOperationIdOrAliasContextInfo(operationIdOrAlias));
+        context->SetRequestInfo("OperationId: %v",
+            operationIdOrAlias);
 
         CompleteCallWith(
             context,
@@ -1744,16 +1740,15 @@ private:
             return;
         }
 
-        TOperationIdOrAlias operationIdOrAlias = TOperationId();
-        NScheduler::FromProto(&operationIdOrAlias, *request);
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
         auto parameters = TYsonString(request->parameters());
 
         TUpdateOperationParametersOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRequestInfo("%v, Parameters: %v",
-            GetOperationIdOrAliasContextInfo(operationIdOrAlias),
+        context->SetRequestInfo("OperationId: %v, Parameters: %v",
+            operationIdOrAlias,
             parameters);
 
         CompleteCallWith(
@@ -1771,8 +1766,7 @@ private:
             return;
         }
 
-        TOperationIdOrAlias operationIdOrAlias = TOperationId();
-        NScheduler::FromProto(&operationIdOrAlias, *request);
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
         TGetOperationOptions options;
         SetTimeoutOptions(&options, context.Get());
@@ -1786,8 +1780,8 @@ private:
         }
         options.IncludeRuntime = request->include_runtime();
 
-        context->SetRequestInfo("%v, IncludeRuntime: %v",
-            GetOperationIdOrAliasContextInfo(operationIdOrAlias),
+        context->SetRequestInfo("OperationId: %v, IncludeRuntime: %v",
+            operationIdOrAlias,
             options.IncludeRuntime);
 
         CompleteCallWith(
