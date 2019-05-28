@@ -25,7 +25,7 @@ message TMonitoringUnistatEndpoint
     // Prefix for signal names, default is unistat.
     string prefix = 3;
     // Yasm tags for signals.
-    repeated TLabel labels = 4;
+    map<string, string> labels = 4 [(NYT.NYson.NProto.yson_map) = true];
     // Workload in pod which provides this endpoint.
     string workload_id = 5;
 
@@ -38,12 +38,6 @@ message TMonitoringSubagentEndpoint
 {
     int32 port = 1;
     string path = 2;
-}
-
-message TLabel
-{
-    string name = 1;
-    string value = 2;
 }
 
 message TMonitoringInfo
