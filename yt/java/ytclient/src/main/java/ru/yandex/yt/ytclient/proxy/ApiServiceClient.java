@@ -1,12 +1,14 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -17,6 +19,7 @@ import org.slf4j.LoggerFactory;
 
 import ru.yandex.bolts.collection.Option;
 import ru.yandex.inside.yt.kosher.common.GUID;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.EAtomicity;
@@ -253,9 +256,11 @@ public class ApiServiceClient implements TransactionalClient {
             YtTimestamp startTimestamp = YtTimestamp.valueOf(response.body().getStartTimestamp());
             RpcClient sender = response.sender();
             if (rpcClient.isSome(sender)) {
-                return new ApiServiceTransaction(this, id, startTimestamp, ping, pingAncestors, sticky, pingPeriod, sender.executor());
+                return new ApiServiceTransaction(this, id, startTimestamp, ping, pingAncestors, sticky, pingPeriod,
+                        sender.executor());
             } else {
-                return new ApiServiceTransaction(sender, rpcOptions, id, startTimestamp, ping, pingAncestors, sticky, pingPeriod, sender.executor());
+                return new ApiServiceTransaction(sender, rpcOptions, id, startTimestamp, ping, pingAncestors, sticky,
+                        pingPeriod, sender.executor());
             }
         });
     }
@@ -320,7 +325,8 @@ public class ApiServiceClient implements TransactionalClient {
     }
 
     public CompletableFuture<Boolean> existsNode(ExistsNode req) {
-        RpcClientRequestBuilder<TReqExistsNode.Builder, RpcClientResponse<TRspExistsNode>> builder = service.existsNode();
+        RpcClientRequestBuilder<TReqExistsNode.Builder, RpcClientResponse<TRspExistsNode>> builder =
+                service.existsNode();
         req.writeTo(builder.body());
         return RpcUtil.apply(invoke(builder),
                 response -> response.body().getExists());
@@ -341,7 +347,8 @@ public class ApiServiceClient implements TransactionalClient {
     }
 
     public CompletableFuture<GUID> createNode(CreateNode req) {
-        RpcClientRequestBuilder<TReqCreateNode.Builder, RpcClientResponse<TRspCreateNode>> builder = service.createNode();
+        RpcClientRequestBuilder<TReqCreateNode.Builder, RpcClientResponse<TRspCreateNode>> builder =
+                service.createNode();
         req.writeTo(builder.body());
 
         return RpcUtil.apply(invoke(builder),
@@ -358,7 +365,8 @@ public class ApiServiceClient implements TransactionalClient {
     }
 
     public CompletableFuture<Void> removeNode(RemoveNode req) {
-        RpcClientRequestBuilder<TReqRemoveNode.Builder, RpcClientResponse<TRspRemoveNode>> builder = service.removeNode();
+        RpcClientRequestBuilder<TReqRemoveNode.Builder, RpcClientResponse<TRspRemoveNode>> builder =
+                service.removeNode();
         req.writeTo(builder.body());
         return RpcUtil.apply(invoke(builder), response -> null);
     }
@@ -419,19 +427,48 @@ public class ApiServiceClient implements TransactionalClient {
     }
 
     public CompletableFuture<Void> concatenateNodes(ConcatenateNodes req) {
-        RpcClientRequestBuilder<TReqConcatenateNodes.Builder, RpcClientResponse<TRspConcatenateNodes>> builder = service.concatenateNodes();
+        RpcClientRequestBuilder<TReqConcatenateNodes.Builder, RpcClientResponse<TRspConcatenateNodes>> builder =
+                service.concatenateNodes();
         req.writeTo(builder.body());
         return RpcUtil.apply(invoke(builder), response -> null);
     }
 
-    public CompletableFuture<Void> concatenateNodes(String [] from, String to) {
+    public CompletableFuture<Void> concatenateNodes(String[] from, String to) {
         return concatenateNodes(new ConcatenateNodes(from, to));
     }
 
     // TODO: TReqAttachTransaction
 
     /* */
+
     public CompletableFuture<UnversionedRowset> lookupRows(LookupRowsRequest request) {
+        return lookupRowsImpl(request, response ->
+                ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
+                        response.attachments()));
+    }
+
+    public <T> CompletableFuture<List<T>> lookupRows(LookupRowsRequest request, YTreeObjectSerializer<T> serializer) {
+        return lookupRowsImpl(request, response -> {
+            final List<T> result = new ArrayList<>();
+            ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
+                    response.attachments(), serializer, result::add);
+            return result;
+        });
+    }
+
+    public <T> CompletableFuture<Void> lookupRows(LookupRowsRequest request, YTreeObjectSerializer<T> serializer,
+            Consumer<T> consumer)
+    {
+        return lookupRowsImpl(request, response -> {
+            ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
+                    response.attachments(), serializer, consumer);
+            return null;
+        });
+    }
+
+    private <T> CompletableFuture<T> lookupRowsImpl(LookupRowsRequest request,
+            Function<RpcClientResponse<TRspLookupRows>, T> responseReader)
+    {
         RpcClientRequestBuilder<TReqLookupRows.Builder, RpcClientResponse<TRspLookupRows>> builder =
                 service.lookupRows();
         builder.body().setPath(request.getPath());
@@ -446,8 +483,7 @@ public class ApiServiceClient implements TransactionalClient {
         request.serializeRowsetTo(builder.attachments());
         return handleHeavyResponse(invoke(builder), response -> {
             logger.trace("LookupRows incoming rowset descriptor: {}", response.body().getRowsetDescriptor());
-            return ApiServiceUtil
-                    .deserializeUnversionedRowset(response.body().getRowsetDescriptor(), response.attachments());
+            return responseReader.apply(response);
         });
     }
 
@@ -457,6 +493,34 @@ public class ApiServiceClient implements TransactionalClient {
     }
 
     public CompletableFuture<VersionedRowset> versionedLookupRows(LookupRowsRequest request) {
+        return versionedLookupRowsImpl(request, response -> ApiServiceUtil
+                .deserializeVersionedRowset(response.body().getRowsetDescriptor(), response.attachments()));
+    }
+
+    public <T> CompletableFuture<List<T>> versionedLookupRows(LookupRowsRequest request,
+            YTreeObjectSerializer<T> serializer)
+    {
+        return versionedLookupRowsImpl(request, response -> {
+            final List<T> result = new ArrayList<>();
+            ApiServiceUtil.deserializeVersionedRowset(response.body().getRowsetDescriptor(),
+                    response.attachments(), serializer, result::add);
+            return result;
+        });
+    }
+
+    public <T> CompletableFuture<Void> versionedLookupRows(LookupRowsRequest request,
+            YTreeObjectSerializer<T> serializer, Consumer<T> consumer)
+    {
+        return versionedLookupRowsImpl(request, response -> {
+            ApiServiceUtil.deserializeVersionedRowset(response.body().getRowsetDescriptor(),
+                    response.attachments(), serializer, consumer);
+            return null;
+        });
+    }
+
+    private <T> CompletableFuture<T> versionedLookupRowsImpl(LookupRowsRequest request,
+            Function<RpcClientResponse<TRspVersionedLookupRows>, T> responseReader)
+    {
         RpcClientRequestBuilder<TReqVersionedLookupRows.Builder, RpcClientResponse<TRspVersionedLookupRows>> builder =
                 service.versionedLookupRows();
         builder.body().setPath(request.getPath());
@@ -471,8 +535,7 @@ public class ApiServiceClient implements TransactionalClient {
         request.serializeRowsetTo(builder.attachments());
         return handleHeavyResponse(invoke(builder), response -> {
             logger.trace("VersionedLookupRows incoming rowset descriptor: {}", response.body().getRowsetDescriptor());
-            return ApiServiceUtil
-                    .deserializeVersionedRowset(response.body().getRowsetDescriptor(), response.attachments());
+            return responseReader.apply(response);
         });
     }
 
@@ -486,6 +549,33 @@ public class ApiServiceClient implements TransactionalClient {
     }
 
     public CompletableFuture<UnversionedRowset> selectRows(SelectRowsRequest request) {
+        return selectRowsImpl(request, response ->
+                ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
+                        response.attachments()));
+    }
+
+    public <T> CompletableFuture<List<T>> selectRows(SelectRowsRequest request, YTreeObjectSerializer<T> serializer) {
+        return selectRowsImpl(request, response -> {
+            final List<T> result = new ArrayList<>();
+            ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
+                    response.attachments(), serializer, result::add);
+            return result;
+        });
+    }
+
+    public <T> CompletableFuture<Void> selectRows(SelectRowsRequest request, YTreeObjectSerializer<T> serializer,
+            Consumer<T> consumer)
+    {
+        return selectRowsImpl(request, response -> {
+            ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
+                    response.attachments(), serializer, consumer);
+            return null;
+        });
+    }
+
+    private <T> CompletableFuture<T> selectRowsImpl(SelectRowsRequest request,
+            Function<RpcClientResponse<TRspSelectRows>, T> responseReader)
+    {
         RpcClientRequestBuilder<TReqSelectRows.Builder, RpcClientResponse<TRspSelectRows>> builder =
                 service.selectRows();
         builder.body().setQuery(request.getQuery());
@@ -503,12 +593,12 @@ public class ApiServiceClient implements TransactionalClient {
         }
         return handleHeavyResponse(invoke(builder), response -> {
             logger.trace("SelectRows incoming rowset descriptor: {}", response.body().getRowsetDescriptor());
-            return ApiServiceUtil
-                    .deserializeUnversionedRowset(response.body().getRowsetDescriptor(), response.attachments());
+            return responseReader.apply(response);
         });
     }
 
-    public CompletableFuture<Void> modifyRows(GUID transactionId, ModifyRowsRequest request) {
+
+    public CompletableFuture<Void> modifyRows(GUID transactionId, AbstractModifyRowsRequest request) {
         RpcClientRequestBuilder<TReqModifyRows.Builder, RpcClientResponse<TRspModifyRows>> builder =
                 service.modifyRows();
         builder.body().setTransactionId(RpcUtil.toProto(transactionId));
@@ -553,7 +643,8 @@ public class ApiServiceClient implements TransactionalClient {
 
         return RpcUtil.apply(invoke(builder),
                 response ->
-                        response.body().getReplicaIdsList().stream().map(RpcUtil::fromProto).collect(Collectors.toList()));
+                        response.body().getReplicaIdsList().stream().map(RpcUtil::fromProto)
+                                .collect(Collectors.toList()));
     }
 
     @Deprecated
@@ -580,7 +671,7 @@ public class ApiServiceClient implements TransactionalClient {
                                 .getTabletsList()
                                 .stream()
                                 .map(x -> new TabletInfo(x.getTotalRowCount(), x.getTrimmedRowCount()))
-                .collect(Collectors.toList()));
+                                .collect(Collectors.toList()));
     }
 
     public CompletableFuture<YtTimestamp> generateTimestamps(int count) {
@@ -674,7 +765,7 @@ public class ApiServiceClient implements TransactionalClient {
     public CompletableFuture<List<GUID>> reshardTableAutomatic(ReshardTable req)
     {
         RpcClientRequestBuilder<TReqReshardTableAutomatic.Builder, RpcClientResponse<TRspReshardTableAutomatic>>
-            builder = service.reshardTableAutomatic();
+                builder = service.reshardTableAutomatic();
 
         req.writeTo(builder.body());
 
@@ -708,7 +799,7 @@ public class ApiServiceClient implements TransactionalClient {
             EAtomicity atomicity)
     {
         RpcClientRequestBuilder<TReqAlterTableReplica.Builder, RpcClientResponse<TRspAlterTableReplica>>
-            builder = service.alterTableReplica();
+                builder = service.alterTableReplica();
 
         builder.body()
                 .setReplicaId(RpcUtil.toProto(replicaId))
@@ -726,7 +817,7 @@ public class ApiServiceClient implements TransactionalClient {
             MasterReadOptions mo)
     {
         RpcClientRequestBuilder<TReqGetFileFromCache.Builder, RpcClientResponse<TRspGetFileFromCache>>
-            builder = service.getFileFromCache();
+                builder = service.getFileFromCache();
 
         builder.body()
                 .setMd5(md5)
@@ -747,7 +838,7 @@ public class ApiServiceClient implements TransactionalClient {
             MutatingOptions mo)
     {
         RpcClientRequestBuilder<TReqPutFileToCache.Builder, RpcClientResponse<TRspPutFileToCache>>
-            builder = service.putFileToCache();
+                builder = service.putFileToCache();
 
         builder.body()
                 .setPath(path)
@@ -765,7 +856,7 @@ public class ApiServiceClient implements TransactionalClient {
     public CompletableFuture<GUID> startOperation(StartOperation req)
     {
         RpcClientRequestBuilder<TReqStartOperation.Builder, RpcClientResponse<TRspStartOperation>>
-            builder = service.startOperation();
+                builder = service.startOperation();
 
         req.writeTo(builder.body());
 
@@ -782,7 +873,7 @@ public class ApiServiceClient implements TransactionalClient {
         }
 
         RpcClientRequestBuilder<TReqAbortOperation.Builder, RpcClientResponse<TRspAbortOperation>>
-            builder = service.abortOperation();
+                builder = service.abortOperation();
 
         if (guid != null) {
             builder.body().setOperationId(RpcUtil.toProto(guid));
@@ -806,7 +897,7 @@ public class ApiServiceClient implements TransactionalClient {
         }
 
         RpcClientRequestBuilder<TReqSuspendOperation.Builder, RpcClientResponse<TRspSuspendOperation>>
-            builder = service.suspendOperation();
+                builder = service.suspendOperation();
 
         if (guid != null) {
             builder.body().setOperationId(RpcUtil.toProto(guid));
@@ -828,7 +919,7 @@ public class ApiServiceClient implements TransactionalClient {
         }
 
         RpcClientRequestBuilder<TReqResumeOperation.Builder, RpcClientResponse<TRspResumeOperation>>
-            builder = service.resumeOperation();
+                builder = service.resumeOperation();
 
         if (guid != null) {
             builder.body().setOperationId(RpcUtil.toProto(guid));
@@ -849,7 +940,7 @@ public class ApiServiceClient implements TransactionalClient {
         }
 
         RpcClientRequestBuilder<TReqCompleteOperation.Builder, RpcClientResponse<TRspCompleteOperation>>
-            builder = service.completeOperation();
+                builder = service.completeOperation();
 
         if (guid != null) {
             builder.body().setOperationId(RpcUtil.toProto(guid));
@@ -870,7 +961,7 @@ public class ApiServiceClient implements TransactionalClient {
         }
 
         RpcClientRequestBuilder<TReqUpdateOperationParameters.Builder, RpcClientResponse<TRspUpdateOperationParameters>>
-            builder = service.updateOperationParameters();
+                builder = service.updateOperationParameters();
 
         if (guid != null) {
             builder.body().setOperationId(RpcUtil.toProto(guid));
@@ -902,7 +993,7 @@ public class ApiServiceClient implements TransactionalClient {
         }
 
         RpcClientRequestBuilder<TReqGetOperation.Builder, RpcClientResponse<TRspGetOperation>>
-            builder = service.getOperation();
+                builder = service.getOperation();
 
         if (guid != null) {
             builder.body().setOperationId(RpcUtil.toProto(guid));
@@ -925,7 +1016,7 @@ public class ApiServiceClient implements TransactionalClient {
 
     public CompletableFuture<YTreeNode> getJob(GUID operatioinId, GUID jobId) {
         RpcClientRequestBuilder<TReqGetJob.Builder, RpcClientResponse<TRspGetJob>>
-            builder = service.getJob();
+                builder = service.getJob();
 
         builder.body()
                 .setOperationId(RpcUtil.toProto(operatioinId))
@@ -936,7 +1027,7 @@ public class ApiServiceClient implements TransactionalClient {
 
     public CompletableFuture<YTreeNode> straceJob(GUID jobId) {
         RpcClientRequestBuilder<TReqStraceJob.Builder, RpcClientResponse<TRspStraceJob>>
-            builder = service.straceJob();
+                builder = service.straceJob();
 
         builder.body()
                 .setJobId(RpcUtil.toProto(jobId));
@@ -946,7 +1037,7 @@ public class ApiServiceClient implements TransactionalClient {
 
     public CompletableFuture<Void> dumpJobContext(GUID jobId) {
         RpcClientRequestBuilder<TReqDumpJobContext.Builder, RpcClientResponse<TRspDumpJobContext>>
-            builder = service.dumpJobContext();
+                builder = service.dumpJobContext();
 
         builder.body()
                 .setJobId(RpcUtil.toProto(jobId));
@@ -956,7 +1047,7 @@ public class ApiServiceClient implements TransactionalClient {
 
     public CompletableFuture<Void> signalJob(GUID jobId) {
         RpcClientRequestBuilder<TReqSignalJob.Builder, RpcClientResponse<TRspSignalJob>>
-            builder = service.signalJob();
+                builder = service.signalJob();
 
         builder.body()
                 .setJobId(RpcUtil.toProto(jobId));
@@ -966,7 +1057,7 @@ public class ApiServiceClient implements TransactionalClient {
 
     public CompletableFuture<Void> abandonJob(GUID jobId) {
         RpcClientRequestBuilder<TReqAbandonJob.Builder, RpcClientResponse<TRspAbandonJob>>
-            builder = service.abandonJob ();
+                builder = service.abandonJob();
 
         builder.body()
                 .setJobId(RpcUtil.toProto(jobId));
@@ -976,7 +1067,7 @@ public class ApiServiceClient implements TransactionalClient {
 
     public CompletableFuture<YTreeNode> pollJobShell(GUID jobId, YTreeNode parameters) {
         RpcClientRequestBuilder<TReqPollJobShell.Builder, RpcClientResponse<TRspPollJobShell>>
-            builder = service.pollJobShell();
+                builder = service.pollJobShell();
 
 
         builder.body()
@@ -992,7 +1083,7 @@ public class ApiServiceClient implements TransactionalClient {
 
     public CompletableFuture<Void> abortJob(GUID jobId, Duration timeout) {
         RpcClientRequestBuilder<TReqAbortJob.Builder, RpcClientResponse<TRspAbortJob>>
-            builder = service.abortJob();
+                builder = service.abortJob();
 
         builder.body()
                 .setJobId(RpcUtil.toProto(jobId))
@@ -1005,7 +1096,7 @@ public class ApiServiceClient implements TransactionalClient {
 
     public CompletableFuture<Void> addMember(String group, String member, MutatingOptions mo) {
         RpcClientRequestBuilder<TReqAddMember.Builder, RpcClientResponse<TRspAddMember>>
-            builder = service.addMember();
+                builder = service.addMember();
 
         builder.body()
                 .setGroup(group)
@@ -1017,7 +1108,7 @@ public class ApiServiceClient implements TransactionalClient {
 
     public CompletableFuture<Void> removeMember(String group, String member, MutatingOptions mo) {
         RpcClientRequestBuilder<TReqRemoveMember.Builder, RpcClientResponse<TRspRemoveMember>>
-            builder = service.removeMember();
+                builder = service.removeMember();
 
         builder.body()
                 .setGroup(group)
@@ -1029,7 +1120,7 @@ public class ApiServiceClient implements TransactionalClient {
 
     public CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req) {
         RpcClientRequestBuilder<TReqCheckPermission.Builder, RpcClientResponse<TRspCheckPermission>>
-            builder = service.checkPermission();
+                builder = service.checkPermission();
 
         req.writeTo(builder.body());
 
@@ -1039,7 +1130,8 @@ public class ApiServiceClient implements TransactionalClient {
     /* */
 
     private <T, Response> CompletableFuture<T> handleHeavyResponse(CompletableFuture<Response> future,
-                                                                   Function<Response, T> fn) {
+            Function<Response, T> fn)
+    {
         return RpcUtil.applyAsync(future, fn, heavyExecutor);
     }
 

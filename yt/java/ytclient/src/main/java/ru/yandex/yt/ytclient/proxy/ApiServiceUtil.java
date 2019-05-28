@@ -2,18 +2,23 @@ package ru.yandex.yt.ytclient.proxy;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.function.Consumer;
 
+import ru.yandex.bolts.function.Function;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.yt.rpcproxy.ERowsetKind;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
+import ru.yandex.yt.ytclient.object.MappedRowsetDeserializer;
+import ru.yandex.yt.ytclient.object.UnversionedRowsetDeserializer;
+import ru.yandex.yt.ytclient.object.VersionedRowsetDeserializer;
+import ru.yandex.yt.ytclient.object.WireRowsetDeserializer;
+import ru.yandex.yt.ytclient.object.WireVersionedRowsetDeserializer;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
-import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.UnversionedValue;
-import ru.yandex.yt.ytclient.wire.VersionedRow;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
-import ru.yandex.yt.ytclient.wire.WireColumnSchema;
 import ru.yandex.yt.ytclient.wire.WireProtocol;
 import ru.yandex.yt.ytclient.wire.WireProtocolReader;
 
@@ -69,8 +74,24 @@ public class ApiServiceUtil {
         return builder.build();
     }
 
+
+    public static <T> void deserializeUnversionedRowset(TRowsetDescriptor descriptor,
+            List<byte[]> attachments,
+            YTreeObjectSerializer<T> serializer,
+            Consumer<T> consumer)
+    {
+        deserializeUnversionedRowset(descriptor, attachments,
+                schema -> MappedRowsetDeserializer.forClass(schema, serializer, consumer));
+    }
+
     public static UnversionedRowset deserializeUnversionedRowset(TRowsetDescriptor descriptor,
-                                                                 List<byte[]> attachments)
+            List<byte[]> attachments)
+    {
+        return deserializeUnversionedRowset(descriptor, attachments, UnversionedRowsetDeserializer::new).getRowset();
+    }
+
+    private static <B extends WireRowsetDeserializer<T>, T> B deserializeUnversionedRowset(TRowsetDescriptor descriptor,
+            List<byte[]> attachments, Function<TableSchema, B> deserializerFunction)
     {
         if (descriptor.getWireFormatVersion() != WireProtocol.WIRE_FORMAT_VERSION) {
             throw new IllegalStateException("Cannot deserialize wire format" + descriptor.getWireFormatVersion() + ": "
@@ -80,13 +101,26 @@ public class ApiServiceUtil {
             throw new IllegalStateException(
                     "Cannot deserialize " + descriptor.getRowsetKind() + ": UNVERSIONED is required");
         }
-        TableSchema schema = deserializeRowsetSchema(descriptor);
-        WireProtocolReader reader = new WireProtocolReader(attachments);
-        List<UnversionedRow> rows = reader.readUnversionedRowset();
-        return new UnversionedRowset(schema, rows);
+        final B deserializer = deserializerFunction.apply(deserializeRowsetSchema(descriptor));
+        return new WireProtocolReader(attachments).readUnversionedRowset(deserializer);
+    }
+
+    public static <T> void deserializeVersionedRowset(TRowsetDescriptor descriptor,
+            List<byte[]> attachments,
+            YTreeObjectSerializer<T> serializer,
+            Consumer<T> consumer)
+    {
+        deserializeVersionedRowset(descriptor, attachments,
+                schema -> MappedRowsetDeserializer.forClass(schema, serializer, consumer));
     }
 
     public static VersionedRowset deserializeVersionedRowset(TRowsetDescriptor descriptor, List<byte[]> attachments) {
+        return deserializeVersionedRowset(descriptor, attachments, VersionedRowsetDeserializer::new).getRowset();
+    }
+
+    private static <B extends WireVersionedRowsetDeserializer<T>, T> B deserializeVersionedRowset(
+            TRowsetDescriptor descriptor, List<byte[]> attachments, Function<TableSchema, B> deserializerFunction)
+    {
         if (descriptor.getWireFormatVersion() != WireProtocol.WIRE_FORMAT_VERSION) {
             throw new IllegalStateException("Cannot deserialize wire format" + descriptor.getWireFormatVersion() + ": "
                     + WireProtocol.WIRE_FORMAT_VERSION + " is required");
@@ -95,11 +129,8 @@ public class ApiServiceUtil {
             throw new IllegalStateException(
                     "Cannot deserialize " + descriptor.getRowsetKind() + ": VERSIONED is required");
         }
-        TableSchema schema = deserializeRowsetSchema(descriptor);
-        List<WireColumnSchema> schemaData = WireProtocolReader.makeSchemaData(schema);
-        WireProtocolReader reader = new WireProtocolReader(attachments);
-        List<VersionedRow> rows = reader.readVersionedRowset(schemaData);
-        return new VersionedRowset(schema, rows);
+        final B deserializer = deserializerFunction.apply(deserializeRowsetSchema(descriptor));
+        return new WireProtocolReader(attachments).readVersionedRowset(deserializer);
     }
 
     public static TRowsetDescriptor makeRowsetDescriptor(TableSchema schema) {

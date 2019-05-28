@@ -254,7 +254,7 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
         return client.selectRows(request.setTimestamp(startTimestamp));
     }
 
-    public CompletableFuture<Void> modifyRows(ModifyRowsRequest request) {
+    public CompletableFuture<Void> modifyRows(AbstractModifyRowsRequest request) {
         return client.modifyRows(id, request);
     }
 
