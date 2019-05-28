@@ -6,11 +6,22 @@
 
 namespace NYT::NScheduler {
 
-extern const TString OperationAliasPrefix;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-using TOperationIdOrAlias = std::variant<TOperationId, TString>;
+extern const TString OperationAliasPrefix;
+
+// This wrapper is needed for ADL in FromProto/ToProto to work.
+struct TOperationIdOrAlias
+{
+    TOperationIdOrAlias() = default;
+    TOperationIdOrAlias(TOperationId id);
+    TOperationIdOrAlias(TString alias);
+
+    std::variant<TOperationId, TString> Payload;
+};
+
+void FormatValue(TStringBuilderBase* builder, const TOperationIdOrAlias& operationIdOrAlias, TStringBuf format);
+TString ToString(const TOperationIdOrAlias& operationIdOrAlias);
 
 // NB: TOperationIdOrAlias corresponds to a oneof group of fields in proto representation,
 // so we use an enclosing proto message object to properly serialize or deserialize it.
@@ -19,9 +30,6 @@ void FromProto(TOperationIdOrAlias* operationIdOrAlias, const TProtoClass& enclo
 
 template <class TProtoClassPtr>
 void ToProto(TProtoClassPtr enclosingProtoMessage, const TOperationIdOrAlias& operationIdOrAlias);
-
-// Used for setting the proper context info for operations defined by id as well as operations defined by alias.
-TString GetOperationIdOrAliasContextInfo(const TOperationIdOrAlias& operationIdOrAlias);
 
 ////////////////////////////////////////////////////////////////////////////////
 

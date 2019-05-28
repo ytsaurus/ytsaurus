@@ -101,10 +101,10 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, AbortOperation)
     {
-        TOperationIdOrAlias operationIdOrAlias = TOperationId();
-        FromProto(&operationIdOrAlias, *request);
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
-        context->SetRequestInfo("%v", GetOperationIdOrAliasContextInfo(operationIdOrAlias));
+        context->SetRequestInfo("OperationId: %v",
+            operationIdOrAlias);
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
@@ -132,12 +132,13 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, SuspendOperation)
     {
-        TOperationIdOrAlias operationIdOrAlias = TOperationId();
-        FromProto(&operationIdOrAlias, *request);
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
         bool abortRunningJobs = request->abort_running_jobs();
 
-        context->SetRequestInfo("%v, AbortRunningJobs: %v", GetOperationIdOrAliasContextInfo(operationIdOrAlias), abortRunningJobs);
+        context->SetRequestInfo("OperationId: %v, AbortRunningJobs: %v",
+            operationIdOrAlias,
+            abortRunningJobs);
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
@@ -157,10 +158,10 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, ResumeOperation)
     {
-        TOperationIdOrAlias operationIdOrAlias = TOperationId();
-        FromProto(&operationIdOrAlias, *request);
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
-        context->SetRequestInfo("%v", GetOperationIdOrAliasContextInfo(operationIdOrAlias));
+        context->SetRequestInfo("OperationId: %v",
+            operationIdOrAlias);
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
@@ -179,10 +180,10 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, CompleteOperation)
     {
-        TOperationIdOrAlias operationIdOrAlias = TOperationId();
-        FromProto(&operationIdOrAlias, *request);
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
-        context->SetRequestInfo("%v", GetOperationIdOrAliasContextInfo(operationIdOrAlias));
+        context->SetRequestInfo("OperationId: %v",
+            operationIdOrAlias);
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
@@ -202,10 +203,10 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, UpdateOperationParameters)
     {
-        TOperationIdOrAlias operationIdOrAlias = TOperationId();
-        FromProto(&operationIdOrAlias, *request);
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
-        context->SetRequestInfo("%v", GetOperationIdOrAliasContextInfo(operationIdOrAlias));
+        context->SetRequestInfo("OperationId: %v",
+            operationIdOrAlias);
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();

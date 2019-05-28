@@ -406,7 +406,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return Visit(idOrAlias,
+        return Visit(idOrAlias.Payload,
             [&] (const TOperationId& id) -> TOperationPtr {
                 auto it = IdToOperation_.find(id);
                 return it == IdToOperation_.end() ? nullptr : it->second;
