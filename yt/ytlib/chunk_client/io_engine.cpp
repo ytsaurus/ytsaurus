@@ -22,7 +22,6 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/misc/align.h>
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/memory_zone.h>
 

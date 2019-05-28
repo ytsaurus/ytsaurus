@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "align.h"
 #include "assert.h"
 #include "enum.h"
 #include "error.h"
@@ -17,7 +16,20 @@
 #include <util/stream/input.h>
 #include <util/stream/output.h>
 
+#include <util/system/align.h>
+
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Alignment size; measured in bytes and must be a power of two.
+constexpr size_t SerializationAlignment = 8;
+static_assert(
+    (SerializationAlignment & (SerializationAlignment - 1)) == 0,
+    "SerializationAlignment should be a power of two.");
+
+//! Array of zeroes.
+constexpr ui8 SerializationPadding[SerializationAlignment] = {};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,16 +63,16 @@ void ReadPodOrThrow(TInput& input, T& obj);
 template <class TOutput>
 size_t WritePadding(TOutput& output, size_t writtenSize)
 {
-    output.Write(&NDetail::SerializationPadding, GetPaddingSize(writtenSize));
-    return AlignUp(writtenSize);
+    output.Write(SerializationPadding, AlignUpSpace(writtenSize, SerializationAlignment));
+    return AlignUp(writtenSize, SerializationAlignment);
 }
 
 template <class TOutput>
 size_t WritePadded(TOutput& output, TRef ref)
 {
     output.Write(ref.Begin(), ref.Size());
-    output.Write(&NYT::NDetail::SerializationPadding, GetPaddingSize(ref.Size()));
-    return AlignUp(ref.Size());
+    output.Write(SerializationPadding, AlignUpSpace(ref.Size(), SerializationAlignment));
+    return AlignUp(ref.Size(), SerializationAlignment);
 }
 
 template <class TInput>
@@ -68,8 +80,8 @@ size_t ReadPadded(TInput& input, const TMutableRef& ref)
 {
     auto loadBytes = input.Load(ref.Begin(), ref.Size());
     YCHECK(loadBytes == ref.Size());
-    input.Skip(GetPaddingSize(ref.Size()));
-    return AlignUp(ref.Size());
+    input.Skip(AlignUpSpace(ref.Size(), SerializationAlignment));
+    return AlignUp(ref.Size(), SerializationAlignment);
 }
 
 template <class TInput, class T>

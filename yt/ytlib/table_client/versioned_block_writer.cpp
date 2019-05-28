@@ -220,7 +220,7 @@ int TSimpleVersionedBlockWriter::GetKeySize(int keyColumnCount, int schemaColumn
 
 int TSimpleVersionedBlockWriter::GetPaddedKeySize(int keyColumnCount, int schemaColumnCount)
 {
-    return AlignUp(GetKeySize(keyColumnCount, schemaColumnCount));
+    return AlignUp<int>(GetKeySize(keyColumnCount, schemaColumnCount), SerializationAlignment);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
