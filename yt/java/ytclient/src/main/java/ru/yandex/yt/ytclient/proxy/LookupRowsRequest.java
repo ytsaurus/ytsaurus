@@ -8,6 +8,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import ru.yandex.yt.ytclient.misc.YtTimestamp;
+import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedValue;
@@ -100,7 +101,7 @@ public class LookupRowsRequest {
 
     public void serializeRowsetTo(List<byte[]> attachments) {
         WireProtocolWriter writer = new WireProtocolWriter(attachments);
-        writer.writeUnversionedRowset(filters);
+        writer.writeUnversionedRowset(filters, new UnversionedRowSerializer(schema));
         writer.finish();
     }
 }

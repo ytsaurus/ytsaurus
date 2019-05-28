@@ -5,49 +5,29 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
 
 import ru.yandex.yt.rpcproxy.ERowModificationType;
+import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedValue;
 import ru.yandex.yt.ytclient.wire.WireProtocolWriter;
 
-public class ModifyRowsRequest {
-    private final String path;
-    private final TableSchema schema;
-    private Boolean requireSyncReplica = null;
+public class ModifyRowsRequest extends AbstractModifyRowsRequest {
     private final List<UnversionedRow> rows = new ArrayList<>();
-    private final List<ERowModificationType> rowModificationTypes = new ArrayList<>();
 
     public ModifyRowsRequest(String path, TableSchema schema) {
-        if (!schema.isWriteSchema()) {
-            throw new IllegalArgumentException("ModifyRowsRequest requires a write schema");
-        }
-        this.path = Objects.requireNonNull(path);
-        this.schema = Objects.requireNonNull(schema);
+        super(path, schema);
     }
 
-    public String getPath() {
-        return path;
+    public List<UnversionedRow> getRows() {
+        return Collections.unmodifiableList(rows);
     }
 
-    public TableSchema getSchema() {
-        return schema;
-    }
-
-    public List<ERowModificationType> getRowModificationTypes() {
-        return Collections.unmodifiableList(rowModificationTypes);
-    }
-
+    @Override
     public ModifyRowsRequest setRequireSyncReplica(boolean requireSyncReplica) {
-        this.requireSyncReplica = requireSyncReplica;
+        super.setRequireSyncReplica(requireSyncReplica);
         return this;
-    }
-
-    public Optional<Boolean> getRequireSyncReplica() {
-        return Optional.ofNullable(requireSyncReplica);
     }
 
     private UnversionedRow convertValuesToRow(List<?> values, boolean skipMissingValues, boolean aggregate) {
@@ -147,9 +127,10 @@ public class ModifyRowsRequest {
         return addDelete(mapToValues(map, schema.getKeyColumnsCount()));
     }
 
+    @Override
     public void serializeRowsetTo(List<byte[]> attachments) {
         WireProtocolWriter writer = new WireProtocolWriter(attachments);
-        writer.writeUnversionedRowset(rows);
+        writer.writeUnversionedRowset(rows, new UnversionedRowSerializer(schema));
         writer.finish();
     }
 }

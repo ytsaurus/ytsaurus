@@ -5,9 +5,19 @@ import java.io.UncheckedIOException;
 import java.nio.BufferUnderflowException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.IntConsumer;
+import java.util.function.LongSupplier;
 
 import com.google.protobuf.CodedInputStream;
 
+import ru.yandex.yt.ytclient.object.WireRowDeserializer;
+import ru.yandex.yt.ytclient.object.WireRowsetDeserializer;
+import ru.yandex.yt.ytclient.object.WireSchemafulRowDeserializer;
+import ru.yandex.yt.ytclient.object.WireSchemafulRowsetDeserializer;
+import ru.yandex.yt.ytclient.object.WireValueDeserializer;
+import ru.yandex.yt.ytclient.object.WireVersionedRowDeserializer;
+import ru.yandex.yt.ytclient.object.WireVersionedRowsetDeserializer;
 import ru.yandex.yt.ytclient.rpc.RpcMessageParser;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
@@ -187,76 +197,76 @@ public class WireProtocolReader {
         return result;
     }
 
-    private UnversionedValue readSchemafulValue(int id, ColumnValueType type, boolean aggregate, boolean isNull) {
-        Object rawValue = null;
-        if (isNull) {
-            type = ColumnValueType.NULL;
-        } else if (type.isStringLikeType()) {
-            rawValue = readStringData(type, readLong());
-        } else if (type.isValueType()) {
-            long rawBits = readLong();
-            rawValue = UnversionedValue.convertRawBitsTo(rawBits, type);
+    private void readUnversionedValues(WireValueDeserializer<?> consumer, int valueCount) {
+        for (int i = 0; i < valueCount; i++) {
+            readValue(() -> -1, consumer);
         }
-        return new UnversionedValue(id, type, aggregate, rawValue);
     }
 
-    private List<UnversionedValue> readSchemafulValues(List<WireColumnSchema> schemaData, int valueCount) {
-        Bitmap nullBitmap = readNullBitmap(valueCount);
-        List<UnversionedValue> values = new ArrayList<>(valueCount);
+    private void readSchemafulValues(WireValueDeserializer<?> consumer, List<WireColumnSchema> schemaData, int valueCount) {
+        final Bitmap nullBitmap = readNullBitmap(valueCount);
         for (int index = 0; index < valueCount; index++) {
-            WireColumnSchema column = schemaData.get(index);
-            values.add(readSchemafulValue(column.getId(), column.getType(), column.isAggregate(),
-                    nullBitmap.getBit(index)));
+            final WireColumnSchema column = schemaData.get(index);
+            consumer.setId(column.getId());
+            consumer.setAggregate(column.isAggregate());
+
+            final boolean isNull = nullBitmap.getBit(index);
+            final ColumnValueType type = isNull ? ColumnValueType.NULL : column.getType();
+
+            readValueImpl(consumer, type, Integer.MAX_VALUE);
+            consumer.build();
         }
-        return values;
     }
 
-    private Object readUnversionedData(ColumnValueType type, int length) {
+    private void readVersionedValues(WireValueDeserializer<?> consumer, int valueCount) {
+        for (int i = 0; i < valueCount; i++) {
+            readValue(this::readLong, consumer);
+        }
+    }
+
+    private <T> void readValueImpl(WireValueDeserializer<T> consumer, ColumnValueType type, int length) {
+        consumer.setType(type);
         if (type.isStringLikeType()) {
-            return readStringData(type, length);
+            final byte[] bytes = readStringData(type, length == Integer.MAX_VALUE ? readLong() : length);
+            consumer.onBytes(bytes);
         } else if (type.isValueType()) {
-            long rawBits = readLong();
-            return UnversionedValue.convertRawBitsTo(rawBits, type);
+            final long rawBits = readLong();
+            switch (type) {
+                case INT64:
+                case UINT64:
+                    consumer.onInteger(rawBits);
+                    break;
+                case DOUBLE:
+                    consumer.onDouble(Double.longBitsToDouble(rawBits));
+                    break;
+                case BOOLEAN:
+                    // bool is byte-sized in C++, have to be careful about random garbage
+                    consumer.onBoolean((rawBits & 0xff) != 0);
+                    break;
+                default:
+                    throw new IllegalArgumentException(type + " cannot be represented as raw bits");
+            }
         } else {
-            return null;
+            consumer.onEntity(); // no value
         }
     }
 
-    private UnversionedValue readUnversionedValue() {
-        int id = readRawShort() & 0xffff;
-        ColumnValueType type = ColumnValueType.fromValue(readRawByte() & 0xff);
-        boolean aggregate = readRawByte() != 0;
-        int length = readRawInt();
+    private <T> void readValue(LongSupplier timestampSupplier, WireValueDeserializer<T> consumer) {
+        final int id = readRawShort() & 0xffff;
+        consumer.setId(id);
+
+        final ColumnValueType type = ColumnValueType.fromValue(readRawByte() & 0xff);
+
+        final boolean aggregate = readRawByte() != 0;
+        consumer.setAggregate(aggregate);
+
+        final int length = readRawInt();
         alignAfterReading(8);
-        Object value = readUnversionedData(type, length);
-        return new UnversionedValue(id, type, aggregate, value);
-    }
 
-    private List<UnversionedValue> readUnversionedValues(int valueCount) {
-        List<UnversionedValue> values = new ArrayList<>(valueCount);
-        for (int i = 0; i < valueCount; i++) {
-            values.add(readUnversionedValue());
-        }
-        return values;
-    }
+        this.readValueImpl(consumer, type, length);
 
-    private VersionedValue readVersionedValue() {
-        int id = readRawShort() & 0xffff;
-        ColumnValueType type = ColumnValueType.fromValue(readRawByte() & 0xff);
-        boolean aggregate = readRawByte() != 0;
-        int length = readRawInt();
-        alignAfterReading(8);
-        Object value = readUnversionedData(type, length);
-        long timestamp = readLong();
-        return new VersionedValue(id, type, aggregate, value, timestamp);
-    }
-
-    private List<VersionedValue> readVersionedValues(int valueCount) {
-        List<VersionedValue> values = new ArrayList<>(valueCount);
-        for (int i = 0; i < valueCount; i++) {
-            values.add(readVersionedValue());
-        }
-        return values;
+        consumer.setTimestamp(timestampSupplier.getAsLong());
+        consumer.build();
     }
 
     private List<Long> readTimestamps(int count) {
@@ -292,34 +302,37 @@ public class WireProtocolReader {
         }
     }
 
-    public UnversionedRow readSchemafulRow(List<WireColumnSchema> schemaData) {
+    public <T> T readSchemafulRow(WireSchemafulRowDeserializer<T> deserializer) {
         long valueCount = readLong();
         if (valueCount == -1) {
             return null;
         }
-        List<UnversionedValue> values = readSchemafulValues(schemaData, WireProtocol.validateRowValueCount(valueCount));
-        return new UnversionedRow(values);
+        final int valueCountInt = WireProtocol.validateRowValueCount(valueCount);
+        readSchemafulValues(deserializer.onNewRow(valueCountInt), deserializer.getColumnSchema(), valueCountInt);
+        return deserializer.onCompleteRow();
     }
 
-    public UnversionedRow readUnversionedRow() {
-        long valueCount = readLong();
-        if (valueCount == -1) {
-            return null;
+    public <T> T readUnversionedRow(WireRowDeserializer<T> deserializer) {
+        final long valueCount0 = readLong();
+        if (valueCount0 == -1) {
+            return null; // ---
         }
-        List<UnversionedValue> values = readUnversionedValues(WireProtocol.validateRowValueCount(valueCount));
-        return new UnversionedRow(values);
+        final int valueCount = WireProtocol.validateRowValueCount(valueCount0);
+        final WireValueDeserializer<?> consumer = deserializer.onNewRow(valueCount);
+        readUnversionedValues(consumer, valueCount);
+        return deserializer.onCompleteRow();
     }
 
-    public VersionedRow readVersionedRow(List<WireColumnSchema> schemaData) {
+    public <T> T readVersionedRow(WireVersionedRowDeserializer<T> deserializer) {
         // TVersionedRowHeader
-        int valueCount = readRawInt();
-        int keyCount = readRawInt();
+        final int valueCount = readRawInt();
+        final int keyCount = readRawInt();
         if (valueCount == -1 && keyCount == -1) {
             alignAfterReading(8);
             return null;
         }
-        int writeTimestampCount = readRawInt();
-        int deleteTimestampCount = readRawInt();
+        final int writeTimestampCount = readRawInt();
+        final int deleteTimestampCount = readRawInt();
         alignAfterReading(16);
 
         WireProtocol.validateRowKeyCount(keyCount);
@@ -327,42 +340,45 @@ public class WireProtocolReader {
         WireProtocol.validateRowValueCount(writeTimestampCount);
         WireProtocol.validateRowValueCount(deleteTimestampCount);
 
-        List<Long> writeTimestamps = readTimestamps(writeTimestampCount);
-        List<Long> deleteTimestamps = readTimestamps(deleteTimestampCount);
-        List<UnversionedValue> keys = readSchemafulValues(schemaData, keyCount);
-        List<VersionedValue> values = readVersionedValues(valueCount);
-        return new VersionedRow(writeTimestamps, deleteTimestamps, keys, values);
+        deserializer.onWriteTimestamps(readTimestamps(writeTimestampCount));
+        deserializer.onDeleteTimestamps(readTimestamps(deleteTimestampCount));
+
+        final WireValueDeserializer<?> keys = deserializer.keys(keyCount);
+        readSchemafulValues(keys, deserializer.getKeyColumnSchema(), keyCount);
+
+        final WireValueDeserializer<?> values = deserializer.values(valueCount);
+        readVersionedValues(values, valueCount);
+
+        return deserializer.onCompleteRow();
     }
 
     private int readRowCount() {
         return WireProtocol.validateRowCount(readLong());
     }
 
-    public List<UnversionedRow> readSchemafulRowset(List<WireColumnSchema> schemaData) {
-        int rowCount = readRowCount();
-        List<UnversionedRow> rows = new ArrayList<>(rowCount);
-        for (int i = 0; i < rowCount; i++) {
-            rows.add(readSchemafulRow(schemaData));
-        }
-        return rows;
+    public void skipRowCountHeader() {
+        readRowCount();
     }
 
-    public List<UnversionedRow> readUnversionedRowset() {
-        int rowCount = readRowCount();
-        List<UnversionedRow> rows = new ArrayList<>(rowCount);
-        for (int i = 0; i < rowCount; i++) {
-            rows.add(readUnversionedRow());
-        }
-        return rows;
+    public <T extends WireRowsetDeserializer<V>, V> T readUnversionedRowset(T deserializer) {
+        return this.readImpl(deserializer, deserializer::setRowCount, this::readUnversionedRow);
     }
 
-    public List<VersionedRow> readVersionedRowset(List<WireColumnSchema> schemaData) {
-        int rowCount = readRowCount();
-        List<VersionedRow> rows = new ArrayList<>(rowCount);
+    public <T extends WireSchemafulRowsetDeserializer<V>, V> T readSchemafulRowset(T deserializer) {
+        return this.readImpl(deserializer, deserializer::setRowCount, this::readSchemafulRow);
+    }
+
+    public <T extends WireVersionedRowsetDeserializer<V>, V> T readVersionedRowset(T deserializer) {
+        return this.readImpl(deserializer, deserializer::setRowCount, this::readVersionedRow);
+    }
+
+    private <T> T readImpl(T deserializer, IntConsumer rowCountFunction, Consumer<T> readFunction) {
+        final int rowCount = readRowCount();
+        rowCountFunction.accept(rowCount);
         for (int i = 0; i < rowCount; i++) {
-            rows.add(readVersionedRow(schemaData));
+            readFunction.accept(deserializer);
         }
-        return rows;
+        return deserializer;
     }
 
     public static List<WireColumnSchema> makeSchemaData(TableSchema schema) {

@@ -10,9 +10,11 @@ import java.util.List;
 public class ChunkedWriter {
     private static final byte[] EMPTY_BUFFER = new byte[0];
     private static final int MIN_CHUNK_SIZE = 1024; // 1KB
-    private static final int MAX_CHUNK_SIZE = 256 * 1024 * 1024; // 256MB
+    static final int MAX_CHUNK_SIZE = 256 * 1024 * 1024; // 256MB
 
     private final List<byte[]> output;
+    private final int maxChunkSize;
+    private final ChunkedWriterMarker marker;
     private byte[] buffer;
     private int offset;
 
@@ -25,14 +27,24 @@ public class ChunkedWriter {
     }
 
     public ChunkedWriter(List<byte[]> output, int initialReserveSize) {
+        this(output, initialReserveSize, MAX_CHUNK_SIZE);
+    }
+
+    ChunkedWriter(List<byte[]> output, int initialReserveSize, int limitChunkSize) {
+        this.maxChunkSize = Math.min(Math.max(limitChunkSize, MIN_CHUNK_SIZE), MAX_CHUNK_SIZE);
+        this.marker = new ChunkedWriterMarker();
         initialReserveSize = minPowerOfTwo(initialReserveSize);
-        if (initialReserveSize > MAX_CHUNK_SIZE || initialReserveSize < 0) {
-            initialReserveSize = MAX_CHUNK_SIZE;
+        if (initialReserveSize > maxChunkSize || initialReserveSize < 0) {
+            initialReserveSize = maxChunkSize;
         }
 
         this.output = output;
         this.buffer = initialReserveSize > 0 ? new byte[initialReserveSize] : EMPTY_BUFFER;
         this.offset = 0;
+    }
+
+    public ChunkedWriterMarker getMarker() {
+        return marker;
     }
 
     public byte[] buffer() {
@@ -55,7 +67,9 @@ public class ChunkedWriter {
      * Завершает текущий чанк и возвращает полный набор чанков
      */
     public List<byte[]> flush() {
-        output.add(Arrays.copyOfRange(buffer, 0, offset));
+        final byte[] bytes = Arrays.copyOfRange(buffer, 0, offset);
+        marker.onArray(buffer, bytes);
+        output.add(bytes);
         offset = 0;
         return output;
     }
@@ -69,7 +83,7 @@ public class ChunkedWriter {
             if (offset > 0) {
                 // Нам всё-равно данные копировать, лучше скопировать их в буфер побольше
                 newSize = offset + size;
-                if (newSize < 0 || newSize > MAX_CHUNK_SIZE) {
+                if (newSize < 0 || newSize > maxChunkSize) {
                     // Совместный чанк получится слишком большой, скидываем текущие данные
                     newSize = size;
                     flush();
@@ -88,10 +102,16 @@ public class ChunkedWriter {
                 if (offset > 0) {
                     System.arraycopy(buffer, 0, newBuffer, 0, offset);
                 }
+                marker.onArray(buffer, newBuffer);
                 buffer = newBuffer;
             }
         }
     }
+
+    void mark(int position) {
+        this.marker.mark(buffer, position);
+    }
+
 
     /**
      * Увеличивает текущую позицию на size байт

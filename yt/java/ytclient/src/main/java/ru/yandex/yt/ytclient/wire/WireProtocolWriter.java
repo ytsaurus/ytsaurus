@@ -10,12 +10,15 @@ import java.util.List;
 import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.MessageLite;
 
+import ru.yandex.yt.ytclient.object.WireProtocolWriteable;
+import ru.yandex.yt.ytclient.object.WireRowSerializer;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 
 public class WireProtocolWriter {
     private static final int INITIAL_BUFFER_CAPACITY = 1024;
     private static final int PREALLOCATE_BLOCK_SIZE = 4096;
 
+    private final WireProtocolWriteable writeable;
     private final ChunkedWriter writer;
     private ByteBuffer current;
     private int currentStart;
@@ -26,8 +29,61 @@ public class WireProtocolWriter {
     }
 
     public WireProtocolWriter(List<byte[]> output) {
-        this.writer = new ChunkedWriter(output);
+        this(output, ChunkedWriter.MAX_CHUNK_SIZE);
+    }
+
+    WireProtocolWriter(List<byte[]> output, int limitChunkSize) {
+        this.writer = new ChunkedWriter(output, 0, limitChunkSize);
         reserve(INITIAL_BUFFER_CAPACITY);
+
+        this.writeable = new WireProtocolWriteable() {
+
+            private int lastValuePosition;
+
+            @Override
+            public void onEntity() {
+                throw new IllegalStateException("Value must be provided");
+            }
+
+            @Override
+            public void onInteger(long value) {
+                writeLong(value);
+            }
+
+            @Override
+            public void onBoolean(boolean value) {
+                writeLong(value ? 1 : 0);
+            }
+
+            @Override
+            public void onDouble(double value) {
+                writeLong(Double.doubleToRawLongBits(value));
+            }
+
+            @Override
+            public void onBytes(byte[] bytes) {
+                writeBytes(bytes);
+            }
+
+            @Override
+            public void writeValueCount(int valueCount) {
+                reserveAligned(8);
+                writer.mark(current.position());
+                writeLong(WireProtocol.validateRowValueCount(valueCount));
+            }
+
+            @Override
+            public void overwriteValueCount(int valueCount) {
+                writer.getMarker().writeToMark(current, ByteOrder.LITTLE_ENDIAN,
+                        WireProtocol.validateRowValueCount(valueCount));
+            }
+
+            @Override
+            public void writeValueHeader(int columnId, ColumnValueType type, boolean aggregate, int length) {
+                writeUnversionedValueHeader(columnId, type, aggregate, length);
+            }
+
+        };
     }
 
     /**
@@ -53,7 +109,7 @@ public class WireProtocolWriter {
         }
         flushCurrent();
         writer.reserve(Math.max(size, PREALLOCATE_BLOCK_SIZE));
-        current = ByteBuffer.wrap(writer.buffer(), writer.offset(), size).order(ByteOrder.LITTLE_ENDIAN);
+        current = ByteBuffer.wrap(writer.buffer(), writer.offset(), writer.remaining()).order(ByteOrder.LITTLE_ENDIAN);
         currentStart = current.position();
     }
 
@@ -77,10 +133,6 @@ public class WireProtocolWriter {
         alignAfterWriting(value.length);
     }
 
-    private int estimateNullBitmapByteSize(List<UnversionedValue> row) {
-        return WireProtocol.alignUp(8 * Bitmap.computeChunkCount(row.size()));
-    }
-
     private void writeNullBitmap(List<UnversionedValue> row) {
         Bitmap bitmap = new Bitmap(row.size());
         for (int i = 0; i < row.size(); i++) {
@@ -94,16 +146,6 @@ public class WireProtocolWriter {
             current.putLong(bitmap.getChunk(i));
         }
         alignAfterWriting(byteCount);
-    }
-
-    private int estimateSchemafulValueByteSize(UnversionedValue value) {
-        if (value.getType().isStringLikeType()) {
-            return WireProtocol.alignUp(4) + WireProtocol.alignUp(value.bytesValue().length);
-        } else if (value.getType().isValueType()) {
-            return WireProtocol.alignUp(8);
-        } else {
-            return 0;
-        }
     }
 
     private void writeSchemafulValue(UnversionedValue value) {
@@ -123,14 +165,6 @@ public class WireProtocolWriter {
         }
     }
 
-    private int estimateSchemafulValuesByteSize(List<UnversionedValue> values) {
-        int size = estimateNullBitmapByteSize(values);
-        for (UnversionedValue value : values) {
-            size += estimateSchemafulValueByteSize(value);
-        }
-        return size;
-    }
-
     private void writeSchemafulValues(List<UnversionedValue> values) {
         writeNullBitmap(values);
         for (UnversionedValue value : values) {
@@ -138,23 +172,17 @@ public class WireProtocolWriter {
         }
     }
 
-    private int estimateUnversionedValueByteSize(UnversionedValue value) {
-        int size = WireProtocol.alignUp(8);
-        if (value.getType().isStringLikeType()) {
-            size += WireProtocol.alignUp(value.bytesValue().length);
-        } else if (value.getType().isValueType()) {
-            size += WireProtocol.alignUp(8);
-        }
-        return size;
+    public void writeUnversionedValueHeader(int columnId, ColumnValueType type, boolean aggregate, int length) {
+        reserveAligned(8);
+        current.putShort(WireProtocol.validateColumnId(columnId));
+        current.put((byte) type.getValue());
+        current.put((byte) (aggregate ? 1 : 0));
+        current.putInt(length);
+        alignAfterWriting(8);
     }
 
     private void writeUnversionedValueHeader(UnversionedValue value) {
-        reserveAligned(8);
-        current.putShort(WireProtocol.validateColumnId(value.getId()));
-        current.put((byte) value.getType().getValue());
-        current.put((byte) (value.isAggregate() ? 1 : 0));
-        current.putInt(value.getLength());
-        alignAfterWriting(8);
+        this.writeUnversionedValueHeader(value.getId(), value.getType(), value.isAggregate(), value.getLength());
     }
 
     private void writeUnversionedValue(UnversionedValue value) {
@@ -173,35 +201,9 @@ public class WireProtocolWriter {
         }
     }
 
-    private int estimateUnversionedValuesByteSize(List<UnversionedValue> values) {
-        int size = 0;
-        for (UnversionedValue value : values) {
-            size += estimateUnversionedValueByteSize(value);
-        }
-        return size;
-    }
-
-    private void writeUnversionedValues(List<UnversionedValue> values) {
-        for (UnversionedValue value : values) {
-            writeUnversionedValue(value);
-        }
-    }
-
-    private int estimateVersionedValueByteSize(VersionedValue value) {
-        return estimateUnversionedValueByteSize(value) + WireProtocol.alignUp(8);
-    }
-
     private void writeVersionedValue(VersionedValue value) {
         writeUnversionedValue(value);
         writeLong(value.getTimestamp());
-    }
-
-    private int estimateVersionedValuesByteSize(List<VersionedValue> values) {
-        int size = 0;
-        for (VersionedValue value : values) {
-            size += estimateVersionedValueByteSize(value);
-        }
-        return size;
     }
 
     private void writeVersionedValues(List<VersionedValue> values) {
@@ -224,40 +226,21 @@ public class WireProtocolWriter {
         alignAfterWriting(size);
     }
 
-    private int estimateSchemafulRowByteSize(UnversionedRow row) {
-        return WireProtocol.alignUp(8) + (row != null ? estimateSchemafulValuesByteSize(row.getValues()) : 0);
-    }
-
     public void writeSchemafulRow(UnversionedRow row) {
-        int size = estimateSchemafulRowByteSize(row);
-        reserveAligned(size);
         if (row != null) {
-            WireProtocol.validateRowValueCount(row.getValues().size());
-            writeLong(row.getValues().size());
+            writeLong(WireProtocol.validateRowValueCount(row.getValues().size()));
             writeSchemafulValues(row.getValues());
         } else {
             writeLong(-1);
         }
     }
 
-    private int estimateUnversionedRowByteSize(UnversionedRow row) {
-        return WireProtocol.alignUp(8) + (row != null ? estimateUnversionedValuesByteSize(row.getValues()) : 0);
-    }
-
-    public void writeUnversionedRow(UnversionedRow row) {
-        int size = estimateUnversionedRowByteSize(row);
-        reserveAligned(size);
+    public <T> void writeUnversionedRow(T row, WireRowSerializer<T> serializer) {
         if (row != null) {
-            WireProtocol.validateRowValueCount(row.getValues().size());
-            writeLong(row.getValues().size());
-            writeUnversionedValues(row.getValues());
+            serializer.serializeRow(row, this.writeable);
         } else {
             writeLong(-1);
         }
-    }
-
-    private int estimateTimestampsByteSize(List<Long> timestamps) {
-        return WireProtocol.alignUp(8 * timestamps.size());
     }
 
     private void writeTimestamps(List<Long> timestamps) {
@@ -269,23 +252,7 @@ public class WireProtocolWriter {
         alignAfterWriting(byteCount);
     }
 
-    private int estimateVersionedRowByteSize(VersionedRow row) {
-        int size = 0;
-        if (row != null) {
-            size += WireProtocol.alignUp(16);
-            size += estimateTimestampsByteSize(row.getWriteTimestamps());
-            size += estimateTimestampsByteSize(row.getDeleteTimestamps());
-            size += estimateUnversionedValuesByteSize(row.getKeys());
-            size += estimateVersionedValuesByteSize(row.getValues());
-        } else {
-            size += WireProtocol.alignUp(8);
-        }
-        return size;
-    }
-
     public void writeVersionedRow(VersionedRow row) {
-        int size = estimateVersionedRowByteSize(row);
-        reserveAligned(size);
         if (row != null) {
             WireProtocol.validateRowKeyCount(row.getKeys().size());
             WireProtocol.validateRowValueCount(row.getValues().size());
@@ -310,8 +277,7 @@ public class WireProtocolWriter {
     }
 
     private void writeRowCount(int rowCount) {
-        WireProtocol.validateRowCount(rowCount);
-        writeLong(rowCount);
+        writeLong(WireProtocol.validateRowCount(rowCount));
     }
 
     public void writeSchemafulRowset(List<UnversionedRow> rows) {
@@ -321,10 +287,10 @@ public class WireProtocolWriter {
         }
     }
 
-    public void writeUnversionedRowset(List<UnversionedRow> rows) {
+    public <T> void writeUnversionedRowset(List<T> rows, WireRowSerializer<T> serializer) {
         writeRowCount(rows.size());
-        for (UnversionedRow row : rows) {
-            writeUnversionedRow(row);
+        for (T row : rows) {
+            writeUnversionedRow(row, serializer);
         }
     }
 
