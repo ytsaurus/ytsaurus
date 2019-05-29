@@ -17,6 +17,7 @@ class TClientReader
 public:
     TClientReader(
         const TRichYPath& path,
+        IClientRetryPolicyPtr clientRetryPolicy,
         const TAuth& auth,
         const TTransactionId& transactionId,
         const TFormat& format,
@@ -36,7 +37,8 @@ protected:
 
 private:
     TRichYPath Path_;
-    TAuth Auth_;
+    const IClientRetryPolicyPtr ClientRetryPolicy_;
+    const TAuth Auth_;
     TTransactionId ParentTransactionId_;
     TMaybe<TFormat> Format_;
     TTableReaderOptions Options_;

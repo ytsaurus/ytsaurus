@@ -67,7 +67,7 @@ TClientBase::TClientBase(
     IClientRetryPolicyPtr retryPolicy)
     : Auth_(auth)
     , TransactionId_(transactionId)
-    , RetryPolicy_(std::move(retryPolicy))
+    , ClientRetryPolicy_(std::move(retryPolicy))
 { }
 
 ITransactionPtr TClientBase::StartTransaction(
@@ -81,26 +81,26 @@ TNodeId TClientBase::Create(
     ENodeType type,
     const TCreateOptions& options)
 {
-    return NRawClient::Create(Auth_, TransactionId_, path, type, options);
+    return NRawClient::Create(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, path, type, options);
 }
 
 void TClientBase::Remove(
     const TYPath& path,
     const TRemoveOptions& options)
 {
-    return NRawClient::Remove(Auth_, TransactionId_, path, options);
+    return NRawClient::Remove(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, path, options);
 }
 
 bool TClientBase::Exists(const TYPath& path)
 {
-    return NRawClient::Exists(Auth_, TransactionId_, path);
+    return NRawClient::Exists(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, path);
 }
 
 TNode TClientBase::Get(
     const TYPath& path,
     const TGetOptions& options)
 {
-    return NRawClient::Get(Auth_, TransactionId_, path, options);
+    return NRawClient::Get(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, path, options);
 }
 
 void TClientBase::Set(
@@ -108,14 +108,14 @@ void TClientBase::Set(
     const TNode& value,
     const TSetOptions& options)
 {
-    NRawClient::Set(Auth_, TransactionId_, path, value, options);
+    NRawClient::Set(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, path, value, options);
 }
 
 TNode::TListType TClientBase::List(
     const TYPath& path,
     const TListOptions& options)
 {
-    return NRawClient::List(Auth_, TransactionId_, path, options);
+    return NRawClient::List(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, path, options);
 }
 
 TNodeId TClientBase::Copy(
@@ -123,7 +123,7 @@ TNodeId TClientBase::Copy(
     const TYPath& destinationPath,
     const TCopyOptions& options)
 {
-    return NRawClient::Copy(Auth_, TransactionId_, sourcePath, destinationPath, options);
+    return NRawClient::Copy(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, sourcePath, destinationPath, options);
 }
 
 TNodeId TClientBase::Move(
@@ -131,7 +131,7 @@ TNodeId TClientBase::Move(
     const TYPath& destinationPath,
     const TMoveOptions& options)
 {
-    return NRawClient::Move(Auth_, TransactionId_, sourcePath, destinationPath, options);
+    return NRawClient::Move(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, sourcePath, destinationPath, options);
 }
 
 TNodeId TClientBase::Link(
@@ -139,7 +139,7 @@ TNodeId TClientBase::Link(
     const TYPath& linkPath,
     const TLinkOptions& options)
 {
-    return NRawClient::Link(Auth_, TransactionId_, targetPath, linkPath, options);
+    return NRawClient::Link(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, targetPath, linkPath, options);
 }
 
 void TClientBase::Concatenate(
@@ -147,7 +147,7 @@ void TClientBase::Concatenate(
     const TYPath& destinationPath,
     const TConcatenateOptions& options)
 {
-    NRawClient::Concatenate(Auth_, TransactionId_, sourcePaths, destinationPath, options);
+    NRawClient::Concatenate(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, sourcePaths, destinationPath, options);
 }
 
 TRichYPath TClientBase::CanonizeYPath(const TRichYPath& path)
@@ -161,7 +161,7 @@ TVector<TTableColumnarStatistics> TClientBase::GetTableColumnarStatistics(const 
     header.MergeParameters(NRawClient::SerializeParamsForGetTableColumnarStatistics(TransactionId_, paths));
     TRequestConfig config;
     config.IsHeavy = true;
-    auto requestResult = RetryRequestWithPolicy(Auth_, header, {}, nullptr, config);
+    auto requestResult = RetryRequestWithPolicy(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, header, {}, config);
     auto response = NodeFromYsonString(requestResult.Response);
     TVector<TTableColumnarStatistics> result;
     Deserialize(result, response);
@@ -176,6 +176,7 @@ IFileReaderPtr TClientBase::CreateBlobTableReader(
     return new TBlobTableReader(
         path,
         key,
+        ClientRetryPolicy_,
         Auth_,
         TransactionId_,
         options);
@@ -187,6 +188,7 @@ IFileReaderPtr TClientBase::CreateFileReader(
 {
     return new TFileReader(
         CanonizePath(Auth_, path),
+        ClientRetryPolicy_,
         Auth_,
         TransactionId_,
         options);
@@ -197,11 +199,11 @@ IFileWriterPtr TClientBase::CreateFileWriter(
     const TFileWriterOptions& options)
 {
     auto realPath = CanonizePath(Auth_, path);
-    if (!NRawClient::Exists(Auth_, TransactionId_, realPath.Path_)) {
-        NRawClient::Create(Auth_, TransactionId_, realPath.Path_, NT_FILE,
+    if (!NRawClient::Exists(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, realPath.Path_)) {
+        NRawClient::Create(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, realPath.Path_, NT_FILE,
             TCreateOptions().IgnoreExisting(true));
     }
-    return new TFileWriter(realPath, Auth_, TransactionId_, options);
+    return new TFileWriter(realPath, ClientRetryPolicy_, Auth_, TransactionId_, options);
 }
 
 TTableWriterPtr<::google::protobuf::Message> TClientBase::CreateTableWriter(
@@ -225,6 +227,7 @@ TRawTableWriterPtr TClientBase::CreateRawWriter(
     const TTableWriterOptions& options)
 {
     return ::MakeIntrusive<TRetryfulWriter>(
+        ClientRetryPolicy_,
         Auth_,
         TransactionId_,
         GetWriteTableCommand(),
@@ -423,29 +426,29 @@ IOperationPtr TClientBase::AttachOperation(const TOperationId& operationId)
 
 EOperationBriefState TClientBase::CheckOperation(const TOperationId& operationId)
 {
-    return NYT::NDetail::CheckOperation(Auth_, operationId);
+    return NYT::NDetail::CheckOperation(ClientRetryPolicy_, Auth_, operationId);
 }
 
 void TClientBase::AbortOperation(const TOperationId& operationId)
 {
-    NRawClient::AbortOperation(Auth_, operationId);
+    NRawClient::AbortOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, operationId);
 }
 
 void TClientBase::CompleteOperation(const TOperationId& operationId)
 {
-    NRawClient::CompleteOperation(Auth_, operationId);
+    NRawClient::CompleteOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, operationId);
 }
 
 void TClientBase::WaitForOperation(const TOperationId& operationId)
 {
-    NYT::NDetail::WaitForOperation(Auth_, operationId);
+    NYT::NDetail::WaitForOperation(ClientRetryPolicy_, Auth_, operationId);
 }
 
 void TClientBase::AlterTable(
     const TYPath& path,
     const TAlterTableOptions& options)
 {
-    NRawClient::AlterTable(Auth_, TransactionId_, path, options);
+    NRawClient::AlterTable(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, path, options);
 }
 
 ::TIntrusivePtr<TClientReader> TClientBase::CreateClientReader(
@@ -456,6 +459,7 @@ void TClientBase::AlterTable(
 {
     return ::MakeIntrusive<TClientReader>(
         CanonizePath(Auth_, path),
+        ClientRetryPolicy_,
         Auth_,
         TransactionId_,
         format,
@@ -469,12 +473,18 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
     const TTableWriterOptions& options)
 {
     auto realPath = CanonizePath(Auth_, path);
-    if (!NRawClient::Exists(Auth_, TransactionId_, realPath.Path_)) {
-        NRawClient::Create(Auth_, TransactionId_, realPath.Path_, NT_TABLE,
+    if (!NRawClient::Exists(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, realPath.Path_)) {
+        NRawClient::Create(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, realPath.Path_, NT_TABLE,
             TCreateOptions().IgnoreExisting(true));
     }
     return MakeHolder<TClientWriter>(
-        realPath, Auth_, TransactionId_, format, options);
+        realPath,
+        ClientRetryPolicy_,
+        Auth_,
+        TransactionId_,
+        format,
+        options
+    );
 }
 
 ::TIntrusivePtr<INodeReaderImpl> TClientBase::CreateNodeReader(
@@ -582,7 +592,7 @@ const TAuth& TClientBase::GetAuth() const
 
 const IClientRetryPolicyPtr& TClientBase::GetRetryPolicy() const
 {
-    return RetryPolicy_;
+    return ClientRetryPolicy_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -619,7 +629,7 @@ ILockPtr TTransaction::Lock(
     ELockMode mode,
     const TLockOptions& options)
 {
-    auto lockId = NRawClient::Lock(Auth_, TransactionId_, path, mode, options);
+    auto lockId = NRawClient::Lock(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, path, mode, options);
     return ::MakeIntrusive<TLock>(lockId, GetParentClientImpl(), options.Waitable_);
 }
 
@@ -627,7 +637,7 @@ void TTransaction::Unlock(
     const TYPath& path,
     const TUnlockOptions& options)
 {
-    NRawClient::Unlock(Auth_, TransactionId_, path, options);
+    NRawClient::Unlock(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, path, options);
 }
 
 void TTransaction::Commit()
@@ -650,8 +660,7 @@ void TTransaction::Abort()
 
 void TTransaction::Ping()
 {
-    auto retryPolicy = MakeIntrusive<TPingRetryPolicy>((ui32)TConfig::Get()->RetryCount);
-    PingTx(Auth_, TransactionId_, retryPolicy);
+    PingTx(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_);
 }
 
 TClientPtr TTransaction::GetParentClientImpl()
@@ -686,7 +695,7 @@ void TClient::MountTable(
         header.AddParameter("cell_id", GetGuidAsString(*options.CellId_));
     }
     header.AddParameter("freeze", options.Freeze_);
-    RetryRequestWithPolicy(Auth_, header);
+    RetryRequestWithPolicy(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, header);
 }
 
 void TClient::UnmountTable(
@@ -696,7 +705,7 @@ void TClient::UnmountTable(
     THttpHeader header("POST", "unmount_table");
     SetTabletParams(header, path, options);
     header.AddParameter("force", options.Force_);
-    RetryRequestWithPolicy(Auth_, header);
+    RetryRequestWithPolicy(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, header);
 }
 
 void TClient::RemountTable(
@@ -705,21 +714,21 @@ void TClient::RemountTable(
 {
     THttpHeader header("POST", "remount_table");
     SetTabletParams(header, path, options);
-    RetryRequestWithPolicy(Auth_, header);
+    RetryRequestWithPolicy(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, header);
 }
 
 void TClient::FreezeTable(
     const TYPath& path,
     const TFreezeTableOptions& options)
 {
-    NRawClient::FreezeTable(Auth_, path, options);
+    NRawClient::FreezeTable(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, path, options);
 }
 
 void TClient::UnfreezeTable(
     const TYPath& path,
     const TUnfreezeTableOptions& options)
 {
-    NRawClient::UnfreezeTable(Auth_, path, options);
+    NRawClient::UnfreezeTable(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, path, options);
 }
 
 void TClient::ReshardTable(
@@ -730,7 +739,7 @@ void TClient::ReshardTable(
     THttpHeader header("POST", "reshard_table");
     SetTabletParams(header, path, options);
     header.AddParameter("pivot_keys", BuildYsonNodeFluently().List(keys));
-    RetryRequestWithPolicy(Auth_, header);
+    RetryRequestWithPolicy(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, header);
 }
 
 void TClient::ReshardTable(
@@ -741,7 +750,7 @@ void TClient::ReshardTable(
     THttpHeader header("POST", "reshard_table");
     SetTabletParams(header, path, options);
     header.AddParameter("tablet_count", tabletCount);
-    RetryRequestWithPolicy(Auth_, header);
+    RetryRequestWithPolicy(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, header);
 }
 
 void TClient::InsertRows(
@@ -757,7 +766,7 @@ void TClient::InsertRows(
     auto body = NodeListToYsonString(rows);
     TRequestConfig config;
     config.IsHeavy = true;
-    auto requestResult = RetryRequestWithPolicy(Auth_, header, body, nullptr, config);
+    auto requestResult = RetryRequestWithPolicy(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, header, body, config);
 }
 
 void TClient::DeleteRows(
@@ -765,7 +774,7 @@ void TClient::DeleteRows(
     const TNode::TListType& keys,
     const TDeleteRowsOptions& options)
 {
-    return NRawClient::DeleteRows(Auth_, path, keys, options);
+    return NRawClient::DeleteRows(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, path, keys, options);
 }
 
 void TClient::TrimRows(
@@ -782,7 +791,7 @@ void TClient::TrimRows(
 
     TRequestConfig config;
     config.IsHeavy = true;
-    RetryRequestWithPolicy(Auth_, header, {}, nullptr, config);
+    RetryRequestWithPolicy(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, header, {}, config);
 }
 
 TNode::TListType TClient::LookupRows(
@@ -812,7 +821,7 @@ TNode::TListType TClient::LookupRows(
     auto body = NodeListToYsonString(keys);
     TRequestConfig config;
     config.IsHeavy = true;
-    auto result = RetryRequestWithPolicy(Auth_, header, body, nullptr, config);
+    auto result = RetryRequestWithPolicy(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, header, body, config);
     return NodeFromYsonString(result.Response, YT_LIST_FRAGMENT).AsList();
 }
 
@@ -843,23 +852,23 @@ TNode::TListType TClient::SelectRows(
 
     TRequestConfig config;
     config.IsHeavy = true;
-    auto result = RetryRequestWithPolicy(Auth_, header, {}, nullptr, config);
+    auto result = RetryRequestWithPolicy(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, header, {}, config);
     return NodeFromYsonString(result.Response, YT_LIST_FRAGMENT).AsList();
 }
 
 void TClient::EnableTableReplica(const TReplicaId& replicaId)
 {
-    NRawClient::EnableTableReplica(Auth_, replicaId);
+    NRawClient::EnableTableReplica(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, replicaId);
 }
 
 void TClient::DisableTableReplica(const TReplicaId& replicaId)
 {
-    NRawClient::DisableTableReplica(Auth_, replicaId);
+    NRawClient::DisableTableReplica(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, replicaId);
 }
 
 void TClient::AlterTableReplica(const TReplicaId& replicaId, const TAlterTableReplicaOptions& options)
 {
-    NRawClient::AlterTableReplica(Auth_, replicaId, options);
+    NRawClient::AlterTableReplica(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, replicaId, options);
 }
 
 ui64 TClient::GenerateTimestamp()
@@ -867,14 +876,14 @@ ui64 TClient::GenerateTimestamp()
     THttpHeader header("GET", "generate_timestamp");
     TRequestConfig config;
     config.IsHeavy = true;
-    auto requestResult = RetryRequestWithPolicy(Auth_, header, {}, nullptr, config);
+    auto requestResult = RetryRequestWithPolicy(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, header, {}, config);
     return NodeFromYsonString(requestResult.Response).AsUint64();
 }
 
 TAuthorizationInfo TClient::WhoAmI()
 {
     THttpHeader header("GET", "auth/whoami", /* isApi = */ false);
-    auto requestResult = RetryRequestWithPolicy(Auth_, header);
+    auto requestResult = RetryRequestWithPolicy(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, header);
     TAuthorizationInfo result;
 
     NJson::TJsonValue jsonValue;
@@ -889,20 +898,20 @@ TOperationAttributes TClient::GetOperation(
     const TOperationId& operationId,
     const TGetOperationOptions& options)
 {
-    return NRawClient::GetOperation(Auth_, operationId, options);
+    return NRawClient::GetOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, operationId, options);
 }
 
 TListOperationsResult TClient::ListOperations(
     const TListOperationsOptions& options)
 {
-    return NRawClient::ListOperations(Auth_, options);
+    return NRawClient::ListOperations(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, options);
 }
 
 void TClient::UpdateOperationParameters(
     const TOperationId& operationId,
     const TUpdateOperationParametersOptions& options)
 {
-    return NRawClient::UpdateOperationParameters(Auth_, operationId, options);
+    return NRawClient::UpdateOperationParameters(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, operationId, options);
 }
 
 TJobAttributes TClient::GetJob(
@@ -910,14 +919,14 @@ TJobAttributes TClient::GetJob(
     const TJobId& jobId,
     const TGetJobOptions& options)
 {
-    return NRawClient::GetJob(Auth_, operationId, jobId, options);
+    return NRawClient::GetJob(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, operationId, jobId, options);
 }
 
 TListJobsResult TClient::ListJobs(
     const TOperationId& operationId,
     const TListJobsOptions& options)
 {
-    return NRawClient::ListJobs(Auth_, operationId, options);
+    return NRawClient::ListJobs(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, operationId, options);
 }
 
 IFileReaderPtr TClient::GetJobInput(
@@ -948,7 +957,7 @@ TMaybe<TYPath> TClient::GetFileFromCache(
     const TYPath& cachePath,
     const TGetFileFromCacheOptions& options)
 {
-    return NRawClient::GetFileFromCache(Auth_, md5Signature, cachePath, options);
+    return NRawClient::GetFileFromCache(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, md5Signature, cachePath, options);
 }
 
 TYPath TClient::PutFileToCache(
@@ -957,7 +966,7 @@ TYPath TClient::PutFileToCache(
     const TYPath& cachePath,
     const TPutFileToCacheOptions& options)
 {
-    return NRawClient::PutFileToCache(Auth_, filePath, md5Signature, cachePath, options);
+    return NRawClient::PutFileToCache(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, filePath, md5Signature, cachePath, options);
 }
 
 TYtPoller& TClient::GetYtPoller()
@@ -967,7 +976,7 @@ TYtPoller& TClient::GetYtPoller()
         // We don't use current client and create new client because YtPoller_ might use
         // this client during current client shutdown.
         // That might lead to incrementing of current client refcount and double delete of current client object.
-        YtPoller_ = MakeHolder<TYtPoller>(Auth_);
+        YtPoller_ = MakeHolder<TYtPoller>(Auth_, ClientRetryPolicy_);
     }
     return *YtPoller_;
 }

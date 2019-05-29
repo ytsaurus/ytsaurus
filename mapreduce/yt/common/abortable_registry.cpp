@@ -30,15 +30,16 @@ TString TTransactionAbortable::GetType() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationAbortable::TOperationAbortable(const TAuth& auth, const TOperationId& operationId)
-    : Auth_(auth)
+TOperationAbortable::TOperationAbortable(IClientRetryPolicyPtr clientRetryPolicy, TAuth auth, const TOperationId& operationId)
+    : ClientRetryPolicy_(std::move(clientRetryPolicy))
+    , Auth_(std::move(auth))
     , OperationId_(operationId)
 { }
 
 
 void TOperationAbortable::Abort()
 {
-    AbortOperation(Auth_, OperationId_);
+    AbortOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, OperationId_);
 }
 
 TString TOperationAbortable::GetType() const

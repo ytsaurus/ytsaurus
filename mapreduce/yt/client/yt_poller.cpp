@@ -18,8 +18,9 @@ using namespace NRawClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYtPoller::TYtPoller(TAuth auth)
+TYtPoller::TYtPoller(TAuth auth, const IClientRetryPolicyPtr& retryPolicy)
     : Auth_(std::move(auth))
+    , ClientRetryPolicy_(retryPolicy)
     , WaiterThread_(&TYtPoller::WatchLoopProc, this)
 {
     WaiterThread_.Start();
@@ -69,7 +70,7 @@ void TYtPoller::WatchLoop()
         }
 
         try {
-            ExecuteBatch(Auth_, rawBatchRequest);
+            ExecuteBatch(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, rawBatchRequest);
         } catch (const yexception& ex) {
             LOG_ERROR("Exception while executing batch request: %s", ex.what());
         }

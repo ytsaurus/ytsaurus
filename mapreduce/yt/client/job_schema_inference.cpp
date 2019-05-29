@@ -12,10 +12,12 @@ TSchemaInferenceContext::TSchemaInferenceContext(
     TStructuredJobTableList structuredInputs,
     TStructuredJobTableList structuredOutputs,
     const TAuth& auth,
+    const IClientRetryPolicyPtr& retryPolicy,
     TTransactionId transactionId)
     : Inputs_(std::move(structuredInputs))
     , Outputs_(std::move(structuredOutputs))
     , Auth_(auth)
+    , RetryPolicy_(retryPolicy)
     , TransactionId_(transactionId)
     , InputSchemas_(Inputs_.size())
 { }
@@ -36,6 +38,7 @@ const TTableSchema& TSchemaInferenceContext::GetInputTableSchema(int index) cons
     if (maybeSchema.Empty()) {
         Y_VERIFY(Inputs_[index].RichYPath);
         auto schemaNode = NRawClient::Get(
+            RetryPolicy_->CreatePolicyForGenericRequest(),
             Auth_,
             TransactionId_,
             Inputs_[index].RichYPath->Path_ + "/@schema");

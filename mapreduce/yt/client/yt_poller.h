@@ -43,7 +43,7 @@ class TYtPoller
     : public TThrRefBase
 {
 public:
-    explicit TYtPoller(TAuth auth);
+    TYtPoller(TAuth auth, const IClientRetryPolicyPtr& retryPolicy);
     ~TYtPoller();
 
     void Watch(IYtPollerItemPtr item);
@@ -56,7 +56,9 @@ private:
 private:
     struct TItem;
 
-    TAuth Auth_;
+    const TAuth Auth_;
+    const IClientRetryPolicyPtr ClientRetryPolicy_;
+
 
     TList<IYtPollerItemPtr> InProgress_;
     TList<IYtPollerItemPtr> Pending_;

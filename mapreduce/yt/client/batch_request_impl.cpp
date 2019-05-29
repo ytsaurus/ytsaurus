@@ -163,7 +163,7 @@ TFuture<TVector<TTableColumnarStatistics>> TBatchRequest::GetTableColumnarStatis
 
 void TBatchRequest::ExecuteBatch(const TExecuteBatchOptions& options)
 {
-    NYT::NDetail::ExecuteBatch(Client_->GetAuth(), *Impl_, options);
+    NYT::NDetail::ExecuteBatch(Client_->GetRetryPolicy()->CreatePolicyForGenericRequest(), Client_->GetAuth(), *Impl_, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

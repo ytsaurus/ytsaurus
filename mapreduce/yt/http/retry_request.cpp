@@ -18,10 +18,10 @@ namespace NDetail {
 ///////////////////////////////////////////////////////////////////////////////
 
 TResponseInfo RetryRequestWithPolicy(
+    IRequestRetryPolicyPtr retryPolicy,
     const TAuth& auth,
     THttpHeader& header,
     TMaybe<TStringBuf> body,
-    IRequestRetryPolicyPtr retryPolicy,
     const TRequestConfig& config)
 {
     header.SetToken(auth.Token);

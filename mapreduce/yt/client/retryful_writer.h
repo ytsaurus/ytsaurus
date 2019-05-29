@@ -29,6 +29,7 @@ class TRetryfulWriter
 public:
     template <class TWriterOptions>
     TRetryfulWriter(
+        IClientRetryPolicyPtr clientRetryPolicy,
         const TAuth& auth,
         const TTransactionId& parentId,
         const TString& command,
@@ -36,7 +37,8 @@ public:
         const TRichYPath& path,
         size_t bufferSize,
         const TWriterOptions& options)
-        : Auth_(auth)
+        : ClientRetryPolicy_(std::move(clientRetryPolicy))
+        , Auth_(auth)
         , Command_(command)
         , Format_(format)
         , BufferSize_(bufferSize)
@@ -61,7 +63,7 @@ public:
             WriteTransaction_.ConstructInPlace(auth, parentId);
             auto append = path.Append_.GetOrElse(false);
             auto lockMode = (append  ? LM_SHARED : LM_EXCLUSIVE);
-            NDetail::NRawClient::Lock(Auth_, WriteTransaction_->GetId(), path.Path_, lockMode, TLockOptions());
+            NDetail::NRawClient::Lock(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, WriteTransaction_->GetId(), path.Path_, lockMode);
         }
 
         EmptyBuffers_.Push(TBuffer(bufferSize * 2));
@@ -76,7 +78,8 @@ protected:
     void DoFinish() override;
 
 private:
-    TAuth Auth_;
+    const IClientRetryPolicyPtr ClientRetryPolicy_;
+    const TAuth Auth_;
     TString Command_;
     TMaybe<TFormat> Format_;
     const size_t BufferSize_;

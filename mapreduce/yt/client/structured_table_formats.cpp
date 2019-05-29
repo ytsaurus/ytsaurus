@@ -18,6 +18,7 @@ namespace NDetail {
 
 NSkiff::TSkiffSchemaPtr TryCreateSkiffSchema(
     const TAuth& auth,
+    const IClientRetryPolicyPtr& clientRetryPolicy,
     const TTransactionId& transactionId,
     const TVector<TRichYPath>& tables,
     const TOperationOptions& options,
@@ -31,6 +32,7 @@ NSkiff::TSkiffSchemaPtr TryCreateSkiffSchema(
     }
     return CreateSkiffSchemaIfNecessary(
         auth,
+        clientRetryPolicy,
         transactionId,
         nodeReaderFormat,
         tables,
@@ -214,10 +216,12 @@ struct TFormatBuilder::TFormatSwitcher
 };
 
 TFormatBuilder::TFormatBuilder(
+    IClientRetryPolicyPtr clientRetryPolicy,
     TAuth auth,
     TTransactionId transactionId,
     TOperationOptions operationOptions)
-    : Auth_(std::move(auth))
+    : ClientRetryPolicy_(std::move(clientRetryPolicy))
+    , Auth_(std::move(auth))
     , TransactionId_(transactionId)
     , OperationOptions_(std::move(operationOptions))
 { }
@@ -264,7 +268,7 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateYamrFormat(
             Y_VERIFY(table.RichYPath, "Cannot use format from table for intermediate table");
             tableList.push_back(*table.RichYPath);
         }
-        formatFromTableAttributes = GetTableFormats(Auth_, TransactionId_, tableList);
+        formatFromTableAttributes = GetTableFormats(ClientRetryPolicy_, Auth_, TransactionId_, tableList);
     }
     if (formatFromTableAttributes) {
         return {
@@ -309,6 +313,7 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateNodeFormat(
         }
         skiffSchema = TryCreateSkiffSchema(
             Auth_,
+            ClientRetryPolicy_,
             TransactionId_,
             tableList,
             OperationOptions_,

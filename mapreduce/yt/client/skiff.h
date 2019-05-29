@@ -52,6 +52,7 @@ TFormat CreateSkiffFormat(const NSkiff::TSkiffSchemaPtr& schema);
 
 NSkiff::TSkiffSchemaPtr CreateSkiffSchemaIfNecessary(
     const TAuth& auth,
+    const IClientRetryPolicyPtr& clientRetryPolicy,
     const TTransactionId& transactionId,
     ENodeReaderFormat nodeReaderFormat,
     const TVector<TRichYPath>& tablePaths,
