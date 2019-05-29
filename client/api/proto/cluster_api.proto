@@ -159,7 +159,7 @@ message Resource {
     // https://wiki.yandex-team.ru/iss3/specifications/agent/downloadqueues/
     string queue = 2;
     Verification verification = 3;
-    // Ссылки на реурс, например, "rbtorrent:2f83ff0f5b98b315ce356e129ce1e00d7b67ec7d", "http://cmsearch.yandex.ru/res"
+    // Ссылки на ресурс, например, "rbtorrent:2f83ff0f5b98b315ce356e129ce1e00d7b67ec7d", "http://cmsearch.yandex.ru/res"
     repeated string urls = 4;
     // Размер ресурса в байтах
     uint64 sizeBytes = 5;
@@ -275,6 +275,9 @@ message CurrentStateFeedback {
 
     // Состояния ресурсов.
     repeated ResourceState resources = 9;
+
+    // Момент когда мы получили конфигурацию в первый раз
+    uint64 configurationReceivedTimestamp = 10;
 }
 
 enum InstanceType {
