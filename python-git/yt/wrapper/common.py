@@ -249,11 +249,14 @@ def get_platform():
     else:
         return None
 
+def get_user_info():
+    try:
+        return {"user": getpass.getuser()}
+    except Exception:
+        return {"user_id": os.getuid()}
+
 def get_started_by_short():
-    return {
-        "pid": os.getpid(),
-        "user": getpass.getuser(),
-    }
+    return update({"pid": os.getpid()}, get_user_info())
 
 def get_started_by():
     python_version = "{0}.{1}.{2}".format(*get_python_version())
@@ -261,11 +264,12 @@ def get_started_by():
     started_by = {
         "hostname": socket.getfqdn(),
         "pid": os.getpid(),
-        "user": getpass.getuser(),
         "command": sys.argv,
         "wrapper_version": get_version(),
         "python_version": python_version
     }
+
+    started_by = update(started_by, get_user_info())
 
     platform = get_platform()
     if platform is not None:
