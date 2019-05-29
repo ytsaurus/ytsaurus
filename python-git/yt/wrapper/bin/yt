@@ -843,6 +843,7 @@ def add_erase_parser(add_parser):
     parser = add_parser("erase", operation_handler(yt.run_erase), epilog="Note you can specify range in table to erase.")
     add_ypath_argument(parser, "table", help="path to table to erase", hybrid=True)
     add_operation_handler_related_args(parser)
+    add_structured_argument(parser, "--spec")
 
 def add_merge_parser(add_parser):
     parser = add_parser("merge", operation_handler(yt.run_merge))
