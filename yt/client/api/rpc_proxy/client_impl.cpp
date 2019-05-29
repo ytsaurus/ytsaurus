@@ -80,36 +80,23 @@ TClient::TClient(
     , ChannelPool_(channelPool)
     , Channel_(CreateCredentialsInjectingChannel(CreateDynamicChannel(channelPool), clientOptions))
     , ClientOptions_(clientOptions)
+    , TableMountCache_(BIND(
+        &CreateTableMountCache,
+        Connection_->GetConfig()->TableMountCache,
+        Channel_,
+        RpcProxyClientLogger,
+        Connection_->GetConfig()->RpcTimeout))
+    , TimestampProvider_(BIND(&TClient::CreateTimestampProvider, Unretained(this)))
 { }
 
 const ITableMountCachePtr& TClient::GetTableMountCache()
 {
-    if (!TableMountCacheInitialized_.load()) {
-        auto guard = Guard(TableMountCacheSpinLock_);
-        if (!TableMountCache_) {
-            TableMountCache_ = CreateTableMountCache(
-                Connection_->GetConfig()->TableMountCache,
-                Channel_,
-                RpcProxyClientLogger,
-                Connection_->GetConfig()->RpcTimeout);
-        }
-        TableMountCacheInitialized_.store(true);
-    }
-    return TableMountCache_;
+    return TableMountCache_.Value();
 }
 
 const ITimestampProviderPtr& TClient::GetTimestampProvider()
 {
-    if (!TimestampProviderInitialized_.load()) {
-        auto guard = Guard(TimestampProviderSpinLock_);
-        if (!TimestampProvider_) {
-            TimestampProvider_ = CreateBatchingTimestampProvider(
-                CreateTimestampProvider(Channel_, Connection_->GetConfig()->RpcTimeout),
-                Connection_->GetConfig()->TimestampProviderUpdatePeriod);
-        }
-        TimestampProviderInitialized_.store(true);
-    }
-    return TimestampProvider_;
+    return TimestampProvider_.Value();
 }
 
 TFuture<void> TClient::Terminate()
@@ -137,6 +124,13 @@ IChannelPtr TClient::GetStickyChannel()
     return CreateCredentialsInjectingChannel(
         CreateStickyChannel(ChannelPool_),
         ClientOptions_);
+}
+
+ITimestampProviderPtr TClient::CreateTimestampProvider() const
+{
+    return CreateBatchingTimestampProvider(
+        NRpcProxy::CreateTimestampProvider(Channel_, Connection_->GetConfig()->RpcTimeout),
+        Connection_->GetConfig()->TimestampProviderUpdatePeriod);
 }
 
 ITransactionPtr TClient::AttachTransaction(

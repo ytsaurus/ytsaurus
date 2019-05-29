@@ -48,12 +48,12 @@ public:
 
     IPrioritizedInvokerPtr GetPrioritizedCompressionPoolInvoker()
     {
-        return CompressionPoolInvoker_.Get();
+        return CompressionPoolInvoker_.Value();
     }
 
     IPrioritizedInvokerPtr GetPrioritizedErasurePoolInvoker()
     {
-        return ErasurePoolInvoker_.Get();
+        return ErasurePoolInvoker_.Value();
     }
 
     IInvokerPtr GetCompressionPoolInvoker()
