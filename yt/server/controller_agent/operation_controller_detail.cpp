@@ -4722,7 +4722,8 @@ void TOperationControllerBase::GetInputTablesAttributes()
                     "retained_timestamp",
                     "schema_mode",
                     "schema",
-                    "unflushed_timestamp"
+                    "unflushed_timestamp",
+                    "content_revision"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 SetTransactionId(req, *table->TransactionId);
@@ -4758,17 +4759,19 @@ void TOperationControllerBase::GetInputTablesAttributes()
                 table->Schema = attributes->Get<TTableSchema>("schema");
                 table->SchemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
                 table->ChunkCount = attributes->Get<int>("chunk_count");
+                table->ContentRevision = attributes->Get<ui64>("content_revision");
 
                 // Validate that timestamp is correct.
                 ValidateDynamicTableTimestamp(table->Path, table->IsDynamic, table->Schema, *attributes);
             }
-            YT_LOG_INFO("Input table locked (Path: %v, ObjectId: %v, Schema: %v, Dynamic: %v, ChunkCount: %v, SecurityTags: %v)",
+            YT_LOG_INFO("Input table locked (Path: %v, ObjectId: %v, Schema: %v, Dynamic: %v, ChunkCount: %v, SecurityTags: %v, ContentRevision: %v)",
                 path,
                 table->ObjectId,
                 table->Schema,
                 table->IsDynamic,
                 table->ChunkCount,
-                table->SecurityTags);
+                table->SecurityTags,
+                table->ContentRevision);
 
             if (!table->ColumnRenameDescriptors.empty()) {
                 if (table->Path.GetTeleport()) {
@@ -5416,6 +5419,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                 }
                 attributeKeys.push_back("key");
                 attributeKeys.push_back("chunk_count");
+                attributeKeys.push_back("content_revision");
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 batchReq->AddRequest(req, "get_attributes");
             }
@@ -5523,12 +5527,14 @@ void TOperationControllerBase::GetUserFilesAttributes()
                             Config->MaxUserFileChunkCount);
                     }
                     file.ChunkCount = chunkCount;
+                    file.ContentRevision = attributes.Get<ui64>("content_revision");
 
-                    YT_LOG_INFO("User file locked (Path: %v, TaskTitle: %v, FileName: %v, SecurityTags: %v)",
+                    YT_LOG_INFO("User file locked (Path: %v, TaskTitle: %v, FileName: %v, SecurityTags: %v, ContentRevision: %v)",
                         path,
                         userJobSpec->TaskTitle,
                         file.FileName,
-                        file.SecurityTags);
+                        file.SecurityTags,
+                        file.ContentRevision);
                 }
 
                 if (!file.Layer) {
