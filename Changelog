@@ -6,6 +6,7 @@
 #    yt/server/master/cell_master/serialize.cpp - if the version differs, then the update should be done with master snapshots (+ --set-read-only).
 #    yt/server/node/tablet_node/serialize.cpp - if the version differs, then the update should be done with tablet cell recreation.
 
+* shakurov: YT-10852. Update masters via snapshot.
 * levysotsky: Changed TTableSchemas's operator==. Update masters via snapshot.
 * aozeritsky: Update masters via snapshot.
 * shakurov: Changed Hydra service protocol. Update masters via snapshot.
