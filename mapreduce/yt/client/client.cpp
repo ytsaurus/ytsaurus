@@ -1029,11 +1029,11 @@ IClientPtr CreateClient(
     }
     TConfig::ValidateToken(auth.Token);
 
-    auto retryPolicy = options.RetryPolicy_;
-    if (!retryPolicy) {
-        retryPolicy = CreateDefaultClientRetryPolicy();
+    auto retryConfigProvider = options.RetryConfigProvider_;
+    if (!retryConfigProvider) {
+        retryConfigProvider = CreateDefaultRetryConfigProvider();
     }
-    return new NDetail::TClient(auth, globalTxId, retryPolicy);
+    return new NDetail::TClient(auth, globalTxId, CreateDefaultClientRetryPolicy(retryConfigProvider));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

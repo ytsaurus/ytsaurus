@@ -10,7 +10,7 @@ class TAttemptLimitedRetryPolicy
     : public IRequestRetryPolicy
 {
 public:
-    TAttemptLimitedRetryPolicy(ui32 attemptLimit);
+    explicit TAttemptLimitedRetryPolicy(ui32 attemptLimit);
 
     void NotifyNewAttempt() override;
 
@@ -29,12 +29,14 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IRequestRetryPolicyPtr CreateDefaultRequestRetryPolicy();
-IClientRetryPolicyPtr CreateDefaultClientRetryPolicy();
+IClientRetryPolicyPtr CreateDefaultClientRetryPolicy(IRetryConfigProviderPtr retryConfigProvider);
+IRetryConfigProviderPtr CreateDefaultRetryConfigProvider();
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // Check if error returned by YT can be retried
 bool IsRetriable(const TErrorResponse& errorResponse);
+bool IsRetriable(const yexception& ex);
 
 // Get backoff duration for errors returned by YT.
 TDuration GetBackoffDuration(const TErrorResponse& errorResponse);

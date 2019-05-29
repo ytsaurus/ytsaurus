@@ -19,7 +19,7 @@ namespace NTesting {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IClientPtr CreateTestClient(TString proxy = "");
+IClientPtr CreateTestClient(TString proxy = "", const TCreateClientOptions& options = {});
 
 // Create map node by unique path in Cypress and return that path.
 TYPath CreateTestDirectory(const IClientBasePtr& client);
@@ -86,7 +86,7 @@ bool operator == (const TOwningYaMRRow& row1, const TOwningYaMRRow& row2);
 class TTestFixture
 {
 public:
-    TTestFixture();
+    explicit TTestFixture(const TCreateClientOptions& options = {});
 
     IClientPtr GetClient() const;
     TYPath GetWorkingDir() const;

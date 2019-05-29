@@ -47,6 +47,50 @@ bool TAttemptLimitedRetryPolicy::IsAttemptLimitExceeded() const
 {
     return Attempt_ >= AttemptLimit_;
 }
+////////////////////////////////////////////////////////////////////////////////
+
+class TTimeLimitedRetryPolicy
+    : public IRequestRetryPolicy
+{
+public:
+    TTimeLimitedRetryPolicy(IRequestRetryPolicyPtr retryPolicy, TDuration timeout)
+        : RetryPolicy_(retryPolicy)
+        , Deadline_(TInstant::Now() + timeout)
+        , Timeout_(timeout)
+    { }
+    void NotifyNewAttempt() override
+    {
+        if (TInstant::Now() >= Deadline_) {
+            ythrow TRequestRetriesTimeout() << "retry timeout exceeded (timeout: " << Timeout_ << ")";
+        }
+        RetryPolicy_->NotifyNewAttempt();
+    }
+
+    TMaybe<TDuration> OnGenericError(const yexception& e) override
+    {
+        return RetryPolicy_->OnGenericError(e);
+    }
+
+    TMaybe<TDuration> OnRetriableError(const TErrorResponse& e) override
+    {
+        return RetryPolicy_->OnRetriableError(e);
+    }
+
+    void OnIgnoredError(const TErrorResponse& e) override
+    {
+        return RetryPolicy_->OnIgnoredError(e);
+    }
+
+    TString GetAttemptDescription() const override
+    {
+        return RetryPolicy_->GetAttemptDescription();
+    }
+
+private:
+    const IRequestRetryPolicyPtr RetryPolicy_;
+    const TInstant Deadline_;
+    const TDuration Timeout_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,14 +98,40 @@ class TDefaultClientRetryPolicy
     : public IClientRetryPolicy
 {
 public:
+    explicit TDefaultClientRetryPolicy(IRetryConfigProviderPtr retryConfigProvider)
+        : RetryConfigProvider_(std::move(retryConfigProvider))
+    { }
+
     IRequestRetryPolicyPtr CreatePolicyForGenericRequest() override
     {
-        return CreateDefaultRequestRetryPolicy();
+        return Wrap(CreateDefaultRequestRetryPolicy());
     }
 
     IRequestRetryPolicyPtr CreatePolicyForStartOperationRequest() override
     {
-        return MakeIntrusive<TAttemptLimitedRetryPolicy>(static_cast<ui32>(TConfig::Get()->StartOperationRetryCount));
+        return Wrap(MakeIntrusive<TAttemptLimitedRetryPolicy>(static_cast<ui32>(TConfig::Get()->StartOperationRetryCount)));
+    }
+
+    IRequestRetryPolicyPtr Wrap(IRequestRetryPolicyPtr basePolicy)
+    {
+        auto config = RetryConfigProvider_->CreateRetryConfig();
+        if (config.RetriesTimeLimit < TDuration::Max()) {
+            return ::MakeIntrusive<TTimeLimitedRetryPolicy>(std::move(basePolicy), config.RetriesTimeLimit);
+        }
+        return basePolicy;
+    }
+
+private:
+    IRetryConfigProviderPtr RetryConfigProvider_;
+};
+
+class TDefaultRetryConfigProvider
+    : public IRetryConfigProvider
+{
+public:
+    TRetryConfig CreateRetryConfig() override
+    {
+        return {};
     }
 };
 
@@ -72,9 +142,13 @@ IRequestRetryPolicyPtr CreateDefaultRequestRetryPolicy()
     return MakeIntrusive<TAttemptLimitedRetryPolicy>(static_cast<ui32>(TConfig::Get()->RetryCount));
 }
 
-IClientRetryPolicyPtr CreateDefaultClientRetryPolicy()
+IClientRetryPolicyPtr CreateDefaultClientRetryPolicy(IRetryConfigProviderPtr retryConfigProvider)
 {
-    return MakeIntrusive<TDefaultClientRetryPolicy>();
+    return MakeIntrusive<TDefaultClientRetryPolicy>(std::move(retryConfigProvider));
+}
+IRetryConfigProviderPtr CreateDefaultRetryConfigProvider()
+{
+    return MakeIntrusive<TDefaultRetryConfigProvider>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -111,6 +185,14 @@ TDuration GetBackoffDuration(const TErrorResponse& errorResponse)
 bool IsRetriable(const TErrorResponse& errorResponse)
 {
     return GetRetryInfo(errorResponse).first;
+}
+
+bool IsRetriable(const yexception& ex)
+{
+    if (dynamic_cast<const TRequestRetriesTimeout*>(&ex)) {
+        return false;
+    }
+    return true;
 }
 
 TDuration GetBackoffDuration(const yexception& /*error*/)

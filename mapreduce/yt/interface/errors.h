@@ -20,6 +20,10 @@ class TApiUsageError
     : public yexception
 { };
 
+class TRequestRetriesTimeout
+    : public yexception
+{ };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYtError
