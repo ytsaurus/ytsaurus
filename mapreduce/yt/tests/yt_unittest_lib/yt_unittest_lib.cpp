@@ -35,13 +35,13 @@ namespace NTesting {
 
 ////////////////////////////////////////////////////////////////////
 
-IClientPtr CreateTestClient(TString proxy)
+IClientPtr CreateTestClient(TString proxy, const TCreateClientOptions& options)
 {
     if (proxy.empty()) {
         proxy = GetEnv("YT_PROXY");
     }
     Y_ENSURE(!proxy.empty(), "YT_PROXY env variable must be set or 'proxy' argument nonempty");
-    auto client = CreateClient(proxy);
+    auto client = CreateClient(proxy, options);
     client->Remove("//testing", TRemoveOptions().Recursive(true).Force(true));
     client->Create("//testing", ENodeType::NT_MAP, TCreateOptions());
     return client;
@@ -139,8 +139,8 @@ bool operator == (const TOwningYaMRRow& row1, const TOwningYaMRRow& row2) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTestFixture::TTestFixture()
-    : Client_(CreateTestClient())
+TTestFixture::TTestFixture(const TCreateClientOptions& options)
+    : Client_(CreateTestClient("", options))
     , WorkingDir_(CreateTestDirectory(Client_))
 { }
 

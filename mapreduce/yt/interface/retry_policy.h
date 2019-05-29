@@ -53,5 +53,23 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TRetryConfig
+{
+    // RetriesTimeLimit controls how long retries can go on.
+    // If this limit is reached while retry count is not yet exceeded TRequestRetriesTimeout exception is thrown.
+    TDuration RetriesTimeLimit = TDuration::Max();
+};
+
+class IRetryConfigProvider
+    : public virtual TThrRefBase
+{
+public:
+    // CreateRetryConfig is called before ANY request.
+    // Returned config controls retries of this request.
+    virtual TRetryConfig CreateRetryConfig() = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 

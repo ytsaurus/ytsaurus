@@ -34,20 +34,18 @@ TResponseInfo RetryRequestWithPolicy(
     }
 
     while (true) {
-        retryPolicy->NotifyNewAttempt();
         THttpHeader currentHeader = header;
         TString response;
 
-        TString requestId = "<unknown>";
         THttpRequest request;
         try {
+            retryPolicy->NotifyNewAttempt();
             TString hostName;
             if (config.IsHeavy) {
                 hostName = GetProxyForHeavyRequest(auth);
             } else {
                 hostName = auth.ServerName;
             }
-            TString requestId = request.GetRequestId();
 
             if (useMutationId) {
                 if (retryWithSameMutationId) {
@@ -62,7 +60,7 @@ TResponseInfo RetryRequestWithPolicy(
             request.SmallRequest(header, body);
 
             TResponseInfo result;
-            result.RequestId = requestId;
+            result.RequestId = request.GetRequestId();
             result.Response = request.GetResponse();
             return result;
         } catch (const TErrorResponse& e) {
@@ -82,6 +80,10 @@ TResponseInfo RetryRequestWithPolicy(
         } catch (const yexception& e) {
             LogRequestError(request, header, e.what(), retryPolicy->GetAttemptDescription());
             retryWithSameMutationId = true;
+
+            if (!IsRetriable(e)) {
+                throw;
+            }
 
             auto maybeRetryTimeout = retryPolicy->OnGenericError(e);
             if (maybeRetryTimeout) {

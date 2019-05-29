@@ -460,9 +460,9 @@ struct TCreateClientOptions
     FLUENT_FIELD(TString, Token);
     FLUENT_FIELD(TString, TokenPath);
 
-    // Policy that controls retries of all requests issued by client.
-    // If nullptr is specified default retry policy is used.
-    FLUENT_FIELD_DEFAULT(IClientRetryPolicyPtr, RetryPolicy, nullptr);
+    // RetryConfig provider allows to fine tune request retries.
+    // E.g. set total timeout for all retries.
+    FLUENT_FIELD_DEFAULT(IRetryConfigProviderPtr, RetryConfigProvider, nullptr);
 };
 
 struct TExecuteBatchOptions
