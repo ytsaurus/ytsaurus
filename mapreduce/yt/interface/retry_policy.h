@@ -64,8 +64,15 @@ class IRetryConfigProvider
     : public virtual TThrRefBase
 {
 public:
+    //
     // CreateRetryConfig is called before ANY request.
     // Returned config controls retries of this request.
+    //
+    // Must be theread safe since it can be used from different threads
+    // to perform internal library requests (e.g. pings).
+    //
+    // NOTE: some methods (e.g. IClient::Map) involve multiple requests to YT and therefore
+    // this method will be called several times during execution of single method.
     virtual TRetryConfig CreateRetryConfig() = 0;
 };
 
