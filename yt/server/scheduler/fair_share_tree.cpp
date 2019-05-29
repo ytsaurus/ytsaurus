@@ -358,7 +358,10 @@ TPoolsUpdateResult TFairShareTree::UpdatePools(const INodePtr& poolsNode)
         }
         auto pool = GetPool(poolId);
         if (pool->GetUserName()) {
-            YCHECK(UserToEphemeralPools_[pool->GetUserName().value()].erase(pool->GetId()) == 1);
+            const auto& userName = pool->GetUserName().value();
+            if (pool->IsEphemeralInDefaultParentPool()) {
+                YCHECK(UserToEphemeralPoolsInDefaultPool_[userName].erase(pool->GetId()) == 1);
+            }
             pool->SetUserName(std::nullopt);
         }
         ReconfigurePool(pool, parsedPool.PoolConfig);
@@ -558,14 +561,15 @@ void TFairShareTree::BuildBriefOperationProgress(TOperationId operationId, TFlue
         .Item("fair_share_ratio").Value(attributes.FairShareRatio);
 }
 
-void TFairShareTree::BuildUserToEphemeralPools(TFluentAny fluent)
+void TFairShareTree::BuildUserToEphemeralPoolsInDefaultPool(TFluentAny fluent)
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
     fluent
-        .DoMapFor(UserToEphemeralPools_, [] (TFluentMap fluent, const auto& value) {
+        .DoMapFor(UserToEphemeralPoolsInDefaultPool_, [] (TFluentMap fluent, const auto& pair) {
+            const auto& [userName, ephemeralPools] = pair;
             fluent
-                .Item(value.first).Value(value.second);
+                .Item(userName).Value(ephemeralPools);
         });
 }
 
@@ -1185,8 +1189,8 @@ void TFairShareTree::ReconfigurePool(const TPoolPtr& pool, const TPoolConfigPtr&
 void TFairShareTree::UnregisterPool(const TPoolPtr& pool)
 {
     auto userName = pool->GetUserName();
-    if (userName) {
-        YCHECK(UserToEphemeralPools_[*userName].erase(pool->GetId()) == 1);
+    if (userName && pool->IsEphemeralInDefaultParentPool()) {
+        YCHECK(UserToEphemeralPoolsInDefaultPool_[*userName].erase(pool->GetId()) == 1);
     }
 
     UnregisterSchedulingTagFilter(pool->GetSchedulingTagFilterIndex());
@@ -1391,14 +1395,16 @@ TPoolPtr TFairShareTree::GetOrCreatePool(const TPoolName& poolName, TString user
         TreeId_);
 
     pool->SetUserName(userName);
-    UserToEphemeralPools_[userName].insert(poolName.GetPool());
 
     TCompositeSchedulerElement* parent;
     if (poolName.GetParentPool()) {
         parent = GetPool(*poolName.GetParentPool()).Get();
     } else {
         parent = GetDefaultParentPool().Get();
+        pool->SetEphemeralInDefaultParentPool();
+        UserToEphemeralPoolsInDefaultPool_[userName].insert(poolName.GetPool());
     }
+
     RegisterPool(pool, parent);
     return pool;
 }
@@ -1586,16 +1592,18 @@ void TFairShareTree::ValidateEphemeralPoolLimit(const IOperationStrategyHost* op
 
     const auto& userName = operation->GetAuthenticatedUser();
 
-    auto it = UserToEphemeralPools_.find(userName);
-    if (it == UserToEphemeralPools_.end()) {
-        return;
-    }
+    if (!poolName.GetParentPool()) {
+        auto it = UserToEphemeralPoolsInDefaultPool_.find(userName);
+        if (it == UserToEphemeralPoolsInDefaultPool_.end()) {
+            return;
+        }
 
-    if (it->second.size() + 1 > Config_->MaxEphemeralPoolsPerUser) {
-        THROW_ERROR_EXCEPTION("Limit for number of ephemeral pools %v for user %v in tree %Qv has been reached",
-            Config_->MaxEphemeralPoolsPerUser,
-            userName,
-            TreeId_);
+        if (it->second.size() + 1 > Config_->MaxEphemeralPoolsPerUser) {
+            THROW_ERROR_EXCEPTION("Limit for number of ephemeral pools %v for user %v in tree %Qv has been reached",
+                Config_->MaxEphemeralPoolsPerUser,
+                userName,
+                TreeId_);
+        }
     }
 }
 

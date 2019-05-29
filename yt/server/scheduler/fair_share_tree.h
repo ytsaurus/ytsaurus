@@ -136,7 +136,7 @@ public:
 
     void BuildBriefOperationProgress(TOperationId operationId, NYTree::TFluentMap fluent);
 
-    void BuildUserToEphemeralPools(NYTree::TFluentAny fluent);
+    void BuildUserToEphemeralPoolsInDefaultPool(NYTree::TFluentAny fluent);
 
     // NB: This function is public for testing purposes.
     TError OnFairShareUpdateAt(TInstant now);
@@ -204,7 +204,7 @@ private:
 
     THashMap<TString, NProfiling::TTagId> PoolIdToProfilingTagId_;
 
-    THashMap<TString, THashSet<TString>> UserToEphemeralPools_;
+    THashMap<TString, THashSet<TString>> UserToEphemeralPoolsInDefaultPool_;
 
     THashMap<TString, THashSet<int>> PoolToSpareSlotIndices_;
     THashMap<TString, int> PoolToMinUnusedSlotIndex_;
