@@ -1,7 +1,7 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
@@ -35,11 +35,7 @@ public class MappedModifyRowsRequest<T> extends AbstractModifyRowsRequest {
         this.addImpl(value, ERowModificationType.RMT_WRITE);
     }
 
-    public void addInsert(Iterator<? extends T> values) {
-        this.addImpl(values, ERowModificationType.RMT_WRITE);
-    }
-
-    public void addInserts(List<? extends T> values) {
+    public void addInserts(Iterable<? extends T> values) {
         this.addImpl(values, ERowModificationType.RMT_WRITE);
     }
 
@@ -47,11 +43,7 @@ public class MappedModifyRowsRequest<T> extends AbstractModifyRowsRequest {
         this.addImpl(value, ERowModificationType.RMT_WRITE);
     }
 
-    public void addUpdates(Iterator<? extends T> values) {
-        this.addImpl(values, ERowModificationType.RMT_WRITE);
-    }
-
-    public void addUpdates(List<? extends T> values) {
+    public void addUpdates(Iterable<? extends T> values) {
         this.addImpl(values, ERowModificationType.RMT_WRITE);
     }
 
@@ -59,11 +51,7 @@ public class MappedModifyRowsRequest<T> extends AbstractModifyRowsRequest {
         this.addImpl(value, ERowModificationType.RMT_DELETE);
     }
 
-    public void addDeletes(Iterator<? extends T> values) {
-        this.addImpl(values, ERowModificationType.RMT_DELETE);
-    }
-
-    public void addDeletes(List<? extends T> values) {
+    public void addDeletes(Iterable<? extends T> values) {
         this.addImpl(values, ERowModificationType.RMT_DELETE);
     }
 
@@ -74,13 +62,24 @@ public class MappedModifyRowsRequest<T> extends AbstractModifyRowsRequest {
         this.rowModificationTypes.add(type);
     }
 
-    private void addImpl(Iterator<? extends T> values, ERowModificationType type) {
-        values.forEachRemaining(value -> addImpl(value, type));
+    @SuppressWarnings("unchecked")
+    private void addImpl(Iterable<? extends T> values, ERowModificationType type) {
+        if (values instanceof Collection) {
+            this.addImpl((Collection<? extends T>) values, type);
+        } else {
+            for (T value : values) {
+                this.addImpl(value, type);
+            }
+
+        }
     }
 
-    private void addImpl(List<? extends T> values, ERowModificationType type) {
+    private void addImpl(Collection<? extends T> values, ERowModificationType type) {
         this.rows.addAll(values);
-        values.stream().map(v -> type).forEach(this.rowModificationTypes::add);
+        this.rowModificationTypes.ensureCapacity(this.rowModificationTypes.size() + values.size());
+        for (T ignored : values) {
+            this.rowModificationTypes.add(type);
+        }
     }
 
     @Override

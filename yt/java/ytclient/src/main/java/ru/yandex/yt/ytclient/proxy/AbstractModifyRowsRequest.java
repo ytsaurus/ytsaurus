@@ -13,7 +13,7 @@ public abstract class AbstractModifyRowsRequest {
     protected final String path;
     protected final TableSchema schema;
     protected Boolean requireSyncReplica = null;
-    protected final List<ERowModificationType> rowModificationTypes = new ArrayList<>();
+    protected final ArrayList<ERowModificationType> rowModificationTypes = new ArrayList<>();
 
     public AbstractModifyRowsRequest(String path, TableSchema schema) {
         if (!schema.isWriteSchema()) {
