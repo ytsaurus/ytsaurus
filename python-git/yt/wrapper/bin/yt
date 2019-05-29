@@ -427,14 +427,26 @@ def add_read_blob_table_parser(add_parser):
 def write_file(**args):
     func_args = dict(args)
     func_args.pop("executable")
+    if func_args.pop("no_compression", False):
+        yt.config["proxy"]["content_encoding"] = "identity"
     yt.write_file(stream=get_binary_std_stream(sys.stdin), **func_args)
     if args["executable"]:
         yt.set(args["destination"] + "/@executable", True)
+
+@copy_docstring_from(yt.write_table)
+def write_table(**args):
+    func_args = dict(args)
+    if func_args.pop("no_compression", False):
+        yt.config["proxy"]["content_encoding"] = "identity"
+    yt.write_table(input_stream=get_binary_std_stream(sys.stdin), **func_args)
 
 def add_compressed_arg(parser):
     parser.add_argument("--compressed", action="store_true", dest="is_stream_compressed",
                         help="expect stream to contain compressed file data. Warning! This option disables retries. "
                              "Data is passed directly to proxy without recompression.")
+
+def add_no_compression_arg(parser):
+    parser.add_argument("--no-compression", action="store_true", help="disable compression")
 
 def add_write_file_parser(add_parser):
     for name, func in [("write-file", write_file), ("upload", write_file)]:
@@ -444,15 +456,16 @@ def add_write_file_parser(add_parser):
         add_compressed_arg(parser)
         parser.add_argument("--executable", action="store_true", help="do file executable")
         parser.add_argument("--compute-md5", action="store_true", help="compute md5 of file content")
+        add_no_compression_arg(parser)
 
 def add_write_table_parser(add_parser):
-    for name, func in [("write", yt.write_table), ("write-table", yt.write_table)]:
+    for name, func in [("write", write_table), ("write-table", write_table)]:
         parser = add_parser(name, func, epilog="Rewrite table by default. For append mode specify <append=true> before path.")
         add_ypath_argument(parser, "table", hybrid=True)
         add_format_argument(parser, help="input format")
         add_structured_argument(parser, "--table-writer")
         add_compressed_arg(parser)
-        parser.set_defaults(func=yt.write_table, input_stream=get_binary_std_stream(sys.stdin))
+        add_no_compression_arg(parser)
 
 @copy_docstring_from(yt.create_temp_table)
 def create_temp_table(**args):
