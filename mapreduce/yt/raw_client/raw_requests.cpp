@@ -17,10 +17,10 @@ namespace NYT::NDetail::NRawClient {
 ///////////////////////////////////////////////////////////////////////////////
 
 void ExecuteBatch(
+    IRequestRetryPolicyPtr retryPolicy,
     const TAuth& auth,
     TRawBatchRequest& batchRequest,
-    const TExecuteBatchOptions& options,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TExecuteBatchOptions& options)
 {
     if (batchRequest.IsExecuted()) {
         ythrow yexception() << "Cannot execute batch request since it is already executed";
@@ -54,7 +54,7 @@ void ExecuteBatch(
             header.AddMutationId();
             NDetail::TResponseInfo result;
             try {
-                result = RetryRequestWithPolicy(auth, header, body, retryPolicy);
+                result = RetryRequestWithPolicy(retryPolicy, auth, header, body);
             } catch (const yexception& e) {
                 batchRequest.SetErrorResult(std::current_exception());
                 retryBatch.SetErrorResult(std::current_exception());
@@ -68,104 +68,104 @@ void ExecuteBatch(
 }
 
 TNode Get(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path,
-    const TGetOptions& options,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TGetOptions& options)
 {
     THttpHeader header("GET", "get");
     header.MergeParameters(SerializeParamsForGet(transactionId, path, options));
-    return NodeFromYsonString(RetryRequestWithPolicy(auth, header, {}, retryPolicy).Response);
+    return NodeFromYsonString(RetryRequestWithPolicy(retryPolicy, auth, header).Response);
 }
 
 void Set(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path,
     const TNode& value,
-    const TSetOptions& options,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TSetOptions& options)
 {
     THttpHeader header("PUT", "set");
     header.AddMutationId();
     header.MergeParameters(SerializeParamsForSet(transactionId, path, options));
     auto body = NodeToYsonString(value);
-    RetryRequestWithPolicy(auth, header, body, retryPolicy);
+    RetryRequestWithPolicy(retryPolicy, auth, header, body);
 }
 
 bool Exists(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TTransactionId& transactionId,
-    const TYPath& path,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TYPath& path)
 {
     THttpHeader header("GET", "exists");
     header.MergeParameters(SerializeParamsForExists(transactionId, path));
-    return ParseBoolFromResponse(RetryRequestWithPolicy(auth, header, {}, retryPolicy).Response);
+    return ParseBoolFromResponse(RetryRequestWithPolicy(retryPolicy, auth, header).Response);
 }
 
 TNodeId Create(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path,
     const ENodeType& type,
-    const TCreateOptions& options,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TCreateOptions& options)
 {
     THttpHeader header("POST", "create");
     header.AddMutationId();
     header.MergeParameters(SerializeParamsForCreate(transactionId, path, type, options));
-    return ParseGuidFromResponse(RetryRequestWithPolicy(auth, header, {}, retryPolicy).Response);
+    return ParseGuidFromResponse(RetryRequestWithPolicy(retryPolicy, auth, header).Response);
 }
 
 TNodeId Copy(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& sourcePath,
     const TYPath& destinationPath,
-    const TCopyOptions& options,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TCopyOptions& options)
 {
     THttpHeader header("POST", "copy");
     header.AddMutationId();
     header.MergeParameters(SerializeParamsForCopy(transactionId, sourcePath, destinationPath, options));
-    return ParseGuidFromResponse(RetryRequestWithPolicy(auth, header, {}, retryPolicy).Response);
+    return ParseGuidFromResponse(RetryRequestWithPolicy(retryPolicy, auth, header).Response);
 }
 
 TNodeId Move(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& sourcePath,
     const TYPath& destinationPath,
-    const TMoveOptions& options,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TMoveOptions& options)
 {
     THttpHeader header("POST", "move");
     header.AddMutationId();
     header.MergeParameters(NRawClient::SerializeParamsForMove(transactionId, sourcePath, destinationPath, options));
-    return ParseGuidFromResponse(RetryRequestWithPolicy(auth, header, {}, retryPolicy).Response);
+    return ParseGuidFromResponse(RetryRequestWithPolicy(retryPolicy, auth, header).Response);
 }
 
 void Remove(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path,
-    const TRemoveOptions& options,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TRemoveOptions& options)
 {
     THttpHeader header("POST", "remove");
     header.AddMutationId();
     header.MergeParameters(SerializeParamsForRemove(transactionId, path, options));
-    RetryRequestWithPolicy(auth, header, {}, retryPolicy);
+    RetryRequestWithPolicy(retryPolicy, auth, header);
 }
 
 TNode::TListType List(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path,
-    const TListOptions& options,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TListOptions& options)
 {
     THttpHeader header("GET", "list");
 
@@ -176,75 +176,75 @@ TNode::TListType List(
         updatedPath.pop_back();
     }
     header.MergeParameters(SerializeParamsForList(transactionId, updatedPath, options));
-    auto result = RetryRequestWithPolicy(auth, header, {}, retryPolicy);
+    auto result = RetryRequestWithPolicy(retryPolicy, auth, header);
     return NodeFromYsonString(result.Response).AsList();
 }
 
 TNodeId Link(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& targetPath,
     const TYPath& linkPath,
-    const TLinkOptions& options,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TLinkOptions& options)
 {
     THttpHeader header("POST", "link");
     header.AddMutationId();
     header.MergeParameters(SerializeParamsForLink(transactionId, targetPath, linkPath, options));
-    return ParseGuidFromResponse(RetryRequestWithPolicy(auth, header, {}, retryPolicy).Response);
+    return ParseGuidFromResponse(RetryRequestWithPolicy(retryPolicy, auth, header).Response);
 }
 
 TLockId Lock(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path,
     ELockMode mode,
-    const TLockOptions& options,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TLockOptions& options)
 {
     THttpHeader header("POST", "lock");
     header.AddMutationId();
     header.MergeParameters(SerializeParamsForLock(transactionId, path, mode, options));
-    return ParseGuidFromResponse(RetryRequestWithPolicy(auth, header, {}, retryPolicy).Response);
+    return ParseGuidFromResponse(RetryRequestWithPolicy(retryPolicy, auth, header).Response);
 }
 
 void Unlock(
+    IRequestRetryPolicyPtr retryPolicy,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path,
-    const TUnlockOptions& options,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TUnlockOptions& options)
 {
     THttpHeader header("POST", "unlock");
     header.AddMutationId();
     header.MergeParameters(SerializeParamsForUnlock(transactionId, path, options));
-    RetryRequestWithPolicy(auth, header, {}, retryPolicy);
+    RetryRequestWithPolicy(retryPolicy, auth, header);
 }
 
 void Concatenate(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TVector<TYPath>& sourcePaths,
     const TYPath& destinationPath,
-    const TConcatenateOptions& options,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TConcatenateOptions& options)
 {
     THttpHeader header("POST", "concatenate");
     header.AddMutationId();
     header.MergeParameters(SerializeParamsForConcatenate(transactionId, sourcePaths, destinationPath, options));
-    RetryRequestWithPolicy(auth, header, {}, retryPolicy);
+    RetryRequestWithPolicy(retryPolicy, auth, header);
 }
 
 void PingTx(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
-    const TTransactionId& transactionId,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TTransactionId& transactionId)
 {
     THttpHeader header("POST", "ping_tx");
     header.MergeParameters(SerializeParamsForPingTx(transactionId));
     TRequestConfig requestConfig;
     requestConfig.SocketTimeout = TConfig::Get()->PingTimeout;
-    RetryRequestWithPolicy(auth, header, {}, retryPolicy, requestConfig);
+    RetryRequestWithPolicy(retryPolicy, auth, header, {}, requestConfig);
 }
 
 TOperationAttributes ParseOperationAttributes(const TNode& node)
@@ -337,31 +337,31 @@ TOperationAttributes ParseOperationAttributes(const TNode& node)
 }
 
 TOperationAttributes GetOperation(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TOperationId& operationId,
-    const TGetOperationOptions& options,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TGetOperationOptions& options)
 {
     THttpHeader header("GET", "get_operation");
     header.MergeParameters(SerializeParamsForGetOperation(operationId, options));
-    auto result = RetryRequestWithPolicy(auth, header, {}, retryPolicy);
+    auto result = RetryRequestWithPolicy(retryPolicy, auth, header);
     return ParseOperationAttributes(NodeFromYsonString(result.Response));
 }
 
-void AbortOperation(const TAuth& auth, const TOperationId& operationId, IRequestRetryPolicyPtr retryPolicy)
+void AbortOperation(const IRequestRetryPolicyPtr& retryPolicy, const TAuth& auth, const TOperationId& operationId)
 {
     THttpHeader header("POST", "abort_op");
     header.AddMutationId();
     header.MergeParameters(SerializeParamsForAbortOperation(operationId));
-    RetryRequestWithPolicy(auth, header, {}, retryPolicy);
+    RetryRequestWithPolicy(retryPolicy, auth, header);
 }
 
-void CompleteOperation(const TAuth& auth, const TOperationId& operationId, IRequestRetryPolicyPtr retryPolicy)
+void CompleteOperation(const IRequestRetryPolicyPtr& retryPolicy, const TAuth& auth, const TOperationId& operationId)
 {
     THttpHeader header("POST", "complete_op");
     header.AddMutationId();
     header.MergeParameters(SerializeParamsForCompleteOperation(operationId));
-    RetryRequestWithPolicy(auth, header, {}, retryPolicy);
+    RetryRequestWithPolicy(retryPolicy, auth, header);
 }
 
 template <typename TKey>
@@ -375,13 +375,13 @@ static THashMap<TKey, i64> GetCounts(const TNode& countsNode)
 }
 
 TListOperationsResult ListOperations(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
-    const TListOperationsOptions& options,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TListOperationsOptions& options)
 {
     THttpHeader header("GET", "list_operations");
     header.MergeParameters(SerializeParamsForListOperations(options));
-    auto responseInfo = RetryRequestWithPolicy(auth, header, {}, retryPolicy);
+    auto responseInfo = RetryRequestWithPolicy(retryPolicy, auth, header);
     auto resultNode = NodeFromYsonString(responseInfo.Response);
 
     TListOperationsResult result;
@@ -411,14 +411,14 @@ TListOperationsResult ListOperations(
 }
 
 void UpdateOperationParameters(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TOperationId& operationId,
-    const TUpdateOperationParametersOptions& options,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TUpdateOperationParametersOptions& options)
 {
     THttpHeader header("POST", "update_op_parameters");
     header.MergeParameters(SerializeParamsForUpdateOperationParameters(operationId, options));
-    RetryRequestWithPolicy(auth, header, {}, retryPolicy);
+    RetryRequestWithPolicy(retryPolicy, auth, header);
 }
 
 TJobAttributes ParseJobAttributes(const TNode& node)
@@ -493,28 +493,28 @@ TJobAttributes ParseJobAttributes(const TNode& node)
 }
 
 TJobAttributes GetJob(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TOperationId& operationId,
     const TJobId& jobId,
-    const TGetJobOptions& options,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TGetJobOptions& options)
 {
     THttpHeader header("GET", "get_job");
     header.MergeParameters(SerializeParamsForGetJob(operationId, jobId, options));
-    auto responseInfo = RetryRequestWithPolicy(auth, header, {}, retryPolicy);
+    auto responseInfo = RetryRequestWithPolicy(retryPolicy, auth, header);
     auto resultNode = NodeFromYsonString(responseInfo.Response);
     return ParseJobAttributes(resultNode);
 }
 
 TListJobsResult ListJobs(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TOperationId& operationId,
-    const TListJobsOptions& options,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TListJobsOptions& options)
 {
     THttpHeader header("GET", "list_jobs");
     header.MergeParameters(SerializeParamsForListJobs(operationId, options));
-    auto responseInfo = RetryRequestWithPolicy(auth, header, {}, retryPolicy);
+    auto responseInfo = RetryRequestWithPolicy(retryPolicy, auth, header);
     auto resultNode = NodeFromYsonString(responseInfo.Response);
 
     TListJobsResult result;
@@ -593,18 +593,18 @@ IFileReaderPtr GetJobFailContext(
 }
 
 TString GetJobStderrWithRetries(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TOperationId& operationId,
     const TJobId& jobId,
-    const TGetJobStderrOptions& /* options */,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TGetJobStderrOptions& /* options */)
 {
     THttpHeader header("GET", "get_job_stderr");
     header.AddOperationId(operationId);
     header.AddParameter("job_id", GetGuidAsString(jobId));
     TRequestConfig config;
     config.IsHeavy = true;
-    auto responseInfo = RetryRequestWithPolicy(auth, header, {}, retryPolicy, config);
+    auto responseInfo = RetryRequestWithPolicy(retryPolicy, auth, header, {}, config);
     return responseInfo.Response;
 }
 
@@ -621,64 +621,64 @@ IFileReaderPtr GetJobStderr(
 }
 
 TMaybe<TYPath> GetFileFromCache(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TString& md5Signature,
     const TYPath& cachePath,
-    const TGetFileFromCacheOptions& options,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TGetFileFromCacheOptions& options)
 {
     THttpHeader header("GET", "get_file_from_cache");
     header.MergeParameters(SerializeParamsForGetFileFromCache(md5Signature, cachePath, options));
-    auto responseInfo = RetryRequestWithPolicy(auth, header, {}, retryPolicy);
+    auto responseInfo = RetryRequestWithPolicy(retryPolicy, auth, header);
     auto path = NodeFromYsonString(responseInfo.Response).AsString();
     return path.empty() ? Nothing() : TMaybe<TYPath>(path);
 }
 
 TYPath PutFileToCache(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TYPath& filePath,
     const TString& md5Signature,
     const TYPath& cachePath,
-    const TPutFileToCacheOptions& options,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TPutFileToCacheOptions& options)
 {
     THttpHeader header("POST", "put_file_to_cache");
     header.MergeParameters(SerializeParamsForPutFileToCache(filePath, md5Signature, cachePath, options));
-    auto result = RetryRequestWithPolicy(auth, header, {}, retryPolicy);
+    auto result = RetryRequestWithPolicy(retryPolicy, auth, header);
     return NodeFromYsonString(result.Response).AsString();
 }
 
 void AlterTable(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path,
-    const TAlterTableOptions& options,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TAlterTableOptions& options)
 {
     THttpHeader header("POST", "alter_table");
     header.AddMutationId();
     header.MergeParameters(SerializeParamsForAlterTable(transactionId, path, options));
-    RetryRequestWithPolicy(auth, header, {}, retryPolicy);
+    RetryRequestWithPolicy(retryPolicy, auth, header);
 }
 
 void AlterTableReplica(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TReplicaId& replicaId,
-    const TAlterTableReplicaOptions& options,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TAlterTableReplicaOptions& options)
 {
     THttpHeader header("POST", "alter_table_replica");
     header.AddMutationId();
     header.MergeParameters(NRawClient::SerializeParamsForAlterTableReplica(replicaId, options));
-    RetryRequestWithPolicy(auth, header, {}, retryPolicy);
+    RetryRequestWithPolicy(retryPolicy, auth, header);
 }
 
 void DeleteRows(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TYPath& path,
     const TNode::TListType& keys,
-    const TDeleteRowsOptions& options,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TDeleteRowsOptions& options)
 {
     THttpHeader header("PUT", "delete_rows");
     header.SetInputFormat(TFormat::YsonBinary());
@@ -687,49 +687,49 @@ void DeleteRows(
     auto body = NodeListToYsonString(keys);
     TRequestConfig requestConfig;
     requestConfig.IsHeavy = true;
-    RetryRequestWithPolicy(auth, header, body, retryPolicy, requestConfig);
+    RetryRequestWithPolicy(retryPolicy, auth, header, body, requestConfig);
 }
 
 void EnableTableReplica(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
-    const TReplicaId& replicaId,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TReplicaId& replicaId)
 {
     THttpHeader header("POST", "enable_table_replica");
     header.MergeParameters(SerializeParamsForEnableTableReplica(replicaId));
-    RetryRequestWithPolicy(auth, header, {}, retryPolicy);
+    RetryRequestWithPolicy(retryPolicy, auth, header);
 }
 
 void DisableTableReplica(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
-    const TReplicaId& replicaId,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TReplicaId& replicaId)
 {
     THttpHeader header("POST", "disable_table_replica");
     header.MergeParameters(SerializeParamsForDisableTableReplica(replicaId));
-    RetryRequestWithPolicy(auth, header, {}, retryPolicy);
+    RetryRequestWithPolicy(retryPolicy, auth, header);
 }
 
 void FreezeTable(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TYPath& path,
-    const TFreezeTableOptions& options,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TFreezeTableOptions& options)
 {
     THttpHeader header("POST", "freeze_table");
     header.MergeParameters(SerializeParamsForFreezeTable(path, options));
-    RetryRequestWithPolicy(auth, header, {}, retryPolicy);
+    RetryRequestWithPolicy(retryPolicy, auth, header);
 }
 
 void UnfreezeTable(
+    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TYPath& path,
-    const TUnfreezeTableOptions& options,
-    IRequestRetryPolicyPtr retryPolicy)
+    const TUnfreezeTableOptions& options)
 {
     THttpHeader header("POST", "unfreeze_table");
     header.MergeParameters(SerializeParamsForUnfreezeTable(path, options));
-    RetryRequestWithPolicy(auth, header, {}, retryPolicy);
+    RetryRequestWithPolicy(retryPolicy, auth, header);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

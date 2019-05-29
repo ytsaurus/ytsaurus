@@ -32,9 +32,11 @@ static TMaybe<ui64> GetEndOffset(const TFileReaderOptions& options) {
 ////////////////////////////////////////////////////////////////////////////////
 
 TStreamReaderBase::TStreamReaderBase(
+    IClientRetryPolicyPtr clientRetryPolicy,
     const TAuth& auth,
     const TTransactionId& transactionId)
-    : Auth_(auth)
+    : ClientRetryPolicy_(std::move(clientRetryPolicy))
+    , Auth_(auth)
     , ReadTransaction_(MakeHolder<TPingableTransaction>(auth, transactionId))
 {
 }
@@ -43,7 +45,7 @@ TStreamReaderBase::~TStreamReaderBase() = default;
 
 TYPath TStreamReaderBase::Snapshot(const TYPath& path)
 {
-    return NYT::Snapshot(Auth_, ReadTransaction_->GetId(), path);
+    return NYT::Snapshot(ClientRetryPolicy_, Auth_, ReadTransaction_->GetId(), path);
 }
 
 TString TStreamReaderBase::GetActiveRequestId() const
@@ -95,10 +97,11 @@ size_t TStreamReaderBase::DoRead(void* buf, size_t len)
 
 TFileReader::TFileReader(
     const TRichYPath& path,
+    IClientRetryPolicyPtr clientRetryPolicy,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TFileReaderOptions& options)
-    : TStreamReaderBase(auth, transactionId)
+    : TStreamReaderBase(std::move(clientRetryPolicy), auth, transactionId)
     , FileReaderOptions_(options)
     , Path_(path)
     , StartOffset_(FileReaderOptions_.Offset_.GetOrElse(0))
@@ -146,10 +149,11 @@ THolder<THttpRequest> TFileReader::CreateRequest(const TAuth& auth, const TTrans
 TBlobTableReader::TBlobTableReader(
     const TYPath& path,
     const TKey& key,
+    IClientRetryPolicyPtr retryPolicy,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TBlobTableReaderOptions& options)
-    : TStreamReaderBase(auth, transactionId)
+    : TStreamReaderBase(std::move(retryPolicy), auth, transactionId)
     , Key_(key)
     , Options_(options)
 {

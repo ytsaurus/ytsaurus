@@ -62,15 +62,16 @@ TMaybe<TNode> GetCommonTableFormat(
 }
 
 TMaybe<TNode> GetTableFormat(
+    const IClientRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TRichYPath& path)
 {
     auto formatPath = path.Path_ + "/@_format";
-    if (!Exists(auth, transactionId, formatPath)) {
+    if (!Exists(retryPolicy->CreatePolicyForGenericRequest(), auth, transactionId, formatPath)) {
         return TMaybe<TNode>();
     }
-    TMaybe<TNode> format = Get(auth, transactionId, formatPath);
+    TMaybe<TNode> format = Get(retryPolicy->CreatePolicyForGenericRequest(), auth, transactionId, formatPath);
     if (format.Get()->AsString() != "yamred_dsv") {
         return TMaybe<TNode>();
     }
@@ -85,13 +86,14 @@ TMaybe<TNode> GetTableFormat(
 }
 
 TMaybe<TNode> GetTableFormats(
+    const IClientRetryPolicyPtr& clientRetryPolicy,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TVector<TRichYPath>& inputs)
 {
     TVector<TMaybe<TNode>> formats;
     for (auto& table : inputs) {
-        formats.push_back(GetTableFormat(auth, transactionId, table));
+        formats.push_back(GetTableFormat(clientRetryPolicy, auth, transactionId, table));
     }
 
     return GetCommonTableFormat(formats);

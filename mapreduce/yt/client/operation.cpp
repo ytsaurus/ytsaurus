@@ -113,7 +113,7 @@ ui64 RoundUpFileSize(ui64 size)
     return (size + roundUpTo - 1) & ~(roundUpTo - 1);
 }
 
-bool UseLocalModeOptimization(const TAuth& auth)
+bool UseLocalModeOptimization(const TAuth& auth, const IClientRetryPolicyPtr& clientRetryPolicy)
 {
     if (!TConfig::Get()->EnableLocalModeOptimization) {
         return false;
@@ -132,8 +132,17 @@ bool UseLocalModeOptimization(const TAuth& auth)
 
     bool isLocalMode = false;
     TString localModeAttr("//sys/@local_mode_fqdn");
-    if (Exists(auth, TTransactionId(), localModeAttr)) {
-        auto fqdn = Get(auth, TTransactionId(), localModeAttr).AsString();
+    if (Exists(clientRetryPolicy->CreatePolicyForGenericRequest(),
+        auth, TTransactionId(),
+        localModeAttr))
+    {
+        auto fqdn = Get(
+            clientRetryPolicy->CreatePolicyForGenericRequest(),
+            auth,
+            TTransactionId(),
+            localModeAttr,
+            TGetOptions()
+        ).AsString();
         isLocalMode = (fqdn == TProcessState::Get()->HostName);
     }
 
@@ -185,8 +194,7 @@ ENodeReaderFormat NodeReaderFormatFromHintAndGlobalConfig(const TUserJobFormatHi
 template <class TSpec>
 TSimpleOperationIo CreateSimpleOperationIo(
     const IStructuredJob& structuredJob,
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    const TOperationPreparer& preparer,
     const TSpec& spec,
     const TOperationOptions& options,
     bool allowSkiff)
@@ -194,8 +202,8 @@ TSimpleOperationIo CreateSimpleOperationIo(
     VerifyHasElements(spec.Inputs_, "input");
     VerifyHasElements(spec.Outputs_, "output");
 
-    const auto structuredInputs= CanonizeStructuredTableList(auth, spec.GetStructuredInputs());
-    const auto structuredOutputs = CanonizeStructuredTableList(auth, spec.GetStructuredOutputs());
+    const auto structuredInputs= CanonizeStructuredTableList(preparer.GetAuth(), spec.GetStructuredInputs());
+    const auto structuredOutputs = CanonizeStructuredTableList(preparer.GetAuth(), spec.GetStructuredOutputs());
 
     ENodeReaderFormat nodeReaderFormat =
         allowSkiff
@@ -203,7 +211,7 @@ TSimpleOperationIo CreateSimpleOperationIo(
         : ENodeReaderFormat::Yson;
 
     TVector<TSmallJobFile> formatConfigList;
-    TFormatBuilder formatBuilder(auth, transactionId, options);
+    TFormatBuilder formatBuilder(preparer.GetClientRetryPolicy(), preparer.GetAuth(), preparer.GetTransactionId(), options);
 
     // Input format
     auto [inputFormat, inputFormatConfig] = formatBuilder.CreateFormat(
@@ -230,8 +238,9 @@ TSimpleOperationIo CreateSimpleOperationIo(
         TSchemaInferenceContext(
             structuredInputs,
             structuredOutputs,
-            auth,
-            transactionId));
+            preparer.GetAuth(),
+            preparer.GetClientRetryPolicy(),
+            preparer.GetTransactionId()));
 
     auto outputPaths = GetPathList(structuredOutputs, jobSchemaInferenceResult, inferOutputSchema);
 
@@ -248,7 +257,7 @@ TSimpleOperationIo CreateSimpleOperationIo(
 
 template <class T>
 TSimpleOperationIo CreateSimpleOperationIo(
-    const TAuth& auth,
+    const TOperationPreparer& preparer,
     const TSimpleRawOperationIoSpec<T>& spec)
 {
     auto getFormatOrDefault = [&] (const TMaybe<TFormat>& maybeFormat, const char* formatName) {
@@ -265,8 +274,8 @@ TSimpleOperationIo CreateSimpleOperationIo(
     VerifyHasElements(spec.GetOutputs(), "output");
 
     return TSimpleOperationIo {
-        CanonizePaths(auth, spec.GetInputs()),
-        CanonizePaths(auth, spec.GetOutputs()),
+        CanonizePaths(preparer.GetAuth(), spec.GetInputs()),
+        CanonizePaths(preparer.GetAuth(), spec.GetOutputs()),
 
         getFormatOrDefault(spec.InputFormat_, "input"),
         getFormatOrDefault(spec.OutputFormat_, "output"),
@@ -376,11 +385,11 @@ public:
             }
             jobBinary = TJobBinaryLocalPath{GetPersistentExecPath()};
 
-            if (UseLocalModeOptimization(OperationPreparer_.GetAuth())) {
+            if (UseLocalModeOptimization(OperationPreparer_.GetAuth(), OperationPreparer_.GetClientRetryPolicy())) {
                 binaryPathInsideJob = GetExecPath();
             }
         } else if (HoldsAlternative<TJobBinaryLocalPath>(jobBinary)) {
-            if (UseLocalModeOptimization(OperationPreparer_.GetAuth())) {
+            if (UseLocalModeOptimization(OperationPreparer_.GetAuth(), OperationPreparer_.GetClientRetryPolicy())) {
                 binaryPathInsideJob = TFsPath(::Get<TJobBinaryLocalPath>(jobBinary).Path).RealPath();
             }
         }
@@ -494,10 +503,15 @@ private:
 
     void CreateStorage() const
     {
-        Create(OperationPreparer_.GetAuth(), Options_.FileStorageTransactionId_, GetCachePath(), NT_MAP,
+        Create(
+            OperationPreparer_.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
+            OperationPreparer_.GetAuth(),
+            Options_.FileStorageTransactionId_,
+            GetCachePath(),
+            NT_MAP,
             TCreateOptions()
-            .IgnoreExisting(true)
-            .Recursive(true));
+                .IgnoreExisting(true)
+                .Recursive(true));
     }
 
     class TRetryPolicyIgnoringLockConflicts
@@ -522,11 +536,21 @@ private:
     TString UploadToRandomPath(const IItemToUpload& itemToUpload) const
     {
         TString uniquePath = AddPathPrefix(TStringBuilder() << GetFileStorage() << "/cpp_" << CreateGuidAsString());
-        Create(OperationPreparer_.GetAuth(), Options_.FileStorageTransactionId_, uniquePath, NT_FILE, TCreateOptions()
-            .IgnoreExisting(true)
-            .Recursive(true));
+        Create(
+            OperationPreparer_.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
+            OperationPreparer_.GetAuth(),
+            Options_.FileStorageTransactionId_,
+            uniquePath,
+            NT_FILE,
+            TCreateOptions()
+                .IgnoreExisting(true)
+                .Recursive(true));
         {
-            TFileWriter writer(uniquePath, OperationPreparer_.GetAuth(), Options_.FileStorageTransactionId_);
+            TFileWriter writer(
+                uniquePath,
+                OperationPreparer_.GetClientRetryPolicy(),
+                OperationPreparer_.GetAuth(),
+                Options_.FileStorageTransactionId_);
             itemToUpload.CreateInputStream()->ReadAll(writer);
             writer.Finish();
         }
@@ -541,11 +565,11 @@ private:
         constexpr ui32 LockConflictRetryCount = 30;
         auto retryPolicy = MakeIntrusive<TRetryPolicyIgnoringLockConflicts>(LockConflictRetryCount);
         auto maybePath = GetFileFromCache(
+            retryPolicy,
             OperationPreparer_.GetAuth(),
             md5Signature,
             GetCachePath(),
-            TGetFileFromCacheOptions(),
-            retryPolicy);
+            TGetFileFromCacheOptions());
         if (maybePath) {
             LOG_DEBUG("File is already in cache: %s", itemToUpload.GetDescription().c_str());
             return *maybePath;
@@ -553,27 +577,41 @@ private:
 
         TString uniquePath = AddPathPrefix(TStringBuilder() << GetFileStorage() << "/cpp_" << CreateGuidAsString());
 
-        Create(OperationPreparer_.GetAuth(), TTransactionId(), uniquePath, NT_FILE,
+        Create(
+            OperationPreparer_.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
+            OperationPreparer_.GetAuth(),
+            TTransactionId(),
+            uniquePath,
+            NT_FILE,
             TCreateOptions()
-            .IgnoreExisting(true)
-            .Recursive(true));
+                .IgnoreExisting(true)
+                .Recursive(true));
 
         {
-            TFileWriter writer(uniquePath, OperationPreparer_.GetAuth(), TTransactionId(),
+            TFileWriter writer(
+                uniquePath,
+                OperationPreparer_.GetClientRetryPolicy(),
+                OperationPreparer_.GetAuth(),
+                TTransactionId(),
                 TFileWriterOptions().ComputeMD5(true));
             itemToUpload.CreateInputStream()->ReadAll(writer);
             writer.Finish();
         }
 
         auto cachePath = PutFileToCache(
+            retryPolicy,
             OperationPreparer_.GetAuth(),
             uniquePath,
             md5Signature,
             GetCachePath(),
-            TPutFileToCacheOptions(),
-            retryPolicy);
+            TPutFileToCacheOptions());
 
-        Remove(OperationPreparer_.GetAuth(), TTransactionId(), uniquePath, TRemoveOptions().Force(true));
+        Remove(
+            OperationPreparer_.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
+            OperationPreparer_.GetAuth(),
+            TTransactionId(),
+            uniquePath,
+            TRemoveOptions().Force(true));
 
         LockedFileSignatures_.push_back(md5Signature);
         return cachePath;
@@ -599,12 +637,18 @@ private:
 
     void UseFileInCypress(const TRichYPath& file)
     {
-        if (!Exists(OperationPreparer_.GetAuth(), OperationPreparer_.GetTransactionId(), file.Path_)) {
+        if (!Exists(
+            OperationPreparer_.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
+            OperationPreparer_.GetAuth(),
+            OperationPreparer_.GetTransactionId(),
+            file.Path_))
+        {
             ythrow yexception() << "File " << file.Path_ << " does not exist";
         }
 
         if (ShouldMountSandbox()) {
             auto size = Get(
+                OperationPreparer_.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
                 OperationPreparer_.GetAuth(),
                 OperationPreparer_.GetTransactionId(),
                 file.Path_ + "/@uncompressed_data_size")
@@ -683,11 +727,13 @@ private:
 ////////////////////////////////////////////////////////////////////
 
 TVector<TFailedJobInfo> GetFailedJobInfo(
+    const IClientRetryPolicyPtr& clientRetryPolicy,
     const TAuth& auth,
     const TOperationId& operationId,
     const TGetFailedJobInfoOptions& options)
 {
     const auto listJobsResult = ListJobs(
+        clientRetryPolicy->CreatePolicyForGenericRequest(),
         auth,
         operationId,
         TListJobsOptions()
@@ -703,7 +749,11 @@ TVector<TFailedJobInfo> GetFailedJobInfo(
         info.JobId = *job.Id;
         info.Error = job.Error.GetOrElse(TYtError(TString("unknown error")));
         if (job.StderrSize.GetOrElse(0) != 0) {
-            info.Stderr = GetJobStderrWithRetries(auth, operationId, *job.Id);
+            info.Stderr = GetJobStderrWithRetries(
+                clientRetryPolicy->CreatePolicyForGenericRequest(),
+                auth,
+                operationId,
+                *job.Id);
             if (info.Stderr.size() > stderrTailSize) {
                 info.Stderr = info.Stderr.substr(info.Stderr.size() - stderrTailSize, stderrTailSize);
             }
@@ -719,10 +769,12 @@ TVector<TFailedJobInfo> GetFailedJobInfo(
 ////////////////////////////////////////////////////////////////////////////////
 
 EOperationBriefState CheckOperation(
+    const IClientRetryPolicyPtr& clientRetryPolicy,
     const TAuth& auth,
     const TOperationId& operationId)
 {
     auto attributes = GetOperation(
+        clientRetryPolicy->CreatePolicyForGenericRequest(),
         auth,
         operationId,
         TGetOperationOptions().AttributeFilter(TOperationAttributeFilter()
@@ -737,7 +789,11 @@ EOperationBriefState CheckOperation(
             ::ToString(*attributes.BriefState).data(),
             ToString(TOperationExecutionTimeTracker::Get()->Finish(operationId)).data());
 
-        auto failedJobInfoList = GetFailedJobInfo(auth, operationId, TGetFailedJobInfoOptions());
+        auto failedJobInfoList = GetFailedJobInfo(
+            clientRetryPolicy,
+            auth,
+            operationId,
+            TGetFailedJobInfoOptions());
 
         Y_VERIFY(attributes.Result && attributes.Result->Error);
         ythrow TOperationFailedError(
@@ -752,14 +808,17 @@ EOperationBriefState CheckOperation(
 }
 
 void WaitForOperation(
+    const IClientRetryPolicyPtr& clientRetryPolicy,
     const TAuth& auth,
     const TOperationId& operationId)
 {
     const TDuration checkOperationStateInterval =
-        UseLocalModeOptimization(auth) ? TDuration::MilliSeconds(100) : TDuration::Seconds(1);
+        UseLocalModeOptimization(auth, clientRetryPolicy)
+        ? TDuration::MilliSeconds(100)
+        : TDuration::Seconds(1);
 
     while (true) {
-        auto status = CheckOperation(auth, operationId);
+        auto status = CheckOperation(clientRetryPolicy, auth, operationId);
         if (status == EOperationBriefState::Completed) {
             LOG_INFO("Operation %s completed (%s)",
                 GetGuidAsString(operationId).data(),
@@ -946,16 +1005,26 @@ TNode MergeSpec(TNode dst, const TOperationOptions& options)
 }
 
 template <typename TSpec>
-void CreateDebugOutputTables(const TSpec& spec, const TAuth& auth)
+void CreateDebugOutputTables(const TSpec& spec, const TOperationPreparer& preparer)
 {
     if (spec.StderrTablePath_.Defined()) {
-        NYT::NDetail::Create(auth, TTransactionId(), *spec.StderrTablePath_, NT_TABLE,
+        NYT::NDetail::Create(
+            preparer.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
+            preparer.GetAuth(),
+            TTransactionId(),
+            *spec.StderrTablePath_,
+            NT_TABLE,
             TCreateOptions()
                 .IgnoreExisting(true)
                 .Recursive(true));
     }
     if (spec.CoreTablePath_.Defined()) {
-        NYT::NDetail::Create(auth, TTransactionId(), *spec.CoreTablePath_, NT_TABLE,
+        NYT::NDetail::Create(
+            preparer.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
+            preparer.GetAuth(),
+            TTransactionId(),
+            *spec.CoreTablePath_,
+            NT_TABLE,
             TCreateOptions()
                 .IgnoreExisting(true)
                 .Recursive(true));
@@ -963,37 +1032,41 @@ void CreateDebugOutputTables(const TSpec& spec, const TAuth& auth)
 }
 
 void CreateOutputTable(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    const TOperationPreparer& preparer,
     const TRichYPath& path)
 {
     Y_ENSURE(path.Path_, "Output table is not set");
-    NYT::NDetail::Create(auth, transactionId, path.Path_, NT_TABLE,
+    Create(
+        preparer.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
+        preparer.GetAuth(), preparer.GetTransactionId(), path.Path_, NT_TABLE,
         TCreateOptions()
             .IgnoreExisting(true)
             .Recursive(true));
 }
 
 void CreateOutputTables(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    const TOperationPreparer& preparer,
     const TVector<TRichYPath>& paths)
 {
     Y_ENSURE(!paths.empty(), "Output tables are not set");
     for (auto& path : paths) {
-        CreateOutputTable(auth, transactionId, path);
+        CreateOutputTable(preparer, path);
     }
 }
 
 void CheckInputTablesExist(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    const TOperationPreparer& preparer,
     const TVector<TRichYPath>& paths)
 {
     Y_ENSURE(!paths.empty(), "Input tables are not set");
     for (auto& path : paths) {
-        auto curTransactionId =  path.TransactionId_.GetOrElse(transactionId);
-        Y_ENSURE_EX(NYT::NDetail::Exists(auth, curTransactionId, path.Path_),
+        auto curTransactionId =  path.TransactionId_.GetOrElse(preparer.GetTransactionId());
+        Y_ENSURE_EX(
+            Exists(
+                preparer.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
+                preparer.GetAuth(),
+                curTransactionId,
+                path.Path_),
             TApiUsageError() << "Input table '" << path.Path_ << "' doesn't exist");
     }
 }
@@ -1033,11 +1106,11 @@ TOperationId DoExecuteMap(
     const TOperationOptions& options)
 {
     if (options.CreateDebugOutputTables_) {
-        CreateDebugOutputTables(spec, preparer.GetAuth());
+        CreateDebugOutputTables(spec, preparer);
     }
     if (options.CreateOutputTables_) {
-        CheckInputTablesExist(preparer.GetAuth(), preparer.GetTransactionId(), operationIo.Inputs);
-        CreateOutputTables(preparer.GetAuth(), preparer.GetTransactionId(), operationIo.Outputs);
+        CheckInputTablesExist(preparer, operationIo.Inputs);
+        CreateOutputTables(preparer, operationIo.Outputs);
     }
 
     TJobPreparer map(
@@ -1094,7 +1167,7 @@ TOperationId ExecuteMap(
     LOG_DEBUG("Starting map operation");
     return DoExecuteMap(
         preparer,
-        CreateSimpleOperationIo(mapper, preparer.GetAuth(), preparer.GetTransactionId(), spec, options, /* allowSkiff = */ true),
+        CreateSimpleOperationIo(mapper, preparer, spec, options, /* allowSkiff = */ true),
         spec,
         mapper,
         options);
@@ -1109,7 +1182,7 @@ TOperationId ExecuteRawMap(
     LOG_DEBUG("Starting raw map operation");
     return DoExecuteMap(
         preparer,
-        CreateSimpleOperationIo(preparer.GetAuth(), spec),
+        CreateSimpleOperationIo(preparer, spec),
         spec,
         mapper,
         options);
@@ -1126,11 +1199,11 @@ TOperationId DoExecuteReduce(
     const TOperationOptions& options)
 {
     if (options.CreateDebugOutputTables_) {
-        CreateDebugOutputTables(spec, preparer.GetAuth());
+        CreateDebugOutputTables(spec, preparer);
     }
     if (options.CreateOutputTables_) {
-        CheckInputTablesExist(preparer.GetAuth(), preparer.GetTransactionId(), operationIo.Inputs);
-        CreateOutputTables(preparer.GetAuth(), preparer.GetTransactionId(), operationIo.Outputs);
+        CheckInputTablesExist(preparer, operationIo.Inputs);
+        CreateOutputTables(preparer, operationIo.Outputs);
     }
 
     TJobPreparer reduce(
@@ -1196,7 +1269,7 @@ TOperationId ExecuteReduce(
     LOG_DEBUG("Starting reduce operation");
     return DoExecuteReduce(
         preparer,
-        CreateSimpleOperationIo(reducer, preparer.GetAuth(), preparer.GetTransactionId(), spec, options, /* allowSkiff = */ false),
+        CreateSimpleOperationIo(reducer, preparer, spec, options, /* allowSkiff = */ false),
         spec,
         reducer,
         options);
@@ -1211,7 +1284,7 @@ TOperationId ExecuteRawReduce(
     LOG_DEBUG("Starting raw reduce operation");
     return DoExecuteReduce(
         preparer,
-        CreateSimpleOperationIo(preparer.GetAuth(), spec),
+        CreateSimpleOperationIo(preparer, spec),
         spec,
         reducer,
         options);
@@ -1228,11 +1301,11 @@ TOperationId DoExecuteJoinReduce(
     const TOperationOptions& options)
 {
     if (options.CreateDebugOutputTables_) {
-        CreateDebugOutputTables(spec, preparer.GetAuth());
+        CreateDebugOutputTables(spec, preparer);
     }
     if (options.CreateOutputTables_) {
-        CheckInputTablesExist(preparer.GetAuth(), preparer.GetTransactionId(), operationIo.Inputs);
-        CreateOutputTables(preparer.GetAuth(), preparer.GetTransactionId(), operationIo.Outputs);
+        CheckInputTablesExist(preparer, operationIo.Inputs);
+        CreateOutputTables(preparer, operationIo.Outputs);
     }
 
     TJobPreparer reduce(
@@ -1291,7 +1364,7 @@ TOperationId ExecuteJoinReduce(
     LOG_DEBUG("Starting join reduce operation");
     return DoExecuteJoinReduce(
         preparer,
-        CreateSimpleOperationIo(reducer, preparer.GetAuth(), preparer.GetTransactionId(), spec, options, /* allowSkiff = */ false),
+        CreateSimpleOperationIo(reducer, preparer, spec, options, /* allowSkiff = */ false),
         spec,
         reducer,
         options);
@@ -1306,7 +1379,7 @@ TOperationId ExecuteRawJoinReduce(
     LOG_DEBUG("Starting raw join reduce operation");
     return DoExecuteJoinReduce(
         preparer,
-        CreateSimpleOperationIo(preparer.GetAuth(), spec),
+        CreateSimpleOperationIo(preparer, spec),
         spec,
         reducer,
         options);
@@ -1329,11 +1402,11 @@ TOperationId DoExecuteMapReduce(
     allOutputs.insert(allOutputs.end(), operationIo.Outputs.begin(), operationIo.Outputs.end());
 
     if (options.CreateDebugOutputTables_) {
-        CreateDebugOutputTables(spec, preparer.GetAuth());
+        CreateDebugOutputTables(spec, preparer);
     }
     if (options.CreateOutputTables_) {
-        CheckInputTablesExist(preparer.GetAuth(), preparer.GetTransactionId(), operationIo.Inputs);
-        CreateOutputTables(preparer.GetAuth(), preparer.GetTransactionId(), allOutputs);
+        CheckInputTablesExist(preparer, operationIo.Inputs);
+        CreateOutputTables(preparer, allOutputs);
     }
 
     TKeyColumns sortBy = spec.SortBy_;
@@ -1499,9 +1572,10 @@ TOperationId ExecuteMapReduce(
     };
 
     TFormatBuilder formatBuilder(
-       preparer.GetAuth(),
-       preparer.GetTransactionId(),
-       options);
+        preparer.GetClientRetryPolicy(),
+        preparer.GetAuth(),
+        preparer.GetTransactionId(),
+        options);
 
     if (mapper) {
         auto nodeReaderFormat = NodeReaderFormatFromHintAndGlobalConfig(spec.MapperFormatHints_);
@@ -1542,6 +1616,7 @@ TOperationId ExecuteMapReduce(
                 structuredInputs,
                 mapperOutput,
                 preparer.GetAuth(),
+                preparer.GetClientRetryPolicy(),
                 preparer.GetTransactionId()));
 
         Y_VERIFY(mapperInferenceResult.size() >= 1);
@@ -1605,6 +1680,7 @@ TOperationId ExecuteMapReduce(
                     inputs,
                     outputs,
                     preparer.GetAuth(),
+                    preparer.GetClientRetryPolicy(),
                     preparer.GetTransactionId()));
         } else {
             currentInferenceResult = InferJobSchemas(
@@ -1659,6 +1735,7 @@ TOperationId ExecuteMapReduce(
                 structuredInputs,
                 structuredOutputs,
                 preparer.GetAuth(),
+                preparer.GetClientRetryPolicy(),
                 preparer.GetTransactionId()));
     } else {
         reducerInferenceResult = InferJobSchemas(
@@ -1742,8 +1819,8 @@ TOperationId ExecuteSort(
     auto output = CanonizePath(preparer.GetAuth(), spec.Output_);
 
     if (options.CreateOutputTables_) {
-        CheckInputTablesExist(preparer.GetAuth(), preparer.GetTransactionId(), inputs);
-        CreateOutputTable(preparer.GetAuth(), preparer.GetTransactionId(), output);
+        CheckInputTablesExist(preparer, inputs);
+        CreateOutputTable(preparer, output);
     }
 
     TNode specNode = BuildYsonNodeFluently()
@@ -1778,8 +1855,8 @@ TOperationId ExecuteMerge(
     auto output = CanonizePath(preparer.GetAuth(), spec.Output_);
 
     if (options.CreateOutputTables_) {
-        CheckInputTablesExist(preparer.GetAuth(), preparer.GetTransactionId(), inputs);
-        CreateOutputTable(preparer.GetAuth(), preparer.GetTransactionId(), output);
+        CheckInputTablesExist(preparer, inputs);
+        CreateOutputTable(preparer, output);
     }
 
     TNode specNode = BuildYsonNodeFluently()
@@ -1839,7 +1916,7 @@ TOperationId ExecuteRemoteCopy(
     auto output = CanonizePath(preparer.GetAuth(), spec.Output_);
 
     if (options.CreateOutputTables_) {
-        CreateOutputTable(preparer.GetAuth(), preparer.GetTransactionId(), output);
+        CreateOutputTable(preparer, output);
     }
 
     Y_ENSURE_EX(!spec.ClusterName_.empty(), TApiUsageError() << "ClusterName parameter is required");
@@ -1924,8 +2001,12 @@ class TOperation::TOperationImpl
     : public TThrRefBase
 {
 public:
-    TOperationImpl(TAuth auth, const TOperationId& operationId)
-        : Auth_(std::move(auth))
+    TOperationImpl(
+        IClientRetryPolicyPtr clientRetryPolicy,
+        TAuth auth,
+        const TOperationId& operationId)
+        : ClientRetryPolicy_(clientRetryPolicy)
+        , Auth_(std::move(auth))
         , Id_(operationId)
     { }
 
@@ -1954,6 +2035,7 @@ private:
     static void* SyncFinishOperationProc(void* );
 
 private:
+    IClientRetryPolicyPtr ClientRetryPolicy_;
     const TAuth Auth_;
     const TOperationId Id_;
     TMutex Lock_;
@@ -2026,7 +2108,9 @@ NThreading::TFuture<void> TOperation::TOperationImpl::Watch(TYtPoller& ytPoller)
     }
 
     auto operationId = GetId();
-    TAbortableRegistry::Get()->Add(operationId, ::MakeIntrusive<TOperationAbortable>(Auth_, operationId));
+    TAbortableRegistry::Get()->Add(
+        operationId,
+        ::MakeIntrusive<TOperationAbortable>(ClientRetryPolicy_, Auth_, operationId));
     auto registry = TAbortableRegistry::Get();
     // We have to own an IntrusivePtr to registry to prevent use-after-free
     auto removeOperation = [registry, operationId](const NThreading::TFuture<void>&) {
@@ -2104,6 +2188,7 @@ void TOperation::TOperationImpl::UpdateAttributesAndCall(bool needJobStatistics,
     }
 
     TOperationAttributes attributes = NDetail::GetOperation(
+        ClientRetryPolicy_->CreatePolicyForGenericRequest(),
         Auth_,
         Id_,
         TGetOperationOptions().AttributeFilter(TOperationAttributeFilter()
@@ -2127,30 +2212,30 @@ void TOperation::TOperationImpl::FinishWithException(std::exception_ptr e)
 }
 
 void TOperation::TOperationImpl::AbortOperation() {
-    NYT::NDetail::AbortOperation(Auth_, Id_);
+    NYT::NDetail::AbortOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, Id_);
 }
 
 void TOperation::TOperationImpl::CompleteOperation() {
-    NYT::NDetail::CompleteOperation(Auth_, Id_);
+    NYT::NDetail::CompleteOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, Id_);
 }
 
 TOperationAttributes TOperation::TOperationImpl::GetAttributes(const TGetOperationOptions& options) {
-    return NYT::NDetail::GetOperation(Auth_, Id_, options);
+    return NYT::NDetail::GetOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, Id_, options);
 }
 
 void TOperation::TOperationImpl::UpdateParameters(const TUpdateOperationParametersOptions& options)
 {
-    return NYT::NDetail::UpdateOperationParameters(Auth_, Id_, options);
+    return NYT::NDetail::UpdateOperationParameters(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, Id_, options);
 }
 
 TJobAttributes TOperation::TOperationImpl::GetJob(const TJobId& jobId, const TGetJobOptions& options)
 {
-    return NYT::NDetail::GetJob(Auth_, Id_, jobId, options);
+    return NYT::NDetail::GetJob(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, Id_, jobId, options);
 }
 
 TListJobsResult TOperation::TOperationImpl::ListJobs(const TListJobsOptions& options)
 {
-    return NYT::NDetail::ListJobs(Auth_, Id_, options);
+    return NYT::NDetail::ListJobs(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, Id_, options);
 }
 
 struct TAsyncFinishOperationsArgs
@@ -2206,7 +2291,7 @@ void TOperation::TOperationImpl::SyncFinishOperationImpl(const TOperationAttribu
         TVector<TFailedJobInfo> failedJobStderrInfo;
         if (*attributes.BriefState == EOperationBriefState::Failed) {
             try {
-                failedJobStderrInfo = NYT::NDetail::GetFailedJobInfo(Auth_, Id_, TGetFailedJobInfoOptions());
+                failedJobStderrInfo = NYT::NDetail::GetFailedJobInfo(ClientRetryPolicy_, Auth_, Id_, TGetFailedJobInfoOptions());
             } catch (const yexception& e) {
                 additionalExceptionText = "Cannot get job stderrs: ";
                 additionalExceptionText += e.what();
@@ -2228,7 +2313,7 @@ void TOperation::TOperationImpl::SyncFinishOperationImpl(const TOperationAttribu
 
 TOperation::TOperation(TOperationId id, TClientPtr client)
     : Client_(std::move(client))
-    , Impl_(::MakeIntrusive<TOperationImpl>(Client_->GetAuth(), id))
+    , Impl_(::MakeIntrusive<TOperationImpl>(Client_->GetRetryPolicy(), Client_->GetAuth(), id))
 {
 }
 
@@ -2244,7 +2329,7 @@ NThreading::TFuture<void> TOperation::Watch()
 
 TVector<TFailedJobInfo> TOperation::GetFailedJobInfo(const TGetFailedJobInfoOptions& options)
 {
-    return NYT::NDetail::GetFailedJobInfo(Client_->GetAuth(), GetId(), options);
+    return NYT::NDetail::GetFailedJobInfo(Client_->GetRetryPolicy(), Client_->GetAuth(), GetId(), options);
 }
 
 EOperationBriefState TOperation::GetBriefState()
@@ -2343,10 +2428,13 @@ private:
     NThreading::TFuture<TOperationAttributes> Future_;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 TOperationPreparer::TOperationPreparer(TClientPtr client, TTransactionId transactionId)
     : Client_(std::move(client))
     , TransactionId_(transactionId)
     , FileTransaction_(new TPingableTransaction(Client_->GetAuth(), TransactionId_))
+    , ClientRetryPolicy_(Client_->GetRetryPolicy())
 { }
 
 const TAuth& TOperationPreparer::GetAuth() const
@@ -2358,6 +2446,13 @@ TTransactionId TOperationPreparer::GetTransactionId() const
 {
     return TransactionId_;
 }
+
+const IClientRetryPolicyPtr& TOperationPreparer::GetClientRetryPolicy() const
+{
+    return ClientRetryPolicy_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TCacheTouchingRetryPolicy
     : public IRequestRetryPolicy
@@ -2385,7 +2480,7 @@ public:
                 CachePath_,
                 TGetFileFromCacheOptions()));
         }
-        ExecuteBatch(Auth_, batchRequest);
+        ExecuteBatch(CreateDefaultRequestRetryPolicy(), Auth_, batchRequest);
         for (const auto& future : results) {
             future.GetValueSync();
         }
@@ -2435,17 +2530,17 @@ TOperationId TOperationPreparer::StartOperation(
     header.AddMutationId();
 
     auto retryPolicy = MakeIntrusive<TCacheTouchingRetryPolicy>(
-        MakeIntrusive<TAttemptLimitedRetryPolicy>(static_cast<ui32>(TConfig::Get()->StartOperationRetryCount)),
+        ClientRetryPolicy_->CreatePolicyForStartOperationRequest(),
         GetAuth(),
         LockedFileSignatures_,
         CachePath_);
 
     auto ysonSpec = NodeToYsonString(spec);
     auto responseInfo = RetryRequestWithPolicy(
+        retryPolicy,
         GetAuth(),
         header,
-        ysonSpec,
-        retryPolicy);
+        ysonSpec);
     TOperationId operationId = ParseGuidFromResponse(responseInfo.Response);
 
     LOG_INFO("Operation %s started (%s): http://%s/#page=operation&mode=detail&id=%s&tab=details",
@@ -2481,7 +2576,7 @@ void TOperationPreparer::LockFiles(
             ELockMode::LM_SNAPSHOT,
             TLockOptions().Waitable(true)));
     }
-    ExecuteBatch(GetAuth(), lockRequest);
+    ExecuteBatch(ClientRetryPolicy_->CreatePolicyForGenericRequest(), GetAuth(), lockRequest);
 
     TVector<NThreading::TFuture<TNode>> nodeIdFutures;
     nodeIdFutures.reserve(paths->size());
@@ -2492,7 +2587,7 @@ void TOperationPreparer::LockFiles(
             TStringBuilder() << '#' << GetGuidAsString(lockIdFuture.GetValue()) << "/@node_id",
             TGetOptions()));
     }
-    ExecuteBatch(GetAuth(), getNodeIdRequest);
+    ExecuteBatch(ClientRetryPolicy_->CreatePolicyForGenericRequest(), GetAuth(), getNodeIdRequest);
 
     for (size_t i = 0; i != paths->size(); ++i) {
         auto& richPath = (*paths)[i];

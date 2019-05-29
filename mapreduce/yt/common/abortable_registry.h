@@ -45,13 +45,14 @@ class TOperationAbortable
     : public IAbortable
 {
 public:
-    TOperationAbortable(const TAuth& auth, const TOperationId& operationId);
+    TOperationAbortable(IClientRetryPolicyPtr clientRetryPolicy, TAuth auth, const TOperationId& operationId);
     void Abort() override;
     TString GetType() const override;
 
 private:
-    TAuth Auth_;
-    TOperationId OperationId_;
+    const IClientRetryPolicyPtr ClientRetryPolicy_;
+    const TAuth Auth_;
+    const TOperationId OperationId_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

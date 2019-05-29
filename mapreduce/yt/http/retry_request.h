@@ -35,10 +35,10 @@ struct TRequestConfig
 // Retry request with given `header' and `body' using `retryPolicy'.
 // If `retryPolicy == nullptr' use default, currently `TAttemptLimitedRetryPolicy(TConfig::Get()->RetryCount)`.
 TResponseInfo RetryRequestWithPolicy(
+    IRequestRetryPolicyPtr retryPolicy,
     const TAuth& auth,
     THttpHeader& header,
     TMaybe<TStringBuf> body = {},
-    IRequestRetryPolicyPtr retryPolicy = nullptr,
     const TRequestConfig& config = TRequestConfig());
 
 ////////////////////////////////////////////////////////////////////

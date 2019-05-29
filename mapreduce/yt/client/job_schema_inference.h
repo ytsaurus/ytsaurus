@@ -16,6 +16,7 @@ public:
         TStructuredJobTableList structuredInputs,
         TStructuredJobTableList structuredOutputs,
         const TAuth& auth,
+        const IClientRetryPolicyPtr& retryPolicy,
         TTransactionId transactionId);
 
     int GetInputTableCount() const override;
@@ -30,6 +31,7 @@ private:
     TStructuredJobTableList Inputs_;
     TStructuredJobTableList Outputs_;
     const TAuth& Auth_;
+    const IClientRetryPolicyPtr RetryPolicy_;
     TTransactionId TransactionId_;
 
     mutable TVector<TTableSchema> InputSchemas_;

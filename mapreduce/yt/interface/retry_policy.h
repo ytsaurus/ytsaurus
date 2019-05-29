@@ -19,8 +19,6 @@ class IRequestRetryPolicy
     : public virtual TThrRefBase
 {
 public:
-    virtual ~IRequestRetryPolicy() = default;
-
     // Helper function that returns text description of current attempt, e.g.
     //   "attempt 3 / 10"
     // used in logs.
@@ -50,6 +48,7 @@ class IClientRetryPolicy
 {
 public:
     virtual IRequestRetryPolicyPtr CreatePolicyForGenericRequest() = 0;
+    virtual IRequestRetryPolicyPtr CreatePolicyForStartOperationRequest() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

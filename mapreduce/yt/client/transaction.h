@@ -73,7 +73,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath Snapshot(const TAuth& auth, const TTransactionId& transactionId, const TYPath& path);
+TYPath Snapshot(
+    const IClientRetryPolicyPtr& clientRetryPolicy,
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path);
 
 ////////////////////////////////////////////////////////////////////////////////
 

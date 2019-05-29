@@ -61,6 +61,7 @@ private:
 
 public:
     TFormatBuilder(
+        IClientRetryPolicyPtr clientRetryPolicy,
         TAuth auth,
         TTransactionId transactionId,
         TOperationOptions operationOptions);
@@ -98,6 +99,7 @@ public:
         bool allowFormatFromTableAttribute);
 
 private:
+    const IClientRetryPolicyPtr ClientRetryPolicy_;
     const TAuth Auth_;
     const TTransactionId TransactionId_;
     const TOperationOptions OperationOptions_;

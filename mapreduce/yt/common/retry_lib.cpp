@@ -58,6 +58,11 @@ public:
     {
         return CreateDefaultRequestRetryPolicy();
     }
+
+    IRequestRetryPolicyPtr CreatePolicyForStartOperationRequest() override
+    {
+        return MakeIntrusive<TAttemptLimitedRetryPolicy>(static_cast<ui32>(TConfig::Get()->StartOperationRetryCount));
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

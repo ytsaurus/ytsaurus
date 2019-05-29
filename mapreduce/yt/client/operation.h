@@ -2,6 +2,7 @@
 
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/interface/operation.h>
+#include <mapreduce/yt/interface/retry_policy.h>
 
 #include <util/generic/ptr.h>
 #include <util/generic/vector.h>
@@ -67,12 +68,15 @@ public:
         const TNode& spec,
         bool useStartOperationRequest = false);
 
+    const IClientRetryPolicyPtr& GetClientRetryPolicy() const;
+
 private:
     TClientPtr Client_;
     TTransactionId TransactionId_;
     THolder<TPingableTransaction> FileTransaction_;
     TVector<TString> LockedFileSignatures_;
     TYPath CachePath_;
+    IClientRetryPolicyPtr ClientRetryPolicy_;
 
 private:
     void CheckValidity() const;
@@ -158,10 +162,12 @@ TOperationId ExecuteVanilla(
     const TOperationOptions& options);
 
 EOperationBriefState CheckOperation(
+    const IClientRetryPolicyPtr& clientRetryPolicy,
     const TAuth& auth,
     const TOperationId& operationId);
 
 void WaitForOperation(
+    const IClientRetryPolicyPtr& clientRetryPolicy,
     const TAuth& auth,
     const TOperationId& operationId);
 

@@ -160,7 +160,7 @@ void TPingableTransaction::Pinger()
     while (Running_) {
         try {
             auto retryPolicy = MakeIntrusive<TPingRetryPolicy>();
-            NDetail::NRawClient::PingTx(Auth_, TransactionId_, retryPolicy);
+            NDetail::NRawClient::PingTx(retryPolicy, Auth_, TransactionId_);
         } catch (const TErrorResponse& e) {
             // All other errors must be retried by our TPingRetryPolicy.
             Y_VERIFY(
@@ -187,10 +187,20 @@ void* TPingableTransaction::Pinger(void* opaque)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath Snapshot(const TAuth& auth, const TTransactionId& transactionId, const TYPath& path)
+TYPath Snapshot(
+    const IClientRetryPolicyPtr& clientRetryPolicy,
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path)
 {
-    auto lockId = NDetail::NRawClient::Lock(auth, transactionId, path, ELockMode::LM_SNAPSHOT);
+    auto lockId = NDetail::NRawClient::Lock(
+        clientRetryPolicy->CreatePolicyForGenericRequest(),
+        auth,
+        transactionId,
+        path,
+        ELockMode::LM_SNAPSHOT);
     auto lockedNodeId = NDetail::NRawClient::Get(
+        clientRetryPolicy->CreatePolicyForGenericRequest(),
         auth,
         transactionId,
         TStringBuilder() << '#' << GetGuidAsString(lockId) << "/@node_id");

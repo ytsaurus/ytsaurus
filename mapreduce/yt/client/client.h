@@ -203,7 +203,7 @@ protected:
 protected:
     const TAuth Auth_;
     TTransactionId TransactionId_;
-    IClientRetryPolicyPtr RetryPolicy_;
+    IClientRetryPolicyPtr ClientRetryPolicy_;
 
 private:
     ::TIntrusivePtr<TClientReader> CreateClientReader(

@@ -36,12 +36,14 @@ namespace NYT {
 
 TClientReader::TClientReader(
     const TRichYPath& path,
+    IClientRetryPolicyPtr clientRetryPolicy,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TFormat& format,
     const TTableReaderOptions& options,
     bool useFormatFromTableAttributes)
     : Path_(path)
+    , ClientRetryPolicy_(std::move(clientRetryPolicy))
     , Auth_(auth)
     , ParentTransactionId_(transactionId)
     , Format_(format)
@@ -52,12 +54,12 @@ TClientReader::TClientReader(
 {
     if (options.CreateTransaction_) {
         ReadTransaction_ = MakeHolder<TPingableTransaction>(auth, transactionId);
-        Path_.Path(Snapshot(Auth_, ReadTransaction_->GetId(), path.Path_));
+        Path_.Path(Snapshot(ClientRetryPolicy_, Auth_, ReadTransaction_->GetId(), path.Path_));
     }
 
     if (useFormatFromTableAttributes) {
         auto transactionId2 = ReadTransaction_ ? ReadTransaction_->GetId() : ParentTransactionId_;
-        auto newFormat = GetTableFormat(Auth_, transactionId2, Path_);
+        auto newFormat = GetTableFormat(ClientRetryPolicy_, Auth_, transactionId2, Path_);
         if (newFormat) {
             Format_->Config = *newFormat;
         }
