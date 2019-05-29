@@ -795,7 +795,8 @@ private:
         AbortTransaction(transactionId, force);
     }
 
-
+// COMPAT(shakurov)
+public:
     void FinishTransaction(TTransaction* transaction)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -852,6 +853,7 @@ private:
         // Kill the fake reference thus destroying the object.
         objectManager->UnrefObject(transaction);
     }
+private:
 
     void SaveKeys(NCellMaster::TSaveContext& context)
     {
@@ -1043,6 +1045,12 @@ void TTransactionManager::AbortTransaction(
     bool force)
 {
     Impl_->AbortTransaction(transaction, force);
+}
+
+// COMPAT(shakurov)
+void TTransactionManager::FinishTransaction(TTransaction* transaction)
+{
+    Impl_->FinishTransaction(transaction);
 }
 
 TTransaction* TTransactionManager::GetTransactionOrThrow(TTransactionId transactionId)

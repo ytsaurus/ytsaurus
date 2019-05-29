@@ -33,6 +33,10 @@
 #include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/ypath_detail.h>
 
+// COMPAT(shakurov)
+#include <yt/server/master/table_server/table_node.h>
+#include <yt/server/master/chunk_server/chunk_list.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NBus;
@@ -1330,6 +1334,9 @@ private:
     TNodeId RootNodeId_;
     TMapNode* RootNode_ = nullptr;
 
+    // COMPAT(shakurov). See YT-10852.
+    bool NeedCleanupHalfCommittedTransaction_ = false;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -1360,8 +1367,10 @@ private:
 
         NodeMap_.LoadValues(context);
         LockMap_.LoadValues(context);
-    }
 
+        // COMPAT(shakurov) see YT-10852
+        NeedCleanupHalfCommittedTransaction_ = context.GetVersion() < 833;
+    }
 
     virtual void Clear() override
     {
@@ -1385,6 +1394,13 @@ private:
         TCompositeAutomatonPart::SetZeroState();
 
         InitBuiltins();
+    }
+
+    virtual void OnBeforeSnapshotLoaded() override
+    {
+        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
+
+        NeedCleanupHalfCommittedTransaction_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1483,6 +1499,50 @@ private:
         YT_LOG_INFO("Finished initializing nodes");
 
         InitBuiltins();
+
+        // COMPAT(shakurov)
+        if (NeedCleanupHalfCommittedTransaction_)
+        {
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+
+            const auto nodeId = TGuid::FromString("14b9a-4f2edb-3fe0191-6f4fd698");
+            const auto transactionId = TGuid::FromString("14b9d-127f8e-3fe0001-1c229f47");
+            const auto branchedNodeId = TVersionedNodeId(nodeId, transactionId);
+
+            auto* trunkNode = FindNode(TVersionedNodeId(nodeId));
+            auto* branchedNode = FindNode(branchedNodeId);
+            auto* transaction = transactionManager->FindTransaction(transactionId);
+
+            YCHECK(!!trunkNode == !!branchedNode);
+            YCHECK(!!trunkNode == !!transaction);
+
+            if (trunkNode) {
+                YT_LOG_ERROR("Found the unfortunate half-committed transaction 14b9d-127f8e-3fe0001-1c229f47. Scrubbing it and its immediate vicinity out. See YT-10852.");
+
+                YCHECK(trunkNode->GetType() == EObjectType::Table);
+                auto* tableTrunkNode = trunkNode->As<NTableServer::TTableNode>();
+                auto* chunkList = tableTrunkNode->GetChunkList();
+                YCHECK(chunkList);
+                YCHECK(chunkList->GetId() == TGuid::FromString("14b2-bf8cb-1f560065-bd3efb"));
+                YCHECK(chunkList->TrunkOwningNodes().Size() == 1);
+                YCHECK(chunkList->BranchedOwningNodes().Empty());
+                YCHECK(*chunkList->TrunkOwningNodes().Begin() == tableTrunkNode);
+
+                objectManager->UnrefObject(trunkNode);
+                NodeMap_.Remove(branchedNodeId);
+                transaction->BranchedNodes().clear();
+                ReleaseLocks(transaction, false);
+                for (auto* object : transaction->ImportedObjects()) {
+                    objectManager->UnrefObject(object);
+                }
+                transaction->ExportedObjects().clear();
+                transaction->ImportedObjects().clear();
+                transactionManager->FinishTransaction(transaction);
+
+                YT_LOG_ERROR("The half-committed transaction 14b9d-127f8e-3fe0001-1c229f47 has been successfully scrubbed out.");
+            }
+        }
     }
 
 
