@@ -460,6 +460,7 @@ protected:
 
     const TString Id_;
     bool DefaultConfigured_ = true;
+    bool EphemeralInDefaultParentPool_ = false;
     std::optional<TString> UserName_;
 };
 
@@ -484,6 +485,7 @@ public:
         TCompositeSchedulerElement* clonedParent);
 
     bool IsDefaultConfigured() const;
+    bool IsEphemeralInDefaultParentPool() const;
 
     void SetUserName(const std::optional<TString>& userName);
     const std::optional<TString>& GetUserName() const;
@@ -491,6 +493,7 @@ public:
     TPoolConfigPtr GetConfig();
     void SetConfig(TPoolConfigPtr config);
     void SetDefaultConfig();
+    void SetEphemeralInDefaultParentPool();
 
     virtual bool IsExplicit() const override;
     virtual bool IsAggressiveStarvationEnabled() const override;

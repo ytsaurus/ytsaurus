@@ -1387,6 +1387,11 @@ bool TPool::IsDefaultConfigured() const
     return DefaultConfigured_;
 }
 
+bool TPool::IsEphemeralInDefaultParentPool() const
+{
+    return EphemeralInDefaultParentPool_;
+}
+
 void TPool::SetUserName(const std::optional<TString>& userName)
 {
     UserName_ = userName;
@@ -1416,6 +1421,13 @@ void TPool::SetDefaultConfig()
 
     DoSetConfig(New<TPoolConfig>());
     DefaultConfigured_ = true;
+}
+
+void TPool::SetEphemeralInDefaultParentPool()
+{
+    YCHECK(!Cloned_);
+
+    EphemeralInDefaultParentPool_ = true;
 }
 
 bool TPool::IsAggressiveStarvationPreemptionAllowed() const
