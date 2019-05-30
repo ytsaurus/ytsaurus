@@ -430,7 +430,7 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     EXPECT_EQ(0.0, poolB->Attributes().DemandRatio);
     EXPECT_EQ(0.1, operationElementX->Attributes().DemandRatio);
 
-    EXPECT_EQ(1.0, rootElement->Attributes().FairShareRatio);
+    EXPECT_EQ(0.1, rootElement->Attributes().FairShareRatio);
     EXPECT_EQ(0.1, rootElement->Attributes().DemandRatio);
     EXPECT_EQ(0.0, poolB->Attributes().FairShareRatio);
     EXPECT_EQ(0.1, operationElementX->Attributes().FairShareRatio);

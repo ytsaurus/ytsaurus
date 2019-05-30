@@ -1104,6 +1104,10 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
 {
     YCHECK(!Cloned_);
 
+    if (IsRoot()) {
+        SetFairShareRatio(1.0);
+    }
+
     // Compute min shares sum and min weight.
     double minShareRatioSumForPools = 0.0;
     double minShareRatioSumForOperations = 0.0;
@@ -1200,6 +1204,15 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
         },
         Attributes_.FairShareRatio);
 
+    if (IsRoot()) {
+        double fairShareRatio = 0.0;
+        for (const auto& child : EnabledChildren_) {
+            fairShareRatio += child->GetFairShareRatio();
+        }
+        if (fairShareRatio < 1.0 - RatioComparisonPrecision) {
+            SetFairShareRatio(fairShareRatio);
+        }
+    }
 
     // Compute guaranteed shares.
     ComputeByFitting(
