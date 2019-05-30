@@ -297,6 +297,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("node_heartbeat_timeout", NodeHeartbeatTimeout)
         .Default(TDuration::Seconds(60));
 
+    RegisterParameter("node_registration_timeout", NodeRegistrationTimeout)
+        .Default(TDuration::Seconds(600));
+
     RegisterParameter("watchers_update_period", WatchersUpdatePeriod)
         .Default(TDuration::Seconds(3));
     RegisterParameter("nodes_attributes_update_period", NodesAttributesUpdatePeriod)
