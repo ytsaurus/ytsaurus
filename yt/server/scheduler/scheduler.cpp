@@ -1592,7 +1592,7 @@ private:
                     RegisterOperationAlias(operation);
                 }
 
-                RegisterOperation(operation, /* jobsReady */ false);
+                RegisterOperation(operation, false);
 
                 operation->SetStateAndEnqueueEvent(EOperationState::Orphaned);
                 AddOperationToTransientQueue(operation);
@@ -2086,9 +2086,10 @@ private:
             }
 
             // NB(babenko): now we only validate this on start but not during revival
-            // NB(ignat): this validation must be just before operation registration below
-            // to avoid violation of pool limits. See YT-10802.
             Strategy_->ValidatePoolLimits(operation.Get(), operation->GetRuntimeParameters());
+
+            WaitFor(MasterConnector_->CreateOperationNode(operation))
+                .ThrowOnError();
         } catch (const std::exception& ex) {
             if (aliasRegistered) {
                 auto it = OperationAliases_.find(*operation->Alias());
@@ -2105,19 +2106,7 @@ private:
 
         ValidateOperationState(operation, EOperationState::Starting);
 
-        RegisterOperation(operation, /* jobsReady */ true);
-
-        try {
-            WaitFor(MasterConnector_->CreateOperationNode(operation))
-                .ThrowOnError();
-        } catch (const std::exception& ex) {
-            auto wrappedError = TError("Failed to create cypress node for operation %v",
-                operation->GetId())
-                << ex;
-            operation->SetStarted(wrappedError);
-            UnregisterOperation(operation);
-            return;
-        }
+        RegisterOperation(operation, true);
 
         operation->SetStateAndEnqueueEvent(EOperationState::WaitingForAgent);
         AddOperationToTransientQueue(operation);
