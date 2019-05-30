@@ -293,7 +293,8 @@ private:
         ENodeState state);
     void UnregisterNode(const TExecNodePtr& node);
     void DoUnregisterNode(const TExecNodePtr& node);
-    void OnNodeLeaseExpired(NNodeTrackerClient::TNodeId nodeId);
+    void OnNodeHeartbeatLeaseExpired(NNodeTrackerClient::TNodeId nodeId);
+    void OnNodeRegistrationLeaseExpired(NNodeTrackerClient::TNodeId nodeId);
 
     void AbortAllJobsAtNode(const TExecNodePtr& node);
     void AbortUnconfirmedJobs(

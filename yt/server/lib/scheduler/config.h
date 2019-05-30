@@ -334,7 +334,11 @@ public:
 
     TDuration ConnectRetryBackoffTime;
 
-    //! Timeout for node expiration.
+    //! Timeout for node expiration in scheduler.
+    TDuration NodeRegistrationTimeout;
+
+    //! Timeout for node heartbeat expiration.
+    //! After that timeout scheduler state of node becomes offline.
     TDuration NodeHeartbeatTimeout;
 
     TDuration WatchersUpdatePeriod;
