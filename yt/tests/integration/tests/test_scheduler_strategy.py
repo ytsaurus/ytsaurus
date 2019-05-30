@@ -69,6 +69,9 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             time.sleep(0.1)
         assert False
 
+    def test_root_pool(self):
+        assert are_almost_equal(get("//sys/scheduler/orchid/scheduler/pools/<Root>/fair_share_ratio"), 0.0)
+
     def test_scheduler_guaranteed_resources_ratio(self):
         create("map_node", "//sys/pools/big_pool", attributes={"min_share_ratio": 1.0})
         create("map_node", "//sys/pools/big_pool/subpool_1", attributes={"weight": 1.0})
