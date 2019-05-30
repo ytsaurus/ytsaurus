@@ -94,13 +94,88 @@ private:
         }
 
     private:
+        class TRetryingRequestControlThunk
+            : public IClientRequestControl
+        {
+        public:
+            // NB: In contrast to TClientRequestControlThunk::SetUnderlying,
+            // this one may be invoked multiple times.
+            void SetNewUnderlying(IClientRequestControlPtr newUnderlying)
+            {
+                VERIFY_THREAD_AFFINITY_ANY();
+
+                if (!newUnderlying) {
+                    return;
+                }
+
+                SmallVector<IClientRequestControlPtr, 2> toCancelList;
+
+                TGuard<TSpinLock> guard(SpinLock_);
+
+                if (Underlying_) {
+                    toCancelList.push_back(std::move(Underlying_));
+                }
+
+                if (Canceled_) {
+                    toCancelList.push_back(std::move(newUnderlying));
+                } else {
+                    Underlying_ = std::move(newUnderlying);
+                }
+
+                guard.Release();
+
+                for (const auto& toCancel : toCancelList) {
+                    toCancel->Cancel();
+                }
+            }
+
+            virtual void Cancel() override
+            {
+                VERIFY_THREAD_AFFINITY_ANY();
+
+                IClientRequestControlPtr toCancel;
+                TGuard<TSpinLock> guard(SpinLock_);
+
+                Canceled_ = true;
+                toCancel = std::move(Underlying_);
+
+                guard.Release();
+
+                if (toCancel) {
+                    toCancel->Cancel();
+                }
+            }
+
+            virtual TFuture<void> SendStreamingPayload(const TStreamingPayload& /*payload*/) override
+            {
+                VERIFY_THREAD_AFFINITY_ANY();
+
+                return MakeFuture<void>(TError("Retrying channel does not support streaming"));
+            }
+
+            virtual TFuture<void> SendStreamingFeedback(const TStreamingFeedback& /*feedback*/) override
+            {
+                VERIFY_THREAD_AFFINITY_ANY();
+
+                return MakeFuture<void>(TError("Retrying channel does not support streaming"));
+            }
+
+        private:
+            TSpinLock SpinLock_;
+            bool Canceled_ = false;
+            IClientRequestControlPtr Underlying_;
+
+        };
+
+        using TRetryingRequestControlThunkPtr = TIntrusivePtr<TRetryingRequestControlThunk>;
+
         const TRetryingChannelConfigPtr Config_;
         const IChannelPtr UnderlyingChannel_;
         const IClientRequestPtr Request_;
         const IClientResponseHandlerPtr ResponseHandler_;
         const TSendOptions Options_;
         const TCallback<bool(const TError&)> IsRetriableError_;
-        const TClientRequestControlThunkPtr RequestControlThunk_ = New<TClientRequestControlThunk>();
+        const TRetryingRequestControlThunkPtr RequestControlThunk_ = New<TRetryingRequestControlThunk>();
 
         //! The current attempt number (1-based).
         int CurrentAttempt_ = 1;
@@ -216,7 +291,7 @@ private:
                 Request_,
                 this,
                 adjustedOptions);
-            RequestControlThunk_->SetUnderlying(std::move(requestControl));
+            RequestControlThunk_->SetNewUnderlying(std::move(requestControl));
         }
     };
 };
