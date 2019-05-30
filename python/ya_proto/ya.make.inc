@@ -3,6 +3,7 @@ yp_proto/yp/client/api/proto/autogen.proto
 yp_proto/yp/client/api/proto/conditions.proto
 yp_proto/yp/client/api/proto/cluster_api.proto
 yp_proto/yp/client/api/proto/pod_agent.proto
+yp_proto/yp/client/api/proto/pod_agent_api.proto
 yp_proto/yp/client/api/proto/data_model.proto
 yp_proto/yp/client/api/proto/deploy.proto
 yp_proto/yp/client/api/proto/enums.proto

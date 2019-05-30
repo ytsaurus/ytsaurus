@@ -5,6 +5,7 @@ YP_PROTOS="
     yp/client/api/proto/conditions.proto
     yp/client/api/proto/cluster_api.proto
     yp/client/api/proto/pod_agent.proto
+    yp/client/api/proto/pod_agent_api.proto
     yp/client/api/proto/data_model.proto
     yp/client/api/proto/deploy.proto
     yp/client/api/proto/enums.proto

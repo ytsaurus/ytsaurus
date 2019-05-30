@@ -92,6 +92,9 @@ message TPodAgentStatus {
     TCondition in_progress = 9;
 
     TResourceGangStatus resource_cache = 10;
+
+    // yp timestamp последнего обновления спецификации пода
+    uint64 spec_timestamp = 11;
 }
 
 //============================== SPEC ==========================
@@ -575,10 +578,14 @@ message TBoxStatus {
     TCondition in_progress = 7;
 
     // Ревизия к которой относится box
+    // Скоро будет удалена в пользу spec_timestamp: DEPLOY-417
     uint32 revision = 8;
 
     // Количество неудачных попыток собрать box
     uint32 fail_counter = 9;
+
+    // spec_timestamp до которого обновлен box
+    uint64 spec_timestamp = 12;
 }
 
 enum EBoxState {
@@ -754,7 +761,11 @@ message TWorkloadStatus {
     EWorkloadTargetState target_state = 11;
 
     // Ревизия к которой относится workload
+    // Скоро будет удалена в пользу spec_timestamp: DEPLOY-417
     uint32 revision = 12;
+
+    // spec_timestamp до которого обновлен workload
+    uint64 spec_timestamp = 16;
 }
 
 enum EHttpGetState {
@@ -927,7 +938,11 @@ message TLayerStatus {
     TCondition in_progress = 8;
 
     // Ревизия к которой относится layer
+    // Скоро будет удалена в пользу spec_timestamp: DEPLOY-417
     uint32 revision = 9;
+
+    // spec_timestamp до которого обновлен layer
+    uint64 spec_timestamp = 10;
 }
 
 message TStaticResourceStatus {
@@ -953,7 +968,11 @@ message TStaticResourceStatus {
     TCondition in_progress = 8;
 
     // Ревизия к которой относится layer
+    // Скоро будет удалена в пользу spec_timestamp: DEPLOY-417
     uint32 revision = 9;
+
+    // spec_timestamp до которого обновлен static_resource
+    uint64 spec_timestamp = 10;
 }
 
 message TResourceGangStatus {
@@ -1000,5 +1019,9 @@ message TVolumeStatus {
     TCondition in_progress = 6;
 
     // Ревизия к которой относится volume
+    // Скоро будет удалена в пользу spec_timestamp: DEPLOY-417
     uint32 revision = 7;
+
+    // spec_timestamp до которого обновлен volume
+    uint64 spec_timestamp = 8;
 }

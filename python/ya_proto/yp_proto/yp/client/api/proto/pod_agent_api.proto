@@ -5,10 +5,10 @@ option java_outer_classname = "PodApi";
 
 package NInfra.NPodAgent.API;
 
-import "yp/client/api/proto/data_model.proto";
-import "yp/client/api/proto/dynamic_attributes.proto";
-import "yp/client/api/proto/pod_agent.proto";
-import "yp/client/api/proto/secrets.proto";
+import "yp_proto/yp/client/api/proto/data_model.proto";
+import "yp_proto/yp/client/api/proto/dynamic_attributes.proto";
+import "yp_proto/yp/client/api/proto/pod_agent.proto";
+import "yp_proto/yp/client/api/proto/secrets.proto";
 
 // messages used for node_agent <-> pod_agent communication
 

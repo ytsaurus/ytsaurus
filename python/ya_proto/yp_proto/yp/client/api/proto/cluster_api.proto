@@ -278,7 +278,6 @@ message CurrentStateFeedback {
 
     // Момент когда мы получили конфигурацию в первый раз
     uint64 configurationReceivedTimestamp = 10;
-
 }
 
 enum InstanceType {
