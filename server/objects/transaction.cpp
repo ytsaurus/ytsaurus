@@ -316,10 +316,13 @@ public:
         std::vector<TObject*> objects;
         objects.reserve(ids.size());
 
+        // Attention, don't glue this cycles, otherwise batching (and performance) will be broken.
         for (const auto& id : ids) {
             objects.push_back(GetObject(type, id));
+        }
+        for (const auto* object : objects) {
             if (!options.IgnoreNonexistent) {
-                objects.back()->ValidateExists();
+                object->ValidateExists();
             }
         }
 
