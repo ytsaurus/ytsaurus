@@ -57,6 +57,9 @@ void TClientRequestControlThunk::SetUnderlying(IClientRequestControlPtr underlyi
 
     TGuard<TSpinLock> guard(SpinLock_);
 
+    // NB: SetUnderlying can only be invoked once.
+    // This protects from races on unguarded reads since once Underlying_ is non-null, it never changes.
+    YCHECK(!Underlying_);
     Underlying_ = std::move(underlying);
 
     auto canceled = UnderlyingCanceled_ = Canceled_;
