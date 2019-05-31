@@ -8,11 +8,15 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 
 @RunWith(Parameterized.class)
 public class ObjectsMetadataTest<T> {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(ObjectsMetadataTest.class);
 
     @Parameterized.Parameters(name = "{index}: {0}")
     public static Object[][] parameters() {
@@ -24,7 +28,9 @@ public class ObjectsMetadataTest<T> {
                 {LargeFlattenObjectClass.class},
                 {LargeFlattenPrimitiveClass.class},
                 {LargeUnflattenObjectClass.class},
-                {LargeUnflattenPrimitiveClass.class}
+                {LargeUnflattenPrimitiveClass.class},
+                {LargeClassWithAllSupportedSerializers.class},
+                {BrokenIntEnumClass.class}
         };
     }
 
@@ -38,6 +44,11 @@ public class ObjectsMetadataTest<T> {
     public void init() {
         list = new ArrayList<>();
         metadata = ObjectsMetadata.getMetadata(clazz, list::add);
+    }
+
+    @Test
+    public void testToString() {
+        LOGGER.info("{}", metadata.generateObjects(1).get(0));
     }
 
     @Test
@@ -98,4 +109,36 @@ public class ObjectsMetadataTest<T> {
         final List<T> actual = metadata.deserializeLegacyMappedObjects(serialized);
         Assert.assertEquals(expect, actual);
     }
+
+    @Test
+    public void testCrossSerialization() {
+
+        final List<T> expect = metadata.generateObjects(1);
+
+        LOGGER.info("serializeMappedObjects >>>");
+        final List<byte[]> serializedMapped = metadata.serializeMappedObjects(expect);
+
+        LOGGER.info("serializeLegacyMappedObjects >>>");
+        final List<byte[]> serializedLegacy = metadata.serializeLegacyMappedObjects(expect);
+
+        Assert.assertEquals(1, serializedMapped.size());
+        Assert.assertEquals(1, serializedLegacy.size());
+
+        list.clear();
+        metadata.deserializeMappedObjects(serializedLegacy);
+
+        final List<T> actualMapped = list;
+        final List<T> actualLegacy = metadata.deserializeLegacyMappedObjects(serializedMapped);
+
+        Assert.assertEquals(actualLegacy, actualMapped);
+
+        // Note: serializeLegacyMappedObjects может сериализовать поля вложенных объектов в любом порядке
+        // Сравнивать serializedLegacy и serializedMapped просто нельзя - они могут отличаться
+
+//        System.out.println(Hex.encodeHr(serializedLegacy.get(0)));
+//        System.out.println(Hex.encodeHr(serializedMapped.get(0)));
+//        Assert.assertArrayEquals(serializedLegacy.get(0), serializedMapped.get(0));
+    }
+
+
 }

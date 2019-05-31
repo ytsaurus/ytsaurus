@@ -4,7 +4,7 @@ import java.util.Arrays;
 import java.util.Objects;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.NullSerializationStrategy;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeField;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeKeyField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeSerializerClass;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeBytesSerializer;
@@ -12,10 +12,10 @@ import ru.yandex.misc.lang.number.UnsignedLong;
 
 @YTreeObject(nullSerializationStrategy = NullSerializationStrategy.IGNORE_NULL_FIELDS)
 public class RowSampleOject {
-    @YTreeField(isKeyField = true)
+    @YTreeKeyField
     @YTreeSerializerClass(YTreeBytesSerializer.class)
     private Object vNull;
-    @YTreeField(isKeyField = true)
+    @YTreeKeyField
     @YTreeSerializerClass(YTreeBytesSerializer.class)
     private Object vNullAggr;
     private long vInt64;

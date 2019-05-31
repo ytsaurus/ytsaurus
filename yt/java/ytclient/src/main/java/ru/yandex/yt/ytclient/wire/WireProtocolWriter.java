@@ -38,8 +38,6 @@ public class WireProtocolWriter {
 
         this.writeable = new WireProtocolWriteable() {
 
-            private int lastValuePosition;
-
             @Override
             public void onEntity() {
                 throw new IllegalStateException("Value must be provided");

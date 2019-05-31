@@ -2,12 +2,12 @@ package ru.yandex.yt.ytclient.object;
 
 import java.util.Objects;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeField;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeKeyField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 
 @YTreeObject
 public class LargeUnflattenObjectClass {
-    @YTreeField(isKeyField = true)
+    @YTreeKeyField
     private Integer intField1;
     private Integer intField2;
     private Integer intField3;

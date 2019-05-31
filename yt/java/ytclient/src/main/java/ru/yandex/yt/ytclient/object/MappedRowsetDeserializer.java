@@ -18,7 +18,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.YTreeIntegerNodeImpl;
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeStringNodeImpl;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeObjectField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeBytesSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeStringSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
@@ -29,11 +28,12 @@ import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.WireColumnSchema;
 import ru.yandex.yt.ytclient.wire.WireProtocolReader;
 
-public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, WireValueDeserializer<Void>, WireVersionedRowsetDeserializer<T>, WireSchemafulRowsetDeserializer<T> {
+public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, WireValueDeserializer<Void>,
+        WireVersionedRowsetDeserializer<T>, WireSchemafulRowsetDeserializer<T> {
 
     public static <T> MappedRowsetDeserializer<T> forClass(TableSchema schema,
-            YTreeObjectSerializer<T> objectSerializer, Consumer<T> consumer)
-    {
+                                                           YTreeObjectSerializer<T> objectSerializer,
+                                                           Consumer<T> consumer) {
         return new MappedRowsetDeserializer<>(schema, new SerializerConfiguration<>(objectSerializer), consumer);
     }
 
@@ -64,8 +64,7 @@ public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, W
     private YTreeNode node;
 
     private MappedRowsetDeserializer(TableSchema schema, SerializerConfiguration<T> configuration,
-            Consumer<T> consumer)
-    {
+                                     Consumer<T> consumer) {
         this.columnSchema = WireProtocolReader.makeSchemaData(schema);
         this.objectSerializer = Objects.requireNonNull(configuration.objectSerializer);
         this.consumer = Objects.requireNonNull(consumer);
@@ -324,7 +323,7 @@ public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, W
         ObjectFieldWrapper(YTreeObjectField<?> objectField, FlattenFieldWrapper parent) {
             this.objectField = Objects.requireNonNull(objectField);
             final YTreeSerializer<?> serializer = MappedRowSerializer.unwrap(objectField.serializer);
-            stringNode = serializer instanceof YTreeBytesSerializer || serializer instanceof YTreeStringSerializer;
+            this.stringNode = serializer instanceof YTreeStringSerializer;
             this.parent = parent;
         }
     }

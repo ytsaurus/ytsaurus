@@ -2,13 +2,13 @@ package ru.yandex.yt.ytclient.object;
 
 import java.util.Objects;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeFlattenField;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeKeyField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 
 @YTreeObject
 public class LargeFlattenPrimitiveClass {
-    @YTreeField(isKeyField = true)
+    @YTreeKeyField
     private int intField1;
     private int intField2;
     private int intField3;
