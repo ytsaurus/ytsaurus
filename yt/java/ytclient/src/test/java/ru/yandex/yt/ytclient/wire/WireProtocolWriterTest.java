@@ -9,7 +9,7 @@ import java.util.function.BiConsumer;
 import org.junit.Assert;
 import org.junit.Test;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeField;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeKeyField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
@@ -217,7 +217,7 @@ public class WireProtocolWriterTest extends WireProtocolTest {
 
     @YTreeObject
     public static class SingleColumnClass {
-        @YTreeField(isKeyField = true)
+        @YTreeKeyField
         public String largeColumn;
 
         public SingleColumnClass setLargeColumn(String largeColumn) {

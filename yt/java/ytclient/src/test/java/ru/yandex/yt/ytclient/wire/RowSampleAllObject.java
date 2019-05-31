@@ -7,14 +7,14 @@ import ru.yandex.bolts.collection.Cf;
 import ru.yandex.bolts.collection.ListF;
 import ru.yandex.bolts.collection.MapF;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.NullSerializationStrategy;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeFlattenField;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeKeyField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 import ru.yandex.misc.lang.number.UnsignedLong;
 
 @YTreeObject(nullSerializationStrategy = NullSerializationStrategy.IGNORE_NULL_FIELDS)
 public class RowSampleAllObject {
-    @YTreeField(isKeyField = true)
+    @YTreeKeyField
     private int int64_as_int;
     private Integer int64_as_Integer;
 

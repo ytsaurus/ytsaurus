@@ -2,12 +2,12 @@ package ru.yandex.yt.ytclient.object;
 
 import java.util.Objects;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeField;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeKeyField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 
 @YTreeObject
 public class SmallPrimitiveClass {
-    @YTreeField(isKeyField = true)
+    @YTreeKeyField
     private int intField;
     private long longField;
     private float floatField;

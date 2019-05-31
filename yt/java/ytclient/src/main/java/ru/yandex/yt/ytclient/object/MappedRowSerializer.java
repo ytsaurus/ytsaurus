@@ -8,15 +8,19 @@ import java.util.Objects;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeObjectField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.AbstractYTreeDateSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeNullSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeOptionSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeBooleanSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeDoubleSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeDurationSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeEnumSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeFloatSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeInstantSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeIntEnumSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeIntegerSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeLocalDateTimeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeLongSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeStringEnumSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeStringSerializer;
@@ -63,19 +67,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         return builder.build();
     }
 
-    private static void asTableSchema(TableSchema.Builder builder, Collection<YTreeObjectField<?>> fields) {
-        for (YTreeObjectField<?> field : fields) {
-            final YTreeSerializer<?> serializer = unwrap(field.serializer);
-            if (field.isFlatten) {
-                asTableSchema(builder, ((YTreeObjectSerializer<?>) serializer).getFieldMap().values());
-            } else {
-                builder.add(new ColumnSchema(field.key, asType(serializer),
-                        field.isKeyField ? ColumnSortOrder.ASCENDING : null, null, null, null, null, field.isKeyField));
-            }
-        }
-    }
-
-    static YTreeSerializer<?> unwrap(YTreeSerializer serializer) {
+    public static YTreeSerializer<?> unwrap(YTreeSerializer serializer) {
         if (serializer instanceof YTreeOptionSerializer) {
             return unwrap(((YTreeOptionSerializer<?>) serializer).getDelegate());
         } else if (serializer instanceof YTreeNullSerializer) {
@@ -87,8 +79,8 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
 
     static ColumnValueType asType(YTreeSerializer<?> serializer) {
         if (serializer instanceof YTreeIntegerSerializer || serializer instanceof YTreeLongSerializer
-                || serializer instanceof YTreeIntEnumSerializer || serializer instanceof YTreeInstantSerializer)
-        {
+                || serializer instanceof YTreeIntEnumSerializer || serializer instanceof YTreeInstantSerializer ||
+                serializer instanceof YTreeDurationSerializer) {
             return ColumnValueType.INT64;
         } else if (serializer instanceof YTreeDoubleSerializer || serializer instanceof YTreeFloatSerializer) {
             return ColumnValueType.DOUBLE;
@@ -96,10 +88,24 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
             return ColumnValueType.UINT64;
         } else if (serializer instanceof YTreeBooleanSerializer) {
             return ColumnValueType.BOOLEAN;
-        } else if (serializer instanceof YTreeStringEnumSerializer || serializer instanceof YTreeStringSerializer) {
+        } else if (serializer instanceof YTreeStringEnumSerializer || serializer instanceof YTreeStringSerializer
+                || serializer instanceof YTreeEnumSerializer || serializer instanceof AbstractYTreeDateSerializer
+                || serializer instanceof YTreeLocalDateTimeSerializer) {
             return ColumnValueType.STRING;
         } else {
             return ColumnValueType.ANY;
+        }
+    }
+
+    private static void asTableSchema(TableSchema.Builder builder, Collection<YTreeObjectField<?>> fields) {
+        for (YTreeObjectField<?> field : fields) {
+            final YTreeSerializer<?> serializer = unwrap(field.serializer);
+            if (field.isFlatten) {
+                asTableSchema(builder, ((YTreeObjectSerializer<?>) serializer).getFieldMap().values());
+            } else {
+                builder.add(new ColumnSchema(field.key, asType(serializer),
+                        field.isKeyField ? ColumnSortOrder.ASCENDING : null, null, null, null, null, field.isKeyField));
+            }
         }
     }
 
@@ -139,7 +145,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         private void unregisterBinarySerializer() {
             current = direct;
             binarySerializer.close();
-            current.onBytes(output.toByteArray());
+            direct.onBytesDirect(output.toByteArray());
             output = null;
             binarySerializer = null;
         }
@@ -278,7 +284,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         @Override
         public void onString(String value) {
             if (columnId != -1) {
-                this.onBytes(value.getBytes(StandardCharsets.UTF_8));
+                this.onBytesDirect(value.getBytes(StandardCharsets.UTF_8));
             }
         }
 
@@ -361,6 +367,18 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
 
         @Override
         public void onBytes(byte[] bytes) {
+            if (columnId != -1) {
+                // Это может быть только ANY тип и в этом случае мы должны корректно сериализовать массив байтов
+                final ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+                try (YTreeCloseableConsumer binarySerializer = YTreeBinarySerializer.getSerializer(output)) {
+                    binarySerializer.onBytes(bytes); // TODO: improve performance
+                }
+                this.onBytesDirect(output.toByteArray());
+            }
+        }
+
+        void onBytesDirect(byte[] bytes) {
             if (columnId != -1) {
                 writeable.writeValueHeader(columnId, columnType, false, bytes.length);
                 writeable.onBytes(bytes);
