@@ -1450,6 +1450,11 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        // If operation is starting the node of operation may be missing.
+        if (update->Operation->GetState() == EOperationState::Starting) {
+            return {};
+        }
+
         if (!update->Operation->GetShouldFlush() && !update->Operation->GetShouldFlushAcl()) {
             return {};
         }
