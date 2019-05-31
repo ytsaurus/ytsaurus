@@ -404,3 +404,24 @@ class TestSpecBuilders(object):
         }
 
         assert update(result_spec, correct_spec) == result_spec
+
+    def test_tmpfs_configuration(self):
+        def mapper(row):
+            yield row
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1}])
+
+        spec_builder = MapSpecBuilder() \
+            .begin_mapper() \
+                .command(mapper) \
+            .end_mapper() \
+            .input_table_paths(table) \
+            .output_table_paths(table) \
+            .ordered(False)
+
+        with set_config_option("pickling/enable_tmpfs_archive", True):
+            spec = spec_builder.build()
+
+        assert spec["mapper"]["tmpfs_path"] == "tmpfs"
+        assert "tmpfs_size" in spec["mapper"]

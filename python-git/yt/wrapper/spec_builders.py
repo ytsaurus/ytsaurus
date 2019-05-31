@@ -546,8 +546,9 @@ class UserJobSpecBuilder(object):
                 spec["copy_files"] = True
                 spec["tmpfs_path"] = "."
         else:
-            if spec.get("tmpfs_size", 0) > 0 and "tmpfs_path" not in spec:
+            if spec.get("tmpfs_size", tmpfs_size) > 0 and "tmpfs_path" not in spec:
                 spec["tmpfs_path"] = "tmpfs"
+                spec["tmpfs_size"] = spec.get("tmpfs_size", tmpfs_size)
         return spec
 
     def _apply_spec_patch(self, spec):
