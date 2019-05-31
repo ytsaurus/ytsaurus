@@ -38,7 +38,7 @@ struct TYsonToSkiffCreatorContext
     int NestingLevel = 0;
 };
 
-constexpr EWireType GetSkiffTypeForSimpleLogicalType(ESimpleLogicalValueType logicalType)
+EWireType GetSkiffTypeForSimpleLogicalType(ESimpleLogicalValueType logicalType)
 {
     switch (GetPhysicalType(logicalType)) {
         case EValueType::Int64:
