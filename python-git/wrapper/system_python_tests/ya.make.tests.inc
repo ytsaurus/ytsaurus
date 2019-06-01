@@ -10,8 +10,8 @@ TAG(
     ya:privileged
 )
 
-# https://sandbox.yandex-team.ru/task/434667495
-REQUIREMENTS(container:960740055)
+# https://sandbox.yandex-team.ru/task/440379739
+REQUIREMENTS(container:973076293)
 
 SIZE(LARGE)
 
