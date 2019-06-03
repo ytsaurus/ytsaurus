@@ -4,6 +4,7 @@
 
 #include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/interface/io.h>
+#include <mapreduce/yt/interface/serialize.h>
 
 #include <mapreduce/yt/http/abortable_http_response.h>
 
@@ -74,8 +75,9 @@ Y_UNIT_TEST_SUITE(Schema) {
             writer->Finish();
         }
 
-        auto actualSchema = client->Get(workingDir + "/table/@schema");
-        UNIT_ASSERT_VALUES_EQUAL(actualSchema, schema.ToNode());
+        TTableSchema actualSchema;
+        Deserialize(actualSchema, client->Get(workingDir + "/table/@schema"));
+        UNIT_ASSERT(AreSchemasEqual(actualSchema, schema));
 
         TVector<TNode> actual = ReadTable(client, workingDir + "/table");
         UNIT_ASSERT_VALUES_EQUAL(actual, expected);
