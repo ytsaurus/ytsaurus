@@ -24,7 +24,6 @@
 #include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/core_dump/proto/core_info.pb.h>
-#include <yt/ytlib/core_dump/helpers.h>
 
 #include <yt/ytlib/file_client/file_chunk_output.h>
 

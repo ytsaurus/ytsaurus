@@ -31,7 +31,7 @@ namespace {
 
 TJobResources CreateJobResources(int cpu, i64 memory, int network)
 {
-    auto resources = ZeroJobResources();
+    TJobResources resources;
 
     resources.SetCpu(TCpuResource(cpu));
     resources.SetMemory(memory);
@@ -213,7 +213,7 @@ protected:
 
     TExecNodePtr CreateExecNode(int cpu, i64 memory, int userSlots = 100, int network = 100)
     {
-        auto resourceLimits = ZeroJobResources();
+        TJobResources resourceLimits;
 
         resourceLimits.SetCpu(TCpuResource(cpu));
         resourceLimits.SetMemory(memory);

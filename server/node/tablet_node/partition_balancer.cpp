@@ -200,6 +200,10 @@ private:
             return false;
         }
 
+        if (TInstant::Now() < partition->GetAllowedSplitTime()) {
+            return false;
+        }
+
         for (const auto& store : partition->Stores()) {
             if (store->GetStoreState() != EStoreState::Persistent) {
                 return false;
@@ -282,6 +286,7 @@ private:
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Partition splitting aborted");
             partition->CheckedSetState(EPartitionState::Splitting, EPartitionState::Normal);
+            partition->SetAllowedSplitTime(TInstant::Now() + Config_->SplitRetryDelay);
         }
     }
 
@@ -470,13 +475,15 @@ private:
                 if (store->GetType() != EStoreType::SortedChunk)
                     return;
 
-                if (store->GetMaxKey() <= partition->GetPivotKey() ||
+                if (store->GetUpperBoundKey() <= partition->GetPivotKey() ||
                     store->GetMinKey() >= partition->GetNextPivotKey())
                     return;
 
-                const auto& chunkId = store->GetId();
-                YCHECK(storeMap.insert(std::make_pair(chunkId, store->AsSortedChunk())).second);
-                ToProto(req->add_subrequests(), chunkId);
+                const auto& chunkId = store->AsSortedChunk()->GetChunkId();
+                YCHECK(chunkId);
+                if (storeMap.insert(std::make_pair(chunkId, store->AsSortedChunk())).second) {
+                    ToProto(req->add_subrequests(), chunkId);
+                }
             };
 
             auto addStores = [&] (const THashSet<ISortedStorePtr>& stores) {

@@ -529,11 +529,11 @@ class TestTables(YTEnvSetup):
 
         schema = get("//tmp/table/@schema")
         schema1 = make_schema(
-            [{"name": "a", "type": "string"}],
+            [{"name": "a", "type": "string", "required": False}],
             strict=False,
             unique_keys=False)
         schema2 = make_schema(
-            [{"name": "b", "type": "string"}],
+            [{"name": "b", "type": "string", "required": False}],
             strict=False,
             unique_keys=False)
 
@@ -542,13 +542,13 @@ class TestTables(YTEnvSetup):
         with pytest.raises(YtError):
             alter_table("//tmp/table", schema=schema2, tx = tx2)
 
-        assert get("//tmp/table/@schema") == schema
-        assert get("//tmp/table/@schema", tx = tx1) == schema1
-        assert get("//tmp/table/@schema", tx = tx2) == schema
+        assert normalize_schema(get("//tmp/table/@schema")) == schema
+        assert normalize_schema(get("//tmp/table/@schema", tx = tx1)) == schema1
+        assert normalize_schema(get("//tmp/table/@schema", tx = tx2)) == schema
 
         commit_transaction(tx1)
         abort_transaction(tx2)
-        assert get("//tmp/table/@schema") == schema1
+        assert normalize_schema(get("//tmp/table/@schema")) == schema1
 
     def test_shared_locks_nested_tx(self):
         create("table", "//tmp/table")
@@ -998,7 +998,7 @@ class TestTables(YTEnvSetup):
             write_table("<append=%true>//tmp/t", rows)
             assert read_table("//tmp/t") == rows
             assert get("//tmp/t/@schema_mode") == "strong"
-            assert get("//tmp/t/@schema") == schema
+            assert normalize_schema(get("//tmp/t/@schema")) == schema
 
         def test_negative(schema, rows):
             init_table("//tmp/t", schema)
@@ -1008,14 +1008,14 @@ class TestTables(YTEnvSetup):
             wait(lambda: get("//tmp/t/@lock_count") == 0)
 
         schema = make_schema([
-            {"name": "key", "type": "int64"}],
+            {"name": "key", "type": "int64", "required": False}],
             strict=False,
             unique_keys=False)
         test_positive(schema, [{"key": 1}])
         test_negative(schema, [{"key": False}])
 
         schema = make_schema([
-            {"name": "key", "type": "int64"}],
+            {"name": "key", "type": "int64", "required": False}],
             strict=True,
             unique_keys=False)
         test_negative(schema, [{"values": 1}])
@@ -1023,16 +1023,16 @@ class TestTables(YTEnvSetup):
         rows = [{"key": i, "value": str(i)} for i in xrange(10)]
 
         schema = make_schema([
-            {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": "value", "type": "string"}],
+            {"name": "key", "type": "int64", "required": False, "sort_order": "ascending"},
+            {"name": "value", "type": "string", "required": False}],
             strict=False,
             unique_keys=False)
         test_positive(schema, rows)
         test_negative(schema, list(reversed(rows)))
 
         schema = make_schema([
-            {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": "value", "type": "string"}],
+            {"name": "key", "type": "int64", "required": False, "sort_order": "ascending"},
+            {"name": "value", "type": "string", "required": False}],
             strict=False,
             unique_keys=True)
         test_positive(schema, rows)

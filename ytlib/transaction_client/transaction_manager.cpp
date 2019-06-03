@@ -49,7 +49,9 @@ using NNative::IConnectionPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::atomic<ui32> TabletTransactionHashCounter; // used as a part of transaction id
+// Used as a part of transaction id. Random initialization prevents collisions
+// between different machines.
+static std::atomic<ui32> TabletTransactionHashCounter = {RandomNumber<ui32>()};
 
 ////////////////////////////////////////////////////////////////////////////////
 

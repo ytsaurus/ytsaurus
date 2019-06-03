@@ -156,7 +156,7 @@ message TTabletCellStatistics
     required int64 compressed_data_size = 3;
     required int64 memory_size = 4;
     required int64 dynamic_memory_pool_size = 5;
-    repeated int64 disk_space_per_medium = 6;
+    repeated int64 disk_space_per_medium_old = 6;
     required int32 chunk_count = 7;
     required int32 partition_count = 8;
     required int32 store_count = 9;
@@ -167,6 +167,14 @@ message TTabletCellStatistics
     repeated TTabletCountPerMemoryModeEntry tablet_count_per_memory_mode = 14;
     required bool decommissioned = 15;
     required int32 health = 16;
+
+    message TMediumDiskSpace
+    {
+        required int32 medium_index = 1;
+        required int64 disk_space = 2;
+    }
+
+    repeated TMediumDiskSpace disk_space_per_medium = 17;
 }
 
 message TReqUpdateTabletCellHealthStatistics

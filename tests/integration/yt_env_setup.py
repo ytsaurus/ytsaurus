@@ -35,6 +35,7 @@ yt.logger.LOGGER.setLevel(logging.DEBUG)
 ##################################################################
 
 def _abort_transactions(driver=None):
+    command_name = "abort_transaction" if driver.get_config()["api_version"] == 4 else "abort_tx"
     requests = []
     for tx in yt_commands.ls("//sys/transactions", attributes=["title"], driver=driver):
         title = tx.attributes.get("title", "")
@@ -45,7 +46,7 @@ def _abort_transactions(driver=None):
             continue
         if "Lease for node" in title:
             continue
-        requests.append(yt_commands.make_batch_request("abort_tx", transaction_id=id))
+        requests.append(yt_commands.make_batch_request(command_name, transaction_id=id))
     yt_commands.execute_batch(requests, driver=driver)
 
 def _reset_nodes(driver=None):
@@ -75,7 +76,7 @@ def _reset_nodes(driver=None):
 
     responses = yt_commands.execute_batch(requests)
     for response in responses:
-        assert yt_commands.get_batch_output(response) is None
+        assert not yt_commands.get_batch_output(response)
 
 def _retry_with_gc_collect(func, driver=None):
     while True:
@@ -103,7 +104,7 @@ def _remove_objects(enable_secondary_cells_cleanup, driver=None):
 
     def do():
         list_objects_results = yt_commands.execute_batch([
-            yt_commands.make_batch_request("list", path="//sys/" + type,
+            yt_commands.make_batch_request("list", return_only_value=True, path="//sys/" + type,
                 attributes=["id", "builtin"]) for type in TYPES],
                 driver=driver)
 
@@ -120,7 +121,7 @@ def _remove_objects(enable_secondary_cells_cleanup, driver=None):
         for result in yt_commands.execute_batch([
                 yt_commands.make_batch_request("remove", path="#" + id, force=True) for id in object_ids_to_remove
             ], driver=driver):
-            assert yt_commands.get_batch_output(result) is None
+            assert not yt_commands.get_batch_output(result)
 
     _retry_with_gc_collect(do, driver=driver)
 
@@ -132,7 +133,7 @@ def _restore_globals(driver=None):
                 yt_commands.make_batch_request("set", path="//sys/@config", input=get_dynamic_master_config()),
                 yt_commands.make_batch_request("remove", path="//sys/pool_trees/default/*", force=True)
             ], driver=driver):
-            assert yt_commands.get_batch_output(response) is None
+            assert not yt_commands.get_batch_output(response)
 
     _retry_with_gc_collect(do, driver=driver)
 
@@ -144,11 +145,13 @@ def _restore_default_bundle_options(driver=None):
                     "snapshot_account": "sys"
                 }),
             ], driver=driver):
-            assert yt_commands.get_batch_output(response) is None
+            assert not yt_commands.get_batch_output(response)
 
     _retry_with_gc_collect(do, driver=driver)
 
 def _remove_operations(driver=None):
+    command_name = "abort_operation" if driver.get_config()["api_version"] == 4 else "abort_op"
+
     if yt_commands.get("//sys/scheduler/instances/@count", driver=driver) == 0:
         return
 
@@ -160,7 +163,7 @@ def _remove_operations(driver=None):
 
     requests = []
     for operation_id in operations_from_orchid:
-        requests.append(yt_commands.make_batch_request("abort_op", operation_id=operation_id))
+        requests.append(yt_commands.make_batch_request(command_name, operation_id=operation_id))
 
     responses = yt_commands.execute_batch(requests, driver=driver)
     for response in responses:
@@ -174,7 +177,7 @@ def _remove_operations(driver=None):
             yt_commands.make_batch_request("remove", path="//sys/operations/*"),
             yt_commands.make_batch_request("remove", path="//sys/operations_archive", force=True)
         ], driver=driver):
-        assert yt_commands.get_batch_output(response) is None
+        assert not yt_commands.get_batch_output(response)
 
 def _wait_for_jobs_to_vanish(driver=None):
     def check_no_jobs():
@@ -278,7 +281,8 @@ def is_asan_build():
 # doesn't work with @patch_porto_env_only on the same class, wrap each method
 def require_ytserver_root_privileges(func_or_class):
     def check_root_privileges():
-        for binary in ["ytserver-exec", "ytserver-job-proxy", "ytserver-node", "ytserver-tools"]:
+        for binary in ["ytserver-exec", "ytserver-job-proxy", "ytserver-node",
+                       "ytserver-tools"]:
             binary_path = find_executable(binary)
             binary_stat = os.stat(binary_path)
             if (binary_stat.st_mode & stat.S_ISUID) == 0:

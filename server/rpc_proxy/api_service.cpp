@@ -12,11 +12,14 @@
 #include <yt/ytlib/api/native/client_cache.h>
 #include <yt/ytlib/api/native/connection.h>
 
+#include <yt/client/api/file_reader.h>
+#include <yt/client/api/file_writer.h>
+#include <yt/client/api/journal_reader.h>
+#include <yt/client/api/journal_writer.h>
 #include <yt/client/api/transaction.h>
 #include <yt/client/api/rowset.h>
 #include <yt/client/api/sticky_transaction_pool.h>
 
-#include <yt/client/api/rpc_proxy/public.h>
 #include <yt/client/api/rpc_proxy/api_service_proxy.h>
 #include <yt/client/api/rpc_proxy/helpers.h>
 #include <yt/client/api/rpc_proxy/protocol_version.h>
@@ -45,6 +48,7 @@
 #include <yt/core/misc/serialize.h>
 
 #include <yt/core/rpc/service_detail.h>
+#include <yt/core/rpc/stream.h>
 
 
 
@@ -288,6 +292,9 @@ public:
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ListJobs));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpJobContext));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobInput)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobInputPaths));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobStderr));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobFailContext));
@@ -317,6 +324,20 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveMember));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckPermission));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckPermissionByAcl));
+
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadFile)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteFile)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadJournal)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteJournal)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetFileFromCache));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PutFileToCache));
@@ -1959,6 +1980,25 @@ private:
             client->DumpJobContext(jobId, path, options));
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetJobInput)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto jobId = FromProto<TJobId>(request->job_id());
+
+        TGetJobInputOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("JobId: %v", jobId);
+
+        auto jobInputReader = WaitFor(client->GetJobInput(jobId, options))
+            .ValueOrThrow();
+        HandleInputStreamingRequest(context, jobInputReader);
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetJobInputPaths)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
@@ -2364,6 +2404,9 @@ private:
         if (request->has_memory_limit_per_node()) {
             options.MemoryLimitPerNode = request->memory_limit_per_node();
         }
+        if (request->has_execution_pool()) {
+            options.ExecutionPool = request->execution_pool();
+        }
 
         context->SetRequestInfo("Query: %v, Timestamp: %llx",
             query,
@@ -2587,6 +2630,7 @@ private:
         const auto attachmentsStart = request->Attachments().begin();
         for (const auto& partCount: request->part_counts()) {
             NApi::NRpcProxy::NProto::TReqModifyRows subrequest;
+            // TODO(kiselyovp) if this fails, YCHECK happens
             DeserializeProto(&subrequest, request->Attachments()[blobIndex]);
             ++blobIndex;
             std::vector<TSharedRef> attachments(
@@ -2809,6 +2853,187 @@ private:
                 auto* response = &context->Response();
                 ToProto(response->mutable_result(), result);
             });
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // FILES
+    ////////////////////////////////////////////////////////////////////////////////
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadFile)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        const auto& path = request->path();
+
+        TFileReaderOptions options;
+        if (request->has_offset()) {
+            options.Offset = request->offset();
+        }
+        if (request->has_length()) {
+            options.Length = request->length();
+        }
+        if (request->has_config()) {
+            options.Config = ConvertTo<TFileReaderConfigPtr>(TYsonString(request->config()));
+        }
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        if (request->has_suppressable_access_tracking_options()) {
+            FromProto(&options, request->suppressable_access_tracking_options());
+        }
+
+        context->SetRequestInfo("Path: %v, Offset: %v, Length: %v",
+            path,
+            options.Offset,
+            options.Length);
+
+        auto fileReader = WaitFor(client->CreateFileReader(path, options))
+            .ValueOrThrow();
+
+        auto outputStream = context->GetResponseAttachmentsStream();
+        ui64 revision = fileReader->GetRevision();
+        NApi::NRpcProxy::NProto::TReadFileMeta meta;
+        meta.set_revision(revision);
+        auto metaRef = SerializeProtoToRef(meta);
+        WaitFor(outputStream->Write(metaRef))
+            .ThrowOnError();
+
+        HandleInputStreamingRequest(context, fileReader);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteFile)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto path = FromProto<NYPath::TRichYPath>(request->path());
+
+        TFileWriterOptions options;
+        options.ComputeMD5 = request->compute_md5();
+        if (request->has_config()) {
+            options.Config = ConvertTo<TFileWriterConfigPtr>(TYsonString(request->config()));
+        }
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
+        }
+
+        context->SetRequestInfo(
+            "Path: %v, ComputeMD5: %v",
+            path,
+            options.ComputeMD5);
+
+        auto fileWriter = client->CreateFileWriter(path, options);
+        WaitFor(fileWriter->Open())
+            .ThrowOnError();
+
+        HandleOutputStreamingRequest(
+            context,
+            BIND(&IFileWriter::Write, fileWriter),
+            BIND(&IFileWriter::Close, fileWriter),
+            false);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // JOURNALS
+    ////////////////////////////////////////////////////////////////////////////////
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadJournal)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        const auto& path = request->path();
+
+        TJournalReaderOptions options;
+        if (request->has_first_row_index()) {
+            options.FirstRowIndex = request->first_row_index();
+        }
+        if (request->has_row_count()) {
+            options.RowCount = request->row_count();
+        }
+        if (request->has_config()) {
+            options.Config = ConvertTo<TJournalReaderConfigPtr>(TYsonString(request->config()));
+        }
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        if (request->has_suppressable_access_tracking_options()) {
+            FromProto(&options, request->suppressable_access_tracking_options());
+        }
+
+        context->SetRequestInfo("Path: %v, FirstRowIndex: %v, RowCount: %v",
+            path,
+            options.FirstRowIndex,
+            options.RowCount);
+
+        auto journalReader = client->CreateJournalReader(path, options);
+        WaitFor(journalReader->Open())
+            .ThrowOnError();
+
+        HandleInputStreamingRequest(context, BIND([=] () {
+            return journalReader->Read().Apply(BIND([] (const std::vector<TSharedRef>& rows) {
+                if (rows.empty()) {
+                    return TSharedRef();
+                }
+
+                return PackRefs(rows);
+            }));
+        }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteJournal)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        const auto& path = request->path();
+
+        TJournalWriterOptions options;
+        if (request->has_config()) {
+            options.Config = ConvertTo<TJournalWriterConfigPtr>(TYsonString(request->config()));
+        }
+        options.EnableMultiplexing = request->enable_multiplexing();
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
+        }
+
+        context->SetRequestInfo(
+            "Path: %v, EnableMultiplexing: %v",
+            path,
+            options.EnableMultiplexing);
+
+        auto journalWriter = client->CreateJournalWriter(path, options);
+        WaitFor(journalWriter->Open())
+            .ThrowOnError();
+
+        HandleOutputStreamingRequest(
+            context,
+            BIND([=] (const TSharedRef& packedRows) {
+                std::vector<TSharedRef> rows;
+                UnpackRefsOrThrow(packedRows, &rows);
+                return journalWriter->Write(rows);
+            }),
+            BIND(&IJournalWriter::Close, journalWriter),
+            true);
     }
 
     ////////////////////////////////////////////////////////////////////////////////

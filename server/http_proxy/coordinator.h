@@ -165,6 +165,7 @@ struct TInstance {
 
     bool Banned = false;
     bool Online = true;
+    TString State;
     TError Error;
 };
 

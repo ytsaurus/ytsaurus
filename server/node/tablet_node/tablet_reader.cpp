@@ -46,7 +46,7 @@ struct TStoreRangeFormatter
     {
         builder->AppendFormat("<%v:%v>",
             store->GetMinKey(),
-            store->GetMaxKey());
+            store->GetUpperBoundKey());
     }
 };
 
@@ -71,20 +71,20 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
     // Pick stores which intersect [lowerBound, upperBound) (excluding upperBound).
     auto takePartition = [&] (const std::vector<ISortedStorePtr>& candidateStores) {
         for (const auto& store : candidateStores) {
-            auto begin = std::lower_bound(
+            auto begin = std::upper_bound(
                 bounds.begin(),
                 bounds.end(),
                 store->GetMinKey().Get(),
-                [] (const TRowRange& lhs, TUnversionedRow rhs) {
-                    return lhs.second < rhs;
+                [] (TUnversionedRow lhs, const TRowRange& rhs) {
+                    return lhs < rhs.second;
                 });
 
-            auto end = std::upper_bound(
+            auto end = std::lower_bound(
                 bounds.begin(),
                 bounds.end(),
-                store->GetMaxKey().Get(),
-                [] (TUnversionedRow lhs, const TRowRange& rhs) {
-                    return lhs < rhs.first;
+                store->GetUpperBoundKey().Get(),
+                [] (const TRowRange& lhs, TUnversionedRow rhs) {
+                    return lhs.first < rhs;
                 });
 
             if (begin != end) {
@@ -328,7 +328,7 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
     // Pick stores which intersect [minKey, maxKey] (including maxKey).
     auto takeStores = [&] (const std::vector<ISortedStorePtr>& candidateStores) {
         for (const auto& store : candidateStores) {
-            if (store->GetMinKey() <= maxKey && store->GetMaxKey() >= minKey) {
+            if (store->GetMinKey() <= maxKey && store->GetUpperBoundKey() > minKey) {
                 stores.push_back(store);
             }
         }

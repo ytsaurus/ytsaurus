@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/server/node/data_node/config.h>
-
 #include <yt/server/lib/hive/config.h>
 
 #include <yt/server/lib/hydra/config.h>
@@ -373,6 +371,7 @@ public:
     TDuration ReplicatorHardBackoffTime;
 
     TDuration TabletCellDecommissionCheckPeriod;
+    TDuration TabletProfilingPeriod;
 
     TTabletManagerConfig()
     {
@@ -405,6 +404,8 @@ public:
             .Default(TDuration::Seconds(60));
 
         RegisterParameter("tablet_cell_decommission_check_period", TabletCellDecommissionCheckPeriod)
+            .Default(TDuration::Seconds(10));
+        RegisterParameter("tablet_profiling_period", TabletProfilingPeriod)
             .Default(TDuration::Seconds(10));
     }
 };
@@ -533,6 +534,9 @@ public:
     //! Minimum interval between resampling.
     TDuration ResamplingPeriod;
 
+    //! Retry delay after unsuccessful partition balancing.
+    TDuration SplitRetryDelay;
+
 
     TPartitionBalancerConfig()
     {
@@ -553,6 +557,8 @@ public:
             .Default(8);
         RegisterParameter("resampling_period", ResamplingPeriod)
             .Default(TDuration::Minutes(1));
+        RegisterParameter("split_retry_delay", SplitRetryDelay)
+            .Default(TDuration::Seconds(30));
     }
 };
 
@@ -564,12 +570,13 @@ class TSecurityManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TAsyncExpiringCacheConfigPtr TablePermissionCache;
+    TAsyncExpiringCacheConfigPtr PermissionCache;
     TAsyncExpiringCacheConfigPtr ResourceLimitsCache;
 
     TSecurityManagerConfig()
     {
-        RegisterParameter("table_permission_cache", TablePermissionCache)
+        RegisterParameter("permission_cache", PermissionCache)
+            .Alias("table_permission_cache")
             .DefaultNew();
         RegisterParameter("resource_limits_cache", ResourceLimitsCache)
             .DefaultNew();

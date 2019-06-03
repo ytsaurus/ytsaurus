@@ -74,7 +74,7 @@ public:
         TKey Key_;
         TIntrusivePtr<TAsyncSlruCacheBase> Cache_;
         TValueFuture ValueFuture_;
-        bool Active_;
+        std::atomic<bool> Active_;
 
         TInsertCookie(
             const TKey& key,

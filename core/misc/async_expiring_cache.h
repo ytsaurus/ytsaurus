@@ -60,7 +60,7 @@ private:
         explicit TEntry(NProfiling::TCpuInstant accessDeadline);
 
         //! Check that entry is expired with respect to either access or update.
-        bool IsExpired(NProfiling::TCpuInstant instant) const;
+        bool IsExpired(NProfiling::TCpuInstant now) const;
     };
 
     NConcurrency::TReaderWriterSpinLock SpinLock_;

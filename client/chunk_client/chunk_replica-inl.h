@@ -9,25 +9,80 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium()
+    : TChunkReplicaWithMedium(NNodeTrackerClient::InvalidNodeId)
+{ }
+
+Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium(ui64 value)
+    : Value(value)
+{ }
+
+Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium(int nodeId, int replicaIndex, int mediumIndex)
+    : Value(nodeId | (replicaIndex << 24) | (mediumIndex << 29))
+{
+    static_assert(
+        ChunkReplicaIndexBound * MediumIndexBound <= 0x1000,
+        "Replica and medium indexes must fit into 12 bits.");
+
+    Y_ASSERT(nodeId >= 0 && nodeId <= static_cast<int>(NNodeTrackerClient::MaxNodeId));
+    Y_ASSERT(replicaIndex >= 0 && replicaIndex < ChunkReplicaIndexBound);
+    Y_ASSERT(mediumIndex >= 0 && mediumIndex < MediumIndexBound);
+}
+
+Y_FORCE_INLINE int TChunkReplicaWithMedium::GetNodeId() const
+{
+    return Value & 0x00ffffff;
+}
+
+Y_FORCE_INLINE int TChunkReplicaWithMedium::GetReplicaIndex() const
+{
+    return (Value & 0x1f000000) >> 24;
+}
+
+Y_FORCE_INLINE int TChunkReplicaWithMedium::GetMediumIndex() const
+{
+    return Value >> 29;
+}
+
+Y_FORCE_INLINE void ToProto(ui64* value, TChunkReplicaWithMedium replica)
+{
+    *value = replica.Value;
+}
+
+Y_FORCE_INLINE void FromProto(TChunkReplicaWithMedium* replica, ui64 value)
+{
+    replica->Value = value;
+}
+
+// COMPAT(aozeritsky)
+Y_FORCE_INLINE void ToProto(ui32* value, TChunkReplicaWithMedium replica)
+{
+    *value = replica.Value;
+}
+
+Y_FORCE_INLINE void FromProto(TChunkReplicaWithMedium* replica, ui32 value)
+{
+    replica->Value = value;
+}
+
 Y_FORCE_INLINE TChunkReplica::TChunkReplica()
-    : Value(NNodeTrackerClient::InvalidNodeId | (0 << 24))
+    : TChunkReplica(NNodeTrackerClient::InvalidNodeId)
 { }
 
 Y_FORCE_INLINE TChunkReplica::TChunkReplica(ui32 value)
     : Value(value)
 { }
 
-Y_FORCE_INLINE TChunkReplica::TChunkReplica(int nodeId, int replicaIndex, int mediumIndex)
-    : Value(nodeId | (replicaIndex << 24) | (mediumIndex << 29))
+Y_FORCE_INLINE TChunkReplica::TChunkReplica(int nodeId, int replicaIndex)
+    : Value(nodeId | (replicaIndex << 24))
 {
-    static_assert(
-        ChunkReplicaIndexBound * MediumIndexBound <= 0x100,
-        "Replica and medium indexes must fit into a single byte.");
-
     Y_ASSERT(nodeId >= 0 && nodeId <= static_cast<int>(NNodeTrackerClient::MaxNodeId));
     Y_ASSERT(replicaIndex >= 0 && replicaIndex < ChunkReplicaIndexBound);
-    Y_ASSERT(mediumIndex >= 0 && mediumIndex < MediumIndexBound);
 }
+
+Y_FORCE_INLINE TChunkReplica::TChunkReplica(const TChunkReplicaWithMedium& replica)
+    : Value(replica.GetNodeId() | (replica.GetReplicaIndex() << 24))
+{ }
 
 Y_FORCE_INLINE int TChunkReplica::GetNodeId() const
 {
@@ -37,11 +92,6 @@ Y_FORCE_INLINE int TChunkReplica::GetNodeId() const
 Y_FORCE_INLINE int TChunkReplica::GetReplicaIndex() const
 {
     return (Value & 0x1f000000) >> 24;
-}
-
-Y_FORCE_INLINE int TChunkReplica::GetMediumIndex() const
-{
-    return Value >> 29;
 }
 
 Y_FORCE_INLINE void ToProto(ui32* value, TChunkReplica replica)

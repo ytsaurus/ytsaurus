@@ -196,12 +196,7 @@ private:
         ValidateConnected();
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
-        // COMPAT(shakurov)
-        // NB: Medium index from session ID is ignored.
-        // TODO(shakurov): Remove it from the protocol once all nodes are up to date.
-        auto sessions = sessionManager->GetSessionsOrThrow(sessionId.ChunkId);
-        YCHECK(sessions.size() == 1);
-        auto session = sessions[0];
+        auto session = sessionManager->GetSessionOrThrow(sessionId);
 
         auto meta = request->has_chunk_meta()
             ? New<TRefCountedChunkMeta>(std::move(*request->mutable_chunk_meta()))

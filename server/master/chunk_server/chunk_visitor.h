@@ -53,6 +53,8 @@ private:
         const NChunkClient::TReadLimit& /*startLimit*/,
         const NChunkClient::TReadLimit& /*endLimit*/) override;
 
+    virtual bool OnChunkView(TChunkView* /*chunkView*/) override;
+
     virtual void OnSuccess() override;
 };
 

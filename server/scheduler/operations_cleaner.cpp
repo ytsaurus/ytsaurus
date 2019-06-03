@@ -1210,11 +1210,19 @@ std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
 
         for (int index = 0; index < batch.size(); ++index) {
             auto attributes = ConvertToAttributes(TYsonString(rsps[index].Value()->value()));
-            YCHECK(TOperationId::FromString(attributes->Get<TString>("key")) == batch[index]);
+            auto operationId = TOperationId::FromString(attributes->Get<TString>("key"));
+            YCHECK(operationId == batch[index]);
 
-            TArchiveOperationRequest req;
-            req.InitializeFromAttributes(*attributes);
-            result.push_back(req);
+            try {
+                TArchiveOperationRequest req;
+                req.InitializeFromAttributes(*attributes);
+                result.push_back(req);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Error initializing operation archivation request")
+                    << TErrorAttribute("operation_id", operationId)
+                    << TErrorAttribute("attributes", ConvertToYsonString(*attributes, EYsonFormat::Text))
+                    << ex;
+            }
         }
     };
 

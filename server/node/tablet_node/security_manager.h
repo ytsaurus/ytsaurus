@@ -32,6 +32,7 @@ public:
 
 class TSecurityManager
     : public NSecurityServer::IUsersManager
+    , public NSecurityServer::IResourceLimitsManager
 {
 public:
     TSecurityManager(
@@ -43,12 +44,8 @@ public:
     virtual void ResetAuthenticatedUser() override;
     virtual std::optional<TString> GetAuthenticatedUserName() override;
 
-    TFuture<void> CheckPermission(
-        const TTabletSnapshotPtr& tabletSnapshot,
-        NYTree::EPermission permission);
-
     void ValidatePermission(
-        const TTabletSnapshotPtr& tabletSnapshot,
+        const TString& path,
         NYTree::EPermission permission);
 
     TFuture<void> CheckResourceLimits(
@@ -56,10 +53,10 @@ public:
         const TString& mediumName,
         NTabletClient::EInMemoryMode inMemoryMode);
 
-    void ValidateResourceLimits(
+    virtual void ValidateResourceLimits(
         const TString& account,
         const TString& mediumName,
-        NTabletClient::EInMemoryMode inMemoryMode);
+        NTabletClient::EInMemoryMode inMemoryMode) override;
 
 private:
     class TImpl;

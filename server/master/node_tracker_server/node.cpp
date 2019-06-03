@@ -83,8 +83,8 @@ void TNode::TTabletSlot::Persist(NCellMaster::TPersistenceContext& context)
 
 TCellNodeStatistics& operator+=(TCellNodeStatistics& lhs, const TCellNodeStatistics& rhs)
 {
-    for (auto mediumIndex = 0; mediumIndex < rhs.ChunkReplicaCount.size(); ++mediumIndex) {
-        lhs.ChunkReplicaCount[mediumIndex] += rhs.ChunkReplicaCount[mediumIndex];
+    for (const auto& [mediumIndex, chunkReplicaCount] : rhs.ChunkReplicaCount) {
+        lhs.ChunkReplicaCount[mediumIndex] += chunkReplicaCount;
     }
     return lhs;
 }
@@ -93,8 +93,7 @@ void ToProto(
     NProto::TReqSetCellNodeDescriptors::TStatistics* protoStatistics,
     const TCellNodeStatistics& statistics)
 {
-    for (auto mediumIndex = 0; mediumIndex < statistics.ChunkReplicaCount.size(); ++mediumIndex) {
-        auto replicaCount = statistics.ChunkReplicaCount[mediumIndex];
+    for (const auto& [mediumIndex, replicaCount] : statistics.ChunkReplicaCount) {
         if (replicaCount != 0) {
             auto* mediumStatistics = protoStatistics->add_medium_statistics();
             mediumStatistics->set_medium_index(mediumIndex);
@@ -107,8 +106,7 @@ void FromProto(
     TCellNodeStatistics* statistics,
     const NProto::TReqSetCellNodeDescriptors::TStatistics& protoStatistics)
 {
-    statistics->ChunkReplicaCount.fill(0);
-
+    statistics->ChunkReplicaCount.clear();
     for (const auto& mediumStatistics : protoStatistics.medium_statistics()) {
         auto mediumIndex = mediumStatistics.medium_index();
         auto replicaCount = mediumStatistics.chunk_replica_count();
@@ -136,11 +134,6 @@ TNode::TNode(TObjectId objectId)
     : TObjectBase(objectId)
 {
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
-    std::transform(
-        Replicas_.begin(),
-        Replicas_.end(),
-        RandomReplicaIters_.begin(),
-        [] (const TMediumReplicaSet& i) { return i.end(); });
     ClearSessionHints();
 }
 
@@ -177,27 +170,31 @@ void TNode::SetStatistics(
 
 void TNode::ComputeFillFactors()
 {
-    TPerMediumArray<i64> freeSpace{};
-    TPerMediumArray<i64> usedSpace{};
+    TMediumMap<std::pair<i64, i64>> freeAndUsedSpace;
 
     for (const auto& location : Statistics_.locations()) {
         auto mediumIndex = location.medium_index();
-        freeSpace[mediumIndex] += std::max(static_cast<i64>(0), location.available_space() - location.low_watermark_space());
-        usedSpace[mediumIndex] += location.used_space();
+        auto& space = freeAndUsedSpace[mediumIndex];
+        auto& freeSpace = space.first;
+        auto& usedSpace = space.second;
+        freeSpace += std::max(static_cast<i64>(0), location.available_space() - location.low_watermark_space());
+        usedSpace += location.used_space();
     }
 
-    for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
-        i64 totalSpace = freeSpace[mediumIndex] + usedSpace[mediumIndex];
+    for (const auto& [mediumIndex, space] : freeAndUsedSpace) {
+        auto freeSpace = space.first;
+        auto usedSpace = space.second;
+
+        i64 totalSpace = freeSpace + usedSpace;
         FillFactors_[mediumIndex] = (totalSpace == 0)
             ? std::nullopt
-            : std::make_optional(usedSpace[mediumIndex] / std::max<double>(1.0, totalSpace));
+            : std::make_optional(usedSpace / std::max<double>(1.0, totalSpace));
     }
 }
 
 void TNode::ComputeSessionCount()
 {
-    SessionCount_.fill(std::nullopt);
-
+    SessionCount_.clear();
     for (const auto& location : Statistics_.locations()) {
         auto mediumIndex = location.medium_index();
         if (location.enabled() && !location.full()) {
@@ -257,7 +254,7 @@ void TNode::InitializeStates(TCellTag cellTag, const TCellTagList& secondaryCell
 {
     auto addCell = [&] (TCellTag someTag) {
         if (MulticellDescriptors_.find(someTag) == MulticellDescriptors_.end()) {
-            YCHECK(MulticellDescriptors_.emplace(someTag, TCellNodeDescriptor{ENodeState::Offline, TCellNodeStatistics{}}).second);
+            YCHECK(MulticellDescriptors_.emplace(someTag, TCellNodeDescriptor{ENodeState::Offline, TCellNodeStatistics()}).second);
         }
     };
 
@@ -273,7 +270,7 @@ void TNode::InitializeStates(TCellTag cellTag, const TCellTagList& secondaryCell
 
 void TNode::RecomputeIOWeights(const NChunkServer::TChunkManagerPtr& chunkManager)
 {
-    IOWeights_.fill(0.0);
+    IOWeights_.clear();
     for (const auto& statistics : Statistics_.media()) {
         auto mediumIndex = statistics.medium_index();
         auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
@@ -353,13 +350,11 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     // The format is:
     //  (replicaCount, mediumIndex) pairs
     //  0
-    int mediumIndex = 0;
-    for (const auto& replicas : Replicas_) {
+    for (const auto& [mediumIndex, replicas] : Replicas_) {
         if (!replicas.empty()) {
             TSizeSerializer::Save(context, replicas.size());
             Save(context, mediumIndex);
         }
-        ++mediumIndex;
     }
     TSizeSerializer::Save(context, 0);
 
@@ -388,8 +383,8 @@ void TNode::Load(NCellMaster::TLoadContext& context)
 
         MulticellDescriptors_.clear();
         MulticellDescriptors_.reserve(multicellStates.size());
-        for (const auto& pair : multicellStates) {
-            MulticellDescriptors_.emplace(pair.first, TCellNodeDescriptor{pair.second, {}});
+        for (const auto& [cellTag, state] : multicellStates) {
+            MulticellDescriptors_.emplace(cellTag, TCellNodeDescriptor{state, TCellNodeStatistics()});
         }
     }
 
@@ -492,14 +487,15 @@ bool TNode::HasReplica(TChunkPtrWithIndexes replica) const
 
 TChunkPtrWithIndexes TNode::PickRandomReplica(int mediumIndex)
 {
-    if (Replicas_[mediumIndex].empty()) {
+    auto it = Replicas_.find(mediumIndex);
+    if (it == Replicas_.end() || it->second.empty()) {
         return TChunkPtrWithIndexes();
     }
 
     auto& randomReplicaIt = RandomReplicaIters_[mediumIndex];
 
-    if (randomReplicaIt == Replicas_[mediumIndex].end()) {
-        randomReplicaIt = Replicas_[mediumIndex].begin();
+    if (randomReplicaIt == it->second.end()) {
+        randomReplicaIt = it->second.begin();
     }
 
     return *(randomReplicaIt++);
@@ -507,13 +503,9 @@ TChunkPtrWithIndexes TNode::PickRandomReplica(int mediumIndex)
 
 void TNode::ClearReplicas()
 {
-    for (auto& replicas : Replicas_) {
-        replicas.clear();
-    }
+    Replicas_.clear();
     UnapprovedReplicas_.clear();
-    for (int index = 0; index < MaxMediumCount; ++index) {
-        RandomReplicaIters_[index] = Replicas_[index].end();
-    }
+    RandomReplicaIters_.clear();
 }
 
 void TNode::AddUnapprovedReplica(TChunkPtrWithIndexes replica, TInstant timestamp)
@@ -602,9 +594,9 @@ void TNode::RemoveFromChunkSealQueue(TChunkPtrWithIndexes chunkWithIndexes)
 
 void TNode::ClearSessionHints()
 {
-    HintedUserSessionCount_ .fill(0);
-    HintedReplicationSessionCount_.fill(0);
-    HintedRepairSessionCount_.fill(0);
+    HintedUserSessionCount_ .clear();
+    HintedReplicationSessionCount_.clear();
+    HintedRepairSessionCount_.clear();
 
     TotalHintedUserSessionCount_ = 0;
     TotalHintedReplicationSessionCount_ = 0;
@@ -633,10 +625,10 @@ void TNode::AddSessionHint(int mediumIndex, ESessionType sessionType)
 
 int TNode::GetHintedSessionCount(int mediumIndex) const
 {
-    return SessionCount_[mediumIndex].value_or(0) +
-        HintedUserSessionCount_[mediumIndex] +
-        HintedReplicationSessionCount_[mediumIndex] +
-        HintedRepairSessionCount_[mediumIndex];
+    return SessionCount_.lookup(mediumIndex).value_or(0) +
+        HintedUserSessionCount_.lookup(mediumIndex) +
+        HintedReplicationSessionCount_.lookup(mediumIndex) +
+        HintedRepairSessionCount_.lookup(mediumIndex);
 }
 
 int TNode::GetSessionCount(ESessionType sessionType) const
@@ -699,9 +691,9 @@ void TNode::ClearTabletSlots()
 
 void TNode::ShrinkHashTables()
 {
-    for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
-        if (ShrinkHashTable(&Replicas_[mediumIndex])) {
-            RandomReplicaIters_[mediumIndex] = Replicas_[mediumIndex].end();
+    for (auto& [mediumIndex, replicas] : Replicas_) {
+        if (ShrinkHashTable(&replicas)) {
+            RandomReplicaIters_[mediumIndex] = replicas.end();
         }
     }
     ShrinkHashTable(&UnapprovedReplicas_);
@@ -723,8 +715,8 @@ void TNode::Reset()
         queue.clear();
     }
     ChunkSealQueue_.clear();
-    FillFactorIterators_.fill(std::nullopt);
-    LoadFactorIterators_.fill(std::nullopt);
+    FillFactorIterators_.clear();
+    LoadFactorIterators_.clear();
 
     ClearCellStatistics();
 }
@@ -773,21 +765,21 @@ bool TNode::HasMedium(int mediumIndex) const
 
 std::optional<double> TNode::GetFillFactor(int mediumIndex) const
 {
-    return FillFactors_[mediumIndex];
+    return FillFactors_.lookup(mediumIndex);
 }
 
 std::optional<double> TNode::GetLoadFactor(int mediumIndex) const
 {
     // NB: Avoid division by zero.
-    return SessionCount_[mediumIndex]
+    return SessionCount_.lookup(mediumIndex)
         ? std::make_optional(static_cast<double>(GetHintedSessionCount(mediumIndex)) /
-            std::max(IOWeights_[mediumIndex], 0.000000001))
+            std::max(IOWeights_.lookup(mediumIndex), 0.000000001))
         : std::nullopt;
 }
 
-TNode::TFillFactorIterator TNode::GetFillFactorIterator(int mediumIndex)
+TNode::TFillFactorIterator TNode::GetFillFactorIterator(int mediumIndex) const
 {
-    return FillFactorIterators_[mediumIndex];
+    return FillFactorIterators_.lookup(mediumIndex);
 }
 
 void TNode::SetFillFactorIterator(int mediumIndex, TFillFactorIterator iter)
@@ -795,9 +787,9 @@ void TNode::SetFillFactorIterator(int mediumIndex, TFillFactorIterator iter)
     FillFactorIterators_[mediumIndex] = iter;
 }
 
-TNode::TLoadFactorIterator TNode::GetLoadFactorIterator(int mediumIndex)
+TNode::TLoadFactorIterator TNode::GetLoadFactorIterator(int mediumIndex) const
 {
-    return LoadFactorIterators_[mediumIndex];
+    return LoadFactorIterators_.lookup(mediumIndex);
 }
 
 void TNode::SetLoadFactorIterator(int mediumIndex, TLoadFactorIterator iter)
@@ -807,7 +799,7 @@ void TNode::SetLoadFactorIterator(int mediumIndex, TLoadFactorIterator iter)
 
 bool TNode::IsWriteEnabled(int mediumIndex) const
 {
-    return IOWeights_[mediumIndex] > 0;
+    return IOWeights_.lookup(mediumIndex) > 0;
 }
 
 bool TNode::DoAddReplica(TChunkPtrWithIndexes replica)
@@ -825,6 +817,9 @@ bool TNode::DoAddReplica(TChunkPtrWithIndexes replica)
 bool TNode::DoRemoveReplica(TChunkPtrWithIndexes replica)
 {
     auto mediumIndex = replica.GetMediumIndex();
+    if (Replicas_.find(mediumIndex) == Replicas_.end()) {
+        return false;
+    }
     auto& randomReplicaIt = RandomReplicaIters_[mediumIndex];
     auto& mediumStoredReplicas = Replicas_[mediumIndex];
     if (randomReplicaIt != mediumStoredReplicas.end() &&
@@ -838,7 +833,12 @@ bool TNode::DoRemoveReplica(TChunkPtrWithIndexes replica)
 bool TNode::DoHasReplica(TChunkPtrWithIndexes replica) const
 {
     auto mediumIndex = replica.GetMediumIndex();
-    return Replicas_[mediumIndex].find(replica) != Replicas_[mediumIndex].end();
+    auto it = Replicas_.find(mediumIndex);
+    if (it == Replicas_.end()) {
+        return false;
+    }
+
+    return it->second.find(replica) != it->second.end();
 }
 
 void TNode::SetRack(TRack* rack)
@@ -902,9 +902,9 @@ void TNode::SetResourceLimits(const NNodeTrackerClient::NProto::TNodeResources& 
 
 TCellNodeStatistics TNode::ComputeCellStatistics() const
 {
-    TCellNodeStatistics result;
-    for (auto mediumIndex = 0; mediumIndex < Replicas_.size(); ++mediumIndex) {
-        auto replicaCount = Replicas_[mediumIndex].size();
+    TCellNodeStatistics result = TCellNodeStatistics();
+    for (const auto& [mediumIndex, replicas] :  Replicas_) {
+        auto replicaCount = replicas.size();
         result.ChunkReplicaCount[mediumIndex] = replicaCount;
     }
     return result;
@@ -924,7 +924,7 @@ TCellNodeStatistics TNode::ComputeClusterStatistics() const
 void TNode::ClearCellStatistics()
 {
     for (auto& pair : MulticellDescriptors_) {
-        pair.second.Statistics = TCellNodeStatistics{};
+        pair.second.Statistics = TCellNodeStatistics();
     }
 }
 

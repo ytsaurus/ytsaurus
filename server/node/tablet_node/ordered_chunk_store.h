@@ -22,7 +22,6 @@ public:
         TVersionedChunkMetaManagerPtr chunkMetaManager = nullptr,
         NApi::NNative::IClientPtr client = nullptr,
         const NNodeTrackerClient::TNodeDescriptor& localDescriptor = NNodeTrackerClient::TNodeDescriptor());
-    ~TOrderedChunkStore();
 
     virtual void Initialize(const NTabletNode::NProto::TAddStoreDescriptor* descriptor) override;
 

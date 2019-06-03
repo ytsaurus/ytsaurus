@@ -8,14 +8,21 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ECompetitionStatus,
+    (SingleJobOnly)
+    (TwoCompetitiveJobs)
+    (CompetitionCompleted)
+)
+
 class TCompetitiveJobManager
 {
 public:
     explicit TCompetitiveJobManager(
         std::function<void(TJobId, EAbortReason)> abortJobCallback,
-        const NLogging::TLogger& logger);
+        const NLogging::TLogger& logger,
+        int maxSpeculativeJobCount);
 
-    void AddSpeculativeCandidate(const TJobletPtr& joblet);
+    bool TryRegisterSpeculativeCandidate(const TJobletPtr& joblet);
 
     int GetPendingSpeculativeJobCount() const;
 
@@ -42,17 +49,36 @@ public:
     void Persist(const TPersistenceContext& context);
 
 private:
+    struct TCompetition
+    {
+        ECompetitionStatus Status = ECompetitionStatus::SingleJobOnly;
+        std::vector<TJobId> Competitors;
+        i64 PendingDataWeight;
+
+        void Persist(const TPersistenceContext& context)
+        {
+            using NYT::Persist;
+
+            Persist(context, Status);
+            Persist(context, Competitors);
+            Persist(context, PendingDataWeight);
+        }
+    };
+
     std::function<void(TJobId, EAbortReason)> AbortJobCallback_;
     TProgressCounterPtr JobCounter_;
     const NLogging::TLogger& Logger;
 
-    THashMap<NChunkPools::IChunkPoolOutput::TCookie, std::vector<TJobId>> CookieToJobIds_;
-    THashMap<NChunkPools::IChunkPoolOutput::TCookie, i64> SpeculativeCandidates_;
-    THashSet<TJobId> CompetitiveJobLosers_;
+    THashMap<NChunkPools::IChunkPoolOutput::TCookie, TCompetition> CookieToCompetition_;
+    THashSet<NChunkPools::IChunkPoolOutput::TCookie> SpeculativeCandidates_;
 
     i64 PendingDataWeight_ = 0;
+    int MaxSpeculativeJobCount_;
 
     void OnJobFinished(const TJobletPtr& joblet);
+    bool OnUnsuccessfulJobFinish(
+        const TJobletPtr& joblet,
+        const std::function<void(const TProgressCounterPtr&)>& updateJobCounter);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -454,3 +454,8 @@ class TestGetJobInput(YTEnvSetup):
         else:
             # TODO(babenko): maybe stricter condition?
             wait(lambda: len(get_job_spec_rows_for_jobs(job_ids)) > 0)
+
+class TestGetJobInputRpcProxy(TestGetJobInput):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_PROXY = True
+    ENABLE_RPC_PROXY = True

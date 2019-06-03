@@ -4,6 +4,8 @@
 
 #include <yt/core/actions/future.h>
 
+#include <yt/core/ytree/public.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -19,7 +21,9 @@ struct TCoreDump
 struct ICoreDumper
     : public virtual TRefCounted
 {
-    virtual TCoreDump WriteCoreDump(const std::vector<TString>& notes) = 0;
+    virtual TCoreDump WriteCoreDump(const std::vector<TString>& notes, const TString& reason) = 0;
+
+    virtual const NYTree::IYPathServicePtr& CreateOrchidService() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICoreDumper)

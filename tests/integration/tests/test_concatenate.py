@@ -85,11 +85,11 @@ class TestConcatenate(YTEnvSetup):
         concatenate(["//tmp/t1", "//tmp/t2"], "//tmp/union")
 
         assert read_table("//tmp/union") == [row] * 2
-        assert get("//tmp/union/@schema") == make_schema([
-            {"name": "a", "type": "string"},
-            {"name": "b", "type": "string"},
-            {"name": "c", "type": "string"},
-            {"name": "d", "type": "string"},
+        assert normalize_schema(get("//tmp/union/@schema")) == make_schema([
+            {"name": "a", "type": "string", "required": False},
+            {"name": "b", "type": "string", "required": False},
+            {"name": "c", "type": "string", "required": False},
+            {"name": "d", "type": "string", "required": False},
         ], strict=True, unique_keys=False)
 
     def test_conflict_missing_output_schema_append(self):

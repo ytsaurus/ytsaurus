@@ -433,7 +433,6 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         delete_rows("//tmp/t", [{"key": 1}], require_sync_replica=False)
         wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [])
 
-    @skip_if_rpc_driver_backend
     @pytest.mark.parametrize("preserve_tablet_index", [False, True])
     def test_async_replication_ordered(self, preserve_tablet_index):
         self._create_cells()

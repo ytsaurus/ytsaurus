@@ -44,4 +44,20 @@ TTagId TProfileManager::RegisterTag(const TString& key, const T& value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+TEnumMemberTagCache<T>::TEnumMemberTagCache(const TString& key)
+{
+    for (auto value : TEnumTraits<T>::GetDomainValues()) {
+        Tags_[value] = TProfileManager::Get()->RegisterTag(key, value);
+    }
+}
+
+template <class T>
+TTagId TEnumMemberTagCache<T>::GetTag(T value) const
+{
+    return Tags_[value];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NProfiling

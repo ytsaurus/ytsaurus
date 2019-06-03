@@ -1790,14 +1790,16 @@ private:
         Profiler.Enqueue("/used_space", statistics.TotalSpace.Used, EMetricType::Gauge);
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        for (const auto& pair : chunkManager->Media()) {
-            const auto* medium = pair.second;
+        for (const auto& [mediumIndex, space] : statistics.SpacePerMedium) {
+            const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+            if (!medium) {
+                continue;
+            }
             NProfiling::TTagIdList tagIds{
                 medium->GetProfilingTag()
             };
-            auto mediumIndex = medium->GetIndex();
-            Profiler.Enqueue("/available_space_per_medium", statistics.SpacePerMedium[mediumIndex].Available, EMetricType::Gauge, tagIds);
-            Profiler.Enqueue("/used_space_per_medium", statistics.SpacePerMedium[mediumIndex].Used, EMetricType::Gauge, tagIds);
+            Profiler.Enqueue("/available_space_per_medium", space.Available, EMetricType::Gauge, tagIds);
+            Profiler.Enqueue("/used_space_per_medium", space.Used, EMetricType::Gauge, tagIds);
         }
 
         Profiler.Enqueue("/chunk_replica_count", statistics.ChunkReplicaCount, EMetricType::Gauge);

@@ -3,6 +3,7 @@ package NYT.NTabletNode.NProto;
 import "yt/core/misc/proto/guid.proto";
 import "yt/client/table_client/proto/chunk_meta.proto";
 import "yt/client/chunk_client/proto/chunk_meta.proto";
+import "yt/client/chunk_client/proto/chunk_view.proto";
 import "yt/ytlib/tablet_client/heartbeat.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,6 +15,7 @@ message TAddStoreDescriptor
     required NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 3;
     optional NYT.NProto.TGuid backing_store_id = 4;
     optional int64 starting_row_index = 5;
+    optional NYT.NChunkClient.NProto.TChunkView chunk_view_descriptor = 6;
 }
 
 message TRemoveStoreDescriptor

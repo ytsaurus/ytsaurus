@@ -13,6 +13,8 @@ class TSchedulingContextBase
     : public ISchedulingContext
 {
 public:
+    DEFINE_BYVAL_RO_PROPERTY(int, NodeShardId);
+
     DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceUsageDiscount);
     DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceUsage);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
@@ -26,6 +28,7 @@ public:
 
 public:
     TSchedulingContextBase(
+        int nodeShardId,
         TSchedulerConfigPtr config,
         TExecNodePtr node,
         const std::vector<TJobPtr>& runningJobs);

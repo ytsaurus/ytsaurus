@@ -60,12 +60,12 @@ public:
         TMemoryProviderMapByTagPtr parent,
         size_t limit,
         NNodeTrackerClient::EMemoryCategory mainCategory,
-        NNodeTrackerClient::TNodeMemoryTracker* memoryTracker)
+        NNodeTrackerClient::TNodeMemoryTrackerPtr memoryTracker)
         : Key_(key)
         , Parent_(std::move(parent))
         , Limit_(limit)
         , MainCategory_(mainCategory)
-        , MemoryTracker_(memoryTracker)
+        , MemoryTracker_(std::move(memoryTracker))
     { }
 
     virtual std::unique_ptr<TAllocationHolder> Allocate(size_t size, TRefCountedTypeCookie cookie) override
@@ -114,12 +114,11 @@ private:
     const TString Key_;
     const TMemoryProviderMapByTagPtr Parent_;
     const size_t Limit_;
+    const NNodeTrackerClient::EMemoryCategory MainCategory_;
+    const NNodeTrackerClient::TNodeMemoryTrackerPtr MemoryTracker_;
+
     std::atomic<size_t> Allocated_ = 0;
     std::atomic<size_t> MaxAllocated_ = 0;
-
-    NNodeTrackerClient::EMemoryCategory MainCategory_;
-    NNodeTrackerClient::TNodeMemoryTracker* MemoryTracker_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TTrackedMemoryChunkProvider)
@@ -132,7 +131,7 @@ public:
         TString tag,
         size_t limit,
         NNodeTrackerClient::EMemoryCategory mainCategory,
-        NNodeTrackerClient::TNodeMemoryTracker* memoryTracker)
+        NNodeTrackerClient::TNodeMemoryTrackerPtr memoryTracker)
     {
         auto guard = Guard(SpinLock_);
         auto it = Map_.emplace(tag, nullptr).first;
@@ -140,7 +139,7 @@ public:
         TTrackedMemoryChunkProviderPtr result = it->second.Lock();
 
         if (!result) {
-            result = New<TTrackedMemoryChunkProvider>(tag, this, limit, mainCategory, memoryTracker);
+            result = New<TTrackedMemoryChunkProvider>(tag, this, limit, mainCategory, std::move(memoryTracker));
             it->second = result;
         }
 
@@ -193,9 +192,9 @@ public:
     TImpl(
         TExecutorConfigPtr config,
         const NProfiling::TProfiler& profiler,
-        NNodeTrackerClient::TNodeMemoryTracker* memoryTracker)
+        NNodeTrackerClient::TNodeMemoryTrackerPtr memoryTracker)
         : TAsyncSlruCacheBase(config->CGCache, profiler.AppendPath("/cg_cache"))
-        , MemoryTracker_(memoryTracker)
+        , MemoryTracker_(std::move(memoryTracker))
     { }
 
     TQueryStatistics Run(
@@ -303,6 +302,10 @@ public:
     }
 
 private:
+    const NNodeTrackerClient::TNodeMemoryTrackerPtr MemoryTracker_;
+    TMemoryProviderMapByTag MemoryProvider_;
+
+
     TCGQueryCallback Codegen(
         TConstBaseQueryPtr query,
         TCGVariables& variables,
@@ -374,9 +377,6 @@ private:
         TValue* literals,
         void* const* opaqueValues,
         TExecutionContext* executionContext) = CallCGQuery;
-
-    NNodeTrackerClient::TNodeMemoryTracker* MemoryTracker_;
-    TMemoryProviderMapByTag MemoryProvider_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -384,11 +384,11 @@ private:
 TEvaluator::TEvaluator(
     TExecutorConfigPtr config,
     const NProfiling::TProfiler& profiler,
-    NNodeTrackerClient::TNodeMemoryTracker* memoryTracker)
+    NNodeTrackerClient::TNodeMemoryTrackerPtr memoryTracker)
     : Impl_(New<TImpl>(
         std::move(config),
         profiler,
-        memoryTracker))
+        std::move(memoryTracker)))
 { }
 
 TQueryStatistics TEvaluator::Run(

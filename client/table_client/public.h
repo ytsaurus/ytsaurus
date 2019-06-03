@@ -141,6 +141,7 @@ using TNameTableToSchemaIdMapping = SmallVector<int, TypicalColumnCount>;
 union TUnversionedValueData;
 
 enum class EValueType : ui8;
+enum class ESimpleLogicalValueType : ui32;
 
 class TColumnFilter;
 
@@ -222,9 +223,13 @@ DECLARE_REFCOUNTED_STRUCT(IWireProtocolRowsetWriter)
 
 struct IValueConsumer;
 
+class TComplexTypeFieldDescriptor;
+
 DECLARE_REFCOUNTED_CLASS(TLogicalType)
 DECLARE_REFCOUNTED_CLASS(TSimpleLogicalType)
 DECLARE_REFCOUNTED_CLASS(TOptionalLogicalType)
+DECLARE_REFCOUNTED_CLASS(TListLogicalType)
+DECLARE_REFCOUNTED_CLASS(TStructLogicalType)
 
 ////////////////////////////////////////////////////////////////////////////////
 

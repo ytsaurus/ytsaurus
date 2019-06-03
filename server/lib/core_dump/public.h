@@ -1,16 +1,14 @@
 #pragma once
 
+#include <yt/ytlib/core_dump/public.h>
+
 #include <yt/core/misc/public.h>
 
 namespace NYT::NCoreDump {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NProto {
-
-class TCoreInfo;
-
-} // namespace NProto
+DECLARE_REFCOUNTED_CLASS(TCoreDumperConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

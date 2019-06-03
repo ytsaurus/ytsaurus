@@ -165,7 +165,9 @@ private:
 
                     NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
                     for (auto replica : job->TargetReplicas()) {
-                        jobSpecExt->add_target_replicas(ToProto<ui32>(replica));
+                        jobSpecExt->add_target_replicas(ToProto<ui64>(replica));
+                        // COMPAT(aozeritsky)
+                        jobSpecExt->add_target_replicas_old(ToProto<ui32>(replica));
                         builder.Add(replica);
                     }
                     break;
@@ -192,7 +194,9 @@ private:
                     ToProto(jobSpecExt->mutable_source_replicas(), sourceReplicas);
 
                     for (auto replica: job->TargetReplicas()) {
-                        jobSpecExt->add_target_replicas(ToProto<ui32>(replica));
+                        jobSpecExt->add_target_replicas(ToProto<ui64>(replica));
+                        // COMPAT(aozeritsky)
+                        jobSpecExt->add_target_replicas_old(ToProto<ui32>(replica));
                         builder.Add(replica);
                     }
                     break;

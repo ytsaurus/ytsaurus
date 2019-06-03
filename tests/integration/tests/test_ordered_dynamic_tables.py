@@ -228,7 +228,6 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] >= 10 and [$row_index] < 20") == query_rows[10:20]
         assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] >= 10 and [$row_index] <= 20") == query_rows[10:21]
 
-    @skip_if_rpc_driver_backend
     def test_dynamic_to_static(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -244,7 +243,6 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         assert get("//tmp/t/@row_count") == 100
         assert read_table("//tmp/t") == rows
 
-    @skip_if_rpc_driver_backend
     def test_static_to_dynamic(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
@@ -335,7 +333,6 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         trim_rows("//tmp/t", 0, 1000)
         wait(lambda: get("#{0}/@statistics/row_count".format(tablet_chunk_list_id)) == 0)
 
-    @skip_if_rpc_driver_backend
     def test_read_obeys_trim(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")

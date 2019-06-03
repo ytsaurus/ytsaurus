@@ -23,6 +23,8 @@ public:
 
     TSlruCacheConfigPtr FunctionImplCache;
 
+    TAsyncExpiringCacheConfigPtr PoolWeightCache;
+
     TQueryAgentConfig()
     {
         RegisterParameter("thread_pool_size", ThreadPoolSize)
@@ -45,6 +47,9 @@ public:
             .Default(16_MB);
 
         RegisterParameter("function_impl_cache", FunctionImplCache)
+            .DefaultNew();
+
+        RegisterParameter("pool_weight_cache", PoolWeightCache)
             .DefaultNew();
 
         RegisterPreprocessor([&] () {

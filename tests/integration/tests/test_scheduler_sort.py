@@ -1,5 +1,6 @@
 import pytest
 
+from copy import deepcopy
 from random import shuffle
 from yt_env_setup import YTEnvSetup
 from yt.environment.helpers import assert_items_equal
@@ -555,7 +556,9 @@ class TestSchedulerSortCommands(YTEnvSetup):
              sort_by="key")
 
         assert get("//tmp/t/@sorted")
-        assert get("//tmp/t/@schema") == make_schema([{"name": "key", "type": "string", "sort_order": "ascending"}], strict = True, unique_keys = False)
+        assert normalize_schema(get("//tmp/t/@schema")) == make_schema(
+            [{"name": "key", "type": "string", "required": False, "sort_order": "ascending"}],
+            strict = True, unique_keys = False)
         assert read_table("//tmp/t") == [{"key" : "a"}, {"key" : "b"}]
 
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -673,6 +676,50 @@ class TestSchedulerSortCommands(YTEnvSetup):
             sort(in_="//tmp/input",
                 out="//tmp/output",
                 sort_by="key")
+
+    def test_complex_types_schema_validation(self):
+        input_schema = make_schema([
+            {"name": "index", "type_v2": "int64"},
+            {"name": "value", "type_v2": optional_type(optional_type("string"))},
+        ], unique_keys=False, strict=True)
+        output_schema = make_schema([
+            {"name": "index", "type_v2": "int64", "sort_order": "ascending"},
+            {"name": "value", "type_v2": list_type(optional_type("string"))},
+        ], unique_keys=False, strict=True)
+
+        create("table", "//tmp/input", attributes={"schema": input_schema})
+        create("table", "//tmp/output", attributes={"schema": output_schema})
+        write_table("//tmp/input", [
+            {"index": 1, "value": [None]},
+            {"index": 2, "value": ["foo"]},
+        ])
+
+        # We check that yson representation of types are compatible with each other
+        write_table("//tmp/output", read_table("//tmp/input"))
+
+        with pytest.raises(YtError):
+            sort(
+                in_="//tmp/input",
+                out="//tmp/output",
+                sort_by="index",
+                spec={"schema_inference_mode": "auto"},
+            )
+        sort(
+            in_="//tmp/input",
+            out="//tmp/output",
+            sort_by="index",
+            spec={"schema_inference_mode": "from_output"},
+        )
+        assert normalize_schema_v2(output_schema) == normalize_schema_v2(get("//tmp/output/@schema"))
+        sort(
+            in_="//tmp/input",
+            out="//tmp/output",
+            sort_by="index",
+            spec={"schema_inference_mode": "from_input"},
+        )
+        input_sorted_schema = deepcopy(input_schema)
+        input_sorted_schema[0]["sort_order"] = "ascending"
+        assert normalize_schema_v2(input_sorted_schema) == normalize_schema_v2(get("//tmp/output/@schema"))
 
     def test_unique_keys_validation(self):
         create("table", "//tmp/input")
@@ -801,7 +848,11 @@ class TestSchedulerSortCommands(YTEnvSetup):
             out="//tmp/t",
             sort_by="k1")
 
-        assert get("//tmp/t/@schema/0") == {"name": "k1", "type": "int64", "expression": "k2 * 2", "sort_order": "ascending", "required": False}
+        assert normalize_schema(get("//tmp/t/@schema")) == make_schema([
+            {"name": "k1", "type": "int64", "expression": "k2 * 2", "sort_order": "ascending", "required": False},
+            {"name": "k2", "type": "int64", "required": False},
+        ], unique_keys=False, strict=True)
+
         assert read_table("//tmp/t") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
 
         create("table", "//tmp/t2")
@@ -855,11 +906,11 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert_items_equal(read_table("//tmp/t_out"), [{k: r[k] for k in ("k1", "v1")} for r in rows])
 
         schema = make_schema(
-            [{"name": "k1", "sort_order": "ascending", "type": "int64"},
-             {"name": "v1", "type": "int64"}],
+            [{"name": "k1", "type": "int64", "required": False, "sort_order": "ascending"},
+             {"name": "v1", "type": "int64", "required": False}],
             unique_keys=False, strict=True)
 
-        assert get("//tmp/t_out/@schema") == schema
+        assert normalize_schema(get("//tmp/t_out/@schema")) == schema
 
         remove("//tmp/t_out")
         create("table", "//tmp/t_out")
@@ -871,11 +922,11 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert_items_equal(read_table("//tmp/t_out"), [{k: r[k] for k in ("k1", "k2", "v2")} for r in rows])
 
         schema = make_schema([
-            {"name": "k1", "sort_order": "ascending", "type": "int64"},
-            {"name": "k2", "sort_order": "ascending", "type": "int64"},
-            {"name": "v2", "type": "int64"},
+            {"name": "k1", "type": "int64", "required": False, "sort_order": "ascending"},
+            {"name": "k2", "type": "int64", "required": False, "sort_order": "ascending"},
+            {"name": "v2", "type": "int64", "required": False},
         ], unique_keys=True, strict=True)
-        assert get("//tmp/t_out/@schema") == schema
+        assert normalize_schema(get("//tmp/t_out/@schema")) == schema
 
     def test_column_selectors_output_schema_validation(self):
         create("table", "//tmp/t", attributes={

@@ -42,17 +42,18 @@ class TestLocks(YTEnvSetup):
 
         abort_transaction(tx)
 
-    # Uncomment when new response format will be supported in api/v4.
-    #def test_lock_full_response(self):
-    #    create("map_node", "//tmp/node")
+    def test_lock_full_response(self):
+        driver = get_driver(api_version=4)
+        create("map_node", "//tmp/node", driver=driver)
 
-    #    tx = start_transaction()
-    #    rsp = lock("//tmp/node", mode="snapshot", tx=tx, full_response=True)
-    #    assert rsp.keys() == ["lock_id", "node_id"]
-    #    assert rsp["lock_id"] == get("//tmp/node/@locks/0/id")
+        tx = start_transaction(driver=driver)
+        rsp = lock("//tmp/node", mode="snapshot", tx=tx, full_response=True, driver=driver)
+        assert rsp.keys() == ["lock_id", "node_id", "revision"]
+        assert rsp["lock_id"] == get("//tmp/node/@locks/0/id")
 
-    #    set("//tmp/node", {})
-    #    assert rsp["node_id"] == get("//tmp/node/@id", tx=tx)
+        set("//tmp/node", {}, driver=driver)
+        assert rsp["node_id"] == get("//tmp/node/@id", tx=tx, driver=driver)
+        assert rsp["revision"] == get("//tmp/node/@revision", tx=tx, driver=driver)
 
     def test_shared_lock_inside_tx(self):
         tx_outer = start_transaction()
@@ -125,7 +126,7 @@ class TestLocks(YTEnvSetup):
             kwargs1 = {}
 
         tx = start_transaction()
-        lock_id = lock("//tmp/m1", mode=mode, tx=tx, **kwargs1)
+        lock_id = lock("//tmp/m1", mode=mode, tx=tx, **kwargs1)["lock_id"]
 
         self._assert_locked("//tmp/m1", tx, mode, **kwargs1)
 
@@ -144,7 +145,7 @@ class TestLocks(YTEnvSetup):
         assert not exists("#{0}".format(lock_id))
         assert len(get("#{0}/@lock_ids".format(tx))) == 0
 
-        lock_id = lock("//tmp/m1", mode=mode, tx=tx2, **kwargs1)
+        lock_id = lock("//tmp/m1", mode=mode, tx=tx2, **kwargs1)["lock_id"]
         self._assert_locked("//tmp/m1", tx2, mode, **kwargs1)
 
         commit_transaction(tx) # mustn't crash
@@ -255,9 +256,9 @@ class TestLocks(YTEnvSetup):
         tx1 = start_transaction()
         tx2 = start_transaction() # not nested
 
-        acquired_lock_id = lock("//tmp/m1", mode="exclusive", tx=tx1)
+        acquired_lock_id = lock("//tmp/m1", mode="exclusive", tx=tx1)["lock_id"]
         self._assert_locked("//tmp/m1", tx1, "exclusive")
-        pending_lock_id = lock("//tmp/m1", tx=tx2, waitable=True)
+        pending_lock_id = lock("//tmp/m1", tx=tx2, waitable=True)["lock_id"]
         assert get("#" + pending_lock_id + "/@state") == "pending"
 
         unlock("//tmp/m1", tx=tx2)
@@ -274,9 +275,9 @@ class TestLocks(YTEnvSetup):
         tx1 = start_transaction()
         tx2 = start_transaction() # not nested
 
-        acquired_lock_id = lock("//tmp/m1", mode="exclusive", tx=tx1)
+        acquired_lock_id = lock("//tmp/m1", mode="exclusive", tx=tx1)["lock_id"]
         self._assert_locked("//tmp/m1", tx1, "exclusive")
-        pending_lock_id = lock("//tmp/m1", tx=tx2, waitable=True)
+        pending_lock_id = lock("//tmp/m1", tx=tx2, waitable=True)["lock_id"]
         assert get("#" + pending_lock_id + "/@state") == "pending"
 
         assert get("#" + pending_lock_id + "/@transaction_id") == tx2
@@ -296,7 +297,7 @@ class TestLocks(YTEnvSetup):
         node_id =  create("map_node", "//tmp/m1/m2/m3")
 
         tx = start_transaction()
-        acquired_lock_id = lock("//tmp/m1/m2/m3", mode="snapshot", tx=tx)
+        acquired_lock_id = lock("//tmp/m1/m2/m3", mode="snapshot", tx=tx)["lock_id"]
 
         remove("//tmp/m1")
 
@@ -485,7 +486,7 @@ class TestLocks(YTEnvSetup):
         set("//tmp/a", 1)
 
         tx = start_transaction()
-        lock_id = lock("//tmp/a", tx=tx)
+        lock_id = lock("//tmp/a", tx=tx)["lock_id"]
         locks = get("//tmp/a/@locks")
         assert len(locks) == 1
         assert locks[0]["state"] == "acquired"
@@ -501,7 +502,7 @@ class TestLocks(YTEnvSetup):
 
         tx1 = start_transaction()
         tx2 = start_transaction(tx = tx1)
-        lock_id = lock("//tmp/a", tx = tx2)
+        lock_id = lock("//tmp/a", tx = tx2)["lock_id"]
 
         locks = get("//tmp/a/@locks")
         assert len(locks) == 1
@@ -528,7 +529,7 @@ class TestLocks(YTEnvSetup):
 
         tx1 = start_transaction()
         tx2 = start_transaction(tx = tx1)
-        lock_id = lock("//tmp/a", tx = tx2)
+        lock_id = lock("//tmp/a", tx = tx2)["lock_id"]
 
         locks = get("//tmp/a/@locks")
         assert len(locks) == 1
@@ -577,10 +578,10 @@ class TestLocks(YTEnvSetup):
         set("//tmp/a", 1)
 
         tx1 = start_transaction()
-        lock_id1 = lock("//tmp/a", tx=tx1)
+        lock_id1 = lock("//tmp/a", tx=tx1)["lock_id"]
 
         tx2 = start_transaction()
-        lock_id2 = lock("//tmp/a", tx=tx2, waitable=True)
+        lock_id2 = lock("//tmp/a", tx=tx2, waitable=True)["lock_id"]
 
         assert get("#" + lock_id1 + "/@state") == "acquired"
         assert get("//tmp/a/@lock_mode", tx=tx1) == "exclusive"
@@ -596,15 +597,15 @@ class TestLocks(YTEnvSetup):
         set("//tmp/a", 1)
 
         tx1 = start_transaction()
-        lock_id1 = lock("//tmp/a", tx=tx1)
+        lock_id1 = lock("//tmp/a", tx=tx1)["lock_id"]
         assert get("#" + lock_id1 + "/@state") == "acquired"
 
         tx2 = start_transaction()
-        lock_id2 = lock("//tmp/a", tx=tx2, waitable=True)
+        lock_id2 = lock("//tmp/a", tx=tx2, waitable=True)["lock_id"]
         assert get("#" + lock_id2 + "/@state") == "pending"
 
         tx3 = start_transaction()
-        lock_id3 = lock("//tmp/a", tx=tx1, waitable=True)
+        lock_id3 = lock("//tmp/a", tx=tx1, waitable=True)["lock_id"]
         assert get("#" + lock_id3 + "/@state") == "acquired"
         assert get("#" + lock_id2 + "/@state") == "pending"
 
@@ -612,42 +613,42 @@ class TestLocks(YTEnvSetup):
         set("//tmp/a", 1)
 
         tx1 = start_transaction()
-        lock_id1 = lock("//tmp/a", mode="shared", tx=tx1)
+        lock_id1 = lock("//tmp/a", mode="shared", tx=tx1)["lock_id"]
         assert get("#" + lock_id1 + "/@state") == "acquired"
 
         tx2 = start_transaction()
-        lock_id2 = lock("//tmp/a", mode="shared", tx=tx2, waitable=True)
+        lock_id2 = lock("//tmp/a", mode="shared", tx=tx2, waitable=True)["lock_id"]
         assert get("#" + lock_id2 + "/@state") == "acquired"
 
     def test_waitable_lock4(self):
         set("//tmp/a", 1)
 
         tx1 = start_transaction()
-        lock_id1 = lock("//tmp/a", tx=tx1, mode="shared")
+        lock_id1 = lock("//tmp/a", tx=tx1, mode="shared")["lock_id"]
         assert get("#" + lock_id1 + "/@state") == "acquired"
 
         tx2 = start_transaction()
-        lock_id2 = lock("//tmp/a", tx=tx2, waitable=True)
+        lock_id2 = lock("//tmp/a", tx=tx2, waitable=True)["lock_id"]
         assert get("#" + lock_id2 + "/@state") == "pending"
 
         tx3 = start_transaction()
-        lock_id3 = lock("//tmp/a", tx=tx3, mode="shared")
+        lock_id3 = lock("//tmp/a", tx=tx3, mode="shared")["lock_id"]
         assert get("#" + lock_id3 + "/@state") == "acquired"
 
     def test_waitable_lock5(self):
         set("//tmp/a", 1)
 
         tx1 = start_transaction()
-        lock_id1 = lock("//tmp/a", tx=tx1)
+        lock_id1 = lock("//tmp/a", tx=tx1)["lock_id"]
 
         tx2 = start_transaction()
-        lock_id2 = lock("//tmp/a", tx=tx2, waitable=True, mode="shared")
+        lock_id2 = lock("//tmp/a", tx=tx2, waitable=True, mode="shared")["lock_id"]
 
         tx3 = start_transaction()
-        lock_id3 = lock("//tmp/a", tx=tx3, waitable=True, mode="shared")
+        lock_id3 = lock("//tmp/a", tx=tx3, waitable=True, mode="shared")["lock_id"]
 
         tx4 = start_transaction()
-        lock_id4 = lock("//tmp/a", tx=tx4, waitable=True)
+        lock_id4 = lock("//tmp/a", tx=tx4, waitable=True)["lock_id"]
 
         assert get("#" + lock_id1 + "/@state") == "acquired"
         assert get("#" + lock_id2 + "/@state") == "pending"
@@ -676,13 +677,13 @@ class TestLocks(YTEnvSetup):
         set("//tmp/a", 1)
 
         tx1 = start_transaction()
-        lock_id1 = lock("//tmp/a", tx=tx1)
+        lock_id1 = lock("//tmp/a", tx=tx1)["lock_id"]
         assert get("#" + lock_id1 + "/@state") == "acquired"
 
         remove("//tmp/a", tx=tx1)
 
         tx2 = start_transaction()
-        lock_id2 = lock("//tmp/a", tx=tx2, waitable=True)
+        lock_id2 = lock("//tmp/a", tx=tx2, waitable=True)["lock_id"]
         assert get("#" + lock_id2 + "/@state") == "pending"
 
         commit_transaction(tx1)
@@ -696,13 +697,13 @@ class TestLocks(YTEnvSetup):
         set("//tmp/a", {"b" : 1 })
 
         tx1 = start_transaction()
-        lock_id1 = lock("//tmp/a/b", tx=tx1)
+        lock_id1 = lock("//tmp/a/b", tx=tx1)["lock_id"]
         assert lock_id1 != "0-0-0-0"
 
         remove("//tmp/a", tx=tx1)
 
         tx2 = start_transaction()
-        lock_id2 = lock("//tmp/a/b", tx=tx2, waitable=True)
+        lock_id2 = lock("//tmp/a/b", tx=tx2, waitable=True)["lock_id"]
         assert get("#" + lock_id2 + "/@state") == "pending"
 
         commit_transaction(tx1)
@@ -720,7 +721,7 @@ class TestLocks(YTEnvSetup):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"foo": "bar"}, tx = tx2)
 
-        lock_id = lock("//tmp/t", tx = tx3, mode = "exclusive", waitable = True)
+        lock_id = lock("//tmp/t", tx = tx3, mode = "exclusive", waitable = True)["lock_id"]
 
         assert get("//sys/locks/" + lock_id + "/@state") == "pending"
         assert len(get("//tmp/t/@locks")) == 2
@@ -742,13 +743,13 @@ class TestLocks(YTEnvSetup):
 
         create("table", "//tmp/t")
 
-        lock_id1 = lock("//tmp/t", tx = tx1, mode = "exclusive")
+        lock_id1 = lock("//tmp/t", tx = tx1, mode = "exclusive")["lock_id"]
         assert get("//sys/locks/" + lock_id1 + "/@state") == "acquired"
 
-        lock_id2 = lock("//tmp/t", tx = tx2, mode = "exclusive", waitable = True)
+        lock_id2 = lock("//tmp/t", tx = tx2, mode = "exclusive", waitable = True)["lock_id"]
         assert get("//sys/locks/" + lock_id2 + "/@state") == "pending"
 
-        lock_id3 = lock("//tmp/t", tx = tx3, mode = "snapshot")
+        lock_id3 = lock("//tmp/t", tx = tx3, mode = "snapshot")["lock_id"]
         assert get("//sys/locks/" + lock_id3 + "/@state") == "acquired"
 
     def test_waitable_lock10(self):
@@ -756,7 +757,7 @@ class TestLocks(YTEnvSetup):
         tx1 = start_transaction()
         tx2 = start_transaction()
         lock("//tmp/t", tx=tx1, mode="exclusive")
-        lock_id2 = lock("//tmp/t", tx=tx2, mode="exclusive", waitable=True)
+        lock_id2 = lock("//tmp/t", tx=tx2, mode="exclusive", waitable=True)["lock_id"]
         assert get("//sys/locks/" + lock_id2 + "/@state") == "pending"
         write_table("<append=true>//tmp/t", {"a": "b"}, tx=tx1)
 
@@ -765,9 +766,9 @@ class TestLocks(YTEnvSetup):
         tx1 = start_transaction()
         tx2 = start_transaction()
         tx3 = start_transaction()
-        lock_id1 = lock("//tmp/t", tx=tx1, mode="shared", child_key="a")
-        lock_id2 = lock("//tmp/t", tx=tx2, mode="shared", child_key="a", waitable=True)
-        lock_id3 = lock("//tmp/t", tx=tx3, mode="shared", child_key="b", waitable=True)
+        lock_id1 = lock("//tmp/t", tx=tx1, mode="shared", child_key="a")["lock_id"]
+        lock_id2 = lock("//tmp/t", tx=tx2, mode="shared", child_key="a", waitable=True)["lock_id"]
+        lock_id3 = lock("//tmp/t", tx=tx3, mode="shared", child_key="b", waitable=True)["lock_id"]
         assert get("#" + lock_id1 + "/@state") == "acquired"
         assert get("#" + lock_id2 + "/@state") == "pending"
         assert get("#" + lock_id3 + "/@state") == "acquired"
@@ -778,10 +779,10 @@ class TestLocks(YTEnvSetup):
         tx2 = start_transaction()
         tx3 = start_transaction()
         tx4 = start_transaction()
-        lock_id1 = lock("//tmp/t", tx=tx1, mode="shared", child_key="a")
-        lock_id2 = lock("//tmp/t", tx=tx2, mode="shared", child_key="b")
-        lock_id3 = lock("//tmp/t", tx=tx3, mode="shared", child_key="a", waitable=True)
-        lock_id4 = lock("//tmp/t", tx=tx4, mode="shared", child_key="b", waitable=True)
+        lock_id1 = lock("//tmp/t", tx=tx1, mode="shared", child_key="a")["lock_id"]
+        lock_id2 = lock("//tmp/t", tx=tx2, mode="shared", child_key="b")["lock_id"]
+        lock_id3 = lock("//tmp/t", tx=tx3, mode="shared", child_key="a", waitable=True)["lock_id"]
+        lock_id4 = lock("//tmp/t", tx=tx4, mode="shared", child_key="b", waitable=True)["lock_id"]
         assert get("#" + lock_id1 + "/@state") == "acquired"
         assert get("#" + lock_id2 + "/@state") == "acquired"
         assert get("#" + lock_id3 + "/@state") == "pending"
@@ -798,8 +799,8 @@ class TestLocks(YTEnvSetup):
         tx2 = start_transaction()
         tx3 = start_transaction()
 
-        lock_id1 = lock("//tmp/t", tx=tx1)
-        lock_id2 = lock("//tmp/t", tx=tx2, waitable=True)
+        lock_id1 = lock("//tmp/t", tx=tx1)["lock_id"]
+        lock_id2 = lock("//tmp/t", tx=tx2, waitable=True)["lock_id"]
 
         assert get("#" + lock_id1 + "/@state") == "acquired"
         assert get("#" + lock_id2 + "/@state") == "pending"
@@ -809,7 +810,7 @@ class TestLocks(YTEnvSetup):
 
         assert get("#" + lock_id2 + "/@state") == "acquired"
 
-        lock_id3 = lock("//tmp/t", tx=tx3, waitable=True)
+        lock_id3 = lock("//tmp/t", tx=tx3, waitable=True)["lock_id"]
         assert get("#" + lock_id3 + "/@state") == "pending"
 
         write_table("<append=true>//tmp/t", {"foo": "bar2"}, tx = tx2)
@@ -823,8 +824,8 @@ class TestLocks(YTEnvSetup):
         tx1 = start_transaction()
         tx2 = start_transaction()
 
-        lock_id1 = lock("//tmp/t", tx=tx1)
-        lock_id2 = lock("//tmp/t", tx=tx2, waitable=True)
+        lock_id1 = lock("//tmp/t", tx=tx1)["lock_id"]
+        lock_id2 = lock("//tmp/t", tx=tx2, waitable=True)["lock_id"]
 
         assert get("#" + lock_id1 + "/@state") == "acquired"
         assert get("#" + lock_id2 + "/@state") == "pending"
@@ -839,8 +840,8 @@ class TestLocks(YTEnvSetup):
         tx2 = start_transaction()
         tx3 = start_transaction(tx=tx2)
 
-        lock_id1 = lock("//tmp/t", tx=tx1)
-        lock_id2 = lock("//tmp/t", tx=tx3, waitable=True)
+        lock_id1 = lock("//tmp/t", tx=tx1)["lock_id"]
+        lock_id2 = lock("//tmp/t", tx=tx3, waitable=True)["lock_id"]
 
         assert get("#" + lock_id1 + "/@state") == "acquired"
         assert get("#" + lock_id2 + "/@state") == "pending"
@@ -856,7 +857,7 @@ class TestLocks(YTEnvSetup):
         lock("//tmp/t", tx=tx1, mode="exclusive")
 
         tx2 = start_transaction()
-        lock_id = lock("//tmp/t", mode="exclusive", waitable=True, tx=tx2)
+        lock_id = lock("//tmp/t", mode="exclusive", waitable=True, tx=tx2)["lock_id"]
 
         abort_transaction(tx1)
         assert get("//sys/locks/" + lock_id + "/@state") == "acquired"
@@ -1082,7 +1083,7 @@ class TestLocks(YTEnvSetup):
     def test_nested_tx2(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx = tx1)
-        lock_id = lock("//tmp", tx = tx2)
+        lock_id = lock("//tmp", tx = tx2)["lock_id"]
         assert len(get("//tmp/@locks")) == 1
         commit_transaction(tx2)
         assert len(get("//tmp/@locks")) == 1
@@ -1091,7 +1092,7 @@ class TestLocks(YTEnvSetup):
     def test_nested_tx3(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx = tx1)
-        lock_id = lock("//tmp", tx = tx2, mode = "snapshot")
+        lock_id = lock("//tmp", tx = tx2, mode = "snapshot")["lock_id"]
         assert len(get("//tmp/@locks")) == 1
         commit_transaction(tx2)
         assert not exists("//sys/locks/" + lock_id)

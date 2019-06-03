@@ -87,8 +87,9 @@ public:
         {
             auto guard = Guard(BufferLock_);
             startIndex = std::max(startIndex, StartIndex_);
-            for (int i = 0; i < limit && startIndex + i < StartIndex_ + TracesBuffer_.size(); ++i) {
-                traces.push_back(TracesBuffer_[startIndex + i]);
+            auto startOffset = startIndex - StartIndex_;
+            for (int i = 0; i < limit && startOffset + i < TracesBuffer_.size(); ++i) {
+                traces.push_back(TracesBuffer_[startOffset + i]);
             }
         }
 

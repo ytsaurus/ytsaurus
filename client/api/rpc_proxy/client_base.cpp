@@ -5,6 +5,10 @@
 #include "helpers.h"
 #include "config.h"
 #include "private.h"
+#include "file_reader.h"
+#include "file_writer.h"
+#include "journal_reader.h"
+#include "journal_writer.h"
 
 #include <yt/core/net/address.h>
 
@@ -35,6 +39,7 @@ using namespace NYson;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
+using namespace NYTree;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -56,6 +61,12 @@ TApiServiceProxy TClientBase::CreateApiServiceProxy(NRpc::IChannelPtr channel)
     proxy.SetDefaultRequestCodec(config->RequestCodec);
     proxy.SetDefaultResponseCodec(config->ResponseCodec);
     proxy.SetDefaultEnableLegacyRpcCodecs(config->EnableLegacyRpcCodecs);
+
+    NRpc::TStreamingParameters streamingParameters;
+    streamingParameters.ReadTimeout = config->DefaultStreamingStallTimeout;
+    streamingParameters.WriteTimeout = config->DefaultStreamingStallTimeout;
+    proxy.DefaultClientAttachmentsStreamingParameters() = streamingParameters;
+    proxy.DefaultServerAttachmentsStreamingParameters() = streamingParameters;
 
     return proxy;
 }
@@ -318,8 +329,8 @@ TFuture<TLockNodeResult> TClientBase::LockNode(
 }
 
 TFuture<void> TClientBase::UnlockNode(
-    const NYPath::TYPath& path,
-    const NApi::TUnlockNodeOptions& options)
+    const TYPath& path,
+    const TUnlockNodeOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -441,7 +452,7 @@ TFuture<void> TClientBase::ConcatenateNodes(
 
 TFuture<NObjectClient::TObjectId> TClientBase::CreateObject(
     NObjectClient::EObjectType type,
-    const NApi::TCreateObjectOptions& options)
+    const TCreateObjectOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
     auto req = proxy.CreateObject();
@@ -458,10 +469,120 @@ TFuture<NObjectClient::TObjectId> TClientBase::CreateObject(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFuture<IFileReaderPtr> TClientBase::CreateFileReader(
+    const TYPath& path,
+    const TFileReaderOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+    auto connection = GetRpcProxyConnection();
+    const auto& config = connection->GetConfig();
+
+    auto req = proxy.ReadFile();
+    req->SetTimeout(config->DefaultTotalStreamingTimeout);
+
+    req->set_path(path);
+    if (options.Offset) {
+        req->set_offset(*options.Offset);
+    }
+    if (options.Length) {
+        req->set_length(*options.Length);
+    }
+    if (options.Config) {
+        req->set_config(ConvertToYsonString(*options.Config).GetData());
+    }
+
+    ToProto(req->mutable_transactional_options(), options);
+    ToProto(req->mutable_suppressable_access_tracking_options(), options);
+
+    return NRpcProxy::CreateFileReader(std::move(req));
+}
+
+IFileWriterPtr TClientBase::CreateFileWriter(
+    const TRichYPath& path,
+    const TFileWriterOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+    auto connection = GetRpcProxyConnection();
+    const auto& config = connection->GetConfig();
+
+    auto req = proxy.WriteFile();
+    req->SetTimeout(config->DefaultTotalStreamingTimeout);
+
+    ToProto(req->mutable_path(), path);
+
+    req->set_compute_md5(options.ComputeMD5);
+    if (options.Config) {
+        req->set_config(ConvertToYsonString(*options.Config).GetData());
+    }
+
+    ToProto(req->mutable_transactional_options(), options);
+    ToProto(req->mutable_prerequisite_options(), options);
+
+    return NRpcProxy::CreateFileWriter(std::move(req));
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+IJournalReaderPtr TClientBase::CreateJournalReader(
+    const TYPath& path,
+    const TJournalReaderOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+    auto connection = GetRpcProxyConnection();
+    const auto& config = connection->GetConfig();
+
+    auto req = proxy.ReadJournal();
+    req->SetTimeout(config->DefaultTotalStreamingTimeout);
+
+    req->set_path(path);
+
+    if (options.FirstRowIndex) {
+        req->set_first_row_index(*options.FirstRowIndex);
+    }
+    if (options.RowCount) {
+        req->set_row_count(*options.RowCount);
+    }
+    if (options.Config) {
+        req->set_config(ConvertToYsonString(*options.Config).GetData());
+    }
+
+    ToProto(req->mutable_transactional_options(), options);
+    ToProto(req->mutable_suppressable_access_tracking_options(), options);
+
+    return NRpcProxy::CreateJournalReader(std::move(req));
+}
+
+IJournalWriterPtr TClientBase::CreateJournalWriter(
+    const TYPath& path,
+    const TJournalWriterOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+    auto connection = GetRpcProxyConnection();
+    const auto& config = connection->GetConfig();
+
+    auto req = proxy.WriteJournal();
+    req->SetTimeout(config->DefaultTotalStreamingTimeout);
+
+    req->set_path(path);
+
+    if (options.Config) {
+        req->set_config(ConvertToYsonString(*options.Config).GetData());
+    }
+    req->set_enable_multiplexing(options.EnableMultiplexing);
+    // TODO(kiselyovp) profiler is ignored
+
+    ToProto(req->mutable_transactional_options(), options);
+    ToProto(req->mutable_prerequisite_options(), options);
+
+    return NRpcProxy::CreateJournalWriter(std::move(req));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TFuture<IUnversionedRowsetPtr> TClientBase::LookupRows(
     const TYPath& path,
     TNameTablePtr nameTable,
-    const TSharedRange<NTableClient::TKey>& keys,
+    const TSharedRange<TKey>& keys,
     const TLookupRowsOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
@@ -493,7 +614,7 @@ TFuture<IUnversionedRowsetPtr> TClientBase::LookupRows(
 TFuture<IVersionedRowsetPtr> TClientBase::VersionedLookupRows(
     const TYPath& path,
     TNameTablePtr nameTable,
-    const TSharedRange<NTableClient::TKey>& keys,
+    const TSharedRange<TKey>& keys,
     const TVersionedLookupRowsOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
@@ -552,6 +673,9 @@ TFuture<TSelectRowsResult> TClientBase::SelectRows(
         req->set_udf_registry_path(*options.UdfRegistryPath);
     }
     req->set_memory_limit_per_node(options.MemoryLimitPerNode);
+    if (options.ExecutionPool) {
+        req->set_execution_pool(*options.ExecutionPool);
+    }
 
     return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspSelectRowsPtr>& rspOrError) {
         const auto& rsp = rspOrError.ValueOrThrow();

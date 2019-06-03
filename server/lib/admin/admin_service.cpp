@@ -61,7 +61,7 @@ private:
         auto path = CoreDumper_->WriteCoreDump({
             "Reason: RPC",
             "RequestId: " + ToString(context->GetRequestId()),
-        }).Path;
+        }, "rpc_call").Path;
         response->set_path(path);
 
         context->Reply();

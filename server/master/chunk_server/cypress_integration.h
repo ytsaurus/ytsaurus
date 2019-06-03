@@ -14,6 +14,9 @@ NCypressServer::INodeTypeHandlerPtr CreateChunkMapTypeHandler(
     NCellMaster::TBootstrap* bootstrap,
     NObjectClient::EObjectType type);
 
+NCypressServer::INodeTypeHandlerPtr CreateChunkViewMapTypeHandler(
+    NCellMaster::TBootstrap* bootstrap);
+
 NCypressServer::INodeTypeHandlerPtr CreateChunkListMapTypeHandler(
     NCellMaster::TBootstrap* bootstrap);
 

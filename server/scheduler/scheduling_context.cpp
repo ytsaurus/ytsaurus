@@ -12,10 +12,12 @@ class TSchedulingContext
 {
 public:
     TSchedulingContext(
+        int nodeShardId,
         TSchedulerConfigPtr config,
         TExecNodePtr node,
         const std::vector<TJobPtr>& runningJobs)
         : TSchedulingContextBase(
+            nodeShardId,
             std::move(config),
             std::move(node),
             runningJobs)
@@ -30,11 +32,13 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchedulingContextPtr CreateSchedulingContext(
+    int nodeShardId,
     TSchedulerConfigPtr config,
     TExecNodePtr node,
     const std::vector<TJobPtr>& runningJobs)
 {
     return New<TSchedulingContext>(
+        nodeShardId,
         std::move(config),
         std::move(node),
         runningJobs);

@@ -20,7 +20,7 @@ public:
         NScheduler::TSchedulerConfigPtr schedulerConfig,
         NScheduler::TExecNodePtr node,
         const std::vector<NScheduler::TJobPtr>& runningJobs)
-        : TSchedulingContextBase(schedulerConfig, node, runningJobs)
+        : TSchedulingContextBase(0, schedulerConfig, node, runningJobs)
     { }
 
     void SetDurationForStartedJob(NScheduler::TJobId jobId, const TDuration& duration)

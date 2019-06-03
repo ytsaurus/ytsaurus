@@ -4,6 +4,8 @@
 #include "config.h"
 #include "lazy_changelog.h"
 
+#include <yt/server/lib/security_server/security_manager.h>
+
 #include <yt/ytlib/api/native/journal_reader.h>
 #include <yt/ytlib/api/native/journal_writer.h>
 
@@ -355,12 +357,14 @@ public:
         TRemoteChangelogStoreOptionsPtr options,
         const TYPath& remotePath,
         IClientPtr client,
+        NSecurityServer::IResourceLimitsManagerPtr resourceLimitsManager,
         TTransactionId prerequisiteTransactionId,
         const NProfiling::TTagIdList& profilerTags)
         : Config_(config)
         , Options_(options)
         , Path_(remotePath)
         , MasterClient_(client)
+        , ResourceLimitsManager_(resourceLimitsManager)
         , PrerequisiteTransactionId_(prerequisiteTransactionId)
         , ProfilerTags_(profilerTags)
         , Logger(NLogging::TLogger(HydraLogger)
@@ -379,6 +383,7 @@ private:
     const TRemoteChangelogStoreOptionsPtr Options_;
     const TYPath Path_;
     const IClientPtr MasterClient_;
+    const NSecurityServer::IResourceLimitsManagerPtr ResourceLimitsManager_;
     const TTransactionId PrerequisiteTransactionId_;
     const NProfiling::TTagIdList ProfilerTags_;
 
@@ -396,29 +401,10 @@ private:
                 reachableVersion = ComputeReachableVersion();
             }
 
-            {
-                auto asyncRsp = MasterClient_->GetNode(Format(
-                    "//sys/accounts/%v/@violated_resource_limits",
-                    ToYPathLiteral(Options_->ChangelogAccount)));
-
-                auto rspOrError = WaitFor(asyncRsp);
-                THROW_ERROR_EXCEPTION_IF_FAILED(
-                    rspOrError,
-                    "Error requesting resource limits for account %Qv",
-                    Options_->ChangelogAccount);
-
-                auto rsp = rspOrError.Value();
-
-                auto attributes = ConvertToAttributes(rsp);
-                auto chunkCount = attributes->Get<bool>("chunk_count");
-                auto diskSpace = attributes->Get<bool>("disk_space");
-
-                if (chunkCount || diskSpace) {
-                    THROW_ERROR_EXCEPTION(
-                        "Resource limits for changelog account %Qv are violated",
-                        Options_->ChangelogAccount);
-                }
-            }
+            ResourceLimitsManager_->ValidateResourceLimits(
+                Options_->ChangelogAccount,
+                Options_->ChangelogPrimaryMedium,
+                NTabletClient::EInMemoryMode::None);
 
             return New<TRemoteChangelogStore>(
                 Config_,
@@ -521,6 +507,7 @@ IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
     TRemoteChangelogStoreOptionsPtr options,
     const TYPath& path,
     IClientPtr client,
+    NSecurityServer::IResourceLimitsManagerPtr resourceLimitsManager,
     TTransactionId prerequisiteTransactionId,
     const NProfiling::TTagIdList& profilerTags)
 {
@@ -529,6 +516,7 @@ IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
         options,
         path,
         client,
+        resourceLimitsManager,
         prerequisiteTransactionId,
         profilerTags);
 }

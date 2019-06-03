@@ -26,7 +26,10 @@ std::vector<NChunkClient::TInputDataSlicePtr> FetchDataSlices(
     TSubqueryConfigPtr config,
     TSubquerySpec& specTemplate);
 
-NChunkPools::TChunkStripeListPtr SubdivideDataSlices(const std::vector<NChunkClient::TInputDataSlicePtr>& dataSlices, int jobCount);
+NChunkPools::TChunkStripeListPtr SubdivideDataSlices(
+    const std::vector<NChunkClient::TInputDataSlicePtr>& dataSlices,
+    int jobCount,
+    std::optional<double> samplingRate = std::nullopt);
 
 void FillDataSliceDescriptors(TSubquerySpec& subquerySpec, const NChunkPools::TChunkStripePtr& chunkStripe);
 

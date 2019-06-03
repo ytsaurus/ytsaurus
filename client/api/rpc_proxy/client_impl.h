@@ -164,11 +164,8 @@ public:
         const NApi::TDumpJobContextOptions& options) override;
 
     virtual TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> GetJobInput(
-        NJobTrackerClient::TJobId,
-        const NApi::TGetJobInputOptions&) override
-    {
-        ThrowUnimplemented("get_job_input");
-    }
+        NJobTrackerClient::TJobId jobId,
+        const NApi::TGetJobInputOptions& options) override;
 
     virtual TFuture<NYson::TYsonString> GetJobInputPaths(
         NJobTrackerClient::TJobId jobId,

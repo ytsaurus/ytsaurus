@@ -235,7 +235,7 @@ public:
         Underlying_->OnJobRunning(std::move(jobSummary));
     }
 
-    virtual TScheduleJobResultPtr ScheduleJob(
+    virtual TControllerScheduleJobResultPtr ScheduleJob(
         ISchedulingContext* context,
         const TJobResourcesWithQuota& jobLimits,
         const TString& treeId) override
