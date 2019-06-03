@@ -82,6 +82,28 @@ class TestTables(YTEnvSetup):
         assert get("//tmp/table/@sorted_by") == ["a", "b"]
         assert get("//tmp/table/@row_count") == 5
 
+    def test_append_sorted_simple_with_transaction(self):
+        create("table", "//tmp/table")
+        write_table("//tmp/table", [{"a": 0}, {"a": 0}, {"a": 1}], sorted_by=["a"])
+
+        tx_b1 = start_transaction()
+        tx_b2 = start_transaction(tx=tx_b1)
+
+        lock("//tmp/table", mode="exclusive", tx=tx_b2)
+        abort_transaction(tx=tx_b2)
+
+        write_table("<append=true>//tmp/table", [{"a": 1}, {"a": 2}], sorted_by=["a"])
+
+        tx_b3 = start_transaction(tx=tx_b1)
+        with pytest.raises(YtError):
+            write_table("<append=true>//tmp/table", [{"a": 1}, {"a": 2}], sorted_by=["a"], tx=tx_b3)
+        commit_transaction(tx_b3)
+        commit_transaction(tx_b1)
+
+        assert get("//tmp/table/@sorted")
+        assert get("//tmp/table/@sorted_by") == ["a"]
+        assert get("//tmp/table/@row_count") == 5
+
     def test_append_sorted_with_less_key_columns(self):
         create("table", "//tmp/table")
         write_table("//tmp/table", [{"a": 0, "b": 0}, {"a": 0, "b": 1}, {"a": 1, "b": 0}], sorted_by=["a", "b"])
