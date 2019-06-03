@@ -2942,13 +2942,15 @@ Y_UNIT_TEST_SUITE(Operations)
             writer->Finish();
         }
 
-        auto checkSchema = [] (TNode schema) {
-            schema.ClearAttributes();
-            UNIT_ASSERT_VALUES_EQUAL(schema,
-                TNode()
-                .Add(TNode()("name", "Host")("type", "string")("required", false))
-                .Add(TNode()("name", "Path")("type", "string")("required", false))
-                .Add(TNode()("name", "HttpCode")("type", "int32")("required", false)));
+        auto checkSchema = [] (TNode schemaNode) {
+            TTableSchema schema;
+            Deserialize(schema, schemaNode);
+            UNIT_ASSERT(AreSchemasEqual(
+                schema,
+                TTableSchema()
+                    .AddColumn(TColumnSchema().Name("Host").Type(EValueType::VT_STRING))
+                    .AddColumn(TColumnSchema().Name("Path").Type(EValueType::VT_STRING))
+                    .AddColumn(TColumnSchema().Name("HttpCode").Type(EValueType::VT_INT32))));
         };
 
         client->Map(

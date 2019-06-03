@@ -1153,13 +1153,14 @@ Y_UNIT_TEST_SUITE(TableIo) {
             writer->Finish();
         }
 
-        auto schema = client->Get(workingDir + "/table/@schema");
-        schema.ClearAttributes();
-        UNIT_ASSERT_VALUES_EQUAL(schema,
-            TNode()
-            .Add(TNode()("name", "String_1")("type", "string")("required", false))
-            .Add(TNode()("name", "Uint32_2")("type", "uint32")("required", false))
-            .Add(TNode()("name", "Fixed64_3")("type", "uint64")("required", false)));
+        TTableSchema actualSchema;
+        Deserialize(actualSchema, client->Get(workingDir + "/table/@schema"));
+        UNIT_ASSERT(AreSchemasEqual(
+            actualSchema,
+            TTableSchema()
+                .AddColumn(TColumnSchema().Name("String_1").Type(EValueType::VT_STRING))
+                .AddColumn(TColumnSchema().Name("Uint32_2").Type(EValueType::VT_UINT32))
+                .AddColumn(TColumnSchema().Name("Fixed64_3").Type(EValueType::VT_UINT64))));
     }
 
     Y_UNIT_TEST(ProtobufSchemaInferring_Config)

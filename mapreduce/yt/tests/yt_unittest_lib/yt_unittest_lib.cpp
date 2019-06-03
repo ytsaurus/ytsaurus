@@ -189,5 +189,23 @@ void TTabletFixture::WaitForTabletCell()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool AreSchemasEqual(const TTableSchema& lhs, const TTableSchema& rhs)
+{
+    if (lhs.Columns_.size() != rhs.Columns_.size()) {
+        return false;
+    }
+    for (int i = 0; i < static_cast<int>(lhs.Columns_.size()); ++i) {
+        if (lhs.Columns_[i].Name_ != rhs.Columns_[i].Name_) {
+            return false;
+        }
+        if (lhs.Columns_[i].Type_ != rhs.Columns_[i].Type_) {
+            return false;
+        }
+    }
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NTesting
 } // namespace NYT
