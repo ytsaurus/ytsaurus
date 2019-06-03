@@ -11,7 +11,6 @@
 #include <yt/core/rpc/authenticator.h>
 
 #include <util/string/split.h>
-#include <util/string/iterator.h>
 
 namespace NYT::NAuth {
 

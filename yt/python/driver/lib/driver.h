@@ -14,15 +14,18 @@ namespace NYT::NPython {
     PYCXX_KEYWORDS_METHOD_DECL(className, Execute) \
     PYCXX_KEYWORDS_METHOD_DECL(className, GetCommandDescriptor) \
     PYCXX_KEYWORDS_METHOD_DECL(className, GetCommandDescriptors) \
+    PYCXX_KEYWORDS_METHOD_DECL(className, Terminate) \
     PYCXX_KEYWORDS_METHOD_DECL(className, GetConfig) \
-    PYCXX_KEYWORDS_METHOD_DECL(className, Terminate)
+    PYCXX_VARARGS_METHOD_DECL(className, DeepCopy)
 
 #define PYCXX_ADD_DRIVER_METHODS \
     PYCXX_ADD_KEYWORDS_METHOD(execute, Execute, "Executes the request"); \
     PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptor, GetCommandDescriptor, "Describes the command"); \
     PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptors, GetCommandDescriptors, "Describes all commands"); \
     PYCXX_ADD_KEYWORDS_METHOD(terminate, Terminate, "Terminate driver"); \
-    PYCXX_ADD_KEYWORDS_METHOD(get_config, GetConfig, "Get config");
+    PYCXX_ADD_KEYWORDS_METHOD(get_config, GetConfig, "Get config"); \
+    PYCXX_ADD_VARARGS_METHOD(__deepcopy__, DeepCopy, "Deep copy Driver object");
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,8 +42,9 @@ public:
     Py::Object Execute(Py::Tuple& args, Py::Dict& kwargs);
     Py::Object GetCommandDescriptor(Py::Tuple& args, Py::Dict& kwargs);
     Py::Object GetCommandDescriptors(Py::Tuple& args, Py::Dict& kwargs);
-    Py::Object GetConfig(const Py::Tuple& args, const Py::Dict& kwargs);
     Py::Object Terminate(const Py::Tuple& args, const Py::Dict& kwargs);
+    Py::Object GetConfig(const Py::Tuple& args, const Py::Dict& kwargs);
+    Py::Object DeepCopy(const Py::Tuple& args);
 
 private:
     const TGuid Id_;
@@ -54,6 +58,8 @@ protected:
     NYTree::INodePtr ConfigNode_;
 
     const NLogging::TLogger Logger;
+
+    virtual Py::Type GetDriverType() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

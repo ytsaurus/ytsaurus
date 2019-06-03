@@ -186,6 +186,13 @@ Py::Object TDriverBase::GetCommandDescriptors(Py::Tuple& args, Py::Dict& kwargs)
     } CATCH_AND_CREATE_YT_ERROR("Failed to get command descriptors");
 }
 
+Py::Object TDriverBase::Terminate(const Py::Tuple& args, const Py::Dict& kwargs)
+{
+    ValidateArgumentsEmpty(args, kwargs);
+    DoTerminate();
+    return Py::None();
+}
+
 Py::Object TDriverBase::GetConfig(const Py::Tuple& args, const Py::Dict& kwargs)
 {
     ValidateArgumentsEmpty(args, kwargs);
@@ -199,11 +206,11 @@ Py::Object TDriverBase::GetConfig(const Py::Tuple& args, const Py::Dict& kwargs)
     return object;
 }
 
-Py::Object TDriverBase::Terminate(const Py::Tuple& args, const Py::Dict& kwargs)
+Py::Object TDriverBase::DeepCopy(const Py::Tuple& args)
 {
-    ValidateArgumentsEmpty(args, kwargs);
-    DoTerminate();
-    return Py::None();
+    Py::Callable classType(GetDriverType());
+    auto configDict = GetConfig(Py::Tuple(), Py::Dict());
+    return classType.apply(Py::TupleN(configDict), Py::Dict());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
