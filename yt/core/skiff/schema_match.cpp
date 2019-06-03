@@ -294,6 +294,8 @@ NSkiff::TSkiffSchemaPtr ParseSchema(
             switch (schemaRepresentation->WireType) {
                 case EWireType::Variant8:
                     return CreateVariant8Schema(childSchemaList)->SetName(schemaRepresentation->Name);
+                case EWireType::RepeatedVariant8:
+                    return CreateRepeatedVariant8Schema(childSchemaList)->SetName(schemaRepresentation->Name);
                 case EWireType::RepeatedVariant16:
                     return CreateRepeatedVariant16Schema(childSchemaList)->SetName(schemaRepresentation->Name);
                 case EWireType::Tuple:
