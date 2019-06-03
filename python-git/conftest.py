@@ -51,7 +51,7 @@ def pytest_configure(config):
                 # it writes parameters for test.
                 parameters = match.group(1).split("-")
                 for param in parameters:
-                    if param in ["v3", "native"]:
+                    if param in ["v3", "v4", "rpc", "native"]:
                         suite_name = param
                         break
 
