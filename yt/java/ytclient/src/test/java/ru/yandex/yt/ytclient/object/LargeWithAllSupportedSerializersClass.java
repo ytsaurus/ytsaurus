@@ -21,7 +21,7 @@ import ru.yandex.misc.enums.SerializedAsIntEnum;
 import ru.yandex.misc.lang.number.UnsignedLong;
 
 @YTreeObject
-public class LargeClassWithAllSupportedSerializers {
+public class LargeWithAllSupportedSerializersClass {
 
     public enum StringEnum implements ru.yandex.misc.enums.StringEnum {
         VS1("value1"), VS2("value2"), VS3("value3");
@@ -413,7 +413,7 @@ public class LargeClassWithAllSupportedSerializers {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        LargeClassWithAllSupportedSerializers that = (LargeClassWithAllSupportedSerializers) o;
+        LargeWithAllSupportedSerializersClass that = (LargeWithAllSupportedSerializersClass) o;
         return longValue == that.longValue &&
                 booleanValue == that.booleanValue &&
                 Double.compare(that.doubleValue, doubleValue) == 0 &&
@@ -471,7 +471,7 @@ public class LargeClassWithAllSupportedSerializers {
 
     @Override
     public String toString() {
-        return "LargeClassWithAllSupportedSerializers{" +
+        return "LargeWithAllSupportedSerializersClass{" +
                 "bytesValues=" + Arrays.toString(bytesValues) +
                 ", unsignedLongValue=" + unsignedLongValue +
                 ", longValue=" + longValue +
