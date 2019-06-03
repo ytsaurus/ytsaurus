@@ -3,7 +3,7 @@ from .common import (CustomTqdm, group_blobs_by_size, split_lines_by_max_size,
                      stream_or_empty_bytes, YtError, MB)
 from .default_config import DEFAULT_WRITE_CHUNK_SIZE
 from .retries import Retrier, IteratorRetrier, default_chaos_monkey
-from .errors import YtMasterCommunicationError, YtChunkUnavailable
+from .errors import YtMasterCommunicationError, YtChunkUnavailable, YtAllTargetNodesFailed
 from .ypath import YPathSupportingAppend
 from .transaction import Transaction
 from .transaction_commands import _make_transactional_request
@@ -115,7 +115,7 @@ class WriteRequestRetrier(Retrier):
         chaos_monkey_enable = get_option("_ENABLE_HEAVY_REQUEST_CHAOS_MONKEY", client)
         super(WriteRequestRetrier, self).__init__(retry_config=retry_config,
                                                   timeout=request_timeout,
-                                                  exceptions=get_retriable_errors() + (YtMasterCommunicationError,),
+                                                  exceptions=get_retriable_errors() + (YtMasterCommunicationError, YtAllTargetNodesFailed,),
                                                   chaos_monkey=default_chaos_monkey(chaos_monkey_enable))
         self.write_action = write_action
         self.transaction_timeout = transaction_timeout
