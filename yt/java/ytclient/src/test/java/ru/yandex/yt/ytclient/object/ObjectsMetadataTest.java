@@ -29,7 +29,7 @@ public class ObjectsMetadataTest<T> {
                 {LargeFlattenPrimitiveClass.class},
                 {LargeUnflattenObjectClass.class},
                 {LargeUnflattenPrimitiveClass.class},
-                {LargeClassWithAllSupportedSerializers.class},
+                {LargeWithAllSupportedSerializersClass.class},
                 {BrokenIntEnumClass.class}
         };
     }
