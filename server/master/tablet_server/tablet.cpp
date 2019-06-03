@@ -42,7 +42,35 @@ void TTabletCellStatisticsBase::Persist(NCellMaster::TPersistenceContext& contex
     Persist(context, UncompressedDataSize);
     Persist(context, CompressedDataSize);
     Persist(context, MemorySize);
-    Persist(context, DiskSpacePerMedium);
+    // COMPAT(aozeritsky)
+    if (context.GetVersion() < 832) {
+        const auto oldMaxMediumCount = 7;
+        i64 DiskSpacePerMediumTmp[oldMaxMediumCount] = {};
+        YCHECK(context.IsLoad());
+        Persist(context, DiskSpacePerMediumTmp);
+        for (auto i = 0; i < oldMaxMediumCount; ++i) {
+            if (DiskSpacePerMediumTmp[i] > 0) {
+                DiskSpacePerMedium[i] = DiskSpacePerMediumTmp[i];
+            }
+        }
+    } else {
+        if (context.IsSave()) {
+            auto& ctx = context.SaveContext();
+            Save<i32>(ctx, DiskSpacePerMedium.size());
+            for (const auto& [mediumIndex, diskSpace] : DiskSpacePerMedium) {
+                Save(ctx, mediumIndex);
+                Save(ctx, diskSpace);
+            }
+        } else {
+            auto& ctx = context.LoadContext();
+            auto size = Load<i32>(ctx);
+            for (auto i = 0; i < size; ++i) {
+                auto mediumIndex = Load<int>(ctx);
+                auto diskSpace = Load<i64>(ctx);
+                DiskSpacePerMedium[mediumIndex] = diskSpace;
+            }
+        }
+    }
     Persist(context, ChunkCount);
     Persist(context, PartitionCount);
     Persist(context, StoreCount);
@@ -96,12 +124,9 @@ TTabletCellStatisticsBase& operator +=(TTabletCellStatisticsBase& lhs, const TTa
     lhs.UncompressedDataSize += rhs.UncompressedDataSize;
     lhs.CompressedDataSize += rhs.CompressedDataSize;
     lhs.MemorySize += rhs.MemorySize;
-    std::transform(
-        std::begin(lhs.DiskSpacePerMedium),
-        std::end(lhs.DiskSpacePerMedium),
-        std::begin(rhs.DiskSpacePerMedium),
-        std::begin(lhs.DiskSpacePerMedium),
-        std::plus<i64>());
+    for (const auto& [mediumIndex, diskSpace] : rhs.DiskSpacePerMedium) {
+        lhs.DiskSpacePerMedium[mediumIndex] += diskSpace;
+    }
     lhs.ChunkCount += rhs.ChunkCount;
     lhs.PartitionCount += rhs.PartitionCount;
     lhs.StoreCount += rhs.StoreCount;
@@ -132,12 +157,9 @@ TTabletCellStatisticsBase& operator -=(TTabletCellStatisticsBase& lhs, const TTa
     lhs.UncompressedDataSize -= rhs.UncompressedDataSize;
     lhs.CompressedDataSize -= rhs.CompressedDataSize;
     lhs.MemorySize -= rhs.MemorySize;
-    std::transform(
-        std::begin(lhs.DiskSpacePerMedium),
-        std::end(lhs.DiskSpacePerMedium),
-        std::begin(rhs.DiskSpacePerMedium),
-        std::begin(lhs.DiskSpacePerMedium),
-        std::minus<i64>());
+    for (const auto& [mediumIndex, diskSpace] : rhs.DiskSpacePerMedium) {
+        lhs.DiskSpacePerMedium[mediumIndex] -= diskSpace;
+    }
     lhs.ChunkCount -= rhs.ChunkCount;
     lhs.PartitionCount -= rhs.PartitionCount;
     lhs.StoreCount -= rhs.StoreCount;
@@ -220,7 +242,18 @@ void ToProto(NProto::TTabletCellStatistics* protoStatistics, const TTabletCellSt
     protoStatistics->set_decommissioned(statistics.Decommissioned);
     protoStatistics->set_health(static_cast<i32>(statistics.Health));
 
-    ToProto(protoStatistics->mutable_disk_space_per_medium(), TRange<i64>(statistics.DiskSpacePerMedium, MaxMediumCount));
+    // COMPAT(aozeritsky)
+    const auto oldMaxMediumCount = 7;
+    i64 oldDiskSpacePerMedium[oldMaxMediumCount] = {};
+    for (const auto& [mediumIndex, diskSpace] : statistics.DiskSpacePerMedium) {
+        oldDiskSpacePerMedium[mediumIndex] = diskSpace;
+
+        auto* item = protoStatistics->add_disk_space_per_medium();
+        item->set_medium_index(mediumIndex);
+        item->set_disk_space(diskSpace);
+    }
+
+    ToProto(protoStatistics->mutable_disk_space_per_medium_old(), TRange<i64>(oldDiskSpacePerMedium, oldMaxMediumCount));
     ToProto(protoStatistics->mutable_tablet_count_per_memory_mode(), statistics.TabletCountPerMemoryMode);
 }
 
@@ -241,8 +274,19 @@ void FromProto(TTabletCellStatistics* statistics, const NProto::TTabletCellStati
     statistics->Decommissioned = protoStatistics.decommissioned();
     statistics->Health = static_cast<ETabletCellHealth>(protoStatistics.health());
 
-    auto diskSpacePerMedium = TMutableRange<i64>(statistics->DiskSpacePerMedium, MaxMediumCount);
-    FromProto(&diskSpacePerMedium, protoStatistics.disk_space_per_medium());
+    // COMPAT(aozeritsky)
+    const auto oldMaxMediumCount = 7;
+    i64 oldDiskSpacePerMedium[oldMaxMediumCount] = {};
+    auto diskSpacePerMedium = TMutableRange<i64>(oldDiskSpacePerMedium, oldMaxMediumCount);
+    FromProto(&diskSpacePerMedium, protoStatistics.disk_space_per_medium_old());
+    for (auto i = 0; i < oldMaxMediumCount; ++i) {
+        if (oldDiskSpacePerMedium[i] > 0) {
+            statistics->DiskSpacePerMedium[i] = oldDiskSpacePerMedium[i];
+        }
+    }
+    for (auto& item : protoStatistics.disk_space_per_medium()) {
+        statistics->DiskSpacePerMedium[item.medium_index()] = item.disk_space();
+    }
     FromProto(&statistics->TabletCountPerMemoryMode, protoStatistics.tablet_count_per_memory_mode());
 }
 
@@ -261,13 +305,11 @@ TSerializableTabletCellStatisticsBase::TSerializableTabletCellStatisticsBase(
     InitParameters();
 
     DiskSpace_ = 0;
-    for (const auto& pair : chunkManager->Media()) {
-        const auto* medium = pair.second;
+    for (const auto& [mediumIndex, mediumDiskSpace] : DiskSpacePerMedium) {
+        const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
         if (medium->GetCache()) {
             continue;
         }
-        int mediumIndex = medium->GetIndex();
-        i64 mediumDiskSpace = DiskSpacePerMedium[mediumIndex];
         YCHECK(DiskSpacePerMediumMap_.insert(std::make_pair(medium->GetName(), mediumDiskSpace)).second);
         DiskSpace_ += mediumDiskSpace;
     }

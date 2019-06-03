@@ -148,6 +148,8 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default(ESchedulingDelayType::Sync);
     RegisterParameter("delay_inside_revive", DelayInsideRevive)
         .Default();
+    RegisterParameter("delay_inside_prepare", DelayInsidePrepare)
+        .Default();
     RegisterParameter("delay_inside_suspend", DelayInsideSuspend)
         .Default();
     RegisterParameter("delay_inside_operation_commit", DelayInsideOperationCommit)
@@ -160,6 +162,10 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default(false);
     RegisterParameter("register_speculative_job_on_job_scheduled", RegisterSpeculativeJobOnJobScheduled)
         .Default(false);
+    RegisterParameter("allocation_size", AllocationSize)
+        .GreaterThanOrEqual(0)
+        .LessThanOrEqual(1_GB)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -409,6 +415,9 @@ TOperationSpecBase::TOperationSpecBase()
 
     RegisterParameter("additional_security_tags", AdditionalSecurityTags)
         .Default();
+
+    RegisterParameter("max_speculative_job_count", MaxSpeculativeJobCount)
+        .Default(1);
 
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
@@ -1402,6 +1411,8 @@ TStrategyOperationSpec::TStrategyOperationSpec()
         .Default();
     RegisterParameter("max_unpreemptable_job_count", MaxUnpreemptableRunningJobCount)
         .Default();
+    RegisterParameter("max_speculative_job_count_per_task", MaxSpeculativeJobCountPerTask)
+        .Default(10);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

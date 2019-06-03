@@ -74,7 +74,7 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
 //! Synchronously invokes TChunkServiceProxy::AllocateWriteTargets.
 //! Populates #nodeDirectory with the returned node descriptors.
 //! Throws if the server returns no replicas.
-TChunkReplicaList AllocateWriteTargets(
+TChunkReplicaWithMediumList AllocateWriteTargets(
     NApi::NNative::IClientPtr client,
     TSessionId sessionId,
     int desiredTargetCount,
@@ -139,6 +139,7 @@ struct TUserObject
     NObjectClient::TObjectId ObjectId;
     NObjectClient::TCellTag CellTag;
     NObjectClient::EObjectType Type = NObjectClient::EObjectType::Null;
+    ui64 Revision = 0;
     std::vector<TString> OmittedInaccessibleColumns;
     std::vector<NSecurityClient::TSecurityTag> SecurityTags;
 

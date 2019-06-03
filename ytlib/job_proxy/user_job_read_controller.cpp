@@ -32,6 +32,8 @@ using namespace NScheduler::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const NLogging::TLogger Logger("HUJ");
+
 class TUserJobReadController
     : public IUserJobReadController
 {
@@ -184,6 +186,8 @@ private:
 
         TPipeReaderToWriterOptions options;
         options.BufferRowCount = JobSpecHelper_->GetJobIOConfig()->BufferRowCount;
+
+        YT_LOG_DEBUG("HUJPrepareInputActionsPassthrough %v", options.BufferRowCount);
         options.PipeDelay = JobSpecHelper_->GetJobIOConfig()->Testing->PipeDelay;
         return BIND([=, this_ = MakeStrong(this)] {
             PipeReaderToWriter(

@@ -29,37 +29,15 @@ public:
         , ReadSchema(std::move(readSchema))
     { }
 
-    virtual void startup() override
-    {
-        if (ClickHouseSchema.Columns.empty()) {
-            THROW_ERROR_EXCEPTION("CHYT does not support tables without schema")
-                << TErrorAttribute("path", getTableName());
-        }
-        setColumns(DB::ColumnsDescription(ClickHouseSchema.Columns));
-        SpecTemplate.Columns = ClickHouseSchema.Columns;
-        SpecTemplate.ReadSchema = ReadSchema;
-    }
+    virtual void startup() override;
 
-    // Database name
-    std::string getName() const override
-    {
-        return "YTStaticTable";
-    }
+    std::string getName() const override;
 
-    bool isRemote() const override
-    {
-        return true;
-    }
+    bool isRemote() const override;
 
-    virtual bool supportsIndexForIn() const override
-    {
-        return ClickHouseSchema.HasPrimaryKey();
-    }
+    virtual bool supportsIndexForIn() const override;
 
-    virtual bool mayBenefitFromIndexForIn(const DB::ASTPtr & /* left_in_operand */, const DB::Context & /* query_context */) const override
-    {
-        return supportsIndexForIn();
-    }
+    virtual bool mayBenefitFromIndexForIn(const DB::ASTPtr& /* left_in_operand */, const DB::Context& /* query_context */) const override;
 
     DB::QueryProcessingStage::Enum getQueryProcessingStage(const DB::Context& context) const override;
 
@@ -71,18 +49,17 @@ public:
         size_t maxBlockSize,
         unsigned numStreams) override;
 
+    virtual bool supportsSampling() const override;
+
 protected:
     virtual std::vector<NYPath::TYPath> GetTablePaths() const = 0;
 
-    // TODO(max42): why is this different?
+    // TODO(max42): why is this different for different descendants?
     virtual DB::ASTPtr RewriteSelectQueryForTablePart(
         const DB::ASTPtr& queryAst,
         const std::string& subquerySpec) = 0;
 
-    const TClickHouseTableSchema& GetSchema() const
-    {
-        return ClickHouseSchema;
-    }
+    const TClickHouseTableSchema& GetSchema() const;
 
 private:
     IExecutionClusterPtr Cluster;
@@ -106,7 +83,7 @@ private:
         DB::QueryProcessingStage::Enum processedStage);
 
     static DB::BlockInputStreamPtr CreateRemoteStream(
-        const IClusterNodePtr remoteNode,
+        const IClusterNodePtr& remoteNode,
         const DB::ASTPtr& queryAst,
         const DB::Context& context,
         const DB::ThrottlerPtr& throttler,

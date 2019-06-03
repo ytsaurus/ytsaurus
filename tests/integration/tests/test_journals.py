@@ -3,7 +3,6 @@ import pytest
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 import yt.yson
-from io import TextIOBase, UnsupportedOperation
 
 ##################################################################
 
@@ -167,7 +166,18 @@ class TestJournals(YTEnvSetup):
 
         wait(replicator_has_done_well)
 
+    def test_write_future_semantics(self):
+        create("journal", "//tmp/j1")
+        write_journal("//tmp/j1", self.DATA, journal_writer={"ignore_closing": True})
+        assert(read_journal("//tmp/j1") == self.DATA)
+
 ##################################################################
 
 class TestJournalsMulticell(TestJournals):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+class TestJournalsRpcProxy(TestJournals):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_PROXY = True
+

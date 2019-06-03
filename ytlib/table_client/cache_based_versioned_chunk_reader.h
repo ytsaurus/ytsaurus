@@ -38,7 +38,8 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     TSharedRange<TRowRange> ranges,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
-    bool produceAllVersions);
+    bool produceAllVersions,
+    const TSharedRange<TRowRange>& singletonClippingRange = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -201,6 +201,8 @@ public:
         //! Returns the number of individual responses in the batch.
         int GetSize() const;
 
+        TGuid GetRequestId() const;
+
         //! Returns the individual response with a given index.
         template <class TTypedResponse>
         TErrorOr<TIntrusivePtr<TTypedResponse>> GetResponse(int index) const;

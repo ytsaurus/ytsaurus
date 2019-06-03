@@ -106,7 +106,7 @@ public:
     {
         YCHECK(InitializationFinished_);
 
-        TJobResources neededResources = ZeroJobResources();
+        TJobResources neededResources;
         for (const auto& job : PendingJobs_) {
             neededResources += job.ResourceLimits;
         }
@@ -180,7 +180,7 @@ public:
     virtual bool IsOperationCompleted() const override ;
 
     //! Called during heartbeat processing to request actions the node must perform.
-    virtual TFuture<TScheduleJobResultPtr> ScheduleJob(
+    virtual TFuture<TControllerScheduleJobResultPtr> ScheduleJob(
         const ISchedulingContextPtr& context,
         const TJobResourcesWithQuota& nodeLimits,
         const TString& /* treeId */) override;
@@ -205,7 +205,7 @@ private:
     int CompletedJobCount_ = 0;
     int AbortedJobCount_ = 0;
     int RunningJobCount_ = 0;
-    TJobResources NeededResources_ = ZeroJobResources();
+    TJobResources NeededResources_;
     SmallVector<TJobBucket*, TEnumTraits<EJobType>::GetDomainSize()> ActiveBuckets_;
     ///////////////////////
 
@@ -414,14 +414,14 @@ bool TSimulatorOperationController::FindJobToSchedule(
     return false;
 }
 
-TFuture<TScheduleJobResultPtr> TSimulatorOperationController::ScheduleJob(
+TFuture<TControllerScheduleJobResultPtr> TSimulatorOperationController::ScheduleJob(
     const ISchedulingContextPtr& context,
     const TJobResourcesWithQuota& nodeLimits,
     const TString& /* treeId */)
 {
     auto guard = Guard(Lock_);
 
-    auto scheduleJobResult = New<TScheduleJobResult>();
+    auto scheduleJobResult = New<TControllerScheduleJobResult>();
 
     TJobDescription jobToSchedule;
     EScheduleJobFailReason failReason;
@@ -454,7 +454,7 @@ void TSimulatorOperationController::UpdateMinNeededJobResources()
 
 TJobResourcesWithQuotaList TSimulatorOperationController::GetMinNeededJobResources() const
 {
-    return {ZeroJobResourcesWithQuota()};
+    return {{}};
 }
 
 TString TSimulatorOperationController::GetLoggingProgress() const

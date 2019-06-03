@@ -7,6 +7,8 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/client/chunk_client/read_limit.h>
+
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/versioned_row.h>
 
@@ -22,6 +24,8 @@ public:
     TSortedChunkStore(
         TTabletManagerConfigPtr config,
         TStoreId id,
+        NChunkClient::TChunkId chunkId,
+        const NChunkClient::TReadRange& readRange,
         TTablet* tablet,
         NChunkClient::IBlockCachePtr blockCache,
         NDataNode::TChunkRegistryPtr chunkRegistry = nullptr,
@@ -39,7 +43,7 @@ public:
 
     // ISortedStore implementation.
     virtual TOwningKey GetMinKey() const override;
-    virtual TOwningKey GetMaxKey() const override;
+    virtual TOwningKey GetUpperBoundKey() const override;
 
     virtual NTableClient::IVersionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
@@ -64,12 +68,25 @@ public:
         TTransaction* transaction,
         TLockMask lockMask) override;
 
+    virtual void Save(TSaveContext& context) const override;
+    virtual void Load(TLoadContext& context) override;
+
 private:
     // Cached for fast retrieval from ChunkMeta_.
     TOwningKey MinKey_;
-    TOwningKey MaxKey_;
+    TOwningKey UpperBoundKey_;
+
+    TSharedRange<NTableClient::TRowRange> ReadRange_;
 
     const NTableClient::TKeyComparer KeyComparer_;
+
+    TSharedRange<TKey> FilterKeysByReadRange(
+        const TSharedRange<TKey>& keys,
+        int* skippedBefore,
+        int* skippedAfter) const;
+
+    TSharedRange<NTableClient::TRowRange> FilterRowRangesByReadRange(
+        const TSharedRange<NTableClient::TRowRange>& ranges) const;
 
     NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
         const TSharedRange<TKey>& keys,
@@ -84,7 +101,8 @@ private:
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-        const TTableSchema& schema);
+        const TTableSchema& schema,
+        const TSharedRange<NTableClient::TRowRange>& singletonClippingRange);
 
     NTableClient::TChunkStatePtr PrepareChunkState(
         NChunkClient::IChunkReaderPtr chunkReader,
@@ -100,9 +118,26 @@ private:
     virtual NTableClient::TKeyComparer GetKeyComparer() override;
 
     ISortedStorePtr GetSortedBackingStore();
+
+    bool HasNontrivialReadRange() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSortedChunkStore)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Returns the slice of |keys| falling into the half-interval |readRange|
+//! and the number of skipped keys at the beginning and at the end.
+TSharedRange<TKey> FilterKeysByReadRange(
+    const NTableClient::TRowRange& readRange,
+    const TSharedRange<TKey>& keys,
+    int* skippedBefore,
+    int* skippedAfter);
+
+//! Returns the slice of |ranges| having non-empty intersection with the half-interval |readRange|.
+TSharedRange<NTableClient::TRowRange> FilterRowRangesByReadRange(
+    const NTableClient::TRowRange& readRange,
+    const TSharedRange<NTableClient::TRowRange>& ranges);
 
 ////////////////////////////////////////////////////////////////////////////////
 

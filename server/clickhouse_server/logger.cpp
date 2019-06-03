@@ -9,28 +9,32 @@
 
 namespace NYT::NClickHouseServer {
 
+using namespace NLogging;
+using namespace NProfiling;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogChannel
     : public Poco::Channel
 {
 private:
-    const ILoggerPtr Logger;
+    const TLogger& Logger;
 
 public:
-    TLogChannel(ILoggerPtr logger)
-        : Logger(std::move(logger))
+    TLogChannel(const TLogger& logger)
+        : Logger(logger)
     {}
 
     void log(const Poco::Message& message) override
     {
-        TLogEvent event;
+        NLogging::TLogEvent event;
+        event.Category = Logger.GetCategory();
         event.Level = GetLogLevel(message.getPriority());
-        event.Message = message.getText();
-        event.Timestamp = TInstant::Now();
+        event.Message = TSharedRef::FromString(TString(message.getText()));
+        event.Instant = GetCpuInstant();
         event.ThreadId = TThread::CurrentThreadId();
 
-        Logger->Write(event);
+        Logger.Write(std::move(event));
     }
 
 private:
@@ -57,43 +61,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Poco::AutoPtr<Poco::Channel> WrapToLogChannel(ILoggerPtr logger)
+Poco::AutoPtr<Poco::Channel> CreateLogChannel(const TLogger& logger)
 {
-    return new TLogChannel(std::move(logger));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TLogger
-    : public ILogger
-{
-private:
-    NLogging::TLogger Logger;
-
-public:
-    TLogger(const NLogging::TLogger& logger)
-        : Logger(logger)
-    { }
-
-    void Write(const TLogEvent& e) override
-    {
-        NLogging::TLogEvent event;
-        event.Category = Logger.GetCategory();
-        event.Level = static_cast<NLogging::ELogLevel>(e.Level);
-        event.Message = TSharedRef::FromString(e.Message);
-        // YT use CPU timestamp counters instead of unix timestamps
-        event.Instant = NProfiling::InstantToCpuInstant(e.Timestamp);
-        event.ThreadId = e.ThreadId;
-
-        Logger.Write(std::move(event));
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-ILoggerPtr CreateLogger(const NLogging::TLogger& logger)
-{
-    return std::make_shared<TLogger>(logger);
+    return new TLogChannel(logger);
 }
 
 /////////////////////////////////////////////////////////////////////////////

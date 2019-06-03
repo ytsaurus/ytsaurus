@@ -15,7 +15,6 @@ import copy as pycopy
 import decorator
 import os
 import random
-import re
 import stat
 import string
 import sys
@@ -34,8 +33,10 @@ is_multicell = None
 path_to_run_tests = None
 _zombie_responses = []
 _events_on_fs = None
+default_api_version = 4
 
 # TODO(levysotsky): Move error codes to separate file in python repo.
+SchemaViolation = 307
 AuthorizationErrorCode = 901
 
 # See transaction_client/public.h
@@ -44,15 +45,14 @@ AsyncLastCommittedTimestamp  = 0x3fffffffffffff04
 MinTimestamp                 = 0x0000000000000001
 
 @contextlib.contextmanager
-def raises_with_codes(*codes):
+def raises_yt_error(code):
     try:
         yield
     except YtError as e:
-        not_contained = [c for c in codes if not e.contains_code(c)]
-        if not_contained:
-            raise AssertionError("Error codes {} are not found in error {}".format(
-                not_contained,
+        if not e.contains_code(code):
+            raise AssertionError("Raised error {} doesn't contain error code {}".format(
                 e,
+                code,
             ))
 
 def is_debug():
@@ -63,11 +63,11 @@ def is_debug():
 
     return is_debug_build()
 
-def get_driver(cell_index=0, cluster="primary"):
+def get_driver(cell_index=0, cluster="primary", api_version=default_api_version):
     if cluster not in clusters_drivers:
         return None
 
-    return clusters_drivers[cluster][cell_index]
+    return clusters_drivers[cluster][cell_index][api_version]
 
 def get_native_driver():
     return _native_driver
@@ -89,12 +89,20 @@ def force_native_driver(func):
     return decorator.decorate(func, wrapper)
 
 def init_drivers(clusters):
+    def create_drivers(config):
+        drivers = {}
+        for api_version in (3, 4):
+            config = pycopy.deepcopy(config)
+            config["api_version"] = api_version
+            drivers[api_version] = Driver(config=config)
+        return drivers
+
     for instance in clusters:
         if instance.master_count > 0:
             prefix = "" if instance.driver_backend == "native" else "rpc_"
             secondary_driver_configs = [instance.configs[prefix + "driver_secondary_" + str(i)]
                                         for i in xrange(instance.secondary_master_cell_count)]
-            driver = Driver(config=instance.configs[prefix + "driver"])
+            drivers = create_drivers(instance.configs[prefix + "driver"])
 
             # Setup driver logging for all instances in the environment as in the primary cluster.
             if instance._cluster_name == "primary":
@@ -102,17 +110,19 @@ def init_drivers(clusters):
 
                 global _native_driver
                 if instance.driver_backend == "native":
-                    _native_driver = driver
+                    _native_driver = drivers[3]
                 else:
                     native_config = pycopy.deepcopy(instance.configs["driver"])
                     native_config["connection_type"] = "native"
+                    native_config["api_version"] = default_api_version
                     _native_driver = Driver(config=native_config)
 
             secondary_drivers = []
             for secondary_driver_config in secondary_driver_configs:
-                secondary_drivers.append(Driver(config=secondary_driver_config))
 
-            clusters_drivers[instance._cluster_name] = [driver] + secondary_drivers
+                secondary_drivers.append(create_drivers(secondary_driver_config))
+
+            clusters_drivers[instance._cluster_name] = [drivers] + secondary_drivers
 
 def wait_assert(check_fn, *args, **kwargs):
     last_exception = []
@@ -135,15 +145,17 @@ def wait_assert(check_fn, *args, **kwargs):
 
 def wait_drivers():
     for cluster in clusters_drivers.values():
+        cell_tag = 0
         def driver_is_ready():
-            return get("//@", driver=cluster[0])
+            return get("//@", driver=cluster[cell_tag][default_api_version])
 
         wait(driver_is_ready, ignore_exceptions=True)
 
 def terminate_drivers():
     for cluster in clusters_drivers:
-        for driver in clusters_drivers[cluster]:
-            driver.terminate()
+        for drivers_by_cell_tag in clusters_drivers[cluster]:
+            for driver in drivers_by_cell_tag.itervalues():
+                driver.terminate()
     clusters_drivers.clear()
 
 def get_branch(dict, path):
@@ -177,7 +189,7 @@ def prepare_path(path):
     attributes = {}
     if isinstance(path, yson.YsonString):
         attributes = path.attributes
-    result = yson.loads(execute_command("parse_ypath", parameters={"path": path}, verbose=False))
+    result = execute_command("parse_ypath", parameters={"path": path}, verbose=False, parse_yson=True)
     update_inplace(result.attributes, attributes)
     return result
 
@@ -201,7 +213,8 @@ def retry(func, retry_timeout=timedelta(seconds=10), retry_interval=timedelta(mi
     return func()
 
 def execute_command(command_name, parameters, input_stream=None, output_stream=None,
-                    verbose=None, verbose_error=None, ignore_result=False, return_response=False):
+                    verbose=None, verbose_error=None, ignore_result=False, return_response=False,
+                    parse_yson=None, unwrap_v4_result=True):
     global _zombie_responses
 
     if "verbose" in parameters:
@@ -225,6 +238,26 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
     return_response = return_response is None or return_response
 
     driver = _get_driver(parameters.pop("driver", None))
+
+    command_rewrites = {
+        "start_tx": "start_transaction",
+        "abort_tx": "abort_transaction",
+        "commit_tx": "commit_transaction",
+        "ping_tx": "ping_transaction",
+
+        "start_op": "start_operation",
+        "abort_op": "abort_operation",
+        "suspend_op": "suspend_operation",
+        "resume_op": "resume_operation",
+        "complete_op": "complete_operation",
+        "update_op_parameters": "update_operation_parameters",
+    }
+    if driver.get_config()["api_version"] == 4 and command_name in command_rewrites:
+        command_name = command_rewrites[command_name]
+
+    if command_name in ("merge", "erase", "map", "sort", "reduce", "join_reduce", "map_reduce", "remote_copy"):
+        parameters["operation_type"] = command_name
+        command_name = "start_operation"
 
     authenticated_user = None
     if "authenticated_user" in parameters:
@@ -301,6 +334,12 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
         result = output_stream.getvalue()
         if verbose:
             print(result, file=sys.stderr)
+        if parse_yson:
+            result = yson.loads(result)
+            if unwrap_v4_result and driver.get_config()["api_version"] == 4 and isinstance(result, dict) and len(result.keys()) == 1:
+                result = result.values()[0]
+            if driver.get_config()["api_version"] == 3 and command_name == "lock":
+                result = {"lock_id": result}
         return result
 
 def execute_command_with_output_format(command_name, kwargs, input_stream=None):
@@ -338,7 +377,7 @@ def get_job_input_paths(job_id, **kwargs):
 
 def get_table_columnar_statistics(paths, **kwargs):
     kwargs["paths"] = paths
-    return yson.loads(execute_command("get_table_columnar_statistics", kwargs))
+    return execute_command("get_table_columnar_statistics", kwargs, parse_yson=True)
 
 def get_job_stderr(operation_id, job_id, **kwargs):
     kwargs["operation_id"] = operation_id
@@ -351,16 +390,15 @@ def get_job_fail_context(operation_id, job_id, **kwargs):
     return execute_command("get_job_fail_context", kwargs)
 
 def list_operations(**kwargs):
-    return yson.loads(execute_command("list_operations", kwargs));
+    return execute_command("list_operations", kwargs, parse_yson=True)
 
 def list_jobs(operation_id, **kwargs):
     kwargs["operation_id"] = operation_id
-    return yson.loads(execute_command("list_jobs", kwargs))
+    return execute_command("list_jobs", kwargs, parse_yson=True)
 
 def strace_job(job_id, **kwargs):
     kwargs["job_id"] = job_id
-    result = execute_command("strace_job", kwargs)
-    return yson.loads(result)
+    return execute_command("strace_job", kwargs, parse_yson=True)
 
 def signal_job(job_id, signal_name, **kwargs):
     kwargs["job_id"] = job_id
@@ -375,7 +413,7 @@ def poll_job_shell(job_id, authenticated_user=None, **kwargs):
     kwargs = {"job_id": job_id, "parameters": kwargs}
     if authenticated_user:
         kwargs["authenticated_user"] = authenticated_user
-    return yson.loads(execute_command("poll_job_shell", kwargs))
+    return execute_command("poll_job_shell", kwargs, parse_yson=True)
 
 def abort_job(job_id, **kwargs):
     kwargs["job_id"] = job_id
@@ -389,7 +427,7 @@ def interrupt_job(job_id, interrupt_timeout=10000, **kwargs):
 def lock(path, waitable=False, **kwargs):
     kwargs["path"] = path
     kwargs["waitable"] = waitable
-    return yson.loads(execute_command("lock", kwargs))
+    return execute_command("lock", kwargs, parse_yson=True)
 
 def unlock(path, **kwargs):
     kwargs["path"] = path
@@ -397,65 +435,64 @@ def unlock(path, **kwargs):
 
 def remove(path, **kwargs):
     kwargs["path"] = path
-    return execute_command("remove", kwargs)
+    execute_command("remove", kwargs)
 
 def get(path, is_raw=False, **kwargs):
     kwargs["path"] = path
     if "default" in kwargs and "verbose_error" not in kwargs:
         kwargs["verbose_error"] = False
+    if "return_only_value" not in kwargs:
+        kwargs["return_only_value"] = True
     try:
-        result = execute_command("get", kwargs)
-    except YtResponseError, err:
+        return execute_command("get", kwargs, parse_yson=not is_raw, unwrap_v4_result=False)
+    except YtResponseError as err:
         if err.is_resolve_error() and "default" in kwargs:
             return kwargs["default"]
         raise
-    return result if is_raw else yson.loads(result)
 
-def get_job(operation_id, job_id, is_raw=False, **kwargs):
+def get_job(operation_id, job_id, **kwargs):
     kwargs["operation_id"] = operation_id
     kwargs["job_id"] = job_id
-    result = execute_command("get_job", kwargs)
-    return result if is_raw else yson.loads(result)
+    return execute_command("get_job", kwargs, parse_yson=True)
 
 def set(path, value, is_raw=False, **kwargs):
     if not is_raw:
         value = yson.dumps(value)
     kwargs["path"] = path
-    return execute_command("set", kwargs, input_stream=StringIO(value))
+    execute_command("set", kwargs, input_stream=StringIO(value))
 
 def create(object_type, path, **kwargs):
     kwargs["type"] = object_type
     kwargs["path"] = path
-    return yson.loads(execute_command("create", kwargs))
+    return execute_command("create", kwargs, parse_yson=True)
 
 def copy(source_path, destination_path, **kwargs):
     kwargs["source_path"] = source_path
     kwargs["destination_path"] = destination_path
-    return yson.loads(execute_command("copy", kwargs))
+    return execute_command("copy", kwargs, parse_yson=True)
 
 def move(source_path, destination_path, **kwargs):
     kwargs["source_path"] = source_path
     kwargs["destination_path"] = destination_path
-    return yson.loads(execute_command("move", kwargs))
+    return execute_command("move", kwargs, parse_yson=True)
 
 def link(target_path, link_path, **kwargs):
     kwargs["target_path"] = target_path
     kwargs["link_path"] = link_path
-    return yson.loads(execute_command("link", kwargs))
+    return execute_command("link", kwargs, parse_yson=True)
 
 def exists(path, **kwargs):
     kwargs["path"] = path
-    res = execute_command("exists", kwargs)
-    return yson.loads(res)
+    return execute_command("exists", kwargs, parse_yson=True)
 
 def concatenate(source_paths, destination_path, **kwargs):
     kwargs["source_paths"] = source_paths
     kwargs["destination_path"] = destination_path
-    return execute_command("concatenate", kwargs)
+    execute_command("concatenate", kwargs)
 
 def ls(path, **kwargs):
     kwargs["path"] = path
-    return yson.loads(execute_command("list", kwargs))
+    return execute_command("list", kwargs, parse_yson=True)
 
 @force_native_driver
 def read_table(path, **kwargs):
@@ -534,25 +571,25 @@ def lookup_rows(path, data, **kwargs):
 
 def get_in_sync_replicas(path, data, **kwargs):
     kwargs["path"] = path
-    return yson.loads(execute_command("get_in_sync_replicas", kwargs, input_stream=_prepare_rows_stream(data)))
+    return execute_command("get_in_sync_replicas", kwargs, input_stream=_prepare_rows_stream(data), parse_yson=True)
 
 def start_transaction(**kwargs):
-    return yson.loads(execute_command("start_tx", kwargs))
+    return execute_command("start_tx", kwargs, parse_yson=True)
 
 def commit_transaction(tx, **kwargs):
     kwargs["transaction_id"] = tx
-    return execute_command("commit_tx", kwargs)
+    execute_command("commit_tx", kwargs)
 
 def ping_transaction(tx, **kwargs):
     kwargs["transaction_id"] = tx
-    return execute_command("ping_tx", kwargs)
+    execute_command("ping_tx", kwargs)
 
 def abort_transaction(tx, **kwargs):
     kwargs["transaction_id"] = tx
-    return execute_command("abort_tx", kwargs)
+    execute_command("abort_tx", kwargs)
 
 def generate_timestamp(**kwargs):
-    return yson.loads(execute_command("generate_timestamp", kwargs))
+    return execute_command("generate_timestamp", kwargs, parse_yson=True)
 
 def mount_table(path, **kwargs):
     clear_metadata_caches(kwargs.get("driver"))
@@ -591,21 +628,29 @@ def reshard_table(path, arg=None, **kwargs):
 def reshard_table_automatic(path, **kwargs):
     clear_metadata_caches(kwargs.get("driver"))
     kwargs["path"] = path
-    return yson.loads(execute_command("reshard_table_automatic", kwargs))
+    return execute_command("reshard_table_automatic", kwargs, parse_yson=True)
 
 def alter_table(path, **kwargs):
-    kwargs["path"] = path;
+    kwargs["path"] = path
     return execute_command("alter_table", kwargs)
 
 def balance_tablet_cells(bundle, tables=None, **kwargs):
     kwargs["bundle"] = bundle
     if tables is not None:
         kwargs["tables"] = tables
-    return yson.loads(execute_command("balance_tablet_cells", kwargs))
+    return execute_command("balance_tablet_cells", kwargs, parse_yson=True)
 
 def write_file(path, data, **kwargs):
     kwargs["path"] = path
-    return execute_command("write_file", kwargs, input_stream=StringIO(data))
+
+    if "input_stream" in kwargs:
+        assert data is None
+        input_stream = kwargs["input_stream"]
+        del kwargs["input_stream"]
+    else:
+        input_stream = StringIO(data)
+
+    return execute_command("write_file", kwargs, input_stream=input_stream)
 
 def write_local_file(path, file_name, **kwargs):
     with open(file_name, "rt") as f:
@@ -651,7 +696,7 @@ def make_batch_request(command_name, input=None, **kwargs):
 
 def execute_batch(requests, **kwargs):
     kwargs["requests"] = requests
-    return yson.loads(execute_command("execute_batch", kwargs))
+    return execute_command("execute_batch", kwargs, parse_yson=True)
 
 def get_batch_error(result):
     if "error" in result:
@@ -670,27 +715,27 @@ def check_permission(user, permission, path, **kwargs):
     kwargs["user"] = user
     kwargs["permission"] = permission
     kwargs["path"] = path
-    return yson.loads(execute_command("check_permission", kwargs))
+    return execute_command("check_permission", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 def check_permission_by_acl(user, permission, acl, **kwargs):
     kwargs["user"] = user
     kwargs["permission"] = permission
     kwargs["acl"] = acl
-    return yson.loads(execute_command("check_permission_by_acl", kwargs))
+    return execute_command("check_permission_by_acl", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 def get_file_from_cache(md5, cache_path, **kwargs):
     kwargs["md5"] = md5
     kwargs["cache_path"] = cache_path
-    return yson.loads(execute_command("get_file_from_cache", kwargs))
+    return execute_command("get_file_from_cache", kwargs, parse_yson=True)
 
 def put_file_to_cache(path, md5, **kwargs):
     kwargs["path"] = path
     kwargs["md5"] = md5
-    return yson.loads(execute_command("put_file_to_cache", kwargs))
+    return execute_command("put_file_to_cache", kwargs, parse_yson=True)
 
 def discover_proxies(type_, **kwargs):
     kwargs["type"] = type_
-    return yson.loads(execute_command("discover_proxies", kwargs))
+    return execute_command("discover_proxies", kwargs, parse_yson=True)
 
 ###########################################################################
 
@@ -790,19 +835,32 @@ class Operation(object):
     def get_error(self):
         state = self.get_state(verbose=False)
         if state == "failed":
-            error = get(self.get_path() + "/@result/error", verbose=False, is_raw=True)
+            error = get(self.get_path() + "/@result/error", verbose=False)
             jobs_path = self.get_path() + "/jobs"
             jobs = get(jobs_path, verbose=False)
+            job_errors = []
             for job in jobs:
                 job_error_path = jobs_path + "/{0}/@error".format(job)
                 job_stderr_path = jobs_path + "/{0}/stderr".format(job)
                 if exists(job_error_path, verbose=False):
-                    error = error + "\n\n" + get(job_error_path, verbose=False, is_raw=True)
+                    job_error = get(job_error_path, verbose=False)
+                    message = job_error["message"]
                     if "stderr" in jobs[job]:
-                        error = error + "\n" + read_file(job_stderr_path, verbose=False)
-            return YtError(error)
+                        message = message + "\n" + read_file(job_stderr_path, verbose=False)
+                    job_errors.append(YtError(message=message,
+                                              code=job_error.get("code", 1),
+                                              attributes=job_error.get("attributes"),
+                                              inner_errors=job_error.get("inner_errors")))
+            inner_errors = error.get("inner_errors", [])
+            if len(job_errors) > 0:
+                inner_errors.append(YtError(message="Some of the jobs have failed", inner_errors=job_errors))
+
+            return YtError(message=error["message"],
+                           code=error.get("code"),
+                           attributes=error["attributes"],
+                           inner_errors=inner_errors)
         if state == "aborted":
-            return YtError(message = "Operation {0} aborted".format(self.id))
+            return YtError(message="Operation {0} aborted".format(self.id))
 
     def build_progress(self):
         try:
@@ -917,7 +975,7 @@ def start_op(op_type, **kwargs):
 
     kwargs["operation_type"] = op_type
 
-    operation.id = yson.loads(execute_command("start_op", kwargs))
+    operation.id = execute_command("start_op", kwargs, parse_yson=True)
 
     if track:
         operation.track()
@@ -1015,7 +1073,7 @@ def build_snapshot(*args, **kwargs):
     get_driver().build_snapshot(*args, **kwargs)
 
 def get_version():
-    return yson.loads(execute_command("get_version", {}))
+    return execute_command("get_version", {}, parse_yson=True)
 
 def gc_collect(driver=None):
     _get_driver(driver=driver).gc_collect()
@@ -1092,7 +1150,7 @@ def create_tablet_cell(**kwargs):
     kwargs["type"] = "tablet_cell"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
-    return yson.loads(execute_command("create", kwargs))
+    return execute_command("create", kwargs, parse_yson=True)
 
 def create_tablet_cell_bundle(name, initialize_options=True, **kwargs):
     kwargs["type"] = "tablet_cell_bundle"
@@ -1129,7 +1187,7 @@ def create_table_replica(table_path, cluster_name, replica_path, **kwargs):
     kwargs["attributes"]["table_path"] = table_path
     kwargs["attributes"]["cluster_name"] = cluster_name
     kwargs["attributes"]["replica_path"] = replica_path
-    return yson.loads(execute_command("create", kwargs))
+    return execute_command("create", kwargs, parse_yson=True)
 
 def remove_table_replica(replica_id):
     remove("#{0}".format(replica_id))
@@ -1256,11 +1314,57 @@ def make_schema(columns, **attributes):
     schema = yson.YsonList()
     for column_schema in columns:
         column_schema = column_schema.copy()
-        column_schema.setdefault("required", False)
         schema.append(column_schema)
     for attr, value in attributes.items():
         schema.attributes[attr] = value
     return schema
+
+def normalize_schema(schema):
+    "Remove 'type_v2' field from schema, useful for schema comparison."""
+    result = pycopy.deepcopy(schema)
+    for column in result:
+        if "type_v2" in column:
+            del column["type_v2"]
+    return result
+
+def normalize_schema_v2(schema):
+    "Remove (old) 'type' and 'required' fields from schema, useful for schema comparison."""
+    result = pycopy.deepcopy(schema)
+    for column in result:
+        for f in ["type", "required"]:
+            if f in column:
+                del column[f]
+    return result
+
+def optional_type(element_type):
+    return {
+        "metatype": "optional",
+        "element": element_type,
+    }
+
+def struct_type(fields):
+    """
+    Create yson description of struct type.
+    fields is a list of (name, type) pairs.
+    """
+    result = {
+        "metatype": "struct",
+        "fields": [
+        ],
+    }
+    for name, type in fields:
+        result["fields"].append({
+            "name": name,
+            "type": type,
+        })
+
+    return result
+
+def list_type(element_type):
+    return {
+        "metatype": "list",
+        "element": element_type,
+    }
 
 ##################################################################
 
@@ -1360,10 +1464,10 @@ def wait_for_chunk_replicator(driver=None):
 
 def get_cluster_drivers(primary_driver=None):
     if primary_driver is None:
-        return clusters_drivers["primary"]
+        return [drivers_by_cell_tag[default_api_version] for drivers_by_cell_tag in clusters_drivers["primary"]]
     for drivers in clusters_drivers.values():
-        if drivers[0] == primary_driver:
-            return drivers
+        if drivers[0][default_api_version] == primary_driver:
+            return [drivers_by_cell_tag[default_api_version] for drivers_by_cell_tag in drivers]
     raise "Failed to get cluster drivers"
 
 def wait_for_cells(cell_ids=None, driver=None):
@@ -1526,7 +1630,8 @@ def create_dynamic_table(path, **attributes):
 def sync_control_chunk_replicator(enabled):
     print("Setting chunk replicator state to", enabled, file=sys.stderr)
     set("//sys/@config/chunk_manager/enable_chunk_replicator", enabled, recursive=True)
-    wait(lambda: all(get("//sys/@chunk_replicator_enabled", driver=driver) == enabled for driver in clusters_drivers["primary"]))
+    wait(lambda: all(get("//sys/@chunk_replicator_enabled", driver=drivers_by_cell_tag[default_api_version]) == enabled
+                     for drivers_by_cell_tag in clusters_drivers["primary"]))
 
 def get_singular_chunk_id(path, **kwargs):
     chunk_ids = get(path + "/@chunk_ids", **kwargs)

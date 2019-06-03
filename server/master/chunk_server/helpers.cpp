@@ -1,6 +1,7 @@
 #include "helpers.h"
 #include "chunk_owner_base.h"
 #include "chunk_manager.h"
+#include "chunk_view.h"
 
 #include <yt/server/master/cypress_server/cypress_manager.h>
 
@@ -159,6 +160,9 @@ void SetChunkTreeParent(TChunkList* parent, TChunkTree* child)
         case EObjectType::JournalChunk:
             child->AsChunk()->AddParent(parent);
             break;
+        case EObjectType::ChunkView:
+            child->AsChunkView()->AddParent(parent);
+            break;
         case EObjectType::ChunkList:
             child->AsChunkList()->AddParent(parent);
             break;
@@ -174,6 +178,9 @@ void ResetChunkTreeParent(TChunkList* parent, TChunkTree* child)
         case EObjectType::ErasureChunk:
         case EObjectType::JournalChunk:
             child->AsChunk()->RemoveParent(parent);
+            break;
+        case EObjectType::ChunkView:
+            child->AsChunkView()->RemoveParent(parent);
             break;
         case EObjectType::ChunkList:
             child->AsChunkList()->RemoveParent(parent);
@@ -193,6 +200,8 @@ TChunkTreeStatistics GetChunkTreeStatistics(TChunkTree* chunkTree)
         case EObjectType::ErasureChunk:
         case EObjectType::JournalChunk:
             return chunkTree->AsChunk()->GetStatistics();
+        case EObjectType::ChunkView:
+            return chunkTree->AsChunkView()->GetStatistics();
         case EObjectType::ChunkList:
             return chunkTree->AsChunkList()->Statistics();
         default:
@@ -297,6 +306,12 @@ std::vector<TChunkOwnerBase*> GetOwningNodes(TChunkTree* chunkTree)
             case EObjectType::ErasureChunk:
             case EObjectType::JournalChunk: {
                 for (auto* parent : chunkTree->AsChunk()->Parents()) {
+                    visit(parent);
+                }
+                break;
+            }
+            case EObjectType::ChunkView: {
+                for (auto* parent : chunkTree->AsChunkView()->Parents()) {
                     visit(parent);
                 }
                 break;
@@ -458,6 +473,7 @@ bool IsEmpty(const TChunkTree* chunkTree)
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
         case EObjectType::JournalChunk:
+        case EObjectType::ChunkView:
             return false;
 
         case EObjectType::ChunkList:
@@ -470,7 +486,7 @@ bool IsEmpty(const TChunkTree* chunkTree)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOwningKey GetMaxKey(const TChunk* chunk)
+TOwningKey GetUpperBoundKey(const TChunk* chunk)
 {
     TOwningKey key;
     auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(
@@ -480,7 +496,17 @@ TOwningKey GetMaxKey(const TChunk* chunk)
     return GetKeySuccessor(key);
 }
 
-TOwningKey GetMaxKey(const TChunkTree* chunkTree)
+TOwningKey GetUpperBoundKey(const TChunkView* chunkView)
+{
+    auto chunkMaxKey = GetUpperBoundKey(chunkView->GetUnderlyingChunk());
+    const auto& upperLimit = chunkView->ReadRange().UpperLimit();
+    if (!upperLimit.HasKey()) {
+        return chunkMaxKey;
+    }
+    return std::min(chunkMaxKey, upperLimit.GetKey());
+}
+
+TOwningKey GetUpperBoundKey(const TChunkTree* chunkTree)
 {
     if (IsEmpty(chunkTree)) {
         THROW_ERROR_EXCEPTION("Cannot compute max key in chunk list %v since it contains no chunks",
@@ -503,7 +529,10 @@ TOwningKey GetMaxKey(const TChunkTree* chunkTree)
         switch (currentChunkTree->GetType()) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                return GetMaxKey(currentChunkTree->AsChunk());
+                return GetUpperBoundKey(currentChunkTree->AsChunk());
+
+            case EObjectType::ChunkView:
+                return GetUpperBoundKey(currentChunkTree->AsChunkView());
 
             case EObjectType::ChunkList:
                 currentChunkTree = getLastNonemptyChild(currentChunkTree->AsChunkList());
@@ -523,6 +552,16 @@ TOwningKey GetMinKey(const TChunk* chunk)
     FromProto(&key, boundaryKeysExt.min());
 
     return key;
+}
+
+TOwningKey GetMinKey(const TChunkView* chunkView)
+{
+    auto chunkMinKey = GetMinKey(chunkView->GetUnderlyingChunk());
+    const auto& lowerLimit = chunkView->ReadRange().LowerLimit();
+    if (!lowerLimit.HasKey()) {
+        return chunkMinKey;
+    }
+    return std::max(chunkMinKey, lowerLimit.GetKey());
 }
 
 TOwningKey GetMinKey(const TChunkTree* chunkTree)
@@ -550,6 +589,9 @@ TOwningKey GetMinKey(const TChunkTree* chunkTree)
             case EObjectType::ErasureChunk:
                 return GetMinKey(currentChunkTree->AsChunk());
 
+            case EObjectType::ChunkView:
+                return GetMinKey(currentChunkTree->AsChunkView());
+
             case EObjectType::ChunkList:
                 currentChunkTree = getFirstNonemptyChild(currentChunkTree->AsChunkList());
                 break;
@@ -558,6 +600,76 @@ TOwningKey GetMinKey(const TChunkTree* chunkTree)
                 Y_UNREACHABLE();
         }
     }
+}
+
+std::vector<TChunkViewMergeResult> MergeAdjacentChunkViewRanges(std::vector<TChunkView*> chunkViews)
+{
+    auto lowerLimitOrEmptyKey = [] (const NChunkServer::TChunkView* chunkView) {
+        if (const auto& lowerLimit = chunkView->ReadRange().LowerLimit(); lowerLimit.HasKey()) {
+            return lowerLimit.GetKey();
+        }
+        return EmptyKey();
+    };
+
+    auto upperLimitOrMaxKey = [] (const NChunkServer::TChunkView* chunkView) {
+        if (const auto& upperLimit = chunkView->ReadRange().UpperLimit(); upperLimit.HasKey()) {
+            return upperLimit.GetKey();
+        }
+        return MaxKey();
+    };
+
+    std::sort(chunkViews.begin(), chunkViews.end(), [&] (const auto* lhs, const auto* rhs) {
+        if (int result = CompareButForReadRange(lhs, rhs)) {
+            return result < 0;
+        }
+        return lowerLimitOrEmptyKey(lhs->AsChunkView()) < lowerLimitOrEmptyKey(rhs->AsChunkView());
+    });
+
+    std::vector<TChunkViewMergeResult> mergedChunkViews;
+
+    auto beginSameChunkRange = chunkViews.begin();
+    auto endSameChunkRange = chunkViews.begin();
+
+    while (beginSameChunkRange != chunkViews.end()) {
+        while (endSameChunkRange != chunkViews.end() &&
+            CompareButForReadRange(*beginSameChunkRange, *endSameChunkRange) == 0)
+        {
+            ++endSameChunkRange;
+        }
+
+        auto lowerLimit = lowerLimitOrEmptyKey((*beginSameChunkRange)->AsChunkView());
+        auto upperLimit = upperLimitOrMaxKey((*beginSameChunkRange)->AsChunkView());
+
+        TChunkViewMergeResult result;
+        result.FirstChunkView = result.LastChunkView = *beginSameChunkRange;
+
+        for (auto it = beginSameChunkRange + 1; it != endSameChunkRange; ++it) {
+            const auto* chunkTree = *it;
+            YCHECK(chunkTree->GetType() == EObjectType::ChunkView);
+            const auto* chunkView = chunkTree->AsChunkView();
+            auto nextLowerLimit = lowerLimitOrEmptyKey(chunkView);
+            if (nextLowerLimit < upperLimit) {
+                THROW_ERROR_EXCEPTION("Found intersecting chunk view ranges during merge")
+                    << TErrorAttribute("previous_upper_limit", upperLimit)
+                    << TErrorAttribute("lower_limit", lowerLimit)
+                    << TErrorAttribute("chunk_view_id", chunkView->GetId());
+            } else if (nextLowerLimit == upperLimit) {
+                upperLimit = upperLimitOrMaxKey(chunkView);
+            } else {
+                mergedChunkViews.push_back(result);
+                result.FirstChunkView = *it;
+                lowerLimit = nextLowerLimit;
+                upperLimit = upperLimitOrMaxKey(chunkView);
+            }
+
+            result.LastChunkView = *it;
+        }
+
+        mergedChunkViews.push_back(result);
+        beginSameChunkRange = endSameChunkRange;
+    }
+
+    return mergedChunkViews;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

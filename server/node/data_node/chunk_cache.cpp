@@ -195,7 +195,7 @@ public:
         return Underlying_->GetChunkInfo();
     }
 
-    virtual TChunkReplicaList GetWrittenChunkReplicas() const override
+    virtual TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
     {
         return Underlying_->GetWrittenChunkReplicas();
     }

@@ -22,7 +22,6 @@ public:
         TTabletManagerConfigPtr config,
         TStoreId id,
         TTablet* tablet);
-    virtual ~TOrderedDynamicStore();
 
     //! Returns the reader to be used during flush.
     NTableClient::ISchemafulReaderPtr CreateFlushReader();
@@ -77,7 +76,7 @@ private:
     virtual void OnSetPassive() override;
 
     void AllocateCurrentSegment(int index);
-    void OnMemoryUsageUpdated();
+    void OnDynamicMemoryUsageUpdated();
 
     void CommitRow(TOrderedDynamicRow row);
     void LoadRow(NTableClient::TUnversionedRow row);

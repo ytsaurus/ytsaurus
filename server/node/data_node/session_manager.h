@@ -44,10 +44,6 @@ public:
     //! Session ID must not specify AllMediaIndex as medium index.
     ISessionPtr GetSessionOrThrow(TSessionId sessionId);
 
-    //! Finds all sessions pertaining to the specified chunk.
-    //! Throws if no session is found. (Thus, never returns an empty list.)
-    TSessionPtrList GetSessionsOrThrow(TChunkId chunkId);
-
     //! Returns the number of currently active sessions of a given type.
     int GetSessionCount(ESessionType type);
 

@@ -130,3 +130,10 @@ class TestFileCache(YTEnvSetup):
         assert read_file(path) == content
         assert date_string_to_datetime(get(path + "/@modification_time")) > modification_time
 
+##################################################################
+
+class TestFileCacheRpcProxy(TestFileCache):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_PROXY = True
+

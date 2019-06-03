@@ -2,6 +2,8 @@
 
 #include "assert.h"
 #include "intrusive_ptr.h"
+#include "range.h"
+#include "ref_counted.h"
 
 namespace NYT {
 

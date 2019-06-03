@@ -172,7 +172,17 @@ void TCypressNodeBase::Load(TLoadContext& context)
     }
     TNonversionedObjectRefSerializer::Load(context, Parent_);
     Load(context, LockMode_);
-    Load(context, ExpirationTime_);
+    // COMPAT(shakurov)
+    if (context.GetVersion() < 831) {
+        auto oldExpirationTime = Load<std::optional<TInstant>>(context);
+        if (oldExpirationTime) {
+            ExpirationTime_.Set(*oldExpirationTime);
+        } else {
+            ExpirationTime_.Reset();
+        }
+    } else {
+        Load(context, ExpirationTime_);
+    }
     Load(context, CreationTime_);
     Load(context, ModificationTime_);
     // COMPAT(aozeritsky)

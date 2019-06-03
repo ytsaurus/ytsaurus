@@ -18,7 +18,6 @@ class TClickHouseHost
 public:
     TClickHouseHost(
         TBootstrap* bootstrap,
-        ILoggerPtr logger,
         ICoordinationServicePtr coordinationService,
         TClickHouseServerBootstrapConfigPtr nativeConfig,
         std::string cliqueId,
@@ -29,7 +28,6 @@ public:
     ~TClickHouseHost();
 
     void Start();
-    void Shutdown();
 
     //! Change internal user -> query count mapping value, which is used in profiling.
     /*!

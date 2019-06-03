@@ -45,6 +45,14 @@ class DynamicTablesBase(YTEnvSetup):
         "max_rows_per_write_request": 2
     }
 
+    DELTA_MASTER_CONFIG = {
+        "tablet_manager": {
+            "leader_reassignment_timeout" : 1000,
+            "peer_revocation_timeout" : 3000,
+        }
+    }
+
+
     def _create_sorted_table(self, path, **attributes):
         if "schema" not in attributes:
             attributes.update({"schema": [
@@ -154,13 +162,6 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
                 "cpu_per_tablet_slot": 1.0,
             },
         },
-    }
-
-    DELTA_MASTER_CONFIG = {
-        "tablet_manager": {
-            "leader_reassignment_timeout" : 1000,
-            "peer_revocation_timeout" : 3000,
-        }
     }
 
     def test_follower_start(self):
@@ -891,7 +892,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assigned_node_cpu = get_cpu(peer)
         assert int(empty_node_cpu - assigned_node_cpu) == 0
 
-    @skip_if_rpc_driver_backend
     def test_bundle_node_list(self):
         create_tablet_cell_bundle("b", attributes={"node_tag_filter": "b"})
 
@@ -921,7 +921,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
 
-    @skip_if_rpc_driver_backend
     @pytest.mark.parametrize("is_sorted", [True, False])
     def test_column_selector_dynamic_tables(self, is_sorted):
         sync_create_cells(1)
@@ -1137,6 +1136,42 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             return True
 
         wait(check)
+
+    def test_chunk_view_attributes(self):
+        set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i, "value": "a"} for i in range(5)])
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [2]])
+
+        sync_mount_table("//tmp/t")
+        chunk_views = get("//sys/chunk_views", attributes=["chunk_id", "lower_limit", "upper_limit"])
+        for value in chunk_views.itervalues():
+            attrs = value.attributes
+            if attrs["lower_limit"] == {} and attrs["upper_limit"] == {"key": [2]}:
+                break
+        else:
+            assert False
+
+        table_chunks = get("//tmp/t/@chunk_ids")
+        assert len(table_chunks) == 2
+        assert table_chunks[0] == table_chunks[1]
+        assert len(chunk_views) == 2
+        assert all(attr.attributes["chunk_id"] == table_chunks[0] for attr in chunk_views.values())
+        chunk_tree = get("#{}/@tree".format(get("//tmp/t/@chunk_list_id")))
+        assert chunk_tree.attributes["rank"] == 2
+        assert len(chunk_tree) == 2
+        for tablet in chunk_tree:
+            assert len(tablet) == 1
+            for chunk_view in tablet:
+                assert chunk_view.attributes["id"] in chunk_views
+                assert chunk_view.attributes["type"] == "chunk_view"
+                assert len(chunk_view) == 1
+                assert chunk_view[0] == table_chunks[0]
+
 
 ##################################################################
 
@@ -2503,6 +2538,8 @@ class TestTabletActions(DynamicTablesBase):
         sync_remove_tablet_cells([cell_id])
         assert exists("//sys/tablet_actions/{}".format(action_id))
         remove_tablet_cell_bundle("b")
+        assert exists("//sys/tablet_actions/{}".format(action_id))
+        remove("#{}".format(action_id))
         assert not exists("//sys/tablet_actions/{}".format(action_id))
 
 ##################################################################
@@ -2593,7 +2630,7 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         requests.append(make_batch_request("remove", path="#" + cells[0]))
         requests.append(make_batch_request("mount_table", path="//tmp/t", cell_id=cells[0], freeze=freeze))
         rsps = execute_batch(requests)
-        assert len(rsps[1]) == 0
+        assert len(rsps[1]["output"]) == 0
 
         expected_state = "frozen" if freeze  else "mounted"
         assert get("//tmp/t/@expected_tablet_state") == expected_state

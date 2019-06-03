@@ -162,7 +162,7 @@ public:
     int GetExecNodeCount();
     int GetTotalNodeCount();
 
-    TFuture<TScheduleJobResultPtr> BeginScheduleJob(
+    TFuture<TControllerScheduleJobResultPtr> BeginScheduleJob(
         TIncarnationId incarnationId,
         TOperationId operationId,
         TJobId jobId);
@@ -229,7 +229,7 @@ private:
     {
         TOperationId OperationId;
         TIncarnationId IncarnationId;
-        TPromise<TScheduleJobResultPtr> Promise;
+        TPromise<TControllerScheduleJobResultPtr> Promise;
         THashMultiMap<TOperationId, THashMap<TJobId, TScheduleJobEntry>::iterator>::iterator OperationIdToJobIdsIterator;
         NProfiling::TCpuInstant StartTime;
     };

@@ -82,6 +82,8 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetJob);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, StraceJob);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, DumpJobContext);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetJobInput,
+        .SetStreamingEnabled(true));
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetJobInputPaths);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetJobStderr);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetJobFailContext);
@@ -89,6 +91,18 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AbandonJob);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, PollJobShell);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AbortJob);
+
+    // Files
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ReadFile,
+        .SetStreamingEnabled(true));
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, WriteFile,
+        .SetStreamingEnabled(true));
+
+    // Journals
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ReadJournal,
+        .SetStreamingEnabled(true));
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, WriteJournal,
+        .SetStreamingEnabled(true));
 
     // File caching
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetFileFromCache);

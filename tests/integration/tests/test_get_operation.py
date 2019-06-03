@@ -4,8 +4,6 @@ from yt_commands import *
 import yt.environment.init_operation_archive as init_operation_archive
 from yt.test_helpers import wait
 
-from test_rpc_proxy import create_input_table
-
 import pytest
 
 def _get_orchid_operation_path(op_id):
@@ -49,12 +47,9 @@ class TestGetOperation(YTEnvSetup):
         remove("//sys/operations_archive")
 
     def test_get_operation(self):
-        create_input_table("//tmp/t1",
-            [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}],
-            [{"name": "foo", "type": "string"}],
-            driver_backend=self.DRIVER_BACKEND)
-
+        create("table", "//tmp/t1")
         create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
         op = map(
             dont_track=True,
@@ -96,6 +91,7 @@ class TestGetOperation(YTEnvSetup):
                 "unrecognized_spec",
                 "full_spec",
                 "slot_index_per_pool_tree",
+                "alerts",
             ]
             return {key: attrs[key] for key in PROPER_ATTRS if key in attrs}
 
@@ -123,12 +119,9 @@ class TestGetOperation(YTEnvSetup):
                 assert res_get_operation_archive[key] == res_cypress_finished[key]
 
     def test_attributes(self):
-        create_input_table("//tmp/t1",
-            [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}],
-            [{"name": "foo", "type": "string"}],
-            driver_backend=self.DRIVER_BACKEND)
-
+        create("table", "//tmp/t1")
         create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
         op = map(
             dont_track=True,
@@ -155,6 +148,9 @@ class TestGetOperation(YTEnvSetup):
             assert sorted(list(res_get_operation)) == ["progress", "state"]
             assert sorted(list(res_cypress)) == ["progress", "state"]
             assert res_get_operation["state"] == res_cypress["state"]
+            assert ("alerts" in res_get_operation) == ("alerts" in res_cypress)
+            if "alerts" in res_get_operation and "alerts" in res_cypress:
+                assert res_get_operation["alerts"] == res_cypress["alerts"]
 
         release_breakpoint()
         op.track()
@@ -171,12 +167,9 @@ class TestGetOperation(YTEnvSetup):
             get_operation(op.id, attributes=["PYSCH"])
 
     def test_get_operation_and_half_deleted_operation_node(self):
-        create_input_table("//tmp/t1",
-            [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}],
-            [{"name": "foo", "type": "string"}],
-            driver_backend=self.DRIVER_BACKEND)
-
+        create("table", "//tmp/t1")
         create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
         op = map(in_="//tmp/t1",
             out="//tmp/t2",

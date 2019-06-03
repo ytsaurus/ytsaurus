@@ -4,6 +4,7 @@
 #include "align.h"
 #include "assert.h"
 #include "enum.h"
+#include "error.h"
 #include "guid.h"
 #include "mpl.h"
 #include "optional.h"
@@ -42,12 +43,10 @@ void WritePod(TOutput& output, const T& obj)
 }
 
 template <class TInput, class T>
-void ReadPod(TInput& input, T& obj)
-{
-    static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
-    auto loadBytes = input.Load(&obj, sizeof(obj));
-    YCHECK(loadBytes == sizeof(obj));
-}
+void ReadPod(TInput& input, T& obj);
+
+template <class TInput, class T>
+void ReadPodOrThrow(TInput& input, T& obj);
 
 template <class TOutput>
 size_t WritePadding(TOutput& output, size_t writtenSize)
@@ -117,26 +116,10 @@ TSharedRef PackRefs(const T& parts)
 }
 
 template <class T>
-void UnpackRefs(const TSharedRef& packedRef, T* parts)
-{
-    TMemoryInput input(packedRef.Begin(), packedRef.Size());
+void UnpackRefs(const TSharedRef& packedRef, T* parts);
 
-    i32 size;
-    ReadPod(input, size);
-    YCHECK(size >= 0);
-
-    parts->clear();
-    parts->reserve(size);
-
-    for (int index = 0; index < size; ++index) {
-        i64 partSize;
-        ReadPod(input, partSize);
-
-        parts->push_back(packedRef.Slice(input.Buf(), input.Buf() + partSize));
-
-        input.Skip(partSize);
-    }
-}
+template <class T>
+void UnpackRefsOrThrow(const TSharedRef& packedRef, T* parts);
 
 template <class TTag, class TParts>
 TSharedRef MergeRefsToRef(const TParts& parts)
@@ -1659,3 +1642,8 @@ struct TSerializerTraits<std::pair<F, S>, C, void>
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+#define SERIALIZE_INL_H_
+#include "serialize-inl.h"
+#undef SERIALIZE_INL_H_
+

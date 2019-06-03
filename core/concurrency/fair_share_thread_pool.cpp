@@ -10,6 +10,8 @@
 
 #include <yt/core/profiling/profiler.h>
 
+#include <util/generic/xrange.h>
+
 namespace NYT::NConcurrency {
 
 using namespace NProfiling;
@@ -21,14 +23,14 @@ static const auto& Logger = ConcurrencyLogger;
 namespace {
 
 struct THeapItem;
-struct TBucket;
 class TFairShareQueue;
 
-DECLARE_REFCOUNTED_TYPE(TBucket)
+DECLARE_REFCOUNTED_CLASS(TBucket)
 
-struct TBucket
+class TBucket
     : public IInvoker
 {
+public:
     TBucket(TFairShareThreadPoolTag tag, TWeakPtr<TFairShareQueue> parent)
         : Tag(std::move(tag))
         , Parent(std::move(parent))
@@ -49,9 +51,7 @@ struct TBucket
 
     void Drain()
     {
-        TGuard<TSpinLock> guard(SpinLock);
         Queue.clear();
-        Size = 0;
     }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
@@ -71,41 +71,36 @@ struct TBucket
     TFairShareThreadPoolTag Tag;
     TWeakPtr<TFairShareQueue> Parent;
     TRingQueue<TEnqueuedAction> Queue;
-    TSpinLock SpinLock;
-    size_t Size = 0;
     THeapItem* HeapIterator = nullptr;
     i64 WaitTime = 0;
+
+    TCpuDuration ExcessTime = 0;
+    int CurrentExecutions = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBucket)
 
 struct THeapItem
 {
-    TCpuDuration ExcessTime;
     TBucketPtr Bucket;
 
     THeapItem(const THeapItem&) = delete;
     THeapItem& operator=(const THeapItem&) = delete;
 
-    THeapItem(
-        TCpuDuration excessTime,
-        TBucketPtr bucket)
-        : ExcessTime(excessTime)
-        , Bucket(std::move(bucket))
+    explicit THeapItem(TBucketPtr bucket)
+        : Bucket(std::move(bucket))
     {
         AdjustBackReference(this);
     }
 
     THeapItem(THeapItem&& other) noexcept
-        : ExcessTime(other.ExcessTime)
-        , Bucket(std::move(other.Bucket))
+        : Bucket(std::move(other.Bucket))
     {
         AdjustBackReference(this);
     }
 
     THeapItem& operator=(THeapItem&& other) noexcept
     {
-        ExcessTime = other.ExcessTime;
         Bucket = std::move(other.Bucket);
         AdjustBackReference(this);
 
@@ -129,7 +124,7 @@ struct THeapItem
 
 bool operator < (const THeapItem& lhs, const THeapItem& rhs)
 {
-    return lhs.ExcessTime < rhs.ExcessTime;
+    return lhs.Bucket->ExcessTime < rhs.Bucket->ExcessTime;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -188,11 +183,16 @@ public:
 
         QueueSize_.fetch_add(1, std::memory_order_relaxed);
 
-        InsertBucket(bucket);
-        ++bucket->Size;
+        if (!bucket->HeapIterator) {
+            // Otherwise ExcessTime will be recalculated in AccountCurrentlyExecutingBuckets.
+            if (bucket->CurrentExecutions == 0 && !Heap_.empty()) {
+                bucket->ExcessTime = Heap_.front().Bucket->ExcessTime;
+            }
 
-        TGuard<TSpinLock> bucketGuard(bucket->SpinLock);
-        guard.Release();
+            Heap_.emplace_back(bucket);
+            AdjustHeapBack(Heap_.begin(), Heap_.end());
+            YCHECK(bucket->HeapIterator);
+        }
 
         Y_ASSERT(callback);
 
@@ -201,6 +201,8 @@ public:
         action.EnqueuedAt = GetCpuInstant();
         action.Callback = BIND(&TBucket::RunCallback, MakeStrong(bucket), std::move(callback));
         bucket->Queue.push(std::move(action));
+
+        guard.Release();
 
         CallbackEventCount_->NotifyOne();
     }
@@ -236,44 +238,33 @@ public:
 
         Y_ASSERT(!execution.Bucket);
 
+        Y_ASSERT(action && action->Finished);
+
         TBucketPtr bucket;
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            bucket = GetStarvingBucket();
+            bucket = GetStarvingBucket(action);
 
             if (!bucket) {
                 return EBeginExecuteResult::QueueEmpty;
             }
 
+            ++bucket->CurrentExecutions;
+
             execution.Bucket = bucket;
             execution.AccountedAt = GetCpuInstant();
+
+            action->StartedAt = GetCpuInstant();
+            bucket->WaitTime = action->StartedAt - action->EnqueuedAt;
         }
 
-        Y_ASSERT(action && action->Finished);
-
-        {
-            TGuard<TSpinLock> guard(bucket->SpinLock);
-
-            if (bucket->Queue.empty()) {
-                return EBeginExecuteResult::QueueEmpty;
-            }
-
-            *action = std::move(bucket->Queue.front());
-            bucket->Queue.pop();
-        }
+        Y_ASSERT(action && !action->Finished);
 
         CallbackEventCount_->CancelWait();
 
-        action->StartedAt = GetCpuInstant();
-
         Profiler_.Update(
             WaitTimeCounter_,
-            CpuDurationToValue(action->StartedAt - action->EnqueuedAt));
-
-        {
-            TGuard<TSpinLock> guard(bucket->SpinLock);
-            bucket->WaitTime = action->StartedAt - action->EnqueuedAt;
-        }
+            CpuDurationToValue(bucket->WaitTime));
 
         // Move callback to the stack frame to ensure that we hold it as long as it runs.
         auto callback = std::move(action->Callback);
@@ -311,7 +302,7 @@ public:
         Profiler_.Update(TotalTimeCounter_, DurationToValue(timeFromEnqueue));
 
         if (timeFromStart > LogDurationThreshold) {
-            YT_LOG_DEBUG("Long execution time (Wait: %v, Execution: %v, Total: %v)",
+            YT_LOG_DEBUG("Callback execution took too long (Wait: %v, Execution: %v, Total: %v)",
                 CpuDurationToDuration(action->StartedAt - action->EnqueuedAt),
                 timeFromStart,
                 timeFromEnqueue);
@@ -320,7 +311,7 @@ public:
         auto waitTime = CpuDurationToDuration(action->StartedAt - action->EnqueuedAt);
 
         if (waitTime > LogDurationThreshold) {
-            YT_LOG_DEBUG("Long wait time (Wait: %v, Execution: %v, Total: %v)",
+            YT_LOG_DEBUG("Callback wait took too long (Wait: %v, Execution: %v, Total: %v)",
                 waitTime,
                 timeFromStart,
                 timeFromEnqueue);
@@ -328,25 +319,16 @@ public:
 
         action->Finished = true;
 
-        auto duration = GetCpuInstant() - execution.AccountedAt;
-
+        // Remove outside lock because of lock inside RemoveBucket.
         TBucketPtr bucket;
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            UpdateExcessTime(execution.Bucket->HeapIterator, duration);
             bucket = std::move(execution.Bucket);
-        }
-    }
 
-    void InsertBucket(TBucket* bucket)
-    {
-        if (bucket->HeapIterator) {
-            return;
-        }
+            UpdateExcessTime(bucket.Get(), GetCpuInstant() - execution.AccountedAt);
 
-        auto initialExcessTime = Heap_.empty() ? 0 : Heap_.front().ExcessTime;
-        Heap_.emplace_back(initialExcessTime, bucket);
-        AdjustHeapBack(Heap_.begin(), Heap_.end());
+            YCHECK(bucket->CurrentExecutions-- > 0);
+        }
     }
 
 private:
@@ -385,38 +367,56 @@ private:
             auto duration = currentInstant - execution.AccountedAt;
             execution.AccountedAt = currentInstant;
 
-            UpdateExcessTime(execution.Bucket->HeapIterator, duration);
+            UpdateExcessTime(execution.Bucket.Get(), duration);
         }
     }
 
-    void UpdateExcessTime(THeapItem* positionInHeap, TCpuDuration duration)
+    void UpdateExcessTime(TBucket* bucket, TCpuDuration duration)
     {
+        bucket->ExcessTime += duration;
+
+        auto positionInHeap = bucket->HeapIterator;
         if (!positionInHeap) {
             return;
         }
 
         size_t indexInHeap = positionInHeap - Heap_.data();
         YCHECK(indexInHeap < Heap_.size());
-        Heap_[indexInHeap].ExcessTime += duration;
         SiftDown(Heap_.begin(), Heap_.end(), Heap_.begin() + indexInHeap, std::less<>());
     }
 
-    TBucketPtr GetStarvingBucket()
+    TBucketPtr GetStarvingBucket(TEnqueuedAction* action)
     {
         // For each currently evaluating buckets recalculate excess time.
         AccountCurrentlyExecutingBuckets();
 
-        while (!Heap_.empty()) {
-            const auto& bucket = Heap_[0].Bucket;
-            if (bucket->Size > 0) {
-                --bucket->Size;
-                return bucket;
-            }
+        YT_LOG_TRACE("Buckets: [%v]",
+            MakeFormattableView(
+                TagToBucket_,
+                [] (auto* builder, const auto& tagToBucket) {
+                    if (auto item = tagToBucket.second.Lock()) {
+                        auto excess = CpuDurationToDuration(tagToBucket.second.Lock()->ExcessTime).MilliSeconds();
+                        builder->AppendFormat("(%v %v)", tagToBucket.first, excess);
+                    } else {
+                        builder->AppendFormat("(%v *)", tagToBucket.first);
+                    }
+                }));
+
+        if (Heap_.empty()) {
+            return nullptr;
+        }
+
+        auto bucket = Heap_.front().Bucket;
+        YCHECK(!bucket->Queue.empty());
+        *action = std::move(bucket->Queue.front());
+        bucket->Queue.pop();
+
+        if (bucket->Queue.empty()) {
             ExtractHeap(Heap_.begin(), Heap_.end());
             Heap_.pop_back();
         }
 
-        return nullptr;
+        return bucket;
     }
 };
 
@@ -518,7 +518,7 @@ public:
         }
     }
 
-    IInvokerPtr GetInvoker(const TFairShareThreadPoolTag& tag)
+    virtual IInvokerPtr GetInvoker(const TFairShareThreadPoolTag& tag) override
     {
         return Queue_->GetInvoker(tag);
     }

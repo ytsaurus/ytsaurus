@@ -1,6 +1,7 @@
 #include "unversioned_row.h"
 #include "unversioned_value.h"
 #include "serialize.h"
+#include "validate_logical_type.h"
 
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/row_buffer.h>
@@ -1030,9 +1031,21 @@ void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& colu
     }
 
     if (!columnSchema.SimplifiedLogicalType()) {
-        THROW_ERROR_EXCEPTION("Cannot validate column %Qv of type %Qv: validation of complex type is not supported yet",
-             columnSchema.Name(),
-             *columnSchema.LogicalType());
+        if (value.Type != EValueType::Any) {
+            THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
+                "Invalid type of column %Qv: expected complex value but got %Qlv",
+                columnSchema.Name(),
+                value.Type);
+        }
+        try {
+            ValidateComplexLogicalType(TStringBuf(value.Data.String, value.Length), columnSchema.LogicalType());
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
+                "Error validating column %Qv",
+                columnSchema.Name()
+            ) << ex;
+        }
+        return;
     }
 
     if (columnSchema.GetPhysicalType() != value.Type) {
@@ -1823,6 +1836,24 @@ TOwningKey WidenKey(const TOwningKey& key, ui32 keyColumnCount, EValueType senti
 TKey WidenKey(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
 {
     return WidenKeyPrefix(key, key.GetCount(), keyColumnCount, rowBuffer, sentinelType);
+}
+
+TOwningKey WidenKeySuccessor(const TOwningKey& key, ui32 keyColumnCount, EValueType sentinelType)
+{
+    YCHECK(keyColumnCount >= key.GetCount());
+
+    TUnversionedOwningRowBuilder builder;
+    for (ui32 index = 0; index < key.GetCount(); ++index) {
+        builder.AddValue(key[index]);
+    }
+
+    for (ui32 index = key.GetCount(); index < keyColumnCount; ++index) {
+        builder.AddValue(MakeUnversionedSentinelValue(sentinelType));
+    }
+
+    builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
+
+    return builder.FinishRow();
 }
 
 TKey WidenKeySuccessor(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)

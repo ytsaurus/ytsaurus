@@ -32,7 +32,7 @@
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/throughput_throttler.h>
-#include <yt/core/concurrency/fair_share_thread_pool.h>
+#include <yt/core/concurrency/two_level_fair_share_thread_pool.h>
 
 #include <yt/core/rpc/public.h>
 
@@ -53,12 +53,16 @@ public:
 
     const TCellNodeConfigPtr& GetConfig() const;
     const IInvokerPtr& GetControlInvoker() const;
-    IInvokerPtr GetQueryPoolInvoker(const NConcurrency::TFairShareThreadPoolTag& tag) const;
+    IInvokerPtr GetQueryPoolInvoker(
+        const TString& poolName,
+        double weight,
+        const NConcurrency::TFairShareThreadPoolTag& tag) const;
     const IInvokerPtr& GetLookupPoolInvoker() const;
     const IInvokerPtr& GetTableReplicatorPoolInvoker() const;
     const IInvokerPtr& GetTransactionTrackerInvoker() const;
     const IInvokerPtr& GetStorageHeavyInvoker() const;
     const IInvokerPtr& GetStorageLightInvoker() const;
+    const IInvokerPtr& GetJobThrottlerInvoker() const;
     const NApi::NNative::IClientPtr& GetMasterClient() const;
     const NApi::NNative::IConnectionPtr& GetMasterConnection() const;
     const NRpc::IServerPtr& GetRpcServer() const;
@@ -71,7 +75,7 @@ public:
     const NTabletNode::TVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const;
     const NExecAgent::TSlotManagerPtr& GetExecSlotManager() const;
     const NJobAgent::TGpuManagerPtr& GetGpuManager() const;
-    TNodeMemoryTracker* GetMemoryUsageTracker() const;
+    const TNodeMemoryTrackerPtr& GetMemoryUsageTracker() const;
     const NDataNode::TChunkStorePtr& GetChunkStore() const;
     const NDataNode::TChunkCachePtr& GetChunkCache() const;
     const NDataNode::TChunkRegistryPtr& GetChunkRegistry() const;
@@ -119,86 +123,86 @@ public:
     void Run();
 
 private:
-    const TCellNodeConfigPtr Config;
-    const NYTree::INodePtr ConfigNode;
+    const TCellNodeConfigPtr Config_;
+    const NYTree::INodePtr ConfigNode_;
 
-    NConcurrency::TActionQueuePtr ControlQueue;
-    TLazyIntrusivePtr<NConcurrency::IFairShareThreadPool> QueryThreadPool;
-    NConcurrency::TThreadPoolPtr LookupThreadPool;
-    NConcurrency::TThreadPoolPtr TableReplicatorThreadPool;
-    NConcurrency::TActionQueuePtr TransactionTrackerQueue;
-    NConcurrency::TThreadPoolPtr StorageHeavyThreadPool;
-    NConcurrency::TThreadPoolPtr StorageLightThreadPool;
+    NConcurrency::TActionQueuePtr ControlQueue_;
+    TLazyIntrusivePtr<NConcurrency::ITwoLevelFairShareThreadPool> QueryThreadPool_;
+    NConcurrency::TThreadPoolPtr LookupThreadPool_;
+    NConcurrency::TThreadPoolPtr TableReplicatorThreadPool_;
+    NConcurrency::TActionQueuePtr TransactionTrackerQueue_;
+    NConcurrency::TThreadPoolPtr StorageHeavyThreadPool_;
+    NConcurrency::TThreadPoolPtr StorageLightThreadPool_;
+    NConcurrency::TActionQueuePtr MasterCacheQueue_;
+    NConcurrency::TActionQueuePtr JobThrottlerQueue_;
 
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
-    NBus::IBusServerPtr BusServer;
-    NApi::NNative::IConnectionPtr MasterConnection;
-    NApi::NNative::IClientPtr MasterClient;
-    NRpc::IServerPtr RpcServer;
-    std::vector<NRpc::IServicePtr> MasterCacheServices;
-    NHttp::IServerPtr HttpServer;
-    NHttp::IServerPtr SkynetHttpServer;
-    NYTree::IMapNodePtr OrchidRoot;
-    NJobAgent::TJobControllerPtr JobController;
-    NJobAgent::TStatisticsReporterPtr StatisticsReporter;
-    NExecAgent::TSlotManagerPtr ExecSlotManager;
-    NJobAgent::TGpuManagerPtr GpuManager;
-    NJobProxy::TJobProxyConfigPtr JobProxyConfigTemplate;
-    NNodeTrackerClient::TNodeMemoryTrackerPtr MemoryUsageTracker;
-    NExecAgent::TSchedulerConnectorPtr SchedulerConnector;
-    NDataNode::TChunkStorePtr ChunkStore;
-    NDataNode::TChunkCachePtr ChunkCache;
-    NDataNode::TChunkRegistryPtr ChunkRegistry;
-    NDataNode::TSessionManagerPtr SessionManager;
-    NDataNode::TChunkMetaManagerPtr ChunkMetaManager;
-    NDataNode::TChunkBlockManagerPtr ChunkBlockManager;
-    NDataNode::TNetworkStatisticsPtr NetworkStatistics;
-    NChunkClient::IBlockCachePtr BlockCache;
-    NTableClient::TBlockMetaCachePtr BlockMetaCache;
-    NDataNode::TPeerBlockTablePtr PeerBlockTable;
-    NDataNode::TPeerBlockUpdaterPtr PeerBlockUpdater;
-    NDataNode::TPeerBlockDistributorPtr PeerBlockDistributor;
-    NDataNode::TBlobReaderCachePtr BlobReaderCache;
-    NDataNode::TJournalDispatcherPtr JournalDispatcher;
-    NDataNode::TMasterConnectorPtr MasterConnector;
-    ICoreDumperPtr CoreDumper;
+    NBus::IBusServerPtr BusServer_;
+    NApi::NNative::IConnectionPtr MasterConnection_;
+    NApi::NNative::IClientPtr MasterClient_;
+    NRpc::IServerPtr RpcServer_;
+    std::vector<NRpc::IServicePtr> MasterCacheServices_;
+    NHttp::IServerPtr HttpServer_;
+    NHttp::IServerPtr SkynetHttpServer_;
+    NYTree::IMapNodePtr OrchidRoot_;
+    NJobAgent::TJobControllerPtr JobController_;
+    NJobAgent::TStatisticsReporterPtr StatisticsReporter_;
+    NExecAgent::TSlotManagerPtr ExecSlotManager_;
+    NJobAgent::TGpuManagerPtr GpuManager_;
+    NJobProxy::TJobProxyConfigPtr JobProxyConfigTemplate_;
+    NNodeTrackerClient::TNodeMemoryTrackerPtr MemoryUsageTracker_;
+    NExecAgent::TSchedulerConnectorPtr SchedulerConnector_;
+    NDataNode::TChunkStorePtr ChunkStore_;
+    NDataNode::TChunkCachePtr ChunkCache_;
+    NDataNode::TChunkRegistryPtr ChunkRegistry_;
+    NDataNode::TSessionManagerPtr SessionManager_;
+    NDataNode::TChunkMetaManagerPtr ChunkMetaManager_;
+    NDataNode::TChunkBlockManagerPtr ChunkBlockManager_;
+    NDataNode::TNetworkStatisticsPtr NetworkStatistics_;
+    NChunkClient::IBlockCachePtr BlockCache_;
+    NTableClient::TBlockMetaCachePtr BlockMetaCache_;
+    NDataNode::TPeerBlockTablePtr PeerBlockTable_;
+    NDataNode::TPeerBlockUpdaterPtr PeerBlockUpdater_;
+    NDataNode::TPeerBlockDistributorPtr PeerBlockDistributor_;
+    NDataNode::TBlobReaderCachePtr BlobReaderCache_;
+    NDataNode::TJournalDispatcherPtr JournalDispatcher_;
+    NDataNode::TMasterConnectorPtr MasterConnector_;
+    ICoreDumperPtr CoreDumper_;
 
-    NConcurrency::IThroughputThrottlerPtr TotalInThrottler;
-    NConcurrency::IThroughputThrottlerPtr TotalOutThrottler;
-    NConcurrency::IThroughputThrottlerPtr ReplicationInThrottler;
-    NConcurrency::IThroughputThrottlerPtr ReplicationOutThrottler;
-    NConcurrency::IThroughputThrottlerPtr RepairInThrottler;
-    NConcurrency::IThroughputThrottlerPtr RepairOutThrottler;
-    NConcurrency::IThroughputThrottlerPtr ArtifactCacheInThrottler;
-    NConcurrency::IThroughputThrottlerPtr ArtifactCacheOutThrottler;
-    NConcurrency::IThroughputThrottlerPtr SkynetOutThrottler;
-    NConcurrency::IThroughputThrottlerPtr DataNodeTabletCompactionAndPartitioningInThrottler;
-    NConcurrency::IThroughputThrottlerPtr DataNodeTabletCompactionAndPartitioningOutThrottler;
-    NConcurrency::IThroughputThrottlerPtr DataNodeTabletStoreFlushInThrottler;
-    NConcurrency::IThroughputThrottlerPtr DataNodeTabletLoggingInThrottler;
-    NConcurrency::IThroughputThrottlerPtr DataNodeTabletPreloadOutThrottler;
-    NConcurrency::IThroughputThrottlerPtr DataNodeTabletSnapshotInThrottler;
-    NConcurrency::IThroughputThrottlerPtr DataNodeTabletRecoveryOutThrottler;
-    NConcurrency::IThroughputThrottlerPtr DataNodeTabletReplicationOutThrottler;
+    NConcurrency::IThroughputThrottlerPtr TotalInThrottler_;
+    NConcurrency::IThroughputThrottlerPtr TotalOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr ReplicationInThrottler_;
+    NConcurrency::IThroughputThrottlerPtr ReplicationOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr RepairInThrottler_;
+    NConcurrency::IThroughputThrottlerPtr RepairOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr ArtifactCacheInThrottler_;
+    NConcurrency::IThroughputThrottlerPtr ArtifactCacheOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr SkynetOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr DataNodeTabletCompactionAndPartitioningInThrottler_;
+    NConcurrency::IThroughputThrottlerPtr DataNodeTabletCompactionAndPartitioningOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr DataNodeTabletStoreFlushInThrottler_;
+    NConcurrency::IThroughputThrottlerPtr DataNodeTabletLoggingInThrottler_;
+    NConcurrency::IThroughputThrottlerPtr DataNodeTabletPreloadOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr DataNodeTabletSnapshotInThrottler_;
+    NConcurrency::IThroughputThrottlerPtr DataNodeTabletRecoveryOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr DataNodeTabletReplicationOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr TabletNodeCompactionAndPartitioningInThrottler_;
+    NConcurrency::IThroughputThrottlerPtr TabletNodeCompactionAndPartitioningOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr TabletNodeStoreFlushOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr TabletNodePreloadInThrottler_;
+    NConcurrency::IThroughputThrottlerPtr TabletNodeTabletReplicationInThrottler_;
+    NConcurrency::IThroughputThrottlerPtr TabletNodeTabletReplicationOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr ReadRpsOutThrottler_;
 
-    NConcurrency::IThroughputThrottlerPtr TabletNodeCompactionAndPartitioningInThrottler;
-    NConcurrency::IThroughputThrottlerPtr TabletNodeCompactionAndPartitioningOutThrottler;
-    NConcurrency::IThroughputThrottlerPtr TabletNodeStoreFlushOutThrottler;
-    NConcurrency::IThroughputThrottlerPtr TabletNodePreloadInThrottler;
-    NConcurrency::IThroughputThrottlerPtr TabletNodeTabletReplicationInThrottler;
-    NConcurrency::IThroughputThrottlerPtr TabletNodeTabletReplicationOutThrottler;
+    NTabletNode::TSlotManagerPtr TabletSlotManager_;
+    NTabletNode::TSecurityManagerPtr SecurityManager_;
+    NTabletNode::IInMemoryManagerPtr InMemoryManager_;
+    NTabletNode::TVersionedChunkMetaManagerPtr VersionedChunkMetaManager_;
 
-    NConcurrency::IThroughputThrottlerPtr ReadRpsOutThrottler;
+    NQueryClient::TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
+    NQueryAgent::IQuerySubexecutorPtr QueryExecutor_;
 
-    NTabletNode::TSlotManagerPtr TabletSlotManager;
-    NTabletNode::TSecurityManagerPtr SecurityManager;
-    NTabletNode::IInMemoryManagerPtr InMemoryManager;
-    NTabletNode::TVersionedChunkMetaManagerPtr VersionedChunkMetaManager;
-
-    NQueryClient::TColumnEvaluatorCachePtr ColumnEvaluatorCache;
-    NQueryAgent::IQuerySubexecutorPtr QueryExecutor;
-
-    NConcurrency::TPeriodicExecutorPtr FootprintUpdateExecutor;
+    NConcurrency::TPeriodicExecutorPtr FootprintUpdateExecutor_;
 
     void DoRun();
     void PopulateAlerts(std::vector<TError>* alerts);

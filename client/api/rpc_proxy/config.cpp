@@ -37,6 +37,11 @@ TConnectionConfig::TConnectionConfig()
         .Default(TDuration::Seconds(15));
     RegisterParameter("default_select_rows_timeout", DefaultSelectRowsTimeout)
         .Default(TDuration::Seconds(30));
+    RegisterParameter("default_total_streaming_timeout", DefaultTotalStreamingTimeout)
+        .Default(TDuration::Minutes(15));
+    RegisterParameter("default_streaming_stall_timeout", DefaultStreamingStallTimeout)
+        .Default(TDuration::Minutes(1));
+
     RegisterParameter("default_ping_period", DefaultPingPeriod)
         .Default(TDuration::Seconds(5));
     RegisterParameter("bus_client", BusClient)

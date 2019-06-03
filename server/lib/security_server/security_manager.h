@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/client/tablet_client/public.h>
+
 #include <yt/core/misc/optional.h>
 
 namespace NYT::NSecurityServer {
@@ -42,5 +44,18 @@ struct IUsersManager
 DEFINE_REFCOUNTED_TYPE(IUsersManager)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct IResourceLimitsManager
+    : public virtual TRefCounted
+{
+    virtual void ValidateResourceLimits(
+        const TString& account,
+        const TString& mediumName,
+        NTabletClient::EInMemoryMode inMemoryMode) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IResourceLimitsManager)
+
+/////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer

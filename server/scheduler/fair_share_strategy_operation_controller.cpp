@@ -84,7 +84,7 @@ void TFairShareStrategyOperationController::AbortJob(TJobId jobId, EAbortReason 
     Controller_->OnNonscheduledJobAborted(jobId, abortReason);
 }
 
-TScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJob(
+TControllerScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJob(
     const ISchedulingContextPtr& context,
     const TJobResources& availableResources,
     TDuration timeLimit,
@@ -98,12 +98,12 @@ TScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJob(
     auto scheduleJobResultWithTimeoutOrError = WaitFor(scheduleJobResultFutureWithTimeout);
 
     if (!scheduleJobResultWithTimeoutOrError.IsOK()) {
-        auto scheduleJobResult = New<TScheduleJobResult>();
+        auto scheduleJobResult = New<TControllerScheduleJobResult>();
         if (scheduleJobResultWithTimeoutOrError.GetCode() == NYT::EErrorCode::Timeout) {
             scheduleJobResult->RecordFail(EScheduleJobFailReason::Timeout);
             // If ScheduleJob was not canceled we need to abort created job.
             scheduleJobResultFuture.Subscribe(
-                BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TScheduleJobResultPtr>& scheduleJobResultOrError) {
+                BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TControllerScheduleJobResultPtr>& scheduleJobResultOrError) {
                     if (!scheduleJobResultOrError.IsOK()) {
                         return;
                     }

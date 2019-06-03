@@ -477,8 +477,8 @@ private:
 
     bool IsMemoryLimitExceeded() const
     {
-        const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-        return tracker->IsExceeded(EMemoryCategory::TabletStatic);
+        const auto& memoryTracker = Bootstrap_->GetMemoryUsageTracker();
+        return memoryTracker->IsExceeded(EMemoryCategory::TabletStatic);
     }
 
 };
@@ -498,7 +498,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const TTabletSnapshotPtr& tabletSnapshot,
     const IChunkStorePtr& store,
     TReadSessionId readSessionId,
-    TNodeMemoryTracker* memoryUsageTracker,
+    const TNodeMemoryTrackerPtr& memoryTracker,
     const IInvokerPtr& compressionInvoker,
     const NConcurrency::IThroughputThrottlerPtr& throttler,
     NProfiling::TTagId preloadTag)
@@ -562,15 +562,15 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         preallocatedMemory += blocksExt.blocks(i).size();
     }
 
-    if (memoryUsageTracker && memoryUsageTracker->GetFree(EMemoryCategory::TabletStatic) < preallocatedMemory) {
+    if (memoryTracker && memoryTracker->GetFree(EMemoryCategory::TabletStatic) < preallocatedMemory) {
         THROW_ERROR_EXCEPTION("Preload is cancelled due to memory pressure");
     }
 
     auto chunkData = New<TInMemoryChunkData>();
     chunkData->InMemoryMode = mode;
-    if (memoryUsageTracker) {
+    if (memoryTracker) {
         chunkData->MemoryTrackerGuard = NCellNode::TNodeMemoryTrackerGuard::Acquire(
-            memoryUsageTracker,
+            memoryTracker,
             EMemoryCategory::TabletStatic,
             preallocatedMemory,
             MemoryUsageGranularity);
@@ -671,7 +671,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         chunkData->MemoryTrackerGuard.UpdateSize(allocatedMemory - preallocatedMemory);
     }
 
-    FinalizeChunkData(chunkData, store->GetId(), meta, tabletSnapshot);
+    FinalizeChunkData(chunkData, store->GetChunkId(), meta, tabletSnapshot);
 
     YT_LOG_INFO(
         "Store preload completed (MemoryUsage: %v, LookupHashTable: %v)",

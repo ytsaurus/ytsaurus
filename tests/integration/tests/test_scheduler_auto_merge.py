@@ -230,10 +230,12 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             {
                 "name": "a",
                 "type": "int64",
+                "required": False,
             },
             {
                 "name": "b",
-                "type": "string"
+                "type": "string",
+                "required": False,
             }
         ], unique_keys=False, strict=True)
         create("table", "//tmp/t_out", attributes={"schema": schema_out})
@@ -262,7 +264,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         content = read_table("//tmp/t_out")
         assert sorted(content[1:]) == sorted(data)
         assert content[:1] == init_content
-        assert get("//tmp/t_out/@schema") == schema_out
+        assert normalize_schema(get("//tmp/t_out/@schema")) == schema_out
 
     @pytest.mark.timeout(60)
     def test_teleport_large_chunks(self):

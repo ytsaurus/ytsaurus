@@ -2,8 +2,16 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import *
 from yt.test_helpers import wait
 
+def get_sorted_jobs(op):
+    jobs = []
+    for id, job in op.get_running_jobs().iteritems():
+        job["id"] = id
+        jobs.append(job)
 
-class TestSpeculativeJobs(YTEnvSetup):
+    return sorted(jobs, key=lambda job: job["start_time"])
+
+
+class TestSpeculativeJobEngine(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 2
     NUM_SCHEDULERS = 1
@@ -26,7 +34,7 @@ class TestSpeculativeJobs(YTEnvSetup):
 
     def test_original_faster_than_speculative(self):
         op = self.run_vanilla_with_one_regular_and_one_speculative_job()
-        original, speculative = self.get_sorted_jobs(op)
+        original, speculative = get_sorted_jobs(op)
 
         release_breakpoint(job_id=original["id"])
         op.track()
@@ -37,7 +45,7 @@ class TestSpeculativeJobs(YTEnvSetup):
 
     def test_speculative_faster_than_original(self):
         op = self.run_vanilla_with_one_regular_and_one_speculative_job()
-        original, speculative = self.get_sorted_jobs(op)
+        original, speculative = get_sorted_jobs(op)
 
         release_breakpoint(job_id=speculative["id"])
         op.track()
@@ -51,7 +59,7 @@ class TestSpeculativeJobs(YTEnvSetup):
             command="BREAKPOINT;exit 1",
             spec={"max_failed_job_count": 1}
         )
-        original, speculative = self.get_sorted_jobs(op)
+        original, speculative = get_sorted_jobs(op)
 
         release_breakpoint(job_id=speculative["id"])
         op.track(raise_on_failed=False)
@@ -67,7 +75,7 @@ class TestSpeculativeJobs(YTEnvSetup):
             command="BREAKPOINT;exit 1",
             spec={"max_failed_job_count": 2}
         )
-        original, speculative = self.get_sorted_jobs(op)
+        original, speculative = get_sorted_jobs(op)
 
         release_breakpoint(job_id=speculative["id"])
         wait(lambda: get(op.get_path() + "/@progress/jobs")["running"] == 1)
@@ -80,7 +88,7 @@ class TestSpeculativeJobs(YTEnvSetup):
 
     def test_speculative_job_aborts_but_regular_job_succeeds(self):
         op = self.run_vanilla_with_one_regular_and_one_speculative_job()
-        original, speculative = self.get_sorted_jobs(op)
+        original, speculative = get_sorted_jobs(op)
 
         abort_job(speculative["id"])
         wait(lambda: get(op.get_path() + "/@brief_progress/jobs")["running"] == 1)
@@ -101,7 +109,7 @@ class TestSpeculativeJobs(YTEnvSetup):
 
     def test_regular_job_aborts_but_speculative_job_succeeds(self):
         op = self.run_vanilla_with_one_regular_and_one_speculative_job()
-        original, speculative = self.get_sorted_jobs(op)
+        original, speculative = get_sorted_jobs(op)
 
         abort_job(original["id"])
         wait(lambda: get(op.get_path() + "/@brief_progress/jobs")["running"] == 1)
@@ -120,6 +128,18 @@ class TestSpeculativeJobs(YTEnvSetup):
         assert job_counters["completed"] == 1
         assert job_counters["total"] == 1
 
+    # NB(renadeen): if this flaps - call me
+    def test_original_succeeds_but_speculative_fails_instead_of_abort(self):
+        op = self.run_vanilla_with_one_regular_and_one_speculative_job(command='BREAKPOINT; if [ "$YT_JOB_INDEX" = "1" ]; then exit 1; fi;')
+        original, speculative = get_sorted_jobs(op)
+
+        release_breakpoint(job_id=original["id"])
+        time.sleep(0.01)
+        release_breakpoint(job_id=speculative["id"])
+        op.track()
+
+        assert op.get_state() == "completed"
+
     def test_map_with_speculative_job(self):
         create_test_tables()
         op = map(
@@ -129,7 +149,7 @@ class TestSpeculativeJobs(YTEnvSetup):
             spec={"testing": {"register_speculative_job_on_job_scheduled": True}},
             dont_track=True)
         wait_breakpoint(job_count=2)
-        original, speculative = self.get_sorted_jobs(op)
+        original, speculative = get_sorted_jobs(op)
 
         release_breakpoint(job_id=speculative["id"])
         op.track()
@@ -147,10 +167,131 @@ class TestSpeculativeJobs(YTEnvSetup):
         wait(lambda: get(op.get_path() + "/@progress/jobs")["running"] == 2)
         return op
 
-    def get_sorted_jobs(self, op):
-        jobs = []
-        for id, job in op.get_running_jobs().iteritems():
-            job["id"] = id
-            jobs.append(job)
+class TestSpeculativeJobSplitter(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 6
+    NUM_SCHEDULERS = 1
 
-        return sorted(jobs, key=lambda job: job["start_time"])
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "operations_update_period": 10,
+            "running_jobs_update_period": 10,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 10,
+            "map_operation_options": {
+                "job_splitter": {
+                    "min_job_time": 500,
+                    "min_total_data_size": 1000 ** 3,  # makes jobs unsplittable
+                    "update_period": 100,
+                    "candidate_percentile": 0.8,
+                    "max_jobs_per_split": 3,
+                    "max_input_table_count": 5,
+                    "exec_to_prepare_time_ratio": 1,
+                    "split_timeout_before_speculate": 100,
+                },
+                "spec_template": {
+                    "max_failed_job_count": 1
+                }
+            }
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "scheduler_connector": {
+                "heartbeat_period": 100
+            }
+        }
+    }
+
+    ROW_COUNT_TO_FILL_PIPE = 1000000
+
+    def test_speculative_on_residual_job(self):
+        op = self.run_op_with_residual_speculative_job()
+        regular, speculative = get_sorted_jobs(op)
+
+        release_breakpoint(job_id=speculative["id"])
+        op.track()
+
+    def test_speculative_with_automerge(self):
+        op = self.run_op_with_residual_speculative_job(spec={"auto_merge": {"mode": "relaxed"}})
+        regular, speculative = get_sorted_jobs(op)
+
+        release_breakpoint(job_id=speculative["id"])
+        op.track()
+
+    def test_aborted_speculative_job_is_restarted(self):
+        op = self.run_op_with_residual_speculative_job()
+        regular, speculative = get_sorted_jobs(op)
+        abort_job(speculative["id"])
+
+        wait(lambda: get(op.get_path() + "/@brief_progress/jobs")["aborted"] == 1)
+        wait(lambda: get(op.get_path() + "/@brief_progress/jobs")["running"] == 2)
+
+        release_breakpoint()
+        op.track()
+
+    # TODO(renadeen): improve test
+    def test_three_speculative_jobs_for_three_regular(self):
+        create_test_tables(row_count=2*self.ROW_COUNT_TO_FILL_PIPE)
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command=with_breakpoint("BREAKPOINT; cat"),
+            spec={
+                "job_io": {"buffer_row_count": 1},
+                "data_weight_per_job": 2*10**7
+            }
+        )
+        wait_breakpoint(job_count=6)
+        wait(lambda: get(op.get_path() + "/@brief_progress/jobs")["running"] == 6)
+        assert get(op.get_path() + "/@brief_progress/jobs")["pending"] == 0
+
+        release_breakpoint()
+        op.track()
+
+    def test_max_speculative_job_count(self):
+        create_test_tables(row_count=2*self.ROW_COUNT_TO_FILL_PIPE)
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command=with_breakpoint("BREAKPOINT; cat"),
+            spec={
+                "job_io": {"buffer_row_count": 1},
+                "data_weight_per_job": 2*10**7,
+                "max_speculative_job_count_per_task": 1
+            }
+        )
+        wait_breakpoint(job_count=4)
+        wait(lambda: get(op.get_path() + "/@brief_progress/jobs")["running"] == 4)
+        assert get(op.get_path() + "/@brief_progress/jobs")["pending"] == 0
+
+        release_breakpoint()
+        op.track()
+
+    def run_op_with_residual_speculative_job(self, command="BREAKPOINT; cat", spec=None):
+        spec = {} if spec is None else spec
+        spec["job_io"] = {"buffer_row_count": 1}
+        create_test_tables(row_count=self.ROW_COUNT_TO_FILL_PIPE)
+
+        # Job is unslplittable since min_total_data_size is very large
+        op = map(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command=with_breakpoint(command),
+            spec=spec
+        )
+        wait_breakpoint(job_count=2)
+        wait(lambda: get(op.get_path() + "/@brief_progress/jobs")["running"] == 2)
+
+        return op

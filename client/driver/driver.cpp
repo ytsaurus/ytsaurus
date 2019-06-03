@@ -136,7 +136,10 @@ public:
         REGISTER_ALL(TGetCommand,                         "get",                           Null,       Structured, false, false);
         REGISTER_ALL(TListCommand,                        "list",                          Null,       Structured, false, false);
         REGISTER_ALL(TLockCommand,                        "lock",                          Null,       Structured, true,  false);
-        REGISTER_ALL(TUnlockCommand,                      "unlock",                        Null,       Structured, true,  false);
+
+        REGISTER    (TUnlockCommand,                      "unlock",                        Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TUnlockCommand,                      "unlock",                        Null,       Structured, true,  false, ApiVersion4);
+
         REGISTER_ALL(TCopyCommand,                        "copy",                          Null,       Structured, true,  false);
         REGISTER_ALL(TMoveCommand,                        "move",                          Null,       Structured, true,  false);
         REGISTER_ALL(TLinkCommand,                        "link",                          Null,       Structured, true,  false);

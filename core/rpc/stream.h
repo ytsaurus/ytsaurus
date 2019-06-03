@@ -6,6 +6,7 @@
 #include <yt/core/concurrency/delayed_executor.h>
 
 #include <yt/core/misc/ref.h>
+#include <yt/core/misc/range.h>
 #include <yt/core/misc/ring_queue.h>
 #include <yt/core/misc/sliding_window.h>
 #include <yt/core/misc/memory_zone.h>
@@ -37,7 +38,7 @@ public:
 
     void EnqueuePayload(const TStreamingPayload& payload);
     void Abort(const TError& error);
-    void AbortUnlessClosed(const TError& error);
+    void AbortUnlessClosed(const TError& error, bool fireAborted = true);
     TStreamingFeedback GetFeedback() const;
 
     DEFINE_SIGNAL(void(), Aborted);
@@ -74,7 +75,8 @@ private:
         const std::vector<TSharedRef>& decompressedAttachments);
     void DoAbort(
         TGuard<TSpinLock>& guard,
-        const TError& error);
+        const TError& error,
+        bool fireAborted = true);
     void OnTimeout();
 };
 
@@ -98,7 +100,7 @@ public:
     virtual TFuture<void> Close() override;
 
     void Abort(const TError& error);
-    void AbortUnlessClosed(const TError& error);
+    void AbortUnlessClosed(const TError& error, bool fireAborted = true);
     void HandleFeedback(const TStreamingFeedback& feedback);
     std::optional<TStreamingPayload> TryPull();
 
@@ -140,10 +142,13 @@ private:
     ssize_t ReadPosition_ = 0;
     int PayloadSequenceNumber_ = 0;
 
-    void OnWindowPacketReady(TWindowPacket&& packet, TGuard<TSpinLock>& guard);
+    void OnWindowPacketsReady(TMutableRange<TWindowPacket> packets, TGuard<TSpinLock>& guard);
     void MaybeInvokePullCallback(TGuard<TSpinLock>& guard);
     bool CanPullMore(bool first) const;
-    void DoAbort(TGuard<TSpinLock>& guard, const TError& error);
+    void DoAbort(
+        TGuard<TSpinLock>& guard,
+        const TError& error,
+        bool fireAborted = true);
     void OnTimeout();
 };
 
@@ -151,4 +156,127 @@ DEFINE_REFCOUNTED_TYPE(TAttachmentsOutputStream)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRpcClientInputStream
+    : public NConcurrency::IAsyncZeroCopyInputStream
+{
+public:
+    TRpcClientInputStream(
+        IClientRequestPtr request,
+        TFuture<void> invokeResult);
+
+    virtual TFuture<TSharedRef> Read() override;
+
+    ~TRpcClientInputStream();
+
+private:
+    const IClientRequestPtr Request_;
+
+    NConcurrency::IAsyncZeroCopyInputStreamPtr Underlying_;
+    TFuture<void> InvokeResult_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EWriterFeedback,
+    (Handshake)
+    (Success)
+);
+
+TError CheckWriterFeedback(
+    const TSharedRef& ref,
+    EWriterFeedback expectedFeedback);
+
+TFuture<void> ExpectWriterFeedback(
+    const NConcurrency::IAsyncZeroCopyInputStreamPtr& input,
+    EWriterFeedback expectedFeedback);
+
+TFuture<void> ExpectHandshake(
+    const NConcurrency::IAsyncZeroCopyInputStreamPtr& input,
+    bool feedbackEnabled);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRpcClientOutputStream
+    : public NConcurrency::IAsyncZeroCopyOutputStream
+{
+public:
+    TRpcClientOutputStream(
+        IClientRequestPtr request,
+        TFuture<void> invokeResult,
+        bool feedbackEnabled = false);
+
+    virtual TFuture<void> Write(const TSharedRef& data) override;
+    virtual TFuture<void> Close() override;
+
+private:
+    const IClientRequestPtr Request_;
+
+    NConcurrency::IAsyncZeroCopyOutputStreamPtr Underlying_;
+    TFuture<void> InvokeResult_;
+    TPromise<void> CloseResult_;
+
+    NConcurrency::IAsyncZeroCopyInputStreamPtr FeedbackStream_;
+    bool FeedbackEnabled_;
+
+    TSpinLock SpinLock_;
+    TRingQueue<TPromise<void>> ConfirmationQueue_;
+    TError Error_;
+
+    void AbortOnError(const TError& error);
+    void OnFeedback(const TErrorOr<TSharedRef>& refOrError);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Creates an input stream adapter from an uninvoked client request.
+template <class TRequestMessage, class TResponse>
+TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateRpcClientInputStream(
+    TIntrusivePtr<TTypedClientRequest<TRequestMessage, TResponse>> request);
+
+//! Creates an output stream adapter from an uninvoked client request.
+template <class TRequestMessage, class TResponse>
+TFuture<NConcurrency::IAsyncZeroCopyOutputStreamPtr> CreateRpcClientOutputStream(
+    TIntrusivePtr<TTypedClientRequest<TRequestMessage, TResponse>> request,
+    bool feedbackEnabled = false);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Handles an incoming streaming request that uses the #CreateRpcClientInputStream
+//! function.
+void HandleInputStreamingRequest(
+    const IServiceContextPtr& context,
+    const TCallback<TFuture<TSharedRef>()>& blockGenerator);
+
+void HandleInputStreamingRequest(
+    const IServiceContextPtr& context,
+    const NConcurrency::IAsyncZeroCopyInputStreamPtr& input);
+
+//! Handles an incoming streaming request that uses the #CreateRpcClientOutputStream
+//! function with the same #feedbackEnabled value.
+void HandleOutputStreamingRequest(
+    const IServiceContextPtr& context,
+    const TCallback<TFuture<void>(TSharedRef)>& blockHandler,
+    const TCallback<TFuture<void>()>& finalizer,
+    bool feedbackEnabled = false);
+
+void HandleOutputStreamingRequest(
+    const IServiceContextPtr& context,
+    const NConcurrency::IAsyncZeroCopyOutputStreamPtr& output,
+    bool feedbackEnabled = false);
+
+/////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NRpc
+
+#define STREAM_INL_H_
+#include "stream-inl.h"
+#undef STREAM_INL_H_
+

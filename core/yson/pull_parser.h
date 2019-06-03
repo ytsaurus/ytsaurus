@@ -217,6 +217,33 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Cursor based iteration using pull parser.
+// To check if yson stream is exhausted check if current item is of type EYsonItemType::EndOfStream.
+class TYsonPullParserCursor
+{
+public:
+    // This constructor extracts next element from parser immediately.
+    Y_FORCE_INLINE TYsonPullParserCursor(TYsonPullParser* parser);
+
+    Y_FORCE_INLINE TYsonPullParserCursor(TYsonItem current, TYsonPullParser* parser);
+
+    Y_FORCE_INLINE const TYsonItem& GetCurrent() const;
+    Y_FORCE_INLINE void Next();
+
+    // If cursor is positioned over simple value  (i.e. just integer) cursor is moved one element further.
+    // If cursor is positioned over start of list/map cursor will be moved to the first item after
+    // current list/map.
+    // If cursor is positioned over start of attributes all attributes will be skipped and then value which
+    // owns these attributes will be skipped as well.
+    void SkipComplexValue();
+
+private:
+    TYsonItem Current_;
+    TYsonPullParser* Parser_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NYson
 
 #define PULL_PARSER_INL_H_

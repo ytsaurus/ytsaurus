@@ -103,6 +103,15 @@ std::vector<int> GetPidsByUid(int uid)
 #endif
 }
 
+size_t GetCurrentProcessId()
+{
+#if defined(_linux_)
+    return getpid();
+#else
+    Y_UNREACHABLE();
+#endif
+}
+
 size_t GetCurrentThreadId()
 {
 #if defined(_linux_)

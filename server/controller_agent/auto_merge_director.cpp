@@ -129,6 +129,11 @@ void TAutoMergeDirector::OnTaskCompleted()
     StateChanged_.Fire();
 }
 
+bool TAutoMergeDirector::IsTaskCompleted() const
+{
+    return TaskCompleted_;
+}
+
 int TAutoMergeDirector::GetTaskPendingJobCountLimit()
 {
     return std::max(0, MaxIntermediateChunkCount_ - CurrentIntermediateChunkCount_);

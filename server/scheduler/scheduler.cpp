@@ -190,28 +190,6 @@ public:
             GetLocalHostName(),
             Bootstrap_->GetConfig()->RpcPort);
 
-        for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
-            JobStateToTag_[state] = TProfileManager::Get()->RegisterTag("state", FormatEnum(state));
-        }
-
-        for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
-            if (type < FirstSchedulerJobType || type > LastSchedulerJobType) {
-                continue;
-            }
-            JobTypeToTag_[type] = TProfileManager::Get()->RegisterTag("job_type", FormatEnum(type));
-        }
-
-        for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
-            if (IsSentinelReason(reason)) {
-                continue;
-            }
-            JobAbortReasonToTag_[reason] = TProfileManager::Get()->RegisterTag("abort_reason", FormatEnum(reason));
-        }
-
-        for (auto reason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
-            JobInterruptReasonToTag_[reason] = TProfileManager::Get()->RegisterTag("interrupt_reason", FormatEnum(reason));
-        }
-
         {
             std::vector<IInvokerPtr> feasibleInvokers;
             for (auto controlQueue : TEnumTraits<EControlQueue>::GetDomainValues()) {
@@ -995,7 +973,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto resourceLimits = ZeroJobResources();
+        TJobResources resourceLimits;
         for (const auto& nodeShard : NodeShards_) {
             resourceLimits += nodeShard->GetResourceLimits(filter);
         }
@@ -1289,11 +1267,6 @@ private:
     TMonotonicCounter TotalFailedJobTimeCounter_{"/total_failed_job_time"};
     TMonotonicCounter TotalAbortedJobTimeCounter_{"/total_aborted_job_time"};
 
-    TEnumIndexedVector<TTagId, EJobState> JobStateToTag_;
-    TEnumIndexedVector<TTagId, EJobType> JobTypeToTag_;
-    TEnumIndexedVector<TTagId, EAbortReason> JobAbortReasonToTag_;
-    TEnumIndexedVector<TTagId, EInterruptReason> JobInterruptReasonToTag_;
-
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr ClusterInfoLoggingExecutor_;
     TPeriodicExecutorPtr NodesInfoLoggingExecutor_;
@@ -1439,19 +1412,27 @@ private:
             shardCompletedJobCounter[shardId] = nodeShard->GetCompletedJobCounter();
         }
 
+        static const NProfiling::TEnumMemberTagCache<EJobState> JobStateTagCache("state");
+        static const NProfiling::TEnumMemberTagCache<EJobType> JobTypeTagCache("job_type");
+        static const NProfiling::TEnumMemberTagCache<EAbortReason> JobAbortReasonTagCache("abort_reason");
+        static const NProfiling::TEnumMemberTagCache<EInterruptReason> JobInterruptReasonTagCache("interrupt_reason");
+
         for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
             if (type < FirstSchedulerJobType || type > LastSchedulerJobType) {
                 continue;
             }
             for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
-                TTagIdList commonTags = {JobStateToTag_[state], JobTypeToTag_[type]};
+                TTagIdList commonTags{
+                    JobStateTagCache.GetTag(state),
+                    JobTypeTagCache.GetTag(type)
+                };
                 if (state == EJobState::Aborted) {
                     for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
                         if (IsSentinelReason(reason)) {
                             continue;
                         }
                         auto tags = commonTags;
-                        tags.push_back(JobAbortReasonToTag_[reason]);
+                        tags.push_back(JobAbortReasonTagCache.GetTag(reason));
                         int counter = 0;
                         for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
                             const auto& map = shardAbortedJobCounter[shardId];
@@ -1465,7 +1446,7 @@ private:
                 } else if (state == EJobState::Completed) {
                     for (auto reason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
                         auto tags = commonTags;
-                        tags.push_back(JobInterruptReasonToTag_[reason]);
+                        tags.push_back(JobInterruptReasonTagCache.GetTag(reason));
                         int counter = 0;
                         for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
                             const auto& map = shardCompletedJobCounter[shardId];
@@ -2921,7 +2902,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto resourceUsage = ZeroJobResources();
+        TJobResources resourceUsage;
         for (const auto& nodeShard : NodeShards_) {
             resourceUsage += nodeShard->GetResourceUsage(filter);
         }

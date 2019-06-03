@@ -461,7 +461,7 @@ TKey GetKeySuccessor(TKey key, const TRowBufferPtr& rowBuffer);
 TOwningKey GetKeyPrefixSuccessor(TKey key, ui32 prefixLength);
 TKey GetKeyPrefixSuccessor(TKey key, ui32 prefixLength, const TRowBufferPtr& rowBuffer);
 
-//! Returns key of a strict lenght (either trimmed key or widen key)
+//! Returns key of a strict length (either trimmed key or widened key)
 TKey GetStrictKey(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType = EValueType::Null);
 TKey GetStrictKeySuccessor(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType = EValueType::Null);
 
@@ -472,6 +472,10 @@ TKey GetKeyPrefix(TKey key, ui32 prefixLength, const TRowBufferPtr& rowBuffer);
 //! Makes a new, wider key padded with given sentinel values.
 TOwningKey WidenKey(const TOwningKey& key, ui32 keyColumnCount, EValueType sentinelType = EValueType::Null);
 TKey WidenKey(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType = EValueType::Null);
+
+//! Makes the key wider by appending given sentinel values up to |keyColumnCount| length
+//! and then appends a |EValueType::Max| sentinel.
+TOwningKey WidenKeySuccessor(const TOwningKey& key, ui32 keyColumnCount, EValueType sentinelType = EValueType::Null);
 TKey WidenKeySuccessor(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType = EValueType::Null);
 
 //! Takes prefix of a key and makes it wider.

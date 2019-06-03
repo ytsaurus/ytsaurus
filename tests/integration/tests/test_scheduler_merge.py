@@ -31,7 +31,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                     "min_job_time": 3000,
                     "min_total_data_size": 1024,
                     "update_period": 100,
-                    "median_excess_duration": 3000,
                     "candidate_percentile": 0.8,
                     "max_jobs_per_split": 3,
                 },
@@ -41,7 +40,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                     "min_job_time": 3000,
                     "min_total_data_size": 1024,
                     "update_period": 100,
-                    "median_excess_duration": 3000,
                     "candidate_percentile": 0.8,
                     "max_jobs_per_split": 3,
                 },
@@ -693,11 +691,15 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             assert_items_equal(read_table("//tmp/t_out"), [{k: r[k] for k in ("k1", "v1")} for r in rows])
 
             schema = make_schema(
-                [{"name": "k1", "type": "int64"}, {"name": "v1", "type": "int64"}],
-                unique_keys=False, strict=True)
+                [
+                    {"name": "k1", "type": "int64", "required": False},
+                    {"name": "v1", "type": "int64", "required": False},
+                ],
+                unique_keys=False,
+                strict=True)
             if mode != "unordered":
                 schema[0]["sort_order"] = "ascending"
-            assert get("//tmp/t_out/@schema") == schema
+            assert normalize_schema(get("//tmp/t_out/@schema")) == schema
 
             remove("//tmp/t_out")
             create("table", "//tmp/t_out")
@@ -708,9 +710,14 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
             assert_items_equal(read_table("//tmp/t_out"), [{k: r[k] for k in ("k2", "v2")} for r in rows])
 
-            schema = make_schema([{"name": "k2", "type": "int64"}, {"name": "v2", "type": "int64"}],
-                                 unique_keys=False, strict=True)
-            assert get("//tmp/t_out/@schema") == schema
+            schema = make_schema(
+                [
+                    {"name": "k2", "type": "int64", "required": False},
+                    {"name": "v2", "type": "int64", "required": False}
+                ],
+                unique_keys=False,
+                strict=True)
+            assert normalize_schema(get("//tmp/t_out/@schema")) == schema
 
             remove("//tmp/t_out")
             create("table", "//tmp/t_out")
@@ -722,13 +729,18 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert_items_equal(read_table("//tmp/t_out"), [{k: r[k] for k in ("k1", "k2", "v2")} for r in rows])
 
         schema = make_schema(
-            [{"name": "k1", "type": "int64"}, {"name": "k2", "type": "int64"}, {"name": "v2", "type": "int64"}],
-            unique_keys=False, strict=True)
+            [
+                {"name": "k1", "type": "int64", "required": False},
+                {"name": "k2", "type": "int64", "required": False},
+                {"name": "v2", "type": "int64", "required": False},
+            ],
+            unique_keys=False,
+            strict=True)
         if mode != "unordered":
             schema.attributes["unique_keys"] = True
             schema[0]["sort_order"] = "ascending"
             schema[1]["sort_order"] = "ascending"
-        assert get("//tmp/t_out/@schema") == schema
+        assert normalize_schema(get("//tmp/t_out/@schema")) == schema
 
     @pytest.mark.parametrize("mode", ["ordered", "sorted"])
     def test_column_selectors_output_schema_validation(self, mode):
@@ -1012,6 +1024,61 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 in_="//tmp/input",
                 out="//tmp/output",
                 spec={"schema_inference_mode" : "from_output"})
+
+    @pytest.mark.parametrize("mode", ["unordered", "ordered", "sorted"])
+    def test_schema_validation_complex_types(self, mode):
+        first_column = {"name": "index", "type_v2": "int64"}
+        if mode == "sorted":
+            first_column["sort_order"] = "ascending"
+
+        input_schema = make_schema([
+            first_column,
+            {"name": "value", "type_v2": optional_type(optional_type("string"))},
+        ], unique_keys=False, strict=True)
+        output_schema = make_schema([
+            first_column,
+            {"name": "value", "type_v2": list_type(optional_type("string"))},
+        ], unique_keys=False, strict=True)
+
+        create("table", "//tmp/input", attributes={"schema": input_schema})
+        create("table", "//tmp/output", attributes={"schema": output_schema})
+        write_table("//tmp/input", [
+            {"index": 1, "value": [None]},
+            {"index": 2, "value": ["foo"]},
+        ])
+
+        # We check that yson representation of types are compatible with each other
+        write_table("//tmp/output", read_table("//tmp/input"))
+
+        merge_by_args = {}
+        if mode == "sorted":
+            merge_by_args["merge_by"] = "index"
+
+        with pytest.raises(YtError):
+            merge(
+                mode=mode,
+                in_="//tmp/input",
+                out="//tmp/output",
+                spec={"schema_inference_mode": "auto"},
+                **merge_by_args
+            )
+        merge(
+            mode=mode,
+            in_="//tmp/input",
+            out="//tmp/output",
+            spec={"schema_inference_mode": "from_output"},
+            **merge_by_args
+        )
+        assert normalize_schema_v2(output_schema) == normalize_schema_v2(get("//tmp/output/@schema"))
+        merge(
+            mode=mode,
+            in_="//tmp/input",
+            out="//tmp/output",
+            spec={"schema_inference_mode": "from_input"},
+            **merge_by_args
+        )
+        assert normalize_schema_v2(input_schema) == normalize_schema_v2(get("//tmp/output/@schema"))
+
 
     @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
