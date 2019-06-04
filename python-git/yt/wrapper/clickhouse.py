@@ -108,13 +108,19 @@ def get_clickhouse_clique_spec_builder(instance_count,
     else:
         extract_geodata_command = ""
 
-    if spec is None:
-        spec = dict()
-    if "annotations" not in spec:
-        spec["annotations"] = dict()
-    spec["annotations"]["is_clique"] = True
-    if "expose" not in spec["annotations"]:
-        spec["annotations"]["expose"] = True
+    spec_base = {
+        "annotations": {
+            "is_clique": True,
+            "expose": True,
+        },
+        "tasks": {
+            "clickhouse_servers": {
+                "user_job_memory_digest_lower_bound": 1.0
+            }
+        }
+    }
+
+    spec = update(spec_base, spec) if spec is not None else spec_base
 
     monitoring_port = "10142" if enable_monitoring else "$YT_PORT_1"
 
