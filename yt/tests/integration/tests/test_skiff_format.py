@@ -71,7 +71,11 @@ class TestSkiffFormat(YTEnvSetup):
         map(in_="//tmp/t_in",
             out="//tmp/t_out",
             command="cat",
-            format=format)
+            spec={
+                "mapper":{
+                    "format": format
+                }
+            })
 
         assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
 
@@ -111,7 +115,11 @@ class TestSkiffFormat(YTEnvSetup):
         map(in_="//tmp/t_in",
             out="//tmp/t_out",
             command="cat",
-            format=format)
+            spec={
+                "mapper":{
+                    "format": format
+                }
+            })
 
         assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
 
@@ -131,6 +139,10 @@ class TestSkiffFormat(YTEnvSetup):
         map(in_="//tmp/t_in",
             out="//tmp/t_out",
             command="cat",
-            format=format)
+            spec={
+                "mapper":{
+                    "format": format
+                }
+            })
 
         assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
