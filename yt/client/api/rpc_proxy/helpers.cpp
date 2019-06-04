@@ -1308,10 +1308,10 @@ TTableSchema DeserializeRowsetSchema(
         // TODO (ermolovd) YT-7178, support complex schemas.
         if (descriptor.columns(i).has_logical_type()) {
             auto simpleLogicalType = CheckedEnumCast<NTableClient::ESimpleLogicalValueType>(descriptor.columns(i).logical_type());
-            columns[i].SetLogicalType(SimpleLogicalType(simpleLogicalType, false));
+            columns[i].SetLogicalType(SimpleLogicalType(simpleLogicalType, /*required*/ false));
         } else if (descriptor.columns(i).has_type()) {
             auto simpleLogicalType = CheckedEnumCast<NTableClient::ESimpleLogicalValueType>(descriptor.columns(i).type());
-            columns[i].SetLogicalType(SimpleLogicalType(simpleLogicalType, false));
+            columns[i].SetLogicalType(SimpleLogicalType(simpleLogicalType, /*required*/ false));
         }
     }
     return TTableSchema(std::move(columns));

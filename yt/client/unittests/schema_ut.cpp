@@ -33,7 +33,7 @@ TEST(TTableSchemaTest, ColumnTypeDeserialization)
             "  name=x;"
             "  type=int64;"
             "}");
-        EXPECT_EQ(*column.LogicalType(), *SimpleLogicalType(ESimpleLogicalValueType::Int64, false));
+        EXPECT_EQ(*column.LogicalType(), *SimpleLogicalType(ESimpleLogicalValueType::Int64, /*required*/ false));
     }
 
     {
@@ -43,7 +43,7 @@ TEST(TTableSchemaTest, ColumnTypeDeserialization)
             "  type=uint64;"
             "  required=%true"
             "}");
-        EXPECT_EQ(*column.LogicalType(), *SimpleLogicalType(ESimpleLogicalValueType::Uint64, true));
+        EXPECT_EQ(*column.LogicalType(), *SimpleLogicalType(ESimpleLogicalValueType::Uint64));
     }
 
     {
@@ -55,7 +55,7 @@ TEST(TTableSchemaTest, ColumnTypeDeserialization)
             "    element=utf8"
             "  }"
             "}");
-        EXPECT_EQ(*column.LogicalType(), *ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8, true)));
+        EXPECT_EQ(*column.LogicalType(), *ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8)));
     }
 
     {
@@ -68,7 +68,7 @@ TEST(TTableSchemaTest, ColumnTypeDeserialization)
             "  };"
             "  required=%true;"
             "}");
-        EXPECT_EQ(*column.LogicalType(), *ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8, true)));
+        EXPECT_EQ(*column.LogicalType(), *ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8)));
     }
 
     {
@@ -81,7 +81,7 @@ TEST(TTableSchemaTest, ColumnTypeDeserialization)
             "  };"
             "  type=any;"
             "}");
-        EXPECT_EQ(*column.LogicalType(), *ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8, true)));
+        EXPECT_EQ(*column.LogicalType(), *ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8)));
     }
 
     {
@@ -98,7 +98,9 @@ TEST(TTableSchemaTest, ColumnTypeDeserialization)
             "  type=any;"
             "  required=%false;"
             "}");
-        EXPECT_EQ(*column.LogicalType(), *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8, false)));
+        EXPECT_EQ(
+            *column.LogicalType(),
+            *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8, /*required*/ false)));
     }
 
     EXPECT_ANY_THROW(
@@ -190,16 +192,16 @@ TEST(TTableSchemaTest, ColumnSchemaValidation)
     // Struct field validation
     expectBad(
         TColumnSchema("Column", StructLogicalType({
-            {"", SimpleLogicalType(ESimpleLogicalValueType::Int8, true)}
+            {"", SimpleLogicalType(ESimpleLogicalValueType::Int8)}
         })));
     expectBad(
         TColumnSchema("Column", StructLogicalType({
-            {TString(257, 'a'), SimpleLogicalType(ESimpleLogicalValueType::Int8, true)}
+            {TString(257, 'a'), SimpleLogicalType(ESimpleLogicalValueType::Int8)}
         })));
 
     expectBad(
         TColumnSchema("Column", StructLogicalType({
-            {"\255", SimpleLogicalType(ESimpleLogicalValueType::Int8, true)}
+            {"\255", SimpleLogicalType(ESimpleLogicalValueType::Int8)}
         })));
 }
 
