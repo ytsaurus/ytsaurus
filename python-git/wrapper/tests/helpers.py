@@ -41,9 +41,13 @@ def get_tests_location():
 
 def get_tests_sandbox():
     path = os.environ.get("TESTS_SANDBOX")
+    tmpfs_path = get_tmpfs_path()
     if path is None:
         if yatest_common is not None:
-            path = os.path.join(yatest_common.output_path(), "sandbox")
+            if tmpfs_path is None:
+                path = os.path.join(yatest_common.output_path(), "sandbox")
+            else:
+                path = os.path.join(tmpfs_path, "sandbox")
         else:
             path = TESTS_SANDBOX
     if not os.path.exists(path):
