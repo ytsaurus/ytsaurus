@@ -3873,6 +3873,9 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
         operation_balance = sorted(__builtin__.map(lambda value: len(value), address_to_operation.values()))
         balance_ratio = float(operation_balance[0]) / operation_balance[1]
         print >>sys.stderr, "BALANCE_RATIO", balance_ratio
+        if not (0.5 <= balance_ratio <= 0.8):
+            for op in ops:
+                print >>sys.stderr, op.id, get(op.get_path() + "/controller_orchid/memory_usage", verbose=False)
         assert 0.5 <= balance_ratio <= 0.8
 
 class TestPorts(YTEnvSetup):
