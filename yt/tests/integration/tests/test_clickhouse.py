@@ -28,7 +28,7 @@ DEFAULTS = {
     "memory_limit": 5 * 1000**3,
     "host_ytserver_clickhouse_path": YTSERVER_CLICKHOUSE_BINARY,
     "cpu_limit": 1,
-    "enable_monitorin`g": False,
+    "enable_monitoring": False,
     "clickhouse_config": {},
 }
 
@@ -40,6 +40,9 @@ class Clique(object):
 
     def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, **kwargs):
         config = update(Clique.base_config, config_patch) if config_patch is not None else Clique.base_config
+        spec = {"pool": None}
+        if "spec" in kwargs:
+            spec = update(spec, kwargs.pop(spec))
 
         self.log_root = os.path.join(self.path_to_run, "logs", "clickhouse-{}".format(Clique.clique_index))
         for writer_key, writer in config["logging"]["writers"].iteritems():
@@ -57,6 +60,7 @@ class Clique(object):
                                                           cypress_config_path=filename,
                                                           max_failed_job_count=max_failed_job_count,
                                                           defaults=DEFAULTS,
+                                                          spec=spec,
                                                           **kwargs)
         self.spec = simplify_structure(spec_builder.build())
         if not is_asan_build():
