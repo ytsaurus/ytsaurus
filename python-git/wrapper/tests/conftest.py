@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from .helpers import (get_tests_location, TEST_DIR, get_tests_sandbox, ENABLE_JOB_CONTROL,
-                      sync_create_cell, get_test_file_path, get_tmpfs_path, get_port_locks_path,
+                      sync_create_cell, get_test_file_path, get_port_locks_path,
                       yatest_common, create_job_events)
 
 from yt.environment import YTInstance
@@ -74,8 +74,8 @@ class YtTestEnvironment(object):
         logging.getLogger("Yt.local").setLevel(logging.INFO)
 
         run_id = uuid.uuid4().hex[:8]
-        uniq_dir_name = os.path.join(self.test_name, "run_" + run_id)
-        dir = os.path.join(get_tests_sandbox(), uniq_dir_name)
+        self.uniq_dir_name = os.path.join(self.test_name, "run_" + run_id)
+        self.sandbox_dir = os.path.join(get_tests_sandbox(), self.uniq_dir_name)
 
         common_delta_node_config = {
             "exec_agent": {
@@ -149,13 +149,7 @@ class YtTestEnvironment(object):
         if not os.path.exists(local_temp_directory):
             os.mkdir(local_temp_directory)
 
-        tmpfs_path = get_tmpfs_path()
-        if tmpfs_path is not None:
-            tmpfs_path = os.path.join(tmpfs_path, uniq_dir_name)
-            if not os.path.exists(tmpfs_path):
-                os.makedirs(tmpfs_path)
-
-        self.env = YTInstance(dir,
+        self.env = YTInstance(self.sandbox_dir,
                               master_count=1,
                               node_count=5,
                               scheduler_count=1,
@@ -165,7 +159,6 @@ class YtTestEnvironment(object):
                               fqdn="localhost",
                               modify_configs_func=modify_configs,
                               kill_child_processes=True,
-                              tmpfs_path=tmpfs_path,
                               allow_chunk_storage_in_tmpfs=True,
                               **env_options)
 
@@ -233,6 +226,13 @@ class YtTestEnvironment(object):
                 shutil.rmtree(node_config["data_node"]["cache_locations"][0]["path"])
             else:
                 shutil.rmtree(node_config["data_node"]["cache_location"]["path"])
+
+        try:
+            save_yatest_working_files(self.sandbox_dir, self.uniq_dir_name)
+        except:
+            # Additional logging added due to https://github.com/pytest-dev/pytest/issues/2237
+            logging.exception("YtTestEnvironment cleanup failed")
+            raise
 
     def check_liveness(self):
         self.env.check_liveness(callback_func=_pytest_finalize_func)
@@ -361,6 +361,13 @@ def test_method_teardown():
     yt.remove(TEST_DIR, recursive=True, force=True)
 
     _remove_operations()
+
+def save_yatest_working_files(sandbox_path, output_subpath):
+    if yatest_common is None or yatest_common.get_param("ram_drive_path") is None:
+        return
+    shutil.copytree(
+        sandbox_path,
+        os.path.join(yatest_common.output_path(), output_subpath))
 
 @pytest.fixture(scope="function")
 def yt_env(request, test_environment):
