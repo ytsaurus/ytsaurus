@@ -271,13 +271,13 @@ TClientContextPtr TClientRequest::CreateClientContext()
         RequestAttachmentsStream_ = New<TAttachmentsOutputStream>(
             MemoryZone_,
             RequestCodec_,
-            GetInvoker(),
+            TDispatcher::Get()->GetCompressionPoolInvoker(),
             BIND(&TClientRequest::OnPullRequestAttachmentsStream, MakeWeak(this)),
             ClientAttachmentsStreamingParameters_.WindowSize,
             ClientAttachmentsStreamingParameters_.WriteTimeout);
         ResponseAttachmentsStream_ = New<TAttachmentsInputStream>(
             BIND(&TClientRequest::OnResponseAttachmentsStreamRead, MakeWeak(this)),
-            GetInvoker(),
+            TDispatcher::Get()->GetCompressionPoolInvoker(),
             ClientAttachmentsStreamingParameters_.ReadTimeout);
     }
 
@@ -504,28 +504,20 @@ void TClientResponse::Deserialize(TSharedRefArray responseMessage)
 
     DeserializeBody(ResponseMessage_[1], bodyCodecId);
 
-    auto* attachmentCodec = NCompression::GetCodec(attachmentCodecId);
-
     auto memoryZone = CheckedEnumCast<EMemoryZone>(Header_.memory_zone());
 
-    Attachments_.clear();
-    Attachments_.reserve(ResponseMessage_.Size() - 2);
-    for (auto attachmentIt = ResponseMessage_.Begin() + 2;
-        attachmentIt != ResponseMessage_.End();
-        ++attachmentIt)
-    {
-        TSharedRef decompressedAttachment;
-        {
-            TMemoryZoneGuard guard(memoryZone);
-            if (attachmentCodecId == NCompression::ECodec::None && memoryZone != EMemoryZone::Normal) {
-                struct TCopiedAttachmentTag
-                { };
-                decompressedAttachment = TSharedMutableRef::MakeCopy<TCopiedAttachmentTag>(*attachmentIt);
-            } else {
-                decompressedAttachment = attachmentCodec->Decompress(*attachmentIt);
-            }
+    auto compressedAttachments = MakeRange(ResponseMessage_.Begin() + 2, ResponseMessage_.End());
+    if (attachmentCodecId == NCompression::ECodec::None && memoryZone != EMemoryZone::Normal) {
+        Attachments_.clear();
+        Attachments_.reserve(compressedAttachments.Size());
+        for (const auto& attachment : compressedAttachments) {
+            struct TCopiedAttachmentTag
+            { };
+            auto copiedAttachment = TSharedMutableRef::MakeCopy<TCopiedAttachmentTag>(attachment);
+            Attachments_.push_back(std::move(copiedAttachment));
         }
-        Attachments_.push_back(std::move(decompressedAttachment));
+    } else {
+        Attachments_ = DecompressAttachments(compressedAttachments, attachmentCodecId);
     }
 }
 

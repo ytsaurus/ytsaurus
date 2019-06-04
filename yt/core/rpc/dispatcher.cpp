@@ -5,6 +5,7 @@
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/rw_spinlock.h>
 
+#include <yt/core/misc/lazy_ptr.h>
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/shutdown.h>
 
@@ -20,6 +21,7 @@ class TDispatcher::TImpl
 {
 public:
     TImpl()
+        : CompressionPoolInvoker_(BIND(&TImpl::CreateCompressionPoolInvoker, Unretained(this)))
     {
         NetworkNames_.push_back(DefaultNetworkName);
         for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
@@ -31,6 +33,7 @@ public:
     void Configure(const TDispatcherConfigPtr& config)
     {
         HeavyPool_->Configure(config->HeavyPoolSize);
+        CompressionPool_->Configure(config->CompressionPoolSize);
         TWriterGuard guard(SpinLock_);
 
         for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
@@ -96,10 +99,21 @@ public:
         return HeavyPool_->GetInvoker();
     }
 
+    const IPrioritizedInvokerPtr& GetPrioritizedCompressionPoolInvoker()
+    {
+        return CompressionPoolInvoker_.Value();
+    }
+
+    const IInvokerPtr& GetCompressionPoolInvoker()
+    {
+        return CompressionPool_->GetInvoker();
+    }
+
     void Shutdown()
     {
         LightQueue_->Shutdown();
         HeavyPool_->Shutdown();
+        CompressionPool_->Shutdown();
     }
 
 private:
@@ -111,6 +125,8 @@ private:
 
     const TActionQueuePtr LightQueue_ = New<TActionQueue>("RpcLight");
     const TThreadPoolPtr HeavyPool_ = New<TThreadPool>(TDispatcherConfig::DefaultHeavyPoolSize, "RpcHeavy");
+    const TThreadPoolPtr CompressionPool_ = New<TThreadPool>(TDispatcherConfig::DefaultCompressionPoolSize, "Compression");
+    TLazyIntrusivePtr<IPrioritizedInvoker> CompressionPoolInvoker_;
 
     TReaderWriterSpinLock SpinLock_;
     TEnumIndexedVector<TBandDescriptor, EMultiplexingBand> BandToDescriptor_;
@@ -132,6 +148,11 @@ private:
             bandDescriptor.NetworkIdToTosLevel.resize(NetworkNames_.size(), bandDescriptor.DefaultTosLevel);
         }
         return id;
+    }
+
+    IPrioritizedInvokerPtr CreateCompressionPoolInvoker()
+    {
+        return CreatePrioritizedInvoker(CompressionPool_->GetInvoker());
     }
 };
 
@@ -179,6 +200,16 @@ const IInvokerPtr& TDispatcher::GetLightInvoker()
 const IInvokerPtr& TDispatcher::GetHeavyInvoker()
 {
     return Impl_->GetHeavyInvoker();
+}
+
+const IPrioritizedInvokerPtr& TDispatcher::GetPrioritizedCompressionPoolInvoker()
+{
+    return Impl_->GetPrioritizedCompressionPoolInvoker();
+}
+
+const IInvokerPtr& TDispatcher::GetCompressionPoolInvoker()
+{
+    return Impl_->GetCompressionPoolInvoker();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

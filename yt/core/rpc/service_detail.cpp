@@ -751,7 +751,7 @@ private:
             auto parameters = FromProto<TStreamingParameters>(RequestHeader_->server_attachments_streaming_parameters());
             RequestAttachmentsStream_ =  New<TAttachmentsInputStream>(
                 BIND(&TServiceContext::OnRequestAttachmentsStreamRead, MakeWeak(this)),
-                GetInvoker(),
+                TDispatcher::Get()->GetCompressionPoolInvoker(),
                 parameters.ReadTimeout);
         }
 
@@ -773,7 +773,7 @@ private:
             ResponseAttachmentsStream_ = New<TAttachmentsOutputStream>(
                 ResponseMemoryZone_,
                 ResponseCodec_,
-                GetInvoker(),
+                TDispatcher::Get()->GetCompressionPoolInvoker(),
                 BIND(&TServiceContext::OnPullResponseAttachmentsStream, MakeWeak(this)),
                 parameters.WindowSize,
                 parameters.WriteTimeout);

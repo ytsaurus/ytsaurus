@@ -6,7 +6,6 @@
 #include "chunk_reader.h"
 #include "config.h"
 #include "data_node_service_proxy.h"
-#include "dispatcher.h"
 #include "helpers.h"
 #include "chunk_reader_allowing_repair.h"
 
@@ -38,6 +37,8 @@
 #include <yt/core/misc/memory_zone.h>
 
 #include <yt/core/net/local_address.h>
+
+#include <yt/core/rpc/dispatcher.h>
 
 #include <util/generic/ymath.h>
 
@@ -143,7 +144,7 @@ public:
         , Networks_(client->GetNativeConnection()->GetNetworks())
         , TrafficMeter_(trafficMeter)
         , LocateChunksInvoker_(CreateFixedPriorityInvoker(
-            TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
+            NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
             // We locate chunks with batch workload category.
             TWorkloadDescriptor(EWorkloadCategory::UserBatch).GetPriority()))
         , Logger(NLogging::TLogger(ChunkClientLogger)
@@ -538,7 +539,7 @@ protected:
                 options.ReadSessionId,
                 reader->ChunkId_))
         , SessionInvoker_(CreateFixedPriorityInvoker(
-            TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
+            NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
             WorkloadDescriptor_.GetPriority()))
     {
         ResetPeerQueue();

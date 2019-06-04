@@ -4,6 +4,8 @@
 
 #include <yt/core/actions/public.h>
 
+#include <yt/core/compression/public.h>
+
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/ref.h>
 
@@ -82,6 +84,24 @@ void GenerateMutationId(const IClientRequestPtr& request);
 void SetMutationId(NProto::TRequestHeader* header, TMutationId id, bool retry);
 void SetMutationId(const IClientRequestPtr& request, TMutationId id, bool retry);
 void SetOrGenerateMutationId(const IClientRequestPtr& request, TMutationId id, bool retry);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<std::vector<TSharedRef>> AsyncCompressAttachments(
+    TRange<TSharedRef> attachments,
+    NCompression::ECodec codecId);
+
+TFuture<std::vector<TSharedRef>> AsyncDecompressAttachments(
+    TRange<TSharedRef> attachments,
+    NCompression::ECodec codecId);
+
+std::vector<TSharedRef> CompressAttachments(
+    TRange<TSharedRef> attachments,
+    NCompression::ECodec codecId);
+
+std::vector<TSharedRef> DecompressAttachments(
+    TRange<TSharedRef> attachments,
+    NCompression::ECodec codecId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

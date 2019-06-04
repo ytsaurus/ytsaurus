@@ -29,6 +29,8 @@
 
 #include <yt/core/misc/numeric_helpers.h>
 
+#include <yt/core/rpc/dispatcher.h>
+
 namespace NYT::NChunkClient {
 
 using namespace NErasure;
@@ -346,7 +348,7 @@ void TErasureWriter::WriteDataPart(int partIndex, IChunkWriterPtr writer, const 
 
 TFuture<void> TErasureWriter::EncodeAndWriteParityBlocks()
 {
-    VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetCompressionPoolInvoker());
+    VERIFY_INVOKER_AFFINITY(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker());
 
     TPartIndexList parityIndices;
     for (int index = Codec_->GetDataPartCount(); index < Codec_->GetTotalPartCount(); ++index) {
@@ -402,7 +404,7 @@ TFuture<void> TErasureWriter::Close(const TRefCountedChunkMetaPtr& chunkMeta)
     PrepareChunkMeta(*chunkMeta);
 
     auto compressionInvoker = CreateFixedPriorityInvoker(
-        TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
+        NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
         WorkloadDescriptor_.GetPriority());
 
     std::vector<TFuture<void>> asyncResults {

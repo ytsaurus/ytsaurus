@@ -220,21 +220,19 @@ public:
             return false;
         }
 
-        auto* attachmentCodec = NCompression::GetCodec(attachmentCodecId);
-
         std::vector<TSharedRef> requestAttachments;
-        requestAttachments.reserve(UnderlyingContext_->RequestAttachments().size());
-        for (const auto& attachment : UnderlyingContext_->RequestAttachments()) {
-            try {
-                auto decompressedAttachment = attachmentCodec->Decompress(attachment);
-                requestAttachments.push_back(std::move(decompressedAttachment));
-            } catch (const std::exception& ex) {
-                UnderlyingContext_->Reply(TError(
-                    NRpc::EErrorCode::ProtocolError,
-                    "Error deserializing request attachments"));
-                return false;
-            }
+        try {
+            requestAttachments = DecompressAttachments(
+                UnderlyingContext_->RequestAttachments(),
+                attachmentCodecId);
+        } catch (const std::exception& ex) {
+            UnderlyingContext_->Reply(TError(
+                NRpc::EErrorCode::ProtocolError,
+                "Error deserializing request attachments")
+                << ex);
+            return false;
         }
+
         Request_->Attachments() = std::move(requestAttachments);
 
         return true;
@@ -325,12 +323,7 @@ protected:
                 }
             }
 
-            auto* attachmentCodec = NCompression::GetCodec(attachmentCodecId);
-            std::vector<TSharedRef> responseAttachments;
-            for (const auto& attachment : Response_->Attachments()) {
-                auto compressedAttachment = attachmentCodec->Compress(attachment);
-                responseAttachments.push_back(std::move(compressedAttachment));
-            }
+            auto responseAttachments = CompressAttachments(Response_->Attachments(), attachmentCodecId);
 
             this->UnderlyingContext_->SetResponseBody(std::move(serializedBody));
             this->UnderlyingContext_->ResponseAttachments() = std::move(responseAttachments);

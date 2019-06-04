@@ -138,7 +138,7 @@ private:
             }
 
             auto asyncResult = BIND(&IInMemoryManager::FinalizeChunk, Bootstrap_->GetInMemoryManager())
-                .AsyncVia(NChunkClient::TDispatcher::Get()->GetCompressionPoolInvoker())
+                .AsyncVia(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker())
                 .Run(
                     FromProto<TChunkId>(request->chunk_id(index)),
                     New<TRefCountedChunkMeta>(std::move(*request->mutable_chunk_meta(index))),

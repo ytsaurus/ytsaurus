@@ -1,5 +1,6 @@
 #include "helpers.h"
 #include "client.h"
+#include "dispatcher.h"
 #include "channel_detail.h"
 #include "service.h"
 
@@ -483,6 +484,87 @@ void SetMutationId(const IClientRequestPtr& request, TMutationId id, bool retry)
 void SetOrGenerateMutationId(const IClientRequestPtr& request, TMutationId id, bool retry)
 {
     SetMutationId(request, id ? id : TMutationId::Create(), retry);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TInput, class TFunctor>
+TFuture<std::vector<std::invoke_result_t<TFunctor, const TInput&>>> AsyncTransform(
+    TRange<TInput> input,
+    const TFunctor& unaryFunc,
+    const IInvokerPtr& invoker)
+{
+    using TOutput = std::invoke_result_t<TFunctor, const TInput&>;
+    std::vector<TFuture<TOutput>> asyncResults(input.Size());
+    std::transform(
+        input.Begin(),
+        input.End(),
+        asyncResults.begin(),
+        [&] (const TInput& value) {
+            return BIND(unaryFunc, value)
+                .AsyncVia(invoker)
+                .Run();
+        });
+
+    return Combine(asyncResults);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<std::vector<TSharedRef>> AsyncCompressAttachments(
+    TRange<TSharedRef> attachments,
+    NCompression::ECodec codecId)
+{
+    if (codecId == NCompression::ECodec::None) {
+        return MakeFuture(attachments.ToVector());
+    }
+
+    auto* codec = NCompression::GetCodec(codecId);
+    return AsyncTransform(
+        attachments,
+        [=] (const TSharedRef& attachment) {
+            return codec->Compress(attachment);
+        },
+        TDispatcher::Get()->GetCompressionPoolInvoker());
+}
+
+TFuture<std::vector<TSharedRef>> AsyncDecompressAttachments(
+    TRange<TSharedRef> attachments,
+    NCompression::ECodec codecId)
+{
+    if (codecId == NCompression::ECodec::None) {
+        return MakeFuture(attachments.ToVector());
+    }
+
+    auto* codec = NCompression::GetCodec(codecId);
+    return AsyncTransform(
+        attachments,
+        [=] (const TSharedRef& compressedAttachment) {
+            return codec->Decompress(compressedAttachment);
+        },
+        TDispatcher::Get()->GetCompressionPoolInvoker());
+}
+
+std::vector<TSharedRef> CompressAttachments(
+    TRange<TSharedRef> attachments,
+    NCompression::ECodec codecId)
+{
+    if (codecId == NCompression::ECodec::None) {
+        return attachments.ToVector();
+    }
+    return NConcurrency::WaitFor(AsyncCompressAttachments(attachments, codecId))
+        .ValueOrThrow();
+}
+
+std::vector<TSharedRef> DecompressAttachments(
+    TRange<TSharedRef> attachments,
+    NCompression::ECodec codecId)
+{
+    if (codecId == NCompression::ECodec::None) {
+        return attachments.ToVector();
+    }
+    return NConcurrency::WaitFor(AsyncDecompressAttachments(attachments, codecId))
+        .ValueOrThrow();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

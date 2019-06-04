@@ -4,7 +4,6 @@
 #include "chunk_reader.h"
 #include "chunk_writer.h"
 #include "config.h"
-#include "dispatcher.h"
 #include "erasure_helpers.h"
 #include "block.h"
 #include "replication_reader.h"

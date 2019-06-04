@@ -276,14 +276,20 @@ class TDispatcherConfig
 {
 public:
     static const int DefaultHeavyPoolSize;
+    static const int DefaultCompressionPoolSize;
     int HeavyPoolSize;
+    int CompressionPoolSize;
 
     TEnumIndexedVector<TMultiplexingBandConfigPtr, EMultiplexingBand> MultiplexingBands;
 
     TDispatcherConfig()
     {
         RegisterParameter("heavy_pool_size", HeavyPoolSize)
-            .Default(DefaultHeavyPoolSize);
+            .Default(DefaultHeavyPoolSize)
+            .GreaterThan(0);
+        RegisterParameter("compression_pool_size", CompressionPoolSize)
+            .Default(DefaultCompressionPoolSize)
+            .GreaterThan(0);
         RegisterParameter("multiplexing_bands", MultiplexingBands)
             .Default();
     }
