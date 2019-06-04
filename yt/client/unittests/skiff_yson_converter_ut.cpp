@@ -373,6 +373,33 @@ TEST(TYsonSkiffConverterTest, TestSkippedFields)
         "0f000000" "00000000");
 }
 
+TEST(TYsonSkiffConverterTest, TestTuple)
+{
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        TupleLogicalType({
+            SimpleLogicalType(ESimpleLogicalValueType::String),
+            SimpleLogicalType(ESimpleLogicalValueType::Boolean),
+        }),
+        CreateTupleSchema({
+            CreateSimpleTypeSchema(EWireType::String32),
+            CreateSimpleTypeSchema(EWireType::Boolean),
+        }),
+        "[\"true\";%true;]",
+        "04000000" "74727565" "01");
+
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        TupleLogicalType({
+            SimpleLogicalType(ESimpleLogicalValueType::Int64),
+            SimpleLogicalType(ESimpleLogicalValueType::Int64, /*required*/ false),
+        }),
+        CreateTupleSchema({
+            CreateSimpleTypeSchema(EWireType::Int64),
+            SkiffOptional(CreateSimpleTypeSchema(EWireType::Int64)),
+        }),
+        "[2;42;]",
+        "02000000" "00000000" "01" "2a000000" "00000000");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

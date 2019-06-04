@@ -42,6 +42,13 @@ TEST(TLogicalTypeTest, TestSimplifyLogicalType)
     EXPECT_EQ(
         SimplifyLogicalType(StructLogicalType({{"value", SimpleLogicalType(ESimpleLogicalValueType::Int64)}})),
         TPair(std::nullopt, true));
+
+    EXPECT_EQ(
+        SimplifyLogicalType(TupleLogicalType({
+            SimpleLogicalType(ESimpleLogicalValueType::Int64),
+            SimpleLogicalType(ESimpleLogicalValueType::Uint64)
+        })),
+        TPair(std::nullopt, true));
 }
 
 static const std::vector<TLogicalTypePtr> ComplexTypeExampleList = {
@@ -81,6 +88,20 @@ static const std::vector<TLogicalTypePtr> ComplexTypeExampleList = {
         {"key", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
         {"value", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
     }),
+
+    // Tuples
+    TupleLogicalType({
+        SimpleLogicalType(ESimpleLogicalValueType::Int64),
+        SimpleLogicalType(ESimpleLogicalValueType::Int64, /*required*/ false),
+    }),
+    TupleLogicalType({
+        SimpleLogicalType(ESimpleLogicalValueType::Int64, /*required*/ false),
+        SimpleLogicalType(ESimpleLogicalValueType::Int64),
+    }),
+    TupleLogicalType({
+        SimpleLogicalType(ESimpleLogicalValueType::Int64),
+        SimpleLogicalType(ESimpleLogicalValueType::Int64),
+    }),
 };
 
 TEST(TLogicalTypeTest, TestAllTypesAreInExamples)
@@ -111,7 +132,20 @@ TEST(TLogicalTypeTest, TestAllExamplesHaveDifferentHash)
         } else {
             hashToType[hash] = example;
         }
+    }
+}
 
+TEST(TLogicalTypeTest, TestAllExamplesAreNotEqual)
+{
+    // Hopefully our example list will never be so big that n^2 complexity is a problem.
+    for (const auto& lhs : ComplexTypeExampleList) {
+        for (const auto& rhs : ComplexTypeExampleList) {
+            if (&lhs == &rhs) {
+                EXPECT_EQ(*lhs, *rhs);
+            } else {
+                EXPECT_NE(*lhs, *rhs);
+            }
+        }
     }
 }
 
