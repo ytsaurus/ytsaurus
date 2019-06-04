@@ -1158,7 +1158,7 @@ print(op.id)
 
         old_timeout = yt.config["operation_tracker"]["stderr_download_timeout"]
         old_thread_count = yt.config["operation_tracker"]["stderr_download_thread_count"]
-        yt.config["operation_tracker"]["stderr_download_timeout"] = 50
+        yt.config["operation_tracker"]["stderr_download_timeout"] = 30
         yt.config["operation_tracker"]["stderr_download_thread_count"] = 1
 
         try:
