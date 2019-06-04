@@ -244,6 +244,39 @@ TEST(TValidateLogicalTypeTest, TestStructType)
     EXPECT_BAD_TYPE(struct2, " [ 2 ] ");
 }
 
+TEST(TValidateLogicalTypeTest, TestTupleType)
+{
+    const auto tuple1 = TupleLogicalType({
+        SimpleLogicalType(ESimpleLogicalValueType::Int64),
+        SimpleLogicalType(ESimpleLogicalValueType::String),
+        SimpleLogicalType(ESimpleLogicalValueType::String, /*required*/ false),
+    });
+
+    EXPECT_GOOD_TYPE(tuple1, " [3; three; TRI ] ");
+    EXPECT_GOOD_TYPE(tuple1, " [1; one; # ] ");
+
+    EXPECT_BAD_TYPE(tuple1, " [3u; three; TRI ] ");
+    EXPECT_BAD_TYPE(tuple1, " [1; one ] ");
+    EXPECT_BAD_TYPE(tuple1, " [ # ; three; TRI ] ");
+    EXPECT_BAD_TYPE(tuple1, " [ 3 ; # ; TRI ] ");
+    EXPECT_BAD_TYPE(tuple1, " [ 1 ] ");
+    EXPECT_BAD_TYPE(tuple1, " [ ] ");
+
+    const auto tuple2 = TupleLogicalType({
+        SimpleLogicalType(ESimpleLogicalValueType::String, /*required*/ false),
+        SimpleLogicalType(ESimpleLogicalValueType::String, /*required*/ false),
+        SimpleLogicalType(ESimpleLogicalValueType::String, /*required*/ false),
+    });
+
+    EXPECT_GOOD_TYPE(tuple2, " [k ; s ; v ] ");
+    EXPECT_GOOD_TYPE(tuple2, " [# ; # ; #] ");
+
+    EXPECT_BAD_TYPE(tuple2, " [# ; # ;] ");
+    EXPECT_BAD_TYPE(tuple2, " [# ; ] ");
+    EXPECT_BAD_TYPE(tuple2, " [ ] ");
+    EXPECT_BAD_TYPE(tuple2, " [ 2 ] ");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableChunkFormat

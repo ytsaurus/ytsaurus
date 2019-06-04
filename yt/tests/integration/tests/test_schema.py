@@ -277,6 +277,33 @@ class TestComplexTypes(YTEnvSetup):
         check_bad({})
         check_bad([1,None])
 
+    def test_tuple(self):
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema([{
+                "name": "column",
+                "type_v2": tuple_type(["utf8", optional_type("int64")]),
+            }])
+        })
+        assert get("//tmp/table/@schema/0/type") == "any"
+        assert get("//tmp/table/@schema/0/required") == True
+
+        write_table("//tmp/table", [
+            {"column": ["one", 1]},
+            {"column": ["two", None]},
+        ])
+
+        def check_bad(value):
+            with raises_yt_error(SchemaViolation):
+                write_table("//tmp/table", [
+                    {"column": value},
+                ])
+
+        check_bad(["three"])
+        check_bad([])
+        check_bad(None)
+        check_bad(["one", 2, 3])
+        check_bad(["bar", "baz"])
+
     def test_complex_types_disallowed_in_dynamic_tables(self):
         sync_create_cells(1)
         with pytest.raises(YtError):

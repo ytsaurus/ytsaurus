@@ -1358,6 +1358,12 @@ def list_type(element_type):
         "element": element_type,
     }
 
+def tuple_type(elements):
+    return {
+        "metatype": "tuple",
+        "elements": elements,
+    }
+
 ##################################################################
 
 def get_guid_from_parts(lo, hi):

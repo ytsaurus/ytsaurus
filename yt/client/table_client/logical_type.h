@@ -21,7 +21,8 @@ DEFINE_ENUM(ELogicalMetatype,
     (Optional)
     (List)
     (Struct)
-    // In the future there will be Tuple, Variant, Struct, etc
+    (Tuple)
+    // In the future there will be Variant, Map, etc
 );
 
 class TLogicalType
@@ -35,6 +36,7 @@ public:
     const TOptionalLogicalType& AsOptionalTypeRef() const;
     const TListLogicalType& AsListTypeRef() const;
     const TStructLogicalType& AsStructTypeRef() const;
+    const TTupleLogicalType& AsTupleTypeRef() const;
 
     virtual size_t GetMemoryUsage() const = 0;
     virtual int GetTypeComplexity() const = 0;
@@ -49,6 +51,7 @@ DEFINE_REFCOUNTED_TYPE(TLogicalType)
 TString ToString(const TLogicalType& logicalType);
 
 bool operator == (const TLogicalType& lhs, const TLogicalType& rhs);
+bool operator != (const TLogicalType& lhs, const TLogicalType& rhs);
 bool operator == (const TLogicalTypePtr& lhs, const TLogicalTypePtr& rhs) = delete;
 
 void ValidateAlterType(const TLogicalTypePtr& oldType, const TLogicalTypePtr& newType);
@@ -142,6 +145,7 @@ public:
     TComplexTypeFieldDescriptor OptionalElement() const;
     TComplexTypeFieldDescriptor ListElement() const;
     TComplexTypeFieldDescriptor StructField(size_t i) const;
+    TComplexTypeFieldDescriptor TupleElement(size_t i) const;
 
     const TString& GetDescription() const;
     const TLogicalTypePtr& GetType() const;
@@ -178,6 +182,25 @@ DEFINE_REFCOUNTED_TYPE(TStructLogicalType);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTupleLogicalType
+    : public TLogicalType
+{
+public:
+    explicit TTupleLogicalType(std::vector<TLogicalTypePtr> elements);
+
+    const std::vector<TLogicalTypePtr>& GetElements() const;
+
+    virtual size_t GetMemoryUsage() const override;
+    virtual int GetTypeComplexity() const override;
+    virtual void Validate(const TComplexTypeFieldDescriptor& descriptor) const override;
+
+private:
+    std::vector<TLogicalTypePtr> Elements_;
+};
+DEFINE_REFCOUNTED_TYPE(TTupleLogicalType);
+
+////////////////////////////////////////////////////////////////////////////////
+
 extern TLogicalTypePtr NullLogicalType;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -186,6 +209,7 @@ TLogicalTypePtr SimpleLogicalType(ESimpleLogicalValueType element, bool required
 TLogicalTypePtr OptionalLogicalType(TLogicalTypePtr element);
 TLogicalTypePtr ListLogicalType(TLogicalTypePtr element);
 TLogicalTypePtr StructLogicalType(std::vector<TStructLogicalType::TField> fields);
+TLogicalTypePtr TupleLogicalType(std::vector<TLogicalTypePtr> fields);
 
 ////////////////////////////////////////////////////////////////////////////////
 

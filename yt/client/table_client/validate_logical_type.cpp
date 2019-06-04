@@ -69,6 +69,9 @@ private:
             case ELogicalMetatype::Struct:
                 ValidateStructType(type->AsStructTypeRef(), fieldId);
                 return;
+            case ELogicalMetatype::Tuple:
+                ValidateTupleType(type->AsTupleTypeRef(), fieldId);
+                return;
         }
         Y_UNREACHABLE();
     }
@@ -273,6 +276,37 @@ private:
         Cursor_.Next();
     }
 
+    void ValidateTupleType(const TTupleLogicalType& type, const TFieldId& fieldId)
+    {
+        if (Cursor_.GetCurrent().GetType() != EYsonItemType::BeginList) {
+            THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
+                "Cannot parse %Qv; expected: %Qv found: %Qv",
+                GetDescription(fieldId),
+                EYsonItemType::BeginList,
+                Cursor_.GetCurrent().GetType());
+        }
+        Cursor_.Next();
+        const auto& elements = type.GetElements();
+        for (size_t i = 0; i < elements.size(); ++i) {
+            if (Cursor_.GetCurrent().GetType() == EYsonItemType::EndList) {
+                THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
+                    "Cannot parse %Qv; expected %Qv got %Qv",
+                    GetDescription(fieldId),
+                    GetDescription(fieldId.TupleElement(i)),
+                    EYsonItemType::EndList);
+            }
+            ValidateLogicalType(elements[i], fieldId.TupleElement(i));
+        }
+        if (Cursor_.GetCurrent().GetType() != EYsonItemType::EndList) {
+            THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
+                "Cannot parse %Qv; expected: %Qv found: %Qv",
+                GetDescription(fieldId),
+                EYsonItemType::EndList,
+                Cursor_.GetCurrent().GetType());
+        }
+        Cursor_.Next();
+    }
+
     TString GetDescription(const TFieldId& fieldId) const
     {
         return fieldId.GetDescriptor(RootDescriptor_).GetDescription();
@@ -300,6 +334,11 @@ private:
             return {this, i};
         }
 
+        TFieldId TupleElement(int i) const
+        {
+            return {this, i};
+        }
+
         TComplexTypeFieldDescriptor GetDescriptor(const TComplexTypeFieldDescriptor& root) const
         {
             std::vector<int> path;
@@ -323,6 +362,9 @@ private:
                         continue;
                     case ELogicalMetatype::Struct:
                         descriptor = descriptor.StructField(childIndex);
+                        continue;
+                    case ELogicalMetatype::Tuple:
+                        descriptor = descriptor.TupleElement(childIndex);
                         continue;
                 }
                 Y_UNREACHABLE();

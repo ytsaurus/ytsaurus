@@ -286,6 +286,33 @@ std::vector<TTypePair> MatchStructTypes(const TComplexTypeFieldDescriptor& descr
     }
 }
 
+std::vector<TTypePair> MatchTupleTypes(const TComplexTypeFieldDescriptor& descriptor, const TSkiffSchemaPtr& skiffSchema)
+{
+    try {
+        if (skiffSchema->GetWireType() != EWireType::Tuple) {
+            ThrowBadWireType(EWireType::Tuple, skiffSchema->GetWireType());
+        }
+
+        const auto& elements = descriptor.GetType()->AsTupleTypeRef().GetElements();
+        const auto& children = skiffSchema->GetChildren();
+
+        if (children.size() != elements.size()) {
+            THROW_ERROR_EXCEPTION("Tuple element counts do not match; logical type elements: %v skiff elements: %v",
+                elements.size(),
+                children.size());
+        }
+
+        std::vector<TTypePair> result;
+        for (size_t i = 0; i < elements.size(); ++i) {
+            result.push_back({descriptor.TupleElement(i), children[i]});
+        }
+
+        return result;
+    } catch (const std::exception& ex) {
+        RethrowCannotMatchField(descriptor, skiffSchema, ex);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <EWireType wireType>
@@ -607,6 +634,36 @@ TYsonToSkiffConverter CreateStructYsonToSkiffConverter(
     };
 }
 
+TYsonToSkiffConverter CreateTupleYsonToSkiffConverter(
+    TComplexTypeFieldDescriptor descriptor,
+    const TSkiffSchemaPtr& skiffSchema,
+    const TConverterCreationContext& context,
+    const TYsonToSkiffConverterConfig& config)
+{
+    auto tupleMatch = MatchTupleTypes(descriptor, skiffSchema);
+    std::vector<TYsonToSkiffConverter> converterList;
+    for (const auto&[descriptor, skiffSchema] : tupleMatch) {
+        auto converter = CreateYsonToSkiffConverterImpl(descriptor, skiffSchema, context, config);
+        converterList.emplace_back(converter);
+    }
+
+    return [converterList = std::move(converterList), descriptor = std::move(descriptor)]
+        (TYsonPullParserCursor* cursor, TCheckedInDebugSkiffWriter* writer) {
+        if (cursor->GetCurrent().GetType() != EYsonItemType::BeginList) {
+            ThrowBadYsonToken(descriptor, {EYsonItemType::BeginList}, cursor->GetCurrent().GetType());
+        }
+        cursor->Next();
+        for (const auto& converter : converterList) {
+            converter(cursor, writer);
+        }
+
+        if (cursor->GetCurrent().GetType() != EYsonItemType::EndList) {
+            ThrowBadYsonToken(descriptor, {EYsonItemType::EndList}, cursor->GetCurrent().GetType());
+        }
+        cursor->Next();
+    };
+}
+
 TYsonToSkiffConverter CreateYsonToSkiffConverterImpl(
     TComplexTypeFieldDescriptor descriptor,
     const TSkiffSchemaPtr& skiffSchema,
@@ -625,6 +682,8 @@ TYsonToSkiffConverter CreateYsonToSkiffConverterImpl(
             return CreateListYsonToSkiffConverter(std::move(descriptor), skiffSchema, innerContext, config);
         case ELogicalMetatype::Struct:
             return CreateStructYsonToSkiffConverter(std::move(descriptor), skiffSchema, innerContext, config);
+        case ELogicalMetatype::Tuple:
+            return CreateTupleYsonToSkiffConverter(std::move(descriptor), skiffSchema, innerContext, config);
     }
     Y_UNREACHABLE();
 }
@@ -862,6 +921,26 @@ TSkiffToYsonConverter CreateStructSkiffToYsonConverter(
     };
 }
 
+TSkiffToYsonConverter CreateTupleSkiffToYsonConverter(
+    TComplexTypeFieldDescriptor descriptor,
+    const TSkiffSchemaPtr& skiffSchema,
+    const TConverterCreationContext& context,
+    const TSkiffToYsonConverterConfig& config)
+{
+    auto tupleMatch = MatchTupleTypes(descriptor, skiffSchema);
+    std::vector<TSkiffToYsonConverter> converterList;
+    for (const auto& [fieldDescriptor, fieldSkiffSchema] : tupleMatch) {
+        converterList.emplace_back(CreateSkiffToYsonConverterImpl(fieldDescriptor, fieldSkiffSchema, context, config));
+    }
+    return [converterList = converterList](TCheckedInDebugSkiffParser* parser, IYsonConsumer* consumer) {
+        consumer->OnBeginList();
+        for (const auto& converter : converterList) {
+            converter(parser, consumer);
+        }
+        consumer->OnEndList();
+    };
+}
+
 TSkiffToYsonConverter CreateSkiffToYsonConverterImpl(
     TComplexTypeFieldDescriptor descriptor,
     const TSkiffSchemaPtr& skiffSchema,
@@ -880,6 +959,8 @@ TSkiffToYsonConverter CreateSkiffToYsonConverterImpl(
             return CreateListSkiffToYsonConverter(std::move(descriptor), skiffSchema, innerContext, config);
         case ELogicalMetatype::Struct:
             return CreateStructSkiffToYsonConverter(std::move(descriptor), skiffSchema, innerContext, config);
+        case ELogicalMetatype::Tuple:
+            return CreateTupleSkiffToYsonConverter(std::move(descriptor), skiffSchema, innerContext, config);
     }
     Y_UNREACHABLE();
 }
