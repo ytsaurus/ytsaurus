@@ -76,21 +76,7 @@ DEFINE_REFCOUNTED_TYPE(TRemoteWriterOptions)
 
 class TDispatcherConfig
     : public virtual NYTree::TYsonSerializable
-{
-public:
-    int CompressionPoolSize;
-    int ErasurePoolSize;
-
-    TDispatcherConfig()
-    {
-        RegisterParameter("compression_pool_size", CompressionPoolSize)
-            .Default(4)
-            .GreaterThan(0);
-        RegisterParameter("erasure_pool_size", ErasurePoolSize)
-            .Default(4)
-            .GreaterThan(0);
-    }
-};
+{ };
 
 DEFINE_REFCOUNTED_TYPE(TDispatcherConfig)
 

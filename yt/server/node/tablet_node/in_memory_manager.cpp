@@ -130,7 +130,7 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , CompressionInvoker_(CreateFixedPriorityInvoker(
-            NChunkClient::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
+            NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
             Config_->WorkloadDescriptor.GetPriority()))
         , PreloadSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentPreloads))
         , Throttler_(Bootstrap_->GetTabletNodeInThrottler(EWorkloadCategory::SystemTabletPreload))

@@ -39,6 +39,12 @@ public:
     //! (e.g. serialization).
     const IInvokerPtr& GetHeavyInvoker();
 
+    //! Returns the prioritized invoker for the thread pool used to
+    //! dispatch compression callbacks.
+    const IPrioritizedInvokerPtr& GetPrioritizedCompressionPoolInvoker();
+    //! Returns the invoker for the thread pool used to dispatch compression callbacks.
+    const IInvokerPtr& GetCompressionPoolInvoker();
+
 private:
     class TImpl;
     const std::unique_ptr<TImpl> Impl_;

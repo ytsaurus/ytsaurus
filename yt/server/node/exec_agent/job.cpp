@@ -51,6 +51,8 @@
 
 #include <yt/core/misc/proc.h>
 
+#include <yt/core/rpc/dispatcher.h>
+
 namespace NYT::NExecAgent {
 
 using namespace NRpc;
@@ -170,7 +172,7 @@ public:
             SetJobPhase(EJobPhase::PreparingNodeDirectory);
             // This is a heavy part of preparation, offload it to compression invoker.
             BIND(&TJob::PrepareNodeDirectory, MakeWeak(this))
-                .AsyncVia(TDispatcher::Get()->GetCompressionPoolInvoker())
+                .AsyncVia(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker())
                 .Run()
                 .Subscribe(
                     BIND(&TJob::OnNodeDirectoryPrepared, MakeWeak(this))
@@ -1070,7 +1072,7 @@ private:
             auto* schedulerJobSpecExt = JobSpec_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->clear_input_node_directory();
         })
-            .AsyncVia(TDispatcher::Get()->GetCompressionPoolInvoker())
+            .AsyncVia(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker())
             .Run())
             .ThrowOnError();
 
