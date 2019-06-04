@@ -117,6 +117,10 @@ private:
 
             return client->GetNode("//sys/tablet_cell_bundles/" + bundleName + "/@health")
                 .Apply(BIND([] (const TErrorOr<NYson::TYsonString>& error) {
+                    // COMPAT(aozeritsky): Remove after updating all clusters
+                    if (!error.IsOK() && error.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                        return ETabletCellHealth::Good;
+                    }
                     return ConvertTo<ETabletCellHealth>(error.ValueOrThrow());
                 }));
         }
