@@ -138,6 +138,10 @@ def get_clickhouse_clique_spec_builder(instance_count,
             .max_failed_job_count(max_failed_job_count) \
             .spec(spec)
 
+    if "pool" not in spec_builder.build():
+        logger.warning("It is discouraged to run clique in ephemeral pool "
+                       "(which happens when pool is not specified explicitly)")
+
     return spec_builder
 
 
