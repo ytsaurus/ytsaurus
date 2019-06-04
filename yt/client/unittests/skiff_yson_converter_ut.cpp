@@ -95,37 +95,37 @@ TString ConvertHexToTextYson(
 TEST(TYsonSkiffConverterTest, TestSimpleTypes)
 {
     CHECK_BIDIRECTIONAL_CONVERSION(
-        SimpleLogicalType(ESimpleLogicalValueType::Int64, true),
+        SimpleLogicalType(ESimpleLogicalValueType::Int64),
         CreateSimpleTypeSchema(EWireType::Int64),
         "-42",
         "d6ffffff" "ffffffff");
 
     CHECK_BIDIRECTIONAL_CONVERSION(
-        SimpleLogicalType(ESimpleLogicalValueType::Uint64, true),
+        SimpleLogicalType(ESimpleLogicalValueType::Uint64),
         CreateSimpleTypeSchema(EWireType::Uint64),
         "42u",
         "2a000000" "00000000");
 
     CHECK_BIDIRECTIONAL_CONVERSION(
-        SimpleLogicalType(ESimpleLogicalValueType::Uint64, true),
+        SimpleLogicalType(ESimpleLogicalValueType::Uint64),
         CreateSimpleTypeSchema(EWireType::Uint64),
         "8u",
         "08000000" "00000000");
 
     CHECK_BIDIRECTIONAL_CONVERSION(
-        SimpleLogicalType(ESimpleLogicalValueType::Boolean, true),
+        SimpleLogicalType(ESimpleLogicalValueType::Boolean),
         CreateSimpleTypeSchema(EWireType::Boolean),
         "%true",
         "01");
 
     CHECK_BIDIRECTIONAL_CONVERSION(
-        SimpleLogicalType(ESimpleLogicalValueType::Double, true),
+        SimpleLogicalType(ESimpleLogicalValueType::Double),
         CreateSimpleTypeSchema(EWireType::Double),
         "0.",
         "00000000" "00000000");
 
     CHECK_BIDIRECTIONAL_CONVERSION(
-        SimpleLogicalType(ESimpleLogicalValueType::String, true),
+        SimpleLogicalType(ESimpleLogicalValueType::String),
         CreateSimpleTypeSchema(EWireType::String32),
         "\"foo\"",
         "03000000" "666f6f");
@@ -134,19 +134,19 @@ TEST(TYsonSkiffConverterTest, TestSimpleTypes)
 TEST(TYsonSkiffConverterTest, TestYson32)
 {
     CHECK_BIDIRECTIONAL_CONVERSION(
-        SimpleLogicalType(ESimpleLogicalValueType::Any, true),
+        SimpleLogicalType(ESimpleLogicalValueType::Any),
         CreateSimpleTypeSchema(EWireType::Yson32),
         "-42",
         "02000000" "0253");
 
     CHECK_BIDIRECTIONAL_CONVERSION(
-        SimpleLogicalType(ESimpleLogicalValueType::Any, true),
+        SimpleLogicalType(ESimpleLogicalValueType::Any),
         CreateSimpleTypeSchema(EWireType::Yson32),
         "#",
         "01000000" "23");
 
     CHECK_BIDIRECTIONAL_CONVERSION(
-        SimpleLogicalType(ESimpleLogicalValueType::Any, true),
+        SimpleLogicalType(ESimpleLogicalValueType::Any),
         CreateSimpleTypeSchema(EWireType::Yson32),
         "[1;2;[3;];]",
         "0e000000" "5b02023b02043b5b02063b5d3b5d");
@@ -155,37 +155,37 @@ TEST(TYsonSkiffConverterTest, TestYson32)
 TEST(TYsonSkiffConverterTest, TestOptionalTypes)
 {
     CHECK_BIDIRECTIONAL_CONVERSION(
-        SimpleLogicalType(ESimpleLogicalValueType::Int64, false),
+        SimpleLogicalType(ESimpleLogicalValueType::Int64, /*required*/ false),
         SkiffOptional(CreateSimpleTypeSchema(EWireType::Int64)),
         "-42",
         "01" "d6ffffff" "ffffffff");
 
     CHECK_BIDIRECTIONAL_CONVERSION(
-        SimpleLogicalType(ESimpleLogicalValueType::Int64, false),
+        SimpleLogicalType(ESimpleLogicalValueType::Int64, /*required*/ false),
         SkiffOptional(CreateSimpleTypeSchema(EWireType::Int64)),
         "#",
         "00");
 
     CHECK_BIDIRECTIONAL_CONVERSION(
-        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean, false)),
+        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean, /*required*/ false)),
         SkiffOptional(SkiffOptional(CreateSimpleTypeSchema(EWireType::Boolean))),
         "[%true;]",
         "01" "01" "01");
 
     CHECK_BIDIRECTIONAL_CONVERSION(
-        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean, false)),
+        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean, /*required*/ false)),
         SkiffOptional(SkiffOptional(CreateSimpleTypeSchema(EWireType::Boolean))),
         "[#;]",
         "01" "00");
 
     CHECK_BIDIRECTIONAL_CONVERSION(
-        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean, false)),
+        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean, /*required*/ false)),
         SkiffOptional(SkiffOptional(CreateSimpleTypeSchema(EWireType::Boolean))),
         "#",
         "00");
 
     CHECK_BIDIRECTIONAL_CONVERSION(
-        OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean, true))),
+        OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean))),
         SkiffOptional(CreateRepeatedVariant8Schema({CreateSimpleTypeSchema(EWireType::Boolean)})),
         "#",
         "00");
@@ -194,7 +194,7 @@ TEST(TYsonSkiffConverterTest, TestOptionalTypes)
         OptionalLogicalType(
             OptionalLogicalType(
                 ListLogicalType(
-                    SimpleLogicalType(ESimpleLogicalValueType::Boolean, true)
+                    SimpleLogicalType(ESimpleLogicalValueType::Boolean)
                 )
             )
         ),
@@ -212,7 +212,7 @@ TEST(TYsonSkiffConverterTest, TestOptionalTypes)
         OptionalLogicalType(
             OptionalLogicalType(
                 ListLogicalType(
-                    SimpleLogicalType(ESimpleLogicalValueType::Boolean, true)
+                    SimpleLogicalType(ESimpleLogicalValueType::Boolean)
                 )
             )
         ),
@@ -228,7 +228,7 @@ TEST(TYsonSkiffConverterTest, TestOptionalTypes)
 
     try {
         ConvertYsonHex(
-            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean, false)),
+            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean, /*required*/ false)),
             SkiffOptional(CreateSimpleTypeSchema(EWireType::Boolean)),
             " [ %true ] ");
         ADD_FAILURE() << "Expected to throw";
@@ -239,14 +239,14 @@ TEST(TYsonSkiffConverterTest, TestOptionalTypes)
     TYsonToSkiffConverterConfig allowTopLevelOptionalMismatch;
     allowTopLevelOptionalMismatch.ExpectTopLevelOptionalSet = true;
     CHECK_BIDIRECTIONAL_CONVERSION(
-        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean, false)),
+        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean, /*required*/ false)),
         SkiffOptional(CreateSimpleTypeSchema(EWireType::Boolean)),
         "[%true;]",
         "01" "01",
         allowTopLevelOptionalMismatch);
 
     CHECK_BIDIRECTIONAL_CONVERSION(
-        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean, false)),
+        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean, /*required*/ false)),
         SkiffOptional(CreateSimpleTypeSchema(EWireType::Boolean)),
         "[#;]",
         "00",
@@ -254,7 +254,7 @@ TEST(TYsonSkiffConverterTest, TestOptionalTypes)
 
     try {
         ConvertYsonHex(
-            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean, false)),
+            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean, /*required*/ false)),
             SkiffOptional(CreateSimpleTypeSchema(EWireType::Boolean)),
             " # ",
             allowTopLevelOptionalMismatch);
@@ -267,19 +267,19 @@ TEST(TYsonSkiffConverterTest, TestOptionalTypes)
 TEST(TYsonSkiffConverterTest, TestListTypes)
 {
     CHECK_BIDIRECTIONAL_CONVERSION(
-        ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean, true)),
+        ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean)),
         CreateRepeatedVariant8Schema({CreateSimpleTypeSchema(EWireType::Boolean)}),
         "[]",
         "ff");
 
     CHECK_BIDIRECTIONAL_CONVERSION(
-        ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean, true)),
+        ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean)),
         CreateRepeatedVariant8Schema({CreateSimpleTypeSchema(EWireType::Boolean)}),
         "[%true;%true;%true;]",
         "00" "01" "00" "01" "00" "01" "ff");
 
     CHECK_BIDIRECTIONAL_CONVERSION(
-        ListLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean, true))),
+        ListLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean))),
         CreateRepeatedVariant8Schema({CreateRepeatedVariant8Schema({CreateSimpleTypeSchema(EWireType::Boolean)})}),
         "[[];[%true;];[%true;%true;];]",
         "00" "ff" "00" "0001ff" "00" "00010001ff" "ff");
@@ -289,8 +289,8 @@ TEST(TYsonSkiffConverterTest, TestStruct)
 {
     CHECK_BIDIRECTIONAL_CONVERSION(
         StructLogicalType({
-            {"key", SimpleLogicalType(ESimpleLogicalValueType::String, true)},
-            {"value", SimpleLogicalType(ESimpleLogicalValueType::Boolean, true)},
+            {"key", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"value", SimpleLogicalType(ESimpleLogicalValueType::Boolean)},
         }),
         CreateTupleSchema({
             CreateSimpleTypeSchema(EWireType::String32)->SetName("key"),
@@ -305,9 +305,9 @@ TEST(TYsonSkiffConverterTest, TestSkippedFields)
     TString skiffString;
     skiffString = ConvertYsonHex(
         StructLogicalType({
-            {"key",    SimpleLogicalType(ESimpleLogicalValueType::String, true)},
-            {"subkey", SimpleLogicalType(ESimpleLogicalValueType::Int64, true)},
-            {"value",  SimpleLogicalType(ESimpleLogicalValueType::Boolean, true)},
+            {"key",    SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"subkey", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"value",  SimpleLogicalType(ESimpleLogicalValueType::Boolean)},
         }),
         CreateTupleSchema({
             CreateSimpleTypeSchema(EWireType::String32)->SetName("key"),
@@ -318,9 +318,9 @@ TEST(TYsonSkiffConverterTest, TestSkippedFields)
 
     skiffString = ConvertYsonHex(
         StructLogicalType({
-            {"key",    SimpleLogicalType(ESimpleLogicalValueType::String, true)},
-            {"subkey", SimpleLogicalType(ESimpleLogicalValueType::Int64, true)},
-            {"value",  SimpleLogicalType(ESimpleLogicalValueType::Boolean, true)},
+            {"key",    SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"subkey", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"value",  SimpleLogicalType(ESimpleLogicalValueType::Boolean)},
         }),
         CreateTupleSchema({
             CreateSimpleTypeSchema(EWireType::Int64)->SetName("subkey"),
@@ -331,9 +331,9 @@ TEST(TYsonSkiffConverterTest, TestSkippedFields)
     try {
         ConvertHexToTextYson(
             StructLogicalType({
-                {"key",    SimpleLogicalType(ESimpleLogicalValueType::String, true)},
-                {"subkey", SimpleLogicalType(ESimpleLogicalValueType::Int64, true)},
-                {"value",  SimpleLogicalType(ESimpleLogicalValueType::Boolean, true)},
+                {"key",    SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"subkey", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                {"value",  SimpleLogicalType(ESimpleLogicalValueType::Boolean)},
             }),
             CreateTupleSchema({
                 CreateSimpleTypeSchema(EWireType::Int64)->SetName("subkey"),
@@ -345,9 +345,9 @@ TEST(TYsonSkiffConverterTest, TestSkippedFields)
 
     CHECK_BIDIRECTIONAL_CONVERSION(
         StructLogicalType({
-            {"key",    SimpleLogicalType(ESimpleLogicalValueType::String, false)},
-            {"subkey", SimpleLogicalType(ESimpleLogicalValueType::Int64, true)},
-            {"value",  SimpleLogicalType(ESimpleLogicalValueType::Boolean, false)},
+            {"key",    SimpleLogicalType(ESimpleLogicalValueType::String, /*required*/ false)},
+            {"subkey", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"value",  SimpleLogicalType(ESimpleLogicalValueType::Boolean, /*required*/ false)},
         }),
         CreateTupleSchema({
             CreateSimpleTypeSchema(EWireType::Int64)->SetName("subkey"),

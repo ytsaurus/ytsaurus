@@ -20,66 +20,66 @@ TEST(TLogicalTypeTest, TestSimplifyLogicalType)
     using TPair = std::pair<std::optional<ESimpleLogicalValueType>, bool>;
 
     EXPECT_EQ(
-        SimplifyLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64, true)),
+        SimplifyLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)),
         TPair(ESimpleLogicalValueType::Int64, true));
 
     EXPECT_EQ(
-        SimplifyLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64, false)),
+        SimplifyLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64, /*required*/ false)),
         TPair(ESimpleLogicalValueType::Uint64, false));
 
     EXPECT_EQ(
-        SimplifyLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64, true))),
+        SimplifyLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
         TPair(ESimpleLogicalValueType::Int64, false));
 
     EXPECT_EQ(
-        SimplifyLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64, false))),
+        SimplifyLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64, /*required*/ false))),
         TPair(std::nullopt, false));
 
     EXPECT_EQ(
-        SimplifyLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64, true))),
+        SimplifyLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
         TPair(std::nullopt, true));
 
     EXPECT_EQ(
-        SimplifyLogicalType(StructLogicalType({{"value", SimpleLogicalType(ESimpleLogicalValueType::Int64, true)}})),
+        SimplifyLogicalType(StructLogicalType({{"value", SimpleLogicalType(ESimpleLogicalValueType::Int64)}})),
         TPair(std::nullopt, true));
 }
 
 static const std::vector<TLogicalTypePtr> ComplexTypeExampleList = {
     // Simple types
-    SimpleLogicalType(ESimpleLogicalValueType::Int64, true),
-    SimpleLogicalType(ESimpleLogicalValueType::String, true),
-    SimpleLogicalType(ESimpleLogicalValueType::Utf8, true),
-    SimpleLogicalType(ESimpleLogicalValueType::Int64, false),
+    SimpleLogicalType(ESimpleLogicalValueType::Int64),
+    SimpleLogicalType(ESimpleLogicalValueType::String),
+    SimpleLogicalType(ESimpleLogicalValueType::Utf8),
+    SimpleLogicalType(ESimpleLogicalValueType::Int64, /*required*/ false),
 
     // Optionals
     OptionalLogicalType(
-        SimpleLogicalType(ESimpleLogicalValueType::Utf8, false)),
+        SimpleLogicalType(ESimpleLogicalValueType::Utf8, /*required*/ false)),
     OptionalLogicalType(
         ListLogicalType(
-            SimpleLogicalType(ESimpleLogicalValueType::Utf8, false))),
+            SimpleLogicalType(ESimpleLogicalValueType::Utf8, /*required*/ false))),
 
     // Lists
     ListLogicalType(
-        SimpleLogicalType(ESimpleLogicalValueType::Utf8, true)),
+        SimpleLogicalType(ESimpleLogicalValueType::Utf8)),
     ListLogicalType(
         ListLogicalType(
-            SimpleLogicalType(ESimpleLogicalValueType::Utf8, true))),
+            SimpleLogicalType(ESimpleLogicalValueType::Utf8))),
     ListLogicalType(
         ListLogicalType(
-            SimpleLogicalType(ESimpleLogicalValueType::String, true))),
+            SimpleLogicalType(ESimpleLogicalValueType::String))),
 
     // Structs
     StructLogicalType({
-        {"key", SimpleLogicalType(ESimpleLogicalValueType::Utf8, true)},
-        {"value", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8, true))},
+        {"key", SimpleLogicalType(ESimpleLogicalValueType::Utf8)},
+        {"value", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8))},
     }),
     StructLogicalType({
-        {"value", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8, true))},
-        {"key", SimpleLogicalType(ESimpleLogicalValueType::Utf8, true)},
+        {"value", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8))},
+        {"key", SimpleLogicalType(ESimpleLogicalValueType::Utf8)},
     }),
     StructLogicalType({
-        {"key", SimpleLogicalType(ESimpleLogicalValueType::Int64, true)},
-        {"value", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64, true))},
+        {"key", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        {"value", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
     }),
 };
 

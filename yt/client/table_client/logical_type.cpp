@@ -428,7 +428,7 @@ void FromProto(TLogicalTypePtr* logicalType, const NProto::TLogicalType& protoLo
 {
     switch (protoLogicalType.type_case()) {
         case NProto::TLogicalType::TypeCase::kSimple:
-            *logicalType = SimpleLogicalType(static_cast<ESimpleLogicalValueType>(protoLogicalType.simple()), true);
+            *logicalType = SimpleLogicalType(static_cast<ESimpleLogicalValueType>(protoLogicalType.simple()));
             return;
         case NProto::TLogicalType::TypeCase::kOptional: {
             TLogicalTypePtr element;
@@ -510,7 +510,7 @@ void Deserialize(TLogicalTypePtr& logicalType, NYTree::INodePtr node)
 {
     if (node->GetType() == NYTree::ENodeType::String) {
         auto simpleLogicalType = NYTree::ConvertTo<ESimpleLogicalValueType>(node);
-        logicalType = SimpleLogicalType(simpleLogicalType, true);
+        logicalType = SimpleLogicalType(simpleLogicalType);
         return;
     }
     if (node->GetType() != NYTree::ENodeType::Map) {

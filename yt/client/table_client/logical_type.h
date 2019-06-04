@@ -182,7 +182,7 @@ extern TLogicalTypePtr NullLogicalType;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogicalTypePtr SimpleLogicalType(ESimpleLogicalValueType element, bool required);
+TLogicalTypePtr SimpleLogicalType(ESimpleLogicalValueType element, bool required = true);
 TLogicalTypePtr OptionalLogicalType(TLogicalTypePtr element);
 TLogicalTypePtr ListLogicalType(TLogicalTypePtr element);
 TLogicalTypePtr StructLogicalType(std::vector<TStructLogicalType::TField> fields);
