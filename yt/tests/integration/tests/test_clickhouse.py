@@ -42,7 +42,7 @@ class Clique(object):
         config = update(Clique.base_config, config_patch) if config_patch is not None else Clique.base_config
         spec = {"pool": None}
         if "spec" in kwargs:
-            spec = update(spec, kwargs.pop(spec))
+            spec = update(spec, kwargs.pop("spec"))
 
         self.log_root = os.path.join(self.path_to_run, "logs", "clickhouse-{}".format(Clique.clique_index))
         for writer_key, writer in config["logging"]["writers"].iteritems():
