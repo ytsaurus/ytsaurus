@@ -143,8 +143,8 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
 void TObjectProxyBase::GetBasicAttributes(TGetBasicAttributesContext* context)
 {
     const auto& securityManager = Bootstrap_->GetSecurityManager();
-    if (context->Permission != EPermission()) {
-        securityManager->ValidatePermission(Object_, context->Permission);
+    if (context->Permission) {
+        securityManager->ValidatePermission(Object_, *context->Permission);
     }
 }
 
