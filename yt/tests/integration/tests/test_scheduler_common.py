@@ -3110,7 +3110,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
                 print >>sys.stderr, "size = n/a"
             else:
                 print >>sys.stderr, "size =", os.stat(core_path).st_size
-            return get("//sys/controller_agents/instances/{}/orchid/core_dumper/active_core_dump_count".format(controller_agent_address)) == 0
+            return get("//sys/controller_agents/instances/{}/orchid/core_dumper/active_count".format(controller_agent_address)) == 0
 
         wait(check_core, iter=200, sleep_backoff=5)
 
