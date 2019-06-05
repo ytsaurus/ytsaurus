@@ -7,7 +7,6 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/misc/optional.h>
 #include <yt/core/misc/core_dumper.h>
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/finally.h>
@@ -23,8 +22,6 @@
 #endif
 
 #include <unistd.h>
-
-#include <any>
 
 namespace NYT::NCoreDump {
 
@@ -46,6 +43,7 @@ public:
 #ifdef _linux_
         const auto& Logger = CoreDumpLogger;
         if (prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY) != 0) {
+            const auto& Logger = CoreDumpLogger;
             YT_LOG_ERROR(TError::FromSystem(), "Failed to call prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY)");
         }
 #endif
@@ -58,10 +56,12 @@ public:
 
         int index = Index_++;
 
-        auto Logger = TLogger(CoreDumpLogger);
-        Logger.AddTag("Index: %v", index);
+        auto Logger = TLogger(CoreDumpLogger)
+            .AddTag("Index: %v", index);
 
-        YT_LOG_INFO("Writing core dump (Notes: %v, Reason: %v)", notes, reason);
+        YT_LOG_INFO("Writing core dump (Notes: %v, Reason: %v)",
+            notes,
+            reason);
 
 #ifdef _linux_
         try {
@@ -103,7 +103,8 @@ public:
                 {"%CORE_DATETIME", TInstant::Now().FormatLocalTime("%Y%m%dT%H%M%S")},
             };
 
-            YT_LOG_DEBUG("Core dump variables (Variables: %v)", variables);
+            YT_LOG_DEBUG("Core dump variables (Variables: %v)",
+                variables);
 
             // Replace all occurrences of variables with their values.
             for (const auto& [variable, value] : variables) {
@@ -112,7 +113,9 @@ public:
                 }
             }
 
-            YT_LOG_INFO("Redirecting core dump to file (InputFd: %v, OutputPath: %v)", fd, corePath);
+            YT_LOG_INFO("Redirecting core dump to file (InputFd: %v, OutputPath: %v)",
+                fd,
+                corePath);
 
             TFile coreInputFile(fd);
             TUnbufferedFileInput coreInput(coreInputFile);
@@ -131,7 +134,8 @@ public:
                 Logger] () mutable {
                     YT_LOG_INFO("Started transferring core dump data");
                     auto size = WriteSparseCoreDump(&coreInput, &coreOutputFile);
-                    YT_LOG_INFO("Finished transferring core dump data (Size: %v)", size);
+                    YT_LOG_INFO("Finished transferring core dump data (Size: %v)",
+                        size);
                 })
                 .AsyncVia(ActionQueue_->GetInvoker())
                 .Run();
@@ -162,25 +166,13 @@ private:
     std::atomic<int> Index_ = {0};
     std::atomic<int> ActiveCoreDumpCount_ = {0};
 
-    static void RedirectCoreDumpToFile(
-        TUnbufferedFileInput&& coreInput,
-        TUnbufferedFileOutput&& coreOutput,
-        TLogger logger)
-    {
-        const auto& Logger = logger;
-
-        YT_LOG_INFO("Started transferring core dump data");
-        auto size = TransferData(&coreInput, &coreOutput);
-        YT_LOG_INFO("Finished transferring core dump data (Size: %v)", size);
-    }
-
     void BuildYson(IYsonConsumer* consumer) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         BuildYsonFluently(consumer).BeginMap()
             .Item("total_count").Value(Index_.load())
-            .Item("active_core_dump_count").Value(ActiveCoreDumpCount_.load())
+            .Item("active_count").Value(ActiveCoreDumpCount_.load())
         .EndMap();
     }
 };
