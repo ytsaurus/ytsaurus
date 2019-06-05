@@ -1407,6 +1407,30 @@ print(op.id)
         assert operation["state"] == "completed"
         assert operation["type"] == "map"
 
+    def test_iterate_operations(self):
+        if yt.config["backend"] == "rpc":
+            pytest.skip()
+
+        assert list(yt.iterate_operations()) == []
+
+        table = "//tmp/table"
+        operation_count = 12
+        table_paths = [0] * operation_count
+        for i in xrange(operation_count):
+            table_paths[i] = table + '_' + str(i)
+
+        for i in xrange(operation_count):
+            yt.write_table(table_paths[i], [{"x": "0"}])
+
+        ops = [0] * operation_count
+        for i in xrange(operation_count):
+            ops[i] = yt.run_map("cat", table_paths[i], table_paths[i], sync=False, format="yson")
+        for i in xrange(operation_count):
+            ops[i].wait()
+
+        operations = list(yt.iterate_operations(limit_per_request=5))
+        assert len(operations) == operation_count
+
     def test_lazy_yson(self):
         def mapper(row):
             assert not isinstance(row, (YsonMap, dict))
