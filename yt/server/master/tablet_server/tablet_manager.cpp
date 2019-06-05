@@ -3330,7 +3330,7 @@ public:
         }
 
         if (Bootstrap_->IsPrimaryMaster()) {
-            if (table->GetTabletCellBundle() != nullptr && table->IsDynamic()) {
+            if (table->GetTabletCellBundle() && table->IsDynamic()) {
                 table->ValidateAllTabletsUnmounted("Cannot change tablet cell bundle");
             }
 
