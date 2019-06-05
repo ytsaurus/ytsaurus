@@ -117,6 +117,11 @@ public:
         const TString& md5Signature,
         const TYPath& cachePath,
         const TPutFileToCacheOptions& options);
+    NThreading::TFuture<TCheckPermissionResponse> CheckPermission(
+        const TString& user,
+        EPermission permission,
+        const TYPath& path,
+        const TCheckPermissionOptions& options);
     NThreading::TFuture<TOperationAttributes> GetOperation(
         const TOperationId& operationId,
         const TGetOperationOptions& options);

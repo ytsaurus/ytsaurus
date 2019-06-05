@@ -161,6 +161,15 @@ TFuture<TVector<TTableColumnarStatistics>> TBatchRequest::GetTableColumnarStatis
     return Impl_->GetTableColumnarStatistics(DefaultTransaction_, paths);
 }
 
+TFuture<TCheckPermissionResponse> TBatchRequest::CheckPermission(
+    const TString& user,
+    EPermission permission,
+    const TYPath& path,
+    const TCheckPermissionOptions& options)
+{
+    return Impl_->CheckPermission(user, permission, path, options);
+}
+
 void TBatchRequest::ExecuteBatch(const TExecuteBatchOptions& options)
 {
     NYT::NDetail::ExecuteBatch(Client_->GetRetryPolicy()->CreatePolicyForGenericRequest(), Client_->GetAuth(), *Impl_, options);

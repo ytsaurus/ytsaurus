@@ -969,6 +969,15 @@ TYPath TClient::PutFileToCache(
     return NRawClient::PutFileToCache(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, filePath, md5Signature, cachePath, options);
 }
 
+TCheckPermissionResponse TClient::CheckPermission(
+    const TString& user,
+    EPermission permission,
+    const TYPath& path,
+    const TCheckPermissionOptions& options)
+{
+    return NRawClient::CheckPermission(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, user, permission, path, options);
+}
+
 TYtPoller& TClient::GetYtPoller()
 {
     auto g = Guard(YtPollerLock_);

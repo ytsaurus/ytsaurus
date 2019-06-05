@@ -91,6 +91,7 @@ namespace NTesting {
 
         MOCK_METHOD3(GetFileFromCache, TMaybe<TYPath>(const TString& md5Signature, const TYPath& cachePath, const TGetFileFromCacheOptions&));
         MOCK_METHOD4(PutFileToCache, TYPath(const TYPath&, const TString& md5Signature, const TYPath& cachePath, const TPutFileToCacheOptions&));
+        MOCK_METHOD4(CheckPermission, TCheckPermissionResponse(const TString&, EPermission, const TYPath&, const TCheckPermissionOptions&));
 
         MOCK_METHOD0(GetParentClient, IClientPtr());
 

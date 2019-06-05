@@ -627,4 +627,22 @@ TNode SerializeParamsForPutFileToCache(
         ("cache_path", cachePath);
 }
 
+TNode SerializeParamsForCheckPermission(
+    const TString& user,
+    EPermission permission,
+    const TYPath& path,
+    const TCheckPermissionOptions& options)
+{
+    TNode result;
+    SetPathParam(&result, path);
+    result["path"] = path;
+    result["user"] = user;
+    result["permission"] = ::ToString(permission);
+    if (!options.Columns_.empty()) {
+        result["columns"] = TNode::CreateList();
+        result["columns"].AsList().assign(options.Columns_.begin(), options.Columns_.end());
+    }
+    return result;
+}
+
 } // namespace NYT::NDetail::NRawClient

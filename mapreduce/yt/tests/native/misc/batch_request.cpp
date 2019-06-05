@@ -636,6 +636,44 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
         UNIT_ASSERT_EXCEPTION(errorRes.GetValue(), TErrorResponse);
     }
 
+    TGUID GetOrCreateUser(const IClientBasePtr& client, const TString& user)
+    {
+        if (!client->Exists("//sys/users/" + user)) {
+            return client->Create("", NT_USER,
+                TCreateOptions().Attributes(TNode()("name", user)).IgnoreExisting(true));
+        }
+        return GetGuid(client->Get("//sys/users/" + user + "/@id").AsString());
+    }
+
+    Y_UNIT_TEST(TestCheckPermission)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        TString user = "some_test_user";
+        GetOrCreateUser(client, user);
+
+        auto ace = TNode()
+            ("subjects", TNode().Add(user))
+            ("permissions", TNode().Add("read"))
+            ("action", "allow");
+        client->Create(workingDir + "/read_only", NT_MAP,  TCreateOptions()
+            .Attributes(TNode()
+                ("inherit_acl", false)
+                ("acl", TNode().Add(ace))));
+
+        auto batchRequest = client->CreateBatchRequest();
+
+        auto readReadOnlyResult = batchRequest->CheckPermission(user, EPermission::Read, workingDir + "/read_only");
+        auto writeReadOnlyResult = batchRequest->CheckPermission(user, EPermission::Write, workingDir + "/read_only");
+
+        batchRequest->ExecuteBatch();
+
+        UNIT_ASSERT_VALUES_EQUAL(readReadOnlyResult.GetValueSync().Action, ESecurityAction::Allow);
+        UNIT_ASSERT_VALUES_EQUAL(writeReadOnlyResult.GetValueSync().Action, ESecurityAction::Deny);
+    }
+
     Y_UNIT_TEST(TestYtPrefix) {
         TTestFixture fixture;
         auto client = fixture.GetClient();

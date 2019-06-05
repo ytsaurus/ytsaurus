@@ -22,6 +22,7 @@ enum ENodeType : int
     NT_DOCUMENT             /* "document" */,
     NT_REPLICATED_TABLE     /* "replicated_table" */,
     NT_TABLE_REPLICA        /* "table_replica" */,
+    NT_USER                 /* "user" */,
 };
 
 // https://wiki.yandex-team.ru/yt/userdoc/api/#create
@@ -563,6 +564,48 @@ struct TGetFileFromCacheOptions
 struct TPutFileToCacheOptions
 {
     using TSelf = TPutFileToCacheOptions;
+};
+
+enum class EPermission : int
+{
+    // Applies to: all objects.
+    Read         /* "read" */,
+
+    // Applies to: all objects.
+    Write        /* "write" */,
+
+    // Applies to: accounts.
+    Use          /* "use" */,
+
+    // Applies to: all objects.
+    Administer   /* "administer" */,
+
+    // Applies to: schemas.
+    Create       /* "create" */,
+
+    // Applies to: all objects.
+    Remove       /* "remove" */,
+
+    // Applies to: tables.
+    Mount        /* "mount" */,
+
+    // Applies to: operations.
+    Manage       /* "manage" */,
+};
+
+enum class ESecurityAction : int
+{
+    Allow /* "allow" */,
+    Deny  /* "deny" */,
+};
+
+// https://wiki.yandex-team.ru/yt/userdoc/api/#checkpermission
+struct TCheckPermissionOptions
+{
+    using TSelf = TCheckPermissionOptions;
+
+    // Columns to check permission to (for tables only).
+    FLUENT_VECTOR_FIELD(TString, Column);
 };
 
 } // namespace NYT

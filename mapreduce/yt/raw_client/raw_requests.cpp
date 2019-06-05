@@ -7,9 +7,13 @@
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/finally_guard.h>
 #include <mapreduce/yt/common/retry_lib.h>
+
 #include <mapreduce/yt/http/retry_request.h>
+
+#include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/interface/operation.h>
 #include <mapreduce/yt/interface/serialize.h>
+
 #include <mapreduce/yt/node/node_io.h>
 
 namespace NYT::NDetail::NRawClient {
@@ -646,6 +650,52 @@ TYPath PutFileToCache(
     header.MergeParameters(SerializeParamsForPutFileToCache(filePath, md5Signature, cachePath, options));
     auto result = RetryRequestWithPolicy(retryPolicy, auth, header);
     return NodeFromYsonString(result.Response).AsString();
+}
+
+TCheckPermissionResponse ParseCheckPermissionResponse(const TNode& node)
+{
+    auto parseSingleResult = [] (const TNode::TMapType& node) {
+        TCheckPermissionResult result;
+        result.Action = ::FromString<ESecurityAction>(node.at("action").AsString());
+        if (auto objectId = node.FindPtr("object_id")) {
+            result.ObjectId = GetGuid(objectId->AsString());
+        }
+        if (auto objectName = node.FindPtr("object_name")) {
+            result.ObjectName = objectName->AsString();
+        }
+        if (auto subjectId = node.FindPtr("subject_id")) {
+            result.SubjectId = GetGuid(subjectId->AsString());
+        }
+        if (auto subjectName = node.FindPtr("subject_name")) {
+            result.SubjectName = subjectName->AsString();
+        }
+        return result;
+    };
+
+    const auto& mapNode = node.AsMap();
+    TCheckPermissionResponse result;
+    static_cast<TCheckPermissionResult&>(result) = parseSingleResult(mapNode);
+    if (auto columns = mapNode.FindPtr("columns")) {
+        result.Columns.reserve(columns->AsList().size());
+        for (const auto& columnNode : columns->AsList()) {
+            result.Columns.push_back(parseSingleResult(columnNode.AsMap()));
+        }
+    }
+    return result;
+}
+
+TCheckPermissionResponse CheckPermission(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TString& user,
+    EPermission permission,
+    const TYPath& path,
+    const TCheckPermissionOptions& options)
+{
+    THttpHeader header("GET", "check_permission");
+    header.MergeParameters(SerializeParamsForCheckPermission(user, permission, path, options));
+    auto response = RetryRequestWithPolicy(retryPolicy, auth, header);
+    return ParseCheckPermissionResponse(NodeFromYsonString(response.Response));
 }
 
 void AlterTable(

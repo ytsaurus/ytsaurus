@@ -411,6 +411,12 @@ public:
         const TYPath& cachePath,
         const TPutFileToCacheOptions& options = TPutFileToCacheOptions()) override;
 
+    TCheckPermissionResponse CheckPermission(
+        const TString& user,
+        EPermission permission,
+        const TYPath& path,
+        const TCheckPermissionOptions& options) override;
+
     // Helper methods
     TYtPoller& GetYtPoller();
 
