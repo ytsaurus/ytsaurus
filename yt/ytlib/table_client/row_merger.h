@@ -28,6 +28,7 @@ public:
         NQueryClient::TColumnEvaluatorPtr columnEvaluator);
 
     void AddPartialRow(TVersionedRow row);
+    void AddPartialRow(TVersionedRow row, TTimestamp timestamp);
     TUnversionedRow BuildMergedRow();
     void Reset();
 
