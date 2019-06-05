@@ -6,6 +6,7 @@ import yt.yson as yson
 from functools import wraps
 import logging
 import os
+import sys
 import shutil
 import tempfile
 import time
@@ -298,8 +299,8 @@ class YtStuff(object):
         yt_local_err_path = os.path.join(self.yt_work_dir, "yt_local_%s.err" % self.yt_id)
         open(yt_local_out_path, 'a').close()
         open(yt_local_err_path, 'a').close()
-        self.yt_local_out = open(yt_local_out_path, "r+")
-        self.yt_local_err = open(yt_local_err_path, "r+")
+        self.yt_local_out = open(yt_local_out_path, "r+b")
+        self.yt_local_err = open(yt_local_err_path, "r+b")
         self.is_running = False
 
     def _prepare_env(self):
@@ -364,18 +365,23 @@ class YtStuff(object):
             if self.config.cell_tag is not None:
                 args += ["--cell-tag", str(self.config.cell_tag)]
 
-            args += ["--master-config", yson.dumps(self.config.build_master_config(), yson_format="text")]
-            args += ["--node-config", yson.dumps(self.config.build_node_config(), yson_format="text")]
-            args += ["--scheduler-config", yson.dumps(self.config.build_scheduler_config(), yson_format="text")]
-            args += ["--proxy-config", yson.dumps(self.config.build_proxy_config(), yson_format="text")]
-            args += ["--controller-agent-config", yson.dumps(self.config.build_controller_agent_config(), yson_format="text")]
-            args += ["--jobs-resource-limits", yson.dumps(self.config.build_job_controller_resource_limits(), yson_format="text")]
+            if sys.version_info.major > 2:
+                _dumps = lambda *a, **kw: yson.dumps(*a, **kw).decode("utf-8")
+            else:
+                _dumps = yson.dumps
+
+            args += ["--master-config", _dumps(self.config.build_master_config(), yson_format="text")]
+            args += ["--node-config", _dumps(self.config.build_node_config(), yson_format="text")]
+            args += ["--scheduler-config", _dumps(self.config.build_scheduler_config(), yson_format="text")]
+            args += ["--proxy-config", _dumps(self.config.build_proxy_config(), yson_format="text")]
+            args += ["--controller-agent-config", _dumps(self.config.build_controller_agent_config(), yson_format="text")]
+            args += ["--jobs-resource-limits", _dumps(self.config.build_job_controller_resource_limits(), yson_format="text")]
 
             local_cypress_dir = self.config.local_cypress_dir or yatest.common.get_param("yt_local_cypress_dir")
             if local_cypress_dir:
                 args += ["--local-cypress-dir", local_cypress_dir]
 
-            cmd = self.yt_local_exec + list(args)
+            cmd = [str(s) for s in self.yt_local_exec + list(args)]
             self._log(" ".join([os.path.basename(cmd[0])] + cmd[1:]))
 
             special_file = os.path.join(self.yt_work_dir, self.yt_id, "started")
@@ -397,7 +403,7 @@ class YtStuff(object):
                 MAX_WAIT_TIME = MAX_WAIT_TIME * 3
 
             NUM_TRIES = int(MAX_WAIT_TIME / SLEEP_TIME)
-            for i in xrange(NUM_TRIES):
+            for i in range(NUM_TRIES):
                 if os.path.lexists(special_file):
                     break
                 if not yt_daemon.is_alive():
@@ -409,17 +415,17 @@ class YtStuff(object):
                 return False
             if self.config.proxy_port is None:
                 info_yson_file = os.path.join(self.yt_work_dir, self.yt_id, "info.yson")
-                with open(info_yson_file) as f:
+                with open(info_yson_file, "rb") as f:
                     info = yson.load(f)
                 self.yt_proxy_port = int(info["http_proxies"][0]["address"].split(":")[1])
 
             self.cluster_config = dict()
-            with open(os.path.join(self.yt_work_dir, self.yt_id, "configs", "master-0-0.yson")) as f:
+            with open(os.path.join(self.yt_work_dir, self.yt_id, "configs", "master-0-0.yson"), "rb") as f:
                 v = yson.load(f)
                 for field in ["primary_master", "secondary_masters", "timestamp_provider", "transaction_manager"]:
                     if field in v:
                         self.cluster_config[field] = v[field]
-            with open(os.path.join(self.yt_work_dir, self.yt_id, "configs", "driver-0.yson")) as f:
+            with open(os.path.join(self.yt_work_dir, self.yt_id, "configs", "driver-0.yson"), "rb") as f:
                 v = yson.load(f)
                 for field in ["table_mount_cache", "cell_directory_synchronizer", "cluster_directory_synchronizer"]:
                     if field in v:
@@ -462,7 +468,7 @@ class YtStuff(object):
             "yt_start_max_tries",
             default=os.environ.get("YT_STUFF_MAX_START_RETRIES", _YT_MAX_START_RETRIES)
         ))
-        for i in xrange(max_retries):
+        for i in range(max_retries):
             self._log("Start local YT, attempt %d.", i)
             if self._start_local_yt():
                 self.is_running = True
@@ -557,8 +563,9 @@ class YtStuff(object):
             for file in files:
                 file_path = os.path.join(root, file)
                 if os.path.getsize(file_path) >= FILE_SIZE_LIMIT:
-                    self._split_file(file_path)
-                    os.remove(file_path)
+                    if sys.version_info.major < 3:  # XXX
+                        self._split_file(file_path)
+                        os.remove(file_path)
 
         collect_cores(
             self._get_pids(),

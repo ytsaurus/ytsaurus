@@ -1,7 +1,7 @@
 import pytest
 from _pytest.fixtures import FixtureLookupError
 
-from yt_stuff import YtStuff
+from .yt_stuff import YtStuff
 
 
 @pytest.fixture(scope="module")
