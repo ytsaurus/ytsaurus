@@ -6,8 +6,10 @@
 #include <mapreduce/yt/common/finally_guard.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/retry_lib.h>
+
 #include <mapreduce/yt/interface/logging/log.h>
 
+#include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/interface/serialize.h>
 
@@ -236,6 +238,20 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////
+
+class TCheckPermissionParser
+    : public TResponseParserBase<TCheckPermissionResponse>
+{
+public:
+    virtual void SetResponse(TMaybe<TNode> node) override
+    {
+        EnsureType(node, TNode::Map);
+        Result.SetValue(ParseCheckPermissionResponse(*node));
+    }
+};
+
+////////////////////////////////////////////////////////////////////
+
 TRawBatchRequest::TBatchItem::TBatchItem(TNode parameters, ::TIntrusivePtr<IResponseItemParser> responseParser)
     : Parameters(std::move(parameters))
     , ResponseParser(std::move(responseParser))
@@ -441,6 +457,18 @@ TFuture<TYPath> TRawBatchRequest::PutFileToCache(
     return AddRequest<TYPathParser>(
         "put_file_to_cache",
         SerializeParamsForPutFileToCache(filePath, md5Signature, cachePath, options),
+        Nothing());
+}
+
+TFuture<TCheckPermissionResponse> TRawBatchRequest::CheckPermission(
+    const TString& user,
+    EPermission permission,
+    const TYPath& path,
+    const TCheckPermissionOptions& options)
+{
+    return AddRequest<TCheckPermissionParser>(
+        "check_permission",
+        SerializeParamsForCheckPermission(user, permission, path, options),
         Nothing());
 }
 

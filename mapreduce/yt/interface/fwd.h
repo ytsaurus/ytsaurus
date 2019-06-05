@@ -49,6 +49,14 @@ namespace NYT {
 
     struct TAlterTableReplicaOptions;
 
+    struct TGetFileFromCacheOptions;
+
+    struct TPutFileToCacheOptions;
+
+    struct TCheckPermissionResult;
+    struct TCheckPermissionResponse;
+    struct TCheckPermissionOptions;
+
     class ILock;
     using ILockPtr = ::TIntrusivePtr<ILock>;
 

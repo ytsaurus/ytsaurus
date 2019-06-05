@@ -25,6 +25,10 @@ class TRawBatchRequest;
 
 TOperationAttributes ParseOperationAttributes(const TNode& node);
 
+TCheckPermissionResponse ParseCheckPermissionResponse(const TNode& node);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //
 // marks `batchRequest' as executed
 void ExecuteBatch(
@@ -226,6 +230,14 @@ TYPath PutFileToCache(
     const TString& md5Signature,
     const TYPath& cachePath,
     const TPutFileToCacheOptions& options = TPutFileToCacheOptions());
+
+TCheckPermissionResponse CheckPermission(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TString& user,
+    EPermission permission,
+    const TYPath& path,
+    const TCheckPermissionOptions& options = TCheckPermissionOptions());
 
 //
 // Tables

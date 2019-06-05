@@ -29,6 +29,28 @@ struct TAuthorizationInfo
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCheckPermissionResult
+{
+    ESecurityAction Action;
+
+    // In case when 'Action == ESecurtiyAction::Deny' because of a 'deny' rule,
+    // the "denying" object name and id and "denied" subject name an id may be returned.
+    TMaybe<TGUID> ObjectId;
+    TMaybe<TString> ObjectName;
+    TMaybe<TGUID> SubjectId;
+    TMaybe<TString> SubjectName;
+};
+
+// The base part of the response corresponds to the check result for the node itself.
+// |Columns| contains check results for the columns (in the same order as in the request).
+struct TCheckPermissionResponse
+    : public TCheckPermissionResult
+{
+    TVector<TCheckPermissionResult> Columns;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class ILock
     : public TThrRefBase
 {
@@ -290,6 +312,19 @@ public:
         const TString& md5Signature,
         const TYPath& cachePath,
         const TPutFileToCacheOptions& options = TPutFileToCacheOptions()) = 0;
+
+    // Check if 'user' has 'permission' to access a Cypress node at 'path'.
+    // For tables access to columns specified in 'options.Columns_' can be checked
+    // (see https://wiki.yandex-team.ru/yt/userdoc/columnaracl).
+    //
+    // If access is denied (the returned result has '.Action == ESecurityAction::Deny')
+    // because of a 'deny' rule, the "denying" object name and id
+    // and "denied" subject name an id may be returned.
+    virtual TCheckPermissionResponse CheckPermission(
+        const TString& user,
+        EPermission permission,
+        const TYPath& path,
+        const TCheckPermissionOptions& options = TCheckPermissionOptions()) = 0;
 };
 
 IClientPtr CreateClient(

@@ -98,6 +98,12 @@ public:
 
     virtual NThreading::TFuture<TVector<TTableColumnarStatistics>> GetTableColumnarStatistics(const TVector<TRichYPath>& paths) override;
 
+    NThreading::TFuture<TCheckPermissionResponse> CheckPermission(
+        const TString& user,
+        EPermission permission,
+        const TYPath& path,
+        const TCheckPermissionOptions& options) override;
+
     virtual void ExecuteBatch(const TExecuteBatchOptions& executeBatch) override;
 
 private:

@@ -154,6 +154,12 @@ TNode SerializeParamsForPutFileToCache(
     const TYPath& cachePath,
     const TPutFileToCacheOptions&);
 
+TNode SerializeParamsForCheckPermission(
+    const TString& user,
+    EPermission permission,
+    const TYPath& path,
+    const TCheckPermissionOptions& options);
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDetail::NRawClient
