@@ -130,6 +130,24 @@ def list_operations(user=None, state=None, type=None, filter=None, pool=None, wi
         client=client,
         timeout=timeout)
 
+def iterate_operations(user=None, state=None, type=None, filter=None, pool=None, with_failed_jobs=None, from_time=None,
+                       to_time=None, limit_per_request=100, include_archive=None, format=None, client=None):
+    """Yield operations that satisfy given options.
+    """
+    cursor_time = from_time
+    while True:
+        operations_response = list_operations(user=user, state=state, type=type, filter=filter, pool=pool,
+                                              with_failed_jobs=with_failed_jobs,from_time=from_time, to_time=to_time,
+                                              cursor_time=cursor_time, limit=limit_per_request,
+                                              include_archive=include_archive, format=format, client=client)
+        operations_response = operations_response["operations"]
+        if not operations_response:
+            break
+        for operation in operations_response:
+            # list_operations fetches (start_time; finish_time] from archive.
+            cursor_time = operation["start_time"]
+            yield operation
+
 def update_operation_parameters(operation_id, parameters, client=None):
     """Updates operation runtime parameters."""
     command_name = "update_operation_parameters" if get_api_version(client) == "v4" else "update_op_parameters"
