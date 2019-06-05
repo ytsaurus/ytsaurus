@@ -155,6 +155,8 @@ public:
         Response_->GetHeaders()->MergeFrom(ProxiedResponse_->GetHeaders());
         YT_LOG_DEBUG("Received headers, forwarding proxied response");
         PipeInputToOutput(ProxiedResponse_, Response_);
+        WaitFor(Response_->Close())
+            .ThrowOnError();
         YT_LOG_DEBUG("Proxied response forwarded");
     }
 
