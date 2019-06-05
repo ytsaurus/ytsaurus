@@ -104,18 +104,4 @@ DEFINE_REFCOUNTED_TYPE(TAccessControlManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool HasAccessControlParent(NObjects::IObjectTypeHandler* typeHandler);
-
-NObjects::EObjectType GetAccessControlParentType(NObjects::IObjectTypeHandler* typeHandler);
-
-NObjects::TObjectId GetAccessControlParentId(
-    NObjects::IObjectTypeHandler* typeHandler,
-    const NObjects::TObjectId& parentId);
-
-NObjects::TObject* GetAccessControlParent(
-    NObjects::IObjectTypeHandler* typeHandler,
-    NObjects::TObject* object);
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYP::NServer::NAccessControl

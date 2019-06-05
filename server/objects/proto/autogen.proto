@@ -22,6 +22,7 @@ import "yp/client/api/proto/enums.proto";
 
 message TNodeStatusEtc
 {
+    uint64 last_handshake_time = 10;
     string agent_version = 8;
     NYP.NClient.NApi.NProto.TNodeStatus.THfsm hfsm = 5;
     NYP.NClient.NApi.NProto.TNodeStatus.TMaintenance maintenance = 6;

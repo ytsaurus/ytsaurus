@@ -77,11 +77,13 @@ public:
         auto* Node_ = transaction->GetNode(nodeId);
         Node_->ValidateExists();
 
+        auto now = TInstant::Now();
         Node_->Status().AgentAddress() = address;
-        Node_->Status().LastSeenTime() = Now();
+        Node_->Status().LastSeenTime() = now;
         Node_->Status().EpochId() = TEpochId::Create();
         Node_->Status().HeartbeatSequenceNumber() = 0;
         Node_->Status().Etc()->set_agent_version(version);
+        Node_->Status().Etc()->set_last_handshake_time(now.MicroSeconds());
 
         YT_LOG_DEBUG("Handshake received (NodeId: %v, Address: %v, Version: %v, EpochId: %v)",
             nodeId,
@@ -233,7 +235,7 @@ public:
             }
 
             for (const auto& podEntry : Request_->pods()) {
-                auto podId = FromProto<TObjectId>(podEntry.pod_id());
+                const auto& podId = podEntry.pod_id();
                 auto* pod = Transaction_->GetPod(podId);
                 pod->ScheduleTombstoneCheck();
             }
@@ -268,7 +270,7 @@ public:
         {
             Node_->Status().Etc()->clear_unknown_pod_ids();
             for (const auto& podEntry : Request_->pods()) {
-                auto podId = FromProto<TObjectId>(podEntry.pod_id());
+                const auto& podId = podEntry.pod_id();
                 auto* pod = Transaction_->GetPod(podId);
                 if (!pod->DoesExist() && !pod->IsTombstone()) {
                     YT_LOG_DEBUG("Unknown pod reported by agent (PodId: %v)",
@@ -287,7 +289,7 @@ public:
 
             // Actually examine pods from the heartbeat.
             for (const auto& podEntry : Request_->pods()) {
-                auto podId = FromProto<TObjectId>(podEntry.pod_id());
+                const auto& podId = podEntry.pod_id();
 
                 auto currentState = static_cast<EPodCurrentState>(podEntry.current_state());
                 // TODO(babenko): remove after agents are updated
@@ -592,7 +594,7 @@ public:
                         newActualAllocations.begin(),
                         newActualAllocations.end(),
                         [&] (const auto& allocation) {
-                            auto podId = FromProto<TObjectId>(allocation.pod_id());
+                            const auto& podId = allocation.pod_id();
                             return
                                 ReportedPodIds_.find(podId) == ReportedPodIds_.end() ||
                                 UpToDatePodIds_.find(podId) != UpToDatePodIds_.end();
@@ -601,7 +603,7 @@ public:
 
                 // Copy scheduled allocations for the up-to-date pods to the actual ones.
                 for (const auto& scheduledAllocation : scheduledAllocations) {
-                    auto podId = FromProto<TObjectId>(scheduledAllocation.pod_id());
+                    const auto& podId = scheduledAllocation.pod_id();
                     if (UpToDatePodIds_.find(podId) == UpToDatePodIds_.end()) {
                         continue;
                     }

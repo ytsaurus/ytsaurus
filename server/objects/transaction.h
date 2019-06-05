@@ -36,12 +36,26 @@ struct TRemoveUpdateRequest
     NYT::NYPath::TYPath Path;
 };
 
-void FromProto(TRemoveUpdateRequest* request, const NClient::NApi::NProto::TRemoveUpdate& protoRequest);
-
 using TUpdateRequest = std::variant<
     TSetUpdateRequest,
     TRemoveUpdateRequest
 >;
+
+void FromProto(
+    TRemoveUpdateRequest* request,
+    const NClient::NApi::NProto::TRemoveUpdate& protoRequest);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TAttributeTimestampPrerequisite
+{
+    NYT::NYPath::TYPath Path;
+    TTimestamp Timestamp;
+};
+
+void FromProto(
+    TAttributeTimestampPrerequisite* prerequisite,
+    const NClient::NApi::NProto::TAttributeTimestampPrerequisite& protoPrerequisite);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,6 +84,7 @@ struct IUpdateContext
 struct TAttributeValueList
 {
     std::vector<NYT::NYson::TYsonString> Values;
+    std::vector<TTimestamp> Timestamps;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,11 +110,19 @@ TString ToString(const TObjectFilter& filter);
 struct TGetQueryOptions
 {
     bool IgnoreNonexistent = false;
+    bool FetchValues = true;
+    bool FetchTimestamps = false;
 };
+
+void FromProto(
+    TGetQueryOptions* options,
+    const NClient::NApi::NProto::TGetObjectOptions& protoOptions);
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TGetQueryResult
 {
-    std::deque<std::optional<TAttributeValueList>> Objects;
+    std::vector<std::optional<TAttributeValueList>> Objects;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -112,7 +135,7 @@ struct TSelectQueryOptions
 
 struct TSelectQueryResult
 {
-    std::deque<TAttributeValueList> Objects;
+    std::vector<TAttributeValueList> Objects;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -151,10 +174,12 @@ public:
 
     void UpdateObject(
         TObject* object,
-        const std::vector<TUpdateRequest>& requests);
+        const std::vector<TUpdateRequest>& requests,
+        const std::vector<TAttributeTimestampPrerequisite>& prerequisites = {});
     void UpdateObject(
         TObject* object,
         const std::vector<TUpdateRequest>& requests,
+        const std::vector<TAttributeTimestampPrerequisite>& prerequisites,
         IUpdateContext* context);
 
     TGetQueryResult ExecuteGetQuery(

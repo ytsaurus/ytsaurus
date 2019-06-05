@@ -227,6 +227,18 @@ TOne* TManyToOneAttribute<TMany, TOne>::LoadOld() const
 }
 
 template <class TMany, class TOne>
+void TManyToOneAttribute<TMany, TOne>::ScheduleLoadTimestamp() const
+{
+    Underlying_.ScheduleLoadTimestamp();
+}
+
+template <class TMany, class TOne>
+TTimestamp TManyToOneAttribute<TMany, TOne>::LoadTimestamp() const
+{
+    return Underlying_.LoadTimestamp();
+}
+
+template <class TMany, class TOne>
 bool TManyToOneAttribute<TMany, TOne>::IsChanged() const
 {
     return Underlying_.IsChanged();

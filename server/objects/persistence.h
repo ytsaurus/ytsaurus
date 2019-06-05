@@ -259,6 +259,9 @@ public:
 
     void ScheduleLoad() const;
 
+    void ScheduleLoadTimestamp() const;
+    TTimestamp LoadTimestamp() const;
+
 protected:
     const TScalarAttributeSchemaBase* const Schema_;
 
@@ -266,6 +269,7 @@ protected:
     bool StoreScheduled_ = false;
     bool Missing_ = false;
     mutable bool Loaded_ = false;
+    mutable std::optional<TTimestamp> Timestamp_;
 
 
     void ScheduleStore();
@@ -335,7 +339,6 @@ public:
 
     const T& Load() const;
     operator const T&() const;
-
     const T& LoadOld() const;
 
     bool IsChanged() const;
@@ -420,8 +423,10 @@ public:
 
     TOne* Load() const;
     operator TOne*() const;
-
     TOne* LoadOld() const;
+
+    void ScheduleLoadTimestamp() const;
+    TTimestamp LoadTimestamp() const;
 
     bool IsChanged() const;
 
@@ -533,20 +538,30 @@ public:
     explicit TAnnotationsAttribute(TObject* owner);
 
     void ScheduleLoad(const TString& key) const;
-    std::optional<NYT::NYson::TYsonString> Load(const TString& key) const;
+    NYT::NYson::TYsonString Load(const TString& key) const;
 
     void ScheduleLoadAll() const;
     std::vector<std::pair<TString, NYT::NYson::TYsonString>> LoadAll() const;
 
-    void Store(const TString& key, const std::optional<NYT::NYson::TYsonString>& value);
+    void ScheduleLoadTimestamp(const TString& key) const;
+    TTimestamp LoadTimestamp(const TString& key) const;
+
+    void Store(const TString& key, const NYT::NYson::TYsonString& value);
     bool IsStoreScheduled(const TString& key) const;
 
 private:
+    // Per-key machinery.
     mutable THashSet<TString> ScheduledLoadKeys_;
-    mutable bool ScheduledLoadAll_ = false;
     THashSet<TString> ScheduledStoreKeys_;
+    // Null values indicate tombstones.
+    THashMap<TString, NYT::NYson::TYsonString> KeyToValue_;
+    // Null values indicate missing keys.
+    THashMap<TString, TTimestamp> KeyToTimestamp_;
+
+    // All-keys machinery.
+    mutable bool ScheduledLoadAll_ = false;
     bool LoadedAll_ = false;
-    THashMap<TString, std::optional<NYT::NYson::TYsonString>> KeyToValue_;
+    THashMap<TString, NYT::NYson::TYsonString> AllKeysToValue_;
 
     // IPersistentAttribute implementation
     virtual void LoadFromDB(ILoadContext* context) override;

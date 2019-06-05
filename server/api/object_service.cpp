@@ -224,12 +224,12 @@ private:
         return payload;
     }
 
-    void MoveAttributesToProto(
+    void MoveObjectResultToProto(
         NClient::NApi::NProto::EPayloadFormat format,
         EObjectType objectType,
         const TAttributeSelector& selector,
         TAttributeValueList* object,
-        NClient::NApi::NProto::TAttributeValueList* protoResult)
+        NClient::NApi::NProto::TAttributeList* protoResult)
     {
         if (format == NClient::NApi::NProto::PF_NONE) {
             // COMPAT(babenko)
@@ -239,7 +239,6 @@ private:
             }
         } else {
             auto* responseValuePayloads = protoResult->mutable_value_payloads();
-            YCHECK(object->Values.size() == selector.Paths.size());
             for (size_t index = 0; index < object->Values.size(); ++index) {
                 *responseValuePayloads->Add() = YsonStringToPayload(
                     object->Values[index],
@@ -247,18 +246,18 @@ private:
                     selector.Paths[index],
                     format);
             }
+            for (auto timestamp : object->Timestamps) {
+                protoResult->add_timestamps(timestamp);
+            }
         }
+        // Reclaim memory.
         object->Values.clear();
         object->Values.shrink_to_fit();
+        object->Timestamps.clear();
+        object->Timestamps.shrink_to_fit();
     }
 
-    TUpdateRequest ParseRemoveUpdate(const NClient::NApi::NProto::TRemoveUpdate& protoUpdate)
-    {
-        return TRemoveUpdateRequest{
-            protoUpdate.path()
-        };
-    }
-
+    // TODO(babenko): replace with FromProto
     template <class TContextPtr>
     TUpdateRequest ParseSetUpdate(
         const TContextPtr& context,
@@ -477,7 +476,7 @@ private:
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto objectType = CheckedEnumCastToObjectType(request->object_type());
-        auto objectId = FromProto<TObjectId>(request->object_id());
+        const auto& objectId = request->object_id();
 
         context->SetRequestInfo("TransactionId: %v, ObjectType: %v, ObjectId: %v",
             transactionId,
@@ -520,7 +519,7 @@ private:
         for (const auto& subrequest : request->subrequests()) {
             subrequests.push_back({
                 CheckedEnumCastToObjectType(subrequest.object_type()),
-                FromProto<TObjectId>(subrequest.object_id())
+                subrequest.object_id()
             });
         }
 
@@ -567,7 +566,7 @@ private:
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto objectType = CheckedEnumCastToObjectType(request->object_type());
-        auto objectId = FromProto<TObjectId>(request->object_id());
+        const auto& objectId = request->object_id();
 
         bool deprecatedPayloadFormatLogged = false;
         std::vector<TUpdateRequest> updates;
@@ -576,14 +575,18 @@ private:
             updates.push_back(ParseSetUpdate(context, objectType, update, &deprecatedPayloadFormatLogged));
         }
         for (const auto& update : request->remove_updates()) {
-            updates.push_back(ParseRemoveUpdate(update));
+            updates.push_back(FromProto<TRemoveUpdateRequest>(update));
         }
 
-        context->SetRequestInfo("TransactionId: %v, ObjectType: %v, ObjectId: %v, UpdateCount: %v",
+        auto prerequisites = FromProto<std::vector<TAttributeTimestampPrerequisite>>(request->attribute_timestamp_prerequisites());
+
+        context->SetRequestInfo("TransactionId: %v, ObjectType: %v, ObjectId: %v, UpdateCount: %v, "
+            "PrerequisiteCount: %v",
             transactionId,
             objectType,
             objectId,
-            updates.size());
+            updates.size(),
+            prerequisites.size());
 
         auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
 
@@ -591,7 +594,7 @@ private:
         const auto& transaction = transactionWrapper.Unwrap();
 
         auto* object = transaction->GetObject(objectType, objectId);
-        transaction->UpdateObject(object, updates);
+        transaction->UpdateObject(object, updates, prerequisites);
         auto optionalCommitTimestamp = transactionWrapper.CommitIfOwned();
 
         if (optionalCommitTimestamp) {
@@ -614,6 +617,7 @@ private:
             EObjectType Type;
             TObjectId Id;
             std::vector<TUpdateRequest> Updates;
+            std::vector<TAttributeTimestampPrerequisite> Prerequisites;
         };
 
         bool deprecatedPayloadFormatLogged = false;
@@ -621,25 +625,32 @@ private:
         subrequests.reserve(request->subrequests_size());
         for (const auto& subrequest : request->subrequests()) {
             auto objectType = CheckedEnumCastToObjectType(subrequest.object_type());
-            auto objectId = FromProto<TObjectId>(subrequest.object_id());
+            const auto& objectId = subrequest.object_id();
             std::vector<TUpdateRequest> updates;
             updates.reserve(subrequest.set_updates_size() + subrequest.remove_updates_size());
             for (const auto& update : subrequest.set_updates()) {
                 updates.push_back(ParseSetUpdate(context, objectType, update, &deprecatedPayloadFormatLogged));
             }
             for (const auto& update : subrequest.remove_updates()) {
-                updates.push_back(ParseRemoveUpdate(update));
+                updates.push_back(FromProto<TRemoveUpdateRequest>(update));
             }
-            subrequests.push_back({objectType, std::move(objectId), std::move(updates)});
+            auto prerequisites = FromProto<std::vector<TAttributeTimestampPrerequisite>>(subrequest.attribute_timestamp_prerequisites());
+            subrequests.push_back({
+                objectType,
+                std::move(objectId),
+                std::move(updates),
+                std::move(prerequisites)
+            });
         }
 
         context->SetRequestInfo("TransactionId: %v, Subrequests: %v",
             transactionId,
             MakeFormattableView(subrequests, [] (auto* builder, const auto& subrequest) {
-                builder->AppendFormat("{ObjectType: %v, ObjectId: %v, UpdateCount: %v}",
+                builder->AppendFormat("{ObjectType: %v, ObjectId: %v, UpdateCount: %v, PrerequisiteCount: %v}",
                     subrequest.Type,
                     subrequest.Id,
-                    subrequest.Updates.size());
+                    subrequest.Updates.size(),
+                    subrequest.Prerequisites.size());
             }));
 
         auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
@@ -657,7 +668,7 @@ private:
         for (size_t index = 0; index < subrequests.size(); ++index) {
             const auto& subrequest = subrequests[index];
             auto* object = objects[index];
-            transaction->UpdateObject(object, subrequest.Updates, updateContext.get());
+            transaction->UpdateObject(object, subrequest.Updates, subrequest.Prerequisites, updateContext.get());
         }
 
         updateContext->Commit();
@@ -674,15 +685,13 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, GetObject)
     {
-        auto objectId = FromProto<TObjectId>(request->object_id());
+        const auto& objectId = request->object_id();
         auto objectType = CheckedEnumCastToObjectType(request->object_type());
         auto timestamp = request->timestamp();
         TAttributeSelector selector{
             FromProto<std::vector<TString>>(request->selector().paths())
         };
-
-        TGetQueryOptions options;
-        options.IgnoreNonexistent = request->options().ignore_nonexistent();
+        auto options = FromProto<TGetQueryOptions>(request->options());
 
         context->SetRequestInfo("ObjectId: %v, ObjectType: %v, Timestamp: %llx, Selector: %v",
             objectId,
@@ -708,8 +717,9 @@ private:
             options);
 
         auto& object = result.Objects[0];
-        YCHECK(object.has_value());
-        MoveAttributesToProto(format, objectType, selector, &(*object), response->mutable_result());
+        if (object) {
+            MoveObjectResultToProto(format, objectType, selector, &(*object), response->mutable_result());
+        }
 
         response->set_timestamp(transaction->GetStartTimestamp());
 
@@ -725,9 +735,7 @@ private:
         TAttributeSelector selector{
             FromProto<std::vector<TString>>(request->selector().paths())
         };
-
-        TGetQueryOptions options;
-        options.IgnoreNonexistent = request->options().ignore_nonexistent();
+        auto options = FromProto<TGetQueryOptions>(request->options());
 
         std::vector<TObjectId> objectIds;
         objectIds.reserve(request->subrequests().size());
@@ -760,9 +768,10 @@ private:
 
         response->mutable_subresponses()->Reserve(result.Objects.size());
         for (auto& object : result.Objects) {
-            YCHECK(object.has_value());
             auto* subresponse = response->add_subresponses();
-            MoveAttributesToProto(format, objectType, selector, &(*object), subresponse->mutable_result());
+            if (object) {
+                MoveObjectResultToProto(format, objectType, selector, &(*object), subresponse->mutable_result());
+            }
         }
 
         response->set_timestamp(transaction->GetStartTimestamp());
@@ -821,7 +830,7 @@ private:
         response->mutable_results()->Reserve(result.Objects.size());
         for (auto& object : result.Objects) {
             auto* protoResult = response->add_results();
-            MoveAttributesToProto(format, objectType, selector, &object, protoResult);
+            MoveObjectResultToProto(format, objectType, selector, &object, protoResult);
         }
 
         response->set_timestamp(transaction->GetStartTimestamp());

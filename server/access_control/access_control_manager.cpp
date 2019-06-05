@@ -477,18 +477,207 @@ std::vector<std::unique_ptr<TObject>> SelectObjects(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Adapts NObjects::TObject and NAccessControl::TObject interfaces.
+template <class TObject>
+struct TObjectTraits;
+
+template <>
+struct TObjectTraits<TObject>
+{
+    static bool GetInheritAcl(TObject* object)
+    {
+        return object->GetInheritAcl();
+    }
+
+    static const TAcl& GetAcl(TObject* object)
+    {
+        return object->Acl();
+    }
+
+    static const TObjectId& GetId(TObject* object)
+    {
+        return object->Id();
+    }
+
+    static EObjectType GetType(TObject* object)
+    {
+        return object->GetType();
+    }
+};
+
+template <>
+struct TObjectTraits<NObjects::TObject>
+{
+    static bool GetInheritAcl(NObjects::TObject* object)
+    {
+        return object->InheritAcl().Load();
+    }
+
+    static const TAcl& GetAcl(NObjects::TObject* object)
+    {
+        return object->Acl().Load();
+    }
+
+    static const TObjectId& GetId(NObjects::TObject* object)
+    {
+        return object->GetId();
+    }
+
+    static EObjectType GetType(NObjects::TObject* object)
+    {
+        return object->GetType();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAccessControlHierarchyBase
+{
+public:
+    virtual ~TAccessControlHierarchyBase() = default;
+
+    template <class TFunction>
+    void ForEachImmediateParentType(IObjectTypeHandler* typeHandler, TFunction&& function) const
+    {
+        if (typeHandler->GetType() == EObjectType::Schema) {
+            return;
+        }
+        if (auto parentType = typeHandler->GetParentType(); parentType != EObjectType::Null) {
+            function(parentType);
+        }
+        function(EObjectType::Schema);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTransactionAccessControlHierarchy
+    : public TAccessControlHierarchyBase
+{
+public:
+    template <class TFunction>
+    void ForEachImmediateParent(NObjects::TObject* object, TFunction&& function) const
+    {
+        auto* typeHandler = object->GetTypeHandler();
+        if (typeHandler->GetType() == EObjectType::Schema) {
+            return;
+        }
+        if (auto* parent = typeHandler->GetParent(object)) {
+            function(parent);
+        }
+        if (auto* schema = typeHandler->GetSchemaObject(object)) {
+            function(schema);
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSnapshotAccessControlHierarchy
+    : public TAccessControlHierarchyBase
+{
+public:
+    TSnapshotAccessControlHierarchy(
+        TObjectManagerPtr objectManager,
+        TClusterObjectSnapshotPtr clusterObjectSnapshot)
+        : ObjectManager_(std::move(objectManager))
+        , ClusterObjectSnapshot_(std::move(clusterObjectSnapshot))
+    { }
+
+    template <class TFunction>
+    void ForEachImmediateParent(TObject* object, TFunction&& function) const
+    {
+        if (object->GetType() == EObjectType::Schema) {
+            return;
+        }
+        auto typeHandler = ObjectManager_->GetTypeHandler(object->GetType());
+        auto* parent = ClusterObjectSnapshot_->FindObject(
+            typeHandler->GetParentType(),
+            object->ParentId());
+        if (parent) {
+            function(parent);
+        }
+        auto* schema = ClusterObjectSnapshot_->FindObject(
+            EObjectType::Schema,
+            typeHandler->GetSchemaObjectId());
+        if (schema) {
+            function(schema);
+        }
+    }
+
+private:
+    const TObjectManagerPtr ObjectManager_;
+    const TClusterObjectSnapshotPtr ClusterObjectSnapshot_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <
+    class TAccessControlHierarchy,
+    class TObject,
+    class TObjectTraits = TObjectTraits<TObject>,
+    class TFunction
+>
+void InvokeForAccessControlHierarchy(
+    const TAccessControlHierarchy& hierarchy,
+    TObject* leafObject,
+    TFunction&& function)
+{
+    if (!leafObject) {
+        return;
+    }
+    std::queue<TObject*> objects;
+    THashSet<TObject*> visitedObjects;
+    auto tryPushObject = [&visitedObjects, &objects, leafObject] (TObject* object) {
+        if (visitedObjects.insert(object).second) {
+            objects.push(object);
+        } else {
+            YT_LOG_WARNING("Object is visited at least twice during access control hierarchy traversal "
+                           "(ObjectType: %v, ObjectId: %v, LeafObjectType: %v, LeafObjectId: %v)",
+                TObjectTraits::GetType(object),
+                TObjectTraits::GetId(object),
+                TObjectTraits::GetType(leafObject),
+                TObjectTraits::GetId(leafObject));
+        }
+    };
+    tryPushObject(leafObject);
+    while (!objects.empty()) {
+        auto* object = objects.front();
+        objects.pop();
+        if (!function(object)) {
+            return;
+        }
+        if (TObjectTraits::GetInheritAcl(object)) {
+            hierarchy.ForEachImmediateParent(object, tryPushObject);
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TClusterObjectSnapshotPtr BuildClusterObjectSnapshot(
     const TTransactionPtr& transaction,
     const std::vector<NObjects::EObjectType>& leafObjectTypes)
 {
     THashSet<NObjects::EObjectType> visitedObjectTypes;
-    for (auto leafObjectType : leafObjectTypes) {
-        auto objectType = leafObjectType;
-        while (objectType != NObjects::EObjectType::Null
-            && visitedObjectTypes.emplace(objectType).second)
-        {
+    {
+        std::queue<EObjectType> objectTypes;
+        auto tryPushObjectType = [&visitedObjectTypes, &objectTypes] (EObjectType objectType) {
+            if (visitedObjectTypes.insert(objectType).second) {
+                objectTypes.push(objectType);
+            }
+        };
+        for (auto leafObjectType : leafObjectTypes) {
+            if (leafObjectType != EObjectType::Null) {
+                tryPushObjectType(leafObjectType);
+            }
+        }
+        TTransactionAccessControlHierarchy hierarchy;
+        while (!objectTypes.empty()) {
+            auto objectType = objectTypes.front();
+            objectTypes.pop();
             auto* typeHandler = transaction->GetSession()->GetTypeHandler(objectType);
-            objectType = GetAccessControlParentType(typeHandler);
+            hierarchy.ForEachImmediateParentType(typeHandler, tryPushObjectType);
         }
     }
 
@@ -521,126 +710,12 @@ TClusterObjectSnapshotPtr BuildClusterObjectSnapshot(
         .ValueOrThrow();
 
     auto snapshot = New<TClusterObjectSnapshot>();
-    for (const auto& result : results) {
+    for (auto& result : results) {
         snapshot->AddObjects(result->ObjectType, std::move(result->Objects));
     }
 
     return snapshot;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTransactionAccessControlHiearchy
-{
-    template <class TFunction>
-    static void Invoke(NObjects::TObject* object, TFunction&& function)
-    {
-        while (object) {
-            if (!function(object)) {
-                break;
-            }
-
-            if (!object->InheritAcl().Load()) {
-                break;
-            }
-
-            auto* typeHandler = object->GetTypeHandler();
-            object = GetAccessControlParent(typeHandler, object);
-        }
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSnapshotAccessControlHierarchy
-{
-public:
-    TSnapshotAccessControlHierarchy(
-        TObjectManagerPtr objectManager,
-        TClusterObjectSnapshotPtr clusterObjectSnapshot)
-        : ObjectManager_(std::move(objectManager))
-        , ClusterObjectSnapshot_(std::move(clusterObjectSnapshot))
-    { }
-
-    template <class TFunction>
-    void Invoke(TObject* object, TFunction&& function) const
-    {
-        while (object) {
-            if (!function(object)) {
-                break;
-            }
-
-            if (!object->GetInheritAcl()) {
-                break;
-            }
-
-            object = GetAccessControlParent(object);
-        }
-    }
-
-private:
-    const TObjectManagerPtr ObjectManager_;
-    const TClusterObjectSnapshotPtr ClusterObjectSnapshot_;
-
-    TObject* GetAccessControlParent(TObject* object) const
-    {
-        auto typeHandler = ObjectManager_->GetTypeHandler(object->GetType());
-        auto accessControlParentType = GetAccessControlParentType(typeHandler);
-        if (accessControlParentType == EObjectType::Null) {
-            return nullptr;
-        }
-        auto accessControlParentId = GetAccessControlParentId(
-            typeHandler,
-            object->ParentId());
-        return ClusterObjectSnapshot_->FindObject(
-            accessControlParentType,
-            accessControlParentId);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Adapts NObjects::TObject and NAccessControl::TObject interfaces.
-template <class TObject>
-struct TObjectTraits;
-
-template <>
-struct TObjectTraits<TObject>
-{
-    static const TAcl& GetAcl(TObject* object)
-    {
-        return object->Acl();
-    }
-
-    static const TObjectId& GetId(TObject* object)
-    {
-        return object->Id();
-    }
-
-    static EObjectType GetType(TObject* object)
-    {
-        return object->GetType();
-    }
-};
-
-template <>
-struct TObjectTraits<NObjects::TObject>
-{
-    static const TAcl& GetAcl(NObjects::TObject* object)
-    {
-        return object->Acl().Load();
-    }
-
-    static const TObjectId& GetId(NObjects::TObject* object)
-    {
-        return object->GetId();
-    }
-
-    static EObjectType GetType(NObjects::TObject* object)
-    {
-        return object->GetType();
-    }
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -681,7 +756,7 @@ public:
             object,
             permission,
             GetClusterSubjectSnapshot(),
-            TTransactionAccessControlHiearchy());
+            TTransactionAccessControlHierarchy());
     }
 
     TUserIdList GetObjectAccessAllowedFor(
@@ -692,7 +767,8 @@ public:
 
         THashSet<TObjectId> allowedForUserIds;
         THashSet<TObjectId> deniedForUserIds;
-        TTransactionAccessControlHiearchy::Invoke(
+        InvokeForAccessControlHierarchy(
+            TTransactionAccessControlHierarchy(),
             object,
             [&] (auto* object) {
                 const auto& acl = object->Acl().Load();
@@ -946,7 +1022,8 @@ private:
             return result;
         }
 
-        hierarchy.Invoke(
+        InvokeForAccessControlHierarchy(
+            hierarchy,
             object,
             [&] (auto* object) {
                 const auto& acl = TObjectTraits::GetAcl(object);
@@ -1268,48 +1345,6 @@ void TAccessControlManager::ValidateSuperuser(TStringBuf doWhat)
 NYTree::IYPathServicePtr TAccessControlManager::CreateOrchidService()
 {
     return Impl_->CreateOrchidService();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool HasAccessControlParent(IObjectTypeHandler* typeHandler)
-{
-    // Assuming object is not internal (e.g. network module) or null because it has type handler.
-    return typeHandler->GetType() != EObjectType::Schema;
-}
-
-EObjectType GetAccessControlParentType(IObjectTypeHandler* typeHandler)
-{
-    if (!HasAccessControlParent(typeHandler)) {
-        return EObjectType::Null;
-    }
-    auto parentType = typeHandler->GetParentType();
-    if (parentType != EObjectType::Null) {
-        return parentType;
-    }
-    return EObjectType::Schema;
-}
-
-TObjectId GetAccessControlParentId(IObjectTypeHandler* typeHandler, const TObjectId& parentId)
-{
-    if (!HasAccessControlParent(typeHandler)) {
-        return TObjectId();
-    }
-    if (typeHandler->GetParentType() != EObjectType::Null) {
-        return parentId;
-    }
-    return typeHandler->GetSchemaObjectId();
-}
-
-NObjects::TObject* GetAccessControlParent(IObjectTypeHandler* typeHandler, NObjects::TObject* object)
-{
-    if (!HasAccessControlParent(typeHandler)) {
-        return nullptr;
-    }
-    if (typeHandler->GetParentType() != EObjectType::Null) {
-        return typeHandler->GetParent(object);
-    }
-    return typeHandler->GetSchemaObject(object);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

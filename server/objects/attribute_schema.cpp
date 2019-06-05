@@ -26,7 +26,7 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
     Annotations_ = true;
     Updatable_ = true;
 
-    Setter_ =
+    ValueSetter_ =
         [=] (
             TTransaction* /*transaction*/,
             TObject* object,
@@ -40,7 +40,7 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
 
             if (tokenizer.Advance() == ETokenType::EndOfStream) {
                 for (const auto& pair : attribute->LoadAll()) {
-                    attribute->Store(pair.first, std::nullopt);
+                    attribute->Store(pair.first, TYsonString());
                 }
                 for (const auto& pair : value->AsMap()->GetChildren()) {
                     attribute->Store(pair.first, ConvertToYsonString(pair.second));
@@ -57,10 +57,10 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
                     updatedYson = ConvertToYsonString(value);
                 } else {
                     INodePtr existingNode;
-                    auto optionalExistingYson = attribute->Load(key);
-                    if (optionalExistingYson) {
+                    auto existingYson = attribute->Load(key);
+                    if (existingYson) {
                         try {
-                            existingNode = ConvertToNode(*optionalExistingYson);
+                            existingNode = ConvertToNode(existingYson);
                         } catch (const std::exception& ex) {
                             THROW_ERROR_EXCEPTION("Error parsing value of annotation %Qv of object %Qv",
                                 key,
@@ -90,6 +90,40 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
             }
         };
 
+    auto parseAnnotationKey = [] (const TYPath& path) {
+        NYPath::TTokenizer tokenizer(path);
+
+        if (tokenizer.Advance() == ETokenType::EndOfStream) {
+            THROW_ERROR_EXCEPTION("Cannot compute timestamp for the whole /annotations");
+        }
+        tokenizer.Expect(ETokenType::Slash);
+
+        tokenizer.Advance();
+        tokenizer.Expect(ETokenType::Literal);
+
+        return TString(tokenizer.GetToken());
+    };
+
+    TimestampPregetter_ =
+        [=] (
+            TTransaction* /*transaction*/,
+            TObject* object,
+            const TYPath& path)
+        {
+            auto key = parseAnnotationKey(path);
+            object->Annotations().ScheduleLoadTimestamp(key);
+        };
+
+    TimestampGetter_ =
+        [=] (
+            TTransaction* /*transaction*/,
+            TObject* object,
+            const TYPath& path)
+        {
+            auto key = parseAnnotationKey(path);
+            return object->Annotations().LoadTimestamp(key);
+        };
+
     Remover_ =
         [=] (
             TTransaction* /*transaction*/,
@@ -110,10 +144,10 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
 
             auto* attribute = &object->Annotations();
 
-            std::optional<TYsonString> optionalUpdatedYson;
+            TYsonString updatedYson;
             if (tokenizer.Advance() != ETokenType::EndOfStream) {
-                auto optionalExistingYson = attribute->Load(key);
-                if (!optionalExistingYson) {
+                auto existingYson = attribute->Load(key);
+                if (!existingYson) {
                     THROW_ERROR_EXCEPTION("%v %v has no annotation %Qv",
                         GetCapitalizedHumanReadableTypeName(object->GetType()),
                         GetObjectDisplayName(object),
@@ -122,7 +156,7 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
 
                 INodePtr existingNode;
                 try {
-                    existingNode = ConvertToNode(*optionalExistingYson);
+                    existingNode = ConvertToNode(existingYson);
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Error parsing value of annotation %Qv of %v %v",
                         key,
@@ -133,10 +167,10 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
 
                 // TODO(babenko): optimize
                 SyncYPathRemove(existingNode, TYPath(tokenizer.GetInput()));
-                optionalUpdatedYson = ConvertToYsonString(existingNode);
+                updatedYson = ConvertToYsonString(existingNode);
             }
 
-            attribute->Store(key, optionalUpdatedYson);
+            attribute->Store(key, updatedYson);
         };
 
 
@@ -336,19 +370,19 @@ const THashMap<TString, TAttributeSchema*>& TAttributeSchema::KeyToChild() const
     return KeyToChild_;
 }
 
-bool TAttributeSchema::HasSetter() const
+bool TAttributeSchema::HasValueSetter() const
 {
-    return Setter_.operator bool();
+    return ValueSetter_.operator bool();
 }
 
-void TAttributeSchema::RunSetter(
+void TAttributeSchema::RunValueSetter(
     TTransaction* transaction,
     TObject* object,
     const TYPath& path,
     const INodePtr& value,
     bool recursive)
 {
-    Setter_(transaction, object, path, value, recursive);
+    ValueSetter_(transaction, object, path, value, recursive);
 }
 
 bool TAttributeSchema::HasInitializer() const
@@ -408,17 +442,17 @@ void TAttributeSchema::RunRemover(TTransaction* transaction, TObject* object, co
     Remover_(transaction, object, path);
 }
 
-bool TAttributeSchema::HasPreloader() const
+bool TAttributeSchema::HasPreupdater() const
 {
-    return Preloader_.operator bool();
+    return Preupdater_.operator bool();
 }
 
-void TAttributeSchema::RunPreloader(
+void TAttributeSchema::RunPreupdater(
     TTransaction* transaction,
     TObject* object,
     const TUpdateRequest& request)
 {
-    Preloader_(transaction, object, request);
+    Preupdater_(transaction, object, request);
 }
 
 TAttributeSchema* TAttributeSchema::SetExpressionBuilder(std::function<TExpressionPtr(IQueryContext*)> builder)
@@ -467,6 +501,26 @@ void TAttributeSchema::RunEvaluator(
     NYson::IYsonConsumer* consumer)
 {
     Evaluator_(transaction, object, consumer);
+}
+
+bool TAttributeSchema::HasTimestampPregetter() const
+{
+    return TimestampPregetter_.operator bool();
+}
+
+void TAttributeSchema::RunTimestampPregetter(TTransaction* transaction, TObject* object, const TYPath& path)
+{
+    TimestampPregetter_(transaction, object, path);
+}
+
+bool TAttributeSchema::HasTimestampGetter() const
+{
+    return TimestampGetter_.operator bool();
+}
+
+TTimestamp TAttributeSchema::RunTimestampGetter(TTransaction* transaction, TObject* object, const TYPath& path)
+{
+    return TimestampGetter_(transaction, object, path);
 }
 
 TAttributeSchema* TAttributeSchema::SetMandatory()
@@ -539,6 +593,18 @@ void TAttributeSchema::InitExpressionBuilder(const TDBField* field, TPathValidat
             }
 
             return expr;
+        };
+}
+
+void TAttributeSchema::InitNullTimestampGetter()
+{
+    TimestampGetter_ =
+        [=] (
+            TTransaction* /*transaction*/,
+            TObject* /*object*/,
+            const TYPath& /*path*/)
+        {
+            return NullTimestamp;
         };
 }
 

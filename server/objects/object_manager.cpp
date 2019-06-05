@@ -21,6 +21,7 @@
 #include "dns_record_set_type_handler.h"
 #include "multi_cluster_replica_set_type_handler.h"
 #include "stage_type_handler.h"
+#include "pod_disruption_budget_type_handler.h"
 #include "object.h"
 #include "db_schema.h"
 #include "transaction_manager.h"
@@ -92,6 +93,7 @@ public:
         RegisterTypeHandler(CreateResourceCacheTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateMultiClusterReplicaSetTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateDynamicResourceTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreatePodDisruptionBudgetTypeHandler(Bootstrap_));
 
         const auto& ytConnector = Bootstrap_->GetYTConnector();
         ytConnector->SubscribeValidateConnection(BIND(&TImpl::OnValidateConnection, MakeWeak(this)));

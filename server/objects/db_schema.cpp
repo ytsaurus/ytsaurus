@@ -38,6 +38,8 @@ const TDnsRecordSetsTable DnsRecordSetsTable;
 const TResourceCachesTable ResourceCachesTable;
 const TMultiClusterReplicaSetsTable MultiClusterReplicaSetsTable;
 const TStagesTable StagesTable;
+const TPodDisruptionBudgetsTable PodDisruptionBudgetsTable;
+const TPodDisruptionBudgetToPodSetsTable PodDisruptionBudgetToPodSetsTable;
 
 const std::vector<const TDBTable*> Tables = {
     &SchemasTable,
@@ -72,7 +74,9 @@ const std::vector<const TDBTable*> Tables = {
     &DnsRecordSetsTable,
     &ResourceCachesTable,
     &MultiClusterReplicaSetsTable,
-    &StagesTable
+    &StagesTable,
+    &PodDisruptionBudgetsTable,
+    &PodDisruptionBudgetToPodSetsTable
 };
 
 ////////////////////////////////////////////////////////////////////////////////

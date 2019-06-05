@@ -12,8 +12,9 @@ import "yt/core/yson/proto/protobuf_interop.proto";
 import "yt_proto/yt/core/ytree/proto/attributes.proto";
 import "yt_proto/yt/core/misc/proto/error.proto";
 
-import "google/protobuf/descriptor.proto";
 import "google/protobuf/any.proto";
+import "google/protobuf/descriptor.proto";
+import "google/protobuf/timestamp.proto";
 
 option java_package = "ru.yandex.yp.client.api";
 option java_outer_classname = "DataModel";
@@ -312,6 +313,9 @@ message TNodeStatus
     // Timestamp of the last agent heartbeat.
     optional uint64 last_seen_time = 2;
 
+    // Timestamp of the last agent handshake.
+    optional uint64 last_handshake_time = 10 [(NYP.NClient.NApi.NProto.etc) = true];
+
     // Used for properly sequencing master-agent communication.
     optional uint64 heartbeat_sequence_number = 3;
 
@@ -594,7 +598,7 @@ message TPodDynamicResourceSpec
 
     // Resource identifier.
     optional string id = 1;
-    
+
     // Desired revision of the resource.
     optional uint64 revision = 2;
 
@@ -1225,6 +1229,10 @@ message TPodSetSpec
 
     // Account that must be charged for this podset.
     optional string account_id = 3;
+
+    // Pod disruption budget that limits this podset disruptions.
+    // Missing value corresponds to the zero budget, i.e. without disruptions at all.
+    optional string pod_disruption_budget_id = 4;
 }
 
 message TPodSetStatus
@@ -1447,6 +1455,35 @@ message TAccountStatus
 {
     optional TResourceTotals resource_usage = 1;
     optional TResourceTotals immediate_resource_usage = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "PodDisruptionBudget"
+    snake_case_name: "pod_disruption_budget"
+    type_value: 20
+};
+
+message TPodDisruptionBudgetSpec
+{
+    // Limit on the maximum number of unavailable pods.
+    optional int32 max_pods_unavailable = 1;
+
+    // Limit on the maximum number of pod disruptions between consecutive synchronizations.
+    optional int32 max_pod_disruptions_between_syncs = 2;
+}
+
+message TPodDisruptionBudgetStatus
+{
+    // Number of currently allowed pod disruptions.
+    optional int32 allowed_pod_disruptions = 1;
+
+    // Time of the last status update.
+    optional google.protobuf.Timestamp last_update_time = 2;
+
+    // Comment for the last status update.
+    optional string last_update_message = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

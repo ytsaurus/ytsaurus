@@ -400,6 +400,32 @@ void TScalarAttributeBase::ScheduleLoad() const
     LoadScheduled_ = true;
 }
 
+void TScalarAttributeBase::ScheduleLoadTimestamp() const
+{
+    ScheduleLoad();
+}
+
+TTimestamp TScalarAttributeBase::LoadTimestamp() const
+{
+    switch (Owner_->GetState()) {
+        case EObjectState::Instantiated:
+        case EObjectState::Removing:
+        case EObjectState::Removed:
+            OnLoad();
+            return *Timestamp_;
+
+        case EObjectState::Creating:
+        case EObjectState::Created:
+        case EObjectState::CreatedRemoving:
+        case EObjectState::CreatedRemoved: {
+            return NullTimestamp;
+        }
+
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
 void TScalarAttributeBase::ScheduleStore()
 {
     if (StoreScheduled_) {
@@ -463,7 +489,9 @@ void TScalarAttributeBase::LoadFromDB(ILoadContext* context)
             if (optionalValues) {
                 Y_ASSERT(optionalValues->Size() == 1);
                 try {
-                    LoadOldValue((*optionalValues)[0], context);
+                    const auto& value = (*optionalValues)[0];
+                    Timestamp_ = value.Timestamp;
+                    LoadOldValue(value, context);
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Error loading value of [%v.%v] for %v %v",
                         table->Name,
@@ -664,7 +692,7 @@ TAnnotationsAttribute::TAnnotationsAttribute(TObject* owner)
 
 void TAnnotationsAttribute::ScheduleLoad(const TString& key) const
 {
-    if (KeyToValue_.find(key) != KeyToValue_.end() || ScheduledLoadAll_ || LoadedAll_) {
+    if (KeyToValue_.find(key) != KeyToValue_.end()) {
         return;
     }
 
@@ -672,12 +700,31 @@ void TAnnotationsAttribute::ScheduleLoad(const TString& key) const
     DoScheduleLoad();
 }
 
-std::optional<TYsonString> TAnnotationsAttribute::Load(const TString& key) const
+TYsonString TAnnotationsAttribute::Load(const TString& key) const
 {
     ScheduleLoad(key);
     Owner_->GetSession()->FlushLoads();
     auto it = KeyToValue_.find(key);
     Y_ASSERT(it != KeyToValue_.end());
+    return it->second ? it->second : TYsonString();
+}
+
+void TAnnotationsAttribute::ScheduleLoadTimestamp(const TString& key) const
+{
+    if (KeyToTimestamp_.find(key) != KeyToTimestamp_.end()) {
+        return;
+    }
+
+    ScheduledLoadKeys_.insert(key);
+    DoScheduleLoad();
+}
+
+TTimestamp TAnnotationsAttribute::LoadTimestamp(const TString& key) const
+{
+    ScheduleLoad(key);
+    Owner_->GetSession()->FlushLoads();
+    auto it = KeyToTimestamp_.find(key);
+    Y_ASSERT(it != KeyToTimestamp_.end());
     return it->second;
 }
 
@@ -685,7 +732,6 @@ void TAnnotationsAttribute::ScheduleLoadAll() const
 {
     if (ScheduledLoadAll_ || LoadedAll_) {
         return;
-
     }
 
     ScheduledLoadAll_ = true;
@@ -698,15 +744,20 @@ std::vector<std::pair<TString, NYT::NYson::TYsonString>> TAnnotationsAttribute::
     Owner_->GetSession()->FlushLoads();
     std::vector<std::pair<TString, NYT::NYson::TYsonString>> result;
     result.reserve(KeyToValue_.size());
-    for (const auto& pair : KeyToValue_) {
-        if (pair.second) {
-            result.emplace_back(pair.first, *pair.second);
+    for (const auto& [key, value] : AllKeysToValue_) {
+        auto it = KeyToValue_.find(key);
+        if (it == KeyToValue_.end()) {
+            result.emplace_back(key, value);
+        } else if (it->second) {
+            result.emplace_back(key, it->second);
+        } else {
+            // Key was deleted.
         }
     }
     return result;
 }
 
-void TAnnotationsAttribute::Store(const TString& key, const std::optional<TYsonString>& value)
+void TAnnotationsAttribute::Store(const TString& key, const TYsonString& value)
 {
     auto ownerState = Owner_->GetState();
     YCHECK(ownerState != EObjectState::Removed && ownerState != EObjectState::CreatedRemoved);
@@ -753,7 +804,7 @@ void TAnnotationsAttribute::LoadFromDB(ILoadContext* context)
                 for (auto row : rows) {
                     Y_ASSERT(row.GetCount() == 1);
                     auto key = FromUnversionedValue<TString>(row[0]);
-                    YCHECK(KeyToValue_.emplace(key, std::nullopt).second);
+                    YCHECK(KeyToValue_.emplace(key, TYsonString()).second);
                     YCHECK(ScheduledStoreKeys_.emplace(key).second);
                 }
             });
@@ -772,8 +823,10 @@ void TAnnotationsAttribute::LoadFromDB(ILoadContext* context)
                         Y_ASSERT(optionalValues->Size() == 1);
                         const auto& value = (*optionalValues)[0];
                         KeyToValue_[attributeKey] = FromUnversionedValue<TYsonString>(value);
+                        KeyToTimestamp_[attributeKey] = value.Timestamp;
                     } else {
-                        KeyToValue_[attributeKey] = std::nullopt;
+                        KeyToValue_[attributeKey] = TYsonString();
+                        KeyToTimestamp_[attributeKey] = NullTimestamp;
                     }
                     YCHECK(ScheduledLoadKeys_.erase(attributeKey) == 1);
                 });
@@ -799,7 +852,7 @@ void TAnnotationsAttribute::LoadFromDB(ILoadContext* context)
                         Y_ASSERT(row.GetCount() == 2);
                         auto key = FromUnversionedValue<TString>(row[0]);
                         auto value = FromUnversionedValue<TYsonString>(row[1]);
-                        KeyToValue_.emplace(std::move(key), std::move(value));
+                        YCHECK(AllKeysToValue_.emplace(std::move(key), std::move(value)).second);
                     }
                 });
         }
@@ -808,25 +861,25 @@ void TAnnotationsAttribute::LoadFromDB(ILoadContext* context)
 
 void TAnnotationsAttribute::StoreToDB(IStoreContext* context)
 {
-    for (const auto& attributeKey : ScheduledStoreKeys_) {
-        auto it = KeyToValue_.find(attributeKey);
+    for (const auto& key : ScheduledStoreKeys_) {
+        auto it = KeyToValue_.find(key);
         Y_ASSERT(it != KeyToValue_.end());
-        const auto& optionalAttributeValue = it->second;
+        const auto& value = it->second;
 
         auto keyValues = ToUnversionedValues(
             context->GetRowBuffer(),
             Owner_->GetId(),
             Owner_->GetType(),
-            attributeKey);
+            key);
 
-        if (optionalAttributeValue) {
+        if (value) {
             context->WriteRow(
                 &AnnotationsTable,
                 keyValues,
                 MakeArray(&AnnotationsTable.Fields.Value),
                 ToUnversionedValues(
                     context->GetRowBuffer(),
-                    *optionalAttributeValue));
+                    value));
         } else {
             context->DeleteRow(
                 &AnnotationsTable,

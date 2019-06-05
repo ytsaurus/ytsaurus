@@ -35,11 +35,11 @@ NClient::NApi::NProto::TDynamicAttributes BuildPodDynamicAttributes(TPod* pod)
     }
 
     for (const auto& key : specDynamicAttributes.annotations()) {
-        auto optionalValue = pod->Annotations().Load(key);
-        if (optionalValue) {
+        auto value = pod->Annotations().Load(key);
+        if (value) {
             auto* protoItem = result.mutable_annotations()->add_attributes();
             protoItem->set_key(key);
-            protoItem->set_value(optionalValue->GetData());
+            protoItem->set_value(value.GetData());
         }
     }
 

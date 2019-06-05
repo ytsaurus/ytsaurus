@@ -4,6 +4,7 @@
 #include "pod.h"
 #include "node_segment.h"
 #include "account.h"
+#include "pod_disruption_budget.h"
 #include "db_schema.h"
 
 #include <yp/server/master/bootstrap.h>
@@ -41,7 +42,13 @@ public:
                         .SetNullable(false))
                     ->SetUpdatable()
                     ->SetUpdateHandler<TPodSet>(std::bind(&TPodSetTypeHandler::OnAccountUpdated, this, _1, _2))
-                    ->SetValidator<TPodSet>(std::bind(&TPodSetTypeHandler::ValidateAccount, this, _1, _2))
+                    ->SetValidator<TPodSet>(std::bind(&TPodSetTypeHandler::ValidateAccount, this, _1, _2)),
+
+                MakeAttributeSchema("pod_disruption_budget_id")
+                    ->SetAttribute(TPodSet::TSpec::PodDisruptionBudgetSchema)
+                    ->SetUpdatable()
+                    ->SetUpdateHandler<TPodSet>(
+                        std::bind(&TPodSetTypeHandler::OnPodDisruptionBudgetUpdated, this, _1, _2))
             });
 
         StatusAttributeSchema_
@@ -100,6 +107,23 @@ private:
         defaultNodeSegment->PodSets().Add(podSet);
     }
 
+    virtual void AfterObjectRemoved(
+        TTransaction* transaction,
+        TObject* object) override
+    {
+        TObjectTypeHandlerBase::AfterObjectRemoved(transaction, object);
+
+        auto* podSet = object->As<TPodSet>();
+
+        auto* podDisruptionBudget = podSet->Spec().PodDisruptionBudget().Load();
+        if (podDisruptionBudget) {
+            podDisruptionBudget->FreezeUntilSync(
+                Format("Pod disruption budget is frozen until the next synchronization "
+                       "due to remove of budgeting pod set %Qv",
+                    podSet->GetId()));
+        }
+    }
+
     void ValidateAccount(TTransaction* /*transaction*/, TPodSet* podSet)
     {
         auto* account = podSet->Spec().Account().Load();
@@ -112,6 +136,20 @@ private:
         for (auto* pod : podSet->Pods().Load()) {
             transaction->ScheduleValidateAccounting(pod);
         }
+    }
+
+    void OnPodDisruptionBudgetUpdated(TTransaction* /*transaction*/, TPodSet* podSet)
+    {
+        auto process = [podSet] (TPodDisruptionBudget* podDisruptionBudget) {
+            if (podDisruptionBudget) {
+                podDisruptionBudget->FreezeUntilSync(
+                    Format("Pod disruption budget is frozen until the next synchronization "
+                           "due to update of budgeting pod set %Qv",
+                        podSet->GetId()));
+            }
+        };
+        process(podSet->Spec().PodDisruptionBudget().LoadOld());
+        process(podSet->Spec().PodDisruptionBudget().Load());
     }
 };
 

@@ -184,6 +184,7 @@ extern const struct TPodSetsTable
         TDBField Spec_AntiaffinityConstraints{"spec.antiaffinity_constraints", NTableClient::EValueType::Any};
         TDBField Spec_NodeSegmentId{"spec.node_segment_id", NTableClient::EValueType::String};
         TDBField Spec_AccountId{"spec.account_id", NTableClient::EValueType::String};
+        TDBField Spec_PodDisruptionBudgetId{"spec.pod_disruption_budget_id", NTableClient::EValueType::String};
     } Fields;
 } PodSetsTable;
 
@@ -199,7 +200,6 @@ extern const struct TNodeToPodsTable
     }
 
     struct TFields
-        : public TObjectTableBase::TFields
     {
         TDBField NodeId{"node_id", NTableClient::EValueType::String};
         TDBField PodId{"pod_id", NTableClient::EValueType::String};
@@ -437,7 +437,6 @@ extern const struct TNodeSegmentToPodSetsTable
     }
 
     struct TFields
-        : public TObjectTableBase::TFields
     {
         TDBField NodeSegmentId{"node_segment_id", NTableClient::EValueType::String};
         TDBField PodSetId{"pod_set_id", NTableClient::EValueType::String};
@@ -553,7 +552,6 @@ extern const struct TAccountParentToChildrenTable
     }
 
     struct TFields
-        : public TObjectTableBase::TFields
     {
         TDBField ParentId{"parent_id", NTableClient::EValueType::String};
         TDBField ChildId{"child_id", NTableClient::EValueType::String};
@@ -572,7 +570,6 @@ extern const struct TAccountToPodSetsTable
     }
 
     struct TFields
-        : public TObjectTableBase::TFields
     {
         TDBField AccountId{"account_id", NTableClient::EValueType::String};
         TDBField PodSetId{"pod_set_id", NTableClient::EValueType::String};
@@ -591,7 +588,6 @@ extern const struct TAccountToReplicaSetsTable
     }
 
     struct TFields
-        : public TObjectTableBase::TFields
     {
         TDBField AccountId{"account_id", NTableClient::EValueType::String};
         TDBField ReplicaSetId{"replica_set_id", NTableClient::EValueType::String};
@@ -610,7 +606,6 @@ extern const struct TAccountToMultiClusterReplicaSetsTable
     }
 
     struct TFields
-        : public TObjectTableBase::TFields
     {
         TDBField AccountId{"account_id", NTableClient::EValueType::String};
         TDBField ReplicaSetId{"replica_set_id", NTableClient::EValueType::String};
@@ -629,7 +624,6 @@ extern const struct TAccountToPodsTable
     }
 
     struct TFields
-        : public TObjectTableBase::TFields
     {
         TDBField AccountId{"account_id", NTableClient::EValueType::String};
         TDBField PodSetId{"pod_id", NTableClient::EValueType::String};
@@ -690,12 +684,50 @@ extern const struct TAccountToStagesTable
     }
 
     struct TFields
-        : public TObjectTableBase::TFields
     {
         TDBField AccountId{"account_id", NTableClient::EValueType::String};
         TDBField StageId{"stage_id", NTableClient::EValueType::String};
     } Fields;
 } AccountToStagesTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const struct TPodDisruptionBudgetsTable
+    : public TDBTable
+    , public TObjectTableBase
+{
+    TPodDisruptionBudgetsTable()
+        : TDBTable("pod_disruption_budgets")
+    {
+        Key = {&TObjectTableBase::Fields.Meta_Id};
+    }
+
+    struct TFields
+        : public TObjectTableBase::TFields
+    {
+        TDBField Spec{"spec", NTableClient::EValueType::Any};
+        TDBField Status{"status", NTableClient::EValueType::Any};
+        TDBField StatusUpdateTag{"status_update_tag", NTableClient::EValueType::Boolean};
+    } Fields;
+} PodDisruptionBudgetsTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const struct TPodDisruptionBudgetToPodSetsTable
+    : public TDBTable
+{
+    TPodDisruptionBudgetToPodSetsTable()
+        : TDBTable("pod_disruption_budget_to_pod_sets")
+    {
+        Key = {&Fields.PodDisruptionBudgetId, &Fields.PodSetId};
+    }
+
+    struct TFields
+    {
+        TDBField PodDisruptionBudgetId{"pod_disruption_budget_id", NTableClient::EValueType::String};
+        TDBField PodSetId{"pod_set_id", NTableClient::EValueType::String};
+    } Fields;
+} PodDisruptionBudgetToPodSetsTable;
 
 ////////////////////////////////////////////////////////////////////////////////
 

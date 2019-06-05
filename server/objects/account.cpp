@@ -13,15 +13,7 @@ namespace NYP::NServer::NObjects {
 const TManyToOneAttributeSchema<TAccount, TAccount> TAccount::TSpec::ParentSchema{
     &AccountsTable.Fields.Spec_ParentId,
     [] (TAccount* account) { return &account->Spec().Parent(); },
-    [] (TAccount* account) { return &account->Spec().Children(); }
-};
-
-const TOneToManyAttributeSchema<TAccount, TAccount> TAccount::TSpec::ChildrenSchema{
-    &AccountParentToChildrenTable,
-    &AccountParentToChildrenTable.Fields.ParentId,
-    &AccountParentToChildrenTable.Fields.ChildId,
-    [] (TAccount* account) { return &account->Spec().Children(); },
-    [] (TAccount* account) { return &account->Spec().Parent(); },
+    [] (TAccount* account) { return &account->Children(); }
 };
 
 const TScalarAttributeSchema<TAccount, TAccount::TSpec::TEtc> TAccount::TSpec::EtcSchema{
@@ -31,7 +23,6 @@ const TScalarAttributeSchema<TAccount, TAccount::TSpec::TEtc> TAccount::TSpec::E
 
 TAccount::TSpec::TSpec(TAccount* account)
     : Parent_(account, &ParentSchema)
-    , Children_(account, &ChildrenSchema)
     , Etc_(account, &EtcSchema)
 { }
 
@@ -82,6 +73,14 @@ const TOneToManyAttributeSchema<TAccount, TStage> TAccount::StagesSchema{
     [] (TStage* stage) { return &stage->Spec().Account(); },
 };
 
+const TOneToManyAttributeSchema<TAccount, TAccount> TAccount::ChildrenSchema{
+    &AccountParentToChildrenTable,
+    &AccountParentToChildrenTable.Fields.ParentId,
+    &AccountParentToChildrenTable.Fields.ChildId,
+    [] (TAccount* account) { return &account->Children(); },
+    [] (TAccount* account) { return &account->Spec().Parent(); },
+};
+
 TAccount::TAccount(
     const TObjectId& id,
     IObjectTypeHandler* typeHandler,
@@ -94,6 +93,7 @@ TAccount::TAccount(
     , ReplicaSets_(this, &ReplicaSetsSchema)
     , MultiClusterReplicaSets_(this, &MultiClusterReplicaSetsSchema)
     , Stages_(this, &StagesSchema)
+    , Children_(this, &ChildrenSchema)
 { }
 
 EObjectType TAccount::GetType() const

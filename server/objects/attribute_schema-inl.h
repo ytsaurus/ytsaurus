@@ -72,14 +72,14 @@ struct TScalarAttributePathValidator<
 } // namespace
 
 template <class TTypedObject, class TTypedValue>
-TAttributeSchema* TAttributeSchema::SetSetter(std::function<void(
+TAttributeSchema* TAttributeSchema::SetValueSetter(std::function<void(
     TTransaction*,
     TTypedObject*,
     const NYT::NYPath::TYPath&,
     const TTypedValue&,
     bool recurisve)> setter)
 {
-    Setter_ =
+    ValueSetter_ =
         [=] (
             TTransaction* transaction,
             TObject* object,
@@ -102,17 +102,17 @@ TAttributeSchema* TAttributeSchema::SetControl(std::function<void(
     const TTypedValue&)> control)
 {
     Updatable_ = true;
-    SetSetter<TTypedObject, TTypedValue>([=, control = std::move(control)] (
+    SetValueSetter<TTypedObject, TTypedValue>([=, control = std::move(control)](
         TTransaction* transaction,
         TTypedObject* object,
         const NYT::NYPath::TYPath& path,
         const TTypedValue& value,
         bool /*recursive*/) {
-            if (!path.empty()) {
-                THROW_ERROR_EXCEPTION("Partial updates are not supported");
-            }
-            control(transaction, object, value);
-        });
+        if (!path.empty()) {
+            THROW_ERROR_EXCEPTION("Partial updates are not supported");
+        }
+        control(transaction, object, value);
+    });
     return this;
 }
 
@@ -185,10 +185,11 @@ TAttributeSchema* TAttributeSchema::SetEvaluator(std::function<void(
 template <class TTypedObject, class TTypedValue>
 TAttributeSchema* TAttributeSchema::SetAttribute(const TScalarAttributeSchema<TTypedObject, TTypedValue>& schema)
 {
-    InitSetter<TTypedObject, TTypedValue>(schema);
+    InitValueSetter<TTypedObject, TTypedValue>(schema);
+    InitTimestampGetter<TTypedObject>(schema);
     InitInitializer<TTypedObject, TTypedValue>(schema);
     InitRemover<TTypedObject, TTypedValue>(schema);
-    InitPreloader<TTypedObject>(schema);
+    InitPreupdater<TTypedObject>(schema);
     InitExpressionBuilder(
         schema.Field,
         std::bind(TScalarAttributePathValidator<TTypedValue>::Run, &schema, std::placeholders::_1, std::placeholders::_2));
@@ -198,7 +199,7 @@ TAttributeSchema* TAttributeSchema::SetAttribute(const TScalarAttributeSchema<TT
 template <class TOne, class TMany>
 TAttributeSchema* TAttributeSchema::SetAttribute(const TManyToOneAttributeSchema<TMany, TOne>& schema)
 {
-    Setter_ =
+    ValueSetter_ =
         [=] (
             TTransaction* transaction,
             TObject* many,
@@ -265,6 +266,28 @@ TAttributeSchema* TAttributeSchema::SetAttribute(const TManyToOneAttributeSchema
             }
         };
 
+    TimestampPregetter_ =
+        [=] (
+            TTransaction* /*transaction*/,
+            TObject* many,
+            const NYT::NYPath::TYPath& /*path*/)
+        {
+            auto* typedMany = many->As<TMany>();
+            auto* forwardAttribute = schema.ForwardAttributeGetter(typedMany);
+            forwardAttribute->ScheduleLoadTimestamp();
+        };
+
+    TimestampGetter_ =
+        [=] (
+            TTransaction* /*transaction*/,
+            TObject* many,
+            const NYT::NYPath::TYPath& /*path*/)
+        {
+            auto* typedMany = many->As<TMany>();
+            auto* forwardAttribute = schema.ForwardAttributeGetter(typedMany);
+            return forwardAttribute->LoadTimestamp();
+        };
+
     InitExpressionBuilder(
         schema.Field,
         TEmptyPathValidator::Run);
@@ -275,6 +298,8 @@ TAttributeSchema* TAttributeSchema::SetAttribute(const TManyToOneAttributeSchema
 template <class TTypedObject, class TTypedValue>
 TAttributeSchema* TAttributeSchema::SetProtobufEvaluator(const TScalarAttributeSchema<TTypedObject, TString>& schema)
 {
+    InitTimestampGetter<TTypedObject>(schema);
+
     SetPreevaluator<TTypedObject>([=] (TTransaction* /*transaction*/, TTypedObject* object) {
         auto* attribute = schema.AttributeGetter(object);
         attribute->ScheduleLoad();
@@ -298,7 +323,7 @@ TAttributeSchema* TAttributeSchema::SetProtobufSetter(const TScalarAttributeSche
 {
     Updatable_ = true;
 
-    Setter_ =
+    ValueSetter_ =
         [=] (
             TTransaction* transaction,
             TObject* object,
@@ -350,9 +375,9 @@ TAttributeSchema* TAttributeSchema::SetProtobufSetter(const TScalarAttributeSche
 }
 
 template <class TTypedObject, class TSchema>
-void TAttributeSchema::InitPreloader(const TSchema& schema)
+void TAttributeSchema::InitPreupdater(const TSchema& schema)
 {
-    Preloader_ =
+    Preupdater_ =
         [=] (
             TTransaction* /*transaction*/,
             TObject* object,
@@ -391,9 +416,9 @@ struct TAttributeValidatorTraits<TScalarAttributeSchema<TTypedObject, TTypedValu
 };
 
 template <class TTypedObject, class TTypedValue, class TSchema>
-void TAttributeSchema::InitSetter(const TSchema& schema)
+void TAttributeSchema::InitValueSetter(const TSchema& schema)
 {
-    Setter_ =
+    ValueSetter_ =
         [=] (
             TTransaction* transaction,
             TObject* object,
@@ -420,6 +445,32 @@ void TAttributeSchema::InitSetter(const TSchema& schema)
             }
             TAttributeValidatorTraits<TSchema>::Run(transaction, typedObject, schema, attribute, &typedValue);
             attribute->Store(typedValue);
+        };
+}
+
+template <class TTypedObject, class TSchema>
+void TAttributeSchema::InitTimestampGetter(const TSchema& schema)
+{
+    TimestampPregetter_ =
+        [=] (
+            TTransaction* /*transaction*/,
+            TObject* object,
+            const NYT::NYPath::TYPath& /*path*/)
+        {
+            auto* typedObject = object->template As<TTypedObject>();
+            auto* attribute = schema.AttributeGetter(typedObject);
+            attribute->ScheduleLoadTimestamp();
+        };
+
+    TimestampGetter_ =
+        [=] (
+            TTransaction* /*transaction*/,
+            TObject* object,
+            const NYT::NYPath::TYPath& /*path*/)
+        {
+            auto* typedObject = object->template As<TTypedObject>();
+            auto* attribute = schema.AttributeGetter(typedObject);
+            return attribute->LoadTimestamp();
         };
 }
 

@@ -69,6 +69,9 @@ enum EObjectType
     OT_ACCOUNT = 12
     [(NYT.NYson.NProto.enum_value_name) = "account"];
 
+    OT_POD_DISRUPTION_BUDGET = 20
+    [(NYT.NYson.NProto.enum_value_name) = "pod_disruption_budget"];
+
     OT_REPLICA_SET = 13
     [(NYT.NYson.NProto.enum_value_name) = "replica_set"];
 
@@ -423,6 +426,28 @@ message TAccount
     TAccountMeta meta = 1;
     TAccountSpec spec = 2;
     TAccountStatus status = 3;
+    NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TPodDisruptionBudgetMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+}
+
+message TPodDisruptionBudget
+{
+    TPodDisruptionBudgetMeta meta = 1;
+    TPodDisruptionBudgetSpec spec = 2;
+    TPodDisruptionBudgetStatus status = 3;
     NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
     NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
 }

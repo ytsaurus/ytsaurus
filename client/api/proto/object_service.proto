@@ -34,12 +34,10 @@ message TPayload
 message TAttributeSelector
 {
     // YPaths of requested attributes.
-    // If a path refers to a non-existing attribute (or its sub-attribute)
-    // the result is null.
     repeated string paths = 1;
 }
 
-message TAttributeValueList
+message TAttributeList
 {
     // COMPAT(babenko): deprecated; use value_payloads instead.
     // Values are in YSON; nulls are encoded as empty strings.
@@ -47,7 +45,12 @@ message TAttributeValueList
     repeated bytes values = 1 [(NYT.NYson.NProto.yson_string) = true];
 
     // Value order coincides with that of TAttributeSelector.paths.
+    // Empty if TGetObjectOptions.fetch_values is false.
     repeated TPayload value_payloads = 2;
+
+    // Timestamp order coincides with that of TAttributeSelector.paths.
+    // Empty if TGetObjectOptions.fetch_timestamps is false.
+    repeated uint64 timestamps = 3;
 }
 
 message TObjectFilter
@@ -77,7 +80,7 @@ message TEvent
     required EEventType event_type = 2;
 
     // Event attributes (cf. TReqWatchObjects.selector).
-    required TAttributeValueList attributes = 3;
+    required TAttributeList attributes = 3;
 }
 
 message TSetUpdate
@@ -100,6 +103,15 @@ message TRemoveUpdate
 {
     // YPath pointing to the attribute to remove.
     required string path = 1;
+}
+
+message TAttributeTimestampPrerequisite
+{
+    // YPath pointing to the attribute to check.
+    required string path = 1;
+
+    // For the prerequisite to succeed, the actual timestamp must not exceed this one.
+    required uint64 timestamp = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -287,6 +299,9 @@ message TReqUpdateObject
 
     // Describes remove-like updates.
     repeated TRemoveUpdate remove_updates = 4;
+
+    // Prerequisities to check.
+    repeated TAttributeTimestampPrerequisite attribute_timestamp_prerequisites = 6;
 }
 
 message TRspUpdateObject
@@ -316,7 +331,10 @@ message TReqUpdateObjects
 
         // Describes remove-like updates.
         repeated TRemoveUpdate remove_updates = 4;
-    }
+
+         // Prerequisities to check.
+         repeated TAttributeTimestampPrerequisite attribute_timestamp_prerequisites = 5;
+   }
 
     // Subrequests to serve.
     repeated TSubrequest subrequests = 2;
@@ -330,10 +348,17 @@ message TRspUpdateObjects
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TGetObjectOptions {
-    // If true returns empty attribute value list for nonexistent objects.
-    // If false GetObject(-s) returns with error on nonexistent objects.
+message TGetObjectOptions
+{
+    // If false, GetObject(s) fails with an error on nonexistent object(s).
+    // If true, silently returns null TAttributeList for nonexistent objects.
     optional bool ignore_nonexistent = 1;
+
+    // If true then TAttributeList.value_payloads are filled.
+    optional bool fetch_values = 2 [default = true];
+
+    // If true then TAttributeList.timestamps are filled.
+    optional bool fetch_timestamps = 3 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -363,8 +388,8 @@ message TReqGetObject
 
 message TRspGetObject
 {
-    // The result containing the requested attributes.
-    required TAttributeValueList result = 1;
+    // The requested attributes.
+    optional TAttributeList result = 1;
 
     // If TReqGetObject.timestamp is missing, then this contains the actual timestamp
     // used for reading the DB; otherwise this is just the copy of TRspGetObject.timestamp.
@@ -406,8 +431,8 @@ message TRspGetObjects
 {
     message TSubresponse
     {
-        // The result containing the requested attributes.
-        optional TAttributeValueList result = 1;
+        // The requested attributes.
+        optional TAttributeList result = 1;
     }
  
     // The i-th subresponse here contains the result for the i-th subrequest.
@@ -450,7 +475,7 @@ message TRspSelectObjects
 {
     // The result set: each element of this list corresponds to a single
     // matching object.
-    repeated TAttributeValueList results = 1;
+    repeated TAttributeList results = 1;
 
     // If TReqSelectObjects.timestamp is missing, then this contains the actual timestamp
     // used for reading the DB; otherwise this is just the copy of TReqSelectObjects.timestamp.

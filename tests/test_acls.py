@@ -13,6 +13,7 @@ from yt.environment.helpers import assert_items_equal
 
 from yt.packages.six.moves import xrange
 
+import itertools
 import pytest
 
 
@@ -653,6 +654,238 @@ class TestAcls(object):
                 )
             ]
         )
+
+
+@pytest.mark.usefixtures("yp_env")
+class TestSeveralAccessControlParents(object):
+    def _prepare(self, yp_client):
+        yp_client.create_object("user", attributes=dict(meta=dict(id="u1")))
+
+    def check_object_permission(self, yp_env, pod_set_meta, pod_meta, pod_set_schema_acl, pod_schema_acl):
+        yp_client = yp_env.yp_client
+        self.pod_set_id = yp_client.create_object(
+            "pod_set",
+            attributes=dict(meta=pod_set_meta),
+        )
+        assert "pod_set_id" not in pod_meta
+        pod_meta["pod_set_id"] = self.pod_set_id
+        self.pod_id = yp_client.create_object(
+            "pod",
+            attributes=dict(meta=pod_meta),
+        )
+        for schema_name, acl in zip(("pod_set", "pod"), (pod_set_schema_acl, pod_schema_acl)):
+            yp_client.update_object(
+                "schema",
+                schema_name,
+                set_updates=[dict(
+                    path="/meta/acl",
+                    value=acl,
+                )],
+            )
+        yp_env.sync_access_control()
+        self.result = yp_client.check_object_permissions([dict(
+            object_type="pod",
+            object_id=self.pod_id,
+            subject_id="u1",
+            permission="write",
+        )])[0]
+
+    def generate_acl(self, action):
+        return [dict(action=action, permissions=["write"], subjects=["u1"])]
+
+    def test_simple_actions(self, yp_env):
+        yp_client = yp_env.yp_client
+        self._prepare(yp_client)
+        for pod_set_inherit_acl, pod_inherit_acl in itertools.product((False, True), (False, True)):
+            self.check_object_permission(
+                yp_env,
+                dict(inherit_acl=pod_set_inherit_acl),
+                dict(inherit_acl=pod_inherit_acl),
+                [],
+                [],
+            )
+            assert self.result == dict(action="deny")
+
+            self.check_object_permission(
+                yp_env,
+                dict(acl=self.generate_acl("allow"), inherit_acl=pod_set_inherit_acl),
+                dict(acl=self.generate_acl("allow"), inherit_acl=pod_inherit_acl),
+                self.generate_acl("allow"),
+                self.generate_acl("allow"),
+            )
+            assert self.result["action"] == "allow"
+
+            self.check_object_permission(
+                yp_env,
+                dict(acl=self.generate_acl("deny"), inherit_acl=pod_set_inherit_acl),
+                dict(acl=self.generate_acl("deny"), inherit_acl=pod_inherit_acl),
+                self.generate_acl("deny"),
+                self.generate_acl("deny"),
+            )
+            assert self.result["action"] == "deny"
+
+    def test_complex_actions(self, yp_env):
+        yp_client = yp_env.yp_client
+        self._prepare(yp_client)
+        self.check_object_permission(
+            yp_env,
+            dict(acl=self.generate_acl("allow")),
+            dict(acl=self.generate_acl("deny")),
+            self.generate_acl("allow"),
+            self.generate_acl("deny"),
+        )
+        assert self.result["action"] == "deny"
+        self.check_object_permission(
+            yp_env,
+            dict(acl=self.generate_acl("deny")),
+            dict(acl=self.generate_acl("allow")),
+            self.generate_acl("deny"),
+            self.generate_acl("allow"),
+        )
+        assert self.result["action"] == "deny"
+
+    def test_one_action(self, yp_env):
+        yp_client = yp_env.yp_client
+        self._prepare(yp_client)
+        parameters = itertools.product(
+            (False, True),
+            (False, True),
+            ("allow", "deny"),
+        )
+        for pod_set_inherit_acl, pod_inherit_acl, action in parameters:
+            self.check_object_permission(
+                yp_env,
+                dict(acl=self.generate_acl(action), inherit_acl=pod_set_inherit_acl),
+                dict(inherit_acl=pod_inherit_acl),
+                [],
+                [],
+            )
+            if pod_inherit_acl:
+                assert self.result == dict(
+                    action=action,
+                    object_type="pod_set",
+                    object_id=self.pod_set_id,
+                    subject_id="u1",
+                )
+            else:
+                assert self.result == dict(action="deny")
+
+            self.check_object_permission(
+                yp_env,
+                dict(inherit_acl=pod_set_inherit_acl),
+                dict(inherit_acl=pod_inherit_acl),
+                self.generate_acl(action),
+                [],
+            )
+            if pod_inherit_acl and pod_set_inherit_acl:
+                assert self.result == dict(
+                    action=action,
+                    object_type="schema",
+                    object_id="pod_set",
+                    subject_id="u1",
+                )
+            else:
+                assert self.result == dict(action="deny")
+
+            self.check_object_permission(
+                yp_env,
+                dict(inherit_acl=pod_set_inherit_acl),
+                dict(acl=self.generate_acl(action), inherit_acl=pod_inherit_acl),
+                [],
+                [],
+            )
+            assert self.result == dict(
+                action=action,
+                object_type="pod",
+                object_id=self.pod_id,
+                subject_id="u1",
+            )
+
+            self.check_object_permission(
+                yp_env,
+                dict(inherit_acl=pod_set_inherit_acl),
+                dict(inherit_acl=pod_inherit_acl),
+                [],
+                self.generate_acl(action),
+            )
+            if pod_inherit_acl:
+                assert self.result == dict(
+                    action=action,
+                    object_type="schema",
+                    object_id="pod",
+                    subject_id="u1",
+                )
+            else:
+                assert self.result == dict(action="deny")
+
+    def test_one_deny_many_allow_actions(self, yp_env):
+        yp_client = yp_env.yp_client
+        self._prepare(yp_client)
+        for pod_set_inherit_acl, pod_inherit_acl in itertools.product((False, True), (False, True)):
+            self.check_object_permission(
+                yp_env,
+                dict(acl=self.generate_acl("deny"), inherit_acl=pod_set_inherit_acl),
+                dict(acl=self.generate_acl("allow"), inherit_acl=pod_inherit_acl),
+                self.generate_acl("allow"),
+                self.generate_acl("allow"),
+            )
+            if pod_inherit_acl:
+                assert self.result == dict(
+                    action="deny",
+                    object_type="pod_set",
+                    object_id=self.pod_set_id,
+                    subject_id="u1",
+                )
+            else:
+                assert self.result["action"] == "allow"
+
+            self.check_object_permission(
+                yp_env,
+                dict(acl=self.generate_acl("allow"), inherit_acl=pod_set_inherit_acl),
+                dict(acl=self.generate_acl("deny"), inherit_acl=pod_inherit_acl),
+                self.generate_acl("allow"),
+                self.generate_acl("allow"),
+            )
+            assert self.result == dict(
+                action="deny",
+                object_type="pod",
+                object_id=self.pod_id,
+                subject_id="u1",
+            )
+
+            self.check_object_permission(
+                yp_env,
+                dict(acl=self.generate_acl("allow"), inherit_acl=pod_set_inherit_acl),
+                dict(acl=self.generate_acl("allow"), inherit_acl=pod_inherit_acl),
+                self.generate_acl("deny"),
+                self.generate_acl("allow"),
+            )
+            if pod_inherit_acl and pod_set_inherit_acl:
+                assert self.result == dict(
+                    action="deny",
+                    object_type="schema",
+                    object_id="pod_set",
+                    subject_id="u1",
+                )
+            else:
+                assert self.result["action"] == "allow"
+
+            self.check_object_permission(
+                yp_env,
+                dict(acl=self.generate_acl("allow"), inherit_acl=pod_set_inherit_acl),
+                dict(acl=self.generate_acl("allow"), inherit_acl=pod_inherit_acl),
+                self.generate_acl("allow"),
+                self.generate_acl("deny"),
+            )
+            if pod_inherit_acl:
+                assert self.result == dict(
+                    action="deny",
+                    object_type="schema",
+                    object_id="pod",
+                    subject_id="u1",
+                )
+            else:
+                assert self.result["action"] == "allow"
 
 
 @pytest.mark.usefixtures("yp_env_configurable")

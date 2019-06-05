@@ -39,10 +39,6 @@ public:
         using TParentAttribute = TManyToOneAttribute<TAccount, TAccount>;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TParentAttribute, Parent);
 
-        static const TOneToManyAttributeSchema<TAccount, TAccount> ChildrenSchema;
-        using TChildrenAttribute = TOneToManyAttribute<TAccount, TAccount>;
-        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TChildrenAttribute, Children);
-
         using TEtc = NProto::TAccountSpecEtc;
         static const TScalarAttributeSchema<TAccount, TEtc> EtcSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TEtc>, Etc);
@@ -70,6 +66,10 @@ public:
     static const TOneToManyAttributeSchema<TAccount, TStage> StagesSchema;
     using TStages = TOneToManyAttribute<TAccount, TStage>;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TStages, Stages);
+
+    static const TOneToManyAttributeSchema<TAccount, TAccount> ChildrenSchema;
+    using TChildrenAttribute = TOneToManyAttribute<TAccount, TAccount>;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TChildrenAttribute, Children);
 
     virtual bool IsBuiltin() const override;
 };

@@ -76,6 +76,32 @@ static const TString AnnotationsTableAliasPrefix("c");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void FromProto(
+    TRemoveUpdateRequest* request,
+    const NClient::NApi::NProto::TRemoveUpdate& protoRequest)
+{
+    request->Path = protoRequest.path();
+}
+
+void FromProto(
+    TAttributeTimestampPrerequisite* prerequisite,
+    const NClient::NApi::NProto::TAttributeTimestampPrerequisite& protoPrerequisite)
+{
+    prerequisite->Path = protoPrerequisite.path();
+    prerequisite->Timestamp = protoPrerequisite.timestamp();
+}
+
+void FromProto(
+    TGetQueryOptions* options,
+    const NClient::NApi::NProto::TGetObjectOptions& protoOptions)
+{
+    options->IgnoreNonexistent = protoOptions.ignore_nonexistent();
+    options->FetchValues = protoOptions.fetch_values();
+    options->FetchTimestamps = protoOptions.fetch_timestamps();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TString ToString(const TAttributeSelector& selector)
 {
     return Format("{Paths: %v}", selector.Paths);
@@ -262,15 +288,22 @@ public:
     }
 
 
-    void UpdateObject(TObject* object, const std::vector<TUpdateRequest>& requests)
+    void UpdateObject(
+        TObject* object,
+        const std::vector<TUpdateRequest>& requests,
+        const std::vector<TAttributeTimestampPrerequisite>& prerequisites)
     {
         EnsureReadWrite();
         auto context = CreateUpdateContext();
-        UpdateObject(object, requests, context.get());
+        UpdateObject(object, requests, prerequisites, context.get());
         context->Commit();
     }
 
-    void UpdateObject(TObject* object, const std::vector<TUpdateRequest>& requests, IUpdateContext* context)
+    void UpdateObject(
+        TObject* object,
+        const std::vector<TUpdateRequest>& requests,
+        const std::vector<TAttributeTimestampPrerequisite>& prerequisites,
+        IUpdateContext* context)
     {
         const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
         accessControlManager->ValidatePermission(object, EAccessControlPermission::Write);
@@ -278,7 +311,11 @@ public:
         EnsureReadWrite();
         AbortOnException(
             [&] {
-                DoUpdateObject(object, requests, context);
+                DoUpdateObject(
+                    object,
+                    requests,
+                    prerequisites,
+                    context);
             });
     }
 
@@ -310,57 +347,68 @@ public:
         const TAttributeSelector& selector,
         const TGetQueryOptions& options)
     {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto* typeHandler = objectManager->GetTypeHandlerOrThrow(type);
+        TGetQueryResult result;
+        result.Objects.resize(ids.size());
 
-        std::vector<TObject*> objects;
-        objects.reserve(ids.size());
-
-        // Attention, don't glue this cycles, otherwise batching (and performance) will be broken.
+        std::vector<TObject*> requestedObjects;
+        requestedObjects.reserve(ids.size());
         for (const auto& id : ids) {
-            objects.push_back(GetObject(type, id));
+            requestedObjects.push_back(GetObject(type, id));
         }
-        for (const auto* object : objects) {
-            if (!options.IgnoreNonexistent) {
+
+        if (!options.IgnoreNonexistent) {
+            for (auto* object : requestedObjects) {
                 object->ValidateExists();
             }
         }
 
-        TExpressionList namesExpr;
-
-        if (typeHandler->GetParentIdField()) {
-            const auto* parentIdField = typeHandler->GetParentIdField();
-            namesExpr.emplace_back(New<TReferenceExpression>(TSourceLocation(), parentIdField->Name, PrimaryTableAlias));
-        }
-        const auto* idField = typeHandler->GetIdField();
-        namesExpr.emplace_back(New<TReferenceExpression>(TSourceLocation(), idField->Name, PrimaryTableAlias));
-
-        TLiteralValueTupleList values;
-
-        TGetQueryResult result;
-        result.Objects.resize(ids.size());
-
+        THashMap<TObjectId, std::vector<size_t>> objectIdToIndexes;
         for (size_t index = 0; index < ids.size(); ++index) {
-            const auto* object = objects[index];
-            if (!objects[index]->DoesExist()) {
-                result.Objects[index] = TAttributeValueList{};
-            } else {
-                values.emplace_back();
-                if (typeHandler->GetParentIdField()) {
-                    values.back().emplace_back(object->GetParentId());
-                }
-                values.back().emplace_back(object->GetId());
+            objectIdToIndexes[ids[index]].push_back(index);
+        }
+        auto getIndexesForId = [&] (const auto& id) {
+            auto it = objectIdToIndexes.find(id);
+            YCHECK(it != objectIdToIndexes.end() && it->second.size() >= 1);
+            return it->second;
+        };
+        auto copyResultsForDuplicateIds = [&] (const auto& indexes) {
+            for (size_t i = 1; i < indexes.size(); ++i) {
+                YCHECK(!result.Objects[indexes[i]]);
+                result.Objects[indexes[i]] = *result.Objects[indexes.front()];
             }
+        };
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto* typeHandler = objectManager->GetTypeHandlerOrThrow(type);
+        const auto* idField = typeHandler->GetIdField();
+        const auto* parentIdField = typeHandler->GetParentIdField();
+
+        TExpressionList keyColumnsExpr;
+        if (parentIdField) {
+            keyColumnsExpr.emplace_back(New<TReferenceExpression>(TSourceLocation(), parentIdField->Name, PrimaryTableAlias));
+        }
+        keyColumnsExpr.emplace_back(New<TReferenceExpression>(TSourceLocation(), idField->Name, PrimaryTableAlias));
+
+        TLiteralValueTupleList keyTupleList;
+        for (auto* object : requestedObjects) {
+            if (!object->DoesExist()) {
+                continue;
+            }
+            auto& tuple = keyTupleList.emplace_back();
+            if (parentIdField) {
+                tuple.emplace_back(object->GetParentId());
+            }
+            tuple.emplace_back(object->GetId());
         }
 
-        if (values.empty()) {
+        if (keyTupleList.empty()) {
             return result;
         }
 
         auto inExpression = New<TInExpression>(
             TSourceLocation(),
-            std::move(namesExpr),
-            std::move(values));
+            std::move(keyColumnsExpr),
+            std::move(keyTupleList));
 
         auto query = MakeQuery(typeHandler);
 
@@ -374,12 +422,17 @@ public:
         fetcherContext.WillNeedObject();
 
         TResolvePermissions permissions;
+        auto resolveResults = ResolveAttributes(
+            &queryContext,
+            selector,
+            &permissions);
+
         auto fetchers = BuildAttributeFetchers(
             Owner_,
             query.get(),
             &fetcherContext,
             &queryContext,
-            selector,
+            resolveResults,
             &permissions);
         auto queryString = FormatQuery(*query);
 
@@ -396,36 +449,58 @@ public:
             }
         }
 
-        THashMap<TObjectId, std::vector<size_t>> objectIdToIndexes;
-        for (size_t index = 0; index < ids.size(); ++index) {
-            objectIdToIndexes[ids[index]].push_back(index);
+        std::vector<TObject*> rowObjects;
+        rowObjects.reserve(rows.size());
+        for (auto row : rows) {
+            rowObjects.push_back(fetcherContext.GetObject(Owner_, row));
         }
 
-        for (auto row : rows) {
-            auto* object = fetcherContext.GetObject(Owner_, row);
-
+        for (auto* object : rowObjects) {
             if (!permissions.ReadPermissions.empty()) {
                 for (auto permission : permissions.ReadPermissions) {
                     const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
                     accessControlManager->ValidatePermission(object, permission);
                 }
             }
+        }
 
-            auto indexesIter = objectIdToIndexes.find(object->GetId());
-            YCHECK(indexesIter != objectIdToIndexes.end() && indexesIter->second.size() >= 1);
-            const auto& indexes = indexesIter->second;
+        if (options.FetchTimestamps) {
+            for (auto* object : rowObjects) {
+                for (const auto& resolveResult : resolveResults) {
+                    PregetAttributeTimestamp(
+                        resolveResult,
+                        Owner_,
+                        object);
+                }
+            }
+        }
 
-            auto& resultObject = result.Objects[indexes[0]];
-            YCHECK(!resultObject.has_value());
-            resultObject.emplace();
-            for (auto& fetcher : fetchers) {
-                resultObject->Values.push_back(fetcher.Fetch(row));
+        for (size_t rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
+            auto row = rows[rowIndex];
+            auto* object = rowObjects[rowIndex];
+
+            const auto& indexes = getIndexesForId(object->GetId());
+
+            auto& valueList = result.Objects[indexes.front()];
+            YCHECK(!valueList);
+            valueList.emplace();
+
+            if (options.FetchValues) {
+                for (auto& fetcher : fetchers) {
+                    valueList->Values.push_back(fetcher.Fetch(row));
+                }
             }
 
-            for (size_t i = 1; i < indexes.size(); ++i) {
-                YCHECK(!result.Objects[indexes[i]].has_value());
-                result.Objects[indexes[i]] = *resultObject;
+            if (options.FetchTimestamps) {
+                for (const auto& resolveResult : resolveResults) {
+                    valueList->Timestamps.push_back(GetAttributeTimestamp(
+                        resolveResult,
+                        Owner_,
+                        object));
+                }
             }
+
+            copyResultsForDuplicateIds(indexes);
         }
 
         return result;
@@ -464,13 +539,18 @@ public:
             Bootstrap_,
             type,
             query.get());
+
+        auto resolveResults = ResolveAttributes(
+            &queryContext,
+            selector);
+
         TAttributeFetcherContext fetcherContext(&queryContext);
         auto fetchers = BuildAttributeFetchers(
             Owner_,
             query.get(),
             &fetcherContext,
             &queryContext,
-            selector);
+            resolveResults);
 
         auto predicateExpr = BuildAndExpression(
             filter
@@ -2139,7 +2219,7 @@ private:
                         }
                         ParentId_ = node->GetValue<TString>();
                     } else {
-                        if (!schema->HasSetter()) {
+                        if (!schema->HasValueSetter()) {
                             THROW_ERROR_EXCEPTION("Attribute %v cannot be set",
                                 schema->GetPath());
                         }
@@ -2183,7 +2263,7 @@ private:
             const auto& request = std::get<TSetUpdateRequest>(match.Request);
             context->AddSetter([=] {
                 try {
-                    schema->RunSetter(
+                    schema->RunValueSetter(
                         Owner_,
                         object,
                         request.Path,
@@ -2218,6 +2298,7 @@ private:
     void DoUpdateObject(
         TObject* object,
         const std::vector<TUpdateRequest>& requests,
+        const std::vector<TAttributeTimestampPrerequisite>& prerequisites,
         IUpdateContext* context)
     {
         object->ValidateExists();
@@ -2230,6 +2311,23 @@ private:
 
         for (const auto& match : matches) {
             PreloadAttribute(Owner_, object, match);
+        }
+
+        for (const auto& prerequisite : prerequisites) {
+            auto resolveResult = ResolveAttribute(object->GetTypeHandler(), prerequisite.Path);
+            PregetAttributeTimestamp(resolveResult, Owner_, object);
+            context->AddSetter([=] {
+                auto actualTimestamp = GetAttributeTimestamp(resolveResult, Owner_, object);
+                if (actualTimestamp > prerequisite.Timestamp) {
+                    THROW_ERROR_EXCEPTION(NClient::NApi::EErrorCode::PrerequisiteCheckFailure,
+                        "Prerequisite timestamp check failed for attribute %v of %v %Qv: expected <=%v, actual %v",
+                        resolveResult.Attribute->GetPath(),
+                        GetHumanReadableTypeName(object->GetType()),
+                        object->GetId(),
+                        prerequisite.Timestamp,
+                        actualTimestamp);
+                }
+            });
         }
 
         THashSet<TAttributeSchema*> updatedAttributes;
@@ -2336,7 +2434,7 @@ private:
             return;
         }
 
-        if (!match.Schema->HasPreloader()) {
+        if (!match.Schema->HasPreupdater()) {
             return;
         }
 
@@ -2344,7 +2442,7 @@ private:
             object->GetId(),
             match.Schema->GetPath());
 
-        match.Schema->RunPreloader(transaction, object, match.Request);
+        match.Schema->RunPreupdater(transaction, object, match.Request);
     }
 
     void ApplyAttributeUpdate(
@@ -2436,7 +2534,7 @@ private:
             return;
         }
 
-        if (!schema->HasSetter()) {
+        if (!schema->HasValueSetter()) {
             THROW_ERROR_EXCEPTION("Attribute %v does not support set updates",
                 schema->GetPath());
         }
@@ -2447,7 +2545,7 @@ private:
             request.Path,
             ConvertToYsonString(request.Value, NYson::EYsonFormat::Text));
 
-        schema->RunSetter(transaction, object, request.Path, request.Value, request.Recursive);
+        schema->RunValueSetter(transaction, object, request.Path, request.Value, request.Recursive);
     }
 
     void ApplyAttributeRemoveUpdate(
@@ -2503,19 +2601,30 @@ private:
         return query;
     }
 
-    static std::vector<TAttributeFetcher> BuildAttributeFetchers(
-        TTransaction* transaction,
-        TQuery* query,
-        TAttributeFetcherContext* fetcherContext,
+    static std::vector<TResolveResult> ResolveAttributes(
         IQueryContext* queryContext,
         const TAttributeSelector& selector,
         TResolvePermissions* permissions = nullptr)
     {
         auto* typeHandler = queryContext->GetTypeHandler();
-
-        std::vector<TAttributeFetcher> fetchers;
+        std::vector<TResolveResult> results;
+        results.reserve(selector.Paths.size());
         for (const auto& path : selector.Paths) {
-            auto resolveResult = ResolveAttribute(typeHandler, path, permissions);
+            results.push_back(ResolveAttribute(typeHandler, path, permissions));
+        }
+        return results;
+    }
+
+    static std::vector<TAttributeFetcher> BuildAttributeFetchers(
+        TTransaction* transaction,
+        TQuery* query,
+        TAttributeFetcherContext* fetcherContext,
+        IQueryContext* queryContext,
+        const std::vector<TResolveResult>& resolveResults,
+        TResolvePermissions* permissions = nullptr)
+    {
+        std::vector<TAttributeFetcher> fetchers;
+        for (const auto& resolveResult : resolveResults) {
             fetchers.emplace_back(resolveResult, transaction, fetcherContext, queryContext);
         }
 
@@ -2528,6 +2637,55 @@ private:
 
         return fetchers;
     }
+
+    static void PregetAttributeTimestamp(
+        const TResolveResult& resolveResult,
+        TTransaction* transaction,
+        TObject* object)
+    {
+        if (resolveResult.Attribute->IsComposite()) {
+            YCHECK(resolveResult.SuffixPath.empty());
+            auto considerChild = [&] (auto* child) {
+                GetAttributeTimestamp(TResolveResult{child, TYPath()}, transaction, object);
+            };
+            for (const auto& [key, child] : resolveResult.Attribute->KeyToChild()) {
+                considerChild(child);
+            }
+            if (auto* etcChild = resolveResult.Attribute->FindEtcChild()) {
+                considerChild(etcChild);
+            }
+        } else if (resolveResult.Attribute->HasTimestampPregetter()) {
+            resolveResult.Attribute->RunTimestampPregetter(transaction, object, resolveResult.SuffixPath);
+        }
+    }
+
+    static TTimestamp GetAttributeTimestamp(
+        const TResolveResult& resolveResult,
+        TTransaction* transaction,
+        TObject* object)
+    {
+        if (resolveResult.Attribute->IsComposite()) {
+            YCHECK(resolveResult.SuffixPath.empty());
+            auto result = NullTimestamp;
+            auto considerChild = [&] (auto* child) {
+                result = std::max(result, GetAttributeTimestamp(TResolveResult{child, TYPath()}, transaction, object));
+            };
+            for (const auto& [key, child] : resolveResult.Attribute->KeyToChild()) {
+                considerChild(child);
+            }
+            if (auto* etcChild = resolveResult.Attribute->FindEtcChild()) {
+                considerChild(etcChild);
+            }
+            return result;
+        } else if (resolveResult.Attribute->HasTimestampGetter()) {
+            return resolveResult.Attribute->RunTimestampGetter(transaction, object, resolveResult.SuffixPath);
+        } else {
+            THROW_ERROR_EXCEPTION("Cannot compute timestamp for %v attribute %v",
+                GetHumanReadableTypeName(object->GetType()),
+                resolveResult.Attribute->GetPath());
+        }
+    }
+
 
     IUnversionedRowsetPtr RunSelect(const TString& queryString)
     {
@@ -2609,14 +2767,28 @@ void TTransaction::RemoveObject(TObject* object, IUpdateContext* context)
     return Impl_->RemoveObject(object, context);
 }
 
-void TTransaction::UpdateObject(TObject* object, const std::vector<TUpdateRequest>& requests)
+void TTransaction::UpdateObject(
+    TObject* object,
+    const std::vector<TUpdateRequest>& requests,
+    const std::vector<TAttributeTimestampPrerequisite>& prerequisites)
 {
-    return Impl_->UpdateObject(object, requests);
+    return Impl_->UpdateObject(
+        object,
+        requests,
+        prerequisites);
 }
 
-void TTransaction::UpdateObject(TObject* object, const std::vector<TUpdateRequest>& requests, IUpdateContext* context)
+void TTransaction::UpdateObject(
+    TObject* object,
+    const std::vector<TUpdateRequest>& requests,
+    const std::vector<TAttributeTimestampPrerequisite>& prerequisites,
+    IUpdateContext* context)
 {
-    return Impl_->UpdateObject(object, requests, context);
+    return Impl_->UpdateObject(
+        object,
+        requests,
+        prerequisites,
+        context);
 }
 
 TObject* TTransaction::GetObject(EObjectType type, const TObjectId& id, const TObjectId& parentId)

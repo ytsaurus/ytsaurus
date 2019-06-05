@@ -75,6 +75,7 @@ class TInternetAddress;
 class TAccount;
 class TMultiClusterReplicaSet;
 class TStage;
+class TPodDisruptionBudget;
 
 class TAttributeSchema;
 
@@ -139,6 +140,7 @@ DEFINE_ENUM(EObjectType,
     // Node2 is an alias and must be processed at the Api layer without explicit declaration.
     // ((Node2)                  (18))
     ((Stage)                  (19))
+    ((PodDisruptionBudget)    (20))
     ((NetworkModule)         (100)) // internal, not present in data_model.proto
     ((Schema)                (256))
 );

@@ -49,6 +49,10 @@ public:
         static const TManyToOneAttributeSchema<TPodSet, TAccount> AccountSchema;
         using TAccountAttribute = TManyToOneAttribute<TPodSet, TAccount>;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAccountAttribute, Account);
+
+        static const TManyToOneAttributeSchema<TPodSet, TPodDisruptionBudget> PodDisruptionBudgetSchema;
+        using TPodDisruptionBudgetAttribute = TManyToOneAttribute<TPodSet, TPodDisruptionBudget>;
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TPodDisruptionBudgetAttribute, PodDisruptionBudget);
     };
 
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TSpec, Spec);

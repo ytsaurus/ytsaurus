@@ -344,6 +344,11 @@ private:
         }
 
         pod->Spec().UpdateTimestamp().Touch();
+
+        auto* node = spec.Node().Load();
+        if (node) {
+            transaction->ScheduleNotifyAgent(node);
+        }
     }
 
     void ValidateSpec(TTransaction* transaction, TPod* pod)
@@ -381,6 +386,7 @@ private:
         }
 
         if (spec.IssPayload().IsChanged()) {
+            // TODO(babenko): use read locks
             auto* podSet = pod->PodSet().Load();
             auto* nodeSegment = podSet->Spec().NodeSegment().Load();
             if (!nodeSegment->Spec().Load().enable_unsafe_porto()) {

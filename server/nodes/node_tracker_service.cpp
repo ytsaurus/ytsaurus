@@ -88,7 +88,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NClient::NNodes::NProto, Heartbeat)
     {
-        auto nodeId = FromProto<TObjectId>(request->node_id());
+        const auto& nodeId = request->node_id();
         auto epochId = FromProto<TEpochId>(request->epoch_id());
         auto sequenceNumber = request->sequence_number();
 

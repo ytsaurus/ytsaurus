@@ -18,8 +18,8 @@ class TestObjectService(object):
             yp_client.get_object("pod_set", nonexistent_id, selectors=["/meta/id"])
 
         objects = yp_client.get_objects("pod_set", [existent_id, nonexistent_id], selectors=["/meta/id"], options={"ignore_nonexistent": True})
-        assert(len(objects) == 2)
-        assert(len(objects[0]) == 1 and objects[0][0] == existent_id)
-        assert(len(objects[1]) == 0)
+        assert len(objects) == 2
+        assert len(objects[0]) == 1 and objects[0][0] == existent_id
+        assert objects[1] is None
 
-        assert(len(yp_client.get_object("pod_set", nonexistent_id, selectors=["/meta/id"], options={"ignore_nonexistent": True})) == 0)
+        assert yp_client.get_object("pod_set", nonexistent_id, selectors=["/meta/id"], options={"ignore_nonexistent": True}) is None

@@ -35,6 +35,7 @@ DEFINE_ENUM(EErrorCode,
     ((UserBanned)                  (100011))
     ((AccountLimitExceeded)        (100012))
     ((PodSchedulingFailure)        (100013))
+    ((PrerequisiteCheckFailure)    (100014))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

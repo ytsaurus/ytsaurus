@@ -93,7 +93,7 @@ class TestCli(object):
             user_id,
             "read"
         ])
-        assert yson._loads_from_native_str(result) == dict(action="allow", object_type="schema", object_id="pod_set", subject_id="everyone")
+        assert yson._loads_from_native_str(result)["action"] == "allow"
 
     def test_get_object_access_allowed_for(self, yp_env):
         cli = create_cli(yp_env)

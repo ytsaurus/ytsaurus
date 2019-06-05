@@ -4,6 +4,7 @@
 #include "resource_cache.h"
 #include "node_segment.h"
 #include "account.h"
+#include "pod_disruption_budget.h"
 #include "db_schema.h"
 
 namespace NYP::NServer::NObjects {
@@ -27,10 +28,17 @@ const TManyToOneAttributeSchema<TPodSet, TAccount> TPodSet::TSpec::AccountSchema
     [] (TAccount* account) { return &account->PodSets(); }
 };
 
+const TManyToOneAttributeSchema<TPodSet, TPodDisruptionBudget> TPodSet::TSpec::PodDisruptionBudgetSchema{
+    &PodSetsTable.Fields.Spec_PodDisruptionBudgetId,
+    [] (TPodSet* podSet) { return &podSet->Spec().PodDisruptionBudget(); },
+    [] (TPodDisruptionBudget* podDisruptionBudget) { return &podDisruptionBudget->PodSets(); }
+};
+
 TPodSet::TSpec::TSpec(TPodSet* podSet)
     : AntiaffinityConstraints_(podSet, &AntiaffinityConstraintsSchema)
     , NodeSegment_(podSet, &NodeSegmentSchema)
     , Account_(podSet, &AccountSchema)
+    , PodDisruptionBudget_(podSet, &PodDisruptionBudgetSchema)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
