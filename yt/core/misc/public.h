@@ -19,6 +19,8 @@ class RepeatedField;
 template <class Element>
 class RepeatedPtrField;
 
+class Timestamp;
+
 namespace io {
 
 class ZeroCopyInputStream;
