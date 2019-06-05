@@ -41,7 +41,6 @@ public:
         , OrchidService_(IYPathService::FromProducer(BIND(&TCoreDumper::BuildYson, MakeWeak(this))))
     {
 #ifdef _linux_
-        const auto& Logger = CoreDumpLogger;
         if (prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY) != 0) {
             const auto& Logger = CoreDumpLogger;
             YT_LOG_ERROR(TError::FromSystem(), "Failed to call prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY)");
