@@ -1025,15 +1025,15 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
     EPermissionCheckScope scope,
     EPermission permission)
 {
-    if ((scope & EPermissionCheckScope::This) != EPermissionCheckScope::None) {
+    if (Any(scope & EPermissionCheckScope::This)) {
         ValidatePermission(node, permission);
     }
 
-    if ((scope & EPermissionCheckScope::Parent) != EPermissionCheckScope::None) {
+    if (Any(scope & EPermissionCheckScope::Parent)) {
         ValidatePermission(node->GetParent(), permission);
     }
 
-    if ((scope & EPermissionCheckScope::Descendants) != EPermissionCheckScope::None) {
+    if (Any(scope & EPermissionCheckScope::Descendants)) {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* trunkNode = node->GetTrunkNode();
         auto descendants = cypressManager->ListSubtreeNodes(trunkNode, Transaction, false);
