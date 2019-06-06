@@ -1350,7 +1350,7 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
             Y_UNREACHABLE();
     }
     i64 desiredChunkSize = autoMergeSpec->JobIO->TableWriter->DesiredChunkSize;
-    i64 desiredChunkDataWeight = desiredChunkSize / dataWeightRatio;
+    i64 desiredChunkDataWeight = std::max<i64>(1, desiredChunkSize / dataWeightRatio);
     i64 dataWeightPerJob = desiredChunkDataWeight;
 
     // NB: if row count limit is set on any output table, we do not
@@ -1364,7 +1364,7 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
     }
 
     YT_LOG_INFO("Auto merge parameters calculated ("
-        "Mode: %v, OutputChunkCountEstimate: %v, MaxIntermediateChunkCount: %v, ChunkCountPerMergeJob: %v,"
+        "Mode: %v, OutputChunkCountEstimate: %v, MaxIntermediateChunkCount: %v, ChunkCountPerMergeJob: %v, "
         "ChunkSizeThreshold: %v, DesiredChunkSize: %v, DesiredChunkDataWeight: %v, IntermediateChunkUnstageMode: %v)",
         mode,
         outputChunkCountEstimate,
