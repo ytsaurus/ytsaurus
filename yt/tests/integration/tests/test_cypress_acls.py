@@ -946,6 +946,22 @@ class TestCypressAcls(CheckPermissionBase):
         do("//tmp/t_in", public_row, True)
         do("//tmp/t_in{secret}", {}, True)
 
+    def test_orphaned_node(self):
+        create_user("u")
+
+        create("map_node", "//tmp/d", attributes={"inherit_acl": False, "acl": [make_ace("allow", "u", "read")]})
+
+        table_id = create("table", "//tmp/d/t")
+
+        tx = start_transaction()
+        lock("//tmp/d/t", mode="snapshot", tx=tx)
+
+        assert check_permission("u", "read", "#" + table_id)["action"] == "allow"
+
+        remove("//tmp/d/t")
+
+        assert check_permission("u", "read", "#" + table_id)["action"] == "allow"
+
 ##################################################################
 
 class TestCypressAclsMulticell(TestCypressAcls):
