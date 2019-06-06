@@ -5,6 +5,8 @@ import "yt/core/yson/proto/protobuf_interop.proto";
 import "yp/client/api/proto/data_model.proto";
 import "yp/client/api/proto/autogen.proto";
 
+option python_package = "yp_proto.yp.client.api.proto";
+
 option java_package = "ru.yandex.yp.client.api";
 option java_outer_classname = "Object";
 

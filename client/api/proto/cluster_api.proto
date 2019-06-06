@@ -4,6 +4,8 @@ syntax = "proto3";
 
 package NYP.NClient.NApi.NClusterApiProto;
 
+option python_package = "yp_proto.yp.client.api.proto";
+
 option java_package = "ru.yandex.schedulers.cluster.api.protobuf";
 option java_outer_classname = "ClusterApi";
 

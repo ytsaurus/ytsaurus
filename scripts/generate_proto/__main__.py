@@ -91,11 +91,8 @@ def patch_prefix(type_name):
 
 def print_imports():
     for module in get_modules():
-        PREFIX = "yp_proto/"
         name = module.DESCRIPTOR.name
-        if not name.startswith(PREFIX):
-            raise Exception("Module name {} does not start with {}".format(name, PREFIX))
-        print "import \"{}\";".format(name[len(PREFIX):])
+        print "import \"{}\";".format(name)
     print """\
 import "yt/core/misc/proto/error.proto";
 import "yt/core/ytree/proto/attributes.proto";
@@ -128,6 +125,8 @@ def generate_client():
 syntax = "proto3";
 
 package NYP.NClient.NApi.NProto;
+
+option python_package = "yp_proto.yp.client.api.proto";
 
 option java_package = "ru.yandex.yp.client.api";
 option java_outer_classname = "Autogen";
