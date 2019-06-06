@@ -3333,9 +3333,6 @@ public:
             if (table->GetTabletCellBundle() && table->IsDynamic()) {
                 table->ValidateAllTabletsUnmounted("Cannot change tablet cell bundle");
             }
-
-            const auto& securityManager = Bootstrap_->GetSecurityManager();
-            securityManager->ValidatePermission(cellBundle, EPermission::Use);
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();

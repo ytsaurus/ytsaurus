@@ -473,21 +473,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//sys/schemas/tablet_cell_bundle/@acl/end", make_ace("allow", "u", "create"))
         create_tablet_cell_bundle("b", authenticated_user="u")
 
-    def test_set_tablet_cell_bundle_failure(self):
-        sync_create_cells(1)
-        create_user("u")
-        create_tablet_cell_bundle("b")
-        self._create_sorted_table("//tmp/t")
-        with pytest.raises(YtError):
-            set("//tmp/t/@tablet_cell_bundle", "b", authenticated_user="u")
-
-        sync_mount_table("//tmp/t")
-        self.Env.kill_nodes()
-        unmount_table("//tmp/t")
-        with pytest.raises(YtError):
-            set("//tmp/t/@tablet_cell_bundle", "b")
-        self.Env.start_nodes()
-
     def test_validate_dynamic_attr(self):
         create("table", "//tmp/t")
         assert not get("//tmp/t/@dynamic")
@@ -580,13 +565,33 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     def test_table_with_custom_cell_bundle_name_validation(self):
         with pytest.raises(YtError): create("table", "//tmp/t", attributes={"tablet_cell_bundle": "b"})
 
-    def test_cell_bundle_use_permission(self):
+    def test_cell_bundle_requires_use_permission_on_mount(self):
+        create_tablet_cell_bundle("b")
+        sync_create_cells(1, tablet_cell_bundle="b")
+        create_user("u")
+        # create does not require use
+        create("table", "//tmp/t",
+            attributes={
+                "tablet_cell_bundle": "b",
+                "dynamic": True,
+                "schema": [
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"}
+                ]
+            },
+            authenticated_user="u")
+        # copy also does not require use
+        copy("//tmp/t", "//tmp/t2", authenticated_user="u")
+        set("//tmp/t/@acl/end", make_ace("allow", "u", "mount"))
+        # mount requires use
+        with pytest.raises(YtError): mount_table("//tmp/t", authenticated_user="u")
+        set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", "use"))
+        mount_table("//tmp/t", authenticated_user="u")
+
+    def test_cell_bundle_attr_change_requires_use_not_write(self):
         create_tablet_cell_bundle("b")
         create_user("u")
-        with pytest.raises(YtError): create("table", "//tmp/t", attributes={"tablet_cell_bundle": "b"}, authenticated_user="u")
         set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", "use"))
-        create("table", "//tmp/t", attributes={"tablet_cell_bundle": "b"}, authenticated_user="u")
-
         with WriteAceRemoved("//sys/schemas/tablet_cell_bundle"):
             set("//sys/tablet_cell_bundles/b/@tablet_balancer_config/enable_cell_balancer", False, authenticated_user="u")
             with pytest.raises(YtError):
