@@ -955,6 +955,8 @@ public:
 
         // Slow lane: check ACLs through the object hierarchy.
         const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto* rootObject = cypressManager->GetRootNode();
         auto* currentObject = object;
         TSubject* owner = nullptr;
         int depth = 0;
@@ -981,7 +983,24 @@ public:
                 }
             }
 
-            currentObject = handler->GetParent(currentObject);
+            auto* parentObject = handler->GetParent(currentObject);
+
+            XXX(shakurov): YT-10896: remove this workaround.
+            if (!HasMutationContext() && IsVersionedType(object->GetType())) {
+                // Check if current object is orphaned.
+                if (!parentObject && currentObject != rootObject) {
+                    checker.ProcessAce(
+                        TAccessControlEntry(
+                            ESecurityAction::Allow,
+                            GetEveryoneGroup(),
+                            EPermissionSet(EPermission::Read)),
+                        owner,
+                        currentObject,
+                        depth);
+                }
+            }
+
+            currentObject = parentObject;
             ++depth;
         }
 
