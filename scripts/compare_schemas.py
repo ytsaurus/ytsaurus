@@ -13,13 +13,14 @@ from yp.local import YpInstance, INITIAL_DB_VERSION
 def canonize_obj(data):
     def canonize(data):
         if isinstance(data, dict):
+            data.pop("type_v2", None)
             for key in data:
                 data[key] = canonize(data[key])
 
         if isinstance(data, list):
             for i in xrange(len(data)):
                 data[i] = canonize(data[i])
-            data = sorted(data, cmp=lambda a, b: cmp(json.dumps(a), json.dumps(b)))
+            data = sorted(data, cmp=lambda a, b: cmp(json.dumps(a, sort_keys=True), json.dumps(b, sort_keys=True)))
 
         return data
 
@@ -101,9 +102,7 @@ def main(argv):
     print json.dumps(local_schemas, indent=4)
 
     print "=========> Schemas diff:"
-    print jsondiff.diff(remote_schemas, local_schemas, dump=True, dumper=jsondiff.JsonDumper(indent=4))
-
-    yp_instance.stop()
+    print jsondiff.diff(remote_schemas, local_schemas, dump=True, dumper=jsondiff.JsonDumper(indent=4), syntax='explicit')
 
 if __name__ == "__main__":
     main(sys.argv[1:])
