@@ -141,6 +141,10 @@ private:
                     << TErrorAttribute("resolved_path", currentPath);
             }
 
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            auto* cellBundle = table->GetTabletCellBundle();
+            securityManager->ValidatePermission(cellBundle, EPermission::Use);
+
             // CurrentMountTransactionId is used to prevent primary master to copy/move node when
             // secondary master has already committed mount (this causes an unexpected error in CloneTable).
             // Primary master is lazy coordinator of 2pc, thus clone command and participant commit command are
