@@ -5772,6 +5772,8 @@ private:
         }
 
         builder.AddOrderByExpression("start_time", orderByDirection);
+        builder.AddOrderByExpression("id_hi", orderByDirection);
+        builder.AddOrderByExpression("id_lo", orderByDirection);
 
         if (options.Pool) {
             builder.AddWhereConjunct(Format("list_contains(pools, %Qv) OR pool = %Qv", *options.Pool, *options.Pool));
@@ -6059,7 +6061,10 @@ private:
 
         std::sort(operations.begin(), operations.end(), [&] (const TOperation& lhs, const TOperation& rhs) {
             // Reverse order: most recent first.
-            return *lhs.StartTime > *rhs.StartTime;
+            return
+            std::tie(*lhs.StartTime, (*lhs.Id).Parts64[0], (*lhs.Id).Parts64[1])
+            >
+            std::tie(*rhs.StartTime, (*rhs.Id).Parts64[0], (*rhs.Id).Parts64[1]);
         });
 
         TListOperationsResult result;
