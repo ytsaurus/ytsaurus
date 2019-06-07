@@ -235,12 +235,8 @@ def prepare_yp_test_sandbox():
     os.makedirs(test_sandbox_path)
     return test_sandbox_path
 
-def save_yatest_working_files(sandbox_path):
-    if yatest_common is None or yatest_common.get_param("ram_drive_path") is None:
-        return
-    shutil.copytree(
-        sandbox_path,
-        os.path.join(yatest_common.output_path(), os.path.basename(sandbox_path)))
+def yatest_save_sandbox(sandbox_path):
+    arcadia_interop.save_sandbox(sandbox_path, os.path.join(yatest_common.output_path(), os.path.basename(sandbox_path)))
 
 
 class YpTestEnvironment(object):
@@ -287,7 +283,7 @@ class YpTestEnvironment(object):
 
             self.sync_access_control()
         except:
-            save_yatest_working_files(self.test_sandbox_path)
+            yatest_save_sandbox(self.test_sandbox_base_path)
             raise
 
     def sync_access_control(self):
@@ -324,18 +320,11 @@ class YpTestEnvironment(object):
             if self.yp_client is not None:
                 self.yp_client.close()
             self.yp_instance.stop()
-            save_yatest_working_files(self.test_sandbox_path)
+            yatest_save_sandbox(self.test_sandbox_base_path)
         except:
             # Additional logging added due to https://github.com/pytest-dev/pytest/issues/2237
             logger.exception("YpTestEnvironment cleanup failed")
             raise
-
-    def _save_yatest_working_files(self):
-        if (yatest_common is None) or (yatest_common.get_param("ram_drive_path") is None):
-            return
-        shutil.copytree(
-            self.test_sandbox_path,
-            os.path.join(yatest_common.output_path(), os.path.basename(self.test_sandbox_path)))
 
 def test_method_setup(yp_env):
     print("\n", file=sys.stderr)
