@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from yp.common import YtResponseError, wait
-from yp.local import YpInstance, ACTUAL_DB_VERSION, OBJECT_TYPES, reset_yp
+from yp.local import YpInstance, ACTUAL_DB_VERSION, reset_yp
 from yp.logger import logger
 
 from yt.wrapper.common import generate_uuid
@@ -30,7 +30,6 @@ import copy
 import logging
 import os
 import sys
-import time
 import shutil
 
 
