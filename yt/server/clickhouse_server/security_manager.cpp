@@ -186,7 +186,7 @@ private:
         if (!aclNode) {
             return;
         }
-        CurrentAcl_ну = ConvertTo<TSerializableAccessControlList>(std::move(aclNode));
+        CurrentAcl_ = ConvertTo<TSerializableAccessControlList>(std::move(aclNode));
         LastCurrentAclUpdateTime_ = NProfiling::GetCpuInstant();
     }
 
