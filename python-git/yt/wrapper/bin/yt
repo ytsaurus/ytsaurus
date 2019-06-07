@@ -49,7 +49,8 @@ Operation commands:
 Transaction commands:
     lock, unlock, start-tx, abort-tx, commit-tx, ping-tx
 Job commands:
-    get-job-stderr, run-job-shell, abort-job, get-job, list-jobs
+    get-job-stderr, get-job-input, get-job-input-paths,
+    run-job-shell, abort-job, get-job, list-jobs
 Other commands:
     transform, show-spec, show-default-config'''
 
@@ -1196,6 +1197,23 @@ def add_get_job_stderr_parser(add_parser):
     add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
     add_hybrid_argument(parser, "operation_id", help="operation id, for example: 876084ca-efd01a47-3e8-7a62e787")
 
+@copy_docstring_from(yt.get_job_input)
+def get_job_input(**args):
+    write_silently(chunk_iter_stream(yt.get_job_input(**args), yt.config["read_buffer_size"]))
+
+def add_get_job_input_parser(add_parser):
+    parser = add_parser("get-job-input", get_job_input)
+    add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
+
+@copy_docstring_from(yt.get_job_input_paths)
+def get_job_input_paths(**args):
+    paths = yt.get_job_input_paths(**args)
+    print(dump_data(map(yt.YPath.to_yson_type, paths)))
+
+def add_get_job_input_paths_parser(add_parser):
+    parser = add_parser("get-job-input-paths", get_job_input_paths)
+    add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
+
 @copy_docstring_from(yt.get_job)
 def get_job(**args):
     result = yt.get_job(**args)
@@ -1400,6 +1418,8 @@ def main():
 
     add_run_job_shell_parser(add_parser)
     add_get_job_stderr_parser(add_parser)
+    add_get_job_input_parser(add_parser)
+    add_get_job_input_paths_parser(add_parser)
     add_abort_job_parser(add_parser)
     add_list_jobs_parser(add_parser)
     add_get_job_parser(add_parser)

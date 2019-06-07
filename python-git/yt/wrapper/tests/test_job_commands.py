@@ -2,6 +2,8 @@ from .helpers import ENABLE_JOB_CONTROL, TEST_DIR, create_job_events
 
 from yt.wrapper.job_shell import JobShell
 from yt.wrapper.driver import get_command_list
+import yt.yson
+import yt.ypath
 
 import yt.wrapper as yt
 
@@ -175,6 +177,38 @@ class TestJobCommands(object):
         job_id = job_events.wait_breakpoint()[0]
 
         assert b"STDERR OUTPUT\n" == yt.get_job_stderr(op.id, job_id).read()
+
+        job_events.release_breakpoint()
+        op.wait()
+
+    def test_get_job_input(self, job_events):
+        input_table = TEST_DIR + "/input_table"
+        output_table = TEST_DIR + "/output_table"
+        yt.write_table(input_table, [{"x": 1}])
+
+        mapper = job_events.with_breakpoint("cat; BREAKPOINT")
+
+        op = yt.run_map(mapper, input_table, output_table, format="yson", sync=False)
+        job_id = job_events.wait_breakpoint()[0]
+
+        actual_input = yt.yson.loads(yt.get_job_input(job_id).read(), yson_type="list_fragment")
+        assert list(actual_input) == [{"x": 1}]
+
+        job_events.release_breakpoint()
+        op.wait()
+
+    def test_get_job_input_paths(self, job_events):
+        input_table = TEST_DIR + "/input_table"
+        output_table = TEST_DIR + "/output_table"
+        yt.write_table(input_table, [{"x": 1}])
+
+        mapper = job_events.with_breakpoint("cat; BREAKPOINT")
+
+        op = yt.run_map(mapper, input_table, output_table, format="yson", sync=False)
+        job_id = job_events.wait_breakpoint()[0]
+
+        expected_path = yt.ypath.TablePath(input_table, start_index=0, end_index=1)
+        assert yt.get_job_input_paths(job_id) == [expected_path]
 
         job_events.release_breakpoint()
         op.wait()

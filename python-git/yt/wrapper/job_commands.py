@@ -1,6 +1,7 @@
 from .config import get_config
 from .driver import make_request, make_formatted_request, _create_http_client_from_rpc
 from .common import set_param
+from .ypath import YPath
 
 def list_jobs(operation_id,
               job_type=None, job_state=None, address=None,
@@ -73,6 +74,35 @@ def get_job_stderr(operation_id, job_id, client=None):
         {"operation_id": operation_id, "job_id": job_id},
         return_content=False,
         client=client)
+
+def get_job_input(job_id, client=None):
+    """Get full input of the specified job.
+
+    :param str job_id: job id.
+    """
+    if get_config(client)["backend"] == "rpc":
+        client = _create_http_client_from_rpc(client, "get_job_input")
+    return make_request(
+        "get_job_input",
+        params={"job_id": job_id},
+        return_content=False,
+        use_heavy_proxy=True,
+        client=client)
+
+def get_job_input_paths(job_id, client=None):
+    """Get input paths of the specified job.
+
+    :param str job_if: job id.
+    :return: list of YPaths.
+    """
+    timeout = get_config(client)["operation_info_commands_timeout"]
+    yson_paths = make_formatted_request(
+        "get_job_input_paths",
+        params={"job_id": job_id},
+        format=None,
+        timeout=timeout,
+        client=client)
+    return list(map(YPath, yson_paths))
 
 def abort_job(job_id, interrupt_timeout=None, client=None):
     """Interrupts running job with preserved result.
