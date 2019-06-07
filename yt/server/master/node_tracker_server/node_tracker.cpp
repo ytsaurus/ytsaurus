@@ -1369,8 +1369,7 @@ private:
             }
         }
 
-        ReconfigureNodeSemaphores();
-        ReconfigureGossipPeriods();
+        OnDynamicConfigChanged();
     }
 
     virtual void OnStopLeading() override
