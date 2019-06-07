@@ -77,40 +77,13 @@ static bool IsPassesTimeDumpEnabled()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef _linux_
-
-// This code works around NodeJS dlopen call.
-// By reopening library once again, we ensure global symbol visibility
-// required for the linker.
-
-static int OnHeaderCallback(dl_phdr_info* info, size_t /*size*/, void* /*data*/)
-{
-    if (strstr(info->dlpi_name, "ytnode.node")) {
-        dlopen(info->dlpi_name, RTLD_NOW | RTLD_GLOBAL);
-    }
-
-    return 0;
-}
-
-static void LoadDynamicLibrarySymbols()
-{
-    dl_iterate_phdr(OnHeaderCallback, nullptr);
-}
-
-#endif
-
 class TCGMemoryManager
     : public llvm::SectionMemoryManager
 {
 public:
     explicit TCGMemoryManager(TRoutineRegistry* routineRegistry)
         : RoutineRegistry_(routineRegistry)
-    {
-#ifdef _linux_
-        static std::once_flag onceFlag;
-        std::call_once(onceFlag, &LoadDynamicLibrarySymbols);
-#endif
-    }
+    { }
 
     virtual uint64_t getSymbolAddress(const std::string& name) override
     {
