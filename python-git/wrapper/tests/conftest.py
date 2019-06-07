@@ -10,16 +10,13 @@ from yt.wrapper.default_config import get_default_config
 from yt.wrapper.common import update, update_inplace
 from yt.common import which, makedirp, format_error
 import yt.environment.init_operation_archive as init_operation_archive
+from yt.environment import arcadia_interop
 import yt.subprocess_wrapper as subprocess
 
 from yt.packages.six import itervalues
 
 import yt.wrapper as yt
 
-if yatest_common is not None:
-    from yt.environment import arcadia_interop
-else:
-    arcadia_interop = None
 
 import os
 import imp
@@ -228,7 +225,7 @@ class YtTestEnvironment(object):
                 shutil.rmtree(node_config["data_node"]["cache_location"]["path"])
 
         try:
-            save_yatest_working_files(self.sandbox_dir, self.uniq_dir_name)
+            arcadia_interop.save_sandbox(self.sandbox_dir, self.uniq_dir_name)
         except:
             # Additional logging added due to https://github.com/pytest-dev/pytest/issues/2237
             logging.exception("YtTestEnvironment cleanup failed")
