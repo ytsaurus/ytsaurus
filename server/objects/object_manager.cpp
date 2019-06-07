@@ -76,7 +76,7 @@ public:
         RegisterTypeHandler(CreateSchemaTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateNodeTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateResourceTypeHandler(Bootstrap_));
-        RegisterTypeHandler(CreatePodTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreatePodTypeHandler(Bootstrap_, Config_->PodTypeHandler));
         RegisterTypeHandler(CreatePodSetTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateEndpointTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateEndpointSetTypeHandler(Bootstrap_));

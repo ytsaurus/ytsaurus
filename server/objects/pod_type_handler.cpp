@@ -7,6 +7,7 @@
 #include "account.h"
 #include "network_project.h"
 #include "db_schema.h"
+#include "config.h"
 
 #include <yp/server/net/internet_address_manager.h>
 #include <yp/server/net/net_manager.h>
@@ -42,19 +43,13 @@ using std::placeholders::_1;
 using std::placeholders::_2;
 using std::placeholders::_3;
 
-////////////////////////////////////////////////////////////////////////////////
-
-static constexpr auto DefaultVcpuGuarantee = 1000;
-static constexpr auto DefaultMemoryGuarantee = 100_MB;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TPodTypeHandler
     : public TObjectTypeHandlerBase
 {
 public:
-    explicit TPodTypeHandler(NMaster::TBootstrap* bootstrap)
+    explicit TPodTypeHandler(NMaster::TBootstrap* bootstrap, TPodTypeHandlerConfigPtr config)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::Pod)
+        , Config_(std::move(config))
     {
         MetaAttributeSchema_
             ->AddChildren({
@@ -252,15 +247,15 @@ public:
         auto* resourceRequests = pod->Spec().Etc()->mutable_resource_requests();
 
         if (!resourceRequests->has_vcpu_limit() && !resourceRequests->has_vcpu_guarantee()) {
-            resourceRequests->set_vcpu_limit(DefaultVcpuGuarantee);
-            resourceRequests->set_vcpu_guarantee(DefaultVcpuGuarantee);
+            resourceRequests->set_vcpu_limit(Config_->DefaultVcpuGuarantee);
+            resourceRequests->set_vcpu_guarantee(Config_->DefaultVcpuGuarantee);
         } else if (!resourceRequests->has_vcpu_limit() && resourceRequests->has_vcpu_guarantee()) {
             resourceRequests->set_vcpu_limit(resourceRequests->vcpu_guarantee());
         }
 
         if (!resourceRequests->has_memory_limit() && !resourceRequests->has_memory_guarantee()) {
-            resourceRequests->set_memory_limit(DefaultMemoryGuarantee);
-            resourceRequests->set_memory_guarantee(DefaultMemoryGuarantee);
+            resourceRequests->set_memory_limit(Config_->DefaultMemoryGuarantee);
+            resourceRequests->set_memory_guarantee(Config_->DefaultMemoryGuarantee);
         } else if (!resourceRequests->has_memory_limit() && resourceRequests->has_memory_guarantee()) {
             resourceRequests->set_memory_limit(resourceRequests->memory_guarantee());
         }
@@ -312,6 +307,8 @@ public:
     }
 
 private:
+    const TPodTypeHandlerConfigPtr Config_;
+
     virtual std::vector<EAccessControlPermission> GetDefaultPermissions() override
     {
         return {};
@@ -383,6 +380,8 @@ private:
             ValidateDiskVolumeRequests(pod);
 
             ValidateNetworkRequests(transaction, pod);
+
+            ValidateResourceRequests(pod);
         }
 
         if (spec.IssPayload().IsChanged()) {
@@ -519,6 +518,16 @@ private:
         }
     }
 
+    void ValidateResourceRequests(TPod* pod) {
+        const auto& resourceRequests = pod->Spec().Etc().Load().resource_requests();
+
+        if (resourceRequests.has_vcpu_guarantee() && resourceRequests.vcpu_guarantee() < Config_->MinVcpuGuarantee) {
+            THROW_ERROR_EXCEPTION("Invalid vcpu_gurantee value: expected >= %v, got %v",
+                                  Config_->MinVcpuGuarantee,
+                                  resourceRequests.vcpu_guarantee());
+        }
+    }
+
     void ValidateAccount(TTransaction* /*transaction*/, TPod* pod)
     {
         auto* account = pod->Spec().Account().Load();
@@ -586,9 +595,9 @@ private:
     }
 };
 
-std::unique_ptr<IObjectTypeHandler> CreatePodTypeHandler(NMaster::TBootstrap* bootstrap)
+std::unique_ptr<IObjectTypeHandler> CreatePodTypeHandler(NMaster::TBootstrap* bootstrap, TPodTypeHandlerConfigPtr config)
 {
-    return std::unique_ptr<IObjectTypeHandler>(new TPodTypeHandler(bootstrap));
+    return std::unique_ptr<IObjectTypeHandler>(new TPodTypeHandler(bootstrap, std::move(config)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

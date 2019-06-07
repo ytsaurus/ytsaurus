@@ -1,4 +1,4 @@
-from .conftest import ZERO_RESOURCE_REQUESTS
+from .conftest import ZERO_RESOURCE_REQUESTS, create_pod_with_boilerplate, create_nodes
 
 from yp.common import YtResponseError, YpNoSuchObjectError
 
@@ -12,6 +12,56 @@ from yt.packages.six.moves import xrange
 
 
 import pytest
+
+
+@pytest.mark.usefixtures("yp_env_configurable")
+class TestPodsWithLimitedVcpuGuarantee(object):
+    YP_MASTER_CONFIG = {
+        "object_manager": {
+            "pod_type_handler": {
+                "min_vcpu_guarantee": 150,
+                "default_vcpu_guarantee": 500,
+                "default_memory_guarantee": 1500
+            }
+        }
+    }
+
+    def test_pod_assignment_with_small_vcpu_guarantee(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+        pod_set_id = yp_client.create_object("pod_set")
+        with pytest.raises(YtResponseError):
+            create_pod_with_boilerplate(yp_client, pod_set_id, {
+                "resource_requests": {
+                    "vcpu_guarantee": 0
+                }
+            })
+
+    def test_pod_update_with_small_vcpu_guarantee(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+        pod_set_id = yp_client.create_object("pod_set")
+        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, {
+            "resource_requests": {
+                "vcpu_guarantee": 150
+            }
+        })
+        with pytest.raises(YtResponseError):
+            yp_client.update_object("pod", pod_id, set_updates=[{
+                    "path": "/spec/resource_requests/vcpu_guarantee",
+                    "value": 149
+                }])
+
+    def test_master_config_params(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+        pod_set_id = yp_client.create_object("pod_set")
+        pod_id = yp_client.create_object("pod", attributes={
+            "meta": {
+                "pod_set_id": pod_set_id
+            }
+        })
+        assert yp_client.select_objects("pod", selectors=[
+            "/spec/resource_requests/vcpu_guarantee",
+            "/spec/resource_requests/memory_guarantee"
+        ]) == [[500, 1500]]
 
 
 @pytest.mark.usefixtures("yp_env")

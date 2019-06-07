@@ -47,6 +47,14 @@ ZERO_RESOURCE_REQUESTS = {
     "memory_limit": 0
 }
 
+DEFAULT_YP_MASTER_CONFIG = {
+    "object_manager": {
+        "pod_type_handler": {
+            "min_vcpu_guarantee": 0
+        }
+    }
+}
+
 DEFAULT_ACCOUNT_ID = "tmp"
 
 DEFAULT_POD_SET_SPEC = dict(
@@ -242,6 +250,7 @@ class YpTestEnvironment(object):
                  start=True,
                  db_version=ACTUAL_DB_VERSION,
                  local_yt_options=None):
+        yp_master_config = update(DEFAULT_YP_MASTER_CONFIG, get_value(yp_master_config, {}))
         self.test_sandbox_path = prepare_yp_test_sandbox()
         self.test_sandbox_base_path = os.path.dirname(self.test_sandbox_path)
 
