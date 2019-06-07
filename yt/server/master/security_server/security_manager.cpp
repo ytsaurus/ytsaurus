@@ -2105,7 +2105,6 @@ private:
     {
         TMasterAutomatonPart::OnRecoveryComplete();
 
-        OnDynamicConfigChanged();
         RequestTracker_->Start();
     }
 
@@ -2122,6 +2121,8 @@ private:
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
             BIND(&TImpl::OnUserStatisticsGossip, MakeWeak(this)));
         UserStatisticsGossipExecutor_->Start();
+
+        OnDynamicConfigChanged();
     }
 
     virtual void OnStopLeading() override
