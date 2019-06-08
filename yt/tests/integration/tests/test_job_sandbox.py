@@ -609,8 +609,7 @@ class TestFilesInSandbox(YTEnvSetup):
                 banned = True
         assert banned
 
-        time.sleep(1)
-        assert get("#{0}/@replication_status/default/lost".format(chunk_id))
+        wait(lambda: get("#{0}/@replication_status/default/lost".format(chunk_id)))
 
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -625,14 +624,9 @@ class TestFilesInSandbox(YTEnvSetup):
                      }
                  })
 
-        while True:
-            if op.get_job_count("running") == 1:
-                break
-            time.sleep(0.5)
+        wait(lambda: op.get_job_count("running") == 1)
 
         time.sleep(1)
         op.abort()
 
-        time.sleep(1)
-        assert op.get_state() == "aborted"
-        assert are_almost_equal(get("//sys/scheduler/orchid/scheduler/cell/resource_usage/cpu"), 0)
+        wait(lambda: op.get_state() == "aborted" and are_almost_equal(get("//sys/scheduler/orchid/scheduler/cell/resource_usage/cpu"), 0))
