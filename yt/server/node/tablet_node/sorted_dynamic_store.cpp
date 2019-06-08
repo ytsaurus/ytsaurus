@@ -1080,8 +1080,8 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(TVersionedRow row, TWriteContex
             currentList.GetUncommitted() = dynamicValue;
             CommitValue(result, currentList, index);
 
-            PrepareFixedValue(result, index);
-            currentList.GetUncommitted() = oldUncommittedValue;
+            auto newList = PrepareFixedValue(result, index);
+            newList.GetUncommitted() = oldUncommittedValue;
         } else {
             auto newList = PrepareFixedValue(result, index);
             newList.GetUncommitted() = dynamicValue;
