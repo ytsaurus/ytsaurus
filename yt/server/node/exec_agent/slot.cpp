@@ -80,7 +80,7 @@ public:
         TOperationId operationId) override
     {
         JobProberClient_ = CreateJobProbe(GetRpcClientConfig(), jobId);
-        return RunPrepareAction<void>([&] () {
+        return RunPrepareAction<void>([&] {
                 auto error = WaitFor(Location_->MakeConfig(SlotIndex_, ConvertToNode(config)));
                 THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to create job proxy config")
 
@@ -101,7 +101,7 @@ public:
         const TString& linkName,
         bool executable) override
     {
-        return RunPrepareAction<void>([&] () {
+        return RunPrepareAction<void>([&] {
                 return Location_->MakeSandboxLink(
                     SlotIndex_,
                     sandboxKind,
@@ -117,7 +117,7 @@ public:
         const TString& destinationName,
         bool executable) override
     {
-        return RunPrepareAction<void>([&] () {
+        return RunPrepareAction<void>([&] {
                 return Location_->MakeSandboxCopy(
                     SlotIndex_,
                     sandboxKind,
@@ -127,9 +127,25 @@ public:
             });
     }
 
+    virtual TFuture<void> MakeFile(
+        ESandboxKind sandboxKind,
+        const std::function<void(IOutputStream*)>& producer,
+        const TString& destinationName,
+        bool executable) override
+    {
+        return RunPrepareAction<void>([&] {
+                return Location_->MakeSandboxFile(
+                    SlotIndex_,
+                    sandboxKind,
+                    producer,
+                    destinationName,
+                    executable);
+            });
+    }
+
     virtual TFuture<void> FinalizePreparation() override
     {
-        return RunPrepareAction<void>([&] () {
+        return RunPrepareAction<void>([&] {
                 return Location_->FinalizeSanboxPreparation(
                     SlotIndex_,
                     JobEnvironment_->GetUserId(SlotIndex_));
@@ -140,7 +156,7 @@ public:
 
     virtual TFuture<IVolumePtr> PrepareRootVolume(const std::vector<TArtifactKey>& layers) override
     {
-        return RunPrepareAction<IVolumePtr>([&] () {
+        return RunPrepareAction<IVolumePtr>([&] {
                 return JobEnvironment_->PrepareRootVolume(layers);
             });
     }
@@ -162,9 +178,9 @@ public:
         return TTcpBusServerConfig::CreateUnixDomain(unixDomainName);
     }
 
-    virtual TFuture<std::vector<TString>> CreateSandboxDirectories(TUserSandboxOptions options)
+    virtual TFuture<std::vector<TString>> CreateSandboxDirectories(const TUserSandboxOptions& options)
     {
-        return RunPrepareAction<std::vector<TString>>([&] () {
+        return RunPrepareAction<std::vector<TString>>([&] {
                 return Location_->CreateSandboxDirectories(
                     SlotIndex_,
                     options,

@@ -365,20 +365,16 @@ public:
         return std::vector<IChunkPtr>(chunks.begin(), chunks.end());
     }
 
-    TFuture<IChunkPtr> PrepareArtifact(
+    TFuture<IChunkPtr> DownloadArtifact(
         const TArtifactKey& key,
-        TNodeDirectoryPtr nodeDirectory,
-        TTrafficMeterPtr trafficMeter)
+        const TArtifactDownloadOptions& options)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TClientBlockReadOptions blockReadOptions;
-        blockReadOptions.WorkloadDescriptor = Config_->ArtifactCacheReader->WorkloadDescriptor;
-        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-        blockReadOptions.ReadSessionId = TReadSessionId::Create();
+        auto blockReadOptions = MakeClientBlockReadOptions();
 
-        auto Logger = DataNodeLogger;
-        Logger.AddTag("Key: %v, ReadSessionId: %v", key, blockReadOptions.ReadSessionId);
+        auto Logger = NLogging::TLogger(DataNodeLogger)
+            .AddTag("Key: %v, ReadSessionId: %v", key, blockReadOptions.ReadSessionId);
 
         auto cookie = BeginInsert(key);
         auto cookieValue = cookie.GetValue();
@@ -396,9 +392,11 @@ public:
                 return cookieValue.As<IChunkPtr>();
             }
 
-            auto downloader = &TImpl::DownloadChunk;
-            if (!canPrepareSingleChunk) {
-                switch (EDataSourceType(key.data_source().type())) {
+            decltype(&TImpl::DownloadChunk) downloader;
+            if (canPrepareSingleChunk) {
+                downloader = &TImpl::DownloadChunk;
+            } else {
+                switch (CheckedEnumCast<EDataSourceType>(key.data_source().type())) {
                     case EDataSourceType::File:
                         downloader = &TImpl::DownloadFile;
                         break;
@@ -421,15 +419,45 @@ public:
                 key,
                 location,
                 chunkId,
-                nodeDirectory ? std::move(nodeDirectory) : New<TNodeDirectory>(),
+                options.NodeDirectory ? options.NodeDirectory : New<TNodeDirectory>(),
                 blockReadOptions,
                 Passed(std::move(cookie)),
-                trafficMeter));
+                options.TrafficMeter));
 
         } else {
             YT_LOG_INFO("Artifact is already cached");
         }
         return cookieValue.As<IChunkPtr>();
+    }
+
+    std::function<void(IOutputStream*)> MakeArtifactDownloadProducer(
+        const TArtifactKey& key,
+        const TArtifactDownloadOptions& options)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto blockReadOptions = MakeClientBlockReadOptions();
+
+        decltype(&TImpl::MakeFileProducer) producerBuilder;
+        switch (CheckedEnumCast<EDataSourceType>(key.data_source().type())) {
+            case EDataSourceType::File:
+                producerBuilder = &TImpl::MakeFileProducer;
+                break;
+            case EDataSourceType::UnversionedTable:
+            case EDataSourceType::VersionedTable:
+                producerBuilder = &TImpl::MakeTableProducer;
+                break;
+            default:
+                Y_UNREACHABLE();
+        }
+
+        return (this->*producerBuilder)(
+            key,
+            options.NodeDirectory ? options.NodeDirectory : New<TNodeDirectory>(),
+            options.TrafficMeter,
+            blockReadOptions,
+            // TODO(babenko): throttle prepartion
+            GetUnlimitedThrottler());
     }
 
 private:
@@ -609,21 +637,33 @@ private:
         return true;
     }
 
+    TClientBlockReadOptions MakeClientBlockReadOptions()
+    {
+        TClientBlockReadOptions options;
+        options.WorkloadDescriptor = Config_->ArtifactCacheReader->WorkloadDescriptor;
+        options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        options.ReadSessionId = TReadSessionId::Create();
+        return options;
+    }
+
     void DownloadChunk(
         TSessionCounterGuard /* sessionCounterGuard */,
         const TArtifactKey& key,
-        TCacheLocationPtr location,
+        const TCacheLocationPtr& location,
         TChunkId chunkId,
-        TNodeDirectoryPtr nodeDirectory,
+        const TNodeDirectoryPtr& nodeDirectory,
         const TClientBlockReadOptions& blockReadOptions,
         TInsertCookie cookie,
-        TTrafficMeterPtr trafficMeter)
+        const TTrafficMeterPtr& trafficMeter)
     {
         const auto& chunkSpec = key.chunk_specs(0);
         auto seedReplicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
-        auto Logger = DataNodeLogger;
-        Logger.AddTag("ChunkId: %v, ReadSessionId: %v, Location: %v", chunkId, blockReadOptions.ReadSessionId, location->GetId());
+        auto Logger = NLogging::TLogger(DataNodeLogger)
+            .AddTag("ChunkId: %v, ReadSessionId: %v, Location: %v",
+                chunkId,
+                blockReadOptions.ReadSessionId,
+                location->GetId());
 
         try {
             auto options = New<TRemoteReaderOptions>();
@@ -719,7 +759,6 @@ private:
             cookie.EndInsert(chunk);
 
             ChunkAdded_.Fire(chunk);
-
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading chunk %v into cache",
                 chunkId)
@@ -732,21 +771,49 @@ private:
     void DownloadFile(
         TSessionCounterGuard /* sessionCounterGuard */,
         const TArtifactKey& key,
-        TCacheLocationPtr location,
+        const TCacheLocationPtr& location,
         TChunkId chunkId,
-        TNodeDirectoryPtr nodeDirectory,
+        const TNodeDirectoryPtr& nodeDirectory,
         const TClientBlockReadOptions& blockReadOptions,
         TInsertCookie cookie,
-        TTrafficMeterPtr trafficMeter)
+        const TTrafficMeterPtr& trafficMeter)
+    {
+        try {
+            auto producer = MakeFileProducer(
+                key,
+                nodeDirectory,
+                trafficMeter,
+                blockReadOptions,
+                location->GetInThrottler());
+
+            auto chunk = ProduceArtifactFile(key, location, chunkId, producer);
+            cookie.EndInsert(chunk);
+
+            ChunkAdded_.Fire(chunk);
+        } catch (const std::exception& ex) {
+            auto error = TError("Error downloading file artifact into cache")
+                << TErrorAttribute("key", key)
+                << ex;
+            cookie.Cancel(error);
+            YT_LOG_WARNING(error);
+        }
+    }
+
+    std::function<void(IOutputStream*)> MakeFileProducer(
+        const TArtifactKey& key,
+        const TNodeDirectoryPtr& nodeDirectory,
+        const TTrafficMeterPtr& trafficMeter,
+        const TClientBlockReadOptions& blockReadOptions,
+        const IThroughputThrottlerPtr& throttler)
     {
         std::vector<TChunkSpec> chunkSpecs(key.chunk_specs().begin(), key.chunk_specs().end());
 
-        auto options = New<TMultiChunkReaderOptions>();
-        options->EnableP2P = true;
+        auto readerOptions = New<TMultiChunkReaderOptions>();
+        readerOptions->EnableP2P = true;
 
         auto reader = CreateFileMultiChunkReader(
             Config_->ArtifactCacheReader,
-            options,
+            readerOptions,
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
             Bootstrap_->GetMasterConnector()->GetNodeId(),
@@ -758,51 +825,64 @@ private:
             Bootstrap_->GetArtifactCacheInThrottler(),
             Bootstrap_->GetReadRpsOutThrottler());
 
-        try {
-            auto producer = [&] (IOutputStream* output) {
-                TBlock block;
-                while (reader->ReadBlock(&block)) {
-                    if (block.Data.Empty()) {
-                        WaitFor(reader->GetReadyEvent())
-                            .ThrowOnError();
-                    } else {
-                        output->Write(block.Data.Begin(), block.Size());
-                        WaitFor(location->GetInThrottler()->Throttle(block.Size()))
-                            .ThrowOnError();
-                    }
+        return [=] (IOutputStream* output) {
+            TBlock block;
+            while (reader->ReadBlock(&block)) {
+                if (block.Data.Empty()) {
+                    WaitFor(reader->GetReadyEvent())
+                        .ThrowOnError();
+                } else {
+                    output->Write(block.Data.Begin(), block.Size());
+                    WaitFor(throttler->Throttle(block.Size()))
+                        .ThrowOnError();
                 }
-            };
-
-            auto chunk = ProduceArtifactFile(key, location, chunkId, producer);
-            cookie.EndInsert(chunk);
-
-            ChunkAdded_.Fire(chunk);
-
-        } catch (const std::exception& ex) {
-            auto error = TError("Error downloading file artifact into cache")
-                << TErrorAttribute("key", key)
-                << ex;
-            cookie.Cancel(error);
-            YT_LOG_WARNING(error);
-        }
+            }
+        };
     }
 
     void DownloadTable(
         TSessionCounterGuard /* sessionCounterGuard */,
         const TArtifactKey& key,
-        TCacheLocationPtr location,
+        const TCacheLocationPtr& location,
         TChunkId chunkId,
-        TNodeDirectoryPtr nodeDirectory,
+        const TNodeDirectoryPtr& nodeDirectory,
         const TClientBlockReadOptions& blockReadOptions,
         TInsertCookie cookie,
-        TTrafficMeterPtr trafficMeter)
+        const TTrafficMeterPtr& trafficMeter)
+    {
+        try {
+            auto producer = MakeTableProducer(
+                key,
+                nodeDirectory,
+                trafficMeter,
+                blockReadOptions,
+                location->GetInThrottler());
+
+            auto chunk = ProduceArtifactFile(key, location, chunkId, producer);
+            cookie.EndInsert(chunk);
+
+            ChunkAdded_.Fire(chunk);
+        } catch (const std::exception& ex) {
+            auto error = TError("Error downloading table artifact into cache")
+                << TErrorAttribute("key", key)
+                << ex;
+            cookie.Cancel(error);
+        }
+    }
+
+    std::function<void(IOutputStream*)> MakeTableProducer(
+        const TArtifactKey& key,
+        const TNodeDirectoryPtr& nodeDirectory,
+        const TTrafficMeterPtr& trafficMeter,
+        const TClientBlockReadOptions& blockReadOptions,
+        const IThroughputThrottlerPtr& throttler)
     {
         static const TString CachedSourcePath = "<cached_data_source>";
 
         auto nameTable = New<TNameTable>();
 
-        auto options = New<NTableClient::TTableReaderOptions>();
-        options->EnableP2P = true;
+        auto readerOptions = New<NTableClient::TTableReaderOptions>();
+        readerOptions->EnableP2P = true;
 
         std::vector<TDataSliceDescriptor> dataSliceDescriptors;
         auto dataSourceDirectory = New<NChunkClient::TDataSourceDirectory>();
@@ -844,7 +924,7 @@ private:
 
         auto reader = CreateSchemalessSequentialMultiReader(
             Config_->ArtifactCacheReader,
-            options,
+            readerOptions,
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
             Bootstrap_->GetMasterConnector()->GetNodeId(),
@@ -861,45 +941,32 @@ private:
             Bootstrap_->GetArtifactCacheInThrottler(),
             Bootstrap_->GetReadRpsOutThrottler());
 
-        try {
-            auto format = ConvertTo<NFormats::TFormat>(TYsonString(key.format()));
+        auto format = ConvertTo<NFormats::TFormat>(TYsonString(key.format()));
 
-            auto producer = [&] (IOutputStream* output) {
-                auto writer = CreateStaticTableWriterForFormat(
-                    format,
-                    nameTable,
-                    {schema.value_or(TTableSchema())},
-                    CreateAsyncAdapter(output),
-                    false, /* enableContextSaving */
-                    New<TControlAttributesConfig>(),
-                    0);
-                TPipeReaderToWriterOptions options;
-                options.BufferRowCount = TableArtifactBufferRowCount;
-                options.Throttler = location->GetInThrottler();
-                PipeReaderToWriter(
-                    reader,
-                    writer,
-                    options);
-            };
-
-            auto chunk = ProduceArtifactFile(key, location, chunkId, producer);
-            cookie.EndInsert(chunk);
-
-            ChunkAdded_.Fire(chunk);
-
-        } catch (const std::exception& ex) {
-            auto error = TError("Error downloading table artifact into cache")
-                << TErrorAttribute("key", key)
-                << ex;
-            cookie.Cancel(error);
-        }
+        return [=] (IOutputStream* output) {
+            auto writer = CreateStaticTableWriterForFormat(
+                format,
+                nameTable,
+                {schema.value_or(TTableSchema())},
+                CreateAsyncAdapter(output),
+                false, /* enableContextSaving */
+                New<TControlAttributesConfig>(),
+                0);
+            TPipeReaderToWriterOptions options;
+            options.BufferRowCount = TableArtifactBufferRowCount;
+            options.Throttler = throttler;
+            PipeReaderToWriter(
+                reader,
+                writer,
+                options);
+        };
     }
 
     TCachedBlobChunkPtr ProduceArtifactFile(
         const TArtifactKey& key,
-        TCacheLocationPtr location,
+        const TCacheLocationPtr& location,
         TChunkId chunkId,
-        std::function<void(IOutputStream*)> producer)
+        const std::function<void(IOutputStream*)>& producer)
     {
         YT_LOG_INFO("Producing artifact file (ChunkId: %v, Location: %v)",
             chunkId,
@@ -953,7 +1020,9 @@ private:
         return CreateChunk(location, key, descriptor);
     }
 
-    std::optional<TArtifactKey> TryParseArtifactMeta(const TCacheLocationPtr& location, TChunkId chunkId)
+    std::optional<TArtifactKey> TryParseArtifactMeta(
+        const TCacheLocationPtr& location,
+        TChunkId chunkId)
     {
         if (!IsArtifactChunkId(chunkId)) {
             return TArtifactKey(chunkId);
@@ -1059,14 +1128,22 @@ int TChunkCache::GetChunkCount()
     return Impl_->GetSize();
 }
 
-TFuture<IChunkPtr> TChunkCache::PrepareArtifact(
+TFuture<IChunkPtr> TChunkCache::DownloadArtifact(
     const TArtifactKey& key,
-    TNodeDirectoryPtr nodeDirectory,
-    TTrafficMeterPtr trafficMeter)
+    const TArtifactDownloadOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Impl_->PrepareArtifact(key, nodeDirectory, trafficMeter);
+    return Impl_->DownloadArtifact(key, options);
+}
+
+std::function<void(IOutputStream*)> TChunkCache::MakeArtifactDownloadProducer(
+    const TArtifactKey& key,
+    const TArtifactDownloadOptions& options)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return Impl_->MakeArtifactDownloadProducer(key, options);
 }
 
 DELEGATE_BYREF_RO_PROPERTY(TChunkCache, std::vector<TCacheLocationPtr>, Locations, *Impl_);

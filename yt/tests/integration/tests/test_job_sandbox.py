@@ -433,6 +433,8 @@ class TestSandboxTmpfs(YTEnvSetup):
         words = content.strip().split()
         assert ["file", "content_1", "file", "content_2"] == words
 
+##################################################################
+
 class TestSandboxTmpfsOverflow(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -630,3 +632,48 @@ class TestFilesInSandbox(YTEnvSetup):
         op.abort()
 
         wait(lambda: op.get_state() == "aborted" and are_almost_equal(get("//sys/scheduler/orchid/scheduler/cell/resource_usage/cpu"), 0))
+
+##################################################################
+
+class TestArtifactCacheBypass(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    def test_bypass_artifact_cache_for_file(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        create("file", "//tmp/file")
+        write_file("//tmp/file", '{"hello": "world"}')
+        map(command="cat file",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "file_paths": ["<bypass_artifact_cache=%true>//tmp/file"],
+                    "output_format": "json"
+                }
+            })
+
+        assert read_table("//tmp/t_output") == [{"hello": "world"}]
+
+    def test_bypass_artifact_cache_for_table(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        create("table", "//tmp/table")
+        write_table("//tmp/table", [{"hello": "world"}])
+        map(command="cat table",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "file_paths": ["<bypass_artifact_cache=%true;format=json>//tmp/table"],
+                    "output_format": "json"
+                }
+            })
+
+        assert read_table("//tmp/t_output") == [{"hello": "world"}]

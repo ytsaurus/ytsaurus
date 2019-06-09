@@ -99,8 +99,11 @@ void Touch(const TString& path);
 //! Converts all back slashes to forward slashes.
 TString NormalizePathSeparators(const TString& path);
 
-//! Sets 'executable' mode.
-void SetExecutableMode(const TString& path, bool executable);
+//! Sets permissions for a file.
+void SetPermissions(const TString& path, int permissions);
+
+//! Sets permissions for an fd.
+void SetPermissions(int fd, int permissions);
 
 //! Makes a symbolic link on file #fileName with #linkName.
 void MakeSymbolicLink(const TString& filePath, const TString& linkPath);

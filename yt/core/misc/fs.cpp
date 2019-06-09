@@ -463,27 +463,23 @@ TString NormalizePathSeparators(const TString& path)
     return result;
 }
 
-void SetExecutableMode(const TString& path, bool executable)
+void SetPermissions(const TString& path, int permissions)
 {
-#ifdef _win_
-    Y_UNUSED(path);
-    Y_UNUSED(executable);
-#else
-    int mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-    if (executable) {
-        mode |= S_IXOTH;
-        mode |= S_IXGRP;
-        mode |= S_IXUSR;
-    }
-    bool ok = chmod(path.data(), mode) == 0;
-    if (!ok) {
-        THROW_ERROR_EXCEPTION(
-            "Failed to set mode %v for %v",
-            mode,
-            path)
+#ifdef _linux_
+    auto res = HandleEintr(::chmod, path.data(), permissions);
+    if (res == -1) {
+        THROW_ERROR_EXCEPTION("Failed to set permissions for descriptor")
+            << TErrorAttribute("path", path)
+            << TErrorAttribute("permissions", permissions)
             << TError::FromSystem();
     }
 #endif
+}
+
+void SetPermissions(int fd, int permissions)
+{
+    const auto& procPath = Format("/proc/self/fd/%v", fd);
+    SetPermissions(procPath, permissions);
 }
 
 void MakeSymbolicLink(const TString& filePath, const TString& linkPath)

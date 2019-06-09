@@ -877,7 +877,9 @@ public:
                 tag,
                 artifactKey);
 
-            chunkCache->PrepareArtifact(artifactKey, Bootstrap_->GetNodeDirectory())
+            TArtifactDownloadOptions downloadOptions;
+            downloadOptions.NodeDirectory = Bootstrap_->GetNodeDirectory();
+            chunkCache->DownloadArtifact(artifactKey, downloadOptions)
                 .Subscribe(BIND([=, this_ = MakeStrong(this), cookie_ = std::move(cookie)] (const TErrorOr<IChunkPtr>& artifactChunkOrError) mutable {
                     try {
                         YT_LOG_DEBUG("Layer artifact loaded, starting import (Tag: %v, Error: %v, ArtifactKey: %v)",

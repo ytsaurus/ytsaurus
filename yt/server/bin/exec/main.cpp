@@ -8,8 +8,11 @@
 #include <yt/server/job_proxy/job_satellite_connection.h>
 
 #include <yt/core/logging/log_manager.h>
+
 #include <yt/core/pipes/pipe.h>
+
 #include <yt/core/misc/proc.h>
+#include <yt/core/misc/fs.h>
 
 #include <sys/ioctl.h>
 
@@ -146,7 +149,7 @@ protected:
                         SafeClose(fd, false);
                     }
 
-                    SetPermissions(streamFd, PipePermissions);
+                    NFS::SetPermissions(streamFd, PipePermissions);
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Failed to prepare named pipe")
                         << TErrorAttribute("path", path)

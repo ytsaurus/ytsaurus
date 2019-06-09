@@ -89,9 +89,6 @@ void SafeSetUid(int uid);
 
 TString SafeGetUsernameByUid(int uid);
 
-void SetPermissions(const TString& path, int permissions);
-void SetPermissions(int fd, int permissions);
-
 void SetUid(int uid);
 
 void CloseAllDescriptors(const std::vector<int>& exceptFor = std::vector<int>());
