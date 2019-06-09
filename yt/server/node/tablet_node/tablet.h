@@ -179,8 +179,6 @@ struct TTabletSnapshot
     void ValidateCellId(NElection::TCellId cellId);
     void ValidateMountRevision(i64 mountRevision);
     bool IsProfilingEnabled() const;
-
-    TString GetLoggingId() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)
