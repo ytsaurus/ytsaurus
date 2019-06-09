@@ -155,7 +155,8 @@ public:
         , TabletActionManager_(New<TTabletActionManager>(Config_->TabletActionManager, Bootstrap_))
         , TableStatisticsGossipThrottler_(CreateReconfigurableThroughputThrottler(
             Config_->MulticellGossipConfig->TableStatisticsGossipThrottler,
-            TabletServerLogger))
+            TabletServerLogger,
+            TabletServerProfiler.AppendPath("/table_statistics_gossip_throttler")))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
 
@@ -3330,9 +3331,12 @@ public:
         }
 
         if (Bootstrap_->IsPrimaryMaster()) {
-            if (table->GetTabletCellBundle() && table->IsDynamic()) {
+            if (table->GetTabletCellBundle() != nullptr && table->IsDynamic()) {
                 table->ValidateAllTabletsUnmounted("Cannot change tablet cell bundle");
             }
+
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            securityManager->ValidatePermission(cellBundle, EPermission::Use);
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -3799,9 +3803,7 @@ private:
         std::vector<TTableId> tableIds;
         NProto::TReqUpdateTableStatistics req;
         while (remainingTableCount-- > 0 && !TableStatisticsUpdates_.IsEmpty()) {
-            auto pair = TableStatisticsUpdates_.Pop();
-            const auto& tableId = pair.first;
-            const auto& statistics = pair.second;
+            const auto& [tableId, statistics] = TableStatisticsUpdates_.Pop();
             tableIds.push_back(tableId);
             auto* entry = req.add_entries();
             ToProto(entry->mutable_table_id(), tableId);
