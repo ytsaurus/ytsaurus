@@ -56,6 +56,7 @@ void TGarbageCollector::Stop()
 {
     if (SweepExecutor_) {
         SweepExecutor_->Stop();
+        SweepExecutor_.Reset();
     }
 
     CollectPromise_.Reset();
