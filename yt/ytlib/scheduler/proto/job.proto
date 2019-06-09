@@ -41,6 +41,7 @@ message TFileDescriptor
     optional bytes format = 7;
     required NChunkClient.NProto.TDataSource data_source = 8;
     repeated NYT.NChunkClient.NProto.TChunkSpec chunk_specs = 9;
+    optional bool bypass_artifact_cache = 10;
 }
 
 message TTableBlobSpec

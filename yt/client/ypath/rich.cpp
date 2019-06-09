@@ -603,6 +603,11 @@ std::optional<std::vector<TSecurityTag>> TRichYPath::GetSecurityTags() const
     return FindAttribute<std::vector<TSecurityTag>>(*this, "security_tags");
 }
 
+bool TRichYPath::GetBypassArtifactCache() const
+{
+    return GetAttribute<bool>(*this, "bypass_artifact_cache", false);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString ToString(const TRichYPath& path)

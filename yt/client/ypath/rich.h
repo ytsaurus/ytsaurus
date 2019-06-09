@@ -114,6 +114,9 @@ public:
     // "security_tags"
     std::optional<std::vector<NSecurityClient::TSecurityTag>> GetSecurityTags() const;
 
+    // "bypass_artifact_cache"
+    bool GetBypassArtifactCache() const;
+
 private:
     TYPath Path_;
     std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;
