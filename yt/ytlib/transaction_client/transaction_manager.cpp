@@ -963,7 +963,7 @@ private:
             return;
         }
 
-        SendPing(false).Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+        SendPing(true).Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
             if (!IsPingableState()) {
                 YT_LOG_DEBUG("Transaction is not in pingable state (TransactionId: %v, State: %v)",
                     Id_,
