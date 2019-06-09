@@ -1868,18 +1868,29 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
         columnFilter);
 }
 
-TError TSortedDynamicStore::CheckRowLocks(
+bool TSortedDynamicStore::CheckRowLocks(
     TUnversionedRow row,
-    TTransaction* transaction,
-    TLockMask lockMask)
+    TLockMask lockMask,
+    TWriteContext* context)
 {
     auto it = Rows_->FindEqualTo(TUnversionedRowWrapper{row});
     if (!it.IsValid()) {
-        return TError();
+        return false;
     }
 
     auto dynamicRow = it.GetCurrent();
-    return CheckRowLocks(dynamicRow, transaction, lockMask);
+
+    if (context->Phase == EWritePhase::Prelock && !CheckRowBlocking(dynamicRow, lockMask, context)) {
+        return false;
+    }
+
+    auto error = CheckRowLocks(dynamicRow, context->Transaction, lockMask);
+    if (!error.IsOK()) {
+        context->Error = error;
+        return false;
+    }
+
+    return true;
 }
 
 void TSortedDynamicStore::Save(TSaveContext& context) const
