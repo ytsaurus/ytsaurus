@@ -4,13 +4,17 @@
 #include "bootstrap.h"
 #include "helpers.h"
 #include "private.h"
-#include "table_reader.h"
 #include "revision_tracker.h"
-#include "input_stream.h"
+#include "block_input_stream.h"
 
 #include <yt/client/ypath/rich.h>
 
+#include <yt/client/table_client/name_table.h>
+
 #include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/table_reader.h>
+
+#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 
 #include <Common/Exception.h>
 #include <DataStreams/IBlockInputStream.h>
@@ -58,8 +62,20 @@ public:
 
         ValidateStructure(*table);
 
-        auto reader = CreateTableReader(Bootstrap_->GetRootClient(), Path_, false /* unordered */, Logger);
-        return CreateStorageInputStream(std::move(reader));
+        auto result = WaitFor(
+            NApi::NNative::CreateSchemalessMultiChunkReader(
+                Bootstrap_->GetRootClient(),
+                Path_,
+                NApi::TTableReaderOptions {
+                    .EnableRangeIndex = false,
+                    .EnableRowIndex = false,
+                    .EnableTableIndex = false,
+                },
+                NTableClient::TNameTable::FromSchema(table->TableSchema),
+                NTableClient::TColumnFilter(table->TableSchema.Columns().size())))
+            .ValueOrThrow();
+
+        return CreateBlockInputStream(result.Reader, table->TableSchema, Logger);
     }
 
     virtual DB::BlockInputStreamPtr loadIds(const std::vector<UInt64>& /* ids */) override

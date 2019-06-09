@@ -1,5 +1,6 @@
 #include "storage_table.h"
 
+#include "table.h"
 #include "query_helpers.h"
 #include "storage_distributed.h"
 #include "private.h"

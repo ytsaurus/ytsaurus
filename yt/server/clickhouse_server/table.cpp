@@ -53,6 +53,9 @@ std::optional<TClickHouseColumn> TClickHouseColumn::FromColumnSchema(const NTabl
     if (columnSchema.SortOrder()) {
         column.SetSorted();
     }
+    if (!columnSchema.Required()) {
+        column.SetNullable();
+    }
 
     return column;
 }

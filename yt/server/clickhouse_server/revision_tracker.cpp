@@ -5,6 +5,8 @@
 #include "objects.h"
 #include "query_context.h"
 
+#include <yt/client/api/client.h>
+
 namespace NYT::NClickHouseServer {
 
 using namespace NYPath;
