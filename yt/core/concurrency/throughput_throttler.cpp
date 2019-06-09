@@ -130,7 +130,7 @@ public:
         }
 
         Profiler.Increment(ValueCounter_, count);
-        return true;
+        return count;
     }
 
     virtual void Acquire(i64 count) override
