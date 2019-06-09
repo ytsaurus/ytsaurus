@@ -212,9 +212,9 @@ private:
 
         partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Splitting);
 
-        YT_LOG_DEBUG("Partition is scheduled for split (PartitionId: %v, TabletId: %v)",
+        YT_LOG_DEBUG("Partition is scheduled for split (PartitionId: %v, %v)",
             partition->GetId(),
-            partition->GetTablet()->GetId());
+            partition->GetTablet()->GetLoggingId());
 
         BIND(&TPartitionBalancer::DoRunSplit, MakeStrong(this))
             .AsyncVia(partition->GetTablet()->GetEpochAutomatonInvoker())
@@ -238,9 +238,7 @@ private:
     {
         auto Logger = BuildLogger(slot, partition);
 
-        YT_LOG_DEBUG("Splitting partition (PartitionId: %v, TabletId: %v)",
-            partitonId,
-            tabletId);
+        YT_LOG_DEBUG("Splitting partition");
 
         YCHECK(tablet == partition->GetTablet());
         const auto& hydraManager = slot->GetHydraManager();
@@ -310,16 +308,16 @@ private:
         }
 
         auto Logger = TabletNodeLogger;
-        Logger.AddTag("CellId: %v, TabletId: %v, PartitionIds: %v",
+        Logger.AddTag("%v, CellId: %v, PartitionIds: %v",
+            partition->GetTablet()->GetLoggingId(),
             slot->GetCellId(),
-            partition->GetTablet()->GetId(),
             MakeFormattableView(
                 MakeRange(
                     tablet->PartitionList().data() + firstPartitionIndex,
                     tablet->PartitionList().data() + lastPartitionIndex + 1),
                 TPartitionIdFormatter()));
 
-        YT_LOG_INFO("Partition is eligible for merge");
+        YT_LOG_INFO("Partitions are eligible for merge");
 
         const auto& hydraManager = slot->GetHydraManager();
 
@@ -348,9 +346,9 @@ private:
 
         partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Sampling);
 
-        YT_LOG_DEBUG("Partition is scheduled for sampling (PartitionId: %v, TabletId: %v)",
-            partition->GetId(),
-            partition->GetTablet()->GetId());
+        auto Logger = BuildLogger(slot, partition);
+
+        YT_LOG_DEBUG("Partition is scheduled for sampling");
 
         BIND(&TPartitionBalancer::DoRunSample, MakeStrong(this), Passed(std::move(guard)))
             .AsyncVia(partition->GetTablet()->GetEpochAutomatonInvoker())
@@ -373,9 +371,7 @@ private:
     {
         auto Logger = BuildLogger(slot, partition);
 
-        YT_LOG_DEBUG("Sampling partition (PartitionId: %v, TabletId: %v)",
-            partitonId,
-            tabletId);
+        YT_LOG_DEBUG("Sampling partition");
 
         YCHECK(tablet == partition->GetTablet());
         auto config = tablet->GetConfig();
@@ -562,13 +558,13 @@ private:
 
 
     static NLogging::TLogger BuildLogger(
-        TTabletSlotPtr slot,
+        const TTabletSlotPtr& slot,
         TPartition* partition)
     {
         auto logger = TabletNodeLogger;
-        logger.AddTag("CellId: %v, TabletId: %v, PartitionId: %v",
+        logger.AddTag("%v, CellId: %v, PartitionId: %v",
+            partition->GetTablet()->GetLoggingId(),
             slot->GetCellId(),
-            partition->GetTablet()->GetId(),
             partition->GetId());
         return logger;
     }

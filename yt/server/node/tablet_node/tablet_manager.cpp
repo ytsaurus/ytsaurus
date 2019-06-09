@@ -484,8 +484,8 @@ public:
         TTablet* tablet,
         const ITransactionPtr& transaction)
     {
-        YT_LOG_DEBUG("Acquiring tablet stores commit semaphore (TabletId: %v, TransactionId: %v)",
-            tablet->GetId(),
+        YT_LOG_DEBUG("Acquiring tablet stores commit semaphore (%v, TransactionId: %v)",
+            tablet->GetLoggingId(),
             transaction->GetId());
 
         auto promise = NewPromise<void>();
@@ -935,13 +935,11 @@ private:
 
         tablet->SetState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, MountRevision: %llx, TableId: %v, TablePath: %v, Keys: %v .. %v, "
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (%v, MountRevision: %llx, Keys: %v .. %v, "
             "StoreCount: %v, PartitionCount: %v, TotalRowCount: %v, TrimmedRowCount: %v, Atomicity: %v, "
             "CommitOrdering: %v, Frozen: %v, UpstreamReplicaId: %v)",
-            tabletId,
+            tablet->GetLoggingId(),
             mountRevision,
-            tableId,
-            path,
             pivotKey,
             nextPivotKey,
             request->stores_size(),
@@ -978,8 +976,8 @@ private:
         }
 
         if (request->force()) {
-            YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet is forcefully unmounted (TabletId: %v)",
-                tabletId);
+            YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet is forcefully unmounted (%v)",
+                tablet->GetLoggingId());
 
             auto tabletHolder = TabletMap_.Release(tabletId);
 
@@ -1005,19 +1003,19 @@ private:
         } else {
             auto state = tablet->GetState();
             if (IsInUnmountWorkflow(state)) {
-                YT_LOG_INFO_UNLESS(IsRecovery(), "Requested to unmount a tablet in a wrong state, ignored (State: %v, TabletId: %v)",
+                YT_LOG_INFO_UNLESS(IsRecovery(), "Requested to unmount a tablet in a wrong state, ignored (State: %v, %v)",
                     state,
-                    tabletId);
+                    tablet->GetLoggingId());
                 return;
             }
 
-            YT_LOG_INFO_UNLESS(IsRecovery(), "Unmounting tablet (TabletId: %v)",
-                tabletId);
+            YT_LOG_INFO_UNLESS(IsRecovery(), "Unmounting tablet (%v)",
+                tablet->GetLoggingId());
 
             tablet->SetState(ETabletState::UnmountWaitingForLocks);
 
-            YT_LOG_INFO_IF(IsLeader(), "Waiting for all tablet locks to be released (TabletId: %v)",
-                tabletId);
+            YT_LOG_INFO_IF(IsLeader(), "Waiting for all tablet locks to be released (%v)",
+                tablet->GetLoggingId());
 
             if (IsLeader()) {
                 CheckIfTabletFullyUnlocked(tablet);
@@ -1054,8 +1052,8 @@ private:
             }
         }
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet remounted (TabletId: %v)",
-            tabletId);
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet remounted (%v)",
+            tablet->GetLoggingId());
     }
 
     void HydraFreezeTablet(TReqFreezeTablet* request)
@@ -1068,19 +1066,19 @@ private:
 
         auto state = tablet->GetState();
         if (IsInUnmountWorkflow(state) || IsInFreezeWorkflow(state)) {
-            YT_LOG_INFO_UNLESS(IsRecovery(), "Requested to freeze a tablet in a wrong state, ignored (State: %v, TabletId: %v)",
+            YT_LOG_INFO_UNLESS(IsRecovery(), "Requested to freeze a tablet in a wrong state, ignored (State: %v, %v)",
                 state,
-                tabletId);
+                tablet->GetLoggingId());
             return;
         }
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Freezing tablet (TabletId: %v)",
-            tabletId);
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Freezing tablet (%v)",
+            tablet->GetLoggingId());
 
         tablet->SetState(ETabletState::FreezeWaitingForLocks);
 
-        YT_LOG_INFO_IF(IsLeader(), "Waiting for all tablet locks to be released (TabletId: %v)",
-            tabletId);
+        YT_LOG_INFO_IF(IsLeader(), "Waiting for all tablet locks to be released (%v)",
+            tablet->GetLoggingId());
 
         if (IsLeader()) {
             CheckIfTabletFullyUnlocked(tablet);
@@ -1097,14 +1095,14 @@ private:
 
         auto state = tablet->GetState();
         if (state != ETabletState::Frozen)  {
-            YT_LOG_INFO_UNLESS(IsRecovery(), "Requested to unfreeze a tablet in a wrong state, ignored (State: %v, TabletId: %v)",
+            YT_LOG_INFO_UNLESS(IsRecovery(), "Requested to unfreeze a tablet in a wrong state, ignored (State: %v, %v)",
                 state,
-                tabletId);
+                tablet->GetLoggingId());
             return;
         }
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet unfrozen (TabletId: %v)",
-            tabletId);
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet unfrozen (%v)",
+            tablet->GetLoggingId());
 
         tablet->SetState(ETabletState::Mounted);
 
@@ -1135,10 +1133,10 @@ private:
             case ETabletState::FreezeFlushing: {
                 auto state = tablet->GetState();
                 if (IsInUnmountWorkflow(state)) {
-                    YT_LOG_INFO_UNLESS(IsRecovery(), "Improper tablet state transition requested, ignored  (CurrentState: %v, RequestedState: %v, TabletId: %v)",
+                    YT_LOG_INFO_UNLESS(IsRecovery(), "Improper tablet state transition requested, ignored  (CurrentState: %v, RequestedState: %v, %v)",
                         state,
                         requestedState,
-                        tabletId);
+                        tablet->GetLoggingId());
                     return;
                 }
                 // No break intentionally.
@@ -1154,8 +1152,8 @@ private:
                     storeManager->Rotate(requestedState == ETabletState::FreezeFlushing);
                 }
 
-                YT_LOG_INFO_IF(IsLeader(), "Waiting for all tablet stores to be flushed (TabletId: %v, NewState: %v)",
-                    tabletId,
+                YT_LOG_INFO_IF(IsLeader(), "Waiting for all tablet stores to be flushed (%v, NewState: %v)",
+                    tablet->GetLoggingId(),
                     requestedState);
 
                 if (IsLeader()) {
@@ -1167,8 +1165,8 @@ private:
             case ETabletState::Unmounted: {
                 tablet->SetState(ETabletState::Unmounted);
 
-                YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet unmounted (TabletId: %v)",
-                    tabletId);
+                YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet unmounted (%v)",
+                    tablet->GetLoggingId());
 
                 if (!IsRecovery()) {
                     StopTabletEpoch(tablet);
@@ -1190,10 +1188,10 @@ private:
             case ETabletState::Frozen: {
                 auto state = tablet->GetState();
                 if (IsInUnmountWorkflow(state)) {
-                    YT_LOG_INFO_UNLESS(IsRecovery(), "Improper tablet state transition requested, ignored (CurrentState %v, RequestedState: %v, TabletId: %v)",
+                    YT_LOG_INFO_UNLESS(IsRecovery(), "Improper tablet state transition requested, ignored (CurrentState %v, RequestedState: %v, %v)",
                         state,
                         requestedState,
-                        tabletId);
+                        tablet->GetLoggingId());
                     return;
                 }
 
@@ -1205,8 +1203,8 @@ private:
                     }
                 }
 
-                YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet frozen (TabletId: %v)",
-                    tabletId);
+                YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet frozen (%v)",
+                    tablet->GetLoggingId());
 
                 TRspFreezeTablet response;
                 ToProto(response.mutable_tablet_id(), tabletId);
@@ -1242,8 +1240,8 @@ private:
 
         if (mountRevision != tablet->GetMountRevision()) {
             YT_LOG_DEBUG("Mount revision changed during mutation batch; has tablet been forcefully unmounted? "
-                "(TabletId: %v, TransactionId: %v, MutationMountRevision: %llx, CurrentMountRevision: %llx)",
-                tablet->GetId(),
+                "(%v, TransactionId: %v, MutationMountRevision: %llx, CurrentMountRevision: %llx)",
+                tablet->GetLoggingId(),
                 transactionId,
                 mountRevision,
                 tablet->GetMountRevision());
@@ -1508,8 +1506,8 @@ private:
         }
 
         YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet stores update prepared "
-            "(TabletId: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v)",
-            tabletId,
+            "(%v, StoreIdsToAdd: %v, StoreIdsToRemove: %v)",
+            tablet->GetLoggingId(),
             storeIdsToAdd,
             storeIdsToRemove);
     }
@@ -1569,8 +1567,8 @@ private:
         }
 
         YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet stores update aborted "
-            "(TabletId: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v)",
-            tabletId,
+            "(%v, StoreIdsToAdd: %v, StoreIdsToRemove: %v)",
+            tablet->GetLoggingId(),
             storeIdsToAdd,
             storeIdsToRemove);
     }
@@ -1630,8 +1628,8 @@ private:
             auto store = tablet->GetStore(storeId);
             storeManager->RemoveStore(store);
 
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Store removed (TabletId: %v, StoreId: %v, DynamicMemoryUsage: %v)",
-                tabletId,
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Store removed (%v, StoreId: %v, DynamicMemoryUsage: %v)",
+                tablet->GetLoggingId(),
                 storeId,
                 store->GetDynamicMemoryUsage());
         }
@@ -1652,8 +1650,8 @@ private:
                 SetBackingStore(tablet, store, backingStore);
             }
 
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Store added (TabletId: %v, StoreId: %v, MaxTimestamp: %llx, BackingStoreId: %v)",
-                tabletId,
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Store added (%v, StoreId: %v, MaxTimestamp: %llx, BackingStoreId: %v)",
+                tablet->GetLoggingId(),
                 storeId,
                 store->GetMaxTimestamp(),
                 backingStoreId);
@@ -1665,8 +1663,8 @@ private:
         tablet->SetRetainedTimestamp(retainedTimestamp);
 
         YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet stores update committed "
-            "(TabletId: %v, AddedStoreIds: %v, RemovedStoreIds: %v, RetainedTimestamp: %llx)",
-            tabletId,
+            "(%v, AddedStoreIds: %v, RemovedStoreIds: %v, RetainedTimestamp: %llx)",
+            tablet->GetLoggingId(),
             addedStoreIds,
             removedStoreIds,
             retainedTimestamp);
@@ -1704,8 +1702,8 @@ private:
         auto storeManager = tablet->GetStoreManager()->AsSorted();
         bool result = storeManager->SplitPartition(partition->GetIndex(), pivotKeys);
         if (!result) {
-            YT_LOG_INFO_UNLESS(IsRecovery(), "Partition split failed (TabletId: %v, PartitionId: %v, Keys: %v)",
-                tablet->GetId(),
+            YT_LOG_INFO_UNLESS(IsRecovery(), "Partition split failed (%v, PartitionId: %v, Keys: %v)",
+                tablet->GetLoggingId(),
                 partitionId,
                 JoinToString(pivotKeys, AsStringBuf(" .. ")));
             return;
@@ -1713,9 +1711,9 @@ private:
 
         UpdateTabletSnapshot(tablet);
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Partition split (TabletId: %v, OriginalPartitionId: %v, "
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Partition split (%v, OriginalPartitionId: %v, "
             "ResultingPartitionIds: %v, DataSize: %v, Keys: %v)",
-            tablet->GetId(),
+            tablet->GetLoggingId(),
             partitionId,
             MakeFormattableView(
                 MakeRange(
@@ -1767,9 +1765,9 @@ private:
 
         UpdateTabletSnapshot(tablet);
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Partitions merged (TabletId: %v, OriginalPartitionIds: %v, "
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Partitions merged (%v, OriginalPartitionIds: %v, "
             "ResultingPartitionId: %v, DataSize: %v)",
-            tablet->GetId(),
+            tablet->GetLoggingId(),
             originalPartitionIds,
             tablet->PartitionList()[firstPartitionIndex]->GetId(),
             partitionsDataSize);
@@ -1804,8 +1802,8 @@ private:
 
         UpdateTabletSnapshot(tablet);
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Partition sample keys updated (TabletId: %v, PartitionId: %v, SampleKeyCount: %v)",
-            tabletId,
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Partition sample keys updated (%v, PartitionId: %v, SampleKeyCount: %v)",
+            tablet->GetLoggingId(),
             partition->GetId(),
             sampleKeys.Size());
     }
@@ -1880,8 +1878,8 @@ private:
 
         auto mode = ETableReplicaMode(request->mode());
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Table replica mode updated (TabletId: %v, ReplicaId: %v, Mode: %v)",
-            tablet->GetId(),
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Table replica mode updated (%v, ReplicaId: %v, Mode: %v)",
+            tablet->GetLoggingId(),
             replicaInfo->GetId(),
             mode);
 
@@ -1932,8 +1930,8 @@ private:
             replicaInfo->SetPreserveTimestamps(*preserveTimestamps);
         }
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Table replica updated (TabletId: %v, ReplicaId: %v, Enabled: %v, Mode: %v, Atomicity: %v, PreserveTimestamps: %v)",
-            tablet->GetId(),
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Table replica updated (%v, ReplicaId: %v, Enabled: %v, Mode: %v, Atomicity: %v, PreserveTimestamps: %v)",
+            tablet->GetLoggingId(),
             replicaInfo->GetId(),
             enabled,
             mode,
@@ -2769,8 +2767,8 @@ private:
         }
         tablet->SetState(newTransientState);
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "All tablet locks released (TabletId: %v, NewState: %v)",
-            tablet->GetId(),
+        YT_LOG_INFO_UNLESS(IsRecovery(), "All tablet locks released (%v, NewState: %v)",
+            tablet->GetLoggingId(),
             newTransientState);
 
         TReqSetTabletState request;
@@ -2807,8 +2805,8 @@ private:
         }
         tablet->SetState(newTransientState);
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "All tablet stores flushed (TabletId: %v, NewState: %v)",
-            tablet->GetId(),
+        YT_LOG_INFO_UNLESS(IsRecovery(), "All tablet stores flushed (%v, NewState: %v)",
+            tablet->GetLoggingId(),
             newTransientState);
 
         TReqSetTabletState request;
@@ -2900,8 +2898,8 @@ private:
     void SetBackingStore(TTablet* tablet, const IChunkStorePtr& store, const IDynamicStorePtr& backingStore)
     {
         store->SetBackingStore(backingStore);
-        YT_LOG_DEBUG("Backing store set (TabletId: %v, StoreId: %v, BackingStoreId: %v, BackingDynamicMemoryUsage: %v)",
-            tablet->GetId(),
+        YT_LOG_DEBUG("Backing store set (%v, StoreId: %v, BackingStoreId: %v, BackingDynamicMemoryUsage: %v)",
+            tablet->GetLoggingId(),
             store->GetId(),
             backingStore->GetId(),
             backingStore->GetDynamicMemoryUsage());
@@ -3331,9 +3329,9 @@ private:
         tablet->UpdateReplicaCounters();
         UpdateTabletSnapshot(tablet);
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Table replica added (TabletId: %v, ReplicaId: %v, ClusterName: %v, ReplicaPath: %v, "
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Table replica added (%v, ReplicaId: %v, ClusterName: %v, ReplicaPath: %v, "
             "Mode: %v, StartReplicationTimestamp: %llx, CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %llx)",
-            tablet->GetId(),
+            tablet->GetLoggingId(),
             replicaId,
             replicaInfo.GetClusterName(),
             replicaInfo.GetReplicaPath(),
@@ -3367,16 +3365,16 @@ private:
         AdvanceReplicatedTrimmedRowCount(tablet, nullptr);
         UpdateTabletSnapshot(tablet);
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Table replica removed (TabletId: %v, ReplicaId: %v)",
-            tablet->GetId(),
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Table replica removed (%v, ReplicaId: %v)",
+            tablet->GetLoggingId(),
             replicaId);
     }
 
 
     void EnableTableReplica(TTablet* tablet, TTableReplicaInfo* replicaInfo)
     {
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Table replica enabled (TabletId: %v, ReplicaId: %v)",
-            tablet->GetId(),
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Table replica enabled (%v, ReplicaId: %v)",
+            tablet->GetLoggingId(),
             replicaInfo->GetId());
 
         replicaInfo->SetState(ETableReplicaState::Enabled);
@@ -3396,9 +3394,9 @@ private:
 
     void DisableTableReplica(TTablet* tablet, TTableReplicaInfo* replicaInfo)
     {
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Table replica disabled (TabletId: %v, ReplicaId: %v, "
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Table replica disabled (%v, ReplicaId: %v, "
             "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %llx)",
-            tablet->GetId(),
+            tablet->GetLoggingId(),
             replicaInfo->GetId(),
             replicaInfo->GetCurrentReplicationRowIndex(),
             replicaInfo->GetCurrentReplicationTimestamp());
@@ -3516,15 +3514,15 @@ private:
         TAsyncSemaphoreGuard /*guard*/)
     {
         try {
-            YT_LOG_DEBUG("Started committing tablet stores update transaction (TabletId: %v, TransactionId: %v)",
-                tablet->GetId(),
+            YT_LOG_DEBUG("Started committing tablet stores update transaction (%v, TransactionId: %v)",
+                tablet->GetLoggingId(),
                 transaction->GetId());
 
             WaitFor(transaction->Commit())
                 .ThrowOnError();
 
-            YT_LOG_DEBUG("Tablet stores update transaction committed (TabletId: %v, TransactionId: %v)",
-                tablet->GetId(),
+            YT_LOG_DEBUG("Tablet stores update transaction committed (%v, TransactionId: %v)",
+                tablet->GetLoggingId(),
                 transaction->GetId());
 
             promise.Set();

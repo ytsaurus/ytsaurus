@@ -108,6 +108,7 @@ struct TTabletSnapshot
     NHydra::IHydraManagerPtr HydraManager;
     TTabletManagerPtr TabletManager;
     TTabletId TabletId;
+    TString LoggingId;
     i64 MountRevision = 0;
     NYPath::TYPath TablePath;
     NObjectClient::TObjectId TableId;
@@ -178,6 +179,8 @@ struct TTabletSnapshot
     void ValidateCellId(NElection::TCellId cellId);
     void ValidateMountRevision(i64 mountRevision);
     bool IsProfilingEnabled() const;
+
+    TString GetLoggingId() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)
@@ -455,11 +458,15 @@ public:
 
     void ReconfigureThrottlers();
 
+    const TString& GetLoggingId() const;
+
 private:
     TTableMountConfigPtr Config_;
     TTabletChunkReaderConfigPtr ReaderConfig_;
     TTabletChunkWriterConfigPtr WriterConfig_;
     TTabletWriterOptionsPtr WriterOptions_;
+
+    TString LoggingId_;
 
     IStoreManagerPtr StoreManager_;
 

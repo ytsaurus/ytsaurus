@@ -32,8 +32,8 @@ TReplicatedStoreManager::TReplicatedStoreManager(
     , InMemoryManager_(std::move(inMemoryManager))
     , Client_(std::move(client))
     , Logger(NLogging::TLogger(TabletNodeLogger)
-        .AddTag("TabletId: %v, CellId: %v",
-            Tablet_->GetId(),
+        .AddTag("%v, CellId: %v",
+            Tablet_->GetLoggingId(),
             TabletContext_->GetCellId()))
     , LogStoreManager_(New<TOrderedStoreManager>(
         Config_,

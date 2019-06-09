@@ -92,8 +92,8 @@ public:
         , PreserveTabletIndex_(MountConfig_->PreserveTabletIndex)
         , TabletIndexColumnId_(TableSchema_.ToReplicationLog().GetColumnCount() + 1) /* maxColumnId - 1(timestamp) + 3(header size)*/
         , Logger(NLogging::TLogger(TabletNodeLogger)
-            .AddTag("TabletId: %v, ReplicaId: %v",
-                TabletId_,
+            .AddTag("%v, ReplicaId: %v",
+                tablet->GetLoggingId(),
                 ReplicaId_))
         , Profiler(TabletNodeProfiler)
         , NodeInThrottler_(std::move(nodeInThrottler))

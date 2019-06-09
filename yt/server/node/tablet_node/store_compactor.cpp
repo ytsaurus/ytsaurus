@@ -130,6 +130,7 @@ private:
         IInvokerPtr Invoker;
 
         TTabletId TabletId;
+        TString TabletLoggingId;
         TPartitionId PartitionId;
         std::vector<TStoreId> StoreIds;
 
@@ -165,6 +166,7 @@ private:
             : Slot(slot)
             , Invoker(tablet->GetEpochAutomatonInvoker())
             , TabletId(tablet->GetId())
+            , TabletLoggingId(tablet->GetLoggingId())
             , PartitionId(partition->GetId())
             , StoreIds(std::move(stores))
         { }
@@ -689,7 +691,7 @@ private:
         if (!pair.second) {
             pair.first->second += delta;
         }
-        auto Logger = NLogging::TLogger(TabletNodeLogger);
+        const auto& Logger = TabletNodeLogger;
         YT_LOG_DEBUG("Accounting for the future effect of the compaction/partitioning (TabletId: %v, FutureEffect: %v -> %v)",
             tabletId,
             pair.first->second - delta,
@@ -707,8 +709,8 @@ private:
         blockReadOptions.ReadSessionId = TReadSessionId::Create();
 
         NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("TabletId: %v, ReadSessionId: %v",
-            task->TabletId,
+        Logger.AddTag("%v, ReadSessionId: %v",
+            task->TabletLoggingId,
             blockReadOptions.ReadSessionId);
 
         auto doneGuard = Finally([&] {
@@ -1131,8 +1133,8 @@ private:
         blockReadOptions.ReadSessionId = TReadSessionId::Create();
 
         NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("TabletId: %v, ReadSessionId: %v",
-            task->TabletId,
+        Logger.AddTag("%v, ReadSessionId: %v",
+            task->TabletLoggingId,
             blockReadOptions.ReadSessionId);
 
         auto doneGuard = Finally([&] {
