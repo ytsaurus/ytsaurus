@@ -63,10 +63,10 @@ public:
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler()) override;
 
-    virtual TError CheckRowLocks(
+    virtual bool CheckRowLocks(
         TUnversionedRow row,
-        TTransaction* transaction,
-        TLockMask lockMask) override;
+        TLockMask lockMask,
+        TWriteContext* context) override;
 
     virtual void Save(TSaveContext& context) const override;
     virtual void Load(TLoadContext& context) override;
