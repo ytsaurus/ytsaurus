@@ -781,7 +781,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             ToProto(protoTabletInfo->mutable_errors(), tabletSnapshot->RuntimeData->Errors);
 
             for (const auto& pair : tabletSnapshot->Replicas) {
-                const auto& replicaId = pair.first;
+                auto replicaId = pair.first;
                 const auto& replicaSnapshot = pair.second;
                 auto* protoReplicaInfo = protoTabletInfo->add_replicas();
                 ToProto(protoReplicaInfo->mutable_replica_id(), replicaId);

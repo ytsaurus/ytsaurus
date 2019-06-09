@@ -826,7 +826,7 @@ private:
         };
 
         auto processSplitKeys = [&] (int index) {
-            const auto& tabletId = splits[index].Id;
+            auto tabletId = splits[index].Id;
             auto& keys = splits[index].Keys;
 
             readRanges.push_back({splits[index]});

@@ -354,7 +354,7 @@ void SaveJobFiles(NNative::IClientPtr client, TOperationId operationId, const st
             .ValueOrThrow();
     }
 
-    const auto& transactionId = transaction->GetId();
+    auto transactionId = transaction->GetId();
 
     THashMap<TCellTag, std::vector<TJobFile>> cellTagToFiles;
     for (const auto& file : files) {

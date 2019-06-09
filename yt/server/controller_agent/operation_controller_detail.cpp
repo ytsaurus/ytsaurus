@@ -1103,7 +1103,7 @@ void TOperationControllerBase::StartTransactions()
         StartTransaction(ETransactionType::Debug, Client),
     };
 
-    for (const auto& transactionId : GetNonTrivialInputTransactionIds()) {
+    for (auto transactionId : GetNonTrivialInputTransactionIds()) {
         asyncResults.push_back(StartTransaction(ETransactionType::Input, InputClient, transactionId));
     }
 

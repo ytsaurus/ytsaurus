@@ -401,7 +401,7 @@ public:
         YCHECK(cell->Actions().empty());
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        const auto& cellId = cell->GetId();
+        auto cellId = cell->GetId();
         auto* mailbox = hiveManager->FindMailbox(cellId);
         if (mailbox) {
             hiveManager->RemoveMailbox(mailbox);
@@ -1570,7 +1570,7 @@ public:
                         firstTabletIndex);
                 }
 
-                for (const auto& cellId : targetCellIds) {
+                for (auto cellId : targetCellIds) {
                     auto targetCell = GetTabletCellOrThrow(cellId);
                     if (!IsCellActive(targetCell)) {
                         THROW_ERROR_EXCEPTION("Cannot mount tablet into cell %v since it is not active",
@@ -4020,7 +4020,7 @@ private:
 
             auto* protoInfo = response->add_tablet_slots_to_create();
 
-            const auto& cellId = cell->GetId();
+            auto cellId = cell->GetId();
             auto peerId = cell->GetPeerId(node->GetDefaultAddress());
 
             ToProto(protoInfo->mutable_cell_id(), cell->GetId());
@@ -4047,7 +4047,7 @@ private:
 
             auto* protoInfo = response->add_tablet_slots_configure();
 
-            const auto& cellId = cell->GetId();
+            auto cellId = cell->GetId();
             auto cellDescriptor = cell->GetDescriptor();
 
             const auto& prerequisiteTransactionId = cell->GetPrerequisiteTransaction()->GetId();
@@ -4072,7 +4072,7 @@ private:
 
             auto* protoInfo = response->add_tablet_slots_update();
 
-            const auto& cellId = cell->GetId();
+            auto cellId = cell->GetId();
 
             ToProto(protoInfo->mutable_cell_id(), cell->GetId());
 
@@ -4132,7 +4132,7 @@ private:
                 continue;
 
             auto cellInfo = FromProto<TCellInfo>(slotInfo.cell_info());
-            const auto& cellId = cellInfo.CellId;
+            auto cellId = cellInfo.CellId;
             auto* cell = FindTabletCell(cellId);
             if (!IsObjectAlive(cell)) {
                 YT_LOG_DEBUG_UNLESS(IsRecovery(), "Unknown tablet slot is running (Address: %v, CellId: %v)",
@@ -5356,11 +5356,11 @@ private:
         std::vector<TTablet*> tablets;
         std::vector<TTabletCell*> cells;
 
-        for (const auto& tabletId : tabletIds) {
+        for (auto tabletId : tabletIds) {
             tablets.push_back(GetTabletOrThrow(tabletId));
         }
 
-        for (const auto& cellId : cellIds) {
+        for (auto cellId : cellIds) {
             cells.push_back(GetTabletCellOrThrow(cellId));
         }
 

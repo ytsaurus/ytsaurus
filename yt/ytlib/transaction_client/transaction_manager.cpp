@@ -761,7 +761,7 @@ private:
 
             ToProto(req->mutable_transaction_id(), Id_);
             auto participantIds = GetRegisteredParticipantIds();
-            for (const auto& cellId : participantIds) {
+            for (auto cellId : participantIds) {
                 if (cellId != CoordinatorCellId_) {
                     ToProto(req->add_participant_cell_ids(), cellId);
                 }
@@ -804,7 +804,7 @@ private:
         }
 
         std::vector<TCellId> feasibleParticipantIds;
-        for (const auto& cellId : GetRegisteredParticipantIds()) {
+        for (auto cellId : GetRegisteredParticipantIds()) {
             if (options.CoordinatorCellTag == InvalidCellTag ||
                 CellTagFromId(cellId) == options.CoordinatorCellTag)
             {
@@ -898,7 +898,7 @@ private:
     {
         std::vector<TFuture<void>> asyncResults;
         auto participantIds = GetConfirmedParticipantIds();
-        for (const auto& cellId : participantIds) {
+        for (auto cellId : participantIds) {
             YT_LOG_DEBUG("Pinging transaction (TransactionId: %v, CellId: %v)",
                 Id_,
                 cellId);
@@ -997,7 +997,7 @@ private:
     {
         std::vector<TFuture<void>> asyncResults;
         auto participantIds = GetRegisteredParticipantIds();
-        for (const auto& cellId : participantIds) {
+        for (auto cellId : participantIds) {
             YT_LOG_DEBUG("Aborting transaction (TransactionId: %v, CellId: %v)",
                 Id_,
                 cellId);

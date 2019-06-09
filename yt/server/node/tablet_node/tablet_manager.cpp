@@ -320,7 +320,7 @@ public:
             ValidateTabletStoreLimit(tablet);
             ValidateMemoryLimit();
 
-            const auto& tabletId = tablet->GetId();
+            auto tabletId = tablet->GetId();
             const auto& storeManager = tablet->GetStoreManager();
 
             TTransaction* transaction = nullptr;
@@ -2164,7 +2164,7 @@ private:
 
     static void ValidateSyncReplicaSet(TTablet* tablet, const TSyncReplicaIdList& syncReplicaIds)
     {
-        for (const auto& replicaId : syncReplicaIds) {
+        for (auto replicaId : syncReplicaIds) {
             const auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
             if (!replicaInfo) {
                 THROW_ERROR_EXCEPTION("Synchronous replica %v is not known for tablet %v",
@@ -2179,7 +2179,7 @@ private:
         }
 
         for (const auto& pair : tablet->Replicas()) {
-            const auto& replicaId = pair.first;
+            auto replicaId = pair.first;
             const auto& replicaInfo = pair.second;
             if (replicaInfo.GetMode() == ETableReplicaMode::Sync) {
                 if (std::find(syncReplicaIds.begin(), syncReplicaIds.end(), replicaId) == syncReplicaIds.end()) {
@@ -2307,7 +2307,7 @@ private:
                 syncReplicaTablets.push_back(tablet);
             }
 
-            for (const auto& replicaId : writeRecord.SyncReplicaIds) {
+            for (auto replicaId : writeRecord.SyncReplicaIds) {
                 auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
                 if (!replicaInfo) {
                     continue;
@@ -2455,7 +2455,7 @@ private:
                     continue;
                 }
 
-                for (const auto& replicaId : writeRecord.SyncReplicaIds) {
+                for (auto replicaId : writeRecord.SyncReplicaIds) {
                     auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
                     if (!replicaInfo) {
                         continue;

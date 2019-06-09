@@ -152,7 +152,7 @@ private:
         TTablet* tablet,
         const std::vector<TOrderedChunkStorePtr>& stores)
     {
-        const auto& tabletId = tablet->GetId();
+        auto tabletId = tablet->GetId();
         const auto& storeManager = tablet->GetStoreManager();
 
         NLogging::TLogger Logger(TabletNodeLogger);

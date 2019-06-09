@@ -465,7 +465,7 @@ private:
         THashSet<TTransactionId> watchSet;
         for (const auto& pair : controllerAgent->GetOperations()) {
             const auto& operation = pair.second;
-            for (const auto& transactionId : operation->GetWatchTransactionIds()) {
+            for (auto transactionId : operation->GetWatchTransactionIds()) {
                 watchSet.insert(transactionId);
             }
         }
@@ -529,7 +529,7 @@ private:
             const auto& operation = pair.second;
             auto controller = operation->GetController();
             std::vector<TTransactionId> locallyDeadTransactionIds;
-            for (const auto& transactionId : operation->GetWatchTransactionIds()) {
+            for (auto transactionId : operation->GetWatchTransactionIds()) {
                 if (deadTransactionIds.contains(transactionId)) {
                     locallyDeadTransactionIds.push_back(transactionId);
                 }
@@ -852,7 +852,7 @@ private:
             auto batchReq = StartObjectBatchRequestWithPrerequisites();
 
             for (const auto& pair : tableIdToInfo) {
-                const auto& tableId = pair.first;
+                auto tableId = pair.first;
                 {
                     auto req = TTableYPathProxy::BeginUpload(FromObjectId(tableId));
                     req->set_update_mode(static_cast<int>(EUpdateMode::Append));
@@ -955,7 +955,7 @@ private:
             auto batchReq = StartObjectBatchRequestWithPrerequisites();
 
             for (const auto& pair : tableIdToInfo) {
-                const auto& tableId = pair.first;
+                auto tableId = pair.first;
                 const auto& tableInfo = pair.second;
                 {
                     auto req = TTableYPathProxy::EndUpload(FromObjectId(tableId));
