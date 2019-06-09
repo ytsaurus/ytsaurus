@@ -424,6 +424,19 @@ def interrupt_job(job_id, interrupt_timeout=10000, **kwargs):
     kwargs["interrupt_timeout"] = interrupt_timeout
     execute_command("abort_job", kwargs)
 
+def retry_while_job_missing(func):
+    result = [None]
+    def check():
+        try:
+            result[0] = func()
+            return True
+        except YtError as err:
+            if err.is_no_such_job():
+                return False
+            raise
+    wait(check)
+    return result[0]
+
 def lock(path, waitable=False, **kwargs):
     kwargs["path"] = path
     kwargs["waitable"] = waitable
