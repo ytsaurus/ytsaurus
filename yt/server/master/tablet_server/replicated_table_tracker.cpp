@@ -509,7 +509,7 @@ private:
             auto lock = Guard(Lock_);
             futures.reserve(Tables_.size());
             for (const auto& item : Tables_) {
-                const auto& tableId = item.first;
+                auto tableId = item.first;
                 if (!item.second->IsEnabled()) {
                     YT_LOG_DEBUG("Replicated Table Tracker is disabled (TableId: %v)",
                         tableId);

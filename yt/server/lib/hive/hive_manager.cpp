@@ -222,7 +222,7 @@ public:
     {
         YCHECK(EpochAutomatonInvoker_);
 
-        const auto& cellId = mailbox->GetCellId();
+        auto cellId = mailbox->GetCellId();
         auto channel = FindMailboxChannel(mailbox);
         if (!channel) {
             return MakeFuture(TError(
@@ -348,7 +348,7 @@ private:
             }
         }
 
-        for (const auto& cellId : missingCellIds) {
+        for (auto cellId : missingCellIds) {
             auto cellDescriptor = CellDirectory_->FindDescriptor(cellId);
             // See above.
             if (cellDescriptor) {
@@ -715,7 +715,7 @@ private:
 
     void SendPeriodicPing(TMailbox* mailbox)
     {
-        const auto& cellId = mailbox->GetCellId();
+        auto cellId = mailbox->GetCellId();
 
         if (IsLeader() && CellDirectory_->IsCellUnregistered(cellId)) {
             NHiveServer::NProto::TReqUnregisterMailbox req;

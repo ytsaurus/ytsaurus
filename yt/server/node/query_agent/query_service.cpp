@@ -344,8 +344,8 @@ private:
 
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
 
-        for (const auto& tabletId : tabletIds) {
-            const auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+        for (auto tabletId : tabletIds) {
+            auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
 
             auto* protoTabletInfo = response->add_tablets();
             ToProto(protoTabletInfo->mutable_tablet_id(), tabletId);
@@ -353,7 +353,7 @@ private:
             protoTabletInfo->set_trimmed_row_count(tabletSnapshot->RuntimeData->TrimmedRowCount.load());
 
             for (const auto& replicaPair : tabletSnapshot->Replicas) {
-                const auto& replicaId = replicaPair.first;
+                auto replicaId = replicaPair.first;
                 const auto& replicaSnapshot = replicaPair.second;
 
                 auto lastReplicationTimestamp = replicaSnapshot->RuntimeData->LastReplicationTimestamp.load();

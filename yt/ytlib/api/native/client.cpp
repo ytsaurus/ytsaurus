@@ -1401,7 +1401,7 @@ private:
         for (const auto& pair : keys) {
             auto key = pair.first;
             auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
-            const auto& tabletId = tabletInfo->TabletId;
+            auto tabletId = tabletInfo->TabletId;
             if (tabletIds.insert(tabletId).second) {
                 cellIdToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
             }
@@ -1904,7 +1904,7 @@ private:
             for (int index = 0; index < sortedKeys.size();) {
                 auto key = sortedKeys[index].first;
                 auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
-                const auto& cellId = tabletInfo->CellId;
+                auto cellId = tabletInfo->CellId;
                 auto it = cellIdToSession.find(cellId);
                 if (it == cellIdToSession.end()) {
                     auto session = New<TTabletCellLookupSession>(
@@ -2171,9 +2171,9 @@ private:
 
             std::vector<TFuture<TQueryServiceProxy::TRspGetTabletInfoPtr>> futures;
             for (const auto& pair : cellToTabletIds) {
-                const auto& cellId = pair.first;
+                auto cellId = pair.first;
                 const auto& perCellTabletIds = pair.second;
-                const auto channel = GetReadCellChannelOrThrow(cellId);
+                auto channel = GetReadCellChannelOrThrow(cellId);
 
                 TQueryServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultGetInSyncReplicasTimeout));
@@ -2197,7 +2197,7 @@ private:
             }
 
             for (const auto& pair : replicaIdToCount) {
-                const auto& replicaId = pair.first;
+                auto replicaId = pair.first;
                 auto count = pair.second;
                 if (count == tabletIds.size()) {
                     replicaIds.push_back(replicaId);
@@ -2235,7 +2235,7 @@ private:
         for (const auto &path : paths) {
             YT_LOG_INFO("Collecting table input chunks (Path: %v)", path);
 
-            const auto& transactionId = path.GetTransactionId();
+            auto transactionId = path.GetTransactionId();
 
             auto inputChunks = CollectTableInputChunks(
                 path,

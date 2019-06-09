@@ -896,7 +896,7 @@ private:
 
                 UpdateLastSerializedCommitTimestamp(transaction);
 
-                const auto& transactionId = transaction->GetId();
+                auto transactionId = transaction->GetId();
                 YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction serialized (TransactionId: %v, CommitTimestamp: %llx)",
                     transaction->GetId(),
                     commitTimestamp);

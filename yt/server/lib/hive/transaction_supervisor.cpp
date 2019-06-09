@@ -799,7 +799,7 @@ private:
     {
         YCHECK(!commit->GetPersistent());
 
-        const auto& transactionId = commit->GetTransactionId();
+        auto transactionId = commit->GetTransactionId();
 
         try {
             // Any exception thrown here is replied to the client.
@@ -904,7 +904,7 @@ private:
                 considerParticipant(pair.second);
             }
         } else {
-            for (const auto& cellId : cellIds) {
+            for (auto cellId : cellIds) {
                 auto it = WeakParticipantMap_.find(cellId);
                 if (it != WeakParticipantMap_.end()) {
                     considerParticipant(it->second);
@@ -1410,7 +1410,7 @@ private:
     {
         YCHECK(HasMutationContext());
 
-        const auto& transactionId = commit->GetTransactionId();
+        auto transactionId = commit->GetTransactionId();
         SetCommitSucceeded(commit);
 
         try {
@@ -1483,7 +1483,7 @@ private:
 
     void GenerateCommitTimestamps(TCommit* commit)
     {
-        const auto& transactionId = commit->GetTransactionId();
+        auto transactionId = commit->GetTransactionId();
 
         TFuture<TTimestamp> asyncCoordinatorTimestamp;
         std::vector<TFuture<std::pair<TCellTag, TTimestamp>>> asyncTimestamps;
@@ -1523,7 +1523,7 @@ private:
         };
 
         generateFor(SelfCellId_);
-        for (const auto& cellId : commit->ParticipantCellIds()) {
+        for (auto cellId : commit->ParticipantCellIds()) {
             generateFor(cellId);
         }
 
@@ -1692,7 +1692,7 @@ private:
     void SendParticipantRequests(TCommit* commit)
     {
         YCHECK(commit->RespondedCellIds().empty());
-        for (const auto& cellId : commit->ParticipantCellIds()) {
+        for (auto cellId : commit->ParticipantCellIds()) {
             SendParticipantRequest(commit, cellId);
         }
         CheckAllParticipantsResponded(commit);

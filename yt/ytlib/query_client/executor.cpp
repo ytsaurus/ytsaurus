@@ -272,7 +272,7 @@ private:
         TRowBufferPtr rowBuffer,
         const NLogging::TLogger& Logger)
     {
-        const auto& tableId = dataSource.Id;
+        auto tableId = dataSource.Id;
 
         auto tableMountCache = Connection_->GetTableMountCache();
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))

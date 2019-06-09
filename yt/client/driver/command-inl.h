@@ -54,7 +54,7 @@ NApi::ITransactionPtr TTransactionalCommandBase<
     ICommandContextPtr context,
     bool required)
 {
-    const auto& transactionId = this->Options.TransactionId;
+    auto transactionId = this->Options.TransactionId;
     if (!transactionId) {
         if (required) {
             THROW_ERROR_EXCEPTION("Transaction is required");
@@ -177,7 +177,7 @@ NApi::IClientBasePtr TTabletReadCommandBase<
     typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, TTabletReadOptions&>>::TType
 >::GetClientBase(ICommandContextPtr context)
 {
-    const auto& transactionId = this->Options.TransactionId;
+    auto transactionId = this->Options.TransactionId;
     if (transactionId) {
         return context->GetDriver()->GetStickyTransactionPool()->GetTransactionAndRenewLease(transactionId);
     } else {
@@ -205,7 +205,7 @@ NApi::ITransactionPtr TTabletWriteCommandBase<
     typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, TTabletWriteOptions&>>::TType
 >::GetTransaction(ICommandContextPtr context)
 {
-    const auto& transactionId = this->Options.TransactionId;
+    auto transactionId = this->Options.TransactionId;
     if (transactionId) {
         return context->GetDriver()->GetStickyTransactionPool()->GetTransactionAndRenewLease(transactionId);
     } else {

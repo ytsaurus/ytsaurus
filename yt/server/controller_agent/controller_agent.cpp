@@ -501,7 +501,7 @@ public:
                     std::remove_if(
                         watchTransactionIds.begin(),
                         watchTransactionIds.end(),
-                        [] (const auto& transactionId) { return !transactionId; }),
+                        [] (auto transactionId) { return !transactionId; }),
                     watchTransactionIds.end());
 
                 operation->SetWatchTransactionIds(watchTransactionIds);
