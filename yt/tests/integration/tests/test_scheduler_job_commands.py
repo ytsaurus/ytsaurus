@@ -64,8 +64,7 @@ class TestJobProber(YTEnvSetup):
 
         events_on_fs().wait_event("job_is_running")
         jobs = list(op.get_running_jobs())
-        time.sleep(1.0) # give job proxy some time to send a heartbeat
-        result = strace_job(jobs[0])
+        result = retry_while_job_missing(lambda: strace_job(jobs[0]))
 
         assert len(result) > 0
         for pid, trace in result["traces"].iteritems():
@@ -94,9 +93,8 @@ class TestJobProber(YTEnvSetup):
 
         jobs = wait_breakpoint()
 
-        time.sleep(1.0) # give job proxy some time to send a heartbeat
-        signal_job(jobs[0], "SIGUSR1")
-        signal_job(jobs[0], "SIGUSR2")
+        retry_while_job_missing(lambda: signal_job(jobs[0], "SIGUSR1"))
+        retry_while_job_missing(lambda: signal_job(jobs[0], "SIGUSR2"))
 
         release_breakpoint()
         op.track()
@@ -126,8 +124,8 @@ class TestJobProber(YTEnvSetup):
 
         jobs = wait_breakpoint()
 
-        time.sleep(1.0) # give job proxy some time to send a heartbeat
-        signal_job(jobs[0], "SIGUSR1")
+        retry_while_job_missing(lambda: signal_job(jobs[0], "SIGUSR1"))
+        
         release_breakpoint()
 
         op.track()
@@ -364,23 +362,27 @@ class TestJobProber(YTEnvSetup):
         assert get(op.get_path() + "/@progress/jobs/aborted/scheduled/other") == 0
         assert get(op.get_path() + "/@progress/jobs/failed") == 0
 
-        time.sleep(2)
-        end_profiling = get_job_count_profiling()
+        def check():
+            end_profiling = get_job_count_profiling()
 
-        for state in end_profiling["state"]:
-            print state, start_profiling["state"][state], end_profiling["state"][state]
-            value = end_profiling["state"][state] - start_profiling["state"][state]
-            count = 0
-            if state == "aborted":
-                count = 1
-            if state == "completed":
-                count = 5
-            assert value == count
+            for state in end_profiling["state"]:
+                print state, start_profiling["state"][state], end_profiling["state"][state]
+                value = end_profiling["state"][state] - start_profiling["state"][state]
+                count = 0
+                if state == "aborted":
+                    count = 1
+                if state == "completed":
+                    count = 5
+                if value != count:
+                    return False
 
-        for abort_reason in end_profiling["abort_reason"]:
-            print abort_reason, start_profiling["abort_reason"][abort_reason], end_profiling["abort_reason"][abort_reason]
-            value = end_profiling["abort_reason"][abort_reason] - start_profiling["abort_reason"][abort_reason]
-            assert value == (1 if abort_reason == "user_request" else 0)
+            for abort_reason in end_profiling["abort_reason"]:
+                print abort_reason, start_profiling["abort_reason"][abort_reason], end_profiling["abort_reason"][abort_reason]
+                value = end_profiling["abort_reason"][abort_reason] - start_profiling["abort_reason"][abort_reason]
+                if value != (1 if abort_reason == "user_request" else 0):
+                    return False
+            return True
+        wait(check)
 
 ##################################################################
 
