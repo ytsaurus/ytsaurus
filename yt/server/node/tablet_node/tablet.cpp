@@ -1067,6 +1067,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     }
 
     snapshot->TabletId = Id_;
+    snapshot->LoggingId = LoggingId_;
     snapshot->MountRevision = MountRevision_;
     snapshot->TablePath = TablePath_;
     snapshot->TableId = TableId_;
@@ -1184,6 +1185,11 @@ void TTablet::Initialize()
     ColumnEvaluator_ = Context_->GetColumnEvaluatorCache()->Find(PhysicalSchema_);
 
     StoresUpdateCommitSemaphore_ = New<NConcurrency::TAsyncSemaphore>(1);
+
+    LoggingId_ = Format("TabletId: %v, TableId: %v, TablePath: %v",
+        Id_,
+        TableId_,
+        TablePath_);
 }
 
 void TTablet::FillProfilerTags(TCellId cellId)
@@ -1225,6 +1231,11 @@ void TTablet::ReconfigureThrottlers()
     FlushThrottler_->Reconfigure(Config_->FlushThrottler);
     CompactionThrottler_->Reconfigure(Config_->CompactionThrottler);
     PartitioningThrottler_->Reconfigure(Config_->PartitioningThrottler);
+}
+
+const TString& TTablet::GetLoggingId() const
+{
+    return LoggingId_;
 }
 
 void TTablet::UpdateReplicaCounters()

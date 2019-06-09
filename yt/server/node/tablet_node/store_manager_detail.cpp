@@ -45,8 +45,8 @@ TStoreManagerBase::TStoreManagerBase(
     , StoreFlushTag_(NProfiling::TProfileManager::Get()->RegisterTag("method", "store_flush"))
     , Logger(TabletNodeLogger)
 {
-    Logger.AddTag("TabletId: %v, CellId: %v",
-        Tablet_->GetId(),
+    Logger.AddTag("%v, CellId: %v",
+        Tablet_->GetLoggingId(),
         TabletContext_->GetCellId());
 }
 
@@ -157,7 +157,7 @@ void TStoreManagerBase::AddStore(IStorePtr store, bool onMount)
             auto chunkData = InMemoryManager_->EvictInterceptedChunkData(chunkStore->GetId());
             if (!TryPreloadStoreFromInterceptedData(chunkStore, chunkData)) {
                 Tablet_->PreloadStoreIds().push_back(store->GetId());
-                YT_LOG_INFO_UNLESS(IsRecovery(), "Scheduled preload of in-memory store (StoreId: %v)", store->GetId());
+                YT_LOG_INFO_UNLESS(IsRecovery(), "Scheduled preload of in-memory store (StoreId: %v)",store->GetId());
             }
         }
     }

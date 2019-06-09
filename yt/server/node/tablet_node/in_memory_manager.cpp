@@ -269,8 +269,8 @@ private:
         VERIFY_INVOKERS_AFFINITY(feasibleInvokers);
 
         NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("TabletId: %v, StoreId: %v, Mode: %v, ReadSessionId: %v",
-            tablet->GetId(),
+        Logger.AddTag("%v, StoreId: %v, Mode: %v, ReadSessionId: %v",
+            tablet->GetLoggingId(),
             store->GetId(),
             mode,
             readSessionId);
@@ -506,9 +506,11 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     auto mode = tabletSnapshot->Config->InMemoryMode;
 
     NLogging::TLogger Logger(TabletNodeLogger);
-    Logger.AddTag(
-        "TabletId: %v, StoreId: %v, Mode: %v, ReadSessionId: %v",
-        tabletSnapshot->TabletId, store->GetId(), mode, readSessionId);
+    Logger.AddTag("%v, StoreId: %v, Mode: %v, ReadSessionId: %v",
+        tabletSnapshot->LoggingId,
+        store->GetId(),
+        mode,
+        readSessionId);
 
     YT_LOG_INFO("Store preload started");
 

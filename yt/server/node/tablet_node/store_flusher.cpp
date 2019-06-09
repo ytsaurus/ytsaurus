@@ -97,6 +97,7 @@ private:
     {
         i64 MemoryUsage;
         TTabletId TabletId;
+        TString TabletLoggingId;
         TTabletSlotPtr Slot;
     };
 
@@ -166,10 +167,10 @@ private:
             if (!tabletSnapshot)
                 continue;
 
-            YT_LOG_INFO("Scheduling store rotation due to memory pressure condition (TabletId: %v, "
+            YT_LOG_INFO("Scheduling store rotation due to memory pressure condition (%v, "
                 "TotalMemoryUsage: %v, PassiveMemoryUsage: %v, TabletMemoryUsage: %v, "
                 "MemoryLimit: %v)",
-                candidate.TabletId,
+                candidate.TabletLoggingId,
                 tracker->GetUsed(EMemoryCategory::TabletDynamic),
                 PassiveMemoryUsage_,
                 candidate.MemoryUsage,
@@ -197,14 +198,14 @@ private:
         tablet->UpdateUnflushedTimestamp();
 
         if (storeManager->IsOverflowRotationNeeded()) {
-            YT_LOG_DEBUG("Scheduling store rotation due to overflow (TabletId: %v)",
-                tablet->GetId());
+            YT_LOG_DEBUG("Scheduling store rotation due to overflow (%v)",
+                tablet->GetLoggingId());
             tabletManager->ScheduleStoreRotation(tablet);
         }
 
         if (storeManager->IsPeriodicRotationNeeded()) {
-            YT_LOG_INFO("Scheduling periodic store rotation (TabletId: %v)",
-                tablet->GetId());
+            YT_LOG_INFO("Scheduling periodic store rotation (%v)",
+                tablet->GetLoggingId());
             tabletManager->ScheduleStoreRotation(tablet);
         }
 
@@ -237,6 +238,7 @@ private:
                     ForcedRotationCandidates_.push_back({
                         memoryUsage,
                         tablet->GetId(),
+                        tablet->GetLoggingId(),
                         slot
                     });
                 }
@@ -291,11 +293,11 @@ private:
         TStoreFlushCallback flushCallback)
     {
         const auto& storeManager = tablet->GetStoreManager();
-        const auto& tabletId = tablet->GetId();
+        auto tabletId = tablet->GetId();
 
         NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("TabletId: %v, StoreId: %v",
-            tabletId,
+        Logger.AddTag("%v, StoreId: %v",
+            tablet->GetLoggingId(),
             store->GetId());
 
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
