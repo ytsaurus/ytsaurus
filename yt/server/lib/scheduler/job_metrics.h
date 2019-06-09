@@ -39,10 +39,17 @@ DEFINE_ENUM(EJobMetricName,
     (TotalTimeAborted)
 );
 
+DEFINE_ENUM(EAggregateType,
+    (Sum)
+    (Min)
+    (Max)
+);
+
 struct TCustomJobMetricDescription
 {
     TString StatisticsPath;
     TString ProfilingName;
+    EAggregateType AggregateType = EAggregateType::Sum;
 
     void Persist(const TStreamPersistenceContext& context);
 };

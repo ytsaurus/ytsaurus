@@ -64,9 +64,9 @@ def get_pool_metrics(metric_key, start_time):
     print >>sys.stderr, "Pool metrics: ", result
     return result
 
-def get_cypress_metrics(operation_id, key):
+def get_cypress_metrics(operation_id, key, aggr="sum"):
     statistics = get(get_operation_cypress_path(operation_id) + "/@progress/job_statistics")
-    return get_statistics(statistics, "{0}.$.completed.map.sum".format(key))
+    return get_statistics(statistics, "{0}.$.completed.map.{1}".format(key, aggr))
 
 ##################################################################
 
@@ -3204,6 +3204,16 @@ class TestPoolMetrics(YTEnvSetup):
                 {
                     "statistics_path": "/user_job/block_io/bytes_written",
                     "profiling_name": "my_metric"
+                },
+                {
+                    "statistics_path": "/custom/value",
+                    "profiling_name": "my_custom_metric_sum",
+                    "aggregate_type": "sum",
+                },
+                {
+                    "statistics_path": "/custom/value",
+                    "profiling_name": "my_custom_metric_max",
+                    "aggregate_type": "max",
                 }
             ]
         }
@@ -3249,12 +3259,11 @@ class TestPoolMetrics(YTEnvSetup):
         # - writes (and syncs) something to disk
         # - works for some time (to ensure that it sends several heartbeats
         # - writes something to stderr because we want to find our jobs in //sys/operations later
-        map_cmd = """for i in $(seq 10) ; do echo 5 > /tmp/foo$i ; sync ; sleep 0.5 ; done ; cat ; sleep 10; echo done > /dev/stderr"""
+        map_cmd = """for i in $(seq 10) ; do python -c "import os; os.write(5, '{value=$i};')"; echo 5 > /tmp/foo$i ; sync ; sleep 0.5 ; done ; cat ; sleep 10; echo done > /dev/stderr"""
 
         start_time = time.time()
 
         metric_name = "user_job_bytes_written"
-        alternative_metric_name = "my_metric"
         statistics_name = "user_job.block_io.bytes_written"
 
         start_pool_metrics = get_pool_metrics(metric_name, start_time)
@@ -3279,7 +3288,7 @@ class TestPoolMetrics(YTEnvSetup):
             spec={"job_count": 2, "pool": "child2"},
         )
 
-        for current_metric_name in (metric_name, alternative_metric_name):
+        for current_metric_name in (metric_name, "my_metric"):
             wait(lambda: get_pool_metrics(current_metric_name, start_time)["parent"] - start_pool_metrics["parent"] > 0)
 
             pool_metrics = get_pool_metrics(current_metric_name, start_time)
@@ -3291,6 +3300,11 @@ class TestPoolMetrics(YTEnvSetup):
             assert pool_metrics["child1"] - start_pool_metrics["child1"] == op11_writes + op12_writes > 0
             assert pool_metrics["child2"] - start_pool_metrics["child2"] == op2_writes > 0
             assert pool_metrics["parent"] - start_pool_metrics["parent"] == op11_writes + op12_writes + op2_writes > 0
+
+        assert get_pool_metrics("my_metric", start_time)["child2"] == get_cypress_metrics(op2.id, statistics_name)
+
+        assert get_pool_metrics("my_custom_metric_max", start_time)["child2"] == 20
+        assert get_pool_metrics("my_custom_metric_sum", start_time)["child2"] == 110
 
         jobs_11 = ls(op11.get_path() + "/jobs")
         assert len(jobs_11) >= 2
