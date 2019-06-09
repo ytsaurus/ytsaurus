@@ -4,12 +4,10 @@
 #include "config.h"
 #include "helpers.h"
 #include "attributes_helpers.h"
-#include "chunk_reader.h"
 #include "convert_row.h"
 #include "document.h"
 #include "subquery.h"
 #include "subquery_spec.h"
-#include "table_reader.h"
 #include "table_schema.h"
 
 #include <yt/ytlib/api/native/client.h>
@@ -102,9 +100,9 @@ TQueryContext::TQueryContext(TBootstrap* bootstrap, TQueryId queryId, const DB::
         clientInfo.initial_user,
         clientInfo.initial_address.toString(),
         clientInfo.initial_query_id,
-        clientInfo.interface == DB::ClientInfo::Interface::TCP
+        static_cast<int>(clientInfo.interface) == static_cast<int>(DB::ClientInfo::Interface::TCP)
             ? "TCP"
-            : clientInfo.interface == DB::ClientInfo::Interface::HTTP
+            : static_cast<int>(clientInfo.interface) == static_cast<int>(DB::ClientInfo::Interface::HTTP)
                 ? "HTTP"
                 : "(n/a)",
         clientInfo.client_hostname,

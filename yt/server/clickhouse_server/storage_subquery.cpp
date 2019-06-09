@@ -2,14 +2,12 @@
 
 #include "db_helpers.h"
 #include "format_helpers.h"
-#include "input_stream.h"
 #include "subquery_spec.h"
 #include "type_helpers.h"
-#include "chunk_reader.h"
 #include "subquery.h"
 #include "query_context.h"
-#include "table_reader.h"
 #include "table.h"
+#include "block_input_stream.h"
 
 #include <yt/server/controller_agent/chunk_pools/chunk_stripe.h>
 
@@ -19,6 +17,12 @@
 
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+
+#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
+
+#include <yt/client/table_client/name_table.h>
 
 #include <yt/core/concurrency/throughput_throttler.h>
 
@@ -122,13 +126,13 @@ public:
 
         YT_LOG_DEBUG("Narrowing schema to %v columns", readSchema.GetColumnCount());
 
-        // TODO
-        auto nativeReaderConfig = New<TTableReaderConfig>();
-        auto nativeReaderOptions = New<NTableClient::TTableReaderOptions>();
+        // TODO(max42): put something here :)
+        auto config = New<TTableReaderConfig>();
+        auto options = New<NTableClient::TTableReaderOptions>();
 
         YT_LOG_INFO("Creating table readers");
 
-        std::vector<NTableClient::ISchemafulReaderPtr> chunkReaders;
+        std::vector<NTableClient::ISchemalessChunkReaderPtr> readers;
         for (const auto& chunkStripe : chunkStripeList->Stripes) {
             std::vector<TDataSliceDescriptor> dataSliceDescriptors;
             i64 rowCount = 0;
@@ -154,36 +158,38 @@ public:
                 dataWeight += inputDataSlice->GetDataWeight();
             }
 
-            YT_LOG_DEBUG("Table reader created (RowCount: %v, DataWeight: %v)", rowCount, dataWeight);
+            // TODO(max42): fill properly.
+            TClientBlockReadOptions blockReadOptions;
+            blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+            blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserRealtime);
 
-            auto chunkReader = CreateChunkReader(
-                nativeReaderConfig,
-                nativeReaderOptions,
+            auto reader = CreateSchemalessParallelMultiReader(
+                config,
+                options,
                 QueryContext_->Client(),
+                {} /* localDescriptor */,
+                std::nullopt,
+                QueryContext_->Client()->GetNativeConnection()->GetBlockCache(),
                 SubquerySpec_.NodeDirectory,
                 SubquerySpec_.DataSourceDirectory,
                 dataSliceDescriptors,
-                GetUnlimitedThrottler(),
-                readSchema,
-                true);
+                TNameTable::FromSchema(readSchema),
+                blockReadOptions,
+                TColumnFilter(readSchema.Columns().size()),
+                {}, /* keyColumns */
+                std::nullopt /* partitionTag */,
+                nullptr /* trafficMeter */,
+                GetUnlimitedThrottler() /* bandwidthThrottler */,
+                GetUnlimitedThrottler() /* rpsThrottler */);
 
-            chunkReaders.push_back(std::move(chunkReader));
-        }
+            YT_LOG_DEBUG("Table reader created (RowCount: %v, DataWeight: %v)", rowCount, dataWeight);
 
-        // It seems there is no need to warm up readers
-        // WarmUp(chunkReaders);
-
-        // TODO(max42): refactor.
-        auto foo = std::make_shared<TClickHouseTable>("foo", readSchema);
-
-        TTableReaderList readers;
-        for (auto& chunkReader : chunkReaders) {
-            readers.emplace_back(CreateTableReader(foo->Columns, std::move(chunkReader)));
+            readers.emplace_back(std::move(reader));
         }
 
         BlockInputStreams streams;
         for (auto& tableReader : readers) {
-            streams.emplace_back(CreateStorageInputStream(std::move(tableReader)));
+            streams.emplace_back(CreateBlockInputStream(std::move(tableReader), readSchema, Logger));
         }
 
         return streams;

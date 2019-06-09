@@ -86,8 +86,15 @@ public:
                 column->get(rowIndex, field);
                 auto& value = row[columnIndex];
                 value.Id = PositionToId_[columnIndex];
-                value.Type = Schema_.Columns()[columnIndex].GetPhysicalType();
-                ConvertToUnversionedValue(field, &value);
+                if (field.isNull()) {
+                    if (Schema_.Columns()[columnIndex].Required()) {
+                        THROW_ERROR_EXCEPTION("Value NULL is not allowed in required column %v", Schema_.Columns()[columnIndex].Name());
+                    }
+                    value.Type = EValueType::Null;
+                } else {
+                    value.Type = Schema_.Columns()[columnIndex].GetPhysicalType();
+                    ConvertToUnversionedValue(field, &value);
+                }
             }
             rows.emplace_back(row);
         }

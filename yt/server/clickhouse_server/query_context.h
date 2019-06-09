@@ -6,7 +6,6 @@
 
 #include "document.h"
 #include "objects.h"
-#include "table_reader.h"
 #include "table_schema.h"
 
 #include <yt/client/table_client/schema.h>

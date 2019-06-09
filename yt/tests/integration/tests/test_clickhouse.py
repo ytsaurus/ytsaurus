@@ -369,18 +369,21 @@ class TestMutations(ClickHouseTestBase):
             with pytest.raises(YtError):
                 clique.make_query('insert into "//tmp/t"(str) values (2)')
             clique.make_query('insert into "//tmp/t"(i64, ui64, str, dbl, bool) values (-1, 1, \'abc\', 3.14, 1)')
+            clique.make_query('insert into "//tmp/t"(i64, ui64, str, dbl, bool) values (NULL, NULL, NULL, NULL, NULL)')
             with pytest.raises(YtError):
                 clique.make_query('insert into "//tmp/t"(bool) values (3)')
-            with pytest.raises(YtError):
-                clique.make_query('insert into "//tmp/t"(bool) values (2.4)')
+            # This insert leads to NULL insertion.
+            clique.make_query('insert into "//tmp/t"(bool) values (2.4)')
             assert read_table("//tmp/t") == [
-                {"i64": 1, "ui64": 0, "str": "", "dbl": 0.0, "bool": False},
-                {"i64": -2, "ui64": 0, "str": "", "dbl": 0.0, "bool": False},
-                {"i64": 0, "ui64": 7, "str": "", "dbl": 0.0, "bool": False},
-                {"i64": 0, "ui64": 8, "str": "", "dbl": 0.0, "bool": False},
+                {"i64": 1, "ui64": None, "str": None, "dbl": None, "bool": None},
+                {"i64": -2, "ui64": None, "str": None, "dbl": None, "bool": None},
+                {"i64": None, "ui64": 7, "str": None, "dbl": None, "bool": None},
+                {"i64": None, "ui64": 8, "str": None, "dbl": None, "bool": None},
                 {"i64": -1, "ui64": 1, "str": "abc", "dbl": 3.14, "bool": True},
+                {"i64": None, "ui64": None, "str": None, "dbl": None, "bool": None},
+                {"i64": None, "ui64": None, "str": None, "dbl": None, "bool": None},
             ]
-            assert get("//tmp/t/@chunk_count") == 3
+            assert get("//tmp/t/@chunk_count") == 5
             clique.make_query('insert into "<append=%false>//tmp/t" values (-2, 2, \'xyz\', 2.71, 0)')
             assert read_table("//tmp/t") == [
                 {"i64": -2, "ui64": 2, "str": "xyz", "dbl": 2.71, "bool": False},
@@ -425,9 +428,12 @@ class TestMutations(ClickHouseTestBase):
             with pytest.raises(YtError):
                 clique.make_query('insert into "//tmp/t" select i64, ui64 from "//tmp/s1"')
 
-            # Columns are matched according to positions.
-            with pytest.raises(YtError):
-                clique.make_query('insert into "//tmp/t" select * from "//tmp/s2"')
+            # Columns are matched according to positions. Values are best-effort casted due to CH logic.
+            clique.make_query('insert into "<append=%false>//tmp/t" select * from "//tmp/s2"')
+            assert read_table("//tmp/t") == [
+                {"i64": 4, "ui64": None, "str": "12.3", "dbl": 9.0, "bool": False},
+                {"i64": -5, "ui64": None, "str": "-3.1", "dbl": 5.0, "bool": True},
+            ]
 
             clique.make_query('insert into "<append=%false>//tmp/t" select i64, ui64, str, dbl, bool from "//tmp/s2"')
             assert read_table("//tmp/t") == [
@@ -439,7 +445,7 @@ class TestMutations(ClickHouseTestBase):
             assert read_table("//tmp/t") == [
                 {"i64": 4, "ui64": 9, "str": "def", "dbl": 12.3, "bool": False},
                 {"i64": -5, "ui64": 5, "str": "ijk", "dbl": -3.1, "bool": True},
-                {"i64": 4, "ui64": 5, "str": "", "dbl": 0.0, "bool": False},
+                {"i64": 4, "ui64": 5, "str": None, "dbl": None, "bool": None},
             ]
 
     def test_create_table_simple(self):
@@ -668,9 +674,9 @@ class TestYtDictionaries(ClickHouseTestBase):
         self._setup()
 
     def test_int_key_flat(self):
-        create("table", "//tmp/dict", attributes={"schema": [{"name": "key", "type": "uint64"},
-                                                             {"name": "value_str", "type": "string"},
-                                                             {"name": "value_i64", "type": "int64"}]})
+        create("table", "//tmp/dict", attributes={"schema": [{"name": "key", "type": "uint64", "required": True},
+                                                             {"name": "value_str", "type": "string", "required": True},
+                                                             {"name": "value_i64", "type": "int64", "required": True}]})
         write_table("//tmp/dict", [
             {"key": i, "value_str": "str" + str(i), "value_i64": i * i} for i in [1, 3, 5]
         ])
@@ -704,17 +710,17 @@ class TestYtDictionaries(ClickHouseTestBase):
         ]
 
     def test_composite_key_hashed(self):
-        create("table", "//tmp/dict", attributes={"schema": [{"name": "key", "type": "string"},
-                                                             {"name": "subkey", "type": "int64"},
-                                                             {"name": "value", "type": "string"}]})
+        create("table", "//tmp/dict", attributes={"schema": [{"name": "key", "type": "string", "required": True},
+                                                             {"name": "subkey", "type": "int64", "required": True},
+                                                             {"name": "value", "type": "string", "required": True}]})
         write_table("//tmp/dict", [
             {"key": "a", "subkey": 1, "value": "a1"},
             {"key": "a", "subkey": 2, "value": "a2"},
             {"key": "b", "subkey": 1, "value": "b1"},
         ])
 
-        create("table", "//tmp/queries", attributes={"schema": [{"name": "key", "type": "string"},
-                                                                {"name": "subkey", "type": "int64"}]})
+        create("table", "//tmp/queries", attributes={"schema": [{"name": "key", "type": "string", "required": True},
+                                                                {"name": "subkey", "type": "int64", "required": True}]})
         write_table("//tmp/queries", [{"key": "a", "subkey": 1},
                                       {"key": "a", "subkey": 2},
                                       {"key": "b", "subkey": 1},
@@ -742,8 +748,8 @@ class TestYtDictionaries(ClickHouseTestBase):
         assert result["data"] == [{"value": "a1"}, {"value": "a2"}, {"value": "b1"}, {"value": "n/a"}]
 
     def test_lifetime(self):
-        create("table", "//tmp/dict", attributes={"schema": [{"name": "key", "type": "uint64"},
-                                                             {"name": "value", "type": "string"}]})
+        create("table", "//tmp/dict", attributes={"schema": [{"name": "key", "type": "uint64", "required": True},
+                                                             {"name": "value", "type": "string", "required": True}]})
         write_table("//tmp/dict", [{"key": 42, "value": "x"}])
 
         with Clique(1, config_patch={
@@ -816,7 +822,7 @@ class TestClickHouseSchema(ClickHouseTestBase):
 
         with Clique(1) as clique:
             assert self._strip_description(clique.make_query("describe concatYtTables(\"//tmp/t1\", \"//tmp/t2\")")["data"]) == \
-                [{"name": "a", "type": "Int64"}]
+                [{"name": "a", "type": "Nullable(Int64)"}]
             assert clique.make_query("select * from concatYtTables(\"//tmp/t1\", \"//tmp/t2\") order by a")["data"] == \
                 [{"a": 17}, {"a": 42}]
 
@@ -842,36 +848,26 @@ class TestClickHouseSchema(ClickHouseTestBase):
         write_table("//tmp/t2", {"a": 17, "d": 2.71})
 
         with Clique(1) as clique:
-            with pytest.raises(YtError):
-                clique.make_query("describe concatYtTables(\"//tmp/t1\", \"//tmp/t2\")")
-            with pytest.raises(YtError):
-                clique.make_query("describe concatYtTables(\"//tmp/t2\", \"//tmp/t1\")")
+            assert clique.make_query("describe concatYtTables(\"//tmp/t1\", \"//tmp/t2\")")["data"] == self._to_description(
+                [{"name": "a", "type": "Nullable(Int64)"}])
+            assert clique.make_query("describe concatYtTables(\"//tmp/t2\", \"//tmp/t1\")")["data"] == self._to_description(
+                [{"name": "a", "type": "Nullable(Int64)"}])
             with pytest.raises(YtError):
                 clique.make_query("describe concatYtTables(\"//tmp/t1\", \"//tmp/t3\")")
 
-            assert self._strip_description(clique.make_query("describe concatYtTablesDropPrimaryKey(\"//tmp/t1\", \"//tmp/t2\")")["data"]) == \
-                [{"name": "a", "type": "Int64"}]
-            assert clique.make_query("select * from concatYtTablesDropPrimaryKey(\"//tmp/t1\", \"//tmp/t2\") order by a")["data"] == \
-                [{"a": 17}, {"a": 42}]
-
-            assert self._strip_description(clique.make_query("describe concatYtTablesDropPrimaryKey(\"//tmp/t2\", \"//tmp/t1\")")["data"]) == \
-                [{"name": "a", "type": "Int64"}]
-            assert clique.make_query("select * from concatYtTablesDropPrimaryKey(\"//tmp/t2\", \"//tmp/t1\") order by a")["data"] == \
-                [{"a": 17}, {"a": 42}]
-
-    def test_drop_primary_key(self):
+    def test_nulls_in_primary_key(self):
         create("table", "//tmp/t", attributes={"schema": [
             {"name": "a", "type": "int64", "sort_order": "ascending"}
         ]})
 
-        write_table("//tmp/t", {"a": None})
+        content = [{"a": None}, {"a": -1}, {"a": 42}]
+        write_table("//tmp/t", content)
 
         with Clique(1) as clique:
-            with pytest.raises(YtError):
-                clique.make_query("select * from concatYtTables('//tmp/t')")
-            with pytest.raises(YtError):
-                clique.make_query("select * from \"//tmp/t\"")
-            assert clique.make_query("select * from concatYtTablesDropPrimaryKey('//tmp/t')")["data"] == [{"a": 0}]
+            for source in ["\"//tmp/t\"", "concatYtTables('//tmp/t')"]:
+                assert clique.make_query("select * from {}".format(source))["data"] == content
+                assert clique.make_query("select * from {} where isNull(a)".format(source))["data"] == [{"a": None}]
+                assert clique.make_query("select * from {} where isNotNull(a)".format(source))["data"] == [{"a": -1}, {"a": 42}]
 
 class TestClickHouseAccess(ClickHouseTestBase):
     def setup(self):

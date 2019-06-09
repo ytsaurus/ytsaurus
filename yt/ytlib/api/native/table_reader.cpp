@@ -383,11 +383,10 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
         CheckUnavailableChunks(config->UnavailableChunkStrategy, &chunkSpecs);
     }
 
-    // TODO(max42): looks strange, maybe use table reader options that are passed as an argument?
     auto internalOptions = New<NTableClient::TTableReaderOptions>();
-    internalOptions->EnableTableIndex = true;
-    internalOptions->EnableRangeIndex = true;
-    internalOptions->EnableRowIndex = true;
+    internalOptions->EnableTableIndex = options.EnableTableIndex;
+    internalOptions->EnableRangeIndex = options.EnableRangeIndex;
+    internalOptions->EnableRowIndex = options.EnableRowIndex;
 
     TClientBlockReadOptions blockReadOptions;
     blockReadOptions.WorkloadDescriptor = config->WorkloadDescriptor;

@@ -655,6 +655,9 @@ struct TTableReaderOptions
 {
     bool Unordered = false;
     bool OmitInaccessibleColumns = false;
+    bool EnableTableIndex = true;
+    bool EnableRowIndex = true;
+    bool EnableRangeIndex = true;
     NTableClient::TTableReaderConfigPtr Config;
 };
 
