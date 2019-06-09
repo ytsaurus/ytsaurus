@@ -326,15 +326,6 @@ TTablet::TTablet(
     , Context_(context)
     , Logger(NLogging::TLogger(TabletNodeLogger)
         .AddTag("TabletId: %v", Id_))
-    , FlushThrottler_(CreateReconfigurableThroughputThrottler(
-        Config_->FlushThrottler,
-        Logger))
-    , CompactionThrottler_(CreateReconfigurableThroughputThrottler(
-        Config_->CompactionThrottler,
-        Logger))
-    , PartitioningThrottler_(CreateReconfigurableThroughputThrottler(
-        Config_->PartitioningThrottler,
-        Logger))
 { }
 
 TTablet::TTablet(
@@ -379,15 +370,6 @@ TTablet::TTablet(
     , Context_(context)
     , Logger(NLogging::TLogger(TabletNodeLogger)
         .AddTag("TabletId: %v", Id_))
-    , FlushThrottler_(CreateReconfigurableThroughputThrottler(
-        Config_->FlushThrottler,
-        Logger))
-    , CompactionThrottler_(CreateReconfigurableThroughputThrottler(
-        Config_->CompactionThrottler,
-        Logger))
-    , PartitioningThrottler_(CreateReconfigurableThroughputThrottler(
-        Config_->PartitioningThrottler,
-        Logger))
 {
     Initialize();
 }
@@ -1185,6 +1167,16 @@ void TTablet::Initialize()
     ColumnEvaluator_ = Context_->GetColumnEvaluatorCache()->Find(PhysicalSchema_);
 
     StoresUpdateCommitSemaphore_ = New<NConcurrency::TAsyncSemaphore>(1);
+
+    FlushThrottler_ = CreateReconfigurableThroughputThrottler(
+        Config_->FlushThrottler,
+        Logger);
+    CompactionThrottler_ = CreateReconfigurableThroughputThrottler(
+        Config_->CompactionThrottler,
+        Logger);
+    PartitioningThrottler_ = CreateReconfigurableThroughputThrottler(
+        Config_->PartitioningThrottler,
+        Logger);
 
     LoggingId_ = Format("TabletId: %v, TableId: %v, TablePath: %v",
         Id_,
