@@ -3794,11 +3794,11 @@ private:
     {
         YCHECK(!Bootstrap_->IsPrimaryMaster());
 
-        auto tableCount = request->table_count();
+        auto remainingTableCount = request->table_count();
 
         std::vector<TTableId> tableIds;
         NProto::TReqUpdateTableStatistics req;
-        while (tableCount-- > 0 && !TableStatisticsUpdates_.IsEmpty()) {
+        while (remainingTableCount-- > 0 && !TableStatisticsUpdates_.IsEmpty()) {
             auto pair = TableStatisticsUpdates_.Pop();
             const auto& tableId = pair.first;
             const auto& statistics = pair.second;
@@ -3820,7 +3820,7 @@ private:
         }
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Sending table statistics update (RequestedTableCount: %v, TableIds: %v)",
-            tableCount,
+            request->table_count(),
             tableIds);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
