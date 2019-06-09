@@ -137,8 +137,8 @@ public:
         , StickyUserErrorCache_(Config_->StickyUserErrorExpireTime)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
-            .SetMaxQueueSize(10000)
-            .SetMaxConcurrency(10000)
+            .SetQueueSizeLimit(10000)
+            .SetConcurrencyLimit(10000)
             .SetCancelable(true)
             .SetInvoker(GetRpcInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));

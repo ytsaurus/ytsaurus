@@ -35,15 +35,16 @@ class TServiceConfig
 public:
     THashMap<TString, TMethodConfigPtr> Methods;
 
-    static const int DefaultMaxAuthenticationQueueSize;
-    int MaxAuthenticationQueueSize;
+    static const int DefaultAuthenticationQueueSizeLimit;
+    int AuthenticationQueueSizeLimit;
 
     TServiceConfig()
     {
         RegisterParameter("methods", Methods)
             .Default();
-        RegisterParameter("max_authentication_queue_size", MaxAuthenticationQueueSize)
-            .Default(DefaultMaxAuthenticationQueueSize);
+        RegisterParameter("authentication_queue_size_limit", AuthenticationQueueSizeLimit)
+            .Alias("max_authentication_queue_size")
+            .Default(DefaultAuthenticationQueueSizeLimit);
     }
 };
 
@@ -58,11 +59,11 @@ public:
     static const bool DefaultHeavy;
     bool Heavy;
 
-    static const int DefaultMaxQueueSize;
-    int MaxQueueSize;
+    static const int DefaultQueueSizeLimit;
+    int QueueSizeLimit;
 
-    static const int DefaultMaxConcurrency;
-    int MaxConcurrency;
+    static const int DefaultConcurrencyLimit;
+    int ConcurrencyLimit;
 
     static const NLogging::ELogLevel DefaultLogLevel;
     NLogging::ELogLevel LogLevel;
@@ -77,10 +78,12 @@ public:
     {
         RegisterParameter("heavy", Heavy)
             .Default(DefaultHeavy);
-        RegisterParameter("max_queue_size", MaxQueueSize)
-            .Default(DefaultMaxQueueSize);
-        RegisterParameter("max_concurrency", MaxConcurrency)
-            .Default(DefaultMaxConcurrency);
+        RegisterParameter("queue_size_limit", QueueSizeLimit)
+            .Alias("max_queue_size")
+            .Default(DefaultQueueSizeLimit);
+        RegisterParameter("concurrency_limit", ConcurrencyLimit)
+            .Alias("max_concurrency")
+            .Default(DefaultConcurrencyLimit);
         RegisterParameter("log_level", LogLevel)
             .Default(DefaultLogLevel);
         RegisterParameter("logging_suppression_timeout", LoggingSuppressionTimeout)
