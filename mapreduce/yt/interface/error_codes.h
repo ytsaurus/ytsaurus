@@ -35,6 +35,10 @@ namespace NRpc {
     constexpr int Unavailable                   = 105;
     constexpr int PoisonPill                    = 106;
     constexpr int RequestQueueSizeLimitExceeded = 108;
+    constexpr int AuthenticationError           = 109;
+    constexpr int InvalidCsrfToken              = 110;
+    constexpr int InvalidCredentials            = 111;
+    constexpr int StreamingNotSupported         = 112;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,15 +46,32 @@ namespace NRpc {
 
 
 
-// from ./ytlib/scheduler/public.h
+// from ./core/bus/public.h
+namespace NBus {
+
+////////////////////////////////////////////////////////////////////////////////
+
+    constexpr int TransportError = 100;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NBus
+
+
+
+// from ./client/scheduler/public.h
 namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-    constexpr int NoSuchOperation       = 200;
-    constexpr int InvalidOperationState = 201;
-    constexpr int TooManyOperations     = 202;
-    constexpr int NoSuchJob             = 203;
+    constexpr int NoSuchOperation                        = 200;
+    constexpr int InvalidOperationState                  = 201;
+    constexpr int TooManyOperations                      = 202;
+    constexpr int NoSuchJob                              = 203;
+    constexpr int OperationFailedOnJobRestart            = 210;
+    constexpr int OperationFailedWithInconsistentLocking = 211;
+    constexpr int OperationControllerCrashed             = 212;
+    constexpr int TestingError                           = 213;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,7 +79,7 @@ namespace NScheduler {
 
 
 
-// from ./ytlib/table_client/public.h
+// from ./client/table_client/public.h
 namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,6 +94,10 @@ namespace NTableClient {
     constexpr int SchemaViolation        = 307;
     constexpr int RowWeightLimitExceeded = 308;
     constexpr int InvalidColumnFilter    = 309;
+    constexpr int InvalidColumnRenaming  = 310;
+    constexpr int IncompatibleKeyColumns = 311;
+    constexpr int ReaderDeadlineExpired  = 312;
+    constexpr int TimestampOutOfRange    = 313;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,7 +105,7 @@ namespace NTableClient {
 
 
 
-// from ./ytlib/cypress_client/public.h
+// from ./client/cypress_client/public.h
 namespace NCypressClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -115,16 +140,17 @@ namespace NYTree {
 
 
 
-// from ./ytlib/hydra/public.h
+// from ./client/hydra/public.h
 namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-    constexpr int NoSuchSnapshot      = 600;
-    constexpr int NoSuchChangelog     = 601;
-    constexpr int InvalidEpoch        = 602;
-    constexpr int InvalidVersion      = 603;
-    constexpr int OutOfOrderMutations = 609;
+    constexpr int NoSuchSnapshot         = 600;
+    constexpr int NoSuchChangelog        = 601;
+    constexpr int InvalidEpoch           = 602;
+    constexpr int InvalidVersion         = 603;
+    constexpr int OutOfOrderMutations    = 609;
+    constexpr int InvalidSnapshotVersion = 610;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -132,7 +158,7 @@ namespace NHydra {
 
 
 
-// from ./ytlib/chunk_client/public.h
+// from ./client/chunk_client/public.h
 namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -156,6 +182,13 @@ namespace NChunkClient {
     constexpr int WriteThrottlingActive     = 718;
     constexpr int NoSuchMedium              = 719;
     constexpr int OptimisticLockFailure     = 720;
+    constexpr int InvalidBlockChecksum      = 721;
+    constexpr int BlockOutOfRange           = 722;
+    constexpr int ObjectNotReplicated       = 723;
+    constexpr int MissingExtension          = 724;
+    constexpr int BandwidthThrottlingFailed = 725;
+    constexpr int ReaderTimeout             = 726;
+    constexpr int NoSuchChunkView           = 727;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -163,7 +196,7 @@ namespace NChunkClient {
 
 
 
-// from ./ytlib/election/public.h
+// from ./client/election/public.h
 namespace NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -178,7 +211,7 @@ namespace NElection {
 
 
 
-// from ./ytlib/security_client/public.h
+// from ./client/security_client/public.h
 namespace NSecurityClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -189,6 +222,7 @@ namespace NSecurityClient {
     constexpr int UserBanned                    = 903;
     constexpr int RequestQueueSizeLimitExceeded = 904;
     constexpr int NoSuchAccount                 = 905;
+    constexpr int SafeModeEnabled               = 906;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -196,7 +230,7 @@ namespace NSecurityClient {
 
 
 
-// from ./ytlib/object_client/public.h
+// from ./client/object_client/public.h
 namespace NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -209,7 +243,7 @@ namespace NObjectClient {
 
 
 
-// from ./server/exec_agent/public.h
+// from ./server/lib/exec_agent/public.h
 namespace NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -218,12 +252,19 @@ namespace NExecAgent {
     constexpr int AbortByScheduler               = 1101;
     constexpr int ResourceOverdraft              = 1102;
     constexpr int WaitingJobTimeout              = 1103;
-    constexpr int AllLocationsDisabled           = 1104;
+    constexpr int SlotNotFound                   = 1104;
     constexpr int JobEnvironmentDisabled         = 1105;
     constexpr int JobProxyConnectionFailed       = 1106;
     constexpr int ArtifactCopyingFailed          = 1107;
     constexpr int NodeDirectoryPreparationFailed = 1108;
     constexpr int SlotLocationDisabled           = 1109;
+    constexpr int QuotaSettingFailed             = 1110;
+    constexpr int RootVolumePreparationFailed    = 1111;
+    constexpr int NotEnoughDiskSpace             = 1112;
+    constexpr int ArtifactDownloadFailed         = 1113;
+    constexpr int JobProxyPreparationTimeout     = 1114;
+    constexpr int JobPreparationTimeout          = 1115;
+    constexpr int JobProxyFailed                 = 1120;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -231,7 +272,7 @@ namespace NExecAgent {
 
 
 
-// from ./server/job_proxy/public.h
+// from ./ytlib/job_proxy/public.h
 namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -240,6 +281,8 @@ namespace NJobProxy {
     constexpr int MemoryCheckFailed    = 1201;
     constexpr int JobTimeLimitExceeded = 1202;
     constexpr int UnsupportedJobType   = 1203;
+    constexpr int JobNotPrepared       = 1204;
+    constexpr int UserJobFailed        = 1205;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -247,12 +290,13 @@ namespace NJobProxy {
 
 
 
-// from ./server/data_node/public.h
+// from ./server/node/data_node/public.h
 namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
     constexpr int LocalChunkReaderFailed = 1300;
+    constexpr int LayerUnpackingFailed   = 1301;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -260,20 +304,21 @@ namespace NDataNode {
 
 
 
-// from ./core/pipes/public.h
-namespace NPipes {
+// from ./core/net/public.h
+namespace NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-    constexpr int Aborted = 1500;
+    constexpr int Aborted         = 1500;
+    constexpr int ResolveTimedOut = 1501;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPipes
+} // namespace NNet
 
 
 
-// from ./ytlib/node_tracker_client/public.h
+// from ./client/node_tracker_client/public.h
 namespace NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -290,16 +335,18 @@ namespace NNodeTrackerClient {
 
 
 
-// from ./ytlib/tablet_client/public.h
+// from ./client/tablet_client/public.h
 namespace NTabletClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-    constexpr int TransactionLockConflict = 1700;
-    constexpr int NoSuchTablet            = 1701;
-    constexpr int TabletNotMounted        = 1702;
-    constexpr int AllWritesDisabled       = 1703;
-    constexpr int InvalidMountRevision    = 1704;
+    constexpr int TransactionLockConflict   = 1700;
+    constexpr int NoSuchTablet              = 1701;
+    constexpr int TabletNotMounted          = 1702;
+    constexpr int AllWritesDisabled         = 1703;
+    constexpr int InvalidMountRevision      = 1704;
+    constexpr int TableReplicaAlreadyExists = 1705;
+    constexpr int InvalidTabletState        = 1706;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -307,7 +354,7 @@ namespace NTabletClient {
 
 
 
-// from ./server/shell/public.h
+// from ./server/lib/shell/public.h
 namespace NShell {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -321,12 +368,14 @@ namespace NShell {
 
 
 
-// from ./ytlib/api/public.h
+// from ./client/api/public.h
 namespace NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
     constexpr int TooManyConcurrentRequests = 1900;
+    constexpr int JobArchiveUnavailable     = 1910;
+    constexpr int NoSuchOperation           = 1915;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -334,7 +383,50 @@ namespace NApi {
 
 
 
-// from ./ytlib/transaction_client/public.h
+// from ./server/controller_agent/chunk_pools/public.h
+namespace NChunkPools {
+
+////////////////////////////////////////////////////////////////////////////////
+
+    constexpr int DataSliceLimitExceeded             = 2000;
+    constexpr int MaxDataWeightPerJobExceeded        = 2001;
+    constexpr int MaxPrimaryDataWeightPerJobExceeded = 2002;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NChunkPools
+
+
+
+// from ./client/api/rpc_proxy/public.h
+namespace NApi {
+
+////////////////////////////////////////////////////////////////////////////////
+
+    constexpr int ProxyBanned = 2100;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NApi
+
+
+
+// from ./ytlib/controller_agent/public.h
+namespace NControllerAgent {
+
+////////////////////////////////////////////////////////////////////////////////
+
+    constexpr int AgentCallFailed           = 4400;
+    constexpr int NoOnlineNodeToScheduleJob = 4410;
+    constexpr int MaterializationFailed     = 4415;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NControllerAgent
+
+
+
+// from ./client/transaction_client/public.h
 namespace NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -344,6 +436,32 @@ namespace NTransactionClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTransactionClient
+
+
+
+// from ./server/lib/containers/public.h
+namespace NContainers {
+
+////////////////////////////////////////////////////////////////////////////////
+
+    constexpr int FailedToStartContainer = 13000;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NContainers
+
+
+
+// from ./ytlib/job_prober_client/public.h
+namespace NJobProberClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+    constexpr int JobIsNotRunning = 17000;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NJobProberClient
 
 } // namespace NClusterErrorCodes
 } // namespace NYT

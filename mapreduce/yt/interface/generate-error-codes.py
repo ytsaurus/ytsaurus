@@ -35,13 +35,18 @@ def find_headers_with_error_codes(yt_path):
 def extract_namespace(text):
     result = []
     for match in re.finditer('namespace\s*(\S+)\s*{', text, re.MULTILINE):
-        result.append(match.group(1))
+        namespace = match.group(1)
+        result += namespace.split("::")
 
     # we use heuristic here
     while 'NProto' in result:
         result.remove('NProto')
     while 'NLFAlloc' in result:
         result.remove('NLFAlloc')
+
+    if "NYT" not in result:
+        return None
+
     try:
         return (result[result.index('NYT') + 1],)
     except IndexError:
@@ -53,6 +58,8 @@ def extract_error_class(filename):
 
     enum_define_text = extract_enum_define_text(text)
     namespace = extract_namespace(text)
+    if namespace is None:
+        return None
     error_list = parse_enum_define_text(enum_define_text)
     return ErrorClass(filename=filename, namespace=namespace, error_list=error_list)
 
@@ -140,7 +147,9 @@ def main():
 
     error_class_list = []
     for header_path in header_path_list:
-        error_class_list.append(extract_error_class(header_path))
+        c = extract_error_class(header_path)
+        if c:
+            error_class_list.append(c)
 
     print "#pragma once"""
     print ""
