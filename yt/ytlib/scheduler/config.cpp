@@ -416,9 +416,6 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("additional_security_tags", AdditionalSecurityTags)
         .Default();
 
-    RegisterParameter("max_speculative_job_count", MaxSpeculativeJobCount)
-        .Default(1);
-
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
