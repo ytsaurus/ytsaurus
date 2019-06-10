@@ -520,9 +520,6 @@ public:
     //! These tags are propagated to all operation outputs (unless overridden).
     std::vector<NSecurityClient::TSecurityTag> AdditionalSecurityTags;
 
-    // Maximum number of speculative jobs, running or pending.
-    int MaxSpeculativeJobCount;
-
     TOperationSpecBase();
 
 private:
