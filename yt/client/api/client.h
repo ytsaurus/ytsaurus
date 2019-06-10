@@ -604,6 +604,7 @@ struct TFileWriterOptions
 struct TGetFileFromCacheOptions
     : public TTimeoutOptions
     , public TMasterReadOptions
+    , public TTransactionalOptions
 {
     NYPath::TYPath CachePath;
 };
@@ -613,6 +614,7 @@ struct TPutFileToCacheOptions
     , public TMasterReadOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
+    , public TTransactionalOptions
 {
     NYPath::TYPath CachePath;
     int RetryCount = 10;
