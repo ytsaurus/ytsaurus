@@ -963,6 +963,7 @@ private:
             return;
         }
 
+        // COMPAT(shakurov): disable retries here once all clients have retries enabled.
         SendPing(true).Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
             if (!IsPingableState()) {
                 YT_LOG_DEBUG("Transaction is not in pingable state (TransactionId: %v, State: %v)",
