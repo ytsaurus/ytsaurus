@@ -130,10 +130,27 @@ class TestFileCache(YTEnvSetup):
         assert read_file(path) == content
         assert date_string_to_datetime(get(path + "/@modification_time")) > modification_time
 
+    def test_under_transaction(self):
+        tx = start_transaction()
+
+        content = "abacaba"
+        content_md5 = hashlib.md5("abacaba").hexdigest()
+
+        create("map_node", "//tmp/cache", tx=tx)
+        create("file", "//tmp/file", tx=tx)
+        write_file("//tmp/file", content, compute_md5=True, tx=tx)
+        path = put_file_to_cache("//tmp/file", content_md5, cache_path="//tmp/cache", tx=tx)
+        path2 = get_file_from_cache(content_md5, "//tmp/cache", tx=tx)
+        assert path == path2
+        assert read_file(path, tx=tx) == content
+
+        abort_transaction(tx)
+
+        assert not exists(path)
+
 ##################################################################
 
 class TestFileCacheRpcProxy(TestFileCache):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_PROXY = True
-

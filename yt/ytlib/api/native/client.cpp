@@ -3669,6 +3669,7 @@ private:
 
         auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
         auto req = TYPathProxy::Get(destination + "/@");
+        NCypressClient::SetTransactionId(req, options.TransactionId);
 
         std::vector<TString> attributeKeys{
             "md5"
@@ -3703,7 +3704,7 @@ private:
         }
 
         try {
-            SetTouchedAttribute(destination);
+            SetTouchedAttribute(destination, TPrerequisiteOptions(), options.TransactionId);
         } catch (const NYT::TErrorException& ex) {
             YT_LOG_DEBUG(
                 ex.Error(),
@@ -3730,6 +3731,8 @@ private:
         NApi::ITransactionPtr transaction;
         {
             auto transactionStartOptions = TTransactionStartOptions();
+            transactionStartOptions.ParentId = options.TransactionId;
+
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Format("Putting file %v to cache", path));
             transactionStartOptions.Attributes = std::move(attributes);
