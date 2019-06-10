@@ -140,7 +140,6 @@ public:
         const NYPath::TYPath& path,
         const NApi::TJournalWriterOptions& options) override;
 
-    // TODO(kiselyovp) cpp tests for table reader/writer classes?
     // Tables
     virtual TFuture<NApi::ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,

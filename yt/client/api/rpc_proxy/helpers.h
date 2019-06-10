@@ -233,7 +233,7 @@ TSharedRef SerializeRowsetWithNameTableDelta(
 
 //! Deserializes an unversioned rowset and new columns for the #nameTable,
 //! updates the #nameTable and #descriptor. If #idMapping is specified, it is
-//! applied to the rowset and updated too.
+//! applied to the rowset and updated, too.
 TSharedRange<NTableClient::TUnversionedRow> DeserializeRowsetWithNameTableDelta(
     const TSharedRef& data,
     const NTableClient::TNameTablePtr& nameTable,

@@ -160,7 +160,7 @@ public:
     virtual i64 GetTableRowIndex() const override
     {
         // Not supported.
-        return 0;
+        return -1;
     }
 
 private:

@@ -13,6 +13,8 @@ const TString DefaultProxyRole = "default";
 const TString ApiServiceName = "ApiService";
 const TString DiscoveryServiceName = "DiscoveryService";
 
+const int CurrentWireFormatVersion = 1;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NRpcProxy

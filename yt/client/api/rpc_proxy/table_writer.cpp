@@ -51,7 +51,6 @@ public:
     virtual TFuture<void> GetReadyEvent() override
     {
         ValidateNotClosed();
-
         return ReadyEvent_;
     }
 
@@ -96,9 +95,9 @@ TFuture<ITableWriterPtr> CreateTableWriter(
     TApiServiceProxy::TReqWriteTablePtr request)
 {
     auto schemaHolder = std::make_unique<TTableSchema>();
-    auto createStreamResult = NRpc::CreateRpcClientOutputStream(
+    auto futureStream = NRpc::CreateRpcClientOutputStream(
         std::move(request),
-        BIND ([=, schema = schemaHolder.get()] (const TSharedRef& metaRef) {
+        BIND ([schema = schemaHolder.get()] (const TSharedRef& metaRef) {
             NApi::NRpcProxy::NProto::TWriteTableMeta meta;
             if (!TryDeserializeProto(&meta, metaRef)) {
                 THROW_ERROR_EXCEPTION("Failed to deserialize schema for table writer");
@@ -107,8 +106,8 @@ TFuture<ITableWriterPtr> CreateTableWriter(
             FromProto(schema, meta.schema());
         }));
 
-    return createStreamResult.Apply(BIND([=, schemaHolder = std::move(schemaHolder)]
-        (const IAsyncZeroCopyOutputStreamPtr& outputStream) {
+    return futureStream.Apply(
+        BIND([schemaHolder = std::move(schemaHolder)] (const IAsyncZeroCopyOutputStreamPtr& outputStream) {
             return New<TTableWriter>(outputStream, *schemaHolder);
         })).As<ITableWriterPtr>();
 }
