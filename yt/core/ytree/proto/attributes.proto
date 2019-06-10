@@ -7,6 +7,8 @@ option java_multiple_files = true;
 
 option go_package = "a.yandex-team.ru/yt/go/proto/core/ytree";
 
+option python_package = "yt_proto.yt.core.ytree.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TAttribute
