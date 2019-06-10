@@ -648,7 +648,7 @@ private:
                 location->GetIOEngine(),
                 chunkId,
                 fileName,
-                /* syncOnClose */ false);
+                /* syncOnClose */ true);
 
             auto checkedChunkWriter = New<TErrorInterceptingChunkWriter>(location, chunkWriter);
 
