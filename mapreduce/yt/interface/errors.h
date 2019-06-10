@@ -42,6 +42,7 @@ public:
     void ParseFrom(const TString& jsonError);
 
     int GetInnerCode() const;
+    TSet<int> GetAllErrorCodes() const;
     bool ContainsErrorCode(int code) const;
 
     bool ContainsText(const TStringBuf& text) const;
