@@ -1,5 +1,7 @@
 package NYT.NNodeTrackerClient.NProto;
 
+option python_package = "yt_proto.yt.client.node_tracker_client.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Describes the current state of a storage location.
