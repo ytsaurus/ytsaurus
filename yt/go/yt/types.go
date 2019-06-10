@@ -17,6 +17,9 @@ const (
 	NodeFile NodeType = "file"
 	// NodeTable is table.
 	NodeTable NodeType = "table"
+
+	NodeUser  NodeType = "user"
+	NodeGroup NodeType = "group"
 )
 
 func (n NodeType) String() string {
