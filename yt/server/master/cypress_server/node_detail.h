@@ -10,6 +10,7 @@
 
 #include <yt/server/master/object_server/attribute_set.h>
 #include <yt/server/master/object_server/object_detail.h>
+#include <yt/server/master/object_server/object_part_cow_ptr.h>
 #include <yt/server/master/object_server/type_handler_detail.h>
 
 #include <yt/server/master/security_server/account.h>
@@ -719,19 +720,75 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! The core of a map node. May be shared between multiple map nodes for CoW optimization.
+//! Designed to be wrapped into TObjectPartCoWPtr.
+struct TMapNodeChildren
+{
+    using TKeyToChild = THashMap<TString, TCypressNodeBase*>;
+    using TChildToKey = THashMap<TCypressNodeBase*, TString>;
+
+    TKeyToChild KeyToChild;
+    TChildToKey ChildToKey;
+    int RefCount_ = 0;
+
+    TMapNodeChildren() = default;
+    ~TMapNodeChildren();
+
+    // Refcounted classes never are - and shouldn't be - copyable.
+    TMapNodeChildren(const TMapNodeChildren&) = delete;
+    TMapNodeChildren& operator=(const TMapNodeChildren&) = delete;
+
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
+
+    int GetRefCount() const noexcept
+    {
+        return RefCount_;
+    }
+
+    void Ref() noexcept
+    {
+        ++RefCount_;
+    }
+
+    void Unref() noexcept
+    {
+        YCHECK(--RefCount_ >= 0);
+    }
+
+    static void Destroy(TMapNodeChildren* children, const NObjectServer::TObjectManagerPtr& objectManager);
+    static TMapNodeChildren* Copy(TMapNodeChildren* srcChildren, const NObjectServer::TObjectManagerPtr& objectManager);
+
+private:
+    void RefChildren(const NObjectServer::TObjectManagerPtr& objectManager);
+    void UnrefChildren(const NObjectServer::TObjectManagerPtr& objectManager);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMapNode
     : public TCompositeNodeBase
 {
 public:
-    typedef THashMap<TString, TCypressNodeBase*> TKeyToChild;
-    typedef THashMap<TCypressNodeBase*, TString> TChildToKey;
+    using TKeyToChild = TMapNodeChildren::TKeyToChild;
+    using TChildToKey = TMapNodeChildren::TChildToKey;
 
-    DEFINE_BYREF_RW_PROPERTY(TKeyToChild, KeyToChild);
-    DEFINE_BYREF_RW_PROPERTY(TChildToKey, ChildToKey);
     DEFINE_BYREF_RW_PROPERTY(int, ChildCountDelta);
 
 public:
-    using TCompositeNodeBase::TCompositeNodeBase;
+    explicit TMapNode(const TVersionedNodeId& id);
+
+    ~TMapNode();
+
+    explicit TMapNode(const TMapNode&) = delete;
+    TMapNode& operator=(const TMapNode&) = delete;
+
+    const TKeyToChild& KeyToChild() const;
+    const TChildToKey& ChildToKey() const;
+
+    // Potentially does the 'copy' part of CoW.
+    TKeyToChild& MutableKeyToChild(const NObjectServer::TObjectManagerPtr& objectManager);
+    TChildToKey& MutableChildToKey(const NObjectServer::TObjectManagerPtr& objectManager);
 
     virtual NYTree::ENodeType GetNodeType() const override;
 
@@ -740,6 +797,10 @@ public:
 
     virtual int GetGCWeight() const override;
 
+private:
+    NObjectServer::TObjectPartCoWPtr<TMapNodeChildren> Children_;
+
+    friend class TMapNodeTypeHandler;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

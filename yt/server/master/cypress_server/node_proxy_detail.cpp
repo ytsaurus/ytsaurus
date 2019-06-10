@@ -2031,6 +2031,10 @@ int TMapNodeProxy::GetChildCount() const
     for (const auto* node : originators) {
         const auto* mapNode = node->As<TMapNode>();
         result += mapNode->ChildCountDelta();
+
+        if (mapNode->GetLockMode() == ELockMode::Snapshot) {
+            break;
+        }
     }
     return result;
 }
@@ -2092,8 +2096,13 @@ bool TMapNodeProxy::AddChild(const TString& key, const NYTree::INodePtr& child)
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
     auto* childImpl = LockImpl(trunkChildImpl);
 
-    impl->KeyToChild()[key] = trunkChildImpl;
-    YCHECK(impl->ChildToKey().insert(std::make_pair(trunkChildImpl, key)).second);
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+
+    auto& keyToChild = impl->MutableKeyToChild(objectManager);
+    auto& childToKey = impl->MutableChildToKey(objectManager);
+
+    keyToChild[key] = trunkChildImpl;
+    YCHECK(childToKey.insert(std::make_pair(trunkChildImpl, key)).second);
     ++impl->ChildCountDelta();
 
     AttachChild(Bootstrap_->GetObjectManager(), TrunkNode, childImpl);
@@ -2160,11 +2169,12 @@ void TMapNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newCh
 
     auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(key));
 
-    auto& keyToChild = impl->KeyToChild();
-    auto& childToKey = impl->ChildToKey();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+
+    auto& keyToChild = impl->MutableKeyToChild(objectManager);
+    auto& childToKey = impl->MutableChildToKey(objectManager);
 
     bool ownsOldChild = keyToChild.find(key) != keyToChild.end();
-    const auto& objectManager = Bootstrap_->GetObjectManager();
     DetachChild(objectManager, TrunkNode, oldChildImpl, ownsOldChild);
 
     keyToChild[key] = newTrunkChildImpl;
@@ -2234,10 +2244,10 @@ void TMapNodeProxy::DoRemoveChild(
     const TString& key,
     TCypressNodeBase* childImpl)
 {
-    auto* trunkChildImpl = childImpl->GetTrunkNode();
-    auto& keyToChild = impl->KeyToChild();
-    auto& childToKey = impl->ChildToKey();
     const auto& objectManager = Bootstrap_->GetObjectManager();
+    auto* trunkChildImpl = childImpl->GetTrunkNode();
+    auto& keyToChild = impl->MutableKeyToChild(objectManager);
+    auto& childToKey = impl->MutableChildToKey(objectManager);
     if (Transaction) {
         auto it = keyToChild.find(key);
         if (it == keyToChild.end()) {
