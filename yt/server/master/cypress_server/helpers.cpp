@@ -36,15 +36,22 @@ const THashMap<TString, TCypressNodeBase*>& GetMapNodeChildMap(
     for (const auto* node : originators) {
         const auto* mapNode = node->As<TMapNode>();
         const auto& keyToChild = mapNode->KeyToChild();
-        if (mapNode == trunkNode) {
-            storage->reserve(keyToChild.size());
-        }
-        for (const auto& pair : keyToChild) {
-            if (!pair.second) {
-                // NB: key may be absent.
-                storage->erase(pair.first);
-            } else {
-                (*storage)[pair.first] = pair.second;
+
+        if (mapNode->GetLockMode() == ELockMode::None ||
+            mapNode->GetLockMode() == ELockMode::Snapshot)
+        {
+            YCHECK(mapNode == trunkNode || mapNode->GetLockMode() == ELockMode::Snapshot);
+            *storage = keyToChild;
+        } else {
+            Y_ASSERT(mapNode != trunkNode);
+
+            for (const auto& [childId, childNode] : keyToChild) {
+                if (!childNode) {
+                    // NB: key may be absent.
+                    storage->erase(childId);
+                } else {
+                    (*storage)[childId] = childNode;
+                }
             }
         }
     }
@@ -109,6 +116,10 @@ TCypressNodeBase* FindMapNodeChild(
         if (it != mapNode->KeyToChild().end()) {
             return it->second;
         }
+
+        if (mapNode->GetLockMode() == ELockMode::Snapshot) {
+            break;
+        }
     }
 
     return nullptr;
@@ -128,6 +139,11 @@ TStringBuf FindMapNodeChildKey(
             key = it->second;
             break;
         }
+
+        if (currentParentNode->GetLockMode() == ELockMode::Snapshot) {
+            break;
+        }
+
         auto* originator = currentParentNode->GetOriginator();
         if (!originator) {
             break;
@@ -144,6 +160,11 @@ TStringBuf FindMapNodeChildKey(
         if (it != currentParentNode->KeyToChild().end() && !it->second) {
             return TStringBuf();
         }
+
+        if (currentParentNode->GetLockMode() == ELockMode::Snapshot) {
+            break;
+        }
+
         auto* originator = currentParentNode->GetOriginator();
         if (!originator) {
             break;
