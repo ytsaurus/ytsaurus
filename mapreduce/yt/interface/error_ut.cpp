@@ -51,6 +51,8 @@ Y_UNIT_TEST_SUITE(ErrorSuite)
 
         UNIT_ASSERT_VALUES_EQUAL(error.HasAttributes(), true);
         UNIT_ASSERT_VALUES_EQUAL(error.GetAttributes().at("method"), TNode("Create"));
+
+        UNIT_ASSERT_VALUES_EQUAL(error.GetAllErrorCodes(), TSet<int>({500, 1}));
     }
 
     Y_UNIT_TEST(TestGetYsonText) {
