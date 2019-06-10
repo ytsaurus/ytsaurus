@@ -55,7 +55,7 @@ func (e *Encoder) CreateObject(
 ) (id yt.NodeID, err error) {
 	call := e.newCall(NewCreateObjectParams(typ, options))
 	err = e.do(ctx, call, func(res *CallResult) error {
-		err = res.decodeSingle("node_id", &id)
+		err = res.decodeSingle("object_id", &id)
 		return err
 	})
 	return
