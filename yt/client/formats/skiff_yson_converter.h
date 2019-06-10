@@ -15,20 +15,28 @@ using TSkiffToYsonConverter = std::function<void(NSkiff::TCheckedInDebugSkiffPar
 struct TYsonToSkiffConverterConfig
 {
     // Usually skiffSchema MUST match descriptor.LogicalType.
-    // But when SparseField is set to true and descriptor.LogicalType is Optional<SomeInnerType>
+    // But when AllowOmitTopLevelOptional is set to true and descriptor.LogicalType is Optional<SomeInnerType>
     // skiffSchema CAN match SomeInnerType. In that case returned converter will throw error when it gets empty value.
     //
     // Useful for sparse fields.
-    bool ExpectTopLevelOptionalSet = false;
+    bool AllowOmitTopLevelOptional = false;
 };
 
 TYsonToSkiffConverter CreateYsonToSkiffConverter(
     NTableClient::TComplexTypeFieldDescriptor descriptor,
-    const NSkiff::TSkiffSchemaPtr& skiffSchema, const TYsonToSkiffConverterConfig& config = {});
+    const NSkiff::TSkiffSchemaPtr& skiffSchema,
+    const TYsonToSkiffConverterConfig& config = {});
+
+struct TSkiffToYsonConverterConfig
+{
+    // Similar to TYsonToSkiffConverterConfig::AllowOmitTopLevelOptional.
+    bool AllowOmitTopLevelOptional = false;
+};
 
 TSkiffToYsonConverter CreateSkiffToYsonConverter(
     NTableClient::TComplexTypeFieldDescriptor descriptor,
-    const NSkiff::TSkiffSchemaPtr& skiffSchema);
+    const NSkiff::TSkiffSchemaPtr& skiffSchema,
+    const TSkiffToYsonConverterConfig& config = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

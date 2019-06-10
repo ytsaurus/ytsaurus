@@ -190,7 +190,7 @@ TUnversionedValueToSkiffConverter CreateComplexValueConverter(
     bool isSparse)
 {
     TYsonToSkiffConverterConfig config;
-    config.ExpectTopLevelOptionalSet = isSparse;
+    config.AllowOmitTopLevelOptional = isSparse;
     auto ysonToSkiff = CreateYsonToSkiffConverter(std::move(descriptor), skiffSchema, config);
     return [ysonToSkiff=ysonToSkiff] (const TUnversionedValue& value, TCheckedInDebugSkiffWriter* skiffWriter, TWriteContext* context) {
         TMemoryInput input;

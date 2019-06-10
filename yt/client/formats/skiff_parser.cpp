@@ -145,9 +145,12 @@ private:
 TSkiffToUnversionedValueConverter CreateComplexValueConverter(
     NTableClient::TComplexTypeFieldDescriptor descriptor,
     const TSkiffSchemaPtr& skiffSchema,
-    ui16 columnId)
+    ui16 columnId,
+    bool sparseColumn)
 {
-    auto converter = CreateSkiffToYsonConverter(std::move(descriptor), skiffSchema);
+    TSkiffToYsonConverterConfig config;
+    config.AllowOmitTopLevelOptional = sparseColumn;
+    auto converter = CreateSkiffToYsonConverter(std::move(descriptor), skiffSchema, config);
     return TComplexValueConverter(converter, columnId);
 }
 
@@ -180,7 +183,8 @@ public:
                     converter = CreateComplexValueConverter(
                         TComplexTypeFieldDescriptor(fieldDescription.Name(), (*columnSchema)->LogicalType()),
                         fieldDescription.Schema(),
-                        columnId);
+                        columnId,
+                        /*sparseColumn*/ false);
                 } else {
                     converter = CreateSimpleValueConverter(
                         fieldDescription.ValidatedSimplify(),
@@ -200,7 +204,8 @@ public:
                     converter = CreateComplexValueConverter(
                         TComplexTypeFieldDescriptor(fieldDescription.Name(), (*columnSchema)->LogicalType()),
                         fieldDescription.Schema(),
-                        columnId);
+                        columnId,
+                        /*sparseColumn*/ true);
                 } else {
                     converter = CreateSimpleValueConverter(
                         fieldDescription.ValidatedSimplify(),

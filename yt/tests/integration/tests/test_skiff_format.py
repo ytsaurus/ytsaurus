@@ -262,6 +262,84 @@ class TestSkiffFormat(YTEnvSetup):
 
         assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
 
+    def test_id_map_complex_types(self):
+        schema = [
+            {
+                "name": "list_of_strings",
+                "type_v2": list_type("string"),
+            },
+            {
+                "name": "optional_list_of_strings",
+                "type_v2": optional_type(list_type("string")),
+            },
+            {
+                "name": "optional_optional_boolean",
+                "type_v2": optional_type(optional_type("boolean")),
+            },
+            {
+                "name": "struct",
+                "type_v2": struct_type([
+                    ("key", "string"),
+                    ("points", list_type(
+                        struct_type([
+                            ("x", "int64"),
+                            ("y", "int64"),
+                        ])
+                    ))
+                ]),
+            },
+        ]
+        create("table", "//tmp/t_in", attributes={"schema": schema})
+        write_table("//tmp/t_in", [
+            {
+                "list_of_strings": ["foo", "bar", "baz"],
+                "optional_list_of_strings": None,
+                "optional_optional_boolean": [False],
+                "struct": ["qux", [[1, 4], [5, 4]]],
+            },
+            {
+                "list_of_strings": ["a", "bc"],
+                "optional_list_of_strings": ["defg", "hi"],
+                "optional_optional_boolean": [None],
+                "struct": ["lol", []],
+            }
+        ])
+
+        create("table", "//tmp/t_out", attributes={"schema": schema})
+
+        format = yson.YsonString("skiff")
+        format.attributes["table_skiff_schemas"] = [
+            skiff_tuple([
+                skiff_repeated_variant8([skiff_simple("string32")], name="list_of_strings"),
+                skiff_optional(
+                    skiff_repeated_variant8([skiff_simple("string32")]),
+                    name="optional_list_of_strings"
+                ),
+                skiff_optional(skiff_optional(skiff_simple("boolean")), name="optional_optional_boolean"),
+                skiff_tuple(
+                    [
+                        skiff_simple("string32", name="key"),
+                        skiff_repeated_variant8([skiff_tuple([
+                            skiff_simple("int64", name="x"),
+                            skiff_simple("int64", name="y"),
+                        ])], name="points")
+                    ],
+                    name="struct",
+                )
+            ])
+        ]
+
+        map(in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="tee /dev/stderr",
+            spec={
+                "mapper": {
+                    "format": format,
+                }
+            })
+
+        assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
+
     def test_read_complex_types(self):
         schema = [
             {
