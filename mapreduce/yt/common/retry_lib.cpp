@@ -1,8 +1,10 @@
 #include "retry_lib.h"
 
 #include "config.h"
+#include <mapreduce/yt/interface/error_codes.h>
 
 #include <util/string/builder.h>
+#include <util/generic/set.h>
 
 namespace NYT {
 
@@ -159,9 +161,14 @@ static std::pair<bool,TDuration> GetRetryInfo(const TErrorResponse& errorRespons
     TDuration retryInterval = TConfig::Get()->RetryInterval;
 
     int code = errorResponse.GetError().GetInnerCode();
+    auto allCodes = errorResponse.GetError().GetAllErrorCodes();
     int httpCode = errorResponse.GetHttpCode();
+    using namespace NClusterErrorCodes;
     if (httpCode / 100 == 4) {
-        if (httpCode == 429 || code == 904 || code == 108) {
+        if (httpCode == 429
+            || allCodes.count(NSecurityClient::RequestQueueSizeLimitExceeded)
+            || allCodes.count(NRpc::RequestQueueSizeLimitExceeded))
+        {
             // request rate limit exceeded
             retryInterval = TConfig::Get()->RateLimitExceededRetryInterval;
         } else if (errorResponse.IsConcurrentOperationsLimitReached()) {
@@ -170,6 +177,11 @@ static std::pair<bool,TDuration> GetRetryInfo(const TErrorResponse& errorRespons
         } else if (code / 100 == 7) {
             // chunk client errors
             retryInterval = TConfig::Get()->ChunkErrorsRetryInterval;
+        } else if (
+            allCodes.count(NRpc::TransportError)
+            || allCodes.count(NRpc::Unavailable))
+        {
+            retriable = true;
         } else {
             retriable = false;
         }

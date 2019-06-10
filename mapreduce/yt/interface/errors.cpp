@@ -10,6 +10,7 @@
 
 #include <util/string/builder.h>
 #include <util/stream/str.h>
+#include <util/generic/set.h>
 
 namespace NYT {
 
@@ -220,6 +221,21 @@ int TYtError::GetInnerCode() const
         }
     }
     return 0;
+}
+
+TSet<int> TYtError::GetAllErrorCodes() const
+{
+    TDeque<const TYtError*> queue = {this};
+    TSet<int> result;
+    while (!queue.empty()) {
+        const auto* current = queue.front();
+        queue.pop_front();
+        result.insert(current->Code_);
+        for (const auto& error : current->InnerErrors_) {
+            queue.push_back(&error);
+        }
+    }
+    return result;
 }
 
 bool TYtError::ContainsErrorCode(int code) const
