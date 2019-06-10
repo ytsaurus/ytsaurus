@@ -2236,7 +2236,10 @@ private:
         TSharedRange<TUnversionedRow>* keys,
         TOptions* options)
     {
-        NApi::NRpcProxy::ValidateRowsetDescriptor(request->rowset_descriptor(), 1, NApi::NRpcProxy::NProto::RK_UNVERSIONED);
+        NApi::NRpcProxy::ValidateRowsetDescriptor(
+            request->rowset_descriptor(),
+            NApi::NRpcProxy::CurrentWireFormatVersion,
+            NApi::NRpcProxy::NProto::RK_UNVERSIONED);
         if (request->Attachments().empty()) {
             context->Reply(TError("Request is missing rowset in attachments"));
             return false;
@@ -3156,7 +3159,7 @@ private:
             .ThrowOnError();
 
         NApi::NRpcProxy::NProto::TRowsetDescriptor descriptor;
-        descriptor.set_wire_format_version(1);
+        descriptor.set_wire_format_version(NApi::NRpcProxy::CurrentWireFormatVersion);
         descriptor.set_rowset_kind(NApi::NRpcProxy::NProto::RK_UNVERSIONED);
 
         auto blockHandler = BIND([&] (const TSharedRef& block) {

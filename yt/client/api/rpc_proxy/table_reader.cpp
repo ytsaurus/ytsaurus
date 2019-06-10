@@ -1,5 +1,6 @@
 #include "table_reader.h"
 #include "helpers.h"
+#include "public.h"
 
 #include <yt/client/api/rowset.h>
 #include <yt/client/api/table_reader.h>
@@ -32,7 +33,7 @@ public:
         , OmittedInaccessibleColumns_(omittedInaccessibleColumns)
     {
         YCHECK(Underlying_);
-        RowsetDescriptor_.set_wire_format_version(1);
+        RowsetDescriptor_.set_wire_format_version(NApi::NRpcProxy::CurrentWireFormatVersion);
         RowsetDescriptor_.set_rowset_kind(NApi::NRpcProxy::NProto::RK_UNVERSIONED);
 
         ApplyReaderPayload(payload);
@@ -79,8 +80,8 @@ public:
             ReadyEvent_ = NewPromise<void>();
         }
 
-        while (AsyncRowsWithPayload_ && AsyncRowsWithPayload_.IsSet() && AsyncRowsWithPayload_.Get().IsOK()
-            && !Finished_ && rows->size() < rows->capacity())
+        while (AsyncRowsWithPayload_ && AsyncRowsWithPayload_.IsSet() && AsyncRowsWithPayload_.Get().IsOK() &&
+            !Finished_ && rows->size() < rows->capacity())
         {
             const auto& currentRows = AsyncRowsWithPayload_.Get().Value().Rows;
             const auto& currentPayload = AsyncRowsWithPayload_.Get().Value().Payload;
@@ -212,7 +213,7 @@ private:
             THROW_ERROR_EXCEPTION("Error deserializing table reader payload");
         }
 
-        return { std::move(rows), std::move(payload) };
+        return {std::move(rows), std::move(payload)};
     }
 };
 

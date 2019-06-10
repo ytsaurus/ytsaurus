@@ -1,4 +1,5 @@
 #include "helpers.h"
+#include "public.h"
 
 #include <yt/client/api/rowset.h>
 
@@ -1254,7 +1255,7 @@ std::vector<TSharedRef> SerializeRowsetWithPartialNameTable(
     NProto::TRowsetDescriptor* descriptor)
 {
     descriptor->Clear();
-    descriptor->set_wire_format_version(1);
+    descriptor->set_wire_format_version(NApi::NRpcProxy::CurrentWireFormatVersion);
     descriptor->set_rowset_kind(NProto::RK_UNVERSIONED);
     YCHECK(startingId <= nameTable->GetSize());
     for (int id = startingId; id < nameTable->GetSize(); ++id) {
@@ -1281,7 +1282,7 @@ std::vector<TSharedRef> SerializeRowset(
     NProto::TRowsetDescriptor* descriptor)
 {
     descriptor->Clear();
-    descriptor->set_wire_format_version(1);
+    descriptor->set_wire_format_version(NApi::NRpcProxy::CurrentWireFormatVersion);
     descriptor->set_rowset_kind(TRowsetTraits<TRow>::Kind);
     for (const auto& column : schema.Columns()) {
         auto* columnDescriptor = descriptor->add_columns();
@@ -1337,7 +1338,10 @@ TIntrusivePtr<NApi::IRowset<TRow>> DeserializeRowset(
     const NProto::TRowsetDescriptor& descriptor,
     const TSharedRef& data)
 {
-    ValidateRowsetDescriptor(descriptor, 1, TRowsetTraits<TRow>::Kind);
+    ValidateRowsetDescriptor(
+        descriptor,
+        NApi::NRpcProxy::CurrentWireFormatVersion,
+        TRowsetTraits<TRow>::Kind);
     TWireProtocolReader reader(data, New<TRowBuffer>(TRpcProxyRowsetBufferTag()));
     auto schema = DeserializeRowsetSchema(descriptor);
     auto schemaData = TWireProtocolReader::GetSchemaData(schema, TColumnFilter());
@@ -1370,7 +1374,7 @@ TSharedRef SerializeRowsetWithNameTableDelta(
     auto mergedRowRefs = MergeRefsToRef<TRpcProxyRowsetBufferTag>(rowRefs);
 
     // TODO(kiselyovp) refs are being copied here, we could optimize this
-    return PackRefs(std::vector{ descriptorRef, mergedRowRefs });
+    return PackRefs(std::vector{descriptorRef, mergedRowRefs});
 }
 
 TSharedRange<NTableClient::TUnversionedRow> DeserializeRowsetWithNameTableDelta(
@@ -1397,7 +1401,7 @@ TSharedRange<NTableClient::TUnversionedRow> DeserializeRowsetWithNameTableDelta(
     }
     NApi::NRpcProxy::ValidateRowsetDescriptor(
         descriptorDelta,
-        1,
+        NApi::NRpcProxy::CurrentWireFormatVersion,
         NApi::NRpcProxy::NProto::RK_UNVERSIONED);
 
     auto oldRemoteNameTableSize = descriptor->columns_size();
@@ -1414,8 +1418,6 @@ TSharedRange<NTableClient::TUnversionedRow> DeserializeRowsetWithNameTableDelta(
         }
 
         for (auto& row : rowset->GetRows()) {
-            // TODO(kiselyovp) the line below is a const_cast and i want to argue that it's better than
-            // patching an id mapping inside TWireProtocolReader
             auto mutableRow = TMutableUnversionedRow(row.ToTypeErasedRow());
             for (auto& value : mutableRow) {
                 auto newId = ApplyIdMapping(value, rowset->Schema(), idMapping);
