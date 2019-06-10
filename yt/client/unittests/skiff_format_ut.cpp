@@ -1718,6 +1718,102 @@ TEST(TSkiffParser, ColumnIds)
     ASSERT_EQ(GetUint64(collectedRows.GetRowValue(0, "field_b")), 2);
 }
 
+TEST(TSkiffParser, TestSparseComplexType)
+{
+    auto skiffSchema = CreateTupleSchema({
+        CreateRepeatedVariant16Schema({
+            CreateTupleSchema({
+                CreateSimpleTypeSchema(EWireType::String32)->SetName("name"),
+                CreateSimpleTypeSchema(EWireType::Int64)->SetName("value"),
+            })->SetName("value"),
+        })->SetName("$sparse_columns"),
+    });
+
+    TCollectingValueConsumer collectedRows(
+        TTableSchema({
+            TColumnSchema("value", OptionalLogicalType(
+                StructLogicalType({
+                    {"name", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                    {"value", SimpleLogicalType(ESimpleLogicalValueType::Int64)}
+                })
+            ))
+        }));
+    auto parser = CreateParserForSkiff(skiffSchema, &collectedRows);
+
+    TStringStream dataStream;
+    TCheckedSkiffWriter checkedSkiffWriter(CreateVariant16Schema({skiffSchema}), &dataStream);
+
+    // Row 0.
+    checkedSkiffWriter.WriteVariant16Tag(0);
+    checkedSkiffWriter.WriteVariant16Tag(0);
+    checkedSkiffWriter.WriteString32("row_0");
+    checkedSkiffWriter.WriteInt64(10);
+    checkedSkiffWriter.WriteVariant16Tag(EndOfSequenceTag<ui16>());
+
+    // Row 1.
+    checkedSkiffWriter.WriteVariant16Tag(0);
+    checkedSkiffWriter.WriteVariant16Tag(EndOfSequenceTag<ui16>());
+
+    checkedSkiffWriter.Finish();
+
+    parser->Read(dataStream.Str());
+    parser->Finish();
+
+    ASSERT_EQ(collectedRows.Size(), 2);
+    EXPECT_EQ(ConvertToYsonTextStringStable(GetAny(collectedRows.GetRowValue(0, "value"))), "[\"row_0\";10;]");
+    EXPECT_FALSE(collectedRows.FindRowValue(1, "value"));
+}
+
+TEST(TSkiffParser, TestSparseComplexTypeWithExtraOptional)
+{
+    auto skiffSchema = CreateTupleSchema({
+        CreateRepeatedVariant16Schema({
+            CreateVariant8Schema({
+                CreateSimpleTypeSchema(EWireType::Nothing),
+                CreateTupleSchema({
+                    CreateSimpleTypeSchema(EWireType::String32)->SetName("key"),
+                    CreateSimpleTypeSchema(EWireType::Int64)->SetName("value"),
+                })
+            })->SetName("column"),
+        })->SetName("$sparse_columns"),
+    });
+
+    TCollectingValueConsumer collectedRows(
+        TTableSchema({
+            TColumnSchema("column", OptionalLogicalType(
+                StructLogicalType({
+                    {"key", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::String, true)},
+                    {"value", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::Int64, true)}
+                })
+            ))
+        }));
+    auto parser = CreateParserForSkiff(skiffSchema, &collectedRows);
+
+    TStringStream dataStream;
+    TCheckedSkiffWriter checkedSkiffWriter(CreateVariant16Schema({skiffSchema}), &dataStream);
+
+    // Row 0.
+    checkedSkiffWriter.WriteVariant16Tag(0);
+    checkedSkiffWriter.WriteVariant16Tag(0);
+    checkedSkiffWriter.WriteVariant8Tag(1);
+    checkedSkiffWriter.WriteString32("row_0");
+    checkedSkiffWriter.WriteInt64(42);
+    checkedSkiffWriter.WriteVariant16Tag(EndOfSequenceTag<ui16>());
+
+    // Row 1.
+    checkedSkiffWriter.WriteVariant16Tag(0);
+    checkedSkiffWriter.WriteVariant16Tag(EndOfSequenceTag<ui16>());
+
+    checkedSkiffWriter.Finish();
+
+    parser->Read(dataStream.Str());
+    parser->Finish();
+
+    ASSERT_EQ(collectedRows.Size(), 2);
+    ASSERT_EQ(ConvertToYsonTextStringStable(GetAny(collectedRows.GetRowValue(0, "column"))), "[\"row_0\";42;]");
+    ASSERT_FALSE(collectedRows.FindRowValue(1, "column"));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

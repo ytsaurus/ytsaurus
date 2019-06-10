@@ -23,17 +23,23 @@ namespace {
 
 using TTypePair = std::pair<TComplexTypeFieldDescriptor, TSkiffSchemaPtr>;
 
-struct TYsonToSkiffCreatorContext;
+struct TConverterCreationContext;
 
 TYsonToSkiffConverter CreateYsonToSkiffConverterImpl(
     TComplexTypeFieldDescriptor descriptor,
     const TSkiffSchemaPtr& skiffSchema,
-    const TYsonToSkiffCreatorContext& context,
+    const TConverterCreationContext& context,
     const TYsonToSkiffConverterConfig& config);
+
+TSkiffToYsonConverter CreateSkiffToYsonConverterImpl(
+    TComplexTypeFieldDescriptor descriptor,
+    const TSkiffSchemaPtr& skiffSchema,
+    const TConverterCreationContext& context,
+    const TSkiffToYsonConverterConfig& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TYsonToSkiffCreatorContext
+struct TConverterCreationContext
 {
     int NestingLevel = 0;
 };
@@ -172,7 +178,10 @@ template <typename... Args>
         << TError(args...);
 }
 
-TOptionalTypesMatch MatchOptionalTypes(const TComplexTypeFieldDescriptor& descriptor, const TSkiffSchemaPtr& skiffSchema)
+TOptionalTypesMatch MatchOptionalTypes(
+    const TComplexTypeFieldDescriptor& descriptor,
+    const TSkiffSchemaPtr& skiffSchema,
+    bool allowOmitOptional)
 {
     try {
         auto innerDescriptor = descriptor;
@@ -190,7 +199,9 @@ TOptionalTypesMatch MatchOptionalTypes(const TComplexTypeFieldDescriptor& descri
             innerSkiffSchema = child;
         }
 
-        if (logicalNesting != skiffNesting && logicalNesting != skiffNesting + 1) {
+        if (logicalNesting != skiffNesting &&
+            !(allowOmitOptional && logicalNesting == skiffNesting + 1))
+        {
             THROW_ERROR_EXCEPTION("Optional nesting mismatch, logical type nesting: %Qv, skiff nesting: %Qv",
                 logicalNesting,
                 skiffNesting);
@@ -265,7 +276,7 @@ std::vector<TTypePair> MatchStructTypes(const TComplexTypeFieldDescriptor& descr
                         skiffName);
                 }
             }
-            THROW_ERROR_EXCEPTION("%Qv child %Qv is not found in logical typel",
+            THROW_ERROR_EXCEPTION("%Qv child %Qv is not found in logical type",
                 EWireType::Tuple,
                 skiffName);
         }
@@ -325,7 +336,7 @@ private:
 TYsonToSkiffConverter CreateSimpleYsonToSkiffConverter(
     const TComplexTypeFieldDescriptor& descriptor,
     const TSkiffSchemaPtr& skiffSchema,
-    const TYsonToSkiffCreatorContext& context,
+    const TConverterCreationContext& context,
     const TYsonToSkiffConverterConfig& config)
 {
     const auto& logicalType = descriptor.GetType()->AsSimpleTypeRef();
@@ -447,16 +458,14 @@ private:
 TYsonToSkiffConverter CreateOptionalYsonToSkiffConverter(
     TComplexTypeFieldDescriptor descriptor,
     const TSkiffSchemaPtr& skiffSchema,
-    const TYsonToSkiffCreatorContext& context,
+    const TConverterCreationContext& context,
     const TYsonToSkiffConverterConfig& config)
 {
-    auto match = MatchOptionalTypes(descriptor, skiffSchema);
-    if (match.LogicalNesting != match.SkiffNesting) {
-        if (!config.ExpectTopLevelOptionalSet || context.NestingLevel > 0) {
-            RethrowCannotMatchField(descriptor, skiffSchema, TErrorException()
-                <<= TError("Optional nesting mismatch"));
-        }
-    }
+    const bool allowOmitOptional = config.AllowOmitTopLevelOptional && context.NestingLevel == 0;
+    auto match = MatchOptionalTypes(
+        descriptor,
+        skiffSchema,
+        allowOmitOptional);
 
     auto innerConverter = CreateYsonToSkiffConverterImpl(
         std::move(match.InnerTypes.first),
@@ -474,7 +483,7 @@ TYsonToSkiffConverter CreateOptionalYsonToSkiffConverter(
 TYsonToSkiffConverter CreateListYsonToSkiffConverter(
     TComplexTypeFieldDescriptor descriptor,
     const TSkiffSchemaPtr& skiffSchema,
-    const TYsonToSkiffCreatorContext& context,
+    const TConverterCreationContext& context,
     const TYsonToSkiffConverterConfig& config)
 {
     auto match = MatchListTypes(descriptor, skiffSchema);
@@ -552,7 +561,7 @@ private:
 TYsonToSkiffConverter CreateStructYsonToSkiffConverter(
     TComplexTypeFieldDescriptor descriptor,
     const TSkiffSchemaPtr& skiffSchema,
-    const TYsonToSkiffCreatorContext& context,
+    const TConverterCreationContext& context,
     const TYsonToSkiffConverterConfig& config)
 {
     TYsonToSkiffConverter skipYsonValue = [](TYsonPullParserCursor* cursor, TCheckedInDebugSkiffWriter* /*writer*/) {
@@ -601,10 +610,10 @@ TYsonToSkiffConverter CreateStructYsonToSkiffConverter(
 TYsonToSkiffConverter CreateYsonToSkiffConverterImpl(
     TComplexTypeFieldDescriptor descriptor,
     const TSkiffSchemaPtr& skiffSchema,
-    const TYsonToSkiffCreatorContext& context,
+    const TConverterCreationContext& context,
     const TYsonToSkiffConverterConfig& config)
 {
-    TYsonToSkiffCreatorContext innerContext = context;
+    TConverterCreationContext innerContext = context;
     ++innerContext.NestingLevel;
     const auto& logicalType = descriptor.GetType();
     switch (logicalType->GetMetatype()) {
@@ -656,7 +665,9 @@ private:
 
 TSkiffToYsonConverter CreateSimpleSkiffToYsonConverter(
     TComplexTypeFieldDescriptor descriptor,
-    const TSkiffSchemaPtr& skiffSchema)
+    const TSkiffSchemaPtr& skiffSchema,
+    const TConverterCreationContext& context,
+    const TSkiffToYsonConverterConfig& config)
 {
     const auto& logicalType = descriptor.GetType()->AsSimpleTypeRef();
     auto valueType = logicalType.GetElement();
@@ -766,19 +777,34 @@ private:
 
 TSkiffToYsonConverter CreateOptionalSkiffToYsonConverter(
     TComplexTypeFieldDescriptor descriptor,
-    const TSkiffSchemaPtr& skiffSchema)
+    const TSkiffSchemaPtr& skiffSchema,
+    const TConverterCreationContext& context,
+    const TSkiffToYsonConverterConfig& config)
 {
-    auto match = MatchOptionalTypes(descriptor, skiffSchema);
-    auto innerConverter = CreateSkiffToYsonConverter(std::move(match.InnerTypes.first), match.InnerTypes.second);
+    const bool allowOmitOptional = config.AllowOmitTopLevelOptional && context.NestingLevel == 0;
+    auto match = MatchOptionalTypes(descriptor, skiffSchema, allowOmitOptional);
+    if (match.LogicalNesting != match.SkiffNesting) {
+        if (!config.AllowOmitTopLevelOptional || context.NestingLevel > 0) {
+            RethrowCannotMatchField(descriptor, skiffSchema, TErrorException()
+                <<= TError("Optional nesting mismatch"));
+        }
+    }
+    auto innerConverter = CreateSkiffToYsonConverterImpl(
+        std::move(match.InnerTypes.first),
+        match.InnerTypes.second,
+        context,
+        config);
     return TOptionalSkiffToYsonConverterImpl(innerConverter, std::move(descriptor), match.LogicalNesting, match.SkiffNesting);
 }
 
 TSkiffToYsonConverter CreateListSkiffToYsonConverter(
     TComplexTypeFieldDescriptor descriptor,
-    const TSkiffSchemaPtr& skiffSchema)
+    const TSkiffSchemaPtr& skiffSchema,
+    const TConverterCreationContext& context,
+    const TSkiffToYsonConverterConfig& config)
 {
     auto match = MatchListTypes(descriptor, skiffSchema);
-    auto innerConverter = CreateSkiffToYsonConverter(std::move(match.first), match.second);
+    auto innerConverter = CreateSkiffToYsonConverterImpl(std::move(match.first), match.second, context, config);
 
     return [innerConverter = innerConverter, descriptor=std::move(descriptor)](TCheckedInDebugSkiffParser* parser, IYsonConsumer* consumer) {
         consumer->OnBeginList();
@@ -802,7 +828,9 @@ TSkiffToYsonConverter CreateListSkiffToYsonConverter(
 
 TSkiffToYsonConverter CreateStructSkiffToYsonConverter(
     TComplexTypeFieldDescriptor descriptor,
-    const TSkiffSchemaPtr& skiffSchema)
+    const TSkiffSchemaPtr& skiffSchema,
+    const TConverterCreationContext& context,
+    const TSkiffToYsonConverterConfig& config)
 {
     const auto insertEntity = [](TCheckedInDebugSkiffParser* /*parser*/, IYsonConsumer* consumer) {
         consumer->OnEntity();
@@ -812,7 +840,7 @@ TSkiffToYsonConverter CreateStructSkiffToYsonConverter(
     std::vector<TSkiffToYsonConverter> converterList;
     for (const auto& [fieldDescriptor, fieldSkiffSchema] : structMatch) {
         if (fieldSkiffSchema) {
-            converterList.emplace_back(CreateSkiffToYsonConverter(fieldDescriptor, fieldSkiffSchema));
+            converterList.emplace_back(CreateSkiffToYsonConverterImpl(fieldDescriptor, fieldSkiffSchema, context, config));
         } else if (fieldDescriptor.GetType()->GetMetatype() == ELogicalMetatype::Optional) {
             converterList.emplace_back(insertEntity);
         } else {
@@ -834,6 +862,28 @@ TSkiffToYsonConverter CreateStructSkiffToYsonConverter(
     };
 }
 
+TSkiffToYsonConverter CreateSkiffToYsonConverterImpl(
+    TComplexTypeFieldDescriptor descriptor,
+    const TSkiffSchemaPtr& skiffSchema,
+    const TConverterCreationContext& context,
+    const TSkiffToYsonConverterConfig& config)
+{
+    TConverterCreationContext innerContext = context;
+    ++innerContext.NestingLevel;
+    const auto& logicalType = descriptor.GetType();
+    switch (logicalType->GetMetatype()) {
+        case ELogicalMetatype::Simple:
+            return CreateSimpleSkiffToYsonConverter(std::move(descriptor), skiffSchema, innerContext, config);
+        case ELogicalMetatype::Optional:
+            return CreateOptionalSkiffToYsonConverter(std::move(descriptor), skiffSchema, innerContext, config);
+        case ELogicalMetatype::List:
+            return CreateListSkiffToYsonConverter(std::move(descriptor), skiffSchema, innerContext, config);
+        case ELogicalMetatype::Struct:
+            return CreateStructSkiffToYsonConverter(std::move(descriptor), skiffSchema, innerContext, config);
+    }
+    Y_UNREACHABLE();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
@@ -845,26 +895,20 @@ TYsonToSkiffConverter CreateYsonToSkiffConverter(
     const TSkiffSchemaPtr& skiffSchema,
     const TYsonToSkiffConverterConfig& config)
 {
-    TYsonToSkiffCreatorContext context;
+    TConverterCreationContext context;
     // CreateYsonToSkiffConverterImpl will increment NestingLevel to 0 for the top level element.
     context.NestingLevel = -1;
     return CreateYsonToSkiffConverterImpl(std::move(descriptor), skiffSchema, context, config);
 }
 
-TSkiffToYsonConverter CreateSkiffToYsonConverter(TComplexTypeFieldDescriptor descriptor, const TSkiffSchemaPtr& skiffSchema)
+TSkiffToYsonConverter CreateSkiffToYsonConverter(
+    TComplexTypeFieldDescriptor descriptor,
+    const TSkiffSchemaPtr& skiffSchema,
+    const TSkiffToYsonConverterConfig& config)
 {
-    const auto& logicalType = descriptor.GetType();
-    switch (logicalType->GetMetatype()) {
-        case ELogicalMetatype::Simple:
-            return CreateSimpleSkiffToYsonConverter(std::move(descriptor), skiffSchema);
-        case ELogicalMetatype::Optional:
-            return CreateOptionalSkiffToYsonConverter(std::move(descriptor), skiffSchema);
-        case ELogicalMetatype::List:
-            return CreateListSkiffToYsonConverter(std::move(descriptor), skiffSchema);
-        case ELogicalMetatype::Struct:
-            return CreateStructSkiffToYsonConverter(std::move(descriptor), skiffSchema);
-    }
-    Y_UNREACHABLE();
+    TConverterCreationContext context;
+    context.NestingLevel = -1;
+    return CreateSkiffToYsonConverterImpl(std::move(descriptor), skiffSchema, context, config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

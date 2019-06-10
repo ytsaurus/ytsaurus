@@ -63,9 +63,10 @@ TString ConvertYsonHex(
 TString ConvertHexToTextYson(
     const TLogicalTypePtr& logicalType,
     const TSkiffSchemaPtr& skiffSchema,
-    TStringBuf hexString)
+    TStringBuf hexString,
+    const TSkiffToYsonConverterConfig& config = {})
 {
-    auto converter = CreateSkiffToYsonConverter(TComplexTypeFieldDescriptor("test-field", logicalType), skiffSchema);
+    auto converter = CreateSkiffToYsonConverter(TComplexTypeFieldDescriptor("test-field", logicalType), skiffSchema, config);
 
     TStringStream out;
     {
@@ -84,10 +85,10 @@ TString ConvertHexToTextYson(
 
 #define CHECK_BIDIRECTIONAL_CONVERSION(logicalType, skiffSchema, ysonString, skiffString, ...) \
     do { \
-        std::optional<TYsonToSkiffConverterConfig> cfg = {__VA_ARGS__}; \
-        auto actualSkiffString = ConvertYsonHex(logicalType, skiffSchema, ysonString, cfg.value_or(TYsonToSkiffConverterConfig())); \
+        std::tuple<TYsonToSkiffConverterConfig,TSkiffToYsonConverterConfig> cfg = {__VA_ARGS__}; \
+        auto actualSkiffString = ConvertYsonHex(logicalType, skiffSchema, ysonString, std::get<0>(cfg)); \
         EXPECT_EQ(actualSkiffString, skiffString) << "Yson -> Skiff conversion error"; \
-        auto actualYsonString = ConvertHexToTextYson(logicalType, skiffSchema, skiffString); \
+        auto actualYsonString = ConvertHexToTextYson(logicalType, skiffSchema, skiffString, std::get<1>(cfg)); \
         EXPECT_EQ(actualYsonString, ysonString) << "Skiff -> Yson conversion error"; \
     } while (0)
 
@@ -236,28 +237,44 @@ TEST(TYsonSkiffConverterTest, TestOptionalTypes)
         EXPECT_THAT(e.what(), testing::HasSubstr("Optional nesting mismatch"));
     }
 
-    TYsonToSkiffConverterConfig allowTopLevelOptionalMismatch;
-    allowTopLevelOptionalMismatch.ExpectTopLevelOptionalSet = true;
+    try {
+        ConvertHexToTextYson(
+            SimpleLogicalType(ESimpleLogicalValueType::Boolean, /*required*/ false),
+            CreateSimpleTypeSchema(EWireType::Boolean),
+            "00");
+        ADD_FAILURE() << "Expected to throw";
+    } catch (const std::exception& e) {
+        EXPECT_THAT(e.what(), testing::HasSubstr("Optional nesting mismatch"));
+    }
+
+    TYsonToSkiffConverterConfig ysonToSkiffConfig;
+    ysonToSkiffConfig.AllowOmitTopLevelOptional = true;
+
+    TSkiffToYsonConverterConfig skiffToYsonConfig;
+    skiffToYsonConfig.AllowOmitTopLevelOptional = true;
+
     CHECK_BIDIRECTIONAL_CONVERSION(
         OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean, /*required*/ false)),
         SkiffOptional(CreateSimpleTypeSchema(EWireType::Boolean)),
         "[%true;]",
         "01" "01",
-        allowTopLevelOptionalMismatch);
+        ysonToSkiffConfig,
+        skiffToYsonConfig);
 
     CHECK_BIDIRECTIONAL_CONVERSION(
         OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean, /*required*/ false)),
         SkiffOptional(CreateSimpleTypeSchema(EWireType::Boolean)),
         "[#;]",
         "00",
-        allowTopLevelOptionalMismatch);
+        ysonToSkiffConfig,
+        skiffToYsonConfig);
 
     try {
         ConvertYsonHex(
             OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean, /*required*/ false)),
             SkiffOptional(CreateSimpleTypeSchema(EWireType::Boolean)),
             " # ",
-            allowTopLevelOptionalMismatch);
+            ysonToSkiffConfig);
         ADD_FAILURE() << "Expected to throw";
     } catch (const std::exception& e) {
         EXPECT_THAT(e.what(), testing::HasSubstr("value expected to be nonempty"));
