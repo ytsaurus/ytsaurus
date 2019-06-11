@@ -3051,6 +3051,9 @@ private:
         SetTimeoutOptions(&options, context.Get());
 
         options.CachePath = request->cache_path();
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
         if (request->has_master_read_options()) {
             FromProto(&options, request->master_read_options());
         }
@@ -3085,6 +3088,9 @@ private:
         SetTimeoutOptions(&options, context.Get());
 
         options.CachePath = request->cache_path();
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
         if (request->has_prerequisite_options()) {
             FromProto(&options, request->prerequisite_options());
         }
