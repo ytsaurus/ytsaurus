@@ -1046,6 +1046,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
         snapshot->CellId = slot->GetCellId();
         snapshot->HydraManager = slot->GetHydraManager();
         snapshot->TabletManager = slot->GetTabletManager();
+        snapshot->TabletCellRuntimeData = slot->GetRuntimeData();
     }
 
     snapshot->TabletId = Id_;
@@ -1131,7 +1132,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->RowKeyComparer = RowKeyComparer_;
     snapshot->PerformanceCounters = PerformanceCounters_;
     snapshot->ColumnEvaluator = ColumnEvaluator_;
-    snapshot->RuntimeData = RuntimeData_;
+    snapshot->TabletRuntimeData = RuntimeData_;
 
     for (const auto& pair : Replicas_) {
         YCHECK(snapshot->Replicas.emplace(pair.first, pair.second.BuildSnapshot()).second);

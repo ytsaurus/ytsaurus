@@ -767,18 +767,18 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             protoTabletStatistics->set_preload_completed_store_count(tabletSnapshot->PreloadCompletedStoreCount);
             protoTabletStatistics->set_preload_failed_store_count(tabletSnapshot->PreloadFailedStoreCount);
             protoTabletStatistics->set_overlapping_store_count(tabletSnapshot->OverlappingStoreCount);
-            protoTabletStatistics->set_last_commit_timestamp(tabletSnapshot->RuntimeData->LastCommitTimestamp);
-            protoTabletStatistics->set_last_write_timestamp(tabletSnapshot->RuntimeData->LastWriteTimestamp);
-            protoTabletStatistics->set_unflushed_timestamp(tabletSnapshot->RuntimeData->UnflushedTimestamp);
+            protoTabletStatistics->set_last_commit_timestamp(tabletSnapshot->TabletRuntimeData->LastCommitTimestamp);
+            protoTabletStatistics->set_last_write_timestamp(tabletSnapshot->TabletRuntimeData->LastWriteTimestamp);
+            protoTabletStatistics->set_unflushed_timestamp(tabletSnapshot->TabletRuntimeData->UnflushedTimestamp);
             i64 totalDynamicMemoryUsage = 0;
             for (auto type : TEnumTraits<ETabletDynamicMemoryType>::GetDomainValues()) {
-                totalDynamicMemoryUsage += tabletSnapshot->RuntimeData->DynamicMemoryUsagePerType[type].load();
+                totalDynamicMemoryUsage += tabletSnapshot->TabletRuntimeData->DynamicMemoryUsagePerType[type].load();
             }
             protoTabletStatistics->set_dynamic_memory_pool_size(totalDynamicMemoryUsage);
-            protoTabletStatistics->set_modification_time(ToProto<ui64>(tabletSnapshot->RuntimeData->ModificationTime));
-            protoTabletStatistics->set_access_time(ToProto<ui64>(tabletSnapshot->RuntimeData->AccessTime));
+            protoTabletStatistics->set_modification_time(ToProto<ui64>(tabletSnapshot->TabletRuntimeData->ModificationTime));
+            protoTabletStatistics->set_access_time(ToProto<ui64>(tabletSnapshot->TabletRuntimeData->AccessTime));
 
-            ToProto(protoTabletInfo->mutable_errors(), tabletSnapshot->RuntimeData->Errors);
+            ToProto(protoTabletInfo->mutable_errors(), tabletSnapshot->TabletRuntimeData->Errors);
 
             for (const auto& pair : tabletSnapshot->Replicas) {
                 auto replicaId = pair.first;

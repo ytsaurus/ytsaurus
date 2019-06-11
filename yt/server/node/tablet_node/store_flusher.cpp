@@ -362,7 +362,7 @@ private:
                 .ThrowOnError();
 
             storeManager->EndStoreFlush(store);
-            tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Flush].Store(TError());
+            tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Flush].Store(TError());
 
             YT_LOG_INFO("Store flush completed (WallTime: %v)",
                 timer.GetElapsedTime());
@@ -371,7 +371,7 @@ private:
                 << TErrorAttribute("tablet_id", tabletId)
                 << TErrorAttribute("background_activity", ETabletBackgroundActivity::Flush);
 
-            tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Flush].Store(error);
+            tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Flush].Store(error);
             YT_LOG_ERROR(error, "Error flushing tablet store, backing off");
 
             storeManager->BackoffStoreFlush(store);

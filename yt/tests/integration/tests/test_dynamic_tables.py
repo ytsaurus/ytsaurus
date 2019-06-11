@@ -163,6 +163,14 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         },
     }
 
+
+    def test_barrier_timestamp(self):
+        sync_create_cells(1)
+        self._create_ordered_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        ts = generate_timestamp()
+        wait(lambda: get_tablet_infos("//tmp/t", [0])["tablets"][0]["barrier_timestamp"] >= ts)
+
     def test_follower_start(self):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
         sync_create_cells(1, tablet_cell_bundle="b")
