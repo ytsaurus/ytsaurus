@@ -1,1 +1,1 @@
-from arcadia_interop import *
+from .arcadia_interop import *
