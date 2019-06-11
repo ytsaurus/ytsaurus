@@ -150,7 +150,8 @@ struct TTabletSnapshot
 
     NQueryClient::TColumnEvaluatorPtr ColumnEvaluator;
 
-    TRuntimeTabletDataPtr RuntimeData;
+    TRuntimeTabletDataPtr TabletRuntimeData;
+    TRuntimeTabletCellDataPtr TabletCellRuntimeData;
 
     THashMap<TTableReplicaId, TTableReplicaSnapshotPtr> Replicas;
 

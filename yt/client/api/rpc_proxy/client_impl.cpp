@@ -453,10 +453,10 @@ TFuture<std::vector<TTabletInfo>> TClient::GetTabletInfos(
         std::vector<TTabletInfo> tabletInfos;
         tabletInfos.reserve(rsp->tablets_size());
         for (const auto& protoTabletInfo : rsp->tablets()) {
-            tabletInfos.emplace_back();
-            auto& result = tabletInfos.back();
-            result.TotalRowCount = protoTabletInfo.total_row_count();
-            result.TrimmedRowCount = protoTabletInfo.trimmed_row_count();
+            auto& tabletInfo = tabletInfos.emplace_back();
+            tabletInfo.TotalRowCount = protoTabletInfo.total_row_count();
+            tabletInfo.TrimmedRowCount = protoTabletInfo.trimmed_row_count();
+            tabletInfo.BarrierTimestamp = protoTabletInfo.barrier_timestamp();
         }
         return tabletInfos;
     }));

@@ -187,13 +187,13 @@ private:
                 return;
             }
 
-            const auto& tabletRuntimeData = tabletSnapshot->RuntimeData;
+            const auto& tabletRuntimeData = tabletSnapshot->TabletRuntimeData;
             const auto& replicaRuntimeData = replicaSnapshot->RuntimeData;
             auto* counters = replicaSnapshot->Counters;
 
             // YT-8542: Fetch the last barrier timestamp _first_ to ensure proper serialization between
             // replicator and tablet slot threads.
-            auto lastBarrierTimestamp = Slot_->GetRuntimeData()->LastBarrierTimestamp.load();
+            auto lastBarrierTimestamp = Slot_->GetRuntimeData()->BarrierTimestamp.load();
             auto lastReplicationRowIndex = replicaRuntimeData->CurrentReplicationRowIndex.load();
             auto lastReplicationTimestamp = replicaRuntimeData->LastReplicationTimestamp.load();
             auto totalRowCount = tabletRuntimeData->TotalRowCount.load();
@@ -404,8 +404,8 @@ private:
         const TTableReplicaSnapshotPtr& replicaSnapshot,
         const TClientBlockReadOptions& blockReadOptions)
     {
-        auto trimmedRowCount = tabletSnapshot->RuntimeData->TrimmedRowCount.load();
-        auto totalRowCount = tabletSnapshot->RuntimeData->TotalRowCount.load();
+        auto trimmedRowCount = tabletSnapshot->TabletRuntimeData->TrimmedRowCount.load();
+        auto totalRowCount = tabletSnapshot->TabletRuntimeData->TotalRowCount.load();
 
         auto rowIndexLo = trimmedRowCount;
         auto rowIndexHi = totalRowCount;

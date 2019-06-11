@@ -319,7 +319,7 @@ private:
             store->Preload(std::move(chunkData));
             storeManager->EndStorePreload(store);
 
-            tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Preload].Store(TError());
+            tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Preload].Store(TError());
         } catch (const std::exception& ex) {
             // Do not back off if fiber cancellation exception was thrown.
             // SetInMemoryMode with other mode was called during current action execution.
@@ -332,7 +332,7 @@ private:
                 << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
                 << TErrorAttribute("background_activity", ETabletBackgroundActivity::Preload);
 
-            tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Preload].Store(error);
+            tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Preload].Store(error);
         } catch (const TFiberCanceledException&) {
             YT_LOG_DEBUG("Preload cancelled");
             throw;

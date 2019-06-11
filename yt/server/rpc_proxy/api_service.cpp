@@ -2494,6 +2494,7 @@ private:
                     auto* protoTabletInfo = response->add_tablets();
                     protoTabletInfo->set_total_row_count(tabletInfo.TotalRowCount);
                     protoTabletInfo->set_trimmed_row_count(tabletInfo.TrimmedRowCount);
+                    protoTabletInfo->set_barrier_timestamp(tabletInfo.BarrierTimestamp);
                 }
             });
     }

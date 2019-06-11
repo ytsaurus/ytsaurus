@@ -586,6 +586,11 @@ def get_in_sync_replicas(path, data, **kwargs):
     kwargs["path"] = path
     return execute_command("get_in_sync_replicas", kwargs, input_stream=_prepare_rows_stream(data), parse_yson=True)
 
+def get_tablet_infos(path, tablet_indexes, **kwargs):
+    kwargs["path"] = path
+    kwargs["tablet_indexes"] = tablet_indexes
+    return execute_command("get_tablet_infos", kwargs, parse_yson=True, unwrap_v4_result=False)
+
 def start_transaction(**kwargs):
     return execute_command("start_tx", kwargs, parse_yson=True)
 

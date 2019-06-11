@@ -918,7 +918,7 @@ private:
 
         // YT-8542: It is important to update this timestamp only _after_ all relevant transactions are serialized.
         // See TTableReplicator.
-        Slot_->GetRuntimeData()->LastBarrierTimestamp.store(barrierTimestamp);
+        Slot_->GetRuntimeData()->BarrierTimestamp.store(barrierTimestamp);
     }
 
 

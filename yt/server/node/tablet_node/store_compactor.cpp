@@ -921,13 +921,13 @@ private:
                 storeManager->EndStoreCompaction(store);
             }
 
-            tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Partitioning].Store(TError());
+            tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Partitioning].Store(TError());
         } catch (const std::exception& ex) {
             auto error = TError(ex)
                 << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
                 << TErrorAttribute("background_activity", ETabletBackgroundActivity::Partitioning);
 
-            tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Partitioning].Store(error);
+            tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Partitioning].Store(error);
             YT_LOG_ERROR(error, "Error partitioning Eden, backing off");
 
             for (const auto& store : stores) {
@@ -1355,13 +1355,13 @@ private:
                 storeManager->EndStoreCompaction(store);
             }
 
-            tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Compaction].Store(TError());
+            tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Compaction].Store(TError());
         } catch (const std::exception& ex) {
             auto error = TError(ex)
                 << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
                 << TErrorAttribute("background_activity", ETabletBackgroundActivity::Compaction);
 
-            tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Compaction].Store(error);
+            tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Compaction].Store(error);
             YT_LOG_ERROR(error, "Error compacting partition, backing off");
 
             for (const auto& store : stores) {

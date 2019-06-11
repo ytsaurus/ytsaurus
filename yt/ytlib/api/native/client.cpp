@@ -2326,6 +2326,7 @@ private:
                 const auto& tabletInfo = rsp->tablets(static_cast<int>(resultIndexIndex));
                 result.TotalRowCount = tabletInfo.total_row_count();
                 result.TrimmedRowCount = tabletInfo.trimmed_row_count();
+                result.BarrierTimestamp = tabletInfo.barrier_timestamp();
             }
         }
         return results;
