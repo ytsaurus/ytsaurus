@@ -998,6 +998,7 @@ TFuture<TGetFileFromCacheResult> TClient::GetFileFromCache(
 
     auto req = proxy.GetFileFromCache();
     SetTimeoutOptions(*req, options);
+    ToProto(req->mutable_transactional_options(), options);
 
     req->set_md5(md5);
     req->set_cache_path(options.CachePath);
@@ -1018,6 +1019,7 @@ TFuture<TPutFileToCacheResult> TClient::PutFileToCache(
 
     auto req = proxy.PutFileToCache();
     SetTimeoutOptions(*req, options);
+    ToProto(req->mutable_transactional_options(), options);
 
     req->set_path(path);
     req->set_md5(expectedMD5);
