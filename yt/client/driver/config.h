@@ -85,6 +85,13 @@ public:
 
         RegisterParameter("rewrite_operation_path", RewriteOperationPath)
             .Optional();
+
+        RegisterPostprocessor([&] {
+            if (ApiVersion != ApiVersion3 && ApiVersion != ApiVersion4) {
+                THROW_ERROR_EXCEPTION("Unsupported API version %v",
+                    ApiVersion);
+            }
+        });
     }
 };
 

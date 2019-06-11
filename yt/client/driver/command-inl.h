@@ -24,7 +24,7 @@ void ProduceSingleOutputValue(
     TStringBuf name,
     const T& value)
 {
-    ProduceSingleOutput(context, name, [&](NYson::IYsonConsumer* consumer) {
+    ProduceSingleOutput(context, name, [&] (NYson::IYsonConsumer* consumer) {
         NYTree::BuildYsonFluently(consumer)
             .Value(value);
     });

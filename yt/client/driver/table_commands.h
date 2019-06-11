@@ -372,4 +372,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGetTabletInfosCommand
+    : public TTypedCommand<NApi::TGetTabletsInfoOptions>
+{
+public:
+    TGetTabletInfosCommand();
+
+private:
+    NYPath::TYPath Path;
+    std::vector<int> TabletIndexes;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

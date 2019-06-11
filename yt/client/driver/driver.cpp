@@ -206,6 +206,8 @@ public:
         REGISTER    (TReshardTableCommand,                "reshard_table",                 Null,       Structured, true,  false, ApiVersion4);
         REGISTER    (TAlterTableCommand,                  "alter_table",                   Null,       Structured, true,  false, ApiVersion4);
 
+        REGISTER    (TGetTabletInfosCommand,              "get_tablet_infos",              Null,       Structured, true,  false, ApiVersion4);
+
         REGISTER_ALL(TReshardTableAutomaticCommand,       "reshard_table_automatic",       Null,       Structured, true,  false);
         REGISTER_ALL(TBalanceTabletCellsCommand,          "balance_tablet_cells",          Null,       Structured, true,  false);
 
@@ -230,7 +232,7 @@ public:
         REGISTER    (TSuspendOperationCommand,            "suspend_operation",             Null,       Structured, true,  false, ApiVersion4);
         REGISTER    (TResumeOperationCommand,             "resume_operation",              Null,       Structured, true,  false, ApiVersion4);
         REGISTER    (TCompleteOperationCommand,           "complete_operation",            Null,       Structured, true,  false, ApiVersion4);
-        REGISTER    (TUpdateOperationParametersCommand,   "update_operation_parameters",   Null,   Structured, true,  false, ApiVersion4);
+        REGISTER    (TUpdateOperationParametersCommand,   "update_operation_parameters",   Null,       Structured, true,  false, ApiVersion4);
 
         REGISTER_ALL(TParseYPathCommand,                  "parse_ypath",                   Null,       Structured, false, false);
 

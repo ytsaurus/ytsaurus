@@ -45,23 +45,21 @@ DEFINE_REFCOUNTED_TYPE(ICommandContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Depending on the driver API version calls |context->ProduceOutputValue|
-//! with |TYsonString| created by the appropriate producer.
+//! Calls |context->ProduceOutputValue| with |TYsonString| created by the producer.
 void ProduceOutput(
     ICommandContextPtr context,
-    std::function<void(NYson::IYsonConsumer*)> producerV3,
-    std::function<void(NYson::IYsonConsumer*)> producerV4);
+    const std::function<void(NYson::IYsonConsumer*)>& producer);
 
-//! Produces either nothing (v3) or empty map (v4).
+//! Produces either nothing (v3) or empty map (>=v4).
 void ProduceEmptyOutput(ICommandContextPtr context);
 
-//! Run |producer| (v3) or open a map with key |name| and run |producer| then close map (v4).
+//! Run |producer| (v3) or open a map with key |name| and run |producer| then close map (>=v4).
 void ProduceSingleOutput(
     ICommandContextPtr context,
     TStringBuf name,
-    std::function<void(NYson::IYsonConsumer*)> producer);
+    const std::function<void(NYson::IYsonConsumer*)>& producer);
 
-//! Produces either |value| (v3) or map {|name|=|value|} (v4).
+//! Produces either |value| (v3) or map {|name|=|value|} (>=v4).
 template <typename T>
 void ProduceSingleOutputValue(
     ICommandContextPtr context,
@@ -83,7 +81,7 @@ protected:
 
     void ProduceResponseParameters(
         ICommandContextPtr context,
-        std::function<void(NYson::IYsonConsumer*)> producer);
+        const std::function<void(NYson::IYsonConsumer*)>& producer);
 
     std::optional<bool> RewriteOperationPathOption;
     bool RewriteOperationPath = true;

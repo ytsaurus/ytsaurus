@@ -339,7 +339,7 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
         YCHECK(allColumns[index].size() == allStatistics[index].ColumnDataWeights.size());
     }
 
-    auto producer = [&] (IYsonConsumer* consumer) {
+    ProduceOutput(context, [&] (IYsonConsumer* consumer) {
         BuildYsonFluently(consumer)
             .DoList([&] (TFluentList fluent) {
                 for (int index = 0; index < Paths.size(); ++index) {
@@ -361,8 +361,7 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
                         .EndMap();
                 }
             });
-    };
-    ProduceOutput(context, producer, producer);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1018,6 +1017,36 @@ void TAlterTableReplicaCommand::DoExecute(ICommandContextPtr context)
         .ThrowOnError();
 
     ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TGetTabletInfosCommand::TGetTabletInfosCommand()
+{
+    RegisterParameter("path", Path);
+    RegisterParameter("tablet_indexes", TabletIndexes);
+}
+
+void TGetTabletInfosCommand::DoExecute(ICommandContextPtr context)
+{
+    auto client = context->GetClient();
+    auto asyncTablets = client->GetTabletInfos(Path, TabletIndexes, Options);
+    auto tablets = WaitFor(asyncTablets)
+        .ValueOrThrow();
+
+    ProduceOutput(context, [&] (IYsonConsumer* consumer) {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("tablets").DoListFor(tablets, [&] (auto fluent, const auto& tablet) {
+                    fluent
+                        .Item().BeginMap()
+                            .Item("total_row_count").Value(tablet.TotalRowCount)
+                            .Item("trimmed_row_count").Value(tablet.TrimmedRowCount)
+                            .Item("barrier_timestamp").Value(tablet.BarrierTimestamp)
+                        .EndMap();
+                })
+            .EndMap();
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

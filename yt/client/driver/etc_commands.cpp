@@ -296,7 +296,7 @@ void TExecuteBatchCommand::DoExecute(ICommandContextPtr context)
     auto results = WaitFor(RunWithBoundedConcurrency(callbacks, Options.Concurrency))
         .ValueOrThrow();
 
-    ProduceSingleOutput(context, "results", [&](NYson::IYsonConsumer* consumer) {
+    ProduceSingleOutput(context, "results", [&] (NYson::IYsonConsumer* consumer) {
         BuildYsonFluently(consumer)
             .DoListFor(results, [&] (TFluentList fluent, const TErrorOr<TYsonString>& result) {
                 fluent.Item().Value(result.ValueOrThrow());
