@@ -1,4 +1,5 @@
 #include "cypress_commands.h"
+#include "config.h"
 
 #include <yt/client/api/client.h>
 
@@ -237,21 +238,23 @@ void TLockCommand::DoExecute(ICommandContextPtr context)
     auto lockResult = WaitFor(asyncLockResult)
         .ValueOrThrow();
 
-    ProduceOutput(context,
-        [&](NYson::IYsonConsumer* consumer) {
-            BuildYsonFluently(consumer)
-                .Value(lockResult.LockId);
-        },
-        [&](NYson::IYsonConsumer* consumer) {
-            BuildYsonFluently(consumer)
-                .BeginMap()
-                    .Item("lock_id").Value(lockResult.LockId)
-                    .Item("node_id").Value(lockResult.NodeId)
-                    .DoIf(static_cast<bool>(lockResult.Revision), [&] (TFluentMap fluent) {
-                        fluent.Item("revision").Value(*lockResult.Revision);
-                    })
-                .EndMap();
-        });
+    switch (context->GetConfig()->ApiVersion) {
+        case ApiVersion3:
+            ProduceSingleOutputValue(context, "lock_id", lockResult.LockId);
+            break;
+        default:
+            ProduceOutput(context, [&](NYson::IYsonConsumer* consumer) {
+                BuildYsonFluently(consumer)
+                    .BeginMap()
+                        .Item("lock_id").Value(lockResult.LockId)
+                        .Item("node_id").Value(lockResult.NodeId)
+                        .DoIf(static_cast<bool>(lockResult.Revision), [&] (TFluentMap fluent) {
+                            fluent.Item("revision").Value(*lockResult.Revision);
+                        })
+                    .EndMap();
+            });
+            break;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
