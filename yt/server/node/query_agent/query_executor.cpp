@@ -428,7 +428,7 @@ private:
             Query_,
             Writer_,
             refiners,
-            [&] (TConstQueryPtr subquery, int index) {
+            [&] (const TConstQueryPtr& subquery, int index) {
                 auto asyncSubqueryResults = std::make_shared<std::vector<TFuture<TQueryStatistics>>>();
 
                 auto foreignProfileCallback = [
@@ -437,7 +437,7 @@ private:
                     dataSplits = std::move(readRanges[index]),
                     this,
                     this_ = MakeStrong(this)
-                ] (TQueryPtr subquery, TConstJoinClausePtr joinClause) -> TJoinSubqueryEvaluator {
+                ] (const TQueryPtr& subquery, const TConstJoinClausePtr& joinClause) -> TJoinSubqueryEvaluator {
                     auto remoteOptions = Options_;
                     remoteOptions.MaxSubqueries = 1;
 
@@ -645,7 +645,7 @@ private:
 
                 return std::make_pair(pipe->GetReader(), asyncStatistics);
             },
-            [&] (TConstFrontQueryPtr topQuery, ISchemafulReaderPtr reader, IUnversionedRowsetWriterPtr writer) {
+            [&] (const TConstFrontQueryPtr& topQuery, const ISchemafulReaderPtr& reader, const IUnversionedRowsetWriterPtr& writer) {
                 YT_LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 auto result = Evaluator_->Run(
                     topQuery,
@@ -784,7 +784,7 @@ private:
             }
 
             refiners.push_back([MOVE(keyRanges), inferRanges = Query_->InferRanges] (
-                TConstExpressionPtr expr,
+                const TConstExpressionPtr& expr,
                 const TKeyColumns& keyColumns)
             {
                 if (inferRanges) {
@@ -793,7 +793,7 @@ private:
                     return expr;
                 }
             });
-            subreaderCreators.push_back([&, MOVE(groupedSplit)] () {
+            subreaderCreators.push_back([this, MOVE(groupedSplit)] () {
                 size_t rangesCount = std::accumulate(
                     groupedSplit.begin(),
                     groupedSplit.end(),
@@ -827,13 +827,13 @@ private:
 
         auto processSplitKeys = [&] (int index) {
             auto tabletId = splits[index].Id;
-            auto& keys = splits[index].Keys;
+            const auto& keys = splits[index].Keys;
 
             readRanges.push_back({splits[index]});
 
-            refiners.push_back([&, inferRanges = Query_->InferRanges] (
-                TConstExpressionPtr expr, const
-                TKeyColumns& keyColumns)
+            refiners.push_back([inferRanges = Query_->InferRanges] (
+                const TConstExpressionPtr& expr,
+                const TKeyColumns& keyColumns)
             {
                 if (inferRanges) {
                     return EliminatePredicate(keys, expr, keyColumns);
@@ -841,7 +841,7 @@ private:
                     return expr;
                 }
             });
-            subreaderCreators.push_back([&, MOVE(keys)] () {
+            subreaderCreators.push_back([this, tabletId, MOVE(keys)] () {
                 return GetTabletReader(tabletId, keys);
             });
         };
