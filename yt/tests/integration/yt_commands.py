@@ -1637,13 +1637,10 @@ def sync_alter_table_replica_mode(replica_id, mode, driver=None):
         return True
     wait(check)
 
-def create_table_with_attributes(path, **attributes):
-    create("table", path, attributes=attributes)
-
 def create_dynamic_table(path, **attributes):
     if "dynamic" not in attributes:
         attributes.update({"dynamic": True})
-    create_table_with_attributes(path, **attributes)
+    create("table", path, attributes=attributes)
 
 def sync_control_chunk_replicator(enabled):
     print("Setting chunk replicator state to", enabled, file=sys.stderr)
