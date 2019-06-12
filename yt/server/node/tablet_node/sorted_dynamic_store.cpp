@@ -1875,7 +1875,7 @@ bool TSortedDynamicStore::CheckRowLocks(
 {
     auto it = Rows_->FindEqualTo(TUnversionedRowWrapper{row});
     if (!it.IsValid()) {
-        return false;
+        return true;
     }
 
     auto dynamicRow = it.GetCurrent();
