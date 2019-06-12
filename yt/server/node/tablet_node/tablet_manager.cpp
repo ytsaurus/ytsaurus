@@ -357,7 +357,7 @@ public:
                 if (!reader->IsFinished()) {
                     adjustedSignature = 0;
                 }
-                YT_LOG_DEBUG("Rows prelocked (TransactionId: %v, TabletId: %v, RowCount: %v, Signature: %x)",
+                YT_LOG_DEBUG_IF(context.RowCount > 0, "Rows prelocked (TransactionId: %v, TabletId: %v, RowCount: %v, Signature: %x)",
                     transactionId,
                     tabletId,
                     context.RowCount,
