@@ -1553,11 +1553,16 @@ class TestMapOnDynamicTables(YTEnvSetup):
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_dynamic_table_column_filter(self, optimize_for, external):
         sync_create_cells(1)
-        create_table_with_attributes("//tmp/t", external=external, optimize_for=optimize_for, schema=make_schema([
-            {"name": "k", "type": "int64", "sort_order": "ascending"},
-            {"name": "u", "type": "int64"},
-            {"name": "v", "type": "int64"}],
-            unique_keys=True))
+        create("table", "//tmp/t", attributes={
+            "external": external,
+            "optimize_for": optimize_for,
+            "schema": make_schema([
+                {"name": "k", "type": "int64", "sort_order": "ascending"},
+                {"name": "u", "type": "int64"},
+                {"name": "v", "type": "int64"}
+            ],
+            unique_keys=True)
+        })
         create("table", "//tmp/t_out")
 
         row = {"k": 0, "u": 1, "v": 2}

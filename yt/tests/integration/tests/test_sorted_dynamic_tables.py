@@ -33,7 +33,7 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
                 {"name": "value", "type": "string"}],
                 unique_keys=True)
             })
-        create_table_with_attributes(path, **attributes)
+        create("table", path, attributes=attributes)
 
     def _create_table_with_computed_column(self, path, **attributes):
         if "schema" not in attributes:
