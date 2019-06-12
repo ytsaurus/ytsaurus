@@ -58,9 +58,9 @@ void Deserialize(TCustomJobMetricDescription& customJobMetricDescription, NYTree
     customJobMetricDescription.StatisticsPath = mapNode->GetChild("statistics_path")->AsString()->GetValue();
     customJobMetricDescription.ProfilingName = mapNode->GetChild("profiling_name")->AsString()->GetValue();
 
-    auto aggregatioTypeNode = mapNode->FindChild("aggregate_type");
-    if (aggregatioTypeNode) {
-        customJobMetricDescription.AggregateType = ParseEnum<EAggregateType>(aggregatioTypeNode->AsString()->GetValue());
+    auto aggregationTypeNode = mapNode->FindChild("aggregate_type");
+    if (aggregationTypeNode) {
+        customJobMetricDescription.AggregateType = ParseEnum<EAggregateType>(aggregationTypeNode->AsString()->GetValue());
     }
 }
 
