@@ -148,10 +148,11 @@ private:
             , Path_(path)
             , BundleHealthCache_(bundleHealthCache)
             , Connection_(std::move(connection))
-            , Client_(Connection_ ? Connection_->CreateClient(NApi::TClientOptions(RootUserName)) : NApi::IClientPtr())
             , CheckerInvoker_(std::move(checkerInvoker))
             , Lag_(lag)
-        { }
+        {
+            CreateClient();
+        }
 
         TDuration GetLag() const
         {
@@ -190,7 +191,7 @@ private:
 
         TFuture<void> CheckBundleHealth()
         {
-            return GetTabletCellBundleName()
+            return GetAsyncTabletCellBundleName()
                 .Apply(BIND([connection = Connection_, bundleHealthCache = BundleHealthCache_, path = Path_] (const TErrorOr<TString>& tabletCellBundleNameOrError) {
                     return bundleHealthCache->Get({connection, tabletCellBundleNameOrError.ValueOrThrow()});
                 })).Apply(BIND([path = Path_] (const TErrorOr<ETabletCellHealth>& tabletCellHealthOrError) {
@@ -251,7 +252,7 @@ private:
 
         bool operator != (const TReplica& other) const
         {
-            return !(operator==(other));
+            return !(*this == other);
         }
 
         void Merge(const TReplica& other)
@@ -259,7 +260,7 @@ private:
             Mode_ = other.Mode_;
             if (Connection_ != other.Connection_) {
                 Connection_ = other.Connection_;
-                Client_.Reset();
+                CreateClient();
             }
             Lag_ = other.Lag_;
         }
@@ -269,32 +270,42 @@ private:
         ETableReplicaMode Mode_;
         const TString ClusterName_;
         const TYPath Path_;
+
         TBundleHealthCachePtr BundleHealthCache_;
         NApi::IConnectionPtr Connection_;
         NApi::IClientPtr Client_;
         const IInvokerPtr CheckerInvoker_;
         TDuration Lag_;
-        TFuture<TString> TabletCellBundleName_ = MakeFuture<TString>(TErrorOr<TString>(TError("initialization")));
-        const TDuration TabletCellBundleNameTTL_ = TDuration::Seconds(300);
-        const TDuration RetryOnFailure = TDuration::Seconds(60);
-        TInstant LastUpdateTime_ = TInstant::Zero();
+        TFuture<TString> AsyncTabletCellBundleName_ = MakeFuture<TString>(TError("<unknown>"));
 
-        TFuture<TString> GetTabletCellBundleName()
+        const TDuration TabletCellBundleNameTtl = TDuration::Seconds(300);
+        const TDuration RetryOnFailureInterval = TDuration::Seconds(60);
+
+        TInstant LastUpdateTime_;
+
+        TFuture<TString> GetAsyncTabletCellBundleName()
         {
-            auto now = TInstant::Now();
-            const auto& interval = (TabletCellBundleName_.IsSet() && !TabletCellBundleName_.Get().IsOK())
-                ? RetryOnFailure
-                : TabletCellBundleNameTTL_;
+            auto now = NProfiling::GetInstant();
+            auto interval = (AsyncTabletCellBundleName_.IsSet() && !AsyncTabletCellBundleName_.Get().IsOK())
+                ? RetryOnFailureInterval
+                : TabletCellBundleNameTtl;
 
             if (LastUpdateTime_ + interval > now) {
                 LastUpdateTime_ = now;
-                TabletCellBundleName_ = Client_->GetNode(Path_ + "/@" + "tablet_cell_bundle")
+                AsyncTabletCellBundleName_ = Client_->GetNode(Path_ + "/@tablet_cell_bundle")
                     .Apply(BIND([] (const TErrorOr<NYson::TYsonString>& bundleNameOrError) {
                         return ConvertTo<TString>(bundleNameOrError.ValueOrThrow());
                     }));
             }
 
-            return TabletCellBundleName_;
+            return AsyncTabletCellBundleName_;
+        }
+
+        void CreateClient()
+        {
+            Client_ = Connection_
+                ? Connection_->CreateClient(NApi::TClientOptions(RootUserName))
+                : IClientPtr();
         }
     };
 
@@ -326,7 +337,7 @@ private:
             Config_ = config;
         }
 
-        void SetReplicas(std::vector<TReplicaPtr>& replicas)
+        void SetReplicas(const std::vector<TReplicaPtr>& replicas)
         {
             auto guard = Guard(Lock_);
             Replicas_.resize(replicas.size());
@@ -339,7 +350,7 @@ private:
             }
         }
 
-        TFuture<void> Check(TBootstrap* const bootstrap)
+        TFuture<void> Check(TBootstrap* bootstrap)
         {
             if (!CheckFuture_ || CheckFuture_.IsSet()) {
                 std::vector<TReplicaPtr> syncReplicas;
@@ -395,7 +406,7 @@ private:
                             asyncReplicas.pop_back();
                         }
 
-                        for (auto& replica : badSyncReplicas) {
+                        for (const auto& replica : badSyncReplicas) {
                             futures.push_back(replica->SetMode(bootstrap, ETableReplicaMode::Async));
                         }
 
