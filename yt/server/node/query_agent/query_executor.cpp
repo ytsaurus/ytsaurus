@@ -831,7 +831,7 @@ private:
 
             readRanges.push_back({splits[index]});
 
-            refiners.push_back([inferRanges = Query_->InferRanges] (
+            refiners.push_back([keys, inferRanges = Query_->InferRanges] (
                 const TConstExpressionPtr& expr,
                 const TKeyColumns& keyColumns)
             {
