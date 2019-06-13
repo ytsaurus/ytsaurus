@@ -294,8 +294,7 @@ void TSchemalessWriterForWebJson::DoFlush(bool force)
 
 void TSchemalessWriterForWebJson::DoWrite(TRange<TUnversionedRow> rows)
 {
-    for (int rowIndex = 0; rowIndex < rows.Size(); ++rowIndex) {
-        const auto row = rows[rowIndex];
+    for (const auto& row : rows) {
         if (!row) {
             continue;
         }
