@@ -11,13 +11,13 @@ import os
 
 YT_ABI = "19_4"
 
-def build_bindings(build_dir):
+def build_bindings(build_dir, python_version):
     ya = yatest.common.source_path("ya")
     args = [
         "/usr/bin/python", ya, "make",
         "--source-root", yatest.common.source_path(),
         "--results-root", build_dir,
-        "-DUSE_SYSTEM_PYTHON=2.7", "-DPYTHON_CONFIG=python2.7-config", "-DPYTHON_BIN=python2.7",
+        "-DUSE_SYSTEM_PYTHON=" + python_version, "-DPYTHON_CONFIG=python{}-config".format(python_version), "-DPYTHON_BIN=python" + python_version,
         "-C", "tools/fix_elf",
         "-C", "yt/{}/yt/python/yson_shared".format(YT_ABI),
         "-C", "yt/{}/yt/python/driver/native_shared".format(YT_ABI),
@@ -36,11 +36,11 @@ def prepare_python_packages():
         prepare_binary_symlinks=False,
         prepare_bindings=False)
 
-def run_pytest():
+def run_pytest(python_version):
     build_dir = os.path.join(yatest.common.work_path(), "build")
     bindings_build_dir = os.path.join(build_dir, "bindings")
     os.makedirs(bindings_build_dir)
-    build_bindings(bindings_build_dir)
+    build_bindings(bindings_build_dir, python_version)
 
     prepare_python_packages()
 
@@ -55,9 +55,7 @@ def run_pytest():
         "PATH": path,
         "PYTHONPATH": os.pathsep.join([
             os.path.join(yatest.common.source_path(), "yt", "python"),
-            os.path.join(yatest.common.source_path(), "yt", YT_ABI, "yt", "python", "yt_yson_bindings"),
-            os.path.join(yatest.common.source_path(), "yt", YT_ABI, "yt", "python", "yt_driver_bindings"),
-            os.path.join(yatest.common.source_path(), "yt", YT_ABI, "yt", "python", "yt_driver_rpc_bindings"),
+            os.path.join(yatest.common.source_path(), "yt", YT_ABI, "yt", "python"),
             os.path.join(bindings_build_dir, "yt", YT_ABI, "yt", "python", "yson_shared"),
             os.path.join(bindings_build_dir, "yt", YT_ABI, "yt", "python", "driver", "native_shared"),
             os.path.join(bindings_build_dir, "yt", YT_ABI, "yt", "python", "driver", "rpc_shared")
@@ -77,7 +75,7 @@ def run_pytest():
     cgroup = None
     try:
         cgroup = cgroups.CGroup("test", subsystems=("cpuacct", "cpu", "blkio", "freezer")).create()
-        pytest_runner.run(test_files, python_path="/usr/bin/python2.7", env=env, pytest_args=["-v", "-s"], timeout=6000)
+        pytest_runner.run(test_files, python_path="/usr/bin/python" + python_version, env=env, pytest_args=["-v", "-s"], timeout=6000)
     finally:
         if cgroup is not None:
             cgroup.delete()

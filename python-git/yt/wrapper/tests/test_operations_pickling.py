@@ -391,5 +391,5 @@ class Mapper(object):
 
         binary = get_test_file_path("standalone_binary.py")
 
-        subprocess.check_call(["python", binary, table, other_table], env=self.env, stderr=sys.stderr)
+        subprocess.check_call([get_python(), binary, table, other_table], env=self.env, stderr=sys.stderr)
         check([{"x": 1}, {"x": 2}], yt.read_table(other_table))
