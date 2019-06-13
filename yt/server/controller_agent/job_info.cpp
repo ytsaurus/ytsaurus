@@ -127,6 +127,9 @@ void TJobInfoBase::Persist(const TPersistenceContext& context)
     Persist(context, StderrSize);
     // NB(max42): JobStatistics is not persisted intentionally since
     // it can increase the size of snapshot significantly.
+    if (context.GetVersion() >= static_cast<int>(ESnapshotVersion::SaveJobPhase)) {
+        Persist(context, Phase);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

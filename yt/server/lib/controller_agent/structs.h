@@ -35,6 +35,7 @@ struct TJobSummary
     NJobTrackerClient::NProto::TJobResult Result;
     TJobId Id;
     EJobState State = EJobState::None;
+    EJobPhase Phase = EJobPhase::Missing;
 
     std::optional<TInstant> FinishTime;
     std::optional<TDuration> PrepareDuration;
