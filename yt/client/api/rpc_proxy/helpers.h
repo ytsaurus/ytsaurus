@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/core/misc/ref.h>
 
 #include <yt/core/rpc/public.h>

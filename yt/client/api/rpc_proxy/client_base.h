@@ -1,6 +1,5 @@
 #pragma once
 
-#include "public.h"
 #include "helpers.h"
 #include "connection_impl.h"
 #include "api_service_proxy.h"
@@ -31,6 +30,8 @@ protected:
 
     virtual TApiServiceProxy CreateApiServiceProxy(
         NRpc::IChannelPtr channel = {});
+    virtual void InitStreamingRequest(
+        NRpc::TClientRequest& request);
     friend class TTransaction;
 
 public:

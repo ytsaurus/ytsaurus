@@ -1,5 +1,4 @@
 #include "helpers.h"
-#include "public.h"
 
 #include <yt/client/api/rowset.h>
 
@@ -1257,7 +1256,11 @@ std::vector<TSharedRef> SerializeRowsetWithPartialNameTable(
     descriptor->Clear();
     descriptor->set_wire_format_version(NApi::NRpcProxy::CurrentWireFormatVersion);
     descriptor->set_rowset_kind(NProto::RK_UNVERSIONED);
-    YCHECK(startingId <= nameTable->GetSize());
+    if (startingId < 0 || startingId > nameTable->GetSize()) {
+        THROW_ERROR_EXCEPTION("Invalid starting id: expected in range [0, %v], got %v",
+            nameTable->GetSize(),
+            startingId);
+    }
     for (int id = startingId; id < nameTable->GetSize(); ++id) {
         auto* columnDescriptor = descriptor->add_columns();
         columnDescriptor->set_name(TString(nameTable->GetName(id)));
@@ -1417,12 +1420,17 @@ TSharedRange<NTableClient::TUnversionedRow> DeserializeRowsetWithNameTableDelta(
             (*idMapping)[id] = nameTable->GetIdOrRegisterName(name);
         }
 
-        for (auto& row : rowset->GetRows()) {
+        for (auto row : rowset->GetRows()) {
             auto mutableRow = TMutableUnversionedRow(row.ToTypeErasedRow());
             for (auto& value : mutableRow) {
                 auto newId = ApplyIdMapping(value, rowset->Schema(), idMapping);
-                YCHECK(newId >= 0);
-                YCHECK(newId < nameTable->GetSize());
+                if (newId < 0 || newId >= nameTable->GetSize()) {
+                    THROW_ERROR_EXCEPTION("Id mapping returned an invalid value %v for id %v: "
+                        "expected a value in [0, %v) range",
+                        newId,
+                        value.Id,
+                        nameTable->GetSize());
+                }
                 value.Id = newId;
             }
         }

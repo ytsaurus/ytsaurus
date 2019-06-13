@@ -73,6 +73,13 @@ TApiServiceProxy TClientBase::CreateApiServiceProxy(NRpc::IChannelPtr channel)
     return proxy;
 }
 
+void TClientBase::InitStreamingRequest(NRpc::TClientRequest& request)
+{
+    auto connection = GetRpcProxyConnection();
+    const auto& config = connection->GetConfig();
+    request.SetTimeout(config->DefaultTotalStreamingTimeout);
+}
+
 TFuture<ITransactionPtr> TClientBase::StartTransaction(
     ETransactionType type,
     const TTransactionStartOptions& options)
@@ -476,11 +483,8 @@ TFuture<IFileReaderPtr> TClientBase::CreateFileReader(
     const TFileReaderOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
-    auto connection = GetRpcProxyConnection();
-    const auto& config = connection->GetConfig();
-
     auto req = proxy.ReadFile();
-    req->SetTimeout(config->DefaultTotalStreamingTimeout);
+    InitStreamingRequest(*req);
 
     req->set_path(path);
     if (options.Offset) {
@@ -504,11 +508,8 @@ IFileWriterPtr TClientBase::CreateFileWriter(
     const TFileWriterOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
-    auto connection = GetRpcProxyConnection();
-    const auto& config = connection->GetConfig();
-
     auto req = proxy.WriteFile();
-    req->SetTimeout(config->DefaultTotalStreamingTimeout);
+    InitStreamingRequest(*req);
 
     ToProto(req->mutable_path(), path);
 
@@ -530,11 +531,8 @@ IJournalReaderPtr TClientBase::CreateJournalReader(
     const TJournalReaderOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
-    auto connection = GetRpcProxyConnection();
-    const auto& config = connection->GetConfig();
-
     auto req = proxy.ReadJournal();
-    req->SetTimeout(config->DefaultTotalStreamingTimeout);
+    InitStreamingRequest(*req);
 
     req->set_path(path);
 
@@ -559,11 +557,8 @@ IJournalWriterPtr TClientBase::CreateJournalWriter(
     const TJournalWriterOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
-    auto connection = GetRpcProxyConnection();
-    const auto& config = connection->GetConfig();
-
     auto req = proxy.WriteJournal();
-    req->SetTimeout(config->DefaultTotalStreamingTimeout);
+    InitStreamingRequest(*req);
 
     req->set_path(path);
 
@@ -586,11 +581,8 @@ TFuture<ITableReaderPtr> TClientBase::CreateTableReader(
     const TTableReaderOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
-    auto connection = GetRpcProxyConnection();
-    const auto& config = connection->GetConfig();
-
     auto req = proxy.ReadTable();
-    req->SetTimeout(config->DefaultTotalStreamingTimeout);
+    InitStreamingRequest(*req);
 
     ToProto(req->mutable_path(), path);
 
@@ -610,11 +602,8 @@ TFuture<ITableWriterPtr> TClientBase::CreateTableWriter(
     const TTableWriterOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
-    auto connection = GetRpcProxyConnection();
-    const auto& config = connection->GetConfig();
-
     auto req = proxy.WriteTable();
-    req->SetTimeout(config->DefaultTotalStreamingTimeout);
+    InitStreamingRequest(*req);
 
     ToProto(req->mutable_path(), path);
 
