@@ -240,7 +240,7 @@ size_t TStructLogicalType::GetMemoryUsage() const
 
 int TStructLogicalType::GetTypeComplexity() const
 {
-    ui32 result = 1;
+    int result = 1;
     for (const auto& field : Fields_) {
         result += field.Type->GetTypeComplexity();
     }
