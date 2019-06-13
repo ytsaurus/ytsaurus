@@ -8,6 +8,7 @@
 
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/ypath_client.h>
+#include <yt/core/ytree/convert.h>
 
 #include <yt/core/misc/string.h>
 #include <yt/core/misc/protobuf_helpers.h>
@@ -281,13 +282,13 @@ TEST(TYsonToProtobufTest, Failure)
     EXPECT_YPATH({
         TEST_PROLOGUE(TMessage)
             .Value(0);
-    }, "/");
+    }, "");
 
     EXPECT_YPATH({
         TEST_PROLOGUE(TMessage)
             .BeginList()
             .EndList();
-    }, "/");
+    }, "");
 
     EXPECT_YPATH({
         TEST_PROLOGUE(TMessage)
@@ -618,14 +619,14 @@ TEST(TYsonToProtobufTest, ErrorProto)
     EXPECT_EQ(ConvertTo<TString>(TYsonString(attribute.value())), "localhost");
 }
 
-TEST(TYsonToProtobufTest, UnknownFields)
+TEST(TYsonToProtobufTest, SkipUnknownFields)
 {
     EXPECT_YPATH({
         TEST_PROLOGUE(TMessage)
             .BeginMap()
                 .Item("unknown_field").Value(1)
             .EndMap();
-    }, "/");
+    }, "");
 
     EXPECT_YPATH({
         TEST_PROLOGUE(TMessage)
@@ -672,6 +673,42 @@ TEST(TYsonToProtobufTest, UnknownFields)
         EXPECT_EQ(1, message.repeated_nested_message1().size());
         EXPECT_EQ(456, message.repeated_nested_message1().Get(0).int32_field());
     }
+}
+
+TEST(TYsonToProtobufTest, UnknownFieldsCallback)
+{
+    {
+        TProtobufWriterOptions options;
+        options.UnknownFieldCallback = [] (const TYPath& path, const TString& key, TYsonString value) {
+            EXPECT_EQ("", path);
+            EXPECT_EQ("unknown_field", key);
+            EXPECT_TRUE(AreNodesEqual(ConvertToNode(value), ConvertToNode(123)));
+            return true;
+        };
+
+        TEST_PROLOGUE_WITH_OPTIONS(TMessage, options)
+            .BeginMap()
+                .Item("unknown_field").Value(123)
+            .EndMap();
+
+        TEST_EPILOGUE(TMessage)
+    }
+
+    EXPECT_YPATH({
+        TProtobufWriterOptions options;
+        options.UnknownFieldCallback = [] (const TYPath& /*path*/, const TString& /*key*/, TYsonString /*value*/) {
+            return false;
+        };
+
+        TEST_PROLOGUE_WITH_OPTIONS(TMessage, options)
+            .BeginMap()
+                .Item("nested_message1").BeginMap()
+                    .Item("unknown_field").Value(123)
+                .EndMap()
+            .EndMap();
+
+        TEST_EPILOGUE(TMessage)
+    }, "/nested_message1");
 }
 
 TEST(TYsonToProtobufTest, Entities)
@@ -1086,7 +1123,7 @@ TEST(TProtobufToYsonTest, UnknownFields)
         TEST_PROLOGUE()
         codedStream.WriteTag(WireFormatLite::MakeTag(100 /*unknown*/, WireFormatLite::WIRETYPE_FIXED32));
         TEST_EPILOGUE(TMessage)
-    }, "/");
+    }, "");
 
     {
         TProtobufParserOptions options;
