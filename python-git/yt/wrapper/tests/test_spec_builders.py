@@ -1,4 +1,4 @@
-from .helpers import TEST_DIR, check, get_test_file_path, set_config_option
+from .helpers import TEST_DIR, check, get_test_file_path, set_config_option, get_python
 
 from yt.wrapper.common import update
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
@@ -176,7 +176,7 @@ class TestSpecBuilders(object):
                        ])
         spec_builder = MapSpecBuilder() \
             .begin_mapper() \
-                .command("PYTHONPATH=. ./capitalize_b.py") \
+                .command("PYTHONPATH=. {} capitalize_b.py".format(get_python())) \
                 .file_paths(yt.LocalFile(get_test_file_path("capitalize_b.py"))) \
                 .format(yt.DsvFormat()) \
             .end_mapper() \

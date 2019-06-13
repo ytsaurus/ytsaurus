@@ -1,4 +1,4 @@
-from .helpers import TEST_DIR, get_test_file_path, yatest_common
+from .helpers import TEST_DIR, get_test_file_path, yatest_common, get_python
 
 from yt.wrapper.common import update_inplace
 
@@ -64,7 +64,7 @@ def test_catching_sigint(yt_env):
     driver_config_path = yt_env.env.config_paths["console_driver"][0]
     binary = get_test_file_path("driver_catch_sigint.py")
 
-    process = subprocess.Popen(["python", binary, driver_config_path])
+    process = subprocess.Popen([get_python(), binary, driver_config_path])
 
     time.sleep(3)
     os.kill(process.pid, signal.SIGINT)
@@ -75,7 +75,7 @@ def test_catching_sigint(yt_env):
         assert False, "Process hanged up for more than 5 seconds on SIGINT"
 
     binary = get_test_file_path("driver_read_request_catch_sigint.py")
-    process = subprocess.Popen(["python", binary])
+    process = subprocess.Popen([get_python(), binary])
 
     time.sleep(3)
     os.kill(process.pid, signal.SIGINT)

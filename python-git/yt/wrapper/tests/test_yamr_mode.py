@@ -1,5 +1,5 @@
 from .helpers import (TEST_DIR, get_tests_location, get_tests_sandbox, get_test_file_path,
-                      get_environment_for_binary_test, set_config_option)
+                      get_environment_for_binary_test, set_config_option, get_python)
 
 from yt.wrapper.table_commands import copy_table, move_table
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
@@ -172,8 +172,12 @@ class TestYamrMode(object):
                            b"a b\tc\t\n",
                            b"c c\tc\tc c a\n"
                        ])
-        yt.run_map_reduce("./split.py", "./collect.py", input_table, output_table,
-                          map_local_files=get_test_file_path("split.py"), reduce_local_files=get_test_file_path("collect.py"))
+        yt.run_map_reduce("{} split.py".format(get_python()),
+                          "{} collect.py".format(get_python()),
+                          input_table,
+                          output_table,
+                          map_local_files=get_test_file_path("split.py"),
+                          reduce_local_files=get_test_file_path("collect.py"))
         assert sorted(list(yt.read_table(output_table))) == sorted([b"a\t\t2\n", b"b\t\t1\n", b"c\t\t6\n"])
 
     def test_many_output_tables(self):
@@ -185,7 +189,7 @@ class TestYamrMode(object):
         yt.write_table(table, [b"1\t1\t1\n"])
         yt.write_table(append_table, [b"1\t1\t1\n"])
 
-        yt.run_map("PYTHONPATH=. ./many_output.py yamr",
+        yt.run_map("PYTHONPATH=. {} many_output.py yamr".format(get_python()),
                    table,
                    output_tables + [TablePath(append_table, append=True)],
                    local_files=get_test_file_path("many_output.py"))
@@ -208,7 +212,7 @@ class TestYamrMode(object):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
         yt.write_table(table, [b"0\ta\tA\n", b"1\tb\tB\n", b"2\tc\tC\n"])
-        yt.run_map("PYTHONPATH=. ./my_op.py",
+        yt.run_map("PYTHONPATH=. {} my_op.py".format(get_python()),
                    table, other_table,
                    local_files=list(imap(get_test_file_path, ["my_op.py", "helpers.py"])))
         assert yt.row_count(other_table) == 2 * yt.row_count(table)
@@ -270,7 +274,7 @@ class TestYamrMode(object):
         another_table = TEST_DIR + "/temp_another"
 
         yt.write_table(table, [b"1\t2\t3\n"])
-        yt.run_map("PYTHONPATH=. ./my_op.py",
+        yt.run_map("PYTHONPATH=. {} my_op.py".format(get_python()),
                    [table, other_table], another_table,
                    local_files=list(imap(get_test_file_path, ["my_op.py", "helpers.py"])))
         assert not yt.exists(other_table)
