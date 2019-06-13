@@ -1,6 +1,5 @@
 #include "table_reader.h"
 #include "helpers.h"
-#include "public.h"
 
 #include <yt/client/api/rowset.h>
 #include <yt/client/api/table_reader.h>
@@ -246,4 +245,3 @@ TFuture<ITableReaderPtr> CreateTableReader(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NRpcProxy
-
