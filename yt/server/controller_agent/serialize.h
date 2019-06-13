@@ -26,6 +26,8 @@ DEFINE_ENUM(ESnapshotVersion,
     ((JobSplitterSpeculative) (300104))
     ((InputOutputTableLock)   (300105))
     ((PrepareRootFSDuration)  (300106))
+    // It is interntionally differ from version in stable/19.5.
+    ((JobMetricsAggregationType) (300107))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
