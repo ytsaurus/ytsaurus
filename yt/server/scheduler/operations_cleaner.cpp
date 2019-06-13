@@ -165,9 +165,13 @@ std::vector<TString> GetPools(const IMapNodePtr& runtimeParameters)
 
 TString GetFilterFactors(const TArchiveOperationRequest& request)
 {
-    auto dropYPathAttributes = [] (const TString& path) -> TString {
+    auto getOriginalPath = [] (const TString& path) -> TString {
         try {
             auto parsedPath = NYPath::TRichYPath::Parse(path);
+            auto originalPath = parsedPath.Attributes().Find<TString>("original_path");
+            if (originalPath) {
+                return *originalPath;
+            }
             return parsedPath.GetPath();
         } catch (const std::exception& ex) {
             return "";
@@ -188,7 +192,7 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
     for (const auto& key : {"pool", "title"}) {
         auto node = specMapNode->FindChild(key);
         if (node && node->GetType() == ENodeType::String) {
-            parts.push_back(node->AsString()->GetValue());
+            parts.push_back(node->GetValue<TString>());
         }
     }
 
@@ -197,7 +201,7 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
         if (node && node->GetType() == ENodeType::List) {
             auto child = node->AsList()->FindChild(0);
             if (child && child->GetType() == ENodeType::String) {
-                auto path = dropYPathAttributes(child->AsString()->GetValue());
+                auto path = getOriginalPath(child->GetValue<TString>());
                 if (!path.empty()) {
                     parts.push_back(path);
                 }
@@ -208,7 +212,7 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
     for (const auto& key : {"output_table_path", "table_path"}) {
         auto node = specMapNode->FindChild(key);
         if (node && node->GetType() == ENodeType::String) {
-            auto path = dropYPathAttributes(node->AsString()->GetValue());
+            auto path = getOriginalPath(node->AsString()->GetValue());
             if (!path.empty()) {
                 parts.push_back(path);
             }
