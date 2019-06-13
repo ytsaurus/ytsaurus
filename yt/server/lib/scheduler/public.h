@@ -21,6 +21,7 @@ class TSchedulerToAgentJobEvent;
 using NJobTrackerClient::TJobId;
 using NJobTrackerClient::EJobType;
 using NJobTrackerClient::EJobState;
+using NJobTrackerClient::EJobPhase;
 
 using NJobTrackerClient::NProto::TJobResult;
 using NJobTrackerClient::NProto::TJobStatus;

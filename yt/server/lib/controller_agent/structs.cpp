@@ -52,6 +52,9 @@ TJobSummary::TJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
     if (status->has_statistics()) {
         StatisticsYson = TYsonString(status->statistics());
     }
+    if (status->has_phase()) {
+        Phase = static_cast<EJobPhase>(status->phase());
+    }
 }
 
 void TJobSummary::Persist(const NPhoenix::TPersistenceContext& context)
@@ -75,6 +78,10 @@ void TJobSummary::Persist(const NPhoenix::TPersistenceContext& context)
     // ESnapshotVersion::PrepareRootFSDuration - used raw value here to avoid includes outside server/lib.
     if (context.GetVersion() >= 300106) {
         Persist(context, PrepareRootFSDuration);
+    }
+
+    if (context.GetVersion() >= 300108) {
+        Persist(context, Phase);
     }
 }
 
