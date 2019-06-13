@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from yt.packages.six import iteritems, integer_types, text_type, binary_type, b, PY3
+from yt.packages.six import iteritems, integer_types, text_type, binary_type, b
 from yt.packages.six.moves import map as imap
 
 from yt.test_helpers import wait
@@ -19,7 +19,6 @@ except ImportError:
 import collections
 import glob
 import os
-import re
 import shutil
 import sys
 import stat
@@ -42,9 +41,13 @@ def get_tests_location():
 
 def get_tests_sandbox():
     path = os.environ.get("TESTS_SANDBOX")
+    tmpfs_path = get_tmpfs_path()
     if path is None:
         if yatest_common is not None:
-            path = os.path.join(yatest_common.output_path(), "sandbox")
+            if tmpfs_path is None:
+                path = os.path.join(yatest_common.output_path(), "sandbox")
+            else:
+                path = os.path.join(tmpfs_path, "sandbox")
         else:
             path = TESTS_SANDBOX
     if not os.path.exists(path):
@@ -75,7 +78,7 @@ def get_python():
     if yatest_common is None:
         return sys.executable
     else:
-        return yatest_common.binary_path("yt/python/yt_python/yt-python")
+        return yatest_common.binary_path("yt/python/yt/wrapper/tests/yt_python/yt-python")
 
 @contextmanager
 def set_config_option(name, value, final_action=None):
@@ -180,7 +183,7 @@ def build_python_egg(egg_contents_dir, temp_dir=None):
 
     _, egg_filename = tempfile.mkstemp(dir=temp_dir, suffix=".egg")
     try:
-        subprocess.check_call(["python", "setup.py", "bdist_egg"], cwd=dir_)
+        subprocess.check_call([get_python(), "setup.py", "bdist_egg"], cwd=dir_)
 
         eggs = glob.glob(os.path.join(dir_, "dist", "*.egg"))
         assert len(eggs) == 1

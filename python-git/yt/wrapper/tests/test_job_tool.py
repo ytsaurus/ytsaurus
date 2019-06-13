@@ -1,10 +1,8 @@
 from .helpers import (get_tests_sandbox, TEST_DIR, get_tests_location, wait_record_in_job_archive,
-                      get_python, yatest_common, get_operation_path)
+                      yatest_common, get_operation_path)
 
-from yt.common import makedirp, to_native_str
+from yt.common import to_native_str
 import yt.subprocess_wrapper as subprocess
-
-from yt.packages.six.moves import map as imap
 
 import yt.wrapper as yt
 
@@ -13,7 +11,6 @@ import stat
 import sys
 import tempfile
 import shutil
-import pytest
 import time
 import json
 

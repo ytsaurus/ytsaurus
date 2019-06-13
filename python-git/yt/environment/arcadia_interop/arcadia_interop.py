@@ -4,17 +4,16 @@ import time
 import shutil
 
 try:
-    import yatest.common
+    import yatest.common as yatest_common
 except ImportError:
-    # To avoid problems with import tests.
-    pass
+    yatest_common = None
 
 YT_ABI = "19_4"
 
 def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None):
     def get_binary_path(path):
         if arcadia_root is None:
-            return yatest.common.binary_path(path)
+            return yatest_common.binary_path(path)
         else:
             return os.path.join(arcadia_root, path)
 
@@ -68,7 +67,7 @@ def collect_cores(pids, working_directory, binaries, logger=None):
 
     has_core_files = False
     for pid in pids:
-        core_file = yatest.common.cores.recover_core_dump_file(
+        core_file = yatest_common.cores.recover_core_dump_file(
             # Temporarily collect all cores since problem with core file names.
             # yatest_common.binary_path("yp/server/master/bin/ypserver-master"),
             "*",
@@ -94,3 +93,11 @@ def collect_cores(pids, working_directory, binaries, logger=None):
         # Save binaries.
         for binary in binaries:
             shutil.copy(binary, cores_path)
+
+def save_sandbox(sandbox_path, output_subpath):
+    if yatest_common is None:
+        return
+    output_path = os.path.join(yatest_common.output_path(), output_subpath)
+    if output_path != sandbox_path:
+        # TODO(ignat): Should we use shutil.move here?
+        shutil.copytree(sandbox_path, output_path)
