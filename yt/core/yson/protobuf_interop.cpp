@@ -524,7 +524,7 @@ public:
     TYPath GetPath() const
     {
         if (Items_.empty()) {
-            return "/";
+            return {};
         }
         TStringBuilder builder;
         for (const auto& item : Items_) {
@@ -541,6 +541,16 @@ public:
                 });
         }
         return builder.Flush();
+    }
+
+    TYPath GetHumanReadablePath() const
+    {
+        auto path = GetPath();
+        if (path.empty()) {
+            static const TYPath Root("(root)");
+            return Root;
+        }
+        return path;
     }
 
 private:
@@ -880,15 +890,43 @@ private:
         const auto* type = TypeStack_.back().Type;
         const auto* field = type->FindFieldByName(key);
         if (!field) {
-            if (Options_.SkipUnknownFields || type->IsReservedFieldName(key)) {
+            if (type->IsReservedFieldName(key)) {
                 Forward(GetNullYsonConsumer(), [] {});
                 return;
             }
-            THROW_ERROR_EXCEPTION("Unknown field %Qv at %v",
-                key,
-                YPathStack_.GetPath())
-                << TErrorAttribute("ypath", YPathStack_.GetPath())
-                << TErrorAttribute("proto_type", type->GetFullName());
+
+            auto keyString = TString(key);
+            auto path = YPathStack_.GetPath();
+            auto humanReadablePath = YPathStack_.GetHumanReadablePath();
+
+            auto throwError = [type, keyString, path, humanReadablePath] {
+                THROW_ERROR_EXCEPTION("Unknown field %Qv at %v",
+                    keyString,
+                    humanReadablePath)
+                    << TErrorAttribute("ypath", path)
+                    << TErrorAttribute("proto_type", type->GetFullName());
+            };
+
+            if (Options_.UnknownFieldCallback) {
+                YsonString_.clear();
+                Forward(
+                    &YsonStringWriter_,
+                    [this, keyString, path, throwError] {
+                        YsonStringWriter_.Flush();
+                        if (!Options_.UnknownFieldCallback(path, keyString, TYsonString(std::move(YsonString_)))) {
+                            if (!Options_.SkipUnknownFields) {
+                                throwError();
+                            }
+                        }
+                    });
+            } else {
+                if (Options_.SkipUnknownFields) {
+                    Forward(GetNullYsonConsumer(), [] {});
+                } else {
+                    throwError();
+                }
+            }
+            return;
         }
 
         auto number = field->GetNumber();
@@ -1117,13 +1155,13 @@ private:
         const auto* field = FieldStack_.back().Field;
         if (field->IsYsonMap()) {
             THROW_ERROR_EXCEPTION("Map %v cannot be parsed from scalar values",
-                YPathStack_.GetPath())
+                YPathStack_.GetHumanReadablePath())
                 << TErrorAttribute("ypath", YPathStack_.GetPath())
                 << TErrorAttribute("protobuf_field", field->GetFullName());
         }
         if (field->IsRepeated()) {
             THROW_ERROR_EXCEPTION("Field %v is repeated and cannot be parsed from scalar values",
-                YPathStack_.GetPath())
+                YPathStack_.GetHumanReadablePath())
                 << TErrorAttribute("ypath", YPathStack_.GetPath())
                 << TErrorAttribute("protobuf_field", field->GetFullName());
         }
@@ -1133,14 +1171,14 @@ private:
     {
         if (FieldStack_.back().InList) {
             THROW_ERROR_EXCEPTION("Items of list %v cannot be lists themselves",
-                YPathStack_.GetPath())
+                YPathStack_.GetHumanReadablePath())
                 << TErrorAttribute("ypath", YPathStack_.GetPath());
         }
 
         const auto* field = FieldStack_.back().Field;
         if (!field->IsRepeated()) {
             THROW_ERROR_EXCEPTION("Field %v is not repeated and cannot be parsed from \"list\" values",
-                YPathStack_.GetPath())
+                YPathStack_.GetHumanReadablePath())
                 << TErrorAttribute("ypath", YPathStack_.GetPath())
                 << TErrorAttribute("protobuf_field", field->GetFullName());
         }
@@ -1226,7 +1264,7 @@ private:
                     if (!literal) {
                         THROW_ERROR_EXCEPTION("Unknown value %v for field %v",
                             i32Value,
-                            YPathStack_.GetPath())
+                            YPathStack_.GetHumanReadablePath())
                             << TErrorAttribute("ypath", YPathStack_.GetPath())
                             << TErrorAttribute("proto_field", field->GetFullName());
                     }
@@ -1236,7 +1274,7 @@ private:
 
                 default:
                     THROW_ERROR_EXCEPTION("Field %v cannot be parsed from integer values",
-                        YPathStack_.GetPath())
+                        YPathStack_.GetHumanReadablePath())
                         << TErrorAttribute("ypath", YPathStack_.GetPath())
                         << TErrorAttribute("proto_field", field->GetFullName());
             }
@@ -1251,7 +1289,7 @@ private:
         if (!TryIntegralCast<TTo>(value, &result)) {
             THROW_ERROR_EXCEPTION("Value %v of field %v cannot fit into %Qv",
                 value,
-                YPathStack_.GetPath(),
+                YPathStack_.GetHumanReadablePath(),
                 toTypeName)
                 << TErrorAttribute("ypath", YPathStack_.GetPath())
                 << TErrorAttribute("protobuf_field", field->GetFullName());
@@ -1597,7 +1635,7 @@ private:
             }
             THROW_ERROR_EXCEPTION("Unknown field number %v at %v",
                 fieldNumber,
-                YPathStack_.GetPath())
+                YPathStack_.GetHumanReadablePath())
                 << TErrorAttribute("ypath", YPathStack_.GetPath())
                 << TErrorAttribute("proto_type", type->GetFullName());
         }
@@ -1651,7 +1689,7 @@ private:
                 ui64 unsignedValue;
                 if (!CodedStream_.ReadVarint64(&unsignedValue)) {
                     THROW_ERROR_EXCEPTION("Error reading \"varint\" value for field %v",
-                        YPathStack_.GetPath())
+                        YPathStack_.GetHumanReadablePath())
                         << TErrorAttribute("ypath", YPathStack_.GetPath());
                 }
 
@@ -1669,7 +1707,7 @@ private:
                         if (!literal) {
                             THROW_ERROR_EXCEPTION("Unknown value %v for field %v",
                                 signedValue,
-                                YPathStack_.GetPath())
+                                YPathStack_.GetHumanReadablePath())
                                 << TErrorAttribute("ypath", YPathStack_.GetPath())
                                 << TErrorAttribute("proto_field", field->GetFullName());
                         }
@@ -1704,7 +1742,7 @@ private:
 
                     default:
                         THROW_ERROR_EXCEPTION("Unexpected \"varint\" value for field %v",
-                            YPathStack_.GetPath())
+                            YPathStack_.GetHumanReadablePath())
                             << TErrorAttribute("ypath", YPathStack_.GetPath())
                             << TErrorAttribute("proto_field", field->GetFullName());
                 }
@@ -1715,7 +1753,7 @@ private:
                 ui32 unsignedValue;
                 if (!CodedStream_.ReadLittleEndian32(&unsignedValue)) {
                     THROW_ERROR_EXCEPTION("Error reading \"fixed32\" value for field %v",
-                        YPathStack_.GetPath())
+                        YPathStack_.GetHumanReadablePath())
                         << TErrorAttribute("ypath", YPathStack_.GetPath());
                 }
 
@@ -1744,7 +1782,7 @@ private:
 
                     default:
                         THROW_ERROR_EXCEPTION("Unexpected \"fixed32\" value for field %v",
-                            YPathStack_.GetPath())
+                            YPathStack_.GetHumanReadablePath())
                             << TErrorAttribute("ypath", YPathStack_.GetPath())
                             << TErrorAttribute("proto_field", field->GetFullName());
                 }
@@ -1755,7 +1793,7 @@ private:
                 ui64 unsignedValue;
                 if (!CodedStream_.ReadLittleEndian64(&unsignedValue)) {
                     THROW_ERROR_EXCEPTION("Error reading \"fixed64\" value for field %v",
-                        YPathStack_.GetPath())
+                        YPathStack_.GetHumanReadablePath())
                         << TErrorAttribute("ypath", YPathStack_.GetPath());
                 }
 
@@ -1784,7 +1822,7 @@ private:
 
                     default:
                         THROW_ERROR_EXCEPTION("Unexpected \"fixed64\" value for field %v",
-                            YPathStack_.GetPath())
+                            YPathStack_.GetHumanReadablePath())
                             << TErrorAttribute("ypath", YPathStack_.GetPath())
                             << TErrorAttribute("proto_field", field->GetFullName());
                 }
@@ -1795,7 +1833,7 @@ private:
                 ui64 length;
                 if (!CodedStream_.ReadVarint64(&length)) {
                     THROW_ERROR_EXCEPTION("Error reading \"varint\" value for field %v",
-                        YPathStack_.GetPath())
+                        YPathStack_.GetHumanReadablePath())
                         << TErrorAttribute("ypath", YPathStack_.GetPath());
                 }
 
@@ -1805,7 +1843,7 @@ private:
                         PooledString_.resize(length);
                         if (!CodedStream_.ReadRaw(PooledString_.data(), length)) {
                             THROW_ERROR_EXCEPTION("Error reading \"string\" value for field %v",
-                                YPathStack_.GetPath())
+                                YPathStack_.GetHumanReadablePath())
                                 << TErrorAttribute("ypath", YPathStack_.GetPath());
                         }
                         ParseScalar([&] {
@@ -1829,7 +1867,7 @@ private:
 
                     default:
                         THROW_ERROR_EXCEPTION("Unexpected \"length-delimited\" value for field %v",
-                            YPathStack_.GetPath())
+                            YPathStack_.GetHumanReadablePath())
                             << TErrorAttribute("ypath", YPathStack_.GetPath())
                             << TErrorAttribute("proto_field", field->GetFullName());
                 }
@@ -1848,7 +1886,7 @@ private:
         auto throwUnexpectedWireType = [&] (WireFormatLite::WireType actualWireType) {
             THROW_ERROR_EXCEPTION("Invalid wire type %v while parsing attribute dictionary %v",
                 static_cast<int>(actualWireType),
-                YPathStack_.GetPath())
+                YPathStack_.GetHumanReadablePath())
                 << TErrorAttribute("ypath", YPathStack_.GetPath());
         };
 
@@ -1861,7 +1899,7 @@ private:
         auto throwUnexpectedFieldNumber = [&] (int actualFieldNumber) {
             THROW_ERROR_EXCEPTION("Invalid field number %v while parsing attribute dictionary %v",
                 actualFieldNumber,
-                YPathStack_.GetPath())
+                YPathStack_.GetHumanReadablePath())
                 << TErrorAttribute("ypath", YPathStack_.GetPath());
         };
 
@@ -1875,7 +1913,7 @@ private:
             ui64 value;
             if (!CodedStream_.ReadVarint64(&value)) {
                 THROW_ERROR_EXCEPTION("Error reading \"varint\" value while parsing attribute dictionary %v",
-                    YPathStack_.GetPath())
+                    YPathStack_.GetHumanReadablePath())
                     << TErrorAttribute("ypath", YPathStack_.GetPath());
             }
             return value;
@@ -1886,7 +1924,7 @@ private:
             pool->resize(length);
             if (!CodedStream_.ReadRaw(pool->data(), length)) {
                 THROW_ERROR_EXCEPTION("Error reading \"string\" value while parsing attribute dictionary %v",
-                    YPathStack_.GetPath())
+                    YPathStack_.GetHumanReadablePath())
                     << TErrorAttribute("ypath", YPathStack_.GetPath());
             }
             return TStringBuf(pool->data(), length);
@@ -1917,7 +1955,7 @@ private:
                     case AttributeDictionaryKeyFieldNumber: {
                         if (key) {
                             THROW_ERROR_EXCEPTION("Duplicate key found while parsing attribute dictionary %v",
-                                YPathStack_.GetPath())
+                                YPathStack_.GetHumanReadablePath())
                                 << TErrorAttribute("ypath", YPathStack_.GetPath());
                         }
                         key = readString(&PooledAttributeKey_);
@@ -1927,7 +1965,7 @@ private:
                     case AttributeDictionaryValueFieldNumber: {
                         if (value) {
                             THROW_ERROR_EXCEPTION("Duplicate value found while parsing attribute dictionary %v",
-                                YPathStack_.GetPath())
+                                YPathStack_.GetHumanReadablePath())
                                 << TErrorAttribute("ypath", YPathStack_.GetPath());
                         }
                         value = readString(&PooledAttributeValue_);
@@ -1942,12 +1980,12 @@ private:
 
             if (!key) {
                 THROW_ERROR_EXCEPTION("Missing key while parsing attribute dictionary %v",
-                    YPathStack_.GetPath())
+                    YPathStack_.GetHumanReadablePath())
                     << TErrorAttribute("ypath", YPathStack_.GetPath());
             }
             if (!value) {
                 THROW_ERROR_EXCEPTION("Missing value while parsing attribute dictionary %v",
-                    YPathStack_.GetPath())
+                    YPathStack_.GetHumanReadablePath())
                     << TErrorAttribute("ypath", YPathStack_.GetPath());
             }
 

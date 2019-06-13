@@ -99,8 +99,14 @@ TProtobufElementResolveResult ResolveProtobufElementByYPath(
 
 struct TProtobufWriterOptions
 {
-    //! If |true| then fields with name not found in protobuf metadata are
-    //! silently skipped; otherwise an exception is thrown.
+    //! If given, invoked for each unknown field found in YSON.
+    //! Returns |true| if the field is successfully consumed (see #SkipUnknownFields) or
+    //! |false| otherwise.
+    std::function<bool(const NYPath::TYPath& path, const TString& key, NYson::TYsonString value)> UnknownFieldCallback;
+
+    //! If |false| and #UnknownFieldCallback is null or returns |false| for an unknown field,
+    //! then an exception is thrown; otherwise the field is silently skipped.
+    //! Note that reserved fields are always unconditionally skipped.
     bool SkipUnknownFields = false;
 
     //! If |true| then required fields not found in protobuf metadata are
