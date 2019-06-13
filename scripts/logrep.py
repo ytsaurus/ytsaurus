@@ -35,7 +35,7 @@ OPERATION_GUID_TYPE = 1000
 GUID_RE = re.compile("^[a-fA-F0-9]+-[a-fA-F0-9]+-[a-fA-F0-9]+-[a-fA-F0-9]+$")
 LOG_FILE_NAME_RE = re.compile(r"^(?P<app_and_host>[^.]+)[.]debug[.]log([.](?P<log_index>\d+))?([.]gz)?$")
 
-ParsedLogName = collections.namedtuple("ParsedLogName", ["log_prefix", "host", "log_index"])
+ParsedLogName = collections.namedtuple("ParsedLogName", ["log_prefix", "log_index"])
 
 logging.basicConfig(format="%(asctime)s\t" + FQDN + "\t%(levelname)s: %(message)s", level=logging.INFO)
 
@@ -126,12 +126,12 @@ def get_application_by_log_prefix(log_prefix):
 
 
 def get_application_by_log_dir_name(log_dir_name):
-    suffix = "-logs"
-    if log_dir_name.endswith(suffix):
-        log_dir_name = log_dir_name[:-len(suffix)]
-    if log_dir_name not in LOG_DIR_NAME_MAP:
-        return None
-    return LOG_DIR_NAME_MAP[log_dir_name].name
+    for suffix in ["", "-logs", "-logs-archive"]:
+        if log_dir_name.endswith(suffix):
+            app_name = log_dir_name[:-len(suffix)]
+            if app_name in LOG_DIR_NAME_MAP:
+                return LOG_DIR_NAME_MAP[app_name].name
+    return None
 
 
 class LogrepError(RuntimeError):
@@ -194,13 +194,13 @@ def parse_log_filename(filename):
     if not m:
         return None
     app_and_host = m.group("app_and_host")
-    hostname = FQDN.split(".")[0]
-    expected_suffix = "-" + hostname
-    if app_and_host.endswith(expected_suffix):
-        app_and_host = app_and_host[:-len(expected_suffix)]
+    for app in APPLICATION_TABLE:
+        if app_and_host.startswith(app.log_prefix):
+            app_and_host = app.log_prefix
+            break
     index = m.group("log_index")
     index = int(index) if index else 0
-    return ParsedLogName(app_and_host, hostname, index)
+    return ParsedLogName(app_and_host, index)
 
 
 AsyncTaskOutput = collections.namedtuple("AsyncTaskOutput", ["file", "line"])
@@ -229,29 +229,33 @@ class RemoteTask(object):
                 exit(1)
             exit(0)
 
-    def popen_on_remote_machine(self, host, **kwargs):
-        logging.info("connecting to {}".format(host))
-        with open(__file__) as source_file:
-            return subprocess.Popen(
-                ["ssh", host] + SSH_OPTS + [
-                    "LOGREP_REMOTE_TASK_CLASS={} LOGREP_REMOTE_TASK_ARGS={} stdbuf -oL -eL python -".format(
-                        self.__class__.__name__,
-                        shell_quote(self.save())
-                    )
-                ],
-                stdin=source_file,
-                preexec_fn=reset_signals,
-                **kwargs
-            )
-
-    def exec_on_remote_machine(self, host, allocate_terminal=False):
-        logging.info("copying script to {}".format(host))
+    def upload_script(self, host):
         with open(__file__, "r") as source_file:
             hash_value = hashlib.md5(source_file.read()).hexdigest()
         remote_file_name = "/tmp/logrep_{}_{}.py".format(hash_value, getpass.getuser())
         subprocess.check_call(
             ["scp"] + SSH_OPTS + [__file__, "{}:{}".format(host, remote_file_name)]
         )
+        return remote_file_name
+
+    def popen_on_remote_machine(self, host, **kwargs):
+        logging.info("connecting to {}".format(host))
+        remote_file_name = self.upload_script(host)
+        return subprocess.Popen(
+            ["ssh", host] + SSH_OPTS + [
+                "LOGREP_REMOTE_TASK_CLASS={} LOGREP_REMOTE_TASK_ARGS={} stdbuf -oL -eL python {}".format(
+                    self.__class__.__name__,
+                    shell_quote(self.save()),
+                    remote_file_name
+                )
+            ],
+            preexec_fn=reset_signals,
+            **kwargs
+        )
+
+    def exec_on_remote_machine(self, host, allocate_terminal=False):
+        logging.info("copying script to {}".format(host))
+        remote_file_name = self.upload_script(host)
         logging.info("ssh to {}".format(host))
         cmd = ["ssh", self.host] + SSH_OPTS
         if allocate_terminal:
@@ -326,8 +330,8 @@ class GrepTask(RemoteTask):
         watch_thread.start()
 
     def run(self):
-        chdir_to_application_logs(self.application)
-        file_to_grep_list = find_files_to_grep(self.application, self.start_time, self.end_time)
+        log_directories = collect_log_directories(self.application)
+        file_to_grep_list = find_files_to_grep(log_directories, self.application, self.start_time, self.end_time)
         if not file_to_grep_list:
             raise LogrepError("Cannot find log files for time interval: {} - {}".format(self.start_time, self.end_time))
 
@@ -413,60 +417,56 @@ class SshTask(RemoteTask):
 # Searching for logs
 #
 
-def chdir_to_application_logs(application):
-    # 1. Понять, где лежат логи
-    if not os.path.isdir("/yt"):
+def collect_log_directories(application):
+    YT_DIR = "/yt"
+    if not os.path.isdir(YT_DIR):
         raise LogrepError("/yt doesn't exist or not a directory")
-    os.chdir("/yt")
     log_dirs = {}
-    if os.path.isdir("logs"):
-        os.chdir("logs")
-        for name in os.listdir("."):
-            parsed = parse_log_filename(name)
-            if parsed is None:
-                continue
-            cur_app = get_application_by_log_prefix(parsed.log_prefix)
-            if cur_app is not None:
-                log_dirs[cur_app] = "."
-    else:
-        for name in os.listdir("."):
-            if name.endswith("-logs") and os.path.isdir(name):
-                cur_app = get_application_by_log_dir_name(name)
-                if cur_app is not None:
-                    log_dirs[cur_app] = name
+    result = []
+    for name in os.listdir(YT_DIR):
+        if name == "logs":
+            result.append(name)
+        else:
+            cur_app = get_application_by_log_dir_name(name)
+            if cur_app == application:
+                result.append(name)
+                print result
 
-    if not log_dirs:
-        raise LogrepError("Cannot find any application logs on this server.")
+    for i in xrange(len(result)):
+        result[i] = os.path.join(YT_DIR, result[i])
+        possible_archive = os.path.join(result[i], "archive")
+        if os.path.isdir(possible_archive):
+            result.append(possible_archive)
 
-    if application not in log_dirs:
-        raise LogrepError(
-            "Service: {application} is not found on server. Available applications on this server:\n"
-            "{available_applications}\n".format(
-                application=application,
-                available_applications=indented_lines(sorted(log_dirs), indent=2)
-            )
-        )
-    os.chdir(log_dirs[application])
+    if not result:
+        raise LogrepError("Cannot find application logs on this server.")
+
+    return result
 
 
-def find_files_to_grep(application, start_time_str, end_time_str):
+def find_files_to_grep(log_directories, application, start_time_str, end_time_str):
     def binsearch_first_log_greater_than(log_list, key):
         def first_line(idx):
             if not (0 <= idx < len(log_list)):
                 raise IndexError("idx: {} is out of range [0, {})".format(idx, len(log_list)))
             return get_first_file_line(log_list[idx])
+
+        def pprint_idx(idx):
+            return "{}[{}]".format(log_list[idx], first_line(idx))
+
         begin = 0
         end = len(log_list)
         if end == begin:
             return -1
         if key <= first_line(begin):
             return -1
-        if first_line(end - 1) < key:
+        end -= 1
+        if first_line(end) < key:
             return end
         while True:
-            # assert first_line(begin) <= key <= first_line(end - 1)
             if end - begin <= 1:
-                return end
+                return begin
+            assert first_line(begin) <= key <= first_line(end - 1), "\n{}\n{}\n{}".format(pprint_idx(begin), key, pprint_idx(end - 1))
 
             try_idx = begin + (end - begin) / 2
             line = first_line(try_idx)
@@ -474,10 +474,10 @@ def find_files_to_grep(application, start_time_str, end_time_str):
             if c == 0:
                 return try_idx
             elif c == -1:
-                assert end - try_idx < end - begin
+                # line < key
                 begin = try_idx
             else:
-                assert try_idx - begin < end - begin
+                # key < line
                 end = try_idx
 
     def pick_files(log_list):
@@ -492,24 +492,33 @@ def find_files_to_grep(application, start_time_str, end_time_str):
 
     expected_log_prefix = APPLICATION_MAP[application].log_prefix
     log_file_list = []
-    if os.path.exists("archive"):
-        for filename in os.listdir("archive"):
+    for log_dir in log_directories:
+        for filename in os.listdir(log_dir):
             if ".debug.log" not in filename:
                 continue
             if not filename.startswith(expected_log_prefix):
                 continue
-            log_file_list.append(os.path.join("archive", filename))
-        log_file_list.sort()
-    current_logs = []
-    for filename in os.listdir("."):
-        if not filename.startswith(expected_log_prefix):
+            log_file_list.append(os.path.join(log_dir, filename))
+
+    digit_files = []
+    date_files = []
+    for log_file in log_file_list:
+        fname = os.path.basename(log_file)
+        m = re.search("[.]debug[.]log[.](\d\d\d\d-\d\d-\d\d[.]\d\d:\d\d)", fname)
+        if m:
+            date_files.append((m.group(0), log_file))
             continue
-        parsed = parse_log_filename(filename)
-        if parsed is None:
-            continue
-        current_logs.append((parsed.log_index, filename))
-    log_file_list += (f for _, f in sorted(current_logs, reverse=True))
-    return pick_files(log_file_list)
+        m = re.search("[.]debug[.]log([.](?P<number>\d+)([.]gz)?)?$", fname)
+        if m:
+            number = m.group("number")
+            number = int(number) if number else 0
+            digit_files.append((number, log_file))
+        else:
+            raise LogrepError("Unknown name of log file: {}".format(fname))
+
+    digit_files.sort(reverse=True)
+    date_files.sort()
+    return pick_files([f for _, f in date_files]) + pick_files([f for _, f in digit_files])
 
 
 def get_first_file_line(filename):
@@ -1327,6 +1336,7 @@ if __name__ == "__main__":
                 print >>sys.stderr, e.epilog
             exit(1)
         except IOError as e:
+            raise
             if e.errno != errno.EPIPE:
                 raise
     run()
