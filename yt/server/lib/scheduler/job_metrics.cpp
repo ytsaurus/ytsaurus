@@ -9,6 +9,10 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
+#include <yt/server/controller_agent/serialize.h>
+
+#include <util/generic/cast.h>
+
 namespace NYT::NScheduler {
 
 using namespace NProfiling;
@@ -26,6 +30,10 @@ void TCustomJobMetricDescription::Persist(const TStreamPersistenceContext& conte
 
     Persist(context, StatisticsPath);
     Persist(context, ProfilingName);
+
+    if (context.GetVersion() >= ToUnderlying(NControllerAgent::ESnapshotVersion::JobMetricsAggregationType)) {
+        Persist(context, AggregateType);
+    }
 }
 
 bool operator==(const TCustomJobMetricDescription& lhs, const TCustomJobMetricDescription& rhs)
@@ -55,12 +63,12 @@ void Serialize(const TCustomJobMetricDescription& customJobMetricDescription, NY
 void Deserialize(TCustomJobMetricDescription& customJobMetricDescription, NYTree::INodePtr node)
 {
     auto mapNode = node->AsMap();
-    customJobMetricDescription.StatisticsPath = mapNode->GetChild("statistics_path")->AsString()->GetValue();
-    customJobMetricDescription.ProfilingName = mapNode->GetChild("profiling_name")->AsString()->GetValue();
+    customJobMetricDescription.StatisticsPath = mapNode->GetChild("statistics_path")->GetValue<TString>();
+    customJobMetricDescription.ProfilingName = mapNode->GetChild("profiling_name")->GetValue<TString>();
 
-    auto aggregationTypeNode = mapNode->FindChild("aggregate_type");
-    if (aggregationTypeNode) {
-        customJobMetricDescription.AggregateType = ParseEnum<EAggregateType>(aggregationTypeNode->AsString()->GetValue());
+    auto aggregateTypeNode = mapNode->FindChild("aggregate_type");
+    if (aggregateTypeNode) {
+        customJobMetricDescription.AggregateType = ParseEnum<EAggregateType>(aggregateTypeNode->GetValue<TString>());
     }
 }
 

@@ -13,7 +13,7 @@ int GetCurrentSnapshotVersion()
 
 bool ValidateSnapshotVersion(int version)
 {
-    return version >= ToUnderlying(ESnapshotVersion::JobSplitterSpeculative) && version <= GetCurrentSnapshotVersion();
+    return version >= ToUnderlying(ESnapshotVersion::JobMetricsAggregationType) && version <= GetCurrentSnapshotVersion();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
