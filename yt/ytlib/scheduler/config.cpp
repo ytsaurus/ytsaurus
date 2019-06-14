@@ -495,8 +495,9 @@ TUserJobSpec::TUserJobSpec()
         .Default(512_MB)
         .GreaterThan(0)
         .LessThanOrEqual(1_TB);
+    RegisterParameter("memory_reserve_factor", MemoryReserveFactor)
+        .Default(Null);
     RegisterParameter("user_job_memory_digest_default_value", UserJobMemoryDigestDefaultValue)
-        .Alias("memory_reserve_factor")
         .Default(0.5)
         .GreaterThan(0.)
         .LessThanOrEqual(1.);
@@ -597,6 +598,10 @@ TUserJobSpec::TUserJobSpec()
                         TmpfsVolumes[j]->Path);
                 }
             }
+        }
+
+        if (MemoryReserveFactor) {
+            UserJobMemoryDigestLowerBound = UserJobMemoryDigestLowerBound = *MemoryReserveFactor;
         }
 
         auto memoryDigestLowerLimit = static_cast<double>(totalTmpfsSize) / MemoryLimit;
