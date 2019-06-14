@@ -1,4 +1,4 @@
-from .conftest import Cli, generate_uuid, prepare_yp_test_sandbox, save_yatest_working_files
+from .conftest import Cli, generate_uuid, prepare_yp_test_sandbox, yatest_save_sandbox
 
 from yp.client import YpClient
 from yp.common import GrpcUnavailableError
@@ -49,7 +49,7 @@ def start_yp_local():
         try:
             cli.check_output(["stop", sandbox_name])
         finally:
-            save_yatest_working_files(sandbox_name)
+            yatest_save_sandbox(sandbox_name)
 
 
 class TestLocalCli(object):
