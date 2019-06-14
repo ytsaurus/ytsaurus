@@ -3,6 +3,8 @@
 #include "versioned_row.h"
 #include "unversioned_row.h"
 
+#include <yt/core/actions/future.h>
+
 #include <yt/core/net/public.h>
 
 #include <yt/core/ytree/public.h>
@@ -164,6 +166,11 @@ void FromUnversionedRow(
 
 void UnversionedValueToYson(TUnversionedValue unversionedValue, NYson::IYsonConsumer* consumer);
 NYson::TYsonString UnversionedValueToYson(TUnversionedValue unversionedValue, bool enableRaw = false);
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TReader, class TRow>
+TFuture<void> AsyncReadRows(const TIntrusivePtr<TReader>& reader, std::vector<TRow>* rows);
 
 ////////////////////////////////////////////////////////////////////////////////
 

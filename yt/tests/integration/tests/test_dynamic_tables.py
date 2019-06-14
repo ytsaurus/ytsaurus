@@ -11,8 +11,6 @@ from time import sleep
 
 from collections import Counter
 
-import itertools
-
 import __builtin__
 
 ##################################################################
@@ -1035,7 +1033,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         sync_mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=2, target_cell_ids=[cells[1], cells[2]])
         assert [None, cells[1], cells[2]] == [tablet.get("cell_id") for tablet in get("//tmp/t/@tablets")]
 
-    @skip_if_rpc_driver_backend
     def test_modification_access_time(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")

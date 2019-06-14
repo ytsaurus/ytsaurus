@@ -3,7 +3,7 @@ import pytest
 from io import TextIOBase
 
 from yt.common import YtError
-from yt_env_setup import YTEnvSetup, skip_if_rpc_driver_backend
+from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 ##################################################################

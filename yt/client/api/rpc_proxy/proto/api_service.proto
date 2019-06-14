@@ -12,6 +12,7 @@ import "yt/core/misc/proto/guid.proto";
 import "yt/core/misc/proto/error.proto";
 import "yt/core/ytree/proto/attributes.proto";
 import "yt/client/hive/proto/timestamp_map.proto";
+import "yt/client/chunk_client/proto/data_statistics.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 // Scalars
@@ -1549,6 +1550,59 @@ message TReqWriteJournal
 }
 
 message TRspWriteJournal
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqReadTable
+{
+    required string path = 1; // RichYPath
+
+    optional bool unordered = 2 [default = false];
+    optional bool omit_inaccessible_columns = 3 [default = false];
+    optional bytes config = 4; // YSON-serialized TTableReaderConfig
+
+    optional TTransactionalOptions transactional_options = 100;
+}
+
+message TReadTableMeta
+{
+    required int64 start_row_index = 1;
+    repeated string key_columns = 2;
+    repeated string omitted_inaccessible_columns = 3;
+
+    required TTableReaderPayload payload = 4;
+}
+
+message TTableReaderPayload
+{
+    required int64 total_row_count = 1;
+
+    required NYT.NChunkClient.NProto.TDataStatistics data_statistics = 2;
+}
+
+message TRspReadTable
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqWriteTable
+{
+    required string path = 1; // RichYPath
+
+    optional bytes config = 2; // YSON-serialized TTableWriterConfig
+
+    optional TTransactionalOptions transactional_options = 100;
+}
+
+message TWriteTableMeta
+{
+    required TTableSchema schema = 1;
+}
+
+message TRspWriteTable
 {
 }
 

@@ -2,7 +2,7 @@ import pytest
 
 from test_dynamic_tables import DynamicTablesBase
 
-from yt_env_setup import YTEnvSetup, wait, skip_if_rpc_driver_backend
+from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
@@ -259,7 +259,6 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         sync_mount_table("//tmp/t")
         assert select_rows("a from [//tmp/t]") == [{"a": i % 100} for i in xrange(1000)]
 
-    @skip_if_rpc_driver_backend
     def test_no_duplicate_chunks_in_dynamic(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
@@ -270,7 +269,6 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         with pytest.raises(YtError):
             mount_table("//tmp/t")
 
-    @skip_if_rpc_driver_backend
     def test_chunk_list_kind(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
@@ -306,7 +304,6 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         trim_rows("//tmp/t", 0, -10)
         wait(lambda: get("//tmp/t/@tablets/0/trimmed_row_count") == 0)
 
-    @skip_if_rpc_driver_backend
     def test_trim_drops_chunks(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
@@ -342,7 +339,6 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         trim_rows("//tmp/t", 0, 30)
         assert select_rows("a from [//tmp/t]") == [{"a": i} for i in xrange(30, 100)]
 
-    @skip_if_rpc_driver_backend
     def test_make_static_after_trim(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
@@ -361,7 +357,6 @@ class TestOrderedDynamicTables(DynamicTablesBase):
 
         assert read_table("//tmp/t") == [{"a": j * 10, "b": None, "c": None} for j in xrange(0, 100)]
 
-    @skip_if_rpc_driver_backend
     def test_trimmed_rows_perserved_on_unmount(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
@@ -388,7 +383,6 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         sync_mount_table("//tmp/t")
         assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] between 110 and 120") == [{"a": j} for j in xrange(110, 121)]
 
-    @skip_if_rpc_driver_backend
     def test_trim_optimizes_chunk_list(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
@@ -638,7 +632,6 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         actual = select_rows("a, b, c from [//tmp/t]")
         assert_items_equal(actual, rows)
 
-    @skip_if_rpc_driver_backend
     @pytest.mark.parametrize("erasure_codec", ["none", "reed_solomon_6_3", "lrc_12_2_2"])
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_read_table(self, optimize_for, erasure_codec):

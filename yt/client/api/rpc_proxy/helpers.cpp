@@ -1244,14 +1244,21 @@ void ValidateRowsetDescriptor(
     }
 }
 
-std::vector<TSharedRef> SerializeRowset(
+std::vector<TSharedRef> SerializeRowsetWithPartialNameTable(
     const NTableClient::TNameTablePtr& nameTable,
+    int startingId,
     TRange<NTableClient::TUnversionedRow> rows,
     NProto::TRowsetDescriptor* descriptor)
 {
-    descriptor->set_wire_format_version(1);
+    descriptor->Clear();
+    descriptor->set_wire_format_version(NApi::NRpcProxy::CurrentWireFormatVersion);
     descriptor->set_rowset_kind(NProto::RK_UNVERSIONED);
-    for (size_t id = 0; id < nameTable->GetSize(); ++id) {
+    if (startingId < 0 || startingId > nameTable->GetSize()) {
+        THROW_ERROR_EXCEPTION("Invalid starting id: expected in range [0, %v], got %v",
+            nameTable->GetSize(),
+            startingId);
+    }
+    for (int id = startingId; id < nameTable->GetSize(); ++id) {
         auto* columnDescriptor = descriptor->add_columns();
         columnDescriptor->set_name(TString(nameTable->GetName(id)));
     }
@@ -1260,13 +1267,22 @@ std::vector<TSharedRef> SerializeRowset(
     return writer.Finish();
 }
 
+std::vector<TSharedRef> SerializeRowset(
+    const NTableClient::TNameTablePtr& nameTable,
+    TRange<NTableClient::TUnversionedRow> rows,
+    NProto::TRowsetDescriptor* descriptor)
+{
+    return SerializeRowsetWithPartialNameTable(nameTable, 0, rows, descriptor);
+}
+
 template <class TRow>
 std::vector<TSharedRef> SerializeRowset(
     const TTableSchema& schema,
     TRange<TRow> rows,
     NProto::TRowsetDescriptor* descriptor)
 {
-    descriptor->set_wire_format_version(1);
+    descriptor->Clear();
+    descriptor->set_wire_format_version(NApi::NRpcProxy::CurrentWireFormatVersion);
     descriptor->set_rowset_kind(TRowsetTraits<TRow>::Kind);
     for (const auto& column : schema.Columns()) {
         auto* columnDescriptor = descriptor->add_columns();
@@ -1322,7 +1338,10 @@ TIntrusivePtr<NApi::IRowset<TRow>> DeserializeRowset(
     const NProto::TRowsetDescriptor& descriptor,
     const TSharedRef& data)
 {
-    ValidateRowsetDescriptor(descriptor, 1, TRowsetTraits<TRow>::Kind);
+    ValidateRowsetDescriptor(
+        descriptor,
+        NApi::NRpcProxy::CurrentWireFormatVersion,
+        TRowsetTraits<TRow>::Kind);
     TWireProtocolReader reader(data, New<TRowBuffer>(TRpcProxyRowsetBufferTag()));
     auto schema = DeserializeRowsetSchema(descriptor);
     auto schemaData = TWireProtocolReader::GetSchemaData(schema, TColumnFilter());
@@ -1337,6 +1356,96 @@ template NApi::IUnversionedRowsetPtr DeserializeRowset(
 template NApi::IVersionedRowsetPtr DeserializeRowset(
     const NProto::TRowsetDescriptor& descriptor,
     const TSharedRef& data);
+
+TSharedRef SerializeRowsetWithNameTableDelta(
+    const TNameTablePtr& nameTable,
+    TRange<TUnversionedRow> rows,
+    int* nameTableSize)
+{
+    NProto::TRowsetDescriptor descriptor;
+    const auto& rowRefs = NApi::NRpcProxy::SerializeRowsetWithPartialNameTable(
+        nameTable,
+        *nameTableSize,
+        rows,
+        &descriptor);
+    *nameTableSize += descriptor.columns_size();
+
+    auto descriptorRef = SerializeProtoToRef(descriptor);
+    auto mergedRowRefs = MergeRefsToRef<TRpcProxyRowsetBufferTag>(rowRefs);
+
+    // TODO(kiselyovp) refs are being copied here, we could optimize this
+    return PackRefs(std::vector{descriptorRef, mergedRowRefs});
+}
+
+TSharedRange<NTableClient::TUnversionedRow> DeserializeRowsetWithNameTableDelta(
+    const TSharedRef& data,
+    const TNameTablePtr& nameTable,
+    NProto::TRowsetDescriptor* descriptor,
+    TNameTableToSchemaIdMapping* idMapping)
+{
+    std::vector<TSharedRef> parts;
+    UnpackRefsOrThrow(data, &parts);
+    if (parts.size() != 2) {
+        THROW_ERROR_EXCEPTION(
+            "Error deserializing rowset with name table delta: expected %v packed refs, got %v",
+            2,
+            parts.size());
+    }
+
+    const auto& descriptorDeltaRef = parts[0];
+    const auto& mergedRowRefs = parts[1];
+
+    NApi::NRpcProxy::NProto::TRowsetDescriptor descriptorDelta;
+    if (!TryDeserializeProto(&descriptorDelta, descriptorDeltaRef)) {
+        THROW_ERROR_EXCEPTION("Error deserializing rowset descriptor delta");
+    }
+    NApi::NRpcProxy::ValidateRowsetDescriptor(
+        descriptorDelta,
+        NApi::NRpcProxy::CurrentWireFormatVersion,
+        NApi::NRpcProxy::NProto::RK_UNVERSIONED);
+
+    auto oldRemoteNameTableSize = descriptor->columns_size();
+    descriptor->MergeFrom(descriptorDelta);
+    auto newRemoteNameTableSize = descriptor->columns_size();
+    auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
+        *descriptor, mergedRowRefs);
+
+    if (idMapping) {
+        idMapping->resize(newRemoteNameTableSize);
+        for (int id = oldRemoteNameTableSize; id < newRemoteNameTableSize; ++id) {
+            const auto& name = descriptor->columns(id).name();
+            (*idMapping)[id] = nameTable->GetIdOrRegisterName(name);
+        }
+
+        for (auto row : rowset->GetRows()) {
+            auto mutableRow = TMutableUnversionedRow(row.ToTypeErasedRow());
+            for (auto& value : mutableRow) {
+                auto newId = ApplyIdMapping(value, rowset->Schema(), idMapping);
+                if (newId < 0 || newId >= nameTable->GetSize()) {
+                    THROW_ERROR_EXCEPTION("Id mapping returned an invalid value %v for id %v: "
+                        "expected a value in [0, %v) range",
+                        newId,
+                        value.Id,
+                        nameTable->GetSize());
+                }
+                value.Id = newId;
+            }
+        }
+    } else {
+        for (int id = oldRemoteNameTableSize; id < newRemoteNameTableSize; ++id) {
+            const auto& name = descriptor->columns(id).name();
+            auto newId = nameTable->RegisterNameOrThrow(name);
+            if (newId != id) {
+                THROW_ERROR_EXCEPTION("Name table id for name %Qv mismatch: expected %v, got %v",
+                    name,
+                    id,
+                    newId);
+            }
+        }
+    }
+
+    return MakeSharedRange(rowset->GetRows(), rowset);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

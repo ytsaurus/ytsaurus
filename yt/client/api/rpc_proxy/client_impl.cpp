@@ -717,12 +717,12 @@ TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> TClient::GetJobInput(
     const TGetJobInputOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
-    auto connection = GetRpcProxyConnection();
-    const auto& config = connection->GetConfig();
-
     auto req = proxy.GetJobInput();
-    auto timeout = options.Timeout.value_or(config->DefaultTotalStreamingTimeout);
-    req->SetTimeout(timeout);
+    if (options.Timeout) {
+        SetTimeoutOptions(*req, options);
+    } else {
+        InitStreamingRequest(*req);
+    }
 
     ToProto(req->mutable_job_id(), jobId);
 
