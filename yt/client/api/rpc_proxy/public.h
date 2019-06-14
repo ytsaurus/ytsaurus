@@ -17,6 +17,8 @@ extern const TString AliveNodeName;
 extern const TString ApiServiceName;
 extern const TString DiscoveryServiceName;
 
+constexpr int CurrentWireFormatVersion = 1;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EErrorCode,

@@ -5,7 +5,6 @@ from flaky import flaky
 
 import pytest
 import time
-from collections import defaultdict
 
 ##################################################################
 

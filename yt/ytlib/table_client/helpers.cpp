@@ -69,11 +69,12 @@ class TApiFromSchemalessChunkReaderAdapter
 public:
     explicit TApiFromSchemalessChunkReaderAdapter(ISchemalessChunkReaderPtr underlyingReader)
         : UnderlyingReader_(std::move(underlyingReader))
+        , StartRowIndex_(UnderlyingReader_->GetTableRowIndex())
     { }
 
-    virtual i64 GetTableRowIndex() const override
+    virtual i64 GetStartRowIndex() const override
     {
-        return UnderlyingReader_->GetTableRowIndex();
+        return StartRowIndex_;
     }
 
     virtual i64 GetTotalRowCount() const override
@@ -118,6 +119,7 @@ public:
 
 private:
     const ISchemalessChunkReaderPtr UnderlyingReader_;
+    const i64 StartRowIndex_;
 };
 
 NApi::ITableReaderPtr CreateApiFromSchemalessChunkReaderAdapter(

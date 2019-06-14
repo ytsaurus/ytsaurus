@@ -28,7 +28,6 @@ from cStringIO import StringIO, OutputType
 ###########################################################################
 
 clusters_drivers = {}
-_native_driver = None
 is_multicell = None
 path_to_run_tests = None
 _zombie_responses = []
@@ -69,24 +68,11 @@ def get_driver(cell_index=0, cluster="primary", api_version=default_api_version)
 
     return clusters_drivers[cluster][cell_index][api_version]
 
-def get_native_driver():
-    return _native_driver
-
 def _get_driver(driver):
     if driver is None:
         return get_driver()
     else:
         return driver
-
-# TODO(kiselyovp) remove this _native_driver crutch when
-# read_table and write_table are supported via RPC proxy
-def force_native_driver(func):
-    def wrapper(func, self, *args, **kwargs):
-        if "driver" not in kwargs:
-            kwargs["driver"] = get_native_driver()
-        return func(self, *args, **kwargs)
-
-    return decorator.decorate(func, wrapper)
 
 def init_drivers(clusters):
     def create_drivers(config):
@@ -107,15 +93,6 @@ def init_drivers(clusters):
             # Setup driver logging for all instances in the environment as in the primary cluster.
             if instance._cluster_name == "primary":
                 set_environment_driver_logging_config(instance.driver_logging_config)
-
-                global _native_driver
-                if instance.driver_backend == "native":
-                    _native_driver = drivers[3]
-                else:
-                    native_config = pycopy.deepcopy(instance.configs["driver"])
-                    native_config["connection_type"] = "native"
-                    native_config["api_version"] = default_api_version
-                    _native_driver = Driver(config=native_config)
 
             secondary_drivers = []
             for secondary_driver_config in secondary_driver_configs:
@@ -507,19 +484,16 @@ def ls(path, **kwargs):
     kwargs["path"] = path
     return execute_command("list", kwargs, parse_yson=True)
 
-@force_native_driver
 def read_table(path, **kwargs):
     kwargs["path"] = path
     return execute_command_with_output_format("read_table", kwargs)
 
-@force_native_driver
 def read_blob_table(path, **kwargs):
     kwargs["path"] = path
     output = StringIO()
     execute_command("read_blob_table", kwargs, output_stream=output)
     return output.getvalue()
 
-@force_native_driver
 def write_table(path, value=None, is_raw=False, **kwargs):
     if "input_stream" in kwargs:
         input_stream = kwargs.pop("input_stream")
