@@ -1,3 +1,11 @@
+if [[ "$1" == "" ]] ; then
+    BIN="//sys/clickhouse/bin/ytserver-clickhouse"
+else
+    BIN="$1"
+fi
+
+echo "Using binary $BIN"
+
 yt start-clickhouse-clique \
     --enable-monitoring \
     --instance-count 16 \
@@ -15,4 +23,5 @@ yt start-clickhouse-clique \
         pool=\"chyt\";
         alias=\"*ch_public\"
      }" \
-    --cypress-geodata-path //sys/clickhouse/geodata/geodata.tgz
+    --cypress-geodata-path //sys/clickhouse/geodata/geodata.tgz \
+    --cypress-ytserver-clickhouse-path $BIN
