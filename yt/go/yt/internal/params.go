@@ -568,6 +568,25 @@ func writeReshardTableOptions(w *yson.Writer, o *yt.ReshardTableOptions) {
 	writeMutatingOptions(w, o.MutatingOptions)
 }
 
+func writeAlterTableOptions(w *yson.Writer, o *yt.AlterTableOptions) {
+	if o == nil {
+		return
+	}
+	if o.Schema != nil {
+		w.MapKeyString("schema")
+		w.Any(o.Schema)
+	}
+	if o.Dynamic != nil {
+		w.MapKeyString("dynamic")
+		w.Any(o.Dynamic)
+	}
+	if o.UpstreamReplicaID != nil {
+		w.MapKeyString("upstream_replica_id")
+		w.Any(o.UpstreamReplicaID)
+	}
+	writeMutatingOptions(w, o.MutatingOptions)
+}
+
 func writeLookupRowsOptions(w *yson.Writer, o *yt.LookupRowsOptions) {
 	if o == nil {
 		return
@@ -2371,5 +2390,44 @@ func (p *ReshardTableParams) TabletRangeOptions() **yt.TabletRangeOptions {
 }
 
 func (p *ReshardTableParams) MutatingOptions() **yt.MutatingOptions {
+	return &p.options.MutatingOptions
+}
+
+type AlterTableParams struct {
+	verb    Verb
+	path    ypath.Path
+	options *yt.AlterTableOptions
+}
+
+func NewAlterTableParams(
+	path ypath.Path,
+	options *yt.AlterTableOptions,
+) *AlterTableParams {
+	if options == nil {
+		options = &yt.AlterTableOptions{}
+	}
+	return &AlterTableParams{
+		Verb("alter_table"),
+		path,
+		options,
+	}
+}
+
+func (p *AlterTableParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *AlterTableParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("path", p.path),
+	}
+}
+
+func (p *AlterTableParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("path")
+	w.Any(p.path)
+	writeAlterTableOptions(w, p.options)
+}
+
+func (p *AlterTableParams) MutatingOptions() **yt.MutatingOptions {
 	return &p.options.MutatingOptions
 }

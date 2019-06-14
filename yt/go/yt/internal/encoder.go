@@ -521,3 +521,11 @@ func (e *Encoder) ReshardTable(
 ) (err error) {
 	return e.do(ctx, e.newCall(NewReshardTableParams(path, options)), func(res *CallResult) error { return nil })
 }
+
+func (e *Encoder) AlterTable(
+	ctx context.Context,
+	path ypath.Path,
+	options *yt.AlterTableOptions,
+) (err error) {
+	return e.do(ctx, e.newCall(NewAlterTableParams(path, options)), func(res *CallResult) error { return nil })
+}

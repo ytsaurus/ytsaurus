@@ -36,6 +36,8 @@ import (
 	"context"
 	"io"
 
+	"a.yandex-team.ru/yt/go/schema"
+
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/yson"
 
@@ -696,6 +698,14 @@ type ReshardTableOptions struct {
 	TabletCount *int        `http:"tablet_count,omitnil"`
 }
 
+type AlterTableOptions struct {
+	*MutatingOptions
+
+	Schema            *schema.Schema `http:"schema,omitnil"`
+	Dynamic           *bool          `http:"dynamic,omitnil"`
+	UpstreamReplicaID *guid.GUID     `http:"upstream_replica_id,omitnil"`
+}
+
 // Tx is high level API for master transactions.
 //
 // Create new tx by calling BeginTx() method on Client or other Tx.
@@ -814,6 +824,14 @@ type MountClient interface {
 		ctx context.Context,
 		path ypath.Path,
 		options *ReshardTableOptions,
+	) (err error)
+
+	// http:verb:"alter_table"
+	// http:params:"path"
+	AlterTable(
+		ctx context.Context,
+		path ypath.Path,
+		options *AlterTableOptions,
 	) (err error)
 }
 
