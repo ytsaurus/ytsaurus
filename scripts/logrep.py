@@ -337,10 +337,10 @@ class GrepTask(RemoteTask):
 
         for f in file_to_grep_list:
             first_line = get_first_file_line(f).strip()
-            logging.info("would grep {} ({})".format(f, shorten(first_line, 50)))
+            logging.info("Would grep {} ({})".format(f, shorten(first_line, 50)))
 
         cmd = ["zfgrep", "--text", "--no-filename", self.pattern] + file_to_grep_list
-        logging.info("running {}".format(" ".join(map(shell_quote, cmd))))
+        logging.info("Running {}".format(" ".join(map(shell_quote, cmd))))
 
         cmd = ["stdbuf", "-oL", "-eL"] + cmd
 
@@ -445,7 +445,7 @@ def collect_log_directories(application):
 
 
 def find_files_to_grep(log_directories, application, start_time_str, end_time_str):
-    def binsearch_first_log_greater_than(log_list, key):
+    def binsearch_last_log_smaller_than(log_list, key):
         def first_line(idx):
             if not (0 <= idx < len(log_list)):
                 raise IndexError("idx: {} is out of range [0, {})".format(idx, len(log_list)))
@@ -466,7 +466,7 @@ def find_files_to_grep(log_directories, application, start_time_str, end_time_st
         while True:
             if end - begin <= 1:
                 return begin
-            assert first_line(begin) <= key <= first_line(end - 1), "\n{}\n{}\n{}".format(pprint_idx(begin), key, pprint_idx(end - 1))
+            assert first_line(begin) <= key <= first_line(end), "\n{}\n{}\n{}".format(pprint_idx(begin), key, pprint_idx(end))
 
             try_idx = begin + (end - begin) / 2
             line = first_line(try_idx)
@@ -481,14 +481,12 @@ def find_files_to_grep(log_directories, application, start_time_str, end_time_st
                 end = try_idx
 
     def pick_files(log_list):
-        begin_idx = binsearch_first_log_greater_than(log_list, start_time_str)
-        end_idx = binsearch_first_log_greater_than(log_list, end_time_str)
-        begin_idx -= 1
+        begin_idx = binsearch_last_log_smaller_than(log_list, start_time_str)
+        end_idx = binsearch_last_log_smaller_than(log_list, end_time_str)
         if begin_idx < 0:
-            begin_idx = 0
-        if end_idx < 0:
-            end_idx = 0
-        return log_list[begin_idx:end_idx]
+            return []
+        assert end_idx >= begin_idx
+        return log_list[begin_idx:end_idx + 1]
 
     expected_log_prefix = APPLICATION_MAP[application].log_prefix
     log_file_list = []
