@@ -125,6 +125,11 @@ public:
         return KeyColumns_;
     }
 
+    virtual const TTableSchema& GetTableSchema() const override
+    {
+        return TableSchema_;
+    }
+
     virtual const std::vector<TString>& GetOmittedInaccessibleColumns() const override
     {
         return OmittedInaccessibleColumns_;
@@ -142,6 +147,7 @@ private:
     const IAsyncZeroCopyInputStreamPtr Underlying_;
     const i64 StartRowIndex_;
     const TKeyColumns KeyColumns_;
+    const TTableSchema TableSchema_;
     const std::vector<TString> OmittedInaccessibleColumns_;
     const TNameTablePtr NameTable_ = New<TNameTable>();
 
