@@ -106,6 +106,23 @@ func OnConflictDrop(ctx context.Context, yc yt.Client) ConflictFn {
 	}
 }
 
+// OnConflictTryAlter returns ConflictFn that will try to alter previous version of the table.
+func OnConflictTryAlter(ctx context.Context, yc yt.Client) ConflictFn {
+	return func(path ypath.Path, actual, expected schema.Schema) (err error) {
+		if err = UnmountAndWait(ctx, yc, path); err != nil {
+			return
+		}
+
+		if err = yc.AlterTable(ctx, path, &yt.AlterTableOptions{
+			Schema: &expected,
+		}); err != nil {
+			return
+		}
+
+		return RetryConflict
+	}
+}
+
 type Table struct {
 	Schema     schema.Schema
 	Attributes map[string]interface{}
@@ -163,7 +180,7 @@ func EnsureTables(
 				}
 			}
 		} else {
-			if !attrs.Schema.Equal(table.Schema) {
+			if !attrs.Schema.Equal(table.Schema.WithUniqueKeys()) {
 				err = onConflict(path, attrs.Schema, table.Schema)
 				if err == RetryConflict {
 					goto retry

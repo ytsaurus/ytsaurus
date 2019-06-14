@@ -136,6 +136,13 @@ func (s Schema) SortedBy(keyColumns ...string) Schema {
 }
 
 func (s Schema) Equal(other Schema) bool {
+	explicitTrue := true
+	if s.Strict == nil {
+		s.Strict = &explicitTrue
+	}
+	if other.Strict == nil {
+		other.Strict = &explicitTrue
+	}
 	return reflect.DeepEqual(&s, &other)
 }
 

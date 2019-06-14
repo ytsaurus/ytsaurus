@@ -18,7 +18,7 @@ type testRow struct {
 }
 
 var (
-	testSchema    = schema.MustInfer(&testRow{}).WithUniqueKeys()
+	testSchema    = schema.MustInfer(&testRow{})
 	updatedSchema = testSchema.Append(schema.Column{
 		Name: "C",
 		Type: schema.TypeInt64,
@@ -45,6 +45,14 @@ func TestTableMount(t *testing.T) {
 	require.NoError(t, migrate.UnmountAndWait(env.Ctx, env.YT, path))
 }
 
+func checkSchemas(t *testing.T, env *yttest.Env, schemas map[ypath.Path]migrate.Table) {
+	for path, expected := range schemas {
+		var actual schema.Schema
+		require.NoError(t, env.YT.GetNode(env.Ctx, path.Attr("schema"), &actual, nil))
+		require.Equal(t, expected.Schema.WithUniqueKeys(), actual)
+	}
+}
+
 func TestCreateTables(t *testing.T) {
 	env, cancel := yttest.NewEnv(t)
 	defer cancel()
@@ -68,22 +76,14 @@ func TestCreateTables(t *testing.T) {
 		return
 	}
 
-	checkSchemas := func(schemas map[ypath.Path]migrate.Table) {
-		for path, expected := range schemas {
-			var actual schema.Schema
-			require.NoError(t, env.YT.GetNode(env.Ctx, path.Attr("schema"), &actual, nil))
-			require.Equal(t, expected.Schema, actual)
-		}
-	}
-
 	drop := migrate.OnConflictDrop(env.Ctx, env.YT)
 
 	require.NoError(t, migrate.EnsureTables(env.Ctx, env.YT, firstSchemas, drop))
-	checkSchemas(firstSchemas)
+	checkSchemas(t, env, firstSchemas)
 	firstIDA, firstIDB := getIDs()
 
 	require.NoError(t, migrate.EnsureTables(env.Ctx, env.YT, firstSchemas, drop))
-	checkSchemas(firstSchemas)
+	checkSchemas(t, env, firstSchemas)
 
 	secondIDA, secondIDB := getIDs()
 	require.Equal(t, firstIDA, secondIDA)
@@ -92,9 +92,44 @@ func TestCreateTables(t *testing.T) {
 	require.NoError(t, migrate.UnmountAndWait(env.Ctx, env.YT, pathA))
 
 	require.NoError(t, migrate.EnsureTables(env.Ctx, env.YT, secondSchemas, drop))
-	checkSchemas(secondSchemas)
+	checkSchemas(t, env, secondSchemas)
 
 	secondIDA, secondIDB = getIDs()
 	require.Equal(t, firstIDA, secondIDA)
 	require.NotEqual(t, firstIDB, secondIDB)
+}
+
+func TestMigrateDoNotTouch(t *testing.T) {
+	env, cancel := yttest.NewEnv(t)
+	defer cancel()
+
+	root := env.TmpPath()
+	schemas := map[ypath.Path]migrate.Table{
+		root.Child("table"): {Schema: testSchema},
+	}
+
+	checkNoConflict := func(path ypath.Path, _, _ schema.Schema) error {
+		t.Fatalf("Migration reported conflict for path %q", path)
+		return nil
+	}
+
+	require.NoError(t, migrate.EnsureTables(env.Ctx, env.YT, schemas, checkNoConflict))
+	require.NoError(t, migrate.EnsureTables(env.Ctx, env.YT, schemas, checkNoConflict))
+}
+
+func TestMigrateAlter(t *testing.T) {
+	env, cancel := yttest.NewEnv(t)
+	defer cancel()
+
+	root := env.TmpPath()
+	schemas := map[ypath.Path]migrate.Table{root.Child("table"): {Schema: testSchema}}
+	updatedSchema := map[ypath.Path]migrate.Table{root.Child("table"): {Schema: updatedSchema}}
+
+	alter := migrate.OnConflictTryAlter(env.Ctx, env.YT)
+
+	require.NoError(t, migrate.EnsureTables(env.Ctx, env.YT, schemas, alter))
+	checkSchemas(t, env, schemas)
+
+	require.NoError(t, migrate.EnsureTables(env.Ctx, env.YT, updatedSchema, alter))
+	checkSchemas(t, env, updatedSchema)
 }
