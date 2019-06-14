@@ -84,7 +84,7 @@ void ToUnversionedValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void UnversionedValueToListImpl(
+void UnversionedValueToProtobufImpl(
     google::protobuf::Message* value,
     const NYson::TProtobufMessageType* type,
     TUnversionedValue unversionedValue);
@@ -95,7 +95,7 @@ void FromUnversionedValue(
     TUnversionedValue unversionedValue,
     typename std::enable_if<std::is_convertible<T*, google::protobuf::Message*>::value, void>::type*)
 {
-    UnversionedValueToListImpl(
+    UnversionedValueToProtobufImpl(
         value,
         NYson::ReflectProtobufMessageType<T>(),
         unversionedValue);
