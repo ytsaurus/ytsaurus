@@ -25,10 +25,12 @@ public:
         i64 startRowIndex,
         const TKeyColumns& keyColumns,
         const std::vector<TString>& omittedInaccessibleColumns,
+        const TTableSchema& schema,
         const NApi::NRpcProxy::NProto::TTableReaderPayload& payload)
         : Underlying_ (std::move(underlying))
         , StartRowIndex_(startRowIndex)
         , KeyColumns_(keyColumns)
+        , TableSchema_(schema)
         , OmittedInaccessibleColumns_(omittedInaccessibleColumns)
     {
         YCHECK(Underlying_);
@@ -237,12 +239,14 @@ TFuture<ITableReaderPtr> CreateTableReader(
                 auto keyColumns = FromProto<TKeyColumns>(meta.key_columns());
                 auto omittedInaccessibleColumns = FromProto<std::vector<TString>>(
                     meta.omitted_inaccessible_columns());
+                auto schema = FromProto<TTableSchema>(meta.schema());
 
                 return New<TTableReader>(
                     inputStream,
                     startRowIndex,
                     std::move(keyColumns),
                     std::move(omittedInaccessibleColumns),
+                    std::move(schema),
                     meta.payload());
             })).As<ITableReaderPtr>();
         }));
