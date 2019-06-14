@@ -277,6 +277,50 @@ TEST(TValidateLogicalTypeTest, TestTupleType)
     EXPECT_BAD_TYPE(tuple2, " [ 2 ] ");
 }
 
+void TestVariantImpl(ELogicalMetatype metatype)
+{
+    auto createVariantType = [&] (std::vector<TStructField> fields) {
+        if (metatype == ELogicalMetatype::VariantStruct) {
+            return VariantStructLogicalType(std::move(fields));
+        } else {
+            YT_VERIFY(metatype == ELogicalMetatype::VariantTuple);
+            std::vector<TLogicalTypePtr> elements;
+            for (const auto& f : fields) {
+                elements.push_back(f.Type);
+            }
+            return VariantTupleLogicalType(std::move(elements));
+        }
+    };
+
+    auto variant1 = createVariantType({
+        {"field1", SimpleLogicalType(ESimpleLogicalValueType::Boolean)},
+        {"field2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+    });
+
+    EXPECT_GOOD_TYPE(variant1, "[0; %true]");
+    EXPECT_GOOD_TYPE(variant1, "[1; \"false\"]");
+
+    EXPECT_BAD_TYPE(variant1, "[0; \"false\"]");
+    EXPECT_BAD_TYPE(variant1, "[0; %true; %true]");
+    EXPECT_BAD_TYPE(variant1, "[1; %false]");
+    EXPECT_BAD_TYPE(variant1, "[]");
+    EXPECT_BAD_TYPE(variant1, "[0]");
+    EXPECT_BAD_TYPE(variant1, "[1]");
+    EXPECT_BAD_TYPE(variant1, "[-1; %true]");
+    EXPECT_BAD_TYPE(variant1, "[-1; \"true\"]");
+    EXPECT_BAD_TYPE(variant1, "[2; \"false\"]");
+}
+
+TEST(TValidateLogicalTypeTest, TestVariantStructType)
+{
+    TestVariantImpl(ELogicalMetatype::VariantStruct);
+}
+
+TEST(TValidateLogicalTypeTest, TestVariantTupleType)
+{
+    TestVariantImpl(ELogicalMetatype::VariantTuple);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableChunkFormat

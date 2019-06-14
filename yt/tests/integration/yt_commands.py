@@ -1334,6 +1334,15 @@ def optional_type(element_type):
         "element": element_type,
     }
 
+def make_struct_field_descriptions(fields):
+    result = []
+    for name, type in fields:
+        result.append({
+            "name": name,
+            "type": type,
+        })
+    return result
+
 def struct_type(fields):
     """
     Create yson description of struct type.
@@ -1341,15 +1350,8 @@ def struct_type(fields):
     """
     result = {
         "metatype": "struct",
-        "fields": [
-        ],
+        "fields": make_struct_field_descriptions(fields),
     }
-    for name, type in fields:
-        result["fields"].append({
-            "name": name,
-            "type": type,
-        })
-
     return result
 
 def list_type(element_type):
@@ -1361,6 +1363,19 @@ def list_type(element_type):
 def tuple_type(elements):
     return {
         "metatype": "tuple",
+        "elements": elements,
+    }
+
+def variant_struct_type(fields):
+    result = {
+        "metatype": "variant_struct",
+        "fields": make_struct_field_descriptions(fields),
+    }
+    return result
+
+def variant_tuple_type(elements):
+    return {
+        "metatype": "variant_tuple",
         "elements": elements,
     }
 
