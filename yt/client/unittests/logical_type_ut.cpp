@@ -7,6 +7,7 @@
 
 #include <yt/core/ytree/convert.h>
 
+
 namespace NYT::NTableClient {
 namespace {
 
@@ -61,37 +62,6 @@ TEST(TLogicalTypeTest, TestSimplifyLogicalType)
         TPair(std::nullopt, true));
 }
 
-TEST(TLogicalTypeTest, TestStructValidation)
-{
-    auto validateStructType = [] (const std::vector<TStructLogicalType::TField>& fields) {
-        ValidateLogicalType(TComplexTypeFieldDescriptor("test-column", StructLogicalType(fields)));
-    };
-
-    EXPECT_NO_THROW(validateStructType({}));
-
-    EXPECT_EXCEPTION_WITH_MESSAGE(
-        validateStructType({{"", SimpleLogicalType(ESimpleLogicalValueType::Int64)}}),
-        "Name of struct field #0 is empty");
-
-    EXPECT_EXCEPTION_WITH_MESSAGE(
-        validateStructType({
-            {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-            {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-        }),
-        "Struct field name \"a\" is used twice");
-
-    EXPECT_EXCEPTION_WITH_MESSAGE(
-        validateStructType({
-            {TString(257, 'a'), SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-        }),
-        "Name of struct field #0 exceeds limit");
-    EXPECT_EXCEPTION_WITH_MESSAGE(
-        validateStructType({
-            {"\xFF", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-        }),
-        "Name of struct field #0 is not valid utf8");
-}
-
 static const std::vector<TLogicalTypePtr> ComplexTypeExampleList = {
     // Simple types
     SimpleLogicalType(ESimpleLogicalValueType::Int64),
@@ -143,6 +113,40 @@ static const std::vector<TLogicalTypePtr> ComplexTypeExampleList = {
         SimpleLogicalType(ESimpleLogicalValueType::Int64),
         SimpleLogicalType(ESimpleLogicalValueType::Int64),
     }),
+
+    // VariantTuple
+    VariantTupleLogicalType(
+        {
+            SimpleLogicalType(ESimpleLogicalValueType::String),
+            SimpleLogicalType(ESimpleLogicalValueType::Int64),
+        }),
+    VariantTupleLogicalType(
+        {
+            SimpleLogicalType(ESimpleLogicalValueType::Int64),
+            SimpleLogicalType(ESimpleLogicalValueType::String),
+        }),
+    VariantTupleLogicalType(
+        {
+            SimpleLogicalType(ESimpleLogicalValueType::String),
+            SimpleLogicalType(ESimpleLogicalValueType::String),
+        }),
+
+    // VariantStruct
+    VariantStructLogicalType(
+        {
+            {"string", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"int",    SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        }),
+    VariantStructLogicalType(
+        {
+            {"int",    SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"string", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        }),
+    VariantStructLogicalType(
+        {
+            {"string", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"string", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        }),
 };
 
 TEST(TLogicalTypeTest, TestAllTypesAreInExamples)
@@ -230,10 +234,16 @@ std::vector<TCombineTypeFunc> CombineFunctions = {
         return ListLogicalType(type);
     },
     [] (const TLogicalTypePtr& type) {
-        return StructLogicalType({{"column", type}});
+        return StructLogicalType({{"field", type}});
     },
     [] (const TLogicalTypePtr& type) {
         return TupleLogicalType({type});
+    },
+    [] (const TLogicalTypePtr& type) {
+        return VariantStructLogicalType({{"field", type}});
+    },
+    [] (const TLogicalTypePtr& type) {
+        return VariantTupleLogicalType({type});
     },
 };
 
@@ -280,6 +290,54 @@ INSTANTIATE_TEST_CASE_P(
     CombineFunctions,
     TCombineLogicalMetatypeTests,
     ::testing::ValuesIn(CombineFunctions));
+
+class TStructValidationTest
+    : public ::testing::TestWithParam<ELogicalMetatype>
+{ };
+
+TEST_P(TStructValidationTest, Test)
+{
+    auto metatype = GetParam();
+    auto validate = [&] (const std::vector<TStructField>& fields) {
+        std::function<TLogicalTypePtr(std::vector<TStructField> fields)> typeConstructor;
+        if (metatype == ELogicalMetatype::Struct) {
+            typeConstructor = StructLogicalType;
+        } else {
+            YT_VERIFY(metatype == ELogicalMetatype::VariantStruct);
+            typeConstructor = VariantStructLogicalType;
+        }
+        ValidateLogicalType(TComplexTypeFieldDescriptor("test-column", typeConstructor(fields)));
+    };
+
+    EXPECT_NO_THROW(validate({}));
+
+    EXPECT_EXCEPTION_WITH_MESSAGE(
+        validate({{"", SimpleLogicalType(ESimpleLogicalValueType::Int64)}}),
+        "Name of struct field #0 is empty");
+
+    EXPECT_EXCEPTION_WITH_MESSAGE(
+        validate({
+            {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        }),
+        "Struct field name \"a\" is used twice");
+
+    EXPECT_EXCEPTION_WITH_MESSAGE(
+        validate({
+            {TString(257, 'a'), SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        }),
+        "Name of struct field #0 exceeds limit");
+    EXPECT_EXCEPTION_WITH_MESSAGE(
+        validate({
+            {"\xFF", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        }),
+        "Name of struct field #0 is not valid utf8");
+}
+
+INSTANTIATE_TEST_CASE_P(
+    Tests,
+    TStructValidationTest,
+    ::testing::ValuesIn({ELogicalMetatype::Struct, ELogicalMetatype::VariantStruct}));
 
 ////////////////////////////////////////////////////////////////////////////////
 

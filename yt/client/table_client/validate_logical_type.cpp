@@ -72,6 +72,12 @@ private:
             case ELogicalMetatype::Tuple:
                 ValidateTupleType(type->AsTupleTypeRef(), fieldId);
                 return;
+            case ELogicalMetatype::VariantStruct:
+                ValidateVariantStructType(type->AsVariantStructTypeRef(), fieldId);
+                return;
+            case ELogicalMetatype::VariantTuple:
+                ValidateVariantTupleType(type->AsVariantTupleTypeRef(), fieldId);
+                return;
         }
         YT_ABORT();
     }
@@ -307,6 +313,81 @@ private:
         Cursor_.Next();
     }
 
+    template <typename T>
+    Y_FORCE_INLINE void ValidateVariantTypeImpl(const T& type, const TFieldId& fieldId)
+    {
+        if (Cursor_.GetCurrent().GetType() != EYsonItemType::BeginList) {
+            THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
+                "Cannot parse %Qv; expected: %Qv found: %Qv",
+                GetDescription(fieldId),
+                EYsonItemType::BeginList,
+                Cursor_.GetCurrent().GetType());
+        }
+        Cursor_.Next();
+        if (Cursor_.GetCurrent().GetType() != EYsonItemType::Int64Value) {
+            THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
+                "Cannot parse %Qv; expected: %Qv found: %Qv",
+                GetDescription(fieldId),
+                EYsonItemType::Int64Value,
+                Cursor_.GetCurrent().GetType());
+        }
+        const auto alternativeIndex = Cursor_.GetCurrent().UncheckedAsInt64();
+        Cursor_.Next();
+        if constexpr (std::is_same_v<T, TVariantTupleLogicalType>) {
+            const auto& elements = type.GetElements();
+            if (alternativeIndex < 0) {
+                THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
+                    "Cannot parse %Qv; variant alternative index %Qv is less than 0",
+                    GetDescription(fieldId),
+                    alternativeIndex);
+            }
+            if (alternativeIndex >= elements.size()) {
+                THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
+                    "Cannot parse %Qv; variant alternative index %Qv exceeds number of variant elements %Qv",
+                    GetDescription(fieldId),
+                    alternativeIndex,
+                    elements.size());
+            }
+            ValidateLogicalType(elements[alternativeIndex], fieldId.VariantTupleElement(alternativeIndex));
+        } else {
+            static_assert(std::is_same_v<T, TVariantStructLogicalType>);
+            const auto& fields = type.GetFields();
+            if (alternativeIndex < 0) {
+                THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
+                    "Cannot parse %Qv; variant alternative index %Qv is less than 0",
+                    GetDescription(fieldId),
+                    alternativeIndex);
+            }
+            if (alternativeIndex >= fields.size()) {
+                THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
+                    "Cannot parse %Qv; variant alternative index %Qv exceeds number of variant elements %Qv",
+                    GetDescription(fieldId),
+                    alternativeIndex,
+                    fields.size());
+            }
+            ValidateLogicalType(fields[alternativeIndex].Type, fieldId.VariantStructField(alternativeIndex));
+        }
+
+        if (Cursor_.GetCurrent().GetType() != EYsonItemType::EndList) {
+            THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
+                "Cannot parse %Qv; expected: %Qv found: %Qv",
+                GetDescription(fieldId),
+                EYsonItemType::EndList,
+                Cursor_.GetCurrent().GetType());
+        }
+        Cursor_.Next();
+    }
+
+    void ValidateVariantTupleType(const TVariantTupleLogicalType& type, const TFieldId& fieldId)
+    {
+        ValidateVariantTypeImpl(type, fieldId);
+    }
+
+    void ValidateVariantStructType(const TVariantStructLogicalType& type, const TFieldId& fieldId)
+    {
+        ValidateVariantTypeImpl(type, fieldId);
+    }
+
     TString GetDescription(const TFieldId& fieldId) const
     {
         return fieldId.GetDescriptor(RootDescriptor_).GetDescription();
@@ -339,6 +420,16 @@ private:
             return {this, i};
         }
 
+        TFieldId VariantStructField(int i) const
+        {
+            return {this, i};
+        }
+
+        TFieldId VariantTupleElement(int i) const
+        {
+            return {this, i};
+        }
+
         TComplexTypeFieldDescriptor GetDescriptor(const TComplexTypeFieldDescriptor& root) const
         {
             std::vector<int> path;
@@ -365,6 +456,12 @@ private:
                         continue;
                     case ELogicalMetatype::Tuple:
                         descriptor = descriptor.TupleElement(childIndex);
+                        continue;
+                    case ELogicalMetatype::VariantStruct:
+                        descriptor = descriptor.VariantStructField(childIndex);
+                        continue;
+                    case ELogicalMetatype::VariantTuple:
+                        descriptor = descriptor.VariantTupleElement(childIndex);
                         continue;
                 }
                 YT_ABORT();
