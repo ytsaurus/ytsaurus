@@ -556,6 +556,8 @@ public:
     std::optional<TDuration> JobTimeLimit;
     TDuration PrepareTimeLimit;
     i64 MemoryLimit;
+    //! If set, overrides both of the next two values.
+    std::optional<double> MemoryReserveFactor;
     double UserJobMemoryDigestDefaultValue;
     double UserJobMemoryDigestLowerBound;
 
