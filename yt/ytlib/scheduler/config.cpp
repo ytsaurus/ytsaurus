@@ -496,7 +496,7 @@ TUserJobSpec::TUserJobSpec()
         .GreaterThan(0)
         .LessThanOrEqual(1_TB);
     RegisterParameter("memory_reserve_factor", MemoryReserveFactor)
-        .Default(Null);
+        .Default();
     RegisterParameter("user_job_memory_digest_default_value", UserJobMemoryDigestDefaultValue)
         .Default(0.5)
         .GreaterThan(0.)
