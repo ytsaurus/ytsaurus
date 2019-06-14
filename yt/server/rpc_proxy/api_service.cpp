@@ -3084,6 +3084,7 @@ private:
         ToProto(meta.mutable_key_columns(), tableReader->GetKeyColumns());
         ToProto(meta.mutable_omitted_inaccessible_columns(),
             tableReader->GetOmittedInaccessibleColumns());
+        ToProto(meta.mutable_schema(), tableReader->GetTableSchema());
         meta.mutable_payload()->set_total_row_count(tableReader->GetTotalRowCount());
         ToProto(meta.mutable_payload()->mutable_data_statistics(),
             tableReader->GetDataStatistics());
