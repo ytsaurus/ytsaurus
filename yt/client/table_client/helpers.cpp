@@ -506,7 +506,7 @@ void ProtobufToUnversionedValueImpl(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void UnversionedValueToListImpl(
+void UnversionedValueToProtobufImpl(
     Message* value,
     const TProtobufMessageType* type,
     TUnversionedValue unversionedValue)
