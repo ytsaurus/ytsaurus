@@ -238,19 +238,27 @@ class _OperationsTrackingPoolThread(_OperationsTrackingThread):
     def _check_one_operation(self):
         super(_OperationsTrackingPoolThread, self)._check_one_operation()
 
+        spec_tasks = []
+        operations = []
         with self._thread_lock:
             while self._pool_size is None or len(self._operations_to_track) < self._pool_size:
                 if len(self._queue) == 0:
                     break
+                spec_tasks.append(self._queue.popleft())
 
-                spec_task = self._queue.popleft()
-                logger.info("Starting operation from pool")
-                operation = run_operation(
-                    spec_task.spec_builder,
-                    sync=False,
-                    enable_optimizations=spec_task.enable_optimizations,
-                    client=spec_task.client)
-                self._operations_to_track.append(operation)
+        # N.B. Not in _thread_lock !
+        # It is intentional, since operation start sometimes is long and heavy enough.
+        for spec_task in spec_tasks:
+            logger.info("Starting operation from pool")
+            operation = run_operation(
+                spec_task.spec_builder,
+                sync=False,
+                enable_optimizations=spec_task.enable_optimizations,
+                client=spec_task.client)
+            operations.append(operation)
+
+        with self._thread_lock:
+            self._operations_to_track.extend(operations)
 
     def get_operation_count(self):
         with self._thread_lock:
