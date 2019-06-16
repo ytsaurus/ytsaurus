@@ -1,6 +1,6 @@
 from .helpers import TEST_DIR, get_test_file_path, yatest_common, get_python
 
-from yt.wrapper.common import update_inplace
+from yt.wrapper.common import update_inplace, get_python_version
 
 import yt.yson as yson
 
@@ -59,6 +59,10 @@ def test_sanitize_structure():
 @pytest.mark.usefixtures("yt_env")
 def test_catching_sigint(yt_env):
     if yt.config["backend"] != "native" or yatest_common is not None:
+        pytest.skip()
+
+    # TODO(ignat): Fix it in YT-10932
+    if get_python_version()[0] == "3":
         pytest.skip()
 
     driver_config_path = yt_env.env.config_paths["console_driver"][0]
