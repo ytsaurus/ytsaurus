@@ -315,7 +315,10 @@ public:
         auto staticOrchidProducer = BIND(&TImpl::BuildStaticOrchid, MakeStrong(this));
         auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer)
             ->Via(GetControlInvoker(EControlQueue::Orchid))
-            ->Cached(Config_->StaticOrchidCacheUpdatePeriod, OrchidWorkerPool_->GetInvoker());
+            ->Cached(
+                Config_->StaticOrchidCacheUpdatePeriod,
+                OrchidWorkerPool_->GetInvoker(),
+                Profiler.AppendPath("/static_orchid"));
         StaticOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(staticOrchidService.Get()));
         YCHECK(StaticOrchidService_);
 
