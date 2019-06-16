@@ -62,7 +62,7 @@ def test_catching_sigint(yt_env):
         pytest.skip()
 
     # TODO(ignat): Fix it in YT-10932
-    if get_python_version()[0] == "3":
+    if get_python_version()[0] == 3:
         pytest.skip()
 
     driver_config_path = yt_env.env.config_paths["console_driver"][0]
