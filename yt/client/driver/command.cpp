@@ -89,8 +89,8 @@ void TCommandBase::ProduceResponseParameters(
     const std::function<void(IYsonConsumer*)>& producer)
 {
     producer(context->Request().ResponseParametersConsumer);
-    if (context->Request().ParametersFinishedCallback) {
-        context->Request().ParametersFinishedCallback();
+    if (context->Request().ResponseParametersFinishedCallback) {
+        context->Request().ResponseParametersFinishedCallback();
     }
 }
 
