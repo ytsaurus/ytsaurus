@@ -138,7 +138,6 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         release_breakpoint()
         op.track()
 
-
     def test_resource_limits(self):
         resource_limits = {"cpu": 1, "memory": 1000 * 1024 * 1024, "network": 10}
         create("map_node", "//sys/pools/test_pool", attributes={"resource_limits": resource_limits})
@@ -668,7 +667,6 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         write_table("//tmp/in", [{"foo": "bar"}])
         for i in xrange(5):
             create("table", "//tmp/out" + str(i))
-
 
         ops = []
         def run(index, pool, should_raise):
@@ -1401,29 +1399,42 @@ class TestSchedulerPools(YTEnvSetup):
         for op in [op1, op2]:
             op.track()
 
-    def test_ephemeral_pool_in_custom_pool(self):
+    def test_ephemeral_pool_in_custom_pool_simple(self):
         create("map_node", "//sys/pools/custom_pool")
-        create("map_node", "//sys/pools/custom_pool_fifo")
         set("//sys/pools/custom_pool/@create_ephemeral_subpools", True)
-        set("//sys/pools/custom_pool_fifo/@create_ephemeral_subpools", True)
-        set("//sys/pools/custom_pool_fifo/@ephemeral_subpools_mode", "fifo")
-
         time.sleep(0.2)
 
-        op1 = run_sleeping_vanilla(spec={"pool": "custom_pool"})
-        op2 = run_sleeping_vanilla(spec={"pool": "custom_pool_fifo"})
-        wait(lambda: len(list(op1.get_running_jobs())) == 1)
-        wait(lambda: len(list(op2.get_running_jobs())) == 1)
+        op = run_sleeping_vanilla(spec={"pool": "custom_pool"})
+        wait(lambda: len(list(op.get_running_jobs())) == 1)
 
-        pools_path = "//sys/scheduler/orchid/scheduler/pools/"
-
-        pool = get(pools_path + "custom_pool$root")
+        pool = get("//sys/scheduler/orchid/scheduler/pools/custom_pool$root")
         assert pool["parent"] == "custom_pool"
         assert pool["mode"] == "fair_share"
 
-        pool_fifo = get(pools_path + "custom_pool_fifo$root")
+    def test_ephemeral_pool_scheduling_mode(self):
+        create("map_node", "//sys/pools/custom_pool_fifo")
+        set("//sys/pools/custom_pool_fifo/@create_ephemeral_subpools", True)
+        set("//sys/pools/custom_pool_fifo/@ephemeral_subpool_config", {"mode": "fifo"})
+        time.sleep(0.2)
+
+        op = run_sleeping_vanilla(spec={"pool": "custom_pool_fifo"})
+        wait(lambda: len(list(op.get_running_jobs())) == 1)
+
+        pool_fifo = get("//sys/scheduler/orchid/scheduler/pools/custom_pool_fifo$root")
         assert pool_fifo["parent"] == "custom_pool_fifo"
         assert pool_fifo["mode"] == "fifo"
+
+    def test_ephemeral_pool_max_operation_count(self):
+        create("map_node", "//sys/pools/custom_pool")
+        set("//sys/pools/custom_pool/@create_ephemeral_subpools", True)
+        set("//sys/pools/custom_pool/@ephemeral_subpool_config", {"max_operation_count": 1})
+        time.sleep(0.2)
+
+        op = run_sleeping_vanilla(spec={"pool": "custom_pool"})
+        wait(lambda: len(list(op.get_running_jobs())) == 1)
+
+        with pytest.raises(YtError):
+            run_test_vanilla(command="", spec={"pool": "custom_pool"}, dont_track=False)
 
     def test_ephemeral_pools_limit(self):
         create("table", "//tmp/t_in")

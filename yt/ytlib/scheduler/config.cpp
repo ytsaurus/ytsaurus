@@ -1339,6 +1339,20 @@ TExtendedSchedulableConfig::TExtendedSchedulableConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEphemeralSubpoolConfig::TEphemeralSubpoolConfig()
+{
+    RegisterParameter("mode", Mode)
+        .Default(ESchedulingMode::FairShare);
+
+    RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
+        .Default(10);
+
+    RegisterParameter("max_operation_count", MaxOperationCount)
+        .Default(10);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TPoolConfig::TPoolConfig()
 {
     RegisterParameter("mode", Mode)
@@ -1366,8 +1380,8 @@ TPoolConfig::TPoolConfig()
     RegisterParameter("create_ephemeral_subpools", CreateEphemeralSubpools)
         .Default(false);
 
-    RegisterParameter("ephemeral_subpools_mode", EphemeralSubpoolsMode)
-        .Default(ESchedulingMode::FairShare);
+    RegisterParameter("ephemeral_subpool_config", EphemeralSubpoolConfig)
+        .DefaultNew();
 
     RegisterParameter("allowed_profiling_tags", AllowedProfilingTags)
         .Default();

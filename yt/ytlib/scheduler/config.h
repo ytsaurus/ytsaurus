@@ -139,6 +139,22 @@ DEFINE_REFCOUNTED_TYPE(TExtendedSchedulableConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TEphemeralSubpoolConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    ESchedulingMode Mode;
+
+    std::optional<int> MaxRunningOperationCount;
+    std::optional<int> MaxOperationCount;
+
+    TEphemeralSubpoolConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TEphemeralSubpoolConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPoolConfig
     : public TSchedulableConfig
 {
@@ -156,7 +172,7 @@ public:
 
     bool CreateEphemeralSubpools;
 
-    ESchedulingMode EphemeralSubpoolsMode;
+    TEphemeralSubpoolConfigPtr EphemeralSubpoolConfig;
 
     THashSet<TString> AllowedProfilingTags;
 
