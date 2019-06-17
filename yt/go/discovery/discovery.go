@@ -1,11 +1,15 @@
 // Package discovery implements service discovery over cypress.
 //
+// Example usage:
+//
 //   type MemberMeta struct {
 //       Version string
-//       Shard    int
+//       Shard   int
 //   }
 //
-//   func Example(g *Group) err {
+//   func Example(yc yt.Client, logger log.Logger) err {
+//       g := discovery.NewGroup(yc, logger, discovery.Options{Root: ypath.Path("//home/prime/group")})
+//
 //       // Start updater goroutine.
 //       go g.Update(context.Background())
 //
@@ -18,7 +22,12 @@
 //
 //       // See other alive members.
 //       members := map[string]MemberMeta{}
-//       return g.List(context.Background(), &members)
+//       if err := g.List(context.Background(), &members); err != nil {
+//           return err
+//       }
+//
+//       fmt.Println(members)
+//       return nil
 //   }
 package discovery
 
@@ -74,7 +83,6 @@ func NewGroup(yc yt.Client, logger log.Logger, options Options) *Group {
 
 // Update runs loop, updating list of group members.
 //
-//     g := NewGroup(yc, logger, options)
 //     go g.Update(context.Background())
 func (g *Group) Update(ctx context.Context) {
 	started := false
