@@ -1102,7 +1102,7 @@ def create_test_tables(row_count=1, **kwargs):
     write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(row_count)])
     create("table", "//tmp/t_out", **kwargs)
 
-def run_test_vanilla(command, spec=None, job_count=1):
+def run_test_vanilla(command, spec=None, job_count=1, dont_track=True):
     spec = spec or {}
     spec["tasks"] = {
         "task": {
@@ -1110,7 +1110,7 @@ def run_test_vanilla(command, spec=None, job_count=1):
             "command": command
         },
     }
-    return vanilla(spec=spec, dont_track=True)
+    return vanilla(spec=spec, dont_track=dont_track)
 
 def run_sleeping_vanilla(spec=None):
     return run_test_vanilla("sleep 1000", spec or {})

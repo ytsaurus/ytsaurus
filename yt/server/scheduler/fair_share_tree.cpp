@@ -1382,7 +1382,10 @@ TPoolPtr TFairShareTree::GetOrCreatePool(const TPoolName& poolName, TString user
     // Create ephemeral pool.
     auto poolConfig = New<TPoolConfig>();
     if (poolName.GetParentPool()) {
-        poolConfig->Mode = GetPool(*poolName.GetParentPool())->GetConfig()->EphemeralSubpoolsMode;
+        auto parentPoolConfig = GetPool(*poolName.GetParentPool())->GetConfig();
+        poolConfig->Mode = parentPoolConfig->EphemeralSubpoolConfig->Mode;
+        poolConfig->MaxOperationCount = parentPoolConfig->EphemeralSubpoolConfig->MaxOperationCount;
+        poolConfig->MaxRunningOperationCount = parentPoolConfig->EphemeralSubpoolConfig->MaxRunningOperationCount;
     }
     pool = New<TPool>(
         Host_,
