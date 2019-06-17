@@ -483,10 +483,15 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             }
 
             if (tabletSnapshot->Config->MergeRowsOnFlush) {
+                auto outputIt = rows.begin();
                 for (auto& row : rows) {
                     rowMerger.AddPartialRow(row);
-                    row = rowMerger.BuildMergedRow();
+                    auto mergedRow = rowMerger.BuildMergedRow();
+                    if (mergedRow) {
+                        *outputIt++ = mergedRow;
+                    }
                 }
+                rows.resize(std::distance(rows.begin(), outputIt));
             }
 
             if (!tableWriter->Write(rows)) {
