@@ -582,7 +582,7 @@ void TContext::SetupOutputParameters()
     CreateBuildingYsonConsumer(&OutputParametersConsumer_, EYsonType::Node);
     OutputParametersConsumer_->OnBeginMap();
     DriverRequest_.ResponseParametersConsumer = OutputParametersConsumer_.get();
-    DriverRequest_.ParametersFinishedCallback = [this, weakThis = MakeWeak(this)] {
+    DriverRequest_.ResponseParametersFinishedCallback = [this, weakThis = MakeWeak(this)] {
         auto strongThis = weakThis.Lock();
         if (!strongThis) {
             return;

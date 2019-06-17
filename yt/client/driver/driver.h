@@ -58,7 +58,7 @@ struct TDriverRequest
 
     //! Invoked after driver is done producing response parameters and
     //! before first write to output stream.
-    std::function<void()> ParametersFinishedCallback;
+    std::function<void()> ResponseParametersFinishedCallback;
 
     void Reset();
 
