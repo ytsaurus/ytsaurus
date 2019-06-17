@@ -52,9 +52,9 @@ TUserJobSpec& TUserJobSpec::AddLocalFile(
     return *this;
 }
 
-TUserJobSpec& TUserJobSpec::JobBinaryLocalPath(TString path)
+TUserJobSpec& TUserJobSpec::JobBinaryLocalPath(TString path, TMaybe<TString> md5)
 {
-    JobBinary_ = TJobBinaryLocalPath{path};
+    JobBinary_ = TJobBinaryLocalPath{path, md5};
     return *this;
 }
 

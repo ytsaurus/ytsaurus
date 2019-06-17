@@ -198,7 +198,7 @@ TJobBinaryConfig TConfig::GetJobBinary() const
 {
     auto jobBinary = GetEnv("YT_JOB_BINARY");
     if (!jobBinary.empty()) {
-        return TJobBinaryLocalPath{jobBinary};
+        return TJobBinaryLocalPath{jobBinary, Nothing()};
     } else {
         return TJobBinaryConfig();
     }

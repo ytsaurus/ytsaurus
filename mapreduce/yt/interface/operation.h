@@ -9,6 +9,7 @@
 
 #include <util/generic/variant.h>
 #include <util/generic/vector.h>
+#include <util/generic/maybe.h>
 #include <util/system/file.h>
 #include <util/system/types.h>
 
@@ -76,6 +77,7 @@ struct TJobBinaryDefault
 struct TJobBinaryLocalPath
 {
     TString Path;
+    TMaybe<TString> MD5CheckSum;
 };
 
 struct TJobBinaryCypressPath
@@ -301,6 +303,12 @@ struct TAddLocalFileOptions
     // Path by which job will see the uploaded file.
     // Defaults to basename of the local path.
     FLUENT_FIELD_OPTION(TString, PathInJob);
+
+    // MD5 checksum
+    // This library computes md5 checksum for all files that are uploaded to YT.
+    // When md5 checksum is known user might provide it as `MD5CheckSum`
+    // argument to save some cpu and disk IO.
+    FLUENT_FIELD_OPTION(TString, MD5CheckSum);
 };
 
 struct TUserJobSpec
@@ -346,7 +354,9 @@ struct TUserJobSpec
     // (in that case we use JobBinary to provide path to the same program compiled for linux).
     // Other example of using this option is uploading executable to cypress in advance
     // and save the time required to upload current executable to cache.
-    TUserJobSpec& JobBinaryLocalPath(TString path);
+    // `md5` argument can be used to save cpu time and disk IO when binary md5 checksum is known.
+    // When argument is not provided library will compute it itself.
+    TUserJobSpec& JobBinaryLocalPath(TString path, TMaybe<TString> md5 = Nothing());
     TUserJobSpec& JobBinaryCypressPath(TString path);
     const TJobBinaryConfig& GetJobBinary() const;
 
