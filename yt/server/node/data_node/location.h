@@ -91,8 +91,8 @@ public:
     //! Returns the type.
     ELocationType GetType() const;
 
-    //! Returns string id.
-    const TString& GetId() const;
+    //! Returns the universally unique id.
+    TLocationUuid GetUuid() const;
 
     //! Returns the IO Engine.
     const NChunkClient::IIOEnginePtr& GetIOEngine() const;
@@ -113,7 +113,7 @@ public:
     TLocationPerformanceCounters& GetPerformanceCounters();
 
     //! Returns the root path of the location.
-    TString GetPath() const;
+    const TString& GetPath() const;
 
     //! Returns the maximum number of bytes the chunks assigned to this location
     //! are allowed to use.
@@ -225,8 +225,9 @@ private:
     friend class TPendingIOGuard;
 
     const ELocationType Type_;
-    const TString Id_;
     const TStoreLocationConfigBasePtr Config_;
+
+    TLocationUuid Uuid_;
 
     NChunkClient::TMediumDescriptor MediumDescriptor_;
 
@@ -266,6 +267,8 @@ private:
     void UpdatePendingIOSize(EIODirection direction, EIOCategory category, i64 delta);
 
     void ValidateWritable();
+    void InitializeCellId();
+    void InitializeUuid();
 
     void OnHealthCheckFailed(const TError& error);
     void MarkAsDisabled(const TError& error);
@@ -275,7 +278,6 @@ private:
     virtual std::optional<TChunkDescriptor> RepairChunk(TChunkId chunkId) = 0;
 
     virtual std::vector<TString> GetChunkPartNames(TChunkId chunkId) const = 0;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TLocation)

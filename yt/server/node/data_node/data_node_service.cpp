@@ -698,6 +698,7 @@ private:
             }
 
             ToProto(response->mutable_chunk_reader_statistics(), options.ChunkReaderStatistics);
+            ToProto(response->mutable_location_uuid(), chunk->GetLocation()->GetUuid());
         }).AsyncVia(Bootstrap_->GetStorageHeavyInvoker())));
     }
 
