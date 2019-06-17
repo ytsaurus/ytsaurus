@@ -394,7 +394,12 @@ void TAttributeFetcher::DoFetch(
                 TYsonWriter valueWriter(&valueOutput);
                 attribute->RunEvaluator(Transaction_, object, &valueWriter);
                 auto valueNode = NYTree::ConvertToNode(TYsonString(std::move(valueYson)));
-                consumer->OnRaw(NYTree::SyncYPathGet(valueNode, resolveResult.SuffixPath));
+                auto finalNode = NYTree::FindNodeByYPath(valueNode, resolveResult.SuffixPath);
+                if (finalNode) {
+                    NYTree::VisitTree(finalNode, consumer, false);
+                } else {
+                    consumer->OnEntity();
+                }
             }
             break;
         }

@@ -1,9 +1,22 @@
 from yp.common import YtResponseError
 
+from yt.yson import YsonEntity
+
 import pytest
 
 @pytest.mark.usefixtures("yp_env")
 class TestObjectService(object):
+    def test_select_empty_field(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        pod_set_id = yp_client.create_object(object_type="pod_set")
+        yp_client.create_object(object_type="pod", attributes={"meta": {"pod_set_id": pod_set_id}})
+
+        selection_result = yp_client.select_objects("pod", selectors=["/spec/virtual_service_options/ip4_mtu"])
+        assert len(selection_result) == 1 and isinstance(selection_result[0][0], YsonEntity)
+        selection_result = yp_client.select_objects("pod", selectors=["/status/agent/iss/currentStates"])
+        assert len(selection_result) == 1 and isinstance(selection_result[0][0], YsonEntity)
+
     def test_get_nonexistent(self, yp_env):
         yp_client = yp_env.yp_client
 
