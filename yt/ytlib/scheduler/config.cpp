@@ -601,7 +601,7 @@ TUserJobSpec::TUserJobSpec()
         }
 
         if (MemoryReserveFactor) {
-            UserJobMemoryDigestLowerBound = UserJobMemoryDigestLowerBound = *MemoryReserveFactor;
+            UserJobMemoryDigestLowerBound = UserJobMemoryDigestDefaultValue = *MemoryReserveFactor;
         }
 
         auto memoryDigestLowerLimit = static_cast<double>(totalTmpfsSize) / MemoryLimit;
