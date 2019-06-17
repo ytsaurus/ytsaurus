@@ -6,6 +6,8 @@
 #include "resource_tree_element.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
+#include "fair_share_strategy_operation_controller.h"
+#include "packing.h"
 
 #include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/scheduling_tag.h>
@@ -74,6 +76,8 @@ struct TScheduleJobsProfilingCounters
     NProfiling::TAggregateGauge TotalControllerScheduleJobTime;
     NProfiling::TAggregateGauge ExecControllerScheduleJobTime;
     NProfiling::TAggregateGauge StrategyScheduleJobTime;
+    NProfiling::TAggregateGauge PackingRecordHeartbeatTime;
+    NProfiling::TAggregateGauge PackingCheckTime;
     NProfiling::TMonotonicCounter ScheduleJobCount;
     NProfiling::TMonotonicCounter ScheduleJobFailureCount;
     TEnumIndexedVector<NProfiling::TMonotonicCounter, NControllerAgent::EScheduleJobFailReason> ControllerScheduleJobFail;
@@ -120,6 +124,8 @@ public:
 
     TFairShareSchedulingStatistics SchedulingStatistics;
 
+    std::vector<TOperationElementPtr> BadPackingOperations;
+
     struct TStageState
     {
         explicit TStageState(TFairShareSchedulingStage* schedulingStage);
@@ -130,6 +136,8 @@ public:
         TDuration PrescheduleDuration;
         TDuration TotalScheduleJobDuration;
         TDuration ExecScheduleJobDuration;
+        TDuration PackingRecordHeartbeatDuration;
+        TDuration PackingCheckDuration;
         TEnumIndexedVector<int, NControllerAgent::EScheduleJobFailReason> FailedScheduleJob;
 
         int ActiveOperationCount = 0;
@@ -191,7 +199,16 @@ protected:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+struct TFairShareScheduleJobResult
+{
+    TFairShareScheduleJobResult(bool finished, bool scheduled)
+        : Finished(finished)
+        , Scheduled(scheduled)
+    { }
 
+    bool Finished;
+    bool Scheduled;
+};
 
 class TSchedulerElement
     : public TSchedulerElementFixedState
@@ -221,7 +238,7 @@ public:
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList);
 
     virtual void PrescheduleJob(TFairShareContext* context, bool starvingOnly, bool aggressiveStarvationEnabled);
-    virtual bool ScheduleJob(TFairShareContext* context) = 0;
+    virtual TFairShareScheduleJobResult ScheduleJob(TFairShareContext* context, bool ignorePacking) = 0;
 
     virtual bool HasAggressivelyStarvingElements(TFairShareContext* context, bool aggressiveStarvationEnabled) const = 0;
 
@@ -385,7 +402,7 @@ public:
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) override;
 
     virtual void PrescheduleJob(TFairShareContext* context, bool starvingOnly, bool aggressiveStarvationEnabled) override;
-    virtual bool ScheduleJob(TFairShareContext* context) override;
+    virtual TFairShareScheduleJobResult ScheduleJob(TFairShareContext* context, bool ignorePacking) override;
 
     virtual bool HasAggressivelyStarvingElements(TFairShareContext* context, bool aggressiveStarvationEnabled) const override;
 
@@ -616,6 +633,15 @@ public:
     TJobResources Disable();
     void Enable();
 
+    void RecordHeartbeat(
+        const TPackingHeartbeatSnapshot& heartbeatSnapshot,
+        const TFairShareStrategyPackingConfigPtr& config);
+    bool CheckPacking(
+        const TPackingHeartbeatSnapshot& heartbeatSnapshot,
+        const TJobResourcesWithQuota& jobResources,
+        const TJobResources& totalResourceLimits,
+        const TFairShareStrategyPackingConfigPtr& config);
+
 private:
     using TJobIdList = std::list<TJobId>;
 
@@ -672,6 +698,8 @@ private:
 
     bool Enabled_ = false;
 
+    TPackingStatistics HeartbeatStatistics_;
+
     void IncreaseJobResourceUsage(TJobProperties* properties, const TJobResources& resourcesDelta);
 
     TJobProperties* GetJobProperties(TJobId jobId);
@@ -715,7 +743,7 @@ public:
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) override;
 
     virtual void PrescheduleJob(TFairShareContext* context, bool starvingOnly, bool aggressiveStarvationEnabled) override;
-    virtual bool ScheduleJob(TFairShareContext* context) override;
+    virtual TFairShareScheduleJobResult ScheduleJob(TFairShareContext* context, bool ignorePacking) override;
 
     virtual bool HasAggressivelyStarvingElements(TFairShareContext* context, bool aggressiveStarvationEnabled) const override;
 
@@ -791,6 +819,8 @@ public:
 
     void MarkOperationRunningInPool();
 
+    void UpdateAncestorsAttributes(TFairShareContext* context);
+
     DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareTreeRuntimeParametersPtr, RuntimeParams);
 
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
@@ -808,6 +838,9 @@ private:
     bool HasJobsSatisfyingResourceLimits(const TFairShareContext& context) const;
 
     bool IsBlocked(NProfiling::TCpuInstant now) const;
+
+    void RecordHeartbeat(const TPackingHeartbeatSnapshot& heartbeatSnapshot);
+    bool CheckPacking(const TPackingHeartbeatSnapshot& heartbeatSnapshot) const;
 
     TJobResources GetHierarchicalAvailableResources(const TFairShareContext& context) const;
 
@@ -832,6 +865,8 @@ private:
     int ComputePendingJobCount() const;
 
     void UpdatePreemptableJobsList();
+
+    TFairShareStrategyPackingConfigPtr GetPackingConfig() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationElement)

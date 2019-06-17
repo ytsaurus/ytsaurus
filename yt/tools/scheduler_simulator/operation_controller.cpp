@@ -101,7 +101,7 @@ public:
         return true;
     }
 
-    // Note that this method is quite slow. Optimize it if you want to call it frequently.
+    // Note that this method is quite slow. Add caching if you want to call it frequently.
     TJobResources GetNeededResources()
     {
         YCHECK(InitializationFinished_);
@@ -112,6 +112,19 @@ public:
         }
 
         return neededResources;
+    }
+
+    // Note that this method is quite slow. Add caching if you want to call it frequently.
+    TJobResources GetMinNeededResources()
+    {
+        YCHECK(InitializationFinished_);
+
+        TJobResources minNeededResources = TJobResources::Infinite();
+        for (const auto& job : PendingJobs_) {
+            minNeededResources = Min(minNeededResources, job.ResourceLimits);
+        }
+
+        return minNeededResources;
     }
 
     static void AddDependency(TJobBucket* from, TJobBucket* to)
@@ -207,6 +220,7 @@ private:
     int RunningJobCount_ = 0;
     TJobResources NeededResources_;
     SmallVector<TJobBucket*, TEnumTraits<EJobType>::GetDomainSize()> ActiveBuckets_;
+    TJobResourcesWithQuotaList CachedMinNeededJobResources;
     ///////////////////////
 
     // Lock_ must be acquired.
@@ -449,12 +463,28 @@ TFuture<TControllerScheduleJobResultPtr> TSimulatorOperationController::Schedule
 
 void TSimulatorOperationController::UpdateMinNeededJobResources()
 {
-    // Nothing to do.
+    auto guard = Guard(Lock_);
+    TJobResourcesWithQuotaList result;
+
+    for (const auto& [jobType, bucket] : JobBuckets_) {
+        if (bucket->GetPendingJobCount() == 0) {
+            continue;
+        }
+        auto resources = bucket->GetMinNeededResources();
+
+        result.push_back(resources);
+        YT_LOG_DEBUG("Aggregated minimal needed resources for jobs (JobType: %v, MinNeededResources: %v)",
+            jobType,
+            FormatResources(resources));
+    }
+
+    CachedMinNeededJobResources = std::move(result);
 }
 
 TJobResourcesWithQuotaList TSimulatorOperationController::GetMinNeededJobResources() const
 {
-    return {{}};
+    auto guard = Guard(Lock_);
+    return CachedMinNeededJobResources;
 }
 
 TString TSimulatorOperationController::GetLoggingProgress() const

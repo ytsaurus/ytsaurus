@@ -235,6 +235,33 @@ DEFINE_REFCOUNTED_TYPE(TSamplingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EPackingMetricType,
+    ((Angle)       (0))
+    ((AngleLength) (1))
+);
+
+class TFairShareStrategyPackingConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    bool Enable;
+
+    EPackingMetricType Metric;
+
+    int MaxBetterPastSnapshots;
+    double AbsoluteMetricValueTolerance;
+    double RelativeMetricValueTolerance;
+    int MinWindowSizeForSchedule;
+    int MaxHearbeatWindowSize;
+    TDuration MaxHeartbeatAge;
+
+    TFairShareStrategyPackingConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TFairShareStrategyPackingConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TStrategyOperationSpec
     : public TSchedulableConfig
     , public virtual NPhoenix::TDynamicTag

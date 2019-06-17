@@ -12,6 +12,8 @@
 
 #include <yt/ytlib/hive/config.h>
 
+#include <yt/ytlib/scheduler/config.h>
+
 #include <yt/client/ypath/public.h>
 
 #include <yt/ytlib/event_log/config.h>
@@ -39,6 +41,7 @@ DEFINE_ENUM(EDeactivationReason,
     (ResourceLimitsExceeded)
     (SaturatedInTentativeTree)
     (OperationDisabled)
+    (BadPacking)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -149,6 +152,8 @@ public:
     std::optional<double> InferWeightFromMinShareRatioMultiplier;
 
     bool CrashOnOperationResourceUsageInconsistency;
+
+    TFairShareStrategyPackingConfigPtr Packing;
 
     TFairShareStrategyTreeConfig();
 };
