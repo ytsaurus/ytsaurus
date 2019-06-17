@@ -11,16 +11,6 @@ IOperationControllerPtr CreateSortedMergeController(
     IOperationControllerHostPtr host,
     TOperation* operation);
 
-IOperationControllerPtr CreateSortedReduceController(
-    TControllerAgentConfigPtr config,
-    IOperationControllerHostPtr host,
-    TOperation* operation);
-
-IOperationControllerPtr CreateJoinReduceController(
-    TControllerAgentConfigPtr config,
-    IOperationControllerHostPtr host,
-    TOperation* operation);
-
 IOperationControllerPtr CreateAppropriateReduceController(
     TControllerAgentConfigPtr config,
     IOperationControllerHostPtr host,

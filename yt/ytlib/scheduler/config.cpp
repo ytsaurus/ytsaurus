@@ -857,51 +857,6 @@ TReduceOperationSpecBase::TReduceOperationSpecBase()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReduceOperationSpec::TReduceOperationSpec()
-{
-    RegisterParameter("join_by", JoinBy)
-        .Default();
-    RegisterParameter("reduce_by", ReduceBy)
-        .NonEmpty();
-    RegisterParameter("sort_by", SortBy)
-        .Default();
-    RegisterParameter("pivot_keys", PivotKeys)
-        .Default();
-
-    RegisterPostprocessor([&] () {
-        if (!ReduceBy.empty()) {
-            NTableClient::ValidateKeyColumns(ReduceBy);
-        }
-
-        if (!SortBy.empty()) {
-            NTableClient::ValidateKeyColumns(SortBy);
-        }
-    });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TJoinReduceOperationSpec::TJoinReduceOperationSpec()
-{
-    RegisterParameter("join_by", JoinBy)
-        .NonEmpty();
-
-    RegisterPostprocessor([&] {
-        bool hasPrimary = false;
-        for (const auto& path : InputTablePaths) {
-            hasPrimary |= path.GetPrimary();
-        }
-        if (hasPrimary) {
-            for (auto& path : InputTablePaths) {
-                path.Attributes().Set("foreign", !path.GetPrimary());
-                path.Attributes().Remove("primary");
-            }
-        }
-    });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TNewReduceOperationSpec::TNewReduceOperationSpec()
 {
     RegisterParameter("join_by", JoinBy)
@@ -1627,14 +1582,12 @@ TJobCpuMonitorConfig::TJobCpuMonitorConfig()
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TEraseOperationSpec);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TJoinReduceOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMapOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMapReduceOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMergeOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TNewReduceOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOperationSpecBase);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeOperationSpec);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TReduceOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TReduceOperationSpecBase);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSimpleOperationSpecBase);

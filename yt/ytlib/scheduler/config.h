@@ -905,41 +905,6 @@ DEFINE_REFCOUNTED_TYPE(TReduceOperationSpecBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReduceOperationSpec
-    : public TReduceOperationSpecBase
-{
-public:
-    NTableClient::TKeyColumns ReduceBy;
-    NTableClient::TKeyColumns SortBy;
-
-    std::vector<NTableClient::TOwningKey> PivotKeys;
-
-    TReduceOperationSpec();
-
-private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceOperationSpec, 0xd90a9ede);
-};
-
-
-DEFINE_REFCOUNTED_TYPE(TReduceOperationSpec)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TJoinReduceOperationSpec
-    : public TReduceOperationSpecBase
-{
-public:
-    TJoinReduceOperationSpec();
-
-private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TJoinReduceOperationSpec, 0x788fac27);
-};
-
-
-DEFINE_REFCOUNTED_TYPE(TJoinReduceOperationSpec)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TNewReduceOperationSpec
     : public TReduceOperationSpecBase
 {
