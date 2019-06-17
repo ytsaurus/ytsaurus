@@ -10,6 +10,7 @@ const NLogging::TLogger P2PLogger("P2P");
 const NProfiling::TProfiler P2PProfiler("/data_node/p2p");
 
 const TString CellIdFileName("cell_id");
+const TString LocationUuidFileName("uuid");
 const TString MultiplexedDirectory("multiplexed");
 const TString TrashDirectory("trash");
 const TString CleanExtension("clean");

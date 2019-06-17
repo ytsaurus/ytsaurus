@@ -56,7 +56,6 @@ TLocation::TLocation(
     : TDiskLocation(config, id, DataNodeLogger)
     , Bootstrap_(bootstrap)
     , Type_(type)
-    , Id_(id)
     , Config_(config)
     , MetaReadQueue_(New<TActionQueue>(Format("MetaRead:%v", Id_)))
     , MetaReadInvoker_(CreatePrioritizedInvoker(MetaReadQueue_->GetInvoker()))
@@ -171,9 +170,9 @@ ELocationType TLocation::GetType() const
     return Type_;
 }
 
-const TString& TLocation::GetId() const
+TLocationUuid TLocation::GetUuid() const
 {
-    return Id_;
+    return Uuid_;
 }
 
 const TString& TLocation::GetMediumName() const
@@ -201,7 +200,7 @@ TLocationPerformanceCounters& TLocation::GetPerformanceCounters()
     return PerformanceCounters_;
 }
 
-TString TLocation::GetPath() const
+const TString& TLocation::GetPath() const
 {
     return Config_->Path;
 }
@@ -572,6 +571,49 @@ void TLocation::ValidateWritable()
         .ThrowOnError();
 }
 
+void TLocation::InitializeCellId()
+{
+    auto cellIdPath = NFS::CombinePaths(GetPath(), CellIdFileName);
+    if (NFS::Exists(cellIdPath)) {
+        TUnbufferedFileInput file(cellIdPath);
+        auto cellIdString = file.ReadAll();
+        TCellId cellId;
+        if (!TCellId::FromString(cellIdString, &cellId)) {
+            THROW_ERROR_EXCEPTION("Failed to parse cell id %Qv",
+                cellIdString);
+        }
+        if (cellId != Bootstrap_->GetCellId()) {
+            THROW_ERROR_EXCEPTION("Wrong cell id: expected %v, found %v",
+                Bootstrap_->GetCellId(),
+                cellId);
+        }
+    } else {
+        YT_LOG_INFO("Cell id file is not found, creating");
+        TFile file(cellIdPath, CreateAlways | WrOnly | Seq | CloseOnExec);
+        TUnbufferedFileOutput output(file);
+        output.Write(ToString(Bootstrap_->GetCellId()));
+    }
+}
+
+void TLocation::InitializeUuid()
+{
+    auto uuidPath = NFS::CombinePaths(GetPath(), LocationUuidFileName);
+    if (NFS::Exists(uuidPath)) {
+        TUnbufferedFileInput file(uuidPath);
+        auto uuidString = file.ReadAll();
+        if (!TCellId::FromString(uuidString, &Uuid_)) {
+            THROW_ERROR_EXCEPTION("Failed to parse location uuid %Qv",
+                uuidString);
+        }
+    } else {
+        YT_LOG_INFO("Location uuid file is not found, creating");
+        Uuid_ = TLocationUuid::Create();
+        TFile file(uuidPath, CreateAlways | WrOnly | Seq | CloseOnExec);
+        TUnbufferedFileOutput output(file);
+        output.Write(ToString(Uuid_));
+    }
+}
+
 bool TLocation::IsSick() const
 {
     return IOEngine_->IsSick();
@@ -658,26 +700,8 @@ std::vector<TChunkDescriptor> TLocation::DoScan()
 
 void TLocation::DoStart()
 {
-    auto cellIdPath = NFS::CombinePaths(GetPath(), CellIdFileName);
-    if (NFS::Exists(cellIdPath)) {
-        TUnbufferedFileInput cellIdFile(cellIdPath);
-        auto cellIdString = cellIdFile.ReadAll();
-        TCellId cellId;
-        if (!TCellId::FromString(cellIdString, &cellId)) {
-            THROW_ERROR_EXCEPTION("Failed to parse cell id %Qv",
-                cellIdString);
-        }
-        if (cellId != Bootstrap_->GetCellId()) {
-            THROW_ERROR_EXCEPTION("Wrong cell id: expected %v, found %v",
-                Bootstrap_->GetCellId(),
-                cellId);
-        }
-    } else {
-        YT_LOG_INFO("Cell id file is not found, creating");
-        TFile file(cellIdPath, CreateAlways | WrOnly | Seq | CloseOnExec);
-        TUnbufferedFileOutput cellIdFile(file);
-        cellIdFile.Write(ToString(Bootstrap_->GetCellId()));
-    }
+    InitializeCellId();
+    InitializeUuid();
 
     HealthChecker_->SubscribeFailed(BIND(&TLocation::OnHealthCheckFailed, Unretained(this)));
     HealthChecker_->Start();

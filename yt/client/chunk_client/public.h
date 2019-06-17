@@ -67,6 +67,8 @@ extern const TChunkListId NullChunkListId;
 using TChunkTreeId = NObjectClient::TObjectId;
 extern const TChunkTreeId NullChunkTreeId;
 
+using TLocationUuid = TGuid;
+
 constexpr int MinReplicationFactor = 1;
 constexpr int MaxReplicationFactor = 10;
 constexpr int DefaultReplicationFactor = 3;

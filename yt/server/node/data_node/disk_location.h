@@ -19,10 +19,15 @@ public:
         const TString& id,
         const NLogging::TLogger& logger);
 
+    //! Returns the string id.
+    const TString& GetId() const;
+
     //! Returns |true| iff the location is enabled.
     bool IsEnabled() const;
 
 protected:
+    const TString Id_;
+
     mutable NLogging::TLogger Logger;
     std::atomic<bool> Enabled_ = {false};
 
