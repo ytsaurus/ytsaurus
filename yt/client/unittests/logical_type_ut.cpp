@@ -15,6 +15,16 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define EXPECT_EXCEPTION_WITH_MESSAGE(expr, message) \
+    do { \
+        try { \
+            expr; \
+            ADD_FAILURE() << "expected to throw"; \
+        } catch (const std::exception& ex) { \
+            EXPECT_THAT(ex.what(), testing::HasSubstr(message)); \
+        } \
+    } while (0)
+
 TEST(TLogicalTypeTest, TestSimplifyLogicalType)
 {
     using TPair = std::pair<std::optional<ESimpleLogicalValueType>, bool>;
@@ -49,6 +59,37 @@ TEST(TLogicalTypeTest, TestSimplifyLogicalType)
             SimpleLogicalType(ESimpleLogicalValueType::Uint64)
         })),
         TPair(std::nullopt, true));
+}
+
+TEST(TLogicalTypeTest, TestStructValidation)
+{
+    auto validateStructType = [] (const std::vector<TStructLogicalType::TField>& fields) {
+        ValidateLogicalType(TComplexTypeFieldDescriptor("test-column", StructLogicalType(fields)));
+    };
+
+    EXPECT_NO_THROW(validateStructType({}));
+
+    EXPECT_EXCEPTION_WITH_MESSAGE(
+        validateStructType({{"", SimpleLogicalType(ESimpleLogicalValueType::Int64)}}),
+        "Name of struct field #0 is empty");
+
+    EXPECT_EXCEPTION_WITH_MESSAGE(
+        validateStructType({
+            {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        }),
+        "Struct field name \"a\" is used twice");
+
+    EXPECT_EXCEPTION_WITH_MESSAGE(
+        validateStructType({
+            {TString(257, 'a'), SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        }),
+        "Name of struct field #0 exceeds limit");
+    EXPECT_EXCEPTION_WITH_MESSAGE(
+        validateStructType({
+            {"\xFF", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        }),
+        "Name of struct field #0 is not valid utf8");
 }
 
 static const std::vector<TLogicalTypePtr> ComplexTypeExampleList = {
@@ -178,6 +219,67 @@ INSTANTIATE_TEST_CASE_P(
     Examples,
     TLogicalTypeTestExamples,
     ::testing::ValuesIn(ComplexTypeExampleList));
+
+using TCombineTypeFunc = std::function<TLogicalTypePtr(const TLogicalTypePtr&)>;
+
+std::vector<TCombineTypeFunc> CombineFunctions = {
+    [] (const TLogicalTypePtr& type) {
+        return OptionalLogicalType(type);
+    },
+    [] (const TLogicalTypePtr& type) {
+        return ListLogicalType(type);
+    },
+    [] (const TLogicalTypePtr& type) {
+        return StructLogicalType({{"column", type}});
+    },
+    [] (const TLogicalTypePtr& type) {
+        return TupleLogicalType({type});
+    },
+};
+
+TEST(TLogicalTypeTest, TestAllTypesInCombineFunctions)
+{
+    const auto allMetatypes = TEnumTraits<ELogicalMetatype>::GetDomainValues();
+    std::set<ELogicalMetatype> actualMetatypes;
+    for (const auto& function : CombineFunctions) {
+        auto combined = function(SimpleLogicalType(ESimpleLogicalValueType::Int64));
+        actualMetatypes.insert(combined->GetMetatype());
+    }
+    std::set<ELogicalMetatype> expectedMetatypes(allMetatypes.begin(), allMetatypes.end());
+    expectedMetatypes.erase(ELogicalMetatype::Simple);
+    EXPECT_EQ(actualMetatypes, expectedMetatypes);
+}
+
+class TCombineLogicalMetatypeTests
+    : public ::testing::TestWithParam<TCombineTypeFunc>
+{ };
+
+TEST_P(TCombineLogicalMetatypeTests, TestValidate)
+{
+    auto badType = StructLogicalType({{"", SimpleLogicalType(ESimpleLogicalValueType::Int64)}});
+    EXPECT_EXCEPTION_WITH_MESSAGE(
+        ValidateLogicalType(TComplexTypeFieldDescriptor("test-column", badType)),
+        "Name of struct field #0 is empty");
+
+    const auto combineFunc = GetParam();
+    const auto combinedType1 = combineFunc(badType);
+    const auto combinedType2 = combineFunc(combinedType1);
+    EXPECT_NE(*combinedType1, *badType);
+    EXPECT_NE(*combinedType1, *combinedType2);
+
+    EXPECT_EXCEPTION_WITH_MESSAGE(
+        ValidateLogicalType(TComplexTypeFieldDescriptor("test-column", combinedType1)),
+        "Name of struct field #0 is empty");
+
+    EXPECT_EXCEPTION_WITH_MESSAGE(
+        ValidateLogicalType(TComplexTypeFieldDescriptor("test-column", combinedType2)),
+        "Name of struct field #0 is empty");
+}
+
+INSTANTIATE_TEST_CASE_P(
+    CombineFunctions,
+    TCombineLogicalMetatypeTests,
+    ::testing::ValuesIn(CombineFunctions));
 
 ////////////////////////////////////////////////////////////////////////////////
 

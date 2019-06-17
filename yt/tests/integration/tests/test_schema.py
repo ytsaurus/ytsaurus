@@ -251,6 +251,30 @@ class TestComplexTypes(YTEnvSetup):
         check_bad(["one", 2, 3])
         check_bad(["bar", "baz"])
 
+
+    def test_malformed_struct(self):
+        try:
+            create("table", "//tmp/table", force=True, attributes={
+                "schema": make_schema([
+                    {
+                        "name": "column",
+                        "type_v2": {
+                            "metatype": "struct",
+                            "fields": [
+                                {
+                                    "name": "",
+                                    "type": "int64",
+                                }
+                            ]
+                        }
+                    }
+                ])
+            })
+            pytest.fail("expected exception")
+        except YtError as e:
+            assert "Name of struct field #0 is empty" in str(e)
+
+
     def test_list(self):
         create("table", "//tmp/table", force=True, attributes={
             "schema": make_schema([{

@@ -139,10 +139,8 @@ int TOptionalLogicalType::GetTypeComplexity() const
     }
 }
 
-void TOptionalLogicalType::Validate(const TComplexTypeFieldDescriptor& descriptor) const
-{
-    Element_->Validate(descriptor.OptionalElement());
-}
+void TOptionalLogicalType::ValidateNode() const
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -167,7 +165,7 @@ int TSimpleLogicalType::GetTypeComplexity() const
     return 1;
 }
 
-void TSimpleLogicalType::Validate(const TComplexTypeFieldDescriptor& /*descriptor*/) const
+void TSimpleLogicalType::ValidateNode() const
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -192,10 +190,8 @@ int TListLogicalType::GetTypeComplexity() const
     return 1 + Element_->GetTypeComplexity();
 }
 
-void TListLogicalType::Validate(const TComplexTypeFieldDescriptor& descriptor) const
-{
-    Element_->Validate(descriptor.ListElement());
-}
+void TListLogicalType::ValidateNode() const
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -243,11 +239,37 @@ const TLogicalTypePtr& TComplexTypeFieldDescriptor::GetType() const
     return Type_;
 }
 
+void TComplexTypeFieldDescriptor::Walk(std::function<void(const TComplexTypeFieldDescriptor&)> onElement) const
+{
+    onElement(*this);
+    switch (GetType()->GetMetatype()) {
+        case ELogicalMetatype::Simple:
+            return;
+        case ELogicalMetatype::Optional:
+            OptionalElement().Walk(onElement);
+            return;
+        case ELogicalMetatype::List:
+            ListElement().Walk(onElement);
+            return;
+        case ELogicalMetatype::Struct:
+            for (size_t i = 0; i < GetType()->AsStructTypeRef().GetFields().size(); ++i) {
+                StructField(i).Walk(onElement);
+            }
+            return;
+        case ELogicalMetatype::Tuple:
+            for (size_t i = 0; i < GetType()->AsTupleTypeRef().GetElements().size(); ++i) {
+                TupleElement(i).Walk(onElement);
+            }
+            return;
+    }
+    Y_UNREACHABLE();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TStructLogicalType::TStructLogicalType(std::vector<TField> fields)
     : TLogicalType(ELogicalMetatype::Struct)
-    , Fields_(fields)
+    , Fields_(std::move(fields))
 { }
 
 const std::vector<TStructLogicalType::TField>& TStructLogicalType::GetFields() const
@@ -274,31 +296,30 @@ int TStructLogicalType::GetTypeComplexity() const
     return result;
 }
 
-void TStructLogicalType::Validate(const TComplexTypeFieldDescriptor& descriptor) const
+void TStructLogicalType::ValidateNode() const
 {
+    THashSet<TStringBuf> usedNames;
     for (size_t i = 0; i < Fields_.size(); ++i) {
         const auto& field = Fields_[i];
-        try {
-            if (field.Name.size() == 0) {
-                THROW_ERROR_EXCEPTION("Name of struct field #%v is empty",
-                    i);
-            }
-            if (field.Name.size() > MaxColumnNameLength) {
-                THROW_ERROR_EXCEPTION("Name of struct field #%v exceeds limit: %v > %v",
-                    i,
-                    field.Name.size(),
-                    MaxColumnNameLength);
-            }
-            if (!IsUtf(field.Name)) {
-                THROW_ERROR_EXCEPTION("Name of struct field #%v is not valid utf8",
-                    i);
-            }
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error validating field %Qv",
-                descriptor.GetDescription())
-                << ex;
+        if (field.Name.empty()) {
+            THROW_ERROR_EXCEPTION("Name of struct field #%v is empty",
+                i);
         }
-        field.Type->Validate(descriptor.StructField(i));
+        if (usedNames.contains(field.Name)) {
+            THROW_ERROR_EXCEPTION("Struct field name %Qv is used twice",
+                field.Name);
+        }
+        usedNames.emplace(field.Name);
+        if (field.Name.size() > MaxColumnNameLength) {
+            THROW_ERROR_EXCEPTION("Name of struct field #%v exceeds limit: %v > %v",
+                i,
+                field.Name.size(),
+                MaxColumnNameLength);
+        }
+        if (!IsUtf(field.Name)) {
+            THROW_ERROR_EXCEPTION("Name of struct field #%v is not valid utf8",
+                i);
+        }
     }
 }
 
@@ -333,13 +354,8 @@ int TTupleLogicalType::GetTypeComplexity() const
     return result;
 }
 
-void TTupleLogicalType::Validate(const TComplexTypeFieldDescriptor& descriptor) const
-{
-    for (size_t i = 0; i < Elements_.size(); ++i) {
-        const auto& element = Elements_[i];
-        element->Validate(descriptor.TupleElement(i));
-    }
-}
+void TTupleLogicalType::ValidateNode() const
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -397,6 +413,19 @@ bool operator == (const TLogicalType& lhs, const TLogicalType& rhs)
         }
     }
     Y_UNREACHABLE();
+}
+
+void ValidateLogicalType(const TComplexTypeFieldDescriptor& descriptor)
+{
+    descriptor.Walk([] (const TComplexTypeFieldDescriptor& descriptor) {
+        try {
+            descriptor.GetType()->ValidateNode();
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("%v has bad type",
+                descriptor.GetDescription())
+            << ex;
+        }
+    });
 }
 
 void ValidateAlterType(const TLogicalTypePtr& oldType, const TLogicalTypePtr& newType)

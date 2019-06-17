@@ -40,7 +40,10 @@ public:
 
     virtual size_t GetMemoryUsage() const = 0;
     virtual int GetTypeComplexity() const = 0;
-    virtual void Validate(const TComplexTypeFieldDescriptor& descriptor) const = 0;
+
+    // This function doesn't validate children of current node.
+    // Users should use ValidateLogicalType function.
+    virtual void ValidateNode() const = 0;
 
 private:
     const ELogicalMetatype Metatype_;
@@ -55,6 +58,8 @@ bool operator != (const TLogicalType& lhs, const TLogicalType& rhs);
 bool operator == (const TLogicalTypePtr& lhs, const TLogicalTypePtr& rhs) = delete;
 
 void ValidateAlterType(const TLogicalTypePtr& oldType, const TLogicalTypePtr& newType);
+
+void ValidateLogicalType(const TComplexTypeFieldDescriptor& descriptor);
 
 //! Returns true if #lhs type is subtype of #rhs type.
 //! We say that #lhs type is subtype of #rhs type
@@ -87,7 +92,7 @@ public:
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
-    virtual void Validate(const TComplexTypeFieldDescriptor& descriptor) const override;
+    virtual void ValidateNode() const override;
 
 private:
     const TLogicalTypePtr Element_;
@@ -106,7 +111,7 @@ public:
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
-    virtual void Validate(const TComplexTypeFieldDescriptor& descriptor) const override;
+    virtual void ValidateNode() const override;
 
 private:
     ESimpleLogicalValueType Element_;
@@ -125,7 +130,7 @@ public:
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
-    virtual void Validate(const TComplexTypeFieldDescriptor& descriptor) const override;
+    virtual void ValidateNode() const override;
 
 private:
     TLogicalTypePtr Element_;
@@ -150,6 +155,8 @@ public:
     const TString& GetDescription() const;
     const TLogicalTypePtr& GetType() const;
 
+    void Walk(std::function<void(const TComplexTypeFieldDescriptor&)> onElement) const;
+
 private:
     TString Descriptor_;
     TLogicalTypePtr Type_;
@@ -173,7 +180,7 @@ public:
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
-    virtual void Validate(const TComplexTypeFieldDescriptor& descriptor) const override;
+    virtual void ValidateNode() const override;
 
 private:
     std::vector<TField> Fields_;
@@ -192,7 +199,7 @@ public:
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
-    virtual void Validate(const TComplexTypeFieldDescriptor& descriptor) const override;
+    virtual void ValidateNode() const override;
 
 private:
     std::vector<TLogicalTypePtr> Elements_;
