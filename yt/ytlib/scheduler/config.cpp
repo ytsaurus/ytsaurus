@@ -1405,6 +1405,33 @@ void TPoolConfig::Validate()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFairShareStrategyPackingConfig::TFairShareStrategyPackingConfig()
+{
+    RegisterParameter("enable", Enable)
+        .Default(false);
+
+    RegisterParameter("metric", Metric)
+        .Default(EPackingMetricType::AngleLength);
+
+    RegisterParameter("max_better_past_snapshots", MaxBetterPastSnapshots)
+        .Default(2);
+    RegisterParameter("absolute_metric_value_tolerance", AbsoluteMetricValueTolerance)
+        .Default(0.05)
+        .GreaterThanOrEqual(0.0);
+    RegisterParameter("relative_metric_value_tolerance", RelativeMetricValueTolerance)
+        .Default(1.5)
+        .GreaterThanOrEqual(1.0);
+    RegisterParameter("min_window_size_for_schedule", MinWindowSizeForSchedule)
+        .Default(0)
+        .GreaterThanOrEqual(0);
+    RegisterParameter("max_heartbeat_window_size", MaxHearbeatWindowSize)
+        .Default(10);
+    RegisterParameter("max_heartbeat_age", MaxHeartbeatAge)
+        .Default(TDuration::Hours(1));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TStrategyOperationSpec::TStrategyOperationSpec()
 {
     RegisterParameter("pool", Pool)

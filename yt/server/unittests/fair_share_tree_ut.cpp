@@ -359,7 +359,7 @@ protected:
         const TExecNodePtr& execNode)
     {
         auto schedulingContext = CreateSchedulingContext(
-            0,
+            /* nodeShardId */ 0,
             SchedulerConfig_,
             execNode,
             /* runningJobs */ {});
@@ -368,7 +368,7 @@ protected:
 
         context.StartStage(&SchedulingStageMock_);
         PrepareForTestScheduling(rootElement, &context, &dynamicAttributes);
-        operationElement->ScheduleJob(&context);
+        operationElement->ScheduleJob(&context, /* ignorePacking */ true);
         context.FinishStage();
     }
 
@@ -659,7 +659,8 @@ TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
         .WillRepeatedly(testing::Invoke([&](auto context, auto jobLimits, auto treeId) {
             heartbeatsInScheduling.fetch_add(1);
             EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
-            return MakeFuture<TControllerScheduleJobResultPtr>(TErrorOr<TControllerScheduleJobResultPtr>(New<TControllerScheduleJobResult>()));
+            return MakeFuture<TControllerScheduleJobResultPtr>(
+                TErrorOr<TControllerScheduleJobResultPtr>(New<TControllerScheduleJobResult>()));
         }));
 
     std::vector<TFuture<void>> futures;

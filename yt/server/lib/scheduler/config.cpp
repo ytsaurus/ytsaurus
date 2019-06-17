@@ -130,6 +130,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("crash_on_operation_resource_usage_inconsistency", CrashOnOperationResourceUsageInconsistency)
         .Default(false);
 
+    RegisterParameter("packing", Packing)
+        .DefaultNew();
+
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")

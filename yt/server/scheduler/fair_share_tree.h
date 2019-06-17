@@ -318,6 +318,7 @@ private:
 
     TFairShareSchedulingStage NonPreemptiveSchedulingStage_;
     TFairShareSchedulingStage PreemptiveSchedulingStage_;
+    TFairShareSchedulingStage PackingFallbackSchedulingStage_;
 
     NProfiling::TAggregateGauge FairShareUpdateTimeCounter_;
     NProfiling::TAggregateGauge FairShareLogTimeCounter_;
@@ -339,11 +340,21 @@ private:
         }
     }
 
+    void DoScheduleJobsWithoutPreemptionImpl(
+        const TRootElementSnapshotPtr& rootElementSnapshot,
+        TFairShareContext* context,
+        NProfiling::TCpuInstant startTime,
+        bool ignorePacking,
+        bool oneJobOnly);
     void DoScheduleJobsWithoutPreemption(
         const TRootElementSnapshotPtr& rootElementSnapshot,
         TFairShareContext* context,
         NProfiling::TCpuInstant startTime);
     void DoScheduleJobsWithPreemption(
+        const TRootElementSnapshotPtr& rootElementSnapshot,
+        TFairShareContext* context,
+        NProfiling::TCpuInstant startTime);
+    void DoScheduleJobsPackingFallback(
         const TRootElementSnapshotPtr& rootElementSnapshot,
         TFairShareContext* context,
         NProfiling::TCpuInstant startTime);

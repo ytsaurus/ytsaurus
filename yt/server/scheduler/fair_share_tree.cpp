@@ -101,6 +101,9 @@ TFairShareTree::TFairShareTree(
     , PreemptiveSchedulingStage_(
         /* nameInLogs */ "Preemptive",
         TScheduleJobsProfilingCounters("/preemptive", {TreeIdProfilingTag_}))
+    , PackingFallbackSchedulingStage_(
+        /* nameInLogs */ "Packing fallback",
+        TScheduleJobsProfilingCounters("/packing_fallback", {TreeIdProfilingTag_}))
     , FairShareUpdateTimeCounter_("/fair_share_update_time", {TreeIdProfilingTag_})
     , FairShareLogTimeCounter_("/fair_share_log_time", {TreeIdProfilingTag_})
     , AnalyzePreemptableJobsTimeCounter_("/analyze_preemptable_jobs_time", {TreeIdProfilingTag_})
@@ -842,16 +845,26 @@ TAggregateGauge& TFairShareTree::GetProfilingCounter(const TString& name)
     return *it->second;
 }
 
-void TFairShareTree::DoScheduleJobsWithoutPreemption(
+void ReactivateBadPackingOperations(TFairShareContext* context)
+{
+    for (const auto& operation : context->BadPackingOperations) {
+        context->DynamicAttributesList[operation->GetTreeIndex()].Active = true;
+        // TODO(antonkikh): This can be implemented more efficiently.
+        operation->UpdateAncestorsAttributes(context);
+    }
+    context->BadPackingOperations.clear();
+}
+
+void TFairShareTree::DoScheduleJobsWithoutPreemptionImpl(
     const TRootElementSnapshotPtr& rootElementSnapshot,
     TFairShareContext* context,
-    TCpuInstant startTime)
+    TCpuInstant startTime,
+    bool ignorePacking,
+    bool oneJobOnly)
 {
     auto& rootElement = rootElementSnapshot->RootElement;
 
     {
-        YT_LOG_TRACE("Scheduling new jobs");
-
         bool prescheduleExecuted = false;
         TCpuInstant schedulingDeadline = startTime + DurationToCpuDuration(ControllerConfig_->ScheduleJobsTimeout);
 
@@ -869,7 +882,11 @@ void TFairShareTree::DoScheduleJobsWithoutPreemption(
                 context->PrescheduleCalled = true;
             }
             ++context->StageState->ScheduleJobAttempts;
-            if (!rootElement->ScheduleJob(context)) {
+            auto scheduleJobResult = rootElement->ScheduleJob(context, ignorePacking);
+            if (scheduleJobResult.Scheduled) {
+                ReactivateBadPackingOperations(context);
+            }
+            if (scheduleJobResult.Finished || (oneJobOnly && scheduleJobResult.Scheduled)) {
                 break;
             }
         }
@@ -877,6 +894,37 @@ void TFairShareTree::DoScheduleJobsWithoutPreemption(
         context->StageState->TotalDuration = scheduleTimer.GetElapsedTime();
         context->ProfileStageTimingsAndLogStatistics();
     }
+}
+
+void TFairShareTree::DoScheduleJobsWithoutPreemption(
+    const NYT::NScheduler::TFairShareTree::TRootElementSnapshotPtr& rootElementSnapshot,
+    NYT::NScheduler::TFairShareContext* context,
+    NYT::NProfiling::TCpuInstant startTime)
+{
+    YT_LOG_TRACE("Scheduling new jobs");
+
+    DoScheduleJobsWithoutPreemptionImpl(
+        rootElementSnapshot,
+        context,
+        startTime,
+        /* ignorePacking */ false,
+        /* oneJobOnly */ false);
+}
+
+void TFairShareTree::DoScheduleJobsPackingFallback(
+    const NYT::NScheduler::TFairShareTree::TRootElementSnapshotPtr& rootElementSnapshot,
+    NYT::NScheduler::TFairShareContext* context,
+    NYT::NProfiling::TCpuInstant startTime)
+{
+    YT_LOG_TRACE("Scheduling jobs with packing ignored");
+
+    // Schedule at most one job with packing ignored in case all operations have rejected the heartbeat.
+    DoScheduleJobsWithoutPreemptionImpl(
+        rootElementSnapshot,
+        context,
+        startTime,
+        /* ignorePacking */ true,
+        /* oneJobOnly */ true);
 }
 
 void TFairShareTree::DoScheduleJobsWithPreemption(
@@ -951,11 +999,12 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
             }
 
             ++context->StageState->ScheduleJobAttempts;
-            if (!rootElement->ScheduleJob(context)) {
+            auto scheduleJobResult = rootElement->ScheduleJob(context, /* ignorePacking */ true);
+            if (scheduleJobResult.Scheduled) {
+                jobStartedUsingPreemption = context->SchedulingContext->StartedJobs().back();
                 break;
             }
-            if (context->SchedulingContext->StartedJobs().size() > startedBeforePreemption) {
-                jobStartedUsingPreemption = context->SchedulingContext->StartedJobs().back();
+            if (scheduleJobResult.Finished) {
                 break;
             }
         }
@@ -1077,10 +1126,13 @@ void TFairShareTree::DoScheduleJobs(
 
     TFairShareContext context(schedulingContext, enableSchedulingInfoLogging);
 
+    bool needPackingFallback;
     {
         context.StartStage(&NonPreemptiveSchedulingStage_);
         DoScheduleJobsWithoutPreemption(rootElementSnapshot, &context, now);
         context.SchedulingStatistics.NonPreemptiveScheduleJobAttempts = context.StageState->ScheduleJobAttempts;
+        needPackingFallback = schedulingContext->StartedJobs().empty() && !context.BadPackingOperations.empty();
+        ReactivateBadPackingOperations(&context);
         context.FinishStage();
     }
 
@@ -1113,6 +1165,13 @@ void TFairShareTree::DoScheduleJobs(
         context.FinishStage();
     } else {
         YT_LOG_DEBUG("Skip preemptive scheduling");
+    }
+
+    if (needPackingFallback) {
+        context.StartStage(&PackingFallbackSchedulingStage_);
+        DoScheduleJobsPackingFallback(rootElementSnapshot, &context, now);
+        context.SchedulingStatistics.PackingFallbackScheduleJobAttempts = context.StageState->ScheduleJobAttempts;
+        context.FinishStage();
     }
 
     schedulingContext->SetSchedulingStatistics(context.SchedulingStatistics);
