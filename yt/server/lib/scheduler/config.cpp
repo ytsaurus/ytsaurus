@@ -99,7 +99,7 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
 
     RegisterParameter("max_ephemeral_pools_per_user", MaxEphemeralPoolsPerUser)
         .GreaterThanOrEqual(1)
-        .Default(1);
+        .Default(5);
 
     RegisterParameter("update_preemptable_list_duration_logging_threshold", UpdatePreemptableListDurationLoggingThreshold)
         .Default(TDuration::MilliSeconds(100));
