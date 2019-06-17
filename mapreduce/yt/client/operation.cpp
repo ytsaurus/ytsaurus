@@ -299,12 +299,16 @@ class TFileToUpload
     : public IItemToUpload
 {
 public:
-    TFileToUpload(TString fileName)
+    TFileToUpload(TString fileName, TMaybe<TString> md5)
         : FileName_(std::move(fileName))
+        , MD5_(std::move(md5))
     { }
 
     TString CalculateMD5() const override
     {
+        if (MD5_) {
+            return *MD5_;
+        }
         constexpr size_t md5Size = 32;
         TString result;
         result.ReserveAndResize(md5Size);
@@ -324,6 +328,7 @@ public:
 
 private:
     TString FileName_;
+    TMaybe<TString> MD5_;
 };
 
 class TDataToUpload
@@ -383,7 +388,7 @@ public:
             if (GetInitStatus() != EInitStatus::FullInitialization) {
                 ythrow yexception() << "NYT::Initialize() must be called prior to any operation";
             }
-            jobBinary = TJobBinaryLocalPath{GetPersistentExecPath()};
+            jobBinary = TJobBinaryLocalPath{GetPersistentExecPath(), Nothing()};
 
             if (UseLocalModeOptimization(OperationPreparer_.GetAuth(), OperationPreparer_.GetClientRetryPolicy())) {
                 binaryPathInsideJob = GetExecPath();
@@ -668,7 +673,7 @@ private:
         fsPath.Stat(stat);
 
         bool isExecutable = stat.Mode & (S_IXUSR | S_IXGRP | S_IXOTH);
-        auto cachePath = UploadToCache(TFileToUpload(localPath));
+        auto cachePath = UploadToCache(TFileToUpload(localPath, options.MD5CheckSum_));
 
         TRichYPath cypressPath(cachePath);
         cypressPath.FileName(options.PathInJob_.GetOrElse(fsPath.Basename()));
@@ -686,8 +691,12 @@ private:
     void UploadBinary(const TJobBinaryConfig& jobBinary)
     {
         if (HoldsAlternative<TJobBinaryLocalPath>(jobBinary)) {
-            auto binaryLocalPath = ::Get<TJobBinaryLocalPath>(jobBinary).Path;
-            UploadLocalFile(binaryLocalPath, TAddLocalFileOptions().PathInJob("cppbinary"));
+            auto binaryLocalPath = ::Get<TJobBinaryLocalPath>(jobBinary);
+            auto opts = TAddLocalFileOptions().PathInJob("cppbinary");
+            if (binaryLocalPath.MD5CheckSum) {
+                opts.MD5CheckSum(*binaryLocalPath.MD5CheckSum);
+            }
+            UploadLocalFile(binaryLocalPath.Path, opts);
         } else if (HoldsAlternative<TJobBinaryCypressPath>(jobBinary)) {
             auto binaryCypressPath = ::Get<TJobBinaryCypressPath>(jobBinary).Path;
             UseFileInCypress(
