@@ -483,6 +483,21 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         actual = lookup_rows("//tmp/t", keys, column_names=["value3"], versioned=True, retention_config=retention_config)
         _check(actual[0])
 
+    def test_merge_rows_on_flush_removes_row(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@min_data_versions", 0)
+        set("//tmp/t/@max_data_versions", 0)
+        set("//tmp/t/@min_data_ttl", 0)
+        set("//tmp/t/@max_data_ttl", 0)
+        set("//tmp/t/@merge_rows_on_flush", True)
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 1, "value": "a"}])
+        assert select_rows("* from [//tmp/t]") == [{"key": 1, "value": "a"}]
+
+        sync_unmount_table("//tmp/t")
+        assert get("//tmp/t/@chunk_count") == 0
 
     def test_overflow_row_data_weight(self):
         sync_create_cells(1)
