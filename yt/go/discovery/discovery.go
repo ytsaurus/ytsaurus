@@ -14,11 +14,11 @@
 //       go g.Update(context.Background())
 //
 //       // Join the group.
-//       leave, err := g.Join(context.Backgrond(), "build01-myt.yt.yandex.net", &MemberMeta{Version: "1.1", Shard: 10})
+//       member, err := g.Join(context.Backgrond(), "build01-myt.yt.yandex.net", &MemberMeta{Version: "1.1", Shard: 10})
 //       if err != nil {
 //           return err
 //       }
-//       defer leave()
+//       defer member.Leave()
 //
 //       // See other alive members.
 //       members := map[string]MemberMeta{}
@@ -156,7 +156,7 @@ func (g *Group) List(ctx context.Context, members interface{}) error {
 	return yson.Unmarshal(bytes, members)
 }
 
-type member struct {
+type Member struct {
 	g     *Group
 	name  string
 	attrs interface{}
@@ -165,7 +165,7 @@ type member struct {
 	stop chan struct{}
 }
 
-func (m *member) join(ctx context.Context) (err error) {
+func (m *Member) join(ctx context.Context) (err error) {
 	if m.tx != nil {
 		select {
 		case <-m.tx.Finished():
@@ -209,7 +209,7 @@ func (m *member) join(ctx context.Context) (err error) {
 	return
 }
 
-func (m *member) leave() {
+func (m *Member) Leave() {
 	close(m.stop)
 }
 
@@ -219,9 +219,8 @@ func (m *member) leave() {
 // attrs is additional information that is stored in /@member_info attribute.
 //
 // Function returns once member is registered.
-func (g *Group) Join(ctx context.Context, name string, attrs interface{}) (leave func(), err error) {
-	m := &member{g: g, name: name, attrs: attrs, stop: make(chan struct{})}
-	leave = m.leave
+func (g *Group) Join(ctx context.Context, name string, attrs interface{}) (m *Member, err error) {
+	m = &Member{g: g, name: name, attrs: attrs, stop: make(chan struct{})}
 
 	for {
 		if err = m.join(ctx); err != nil {
