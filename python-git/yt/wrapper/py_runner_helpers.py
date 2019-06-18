@@ -111,11 +111,11 @@ class FDOutputStream(object):
     def write(self, str):
         os.write(self.fd, str)
 
-    def move_to_fd(self, new_fd):
-        assert new_fd != self.fd
-        os.dup2(self.fd, new_fd)
+    def close(self):
         os.close(self.fd)
-        self.fd = new_fd
+
+    def dup(self):
+        return FDOutputStream(os.dup(self.fd))
 
 class group_by_key_switch(object):
     def __init__(self, rows, extract_key_by_group_by, context=None):
@@ -166,14 +166,19 @@ def apply_stdout_fd_protection(output_streams, protection_type):
     assert protection_type in ("redirect_to_stderr", "drop", "close"), \
             "unknown stdout_fd_protection value: {}".format(protection_type)
 
-    # NB: shift all output file descriptors by 3
-    # so that we don't write operation output to fd 1 (stdout) or fd 0 (stdin).
-    # In particular, this protects from third-party C/C++ libraries writing to stdout.
-    for stream in sorted(output_streams, key=lambda stream: stream.fd, reverse=True):
-        stream.move_to_fd(stream.fd + 3)
-
+    stdin_fd = 0
     stdout_fd = 1
     stderr_fd = 2
+
+    # NB: move file descriptors 1 (stdout) and 0 (stdin) so that we don't write operation output
+    # to them. In particular, this protects from third-party C/C++ libraries writing to stdout.
+    for index in xrange(len(output_streams)):
+        stream = output_streams[index]
+        if stream.fd in (stdin_fd, stdout_fd):
+            output_streams[index] = stream.dup()
+            stream.close()
+            assert output_streams[index].fd not in (stdin_fd, stdout_fd)
+
     if protection_type == "redirect_to_stderr":
         os.dup2(stderr_fd, stdout_fd)
     elif protection_type == "drop":
