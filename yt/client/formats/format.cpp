@@ -339,8 +339,9 @@ ISchemalessFormatWriterPtr CreateStaticTableWriterForFormat(
                 controlAttributesConfig,
                 keyColumnCount);
         case EFormatType::Protobuf:
-            return CreateSchemalessWriterForProtobuf(
+            return CreateWriterForProtobuf(
                 format.Attributes(),
+                tableSchemas,
                 nameTable,
                 std::move(output),
                 enableContextSaving,
