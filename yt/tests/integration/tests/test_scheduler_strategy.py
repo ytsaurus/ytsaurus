@@ -846,6 +846,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         time.sleep(0.5)
 
     def test_preemption(self):
+        set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 2)
         create("table", "//tmp/t_in")
         for i in xrange(3):
             write_table("<append=true>//tmp/t_in", {"foo": "bar"})
@@ -868,6 +869,7 @@ class TestSchedulerPreemption(YTEnvSetup):
 
     @pytest.mark.parametrize("interruptible", [False, True])
     def test_interrupt_job_on_preemption(self, interruptible):
+        set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 2)
         create("table", "//tmp/t_in")
         write_table(
             "//tmp/t_in",
@@ -1161,6 +1163,7 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
         set("//sys/pool_trees/default/@fair_share_preemption_timeout", 100)
         set("//sys/pool_trees/default/@min_share_preemption_timeout", 100)
         set("//sys/pool_trees/default/@preemptive_scheduling_backoff", 0)
+        set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 5)
         time.sleep(0.5)
 
     @classmethod
@@ -1177,12 +1180,13 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
 
         create("map_node", "//sys/pools/special_pool")
         set("//sys/pools/special_pool/@aggressive_starvation_enabled", True)
+        scheduling_info_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/"
 
-        get_fair_share_ratio = lambda op_id: \
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/fair_share_ratio".format(op_id))
+        def get_fair_share_ratio(op_id):
+            return get(scheduling_info_path.format(op_id) + "fair_share_ratio")
 
-        get_usage_ratio = lambda op_id: \
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/usage_ratio".format(op_id))
+        def get_usage_ratio(op_id):
+            return get(scheduling_info_path.format(op_id) + "usage_ratio")
 
         ops = []
         for index in xrange(2):
@@ -1365,6 +1369,7 @@ class TestSchedulerPools(YTEnvSetup):
 
         create("map_node", "//sys/pools/default_pool")
         set("//sys/pool_trees/default/@default_parent_pool", "default_pool")
+        set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 2)
         time.sleep(0.2)
 
         command = with_breakpoint("cat ; BREAKPOINT")
