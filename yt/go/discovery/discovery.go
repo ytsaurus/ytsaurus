@@ -1,5 +1,10 @@
 // Package discovery implements service discovery over cypress.
 //
+// Each member creates map node under the Root. Live member holds the lock for his node.
+// Updater loop lists all child of the Root and determines which members are alive from @lock_count attribute.
+//
+// This protocol is very efficient, because transaction pings do not go through master automaton mutations.
+//
 // Example usage:
 //
 //   type MemberMeta struct {
