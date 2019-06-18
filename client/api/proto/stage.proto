@@ -47,6 +47,8 @@ message TStageStatus
     uint64 revision = 2;
     // Stage spec has been accepted by controller as valid.
     NYP.NClient.NApi.NProto.TCondition validated = 3;
+    // YP timestamp of spec last treated by controller.
+    uint64 spec_timestamp = 4;
 }
 
 // Deploy unit
@@ -98,6 +100,8 @@ message TDeployUnitStatus
     TDeployProgress progress = 4;
     // Revision of stage from which 'current_target' was derived.
     uint64 target_revision = 5;
+    // YP timestamp of stage spec from which 'current_target' was derived.
+    uint64 target_spec_timestamp = 6;
 
     message TReplicaSetDeploy
     {
