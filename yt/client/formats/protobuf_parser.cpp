@@ -5,6 +5,7 @@
 #include "parser.h"
 #include "yson_map_to_unversioned_value.h"
 
+#include <yt/client/table_client/helpers.h>
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/table_consumer.h>
 #include <yt/client/table_client/unversioned_row.h>
@@ -29,6 +30,71 @@ using ::google::protobuf::internal::WireFormatLite;
 
 
 namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TProtobufParserFieldDescription
+    : public TProtobufFieldDescriptionBase
+{
+public:
+    TProtobufParserFieldDescription() = default;
+
+    explicit TProtobufParserFieldDescription(TProtobufFieldDescription description)
+        : TProtobufFieldDescriptionBase(std::move(description))
+        , Children_(std::move_iterator(description.Children.begin()), std::move_iterator(description.Children.end()))
+    {
+        // Setup field number to child index mapping.
+        int vectorSize = 0;
+        for (const auto& child : Children_) {
+            if (child.GetFieldNumber() < MaxFieldNumberVectorSize && vectorSize <= child.GetFieldNumber()) {
+                vectorSize = child.GetFieldNumber() + 1;
+            }
+        }
+
+        FieldNumberToChildIndexVector_.assign(vectorSize, InvalidChildIndex);
+        FieldNumberToChildIndexMap_.clear();
+
+        for (int childIndex = 0; childIndex < static_cast<int>(Children_.size()); ++childIndex) {
+            auto fieldNumber = Children_[childIndex].GetFieldNumber();
+            if (fieldNumber < vectorSize) {
+                FieldNumberToChildIndexVector_[fieldNumber] = childIndex;
+            } else {
+                FieldNumberToChildIndexMap_.emplace(fieldNumber, childIndex);
+            }
+        }
+    }
+
+    int FieldNumberToChildIndex(int fieldNumber) const
+    {
+        int index;
+        if (fieldNumber < FieldNumberToChildIndexVector_.size()) {
+            index = FieldNumberToChildIndexVector_[fieldNumber];
+            if (Y_UNLIKELY(index == InvalidChildIndex)) {
+                THROW_ERROR_EXCEPTION("Unexpected field number %v", fieldNumber);
+            }
+        } else {
+            auto it = FieldNumberToChildIndexMap_.find(fieldNumber);
+            if (Y_UNLIKELY(it == FieldNumberToChildIndexMap_.end())) {
+                THROW_ERROR_EXCEPTION("Unexpected field number %v", fieldNumber);
+            }
+            index = it->second;
+        }
+        return index;
+    }
+
+    const std::vector<TProtobufParserFieldDescription>& GetChildren() const &
+    {
+        return Children_;
+    }
+
+private:
+    static constexpr int InvalidChildIndex = -1;
+    static constexpr int MaxFieldNumberVectorSize = 256;
+
+    std::vector<TProtobufParserFieldDescription> Children_;
+    std::vector<int> FieldNumberToChildIndexVector_;
+    THashMap<int, int> FieldNumberToChildIndexMap_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -130,55 +196,57 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-static constexpr ui32 InvalidColumnId = -1;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static WireFormatLite::WireType GetWireTypeForProtobufType(EProtobufType type)
+struct TField
 {
-    switch (type) {
-        case EProtobufType::Double:
-            return WireFormatLite::WIRETYPE_FIXED64;
-        case EProtobufType::Float:
-            return WireFormatLite::WIRETYPE_FIXED32;
+    TUnversionedValue Value;
+    int ChildIndex;
+};
 
-        case EProtobufType::Int64:
-        case EProtobufType::Uint64:
-        case EProtobufType::Sint64:
-            return WireFormatLite::WIRETYPE_VARINT;
-        case EProtobufType::Fixed64:
-        case EProtobufType::Sfixed64:
-            return WireFormatLite::WIRETYPE_FIXED64;
-
-        case EProtobufType::Int32:
-        case EProtobufType::Uint32:
-        case EProtobufType::Sint32:
-            return WireFormatLite::WIRETYPE_VARINT;
-        case EProtobufType::Fixed32:
-        case EProtobufType::Sfixed32:
-            return WireFormatLite::WIRETYPE_FIXED32;
-
-        case EProtobufType::Bool:
-            return WireFormatLite::WIRETYPE_VARINT;
-        case EProtobufType::String:
-        case EProtobufType::Bytes:
-        case EProtobufType::Any:
-        case EProtobufType::OtherColumns:
-            return WireFormatLite::WIRETYPE_LENGTH_DELIMITED;
-
-        case EProtobufType::EnumInt:
-        case EProtobufType::EnumString:
-            return WireFormatLite::WIRETYPE_VARINT;
-
-        case EProtobufType::Message:
-            return WireFormatLite::WIRETYPE_LENGTH_DELIMITED;
+class TCountingSorter
+{
+public:
+    // Sort a vector of |TField| by |ChildIndex| using counting sort.
+    // |ChildIndex| must be in range [0, |rangeSize|).
+    void Sort(std::vector<TField>* elements, int rangeSize)
+    {
+        if (elements->size() <= 1) {
+            return;
+        }
+        Counts_.assign(rangeSize, 0);
+        for (const auto& element : *elements) {
+            ++Counts_[element.ChildIndex];
+        }
+        for (int i = 1; i < static_cast<int>(Counts_.size()); ++i) {
+            Counts_[i] += Counts_[i - 1];
+        }
+        Result_.resize(elements->size());
+        for (auto it = elements->rbegin(); it != elements->rend(); ++it) {
+            auto childIndex = it->ChildIndex;
+            Result_[Counts_[childIndex] - 1] = std::move(*it);
+            --Counts_[childIndex];
+        }
+        std::swap(Result_, *elements);
     }
-    YT_ABORT();
+
+private:
+    std::vector<TField> Result_;
+    std::vector<int> Counts_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+int ComputeDepth(const TProtobufParserFieldDescription& description)
+{
+    int depth = 0;
+    for (const auto& child : description.GetChildren()) {
+        depth = std::max(depth, ComputeDepth(child) + 1);
+    }
+    return depth;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -186,16 +254,6 @@ DEFINE_ENUM(EProtobufParserState,
     (InsideLength)
     (InsideData)
 );
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TFieldInfo
-{
-    EProtobufType ProtobufType;
-    WireFormatLite::WireType ExpectedWireType;
-    ui32 ColumnId = InvalidColumnId;
-    const TEnumerationDescription* EnumerationDescription;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -208,27 +266,31 @@ public:
     TProtobufParser(
         IValueConsumer* valueConsumer,
         TProtobufFormatDescriptionPtr description,
-        ui32 tableIndex)
+        int tableIndex)
         : ValueConsumer_(valueConsumer)
-        , Description_(description)
-        , Fields_(MinHashTag_)
+        , Description_(std::move(description))
         , TableIndex_(tableIndex)
         , OtherColumnsConsumer_(valueConsumer)
     {
-        AnyColumnConsumer_.SetValueConsumer(valueConsumer);
+        ColumnConsumer_.SetValueConsumer(valueConsumer);
 
+        const auto& columns = Description_->GetTableDescription(tableIndex).Columns;
         auto nameTable = ValueConsumer_->GetNameTable();
-        for (const auto& pair : Description_->GetTableDescription(tableIndex).Columns) {
-            const auto& column = pair.second;
-            auto& field = GetField(column.GetFieldNumber());
-            field.ProtobufType = column.Type;
-            field.ExpectedWireType = GetWireTypeForProtobufType(column.Type);
-            field.ColumnId = nameTable->GetIdOrRegisterName(column.Name);
-            field.EnumerationDescription = column.EnumerationDescription;
+
+        TProtobufFieldDescription rootDescription;
+        for (const auto& [name, columnDescription] : columns) {
+            rootDescription.Children.push_back(columnDescription);
+            ChildColumnIds_.push_back(static_cast<ui16>(nameTable->GetIdOrRegisterName(columnDescription.Name)));
         }
+
+        rootDescription.Type = EProtobufType::StructuredMessage;
+        rootDescription.StructElementCount = static_cast<int>(columns.size());
+        RootDescription_ = TProtobufParserFieldDescription(std::move(rootDescription));
+
+        FieldVectors_.resize(ComputeDepth(RootDescription_) + 1);
     }
 
-    virtual void Read(TStringBuf data) override
+    void Read(TStringBuf data) override
     {
         auto current = data.begin();
         while (current != data.end()) {
@@ -244,11 +306,6 @@ public:
     }
 
 private:
-    TFieldInfo& GetField(ui32 tag)
-    {
-        return tag < MinHashTag_ ? Fields_[tag] : HashFields_[tag];
-    }
-
     const char* Consume(const char* begin, const char* end)
     {
         switch (State_) {
@@ -304,153 +361,234 @@ private:
         return current;
     }
 
-    void OutputRow(TStringBuf value)
+    void OutputRow(TStringBuf buffer)
     {
-        TRowParser rowParser(value);
-
         ValueConsumer_->OnBeginRow();
+        ProcessStructuredMessage(buffer, RootDescription_, /* depth */ 0);
+        ValueConsumer_->OnEndRow();
+    }
 
-        while (!rowParser.IsExhausted()) {
-            ui32 wireTag = rowParser.ReadVarUint32();
+    void ProcessStructuredMessage(TStringBuf buffer, const TProtobufParserFieldDescription& description, int depth)
+    {
+        auto& fields = FieldVectors_[depth];
+        fields.clear();
 
-            auto fieldNumber = WireFormatLite::GetTagFieldNumber(wireTag);
+        TRowParser rowParser(buffer);
+        try {
+            while (!rowParser.IsExhausted()) {
+                ui32 wireTag = rowParser.ReadVarUint32();
+                auto fieldNumber = WireFormatLite::GetTagFieldNumber(wireTag);
+                int childIndex = description.FieldNumberToChildIndex(fieldNumber);
+                const auto& childDescription = description.GetChildren()[childIndex];
 
-            const auto& field = GetField(fieldNumber);
-            auto columnId = field.ColumnId;
-            if (columnId == InvalidColumnId ||
-                WireFormatLite::GetTagWireType(wireTag) != field.ExpectedWireType)
-            {
-                THROW_ERROR_EXCEPTION("Unexpected wire tag")
-                    << TErrorAttribute("field_number", fieldNumber)
-                    << TErrorAttribute("table_index", TableIndex_)
-                    << rowParser.GetContextErrorAttributes();
+                if (Y_UNLIKELY(wireTag != childDescription.WireTag)) {
+                    THROW_ERROR_EXCEPTION("Expected wire tag to be %v, got %v",
+                        childDescription.WireTag,
+                        wireTag)
+                        << TErrorAttribute("field_number", fieldNumber)
+                        << TErrorAttribute("table_index", TableIndex_);
+                }
+
+                ReadAndProcessUnversionedValue(rowParser, childIndex, childDescription, depth, &fields);
             }
+        } catch (const TErrorException& exception) {
+            THROW_ERROR_EXCEPTION(exception) << rowParser.GetContextErrorAttributes();
+        }
 
-            switch (field.ProtobufType) {
-                case EProtobufType::String:
-                case EProtobufType::Message:
-                case EProtobufType::Bytes: {
-                    auto value = rowParser.ReadLengthDelimited();
-                    ValueConsumer_->OnValue(MakeUnversionedStringValue(value, columnId));
-                    break;
-                }
-                case EProtobufType::Any: {
-                    auto value = rowParser.ReadLengthDelimited();
-                    AnyColumnConsumer_.SetColumnIndex(columnId);
-                    ParseYsonStringBuffer(
-                        value,
-                        NYson::EYsonType::Node,
-                        &AnyColumnConsumer_);
-                    break;
-                }
-                case EProtobufType::OtherColumns: {
-                    auto value = rowParser.ReadLengthDelimited();
-                    ParseYsonStringBuffer(
-                        value,
-                        NYson::EYsonType::Node,
-                        &OtherColumnsConsumer_);
-                    break;
-                }
-                case EProtobufType::Uint64: {
-                    auto value = rowParser.ReadVarUint64();
-                    ValueConsumer_->OnValue(MakeUnversionedUint64Value(value, columnId));
-                    break;
-                }
-                case EProtobufType::Uint32: {
-                    auto value = rowParser.ReadVarUint32();
-                    ValueConsumer_->OnValue(MakeUnversionedUint64Value(value, columnId));
-                    break;
-                }
-                case EProtobufType::Int64: {
-                    // Value is *not* zigzag encoded, so we use Uint64 intentionally.
-                    auto value = rowParser.ReadVarUint64();
-                    ValueConsumer_->OnValue(MakeUnversionedInt64Value(value, columnId));
-                    break;
-                }
-                case EProtobufType::EnumInt:
-                case EProtobufType::Int32: {
-                    // Value is *not* zigzag encoded, so we use Uint64 intentionally.
-                    auto value = rowParser.ReadVarUint64();
-                    ValueConsumer_->OnValue(MakeUnversionedInt64Value(value, columnId));
-                    break;
-                }
-                case EProtobufType::Sint64: {
-                    auto value = rowParser.ReadVarSint64();
-                    ValueConsumer_->OnValue(MakeUnversionedInt64Value(value, columnId));
-                    break;
-                }
-                case EProtobufType::Sint32: {
-                    auto value = rowParser.ReadVarSint32();
-                    ValueConsumer_->OnValue(MakeUnversionedInt64Value(value, columnId));
-                    break;
-                }
-                case EProtobufType::Fixed64: {
-                    auto value = rowParser.ReadFixed<ui64>();
-                    ValueConsumer_->OnValue(MakeUnversionedUint64Value(value, columnId));
-                    break;
-                }
-                case EProtobufType::Fixed32: {
-                    auto value = rowParser.ReadFixed<ui32>();
-                    ValueConsumer_->OnValue(MakeUnversionedUint64Value(value, columnId));
-                    break;
-                }
-                case EProtobufType::Sfixed64: {
-                    auto value = rowParser.ReadFixed<i64>();
-                    ValueConsumer_->OnValue(MakeUnversionedInt64Value(value, columnId));
-                    break;
-                }
-                case EProtobufType::Sfixed32: {
-                    auto value = rowParser.ReadFixed<i32>();
-                    ValueConsumer_->OnValue(MakeUnversionedInt64Value(value, columnId));
-                    break;
-                }
-                case EProtobufType::Double: {
-                    auto value = rowParser.ReadFixed<double>();
-                    ValueConsumer_->OnValue(MakeUnversionedDoubleValue(value, columnId));
-                    break;
-                }
-                case EProtobufType::Float: {
-                    auto value = rowParser.ReadFixed<float>();
-                    ValueConsumer_->OnValue(MakeUnversionedDoubleValue(value, columnId));
-                    break;
-                }
-                case EProtobufType::Bool: {
-                    auto value = rowParser.ReadVarUint64();
-                    ValueConsumer_->OnValue(MakeUnversionedBooleanValue(value, columnId));
-                    break;
-                }
-                case EProtobufType::EnumString: {
-                    i64 value = rowParser.ReadVarUint64();
-                    YT_VERIFY(field.EnumerationDescription);
-                    const auto& enumString = field.EnumerationDescription->GetValueName(value);
+        CountingSorter_.Sort(&fields, static_cast<int>(description.GetChildren().size()));
 
-                    ValueConsumer_->OnValue(MakeUnversionedStringValue(enumString, columnId));
-                    break;
+        const auto inRoot = (depth == 0);
+
+        int structElementIndex = -1;
+        auto skipElements = [&] (int destinationIndex) {
+            ++structElementIndex;
+            if (!inRoot) {
+                YT_VERIFY(structElementIndex <= destinationIndex);
+                while (structElementIndex < destinationIndex) {
+                    ColumnConsumer_.OnEntity();
+                    ++structElementIndex;
                 }
-                default:
-                    THROW_ERROR_EXCEPTION("Field has invalid type %Qv",
-                        field.ProtobufType)
+            }
+        };
+
+        const TProtobufParserFieldDescription* childDescription = nullptr;
+        int previousChildIndex = -1;
+        for (const auto& field : fields) {
+            if (previousChildIndex != field.ChildIndex) {
+                if (childDescription && childDescription->Repeated) {
+                    ColumnConsumer_.OnEndList();
+                }
+                previousChildIndex = field.ChildIndex;
+                childDescription = &description.GetChildren()[field.ChildIndex];
+                if (inRoot) {
+                    ColumnConsumer_.SetColumnIndex(field.Value.Id);
+                }
+                skipElements(childDescription->StructElementIndex);
+                if (childDescription->Repeated) {
+                    ColumnConsumer_.OnBeginList();
+                }
+            }
+            YT_VERIFY(childDescription);
+            if (childDescription->Repeated) {
+                ColumnConsumer_.OnListItem();
+            }
+            OutputValue(field.Value, *childDescription, depth);
+        }
+        if (childDescription && childDescription->Repeated) {
+            ColumnConsumer_.OnEndList();
+        }
+        skipElements(description.StructElementCount);
+    }
+
+    Y_FORCE_INLINE void OutputValue(
+        TUnversionedValue value,
+        const TProtobufParserFieldDescription& description,
+        int depth)
+    {
+        switch (description.Type) {
+            case EProtobufType::StructuredMessage:
+                YT_VERIFY(value.Type == EValueType::String);
+                ColumnConsumer_.OnBeginList();
+                ProcessStructuredMessage(TStringBuf(value.Data.String, value.Length), description, depth + 1);
+                ColumnConsumer_.OnEndList();
+                break;
+            case EProtobufType::OtherColumns:
+                NTableClient::UnversionedValueToYson(value, &OtherColumnsConsumer_);
+                break;
+            default:
+                NTableClient::UnversionedValueToYson(value, &ColumnConsumer_);
+                break;
+        }
+    }
+
+    // Reads unversioned value depending on the field type.
+    // If |depth == 0| and the field is not repeated we process it according to type.
+    // Otherwise, we append it to |fields| vector.
+    Y_FORCE_INLINE void ReadAndProcessUnversionedValue(
+        TRowParser& rowParser,
+        int childIndex,
+        const TProtobufParserFieldDescription& description,
+        int depth,
+        std::vector<TField>* fields)
+    {
+        const auto inRoot = (depth == 0);
+        const auto addToFields = (!inRoot || description.Repeated);
+        const auto id = (depth == 0) ? ChildColumnIds_[childIndex] : static_cast<ui16>(0);
+        TUnversionedValue value;
+        switch (description.Type) {
+            case EProtobufType::StructuredMessage:
+                value = MakeUnversionedStringValue(rowParser.ReadLengthDelimited(), id);
+                if (!addToFields) {
+                    if (inRoot) {
+                        ColumnConsumer_.SetColumnIndex(id);
+                    }
+                    ColumnConsumer_.OnBeginList();
+                    ProcessStructuredMessage(TStringBuf(value.Data.String, value.Length), description, depth + 1);
+                    ColumnConsumer_.OnEndList();
+                    return;
+                }
+                break;
+            case EProtobufType::OtherColumns:
+                value = MakeUnversionedAnyValue(rowParser.ReadLengthDelimited(), id);
+                if (!addToFields) {
+                    NTableClient::UnversionedValueToYson(value, &OtherColumnsConsumer_);
+                    return;
+                }
+                break;
+            case EProtobufType::Any:
+                value = MakeUnversionedAnyValue(rowParser.ReadLengthDelimited(), id);
+                if (!addToFields) {
+                    if (inRoot) {
+                        ColumnConsumer_.SetColumnIndex(id);
+                    }
+                    NTableClient::UnversionedValueToYson(value, &ColumnConsumer_);
+                    return;
+                }
+                break;
+            case EProtobufType::String:
+            case EProtobufType::Message:
+            case EProtobufType::Bytes:
+                value = MakeUnversionedStringValue(rowParser.ReadLengthDelimited(), id);
+                break;
+            case EProtobufType::Uint64:
+                value = MakeUnversionedUint64Value(rowParser.ReadVarUint64(), id);
+                break;
+            case EProtobufType::Uint32:
+                value = MakeUnversionedUint64Value(rowParser.ReadVarUint32(), id);
+                break;
+            case EProtobufType::Int64:
+                // Value is *not* zigzag encoded, so we use Uint64 intentionally.
+                value = MakeUnversionedInt64Value(rowParser.ReadVarUint64(), id);
+                break;
+            case EProtobufType::EnumInt:
+            case EProtobufType::Int32:
+                // Value is *not* zigzag encoded, so we use Uint64 intentionally.
+                value = MakeUnversionedInt64Value(rowParser.ReadVarUint64(), id);
+                break;
+            case EProtobufType::Sint64:
+                value = MakeUnversionedInt64Value(rowParser.ReadVarSint64(), id);
+                break;
+            case EProtobufType::Sint32:
+                value = MakeUnversionedInt64Value(rowParser.ReadVarSint32(), id);
+                break;
+            case EProtobufType::Fixed64:
+                value = MakeUnversionedUint64Value(rowParser.ReadFixed<ui64>(), id);
+                break;
+            case EProtobufType::Fixed32:
+                value = MakeUnversionedUint64Value(rowParser.ReadFixed<ui32>(), id);
+                break;
+            case EProtobufType::Sfixed64:
+                value = MakeUnversionedInt64Value(rowParser.ReadFixed<i64>(), id);
+                break;
+            case EProtobufType::Sfixed32:
+                value = MakeUnversionedInt64Value(rowParser.ReadFixed<i32>(), id);
+                break;
+            case EProtobufType::Double:
+                value = MakeUnversionedDoubleValue(rowParser.ReadFixed<double>(), id);
+                break;
+            case EProtobufType::Float:
+                value = MakeUnversionedDoubleValue(rowParser.ReadFixed<float>(), id);
+                break;
+            case EProtobufType::Bool:
+                value = MakeUnversionedBooleanValue(rowParser.ReadVarUint64(), id);
+                break;
+            case EProtobufType::EnumString: {
+                auto enumValue = static_cast<i32>(rowParser.ReadVarUint64());
+                YT_VERIFY(description.EnumerationDescription);
+                const auto& enumString = description.EnumerationDescription->GetValueName(enumValue);
+                value = MakeUnversionedStringValue(enumString, id);
+                break;
+            }
+            default: {
+                auto fieldNumber = WireFormatLite::GetTagFieldNumber(static_cast<ui32>(description.WireTag));
+                THROW_ERROR_EXCEPTION("Field has invalid type %Qv",
+                    description.Type)
                     << TErrorAttribute("field_number", fieldNumber)
                     << TErrorAttribute("table_index", TableIndex_)
                     << rowParser.GetContextErrorAttributes();
             }
         }
-
-        ValueConsumer_->OnEndRow();
+        if (addToFields) {
+            fields->push_back({value, childIndex});
+        } else {
+            ValueConsumer_->OnValue(value);
+        }
     }
 
 private:
     IValueConsumer* const ValueConsumer_;
 
     TProtobufFormatDescriptionPtr Description_;
+    int TableIndex_;
 
-    std::vector<TFieldInfo> Fields_;
-    THashMap<ui32, TFieldInfo> HashFields_;
-    const ui32 TableIndex_;
-    static constexpr size_t MinHashTag_ = 256;
+    TProtobufParserFieldDescription RootDescription_;
+    std::vector<ui16> ChildColumnIds_;
 
-    TYsonToUnversionedValueConverter AnyColumnConsumer_;
+    TYsonToUnversionedValueConverter ColumnConsumer_;
     TYsonMapToUnversionedValueConverter OtherColumnsConsumer_;
+
+    std::vector<std::vector<TField>> FieldVectors_;
+    TCountingSorter CountingSorter_;
 
     EState State_ = EState::InsideLength;
     union
@@ -471,7 +609,7 @@ std::unique_ptr<IParser> CreateParserForProtobuf(
     int tableIndex)
 {
     auto formatDescription = New<TProtobufFormatDescription>();
-    formatDescription->Init(config);
+    formatDescription->Init(config, {consumer->GetSchema()}, /* validateMissingFieldsOptionality */ true);
     return std::unique_ptr<IParser>(
         new TProtobufParser(
             consumer,

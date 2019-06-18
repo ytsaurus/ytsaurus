@@ -353,9 +353,21 @@ DEFINE_ENUM(EProtobufType,
     (EnumInt)
     (EnumString)
 
+    // Same as 'bytes'.
     (Message)
 
+    // Protobuf type must be message.
+    // It corresponds to a complex type.
+    (StructuredMessage)
+
+    // Protobuf type must be string.
+    // Maps to any type (not necessarily "any" type) in table row.
     (Any)
+
+    // Protobuf type must be string containing valid YSON map.
+    // Each entry (|key|, |value|) of this map will correspond
+    // a separate |TUnversionedValue| under name |key|.
+    // NOTE: Not allowed inside complex types.
     (OtherColumns)
 );
 
@@ -366,6 +378,8 @@ public:
     TString Name;
     EProtobufType ProtoType;
     ui64 FieldNumber;
+    bool Repeated;
+    std::vector<TProtobufColumnConfigPtr> Fields;
     std::optional<TString> EnumerationName;
 
     TProtobufColumnConfig()
@@ -374,11 +388,17 @@ public:
             .NonEmpty();
         RegisterParameter("proto_type", ProtoType);
         RegisterParameter("field_number", FieldNumber);
+        RegisterParameter("repeated", Repeated)
+            .Default(false);
+        RegisterParameter("fields", Fields)
+            .Default();
         RegisterParameter("enumeration_name", EnumerationName)
             .Default();
     }
 };
 DEFINE_REFCOUNTED_TYPE(TProtobufColumnConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TProtobufTableConfig
     : public NYTree::TYsonSerializable
@@ -440,10 +460,6 @@ public:
             .Default();
         RegisterParameter("enumerations", Enumerations)
             .Default();
-
-        RegisterPostprocessor([&] {
-            Validate();
-        });
     }
 
 private:

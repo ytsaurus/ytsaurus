@@ -18,6 +18,33 @@ message TEmbeddedMessage
     optional string value = 2;
 }
 
+message TMessageWithStructuredEmbedded
+{
+    message TFirstMessage
+    {
+        optional EEnum enum_field = 1;
+        optional int64 int64_field = 2;
+        repeated int64 repeated_int64_field = 3;
+        optional TEmbeddedMessage message_field = 4;
+        repeated TEmbeddedMessage repeated_message_field = 5;
+        optional bytes any_int64_field = 6;
+        optional bytes any_map_field = 7;
+        optional int64 optional_int64_field = 8;
+    }
+
+    message TSecondMessage
+    {
+        optional int64 one = 2;
+        optional int64 two = 500000000;
+        optional int64 three = 100500;
+    }
+
+    optional TFirstMessage first = 1;
+    optional TSecondMessage second = 2;
+    repeated TEmbeddedMessage repeated_message_field = 3;
+    repeated int64 repeated_int64_field = 4;
+}
+
 message TMessage
 {
     optional double double_field = 1;
