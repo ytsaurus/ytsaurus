@@ -851,6 +851,7 @@ void BuildUserJobFluently1(
     const auto& userJobSpec = preparer.GetSpec();
     TMaybe<i64> memoryLimit = userJobSpec.MemoryLimit_;
     TMaybe<double> cpuLimit = userJobSpec.CpuLimit_;
+    TMaybe<ui16> portCount = userJobSpec.PortCount_;
 
     // Use 1MB extra tmpfs size by default, it helps to detect job sandbox as tmp directory
     // for standard python libraries. See YTADMINREQ-14505 for more details.
@@ -893,6 +894,9 @@ void BuildUserJobFluently1(
         })
         .DoIf(cpuLimit.Defined(), [&] (TFluentMap fluentMap) {
             fluentMap.Item("cpu_limit").Value(*cpuLimit);
+        })
+        .DoIf(portCount.Defined(), [&] (TFluentMap fluentMap) {
+            fluentMap.Item("port_count").Value(*portCount);
         })
         .DoIf(preparer.ShouldMountSandbox(), [&] (TFluentMap fluentMap) {
             fluentMap.Item("tmpfs_path").Value(".");

@@ -26,6 +26,7 @@
 
 #include <util/generic/maybe.h>
 #include <util/generic/scope.h>
+#include <util/generic/xrange.h>
 #include <util/folder/path.h>
 #include <util/system/env.h>
 #include <util/system/fs.h>
@@ -465,6 +466,34 @@ public:
     }
 };
 REGISTER_VANILLA_JOB(TFailingVanilla);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVanillaWithPorts : public IVanillaJob
+{
+public:
+    TVanillaWithPorts() = default;
+    TVanillaWithPorts(TStringBuf fileName, size_t portCount)
+        : FileName_(fileName)
+        , PortCount_(portCount)
+    { }
+
+    void Do() override
+    {
+        TOFStream stream(FileName_);
+        for (const auto i: xrange(PortCount_)) {
+            stream << GetEnv("YT_PORT_" + ToString(i)) << '\n';
+        }
+        stream.Flush();
+    }
+
+    Y_SAVELOAD_JOB(FileName_, PortCount_);
+
+private:
+    TString FileName_;
+    size_t PortCount_;
+};
+REGISTER_VANILLA_JOB(TVanillaWithPorts);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3105,6 +3134,33 @@ Y_UNIT_TEST_SUITE(Operations)
 
         op3->AbortOperation();
     }
+
+
+    Y_UNIT_TEST(AllocatedPorts) {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        TString fileName = MakeTempName(NFs::CurrentWorkingDirectory().c_str());
+        const ui16 portCount = 7;
+
+        client->RunVanilla(TVanillaOperationSpec()
+            .AddTask(TVanillaTask()
+                .Name("first")
+                .Job(new TVanillaWithPorts(fileName, portCount))
+                .Spec(TUserJobSpec{}.PortCount(portCount))
+                .JobCount(1)));
+
+        TFileInput stream(fileName);
+        TString line;
+        for ([[maybe_unused]] const auto _: xrange(portCount)) {
+            UNIT_ASSERT(stream.ReadLine(line));
+            const auto port = FromString<ui16>(line);
+            UNIT_ASSERT_GT(port, 1023);
+        }
+        UNIT_ASSERT(!stream.ReadLine(line));
+    }
+
 
 } // Y_UNIT_TEST_SUITE(Operations)
 
