@@ -98,7 +98,10 @@ struct TFairShareSchedulingStage
 class TFairShareContext
 {
 public:
-    TFairShareContext(const ISchedulingContextPtr& schedulingContext, bool enableSchedulingInfoLogging);
+    TFairShareContext(
+        const ISchedulingContextPtr& schedulingContext,
+        bool enableSchedulingInfoLogging,
+        const NLogging::TLogger& logger);
 
     void Initialize(int treeSize, const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters);
 
@@ -150,6 +153,8 @@ public:
     std::optional<TStageState> StageState;
 
 private:
+    const NLogging::TLogger Logger;
+
     void ProfileStageTimings();
 
     void LogStageStatistics();
@@ -308,7 +313,8 @@ protected:
         ISchedulerStrategyHost* host,
         IFairShareTreeHost* treeHost,
         const TFairShareStrategyTreeConfigPtr& treeConfig,
-        const TString& treeId);
+        const TString& treeId,
+        const NLogging::TLogger& logger);
     TSchedulerElement(
         const TSchedulerElement& other,
         TCompositeSchedulerElement* clonedParent);
@@ -338,6 +344,9 @@ protected:
     bool CheckDemand(const TJobResources& delta, const TFairShareContext& context);
 
     TJobResources ComputeResourceLimitsBase(const TResourceLimitsConfigPtr& resourceLimitsConfig) const;
+
+protected:
+    const NLogging::TLogger Logger;
 
 private:
     void UpdateAttributes();
@@ -378,7 +387,8 @@ public:
         IFairShareTreeHost* treeHost,
         TFairShareStrategyTreeConfigPtr treeConfig,
         NProfiling::TTagId profilingTag,
-        const TString& treeId);
+        const TString& treeId,
+        const NLogging::TLogger& logger);
     TCompositeSchedulerElement(
         const TCompositeSchedulerElement& other,
         TCompositeSchedulerElement* clonedParent);
@@ -496,7 +506,8 @@ public:
         bool defaultConfigured,
         TFairShareStrategyTreeConfigPtr treeConfig,
         NProfiling::TTagId profilingTag,
-        const TString& treeId);
+        const TString& treeId,
+        const NLogging::TLogger& logger);
     TPool(
         const TPool& other,
         TCompositeSchedulerElement* clonedParent);
@@ -596,7 +607,9 @@ class TOperationElementSharedState
     : public TIntrinsicRefCounted
 {
 public:
-    explicit TOperationElementSharedState(int updatePreemptableJobsListLoggingPeriod);
+    TOperationElementSharedState(
+        int updatePreemptableJobsListLoggingPeriod,
+        const NLogging::TLogger& logger);
 
     TJobResources IncreaseJobResourceUsage(
         TJobId jobId,
@@ -688,6 +701,8 @@ private:
     TSpinLock PreemptionStatusStatisticsLock_;
     TPreemptionStatusStatisticsVector PreemptionStatusStatistics_;
 
+    const NLogging::TLogger Logger;
+
     struct TStateShard
     {
         TEnumIndexedVector<std::atomic<int>, EDeactivationReason> DeactivationReasons;
@@ -722,7 +737,8 @@ public:
         ISchedulerStrategyHost* host,
         IFairShareTreeHost* treeHost,
         IOperationStrategyHost* operation,
-        const TString& treeId);
+        const TString& treeId,
+        const NLogging::TLogger& logger);
     TOperationElement(
         const TOperationElement& other,
         TCompositeSchedulerElement* clonedParent);
@@ -889,7 +905,8 @@ public:
         IFairShareTreeHost* treeHost,
         TFairShareStrategyTreeConfigPtr treeConfig,
         NProfiling::TTagId profilingTag,
-        const TString& treeId);
+        const TString& treeId,
+        const NLogging::TLogger& logger);
     TRootElement(const TRootElement& other);
 
     virtual void Update(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* context) override;

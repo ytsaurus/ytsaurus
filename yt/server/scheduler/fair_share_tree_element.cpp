@@ -24,7 +24,6 @@ using namespace NControllerAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = SchedulerLogger;
 static const auto& Profiler = SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,9 +105,13 @@ TFairShareSchedulingStage::TFairShareSchedulingStage(const TString& loggingName,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairShareContext::TFairShareContext(const ISchedulingContextPtr& schedulingContext, bool enableSchedulingInfoLogging)
+TFairShareContext::TFairShareContext(
+    const ISchedulingContextPtr& schedulingContext,
+    bool enableSchedulingInfoLogging,
+    const NLogging::TLogger& logger)
     : SchedulingContext(schedulingContext)
     , EnableSchedulingInfoLogging(enableSchedulingInfoLogging)
+    , Logger(logger)
 { }
 
 void TFairShareContext::Initialize(int treeSize, const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters)
@@ -437,10 +440,8 @@ TJobResources TSchedulerElement::GetLocalResourceUsage() const
 {
     auto resourceUsage = ResourceTreeElement_->GetResourceUsage();
     if (resourceUsage.GetUserSlots() > 0 && resourceUsage.GetMemory() == 0) {
-        YT_LOG_WARNING("Found usage of schedulable element %Qv with non-zero "
-            "user slots and zero memory (TreeId: %v)",
-            GetId(),
-            GetTreeId());
+        YT_LOG_WARNING("Found usage of schedulable element %Qv with non-zero user slots and zero memory",
+            GetId());
     }
     return resourceUsage;
 }
@@ -503,9 +504,11 @@ TSchedulerElement::TSchedulerElement(
     ISchedulerStrategyHost* host,
     IFairShareTreeHost* treeHost,
     const TFairShareStrategyTreeConfigPtr& treeConfig,
-    const TString& treeId)
+    const TString& treeId,
+    const NLogging::TLogger& logger)
     : TSchedulerElementFixedState(host, treeHost, treeConfig, treeId)
     , ResourceTreeElement_(New<TResourceTreeElement>())
+    , Logger(logger)
 { }
 
 TSchedulerElement::TSchedulerElement(
@@ -513,6 +516,7 @@ TSchedulerElement::TSchedulerElement(
     TCompositeSchedulerElement* clonedParent)
     : TSchedulerElementFixedState(other)
     , ResourceTreeElement_(other.ResourceTreeElement_)
+    , Logger(other.Logger)
 {
     Parent_ = clonedParent;
     Cloned_ = true;
@@ -637,8 +641,9 @@ TCompositeSchedulerElement::TCompositeSchedulerElement(
     IFairShareTreeHost* treeHost,
     TFairShareStrategyTreeConfigPtr treeConfig,
     NProfiling::TTagId profilingTag,
-    const TString& treeId)
-    : TSchedulerElement(host, treeHost, treeConfig, treeId)
+    const TString& treeId,
+    const NLogging::TLogger& logger)
+    : TSchedulerElement(host, treeHost, treeConfig, treeId, logger)
     , ProfilingTag_(profilingTag)
 { }
 
@@ -1376,8 +1381,15 @@ TPool::TPool(
     bool defaultConfigured,
     TFairShareStrategyTreeConfigPtr treeConfig,
     NProfiling::TTagId profilingTag,
-    const TString& treeId)
-    : TCompositeSchedulerElement(host, treeHost, treeConfig, profilingTag, treeId)
+    const TString& treeId,
+    const NLogging::TLogger& logger)
+    : TCompositeSchedulerElement(
+        host,
+        treeHost,
+        treeConfig,
+        profilingTag,
+        treeId,
+        NLogging::TLogger(logger).AddTag("PoolId: %v", id))
     , TPoolFixedState(id)
 {
     DoSetConfig(config);
@@ -1521,15 +1533,10 @@ void TPool::SetStarving(bool starving)
 
     if (starving && !GetStarving()) {
         TSchedulerElement::SetStarving(true);
-        YT_LOG_INFO("Pool is now starving (TreeId: %v, PoolId: %v, Status: %v)",
-            GetTreeId(),
-            GetId(),
-            GetStatus());
+        YT_LOG_INFO("Pool is now starving (Status: %v)", GetStatus());
     } else if (!starving && GetStarving()) {
         TSchedulerElement::SetStarving(false);
-        YT_LOG_INFO("Pool is no longer starving (TreeId: %v, PoolId: %v)",
-            GetTreeId(),
-            GetId());
+        YT_LOG_INFO("Pool is no longer starving");
     }
 }
 
@@ -1621,8 +1628,7 @@ void TPool::ChangeParent(TCompositeSchedulerElement* newParent)
     Parent_->IncreaseOperationCount(OperationCount());
     Parent_->IncreaseRunningOperationCount(RunningOperationCount());
 
-    YT_LOG_INFO("Parent pool is changed (Pool: %v, NewParent: %v, OldParent: %v)",
-        GetId(),
+    YT_LOG_INFO("Parent pool is changed (NewParent: %v, OldParent: %v)",
         newParent->GetId(),
         Parent_->GetId());
 }
@@ -1671,8 +1677,11 @@ TOperationElementFixedState::TOperationElementFixedState(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationElementSharedState::TOperationElementSharedState(int updatePreemptableJobsListLoggingPeriod)
+TOperationElementSharedState::TOperationElementSharedState(
+    int updatePreemptableJobsListLoggingPeriod,
+    const NLogging::TLogger& logger)
     : UpdatePreemptableJobsListLoggingPeriod_(updatePreemptableJobsListLoggingPeriod)
+    , Logger(logger)
 { }
 
 TJobResources TOperationElementSharedState::Disable()
@@ -2031,7 +2040,7 @@ bool TOperationElement::IsOperation() const
 
 void TOperationElement::Disable()
 {
-    YT_LOG_DEBUG("Operation element disabled in strategy (OperationId: %v)", OperationId_);
+    YT_LOG_DEBUG("Operation element disabled in strategy");
 
     OperationElementSharedState_->Disable();
     TreeHost_->GetResourceTree()->ReleaseResources(ResourceTreeElement_);
@@ -2039,7 +2048,7 @@ void TOperationElement::Disable()
 
 void TOperationElement::Enable()
 {
-    YT_LOG_DEBUG("Operation element enabled in strategy (OperationId: %v)", OperationId_);
+    YT_LOG_DEBUG("Operation element enabled in strategy");
 
     return OperationElementSharedState_->Enable();
 }
@@ -2172,12 +2181,18 @@ TOperationElement::TOperationElement(
     ISchedulerStrategyHost* host,
     IFairShareTreeHost* treeHost,
     IOperationStrategyHost* operation,
-    const TString& treeId)
-    : TSchedulerElement(host, treeHost, treeConfig, treeId)
+    const TString& treeId,
+    const NLogging::TLogger& logger)
+    : TSchedulerElement(
+        host,
+        treeHost,
+        treeConfig,
+        treeId,
+        NLogging::TLogger(logger).AddTag("OperationId: %v", operation->GetId()))
     , TOperationElementFixedState(operation, controllerConfig)
     , RuntimeParams_(std::move(runtimeParams))
     , Spec_(spec)
-    , OperationElementSharedState_(New<TOperationElementSharedState>(spec->UpdatePreemptableJobsListLoggingPeriod))
+    , OperationElementSharedState_(New<TOperationElementSharedState>(spec->UpdatePreemptableJobsListLoggingPeriod, Logger))
     , Controller_(std::move(controller))
     , SchedulingTagFilter_(spec->SchedulingTagFilter)
     , LastNonStarvingTime_(TInstant::Now())
@@ -2420,9 +2435,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
     if (!HasJobsSatisfyingResourceLimits(*context)) {
         YT_LOG_TRACE(
             "No pending jobs can satisfy available resources on node "
-            "(TreeId: %v, OperationId: %v, FreeResources: %v, DiscountResources: %v)",
-            GetTreeId(),
-            OperationId_,
+            "(FreeResources: %v, DiscountResources: %v)",
             FormatResources(context->SchedulingContext->GetNodeFreeResourcesWithoutDiscount()),
             FormatResources(context->SchedulingContext->ResourceUsageDiscount()));
         disableOperationElement(EDeactivationReason::MinNeededResourcesUnsatisfied);
@@ -2477,9 +2490,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         disableOperationElement(EDeactivationReason::ScheduleJobFailed);
 
         bool enableBackoff = scheduleJobResult->IsBackoffNeeded();
-        YT_LOG_DEBUG_IF(enableBackoff, "Failed to schedule job, backing off (TreeId: %v, OperationId: %v, Reasons: %v)",
-            GetTreeId(),
-            OperationId_,
+        YT_LOG_DEBUG_IF(enableBackoff, "Failed to schedule job, backing off (Reasons: %v)",
             scheduleJobResult->Failed);
 
         TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
@@ -2572,15 +2583,10 @@ void TOperationElement::SetStarving(bool starving)
     if (starving && !GetStarving()) {
         OperationElementSharedState_->ResetDeactivationReasonsFromLastNonStarvingTime();
         TSchedulerElement::SetStarving(true);
-        YT_LOG_INFO("Operation is now starving (TreeId: %v, OperationId: %v, Status: %v)",
-            GetTreeId(),
-            GetId(),
-            GetStatus());
+        YT_LOG_INFO("Operation is now starving (Status: %v)", GetStatus());
     } else if (!starving && GetStarving()) {
         TSchedulerElement::SetStarving(false);
-        YT_LOG_INFO("Operation is no longer starving (TreeId: %v, OperationId: %v)",
-            GetTreeId(),
-            GetId());
+        YT_LOG_INFO("Operation is no longer starving");
     }
 }
 
@@ -2807,9 +2813,8 @@ TControllerScheduleJobResultPtr TOperationElement::DoScheduleJob(
         } else {
             const auto& jobId = scheduleJobResult->StartDescriptor->Id;
             const auto availableDelta = GetHierarchicalAvailableResources(*context);
-            YT_LOG_DEBUG("Aborting job with resource overcommit (JobId: %v, OperationId: %v, Limits: %v, JobResources: %v)",
+            YT_LOG_DEBUG("Aborting job with resource overcommit (JobId: %v, Limits: %v, JobResources: %v)",
                 jobId,
-                OperationId_,
                 FormatResources(*precommittedResources + availableDelta),
                 FormatResources(startDescriptor.ResourceLimits));
 
@@ -2820,8 +2825,7 @@ TControllerScheduleJobResultPtr TOperationElement::DoScheduleJob(
             scheduleJobResult->RecordFail(EScheduleJobFailReason::ResourceOvercommit);
         }
     } else if (scheduleJobResult->Failed[EScheduleJobFailReason::Timeout] > 0) {
-        YT_LOG_WARNING("Job scheduling timed out (OperationId: %v)",
-            OperationId_);
+        YT_LOG_WARNING("Job scheduling timed out");
 
         SetOperationAlert(
             OperationId_,
@@ -2876,11 +2880,9 @@ void TOperationElement::UpdatePreemptableJobsList()
     Profiler.Update(GetTreeHost()->GetProfilingCounter("/preemptable_list_update_move_count"), moveCount);
 
     if (elapsed > TreeConfig_->UpdatePreemptableListDurationLoggingThreshold) {
-        YT_LOG_DEBUG("Preemptable list update is too long (Duration: %v, MoveCount: %v, OperationId: %v, TreeId: %v)",
+        YT_LOG_DEBUG("Preemptable list update is too long (Duration: %v, MoveCount: %v)",
             elapsed.MilliSeconds(),
-            moveCount,
-            OperationId_,
-            GetTreeId());
+            moveCount);
     }
 }
 
@@ -2905,9 +2907,7 @@ void TOperationElement::AttachParent(NYT::NScheduler::TCompositeSchedulerElement
     newParent->IncreaseOperationCount(1);
     newParent->AddChild(this, enabled);
 
-    YT_LOG_DEBUG("Operation attached to pool (OperationId: %v, Pool: %v)",
-        GetId(),
-        newParent->GetId());
+    YT_LOG_DEBUG("Operation attached to pool (Pool: %v)", newParent->GetId());
 }
 
 void TOperationElement::ChangeParent(NYT::NScheduler::TCompositeSchedulerElement* parent)
@@ -2929,8 +2929,7 @@ void TOperationElement::ChangeParent(NYT::NScheduler::TCompositeSchedulerElement
     Parent_->IncreaseOperationCount(1);
     Parent_->AddChild(this);
 
-    YT_LOG_DEBUG("Operation changed pool (OperationId: %v, OldPool: %v, NewPool: %v)",
-        GetId(),
+    YT_LOG_DEBUG("Operation changed pool (OldPool: %v, NewPool: %v)",
         oldParentId,
         parent->GetId());
 }
@@ -2950,9 +2949,7 @@ void TOperationElement::DetachParent()
     Parent_ = nullptr;
     TreeHost_->GetResourceTree()->DetachParent(ResourceTreeElement_);
 
-    YT_LOG_DEBUG("Operation attached to pool (OperationId: %v, Pool: %v)",
-        GetId(),
-        parentId);
+    YT_LOG_DEBUG("Operation attached to pool (Pool: %v)", parentId);
 }
 
 void TOperationElement::MarkOperationRunningInPool()
@@ -2960,9 +2957,7 @@ void TOperationElement::MarkOperationRunningInPool()
     Parent_->IncreaseRunningOperationCount(1);
     RunningInThisPoolTree_ = true;
 
-    YT_LOG_INFO("Operation is running in pool (OperationId: %v, Pool: %v)",
-        OperationId_,
-        Parent_->GetId());
+    YT_LOG_INFO("Operation is running in pool (Pool: %v)", Parent_->GetId());
 }
 
 TFairShareStrategyPackingConfigPtr TOperationElement::GetPackingConfig() const
@@ -2977,13 +2972,15 @@ TRootElement::TRootElement(
     IFairShareTreeHost* treeHost,
     TFairShareStrategyTreeConfigPtr treeConfig,
     NProfiling::TTagId profilingTag,
-    const TString& treeId)
+    const TString& treeId,
+    const NLogging::TLogger& logger)
     : TCompositeSchedulerElement(
         host,
         treeHost,
         treeConfig,
         profilingTag,
-        treeId)
+        treeId,
+        logger)
 {
     SetFairShareRatio(1.0);
     Attributes_.GuaranteedResourcesRatio = 1.0;

@@ -108,7 +108,7 @@ TFairShareTree::TFairShareTree(
     , FairShareLogTimeCounter_("/fair_share_log_time", {TreeIdProfilingTag_})
     , AnalyzePreemptableJobsTimeCounter_("/analyze_preemptable_jobs_time", {TreeIdProfilingTag_})
 {
-    RootElement_ = New<TRootElement>(Host_, this, config, GetPoolProfilingTag(RootPoolName), TreeId_);
+    RootElement_ = New<TRootElement>(Host_, this, config, GetPoolProfilingTag(RootPoolName), TreeId_, Logger);
 }
 
 IFairShareTreeSnapshotPtr TFairShareTree::CreateSnapshot()
@@ -200,7 +200,8 @@ bool TFairShareTree::RegisterOperation(
         Host_,
         this,
         state->GetHost(),
-        TreeId_);
+        TreeId_,
+        Logger);
 
     int index = RegisterSchedulingTagFilter(TSchedulingTagFilter(clonedSpec->SchedulingTagFilter));
     operationElement->SetSchedulingTagFilterIndex(index);
@@ -347,7 +348,8 @@ TPoolsUpdateResult TFairShareTree::UpdatePools(const INodePtr& poolsNode)
             /* defaultConfigured */ false,
             Config_,
             GetPoolProfilingTag(poolId),
-            TreeId_);
+            TreeId_,
+            Logger);
         const auto& parent = parsedPool.ParentId == RootPoolName
             ? static_cast<TCompositeSchedulerElementPtr>(RootElement_)
             : GetPool(parsedPool.ParentId);
@@ -1124,7 +1126,7 @@ void TFairShareTree::DoScheduleJobs(
         LastSchedulingInformationLoggedTime_ = now;
     }
 
-    TFairShareContext context(schedulingContext, enableSchedulingInfoLogging);
+    TFairShareContext context(schedulingContext, enableSchedulingInfoLogging, Logger);
 
     bool needPackingFallback;
     {
@@ -1454,7 +1456,8 @@ TPoolPtr TFairShareTree::GetOrCreatePool(const TPoolName& poolName, TString user
         /* defaultConfigured */ true,
         Config_,
         GetPoolProfilingTag(poolName.GetPool()),
-        TreeId_);
+        TreeId_,
+        Logger);
 
     pool->SetUserName(userName);
 

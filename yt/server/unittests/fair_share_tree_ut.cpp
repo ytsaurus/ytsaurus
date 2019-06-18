@@ -305,7 +305,8 @@ protected:
             TreeConfig_,
             // TODO(ignat): eliminate profiling from test.
             NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
-            "default");
+            "default",
+            SchedulerLogger);
     }
 
     TPoolPtr CreateTestPool(ISchedulerStrategyHost* host, const TString& name)
@@ -319,7 +320,8 @@ protected:
             TreeConfig_,
             // TODO(ignat): eliminate profiling from test.
             NProfiling::TProfileManager::Get()->RegisterTag("pool", name),
-            "default");
+            "default",
+            SchedulerLogger);
     }
 
     TOperationElementPtr CreateTestOperationElement(
@@ -337,7 +339,8 @@ protected:
             host,
             &FairShareTreeHostMock_,
             operation,
-            "default");
+            "default",
+            SchedulerLogger);
     }
 
     TExecNodePtr CreateTestExecNode(NNodeTrackerClient::TNodeId id, const TJobResourcesWithQuota& nodeResources)
@@ -363,7 +366,7 @@ protected:
             SchedulerConfig_,
             execNode,
             /* runningJobs */ {});
-        TFairShareContext context(schedulingContext, /* enableSchedulingInfoLogging */ true);
+        TFairShareContext context(schedulingContext, /* enableSchedulingInfoLogging */ true, SchedulerLogger);
         TDynamicAttributesList dynamicAttributes;
 
         context.StartStage(&SchedulingStageMock_);
