@@ -25,16 +25,16 @@ func TestSingleJoin(t *testing.T) {
 	ctx, cancel := context.WithTimeout(env.Ctx, time.Second*30)
 	defer cancel()
 
-	m := MemberMeta{Version: "1.1", Shard: 10}
+	meta := MemberMeta{Version: "1.1", Shard: 10}
 
-	leave, err := g.Join(ctx, "first", &m)
+	m, err := g.Join(ctx, "first", &meta)
 	require.NoError(t, err)
-	defer leave()
+	defer m.Leave()
 
 	go g.Update(ctx)
 
 	members := map[string]MemberMeta{}
 	require.NoError(t, g.List(ctx, &members))
 
-	require.Equal(t, map[string]MemberMeta{"first": m}, members)
+	require.Equal(t, map[string]MemberMeta{"first": meta}, members)
 }
