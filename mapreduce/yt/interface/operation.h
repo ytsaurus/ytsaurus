@@ -374,6 +374,10 @@ struct TUserJobSpec
     // Limit for all files inside job sandbox.
     FLUENT_FIELD_OPTION(ui64, DiskSpaceLimit);
 
+    //
+    // Number of ports reserved for the job. They are passed through environment in YT_PORT_0, YT_PORT_1, ...
+    FLUENT_FIELD_OPTION(ui16, PortCount);
+
 private:
     TVector<std::tuple<TLocalFilePath, TAddLocalFileOptions>> LocalFiles_;
     TJobBinaryConfig JobBinary_;
