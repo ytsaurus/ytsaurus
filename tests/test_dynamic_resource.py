@@ -170,3 +170,58 @@ class TestDynamicResource(object):
         assert result[0]['id'] == pod_id
         assert result[1][0]['id'] == dynamic_resource_id
         assert result[2][0] == status[0]
+
+    def test_pod_with_direct_resource_attribute_setup(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        pod_set_id = yp_client.create_object(object_type="pod_set", attributes={})
+        dynamic_resource_id = yp_client.create_object(
+            object_type="dynamic_resource",
+            attributes={
+                "meta": {
+                    "pod_set_id": pod_set_id,
+                }
+            }
+        )
+
+        assert yp_client.get_object("dynamic_resource", dynamic_resource_id,
+                                    selectors=["/meta/id"])[0] == dynamic_resource_id
+
+        spec = [
+            {
+                "id": dynamic_resource_id,
+                "revision": 2,
+            },
+        ]
+        status = [
+            {
+                "id": dynamic_resource_id,
+                "revision": 3,
+                "ready": {"status": "false"},
+                "in_progress": {"status": "true"},
+                "error": {"status": "true", "reason": "oops!", "message": "Absolute fail"},
+            }
+        ]
+
+        pod_id = yp_client.create_object(
+            object_type="pod",
+            attributes={
+                "meta": {
+                    "pod_set_id": pod_set_id,
+                },
+                "spec": {
+                    "dynamic_resources": spec,
+                },
+                "status": {
+                    "dynamic_resources": status,
+                },
+            }
+        )
+
+        result = yp_client.get_object(
+            "pod", pod_id,
+            selectors=["/meta", "/spec/dynamic_resources", "/status/dynamic_resources"]
+        )
+        assert result[0]['id'] == pod_id
+        assert result[1][0]['id'] == dynamic_resource_id
+        assert result[2][0] == status[0]
