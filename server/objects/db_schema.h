@@ -14,7 +14,7 @@ extern const struct TObjectTableBase
     struct TFields
     {
         TDBField Meta_Id{"meta.id", NTableClient::EValueType::String};
-        TDBField Meta_Etc{"meta.other", NTableClient::EValueType::Any};
+        TDBField Meta_Etc{"meta.etc", NTableClient::EValueType::Any};
         TDBField Meta_CreationTime{"meta.creation_time", NTableClient::EValueType::Uint64};
         TDBField Meta_RemovalTime{"meta.removal_time", NTableClient::EValueType::Uint64};
         TDBField Meta_InheritAcl{"meta.inherit_acl", NTableClient::EValueType::Boolean};
@@ -95,13 +95,13 @@ extern const struct TNodesTable
         : public TObjectTableBase::TFields
     {
         TDBField Spec{"spec", NTableClient::EValueType::Any};
-        // TODO(babenko): consider moving to status.other
+        // TODO(babenko): consider moving to status.etc
         TDBField Status_AgentAddress{"status.agent_address", NTableClient::EValueType::String};
         TDBField Status_EpochId{"status.epoch_id", NTableClient::EValueType::String};
         TDBField Status_LastSeenTime{"status.last_seen_time", NTableClient::EValueType::Uint64};
         TDBField Status_HeartbeatSequenceNumber{"status.heartbeat_sequence_number", NTableClient::EValueType::Uint64};
         TDBField Status_HostManager{"status.host_manager", NTableClient::EValueType::Any};
-        TDBField Status_Etc{"status.other", NTableClient::EValueType::Any};
+        TDBField Status_Etc{"status.etc", NTableClient::EValueType::Any};
     } Fields;
 } NodesTable;
 
@@ -150,15 +150,15 @@ extern const struct TPodsTable
         TDBField Status_Agent_IssPayload{"status.agent.iss_payload", NTableClient::EValueType::String};
         TDBField Status_Agent_PodAgentPayload{"status.agent.pod_agent_payload", NTableClient::EValueType::Any};
         TDBField Status_DynamicResources{"status.dynamic_resources", NTableClient::EValueType::Any};
-        TDBField Status_Agent_Etc{"status.agent.other", NTableClient::EValueType::Any};
-        TDBField Status_Etc{"status.other", NTableClient::EValueType::Any};
+        TDBField Status_Agent_Etc{"status.agent.etc", NTableClient::EValueType::Any};
+        TDBField Status_Etc{"status.etc", NTableClient::EValueType::Any};
         TDBField Spec_NodeId{"spec.node_id", NTableClient::EValueType::String};
         TDBField Spec_IssPayload{"spec.iss_payload", NTableClient::EValueType::String};
         TDBField Spec_PodAgentPayload{"spec.pod_agent_payload", NTableClient::EValueType::Any};
         TDBField Spec_EnableScheduling{"spec.enable_scheduling", NTableClient::EValueType::Boolean};
         TDBField Spec_Secrets{"spec.secrets", NTableClient::EValueType::Any};
         TDBField Spec_UpdateTag{"spec.update_tag", NTableClient::EValueType::Boolean};
-        TDBField Spec_Etc{"spec.other", NTableClient::EValueType::Any};
+        TDBField Spec_Etc{"spec.etc", NTableClient::EValueType::Any};
         TDBField Spec_AccountId{"spec.account_id", NTableClient::EValueType::String};
         TDBField Spec_DynamicResources{"spec.dynamic_resources", NTableClient::EValueType::Any};
         TDBField Spec_ResourceCache{"spec.resource_cache", NTableClient::EValueType::Any};
@@ -242,7 +242,7 @@ extern const struct TReplicaSetsTable
         : public TObjectTableBase::TFields
     {
         TDBField Spec_AccountId{"spec.account_id", NTableClient::EValueType::String};
-        TDBField Spec_Etc{"spec.other", NTableClient::EValueType::Any};
+        TDBField Spec_Etc{"spec.etc", NTableClient::EValueType::Any};
         TDBField Status{"status", NTableClient::EValueType::Any};
     } Fields;
 } ReplicaSetsTable;
@@ -535,7 +535,7 @@ extern const struct TAccountsTable
         : public TObjectTableBase::TFields
     {
         TDBField Spec_ParentId{"spec.parent_id", NTableClient::EValueType::String};
-        TDBField Spec_Etc{"spec.other", NTableClient::EValueType::Any};
+        TDBField Spec_Etc{"spec.etc", NTableClient::EValueType::Any};
         TDBField Status{"status", NTableClient::EValueType::Any};
     } Fields;
 } AccountsTable;
@@ -646,7 +646,7 @@ extern const struct TMultiClusterReplicaSetsTable
         : public TObjectTableBase::TFields
     {
         TDBField Spec_AccountId{"spec.account_id", NTableClient::EValueType::String};
-        TDBField Spec_Etc{"spec.other", NTableClient::EValueType::Any};
+        TDBField Spec_Etc{"spec.etc", NTableClient::EValueType::Any};
         TDBField Status{"status", NTableClient::EValueType::Any};
     } Fields;
 } MultiClusterReplicaSetsTable;
@@ -667,7 +667,7 @@ extern const struct TStagesTable
         : public TObjectTableBase::TFields
     {
         TDBField Spec_AccountId{"spec.account_id", NTableClient::EValueType::String};
-        TDBField Spec_Etc{"spec.other", NTableClient::EValueType::Any};
+        TDBField Spec_Etc{"spec.etc", NTableClient::EValueType::Any};
         TDBField Status{"status", NTableClient::EValueType::Any};
     } Fields;
 } StagesTable;

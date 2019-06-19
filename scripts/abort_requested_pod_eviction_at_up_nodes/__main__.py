@@ -52,11 +52,11 @@ def main(arguments):
     for row in db_manager.read_table("pods"):
         pod_id = row["meta.id"]
 
-        eviction_state = row["status.other"]["eviction"]["state"]
+        eviction_state = row["status.etc"]["eviction"]["state"]
         if eviction_state != "requested":
             continue
 
-        node_id = row["status.other"]["scheduling"].get("node_id", None)
+        node_id = row["status.etc"]["scheduling"].get("node_id", None)
 
         assert pod_id not in pods_with_requested_eviction
         pods_with_requested_eviction[pod_id] = PodDescription(
@@ -73,7 +73,7 @@ def main(arguments):
     node_id_to_hfsm_state = dict()
     for row in db_manager.read_table("nodes"):
         node_id = row["meta.id"]
-        hfsm_state = row["status.other"]["hfsm"]["state"]
+        hfsm_state = row["status.etc"]["hfsm"]["state"]
         if node_id not in used_node_ids:
             continue
         assert node_id not in node_id_to_hfsm_state
@@ -96,7 +96,7 @@ def main(arguments):
         pod_id = row["meta.id"]
         if pod_id in pod_ids_to_abort_eviction:
             node_id = pods_with_requested_eviction[pod_id].node_id
-            row["status.other"]["eviction"] = dict(
+            row["status.etc"]["eviction"] = dict(
                 last_updated=YsonUint64(int(time.time() * (10 ** 6))),
                 message="Eviction aborted due to node \"{}\" being in \"up\" state".format(
                     node_id,

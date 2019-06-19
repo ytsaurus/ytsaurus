@@ -10,7 +10,7 @@ def main():
     print "Old schema:", schema
 
     for x in schema:
-    	if x["name"] == "status.other":
+    	if x["name"] == "status.etc":
     		x["lock"] = "heartbeat"
 
     print "New schema:", schema

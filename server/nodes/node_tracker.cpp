@@ -389,9 +389,9 @@ public:
         void AnalyzePodInstallErrors()
         {
             SkipPodUpdateIf([&] (auto* pod) {
-                const auto& other = pod->Status().Agent().Etc().Load();
-                if (other.has_install_error() &&
-                    other.failed_install_attempt_spec_timestamp() == pod->Spec().UpdateTimestamp().Load())
+                const auto& etc = pod->Status().Agent().Etc().Load();
+                if (etc.has_install_error() &&
+                    etc.failed_install_attempt_spec_timestamp() == pod->Spec().UpdateTimestamp().Load())
                 {
                     YT_LOG_DEBUG("Pod update skipped due to an active install error (PodId: %v)",
                         pod->GetId());
@@ -410,16 +410,16 @@ public:
             }
             YT_LOG_DEBUG(error, "Pod install failed (PodId: %v)",
                 pod->GetId());
-            auto* other = pod->Status().Agent().Etc().Get();
-            ToProto(other->mutable_install_error(), error);
-            other->set_failed_install_attempt_spec_timestamp(pod->Spec().UpdateTimestamp().Load());
+            auto* etc = pod->Status().Agent().Etc().Get();
+            ToProto(etc->mutable_install_error(), error);
+            etc->set_failed_install_attempt_spec_timestamp(pod->Spec().UpdateTimestamp().Load());
         }
 
         void ResetPodInstallFailure(TPod* pod)
         {
-            auto* other = pod->Status().Agent().Etc().Get();
-            other->clear_install_error();
-            other->clear_failed_install_attempt_spec_timestamp();
+            auto* etc = pod->Status().Agent().Etc().Get();
+            etc->clear_install_error();
+            etc->clear_failed_install_attempt_spec_timestamp();
         }
 
         static bool IsPersistentSecretVaultError(const TError& error)
