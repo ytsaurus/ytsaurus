@@ -2,6 +2,10 @@ syntax = "proto3";
 
 package NYP.NClient.NApi.NProto;
 
+import "yt/core/yson/proto/protobuf_interop.proto";
+
+import "yp/client/api/proto/conditions.proto";
+
 option python_package = "yp_proto.yp.client.api.proto";
 
 option java_package = "ru.yandex.yp.client.api";
@@ -16,4 +20,28 @@ message TDeployProgress
     uint32 pods_in_progress = 2;
     // Total number of pods.
     uint32 pods_total = 3;
+}
+
+message TControllerAttempt
+{
+    NYP.NClient.NApi.NProto.TCondition succeeded = 1;
+}
+
+message TControllerStatus
+{
+    TControllerAttempt last_attempt = 1;
+}
+
+message TDeployStatusDetails
+{
+    TDeployProgress total_progress = 1;
+    TDeployProgress current_revision_progress = 2;
+    TControllerStatus contoller_status = 3;
+    map<string, TDeployProgress> revisions = 4 [(NYT.NYson.NProto.yson_map) = true];
+}
+
+message TClusterDeployStatus
+{
+    TDeployStatusDetails details = 1;
+    string pod_set_id = 2;
 }
