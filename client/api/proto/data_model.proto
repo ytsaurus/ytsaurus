@@ -604,6 +604,9 @@ message TPodDynamicResourceSpec
     // Desired revision of the resource.
     optional uint64 revision = 2;
 
+    // Short label describing resource deploy group 
+    optional string mark = 6;
+
     message TStorageOptions
     {
         // Name of the box to download resource into.
@@ -961,6 +964,9 @@ message TPodDynamicResourceStatus
 
     // Current resource revision in pod.
     optional uint64 revision = 2;
+
+    // Short label describing deploy group.
+    optional string mark = 6;
 
     // Resource is currently active.
     optional TCondition ready = 3;

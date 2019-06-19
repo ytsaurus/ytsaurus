@@ -6,6 +6,7 @@ import "yp/client/api/proto/data_model.proto";
 import "yp/client/api/proto/conditions.proto";
 
 import "yt/core/yson/proto/protobuf_interop.proto";
+import "yt/core/ytree/proto/attributes.proto";
 
 option python_package = "yp_proto.yp.client.api.proto";
 
@@ -20,39 +21,57 @@ option (NYP.NClient.NApi.NProto.object_type) = {
 
 // for field descriptions see NYP.NClient.NApi.NProto.TSchemaMeta
 message TDynamicResourceMetaBase {
-    // id of pod_set where to deploy the resource
+    // Id of pod_set where to deploy the resource.
     string pod_set_id = 4;
 };
 
 message TDynamicResourceSpec {
-    reserved 2;
-    reserved "url";
+    reserved 2, 3, 5;
+    reserved "url", "urls", "storage_options";
 
-    // resource revision, server-side incremented sequence, monotonic
+    // Resource revision, server-side incremented sequence, monotonic.
     uint64 revision = 1;
 
-    // urls where to download the resource from
-    // supported protocols: http, https, rbtorrent, raw
-    // (for raw resources use "raw:data").
-    // Urls are tried in order until successful download
-    repeated string urls = 5;
+    // Specification group, describing resource deploy rules for a part
+    // of pod_set filtered by a set of labels.
+    message DeployGroup {
+        // Short label to describe the deploy group.
+        string mark = 1;
 
-    // options how to handle resource inside the box
-    TPodDynamicResourceSpec.TStorageOptions storage_options = 3;
+        // Conjunction of labels required for this deploy group to be applied.
+        // Note, that if one pod matches more than one deploy groups, neither
+        // one will be applied, since such configuration appears to be ambigous
+        // and invalid.
+        // Empty map matches every single pod in pod_set.
+        NYT.NYTree.NProto.TAttributeDictionary required_labels = 2;
+
+        // Urls where to download the resource from
+        // supported protocols: http, https, rbtorrent, raw
+        // (for raw resources use "raw:data").
+        // Urls are tried in order until successful download.
+        repeated string urls = 3;
+
+        // Options how to handle resource inside the box.
+        TPodDynamicResourceSpec.TStorageOptions storage_options = 4;
+    }
+
+    repeated DeployGroup deploy_groups = 6;
     
-    // size of the update window in pods
+    // Size of the update window in pods.
     uint32 update_window = 4;
 }
 
 message TDynamicResourceStatus {
     message TRevisionStatus {
-        // revision id
+        // Revision id
         uint64 revision = 1;
-        // amount of pods where this revision is active
+        // Short label describing deploy group.
+        string mark = 5;
+        // Amount of pods where this revision is active.
         TAggregatedCondition ready = 2;
-        // amount of pods where this revision is currently updating
+        // Amount of pods where this revision is currently updating.
         TAggregatedCondition in_progress = 3;
-        // amount of pods where resource update failed on installing this revision
+        // Amount of pods where resource update failed on installing this revision.
         TAggregatedCondition error = 4;
     }
     repeated TRevisionStatus revisions = 1;
