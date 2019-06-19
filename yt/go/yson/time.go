@@ -20,5 +20,5 @@ func UnmarshalTime(in string) (t Time, err error) {
 
 // UnmarshalTime encodes time to YT-specific time format.
 func MarshalTime(t Time) (s string, err error) {
-	return time.Time(t).Format(ytTimeLayout), nil
+	return time.Time(t).UTC().Format(ytTimeLayout), nil
 }
