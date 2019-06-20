@@ -11,7 +11,7 @@ except ImportError:
     has_test_module = False
 
 from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager, TMPFS_SIZE_MULTIPLIER
-from yt.wrapper.common import get_disk_size
+from yt.wrapper.common import get_disk_size, MB
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message, get_stderrs, get_operation_error
 from yt.wrapper.table import TablePath
 from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder, VanillaSpecBuilder
@@ -738,6 +738,28 @@ print(op.id)
         check([{"sum": 1}, {"sum": 2}, {"sum": 9}], list(yt.read_table(other_table)))
 
     @add_failed_operation_stderrs_to_error_message
+    def test_stdout_fd_protection(self):
+        def mapper(record):
+            # Pretend that we are C code writing to stdout.
+            os.write(1, b"Mapping record: " + repr(record).encode("utf-8"))
+            yield record
+
+        table = TEST_DIR + "/table"
+        output_table = TEST_DIR + "/my_table"
+        yt.write_table(table, [{"x": 1}, {"x": 2}])
+
+        for protection_type in ("none", "close"):
+            with set_config_option("pickling/stdout_fd_protection", protection_type):
+                with pytest.raises(yt.YtOperationFailedError):
+                    yt.run_map(mapper, table, output_table)
+
+        for protection_type in ("redirect_to_stderr", "drop"):
+            yt.write_table(output_table, [])
+            with set_config_option("pickling/stdout_fd_protection", protection_type):
+                yt.run_map(mapper, table, output_table)
+            check([{"x": 1}, {"x": 2}], list(yt.read_table(output_table)))
+
+    @add_failed_operation_stderrs_to_error_message
     def test_create_modules_archive(self):
         def foo(rec):
             yield rec
@@ -750,12 +772,15 @@ print(op.id)
             yt.run_map(foo, table, table)
 
             with TempfilesManager(remove_temp_files=True, directory=yt.config["local_temp_directory"]) as tempfiles_manager:
-                yt.config["pickling"]["create_modules_archive_function"] = lambda: create_modules_archive_default(tempfiles_manager, False, None)
+                yt.config["pickling"]["create_modules_archive_function"] = \
+                        lambda: create_modules_archive_default(tempfiles_manager, False, None)
                 yt.run_map(foo, table, table)
 
             with TempfilesManager(remove_temp_files=True, directory=yt.config["local_temp_directory"]) as tempfiles_manager:
-                yt.config["pickling"]["create_modules_archive_function"] = lambda: create_modules_archive_default(tempfiles_manager, False, None)[0]["filename"]
-                yt.run_map(foo, table, table)
+                with set_config_option("pickling/modules_chunk_size", MB):
+                    yt.config["pickling"]["create_modules_archive_function"] = \
+                            lambda: create_modules_archive_default(tempfiles_manager, False, None)[0]["filename"]
+                    yt.run_map(foo, table, table)
 
             yt.config["pickling"]["create_modules_archive_function"] = CreateModulesArchive()
             yt.run_map(foo, table, table)
@@ -1133,7 +1158,7 @@ print(op.id)
 
         old_timeout = yt.config["operation_tracker"]["stderr_download_timeout"]
         old_thread_count = yt.config["operation_tracker"]["stderr_download_thread_count"]
-        yt.config["operation_tracker"]["stderr_download_timeout"] = 50
+        yt.config["operation_tracker"]["stderr_download_timeout"] = 30
         yt.config["operation_tracker"]["stderr_download_thread_count"] = 1
 
         try:
@@ -1381,6 +1406,30 @@ print(op.id)
         operation = operations[0]
         assert operation["state"] == "completed"
         assert operation["type"] == "map"
+
+    def test_iterate_operations(self):
+        if yt.config["backend"] == "rpc":
+            pytest.skip()
+
+        assert list(yt.iterate_operations()) == []
+
+        table = "//tmp/table"
+        operation_count = 12
+        table_paths = [0] * operation_count
+        for i in xrange(operation_count):
+            table_paths[i] = table + '_' + str(i)
+
+        for i in xrange(operation_count):
+            yt.write_table(table_paths[i], [{"x": "0"}])
+
+        ops = [0] * operation_count
+        for i in xrange(operation_count):
+            ops[i] = yt.run_map("cat", table_paths[i], table_paths[i], sync=False, format="yson")
+        for i in xrange(operation_count):
+            ops[i].wait()
+
+        operations = list(yt.iterate_operations(limit_per_request=5))
+        assert len(operations) == operation_count
 
     def test_lazy_yson(self):
         def mapper(row):
@@ -1733,3 +1782,40 @@ print(op.id)
             assert len(stderrs) == 1
             assert stderrs[0]["stderr"] == "\xF1\xF2\xF3\xF4"
 
+    def test_operation_alert(self):
+        try:
+            config_patch = {
+                "operation_alerts": {
+                    "operation_too_long_alert_min_wall_time": 0,
+                    "operation_too_long_alert_estimate_duration_threshold": 5000
+                }
+            }
+
+            path = "//sys/controller_agents/instances"
+            children = yt.list(path)
+            assert len(children) == 1
+            path = "//sys/controller_agents/instances/{}/orchid/controller_agent/config".format(children[0])
+
+            old_config = yt.get(path)
+
+            yt.set("//sys/controller_agents/config", config_patch)
+
+            wait(lambda: yt.get(path) != old_config)
+
+            input_table = TEST_DIR + "/input"
+            output_table = TEST_DIR + "/output"
+            yt.write_table(input_table, [{"x": i} for i in xrange(100)])
+
+            op = yt.run_map("cat; sleep 120", input_table, output_table, spec={"data_size_per_job": 1}, sync=False)
+            wait(lambda: op.get_attributes(fields=["alerts"]).get("alerts", {}))
+        finally:
+            yt.remove("//sys/controller_agents/config", recursive=True, force=True)
+
+
+    def test_operations_spec(self):
+        input_table = TEST_DIR + "/input"
+        output_table = TEST_DIR + "/output"
+        yt.write_table(input_table, [{"x": 1}])
+
+        op = yt.run_map("cat; sleep 120", input_table, output_table, spec={"asdfghjkl" : 1234567890}, sync=False)
+        wait(lambda: op.get_attributes(fields=["unrecognized_spec"]).get("unrecognized_spec", {}))

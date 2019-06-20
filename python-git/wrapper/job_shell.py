@@ -4,7 +4,7 @@ from . import yson
 from .common import generate_uuid, get_version, YtError, get_binary_std_stream
 from .errors import YtResponseError
 from .config import get_backend_type
-from .http_helpers import get_proxy_url, get_api_version, get_token
+from .http_helpers import get_proxy_url, get_api_version, get_token, get_api_version
 
 from yt.packages.six import b
 # yt.packages is imported here just to set sys.path for further loading of local tornado module
@@ -39,13 +39,13 @@ class JobShell(object):
     def __init__(self, job_id, interactive=True, timeout=None, client=None):
         if not job_shell_supported:
             raise YtError("Job shell is not supported on your platform")
-        if get_backend_type(client) != "http" or get_api_version(client) != "v3":
-            raise YtError("Command run-job-shell requires http v3 backend.")
+        if get_backend_type(client) != "http":
+            raise YtError("Command run-job-shell requires http backend.")
 
         self.job_id = job_id
         self.inactivity_timeout = timeout
         self.interactive = interactive
-        self.client = client
+        self.yt_client = client
         self.shell_id = None
         self.terminating = False
         self._save_termios()
@@ -131,6 +131,8 @@ class JobShell(object):
             else:
                 try:
                     rsp = yson.loads(self.client.fetch(req).body, encoding=None)
+                    if get_api_version(self.yt_client) == "v4":
+                        rsp = rsp[b"result"]
                     if rsp and b"shell_id" in rsp:
                         self.shell_id = rsp[b"shell_id"]
                     if operation == "terminate":

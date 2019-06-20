@@ -482,9 +482,9 @@ test_execute()
 {
     local table_path="//home/wrapper_test/test_table"
     $YT execute create '{type=table;path="'"$table_path"'";output_format=yson}'
-    check 'true' $($YT execute exists '{path="'"$table_path"'";output_format=json}')
+    check 'true' $($YT execute exists '{path="'"$table_path"'";output_format=json}' | python -c "import json, sys; json.dump(json.load(sys.stdin)['value'], sys.stdout)")
     $YT execute remove '{path="'"$table_path"'"}'
-    check 'false' $($YT execute exists '{path="'"$table_path"'";output_format=json}')
+    check 'false' $($YT execute exists '{path="'"$table_path"'";output_format=json}' | python -c "import json, sys; json.dump(json.load(sys.stdin)['value'], sys.stdout)")
 }
 
 test_brotli_write()

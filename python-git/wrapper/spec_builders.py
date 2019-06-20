@@ -546,8 +546,9 @@ class UserJobSpecBuilder(object):
                 spec["copy_files"] = True
                 spec["tmpfs_path"] = "."
         else:
-            if spec.get("tmpfs_size", 0) > 0 and "tmpfs_path" not in spec:
+            if spec.get("tmpfs_size", tmpfs_size) > 0 and "tmpfs_path" not in spec:
                 spec["tmpfs_path"] = "tmpfs"
+                spec["tmpfs_size"] = spec.get("tmpfs_size", tmpfs_size)
         return spec
 
     def _apply_spec_patch(self, spec):
@@ -665,8 +666,6 @@ class SpecBuilder(object):
         for index in xrange(len(self._user_job_scripts)):
             if not isinstance(self._user_job_scripts[index], (list, tuple)):
                 self._user_job_scripts[index] = [self._user_job_scripts[index]]
-
-        self.run_with_start_op = False
 
     @spec_option("The name of the pool in which the operation will work")
     def pool(self, pool_name):
@@ -1633,7 +1632,6 @@ class EraseSpecBuilder(SpecBuilder):
 class VanillaSpecBuilder(SpecBuilder):
     def __init__(self):
         super(VanillaSpecBuilder, self).__init__(operation_type="vanilla")
-        self.run_with_start_op = True
         self._spec["tasks"] = {}
 
     @spec_option("The description of task", nested_spec_builder=TaskSpecBuilder)

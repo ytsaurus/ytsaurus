@@ -9,6 +9,7 @@ import _strptime
 from collections import Mapping
 from datetime import datetime
 from itertools import chain
+from functools import wraps
 
 import calendar
 import copy
@@ -23,11 +24,47 @@ import sys
 import time
 import types
 import string
+import warnings
 
 # Standard YT time representation
+
 YT_DATETIME_FORMAT_STRING = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 YT_NULL_TRANSACTION_ID = "0-0-0-0"
+
+# Deprecation stuff.
+
+class YtDeprecationWarning(DeprecationWarning):
+    """Custom warnings category, because built-in category is ignored by default."""
+
+warnings.simplefilter("default", category=YtDeprecationWarning)
+
+DEFAULT_DEPRECATION_MESSAGE = "{0} is deprecated and will be removed in the next major release, " \
+                              "use {1} instead"
+
+ERROR_TEXT_MATCHING_DEPRECATION_MESSAGE = "Matching errors by their messages using string patterns is highly " \
+                                          "discouraged. It is recommended to use contains_code(code) method instead. " \
+                                          "If there is no suitable error code for your needs, ask yt@ for creating one."
+
+def declare_deprecated(functional_name, alternative_name, condition=None, message=None):
+    if condition or condition is None:
+        message = get_value(message, DEFAULT_DEPRECATION_MESSAGE.format(functional_name, alternative_name))
+        warnings.warn(message, YtDeprecationWarning)
+
+def deprecated_with_message(message):
+    def function_decorator(func):
+        @wraps(func)
+        def deprecated_function(*args, **kwargs):
+            warnings.warn(message, YtDeprecationWarning)
+            return func(*args, **kwargs)
+        return deprecated_function
+    return function_decorator
+
+def deprecated(alternative):
+    def function_decorator(func):
+        warn_message = DEFAULT_DEPRECATION_MESSAGE.format(func.__name__, alternative)
+        return deprecated_with_message(warn_message)(func)
+    return function_decorator
 
 class YtError(Exception):
     """Base class for all YT errors."""
@@ -53,6 +90,66 @@ class YtError(Exception):
                     error.simplify() if isinstance(error, YtError) else
                     error)
         return result
+
+    def find_matching_error(self, code=None, predicate=None):
+        """
+        Find a suberror contained in the error (possibly the error itself) which is either:
+        - having error code equal to `code';
+        - or satisfying custom predicate `predicate'.
+
+        Exactly one condition should be specified.
+
+        Returns either first error matching the condition or None if no matching found.
+        """
+
+        if sum(argument is not None for argument in (code, predicate)) != 1:
+            raise ValueError("Exactly one condition should be specified")
+
+        if code is not None:
+            predicate = lambda error: int(error.code) == code
+
+        def find_recursive(error):
+            # error may be Python dict; if so, transform it to YtError.
+            if not isinstance(error, YtError):
+                error = YtError(**error)
+
+            if predicate(error):
+                return error
+            for inner_error in error.inner_errors:
+                inner_result = find_recursive(inner_error)
+                if inner_result:
+                    return inner_result
+            return None
+
+        return find_recursive(self)
+
+    def contains_code(self, code):
+        """Check if error or one of its inner errors contains specified error code."""
+        return self.find_matching_error(code=code) is not None
+
+    @deprecated_with_message(ERROR_TEXT_MATCHING_DEPRECATION_MESSAGE)
+    def contains_text(self, text):
+        """
+        Check if error or one of its inner errors contains specified substring in message.
+
+        It is not recommended to use this helper; consider using contains_code instead.
+        If the error you are seeking is not distinguishable by code, please send a message to yt@
+        and we will fix that.
+        """
+
+        return self.find_matching_error(predicate=lambda error: text in error.message) is not None
+
+    @deprecated_with_message(ERROR_TEXT_MATCHING_DEPRECATION_MESSAGE)
+    def matches_regexp(self, pattern):
+        """
+        Check if error message or one of its inner error messages matches given regexp.
+
+        It is not recommended to use this helper; consider using contains_code instead.
+        If the error you are seeking is not distinguishable by code, please send a message to yt@
+        and we will fix that.
+        """
+
+        return self.find_matching_error(predicate=lambda error: re.match(pattern, error.message) is not None) is not None
 
     def __str__(self):
         return format_error(self)
@@ -151,52 +248,9 @@ class YtResponseError(YtError):
         """Tablet is not mounted."""
         return self.contains_code(1702)
 
-    def contains_code(self, code):
-        """Check if HTTP response has specified error code."""
-        def contains_code_recursive(error, error_code):
-            if int(error.get("code", 0)) == error_code:
-                return True
-            for inner_error in error.get("inner_errors", []):
-                if contains_code_recursive(inner_error, error_code):
-                    return True
-            return False
-
-        return contains_code_recursive(self.error, code)
-
-    def contains_text(self, text):
-        """Check if HTTP response has specified status code."""
-        def contains_text_recursive(error, text):
-            message = ""
-            if "message" in error:
-                message = error["message"]
-
-            if text in message:
-                return True
-
-            for inner_error in error.get("inner_errors", []):
-                if contains_text_recursive(inner_error, text):
-                    return True
-            return False
-
-        return contains_text_recursive(self.error, text)
-
-    def matches_regexp(self, pattern):
-        """Check if HTTP response has specified status code."""
-        def matches_regexp_recursive(error, pattern):
-            message = ""
-            if "message" in error:
-                message = error["message"]
-
-            if re.match(pattern, message) is not None:
-                return True
-
-            for inner_error in error.get("inner_errors", []):
-                if matches_regexp_recursive(inner_error, pattern):
-                    return True
-            return False
-
-        return matches_regexp_recursive(self.error, pattern)
-
+    def is_all_target_nodes_failed(self):
+        """Failed to write chunk since all target nodes have failed."""
+        return self.contains_code(700)
 
 class PrettyPrintableDict(dict):
     pass

@@ -49,6 +49,7 @@ from .table_commands import create_temp_table, get_sorted_by
 from .table_helpers import _prepare_job_io, _prepare_operation_files
 from .transaction import Transaction
 from .ypath import TablePath
+from .http_helpers import get_api_version
 
 import yt.logger as logger
 from yt.common import YT_NULL_TRANSACTION_ID as null_transaction_id
@@ -403,10 +404,9 @@ def run_remote_copy(source_table, destination_table,
     return run_operation(spec_builder, sync=sync, enable_optimizations=True, client=client)
 
 class OperationRequestRetrier(Retrier):
-    def __init__(self, command_name, spec, run_with_start_op, retry_actions, client=None):
-        self.command_name = command_name
+    def __init__(self, operation_type, spec, retry_actions, client=None):
+        self.operation_type = operation_type
         self.spec = spec
-        self.run_with_start_op = run_with_start_op
         self.retry_actions = retry_actions
         self.client = client
 
@@ -418,15 +418,12 @@ class OperationRequestRetrier(Retrier):
                                                       exceptions=(YtConcurrentOperationsLimitExceeded,))
 
     def action(self):
-        if self.run_with_start_op:
-            return _make_formatted_transactional_request(
-                "start_op",
-                {"operation_type": self.command_name, "spec": self.spec},
-                format=None,
-                client=self.client)
-        else:
-            return _make_formatted_transactional_request(self.command_name, {"spec": self.spec}, format=None,
-                                                         client=self.client)
+        result = _make_formatted_transactional_request(
+            "start_operation" if get_api_version(self.client) == "v4" else "start_op",
+            {"operation_type": self.operation_type, "spec": self.spec},
+            format=None,
+            client=self.client)
+        return result["operation_id"] if get_api_version(self.client) == "v4" else result
 
     def backoff_action(self, iter_number, sleep_backoff):
         for action in self.retry_actions:
@@ -436,16 +433,15 @@ class OperationRequestRetrier(Retrier):
                        sleep_backoff, iter_number)
         time.sleep(sleep_backoff)
 
-def _make_operation_request(command_name, spec, sync,
+def _make_operation_request(operation_type, spec, sync,
                             finalization_actions=None,
                             retry_actions=None,
-                            run_with_start_op=None,
                             client=None):
     def _manage_operation(finalization_actions):
-        retrier = OperationRequestRetrier(command_name=command_name, spec=spec, run_with_start_op=run_with_start_op,
+        retrier = OperationRequestRetrier(operation_type=operation_type, spec=spec,
                                           retry_actions=retry_actions, client=client)
         operation_id = retrier.run()
-        operation = Operation(operation_id, type=command_name, finalization_actions=finalization_actions, client=client)
+        operation = Operation(operation_id, type=operation_type, finalization_actions=finalization_actions, client=client)
 
         if operation.url:
             logger.info("Operation started: %s", operation.url)
@@ -594,11 +590,10 @@ def run_operation(spec_builder, sync=True, enable_optimizations=False, client=No
     operations_iterator = iter(operations_list)
     try:
         for operation_type, spec, finalization_actions in operations_iterator:
-            result = _make_operation_request(command_name=operation_type,
+            result = _make_operation_request(operation_type=operation_type,
                                              spec=spec,
                                              finalization_actions=finalization_actions,
                                              retry_actions=retry_actions,
-                                             run_with_start_op=spec_builder.run_with_start_op,
                                              sync=sync,
                                              client=client)
 

@@ -67,6 +67,8 @@ class YtResponseError(yt.common.YtResponseError):
             self.__class__ = YtTabletNotMounted
         if self.is_rpc_unavailable():
             self.__class__ = YtRpcUnavailable
+        if self.is_all_target_nodes_failed():
+            self.__class__ = YtAllTargetNodesFailed
 
 class YtHttpResponseError(YtResponseError):
     """Reponse error recieved from http proxy with additional http request information."""
@@ -198,3 +200,6 @@ class YtTransactionPingError(BaseException):
     """Raised in signal handler when thread was unable to ping transaction."""
     pass
 
+class YtAllTargetNodesFailed(YtHttpResponseError):
+    """Failed to write chunk since all target nodes have failed."""
+    pass

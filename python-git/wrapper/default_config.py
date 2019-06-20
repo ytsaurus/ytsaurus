@@ -7,6 +7,9 @@ from copy import deepcopy
 
 # pydoc :: default_config :: begin
 
+DEFAULT_WRITE_CHUNK_SIZE = 512 * common.MB
+DEFAULT_WRITE_PARALLEL_MAX_THREAD_COUNT = 10
+
 def retry_backoff_config(**kwargs):
     config_dict = {
         # Backoff options for failed requests.
@@ -232,13 +235,16 @@ default_config = {
         "enable_local_files_usage_in_job": None,
         # Command to run python in jobs, by default it is simple "python".
         "python_binary": None,
-        # Enable wrapping of stdin and stdout streams to avoid their unintentional usage.
+        # Enable wrapping of Python stdin and stdout streams to avoid their unintentional usage.
         "safe_stream_mode": True,
-        # Age (in seconds) to distinguish currently modified modules and old modules.
-        # These two types of modules would be uploaded separatly.
-        # It is invented to descrease data uploaded to cluster
-        # in case of consequence runs of the script with small modifications.
-        "fresh_files_threshold": 3600,
+        # Protect stdout file descriptor from user writes. This differs from safe_stream_mode in
+        # that this option can prevent C/C++ code from writing to stdout as well as Python code.
+        # Available options:
+        #  * redirect_to_stderr - everything written to stdout by user code will be redirected to stderr;
+        #  * drop - user writes to stdout will be redirected to /dev/null;
+        #  * close - stdout will be closed for user writes. Warning: may lead to errors that are hard to debug;
+        #  * none - disable protection.
+        "stdout_fd_protection": "redirect_to_stderr",
         # Enables using tmpfs for modules archive.
         "enable_tmpfs_archive": True,
         # Add tmpfs archive size to memory limit.
@@ -262,6 +268,8 @@ default_config = {
         "modules_archive_compression_level": 6,
         # Compression codec for archive with modules
         "modules_archive_compression_codec": "gzip",
+        # Size of tar archives to split modules into
+        "modules_chunk_size": 100 * common.MB,
     },
 
     # Enables special behavior if client works with local mode cluster.
@@ -368,9 +376,9 @@ default_config = {
     },
     "write_parallel": {
         # Number of threads.
-        "max_thread_count": 10,
+        "max_thread_count": None,  # automatically chosen
         # Always run parallel writing if it is possible.
-        "enable": False,
+        "enable": None,  # automatically chosen
         # This option allows to write table in unordered mode.
         "unordered": False,
         # The restriction on the number of chunks which will be passed to concatenate command.
@@ -455,7 +463,7 @@ default_config = {
             "decay_factor_bound": 0.3
         }}) \
         .update_template_dict({
-            "chunk_size": 512 * common.MB,
+            "chunk_size": None,  # automatically chosen
             # Parent transaction wrapping whole write process.
             # If "transaction_id" is not specified it will be automatically created.
             "transaction_id": None,

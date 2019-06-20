@@ -1,11 +1,13 @@
 import yt.logger as logger
 from .config import get_config, get_option
-from .common import require, chunk_iter_stream, chunk_iter_string, parse_bool, set_param, get_value, get_disk_size, MB
+from .common import (require, chunk_iter_stream, chunk_iter_string, parse_bool, set_param, get_value,
+                     get_disk_size, get_stream_size_or_none, MB)
 from .driver import _create_http_client_from_rpc, get_command_list
 from .errors import YtError, YtResponseError, YtCypressTransactionLockConflict
 from .heavy_commands import make_write_request, make_read_request
 from .cypress_commands import (remove, exists, set_attribute, mkdir, find_free_subpath,
                                create, link, get, set)
+from .default_config import DEFAULT_WRITE_CHUNK_SIZE
 from .parallel_reader import make_read_parallel_request
 from .parallel_writer import make_parallel_write_request
 from .retries import Retrier, default_chaos_monkey
@@ -206,6 +208,8 @@ def write_file(destination, stream,
         create("file", path, ignore_existing=True, client=client)
 
     chunk_size = get_config(client)["write_retries"]["chunk_size"]
+    if chunk_size is None:
+        chunk_size = DEFAULT_WRITE_CHUNK_SIZE
 
     is_one_small_blob = False
     if _is_freshly_opened_file(stream):
@@ -216,6 +220,9 @@ def write_file(destination, stream,
             is_one_small_blob = True
         if size_hint is None:
             size_hint = size
+    elif size_hint is None:
+        size_hint = get_stream_size_or_none(stream)
+
     if filename_hint is None:
         try:
             filename_hint = os.readlink("/proc/self/fd/0")
@@ -256,7 +263,11 @@ def write_file(destination, stream,
     if not is_one_small_blob and is_stream_compressed:
         enable_retries = False
 
-    if get_config(client)["write_parallel"]["enable"] and not is_stream_compressed and not compute_md5:
+    enable_parallel_write = get_config(client)["write_parallel"]["enable"]
+    if enable_parallel_write is None:
+        enable_parallel_write = size_hint is not None and size_hint > 128 * MB
+
+    if enable_parallel_write and not is_stream_compressed and not compute_md5:
         force_create = True
         make_parallel_write_request(
             "write_file",
@@ -266,6 +277,7 @@ def write_file(destination, stream,
             False,
             prepare_file,
             get_config(client)["remote_temp_tables_directory"],
+            size_hint=size_hint,
             client=client)
     else:
         make_write_request(

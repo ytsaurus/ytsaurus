@@ -4,7 +4,7 @@ from .common import chunk_iter_list, get_value
 from .config import get_config, get_option, get_client_state
 from .errors import YtError, YtResponseError
 from .etc_commands import execute_batch
-from .http_helpers import get_retriable_errors
+from .http_helpers import get_retriable_errors, get_api_version
 from .retries import Retrier, default_chaos_monkey
 
 import yt.yson as yson
@@ -35,6 +35,8 @@ class BatchRequestRetrier(Retrier):
         for tasks, responses in izip(chunk_iter_list(self._tasks, self._max_batch_size),
                                      chunk_iter_list(self._responses, self._max_batch_size)):
             results = execute_batch(tasks, client=self._client)
+            if get_api_version(self._client) == "v4":
+                results = results["results"]
             for result, response in izip(results, responses):
                 response.set_result(result)
 

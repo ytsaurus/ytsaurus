@@ -1,4 +1,4 @@
-from .helpers import TEST_DIR, get_test_file_path, yatest_common, get_python
+from .helpers import TEST_DIR, get_test_file_path, yatest_common, get_python, wait
 
 from yt.wrapper.common import update_inplace
 
@@ -10,6 +10,7 @@ import yt.wrapper as yt
 import yt.subprocess_wrapper as subprocess
 
 import os
+import sys
 import time
 import pytest
 import signal
@@ -64,9 +65,12 @@ def test_catching_sigint(yt_env):
     driver_config_path = yt_env.env.config_paths["console_driver"][0]
     binary = get_test_file_path("driver_catch_sigint.py")
 
-    process = subprocess.Popen([get_python(), binary, driver_config_path])
+    process = subprocess.Popen([get_python(), binary, driver_config_path], stderr=sys.stderr)
 
+    wait(lambda: yt.exists("//tmp/test_file"))
+    wait(lambda: yt.get("//tmp/test_file/@uncompressed_data_size") == 50 * 1000 * 1000)
     time.sleep(3)
+
     os.kill(process.pid, signal.SIGINT)
     try:
         process.wait(5)

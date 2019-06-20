@@ -4,6 +4,7 @@ from __future__ import print_function
 from yt.common import update
 from yt.wrapper.driver import make_request
 from yt.yson import loads, YsonString, YsonUnicode, YsonError
+from yt.wrapper.http_helpers import get_api_version
 from yt.wrapper import YtHttpResponseError, YtError, YtResponseError, YsonFormat
 from yt.ypath import YPathError, parse_ypath
 
@@ -95,6 +96,8 @@ def make_parse_ypath_request(path, client=None):
         {"path": path, "output_format": YsonFormat(require_yson_bindings=False).to_yson_type()},
         client=client,
         decode_content=False))
+    if get_api_version(client) == "v4":
+        result = result["path"]
 
     result.attributes = update(attributes, result.attributes)
 
