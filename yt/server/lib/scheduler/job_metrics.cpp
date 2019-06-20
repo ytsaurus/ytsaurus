@@ -98,6 +98,8 @@ TJobMetrics TJobMetrics::FromJobTrackerStatistics(
         FindNumericValue(statistics, "/time/exec").value_or(0);
     metrics.Values()[EJobMetricName::PrepareTime] =
         FindNumericValue(statistics, "/time/prepare").value_or(0);
+    metrics.Values()[EJobMetricName::PrepareRootFSTime] =
+        FindNumericValue(statistics, "/time/prepare_root_fs").value_or(0);
     metrics.Values()[EJobMetricName::ArtifactsDownloadTime] =
         FindNumericValue(statistics, "/time/artifacts_download").value_or(0);
 

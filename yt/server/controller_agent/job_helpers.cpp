@@ -174,7 +174,7 @@ TBriefJobStatisticsPtr BuildBriefStatistics(std::unique_ptr<TJobSummary> jobSumm
     return briefStatistics;
 }
 
-void ParseStatistics(TJobSummary* jobSummary, const TYsonString& lastObservedStatisticsYson)
+void ParseStatistics(TJobSummary* jobSummary, TInstant startTime, const TYsonString& lastObservedStatisticsYson)
 {
     if (!jobSummary->StatisticsYson) {
         jobSummary->StatisticsYson = lastObservedStatisticsYson;
@@ -189,6 +189,25 @@ void ParseStatistics(TJobSummary* jobSummary, const TYsonString& lastObservedSta
         statistics->SetTimestamp(std::nullopt);
     } else {
         statistics = NJobTrackerClient::TStatistics();
+    }
+
+    {
+        auto endTime = jobSummary->FinishTime ? *jobSummary->FinishTime : TInstant::Now();
+        auto duration = endTime - startTime;
+        statistics->AddSample("/time/total", duration.MilliSeconds());
+    }
+
+    if (jobSummary->PrepareDuration) {
+        statistics->AddSample("/time/prepare", jobSummary->PrepareDuration->MilliSeconds());
+    }
+    if (jobSummary->DownloadDuration) {
+        statistics->AddSample("/time/artifacts_download", jobSummary->DownloadDuration->MilliSeconds());
+    }
+    if (jobSummary->PrepareRootFSDuration) {
+        statistics->AddSample("/time/prepare_root_fs", jobSummary->PrepareRootFSDuration->MilliSeconds());
+    }
+    if (jobSummary->ExecDuration) {
+        statistics->AddSample("/time/exec", jobSummary->ExecDuration->MilliSeconds());
     }
 }
 
