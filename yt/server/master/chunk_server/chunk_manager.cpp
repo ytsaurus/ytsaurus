@@ -12,6 +12,7 @@
 #include "chunk_view.h"
 #include "chunk_view_proxy.h"
 #include "config.h"
+#include "expiration_tracker.h"
 #include "helpers.h"
 #include "job.h"
 #include "medium.h"
@@ -404,6 +405,7 @@ public:
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::ChunkManager)
         , Config_(config)
         , ChunkTreeBalancer_(New<TChunkTreeBalancerCallbacks>(Bootstrap_))
+        , ExpirationTracker_(New<TExpirationTracker>(bootstrap))
     {
         RegisterMethod(BIND(&TImpl::HydraConfirmChunkListsRequisitionTraverseFinished, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateChunkRequisition, Unretained(this)));
@@ -864,6 +866,9 @@ public:
         if (chunk->IsDiskSizeFinal()) {
             UpdateTransactionResourceUsage(chunk, +1);
         }
+
+        chunk->SetExpirationTime(TInstant::Now() + GetDynamicConfig()->StagedChunkExpirationTimeout);
+        ExpirationTracker_->OnChunkStaged(chunk);
     }
 
     void StageChunkTree(TChunkTree* chunkTree, TTransaction* transaction, TAccount* account)
@@ -885,6 +890,11 @@ public:
 
     void UnstageChunk(TChunk* chunk)
     {
+        if (chunk->IsStaged()) {
+            ExpirationTracker_->OnChunkUnstaged(chunk);
+            chunk->SetExpirationTime(TInstant::Zero());
+        }
+
         UnstageChunkTree(chunk);
     }
 
@@ -1416,6 +1426,8 @@ private:
     TChunkPlacementPtr ChunkPlacement_;
     TChunkReplicatorPtr ChunkReplicator_;
     TChunkSealerPtr ChunkSealer_;
+
+    const TExpirationTrackerPtr ExpirationTracker_;
 
     // Global chunk lists; cf. TChunkDynamicData.
     TIntrusiveLinkedList<TChunk, TChunkToAllLinkedListNode> AllChunks_;
@@ -2102,6 +2114,28 @@ private:
             chunkIds);
     }
 
+    void HydraUnstageExpiredChunks(NProto::TReqUnstageExpiredChunks* request) noexcept
+    {
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+
+        for (const auto& protoId : request->chunk_ids()) {
+            auto chunkId = FromProto<TChunkId>(protoId);
+            auto* chunk = FindChunk(chunkId);
+            if (!IsObjectAlive(chunk)) {
+                continue;
+            }
+
+            if (!chunk->IsStaged()) {
+                continue;
+            }
+
+            transactionManager->UnstageObject(chunk->GetStagingTransaction(), chunk, false /*recursive*/);
+
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Unstaged expired chunk (ChunkId: %v)",
+                chunkId);
+        }
+    }
+
     void HydraExecuteBatch(const TCtxExecuteBatchPtr& /*context*/, TReqExecuteBatch* request, TRspExecuteBatch* response)
     {
         auto executeSubrequests = [&] (
@@ -2470,6 +2504,12 @@ private:
             if (chunk->IsForeign()) {
                 YT_VERIFY(ForeignChunks_.insert(chunk).second);
             }
+
+            // COMPAT(shakurov)
+            // The second check is only needed for old (pre-migration) staged chunks.
+            if (chunk->IsStaged() && chunk->GetExpirationTime()) {
+                ExpirationTracker_->OnChunkStaged(chunk);
+            }
         }
 
         for (const auto& pair : MediumMap_) {
@@ -2532,6 +2572,8 @@ private:
 
         DefaultStoreMedium_ = nullptr;
         DefaultCacheMedium_ = nullptr;
+
+        ExpirationTracker_->Clear();
     }
 
     virtual void SetZeroState() override
@@ -2738,6 +2780,8 @@ private:
             ChunkReplicator_->OnNodeRegistered(node);
             ChunkPlacement_->OnNodeUpdated(node);
         }
+
+        ExpirationTracker_->Start();
     }
 
     virtual void OnLeaderActive() override
@@ -2777,6 +2821,8 @@ private:
             ChunkSealer_->Stop();
             ChunkSealer_.Reset();
         }
+
+        ExpirationTracker_->Stop();
     }
 
 

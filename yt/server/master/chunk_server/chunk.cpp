@@ -94,6 +94,7 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     Save(context, GetErasureCodec());
     Save(context, GetMovable());
     Save(context, Parents_);
+    Save(context, ExpirationTime_);
     if (ReplicasData_) {
         Save(context, true);
         // NB: RemoveReplica calls do not commute and their order is not
@@ -129,6 +130,12 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     SetMovable(Load<bool>(context));
 
     Load(context, Parents_);
+
+    // COMPAT(shakurov)
+    if (context.GetVersion() >= 837) {
+        ExpirationTime_ = Load<TInstant>(context);
+    }
+
     if (Load<bool>(context)) {
         auto* data = MutableReplicasData();
         Load(context, data->StoredReplicas);
