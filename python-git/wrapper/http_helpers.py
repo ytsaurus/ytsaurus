@@ -482,7 +482,7 @@ def get_user_name(token=None, headers=None, client=None):
     version = get_api_version(client=client)
     proxy = get_proxy_url(client=client)
 
-    if version == "v3":
+    if version in ("v3", "v4"):
         if headers is None:
             headers = {}
         if token is not None:

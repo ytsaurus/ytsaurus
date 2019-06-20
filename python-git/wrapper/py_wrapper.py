@@ -31,7 +31,6 @@ import gzip
 import tempfile
 import hashlib
 import sys
-import time
 import logging
 import pickle as standard_pickle
 import platform
@@ -249,6 +248,19 @@ def load_function(func):
         func = eval(func)
     return func
 
+def split_files_into_chunks(files, chunk_size):
+    chunk = []
+    size = 0
+    for relpath, filepath in files:
+        chunk.append((relpath, filepath))
+        size += get_disk_size(filepath)
+        if size >= chunk_size:
+            yield chunk
+            chunk = []
+            size = 0
+    if chunk:
+        yield chunk
+
 def create_modules_archive_default(tempfiles_manager, custom_python_used, client):
     for module_name in OPERATION_REQUIRED_MODULES:
         import_module(module_name)
@@ -338,21 +350,19 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
                 destination_name = os.path.join(*module_name_parts)
                 files_to_compress[destination_name] = init_file
 
-    now = time.time()
-    with Tar(prefix="modules", tempfiles_manager=tempfiles_manager, client=client) as tar:
-        with Tar(prefix="fresh_modules", tempfiles_manager=tempfiles_manager, client=client) as fresh_tar:
-            for relpath, filepath in sorted(iteritems(files_to_compress)):
-                age = now - os.path.getmtime(filepath)
-                if age > get_config(client)["pickling"]["fresh_files_threshold"]:
-                    tar.append(filepath, relpath)
-                else:
-                    fresh_tar.append(filepath, relpath)
-            for filepath, relpath in get_value(get_config(client)["pickling"]["additional_files_to_archive"], []):
-                tar.append(filepath, relpath)
+    additional_files = get_value(get_config(client)["pickling"]["additional_files_to_archive"], [])
+    additional_files = [(relpath, filepath) for filepath, relpath in additional_files]
+    all_files = list(iteritems(files_to_compress)) + additional_files
 
-    archives = [tar]
-    if fresh_tar.size > 0:
-        archives.append(fresh_tar)
+    files_sorted = sorted(all_files, key=lambda item: os.path.getmtime(item[1]))
+    file_chunks = split_files_into_chunks(files_sorted, get_config(client)["pickling"]["modules_chunk_size"])
+
+    archives = []
+    for index, chunk in enumerate(file_chunks):
+        with Tar(prefix="modules_{:02d}".format(index), tempfiles_manager=tempfiles_manager, client=client) as tar:
+            for relpath, filepath in chunk:
+                tar.append(filepath, relpath)
+            archives.append(tar)
 
     mount_sandbox_in_tmpfs = get_config(client)["mount_sandbox_in_tmpfs"]
     if isinstance(mount_sandbox_in_tmpfs, bool):  # COMPAT
@@ -689,4 +699,3 @@ def with_formats(func, input_format=None, output_format=None):
     if output_format is not None:
         _set_attribute(func, "output_format", output_format)
     return func
-

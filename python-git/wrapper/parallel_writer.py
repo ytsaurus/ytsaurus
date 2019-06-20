@@ -1,7 +1,8 @@
 from .batch_helpers import batch_apply
 from .config import get_config, get_total_request_timeout
-from .common import group_blobs_by_size
+from .common import group_blobs_by_size, MB
 from .cypress_commands import mkdir, concatenate, find_free_subpath, remove
+from .default_config import DEFAULT_WRITE_CHUNK_SIZE, DEFAULT_WRITE_PARALLEL_MAX_THREAD_COUNT
 from .ypath import YPath, YPathSupportingAppend
 from .transaction import Transaction
 from .transaction_commands import _make_transactional_request
@@ -77,23 +78,40 @@ class ParallelWriter(object):
         return self._pool.imap(self._write_chunk, chunks)
 
     def write(self, blobs):
-        output_objects = []
-        for table in self._write_iterator(blobs):
-            output_objects.append(table)
-            if len(output_objects) >= get_config(self._client)["write_parallel"]["concatenate_size"]:
+        try:
+            output_objects = []
+            for table in self._write_iterator(blobs):
+                output_objects.append(table)
+                if len(output_objects) >= get_config(self._client)["write_parallel"]["concatenate_size"]:
+                    concatenate(output_objects, self._path, client=self._client)
+                    batch_apply(remove, output_objects, client=self._client)
+                    self._path.attributes["append"] = True
+                    output_objects = []
+            if output_objects:
                 concatenate(output_objects, self._path, client=self._client)
                 batch_apply(remove, output_objects, client=self._client)
-                self._path.attributes["append"] = True
-                output_objects = []
-        if output_objects:
-            concatenate(output_objects, self._path, client=self._client)
-            batch_apply(remove, output_objects, client=self._client)
+        finally:
+            self._pool.close()
 
-        self._pool.close()
 
+def _get_chunk_size_and_thread_count(size_hint, config):
+    chunk_size = config["write_retries"]["chunk_size"]
+    thread_count = config["write_parallel"]["max_thread_count"]
+    if size_hint is None:
+        chunk_size = chunk_size if chunk_size is not None else DEFAULT_WRITE_CHUNK_SIZE
+        thread_count = thread_count if thread_count is not None else DEFAULT_WRITE_PARALLEL_MAX_THREAD_COUNT
+    elif chunk_size is None and thread_count is None:
+        chunk_size = 128 * MB
+        thread_count = min(15, size_hint // chunk_size + 1)
+    elif chunk_size is None:
+        # NB: make sure that 64MB <= chunk_size <= 512MB
+        chunk_size = min(max((64 * MB, size_hint // thread_count)), 512 * MB)
+    else:
+        thread_count = min(15, size_hint // chunk_size + 1)
+    return chunk_size, thread_count
 
 def make_parallel_write_request(command_name, stream, path, params, unordered,
-                                create_object, remote_temp_directory, client=None):
+                                create_object, remote_temp_directory, size_hint=None, client=None):
     path = YPathSupportingAppend(path, client=client)
     transaction_timeout = get_total_request_timeout(client)
     if get_config(client)["yamr_mode"]["create_tables_outside_of_transaction"]:
@@ -104,7 +122,7 @@ def make_parallel_write_request(command_name, stream, path, params, unordered,
                      attributes={"title": title},
                      client=client,
                      transaction_id=get_config(client)["write_retries"]["transaction_id"]) as tx:
-        chunk_size = get_config(client)["write_retries"]["chunk_size"]
+        chunk_size, thread_count = _get_chunk_size_and_thread_count(size_hint, get_config(client))
 
         write_action = lambda chunk, params, client: _make_transactional_request(
             command_name,
@@ -119,7 +137,7 @@ def make_parallel_write_request(command_name, stream, path, params, unordered,
             path=path,
             create_object=create_object,
             transaction_timeout=transaction_timeout,
-            thread_count=get_config(client)["write_parallel"]["max_thread_count"],
+            thread_count=thread_count,
             params=params,
             unordered=unordered,
             write_action=write_action,

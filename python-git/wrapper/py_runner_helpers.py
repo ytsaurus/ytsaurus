@@ -106,10 +106,16 @@ def check_job_environment_variables():
 
 class FDOutputStream(object):
     def __init__(self, fd):
-        self._fd = fd
+        self.fd = fd
 
     def write(self, str):
-        os.write(self._fd, str)
+        os.write(self.fd, str)
+
+    def close(self):
+        os.close(self.fd)
+
+    def dup(self):
+        return FDOutputStream(os.dup(self.fd))
 
 class group_by_key_switch(object):
     def __init__(self, rows, extract_key_by_group_by, context=None):
@@ -152,6 +158,34 @@ class group_by_key_switch(object):
                 return
             if self.rows.key_switch:
                 break
+
+def apply_stdout_fd_protection(output_streams, protection_type):
+    if protection_type == "none":
+        return
+
+    assert protection_type in ("redirect_to_stderr", "drop", "close"), \
+            "unknown stdout_fd_protection value: {}".format(protection_type)
+
+    stdin_fd = 0
+    stdout_fd = 1
+    stderr_fd = 2
+
+    # NB: move file descriptors 1 (stdout) and 0 (stdin) so that we don't write operation output
+    # to them. In particular, this protects from third-party C/C++ libraries writing to stdout.
+    for index in xrange(len(output_streams)):
+        stream = output_streams[index]
+        if stream.fd in (stdin_fd, stdout_fd):
+            output_streams[index] = stream.dup()
+            stream.close()
+            assert output_streams[index].fd not in (stdin_fd, stdout_fd)
+
+    if protection_type == "redirect_to_stderr":
+        os.dup2(stderr_fd, stdout_fd)
+    elif protection_type == "drop":
+        fd = os.open("/dev/null", os.O_WRONLY)
+        if fd != stdout_fd:
+            os.dup2(fd, stdout_fd)
+            os.close(fd)
 
 def process_rows(operation_dump_filename, config_dump_filename, start_time):
     from itertools import chain, groupby, starmap
@@ -235,6 +269,13 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
         skiff_input_schemas = params.input_format.get_schemas()
         skiff_output_schemas = params.output_format.get_schemas()
 
+    if params.use_yamr_descriptors:
+        output_streams = [FDOutputStream(i + 3) for i in xrange(params.output_table_count)]
+    else:
+        output_streams = [FDOutputStream(i * 3 + 1) for i in xrange(params.output_table_count)]
+
+    apply_stdout_fd_protection(output_streams, yt.wrapper.config["pickling"]["stdout_fd_protection"])
+
     start, run, finish = yt.wrapper.py_runner_helpers.extract_operation_methods(
         operation, context, with_skiff_schemas, skiff_input_schemas, skiff_output_schemas)
     wrap_stdin = wrap_stdout = yt.wrapper.config["pickling"]["safe_stream_mode"]
@@ -263,10 +304,6 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
 
         result = process_frozen_dict(result)
 
-        if params.use_yamr_descriptors:
-            output_streams = [FDOutputStream(i + 3) for i in xrange(params.output_table_count)]
-        else:
-            output_streams = [FDOutputStream(i * 3 + 1) for i in xrange(params.output_table_count)]
         params.output_format.dump_rows(result, output_streams, raw=raw)
 
     # Read out all input
@@ -276,4 +313,3 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
     else:
         for row in rows:
             pass
-

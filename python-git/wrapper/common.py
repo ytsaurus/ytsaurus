@@ -1,6 +1,6 @@
 from yt.common import (require, flatten, update, update_inplace, which, YtError, update_from_env,
                        unlist, get_value, filter_dict, date_string_to_timestamp, datetime_to_string,
-                       uuid_to_parts)
+                       uuid_to_parts, declare_deprecated, deprecated_with_message, deprecated)
 import yt.yson as yson
 
 from yt.packages.decorator import decorator
@@ -16,7 +16,6 @@ import random
 import socket
 import sys
 import threading
-import warnings
 try:
     from yt.packages.distro import linux_distribution
 except ImportError:
@@ -32,7 +31,7 @@ from multiprocessing.dummy import (Process as DummyProcess,
                                    current_process as dummy_current_process)
 from collections import Mapping
 from itertools import chain, starmap
-from functools import reduce, wraps
+from functools import reduce
 from copy import copy, deepcopy
 
 EMPTY_GENERATOR = (i for i in [])
@@ -40,14 +39,6 @@ EMPTY_GENERATOR = (i for i in [])
 MB = 1024 * 1024
 GB = 1024 * MB
 
-
-class YtDeprecationWarning(DeprecationWarning):
-    """Custom warnings category, because built-in category is ignored by default."""
-
-warnings.simplefilter("default", category=YtDeprecationWarning)
-
-DEFAULT_DEPRECATION_MESSAGE = "{0} is deprecated and will be removed in the next major release, " \
-                              "use {1} instead"
 
 class CustomTqdm(tqdm.tqdm):
     # Disable the monitor thread.
@@ -73,26 +64,6 @@ def compose(*args):
     def compose_two(f, g):
         return lambda x: f(g(x))
     return reduce(compose_two, args)
-
-def declare_deprecated(functional_name, alternative_name, condition=None, message=None):
-    if condition or condition is None:
-        message = get_value(message, DEFAULT_DEPRECATION_MESSAGE.format(functional_name, alternative_name))
-        warnings.warn(message, YtDeprecationWarning)
-
-def deprecated_with_message(message):
-    def function_decorator(func):
-        @wraps(func)
-        def deprecated_function(*args, **kwargs):
-            warnings.warn(message, YtDeprecationWarning)
-            return func(*args, **kwargs)
-        return deprecated_function
-    return function_decorator
-
-def deprecated(alternative):
-    def function_decorator(func):
-        warn_message = DEFAULT_DEPRECATION_MESSAGE.format(func.__name__, alternative)
-        return deprecated_with_message(warn_message)(func)
-    return function_decorator
 
 def parse_bool(word):
     """Converts "true" and "false" and something like this to Python bool
@@ -219,6 +190,11 @@ def chunk_iter_string(string, chunk_size):
         yield string[lower_index:upper_index]
         index += 1
 
+def get_stream_size_or_none(stream):
+    if PY3 and isinstance(stream, (bytes, str)) or not PY3 and isinstance(stream, basestring):
+        return len(stream)
+    return None
+
 def total_seconds(td):
     return float(td.microseconds + (td.seconds + td.days * 24 * 3600) * 10 ** 6) / 10 ** 6
 
@@ -273,11 +249,14 @@ def get_platform():
     else:
         return None
 
+def get_user_info():
+    try:
+        return {"user": getpass.getuser()}
+    except Exception:
+        return {"user_id": os.getuid()}
+
 def get_started_by_short():
-    return {
-        "pid": os.getpid(),
-        "user": getpass.getuser(),
-    }
+    return update({"pid": os.getpid()}, get_user_info())
 
 def get_started_by():
     python_version = "{0}.{1}.{2}".format(*get_python_version())
@@ -285,11 +264,12 @@ def get_started_by():
     started_by = {
         "hostname": socket.getfqdn(),
         "pid": os.getpid(),
-        "user": getpass.getuser(),
         "command": sys.argv,
         "wrapper_version": get_version(),
         "python_version": python_version
     }
+
+    started_by = update(started_by, get_user_info())
 
     platform = get_platform()
     if platform is not None:

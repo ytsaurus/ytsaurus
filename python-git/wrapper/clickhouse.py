@@ -64,6 +64,7 @@ def get_clickhouse_clique_spec_builder(instance_count,
                                        enable_monitoring=None,
                                        set_container_cpu_limit=None,
                                        cypress_geodata_path=None,
+                                       core_table_path=None,
                                        spec=None):
     """Returns a spec builder for the clickhouse clique consisting of a given number of instances.
 
@@ -107,13 +108,19 @@ def get_clickhouse_clique_spec_builder(instance_count,
     else:
         extract_geodata_command = ""
 
-    if spec is None:
-        spec = dict()
-    if "annotations" not in spec:
-        spec["annotations"] = dict()
-    spec["annotations"]["is_clique"] = True
-    if "expose" not in spec["annotations"]:
-        spec["annotations"]["expose"] = True
+    spec_base = {
+        "annotations": {
+            "is_clique": True,
+            "expose": True,
+        },
+        "tasks": {
+            "clickhouse_servers": {
+                "user_job_memory_digest_lower_bound": 1.0
+            }
+        }
+    }
+
+    spec = update(spec_base, spec) if spec is not None else spec_base
 
     monitoring_port = "10142" if enable_monitoring else "$YT_PORT_1"
 
@@ -133,8 +140,13 @@ def get_clickhouse_clique_spec_builder(instance_count,
                 .port_count(4) \
                 .set_container_cpu_limit(set_container_cpu_limit) \
             .end_task() \
+            .core_table_path(core_table_path) \
             .max_failed_job_count(max_failed_job_count) \
             .spec(spec)
+
+    if "pool" not in spec_builder.build():
+        logger.warning("It is discouraged to run clique in ephemeral pool "
+                       "(which happens when pool is not specified explicitly)")
 
     return spec_builder
 
@@ -198,6 +210,7 @@ def start_clickhouse_clique(instance_count,
                             enable_monitoring=None,
                             enable_query_log=None,
                             cypress_geodata_path=None,
+                            core_table_path=None,
                             client=None,
                             **kwargs):
     """Starts a clickhouse clique consisting of a given number of instances.
@@ -239,6 +252,7 @@ def start_clickhouse_clique(instance_count,
                                                           memory_footprint=memory_footprint,
                                                           enable_monitoring=enable_monitoring,
                                                           cypress_geodata_path=cypress_geodata_path,
+                                                          core_table_path=core_table_path,
                                                           defaults=defaults,
                                                           **kwargs),
                        client=client,

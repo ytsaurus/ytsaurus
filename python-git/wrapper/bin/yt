@@ -49,7 +49,8 @@ Operation commands:
 Transaction commands:
     lock, unlock, start-tx, abort-tx, commit-tx, ping-tx
 Job commands:
-    get-job-stderr, run-job-shell, abort-job, get-job, list-jobs
+    get-job-stderr, get-job-input, get-job-input-paths,
+    run-job-shell, abort-job, get-job, list-jobs
 Other commands:
     transform, show-spec, show-default-config'''
 
@@ -340,7 +341,11 @@ def find(**args):
 
     attributes = dict([(x, args[x]) for x in ["account", "owner"] if args[x] is not None])
     if args["attribute_filter"] is not None:
-        attributes.update(yson._loads_from_native_str(args["attribute_filter"], yson_type="map_fragment"))
+        try:
+            attributes_filter = yson._loads_from_native_str(args["attribute_filter"], yson_type="map_fragment")
+        except yson.YsonError as err:
+            raise yt.YtError("Specified attribute filter must be a valid yson map fragment", inner_errors=[err])
+        attributes.update(attributes_filter)
 
     long_format_attributes = builtins.list(LONG_FORMAT_ATTRIBUTES) if args["long_format"] else []
 
@@ -423,14 +428,26 @@ def add_read_blob_table_parser(add_parser):
 def write_file(**args):
     func_args = dict(args)
     func_args.pop("executable")
+    if func_args.pop("no_compression", False):
+        yt.config["proxy"]["content_encoding"] = "identity"
     yt.write_file(stream=get_binary_std_stream(sys.stdin), **func_args)
     if args["executable"]:
         yt.set(args["destination"] + "/@executable", True)
+
+@copy_docstring_from(yt.write_table)
+def write_table(**args):
+    func_args = dict(args)
+    if func_args.pop("no_compression", False):
+        yt.config["proxy"]["content_encoding"] = "identity"
+    yt.write_table(input_stream=get_binary_std_stream(sys.stdin), **func_args)
 
 def add_compressed_arg(parser):
     parser.add_argument("--compressed", action="store_true", dest="is_stream_compressed",
                         help="expect stream to contain compressed file data. Warning! This option disables retries. "
                              "Data is passed directly to proxy without recompression.")
+
+def add_no_compression_arg(parser):
+    parser.add_argument("--no-compression", action="store_true", help="disable compression")
 
 def add_write_file_parser(add_parser):
     for name, func in [("write-file", write_file), ("upload", write_file)]:
@@ -440,15 +457,16 @@ def add_write_file_parser(add_parser):
         add_compressed_arg(parser)
         parser.add_argument("--executable", action="store_true", help="do file executable")
         parser.add_argument("--compute-md5", action="store_true", help="compute md5 of file content")
+        add_no_compression_arg(parser)
 
 def add_write_table_parser(add_parser):
-    for name, func in [("write", yt.write_table), ("write-table", yt.write_table)]:
+    for name, func in [("write", write_table), ("write-table", write_table)]:
         parser = add_parser(name, func, epilog="Rewrite table by default. For append mode specify <append=true> before path.")
         add_ypath_argument(parser, "table", hybrid=True)
         add_format_argument(parser, help="input format")
         add_structured_argument(parser, "--table-writer")
         add_compressed_arg(parser)
-        parser.set_defaults(func=yt.write_table, input_stream=get_binary_std_stream(sys.stdin))
+        add_no_compression_arg(parser)
 
 @copy_docstring_from(yt.create_temp_table)
 def create_temp_table(**args):
@@ -673,8 +691,6 @@ def add_alter_table_replica_parser(add_parser):
 
 @copy_docstring_from(yt.select_rows)
 def select_rows(**args):
-    args["allow_full_scan"] = not args.pop("forbid_full_scan")
-    args["allow_join_without_index"] = not args.pop("forbid_join_without_index")
     write_silently(chunk_iter_stream(yt.select_rows(raw=True, **args), yt.config["read_buffer_size"]))
 
 def add_select_rows_parser(add_parser):
@@ -685,9 +701,17 @@ def add_select_rows_parser(add_parser):
         parser.add_argument("--timestamp", type=int)
         parser.add_argument("--input-row-limit", type=int)
         parser.add_argument("--output-row-limit", type=int)
-        parser.add_argument("--verbose-logging", action="store_true")
-        parser.add_argument("--forbid-full-scan", action="store_true")
-        parser.add_argument("--forbid-join-without-index", action="store_true")
+        parser.add_argument("--verbose-logging", default=None, action="store_true")
+        group = parser.add_mutually_exclusive_group(required=False)
+        group.add_argument("--enable-code-cache", dest="enable_code_cache", default=None, action="store_true")
+        group.add_argument("--disable-code-cache", dest="enable_code_cache", default=None, action="store_false")
+        group = parser.add_mutually_exclusive_group(required=False)
+        group.add_argument("--allow-full-scan", dest="allow_full_scan", default=None, action="store_true")
+        group.add_argument("--forbid-full-scan", dest="allow_full_scan", default=None, action="store_false")
+        group = parser.add_mutually_exclusive_group(required=False)
+        group.add_argument("--allow-join-without-index", dest="allow_join_without_index", default=None, action="store_true")
+        group.add_argument("--forbid-join-without-index", dest="allow_join_without_index", default=None, action="store_false")
+        parser.add_argument("--execution-pool", type=str)
         parser.add_argument("--format", action=ParseFormat)
 
 @copy_docstring_from(yt.lookup_rows)
@@ -820,6 +844,7 @@ def add_erase_parser(add_parser):
     parser = add_parser("erase", operation_handler(yt.run_erase), epilog="Note you can specify range in table to erase.")
     add_ypath_argument(parser, "table", help="path to table to erase", hybrid=True)
     add_operation_handler_related_args(parser)
+    add_structured_argument(parser, "--spec")
 
 def add_merge_parser(add_parser):
     parser = add_parser("merge", operation_handler(yt.run_merge))
@@ -899,17 +924,18 @@ def add_shuffle_parser(add_parser):
     parser.add_argument("--print-statistics", action="store_true", default=False)
     parser.add_argument("--async", action="store_true", default=False, help="do not track operation progress")
 
-@copy_docstring_from(yt.start_clickhouse_clique) 
-def start_clickhouse_clique_handler(*args, **kwargs): 
-    op = yt.start_clickhouse_clique(*args, **kwargs) 
-    print(op.id) 
- 
-def add_start_clickhouse_clique_parser(add_parser): 
-    parser = add_parser("start-clickhouse-clique", start_clickhouse_clique_handler) 
-    parser.add_argument("--instance-count", required=True, type=int) 
+@copy_docstring_from(yt.start_clickhouse_clique)
+def start_clickhouse_clique_handler(*args, **kwargs):
+    op = yt.start_clickhouse_clique(*args, **kwargs)
+    print(op.id)
+
+def add_start_clickhouse_clique_parser(add_parser):
+    parser = add_parser("start-clickhouse-clique", start_clickhouse_clique_handler)
+    parser.add_argument("--instance-count", required=True, type=int)
     parser.add_argument("--cypress-ytserver-clickhouse-path")
     parser.add_argument("--host-ytserver-clickhouse-path")
     parser.add_argument("--cypress-base-config-path", default="//sys/clickhouse/config")
+    parser.add_argument("--core-table-path")
     parser.add_argument("--cpu-limit", type=int)
     parser.add_argument("--memory-limit", type=int)
     parser.add_argument("--enable-monitoring", action="store_true", default=False,
@@ -917,7 +943,7 @@ def add_start_clickhouse_clique_parser(add_parser):
     parser.add_argument("--enable-query-log", action="store_true", default=False,
                         help="enable ClickHouse query log")
     parser.add_argument("--cypress-geodata-path")
-    add_structured_argument(parser, "--spec") 
+    add_structured_argument(parser, "--spec")
     add_structured_argument(parser, "--clickhouse-config", "ClickHouse configuration patch")
 
 def add_map_reduce_parser(add_parser):
@@ -1133,6 +1159,15 @@ def add_execute_parser(add_parser):
     add_structured_argument(parser, "execute_params")
     parser.set_defaults(func=execute)
 
+def get_table_columnar_statistics(**args):
+    print(yt.get_table_columnar_statistics(**args))
+
+def add_get_table_columnar_statistics_parser(add_parser):
+    parser = add_parser("get-table-columnar-statistics", help="get table columnar statistics")
+    add_ypath_argument(parser, "--path", required=True, action="append", dest="paths",
+                       help="Path to source table.")
+    parser.set_defaults(func=get_table_columnar_statistics)
+
 def execute_batch(**args):
     print(dump_data(yt.execute_batch(**args)))
 
@@ -1161,6 +1196,23 @@ def add_get_job_stderr_parser(add_parser):
     parser = add_parser("get-job-stderr", get_job_stderr)
     add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
     add_hybrid_argument(parser, "operation_id", help="operation id, for example: 876084ca-efd01a47-3e8-7a62e787")
+
+@copy_docstring_from(yt.get_job_input)
+def get_job_input(**args):
+    write_silently(chunk_iter_stream(yt.get_job_input(**args), yt.config["read_buffer_size"]))
+
+def add_get_job_input_parser(add_parser):
+    parser = add_parser("get-job-input", get_job_input)
+    add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
+
+@copy_docstring_from(yt.get_job_input_paths)
+def get_job_input_paths(**args):
+    paths = yt.get_job_input_paths(**args)
+    print(dump_data(map(yt.YPath.to_yson_type, paths)))
+
+def add_get_job_input_paths_parser(add_parser):
+    parser = add_parser("get-job-input-paths", get_job_input_paths)
+    add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
 
 @copy_docstring_from(yt.get_job)
 def get_job(**args):
@@ -1361,10 +1413,13 @@ def main():
     add_add_member_parser(add_parser)
     add_remove_member_parser(add_parser)
     add_check_permission_parser(add_parser)
+    add_get_table_columnar_statistics_parser(add_parser)
     add_execute_batch_parser(add_parser)
 
     add_run_job_shell_parser(add_parser)
     add_get_job_stderr_parser(add_parser)
+    add_get_job_input_parser(add_parser)
+    add_get_job_input_paths_parser(add_parser)
     add_abort_job_parser(add_parser)
     add_list_jobs_parser(add_parser)
     add_get_job_parser(add_parser)

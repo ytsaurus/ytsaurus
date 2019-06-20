@@ -9,7 +9,7 @@ from .ypath import YPath, escape_ypath_literal, ypath_join, ypath_dirname
 from .format import create_format
 from .batch_response import apply_function_to_result
 from .retries import Retrier, default_chaos_monkey
-from .http_helpers import get_retriable_errors
+from .http_helpers import get_retriable_errors, get_api_version
 
 import yt.logger as logger
 
@@ -53,11 +53,14 @@ def get(path, max_size=None, attributes=None, format=None, read_from=None, clien
         "max_size": max_size}
     set_param(params, "attributes", attributes)
     set_param(params, "read_from", read_from)
-    return _make_formatted_transactional_request(
+    if get_api_version(client) == "v4":
+        set_param(params, "return_only_value", True)
+    result = _make_formatted_transactional_request(
         "get",
         params=params,
         format=format,
         client=client)
+    return result
 
 def set(path, value, format=None, recursive=False, force=None, client=None):
     """Sets new value to Cypress node.
@@ -269,6 +272,8 @@ def list(path, max_size=None, format=None, absolute=None, attributes=None, sort=
         "max_size": max_size}
     set_param(params, "attributes", attributes)
     set_param(params, "read_from", read_from)
+    if get_api_version(client) == "v4":
+        set_param(params, "return_only_value", True)
     result = _make_formatted_transactional_request(
         "list",
         params=params,
@@ -284,13 +289,16 @@ def exists(path, read_from=None, client=None):
 
     .. seealso:: `exists on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#exists>`_
     """
+    def _process_result(result):
+        return result["value"] if get_api_version(client) == "v4" else result
     params = {"path": YPath(path, client=client)}
     set_param(params, "read_from", read_from)
-    return _make_formatted_transactional_request(
+    result = _make_formatted_transactional_request(
         "exists",
         params,
         format=None,
         client=client)
+    return apply_function_to_result(_process_result, result)
 
 def remove(path, recursive=False, force=False, client=None):
     """Removes Cypress node.
@@ -330,7 +338,18 @@ def create(type, path=None, recursive=False, ignore_existing=False, force=None, 
     set_param(params, "force", force)
     if path is not None:
         params["path"] = YPath(path, client=client)
-    return _make_formatted_transactional_request("create", params, format=None, client=client)
+
+    def _process_result(result):
+        if get_api_version(client) == "v4":
+            if "node_id" in result:
+                return result["node_id"]
+            if "object_id" in result:
+                return result["object_id"]
+        else:
+            return result
+
+    result = _make_formatted_transactional_request("create", params, format=None, client=client)
+    return apply_function_to_result(_process_result, result)
 
 def mkdir(path, recursive=None, client=None):
     """Makes directory (Cypress node of map_node type).
