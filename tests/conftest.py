@@ -283,7 +283,7 @@ class YpTestEnvironment(object):
 
             self.sync_access_control()
         except:
-            yatest_save_sandbox(self.test_sandbox_base_path)
+            yatest_save_sandbox(self.test_sandbox_path)
             raise
 
     def sync_access_control(self):
@@ -320,7 +320,7 @@ class YpTestEnvironment(object):
             if self.yp_client is not None:
                 self.yp_client.close()
             self.yp_instance.stop()
-            yatest_save_sandbox(self.test_sandbox_base_path)
+            yatest_save_sandbox(self.test_sandbox_path)
         except:
             # Additional logging added due to https://github.com/pytest-dev/pytest/issues/2237
             logger.exception("YpTestEnvironment cleanup failed")
