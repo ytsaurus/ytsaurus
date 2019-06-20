@@ -15,7 +15,7 @@ import ru.yandex.yt.ytclient.wire.WireProtocolTest;
 public class MappedModifyRowsRequestTest {
 
     @Test
-    public void testMapedModifyRowsRequest() {
+    public void testMappedModifyRowsRequest() {
         final ObjectsMetadata<SmallObjectClass> metadata =
                 ObjectsMetadata.getMetadata(SmallObjectClass.class, value -> {
 
@@ -51,9 +51,15 @@ public class MappedModifyRowsRequestTest {
         all.addAll(sample3);
         all.addAll(sample4);
         all.addAll(sample5);
-        all.addAll(sample6);
 
-        final List<byte[]> expect = metadata.serializeMappedObjects(all);
+        // Сохраняем только ключи (проверяем, что объект будет корректи сериализован)
+        sample6.forEach(s -> {
+            final SmallObjectClass key = new SmallObjectClass();
+            key.setIntField(s.getIntField());
+            all.add(key);
+        });
+
+        final List<byte[]> expect = metadata.serializeMappedObjects(all, i -> i >= 6);
 
         final List<byte[]> actual = new ArrayList<>();
         request.serializeRowsetTo(actual);
