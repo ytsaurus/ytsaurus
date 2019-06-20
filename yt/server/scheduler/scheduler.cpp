@@ -845,9 +845,10 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage));
-
         auto update = ConvertTo<TOperationRuntimeParametersUpdatePtr>(parameters);
+
+        ValidateOperationAccess(user, operation->GetId(), update->GetRequiredPermissions());
+
         if (update->Acl.has_value()) {
             update->Acl->Entries.insert(
                 update->Acl->Entries.end(),

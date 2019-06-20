@@ -1,3 +1,4 @@
+#include "operation_log.h"
 #include "private.h"
 #include "packing.h"
 #include "packing_detail.h"
@@ -8,10 +9,6 @@ namespace NYT::NScheduler {
 
 using namespace NConcurrency;
 using namespace NProfiling;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static const auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,6 +72,7 @@ void TPackingStatistics::RecordHeartbeat(
 }
 
 bool TPackingStatistics::CheckPacking(
+    const TOperationElement* operationElement,
     const TPackingHeartbeatSnapshot& heartbeatSnapshot,
     const TJobResourcesWithQuota& jobResourcesWithQuota,
     const TJobResources& totalResourceLimits,
@@ -116,7 +114,7 @@ bool TPackingStatistics::CheckPacking(
     bool decision = WindowOfHeartbeats_.size() >= config->MinWindowSizeForSchedule
         && betterPastSnapshots < config->MaxBetterPastSnapshots;
 
-    YT_LOG_TRACE(
+    OPERATION_LOG_DETAILED(operationElement,
         "Packing decision made (BetterPastSnapshots: %v, CurrentMetricValue: %v, "
         "WindowSize: %v, NodeResources: %v, JobResources: %v, Decision: %v)",
         betterPastSnapshots,

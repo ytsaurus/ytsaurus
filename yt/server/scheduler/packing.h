@@ -54,6 +54,7 @@ public:
         const TPackingHeartbeatSnapshot& heartbeatSnapshot,
         const TFairShareStrategyPackingConfigPtr& config);
     bool CheckPacking(
+        const TOperationElement* operationElement,
         const TPackingHeartbeatSnapshot& heartbeatSnapshot,
         const TJobResourcesWithQuota& jobResourcesWithQuota,
         const TJobResources& totalResourceLimits,
