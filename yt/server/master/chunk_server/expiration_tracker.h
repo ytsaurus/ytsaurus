@@ -1,16 +1,14 @@
 #pragma once
-
 #include "public.h"
-#include "node.h"
 
 #include <yt/server/master/cell_master/public.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
-namespace NYT::NCypressServer {
+namespace NYT::NChunkServer {
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 class TExpirationTracker
     : public TRefCounted
@@ -23,9 +21,8 @@ public:
 
     void Clear();
 
-    void OnNodeExpirationTimeUpdated(TCypressNodeBase* trunkNode);
-    void OnNodeDestroyed(TCypressNodeBase* trunkNode);
-    void OnNodeRemovalFailed(TCypressNodeBase* trunkNode);
+    void OnChunkStaged(TChunk* chunk);
+    void OnChunkUnstaged(TChunk* chunk);
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
@@ -34,20 +31,19 @@ private:
 
     NConcurrency::TPeriodicExecutorPtr CheckExecutor_;
 
-    TCypressNodeExpirationMap ExpirationMap_;
-    THashSet<TCypressNodeBase*> ExpiredNodes_;
+    TChunkExpirationMap ExpirationMap_;
+    THashSet<TChunk*> ExpiredChunks_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-
-    void RegisterNodeExpiration(TCypressNodeBase* trunkNode, TInstant expirationTime);
-    void UnregisterNodeExpiration(TCypressNodeBase* trunkNode);
+    void RegisterChunkExpiration(TChunk* chunk, TInstant expirationTime);
+    void UnregisterChunkExpiration(TChunk* chunk);
 
     void OnCheck();
 
     bool IsRecovery() const;
 
-    const TDynamicCypressManagerConfigPtr& GetDynamicConfig();
+    const TDynamicChunkManagerConfigPtr& GetDynamicConfig();
     void OnDynamicConfigChanged();
 };
 
@@ -55,4 +51,4 @@ DEFINE_REFCOUNTED_TYPE(TExpirationTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCypressServer
+} // namespace NYT::NChunkServer

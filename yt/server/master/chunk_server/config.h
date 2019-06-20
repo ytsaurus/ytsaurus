@@ -295,6 +295,10 @@ public:
     //! Limits data size to be replicated/repaired along an inter-DC edge at any given moment.
     TInterDCLimitsConfigPtr InterDCLimits;
 
+    TDuration StagedChunkExpirationTimeout;
+    TDuration ExpirationCheckPeriod;
+    int MaxExpiredChunksUnstagesPerCommit;
+
     TDynamicChunkManagerConfig()
     {
         RegisterParameter("enable_chunk_replicator", EnableChunkReplicator)
@@ -388,6 +392,14 @@ public:
 
         RegisterParameter("inter_dc_limits", InterDCLimits)
             .DefaultNew();
+
+        RegisterParameter("staged_chunk_expiration_timeout", StagedChunkExpirationTimeout)
+            .Default(TDuration::Hours(1))
+            .GreaterThanOrEqual(TDuration::Minutes(10));
+        RegisterParameter("expiration_check_period", ExpirationCheckPeriod)
+            .Default(TDuration::Minutes(1));
+        RegisterParameter("max_expired_chunks_unstages_per_commit", MaxExpiredChunksUnstagesPerCommit)
+            .Default(1000);
 
         RegisterPreprocessor([&] () {
             JobThrottler->Limit = 10000;

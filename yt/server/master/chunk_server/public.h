@@ -167,6 +167,9 @@ typedef TFillFactorToNodeMap::iterator TFillFactorToNodeIterator;
 typedef std::multimap<double, NNodeTrackerServer::TNode*> TLoadFactorToNodeMap;
 typedef TLoadFactorToNodeMap::iterator TLoadFactorToNodeIterator;
 
+using TChunkExpirationMap = std::multimap<TInstant, TChunk*>;
+using TChunkExpirationMapIterator = TChunkExpirationMap::iterator;
+
 using TMediumSet = std::bitset<MaxMediumCount>;
 
 constexpr int MediumDefaultPriority = 0;

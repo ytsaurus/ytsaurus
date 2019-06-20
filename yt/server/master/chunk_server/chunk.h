@@ -83,6 +83,10 @@ public:
     using TParents = SmallVector<TChunkList*, TypicalChunkParentCount>;
     DEFINE_BYREF_RO_PROPERTY(TParents, Parents);
 
+    // Limits the lifetime of staged chunks. Useful for cleaning up abandoned staged chunks.
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, ExpirationTime);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TChunkExpirationMapIterator>, ExpirationIterator);
+
     DEFINE_BYVAL_RW_PROPERTY(bool, Movable);
 
 public:
