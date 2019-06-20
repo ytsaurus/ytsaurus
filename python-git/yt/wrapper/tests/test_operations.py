@@ -1819,17 +1819,3 @@ print(op.id)
 
         op = yt.run_map("cat; sleep 120", input_table, output_table, spec={"asdfghjkl" : 1234567890}, sync=False)
         wait(lambda: op.get_attributes(fields=["unrecognized_spec"]).get("unrecognized_spec", {}))
-
-    def test_tmpfs_usage(self):
-        def mapper(row):
-            assert os.path.exists("tmpfs")
-            assert "tmpfs" in yt.__file__
-            yield row
-
-        input_table = TEST_DIR + "/input"
-        output_table = TEST_DIR + "/output"
-        yt.write_table(input_table, [{"xyz": 1}])
-        with set_config_option("pickling/enable_tmpfs_archive", True):
-            yt.run_map(mapper, input_table, output_table)
-
-        check([{"xyz": 1}], yt.read_table(output_table), ordered=False)
