@@ -34,12 +34,9 @@ public:
                 InputStream_.Advance(length);
             } else {
                 IsStreamFinished_ = true;
+                CheckItem();
                 Parser_.Finish();
             }
-        }
-
-        if (Rows_.empty()) {
-            CheckItem();
         }
 
         if (Rows_.empty()) {
