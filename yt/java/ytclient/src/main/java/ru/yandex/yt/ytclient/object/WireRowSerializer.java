@@ -6,5 +6,5 @@ public interface WireRowSerializer<T> {
 
     TableSchema getSchema();
 
-    void serializeRow(T row, WireProtocolWriteable writeable);
+    void serializeRow(T row, WireProtocolWriteable writeable, boolean keyFieldsOnly);
 }

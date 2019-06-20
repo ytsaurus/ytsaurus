@@ -15,6 +15,7 @@ public class MappedModifyRowsRequest<T> extends AbstractModifyRowsRequest {
 
     private final List<T> rows = new ArrayList<>();
     private final WireRowSerializer<T> serializer;
+    private boolean hasDeletes;
 
     public MappedModifyRowsRequest(String path, YTreeObjectSerializer<T> serializer) {
         this(path, MappedRowSerializer.forClass(serializer));
@@ -49,10 +50,12 @@ public class MappedModifyRowsRequest<T> extends AbstractModifyRowsRequest {
 
     public void addDelete(T value) {
         this.addImpl(value, ERowModificationType.RMT_DELETE);
+        hasDeletes = true;
     }
 
     public void addDeletes(Iterable<? extends T> values) {
         this.addImpl(values, ERowModificationType.RMT_DELETE);
+        hasDeletes = true;
     }
 
     //
@@ -70,7 +73,6 @@ public class MappedModifyRowsRequest<T> extends AbstractModifyRowsRequest {
             for (T value : values) {
                 this.addImpl(value, type);
             }
-
         }
     }
 
@@ -85,7 +87,12 @@ public class MappedModifyRowsRequest<T> extends AbstractModifyRowsRequest {
     @Override
     public void serializeRowsetTo(List<byte[]> attachments) {
         final WireProtocolWriter writer = new WireProtocolWriter(attachments);
-        writer.writeUnversionedRowset(rows, serializer);
+        if (hasDeletes) {
+            writer.writeUnversionedRowset(rows, serializer,
+                    i -> rowModificationTypes.get(i) == ERowModificationType.RMT_DELETE);
+        } else {
+            writer.writeUnversionedRowset(rows, serializer);
+        }
         writer.finish();
     }
 }

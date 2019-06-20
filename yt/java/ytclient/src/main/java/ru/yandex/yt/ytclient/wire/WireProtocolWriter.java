@@ -234,8 +234,12 @@ public class WireProtocolWriter {
     }
 
     public <T> void writeUnversionedRow(T row, WireRowSerializer<T> serializer) {
+        writeUnversionedRow(row, serializer, false);
+    }
+
+    public <T> void writeUnversionedRow(T row, WireRowSerializer<T> serializer, boolean keyFieldsOnly) {
         if (row != null) {
-            serializer.serializeRow(row, this.writeable);
+            serializer.serializeRow(row, this.writeable, keyFieldsOnly);
         } else {
             writeLong(-1);
         }
@@ -292,10 +296,22 @@ public class WireProtocolWriter {
         }
     }
 
+    public <T> void writeUnversionedRowset(List<T> rows, WireRowSerializer<T> serializer, KeyFieldsOnlyFunction func) {
+        final int rowCount = rows.size();
+        writeRowCount(rowCount);
+        for (int i = 0; i < rowCount; i++) {
+            writeUnversionedRow(rows.get(i), serializer, func.isKeyFieldsOnly(i));
+        }
+    }
+
     public void writeVersionedRowset(List<VersionedRow> rows) {
         writeRowCount(rows.size());
         for (VersionedRow row : rows) {
             writeVersionedRow(row);
         }
+    }
+
+    public interface KeyFieldsOnlyFunction {
+        boolean isKeyFieldsOnly(int rowIndex);
     }
 }

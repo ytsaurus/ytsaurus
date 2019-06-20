@@ -19,7 +19,7 @@ public class UnversionedRowSerializer implements WireRowSerializer<UnversionedRo
     }
 
     @Override
-    public void serializeRow(UnversionedRow row, WireProtocolWriteable writeable) {
+    public void serializeRow(UnversionedRow row, WireProtocolWriteable writeable, boolean keyFieldsOnly) {
         writeable.writeValueCount(row.getValues().size());
         for (UnversionedValue value : row.getValues()) {
             writeable.writeValueHeader(value.getId(), value.getType(), value.isAggregate(), value.getLength());

@@ -17,6 +17,7 @@ import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.WireProtocolReader;
 import ru.yandex.yt.ytclient.wire.WireProtocolWriter;
+import ru.yandex.yt.ytclient.wire.WireProtocolWriter.KeyFieldsOnlyFunction;
 
 public class ObjectsMetadata<T> {
 
@@ -103,6 +104,12 @@ public class ObjectsMetadata<T> {
     public List<byte[]> serializeMappedObjects(List<T> rows) {
         final WireProtocolWriter writer = new WireProtocolWriter();
         writer.writeUnversionedRowset(rows, this.mappedSerializer);
+        return writer.finish();
+    }
+
+    public List<byte[]> serializeMappedObjects(List<T> rows, KeyFieldsOnlyFunction func) {
+        final WireProtocolWriter writer = new WireProtocolWriter();
+        writer.writeUnversionedRowset(rows, this.mappedSerializer, func);
         return writer.finish();
     }
 

@@ -56,8 +56,8 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
     }
 
     @Override
-    public void serializeRow(T row, WireProtocolWriteable writeable) {
-        this.objectSerializer.serialize(row, delegate.wrap(writeable), false);
+    public void serializeRow(T row, WireProtocolWriteable writeable, boolean keyFieldsOnly) {
+        this.objectSerializer.serialize(row, delegate.wrap(writeable), false, keyFieldsOnly);
         delegate.complete();
     }
 
