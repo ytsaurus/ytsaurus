@@ -2113,7 +2113,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         ExtractInterruptDescriptor(*jobSummary);
     }
 
-    ParseStatistics(jobSummary.get(), joblet->StatisticsYson);
+    ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->StatisticsYson);
 
     const auto& statistics = *jobSummary->Statistics;
 
@@ -2216,7 +2216,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     auto error = FromProto<TError>(result.error());
 
-    ParseStatistics(jobSummary.get(), joblet->StatisticsYson);
+    ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->StatisticsYson);
 
     FinalizeJoblet(joblet, jobSummary.get());
     LogFinishedJobFluently(ELogEventType::JobFailed, joblet, *jobSummary)
@@ -2303,7 +2303,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
     auto joblet = GetJoblet(jobId);
 
-    ParseStatistics(jobSummary.get(), joblet->StatisticsYson);
+    ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->StatisticsYson);
     const auto& statistics = *jobSummary->Statistics;
 
     if (abortReason == EAbortReason::ResourceOverdraft) {
@@ -2385,7 +2385,7 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
 
     if (jobSummary->StatisticsYson) {
         joblet->StatisticsYson = jobSummary->StatisticsYson;
-        ParseStatistics(jobSummary.get());
+        ParseStatistics(jobSummary.get(), joblet->StartTime);
 
         UpdateJobMetrics(joblet, *jobSummary);
 
@@ -2428,23 +2428,6 @@ void TOperationControllerBase::FinalizeJoblet(
     auto& statistics = *jobSummary->Statistics;
     joblet->FinishTime = *jobSummary->FinishTime;
 
-    {
-        auto duration = joblet->FinishTime - joblet->StartTime;
-        statistics.AddSample("/time/total", duration.MilliSeconds());
-    }
-
-    if (jobSummary->PrepareDuration) {
-        statistics.AddSample("/time/prepare", jobSummary->PrepareDuration->MilliSeconds());
-    }
-    if (jobSummary->DownloadDuration) {
-        statistics.AddSample("/time/artifacts_download", jobSummary->DownloadDuration->MilliSeconds());
-    }
-    if (jobSummary->PrepareRootFSDuration) {
-        statistics.AddSample("/time/prepare_root_fs", jobSummary->PrepareRootFSDuration->MilliSeconds());
-    }
-    if (jobSummary->ExecDuration) {
-        statistics.AddSample("/time/exec", jobSummary->ExecDuration->MilliSeconds());
-    }
     if (joblet->JobProxyMemoryReserveFactor) {
         statistics.AddSample("/job_proxy/memory_reserve_factor_x10000", static_cast<int>(1e4 * *joblet->JobProxyMemoryReserveFactor));
     }
