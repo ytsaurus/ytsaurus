@@ -152,7 +152,7 @@ class TestDynamicResource(object):
             "pod", pod_id,
             selectors=["/meta", "/spec/dynamic_resources", "/status/dynamic_resources"],
         )
-        assert result[0]['id'] == pod_id
+        assert result[0]["id"] == pod_id
         assert result[1] == []
         assert result[2] == []
 
@@ -167,8 +167,8 @@ class TestDynamicResource(object):
             "pod", pod_id,
             selectors=["/meta", "/spec/dynamic_resources", "/status/dynamic_resources"]
         )
-        assert result[0]['id'] == pod_id
-        assert result[1][0]['id'] == dynamic_resource_id
+        assert result[0]["id"] == pod_id
+        assert result[1][0]["id"] == dynamic_resource_id
         assert result[2][0] == status[0]
 
     def test_pod_with_direct_resource_attribute_setup(self, yp_env):
@@ -222,6 +222,6 @@ class TestDynamicResource(object):
             "pod", pod_id,
             selectors=["/meta", "/spec/dynamic_resources", "/status/dynamic_resources"]
         )
-        assert result[0]['id'] == pod_id
-        assert result[1][0]['id'] == dynamic_resource_id
+        assert result[0]["id"] == pod_id
+        assert result[1][0]["id"] == dynamic_resource_id
         assert result[2][0] == status[0]
