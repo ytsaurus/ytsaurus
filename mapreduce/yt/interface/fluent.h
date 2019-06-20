@@ -7,7 +7,6 @@
 #include <mapreduce/yt/node/node_builder.h>
 
 #include <library/yson/consumer.h>
-#include <library/yson/json_writer.h>
 #include <library/yson/writer.h>
 
 #include <util/generic/noncopyable.h>
@@ -465,34 +464,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFluentJsonWriterState
-    : public TThrRefBase
-{
-public:
-    using TValue = TString;
-
-    explicit TFluentJsonWriterState(EJsonFormat format)
-        : Writer(&Output, YT_NODE, format)
-    { }
-
-    TString GetValue()
-    {
-        Writer.Flush();
-        return Output.Str();
-    }
-
-    IYsonConsumer* GetConsumer()
-    {
-        return &Writer;
-    }
-
-private:
-    TStringStream Output;
-    TJsonWriter Writer;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class TState>
 class TFluentYsonHolder
 {
@@ -538,13 +509,6 @@ inline TFluentYsonBuilder::TAny<TFluentYsonHolder<TFluentYsonWriterState>>
 BuildYsonStringFluently(EYsonFormat format = YF_TEXT)
 {
     ::TIntrusivePtr<TFluentYsonWriterState> state(new TFluentYsonWriterState(format));
-    return BuildYsonFluentlyWithState(state);
-}
-
-inline TFluentYsonBuilder::TAny<TFluentYsonHolder<TFluentJsonWriterState>>
-BuildJsonStringFluently(EJsonFormat format = JF_TEXT)
-{
-    ::TIntrusivePtr<TFluentJsonWriterState> state(new TFluentJsonWriterState(format));
     return BuildYsonFluentlyWithState(state);
 }
 
