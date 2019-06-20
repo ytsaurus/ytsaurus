@@ -305,6 +305,8 @@ public:
 
     double ComputeLocalSatisfactionRatio() const;
 
+    const NLogging::TLogger& GetLogger() const;
+
 private:
     TResourceTreeElementPtr ResourceTreeElement_;
 
@@ -650,6 +652,7 @@ public:
         const TPackingHeartbeatSnapshot& heartbeatSnapshot,
         const TFairShareStrategyPackingConfigPtr& config);
     bool CheckPacking(
+        const TOperationElement* operationElement,
         const TPackingHeartbeatSnapshot& heartbeatSnapshot,
         const TJobResourcesWithQuota& jobResources,
         const TJobResources& totalResourceLimits,
@@ -804,6 +807,8 @@ public:
     int GetSlotIndex() const;
 
     TString GetUserName() const;
+
+    bool DetailedLogsEnabled() const;
 
     bool OnJobStarted(
         TJobId jobId,

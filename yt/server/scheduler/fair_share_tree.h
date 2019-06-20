@@ -237,11 +237,7 @@ private:
         TOperationElementByIdMap OperationIdToElement;
         TFairShareStrategyTreeConfigPtr Config;
 
-        TOperationElement* FindOperationElement(TOperationId operationId) const
-        {
-            auto it = OperationIdToElement.find(operationId);
-            return it != OperationIdToElement.end() ? it->second : nullptr;
-        }
+        TOperationElement* FindOperationElement(TOperationId operationId) const;
     };
 
     typedef TIntrusivePtr<TRootElementSnapshot> TRootElementSnapshotPtr;
@@ -251,61 +247,19 @@ private:
         : public IFairShareTreeSnapshot
     {
     public:
-        TFairShareTreeSnapshot(TFairShareTreePtr tree, TRootElementSnapshotPtr rootElementSnapshot, const NLogging::TLogger& logger)
-            : Tree_(std::move(tree))
-            , RootElementSnapshot_(std::move(rootElementSnapshot))
-            , Logger(logger)
-            , NodesFilter_(Tree_->GetNodesFilter())
-        { }
+        TFairShareTreeSnapshot(TFairShareTreePtr tree, TRootElementSnapshotPtr rootElementSnapshot, const NLogging::TLogger& logger);
 
-        virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override
-        {
-            return BIND(&TFairShareTree::DoScheduleJobs,
-                Tree_,
-                schedulingContext,
-                RootElementSnapshot_)
-                .AsyncVia(GetCurrentInvoker())
-                .Run();
-        }
+        virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override;
 
-        virtual void ProcessUpdatedJob(TOperationId operationId, TJobId jobId, const TJobResources& delta) override
-        {
-            // NB: Should be filtered out on large clusters.
-            YT_LOG_DEBUG("Processing updated job (OperationId: %v, JobId: %v)", operationId, jobId);
-            auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
-            if (operationElement) {
-                operationElement->IncreaseJobResourceUsage(jobId, delta);
-            }
-        }
+        virtual void ProcessUpdatedJob(TOperationId operationId, TJobId jobId, const TJobResources& delta) override;
 
-        virtual void ProcessFinishedJob(TOperationId operationId, TJobId jobId) override
-        {
-            // NB: Should be filtered out on large clusters.
-            YT_LOG_DEBUG("Processing finished job (OperationId: %v, JobId: %v)", operationId, jobId);
-            auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
-            if (operationElement) {
-                operationElement->OnJobFinished(jobId);
-            }
-        }
+        virtual void ProcessFinishedJob(TOperationId operationId, TJobId jobId) override;
 
-        virtual void ApplyJobMetricsDelta(TOperationId operationId, const TJobMetrics& jobMetricsDelta) override
-        {
-            auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
-            if (operationElement) {
-                operationElement->ApplyJobMetricsDelta(jobMetricsDelta);
-            }
-        }
+        virtual void ApplyJobMetricsDelta(TOperationId operationId, const TJobMetrics& jobMetricsDelta) override;
 
-        virtual bool HasOperation(TOperationId operationId) const override
-        {
-            auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
-            return operationElement != nullptr;
-        }
+        virtual bool HasOperation(TOperationId operationId) const override;
 
-        virtual const TSchedulingTagFilter& GetNodesFilter() const override
-        {
-            return NodesFilter_;
-        }
+        virtual const TSchedulingTagFilter& GetNodesFilter() const override;
 
     private:
         const TIntrusivePtr<TFairShareTree> Tree_;
@@ -329,16 +283,7 @@ private:
 
     NProfiling::TCpuInstant LastSchedulingInformationLoggedTime_ = 0;
 
-    TDynamicAttributes GetGlobalDynamicAttributes(const TSchedulerElementPtr& element) const
-    {
-        int index = element->GetTreeIndex();
-        if (index == UnassignedTreeIndex) {
-            return TDynamicAttributes();
-        } else {
-            YCHECK(index < GlobalDynamicAttributes_.size());
-            return GlobalDynamicAttributes_[index];
-        }
-    }
+    TDynamicAttributes GetGlobalDynamicAttributes(const TSchedulerElementPtr& element) const;
 
     void DoScheduleJobsWithoutPreemptionImpl(
         const TRootElementSnapshotPtr& rootElementSnapshot,

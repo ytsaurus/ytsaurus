@@ -1425,6 +1425,8 @@ TOperationFairShareTreeRuntimeParameters::TOperationFairShareTreeRuntimeParamete
     RegisterParameter("pool", Pool);
     RegisterParameter("resource_limits", ResourceLimits)
         .DefaultNew();
+    RegisterParameter("enable_detailed_logs", EnableDetailedLogs)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1455,6 +1457,8 @@ TOperationFairShareTreeRuntimeParametersUpdate::TOperationFairShareTreeRuntimePa
         .Optional();
     RegisterParameter("resource_limits", ResourceLimits)
         .Default();
+    RegisterParameter("enable_detailed_logs", EnableDetailedLogs)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1485,6 +1489,20 @@ bool TOperationRuntimeParametersUpdate::ContainsPool() const
         result |= treeOptions->Pool.has_value();
     }
     return result;
+}
+
+EPermissionSet TOperationRuntimeParametersUpdate::GetRequiredPermissions() const
+{
+    auto requiredPermissions = EPermissionSet(EPermission::Manage);
+
+    for (const auto& [poolTree, treeParams] : SchedulingOptionsPerPoolTree) {
+        if (treeParams->EnableDetailedLogs.has_value()) {
+            requiredPermissions |= EPermission::Administer;
+            break;
+        }
+    }
+
+    return requiredPermissions;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -24,6 +24,7 @@
 #include <yt/core/rpc/config.h>
 
 #include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/permission.h>
 #include <yt/core/ytree/yson_serializable.h>
 
 #include <yt/core/misc/arithmetic_formula.h>
@@ -1126,6 +1127,8 @@ public:
     std::optional<double> Weight;
     TPoolName Pool;
     TResourceLimitsConfigPtr ResourceLimits;
+    // Can only be enabled by an administrator.
+    bool EnableDetailedLogs;
 
     TOperationFairShareTreeRuntimeParameters();
 };
@@ -1156,6 +1159,8 @@ public:
     std::optional<double> Weight;
     std::optional<TPoolName> Pool;
     TResourceLimitsConfigPtr ResourceLimits;
+    // Can only be set by an administrator.
+    std::optional<bool> EnableDetailedLogs;
 
     TOperationFairShareTreeRuntimeParametersUpdate();
 };
@@ -1174,6 +1179,8 @@ public:
     TOperationRuntimeParametersUpdate();
 
     bool ContainsPool() const;
+
+    NYTree::EPermissionSet GetRequiredPermissions() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationRuntimeParametersUpdate)

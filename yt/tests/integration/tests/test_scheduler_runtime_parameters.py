@@ -190,3 +190,91 @@ class TestJobsAreScheduledAfterPoolChange(YTEnvSetup):
 
         scheduled = op.get_job_count("running") + op.get_job_count("completed")
         wait(lambda: op.get_job_count("running") + op.get_job_count("completed") > scheduled + 10)
+
+
+class TestOperationDetailedLogs(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 10
+    NUM_SCHEDULERS = 1
+
+    def get_scheduled_job_log_entries(self):
+        scheduler_debug_logs_filename = self.Env.configs["scheduler"][0]["logging"]["writers"]["debug"]["file_name"]
+        return [line for line in open(scheduler_debug_logs_filename, "r") if "Scheduled a job" in line]
+
+    def test_enable_detailed_logs(self):
+        create("map_node", "//sys/pool_trees/default/fake_pool")
+        set("//sys/pool_trees/default/fake_pool/@resource_limits", {"user_slots": 3})
+
+        op = run_sleeping_vanilla(job_count=10, spec={"pool": "fake_pool"})
+        wait(lambda: len(op.get_running_jobs()) == 3)
+
+        # Check that there are no detailed logs by default.
+
+        assert len(self.get_scheduled_job_log_entries()) == 0
+
+        # Enable detailed logging and check that expected the expected log entries are produced.
+
+        update_op_parameters(op.id, parameters={
+            "scheduling_options_per_pool_tree": {
+                "default": {
+                    "enable_detailed_logs": True,
+                }
+            }
+        })
+        time.sleep(1)
+
+        assert len(op.get_running_jobs()) == 3
+        set("//sys/pool_trees/default/fake_pool/@resource_limits/user_slots", 5)
+        wait(lambda: len(op.get_running_jobs()) == 5)
+        time.sleep(0.5)  # Give it time to flush the log to disk.
+
+        log_entries = self.get_scheduled_job_log_entries()
+        assert len(log_entries) == 2
+        for log_entry in log_entries:
+            assert "OperationId: {}".format(op.id) in log_entry
+            assert "TreeId: default" in log_entry
+
+        # Disable detailed logging and check that no new log entries are produced.
+
+        update_op_parameters(op.id, parameters={
+            "scheduling_options_per_pool_tree": {
+                "default": {
+                    "enable_detailed_logs": False,
+                }
+            }
+        })
+        time.sleep(1)
+
+        assert len(op.get_running_jobs()) == 5
+        set("//sys/pool_trees/default/fake_pool/@resource_limits/user_slots", 7)
+        wait(lambda: len(op.get_running_jobs()) == 7)
+        time.sleep(0.5)  # Give it time to flush the log to disk.
+
+        assert len(log_entries) == 2
+
+        op.abort()
+
+    def test_enable_detailed_logs_requires_administer_permission(self):
+        create_user("u1")
+        op = run_sleeping_vanilla(job_count=10, authenticated_user="u1")
+
+        def update_enable_detailed_logs():
+            update_op_parameters(
+                op.id,
+                parameters={
+                    "scheduling_options_per_pool_tree": {
+                        "default": {
+                            "enable_detailed_logs": False,
+                        }
+                    },
+                },
+                authenticated_user="u1",
+            )
+
+        with pytest.raises(YtError) as excinfo:
+            update_enable_detailed_logs()
+        if not excinfo.value.contains_code(AuthorizationErrorCode):
+            raise excinfo.value
+
+        add_member("u1", "superusers")
+        update_enable_detailed_logs()

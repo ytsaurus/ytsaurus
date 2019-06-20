@@ -6,6 +6,8 @@
 #include "resource_tree_element.h"
 #include "scheduling_context.h"
 
+#include "operation_log.h"
+
 #include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/profile_manager.h>
 
@@ -1722,12 +1724,18 @@ void TOperationElementSharedState::RecordHeartbeat(
 }
 
 bool TOperationElementSharedState::CheckPacking(
+    const TOperationElement* operationElement,
     const TPackingHeartbeatSnapshot& heartbeatSnapshot,
     const TJobResourcesWithQuota& jobResources,
     const TJobResources& totalResourceLimits,
     const TFairShareStrategyPackingConfigPtr& packingConfig)
 {
-    return HeartbeatStatistics_.CheckPacking(heartbeatSnapshot, jobResources, totalResourceLimits, packingConfig);
+    return HeartbeatStatistics_.CheckPacking(
+        operationElement,
+        heartbeatSnapshot,
+        jobResources,
+        totalResourceLimits,
+        packingConfig);
 }
 
 TJobResources TOperationElementSharedState::IncreaseJobResourceUsage(
@@ -2403,6 +2411,7 @@ bool TOperationElement::CheckPacking(const TPackingHeartbeatSnapshot& heartbeatS
     }
 
     return OperationElementSharedState_->CheckPacking(
+        /* operationElement */ this,
         heartbeatSnapshot,
         packingJobResourcesWithQuota,
         TotalResourceLimits_,
@@ -2414,6 +2423,11 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
     YCHECK(IsActive(context->DynamicAttributesList));
 
     auto disableOperationElement = [&] (EDeactivationReason reason) {
+        OPERATION_LOG_DETAILED(this,
+            "Failed to schedule job, operation deactivated "
+            "(DeactivationReason: %v, NodeResourceUsage: %v)",
+            FormatEnum(reason),
+            FormatResourceUsage(context->SchedulingContext->ResourceUsage(), context->SchedulingContext->ResourceLimits()));
         ++context->StageState->DeactivationReasons[reason];
         OnOperationDeactivated(*context, reason);
         context->DynamicAttributesFor(this).Active = false;
@@ -2433,7 +2447,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
     }
 
     if (!HasJobsSatisfyingResourceLimits(*context)) {
-        YT_LOG_TRACE(
+        OPERATION_LOG_DETAILED(this,
             "No pending jobs can satisfy available resources on node "
             "(FreeResources: %v, DiscountResources: %v)",
             FormatResources(context->SchedulingContext->GetNodeFreeResourcesWithoutDiscount()),
@@ -2521,6 +2535,12 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
     }
 
     FinishScheduleJob(/* enableBackoff */ false, now);
+
+    OPERATION_LOG_DETAILED(this,
+        "Scheduled a job (NodeId: %v, JobId: %v, JobResourceLimits: %v)",
+        context->SchedulingContext->GetNodeDescriptor().Id,
+        startDescriptor.Id,
+        FormatResources(startDescriptor.ResourceLimits));
     return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ true);
 }
 
@@ -2721,8 +2741,7 @@ bool TOperationElement::OnJobStarted(
     const TJobResources& precommittedResources,
     bool force)
 {
-    // XXX(ignat): remove before deploy on production clusters.
-    YT_LOG_DEBUG("Adding job to strategy (JobId: %v)", jobId);
+    OPERATION_LOG_DETAILED(this, "Adding job to strategy (JobId: %v)", jobId);
 
     auto resourceUsageDelta = OperationElementSharedState_->AddJob(jobId, resourceUsage, force);
     if (resourceUsageDelta) {
@@ -2736,8 +2755,7 @@ bool TOperationElement::OnJobStarted(
 
 void TOperationElement::OnJobFinished(TJobId jobId)
 {
-    // XXX(ignat): remove before deploy on production clusters.
-    YT_LOG_DEBUG("Removing job from strategy (JobId: %v)", jobId);
+    OPERATION_LOG_DETAILED(this, "Removing job from strategy (JobId: %v)", jobId);
 
     auto delta = OperationElementSharedState_->RemoveJob(jobId);
     if (delta) {

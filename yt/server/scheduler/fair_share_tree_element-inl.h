@@ -42,6 +42,16 @@ inline double TSchedulerElement::GetFairShareRatio() const
     return ResourceTreeElement_->GetFairShareRatio();
 }
 
+inline const NLogging::TLogger& TSchedulerElement::GetLogger() const
+{
+    return Logger;
+}
+
+inline bool TOperationElement::DetailedLogsEnabled() const
+{
+    return RuntimeParams_->EnableDetailedLogs;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

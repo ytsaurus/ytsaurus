@@ -7,6 +7,8 @@
 #include "scheduling_context.h"
 #include "fair_share_strategy_operation_controller.h"
 
+#include "operation_log.h"
+
 #include <yt/server/lib/scheduler/config.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
@@ -77,6 +79,80 @@ TTagId GetUserNameProfilingTag(const TString& userName)
 
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+TOperationElement* TFairShareTree::TRootElementSnapshot::FindOperationElement(TOperationId operationId) const
+{
+    auto it = OperationIdToElement.find(operationId);
+    return it != OperationIdToElement.end() ? it->second : nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFairShareTree::TFairShareTreeSnapshot::TFairShareTreeSnapshot(
+    TFairShareTreePtr tree,
+    TFairShareTree::TRootElementSnapshotPtr rootElementSnapshot,
+    const NLogging::TLogger& logger)
+    : Tree_(std::move(tree))
+    , RootElementSnapshot_(std::move(rootElementSnapshot))
+    , Logger(logger)
+    , NodesFilter_(Tree_->GetNodesFilter())
+{ }
+
+TFuture<void> TFairShareTree::TFairShareTreeSnapshot::ScheduleJobs(const ISchedulingContextPtr& schedulingContext)
+{
+    return BIND(&TFairShareTree::DoScheduleJobs,
+        Tree_,
+        schedulingContext,
+        RootElementSnapshot_)
+        .AsyncVia(GetCurrentInvoker())
+        .Run();
+}
+
+void TFairShareTree::TFairShareTreeSnapshot::ProcessUpdatedJob(
+    TOperationId operationId,
+    TJobId jobId,
+    const TJobResources& delta)
+{
+    // NB: Should be filtered out on large clusters.
+    YT_LOG_DEBUG("Processing updated job (OperationId: %v, JobId: %v)", operationId, jobId);
+    auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
+    if (operationElement) {
+        operationElement->IncreaseJobResourceUsage(jobId, delta);
+    }
+}
+
+void TFairShareTree::TFairShareTreeSnapshot::ProcessFinishedJob(TOperationId operationId, TJobId jobId)
+{
+    // NB: Should be filtered out on large clusters.
+    YT_LOG_DEBUG("Processing finished job (OperationId: %v, JobId: %v)", operationId, jobId);
+    auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
+    if (operationElement) {
+        operationElement->OnJobFinished(jobId);
+    }
+}
+
+void TFairShareTree::TFairShareTreeSnapshot::ApplyJobMetricsDelta(
+    TOperationId operationId,
+    const TJobMetrics& jobMetricsDelta)
+{
+    auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
+    if (operationElement) {
+        operationElement->ApplyJobMetricsDelta(jobMetricsDelta);
+    }
+}
+
+bool TFairShareTree::TFairShareTreeSnapshot::HasOperation(TOperationId operationId) const
+{
+    auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
+    return operationElement != nullptr;
+}
+
+const TSchedulingTagFilter& TFairShareTree::TFairShareTreeSnapshot::GetNodesFilter() const
+{
+    return NodesFilter_;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -855,6 +931,17 @@ void ReactivateBadPackingOperations(TFairShareContext* context)
         operation->UpdateAncestorsAttributes(context);
     }
     context->BadPackingOperations.clear();
+}
+
+TDynamicAttributes TFairShareTree::GetGlobalDynamicAttributes(const TSchedulerElementPtr& element) const
+{
+    int index = element->GetTreeIndex();
+    if (index == UnassignedTreeIndex) {
+        return TDynamicAttributes();
+    } else {
+        YCHECK(index < GlobalDynamicAttributes_.size());
+        return GlobalDynamicAttributes_[index];
+    }
 }
 
 void TFairShareTree::DoScheduleJobsWithoutPreemptionImpl(
@@ -1740,7 +1827,11 @@ void TFairShareTree::ProfileCompositeSchedulerElement(TMetricsAccumulator& accum
         {tag, TreeIdProfilingTag_});
 }
 
-void TFairShareTree::ProfileSchedulerElement(TMetricsAccumulator& accumulator, const TSchedulerElementPtr& element, const TString& profilingPrefix, const TTagIdList& tags) const
+void TFairShareTree::ProfileSchedulerElement(
+    TMetricsAccumulator& accumulator,
+    const TSchedulerElementPtr& element,
+    const TString& profilingPrefix,
+    const TTagIdList& tags) const
 {
     accumulator.Add(
         profilingPrefix + "/fair_share_ratio_x100000",
