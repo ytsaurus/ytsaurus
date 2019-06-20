@@ -70,6 +70,7 @@ def run_pytest(python_version):
         yatest.common.source_path("yt/python/yt/wrapper/tests/test_operations_pickling.py"),
         # User statistics uses cgroups that available only in FAT tests.
         yatest.common.source_path("yt/python/yt/wrapper/tests/test_user_statistics.py"),
+        yatest.common.source_path("yt/python/yt/wrapper/tests/test_tmpfs.py"),
     ]
 
     cgroup = None
