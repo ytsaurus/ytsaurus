@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "scheduling_context.h"
+
 #include <yt/server/lib/scheduler/scheduling_tag.h>
 #include <yt/server/lib/scheduler/exec_node_descriptor.h>
 
@@ -19,6 +21,8 @@
 #include <yt/core/concurrency/rw_spinlock.h>
 
 #include <yt/core/misc/property.h>
+
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT::NScheduler {
 
@@ -106,6 +110,8 @@ public:
     //! Mark that node has large job archivation queues.
     DEFINE_BYVAL_RW_PROPERTY(bool, JobReporterQueueIsTooLarge);
 
+    DEFINE_BYVAL_RW_PROPERTY(TFairShareSchedulingStatistics, LastHeartbeatStatistics);
+
 public:
     TExecNode(
         NNodeTrackerClient::TNodeId id,
@@ -147,6 +153,8 @@ public:
     void SetResourceUsage(const TJobResources& value);
 
     void SetDiskInfo(const NNodeTrackerClient::NProto::TDiskResources& value);
+
+    void BuildAttributes(NYTree::TFluentMap fluent);
 
 private:
     TJobResources ResourceUsage_;
