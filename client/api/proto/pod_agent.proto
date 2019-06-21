@@ -478,6 +478,7 @@ message TBox {
     //   /usr/local/bin/sky => /skynet/tools/sky
     //   /Berkanavt => /place/berkanavt
     // Эти директории и симлинки можно добавить с помощью небольшого слоя sbr:922226367
+    // PS Если вы используете расширенные базовые образы, нужные симлинки в них уже есть https://wiki.yandex-team.ru/runtime-cloud/virtualimages/#rasshirennyjjobraz
     bool bind_skynet = 11;
 
     // TODO: Валидировать что mount_point не пересекается со static_resource
