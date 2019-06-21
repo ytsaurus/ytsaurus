@@ -155,7 +155,7 @@ void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const T
         asyncResult.Cancel();
     }
 
-    9session->Promise.TrySet(error);
+    session->Promise.TrySet(error);
 }
 
 void TBlobChunkBase::DoReadMeta(
