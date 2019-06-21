@@ -144,7 +144,18 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
 
 void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const TError& error)
 {
-    session->Promise.TrySet(error);
+    for (int entryIndex = 0; entryIndex < session->EntryCount; ++entryIndex) {
+        auto& entry = session->Entries[entryIndex];
+        if (!entry.Cached) {
+            entry.Cookie.Cancel(error);
+        }
+    }
+
+    for (auto& asyncResult : session->AsyncResults) {
+        asyncResult.Cancel();
+    }
+
+    9session->Promise.TrySet(error);
 }
 
 void TBlobChunkBase::DoReadMeta(
@@ -267,17 +278,7 @@ void TBlobChunkBase::OnBlocksExtLoaded(
         }));
 
     session->Promise.OnCanceled(BIND([session] {
-        TError error("Read session canceled");
-        for (int entryIndex = 0; entryIndex < session->EntryCount; ++entryIndex) {
-            auto& entry = session->Entries[entryIndex];
-            if (!entry.Cached) {
-                entry.Cookie.Cancel(error);
-            }
-        }
-        for (auto& asyncResult : session->AsyncResults) {
-            asyncResult.Cancel();
-        }
-        FailSession(session, error);
+        FailSession(session, TError(NYT::EErrorCode::Canceled, "Read session canceled"));
     }));
 }
 
