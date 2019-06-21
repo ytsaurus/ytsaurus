@@ -8,6 +8,7 @@
 #include "list_fragment_parser.h"
 #include "error.h"
 #include "helpers.h"
+#include "limited_yson_writer.h"
 
 #include "skiff/schema.h"
 #include "skiff/record.h"
@@ -22,6 +23,7 @@
 #include <yt/core/ytree/convert.h>
 
 #include <yt/core/yson/protobuf_interop.h>
+#include <yt/core/yson/null_consumer.h>
 
 #include <yt/core/misc/crash_handler.h>
 
@@ -342,10 +344,16 @@ public:
             ysonFormat = ParseEnum<NYson::EYsonFormat>(ConvertStringObjectToString(arg));
         }
 
+        std::optional<i64> outputLimit;
+        if (HasArgument(args, kwargs, "output_limit")) {
+            auto arg = Py::Int(ExtractArgument(args, kwargs, "output_limit"));
+            outputLimit = static_cast<i64>(Py::Long(arg).as_long());
+        }
+
         ValidateArgumentsEmpty(args, kwargs);
 
         try {
-            return DumpsProtoImpl(protoObject, skipUnknownFields, ysonFormat);
+            return DumpsProtoImpl(protoObject, skipUnknownFields, ysonFormat, outputLimit);
         } CATCH_AND_CREATE_YSON_ERROR("Yson dumps_proto failed");
     }
 
@@ -601,7 +609,7 @@ private:
         YCHECK(result);
     }
 
-    Py::Object DumpsProtoImpl(Py::Object protoObject, std::optional<bool> skipUnknownFields, NYson::EYsonFormat ysonFormat)
+    Py::Object DumpsProtoImpl(Py::Object protoObject, std::optional<bool> skipUnknownFields, NYson::EYsonFormat ysonFormat, std::optional<i64> outputLimit)
     {
         auto serializeToString = Py::Callable(GetAttr(protoObject, "SerializeToString"));
         auto serializedProto = Py::Bytes(serializeToString.apply(Py::Tuple(), Py::Dict()));
@@ -616,10 +624,6 @@ private:
 
         ::google::protobuf::io::ArrayInputStream inputStream(serializedStringBuf.begin(), serializedStringBuf.size());
 
-        TString result;
-        TStringOutput outputStream(result);
-        TYsonWriter writer(&outputStream, ysonFormat);
-
         TProtobufParserOptions options;
         if (skipUnknownFields) {
             options.SkipUnknownFields = *skipUnknownFields;
@@ -627,9 +631,18 @@ private:
             options.SkipUnknownFields = true;
         }
 
-        ParseProtobuf(&writer, &inputStream, messageType, options);
+        if (outputLimit) {
+            TLimitedYsonWriter writer(*outputLimit, ysonFormat);
+            ParseProtobuf(&writer, &inputStream, messageType, options);
+            return Py::ConvertToPythonString(writer.GetResult());
+        } else {
+            TString result;
+            TStringOutput outputStream(result);
+            TYsonWriter writer(&outputStream, ysonFormat);
 
-        return Py::ConvertToPythonString(result);
+            ParseProtobuf(&writer, &inputStream, messageType, options);
+            return Py::ConvertToPythonString(result);
+        }
     }
 
     Py::Object LoadsProtoImpl(Py::Object stringObject, Py::Object protoClassObject, std::optional<bool> skipUnknownFields)
