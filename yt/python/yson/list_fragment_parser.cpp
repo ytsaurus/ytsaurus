@@ -30,6 +30,7 @@ public:
             }
 
             if (length != 0) {
+                IsEmpty_ = false;
                 Parser_.Read(InputStream_.Current(), InputStream_.End());
                 InputStream_.Advance(length);
             } else {
@@ -51,6 +52,10 @@ public:
 private:
     void CheckItem()
     {
+        if (IsEmpty_) {
+            return;
+        }
+
         auto current = Parser_.GetCurrentPositionInBlock();
         if (!current) {
             current = InputStream_.End();
@@ -66,6 +71,7 @@ private:
     TStreamReader InputStream_;
     TListFragmentConsumer Consumer_;
     NYson::TYsonParser Parser_;
+    bool IsEmpty_ = true;
     bool IsStreamFinished_ = false;
     std::queue<TSharedRef> Rows_;
 };
