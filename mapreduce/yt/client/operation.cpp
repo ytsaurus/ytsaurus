@@ -2032,8 +2032,6 @@ public:
     TMaybe<TOperationBriefProgress> GetBriefProgress();
     void AbortOperation();
     void CompleteOperation();
-    void SuspendOperation(const TSuspendOperationOptions& options);
-    void ResumeOperation(const TResumeOperationOptions& options);
     TOperationAttributes GetAttributes(const TGetOperationOptions& options);
     void UpdateParameters(const TUpdateOperationParametersOptions& options);
     TJobAttributes GetJob(const TJobId& jobId, const TGetJobOptions& options);
@@ -2226,24 +2224,12 @@ void TOperation::TOperationImpl::FinishWithException(std::exception_ptr e)
     CompletePromise_->SetException(std::move(e));
 }
 
-void TOperation::TOperationImpl::AbortOperation()
-{
+void TOperation::TOperationImpl::AbortOperation() {
     NYT::NDetail::AbortOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, Id_);
 }
 
-void TOperation::TOperationImpl::CompleteOperation()
-{
+void TOperation::TOperationImpl::CompleteOperation() {
     NYT::NDetail::CompleteOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, Id_);
-}
-
-void TOperation::TOperationImpl::SuspendOperation(const TSuspendOperationOptions& options)
-{
-    NYT::NDetail::SuspendOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, Id_, options);
-}
-
-void TOperation::TOperationImpl::ResumeOperation(const TResumeOperationOptions& options)
-{
-    NYT::NDetail::ResumeOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, Id_, options);
 }
 
 TOperationAttributes TOperation::TOperationImpl::GetAttributes(const TGetOperationOptions& options) {
@@ -2387,16 +2373,6 @@ void TOperation::AbortOperation()
 void TOperation::CompleteOperation()
 {
     Impl_->CompleteOperation();
-}
-
-void TOperation::SuspendOperation(const TSuspendOperationOptions& options)
-{
-    Impl_->SuspendOperation(options);
-}
-
-void TOperation::ResumeOperation(const TResumeOperationOptions& options)
-{
-    Impl_->ResumeOperation(options);
 }
 
 TOperationAttributes TOperation::GetAttributes(const TGetOperationOptions& options)

@@ -76,6 +76,8 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--arcadia-root", help="path to Arcadia root")
+    parser.add_argument("--dry-run", help="don't change any files, just threaten to do it",
+                        action="store_true", default=False)
 
     subparsers = parser.add_subparsers(metavar="command")
     subparsers.required = True
@@ -101,12 +103,6 @@ def main():
     subparser.add_argument(
         "--add-external-mocks", help="add method to external mock clients (\"yes\" by default)", type=parse_yes_no, default=True)
     subparser.add_argument("--http-method", help="HTTP method (GET or POST)", required=True)
-    subparser.add_argument(
-        "--dry-run",
-        help="don't change any files, just threaten to do it",
-        action="store_true",
-        default=False,
-    )
 
     args = parser.parse_args()
     func_args = dict(vars(args))

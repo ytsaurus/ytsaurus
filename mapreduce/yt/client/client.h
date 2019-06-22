@@ -417,14 +417,6 @@ public:
         const TYPath& path,
         const TCheckPermissionOptions& options) override;
 
-    void SuspendOperation(
-        const TOperationId& operationId,
-        const TSuspendOperationOptions& options) override;
-
-    void ResumeOperation(
-        const TOperationId& operationId,
-        const TResumeOperationOptions& options) override;
-
     // Helper methods
     TYtPoller& GetYtPoller();
 

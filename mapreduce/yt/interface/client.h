@@ -325,17 +325,6 @@ public:
         EPermission permission,
         const TYPath& path,
         const TCheckPermissionOptions& options = TCheckPermissionOptions()) = 0;
-
-    // Suspend operation.
-    // Jobs will be aborted.
-    virtual void SuspendOperation(
-        const TOperationId& operationId,
-        const TSuspendOperationOptions& options = TSuspendOperationOptions()) = 0;
-
-    // Resume previously suspended operation.
-    virtual void ResumeOperation(
-        const TOperationId& operationId,
-        const TResumeOperationOptions& options = TResumeOperationOptions()) = 0;
 };
 
 IClientPtr CreateClient(
