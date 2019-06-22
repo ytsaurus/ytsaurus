@@ -707,7 +707,9 @@ TEST(TYsonToProtobufTest, KeepUnknownFields)
 
     TString protobufString;
     StringOutputStream protobufOutput(&protobufString);
-    auto protobufWriter = CreateProtobufWriter(&protobufOutput, ReflectProtobufMessageType<NYT::NProto::TExtensibleMessage>());
+    TProtobufWriterOptions options;
+    options.UnknownYsonFieldsMode = EUnknownYsonFieldsMode::Keep;
+    auto protobufWriter = CreateProtobufWriter(&protobufOutput, ReflectProtobufMessageType<NYT::NProto::TExtensibleMessage>(), options);
     ParseYsonStringBuffer(ysonString.GetData(), EYsonType::Node, protobufWriter.get());
 
     NYT::NProto::TExtensibleMessage message;
