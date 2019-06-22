@@ -36,6 +36,8 @@ public:
     virtual TMaybe<TOperationBriefProgress> GetBriefProgress() override;
     virtual void AbortOperation() override;
     virtual void CompleteOperation() override;
+    virtual void SuspendOperation(const TSuspendOperationOptions& options) override;
+    virtual void ResumeOperation(const TResumeOperationOptions& options) override;
     virtual TOperationAttributes GetAttributes(const TGetOperationOptions& options) override;
     virtual void UpdateParameters(const TUpdateOperationParametersOptions& options) override;
     virtual TJobAttributes GetJob(const TJobId& jobId, const TGetJobOptions& options) override;
