@@ -4,38 +4,17 @@
     #include <tmmintrin.h>
     #include <nmmintrin.h>
     #include <wmmintrin.h>
+
+    #include <util/system/cpu_id.h>
 #endif
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-
-ui64 ModXPow_64(size_t pow, ui64 p) // (x ^ pow) mod p(x), where pow >= 64
-{
-    ui64 rem = p;
-    while (pow-- > 64)
-    {
-        rem = (rem << 1) ^ (rem >> 63 & 1) * p;
-    }
-    return rem;
-}
-
-ui64 DivXPow_64(size_t pow, ui64 p) // (x ^ pow) div p(x), where pow >= 64
-{
-    ui64 result = 0;
-    ui64 rem = p;
-    while (pow-- > 64)
-    {
-        result = result << 1 | rem >> 63 & 1;
-        rem = (rem << 1) ^ (rem >> 63 & 1) * p;
-    }
-    return result;
-}
-
-
 #ifdef YT_USE_SSE42
+
+namespace NCrcNative0xE543279765927881 {
 
 __m128i _mm_shift_right_si128(__m128i v, ui8 offset)
 {
@@ -124,6 +103,30 @@ ui64 BarretReduction(__m128i chunk, ui64 poly, ui64 mu)
 }
 
 // http://www.intel.com/content/dam/www/public/us/en/documents/white-papers/fast-crc-computation-generic-polynomials-pclmulqdq-paper.pdf
+
+/*
+    ui64 DivXPow_64(size_t pow, ui64 p) // (x ^ pow) div p(x), where pow >= 64
+    {
+        ui64 result = 0;
+        ui64 rem = p;
+        while (pow-- > 64)
+        {
+            result = result << 1 | rem >> 63 & 1;
+            rem = (rem << 1) ^ (rem >> 63 & 1) * p;
+        }
+        return result;
+    }
+
+    ui64 ModXPow_64(size_t pow, ui64 p) // (x ^ pow) mod p(x), where pow >= 64
+    {
+        ui64 rem = p;
+        while (pow-- > 64)
+        {
+            rem = (rem << 1) ^ (rem >> 63 & 1) * p;
+        }
+        return rem;
+    }
+*/
 
 constexpr ui64 Poly = ULL(0xE543279765927881);
 constexpr ui64 Mu = ULL(0x9d9034581c0766b0); // DivXPow_64(128, poly)
@@ -216,7 +219,13 @@ ui64 Crc(const void* buf, size_t buflen, ui64 seed) Y_NO_SANITIZE("memory")
     return BarretReduction(result, Poly, Mu);
 }
 
-#else
+} // namespace namespace NCrcNative0xE543279765927881
+
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NCrcTable0xE543279765927881 {
 
 ui64 CrcLookup[8][256] = {
     {
@@ -794,9 +803,24 @@ ui64 Crc(const void* buf, size_t buflen, ui64 crcinit)
     return ReverseBytes(crcinit);
 }
 
-#endif
+} // namespace NCrcTable0xE543279765927881
 
-} // namespace NDetail
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+ui64 CrcImpl(const void* data, size_t length, ui64 seed)
+{
+#ifdef YT_USE_SSE42
+    static const bool Native = NX86::HaveSSE42() && NX86::HavePCLMUL();
+    if (Native) {
+        return NCrcNative0xE543279765927881::Crc(data, length, seed);
+    }
+#endif
+    return NCrcTable0xE543279765927881::Crc(data, length, seed);
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -811,7 +835,7 @@ TChecksum CombineChecksums(const std::vector<TChecksum>& blockChecksums)
 
 TChecksum GetChecksum(TRef data)
 {
-    return NDetail::Crc(data.Begin(), data.Size(), 0);
+    return CrcImpl(data.Begin(), data.Size(), 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -828,7 +852,7 @@ TChecksum TChecksumInput::GetChecksum() const
 size_t TChecksumInput::DoRead(void* buf, size_t len)
 {
     size_t res = Input_->Read(buf, len);
-    Checksum_ = NDetail::Crc(buf, res, Checksum_);
+    Checksum_ = CrcImpl(buf, res, Checksum_);
     return res;
 }
 
@@ -846,7 +870,7 @@ TChecksum TChecksumOutput::GetChecksum() const
 void TChecksumOutput::DoWrite(const void* buf, size_t len)
 {
     Output_->Write(buf, len);
-    Checksum_ = NDetail::Crc(buf, len, Checksum_);
+    Checksum_ = CrcImpl(buf, len, Checksum_);
 }
 
 void TChecksumOutput::DoFlush()
