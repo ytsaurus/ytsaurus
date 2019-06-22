@@ -45,9 +45,6 @@ static constexpr size_t TypicalFieldCount = 16;
 using TFieldNumberList = SmallVector<int, TypicalFieldCount>;
 
 static constexpr int AttributeDictionaryAttributeFieldNumber = 1;
-static constexpr int AttributeDictionaryKeyFieldNumber = 1;
-static constexpr int AttributeDictionaryValueFieldNumber = 2;
-
 static constexpr int ProtobufMapKeyFieldNumber = 1;
 static constexpr int ProtobufMapValueFieldNumber = 2;
 
@@ -631,6 +628,8 @@ public:
         , AttributeValueWriter_(&AttributeValueStream_)
         , YsonStringStream_(YsonString_)
         , YsonStringWriter_(&YsonStringStream_)
+        , UnknownYsonFieldValueStringStream_(UnknownYsonFieldValueString_)
+        , UnknownYsonFieldValueStringWriter_(&UnknownYsonFieldValueStringStream_)
     { }
 
 private:
@@ -695,6 +694,12 @@ private:
     TString YsonString_;
     TStringOutput YsonStringStream_;
     TBufferedBinaryYsonWriter YsonStringWriter_;
+
+    TString UnknownYsonFieldKey_;
+    TString UnknownYsonFieldValueString_;
+    TStringOutput UnknownYsonFieldValueStringStream_;
+    TBufferedBinaryYsonWriter UnknownYsonFieldValueStringWriter_;
+
 
     virtual void OnMyStringScalar(TStringBuf value) override
     {
@@ -832,6 +837,7 @@ private:
 
         const auto* field = FieldStack_.back().Field;
         TypeStack_.emplace_back(field->GetMessageType());
+
         if (!field->IsYsonMap()) {
             if (field->GetType() != FieldDescriptor::TYPE_MESSAGE) {
                 THROW_ERROR_EXCEPTION("Field %v cannot be parsed from \"map\" values",
@@ -887,50 +893,36 @@ private:
 
     void OnMyKeyedItemRegular(TStringBuf key)
     {
+        auto& typeEntry = TypeStack_.back();
         const auto* type = TypeStack_.back().Type;
         const auto* field = type->FindFieldByName(key);
         if (!field) {
-            if (type->IsReservedFieldName(key)) {
+            if (Options_.UnknownYsonFieldsMode == EUnknownYsonFieldsMode::Keep) {
+                UnknownYsonFieldKey_ = TString(key);
+                UnknownYsonFieldValueString_.clear();
+                Forward(
+                    &UnknownYsonFieldValueStringWriter_,
+                    [this] {
+                        UnknownYsonFieldValueStringWriter_.Flush();
+                        BodyCodedStream_.WriteTag(google::protobuf::internal::WireFormatLite::MakeTag(UnknownYsonFieldNumber, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+                        WriteKeyValuePair(UnknownYsonFieldKey_, UnknownYsonFieldValueString_);
+                    });
+                return;
+            }
+
+            if (Options_.UnknownYsonFieldsMode == EUnknownYsonFieldsMode::Skip || type->IsReservedFieldName(key)) {
                 Forward(GetNullYsonConsumer(), [] {});
                 return;
             }
 
-            auto keyString = TString(key);
-            auto path = YPathStack_.GetPath();
-            auto humanReadablePath = YPathStack_.GetHumanReadablePath();
-
-            auto throwError = [type, keyString, path, humanReadablePath] {
-                THROW_ERROR_EXCEPTION("Unknown field %Qv at %v",
-                    keyString,
-                    humanReadablePath)
-                    << TErrorAttribute("ypath", path)
-                    << TErrorAttribute("proto_type", type->GetFullName());
-            };
-
-            if (Options_.UnknownFieldCallback) {
-                YsonString_.clear();
-                Forward(
-                    &YsonStringWriter_,
-                    [this, keyString, path, throwError] {
-                        YsonStringWriter_.Flush();
-                        if (!Options_.UnknownFieldCallback(path, keyString, TYsonString(std::move(YsonString_)))) {
-                            if (!Options_.SkipUnknownFields) {
-                                throwError();
-                            }
-                        }
-                    });
-            } else {
-                if (Options_.SkipUnknownFields) {
-                    Forward(GetNullYsonConsumer(), [] {});
-                } else {
-                    throwError();
-                }
-            }
-            return;
+            THROW_ERROR_EXCEPTION("Unknown field %Qv at %v",
+                key,
+                YPathStack_.GetHumanReadablePath())
+                << TErrorAttribute("ypath", YPathStack_.GetPath())
+                << TErrorAttribute("proto_type", type->GetFullName());
         }
 
         auto number = field->GetNumber();
-        auto& typeEntry = TypeStack_.back();
         ++typeEntry.CurrentMapIndex;
         if (field->IsRequired()) {
             typeEntry.RequiredFieldNumbers.push_back(number);
@@ -959,23 +951,8 @@ private:
         AttributeValue_.clear();
         Forward(&AttributeValueWriter_, [this] {
             AttributeValueWriter_.Flush();
-
             BodyCodedStream_.WriteTag(google::protobuf::internal::WireFormatLite::MakeTag(AttributeDictionaryAttributeFieldNumber, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
-            BodyCodedStream_.WriteVarint64(
-                1 +
-                CodedOutputStream::VarintSize64(AttributeKey_.length()) +
-                AttributeKey_.length() +
-                1 +
-                CodedOutputStream::VarintSize64(AttributeValue_.length()) +
-                AttributeValue_.length());
-
-            BodyCodedStream_.WriteTag(google::protobuf::internal::WireFormatLite::MakeTag(AttributeDictionaryKeyFieldNumber, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
-            BodyCodedStream_.WriteVarint64(AttributeKey_.length());
-            BodyCodedStream_.WriteRaw(AttributeKey_.data(), AttributeKey_.length());
-
-            BodyCodedStream_.WriteTag(google::protobuf::internal::WireFormatLite::MakeTag(AttributeDictionaryValueFieldNumber, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
-            BodyCodedStream_.WriteVarint64(AttributeValue_.length());
-            BodyCodedStream_.WriteRaw(AttributeValue_.data(), AttributeValue_.length());
+            WriteKeyValuePair(AttributeKey_, AttributeValue_);
         });
     }
 
@@ -1200,6 +1177,25 @@ private:
         func();
         FieldStack_.pop_back();
         YPathStack_.Pop();
+    }
+
+    void WriteKeyValuePair(const TString& key, const TString& value)
+    {
+        BodyCodedStream_.WriteVarint64(
+            1 +
+            CodedOutputStream::VarintSize64(key.length()) +
+            key.length() +
+            1 +
+            CodedOutputStream::VarintSize64(value.length()) +
+            value.length());
+
+        BodyCodedStream_.WriteTag(google::protobuf::internal::WireFormatLite::MakeTag(ProtobufMapKeyFieldNumber, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+        BodyCodedStream_.WriteVarint64(key.length());
+        BodyCodedStream_.WriteRaw(key.data(), static_cast<int>(key.length()));
+
+        BodyCodedStream_.WriteTag(google::protobuf::internal::WireFormatLite::MakeTag(ProtobufMapValueFieldNumber, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+        BodyCodedStream_.WriteVarint64(value.length());
+        BodyCodedStream_.WriteRaw(value.data(), static_cast<int>(value.length()));
     }
 
 
@@ -1434,8 +1430,8 @@ private:
     std::vector<CodedInputStream::Limit> LimitStack_;
 
     std::vector<char> PooledString_;
-    std::vector<char> PooledAttributeKey_;
-    std::vector<char> PooledAttributeValue_;
+    std::vector<char> PooledKey_;
+    std::vector<char> PooledValue_;
 
 
     void OnBeginMap()
@@ -1568,8 +1564,33 @@ private:
             return false;
         }
 
+        auto handleRepeated = [&] {
+            if (typeEntry.RepeatedField) {
+                if (typeEntry.RepeatedField->IsYsonMap()) {
+                    Consumer_->OnEndMap();
+                } else {
+                    Consumer_->OnEndList();
+                }
+                YPathStack_.Pop();
+            }
+            typeEntry.ResetRepeated();
+        };
+
         auto wireType = WireFormatLite::GetTagWireType(tag);
         auto fieldNumber = WireFormatLite::GetTagFieldNumber(tag);
+        if (fieldNumber == UnknownYsonFieldNumber) {
+            if (wireType != WireFormatLite::WIRETYPE_LENGTH_DELIMITED) {
+                THROW_ERROR_EXCEPTION("Invalid wire type %v while parsing unknown field at %v",
+                    static_cast<int>(wireType),
+                    YPathStack_.GetHumanReadablePath())
+                    << TErrorAttribute("ypath", YPathStack_.GetPath());
+            }
+
+            handleRepeated();
+            ParseKeyValuePair();
+            return true;
+        }
+
         const auto* field = type->FindFieldByNumber(fieldNumber);
         if (!field) {
             if (Options_.SkipUnknownFields || type->IsReservedFieldNumber(fieldNumber)) {
@@ -1646,15 +1667,7 @@ private:
                 OnListItem(typeEntry.GenerateNextListIndex());
             }
         } else {
-            if (typeEntry.RepeatedField) {
-                if (typeEntry.RepeatedField->IsYsonMap()) {
-                    Consumer_->OnEndMap();
-                } else {
-                    Consumer_->OnEndList();
-                }
-                YPathStack_.Pop();
-            }
-            typeEntry.ResetRepeated();
+            handleRepeated();
 
             OnKeyedItem(field);
 
@@ -1909,10 +1922,45 @@ private:
             }
         };
 
+        while (true) {
+            auto tag = CodedStream_.ReadTag();
+            if (tag == 0) {
+                return false;
+            }
+
+            expectWireType(WireFormatLite::GetTagWireType(tag), WireFormatLite::WIRETYPE_LENGTH_DELIMITED);
+            expectFieldNumber(WireFormatLite::GetTagFieldNumber(tag), AttributeDictionaryAttributeFieldNumber);
+
+            ParseKeyValuePair();
+        }
+    }
+
+    void ParseKeyValuePair()
+    {
+        auto throwUnexpectedWireType = [&] (WireFormatLite::WireType actualWireType) {
+            THROW_ERROR_EXCEPTION("Invalid wire type %v while parsing key-value pair at %v",
+                static_cast<int>(actualWireType),
+                YPathStack_.GetHumanReadablePath())
+                << TErrorAttribute("ypath", YPathStack_.GetPath());
+        };
+
+        auto expectWireType = [&] (WireFormatLite::WireType actualWireType, WireFormatLite::WireType expectedWireType) {
+            if (actualWireType != expectedWireType) {
+                throwUnexpectedWireType(actualWireType);
+            }
+        };
+
+        auto throwUnexpectedFieldNumber = [&] (int actualFieldNumber) {
+            THROW_ERROR_EXCEPTION("Invalid field number %v while parsing key-value pair at %v",
+                actualFieldNumber,
+                YPathStack_.GetHumanReadablePath())
+                << TErrorAttribute("ypath", YPathStack_.GetPath());
+        };
+
         auto readVarint64 = [&] () {
             ui64 value;
             if (!CodedStream_.ReadVarint64(&value)) {
-                THROW_ERROR_EXCEPTION("Error reading \"varint\" value while parsing attribute dictionary %v",
+                THROW_ERROR_EXCEPTION("Error reading \"varint\" value while parsing key-value pair at %v",
                     YPathStack_.GetHumanReadablePath())
                     << TErrorAttribute("ypath", YPathStack_.GetPath());
             }
@@ -1923,78 +1971,70 @@ private:
             auto length = readVarint64();
             pool->resize(length);
             if (!CodedStream_.ReadRaw(pool->data(), length)) {
-                THROW_ERROR_EXCEPTION("Error reading \"string\" value while parsing attribute dictionary %v",
+                THROW_ERROR_EXCEPTION("Error reading \"string\" value while parsing key-value pair at %v",
                     YPathStack_.GetHumanReadablePath())
                     << TErrorAttribute("ypath", YPathStack_.GetPath());
             }
             return TStringBuf(pool->data(), length);
         };
 
+        auto entryLength = readVarint64();
+        LimitStack_.push_back(CodedStream_.PushLimit(static_cast<int>(entryLength)));
+
+        std::optional<TStringBuf> key;
+        std::optional<TStringBuf> value;
         while (true) {
             auto tag = CodedStream_.ReadTag();
             if (tag == 0) {
-                return false;
+                break;
             }
 
-            expectWireType(WireFormatLite::GetTagWireType(tag), WireFormatLite::WIRETYPE_LENGTH_DELIMITED);
-            expectFieldNumber(WireFormatLite::GetTagFieldNumber(tag), 1);
-
-            auto entryLength = readVarint64();
-            LimitStack_.push_back(CodedStream_.PushLimit(static_cast<int>(entryLength)));
-
-            std::optional<TStringBuf> key;
-            std::optional<TStringBuf> value;
-            while (true) {
-                auto tag = CodedStream_.ReadTag();
-                if (tag == 0) {
+            auto fieldNumber = WireFormatLite::GetTagFieldNumber(tag);
+            switch (fieldNumber) {
+                case ProtobufMapKeyFieldNumber: {
+                    expectWireType(WireFormatLite::GetTagWireType(tag), WireFormatLite::WIRETYPE_LENGTH_DELIMITED);
+                    if (key) {
+                        THROW_ERROR_EXCEPTION("Duplicate key found while parsing key-value pair at%v",
+                            YPathStack_.GetHumanReadablePath())
+                            << TErrorAttribute("ypath", YPathStack_.GetPath());
+                    }
+                    key = readString(&PooledKey_);
                     break;
                 }
 
-                auto fieldNumber = WireFormatLite::GetTagFieldNumber(tag);
-                switch (fieldNumber) {
-                    case AttributeDictionaryKeyFieldNumber: {
-                        if (key) {
-                            THROW_ERROR_EXCEPTION("Duplicate key found while parsing attribute dictionary %v",
-                                YPathStack_.GetHumanReadablePath())
-                                << TErrorAttribute("ypath", YPathStack_.GetPath());
-                        }
-                        key = readString(&PooledAttributeKey_);
-                        break;
+                case ProtobufMapValueFieldNumber: {
+                    expectWireType(WireFormatLite::GetTagWireType(tag), WireFormatLite::WIRETYPE_LENGTH_DELIMITED);
+                    if (value) {
+                        THROW_ERROR_EXCEPTION("Duplicate value found while parsing key-value pair at %v",
+                            YPathStack_.GetHumanReadablePath())
+                            << TErrorAttribute("ypath", YPathStack_.GetPath());
                     }
-
-                    case AttributeDictionaryValueFieldNumber: {
-                        if (value) {
-                            THROW_ERROR_EXCEPTION("Duplicate value found while parsing attribute dictionary %v",
-                                YPathStack_.GetHumanReadablePath())
-                                << TErrorAttribute("ypath", YPathStack_.GetPath());
-                        }
-                        value = readString(&PooledAttributeValue_);
-                        break;
-                    }
-
-                    default:
-                        throwUnexpectedFieldNumber(fieldNumber);
-                        break;
+                    value = readString(&PooledValue_);
+                    break;
                 }
-            }
 
-            if (!key) {
-                THROW_ERROR_EXCEPTION("Missing key while parsing attribute dictionary %v",
-                    YPathStack_.GetHumanReadablePath())
-                    << TErrorAttribute("ypath", YPathStack_.GetPath());
+                default:
+                    throwUnexpectedFieldNumber(fieldNumber);
+                    break;
             }
-            if (!value) {
-                THROW_ERROR_EXCEPTION("Missing value while parsing attribute dictionary %v",
-                    YPathStack_.GetHumanReadablePath())
-                    << TErrorAttribute("ypath", YPathStack_.GetPath());
-            }
-
-            Consumer_->OnKeyedItem(*key);
-            Consumer_->OnRaw(*value, NYson::EYsonType::Node);
-
-            CodedStream_.PopLimit(LimitStack_.back());
-            LimitStack_.pop_back();
         }
+
+        if (!key) {
+            THROW_ERROR_EXCEPTION("Missing key while parsing key-value pair at %v",
+                YPathStack_.GetHumanReadablePath())
+                << TErrorAttribute("ypath", YPathStack_.GetPath());
+        }
+        if (!value) {
+            THROW_ERROR_EXCEPTION("Missing value while parsing key-value pair %v",
+                YPathStack_.GetHumanReadablePath())
+                << TErrorAttribute("ypath", YPathStack_.GetPath());
+        }
+
+        Consumer_->OnKeyedItem(*key);
+        Consumer_->OnRaw(*value, NYson::EYsonType::Node);
+
+        CodedStream_.PopLimit(LimitStack_.back());
+        LimitStack_.pop_back();
     }
 
     template <class F>
@@ -2057,7 +2097,8 @@ TProtobufElementResolveResult GetProtobufElementFromField(
 
 TProtobufElementResolveResult ResolveProtobufElementByYPath(
     const TProtobufMessageType* rootType,
-    const NYPath::TYPath& path)
+    const NYPath::TYPath& path,
+    const TResolveProtobufElementByYPathOptions& options)
 {
     NYPath::TTokenizer tokenizer(path);
 
@@ -2069,7 +2110,7 @@ TProtobufElementResolveResult ResolveProtobufElementByYPath(
         };
     };
 
-    auto* currentType = rootType;
+    const auto* currentType = rootType;
     while (true) {
         YCHECK(currentType);
 
@@ -2092,6 +2133,9 @@ TProtobufElementResolveResult ResolveProtobufElementByYPath(
         const auto& fieldName = tokenizer.GetLiteralValue();
         const auto* field = currentType->FindFieldByName(fieldName);
         if (!field) {
+            if (options.AllowUnknownYsonFields) {
+                return makeResult(std::make_unique<TProtobufAnyElement>());
+            }
             THROW_ERROR_EXCEPTION("No such field %v",
                 FormatYPath(tokenizer.GetPrefixPlusToken()))
                 << TErrorAttribute("ypath", tokenizer.GetPrefixPlusToken())

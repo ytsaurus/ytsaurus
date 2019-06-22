@@ -521,7 +521,9 @@ void UnversionedValueToProtobufImpl(
     }
     TString wireBytes;
     StringOutputStream outputStream(&wireBytes);
-    auto protobufWriter = CreateProtobufWriter(&outputStream, type);
+    TProtobufWriterOptions options;
+    options.UnknownYsonFieldsMode = EUnknownYsonFieldsMode::Keep;
+    auto protobufWriter = CreateProtobufWriter(&outputStream, type, options);
     ParseYsonStringBuffer(
         TStringBuf(unversionedValue.Data.String, unversionedValue.Length),
         EYsonType::Node,
