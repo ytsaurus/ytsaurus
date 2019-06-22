@@ -288,6 +288,10 @@ namespace NYT {
     template <class TR, class TW>
     class IAggregatorReducer;
 
+    struct TSuspendOperationOptions;
+
+    struct TResumeOperationOptions;
+
     enum class EOperationBriefState : int;
 
     struct TOperationAttributes;

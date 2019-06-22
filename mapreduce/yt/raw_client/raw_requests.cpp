@@ -352,7 +352,10 @@ TOperationAttributes GetOperation(
     return ParseOperationAttributes(NodeFromYsonString(result.Response));
 }
 
-void AbortOperation(const IRequestRetryPolicyPtr& retryPolicy, const TAuth& auth, const TOperationId& operationId)
+void AbortOperation(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TOperationId& operationId)
 {
     THttpHeader header("POST", "abort_op");
     header.AddMutationId();
@@ -360,11 +363,38 @@ void AbortOperation(const IRequestRetryPolicyPtr& retryPolicy, const TAuth& auth
     RetryRequestWithPolicy(retryPolicy, auth, header);
 }
 
-void CompleteOperation(const IRequestRetryPolicyPtr& retryPolicy, const TAuth& auth, const TOperationId& operationId)
+void CompleteOperation(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TOperationId& operationId)
 {
     THttpHeader header("POST", "complete_op");
     header.AddMutationId();
     header.MergeParameters(SerializeParamsForCompleteOperation(operationId));
+    RetryRequestWithPolicy(retryPolicy, auth, header);
+}
+
+void SuspendOperation(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TOperationId& operationId,
+    const TSuspendOperationOptions& options)
+{
+    THttpHeader header("POST", "suspend_op");
+    header.AddMutationId();
+    header.MergeParameters(SerializeParamsForSuspendOperation(operationId, options));
+    RetryRequestWithPolicy(retryPolicy, auth, header);
+}
+
+void ResumeOperation(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TOperationId& operationId,
+    const TResumeOperationOptions& options)
+{
+    THttpHeader header("POST", "resume_op");
+    header.AddMutationId();
+    header.MergeParameters(SerializeParamsForResumeOperation(operationId, options));
     RetryRequestWithPolicy(retryPolicy, auth, header);
 }
 
