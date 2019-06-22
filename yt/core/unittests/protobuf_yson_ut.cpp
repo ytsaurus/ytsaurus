@@ -1245,7 +1245,7 @@ void TestAnyByYPath(const TYPath& path, const TYPath& headPath)
 {
     TResolveProtobufElementByYPathOptions options;
     options.AllowUnknownYsonFields = true;
-    auto result = ResolveProtobufElementByYPath(ReflectProtobufMessageType<T>(), path);
+    auto result = ResolveProtobufElementByYPath(ReflectProtobufMessageType<T>(), path, options);
     EXPECT_TRUE(std::holds_alternative<std::unique_ptr<TProtobufAnyElement>>(result.Element));
     EXPECT_EQ(headPath, result.HeadPath);
     EXPECT_EQ(path.substr(headPath.length()), result.TailPath);
