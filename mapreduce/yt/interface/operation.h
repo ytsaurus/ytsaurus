@@ -1333,17 +1333,6 @@ struct IOperation
     virtual void CompleteOperation() = 0;
 
     //
-    // Suspend operation.
-    // Jobs will not be aborted by default, c.f. TSuspendOperationOptions.
-    virtual void SuspendOperation(
-        const TSuspendOperationOptions& options = TSuspendOperationOptions()) = 0;
-
-    //
-    // Resume previously suspended operation.
-    virtual void ResumeOperation(
-        const TResumeOperationOptions& options = TResumeOperationOptions()) = 0;
-
-    //
     // Get operation attributes.
     virtual TOperationAttributes GetAttributes(
         const TGetOperationOptions& options = TGetOperationOptions()) = 0;
@@ -1351,7 +1340,7 @@ struct IOperation
     //
     // Update operation runtime parameters.
     virtual void UpdateParameters(
-        const TUpdateOperationParametersOptions& options = TUpdateOperationParametersOptions()) = 0;
+        const TUpdateOperationParametersOptions& options) = 0;
 
     //
     // Get job attributes.

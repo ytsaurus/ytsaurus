@@ -85,14 +85,6 @@ TNode SerializeParamsForAbortOperation(
 TNode SerializeParamsForCompleteOperation(
     const TOperationId& operationId);
 
-TNode SerializeParamsForSuspendOperation(
-    const TOperationId& operationId,
-    const TSuspendOperationOptions& options);
-
-TNode SerializeParamsForResumeOperation(
-    const TOperationId& operationId,
-    const TResumeOperationOptions& options);
-
 TNode SerializeParamsForListOperations(
     const TListOperationsOptions& options);
 

@@ -978,20 +978,6 @@ TCheckPermissionResponse TClient::CheckPermission(
     return NRawClient::CheckPermission(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, user, permission, path, options);
 }
 
-void TClient::SuspendOperation(
-    const TOperationId& operationId,
-    const TSuspendOperationOptions& options)
-{
-    NRawClient::SuspendOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, operationId, options);
-}
-
-void TClient::ResumeOperation(
-    const TOperationId& operationId,
-    const TResumeOperationOptions& options)
-{
-    NRawClient::ResumeOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, operationId, options);
-}
-
 TYtPoller& TClient::GetYtPoller()
 {
     auto g = Guard(YtPollerLock_);

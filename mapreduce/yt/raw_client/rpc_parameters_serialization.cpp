@@ -345,28 +345,6 @@ TNode SerializeParamsForCompleteOperation(const TOperationId& operationId)
     return result;
 }
 
-TNode SerializeParamsForSuspendOperation(
-    const TOperationId& operationId,
-    const TSuspendOperationOptions& options)
-{
-    TNode result;
-    SetOperationIdParam(&result, operationId);
-    if (options.AbortRunningJobs_) {
-        result["abort_running_jobs"] = *options.AbortRunningJobs_;
-    }
-    return result;
-}
-
-TNode SerializeParamsForResumeOperation(
-    const TOperationId& operationId,
-    const TResumeOperationOptions& options)
-{
-    TNode result;
-    SetOperationIdParam(&result, operationId);
-    Y_UNUSED(options);
-    return result;
-}
-
 TNode SerializeParamsForUpdateOperationParameters(
     const TOperationId& operationId,
     const TUpdateOperationParametersOptions& options)

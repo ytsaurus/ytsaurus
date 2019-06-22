@@ -144,20 +144,6 @@ TFuture<void> TBatchRequest::CompleteOperation(const NYT::TOperationId& operatio
     return Impl_->CompleteOperation(operationId);
 }
 
-TFuture<void> TBatchRequest::SuspendOperation(
-    const TOperationId& operationId,
-    const TSuspendOperationOptions& options)
-{
-    return Impl_->SuspendOperation(operationId, options);
-}
-
-TFuture<void> TBatchRequest::ResumeOperation(
-    const TOperationId& operationId,
-    const TResumeOperationOptions& options)
-{
-    return Impl_->ResumeOperation(operationId, options);
-}
-
 TFuture<void> TBatchRequest::UpdateOperationParameters(
     const NYT::TOperationId& operationId,
     const NYT::TUpdateOperationParametersOptions& options)

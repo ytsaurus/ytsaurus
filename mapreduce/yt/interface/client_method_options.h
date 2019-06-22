@@ -206,20 +206,6 @@ struct TSchedulingOptionsPerPoolTree
     THashMap<TString, TSchedulingOptions> Options_;
 };
 
-// https://wiki.yandex-team.ru/yt/userdoc/api/#suspendop
-struct TSuspendOperationOptions
-{
-    using TSelf = TSuspendOperationOptions;
-
-    FLUENT_FIELD_OPTION(bool, AbortRunningJobs);
-};
-
-// https://wiki.yandex-team.ru/yt/userdoc/api/#resumeop
-struct TResumeOperationOptions
-{
-    using TSelf = TResumeOperationOptions;
-};
-
 // https://wiki.yandex-team.ru/yt/userdoc/api/#updateopparameters
 struct TUpdateOperationParametersOptions
 {

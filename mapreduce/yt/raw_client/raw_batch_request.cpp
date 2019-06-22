@@ -497,24 +497,6 @@ TFuture<void> TRawBatchRequest::CompleteOperation(const TOperationId& operationI
         SerializeParamsForCompleteOperation(operationId),
         Nothing());
 }
-TFuture<void> TRawBatchRequest::SuspendOperation(
-    const TOperationId& operationId,
-    const TSuspendOperationOptions& options)
-{
-    return AddRequest<TVoidResponseParser>(
-        "suspend_operation",
-        SerializeParamsForSuspendOperation(operationId, options),
-        Nothing());
-}
-TFuture<void> TRawBatchRequest::ResumeOperation(
-    const TOperationId& operationId,
-    const TResumeOperationOptions& options)
-{
-    return AddRequest<TVoidResponseParser>(
-        "resume_operation",
-        SerializeParamsForResumeOperation(operationId, options),
-        Nothing());
-}
 
 TFuture<void> TRawBatchRequest::UpdateOperationParameters(
     const TOperationId& operationId,
