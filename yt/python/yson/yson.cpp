@@ -645,11 +645,9 @@ private:
         ::google::protobuf::io::StringOutputStream outputStream(&result);
 
         TProtobufWriterOptions options;
-        if (skipUnknownFields) {
-            options.SkipUnknownFields = *skipUnknownFields;
-        } else {
-            options.SkipUnknownFields = true;
-        }
+        options.UnknownYsonFieldsMode = skipUnknownFields.value_or(false)
+            ? EUnknownYsonFieldsMode::Skip
+            : EUnknownYsonFieldsMode::Fail;
         auto writer = CreateProtobufWriter(&outputStream, messageType, options);
 
         ParseYsonStringBuffer(ConvertToStringBuf(stringObject), EYsonType::Node, writer.get());

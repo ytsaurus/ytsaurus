@@ -87,27 +87,40 @@ struct TProtobufElementResolveResult
     TStringBuf TailPath;
 };
 
+struct TResolveProtobufElementByYPathOptions
+{
+    bool AllowUnknownYsonFields = false;
+};
+
 //! Introspects a given #rootType and locates an element (represented
 //! by TProtobufElement discriminated union) at a given #path.
 //! Throws if some definite error occurs during resolve (i.e. a malformed
 //! YPath or a reference to a non-existing field).
 TProtobufElementResolveResult ResolveProtobufElementByYPath(
     const TProtobufMessageType* rootType,
-    const NYPath::TYPath& path);
+    const NYPath::TYPath& path,
+    const TResolveProtobufElementByYPathOptions& options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr int UnknownYsonFieldNumber = 3005;
+
+DEFINE_ENUM(EUnknownYsonFieldsMode,
+    (Skip)
+    (Fail)
+    (Keep)
+);
+
 struct TProtobufWriterOptions
 {
-    //! If given, invoked for each unknown field found in YSON.
-    //! Returns |true| if the field is successfully consumed (see #SkipUnknownFields) or
-    //! |false| otherwise.
-    std::function<bool(const NYPath::TYPath& path, const TString& key, NYson::TYsonString value)> UnknownFieldCallback;
-
-    //! If |false| and #UnknownFieldCallback is null or returns |false| for an unknown field,
-    //! then an exception is thrown; otherwise the field is silently skipped.
-    //! Note that reserved fields are always unconditionally skipped.
-    bool SkipUnknownFields = false;
+    //! Keep: all unknown fields found during YSON parsing
+    //! are translated into Protobuf unknown fields (each has number UnknownYsonFieldNumber
+    //! and is a key-value pair with field name being its key and YSON being the value).
+    //!
+    //! Skip: all unknown fields are silently skipped;
+    //!
+    //! Fail: an exception is thrown whenever an unknown field is found.
+    EUnknownYsonFieldsMode UnknownYsonFieldsMode = EUnknownYsonFieldsMode::Fail;
 
     //! If |true| then required fields not found in protobuf metadata are
     //! silently skipped; otherwise an exception is thrown.

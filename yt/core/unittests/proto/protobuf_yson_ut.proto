@@ -71,3 +71,16 @@ message TMessageWithReservedFields
     reserved "reserved_field2";
     reserved "reserved_field3";
 }
+
+message TExtensibleMessage
+{
+    message TSubmessage
+    {
+        optional int32 known_int = 1;
+        optional string known_string = 2;
+    }
+
+    optional string known_string = 1;
+    repeated TSubmessage known_submessages = 2;
+    optional TSubmessage known_submessage = 3;
+}
