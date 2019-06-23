@@ -127,6 +127,12 @@ public:
         const TGetOperationOptions& options);
     NThreading::TFuture<void> AbortOperation(const TOperationId& operationId);
     NThreading::TFuture<void> CompleteOperation(const TOperationId& operationId);
+    NThreading::TFuture<void> SuspendOperation(
+        const TOperationId& operationId,
+        const TSuspendOperationOptions& options);
+    NThreading::TFuture<void> ResumeOperation(
+        const TOperationId& operationId,
+        const TResumeOperationOptions& options);
     NThreading::TFuture<void> UpdateOperationParameters(
         const TOperationId& operationId,
         const TUpdateOperationParametersOptions& options);

@@ -90,6 +90,14 @@ public:
 
     virtual NThreading::TFuture<void> CompleteOperation(const TOperationId& operationId) override;
 
+    NThreading::TFuture<void> SuspendOperation(
+        const TOperationId& operationId,
+        const TSuspendOperationOptions& options) override;
+
+    NThreading::TFuture<void> ResumeOperation(
+        const TOperationId& operationId,
+        const TResumeOperationOptions& options) override;
+
     virtual NThreading::TFuture<void> UpdateOperationParameters(
         const TOperationId& operationId,
         const TUpdateOperationParametersOptions& options) override;

@@ -69,6 +69,14 @@ public:
 
     virtual NThreading::TFuture<void> CompleteOperation(const TOperationId& operationId) = 0;
 
+    virtual NThreading::TFuture<void> SuspendOperation(
+        const TOperationId& operationId,
+        const TSuspendOperationOptions& options = TSuspendOperationOptions()) = 0;
+
+    virtual NThreading::TFuture<void> ResumeOperation(
+        const TOperationId& operationId,
+        const TResumeOperationOptions& options = TResumeOperationOptions()) = 0;
+
     virtual NThreading::TFuture<void> UpdateOperationParameters(
         const TOperationId& operationId,
         const TUpdateOperationParametersOptions& options = TUpdateOperationParametersOptions()) = 0;
