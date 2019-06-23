@@ -162,7 +162,7 @@ def select_client_in_interface(path, after_method):
 
 def select_client_class(path, after_method):
     header = read_file(join(path, "client/client.h"))
-    pos = find_pos_after_method(header, after_method)
+    pos = find_pos_after_method(header, after_method, allow_one_line_declaration=True)
     while pos >= 0:
         if "class" in header.lines[pos]:
             return header.lines[pos].split()[-1]
@@ -226,7 +226,7 @@ class Generator(object):
 
     def try_insert_after(self, file, after_method, code):
         try:
-            begin, end = find_method(file, after_method)
+            begin, end = find_method(file, after_method, allow_one_line_declaration=True)
             indent = get_indent(file.lines[begin])
             file = insert(file, end, with_indent(code, indent))
             if not self.dry_run:
@@ -319,7 +319,10 @@ class Generator(object):
                 continue
             if type == "const TYPath&" and name == "path":
                 code.append("SetPathParam(&result, path);")
-            code.append('result["{}"] = {};'.format(camel_to_snake(name), name))
+            elif type == "const TOperationId&" and name == "operationId":
+                code.append("SetOperationIdParam(&result, operationId)")
+            else:
+                code.append('result["{}"] = {};'.format(camel_to_snake(name), name))
         code.append("Y_UNUSED(options);")
         code.append("return result;")
 
@@ -340,9 +343,6 @@ class Generator(object):
     def add_options(self):
         header = read_file(join(self.path, "interface/client_method_options.h"))
         after_options_type = get_options_type(self.after_method)
-        pos = find_pos(header, lambda l: l.strip() == "struct {}".format(after_options_type))
-        while header.lines[pos].strip() != "};":
-            pos += 1
 
         options_type = get_options_type(self.method)
         to_insert = [
@@ -353,26 +353,46 @@ class Generator(object):
             "    using TSelf = {};".format(options_type),
             "};",
         ]
-        header = insert(header, pos + 1, to_insert)
-        if not self.dry_run:
-            write_file(header)
+
+        try:
+            pos = find_pos(header, lambda l: l.strip() == "struct {}".format(after_options_type))
+            while header.lines[pos].strip() != "};":
+                pos += 1
+            header = insert(header, pos + 1, to_insert)
+            if not self.dry_run:
+                write_file(header)
+        except NotFoundError:
+            msg = "Failed to find options for method {} to insert the code after in file {}".format(
+                self.after_method,
+                header.path,
+            )
+            self.warnings.append("{} . Please insert the code by hand:\n{}".format(msg, "\n".join(to_insert)))
 
         fwd = read_file(join(self.path, "interface/fwd.h"))
-        pos = find_pos(fwd, lambda l: l.strip() == "struct {};".format(after_options_type))
         to_insert = [
             "",
             "struct {};".format(options_type),
         ]
-        fwd = insert(fwd, pos + 1, with_indent(to_insert, 1))
-        if not self.dry_run:
-            write_file(fwd)
+
+        try:
+            pos = find_pos(fwd, lambda l: l.strip() == "struct {};".format(after_options_type))
+            fwd = insert(fwd, pos + 1, with_indent(to_insert, 1))
+            if not self.dry_run:
+                write_file(fwd)
+        except NotFoundError:
+            msg = "Failed to find options for method {} to insert the code after in file {}".format(
+                self.after_method,
+                fwd.path,
+            )
+            self.warnings.append("{} . Please insert the code by hand:\n{}".format(msg, "\n".join(to_insert)))
 
     def add_raw_method(self):
-        arguments = ["const TAuth& auth"]
+        arguments = []
+        arguments.append("const IRequestRetryPolicyPtr& retryPolicy")
+        arguments.append("const TAuth& auth")
         if self.transactional:
             arguments.append("const TTransactionId& transactionId")
         arguments += self.get_client_arguments(default_for_options=True)
-        arguments.append("IRequestRetryPolicyPtr retryPolicy = nullptr")
 
         code = [
             'THttpHeader header("{http_method}", "{name}");'.format(http_method=self.http_method, name=self.command),
@@ -385,9 +405,9 @@ class Generator(object):
                 serialize_params=self.get_serialize_params_call_args(),
             ))
         if self.return_type == "void":
-            code.append('RetryRequestWithPolicy(auth, header, "", retryPolicy);')
+            code.append('RetryRequestWithPolicy(retryPolicy, auth, header);')
         else:
-            code.append('auto response = RetryRequestWithPolicy(auth, header, "", retryPolicy);')
+            code.append('auto response = RetryRequestWithPolicy(retryPolicy, auth, header);')
             code.append("return " + self.get_response_parsing_expr(self.return_type) + ";")
 
         self.add_function(
@@ -411,7 +431,9 @@ class Generator(object):
             dry_run=self.dry_run,
         )
 
-        raw_call_args = ["Auth_"]
+        raw_call_args = []
+        raw_call_args.append("ClientRetryPolicy_->CreatePolicyForGenericRequest()")
+        raw_call_args.append("Auth_")
         if self.transactional:
             raw_call_args.append("TransactionId_")
         raw_call_args += get_argument_names(self.positional_arguments)

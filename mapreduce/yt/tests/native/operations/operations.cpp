@@ -39,11 +39,32 @@ using namespace NYT::NTesting;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static void WaitOperationIsRunning(const IOperationPtr& operation)
+template <typename Fun>
+static void WaitOperationPredicate(const IOperationPtr& operation, Fun predicate, const TString& failMsg = "")
 {
-    while (operation->GetAttributes().State != "running") {
+    auto deadline = TInstant::Now() + TDuration::Seconds(20);
+    while (TInstant::Now() < deadline) {
+        if (predicate(operation->GetAttributes())) {
+            return;
+        }
         Sleep(TDuration::MilliSeconds(100));
     }
+    ythrow yexception() << "Wait for operation " << operation->GetId() << " failed: " << failMsg;
+}
+
+static void WaitOperationHasState(const IOperationPtr& operation, const TString& state)
+{
+    WaitOperationPredicate(
+        operation,
+        [&] (const TOperationAttributes& attrs) {
+            return attrs.State == state;
+        },
+        "state should become \"" + state + "\"");
+}
+
+static void WaitOperationIsRunning(const IOperationPtr& operation)
+{
+    WaitOperationHasState(operation, "running");
 }
 
 static TString GetOperationPath(const TOperationId& operationId)
@@ -3135,8 +3156,8 @@ Y_UNIT_TEST_SUITE(Operations)
         op3->AbortOperation();
     }
 
-
-    Y_UNIT_TEST(AllocatedPorts) {
+    Y_UNIT_TEST(AllocatedPorts)
+    {
         TTestFixture fixture;
         auto client = fixture.GetClient();
         auto workingDir = fixture.GetWorkingDir();
@@ -3161,7 +3182,67 @@ Y_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT(!stream.ReadLine(line));
     }
 
+    void TestSuspendResume(bool useOperationMethods)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
+        {
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
+            writer->AddRow(TNode()("foo", "baz"));
+            writer->Finish();
+        }
+
+        auto operation = client->Map(
+            TMapOperationSpec()
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output")
+            .MaxFailedJobCount(1),
+            new TSleepingMapper(TDuration::Seconds(30)),
+            TOperationOptions().Wait(false));
+
+        Y_DEFER {
+            operation->AbortOperation();
+        };
+
+        WaitOperationIsRunning(operation);
+
+        auto suspendOptions = TSuspendOperationOptions()
+            .AbortRunningJobs(true);
+        if (useOperationMethods) {
+            operation->SuspendOperation(suspendOptions);
+        } else {
+            client->SuspendOperation(operation->GetId(), suspendOptions);
+        }
+
+        UNIT_ASSERT_VALUES_EQUAL(operation->GetAttributes().Suspended, true);
+
+        WaitOperationPredicate(
+            operation,
+            [] (const TOperationAttributes& attrs) {
+                return attrs.BriefProgress && attrs.BriefProgress->Aborted == 1;
+            },
+            "expected exactly one aborted job");
+
+        if (useOperationMethods) {
+            operation->ResumeOperation();
+        } else {
+            client->ResumeOperation(operation->GetId());
+        }
+
+        UNIT_ASSERT_VALUES_EQUAL(operation->GetAttributes().Suspended, false);
+    }
+
+    Y_UNIT_TEST(SuspendResume_OperationMethod)
+    {
+        TestSuspendResume(true);
+    }
+
+    Y_UNIT_TEST(SuspendResume_ClientMethod)
+    {
+        TestSuspendResume(false);
+    }
 } // Y_UNIT_TEST_SUITE(Operations)
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -44,6 +44,8 @@ namespace NTesting {
         MOCK_METHOD2(RemoteCopy, IOperationPtr(const TRemoteCopyOperationSpec&, const TOperationOptions&));
         MOCK_METHOD1(AbortOperation, void(const TOperationId&));
         MOCK_METHOD1(CompleteOperation, void(const TOperationId&));
+        MOCK_METHOD2(SuspendOperation, void(const TOperationId&, const TSuspendOperationOptions&));
+        MOCK_METHOD2(ResumeOperation, void(const TOperationId&, const TResumeOperationOptions&));
         MOCK_METHOD1(WaitForOperation, void(const TOperationId&));
         MOCK_METHOD1(CheckOperation, EOperationBriefState(const TOperationId&));
         MOCK_METHOD3(DoMap, IOperationPtr(const TMapOperationSpec&, const IStructuredJob&, const TOperationOptions&));

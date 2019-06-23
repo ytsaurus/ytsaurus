@@ -160,6 +160,18 @@ void CompleteOperation(
     const TAuth& auth,
     const TOperationId& operationId);
 
+void SuspendOperation(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TOperationId& operationId,
+    const TSuspendOperationOptions& options = TSuspendOperationOptions());
+
+void ResumeOperation(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TOperationId& operationId,
+    const TResumeOperationOptions& options = TResumeOperationOptions());
+
 TListOperationsResult ListOperations(
     const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
