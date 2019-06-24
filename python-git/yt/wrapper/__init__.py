@@ -42,4 +42,5 @@ from .http_helpers import (_cleanup_http_session,
 
 # For PyCharm checks
 from . import config
+from . import default_config
 from .config import update_config
