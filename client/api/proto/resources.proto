@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package NYP.NClient.NApi.NProto;
+
+option python_package = "yp_proto.yp.client.api.proto";
+
+import "yt/core/yson/proto/protobuf_interop.proto";
+
+option java_package = "ru.yandex.yp.client.api";
+option java_outer_classname = "Resources";
+option java_multiple_files = true;
+
+// Description of any resource that can be downloaded
+message TDownloadableResource
+{
+    string url = 1;
+    TChecksum checksum = 2; 
+}
+
+enum EChecksumType
+{
+    EMPTY = 0 [(NYT.NYson.NProto.enum_value_name) = "empty"];
+    MD5 = 1 [(NYT.NYson.NProto.enum_value_name) = "md5"];
+    SHA256 = 2 [(NYT.NYson.NProto.enum_value_name) = "sha256"];
+}
+
+message TChecksum
+{
+    EChecksumType type = 1;
+    string value = 2;
+}

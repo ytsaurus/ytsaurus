@@ -7,6 +7,7 @@ import "yp/client/api/proto/data_model.proto";
 import "yp/client/api/proto/deploy.proto";
 import "yp/client/api/proto/multi_cluster_replica_set.proto";
 import "yp/client/api/proto/replica_set.proto";
+import "yp/client/api/proto/resources.proto";
 import "yp/client/api/proto/pod_agent.proto";
 
 import "yt/core/yson/proto/protobuf_interop.proto";
@@ -59,6 +60,17 @@ message TNetworkDefaults
     string network_id = 1;
 }
 
+// Identity is value-based - two descriptions are same if all their fields are equal.
+message TDockerImageDescription
+{
+    // Docker registry host name, defaults to "registry.yandex.net".
+    string registry_host = 1;
+    // Image name, for example, "search/ubuntu".
+    string name = 2;
+    // Image tag, for example, "1.189".
+    string tag = 3;
+}
+
 message TDeployUnitSpec
 {
     TNetworkDefaults network_defaults = 1;
@@ -85,6 +97,19 @@ message TDeployUnitSpec
     }
 
     TTvmConfig tvm_config = 2;
+    // <box id> -> <docker image id>.
+    // If box id is present in this map, layers from corresponding docker image will be added
+    // below layers specified in pod agent spec.
+    // NOTE: box id must be present in pod agent spec.
+    map<string, TDockerImageDescription> images_for_boxes = 3 [(NYT.NYson.NProto.yson_map) = true];
+}
+
+message TDockerImageContents
+{
+    // Image for which contents were retrieved.
+    TDockerImageDescription description = 1;
+    // Layer order is from top to bottom, same as porto and pod agent.
+    repeated TDownloadableResource layers = 2;
 }
 
 message TDeployUnitStatus
@@ -102,6 +127,8 @@ message TDeployUnitStatus
     uint64 target_revision = 5;
     // YP timestamp of stage spec from which 'current_target' was derived.
     uint64 target_spec_timestamp = 6;
+    // Resolved docker images from spec.
+    repeated TDockerImageContents docker_image_contents = 7;
 
     message TReplicaSetDeploy
     {
