@@ -167,7 +167,9 @@ public:
     const T& As() const;
 
     static TNode CreateList();
+    static TNode CreateList(TListType list);
     static TNode CreateMap();
+    static TNode CreateMap(TMapType map);
     static TNode CreateEntity();
 
     const TNode& operator[](size_t index) const;
