@@ -212,7 +212,7 @@ TEST(TProcessTest, KillZombie)
 {
     auto p = New<TSimpleProcess>("/bin/bash");
     p->AddArgument("-c");
-    p->AddArgument("sleep 1; true");
+    p->AddArgument("/bin/sleep 1; /bin/true");
 
     auto finished = p->Spawn();
 
