@@ -65,7 +65,7 @@ TResponseInfo RetryRequestWithPolicy(
             return result;
         } catch (const TErrorResponse& e) {
             LogRequestError(request, header, e.GetError().GetMessage(), retryPolicy->GetAttemptDescription());
-            retryWithSameMutationId = false;
+            retryWithSameMutationId = e.IsTransportError();
 
             if (!IsRetriable(e)) {
                 throw;
