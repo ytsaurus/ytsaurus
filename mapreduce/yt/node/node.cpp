@@ -393,10 +393,24 @@ TNode TNode::CreateList()
     return node;
 }
 
+TNode TNode::CreateList(TListType list)
+{
+    TNode node;
+    node.Value_ = std::move(list);
+    return node;
+}
+
 TNode TNode::CreateMap()
 {
     TNode node;
     node.Value_ = TValue(TVariantTypeTag<TMapType>());
+    return node;
+}
+
+TNode TNode::CreateMap(TMapType map)
+{
+    TNode node;
+    node.Value_ = std::move(map);
     return node;
 }
 

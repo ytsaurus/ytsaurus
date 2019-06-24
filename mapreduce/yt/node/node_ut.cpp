@@ -50,6 +50,16 @@ Y_UNIT_TEST_SUITE(YtNodeTest) {
         UNIT_ASSERT(nodeEntity.IsEntity());
     }
 
+    Y_UNIT_TEST(TestComplexConstructors) {
+        const TNode listNode = TNode::CreateList({"one", 2, "tree"});
+        const auto expectedListValue = std::vector<TNode>({"one", 2, "tree"});
+        UNIT_ASSERT_VALUES_EQUAL(listNode.AsList(), expectedListValue);
+
+        const TNode mapNode = TNode::CreateMap({{"one", 1}, {"two", 2u}});
+        const auto expectedMapValue = THashMap<TString, TNode>({{"one", 1}, {"two", 2u}});
+        UNIT_ASSERT_VALUES_EQUAL(mapNode.AsMap(), expectedMapValue);
+    }
+
     Y_UNIT_TEST(TestNodeMap) {
         TNode nodeMap = TNode()("foo", "bar")("bar", "baz");
         UNIT_ASSERT(nodeMap.IsMap());
