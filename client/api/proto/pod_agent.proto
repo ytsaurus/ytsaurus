@@ -814,7 +814,7 @@ enum EHttpGetState {
     // Ошибка во время выполнения (превышен таймаут, ошибка соединения, ...)
     EHttpGetState_FAILURE = 1 [(NYT.NYson.NProto.enum_value_name) = "failure"];
 
-    // Ответ не равен THttpGet::expected_answer, только для Readiness check и Liveness check
+    // Ответ не равен THttpGet::ExpectedAnswer, только для Readiness check и Liveness check
     EHttpGetState_WRONG_ANSWER = 2 [(NYT.NYson.NProto.enum_value_name) = "wrong_answer"];
 
     // Выполняется
@@ -825,9 +825,6 @@ enum EHttpGetState {
 
     // Ожидание истечения restart period - @see TTimeLimit
     EHttpGetState_WAITING_RESTART = 5 [(NYT.NYson.NProto.enum_value_name) = "waiting_restart"];
-
-    // Http запрос выполнился с 200-299 кодом возврата и ответ соответствует THttpGet::expected_answer
-    EHttpGetState_SUCCESS = 6 [(NYT.NYson.NProto.enum_value_name) = "success"];
 }
 
 enum ETcpCheckState {
@@ -844,9 +841,6 @@ enum ETcpCheckState {
 
     // Ожидание истечения restart period - см. TTimeLimit
     ETcpCheckState_WAITING_RESTART = 4 [(NYT.NYson.NProto.enum_value_name) = "waiting_restart"];
-
-    // Connect завершился успешно
-    ETcpCheckState_SUCCESS = 5 [(NYT.NYson.NProto.enum_value_name) = "success"];
 }
 
 message TTcpCheckStatus {
