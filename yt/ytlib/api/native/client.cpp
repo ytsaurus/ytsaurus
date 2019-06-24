@@ -5923,7 +5923,7 @@ private:
                 auto res = ConvertTo<THashSet<TString>>(TYsonString(rspOrError.Value()->value()));
                 res.insert(subject);
                 return res;
-            } else if (!rspOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
+            } else if (!rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 THROW_ERROR_EXCEPTION(
                     "Failed to get \"member_of_closure\" attribute for subject %Qv",
                     subject)
