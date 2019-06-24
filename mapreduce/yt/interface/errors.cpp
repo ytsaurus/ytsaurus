@@ -333,6 +333,11 @@ int TErrorResponse::GetHttpCode() const
     return HttpCode_;
 }
 
+bool TErrorResponse::IsTransportError() const
+{
+    return HttpCode_ == 503;
+}
+
 TString TErrorResponse::GetRequestId() const
 {
     return RequestId_;

@@ -79,6 +79,7 @@ public:
     void ParseFromJsonError(const TString& jsonError);
 
     int GetHttpCode() const;
+    bool IsTransportError() const;
     TString GetRequestId() const;
 
     const TYtError& GetError() const;
