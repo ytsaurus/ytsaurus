@@ -503,8 +503,14 @@ message THttpGet {
     // Если путь пустой, то будет интерпретироваться как "/" из-за особенностей http клиента
     string path = 2;
 
-    // Только для readiness check и liveness check
-    string expected_answer = 3;
+    // Ожидаемый ответ сервера
+    oneof answer {
+        // В случае несовпадения ответа http запрос считается неуспешным
+        string expected_answer = 3;
+
+        // Если выставлено в true, ответ сервера игнорируется (проверяется только код ответа)
+        bool any = 5;
+    }
 
     // @see TimeLimit
     TTimeLimit time_limit = 4;
