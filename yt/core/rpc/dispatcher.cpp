@@ -55,6 +55,11 @@ public:
             bandDescriptor.DefaultTosLevel = bandConfig ? bandConfig->TosLevel : DefaultTosLevel;
             bandDescriptor.NetworkIdToTosLevel.resize(NetworkNames_.size(), bandDescriptor.DefaultTosLevel);
 
+            // Possible overwrite values for default network, filled in ctor.
+            for (int networkId = 0; networkId < NetworkNames_.size(); ++networkId) {
+                bandDescriptor.NetworkIdToTosLevel[networkId] = bandDescriptor.DefaultTosLevel;
+            }
+
             if (!bandConfig) {
                 continue;
             }

@@ -163,7 +163,7 @@ class _TestListOperationsBase(ListOperationsSetup):
 
     # The following tests expect five operations to be present
     # in Cypress (and/or in the archive if |self.include_archive| is |True|):
-    #     TYPE       -    STATE   - USER  -   POOLS          - FAILED JOBS - READ_ACCESS   - WRITE_ACCESS    - ANNOTATIONS
+    #     TYPE       -    STATE   - USER  -   POOLS          - FAILED JOBS - READ_ACCESS   - MANAGE_ACCESS   - ANNOTATIONS
     #  1. map        - completed  - user1 -  user1           - False       - []            - []              - {key=[annotation1;annotation2]}
     #  2. map        - completed  - user2 -  user2           - False       - [group1,      - [group1, user3] - {}
     #                                                                          user3]
@@ -397,6 +397,7 @@ class _TestListOperationsBase(ListOperationsSetup):
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id, self.op2.id]
 
+        # user4 is admin.
         access = {"subject": "user4", "permissions": ["read"]}
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op5.id, self.op4.id, self.op3.id, self.op2.id, self.op1.id]
@@ -404,6 +405,46 @@ class _TestListOperationsBase(ListOperationsSetup):
         access = {"subject": "user4", "permissions": ["read", "manage"]}
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op5.id, self.op4.id, self.op3.id, self.op2.id, self.op1.id]
+
+        access = {"subject": "group1", "permissions": ["read"]}
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id, self.op2.id]
+
+        access = {"subject": "group1", "permissions": ["read", "manage"]}
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op2.id]
+
+        access = {"subject": "large_group", "permissions": ["read"]}
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id]
+
+        access = {"subject": "large_group", "permissions": ["read", "manage"]}
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        assert [op["id"] for op in res["operations"]] == [self.op4.id]
+
+        # Anyone has '[]' permissions for any operation.
+        access = {"subject": "large_group", "permissions": []}
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        assert [op["id"] for op in res["operations"]] == [self.op5.id, self.op4.id, self.op3.id, self.op2.id, self.op1.id]
+
+    def test_access_filter_errors(self, read_from):
+        # Missing subject.
+        access = {"permissions": ["read", "manage"]}
+        with pytest.raises(YtError):
+            list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+
+        # Missing permissions.
+        access = {"subject": "user1"}
+        with pytest.raises(YtError):
+            list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+
+        access = {"subject": "unknown_subject", "permissions": ["read", "manage"]}
+        with pytest.raises(YtError):
+            list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+
+        access = {"subject": "user1", "permissions": ["unknown_permission"]}
+        with pytest.raises(YtError):
+            list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
 
 
 class TestListOperationsCypressOnly(_TestListOperationsBase):

@@ -323,9 +323,9 @@ void TSimulatorNodeShard::BuildNodeYson(const TExecNodePtr& node, TFluentMap flu
 {
     fluent
         .Item(node->GetDefaultAddress()).BeginMap()
-        .Do([&] (TFluentMap fluent) {
-            BuildExecNodeAttributes(node, fluent);
-        })
+            .Do([&] (TFluentMap fluent) {
+                node->BuildAttributes(fluent);
+            })
         .EndMap();
 }
 
