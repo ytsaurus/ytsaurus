@@ -172,6 +172,8 @@ message TResource {
     // Ресурс будт скачан на porto volume, созданный с этим place
     // NOTE: Валидация - должен совпадать с place у volume, которые используют этот ресурс
     string place = 7;
+
+    string virtual_disk_id_ref = 8;
 }
 
 message TCacheResource {
@@ -205,6 +207,8 @@ message TLayer {
     // Передается as is в porto
     // NOTE: Валидация - должен совпадать с place у volume, которые используют этот слой
     string place = 6;
+
+    string virtual_disk_id_ref = 7;
 }
 
 message TCacheLayer {
@@ -291,6 +295,8 @@ message TVolume {
 
         TGenericVolume generic = 4;
     }
+    
+    string virtual_disk_id_ref = 5;
 }
 
 // Ограничения на время исполнения и интервал между запусками хука.
@@ -465,22 +471,6 @@ message TBox {
 
     TRootfsVolume rootfs = 2;
 
-    // Ограничения на meta контейнер Box
-    TComputeResources compute_resources = 12;
-
-    // Переменные окружения - прокидываются во все init контейнеры бокса
-    repeated TEnvVar env = 13;
-
-    // Если указано true
-    // pod agent создает bind volume из <pod_chroot>/place/berkanavt/supervisor в <box_chroot>/place/berkanavt/supervisor
-    // На файловой системе box'а обязательно наличие директории /place/berkanavt/supervisor и следующих симлинков (без них скачивание/раздача работать не будут совсем):
-    //   /skynet => /Berkanavt/supervisor/base/active
-    //   /usr/local/bin/sky => /skynet/tools/sky
-    //   /Berkanavt => /place/berkanavt
-    // Эти директории и симлинки можно добавить с помощью небольшого слоя sbr:922226367
-    // PS Если вы используете расширенные базовые образы, нужные симлинки в них уже есть https://wiki.yandex-team.ru/runtime-cloud/virtualimages/#rasshirennyjjobraz
-    bool bind_skynet = 11;
-
     // TODO: Валидировать что mount_point не пересекается со static_resource
     // NOTE: Валидация - все mount_point различны
     // NOTE: Валидация - все id volume в списке уникальны
@@ -493,6 +483,24 @@ message TBox {
     // NOTE: Валидация - все mount_point различны
     // NOTE: Валидация - все id static_resource в списке различны
     repeated TMountedStaticResource static_resources = 10;
+
+    // Если указано true
+    // pod agent создает bind volume из <pod_chroot>/place/berkanavt/supervisor в <box_chroot>/place/berkanavt/supervisor
+    // На файловой системе box'а обязательно наличие директории /place/berkanavt/supervisor и следующих симлинков (без них скачивание/раздача работать не будут совсем):
+    //   /skynet => /Berkanavt/supervisor/base/active
+    //   /usr/local/bin/sky => /skynet/tools/sky
+    //   /Berkanavt => /place/berkanavt
+    // Эти директории и симлинки можно добавить с помощью небольшого слоя sbr:922226367
+    // PS Если вы используете расширенные базовые образы, нужные симлинки в них уже есть https://wiki.yandex-team.ru/runtime-cloud/virtualimages/#rasshirennyjjobraz
+    bool bind_skynet = 11;
+
+    // Ограничения на meta контейнер Box
+    TComputeResources compute_resources = 12;
+
+    // Переменные окружения - прокидываются во все init контейнеры бокса
+    repeated TEnvVar env = 13;
+
+    string virtual_disk_id_ref = 14;
 }
 
 // Успешными кодами ответов считаются те, что лежат в полуинтервале [200, 300)
