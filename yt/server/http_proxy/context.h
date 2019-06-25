@@ -49,6 +49,7 @@ public:
     void SetupOutputStream();
     void SetupOutputParameters();
     void LogRequest();
+    void LogStructuredRequest();
     void SetupTracing();
     void AddHeaders();
 
@@ -67,6 +68,7 @@ private:
     NLogging::TLogger Logger;
 
     TInstant StartTime_ = TInstant::Now();
+    TDuration Duration_;
 
     std::optional<TSemaphoreGuard> SemaphoreGuard_;
 
