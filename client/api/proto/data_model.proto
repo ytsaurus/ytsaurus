@@ -1241,6 +1241,11 @@ message TPodSetSpec
     // Pod disruption budget that limits this podset disruptions.
     // Missing value corresponds to the zero budget, i.e. without disruptions at all.
     optional string pod_disruption_budget_id = 4;
+
+    // If given, controls which nodes are eligible for pods of this pod set.
+    // This filter is only active for a pod of this pod set if this pod's own node_filter is empty.
+    // Filter is a query language predicate; it can only refer to node labels, not other attributes.
+    optional string node_filter = 5;
 }
 
 message TPodSetStatus

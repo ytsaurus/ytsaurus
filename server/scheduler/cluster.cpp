@@ -789,12 +789,13 @@ private:
     {
         const auto& ytConnector = Bootstrap_->GetYTConnector();
         return Format(
-            "[%v], [%v], [%v], [%v], [%v] from [%v] where is_null([%v])",
+            "[%v], [%v], [%v], [%v], [%v], [%v] from [%v] where is_null([%v])",
             PodSetsTable.Fields.Meta_Id.Name,
             PodSetsTable.Fields.Labels.Name,
             PodSetsTable.Fields.Spec_AntiaffinityConstraints.Name,
             PodSetsTable.Fields.Spec_NodeSegmentId.Name,
             PodSetsTable.Fields.Spec_AccountId.Name,
+            PodSetsTable.Fields.Spec_NodeFilter.Name,
             ytConnector->GetTablePath(&PodSetsTable),
             ObjectsTable.Fields.Meta_RemovalTime.Name);
     }
@@ -806,13 +807,15 @@ private:
         std::vector<NClient::NApi::NProto::TAntiaffinityConstraint> antiaffinityConstraints;
         TObjectId nodeSegmentId;
         TObjectId accountId;
+        TString nodeFilter;
         FromUnversionedRow(
             row,
             &podSetId,
             &labels,
             &antiaffinityConstraints,
             &nodeSegmentId,
-            &accountId);
+            &accountId,
+            &nodeFilter);
 
         auto* nodeSegment = FindNodeSegment(nodeSegmentId);
         if (!nodeSegment) {
@@ -835,7 +838,8 @@ private:
             std::move(labels),
             nodeSegment,
             account,
-            std::move(antiaffinityConstraints));
+            std::move(antiaffinityConstraints),
+            std::move(nodeFilter));
         YCHECK(PodSetMap_.emplace(podSet->GetId(), std::move(podSet)).second);
     }
 

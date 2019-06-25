@@ -482,13 +482,26 @@ void UpdatePodDiskVolumeAllocations(
         }
     }
 
+    auto getReadOperationRateFactor = [] (const auto& diskSpec) {
+        return diskSpec.has_read_operation_rate_divisor()
+            ? 1.0 / diskSpec.read_operation_rate_divisor()
+            : 0.0;
+    };
+    auto getWriteOperationRateFactor = [] (const auto& diskSpec) {
+        return diskSpec.has_write_operation_rate_divisor()
+            ? 1.0 / diskSpec.write_operation_rate_divisor()
+            : 0.0;
+    };
+
     google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodStatus_TDiskVolumeAllocation> newAllocations;
     for (size_t index = 0; index < allocatorRequests.size(); ++index) {
         const auto& request = allocatorRequests[index];
         const auto& response = allocatorResponses[index];
+
         if (request.Kind != EResourceKind::Disk) {
             continue;
         }
+        const auto& diskSpec = *response.Resource->ProtoDiskSpec;
 
         const auto& volumeRequest = *request.ProtoVolumeRequest;
         auto* volumeAllocation = newAllocations.Add();
@@ -497,7 +510,6 @@ void UpdatePodDiskVolumeAllocations(
             YCHECK(it != idToAllocation.end());
             volumeAllocation->CopyFrom(*it->second);
         } else {
-            const auto& diskSpec = *response.Resource->ProtoDiskSpec;
             volumeAllocation->set_id(volumeRequest.id());
             volumeAllocation->set_capacity(GetDiskCapacity(request.Capacities));
             volumeAllocation->set_resource_id(response.Resource->Id);
@@ -509,32 +521,30 @@ void UpdatePodDiskVolumeAllocations(
                 volumeBandwidthGuarantee * diskSpec.read_bandwidth_factor());
             volumeAllocation->set_write_bandwidth_guarantee(
                 volumeBandwidthGuarantee * diskSpec.write_bandwidth_factor());
-
-            auto readOperationRateFactor = diskSpec.has_read_operation_rate_divisor()
-                ? 1.0 / diskSpec.read_operation_rate_divisor()
-                : 0.0;
-            auto writeOperationRateFactor = diskSpec.has_write_operation_rate_divisor()
-                ? 1.0 / diskSpec.write_operation_rate_divisor()
-                : 0.0;
-
             volumeAllocation->set_read_operation_rate_guarantee(
-                volumeBandwidthGuarantee * readOperationRateFactor);
+                volumeBandwidthGuarantee * getReadOperationRateFactor(diskSpec));
             volumeAllocation->set_write_operation_rate_guarantee(
-                volumeBandwidthGuarantee * writeOperationRateFactor);
-
-            auto optionalVolumeBandwidthLimit = GetDiskVolumeRequestOptionalBandwidthLimit(volumeRequest);
-            if (optionalVolumeBandwidthLimit) {
-                auto volumeBandwidthLimit = *optionalVolumeBandwidthLimit;
-                volumeAllocation->set_read_bandwidth_limit(
-                    volumeBandwidthLimit * diskSpec.read_bandwidth_factor());
-                volumeAllocation->set_write_bandwidth_limit(
-                    volumeBandwidthLimit * diskSpec.write_bandwidth_factor());
-                volumeAllocation->set_read_operation_rate_limit(
-                    volumeBandwidthLimit * readOperationRateFactor);
-                volumeAllocation->set_write_operation_rate_limit(
-                    volumeBandwidthLimit * writeOperationRateFactor);
-            }
+                volumeBandwidthGuarantee * getWriteOperationRateFactor(diskSpec));
         }
+
+        // For disk resource attributes update without rescheduling is supported only partially.
+        if (auto optionalVolumeBandwidthLimit = GetDiskVolumeRequestOptionalBandwidthLimit(volumeRequest)) {
+            auto volumeBandwidthLimit = *optionalVolumeBandwidthLimit;
+            volumeAllocation->set_read_bandwidth_limit(
+                volumeBandwidthLimit * diskSpec.read_bandwidth_factor());
+            volumeAllocation->set_write_bandwidth_limit(
+                volumeBandwidthLimit * diskSpec.write_bandwidth_factor());
+            volumeAllocation->set_read_operation_rate_limit(
+                volumeBandwidthLimit * getReadOperationRateFactor(diskSpec));
+            volumeAllocation->set_write_operation_rate_limit(
+                volumeBandwidthLimit * getWriteOperationRateFactor(diskSpec));
+        } else {
+            volumeAllocation->clear_read_bandwidth_limit();
+            volumeAllocation->clear_write_bandwidth_limit();
+            volumeAllocation->clear_read_operation_rate_limit();
+            volumeAllocation->clear_write_operation_rate_limit();
+        }
+
         volumeAllocation->mutable_labels()->CopyFrom(volumeRequest.labels());
     }
     allocations->Swap(&newAllocations);

@@ -40,6 +40,7 @@ public:
     const NYT::NApi::NNative::IClientPtr& GetClient();
     const NYT::NYPath::TYPath& GetRootPath();
     const NYT::NYPath::TYPath& GetDBPath();
+    const NYT::NYPath::TYPath& GetMasterPath();
     NYT::NYPath::TYPath GetTablePath(const NObjects::TDBTable* table);
     TClusterTag GetClusterTag();
     TMasterInstanceTag GetInstanceTag();

@@ -1,9 +1,14 @@
 import pytest
 
 from .conftest import ZERO_RESOURCE_REQUESTS
+
 from yp.common import YtResponseError, YpInvalidObjectTypeError
 from yp.local import OBJECT_TYPES
+
+from yp.data_model import TPodSetMeta, TPodSetSpec, TPodSet
+
 from six.moves import xrange
+
 from yt.yson import YsonEntity
 
 @pytest.mark.usefixtures("yp_env")
@@ -133,24 +138,23 @@ class TestObjects(object):
     def test_set_composite_attribute_spec_fail(self, yp_env):
         yp_client = yp_env.yp_client
 
-        rs_id = yp_client.create_object("replica_set")
+        node_id = yp_client.create_object("node")
         with pytest.raises(YtResponseError):
-            yp_client.update_object("replica_set", rs_id, set_updates=[
+            yp_client.update_object("node", node_id, set_updates=[
                 {"path": "/spec", "value": {"zzz": 1}}
             ])
 
     def test_select_missing_proto_attribute(self, yp_env):
         yp_client = yp_env.yp_client
 
-        rs_id = yp_client.create_object("replica_set")
         with pytest.raises(YtResponseError):
-            yp_client.select_objects("replica_set", selectors=["/spec/xyz"])
+            yp_client.select_objects("node", selectors=["/spec/xyz"])
 
     def test_select_improper_proto_attribute_access(self, yp_env):
         yp_client = yp_env.yp_client
 
         with pytest.raises(YtResponseError):
-            yp_client.select_objects("replica_set", selectors=["/spec/replica_count/xyz"])
+            yp_client.select_objects("node", selectors=["/spec/ip6_addresses/0/address/xyz"])
         with pytest.raises(YtResponseError):
             yp_client.select_objects("pod", selectors=["/status/generation_number/xyz"])
 
@@ -324,3 +328,40 @@ class TestObjects(object):
         with pytest.raises(YtResponseError):
             yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/enable_scheduling", "value": True}],
                                     attribute_timestamp_prerequisites=[{"path": "/spec", "timestamp": ts}])
+
+    def test_payload_to_proto_conversion_get_object(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        yp_client.create_object("pod_set", attributes={"meta": {"id": "somepodset"}})
+        meta = yp_client.get_object("pod_set", "somepodset", selectors=[{"path": "/meta", "proto_class": TPodSetMeta}])[0]
+        assert meta.id == "somepodset"
+
+    def test_payload_to_proto_conversion_select_object(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        yp_client.create_object("pod_set", attributes={"meta": {"id": "somepodset"}})
+        results = yp_client.select_objects("pod_set", selectors=[{"path": "/meta", "proto_class": TPodSetMeta}])
+        assert len(results) == 1
+        assert len(results[0]) == 1
+        meta = results[0][0]
+        assert meta.id == "somepodset"
+
+    def test_payload_to_proto_conversion_create_object(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        attributes = TPodSet()
+        attributes.meta.id = "somepodset"
+        yp_client.create_object("pod_set", attributes=attributes)
+        meta = yp_client.get_object("pod_set", "somepodset", selectors=["/meta"])[0]
+        assert meta["id"] == "somepodset"
+
+    def test_payload_to_proto_conversion_update_object(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        pod_set_id = yp_client.create_object("pod_set")
+
+        spec = TPodSetSpec()
+        FILTER = "0 = 1"
+        spec.node_filter = FILTER
+        yp_client.update_object("pod_set", pod_set_id, set_updates=[{"path": "/spec", "value": spec}])
+        assert yp_client.get_object("pod_set", pod_set_id, selectors=["/spec/node_filter"])[0] == FILTER

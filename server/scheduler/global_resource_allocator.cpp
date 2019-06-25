@@ -229,7 +229,13 @@ public:
                 nodeSegment->GetId());
         }
 
-        const auto& nodeFilter = pod->SpecEtc().node_filter();
+        const auto& podNodeFilter = pod->SpecEtc().node_filter();
+        auto* podSet = pod->GetPodSet();
+        // FIXME(YP-803): pod set could be abscent due to race condition.
+        const auto& nodeFilter = podNodeFilter.Empty() && podSet
+            ? podSet->NodeFilter()
+            : podNodeFilter;
+
         const auto& nodesOrError = cache->GetFilteredObjects(nodeFilter);
         if (!nodesOrError.IsOK()) {
             return TError("Error applying pod node filter %Qv",
@@ -567,4 +573,5 @@ IGlobalResourceAllocatorPtr CreateGlobalResourceAllocator(TGlobalResourceAllocat
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-} // namespace NYP::NScheduler::NObjects
+
+} // namespace NYP::NServer::NScheduler

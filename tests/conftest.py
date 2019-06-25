@@ -21,8 +21,6 @@ except ImportError:
 
 if yatest_common is not None:
     from yt.environment import arcadia_interop
-else:
-    arcadia_interop = None
 
 import pytest
 
@@ -30,7 +28,6 @@ import copy
 import logging
 import os
 import sys
-import shutil
 
 
 if yatest_common is None:
@@ -236,7 +233,28 @@ def prepare_yp_test_sandbox():
     return test_sandbox_path
 
 def yatest_save_sandbox(sandbox_path):
-    arcadia_interop.save_sandbox(sandbox_path, os.path.join(yatest_common.output_path(), os.path.basename(sandbox_path)))
+    if yatest_common is not None:
+        arcadia_interop.save_sandbox(sandbox_path, os.path.join(yatest_common.output_path(), os.path.basename(sandbox_path)))
+
+
+class YpOrchidClient(object):
+    def __init__(self, yt_client, yp_path):
+        self._yt_client = yt_client
+        self._instances_path = ypath_join(yp_path, "/master/instances")
+        self._instance_addresses = self._yt_client.list(self._instances_path)
+        assert len(self._instance_addresses) > 0
+
+    def get(self, instance_address, path, *args, **kwargs):
+        absolute_path = ypath_join(
+            self._instances_path,
+            instance_address,
+            "/orchid",
+            path,
+        )
+        return self._yt_client.get(absolute_path, *args, **kwargs)
+
+    def get_instances(self):
+        return list(self._instance_addresses)
 
 
 class YpTestEnvironment(object):
@@ -286,20 +304,17 @@ class YpTestEnvironment(object):
             yatest_save_sandbox(self.test_sandbox_path)
             raise
 
-    def sync_access_control(self):
-        instances_path = "//yp/master/instances"
+    def get_config_patch_cypress_path(self):
+        return "//yp/master/config"
 
-        def get_state_timestamp(master_address):
-            return self.yt_client.get(ypath_join(
-                instances_path,
-                master_address,
-                "/orchid/access_control/cluster_state_timestamp",
-            ))
+    def create_orchid_client(self):
+        return YpOrchidClient(self.yt_client, "//yp")
+
+    def sync_access_control(self):
+        orchid = self.create_orchid_client()
+        master_addresses = orchid.get_instances()
 
         expected_timestamp = self.yp_client.generate_timestamp()
-
-        master_addresses = self.yt_client.list(instances_path)
-        assert len(master_addresses) > 0
 
         synced_master_addresses = set()
 
@@ -307,7 +322,7 @@ class YpTestEnvironment(object):
             for master_address in master_addresses:
                 if master_address in synced_master_addresses:
                     continue
-                if get_state_timestamp(master_address) > expected_timestamp:
+                if orchid.get(master_address, "/access_control/cluster_state_timestamp") > expected_timestamp:
                     synced_master_addresses.add(master_address)
                 else:
                     return False

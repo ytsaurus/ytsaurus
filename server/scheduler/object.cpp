@@ -25,5 +25,4 @@ const TYsonString& TObject::GetLabels() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYP::NScheduler::NObjects
-
+} // namespace NYP::NServer::NScheduler

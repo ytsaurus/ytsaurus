@@ -18,9 +18,9 @@ public:
 
     void Initialize();
 
-    //! Returns the cluster state. Note that this state is being updated
-    //! from a dedicated scheduler thread.
-    const TClusterPtr& GetCluster() const;
+    //! Updates scheduler configuration.
+    //! Returns a future that becomes set when configuration is fully updated.
+    TFuture<void> UpdateConfig(TSchedulerConfigPtr config);
 
 private:
     class TImpl;

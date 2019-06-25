@@ -108,9 +108,12 @@ public:
     NAuth::TAuthenticationManagerConfigPtr AuthenticationManager;
     TSecretVaultServiceConfigPtr SecretVaultService;
     int WorkerThreadPoolSize;
+    TDuration ConfigUpdatePeriod;
 
     TMasterConfig()
     {
+        SetUnrecognizedStrategy(NYT::NYTree::EUnrecognizedStrategy::KeepRecursive);
+
         RegisterParameter("monitoring_server", MonitoringServer)
             .Optional();
         RegisterParameter("internal_bus_server", InternalBusServer)
@@ -149,6 +152,8 @@ public:
         RegisterParameter("worker_thread_pool_size", WorkerThreadPoolSize)
             .GreaterThan(0)
             .Default(8);
+        RegisterParameter("config_update_period", ConfigUpdatePeriod)
+            .Default(TDuration::Seconds(5));
 
         RegisterPostprocessor([&] {
             if (InternalBusServer && !InternalBusServer->Port) {

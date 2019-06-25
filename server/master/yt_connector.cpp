@@ -57,6 +57,7 @@ public:
             BIND(&TImpl::OnMasterDiscovery, MakeWeak(this)),
             Config_->MasterDiscoveryPeriod))
         , DBPath_(GetRootPath() + "/db")
+        , MasterPath_(GetRootPath() + "/master")
         , Connection_(NNative::CreateConnection(Config_->Connection))
         , Client_(Connection_->CreateNativeClient(TClientOptions(Config_->User)))
     { }
@@ -90,6 +91,12 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return DBPath_;
+    }
+
+    const TYPath& GetMasterPath()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        return MasterPath_;
     }
 
     TYPath GetTablePath(const NObjects::TDBTable* table)
@@ -148,6 +155,7 @@ private:
     const TPeriodicExecutorPtr MasterDiscoveryExecutor_;
 
     const TYPath DBPath_;
+    const TYPath MasterPath_;
 
     const NNative::IConnectionPtr Connection_;
     const NNative::IClientPtr Client_;
@@ -430,6 +438,8 @@ private:
 
     void OnMasterDiscovery()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         YT_LOG_INFO("Master discovery started");
 
         try {
@@ -512,7 +522,7 @@ private:
 
     TYPath GetInstancesCypressPath()
     {
-        return GetRootPath() + "/master/instances";
+        return MasterPath_ + "/instances";
     }
 
     TYPath GetInstanceCypressPath()
@@ -527,7 +537,7 @@ private:
 
     TYPath GetLeaderCypressPath()
     {
-        return GetRootPath() + "/master/leader";
+        return MasterPath_ + "/leader";
     }
 };
 
@@ -555,6 +565,11 @@ const TYPath& TYTConnector::GetRootPath()
 const TYPath& TYTConnector::GetDBPath()
 {
     return Impl_->GetDBPath();
+}
+
+const TYPath& TYTConnector::GetMasterPath()
+{
+    return Impl_->GetMasterPath();
 }
 
 TYPath TYTConnector::GetTablePath(const NObjects::TDBTable* table)

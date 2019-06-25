@@ -106,4 +106,4 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYP::NServer::NObjects
+} // namespace NYP::NServer::NScheduler

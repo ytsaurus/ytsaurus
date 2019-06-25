@@ -17,6 +17,7 @@ SET(YP_TEST_SRCS
     test_batch_methods.py
     test_cli.py
     test_client_discovery.py
+    test_config.py
     test_disk_bandwidth_resource.py
     test_dns_record_set.py
     test_dynamic_resource.py

@@ -34,11 +34,17 @@ const TManyToOneAttributeSchema<TPodSet, TPodDisruptionBudget> TPodSet::TSpec::P
     [] (TPodDisruptionBudget* podDisruptionBudget) { return &podDisruptionBudget->PodSets(); }
 };
 
+const TScalarAttributeSchema<TPodSet, TString> TPodSet::TSpec::NodeFilterSchema{
+    &PodSetsTable.Fields.Spec_NodeFilter,
+    [] (TPodSet* podSet) { return &podSet->Spec().NodeFilter(); }
+};
+
 TPodSet::TSpec::TSpec(TPodSet* podSet)
     : AntiaffinityConstraints_(podSet, &AntiaffinityConstraintsSchema)
     , NodeSegment_(podSet, &NodeSegmentSchema)
     , Account_(podSet, &AccountSchema)
     , PodDisruptionBudget_(podSet, &PodDisruptionBudgetSchema)
+    , NodeFilter_(podSet, &NodeFilterSchema)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

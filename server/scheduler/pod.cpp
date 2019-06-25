@@ -32,4 +32,4 @@ TAccount* TPod::GetEffectiveAccount() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYP::NScheduler::NObjects
+} // namespace NYP::NServer::NScheduler

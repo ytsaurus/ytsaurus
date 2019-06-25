@@ -220,52 +220,69 @@ public:
         TBootstrap* bootstrap,
         TSchedulerConfigPtr config)
         : Bootstrap_(bootstrap)
-        , Config_(std::move(config))
+        , InitialConfig_(std::move(config))
         , SchedulingLoopExecutor_(New<TPeriodicExecutor>(
             LoopActionQueue_->GetInvoker(),
             BIND(&TImpl::OnSchedulingLoop, MakeWeak(this)),
-            Config_->LoopPeriod))
-        , Cluster_(New<TCluster>(bootstrap))
-        , GlobalResourceAllocator_(CreateGlobalResourceAllocator(Config_->GlobalResourceAllocator))
+            InitialConfig_->LoopPeriod))
+        , GlobalLoopContext_(Bootstrap_)
     {
         VERIFY_INVOKER_THREAD_AFFINITY(LoopActionQueue_->GetInvoker(), LoopThread);
     }
 
     void Initialize()
     {
+        // Initialize the loop.
+        WaitFor(UpdateLoopConfig(InitialConfig_))
+            .ThrowOnError();
+
         const auto& ytConnector = Bootstrap_->GetYTConnector();
         ytConnector->SubscribeStartedLeading(BIND(&TImpl::OnStartedLeading, MakeWeak(this)));
         ytConnector->SubscribeStoppedLeading(BIND(&TImpl::OnStoppedLeading, MakeWeak(this)));
     }
 
-    const TClusterPtr& GetCluster() const
+    TFuture<void> UpdateConfig(TSchedulerConfigPtr config)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
-        return Cluster_;
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YT_LOG_INFO("Updating scheduler configuration");
+        SchedulingLoopExecutor_->SetPeriod(config->LoopPeriod);
+        return UpdateLoopConfig(std::move(config));
     }
 
 private:
     TBootstrap* const Bootstrap_;
-    const TSchedulerConfigPtr Config_;
+    const TSchedulerConfigPtr InitialConfig_;
 
     const TActionQueuePtr LoopActionQueue_ = New<TActionQueue>("SchedulerLoop");
     const TPeriodicExecutorPtr SchedulingLoopExecutor_;
 
-    TClusterPtr Cluster_;
-    TScheduleQueue ScheduleQueue_;
-
-    IGlobalResourceAllocatorPtr GlobalResourceAllocator_;
-
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(LoopThread);
+
+    struct TLoopContext
+    {
+        explicit TLoopContext(TBootstrap* bootstrap)
+            : Cluster(New<TCluster>(bootstrap))
+            , ScheduleQueue(New<TScheduleQueue>())
+        { }
+
+        TSchedulerConfigPtr Config;
+        IGlobalResourceAllocatorPtr GlobalResourceAllocator;
+        TClusterPtr Cluster;
+        TScheduleQueuePtr ScheduleQueue;
+    };
+
+    TLoopContext GlobalLoopContext_;
 
 
     class TLoopIteration
         : public TRefCounted
     {
     public:
-        explicit TLoopIteration(TImplPtr owner)
-            : Owner_(std::move(owner))
+        explicit TLoopIteration(TBootstrap* bootstrap, TLoopContext context)
+            : Bootstrap_(bootstrap)
+            , Context_(std::move(context))
         { }
 
         void Run()
@@ -273,19 +290,19 @@ private:
             PROFILE_TIMING("/loop/time/reconcile_state") {
                 ReconcileState();
             }
-            const auto& accountingManager = Owner_->Bootstrap_->GetAccountingManager();
+            const auto& accountingManager = Bootstrap_->GetAccountingManager();
             PROFILE_TIMING("/loop/time/update_node_segments_status") {
-                accountingManager->UpdateNodeSegmentsStatus(Owner_->Cluster_);
+                accountingManager->UpdateNodeSegmentsStatus(Context_.Cluster);
             }
             PROFILE_TIMING("/loop/time/update_accounts_status") {
-                accountingManager->UpdateAccountsStatus(Owner_->Cluster_);
+                accountingManager->UpdateAccountsStatus(Context_.Cluster);
             }
-            TPodEvictionByHfsmController podEvictionByHfsmController(Owner_->Bootstrap_);
+            TPodEvictionByHfsmController podEvictionByHfsmController(Bootstrap_);
             PROFILE_TIMING("/loop/time/abort_requested_pod_eviction_at_up_nodes") {
-                podEvictionByHfsmController.AbortPodEvictionAtUpNodes(Owner_->Cluster_);
+                podEvictionByHfsmController.AbortPodEvictionAtUpNodes(Context_.Cluster);
             }
             PROFILE_TIMING("/loop/time/request_pod_eviction_at_nodes_with_requested_maintenance") {
-                podEvictionByHfsmController.RequestPodEvictionAtNodesWithRequestedMaintenance(Owner_->Cluster_);
+                podEvictionByHfsmController.RequestPodEvictionAtNodesWithRequestedMaintenance(Context_.Cluster);
             }
             PROFILE_TIMING("/loop/time/revoke_pods_with_acknowledged_eviction") {
                 RevokePodsWithAcknowledgedEviction();
@@ -305,7 +322,8 @@ private:
         }
 
     private:
-        const TImplPtr Owner_;
+        TBootstrap* const Bootstrap_;
+        const TLoopContext Context_;
 
         NNet::TInternetAddressManager InternetAddressManager_;
 
@@ -316,22 +334,22 @@ private:
         {
             YT_LOG_DEBUG("Started reconciling state");
 
-            Owner_->Cluster_->LoadSnapshot();
+            Context_.Cluster->LoadSnapshot();
 
-            auto pods = Owner_->Cluster_->GetPods();
+            auto pods = Context_.Cluster->GetPods();
             auto now = TInstant::Now();
             for (auto* pod : pods) {
                 if (!pod->GetNode()) {
                     YT_LOG_DEBUG("Adding pod to schedule queue since it is not assigned to any node (PodId: %v)",
                         pod->GetId());
-                    Owner_->ScheduleQueue_.Enqueue(pod->GetId(), now);
+                    Context_.ScheduleQueue->Enqueue(pod->GetId(), now);
                 }
             }
 
             // TODO(babenko): profiling
             AllocationPlan_.Clear();
-            ReconcileInternetAddressManagerState(Owner_->Cluster_, &InternetAddressManager_);
-            Owner_->GlobalResourceAllocator_->ReconcileState(Owner_->Cluster_);
+            ReconcileInternetAddressManagerState(Context_.Cluster, &InternetAddressManager_);
+            Context_.GlobalResourceAllocator->ReconcileState(Context_.Cluster);
 
             YT_LOG_DEBUG("State reconciled");
         }
@@ -353,7 +371,7 @@ private:
 
         void RevokePodsWithAcknowledgedEviction()
         {
-            auto pods = Owner_->Cluster_->GetPods();
+            auto pods = Context_.Cluster->GetPods();
             for (auto* pod : pods) {
                 if (pod->StatusEtc().eviction().state() == NClient::NApi::NProto::ES_ACKNOWLEDGED) {
                     YT_LOG_DEBUG("Pod eviction acknowledged (PodId: %v, NodeId: %v)",
@@ -367,10 +385,10 @@ private:
         void RemoveOrphanedAllocations()
         {
             std::vector<TNode*> changedNodes;
-            for (auto* resource : Owner_->Cluster_->GetResources()) {
+            for (auto* resource : Context_.Cluster->GetResources()) {
                 auto* node = resource->GetNode();
                 for (const auto& allocation : resource->ScheduledAllocations()) {
-                    auto* pod = Owner_->Cluster_->FindPod(allocation.pod_id());
+                    auto* pod = Context_.Cluster->FindPod(allocation.pod_id());
                     if (!pod || pod->MetaEtc().uuid() != allocation.pod_uuid()) {
                         changedNodes.push_back(node);
                         break;
@@ -395,11 +413,11 @@ private:
         void AcknowledgeNodeMaintenance()
         {
             try {
-                const auto& transactionManager = Owner_->Bootstrap_->GetTransactionManager();
+                const auto& transactionManager = Bootstrap_->GetTransactionManager();
                 auto transaction = WaitFor(transactionManager->StartReadWriteTransaction())
                     .ValueOrThrow();
 
-                auto nodes = Owner_->Cluster_->GetNodes();
+                auto nodes = Context_.Cluster->GetNodes();
                 for (auto* node : nodes) {
                     if (!node->Pods().empty()) {
                         continue;
@@ -435,22 +453,22 @@ private:
         {
             const auto& podId = pod->GetId();
             auto now = TInstant::Now();
-            auto deadline = now + Owner_->Config_->FailedAllocationBackoffTime;
+            auto deadline = now + Context_.Config->FailedAllocationBackoffTime;
             YT_LOG_DEBUG("Node allocation failed; backing off (PodId: %v, Deadline: %v)",
                 podId,
                 deadline);
-            Owner_->ScheduleQueue_.Enqueue(podId, deadline);
+            Context_.ScheduleQueue->Enqueue(podId, deadline);
         }
 
         void RecordSchedulingFailure(TPod* pod, const TError& error)
         {
             const auto& podId = pod->GetId();
             auto now = TInstant::Now();
-            auto deadline = now + Owner_->Config_->FailedAllocationBackoffTime;
+            auto deadline = now + Context_.Config->FailedAllocationBackoffTime;
             YT_LOG_DEBUG(error, "Pod scheduling failure; backing off (PodId: %v, Deadline: %v)",
                 podId,
                 deadline);
-            Owner_->ScheduleQueue_.Enqueue(podId, deadline);
+            Context_.ScheduleQueue->Enqueue(podId, deadline);
             AllocationPlan_.RecordFailure(pod, error);
         }
 
@@ -460,12 +478,12 @@ private:
 
             auto now = TInstant::Now();
             while (true) {
-                auto podId = Owner_->ScheduleQueue_.Dequeue(now);
+                auto podId = Context_.ScheduleQueue->Dequeue(now);
                 if (!podId) {
                     break;
                 }
 
-                auto* pod = Owner_->Cluster_->FindPod(podId);
+                auto* pod = Context_.Cluster->FindPod(podId);
                 if (!pod) {
                     YT_LOG_DEBUG("Pod no longer exists; discarded (PodId: %v)",
                         podId);
@@ -479,7 +497,7 @@ private:
                     continue;
                 }
 
-                auto nodeOrError = Owner_->GlobalResourceAllocator_->ComputeAllocation(pod);
+                auto nodeOrError = Context_.GlobalResourceAllocator->ComputeAllocation(pod);
                 if (nodeOrError.IsOK()) {
                     auto* node = nodeOrError.Value();
                     if (node) {
@@ -503,7 +521,7 @@ private:
                     AllocationPlan_.GetFailures().size());
 
                 std::vector<TFuture<void>> asyncResults;
-                for (int index = 0; index < Owner_->Config_->AllocationCommitConcurrency; ++index) {
+                for (int index = 0; index < Context_.Config->AllocationCommitConcurrency; ++index) {
                     asyncResults.push_back(BIND(&TLoopIteration::CommitSchedulingResults, MakeStrong(this))
                         .AsyncVia(GetCurrentInvoker())
                         .Run());
@@ -565,13 +583,13 @@ private:
                     }));
 
                 try {
-                    const auto& transactionManager = Owner_->Bootstrap_->GetTransactionManager();
+                    const auto& transactionManager = Bootstrap_->GetTransactionManager();
                     auto transaction = WaitFor(transactionManager->StartReadWriteTransaction())
                         .ValueOrThrow();
 
                     auto* transactionNode = transaction->GetNode(perNodePlan.Node->GetId());
-                    const auto& resourceManager = Owner_->Bootstrap_->GetResourceManager();
-                    const auto& netManager = Owner_->Bootstrap_->GetNetManager();
+                    const auto& resourceManager = Bootstrap_->GetResourceManager();
+                    const auto& netManager = Bootstrap_->GetNetManager();
 
                     TResourceManagerContext resourceManagerContext{
                         netManager.Get(),
@@ -628,7 +646,7 @@ private:
                     YT_LOG_DEBUG(ex, "Error committing pods assignment; will reschedule");
                     for (const auto& variantRequest : perNodePlan.Requests) {
                         if (auto request = std::get_if<TAllocationPlan::TPodRequest>(&variantRequest); request && request->Type == EAllocationPlanPodRequestType::AssignPodToNode) {
-                            Owner_->ScheduleQueue_.Enqueue(request->Pod->GetId(), now);
+                            Context_.ScheduleQueue->Enqueue(request->Pod->GetId(), now);
                         }
                     }
                 }
@@ -640,7 +658,7 @@ private:
             const auto& failures = AllocationPlan_.GetFailures();
 
             try {
-                const auto& transactionManager = Owner_->Bootstrap_->GetTransactionManager();
+                const auto& transactionManager = Bootstrap_->GetTransactionManager();
                 auto transaction = WaitFor(transactionManager->StartReadWriteTransaction())
                     .ValueOrThrow();
 
@@ -661,10 +679,49 @@ private:
         }
     };
 
+    void UpdateLoopConfigImpl(TSchedulerConfigPtr config)
+    {
+        VERIFY_THREAD_AFFINITY(LoopThread);
+
+        YT_LOG_INFO("Updating scheduler loop configuration");
+
+        auto& context = GlobalLoopContext_;
+
+        context.Config = std::move(config);
+        try {
+            context.GlobalResourceAllocator = CreateGlobalResourceAllocator(context.Config->GlobalResourceAllocator);
+        } catch (const std::exception& ex) {
+            context.GlobalResourceAllocator = nullptr;
+            THROW_ERROR_EXCEPTION("Error creating global resource allocator while updating scheduler loop configuration")
+                << ex;
+        }
+    }
+
+    TFuture<void> UpdateLoopConfig(TSchedulerConfigPtr config)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return BIND(&TImpl::UpdateLoopConfigImpl, MakeWeak(this), std::move(config))
+            .AsyncVia(LoopActionQueue_->GetInvoker())
+            .Run();
+    }
+
+    void ValidateLoopContext(const TLoopContext& context)
+    {
+        if (!context.Config || !context.GlobalResourceAllocator) {
+            THROW_ERROR_EXCEPTION("Loop is not configured properly");
+        }
+    }
+
     void OnSchedulingLoop()
     {
+        VERIFY_THREAD_AFFINITY(LoopThread);
+
         try {
-            New<TLoopIteration>(this)->Run();
+            // NB! Make a copy.
+            auto context = GlobalLoopContext_;
+            ValidateLoopContext(context);
+            New<TLoopIteration>(Bootstrap_, std::move(context))->Run();
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Loop iteration failed");
         }
@@ -698,9 +755,9 @@ void TScheduler::Initialize()
     Impl_->Initialize();
 }
 
-const TClusterPtr& TScheduler::GetCluster() const
+TFuture<void> TScheduler::UpdateConfig(TSchedulerConfigPtr config)
 {
-    return Impl_->GetCluster();
+    return Impl_->UpdateConfig(std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

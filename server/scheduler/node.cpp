@@ -161,5 +161,4 @@ bool TNode::HasIP6SubnetInVlan(const TString& vlanId) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYP::NScheduler::NObjects
-
+} // namespace NYP::NServer::NScheduler

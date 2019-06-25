@@ -8,5 +8,4 @@ const TString TopologyLabel("topology");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYP::NScheduler::NObjects
-
+} // namespace NYP::NServer::NScheduler

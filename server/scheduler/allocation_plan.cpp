@@ -85,5 +85,4 @@ void FormatValue(TStringBuilderBase* builder, const TAllocationPlan::TNodeReques
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYP::NScheduler::NObjects
-
+} // namespace NYP::NServer::NScheduler

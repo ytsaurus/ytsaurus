@@ -29,7 +29,7 @@ namespace NYP::NServer::NMaster {
 class TBootstrap
 {
 public:
-    explicit TBootstrap(TMasterConfigPtr config);
+    TBootstrap(TMasterConfigPtr config, NYT::NYTree::INodePtr configPatchNode);
 
     const IInvokerPtr& GetControlInvoker();
     const IInvokerPtr& GetWorkerPoolInvoker();

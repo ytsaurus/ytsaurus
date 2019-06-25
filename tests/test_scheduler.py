@@ -243,7 +243,7 @@ class TestScheduler(object):
         with pytest.raises(YtResponseError):
             yp_client.update_object("pod", unassigned_pod_id, set_updates=[{"path": "/spec/node_id", "value": node_id}])
 
-    def test_node_filter(self, yp_env):
+    def test_pod_node_filter(self, yp_env):
         yp_client = yp_env.yp_client
 
         node_ids = create_nodes(yp_client, 10)
@@ -263,7 +263,78 @@ class TestScheduler(object):
 
         wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"])[0] == good_node_id)
 
-    def test_malformed_node_filter(self, yp_env):
+    def test_pod_set_node_filter(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        node_ids = create_nodes(yp_client, 10)
+        good_node_id = node_ids[5]
+        yp_client.update_object("node", good_node_id, set_updates=[
+            {"path": "/labels/status", "value": "good"}
+        ])
+
+        pod_set_spec = dict(DEFAULT_POD_SET_SPEC, **{
+            "node_filter": '[/labels/status] = "good"'
+        })
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": pod_set_spec})
+        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, {
+            "resource_requests": {
+                "vcpu_guarantee": 100
+            },
+            "enable_scheduling": True,
+        })
+
+        wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"])[0] == good_node_id)
+
+    def test_node_filter_priority(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        node_ids = create_nodes(yp_client, 10)
+        good_node_id = node_ids[5]
+        bad_node_id = node_ids[8]
+        yp_client.update_object("node", good_node_id, set_updates=[
+            {"path": "/labels/status", "value": "good"}
+        ])
+        yp_client.update_object("node", bad_node_id, set_updates=[
+            {"path": "/labels/status", "value": "bad"}
+        ])
+
+        pod_set_spec = dict(DEFAULT_POD_SET_SPEC, **{
+            "node_filter": '[/labels/status] = "bad"'
+        })
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": pod_set_spec})
+        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, {
+            "resource_requests": {
+                "vcpu_guarantee": 100
+            },
+            "enable_scheduling": True,
+            "node_filter" : '[/labels/status] = "good"'
+        })
+
+        wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"])[0] == good_node_id)
+
+    def test_ignore_pod_set_node_filter(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        node_id = create_nodes(yp_client, 1)[0]
+        yp_client.update_object("node", node_id, set_updates=[
+            {"path": "/labels/status", "value": "good"}
+        ])
+
+        pod_set_spec = dict(DEFAULT_POD_SET_SPEC, **{
+            "node_filter": '[/labels/status] = "bad"'
+        })
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": pod_set_spec})
+        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, {
+            "resource_requests": {
+                "vcpu_guarantee": 100
+            },
+            "enable_scheduling": True,
+            "node_filter" : "true"
+        })
+
+        wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"])[0] == node_id)
+
+    def test_malformed_pod_node_filter(self, yp_env):
         yp_client = yp_env.yp_client
 
         create_nodes(yp_client, 10)
@@ -274,6 +345,24 @@ class TestScheduler(object):
         })
 
         wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"])[0] == YsonEntity())
+        scheduling_error = yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/error"])[0]
+        assert isinstance(scheduling_error, YsonEntity)
+
+    def test_malformed_pod_set_node_filter(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        create_nodes(yp_client, 10)
+        pod_set_spec = dict(DEFAULT_POD_SET_SPEC, **{
+            "node_filter" : '[/some/nonexisting] = "value"'
+        })
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": pod_set_spec})
+        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, {
+            "enable_scheduling": True,
+        })
+
+        wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"])[0] == YsonEntity())
+        scheduling_error = yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/error"])[0]
+        assert isinstance(scheduling_error, YsonEntity)
 
     def _wait_for_pod_assignment(self, yp_env):
         yp_client = yp_env.yp_client

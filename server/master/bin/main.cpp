@@ -61,7 +61,7 @@ protected:
         // TODO(babenko): This memory leak is intentional.
         // We should avoid destroying bootstrap since some of the subsystems
         // may be holding a reference to it and continue running some actions in background threads.
-        auto* bootstrap = new NMaster::TBootstrap(std::move(config));
+        auto* bootstrap = new NMaster::TBootstrap(std::move(config), GetConfigNode());
         bootstrap->Run();
     }
 };

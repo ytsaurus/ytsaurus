@@ -7,6 +7,7 @@ namespace NYP::NServer::NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TScheduleQueue
+    : public TRefCounted
 {
 public:
     void Enqueue(TObjectId id, TInstant deadline);
@@ -23,6 +24,8 @@ private:
     std::vector<TEntry> Heap_;
     THashSet<TObjectId> Ids_;
 };
+
+DEFINE_REFCOUNTED_TYPE(TScheduleQueue)
 
 ////////////////////////////////////////////////////////////////////////////////
 

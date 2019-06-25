@@ -15,6 +15,15 @@ import pytest
 
 @pytest.mark.usefixtures("yp_env")
 class TestDiskBandwidthResource(object):
+    def _get_pod_disk_volume_allocation(self, yp_client, pod_id):
+        pod_disk_volume_allocations = yp_client.get_object(
+            "pod",
+            pod_id,
+            selectors=["/status/disk_volume_allocations"]
+        )[0]
+        assert len(pod_disk_volume_allocations) == 1
+        return pod_disk_volume_allocations[0]
+
     def test(self, yp_env):
         yp_client = yp_env.yp_client
 
@@ -67,16 +76,7 @@ class TestDiskBandwidthResource(object):
 
         # Test. Bandwidth / operation rate guarantees are calculated correctly.
         # Test. Bandwidth / operation rate limits are missed because pod bandwidth limit parameter is missed.
-        def get_pod_only_disk_volume_allocation(pod_id):
-            pod_disk_volume_allocations = yp_client.get_object(
-                "pod",
-                pod_id,
-                selectors=["/status/disk_volume_allocations"]
-            )[0]
-            assert len(pod_disk_volume_allocations) == 1
-            return pod_disk_volume_allocations[0]
-
-        volume_allocation = get_pod_only_disk_volume_allocation(pod_id)
+        volume_allocation = self._get_pod_disk_volume_allocation(yp_client, pod_id)
         assert volume_allocation["read_bandwidth_guarantee"] == int(pod_bandwidth_guarantee * read_bandwidth_factor)
         assert "read_bandwidth_limit" not in volume_allocation
         assert volume_allocation["write_bandwidth_guarantee"] == int(pod_bandwidth_guarantee * write_bandwidth_factor)
@@ -108,7 +108,7 @@ class TestDiskBandwidthResource(object):
 
         wait(lambda: is_assigned_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id2)))
 
-        volume_allocation2 = get_pod_only_disk_volume_allocation(pod_id2)
+        volume_allocation2 = self._get_pod_disk_volume_allocation(yp_client, pod_id2)
         assert volume_allocation2["read_bandwidth_limit"] == int(pod_bandwidth_limit * read_bandwidth_factor)
         assert volume_allocation2["write_bandwidth_limit"] == int(pod_bandwidth_limit * write_bandwidth_factor)
         assert volume_allocation2["read_operation_rate_limit"] == int(pod_bandwidth_limit / read_operation_rate_divisor)
@@ -143,7 +143,7 @@ class TestDiskBandwidthResource(object):
         create_node(pod_bandwidth_guarantee)
         wait(lambda: is_assigned_pod_scheduling_status(get_pod_scheduling_status(yp_client, exclusive_pod_id)))
 
-        exclusive_volume_allocation = get_pod_only_disk_volume_allocation(exclusive_pod_id)
+        exclusive_volume_allocation = self._get_pod_disk_volume_allocation(yp_client, exclusive_pod_id)
         assert exclusive_volume_allocation["read_bandwidth_guarantee"] == int(pod_bandwidth_guarantee * read_bandwidth_factor)
         assert "read_bandwidth_limit" not in exclusive_volume_allocation
         assert exclusive_volume_allocation["write_bandwidth_guarantee"] == int(pod_bandwidth_guarantee * write_bandwidth_factor)
@@ -194,3 +194,58 @@ class TestDiskBandwidthResource(object):
                 with pytest.raises(YtResponseError) as error:
                     create_nodes(yp_client, 1, disk_spec=get_disk_spec(parameter_name, bad_value))
                 create_nodes(yp_client, 1, disk_spec=get_disk_spec(parameter_name, 1.0))
+
+    def test_update_limits_without_rescheduling(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        create_nodes(yp_client, 1, disk_spec=dict(
+            read_bandwidth_factor=1.0,
+            write_bandwidth_factor=1.0,
+            read_operation_rate_divisor=1.0,
+            write_operation_rate_divisor=1.0,
+        ))
+
+        pod_set_id = yp_client.create_object("pod_set", attributes=dict(spec=DEFAULT_POD_SET_SPEC))
+
+        base_quota_policy = dict(capacity=10 ** 9)
+        pod_spec = dict(
+            enable_scheduling=True,
+            disk_volume_requests=[
+                dict(
+                    id="disk1",
+                    storage_class="hdd",
+                    quota_policy=base_quota_policy,
+                ),
+            ],
+        )
+
+        def validate_disk_volume_allocation_limits(pod_id, bandwidth_limit):
+            disk_volume_allocation = self._get_pod_disk_volume_allocation(yp_client, pod_id)
+            field_names = (
+                "read_bandwidth_limit",
+                "write_bandwidth_limit",
+                "read_operation_rate_limit",
+                "write_operation_rate_limit",
+            )
+            for field_name in field_names:
+                assert disk_volume_allocation.get(field_name, None) == bandwidth_limit
+
+        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, pod_spec)
+        wait(lambda: is_assigned_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id)))
+
+        validate_disk_volume_allocation_limits(pod_id, None)
+        for bandwidth_limit in (100, 200, None, 300):
+            quota_policy = base_quota_policy.copy()
+            if bandwidth_limit is not None:
+                quota_policy["bandwidth_limit"] = bandwidth_limit
+            yp_client.update_object(
+                "pod",
+                pod_id,
+                set_updates=[
+                    dict(
+                        path="/spec/disk_volume_requests/0/quota_policy",
+                        value=quota_policy,
+                    ),
+                ],
+            )
+            validate_disk_volume_allocation_limits(pod_id, bandwidth_limit)

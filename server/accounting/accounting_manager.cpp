@@ -287,6 +287,7 @@ private:
                         << TErrorAttribute("limit", limitsPerSegment.memory().capacity());
                 }
 
+                // NB! Missing internet address limit corresponds to the infinite limit for the backward compatibility.
                 if (limitsPerSegment.has_internet_address() && deltaPerSegment.internet_address().capacity() > 0 && usagePerSegment.internet_address().capacity() > limitsPerSegment.internet_address().capacity()) {
                     THROW_ERROR_EXCEPTION(
                         NClient::NApi::EErrorCode::AccountLimitExceeded,

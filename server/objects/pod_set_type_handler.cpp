@@ -48,7 +48,11 @@ public:
                     ->SetAttribute(TPodSet::TSpec::PodDisruptionBudgetSchema)
                     ->SetUpdatable()
                     ->SetUpdateHandler<TPodSet>(
-                        std::bind(&TPodSetTypeHandler::OnPodDisruptionBudgetUpdated, this, _1, _2))
+                        std::bind(&TPodSetTypeHandler::OnPodDisruptionBudgetUpdated, this, _1, _2)),
+
+                MakeAttributeSchema("node_filter")
+                    ->SetAttribute(TPodSet::TSpec::NodeFilterSchema)
+                    ->SetUpdatable(),
             });
 
         StatusAttributeSchema_

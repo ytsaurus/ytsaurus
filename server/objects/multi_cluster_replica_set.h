@@ -37,13 +37,13 @@ public:
         using TAccountAttribute = TManyToOneAttribute<TMultiClusterReplicaSet, TAccount>;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAccountAttribute, Account);
 
-        using TEtc = NProto::TMultiClusterReplicaSetSpecEtc;
+        using TEtc = TExtensibleProto<NProto::TMultiClusterReplicaSetSpecEtc>;
         static const TScalarAttributeSchema<TMultiClusterReplicaSet, TEtc> EtcSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TEtc>, Etc);
     };
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TSpec, Spec);
 
-    using TStatus = NYP::NClient::NApi::NProto::TMultiClusterReplicaSetStatus;
+    using TStatus = TExtensibleProto<NYP::NClient::NApi::NProto::TMultiClusterReplicaSetStatus>;
     static const TScalarAttributeSchema<TMultiClusterReplicaSet, TStatus> StatusSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TStatus>, Status);
 };

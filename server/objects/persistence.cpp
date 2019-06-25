@@ -14,12 +14,21 @@
 
 #include <yt/core/misc/collection_helpers.h>
 
+#include <yt/core/ytree/tree_visitor.h>
+
+#include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
+
 namespace NYP::NServer::NObjects {
 
 using namespace NYT::NTableClient;
 using namespace NYT::NApi;
 using namespace NYT::NQueryClient::NAst;
 using namespace NYT::NYson;
+using namespace NYT::NYTree;
+using namespace NYT::NYPath;
+
+using namespace google::protobuf;
+using namespace google::protobuf::io;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -897,6 +906,149 @@ void TAnnotationsAttribute::OnObjectRemoved()
 {
     DoScheduleLoad();
     DoScheduleStore();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUnknownAttributesMergingConsumer
+    : public NYson::TForwardingYsonConsumer
+{
+public:
+    TUnknownAttributesMergingConsumer(
+        IYsonConsumer* underlying,
+        const IAttributeDictionary& unknownAttributes)
+        : Underlying_(underlying)
+        , UnknownAttributes_(unknownAttributes)
+    { }
+
+private:
+    NYson::IYsonConsumer* const Underlying_;
+    const NYTree::IAttributeDictionary& UnknownAttributes_;
+
+
+    virtual void OnMyBeginMap() override
+    {
+        Underlying_->OnBeginMap();
+        for (const auto& key : UnknownAttributes_.List()) {
+            Underlying_->OnKeyedItem(key);
+            Underlying_->OnRaw(UnknownAttributes_.GetYson(key));
+        }
+        Forward(Underlying_,  nullptr, NYson::EYsonType::MapFragment);
+    }
+
+    virtual void OnMyEndMap() override
+    {
+        Underlying_->OnEndMap();
+    }
+};
+
+std::unique_ptr<IYsonConsumer> CreateUnknownAttributesMergingConsumer(
+    IYsonConsumer* underlying,
+    const IAttributeDictionary& unknownAttributes)
+{
+    return std::unique_ptr<IYsonConsumer>(new TUnknownAttributesMergingConsumer(
+        underlying,
+        unknownAttributes));
+}
+
+std::unique_ptr<IAttributeDictionary> DeserializeWithUnknownAttributes(
+    google::protobuf::Message& message,
+    const TProtobufMessageType* rootType,
+    const INodePtr& node)
+{
+    TString wireBytes;
+    google::protobuf::io::StringOutputStream outputStream(&wireBytes);
+
+    std::unique_ptr<IAttributeDictionary> unknownAttributes;
+
+    TProtobufWriterOptions options;
+    options.UnknownFieldCallback = [&] (const TYPath& path, const TString& key, TYsonString value) {
+        if (!path.empty()) {
+            return false;
+        }
+
+        if (!unknownAttributes) {
+            unknownAttributes = CreateEphemeralAttributes();
+            unknownAttributes->SetYson(key, std::move(value));
+        }
+        return true;
+    };
+
+    auto protobufWriter = NYson::CreateProtobufWriter(&outputStream, rootType, options);
+    VisitTree(node, protobufWriter.get(), true);
+
+    if (!message.ParseFromArray(wireBytes.data(), wireBytes.size())) {
+        THROW_ERROR_EXCEPTION("Error parsing %v from wire bytes",
+            message.GetTypeName());
+    }
+
+    return unknownAttributes;
+}
+
+void ExtensibleProtobufToUnversionedValueImpl(
+    TUnversionedValue* unversionedValue,
+    const google::protobuf::Message& knownAttributes,
+    const IAttributeDictionary& unknownAttributes,
+    const TProtobufMessageType* type,
+    const TRowBufferPtr& rowBuffer,
+    int id)
+{
+    auto byteSize = knownAttributes.ByteSize();
+    auto* pool = rowBuffer->GetPool();
+    auto* wireBuffer = pool->AllocateUnaligned(byteSize);
+    YCHECK(knownAttributes.SerializePartialToArray(wireBuffer, byteSize));
+
+    ArrayInputStream inputStream(wireBuffer, byteSize);
+    TString ysonBytes;
+    TStringOutput outputStream(ysonBytes);
+
+    TYsonWriter ysonWriter(&outputStream);
+    TUnknownAttributesMergingConsumer mergingConsumer(&ysonWriter, unknownAttributes);
+    ParseProtobuf(&mergingConsumer, &inputStream, type);
+
+    *unversionedValue = rowBuffer->Capture(MakeUnversionedAnyValue(ysonBytes, id));
+}
+
+void UnversionedValueToExtensibleProtobufImpl(
+    google::protobuf::Message* knownAttributes,
+    IAttributeDictionary* unknownAttributes,
+    const TProtobufMessageType* type,
+    TUnversionedValue unversionedValue)
+{
+    if (unversionedValue.Type == EValueType::Null) {
+        knownAttributes->Clear();
+        unknownAttributes->Clear();
+        return;
+    }
+
+    if (unversionedValue.Type != EValueType::Any) {
+        THROW_ERROR_EXCEPTION("Cannot parse a protobuf message from %Qlv",
+            unversionedValue.Type);
+    }
+
+    TString wireBytes;
+    StringOutputStream outputStream(&wireBytes);
+
+    TProtobufWriterOptions options;
+    options.UnknownFieldCallback = [&] (const TYPath& path, const TString& key, TYsonString value) {
+        if (!path.empty()) {
+            return false;
+        }
+
+        unknownAttributes->SetYson(key, std::move(value));
+        return true;
+    };
+    auto protobufWriter = CreateProtobufWriter(&outputStream, type, options);
+
+    ParseYsonStringBuffer(
+        TStringBuf(unversionedValue.Data.String, unversionedValue.Length),
+        EYsonType::Node,
+        protobufWriter.get());
+
+    if (!knownAttributes->ParseFromArray(wireBytes.data(), wireBytes.size())) {
+        THROW_ERROR_EXCEPTION("Error parsing %v from wire bytes",
+            knownAttributes->GetTypeName());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

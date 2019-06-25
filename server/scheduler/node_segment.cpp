@@ -28,5 +28,4 @@ TLabelFilterCache<TNode>* TNodeSegment::GetSchedulableNodeLabelFilterCache() con
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYP::NScheduler::NObjects
-
+} // namespace NYP::NServer::NScheduler

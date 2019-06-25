@@ -4,7 +4,7 @@ import argparse
 
 import google.protobuf.descriptor_pb2 as protobuf_descriptor_pb2
 import yp_proto.yp.client.api.proto.data_model_pb2 as data_model_pb2
-import yt.core.yson.proto.protobuf_interop_pb2 as protobuf_interop_pb2
+import yt_proto.yt.core.yson.proto.protobuf_interop_pb2 as protobuf_interop_pb2
 
 
 def get_modules():

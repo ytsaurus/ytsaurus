@@ -53,6 +53,9 @@ public:
         static const TManyToOneAttributeSchema<TPodSet, TPodDisruptionBudget> PodDisruptionBudgetSchema;
         using TPodDisruptionBudgetAttribute = TManyToOneAttribute<TPodSet, TPodDisruptionBudget>;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TPodDisruptionBudgetAttribute, PodDisruptionBudget);
+
+        static const TScalarAttributeSchema<TPodSet, TString> NodeFilterSchema;
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TString>, NodeFilter);
     };
 
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TSpec, Spec);

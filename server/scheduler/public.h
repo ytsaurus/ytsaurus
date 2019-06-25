@@ -34,6 +34,7 @@ struct TAllocationStatistics;
 
 DECLARE_REFCOUNTED_STRUCT(IGlobalResourceAllocator)
 
+DECLARE_REFCOUNTED_CLASS(TScheduleQueue)
 DECLARE_REFCOUNTED_CLASS(TResourceManager)
 DECLARE_REFCOUNTED_CLASS(TScheduler)
 

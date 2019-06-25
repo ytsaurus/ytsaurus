@@ -57,5 +57,4 @@ int* TTopologyZone::GetAntiaffinityVacancies(const TPod* pod)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYP::NScheduler::NObjects
-
+} // namespace NYP::NServer::NScheduler
