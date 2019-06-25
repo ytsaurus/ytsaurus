@@ -114,3 +114,17 @@ class TestHttpProxy(YTEnvSetup):
         for proxy in status["details"]:
             if proxy["address"] in ("test_http_proxy", "test_rpc_proxy"):
                 assert proxy.get("state") == "offline"
+
+    def test_structured_logs(self):
+        import json
+        rsp = requests.get(self.proxy_address() + "/api/v3/list?path=//sys").json()
+        monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
+        config_url = "http://localhost:{}/orchid/config".format(monitoring_port)
+        config = requests.get(config_url).json()
+        path = config["logging"]["writers"]["json"]["file_name"]
+        fd = open(path, "r")
+        lines = fd.readlines()
+        for line in lines:
+            line_json = json.loads(line)
+            if "path" in line_json and line_json["path"] == "//sys":
+                assert line_json["command"] == "list"

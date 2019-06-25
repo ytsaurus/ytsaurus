@@ -13,6 +13,8 @@
 
 #include <yt/core/ytree/fluent.h>
 
+#include <yt/core/logging/fluent_log.h>
+
 #include <yt/core/concurrency/async_stream.h>
 
 #include <yt/core/http/http.h>
@@ -547,6 +549,58 @@ void TContext::LogRequest()
         OutputContentEncoding_);
 }
 
+void TContext::LogStructuredRequest() {
+    /*
+    request_id - done
+    user - done
+    authenticated_from - what
+    token_hash -
+    command - done
+    parameters - не забыть удалить секреты - done
+    correlation_id - ??
+    trace_id - done
+    user_agent - done
+    method - done
+    path - done
+    http_code - done
+    error_code - done
+    error - done
+    remote_address - done
+    l7_request_id - done
+    l7_real_ip - done
+    duration - done
+    start_time - done
+    in_bytes - done
+    out_bytes - done
+    */
+    //set print pretty on
+    //set print object
+    auto correlation_id = Request_->GetHeaders()->Find("X-YT-Correlation-ID");
+    auto path = DriverRequest_.Parameters->AsMap()->FindChild("path");
+    LogStructuredEventFluently(HttpStructuredProxyLogger, ELogLevel::Info)
+        .Item("request_id").Value(Request_->GetRequestId())
+        .Item("command").Value(Descriptor_->CommandName)
+        .Item("user").Value(DriverRequest_.AuthenticatedUser)
+        .Item("parameters").Value(ConvertToYsonString(
+                    HideSecretParameters(Descriptor_->CommandName, DriverRequest_.Parameters),
+                    EYsonFormat::Text).GetData())
+        .Item("correlation_id").Value(correlation_id ? *correlation_id : "<null>")
+        .Item("trace_id").Value(GetTraceId(Request_))
+        .Item("user_agent").Value(GetUserAgent(Request_))
+        .Item("path").Value(path)
+        .Item("method").Value(Request_->GetMethod())
+        .Item("http_code").Value(Response_->GetStatus())
+        .Item("error_code").Value(static_cast<int>(Error_.GetCode()))
+        .Item("error").Value(Error_.GetMessage())
+        .Item("remote_address").Value(ToString(Request_->GetRemoteAddress()))
+        .Item("l7_request_id").Value(GetBalancerRequestId(Request_))
+        .Item("l7_real_ip").Value(GetBalancerRealIP(Request_))
+        .Item("duration").Value(Duration_)
+        .Item("start_time").Value(StartTime_)
+        .Item("in_bytes").Value(Request_->GetReadByteCount())
+        .Item("out_bytes").Value(Response_->GetWriteByteCount());
+}
+
 void TContext::SetupInputStream()
 {
     if (IdentityContentEncoding == InputContentEncoding_) {
@@ -753,12 +807,16 @@ void TContext::Finalize()
         }
     }
 
+    Duration_ = TInstant::Now() - StartTime_;
+
+    LogStructuredRequest();
+
     Api_->IncrementProfilingCounters(
         DriverRequest_.AuthenticatedUser,
         DriverRequest_.CommandName,
         Response_->GetStatus(),
         Error_.GetCode(),
-        TInstant::Now() - StartTime_,
+        Duration_,
         Request_->GetReadByteCount(),
         Response_->GetWriteByteCount());
 }
