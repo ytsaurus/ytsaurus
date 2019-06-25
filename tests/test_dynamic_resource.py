@@ -15,7 +15,11 @@ class TestDynamicResource(object):
                 },
                 "spec": {
                     "revision": 42,
-                    "urls": ["nonexistent://"],
+                    "deploy_groups": [
+                        {
+                            "urls": ["nonexistent://"],
+                        },
+                    ],
                 },
                 "status": {
                     "revisions": [
@@ -50,13 +54,17 @@ class TestDynamicResource(object):
         assert result[0]["id"] == dynamic_resource_id
         assert result[0]["pod_set_id"] == pod_set_id
         assert result[1]["revision"] == 42
-        assert result[1]["urls"] == ["nonexistent://"]
+        assert result[1]["deploy_groups"][0]["urls"] == ["nonexistent://"]
         assert result[1].get("verification") is None
         assert len(result[2]["revisions"]) == 2
 
         spec = {
             "revision": 43,
-            "urls": ["something://"],
+            "deploy_groups": [
+                {
+                    "urls": ["something://"],
+                },
+            ],
         }
 
         yp_client.update_object("dynamic_resource", dynamic_resource_id, set_updates=[{"path": "/spec", "value": spec}])
@@ -66,13 +74,17 @@ class TestDynamicResource(object):
 
         spec = {
             "revision": 44,
-            "urls": ["something://"],
-            "storage_options": {
-                "verification": {
-                    "checksum": "123",
-                    "check_period_ms": 1000,
-                },
-            },
+            "deploy_groups": [
+                {
+                    "urls": ["something://"],
+                    "storage_options": {
+                        "verification": {
+                            "checksum": "123",
+                            "check_period_ms": 1000,
+                        },
+                    },
+                }
+            ],
         }
 
         yp_client.update_object("dynamic_resource", dynamic_resource_id, set_updates=[{"path": "/spec", "value": spec}])
@@ -127,6 +139,7 @@ class TestDynamicResource(object):
             {
                 "id": dynamic_resource_id,
                 "revision": 2,
+                "mark": "mymark",
             },
         ]
         status = [
@@ -136,6 +149,7 @@ class TestDynamicResource(object):
                 "ready": {"status": "false"},
                 "in_progress": {"status": "true"},
                 "error": {"status": "true", "reason": "oops!", "message": "Absolute fail"},
+                "mark": "mymark",
             }
         ]
         pod_id = yp_client.create_object(
@@ -191,6 +205,7 @@ class TestDynamicResource(object):
             {
                 "id": dynamic_resource_id,
                 "revision": 2,
+                "mark": "mymark",
             },
         ]
         status = [
@@ -200,6 +215,7 @@ class TestDynamicResource(object):
                 "ready": {"status": "false"},
                 "in_progress": {"status": "true"},
                 "error": {"status": "true", "reason": "oops!", "message": "Absolute fail"},
+                "mark": "mymark",
             }
         ]
 
