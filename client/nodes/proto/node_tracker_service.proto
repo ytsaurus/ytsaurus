@@ -177,7 +177,7 @@ message TRspHeartbeat
 
     message TNodeEntry
     {
-        // Requests the cpu spec updates.
+        // Requests the CPU spec updates.
         optional NYP.NClient.NApi.NProto.TResourceSpec.TCpuSpec cpu = 1;
     }
 
