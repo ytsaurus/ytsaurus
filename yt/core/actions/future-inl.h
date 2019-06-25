@@ -557,13 +557,13 @@ void ApplyHelperHandler(TPromise<T>& promise, const TCallback<R(const TErrorOr<U
 }
 
 template <class R, class T, class S>
-TFuture<R> ApplyHelper(TFutureBase<T> this_, const TCallback<S>& callback)
+TFuture<R> ApplyHelper(TFutureBase<T> this_, TCallback<S> callback)
 {
     YT_ASSERT(this_);
 
     auto promise = NewPromise<R>();
 
-    this_.Subscribe(BIND([=] (const TErrorOr<T>& value) mutable {
+    this_.Subscribe(BIND([=, callback = std::move(callback)] (const TErrorOr<T>& value) mutable {
         ApplyHelperHandler(promise, callback, value);
     }));
 
@@ -798,28 +798,28 @@ template <class T>
 template <class R>
 TFuture<R> TFutureBase<T>::Apply(TCallback<R(const TErrorOr<T>&)> callback)
 {
-    return NYT::NDetail::ApplyHelper<R>(*this, callback);
+    return NYT::NDetail::ApplyHelper<R>(*this, std::move(callback));
 }
 
 template <class T>
 template <class R>
 TFuture<R> TFutureBase<T>::Apply(TCallback<TErrorOr<R>(const TErrorOr<T>&)> callback)
 {
-    return NYT::NDetail::ApplyHelper<R>(*this, callback);
+    return NYT::NDetail::ApplyHelper<R>(*this, std::move(callback));
 }
 
 template <class T>
 template <class R>
 TFuture<R> TFutureBase<T>::Apply(TCallback<TFuture<R>(const TErrorOr<T>&)> callback)
 {
-    return NYT::NDetail::ApplyHelper<R>(*this, callback);
+    return NYT::NDetail::ApplyHelper<R>(*this, std::move(callback));
 }
 
 template <class T>
 template <class R>
 TFuture<R> TFutureBase<T>::Apply(TCallback<TErrorOr<TFuture<R>>(const TErrorOr<T>&)> callback)
 {
-    return NYT::NDetail::ApplyHelper<R>(*this, callback);
+    return NYT::NDetail::ApplyHelper<R>(*this, std::move(callback));
 }
 
 template <class T>
