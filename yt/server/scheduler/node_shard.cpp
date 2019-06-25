@@ -559,6 +559,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             statistics.HasAggressivelyStarvingElements);
 
         node->SetResourceUsage(schedulingContext->ResourceUsage());
+        node->SetLastHeartbeatStatistics(statistics);
 
         ProcessScheduledJobs(
             schedulingContext,
@@ -2430,7 +2431,7 @@ void TNodeShard::BuildNodeYson(const TExecNodePtr& node, TFluentMap fluent)
     fluent
         .Item(node->GetDefaultAddress()).BeginMap()
             .Do([&] (TFluentMap fluent) {
-                BuildExecNodeAttributes(node, fluent);
+                node->BuildAttributes(fluent);
             })
         .EndMap();
 }

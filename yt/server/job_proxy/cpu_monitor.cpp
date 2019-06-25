@@ -14,12 +14,13 @@ TCpuMonitor::TCpuMonitor(
     const double hardCpuLimit)
     : Config_(std::move(config))
     , MonitoringExecutor_(New<NConcurrency::TPeriodicExecutor>(
-        invoker,
+        std::move(invoker),
         BIND(&TCpuMonitor::DoCheck, MakeWeak(this)),
         Config_->CheckPeriod))
     , JobProxy_(jobProxy)
     , HardLimit_(hardCpuLimit)
     , SoftLimit_(hardCpuLimit)
+    , MinCpuLimit_(std::min(hardCpuLimit, Config_->MinCpuLimit))
     , Logger("CpuMonitor")
 { }
 
@@ -129,7 +130,7 @@ std::optional<double> TCpuMonitor::TryMakeDecision()
             }
             Votes_.clear();
         } else if (voteSum < -Config_->VoteDecisionThreshold) {
-            auto softLimit = std::max(SoftLimit_ * Config_->DecreaseCoefficient, Config_->MinCpuLimit);
+            auto softLimit = std::max(SoftLimit_ * Config_->DecreaseCoefficient, MinCpuLimit_);
             if (softLimit != SoftLimit_) {
                 result = softLimit;
             }

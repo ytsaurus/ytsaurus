@@ -832,7 +832,7 @@ struct TListJobsOptions
 
     EDataSource DataSource = EDataSource::Auto;
 
-    TDuration RunningJobsLookbehindPeriod = TDuration::Minutes(1);
+    TDuration RunningJobsLookbehindPeriod = TDuration::Max();
 };
 
 struct TStraceJobOptions

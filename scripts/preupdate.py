@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 from subprocess import check_output, Popen, PIPE, STDOUT
 from pprint import pprint
