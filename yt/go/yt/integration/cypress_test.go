@@ -36,7 +36,7 @@ func TestCypress(t *testing.T) {
 
 			var attrs struct {
 				Account  string `yson:"account"`
-				Revision int64  `yson:"revision"`
+				Revision uint64 `yson:"revision"`
 			}
 
 			err := env.YT.GetNode(ctx, ypath.Path("//@"), &attrs, nil)
