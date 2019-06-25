@@ -436,9 +436,9 @@ void TRichYPath::Load(TStreamLoadContext& context)
     Load(context, Attributes_);
 }
 
-bool TRichYPath::GetAppend() const
+bool TRichYPath::GetAppend(bool defaultValue) const
 {
-    return GetAttribute(*this, "append", false);
+    return GetAttribute(*this, "append", defaultValue);
 }
 
 void TRichYPath::SetAppend(bool value)
@@ -601,6 +601,11 @@ std::optional<NObjectClient::TTransactionId> TRichYPath::GetTransactionId() cons
 std::optional<std::vector<TSecurityTag>> TRichYPath::GetSecurityTags() const
 {
     return FindAttribute<std::vector<TSecurityTag>>(*this, "security_tags");
+}
+
+bool TRichYPath::GetBypassArtifactCache() const
+{
+    return GetAttribute<bool>(*this, "bypass_artifact_cache", false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

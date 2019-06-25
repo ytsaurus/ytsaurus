@@ -189,7 +189,7 @@ DECLARE_REFCOUNTED_STRUCT(ISchemalessReader)
 DECLARE_REFCOUNTED_STRUCT(IUnversionedWriter)
 DECLARE_REFCOUNTED_STRUCT(IUnversionedRowsetWriter)
 
-using TSchemalessWriterFactory = std::function<IUnversionedRowsetWriterPtr(TNameTablePtr)>;
+using TSchemalessWriterFactory = std::function<IUnversionedRowsetWriterPtr(TNameTablePtr, const TTableSchema&)>;
 
 DECLARE_REFCOUNTED_STRUCT(ISchemafulReader)
 
@@ -230,6 +230,7 @@ DECLARE_REFCOUNTED_CLASS(TSimpleLogicalType)
 DECLARE_REFCOUNTED_CLASS(TOptionalLogicalType)
 DECLARE_REFCOUNTED_CLASS(TListLogicalType)
 DECLARE_REFCOUNTED_CLASS(TStructLogicalType)
+DECLARE_REFCOUNTED_CLASS(TTupleLogicalType)
 
 ////////////////////////////////////////////////////////////////////////////////
 

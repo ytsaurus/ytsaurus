@@ -1,6 +1,5 @@
 #pragma once
 
-#include "public.h"
 #include "helpers.h"
 #include "connection_impl.h"
 #include "api_service_proxy.h"
@@ -31,6 +30,8 @@ protected:
 
     virtual TApiServiceProxy CreateApiServiceProxy(
         NRpc::IChannelPtr channel = {});
+    virtual void InitStreamingRequest(
+        NRpc::TClientRequest& request);
     friend class TTransaction;
 
 public:
@@ -141,19 +142,13 @@ public:
         const NApi::TJournalWriterOptions& options) override;
 
     // Tables
-    virtual TFuture<ITableReaderPtr> CreateTableReader(
-        const NYPath::TRichYPath&,
-        const NApi::TTableReaderOptions&) override
-    {
-        ThrowUnimplemented("read_table");
-    }
+    virtual TFuture<NApi::ITableReaderPtr> CreateTableReader(
+        const NYPath::TRichYPath& path,
+        const NApi::TTableReaderOptions& options) override;
 
-    virtual TFuture<ITableWriterPtr> CreateTableWriter(
-        const NYPath::TRichYPath&,
-        const NApi::TTableWriterOptions&) override
-    {
-        ThrowUnimplemented("write_table");
-    }
+    virtual TFuture<NApi::ITableWriterPtr> CreateTableWriter(
+        const NYPath::TRichYPath& path,
+        const NApi::TTableWriterOptions& options) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TClientBase)

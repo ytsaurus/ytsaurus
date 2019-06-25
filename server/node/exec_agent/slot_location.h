@@ -53,6 +53,13 @@ public:
         const TString& linkName,
         bool executable);
 
+    TFuture<void> MakeSandboxFile(
+        int slotIndex,
+        ESandboxKind kind,
+        const std::function<void(IOutputStream*)>& producer,
+        const TString& destinationName,
+        bool executable);
+
     // Set quota, permissions, etc. Must be called when all files are prepared.
     TFuture<void> FinalizeSanboxPreparation(
         int slotIndex,
@@ -108,6 +115,12 @@ private:
 
     TString GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) const;
     TString GetConfigPath(int slotIndex) const;
+
+    TFuture<void> DoMakeSandboxFile(
+        int slotIndex,
+        ESandboxKind kind,
+        const std::function<void(const TString& destinationPath)>& callback,
+        const TString& destinationName);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSlotLocation)

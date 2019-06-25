@@ -190,8 +190,12 @@ private:
         for (size_t i = 0; i < InputTablePaths_.size(); ++i) {
             InputTables_[i].Path = InputTablePaths_[i];
             if (InputTables_[i].Path.HasNontrivialRanges()) {
-                THROW_ERROR_EXCEPTION("Non-trivial ypath ranges are not supported yet (YT-9323)")
-                    << TErrorAttribute("path", InputTables_[i].Path);
+                for (const auto& range : InputTables_[i].Path.GetRanges()) {
+                    if (range.LowerLimit().HasKey() || range.UpperLimit().HasKey()) {
+                        THROW_ERROR_EXCEPTION("Keys in YPath ranges are not supported yet (CHYT-48)")
+                            << TErrorAttribute("path", InputTables_[i].Path);
+                    }
+                }
             }
         }
 
@@ -417,21 +421,16 @@ DEFINE_REFCOUNTED_TYPE(TDataSliceFetcher);
 std::vector<TInputDataSlicePtr> FetchDataSlices(
     NNative::IClientPtr client,
     const IInvokerPtr& invoker,
-    std::vector<TString> inputTablePaths,
+    std::vector<TRichYPath> inputTablePaths,
     const KeyCondition* keyCondition,
     TRowBufferPtr rowBuffer,
     TSubqueryConfigPtr config,
     TSubquerySpec& specTemplate)
 {
-    std::vector<TRichYPath> inputTableRichPaths;
-    for (const auto& path : inputTablePaths) {
-        inputTableRichPaths.emplace_back(TRichYPath::Parse(path));
-    }
-
     auto dataSliceFetcher = New<TDataSliceFetcher>(
         std::move(client),
         invoker,
-        std::move(inputTableRichPaths),
+        std::move(inputTablePaths),
         keyCondition,
         std::move(rowBuffer),
         std::move(config));

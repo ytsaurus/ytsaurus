@@ -104,6 +104,12 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, WriteJournal,
         .SetStreamingEnabled(true));
 
+    // Tables
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ReadTable,
+        .SetStreamingEnabled(true));
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, WriteTable,
+        .SetStreamingEnabled(true));
+
     // File caching
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetFileFromCache);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, PutFileToCache);

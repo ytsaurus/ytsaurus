@@ -95,6 +95,9 @@ Py::Object TDriverBase::Execute(Py::Tuple& args, Py::Dict& kwargs)
     request.CommandName = ConvertStringObjectToString(GetAttr(pyRequest, "command_name"));
     request.Parameters = ConvertToNodeWithUtf8Deconding(GetAttr(pyRequest, "parameters"))->AsMap();
     request.ResponseParametersConsumer = holder->GetResponseParametersConsumer();
+    request.ResponseParametersFinishedCallback = [holder] () {
+        holder->OnResponseParametersFinished();
+    };
 
     auto user = GetAttr(pyRequest, "user");
     if (!user.isNone()) {

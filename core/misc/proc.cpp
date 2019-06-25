@@ -492,26 +492,6 @@ void SafeSetCloexec(int fd)
     }
 }
 
-void SetPermissions(const TString& path, int permissions)
-{
-#ifdef _linux_
-    auto res = HandleEintr(::chmod, path.data(), permissions);
-
-    if (res == -1) {
-        THROW_ERROR_EXCEPTION("Failed to set permissions for descriptor")
-            << TErrorAttribute("path", path)
-            << TErrorAttribute("permissions", permissions)
-            << TError::FromSystem();
-    }
-#endif
-}
-
-void SetPermissions(int fd, int permissions)
-{
-    const auto& procPath = Format("/proc/self/fd/%v", fd);
-    SetPermissions(procPath, permissions);
-}
-
 void SetUid(int uid)
 {
     // Set unprivileged uid for user process.
@@ -808,11 +788,6 @@ void SetThreadPriorityAsRoot(TSetThreadPriorityConfigPtr /* config */)
 }
 
 void CloseAllDescriptors()
-{
-    Y_UNIMPLEMENTED();
-}
-
-void SetPermissions(int /* fd */, int /* permissions */)
 {
     Y_UNIMPLEMENTED();
 }

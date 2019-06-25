@@ -24,10 +24,16 @@ TDiskLocation::TDiskLocation(
     TDiskLocationConfigPtr config,
     const TString& id,
     const NLogging::TLogger& logger)
-    : Logger(NLogging::TLogger(logger)
+    : Id_(id)
+    , Logger(NLogging::TLogger(logger)
          .AddTag("LocationId: %v", id))
     , Config_(config)
 { }
+
+const TString& TDiskLocation::GetId() const
+{
+    return Id_;
+}
 
 bool TDiskLocation::IsEnabled() const
 {

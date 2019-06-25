@@ -706,7 +706,13 @@ public:
         , SamplingPrimaryDataWeightPerJob_(samplingPrimaryDataWeightPerJob)
         , MaxBuildRetryCount_(maxBuildRetryCount)
         , DataWeightPerJobRetryFactor_(dataWeightPerJobRetryFactor)
-    { }
+    {
+        // COMPAT(max42): remove this after YT-10666 (and put YCHECK about job having non-empty
+        // input somewhere in controller).
+        MaxDataWeightPerJob_ = std::max<i64>(1, MaxDataWeightPerJob_);
+        DataWeightPerJob_ = std::max<i64>(1, DataWeightPerJob_);
+        PrimaryDataWeightPerJob_ = std::max<i64>(1, PrimaryDataWeightPerJob_);
+    }
 
     virtual bool CanAdjustDataWeightPerJob() const override
     {
@@ -808,6 +814,14 @@ public:
         Persist(context, SamplingPrimaryDataWeightPerJob_);
         Persist(context, MaxBuildRetryCount_);
         Persist(context, DataWeightPerJobRetryFactor_);
+
+        // COMPAT(max42): remove this after YT-10666 (and put YCHECK about job having non-empty
+        // input somewhere in controller).
+        if (context.IsLoad()) {
+            MaxDataWeightPerJob_ = std::max<i64>(1, MaxDataWeightPerJob_);
+            DataWeightPerJob_ = std::max<i64>(1, DataWeightPerJob_);
+            PrimaryDataWeightPerJob_ = std::max<i64>(1, PrimaryDataWeightPerJob_);
+        }
     }
 
 private:

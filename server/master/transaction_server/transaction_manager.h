@@ -60,6 +60,9 @@ public:
         TTransaction* transaction,
         bool force);
 
+    // COMPAT(shakurov). Hide this to the impl once YT-10852 is resolved.
+    void FinishTransaction(TTransaction* transaction);
+
     DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction);
 
     //! Finds transaction by id, throws if nothing is found.

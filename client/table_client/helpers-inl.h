@@ -84,7 +84,7 @@ void ToUnversionedValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void UnversionedValueToListImpl(
+void UnversionedValueToProtobufImpl(
     google::protobuf::Message* value,
     const NYson::TProtobufMessageType* type,
     TUnversionedValue unversionedValue);
@@ -95,7 +95,7 @@ void FromUnversionedValue(
     TUnversionedValue unversionedValue,
     typename std::enable_if<std::is_convertible<T*, google::protobuf::Message*>::value, void>::type*)
 {
-    UnversionedValueToListImpl(
+    UnversionedValueToProtobufImpl(
         value,
         NYson::ReflectProtobufMessageType<T>(),
         unversionedValue);
@@ -335,6 +335,24 @@ T FromUnversionedValue(TUnversionedValue unversionedValue)
     T value;
     FromUnversionedValue(&value, unversionedValue);
     return value;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TReader, class TRow>
+TFuture<void> AsyncReadRows(const TIntrusivePtr<TReader>& reader, std::vector<TRow>* rows)
+{
+    YCHECK(reader);
+    YCHECK(rows);
+
+    rows->clear();
+    if (!reader->Read(rows) || !rows->empty()) {
+        return VoidFuture;
+    }
+
+    return reader->GetReadyEvent().Apply(BIND ([=] () {
+        return AsyncReadRows(reader, rows);
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

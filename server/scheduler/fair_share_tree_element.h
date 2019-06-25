@@ -1,10 +1,13 @@
 #pragma once
 
-#include "private.h"
+#include "fair_share_strategy_operation_controller.h"
 #include "job.h"
+#include "private.h"
+#include "resource_tree_element.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
 #include "fair_share_strategy_operation_controller.h"
+#include "packing.h"
 
 #include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/scheduling_tag.h>
@@ -52,10 +55,9 @@ typedef std::vector<TDynamicAttributes> TDynamicAttributesList;
 //! This interface must be thread-safe.
 struct IFairShareTreeHost
 {
-    virtual NProfiling::TAggregateGauge& GetProfilingCounter(const TString& name) = 0;
+    virtual TResourceTree* GetResourceTree() = 0;
 
-    // NB(renadeen): see TSchedulerElementSharedState for explanation
-    virtual NConcurrency::TReaderWriterSpinLock* GetSharedStateTreeLock() = 0;
+    virtual NProfiling::TAggregateGauge& GetProfilingCounter(const TString& name) = 0;
 };
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,6 +76,8 @@ struct TScheduleJobsProfilingCounters
     NProfiling::TAggregateGauge TotalControllerScheduleJobTime;
     NProfiling::TAggregateGauge ExecControllerScheduleJobTime;
     NProfiling::TAggregateGauge StrategyScheduleJobTime;
+    NProfiling::TAggregateGauge PackingRecordHeartbeatTime;
+    NProfiling::TAggregateGauge PackingCheckTime;
     NProfiling::TMonotonicCounter ScheduleJobCount;
     NProfiling::TMonotonicCounter ScheduleJobFailureCount;
     TEnumIndexedVector<NProfiling::TMonotonicCounter, NControllerAgent::EScheduleJobFailReason> ControllerScheduleJobFail;
@@ -94,7 +98,10 @@ struct TFairShareSchedulingStage
 class TFairShareContext
 {
 public:
-    TFairShareContext(const ISchedulingContextPtr& schedulingContext, bool enableSchedulingInfoLogging);
+    TFairShareContext(
+        const ISchedulingContextPtr& schedulingContext,
+        bool enableSchedulingInfoLogging,
+        const NLogging::TLogger& logger);
 
     void Initialize(int treeSize, const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters);
 
@@ -120,6 +127,8 @@ public:
 
     TFairShareSchedulingStatistics SchedulingStatistics;
 
+    std::vector<TOperationElementPtr> BadPackingOperations;
+
     struct TStageState
     {
         explicit TStageState(TFairShareSchedulingStage* schedulingStage);
@@ -130,6 +139,8 @@ public:
         TDuration PrescheduleDuration;
         TDuration TotalScheduleJobDuration;
         TDuration ExecScheduleJobDuration;
+        TDuration PackingRecordHeartbeatDuration;
+        TDuration PackingCheckDuration;
         TEnumIndexedVector<int, NControllerAgent::EScheduleJobFailReason> FailedScheduleJob;
 
         int ActiveOperationCount = 0;
@@ -142,6 +153,8 @@ public:
     std::optional<TStageState> StageState;
 
 private:
+    const NLogging::TLogger Logger;
+
     void ProfileStageTimings();
 
     void LogStageStatistics();
@@ -191,94 +204,16 @@ protected:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// This is node of shared state tree.
-// Each state corresponds to some scheduler element and all its snapshots.
-// There are three general scenarios:
-// 1. Get local resource usage of particular element - we take read lock on ResourceUsageLock_ of the state.
-// 2. Apply update of some property from leaf to root (increase or decrease of resource usage for example)
-// - we take read lock on SharedStateTreeLock provided by IFairShareTreeHost for whole operation
-// and make local updates of particular states under write lock on corresponding ResourceUsageLock_.
-// 3. Modify tree structure (attach, change or detach parent of element)
-// - we take write lock on SharedStateTreeLock for whole operation.
-// If we need to update properties of the particular state we also take the write lock on ResourceUsageLock_ for this update
-// Essentially SharedStateTreeLock protects tree structure.
-// We take this lock if we need to access the parent link of some element
-class TSchedulerElementSharedState
-    : public TIntrinsicRefCounted
+struct TFairShareScheduleJobResult
 {
-public:
-    explicit TSchedulerElementSharedState(IFairShareTreeHost* host);
+    TFairShareScheduleJobResult(bool finished, bool scheduled)
+        : Finished(finished)
+        , Scheduled(scheduled)
+    { }
 
-    TJobResources GetResourceUsage();
-    TJobResources GetTotalResourceUsageWithPrecommit();
-    TJobMetrics GetJobMetrics();
-
-    void AttachParent(TSchedulerElementSharedState* parent);
-    void ChangeParent(TSchedulerElementSharedState* newParent);
-    void DetachParent();
-    void ReleaseResources();
-
-    bool TryIncreaseHierarchicalResourceUsagePrecommit(
-        const TJobResources &delta,
-        TJobResources *availableResourceLimitsOutput);
-    void IncreaseHierarchicalResourceUsagePrecommit(const TJobResources& delta);
-    void CommitHierarchicalResourceUsage(
-        const TJobResources& resourceUsageDelta,
-        const TJobResources& precommittedResources);
-    void IncreaseHierarchicalResourceUsage(const TJobResources& delta);
-    void ApplyHierarchicalJobMetricsDelta(const TJobMetrics& delta);
-
-    bool CheckDemand(
-        const TJobResources& delta,
-        const TJobResources& resourceDemand,
-        const TJobResources& resourceDiscount);
-    double GetResourceUsageRatio(NNodeTrackerClient::EResourceType dominantResource, double dominantResourceLimit);
-
-    bool GetAlive() const;
-    void SetAlive(bool alive);
-
-    double GetFairShareRatio() const;
-    void SetFairShareRatio(double fairShareRatio);
-
-    void SetResourceLimits(TJobResources resourceLimits);
-
-private:
-    IFairShareTreeHost* const FairShareTreeHost_;
-
-    NConcurrency::TPaddedReaderWriterSpinLock ResourceUsageLock_;
-    TJobResources ResourceUsage_;
-    TJobResources ResourceLimits_ = TJobResources::Infinite();
-    TJobResources ResourceUsagePrecommit_;
-
-    NConcurrency::TPaddedReaderWriterSpinLock JobMetricsLock_;
-    TJobMetrics JobMetrics_;
-
-    TSchedulerElementSharedStatePtr Parent_;
-
-    std::atomic<bool> Alive_ = {true};
-    std::atomic<double> FairShareRatio_ = {0.0};
-
-    bool IncreaseLocalResourceUsagePrecommitWithCheck(
-        const TJobResources& delta,
-        TJobResources* availableResourceLimitsOutput);
-    void IncreaseLocalResourceUsagePrecommit(const TJobResources& delta);
-    void CommitLocalResourceUsage(
-        const TJobResources& resourceUsageDelta,
-        const TJobResources& precommittedResources);
-    void IncreaseLocalResourceUsage(const TJobResources& delta);
-    void ApplyLocalJobMetricsDelta(const TJobMetrics& delta);
-
-    void DoIncreaseHierarchicalResourceUsagePrecommit(const TJobResources& delta);
-    void DoIncreaseHierarchicalResourceUsage(const TJobResources& delta);
-
-    void CheckCycleAbsence(TSchedulerElementSharedState* newParent);
-    TJobResources GetResourceUsagePrecommit();
+    bool Finished;
+    bool Scheduled;
 };
-
-DEFINE_REFCOUNTED_TYPE(TSchedulerElementSharedState)
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerElement
     : public TSchedulerElementFixedState
@@ -308,7 +243,7 @@ public:
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList);
 
     virtual void PrescheduleJob(TFairShareContext* context, bool starvingOnly, bool aggressiveStarvationEnabled);
-    virtual bool ScheduleJob(TFairShareContext* context) = 0;
+    virtual TFairShareScheduleJobResult ScheduleJob(TFairShareContext* context, bool ignorePacking) = 0;
 
     virtual bool HasAggressivelyStarvingElements(TFairShareContext* context, bool aggressiveStarvationEnabled) const = 0;
 
@@ -356,9 +291,9 @@ public:
     virtual void CheckForStarvation(TInstant now) = 0;
 
     TJobResources GetLocalResourceUsage() const;
-    TJobResources GetTotalLocalResourceUsageWithPrecommit() const;
     TJobMetrics GetJobMetrics() const;
-    double GetLocalResourceUsageRatio() const;
+    double GetResourceUsageRatio() const;
+    double GetResourceUsageRatioWithPrecommit() const;
 
     virtual TString GetTreeId() const;
 
@@ -370,15 +305,18 @@ public:
 
     double ComputeLocalSatisfactionRatio() const;
 
+    const NLogging::TLogger& GetLogger() const;
+
 private:
-    TSchedulerElementSharedStatePtr SharedState_;
+    TResourceTreeElementPtr ResourceTreeElement_;
 
 protected:
     TSchedulerElement(
         ISchedulerStrategyHost* host,
         IFairShareTreeHost* treeHost,
         const TFairShareStrategyTreeConfigPtr& treeConfig,
-        const TString& treeId);
+        const TString& treeId,
+        const NLogging::TLogger& logger);
     TSchedulerElement(
         const TSchedulerElement& other,
         TCompositeSchedulerElement* clonedParent);
@@ -409,8 +347,12 @@ protected:
 
     TJobResources ComputeResourceLimitsBase(const TResourceLimitsConfigPtr& resourceLimitsConfig) const;
 
+protected:
+    const NLogging::TLogger Logger;
+
 private:
     void UpdateAttributes();
+    double ComputeResourceUsageRatio(const TJobResources& jobResources) const;
 
     friend class TOperationElement;
     friend class TPool;
@@ -447,7 +389,8 @@ public:
         IFairShareTreeHost* treeHost,
         TFairShareStrategyTreeConfigPtr treeConfig,
         NProfiling::TTagId profilingTag,
-        const TString& treeId);
+        const TString& treeId,
+        const NLogging::TLogger& logger);
     TCompositeSchedulerElement(
         const TCompositeSchedulerElement& other,
         TCompositeSchedulerElement* clonedParent);
@@ -471,7 +414,7 @@ public:
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) override;
 
     virtual void PrescheduleJob(TFairShareContext* context, bool starvingOnly, bool aggressiveStarvationEnabled) override;
-    virtual bool ScheduleJob(TFairShareContext* context) override;
+    virtual TFairShareScheduleJobResult ScheduleJob(TFairShareContext* context, bool ignorePacking) override;
 
     virtual bool HasAggressivelyStarvingElements(TFairShareContext* context, bool aggressiveStarvationEnabled) const override;
 
@@ -546,6 +489,7 @@ protected:
 
     const TString Id_;
     bool DefaultConfigured_ = true;
+    bool EphemeralInDefaultParentPool_ = false;
     std::optional<TString> UserName_;
 };
 
@@ -564,12 +508,14 @@ public:
         bool defaultConfigured,
         TFairShareStrategyTreeConfigPtr treeConfig,
         NProfiling::TTagId profilingTag,
-        const TString& treeId);
+        const TString& treeId,
+        const NLogging::TLogger& logger);
     TPool(
         const TPool& other,
         TCompositeSchedulerElement* clonedParent);
 
     bool IsDefaultConfigured() const;
+    bool IsEphemeralInDefaultParentPool() const;
 
     void SetUserName(const std::optional<TString>& userName);
     const std::optional<TString>& GetUserName() const;
@@ -577,6 +523,7 @@ public:
     TPoolConfigPtr GetConfig();
     void SetConfig(TPoolConfigPtr config);
     void SetDefaultConfig();
+    void SetEphemeralInDefaultParentPool();
 
     virtual bool IsExplicit() const override;
     virtual bool IsAggressiveStarvationEnabled() const override;
@@ -662,7 +609,9 @@ class TOperationElementSharedState
     : public TIntrinsicRefCounted
 {
 public:
-    explicit TOperationElementSharedState(int updatePreemptableJobsListLoggingPeriod);
+    TOperationElementSharedState(
+        int updatePreemptableJobsListLoggingPeriod,
+        const NLogging::TLogger& logger);
 
     TJobResources IncreaseJobResourceUsage(
         TJobId jobId,
@@ -698,6 +647,16 @@ public:
 
     TJobResources Disable();
     void Enable();
+
+    void RecordHeartbeat(
+        const TPackingHeartbeatSnapshot& heartbeatSnapshot,
+        const TFairShareStrategyPackingConfigPtr& config);
+    bool CheckPacking(
+        const TOperationElement* operationElement,
+        const TPackingHeartbeatSnapshot& heartbeatSnapshot,
+        const TJobResourcesWithQuota& jobResources,
+        const TJobResources& totalResourceLimits,
+        const TFairShareStrategyPackingConfigPtr& config);
 
 private:
     using TJobIdList = std::list<TJobId>;
@@ -745,6 +704,8 @@ private:
     TSpinLock PreemptionStatusStatisticsLock_;
     TPreemptionStatusStatisticsVector PreemptionStatusStatistics_;
 
+    const NLogging::TLogger Logger;
+
     struct TStateShard
     {
         TEnumIndexedVector<std::atomic<int>, EDeactivationReason> DeactivationReasons;
@@ -754,6 +715,8 @@ private:
     std::array<TStateShard, MaxNodeShardCount> StateShards_;
 
     bool Enabled_ = false;
+
+    TPackingStatistics HeartbeatStatistics_;
 
     void IncreaseJobResourceUsage(TJobProperties* properties, const TJobResources& resourcesDelta);
 
@@ -777,7 +740,8 @@ public:
         ISchedulerStrategyHost* host,
         IFairShareTreeHost* treeHost,
         IOperationStrategyHost* operation,
-        const TString& treeId);
+        const TString& treeId,
+        const NLogging::TLogger& logger);
     TOperationElement(
         const TOperationElement& other,
         TCompositeSchedulerElement* clonedParent);
@@ -798,7 +762,7 @@ public:
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) override;
 
     virtual void PrescheduleJob(TFairShareContext* context, bool starvingOnly, bool aggressiveStarvationEnabled) override;
-    virtual bool ScheduleJob(TFairShareContext* context) override;
+    virtual TFairShareScheduleJobResult ScheduleJob(TFairShareContext* context, bool ignorePacking) override;
 
     virtual bool HasAggressivelyStarvingElements(TFairShareContext* context, bool aggressiveStarvationEnabled) const override;
 
@@ -844,6 +808,8 @@ public:
 
     TString GetUserName() const;
 
+    bool DetailedLogsEnabled() const;
+
     bool OnJobStarted(
         TJobId jobId,
         const TJobResources& resourceUsage,
@@ -874,6 +840,8 @@ public:
 
     void MarkOperationRunningInPool();
 
+    void UpdateAncestorsAttributes(TFairShareContext* context);
+
     DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareTreeRuntimeParametersPtr, RuntimeParams);
 
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
@@ -891,6 +859,9 @@ private:
     bool HasJobsSatisfyingResourceLimits(const TFairShareContext& context) const;
 
     bool IsBlocked(NProfiling::TCpuInstant now) const;
+
+    void RecordHeartbeat(const TPackingHeartbeatSnapshot& heartbeatSnapshot);
+    bool CheckPacking(const TPackingHeartbeatSnapshot& heartbeatSnapshot) const;
 
     TJobResources GetHierarchicalAvailableResources(const TFairShareContext& context) const;
 
@@ -915,6 +886,8 @@ private:
     int ComputePendingJobCount() const;
 
     void UpdatePreemptableJobsList();
+
+    TFairShareStrategyPackingConfigPtr GetPackingConfig() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationElement)
@@ -937,7 +910,8 @@ public:
         IFairShareTreeHost* treeHost,
         TFairShareStrategyTreeConfigPtr treeConfig,
         NProfiling::TTagId profilingTag,
-        const TString& treeId);
+        const TString& treeId,
+        const NLogging::TLogger& logger);
     TRootElement(const TRootElement& other);
 
     virtual void Update(TDynamicAttributesList& dynamicAttributesList, TUpdateFairShareContext* context) override;

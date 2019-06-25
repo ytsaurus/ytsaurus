@@ -975,6 +975,32 @@ class TestLocks(YTEnvSetup):
         with pytest.raises(YtError):
             lock("//tmp", mode="shared", tx=other_tx, child_key="a")
 
+    def test_map_snapshot_lock(self):
+        create("map_node", "//tmp/a")
+
+        create("map_node", "//tmp/a/m")
+        create("string_node", "//tmp/a/s")
+        doc_id = create("document", "//tmp/a/d")
+
+        tx = start_transaction()
+        lock("//tmp/a", mode="snapshot", tx=tx)
+
+        remove("//tmp/a/d")
+
+        assert not exists("//tmp/a/d")
+        assert exists("//tmp/a/d", tx=tx)
+
+        create("document", "//tmp/a/d")
+
+        assert get("//tmp/a/d/@id") != get("//tmp/a/d/@id", tx=tx)
+        assert get("//tmp/a/d/@id", tx=tx) == doc_id
+
+        create("list_node", "//tmp/a/l")
+
+        assert exists("//tmp/a/l")
+        assert not exists("//tmp/a/l", tx=tx)
+
+
     def test_attr_locks1(self):
         tx = start_transaction()
         set("//tmp/@a", 1, tx = tx)

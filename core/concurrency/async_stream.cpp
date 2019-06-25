@@ -1070,6 +1070,7 @@ IAsyncZeroCopyInputStreamPtr CreateConcurrentAdapter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB(levysotsky): Doesn't close the output stream.
 void PipeInputToOutput(
     NConcurrency::IAsyncZeroCopyInputStreamPtr input,
     NConcurrency::IAsyncOutputStreamPtr output)
@@ -1084,9 +1085,6 @@ void PipeInputToOutput(
         WaitFor(output->Write(block))
             .ThrowOnError();
     }
-
-    WaitFor(output->Close())
-        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

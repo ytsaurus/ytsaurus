@@ -53,12 +53,12 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobPrepared));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateResourceUsage));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ThrottleJob)
-            .SetMaxQueueSize(5000)
-            .SetMaxConcurrency(5000)
+            .SetQueueSizeLimit(5000)
+            .SetConcurrencyLimit(5000)
             .SetInvoker(Bootstrap_->GetJobThrottlerInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PollThrottlingRequest)
-            .SetMaxQueueSize(5000)
-            .SetMaxConcurrency(5000)
+            .SetQueueSizeLimit(5000)
+            .SetConcurrencyLimit(5000)
             .SetInvoker(Bootstrap_->GetJobThrottlerInvoker()));
     }
 
@@ -117,6 +117,13 @@ private:
 
         auto jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
+
+        auto jobPhase = job->GetPhase();
+        if (jobPhase != EJobPhase::PreparingProxy) {
+            THROW_ERROR_EXCEPTION("Cannot fetch job spec; job is in wrong phase")
+                  << TErrorAttribute("expected_phase", EJobPhase::PreparingProxy)
+                  << TErrorAttribute("actual_phase", jobPhase);
+        }
 
         *response->mutable_job_spec() = job->GetSpec();
         auto resources = job->GetResourceUsage();

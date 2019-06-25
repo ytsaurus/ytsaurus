@@ -2,6 +2,8 @@ package NYT.NNodeTrackerClient.NProto;
 
 import "yt/client/node_tracker_client/proto/node.proto";
 
+option python_package = "yt_proto.yt.client.node_tracker_client.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Provides a mapping from node ids to descriptors.

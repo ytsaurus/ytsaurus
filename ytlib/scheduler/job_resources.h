@@ -158,6 +158,10 @@ bool CanSatisfyDiskRequest(
     const NNodeTrackerClient::NProto::TDiskResources& diskInfo,
     i64 diskRequest);
 
+bool CanSatisfyDiskRequests(
+    const NNodeTrackerClient::NProto::TDiskResources& diskInfo,
+    const std::vector<i64>& diskRequests);
+
 i64 GetMaxAvailableDiskSpace(
     const NNodeTrackerClient::NProto::TDiskResources& diskInfo);
 

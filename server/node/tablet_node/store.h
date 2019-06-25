@@ -202,15 +202,20 @@ struct ISortedStore
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler()) = 0;
 
-    //! Checks that the transaction attempting to take locks indicated by #lockMask
-    //! has no conflicts within the store. Returns the error.
+    //! Checks that the transaction attempting to take locks indicated by #lockMask for #row
+    //! has no conflicts within the store.
     /*!
+     *  Returns |true| if no issues were found and |false| otherwise.
+     *
+     *  In the latter case either TWriteContext::Error is set (if lock conflict is discovered)
+     *  of TWriteContext::BlockedStore and similar are set (if blocked row is encountered).
+     *
      *  Thread affinity: any
      */
-    virtual TError CheckRowLocks(
+    virtual bool CheckRowLocks(
         TUnversionedRow row,
-        TTransaction* transaction,
-        NTableClient::TLockMask lockMask) = 0;
+        NTableClient::TLockMask lockMask,
+        TWriteContext* context) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISortedStore)

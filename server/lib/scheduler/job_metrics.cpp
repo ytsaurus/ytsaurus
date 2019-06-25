@@ -9,6 +9,10 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
+#include <yt/server/controller_agent/serialize.h>
+
+#include <util/generic/cast.h>
+
 namespace NYT::NScheduler {
 
 using namespace NProfiling;
@@ -26,6 +30,10 @@ void TCustomJobMetricDescription::Persist(const TStreamPersistenceContext& conte
 
     Persist(context, StatisticsPath);
     Persist(context, ProfilingName);
+
+    if (context.GetVersion() >= ToUnderlying(NControllerAgent::ESnapshotVersion::JobMetricsAggregationType)) {
+        Persist(context, AggregateType);
+    }
 }
 
 bool operator==(const TCustomJobMetricDescription& lhs, const TCustomJobMetricDescription& rhs)
@@ -48,13 +56,20 @@ void Serialize(const TCustomJobMetricDescription& customJobMetricDescription, NY
         .BeginMap()
             .Item("statisitcs_path").Value(customJobMetricDescription.StatisticsPath)
             .Item("profiling_name").Value(customJobMetricDescription.ProfilingName)
+            .Item("aggregate_type").Value(FormatEnum<EAggregateType>(customJobMetricDescription.AggregateType))
         .EndMap();
 }
 
 void Deserialize(TCustomJobMetricDescription& customJobMetricDescription, NYTree::INodePtr node)
 {
-    customJobMetricDescription.StatisticsPath = node->AsMap()->GetChild("statistics_path")->AsString()->GetValue();
-    customJobMetricDescription.ProfilingName = node->AsMap()->GetChild("profiling_name")->AsString()->GetValue();
+    auto mapNode = node->AsMap();
+    customJobMetricDescription.StatisticsPath = mapNode->GetChild("statistics_path")->GetValue<TString>();
+    customJobMetricDescription.ProfilingName = mapNode->GetChild("profiling_name")->GetValue<TString>();
+
+    auto aggregateTypeNode = mapNode->FindChild("aggregate_type");
+    if (aggregateTypeNode) {
+        customJobMetricDescription.AggregateType = ParseEnum<EAggregateType>(aggregateTypeNode->GetValue<TString>());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,8 +118,25 @@ TJobMetrics TJobMetrics::FromJobTrackerStatistics(
     metrics.Values()[EJobMetricName::AggregatedPreemptedCpuX100] =
         FindNumericValue(statistics, "/job_proxy/aggregated_preempted_cpu_x100").value_or(0);
 
-    for (const auto& jobMetriDescription : customJobMetricDescriptions) {
-        metrics.CustomValues()[jobMetriDescription] = FindNumericValue(statistics, jobMetriDescription.StatisticsPath).value_or(0);
+    for (const auto& jobMetricDescription : customJobMetricDescriptions) {
+        i64 value = 0;
+        auto summary = FindSummary(statistics, jobMetricDescription.StatisticsPath);
+        if (summary) {
+            switch (jobMetricDescription.AggregateType) {
+                case EAggregateType::Sum:
+                    value = summary->GetSum();
+                    break;
+                case EAggregateType::Max:
+                    value = summary->GetMax();
+                    break;
+                case EAggregateType::Min:
+                    value = summary->GetMin();
+                    break;
+                default:
+                    Y_UNREACHABLE();
+            }
+        }
+        metrics.CustomValues()[jobMetricDescription] = value;
     }
 
     return metrics;

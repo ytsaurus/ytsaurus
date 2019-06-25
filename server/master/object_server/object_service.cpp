@@ -137,8 +137,8 @@ public:
         , StickyUserErrorCache_(Config_->StickyUserErrorExpireTime)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
-            .SetMaxQueueSize(10000)
-            .SetMaxConcurrency(10000)
+            .SetQueueSizeLimit(10000)
+            .SetConcurrencyLimit(10000)
             .SetCancelable(true)
             .SetInvoker(GetRpcInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
@@ -343,11 +343,12 @@ private:
     struct TSubrequest
     {
         IServiceContextPtr Context;
-        TFuture<TSharedRefArray> AsyncResponseMessage;
         std::unique_ptr<TMutation> Mutation;
+        TFuture<TMutationResponse> AsyncCommitResult;
         TRequestHeader RequestHeader;
         TSharedRefArray RequestMessage;
         NTracing::TTraceContextPtr TraceContext;
+        ui64 Revision = 0;
     };
 
     std::vector<TSubrequest> Subrequests_;
@@ -376,8 +377,6 @@ private:
     // NB: only TryAcquire() is called on this lock, never Acquire().
     TSpinLock CurrentSubrequestLock_;
 
-    std::vector<i64> Revisions_;
-
     const NLogging::TLogger& Logger = ObjectServerLogger;
 
 
@@ -391,7 +390,6 @@ private:
         const auto& request = RpcContext_->Request();
         const auto& attachments = RpcContext_->RequestAttachments();
         Subrequests_.resize(SubrequestCount_);
-        Revisions_.resize(SubrequestCount_);
         int currentPartIndex = 0;
         for (int subrequestIndex = 0; subrequestIndex < SubrequestCount_; ++subrequestIndex) {
             auto& subrequest = Subrequests_[subrequestIndex];
@@ -407,7 +405,7 @@ private:
             currentPartIndex += partCount;
 
             auto& subrequestHeader = subrequest.RequestHeader;
-            TSharedRefArray subrequestMessage(std::move(subrequestParts));
+            TSharedRefArray subrequestMessage(std::move(subrequestParts), TSharedRefArray::TMoveParts{});
             if (!ParseRequestHeader(subrequestMessage, &subrequestHeader)) {
                 THROW_ERROR_EXCEPTION(
                     NRpc::EErrorCode::ProtocolError,
@@ -420,42 +418,32 @@ private:
             subrequestHeader.set_user(UserName_);
 
             auto* ypathExt = subrequestHeader.MutableExtension(TYPathHeaderExt::ypath_header_ext);
-            const auto& path = ypathExt->path();
-            bool mutating = ypathExt->mutating();
 
             // COMPAT(savrus) Support old mount/unmount/etc interface.
-            if (mutating && (subrequestHeader.method() == "Mount" ||
+            if (ypathExt->mutating() && (subrequestHeader.method() == "Mount" ||
                 subrequestHeader.method() == "Unmount" ||
                 subrequestHeader.method() == "Freeze" ||
                 subrequestHeader.method() == "Unfreeze" ||
                 subrequestHeader.method() == "Remount" ||
                 subrequestHeader.method() == "Reshard"))
             {
-                mutating = false;
                 ypathExt->set_mutating(false);
                 SetSuppressAccessTracking(&subrequestHeader, true);
             }
 
             auto updatedSubrequestMessage = SetRequestHeader(subrequestMessage, subrequestHeader);
 
-            auto loggingInfo = Format("RequestId: %v, Mutating: %v, RequestPath: %v, User: %v",
-                RequestId_,
-                mutating,
-                path,
-                UserName_);
             auto subcontext = CreateYPathContext(
                 updatedSubrequestMessage,
                 ObjectServerLogger,
-                NLogging::ELogLevel::Debug,
-                std::move(loggingInfo));
+                NLogging::ELogLevel::Debug);
 
-            subrequest.RequestMessage = updatedSubrequestMessage;
+            subrequest.RequestMessage = std::move(updatedSubrequestMessage);
             subrequest.Context = subcontext;
-            subrequest.AsyncResponseMessage = subcontext->GetAsyncResponseMessage();
             subrequest.TraceContext = NRpc::CreateCallTraceContext(
                 subrequestHeader.service(),
                 subrequestHeader.method());
-            if (mutating) {
+            if (ypathExt->mutating()) {
                 subrequest.Mutation = ObjectManager_->CreateExecuteMutation(UserName_, subcontext);
                 subrequest.Mutation->SetMutationId(subcontext->GetMutationId(), subcontext->IsRetry());
             }
@@ -633,11 +621,8 @@ private:
 
     bool ExecuteCurrentSubrequest()
     {
-        // NB: CurrentSubrequestIndex_ must be incremented before OnSubresponse() is called.
-
-        auto& subrequest = Subrequests_[CurrentSubrequestIndex_];
+        auto& subrequest = Subrequests_[CurrentSubrequestIndex_++];
         if (!subrequest.Context) {
-            ++CurrentSubrequestIndex_;
             ExecuteEmptySubrequest(&subrequest);
             return true;
         }
@@ -646,33 +631,22 @@ private:
             subrequest.TraceContext->ResetStartTime();
         }
 
-        Revisions_[CurrentSubrequestIndex_] = HydraFacade_->GetHydraManager()->GetAutomatonVersion().ToRevision();
+        subrequest.Revision = HydraFacade_->GetHydraManager()->GetAutomatonVersion().ToRevision();
 
         if (subrequest.Mutation) {
+            LastMutatingSubrequestIndex_ = CurrentSubrequestIndex_ - 1;
             ExecuteWriteSubrequest(&subrequest);
-            LastMutatingSubrequestIndex_ = CurrentSubrequestIndex_;
         } else {
             // Cannot serve new read requests before previous write ones are done.
             if (LastMutatingSubrequestIndex_ >= 0) {
-                auto& lastCommitResult = Subrequests_[LastMutatingSubrequestIndex_].AsyncResponseMessage;
+                auto& lastCommitResult = Subrequests_[LastMutatingSubrequestIndex_].AsyncCommitResult;
                 if (!lastCommitResult.IsSet()) {
                     lastCommitResult.Subscribe(
-                        BIND(&TExecuteSession::CheckAndReschedule<TSharedRefArray>, MakeStrong(this)));
+                        BIND(&TExecuteSession::CheckAndReschedule<TMutationResponse>, MakeStrong(this)));
                     return false;
                 }
             }
             ExecuteReadSubrequest(&subrequest);
-        }
-
-        ++CurrentSubrequestIndex_;
-
-        // Optimize for the (typical) case of synchronous response.
-        auto& asyncResponseMessage = subrequest.AsyncResponseMessage;
-        if (asyncResponseMessage.IsSet()) {
-            OnSubresponse(&subrequest, asyncResponseMessage.Get());
-        } else {
-            asyncResponseMessage.Subscribe(
-                BIND(&TExecuteSession::OnSubresponse<TSharedRefArray>, MakeStrong(this), &subrequest));
         }
 
         return true;
@@ -688,7 +662,8 @@ private:
         Profiler.Increment(WriteRequestCounter);
         NProfiling::TProfilingTimingGuard timingGuard(Profiler, &CumulativeMutationScheduleTimeCounter);
 
-        subrequest->Mutation->Commit().Subscribe(
+        subrequest->AsyncCommitResult = subrequest->Mutation->Commit();
+        subrequest->AsyncCommitResult.Subscribe(
             BIND(&TExecuteSession::OnMutationCommitted, MakeStrong(this), subrequest));
     }
 
@@ -704,6 +679,10 @@ private:
         NProfiling::TWallTimer timer;
 
         const auto& context = subrequest->Context;
+
+        // NB: IServiceContext is not thread-safe; get the async result here to avoid races with Reply.
+        auto asyncResponseMessage = context->GetAsyncResponseMessage();
+
         try {
             auto rootService = ObjectManager_->GetRootService();
             ExecuteVerb(rootService, context);
@@ -720,6 +699,14 @@ private:
         if (IsObjectAlive(User_) && !EpochCancelableContext_->IsCanceled()) {
             SecurityManager_->ChargeUser(User_, {EUserWorkloadType::Read, 1, timer.GetElapsedTime()});
         }
+
+        // Optimize for the (typical) case of synchronous response.
+        if (asyncResponseMessage.IsSet()) {
+            OnSubresponse(subrequest, asyncResponseMessage.Get());
+        } else {
+            asyncResponseMessage.Subscribe(
+                BIND(&TExecuteSession::OnSubresponse<TSharedRefArray>, MakeStrong(this), subrequest));
+        }
     }
 
     void OnMutationCommitted(TSubrequest* subrequest, const TErrorOr<TMutationResponse>& responseOrError)
@@ -735,6 +722,8 @@ private:
         if (!context->IsReplied()) {
             context->Reply(responseOrError.Value().Data);
         }
+
+        OnSubresponse(subrequest, responseOrError);
     }
 
     template <class T>
@@ -788,12 +777,10 @@ private:
 
             YCHECK(SubrequestCount_ == 0 || CurrentSubrequestIndex_ != 0);
 
-            for (auto i = 0; i < CurrentSubrequestIndex_; ++i) {
-                const auto& subrequest = Subrequests_[i];
+            for (auto index = 0; index < CurrentSubrequestIndex_; ++index) {
+                const auto& subrequest = Subrequests_[index];
                 if (subrequest.Context) {
-                    YCHECK(subrequest.Context->IsReplied());
-
-                    auto subresponseMessage = subrequest.Context->GetResponseMessage();
+                    const auto& subresponseMessage = subrequest.Context->GetResponseMessage();
                     response.add_part_counts(subresponseMessage.Size());
                     attachments.insert(
                         attachments.end(),
@@ -803,7 +790,7 @@ private:
                     response.add_part_counts(0);
                 }
 
-                response.add_revisions(Revisions_[i]);
+                response.add_revisions(subrequest.Revision);
             }
         }
 

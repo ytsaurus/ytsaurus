@@ -25,6 +25,8 @@ public:
     virtual TSharedRefArray GetRequestMessage() const override;
 
     virtual TRequestId GetRequestId() const override;
+    virtual NYT::NBus::TTcpDispatcherStatistics GetBusStatistics() const override;
+    virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
 
     virtual std::optional<TInstant> GetStartTime() const override;
     virtual std::optional<TDuration> GetTimeout() const override;
@@ -45,7 +47,7 @@ public:
     virtual void SetComplete() override;
 
     virtual TFuture<TSharedRefArray> GetAsyncResponseMessage() const override;
-    virtual TSharedRefArray GetResponseMessage() const override;
+    virtual const TSharedRefArray& GetResponseMessage() const override;
 
     virtual void SubscribeCanceled(const TClosure& callback) override;
     virtual void UnsubscribeCanceled(const TClosure& callback) override;
@@ -69,8 +71,8 @@ public:
     virtual const NProto::TRequestHeader& RequestHeader() const override;
     virtual NProto::TRequestHeader& RequestHeader() override;
 
-    virtual void SetRawRequestInfo(const TString& info) override;
-    virtual void SetRawResponseInfo(const TString& info) override;
+    virtual void SetRawRequestInfo(TString info, bool incremental) override;
+    virtual void SetRawResponseInfo(TString info, bool incremental) override;
 
     virtual const NLogging::TLogger& GetLogger() const override;
     virtual NLogging::ELogLevel GetLogLevel() const override;
@@ -100,8 +102,8 @@ protected:
     TSharedRef ResponseBody_;
     std::vector<TSharedRef> ResponseAttachments_;
 
-    TString RequestInfo_;
-    TString ResponseInfo_;
+    SmallVector<TString, 4> RequestInfos_;
+    SmallVector<TString, 4> ResponseInfos_;
 
     NCompression::ECodec ResponseCodec_ = NCompression::ECodec::None;
 
@@ -127,6 +129,8 @@ private:
 
 
     void Initialize();
+    void BuildResponseMessage();
+    void ReplyEpilogue();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -161,7 +165,7 @@ public:
     virtual void SetComplete() override;
 
     virtual TFuture<TSharedRefArray> GetAsyncResponseMessage() const override;
-    virtual TSharedRefArray GetResponseMessage() const override;
+    virtual const TSharedRefArray& GetResponseMessage() const override;
 
     virtual void SubscribeCanceled(const TClosure& callback) override;
     virtual void UnsubscribeCanceled(const TClosure& callback) override;
@@ -185,8 +189,8 @@ public:
     virtual const NProto::TRequestHeader& RequestHeader() const override;
     virtual NProto::TRequestHeader& RequestHeader() override;
 
-    virtual void SetRawRequestInfo(const TString& info) override;
-    virtual void SetRawResponseInfo(const TString& info) override;
+    virtual void SetRawRequestInfo(TString info, bool incremental) override;
+    virtual void SetRawResponseInfo(TString info, bool incremental) override;
 
     virtual const NLogging::TLogger& GetLogger() const override;
     virtual NLogging::ELogLevel GetLogLevel() const override;

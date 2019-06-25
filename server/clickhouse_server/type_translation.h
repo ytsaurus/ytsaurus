@@ -5,6 +5,8 @@
 
 #include <yt/ytlib/table_client/public.h>
 
+#include <DataTypes/IDataType.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,6 +16,8 @@ namespace NYT::NClickHouseServer {
 bool IsYtTypeSupported(NTableClient::EValueType valueType);
 
 EClickHouseColumnType RepresentYtType(NTableClient::EValueType valueType);
+
+NTableClient::EValueType RepresentClickHouseType(const DB::DataTypePtr& type);
 
 ////////////////////////////////////////////////////////////////////////////////
 

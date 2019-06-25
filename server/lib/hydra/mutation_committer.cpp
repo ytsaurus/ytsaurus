@@ -698,7 +698,7 @@ TFuture<TMutationResponse> TFollowerCommitter::Forward(TMutationRequest&& reques
     return req->Invoke().Apply(BIND([] (const THydraServiceProxy::TErrorOrRspCommitMutationPtr& rspOrError) {
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error forwarding mutation to leader");
         const auto& rsp = rspOrError.Value();
-        return TMutationResponse{TSharedRefArray(rsp->Attachments())};
+        return TMutationResponse{TSharedRefArray(rsp->Attachments(), TSharedRefArray::TMoveParts{})};
     }));
 }
 

@@ -180,6 +180,7 @@ public:
         auto req = TYPathProxy::Set(GetOperationPath(operationId));
         req->set_value(operationYson);
         req->set_recursive(true);
+        req->set_force(true);
         GenerateMutationId(req);
         batchReq->AddRequest(req);
 
@@ -1032,6 +1033,7 @@ private:
                 "debug_transaction_id",
                 "output_completion_transaction_id",
                 "debug_completion_transaction_id",
+                "nested_input_transaction_ids",
             };
 
             auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
@@ -1113,6 +1115,15 @@ private:
                     attributes->Get<TTransactionId>("debug_completion_transaction_id", NullTransactionId),
                     true,
                     "debug completion");
+
+                auto nestedInputTransactionIds = attributes->Get<std::vector<TTransactionId>>("nested_input_transaction_ids", {});
+                for (auto transactionId : nestedInputTransactionIds) {
+                    transactions.NestedInputTransactions.push_back(attachTransaction(
+                        transactionId,
+                        true,
+                        "nested input transaction"
+                    ));
+                }
 
                 const auto& userTransactionId = operation->GetUserTransactionId();
                 auto userTransaction = attachTransaction(userTransactionId, false);
@@ -1438,6 +1449,11 @@ private:
     TCallback<TFuture<void>()> UpdateOperationNode(TOperationId /*operationId*/, TOperationNodeUpdate* update)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        // If operation is starting the node of operation may be missing.
+        if (update->Operation->GetState() == EOperationState::Starting) {
+            return {};
+        }
 
         if (!update->Operation->GetShouldFlush() && !update->Operation->GetShouldFlushAcl()) {
             return {};

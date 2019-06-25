@@ -83,33 +83,6 @@ void Deserialize(Py::Object& obj, NYTree::INodePtr node, const std::optional<TSt
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TGilGuardedYsonConsumer
-    : public NYson::TYsonConsumerBase
-{
-public:
-    explicit TGilGuardedYsonConsumer(IYsonConsumer* consumer);
-
-    virtual void OnStringScalar(TStringBuf value) override;
-    virtual void OnInt64Scalar(i64 value) override;
-    virtual void OnUint64Scalar(ui64 value) override;
-    virtual void OnDoubleScalar(double value) override;
-    virtual void OnBooleanScalar(bool value) override;
-    virtual void OnEntity() override;
-    virtual void OnBeginList() override;
-    virtual void OnListItem() override;
-    virtual void OnEndList() override;
-    virtual void OnBeginMap() override;
-    virtual void OnKeyedItem(TStringBuf key) override;
-    virtual void OnEndMap() override;
-    virtual void OnBeginAttributes() override;
-    virtual void OnEndAttributes() override;
-
-private:
-    IYsonConsumer* const Consumer_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NYTree
 
 namespace NYT::NPython {

@@ -9,6 +9,8 @@
 #include "file_writer.h"
 #include "journal_reader.h"
 #include "journal_writer.h"
+#include "table_reader.h"
+#include "table_writer.h"
 
 #include <yt/core/net/address.h>
 
@@ -57,7 +59,7 @@ TApiServiceProxy TClientBase::CreateApiServiceProxy(NRpc::IChannelPtr channel)
         channel = GetChannel();
     }
     TApiServiceProxy proxy(channel);
-    auto config = GetRpcProxyConnection()->GetConfig();
+    const auto& config = GetRpcProxyConnection()->GetConfig();
     proxy.SetDefaultRequestCodec(config->RequestCodec);
     proxy.SetDefaultResponseCodec(config->ResponseCodec);
     proxy.SetDefaultEnableLegacyRpcCodecs(config->EnableLegacyRpcCodecs);
@@ -69,6 +71,13 @@ TApiServiceProxy TClientBase::CreateApiServiceProxy(NRpc::IChannelPtr channel)
     proxy.DefaultServerAttachmentsStreamingParameters() = streamingParameters;
 
     return proxy;
+}
+
+void TClientBase::InitStreamingRequest(NRpc::TClientRequest& request)
+{
+    auto connection = GetRpcProxyConnection();
+    const auto& config = connection->GetConfig();
+    request.SetTimeout(config->DefaultTotalStreamingTimeout);
 }
 
 TFuture<ITransactionPtr> TClientBase::StartTransaction(
@@ -91,6 +100,9 @@ TFuture<ITransactionPtr> TClientBase::StartTransaction(
 
     req->set_type(static_cast<NProto::ETransactionType>(type));
     req->set_timeout(NYT::ToProto<i64>(timeout));
+    if (options.Deadline) {
+        req->set_deadline(ToProto<ui64>(*options.Deadline));
+    }
     if (options.Id) {
         ToProto(req->mutable_id(), options.Id);
     }
@@ -474,11 +486,8 @@ TFuture<IFileReaderPtr> TClientBase::CreateFileReader(
     const TFileReaderOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
-    auto connection = GetRpcProxyConnection();
-    const auto& config = connection->GetConfig();
-
     auto req = proxy.ReadFile();
-    req->SetTimeout(config->DefaultTotalStreamingTimeout);
+    InitStreamingRequest(*req);
 
     req->set_path(path);
     if (options.Offset) {
@@ -502,11 +511,8 @@ IFileWriterPtr TClientBase::CreateFileWriter(
     const TFileWriterOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
-    auto connection = GetRpcProxyConnection();
-    const auto& config = connection->GetConfig();
-
     auto req = proxy.WriteFile();
-    req->SetTimeout(config->DefaultTotalStreamingTimeout);
+    InitStreamingRequest(*req);
 
     ToProto(req->mutable_path(), path);
 
@@ -528,11 +534,8 @@ IJournalReaderPtr TClientBase::CreateJournalReader(
     const TJournalReaderOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
-    auto connection = GetRpcProxyConnection();
-    const auto& config = connection->GetConfig();
-
     auto req = proxy.ReadJournal();
-    req->SetTimeout(config->DefaultTotalStreamingTimeout);
+    InitStreamingRequest(*req);
 
     req->set_path(path);
 
@@ -557,11 +560,8 @@ IJournalWriterPtr TClientBase::CreateJournalWriter(
     const TJournalWriterOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
-    auto connection = GetRpcProxyConnection();
-    const auto& config = connection->GetConfig();
-
     auto req = proxy.WriteJournal();
-    req->SetTimeout(config->DefaultTotalStreamingTimeout);
+    InitStreamingRequest(*req);
 
     req->set_path(path);
 
@@ -575,6 +575,48 @@ IJournalWriterPtr TClientBase::CreateJournalWriter(
     ToProto(req->mutable_prerequisite_options(), options);
 
     return NRpcProxy::CreateJournalWriter(std::move(req));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<ITableReaderPtr> TClientBase::CreateTableReader(
+    const TRichYPath& path,
+    const TTableReaderOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+    auto req = proxy.ReadTable();
+    InitStreamingRequest(*req);
+
+    ToProto(req->mutable_path(), path);
+
+    req->set_unordered(options.Unordered);
+    req->set_omit_inaccessible_columns(options.OmitInaccessibleColumns);
+    if (options.Config) {
+        req->set_config(ConvertToYsonString(*options.Config).GetData());
+    }
+
+    ToProto(req->mutable_transactional_options(), options);
+
+    return NRpcProxy::CreateTableReader(std::move(req));
+}
+
+TFuture<ITableWriterPtr> TClientBase::CreateTableWriter(
+    const TRichYPath& path,
+    const TTableWriterOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+    auto req = proxy.WriteTable();
+    InitStreamingRequest(*req);
+
+    ToProto(req->mutable_path(), path);
+
+    if (options.Config) {
+        req->set_config(ConvertToYsonString(*options.Config).GetData());
+    }
+
+    ToProto(req->mutable_transactional_options(), options);
+
+    return NRpcProxy::CreateTableWriter(std::move(req));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

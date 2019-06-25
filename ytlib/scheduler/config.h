@@ -24,6 +24,7 @@
 #include <yt/core/rpc/config.h>
 
 #include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/permission.h>
 #include <yt/core/ytree/yson_serializable.h>
 
 #include <yt/core/misc/arithmetic_formula.h>
@@ -139,6 +140,22 @@ DEFINE_REFCOUNTED_TYPE(TExtendedSchedulableConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TEphemeralSubpoolConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    ESchedulingMode Mode;
+
+    std::optional<int> MaxRunningOperationCount;
+    std::optional<int> MaxOperationCount;
+
+    TEphemeralSubpoolConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TEphemeralSubpoolConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPoolConfig
     : public TSchedulableConfig
 {
@@ -156,7 +173,7 @@ public:
 
     bool CreateEphemeralSubpools;
 
-    ESchedulingMode EphemeralSubpoolsMode;
+    TEphemeralSubpoolConfigPtr EphemeralSubpoolConfig;
 
     THashSet<TString> AllowedProfilingTags;
 
@@ -216,6 +233,33 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TSamplingConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EPackingMetricType,
+    ((Angle)       (0))
+    ((AngleLength) (1))
+);
+
+class TFairShareStrategyPackingConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    bool Enable;
+
+    EPackingMetricType Metric;
+
+    int MaxBetterPastSnapshots;
+    double AbsoluteMetricValueTolerance;
+    double RelativeMetricValueTolerance;
+    int MinWindowSizeForSchedule;
+    int MaxHearbeatWindowSize;
+    TDuration MaxHeartbeatAge;
+
+    TFairShareStrategyPackingConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TFairShareStrategyPackingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -520,9 +564,6 @@ public:
     //! These tags are propagated to all operation outputs (unless overridden).
     std::vector<NSecurityClient::TSecurityTag> AdditionalSecurityTags;
 
-    // Maximum number of speculative jobs, running or pending.
-    int MaxSpeculativeJobCount;
-
     TOperationSpecBase();
 
 private:
@@ -557,7 +598,10 @@ public:
     int GpuLimit;
     int PortCount;
     std::optional<TDuration> JobTimeLimit;
+    TDuration PrepareTimeLimit;
     i64 MemoryLimit;
+    //! If set, overrides both of the next two values.
+    std::optional<double> MemoryReserveFactor;
     double UserJobMemoryDigestDefaultValue;
     double UserJobMemoryDigestLowerBound;
 
@@ -850,7 +894,6 @@ public:
     NTableClient::TKeyColumns JoinBy;
 
     bool ConsiderOnlyPrimarySize;
-    bool UseNewController;
 
     TReduceOperationSpecBase();
 
@@ -860,41 +903,6 @@ private:
 
 
 DEFINE_REFCOUNTED_TYPE(TReduceOperationSpecBase)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TReduceOperationSpec
-    : public TReduceOperationSpecBase
-{
-public:
-    NTableClient::TKeyColumns ReduceBy;
-    NTableClient::TKeyColumns SortBy;
-
-    std::vector<NTableClient::TOwningKey> PivotKeys;
-
-    TReduceOperationSpec();
-
-private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceOperationSpec, 0xd90a9ede);
-};
-
-
-DEFINE_REFCOUNTED_TYPE(TReduceOperationSpec)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TJoinReduceOperationSpec
-    : public TReduceOperationSpecBase
-{
-public:
-    TJoinReduceOperationSpec();
-
-private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TJoinReduceOperationSpec, 0x788fac27);
-};
-
-
-DEFINE_REFCOUNTED_TYPE(TJoinReduceOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1119,6 +1127,8 @@ public:
     std::optional<double> Weight;
     TPoolName Pool;
     TResourceLimitsConfigPtr ResourceLimits;
+    // Can only be enabled by an administrator.
+    bool EnableDetailedLogs;
 
     TOperationFairShareTreeRuntimeParameters();
 };
@@ -1149,6 +1159,8 @@ public:
     std::optional<double> Weight;
     std::optional<TPoolName> Pool;
     TResourceLimitsConfigPtr ResourceLimits;
+    // Can only be set by an administrator.
+    std::optional<bool> EnableDetailedLogs;
 
     TOperationFairShareTreeRuntimeParametersUpdate();
 };
@@ -1167,6 +1179,8 @@ public:
     TOperationRuntimeParametersUpdate();
 
     bool ContainsPool() const;
+
+    NYTree::EPermissionSet GetRequiredPermissions() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationRuntimeParametersUpdate)

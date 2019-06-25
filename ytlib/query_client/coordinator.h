@@ -15,7 +15,7 @@ extern const NLogging::TLogger QueryClientLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 using TRefiner = std::function<TConstExpressionPtr(
-    TConstExpressionPtr expr,
+    const TConstExpressionPtr& expr,
     const TKeyColumns& keyColumns)>;
 
 TRowRanges GetPrunedRanges(
@@ -47,8 +47,8 @@ TQueryStatistics CoordinateAndExecute(
     const TConstQueryPtr& query,
     const IUnversionedRowsetWriterPtr& writer,
     const std::vector<TRefiner>& ranges,
-    std::function<TEvaluateResult(TConstQueryPtr, int)> evaluateSubquery,
-    std::function<TQueryStatistics(TConstFrontQueryPtr, ISchemafulReaderPtr, IUnversionedRowsetWriterPtr)> evaluateTop);
+    std::function<TEvaluateResult(const TConstQueryPtr&, int)> evaluateSubquery,
+    std::function<TQueryStatistics(const TConstFrontQueryPtr&, const ISchemafulReaderPtr&, const IUnversionedRowsetWriterPtr&)> evaluateTop);
 
 ////////////////////////////////////////////////////////////////////////////////
 

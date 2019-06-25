@@ -9,9 +9,9 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::StoragePtr CreateStorageTable(
-    TClickHouseTablePtr table,
-    IExecutionClusterPtr cluster);
+DB::StoragePtr CreateStorageTable(TClickHouseTablePtr table);
+
+void RegisterStorageTable();
 
 ////////////////////////////////////////////////////////////////////////////////
 

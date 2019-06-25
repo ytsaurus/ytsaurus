@@ -427,6 +427,7 @@ public:
     TDuration PortoRetryTimeout;
     TDuration PortoPollPeriod;
     double CacheCapacityFraction;
+    int LayerImportConcurrency;
 
     TVolumeManagerConfig()
     {
@@ -444,6 +445,11 @@ public:
             .Default(0.8)
             .GreaterThan(0)
             .LessThanOrEqual(1);
+
+        RegisterParameter("layer_import_concurrency", LayerImportConcurrency)
+            .Default(2)
+            .GreaterThan(0)
+            .LessThanOrEqual(10);
     }
 };
 

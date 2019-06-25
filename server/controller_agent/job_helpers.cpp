@@ -104,6 +104,10 @@ bool CheckJobActivity(
         return true;
     }
 
+    if (lhs->Phase != EJobPhase::Running) {
+        return true;
+    }
+
     bool wasActive = lhs->ProcessedInputRowCount < rhs->ProcessedInputRowCount;
     wasActive |= lhs->ProcessedInputUncompressedDataSize < rhs->ProcessedInputUncompressedDataSize;
     wasActive |= lhs->ProcessedInputCompressedDataSize < rhs->ProcessedInputCompressedDataSize;
@@ -133,6 +137,8 @@ TBriefJobStatisticsPtr BuildBriefStatistics(std::unique_ptr<TJobSummary> jobSumm
     const auto& statistics = *jobSummary->Statistics;
 
     auto briefStatistics = New<TBriefJobStatistics>();
+    briefStatistics->Phase = jobSummary->Phase;
+    
     if (auto value = FindNumericValue(statistics, InputRowCountPath)) {
         briefStatistics->ProcessedInputRowCount = *value;
     }

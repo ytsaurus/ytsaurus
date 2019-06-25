@@ -98,38 +98,38 @@ public:
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CancelChunk));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks)
-            .SetMaxQueueSize(5000)
-            .SetMaxConcurrency(5000)
+            .SetQueueSizeLimit(5000)
+            .SetConcurrencyLimit(5000)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks)
-            .SetMaxQueueSize(5000)
-            .SetMaxConcurrency(5000)
+            .SetQueueSizeLimit(5000)
+            .SetConcurrencyLimit(5000)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PopulateCache)
             .SetInvoker(Bootstrap_->GetStorageLightInvoker())
-            .SetMaxQueueSize(5000)
-            .SetMaxConcurrency(5000)
+            .SetQueueSizeLimit(5000)
+            .SetConcurrencyLimit(5000)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlocks)
-            .SetMaxQueueSize(5000)
-            .SetMaxConcurrency(5000)
+            .SetQueueSizeLimit(5000)
+            .SetConcurrencyLimit(5000)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockSet)
             .SetInvoker(Bootstrap_->GetStorageLightInvoker())
             .SetCancelable(true)
-            .SetMaxQueueSize(5000)
-            .SetMaxConcurrency(5000));
+            .SetQueueSizeLimit(5000)
+            .SetConcurrencyLimit(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockRange)
             .SetInvoker(Bootstrap_->GetStorageLightInvoker())
             .SetCancelable(true)
-            .SetMaxQueueSize(5000)
-            .SetMaxConcurrency(5000));
+            .SetQueueSizeLimit(5000)
+            .SetConcurrencyLimit(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta)
             .SetInvoker(Bootstrap_->GetStorageLightInvoker())
             .SetCancelable(true)
-            .SetMaxQueueSize(5000)
-            .SetMaxConcurrency(5000)
+            .SetQueueSizeLimit(5000)
+            .SetConcurrencyLimit(5000)
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer)
             .SetInvoker(Bootstrap_->GetStorageLightInvoker()));
@@ -642,9 +642,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkMeta)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        auto mediumIndex = request->has_medium_index()
-            ? request->medium_index()
-            : AllMediaIndex;
+        auto mediumIndex = AllMediaIndex;
         auto partitionTag = request->has_partition_tag()
             ? std::make_optional(request->partition_tag())
             : std::nullopt;
@@ -700,6 +698,7 @@ private:
             }
 
             ToProto(response->mutable_chunk_reader_statistics(), options.ChunkReaderStatistics);
+            ToProto(response->mutable_location_uuid(), chunk->GetLocation()->GetUuid());
         }).AsyncVia(Bootstrap_->GetStorageHeavyInvoker())));
     }
 

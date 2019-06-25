@@ -28,7 +28,6 @@ from cStringIO import StringIO, OutputType
 ###########################################################################
 
 clusters_drivers = {}
-_native_driver = None
 is_multicell = None
 path_to_run_tests = None
 _zombie_responses = []
@@ -69,24 +68,11 @@ def get_driver(cell_index=0, cluster="primary", api_version=default_api_version)
 
     return clusters_drivers[cluster][cell_index][api_version]
 
-def get_native_driver():
-    return _native_driver
-
 def _get_driver(driver):
     if driver is None:
         return get_driver()
     else:
         return driver
-
-# TODO(kiselyovp) remove this _native_driver crutch when
-# read_table and write_table are supported via RPC proxy
-def force_native_driver(func):
-    def wrapper(func, self, *args, **kwargs):
-        if "driver" not in kwargs:
-            kwargs["driver"] = get_native_driver()
-        return func(self, *args, **kwargs)
-
-    return decorator.decorate(func, wrapper)
 
 def init_drivers(clusters):
     def create_drivers(config):
@@ -107,15 +93,6 @@ def init_drivers(clusters):
             # Setup driver logging for all instances in the environment as in the primary cluster.
             if instance._cluster_name == "primary":
                 set_environment_driver_logging_config(instance.driver_logging_config)
-
-                global _native_driver
-                if instance.driver_backend == "native":
-                    _native_driver = drivers[3]
-                else:
-                    native_config = pycopy.deepcopy(instance.configs["driver"])
-                    native_config["connection_type"] = "native"
-                    native_config["api_version"] = default_api_version
-                    _native_driver = Driver(config=native_config)
 
             secondary_drivers = []
             for secondary_driver_config in secondary_driver_configs:
@@ -424,6 +401,19 @@ def interrupt_job(job_id, interrupt_timeout=10000, **kwargs):
     kwargs["interrupt_timeout"] = interrupt_timeout
     execute_command("abort_job", kwargs)
 
+def retry_while_job_missing(func):
+    result = [None]
+    def check():
+        try:
+            result[0] = func()
+            return True
+        except YtError as err:
+            if err.is_no_such_job():
+                return False
+            raise
+    wait(check)
+    return result[0]
+
 def lock(path, waitable=False, **kwargs):
     kwargs["path"] = path
     kwargs["waitable"] = waitable
@@ -494,19 +484,16 @@ def ls(path, **kwargs):
     kwargs["path"] = path
     return execute_command("list", kwargs, parse_yson=True)
 
-@force_native_driver
 def read_table(path, **kwargs):
     kwargs["path"] = path
     return execute_command_with_output_format("read_table", kwargs)
 
-@force_native_driver
 def read_blob_table(path, **kwargs):
     kwargs["path"] = path
     output = StringIO()
     execute_command("read_blob_table", kwargs, output_stream=output)
     return output.getvalue()
 
-@force_native_driver
 def write_table(path, value=None, is_raw=False, **kwargs):
     if "input_stream" in kwargs:
         input_stream = kwargs.pop("input_stream")
@@ -572,6 +559,11 @@ def lookup_rows(path, data, **kwargs):
 def get_in_sync_replicas(path, data, **kwargs):
     kwargs["path"] = path
     return execute_command("get_in_sync_replicas", kwargs, input_stream=_prepare_rows_stream(data), parse_yson=True)
+
+def get_tablet_infos(path, tablet_indexes, **kwargs):
+    kwargs["path"] = path
+    kwargs["tablet_indexes"] = tablet_indexes
+    return execute_command("get_tablet_infos", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 def start_transaction(**kwargs):
     return execute_command("start_tx", kwargs, parse_yson=True)
@@ -807,7 +799,7 @@ class Operation(object):
 
     def get_running_jobs(self):
         jobs_path = self.get_path() + "/controller_orchid/running_jobs"
-        return get(jobs_path, verbose=False, default=[])
+        return get(jobs_path, verbose=False, default={})
 
     def get_state(self, **kwargs):
         try:
@@ -1110,7 +1102,7 @@ def create_test_tables(row_count=1, **kwargs):
     write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(row_count)])
     create("table", "//tmp/t_out", **kwargs)
 
-def run_test_vanilla(command, spec=None, job_count=1):
+def run_test_vanilla(command, spec=None, job_count=1, dont_track=True, **kwargs):
     spec = spec or {}
     spec["tasks"] = {
         "task": {
@@ -1118,10 +1110,10 @@ def run_test_vanilla(command, spec=None, job_count=1):
             "command": command
         },
     }
-    return vanilla(spec=spec, dont_track=True)
+    return vanilla(spec=spec, dont_track=dont_track, **kwargs)
 
-def run_sleeping_vanilla(spec=None):
-    return run_test_vanilla("sleep 1000", spec or {})
+def run_sleeping_vanilla(**kwargs):
+    return run_test_vanilla("sleep 1000", **kwargs)
 
 def remove_user(name, **kwargs):
     remove("//sys/users/" + name, **kwargs)
@@ -1364,6 +1356,12 @@ def list_type(element_type):
     return {
         "metatype": "list",
         "element": element_type,
+    }
+
+def tuple_type(elements):
+    return {
+        "metatype": "tuple",
+        "elements": elements,
     }
 
 ##################################################################
@@ -1619,13 +1617,10 @@ def sync_alter_table_replica_mode(replica_id, mode, driver=None):
         return True
     wait(check)
 
-def create_table_with_attributes(path, **attributes):
-    create("table", path, attributes=attributes)
-
 def create_dynamic_table(path, **attributes):
     if "dynamic" not in attributes:
         attributes.update({"dynamic": True})
-    create_table_with_attributes(path, **attributes)
+    create("table", path, attributes=attributes)
 
 def sync_control_chunk_replicator(enabled):
     print("Setting chunk replicator state to", enabled, file=sys.stderr)

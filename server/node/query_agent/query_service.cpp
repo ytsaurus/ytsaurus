@@ -13,6 +13,7 @@
 #include <yt/server/node/tablet_node/security_manager.h>
 #include <yt/server/node/tablet_node/slot_manager.h>
 #include <yt/server/node/tablet_node/tablet.h>
+#include <yt/server/node/tablet_node/tablet_slot.h>
 #include <yt/server/node/tablet_node/tablet_manager.h>
 #include <yt/server/node/tablet_node/transaction_manager.h>
 
@@ -344,18 +345,17 @@ private:
 
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
 
-        for (const auto& tabletId : tabletIds) {
-            const auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+        for (auto tabletId : tabletIds) {
+            auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
 
             auto* protoTabletInfo = response->add_tablets();
             ToProto(protoTabletInfo->mutable_tablet_id(), tabletId);
-            protoTabletInfo->set_total_row_count(tabletSnapshot->RuntimeData->TotalRowCount.load());
-            protoTabletInfo->set_trimmed_row_count(tabletSnapshot->RuntimeData->TrimmedRowCount.load());
+            // NB: Read barrier timestamp first to ensure a certain degree of consistency with TotalRowCount.
+            protoTabletInfo->set_barrier_timestamp(tabletSnapshot->TabletCellRuntimeData->BarrierTimestamp.load());
+            protoTabletInfo->set_total_row_count(tabletSnapshot->TabletRuntimeData->TotalRowCount.load());
+            protoTabletInfo->set_trimmed_row_count(tabletSnapshot->TabletRuntimeData->TrimmedRowCount.load());
 
-            for (const auto& replicaPair : tabletSnapshot->Replicas) {
-                const auto& replicaId = replicaPair.first;
-                const auto& replicaSnapshot = replicaPair.second;
-
+            for (const auto& [replicaId, replicaSnapshot] : tabletSnapshot->Replicas) {
                 auto lastReplicationTimestamp = replicaSnapshot->RuntimeData->LastReplicationTimestamp.load();
                 if (lastReplicationTimestamp == NullTimestamp) {
                     lastReplicationTimestamp = replicaSnapshot->RuntimeData->CurrentReplicationTimestamp.load();

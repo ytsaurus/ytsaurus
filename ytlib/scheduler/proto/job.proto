@@ -41,6 +41,7 @@ message TFileDescriptor
     optional bytes format = 7;
     required NChunkClient.NProto.TDataSource data_source = 8;
     repeated NYT.NChunkClient.NProto.TChunkSpec chunk_specs = 9;
+    optional bool bypass_artifact_cache = 10;
 }
 
 message TTableBlobSpec
@@ -129,6 +130,8 @@ message TUserJobSpec
     optional int64 max_profile_size = 38 [default = 0];
 
     optional bool set_container_cpu_limit = 39 [default = false];
+
+    optional int64 prepare_time_limit = 42;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

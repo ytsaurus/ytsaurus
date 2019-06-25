@@ -17,7 +17,7 @@ public:
 
     virtual ITransactionPtr RegisterTransaction(ITransactionPtr transaction) override
     {
-        const auto& transactionId = transaction->GetId();
+        auto transactionId = transaction->GetId();
         TStickyTransactionEntry entry{
             transaction,
             NConcurrency::TLeaseManager::CreateLease(

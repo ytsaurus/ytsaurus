@@ -155,7 +155,8 @@ public:
         , TabletActionManager_(New<TTabletActionManager>(Config_->TabletActionManager, Bootstrap_))
         , TableStatisticsGossipThrottler_(CreateReconfigurableThroughputThrottler(
             Config_->MulticellGossipConfig->TableStatisticsGossipThrottler,
-            TabletServerLogger))
+            TabletServerLogger,
+            TabletServerProfiler.AppendPath("/table_statistics_gossip_throttler")))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
 
@@ -400,7 +401,7 @@ public:
         YCHECK(cell->Actions().empty());
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        const auto& cellId = cell->GetId();
+        auto cellId = cell->GetId();
         auto* mailbox = hiveManager->FindMailbox(cellId);
         if (mailbox) {
             hiveManager->RemoveMailbox(mailbox);
@@ -1569,7 +1570,7 @@ public:
                         firstTabletIndex);
                 }
 
-                for (const auto& cellId : targetCellIds) {
+                for (auto cellId : targetCellIds) {
                     auto targetCell = GetTabletCellOrThrow(cellId);
                     if (!IsCellActive(targetCell)) {
                         THROW_ERROR_EXCEPTION("Cannot mount tablet into cell %v since it is not active",
@@ -3330,12 +3331,9 @@ public:
         }
 
         if (Bootstrap_->IsPrimaryMaster()) {
-            if (table->GetTabletCellBundle() != nullptr && table->IsDynamic()) {
+            if (table->GetTabletCellBundle() && table->IsDynamic()) {
                 table->ValidateAllTabletsUnmounted("Cannot change tablet cell bundle");
             }
-
-            const auto& securityManager = Bootstrap_->GetSecurityManager();
-            securityManager->ValidatePermission(cellBundle, EPermission::Use);
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -3797,14 +3795,12 @@ private:
     {
         YCHECK(!Bootstrap_->IsPrimaryMaster());
 
-        auto tableCount = request->table_count();
+        auto remainingTableCount = request->table_count();
 
         std::vector<TTableId> tableIds;
         NProto::TReqUpdateTableStatistics req;
-        while (tableCount-- > 0 && !TableStatisticsUpdates_.IsEmpty()) {
-            auto pair = TableStatisticsUpdates_.Pop();
-            const auto& tableId = pair.first;
-            const auto& statistics = pair.second;
+        while (remainingTableCount-- > 0 && !TableStatisticsUpdates_.IsEmpty()) {
+            const auto& [tableId, statistics] = TableStatisticsUpdates_.Pop();
             tableIds.push_back(tableId);
             auto* entry = req.add_entries();
             ToProto(entry->mutable_table_id(), tableId);
@@ -3823,7 +3819,7 @@ private:
         }
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Sending table statistics update (RequestedTableCount: %v, TableIds: %v)",
-            tableCount,
+            request->table_count(),
             tableIds);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -3936,9 +3932,23 @@ private:
     {
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
-            if (!IsObjectAlive(cell))
+            if (!IsObjectAlive(cell)) {
                 continue;
+            }
+
             cell->LocalStatistics().Health = cell->GetHealth();
+        }
+
+        for (const auto& pair : TabletCellBundleMap_) {
+            auto* bundle = pair.second;
+            if (!IsObjectAlive(bundle)) {
+                continue;
+            }
+
+            bundle->Health() = ETabletCellHealth::Good;
+            for (const auto& cell : bundle->TabletCells()) {
+                bundle->Health() = TTabletCell::CombineHealths(cell->LocalStatistics().Health, bundle->Health());
+            }
         }
     }
 
@@ -4010,7 +4020,7 @@ private:
 
             auto* protoInfo = response->add_tablet_slots_to_create();
 
-            const auto& cellId = cell->GetId();
+            auto cellId = cell->GetId();
             auto peerId = cell->GetPeerId(node->GetDefaultAddress());
 
             ToProto(protoInfo->mutable_cell_id(), cell->GetId());
@@ -4037,7 +4047,7 @@ private:
 
             auto* protoInfo = response->add_tablet_slots_configure();
 
-            const auto& cellId = cell->GetId();
+            auto cellId = cell->GetId();
             auto cellDescriptor = cell->GetDescriptor();
 
             const auto& prerequisiteTransactionId = cell->GetPrerequisiteTransaction()->GetId();
@@ -4062,7 +4072,7 @@ private:
 
             auto* protoInfo = response->add_tablet_slots_update();
 
-            const auto& cellId = cell->GetId();
+            auto cellId = cell->GetId();
 
             ToProto(protoInfo->mutable_cell_id(), cell->GetId());
 
@@ -4122,7 +4132,7 @@ private:
                 continue;
 
             auto cellInfo = FromProto<TCellInfo>(slotInfo.cell_info());
-            const auto& cellId = cellInfo.CellId;
+            auto cellId = cellInfo.CellId;
             auto* cell = FindTabletCell(cellId);
             if (!IsObjectAlive(cell)) {
                 YT_LOG_DEBUG_UNLESS(IsRecovery(), "Unknown tablet slot is running (Address: %v, CellId: %v)",
@@ -4487,6 +4497,7 @@ private:
             return;
         }
 
+        YCHECK(IsTableType(node->GetType()));
         auto* table = node->As<TTableNode>();
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Received update upstream tablet state request "
@@ -4520,6 +4531,7 @@ private:
             return;
         }
 
+        YCHECK(IsTableType(node->GetType()));
         auto* table = node->As<TTableNode>();
         auto transactionId = FromProto<TTransactionId>(request->last_mount_transaction_id());
         table->SetPrimaryLastMountTransactionId(transactionId);
@@ -5344,11 +5356,11 @@ private:
         std::vector<TTablet*> tablets;
         std::vector<TTabletCell*> cells;
 
-        for (const auto& tabletId : tabletIds) {
+        for (auto tabletId : tabletIds) {
             tablets.push_back(GetTabletOrThrow(tabletId));
         }
 
-        for (const auto& cellId : cellIds) {
+        for (auto cellId : cellIds) {
             cells.push_back(GetTabletCellOrThrow(cellId));
         }
 

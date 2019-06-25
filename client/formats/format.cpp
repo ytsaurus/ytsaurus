@@ -296,9 +296,10 @@ IVersionedWriterPtr CreateVersionedWriterForFormat(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
+ISchemalessFormatWriterPtr CreateStaticTableWriterForFormat(
     const TFormat& format,
     TNameTablePtr nameTable,
+    const std::vector<TTableSchema>& tableSchemas,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     TControlAttributesConfigPtr controlAttributesConfig,
@@ -351,9 +352,10 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
                 std::move(output),
                 nameTable);
         case EFormatType::Skiff:
-            return CreateSchemalessWriterForSkiff(
+            return CreateWriterForSkiff(
                 format.Attributes(),
                 nameTable,
+                tableSchemas,
                 std::move(output),
                 enableContextSaving,
                 controlAttributesConfig,

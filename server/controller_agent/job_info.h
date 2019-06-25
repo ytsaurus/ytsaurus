@@ -46,6 +46,7 @@ struct TJobInfoBase
     double Progress = 0.0;
     i64 StderrSize = 0;
     NYson::TYsonString StatisticsYson;
+    EJobPhase Phase = EJobPhase::Missing;
 
     virtual void Persist(const TPersistenceContext& context);
 };

@@ -9,6 +9,8 @@
 
 #include <yt/core/yson/consumer.h>
 
+#include <yt/core/misc/blob_output.h>
+
 #include <Extensions.hxx> // pycxx
 
 namespace NYT::NPython {
@@ -22,16 +24,19 @@ public:
     TDriverResponseHolder();
     virtual ~TDriverResponseHolder();
 
-    NYson::IYsonConsumer* GetResponseParametersConsumer();
-    NYTree::TPythonObjectBuilder* GetPythonObjectBuilder();
+    NYson::IFlushableYsonConsumer* GetResponseParametersConsumer() const;
+    NYson::TYsonString GetResponseParametersYsonString() const;
+    bool IsResponseParametersFinished() const;
+    void OnResponseParametersFinished();
 
     void HoldInputStream(std::unique_ptr<IInputStream> inputStream);
     void HoldOutputStream(std::unique_ptr<IOutputStream>& outputStream);
 private:
     std::unique_ptr<IInputStream> InputStream_;
     std::unique_ptr<IOutputStream> OutputStream_;
-    std::unique_ptr<NYTree::TPythonObjectBuilder> ResponseParametersBuilder_;
-    std::unique_ptr<NYTree::TGilGuardedYsonConsumer> ResponseParametersConsumer_;
+    TBlobOutput ResponseParametersBlobOutput_;
+    std::unique_ptr<NYson::IFlushableYsonConsumer> ResponseParametersYsonWriter_;
+    std::atomic<bool> ResponseParametersFinished_ = {false};
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,9 +72,6 @@ public:
 private:
     TFuture<void> Response_;
     TIntrusivePtr<TDriverResponseHolder> Holder_;
-
-    Py::Object ResponseParameters_;
-    bool ResponseParametersFinished_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

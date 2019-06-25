@@ -2,6 +2,8 @@ package NYT.NYson.NProto;
 
 option go_package = "a.yandex-team.ru/yt/go/proto/core/yson";
 
+option python_package = "yt_proto.yt.core.yson.proto";
+
 import "google/protobuf/descriptor.proto";
 
 extend google.protobuf.FieldOptions

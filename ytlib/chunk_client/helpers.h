@@ -142,6 +142,7 @@ struct TUserObject
     ui64 Revision = 0;
     std::vector<TString> OmittedInaccessibleColumns;
     std::vector<NSecurityClient::TSecurityTag> SecurityTags;
+    ui64 ContentRevision;
 
     virtual ~TUserObject() = default;
 

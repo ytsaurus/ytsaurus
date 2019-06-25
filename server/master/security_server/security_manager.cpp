@@ -626,7 +626,7 @@ public:
         if (!IsObjectAlive(user)) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::AuthenticationError,
-                "No such user %Qv",
+                "No such user %Qv; Create user by requesting any IDM role on this cluster",
                 name);
         }
         return user;
@@ -955,6 +955,8 @@ public:
 
         // Slow lane: check ACLs through the object hierarchy.
         const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto* rootObject = cypressManager->GetRootNode();
         auto* currentObject = object;
         TSubject* owner = nullptr;
         int depth = 0;
@@ -981,7 +983,24 @@ public:
                 }
             }
 
-            currentObject = handler->GetParent(currentObject);
+            auto* parentObject = handler->GetParent(currentObject);
+
+            // XXX(shakurov): YT-10896: remove this workaround.
+            if (!HasMutationContext() && IsVersionedType(object->GetType())) {
+                // Check if current object is orphaned.
+                if (!parentObject && currentObject != rootObject) {
+                    checker.ProcessAce(
+                        TAccessControlEntry(
+                            ESecurityAction::Allow,
+                            GetEveryoneGroup(),
+                            EPermissionSet(EPermission::Read)),
+                        owner,
+                        currentObject,
+                        depth);
+                }
+            }
+
+            currentObject = parentObject;
             ++depth;
         }
 
@@ -2086,7 +2105,6 @@ private:
     {
         TMasterAutomatonPart::OnRecoveryComplete();
 
-        OnDynamicConfigChanged();
         RequestTracker_->Start();
     }
 
@@ -2103,6 +2121,8 @@ private:
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
             BIND(&TImpl::OnUserStatisticsGossip, MakeWeak(this)));
         UserStatisticsGossipExecutor_->Start();
+
+        OnDynamicConfigChanged();
     }
 
     virtual void OnStopLeading() override

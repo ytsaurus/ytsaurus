@@ -88,59 +88,65 @@ TTableNodeProxy::TTableNodeProxy(
 
 void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
 {
-    TBase::GetBasicAttributes(context);
-
-    TPermissionCheckOptions checkOptions;
-    auto* table = GetThisImpl();
-    if (context->Columns) {
-        checkOptions.Columns = std::move(context->Columns);
-    } else {
-        const auto& tableSchema = table->GetTableSchema();
-        checkOptions.Columns.emplace();
-        checkOptions.Columns->reserve(tableSchema.Columns().size());
-        for (const auto& columnSchema : tableSchema.Columns()) {
-            checkOptions.Columns->push_back(columnSchema.Name());
+    if (context->Permission == EPermission::Read) {
+        // We shall take care of reads ourselves.
+        TPermissionCheckOptions checkOptions;
+        auto* table = GetThisImpl();
+        if (context->Columns) {
+            checkOptions.Columns = std::move(context->Columns);
+        } else {
+            const auto& tableSchema = table->GetTableSchema();
+            checkOptions.Columns.emplace();
+            checkOptions.Columns->reserve(tableSchema.Columns().size());
+            for (const auto& columnSchema : tableSchema.Columns()) {
+                checkOptions.Columns->push_back(columnSchema.Name());
+            }
         }
-    }
 
-    const auto& securityManager = Bootstrap_->GetSecurityManager();
-    auto* user = securityManager->GetAuthenticatedUser();
-    auto checkResponse = securityManager->CheckPermission(
-        Object_,
-        user,
-        EPermission::Read,
-        checkOptions);
-
-    if (checkResponse.Action == ESecurityAction::Deny) {
-        TPermissionCheckTarget target;
-        target.Object = Object_;
-        securityManager->LogAndThrowAuthorizationError(
-            target,
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->GetAuthenticatedUser();
+        auto checkResponse = securityManager->CheckPermission(
+            Object_,
             user,
-            context->Permission,
-            checkResponse);
-    }
+            EPermission::Read,
+            checkOptions);
 
-    if (checkOptions.Columns) {
-        for (size_t index = 0; index < checkOptions.Columns->size(); ++index) {
-            const auto& column = (*checkOptions.Columns)[index];
-            const auto& result = (*checkResponse.Columns)[index];
-            if (result.Action == ESecurityAction::Deny) {
-                if (context->OmitInaccessibleColumns) {
-                    context->OmittedInaccessibleColumns.emplace().push_back(column);
-                } else {
-                    TPermissionCheckTarget target;
-                    target.Object = Object_;
-                    target.Column = column;
-                    securityManager->LogAndThrowAuthorizationError(
-                        target,
-                        user,
-                        EPermission::Read,
-                        result);
+        if (checkResponse.Action == ESecurityAction::Deny) {
+            TPermissionCheckTarget target;
+            target.Object = Object_;
+            securityManager->LogAndThrowAuthorizationError(
+                target,
+                user,
+                EPermission::Read,
+                checkResponse);
+        }
+
+        if (checkOptions.Columns) {
+            for (size_t index = 0; index < checkOptions.Columns->size(); ++index) {
+                const auto& column = (*checkOptions.Columns)[index];
+                const auto& result = (*checkResponse.Columns)[index];
+                if (result.Action == ESecurityAction::Deny) {
+                    if (context->OmitInaccessibleColumns) {
+                        context->OmittedInaccessibleColumns.emplace().push_back(column);
+                    } else {
+                        TPermissionCheckTarget target;
+                        target.Object = Object_;
+                        target.Column = column;
+                        securityManager->LogAndThrowAuthorizationError(
+                            target,
+                            user,
+                            EPermission::Read,
+                            result);
+                    }
                 }
             }
         }
+        
+        // No need for an extra check below. 
+        context->Permission = std::nullopt;
     }
+
+    TBase::GetBasicAttributes(context);
 }
 
 void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)

@@ -416,9 +416,6 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("additional_security_tags", AdditionalSecurityTags)
         .Default();
 
-    RegisterParameter("max_speculative_job_count", MaxSpeculativeJobCount)
-        .Default(1);
-
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
@@ -488,14 +485,19 @@ TUserJobSpec::TUserJobSpec()
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(50);
     RegisterParameter("job_time_limit", JobTimeLimit)
+        .Alias("exec_time_limit")
         .Default()
         .GreaterThanOrEqual(TDuration::Seconds(1));
+    RegisterParameter("prepare_time_limit", PrepareTimeLimit)
+        .Default(TDuration::Minutes(45))
+        .GreaterThanOrEqual(TDuration::Minutes(1));
     RegisterParameter("memory_limit", MemoryLimit)
         .Default(512_MB)
         .GreaterThan(0)
         .LessThanOrEqual(1_TB);
+    RegisterParameter("memory_reserve_factor", MemoryReserveFactor)
+        .Default();
     RegisterParameter("user_job_memory_digest_default_value", UserJobMemoryDigestDefaultValue)
-        .Alias("memory_reserve_factor")
         .Default(0.5)
         .GreaterThan(0.)
         .LessThanOrEqual(1.);
@@ -596,6 +598,10 @@ TUserJobSpec::TUserJobSpec()
                         TmpfsVolumes[j]->Path);
                 }
             }
+        }
+
+        if (MemoryReserveFactor) {
+            UserJobMemoryDigestLowerBound = UserJobMemoryDigestDefaultValue = *MemoryReserveFactor;
         }
 
         auto memoryDigestLowerLimit = static_cast<double>(totalTmpfsSize) / MemoryLimit;
@@ -835,8 +841,6 @@ TReduceOperationSpecBase::TReduceOperationSpecBase()
         .NonEmpty();
     RegisterParameter("consider_only_primary_size", ConsiderOnlyPrimarySize)
         .Default(false);
-    RegisterParameter("use_new_controller", UseNewController)
-        .Default(true);
 
     RegisterPostprocessor([&] () {
         if (!JoinBy.empty()) {
@@ -848,51 +852,6 @@ TReduceOperationSpecBase::TReduceOperationSpecBase()
 
         Reducer->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
         Reducer->TaskTitle = "Reducer";
-    });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TReduceOperationSpec::TReduceOperationSpec()
-{
-    RegisterParameter("join_by", JoinBy)
-        .Default();
-    RegisterParameter("reduce_by", ReduceBy)
-        .NonEmpty();
-    RegisterParameter("sort_by", SortBy)
-        .Default();
-    RegisterParameter("pivot_keys", PivotKeys)
-        .Default();
-
-    RegisterPostprocessor([&] () {
-        if (!ReduceBy.empty()) {
-            NTableClient::ValidateKeyColumns(ReduceBy);
-        }
-
-        if (!SortBy.empty()) {
-            NTableClient::ValidateKeyColumns(SortBy);
-        }
-    });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TJoinReduceOperationSpec::TJoinReduceOperationSpec()
-{
-    RegisterParameter("join_by", JoinBy)
-        .NonEmpty();
-
-    RegisterPostprocessor([&] {
-        bool hasPrimary = false;
-        for (const auto& path : InputTablePaths) {
-            hasPrimary |= path.GetPrimary();
-        }
-        if (hasPrimary) {
-            for (auto& path : InputTablePaths) {
-                path.Attributes().Set("foreign", !path.GetPrimary());
-                path.Attributes().Remove("primary");
-            }
-        }
     });
 }
 
@@ -1335,6 +1294,20 @@ TExtendedSchedulableConfig::TExtendedSchedulableConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEphemeralSubpoolConfig::TEphemeralSubpoolConfig()
+{
+    RegisterParameter("mode", Mode)
+        .Default(ESchedulingMode::FairShare);
+
+    RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
+        .Default(10);
+
+    RegisterParameter("max_operation_count", MaxOperationCount)
+        .Default(10);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TPoolConfig::TPoolConfig()
 {
     RegisterParameter("mode", Mode)
@@ -1362,8 +1335,8 @@ TPoolConfig::TPoolConfig()
     RegisterParameter("create_ephemeral_subpools", CreateEphemeralSubpools)
         .Default(false);
 
-    RegisterParameter("ephemeral_subpools_mode", EphemeralSubpoolsMode)
-        .Default(ESchedulingMode::FairShare);
+    RegisterParameter("ephemeral_subpool_config", EphemeralSubpoolConfig)
+        .DefaultNew();
 
     RegisterParameter("allowed_profiling_tags", AllowedProfilingTags)
         .Default();
@@ -1383,6 +1356,33 @@ void TPoolConfig::Validate()
             << TErrorAttribute("allowed_profiling_tag_count", AllowedProfilingTags.size())
             << TErrorAttribute("max_allowed_profiling_tag_count", MaxAllowedProfilingTagCount);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFairShareStrategyPackingConfig::TFairShareStrategyPackingConfig()
+{
+    RegisterParameter("enable", Enable)
+        .Default(false);
+
+    RegisterParameter("metric", Metric)
+        .Default(EPackingMetricType::AngleLength);
+
+    RegisterParameter("max_better_past_snapshots", MaxBetterPastSnapshots)
+        .Default(2);
+    RegisterParameter("absolute_metric_value_tolerance", AbsoluteMetricValueTolerance)
+        .Default(0.05)
+        .GreaterThanOrEqual(0.0);
+    RegisterParameter("relative_metric_value_tolerance", RelativeMetricValueTolerance)
+        .Default(1.5)
+        .GreaterThanOrEqual(1.0);
+    RegisterParameter("min_window_size_for_schedule", MinWindowSizeForSchedule)
+        .Default(0)
+        .GreaterThanOrEqual(0);
+    RegisterParameter("max_heartbeat_window_size", MaxHearbeatWindowSize)
+        .Default(10);
+    RegisterParameter("max_heartbeat_age", MaxHeartbeatAge)
+        .Default(TDuration::Hours(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1425,6 +1425,8 @@ TOperationFairShareTreeRuntimeParameters::TOperationFairShareTreeRuntimeParamete
     RegisterParameter("pool", Pool);
     RegisterParameter("resource_limits", ResourceLimits)
         .DefaultNew();
+    RegisterParameter("enable_detailed_logs", EnableDetailedLogs)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1455,6 +1457,8 @@ TOperationFairShareTreeRuntimeParametersUpdate::TOperationFairShareTreeRuntimePa
         .Optional();
     RegisterParameter("resource_limits", ResourceLimits)
         .Default();
+    RegisterParameter("enable_detailed_logs", EnableDetailedLogs)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1485,6 +1489,20 @@ bool TOperationRuntimeParametersUpdate::ContainsPool() const
         result |= treeOptions->Pool.has_value();
     }
     return result;
+}
+
+EPermissionSet TOperationRuntimeParametersUpdate::GetRequiredPermissions() const
+{
+    auto requiredPermissions = EPermissionSet(EPermission::Manage);
+
+    for (const auto& [poolTree, treeParams] : SchedulingOptionsPerPoolTree) {
+        if (treeParams->EnableDetailedLogs.has_value()) {
+            requiredPermissions |= EPermission::Administer;
+            break;
+        }
+    }
+
+    return requiredPermissions;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1582,14 +1600,12 @@ TJobCpuMonitorConfig::TJobCpuMonitorConfig()
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TEraseOperationSpec);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TJoinReduceOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMapOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMapReduceOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMergeOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TNewReduceOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOperationSpecBase);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeOperationSpec);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TReduceOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TReduceOperationSpecBase);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSimpleOperationSpecBase);

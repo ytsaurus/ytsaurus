@@ -272,7 +272,7 @@ private:
         TRowBufferPtr rowBuffer,
         const NLogging::TLogger& Logger)
     {
-        const auto& tableId = dataSource.Id;
+        auto tableId = dataSource.Id;
 
         auto tableMountCache = Connection_->GetTableMountCache();
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
@@ -512,7 +512,7 @@ private:
             query,
             writer,
             refiners,
-            [&] (TConstQueryPtr subquery, int index) {
+            [&] (const TConstQueryPtr& subquery, int index) {
                 std::vector<TDataRanges> dataSources;
                 TString address;
                 std::tie(dataSources, address) = getSubsources(index);
@@ -529,7 +529,7 @@ private:
                     std::move(dataSources),
                     address);
             },
-            [&] (TConstFrontQueryPtr topQuery, ISchemafulReaderPtr reader, IUnversionedRowsetWriterPtr writer) {
+            [&] (const TConstFrontQueryPtr& topQuery, const ISchemafulReaderPtr& reader, const IUnversionedRowsetWriterPtr& writer) {
                 YT_LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 return Evaluator_->Run(
                     std::move(topQuery),

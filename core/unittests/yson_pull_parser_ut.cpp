@@ -1,4 +1,5 @@
 #include <yt/core/test_framework/framework.h>
+#include <yt/core/test_framework/yson_consumer_mock.h>
 
 #include <yt/core/yson/pull_parser.h>
 
@@ -8,6 +9,38 @@
 #include <util/stream/mem.h>
 
 namespace NYT::NYson {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void PrintTo(const TYsonItem& ysonItem, ::std::ostream* out)
+{
+    auto type = ysonItem.GetType();
+    (*out) << ToString(type) << " {";
+    switch (type) {
+        case EYsonItemType::Int64Value:
+            (*out) << ysonItem.UncheckedAsInt64();
+            break;
+        case EYsonItemType::Uint64Value:
+            (*out) << ysonItem.UncheckedAsUint64();
+            break;
+        case EYsonItemType::DoubleValue:
+            (*out) << ysonItem.UncheckedAsDouble();
+            break;
+        case EYsonItemType::BooleanValue:
+            (*out) << ysonItem.UncheckedAsBoolean();
+            break;
+        case EYsonItemType::StringValue:
+            (*out) << ysonItem.UncheckedAsString();
+            break;
+        default:
+            (*out) << ' ';
+            break;
+    }
+    (*out) << "}";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -137,6 +170,28 @@ private:
 private:
     std::vector<TStringBuf> Data_;
     std::optional<TMemoryInput> CurrentInput_;
+};
+
+struct TStringBufCursorHelper
+{
+    TMemoryInput MemoryInput;
+    TYsonPullParser PullParser;
+
+    TStringBufCursorHelper(TStringBuf input, EYsonType ysonType)
+        : MemoryInput(input)
+        , PullParser(&MemoryInput, ysonType)
+    { }
+};
+
+class TStringBufCursor
+    : private TStringBufCursorHelper
+    , public TYsonPullParserCursor
+{
+public:
+    explicit TStringBufCursor(TStringBuf input, EYsonType ysonType = EYsonType::Node)
+        : TStringBufCursorHelper(input, ysonType)
+        , TYsonPullParserCursor(&PullParser)
+    { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -356,7 +411,7 @@ TEST(TYsonPullParserTest, ContextInExceptions_ManyBlocks)
     GTEST_FAIL() << "Expected exception to be thrown";
 }
 
-TEST(TYsonTest, ContextInExceptions_ContextAtTheVeryBeginning)
+TEST(TYsonPullParserTest, ContextInExceptions_ContextAtTheVeryBeginning)
 {
     try {
         GetYsonPullSignature("! foo bar baz");
@@ -387,6 +442,48 @@ TEST(TYsonPullTest, ContextInExceptions_Margin)
         EXPECT_THAT(ex.what(), testing::HasSubstr("oabcd bar = 580}"));
         return;
     }
+}
+
+TEST(TYsonPullParserCursorTest, TestTransferValueBasicCases)
+{
+    auto input = AsStringBuf("[ [ {foo=<attr=value>bar; qux=[-1; 2u; %false; 3.14; lol; # ]} ] ; 6 ]");
+    auto cursor = TStringBufCursor(input);
+    EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::BeginList));
+    cursor.Next();
+    {
+        ::testing::StrictMock<TMockYsonConsumer> mock;
+        {
+            ::testing::InSequence g;
+            EXPECT_CALL(mock, OnBeginList());
+            EXPECT_CALL(mock, OnListItem());
+            EXPECT_CALL(mock, OnBeginMap());
+            EXPECT_CALL(mock, OnKeyedItem("foo"));
+            EXPECT_CALL(mock, OnBeginAttributes());
+            EXPECT_CALL(mock, OnKeyedItem("attr"));
+            EXPECT_CALL(mock, OnStringScalar("value"));
+            EXPECT_CALL(mock, OnEndAttributes());
+            EXPECT_CALL(mock, OnStringScalar("bar"));
+            EXPECT_CALL(mock, OnKeyedItem("qux"));
+            EXPECT_CALL(mock, OnBeginList());
+            EXPECT_CALL(mock, OnListItem());
+            EXPECT_CALL(mock, OnInt64Scalar(-1));
+            EXPECT_CALL(mock, OnListItem());
+            EXPECT_CALL(mock, OnUint64Scalar(2));
+            EXPECT_CALL(mock, OnListItem());
+            EXPECT_CALL(mock, OnBooleanScalar(false));
+            EXPECT_CALL(mock, OnListItem());
+            EXPECT_CALL(mock, OnDoubleScalar(::testing::DoubleEq(3.14)));
+            EXPECT_CALL(mock, OnListItem());
+            EXPECT_CALL(mock, OnStringScalar("lol"));
+            EXPECT_CALL(mock, OnListItem());
+            EXPECT_CALL(mock, OnEntity());
+            EXPECT_CALL(mock, OnEndList());
+            EXPECT_CALL(mock, OnEndMap());
+            EXPECT_CALL(mock, OnEndList());
+        }
+        cursor.TransferComplexValue(&mock);
+    }
+    EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Int64(6));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -562,8 +562,14 @@ TEST_F(TSingleLockStoreManagerTest, WriteRotateWrite)
     EXPECT_EQ(0, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
 }
+////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TSingleLockStoreManagerTest, WriteBlockedWrite)
+class TBlockedWriteTest
+    : public TSingleLockStoreManagerTest
+    , public ::testing::WithParamInterface<bool>
+{ };
+
+TEST_P(TBlockedWriteTest, WriteBlockedWrite)
 {
     auto row = BuildRow("key=1;a=1");
 
@@ -579,6 +585,10 @@ TEST_F(TSingleLockStoreManagerTest, WriteBlockedWrite)
 
     auto transaction2 = StartTransaction(transaction1->GetPrepareTimestamp() + 10);
 
+    if (GetParam()) {
+        RotateStores();
+    }
+
     TWriteContext context;
     context.Phase = EWritePhase::Prelock;
     context.Transaction = transaction2.get();
@@ -588,6 +598,38 @@ TEST_F(TSingleLockStoreManagerTest, WriteBlockedWrite)
     EXPECT_EQ(rowRef1.Store, context.BlockedStore);
     EXPECT_EQ(1, store->GetLockCount());
 }
+
+TEST_P(TBlockedWriteTest, WriteConflictingWrite)
+{
+    auto row = BuildRow("key=1;a=1");
+
+    auto store = GetActiveStore();
+    EXPECT_EQ(0, store->GetLockCount());
+
+    auto transaction1 = StartTransaction();
+    auto rowRef1 = WriteRow(transaction1.get(), row, false);
+    EXPECT_EQ(store, rowRef1.Store);
+
+    auto transaction2 = StartTransaction(transaction1->GetPrepareTimestamp() + 10);
+
+    PrepareTransaction(transaction1.get());
+    PrepareRow(transaction1.get(), rowRef1);
+
+    if (GetParam()) {
+        RotateStores();
+    }
+
+    TWriteContext context;
+    context.Phase = EWritePhase::Prelock;
+    context.Transaction = transaction2.get();
+
+    EXPECT_EQ(TSortedDynamicRowRef(), StoreManager_->ModifyRow(row, ERowModificationType::Write, TLockMask(), &context));
+    EXPECT_FALSE(context.Error.IsOK());
+}
+
+INSTANTIATE_TEST_CASE_P(BlockedWrite,
+    TBlockedWriteTest,
+    ::testing::Values(false, true));
 
 ////////////////////////////////////////////////////////////////////////////////
 

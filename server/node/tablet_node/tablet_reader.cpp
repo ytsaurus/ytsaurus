@@ -221,12 +221,12 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
         }
     }
 
-    i64 trimmedRowCount = tabletSnapshot->RuntimeData->TrimmedRowCount;
+    i64 trimmedRowCount = tabletSnapshot->TabletRuntimeData->TrimmedRowCount;
     if (lowerRowIndex < trimmedRowCount) {
         lowerRowIndex = trimmedRowCount;
     }
 
-    i64 totalRowCount = tabletSnapshot->RuntimeData->TotalRowCount;
+    i64 totalRowCount = tabletSnapshot->TabletRuntimeData->TotalRowCount;
     if (upperRowIndex > totalRowCount) {
         upperRowIndex = totalRowCount;
     }

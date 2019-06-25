@@ -426,17 +426,18 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
         produceAllVersions);
 }
 
-TError TSortedChunkStore::CheckRowLocks(
+bool TSortedChunkStore::CheckRowLocks(
     TUnversionedRow row,
-    TTransaction* transaction,
-    TLockMask lockMask)
+    TLockMask lockMask,
+    TWriteContext* context)
 {
     auto backingStore = GetSortedBackingStore();
     if (backingStore) {
-        return backingStore->CheckRowLocks(row, transaction, lockMask);
+        return backingStore->CheckRowLocks(row, lockMask, context);
     }
 
-    return TError(
+    auto* transaction = context->Transaction;
+    context->Error = TError(
         "Checking for transaction conflicts against chunk stores is not supported; "
         "consider reducing transaction duration or increasing store retention time")
         << TErrorAttribute("transaction_id", transaction->GetId())
@@ -445,6 +446,7 @@ TError TSortedChunkStore::CheckRowLocks(
         << TErrorAttribute("table_path", TablePath_)
         << TErrorAttribute("store_id", StoreId_)
         << TErrorAttribute("key", RowToKey(row));
+    return false;
 }
 
 void TSortedChunkStore::Save(TSaveContext& context) const

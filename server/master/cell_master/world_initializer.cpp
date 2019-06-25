@@ -553,7 +553,7 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto transactionIds = ToObjectIds(GetValues(transactionManager->Transactions()));
         const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        for (const auto& transactionId : transactionIds) {
+        for (auto transactionId : transactionIds) {
             transactionSupervisor->AbortTransaction(transactionId);
         }
     }

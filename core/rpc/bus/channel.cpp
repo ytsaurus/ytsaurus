@@ -51,6 +51,7 @@ class TBusChannel
 public:
     explicit TBusChannel(IBusClientPtr client)
         : Client_(std::move(client))
+        , NetworkId_(TDispatcher::Get()->GetNetworkId(Client_->GetNetworkName()))
     {
         YCHECK(Client_);
     }
@@ -63,6 +64,11 @@ public:
     virtual const IAttributeDictionary& GetEndpointAttributes() const override
     {
         return Client_->GetEndpointAttributes();
+    }
+
+    virtual TNetworkId GetNetworkId() const override
+    {
+        return NetworkId_;
     }
 
     virtual IClientRequestControlPtr Send(
@@ -126,6 +132,7 @@ private:
     typedef TIntrusivePtr<TClientRequestControl> TClientRequestControlPtr;
 
     const IBusClientPtr Client_;
+    const TNetworkId NetworkId_;
 
     TReaderWriterSpinLock SpinLock_;
     bool Terminated_ = false;
@@ -155,6 +162,7 @@ private:
 
         // Slow path.
         {
+            auto networkId = TDispatcher::Get()->GetNetworkId(Client_->GetNetworkName());
             TWriterGuard guard(SpinLock_);
 
             if (*perBandSession) {
@@ -166,7 +174,7 @@ private:
                     << TerminationError_;
             }
 
-            session = New<TSession>(band);
+            session = New<TSession>(band, networkId);
 
             auto messageHandler = New<TMessageHandler>(session);
             bus = Client_->CreateBus(messageHandler);
@@ -233,8 +241,8 @@ private:
         : public IMessageHandler
     {
     public:
-        explicit TSession(EMultiplexingBand band)
-            : TosLevel_(TDispatcher::Get()->GetTosLevelForBand(band))
+        TSession(EMultiplexingBand band, TNetworkId networkId)
+            : TosLevel_(TDispatcher::Get()->GetTosLevelForBand(band, networkId))
         { }
 
         void Initialize(IBusPtr bus)
@@ -1132,6 +1140,14 @@ public:
     virtual IChannelPtr CreateChannel(const TString& address) override
     {
         auto config = TTcpBusClientConfig::CreateTcp(address);
+        config->Load(Config_, true, false);
+        auto client = CreateTcpBusClient(std::move(config));
+        return CreateBusChannel(std::move(client));
+    }
+
+    virtual IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
+    {
+        auto config = TTcpBusClientConfig::CreateTcp(addressWithNetwork.Address, addressWithNetwork.Network);
         config->Load(Config_, true, false);
         auto client = CreateTcpBusClient(std::move(config));
         return CreateBusChannel(std::move(client));

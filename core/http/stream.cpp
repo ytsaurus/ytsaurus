@@ -680,7 +680,7 @@ TFuture<void> THttpOutput::Write(const TSharedRef& data)
     }
 
     Connection_->SetWriteDeadline(TInstant::Now() + Config_->WriteIdleTimeout);
-    return Connection_->WriteV(TSharedRefArray(std::move(writeRefs)))
+    return Connection_->WriteV(TSharedRefArray(std::move(writeRefs), TSharedRefArray::TMoveParts{}))
         .Apply(OnWriteFinish_);
 }
 
@@ -711,7 +711,7 @@ TFuture<void> THttpOutput::FinishChunked()
 
     MessageFinished_ = true;
     Connection_->SetWriteDeadline(TInstant::Now() + Config_->WriteIdleTimeout);
-    return Connection_->WriteV(TSharedRefArray(std::move(writeRefs)))
+    return Connection_->WriteV(TSharedRefArray(std::move(writeRefs), TSharedRefArray::TMoveParts{}))
         .Apply(OnWriteFinish_);
 }
 
@@ -723,18 +723,22 @@ TFuture<void> THttpOutput::WriteBody(const TSharedRef& smallBody)
 
     TSharedRefArray writeRefs;
     if (Trailers_) {
-        writeRefs = TSharedRefArray({
-            GetHeadersPart(smallBody.Size()),
-            GetTrailersPart(),
-            CrLf,
-            smallBody
-        });
+        writeRefs = TSharedRefArray(
+            std::array<TSharedRef, 4>{
+                GetHeadersPart(smallBody.Size()),
+                GetTrailersPart(),
+                CrLf,
+                smallBody
+            },
+            TSharedRefArray::TCopyParts{});
     } else {
-        writeRefs = TSharedRefArray({
-            GetHeadersPart(smallBody.Size()),
-            CrLf,
-            smallBody
-        });
+        writeRefs = TSharedRefArray(
+            std::array<TSharedRef, 3>{
+                GetHeadersPart(smallBody.Size()),
+                CrLf,
+                smallBody
+            },
+            TSharedRefArray::TCopyParts{});
     }
 
     HeadersFlushed_ = true;
@@ -782,11 +786,11 @@ void THttpOutput::OnWriteFinish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const THashSet<TString> THttpOutput::FilteredHeaders_ = {
+const THashSet<TString, TCaseInsensitiveStringHasher, TCaseInsensitiveStringEqualityComparer> THttpOutput::FilteredHeaders_ = {
     "transfer-encoding",
     "content-length",
     "connection",
-    "host"
+    "host",
 };
 
 const TSharedRef THttpOutput::Http100Continue = TSharedRef::FromString("HTTP/1.1 100 Continue\r\n\r\n");

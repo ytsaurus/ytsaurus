@@ -35,8 +35,8 @@ public:
 
     TIntrusivePtr<TSkiffRecord> CreateNewRecord();
 
-    NSkiff::TDenseFieldDescription GetDenceField(ui16 index);
-    NSkiff::TSparseFieldDescription GetSparseField(ui16 index);
+    NSkiff::TFieldDescription GetDenseField(ui16 index);
+    NSkiff::TFieldDescription GetSparseField(ui16 index);
     ui16 GetFieldIndex(const TString& name);
     bool HasField(const TString& name);
 

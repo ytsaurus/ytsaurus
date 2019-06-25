@@ -21,6 +21,7 @@ SET(YT_ARCADIA_CXXFLAGS
 SET(YT_ARCADIA_CFLAGS
     -D__SSE4_2__
     -msse4.2
+    -mpclmul
 )
 
 IF(GCC)

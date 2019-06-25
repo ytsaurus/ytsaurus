@@ -27,6 +27,7 @@ TTabletCellBundle::TTabletCellBundle(TTabletCellBundleId id)
     , Acd_(this)
     , Options_(New<TTabletCellOptions>())
     , TabletBalancerConfig_(New<TTabletBalancerConfig>())
+    , Health_(ETabletCellHealth::Good)
     , DynamicOptions_(New<TDynamicTabletCellOptions>())
 { }
 
@@ -58,6 +59,7 @@ void TTabletCellBundle::Save(TSaveContext& context) const
     Save(context, NodeTagFilter_);
     Save(context, TabletCells_);
     Save(context, *TabletBalancerConfig_);
+    Save(context, Health_);
     Save(context, TabletActions_);
     Save(context, ActiveTabletActionCount_);
 }
@@ -78,6 +80,10 @@ void TTabletCellBundle::Load(TLoadContext& context)
     Load(context, NodeTagFilter_);
     Load(context, TabletCells_);
     Load(context, *TabletBalancerConfig_);
+    // COMPAT(aozeritsky)
+    if (context.GetVersion() >= 834) {
+        Load(context, Health_);
+    }
 
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= 823) {

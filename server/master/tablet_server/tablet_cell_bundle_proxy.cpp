@@ -99,6 +99,8 @@ private:
             .SetOpaque(true));
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletActions)
             .SetOpaque(true));
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::Health)
+            .SetReplicated(true));
 
         TBase::ListSystemAttributes(attributes);
     }
@@ -186,6 +188,12 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::Health: {
+                BuildYsonFluently(consumer)
+                    .Value(cellBundle->Health());
+                return true;
+            }
+
             default:
                 break;
         }
@@ -259,7 +267,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTabletCellBundleProxy, BalanceTabletCells)
 
     std::vector<TTableNode*> movableTables;
     const auto& objectManager = Bootstrap_->GetObjectManager();
-    for (const auto& tableId : movableTableIds) {
+    for (auto tableId : movableTableIds) {
         auto* node = objectManager->GetObjectOrThrow(tableId);
         if (node->GetType() != EObjectType::Table) {
             THROW_ERROR_EXCEPTION("Unexpected object type: expected %v, got %v", EObjectType::Table, node->GetType())

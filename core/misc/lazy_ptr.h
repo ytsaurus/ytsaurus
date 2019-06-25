@@ -30,80 +30,43 @@ public:
     typedef TCallback<TIntrusivePtr<T>()> TFactory;
 
     explicit TLazyIntrusivePtr(TFactory factory = DefaultRefCountedFactory<T>())
-        : Factory(std::move(factory))
+        : Factory_(std::move(factory))
     { }
 
     T* Get() const noexcept
     {
-        static_assert(NMpl::TIsConvertible<T*, TRefCountedBase*>::Value, "T must be ref-counted.");
-        if (!Value) {
-            TGuard<TLock> guard(Lock);
-            if (!Value) {
-                NTracing::TNullTraceContextGuard guard;
-                Value = Factory.Run();
-            }
-        }
-        return Value.Get();
+        MaybeInitialize();
+        return Value_.Get();
+    }
+
+    const TIntrusivePtr<T>& Value() const noexcept
+    {
+        MaybeInitialize();
+        return Value_;
     }
 
     bool HasValue() const noexcept
     {
-        return Value.operator bool();
+        return Initialized_.load();
     }
 
 private:
-    TLock Lock;
-    TFactory Factory;
-    mutable TIntrusivePtr<T> Value;
+    TLock Lock_;
+    TFactory Factory_;
+    mutable TIntrusivePtr<T> Value_;
+    mutable std::atomic<bool> Initialized_ = {false};
 
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-const TCallback<T*()>& DefaultNonRefCountedFactory()
-{
-    static auto result = BIND([] () -> T* {
-        return new T();
-    });
-    return result;
-}
-
-//! Non-intrusive ptr with lazy creation and double-checked locking.
-template <class T, class TLock = TSpinLock>
-class TLazyUniquePtr
-    : public TPointerCommon<TLazyUniquePtr<T, TLock>, T>
-{
-public:
-    typedef TCallback<T*()> TFactory;
-
-    explicit TLazyUniquePtr(TFactory factory = DefaultNonRefCountedFactory<T>())
-        : Factory(std::move(factory))
-    { }
-
-    T* Get() const noexcept
+    void MaybeInitialize() const noexcept
     {
-        static_assert(!NMpl::TIsConvertible<T*, TRefCountedBase*>::Value, "T must not be ref-counted.");
-        if (!Value) {
-            TGuard<TLock> guard(Lock);
-            if (!Value) {
+        if (!HasValue()) {
+            TGuard<TLock> guard(Lock_);
+            if (!HasValue()) {
                 NTracing::TNullTraceContextGuard guard;
-                Value.reset(Factory.Run());
+                Value_ = Factory_.Run();
+                Initialized_.store(true);
             }
         }
-        return Value.get();
     }
-
-    bool HasValue() const noexcept
-    {
-        return Value;
-    }
-
-private:
-    TLock Lock;
-    TFactory Factory;
-    mutable std::unique_ptr<T> Value;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

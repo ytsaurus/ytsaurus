@@ -93,7 +93,6 @@ public:
 
 private:
     TChunkedMemoryPool Pool_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TRowBuffer)

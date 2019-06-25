@@ -532,7 +532,7 @@ void TTableNode::UpdateExpectedTabletState(ETabletState state)
 void TTableNode::ValidateNoCurrentMountTransaction(TStringBuf message) const
 {
     const auto* trunkTable = GetTrunkNode();
-    const auto& transactionId = trunkTable->GetCurrentMountTransactionId();
+    auto transactionId = trunkTable->GetCurrentMountTransactionId();
     if (transactionId) {
         THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::InvalidTabletState, "%v since node is locked by mount-unmount operation", message)
             << TErrorAttribute("current_mount_transaction_id", transactionId);
@@ -544,7 +544,7 @@ void TTableNode::ValidateTabletStateFixed(TStringBuf message) const
     ValidateNoCurrentMountTransaction(message);
 
     const auto* trunkTable = GetTrunkNode();
-    const auto& transactionId = trunkTable->GetLastMountTransactionId();
+    auto transactionId = trunkTable->GetLastMountTransactionId();
     if (transactionId) {
         THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::InvalidTabletState, "%v since some tablets are in transient state", message)
             << TErrorAttribute("last_mount_transaction_id", transactionId)

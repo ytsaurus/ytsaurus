@@ -333,6 +333,11 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
     auto outputCompletionTransaction = attachTransaction(transactions.OutputCompletionId, OutputClient, false);
     auto debugCompletionTransaction = attachTransaction(transactions.DebugCompletionId, Client, false);
 
+    std::vector<ITransactionPtr> nestedInputTransactions;
+    for (auto transactionId : transactions.NestedInputIds) {
+        nestedInputTransactions.push_back(attachTransaction(transactionId, InputClient, true));
+    }
+
     bool cleanStart = false;
 
     // Check transactions.
@@ -363,6 +368,9 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
         // NB: Async transaction is not checked.
         if (IsTransactionNeeded(ETransactionType::Input)) {
             checkTransaction(inputTransaction, ETransactionType::Input, transactions.InputId);
+            for (int index = 0; index < nestedInputTransactions.size(); ++index) {
+                checkTransaction(nestedInputTransactions[index], ETransactionType::Input, transactions.NestedInputIds[index]);
+            }
         }
         if (IsTransactionNeeded(ETransactionType::Output)) {
             checkTransaction(outputTransaction, ETransactionType::Output, transactions.OutputId);
@@ -417,6 +425,9 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
             scheduleAbort(inputTransaction, InputClient);
             scheduleAbort(outputTransaction, OutputClient);
             scheduleAbort(debugTransaction, Client);
+            for (const auto& transaction : nestedInputTransactions) {
+                scheduleAbort(transaction, InputClient);
+            }
         } else {
             YT_LOG_INFO("Reusing operation transactions");
             InputTransaction = inputTransaction;
@@ -424,6 +435,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
             DebugTransaction = debugTransaction;
             AsyncTransaction = WaitFor(StartTransaction(ETransactionType::Async, Client))
                 .ValueOrThrow();
+            NestedInputTransactions = nestedInputTransactions;
         }
 
         WaitFor(Combine(asyncResults))
@@ -508,6 +520,40 @@ void TOperationControllerBase::InitOutputTables()
     }
 }
 
+std::vector<TTransactionId> TOperationControllerBase::GetNonTrivialInputTransactionIds()
+{
+    // NB: keep it sync with InitializeStructures.
+    std::vector<TTransactionId> inputTransactionIds;
+    for (const auto& path : GetInputTablePaths()) {
+        if (path.GetTransactionId()) {
+            inputTransactionIds.push_back(*path.GetTransactionId());
+        }
+    }
+    for (const auto& userJobSpec : GetUserJobSpecs()) {
+        for (const auto& path : userJobSpec->FilePaths) {
+            if (path.GetTransactionId()) {
+                inputTransactionIds.push_back(*path.GetTransactionId());
+            }
+        }
+
+        auto layerPaths = userJobSpec->LayerPaths;
+        if (Config->DefaultLayerPath && layerPaths.empty()) {
+            // If no layers were specified, we insert the default one.
+            layerPaths.insert(layerPaths.begin(), *Config->DefaultLayerPath);
+        }
+        if (Config->SystemLayerPath && !layerPaths.empty()) {
+            // This must be the top layer, so insert in the beginning.
+            layerPaths.insert(layerPaths.begin(), *Config->SystemLayerPath);
+        }
+        for (const auto& path : layerPaths) {
+            if (path.GetTransactionId()) {
+                inputTransactionIds.push_back(*path.GetTransactionId());
+            }
+        }
+    }
+    return inputTransactionIds;
+}
+
 void TOperationControllerBase::InitializeStructures()
 {
     if (Spec_->TestingOperationOptions && Spec_->TestingOperationOptions->AllocationSize) {
@@ -518,10 +564,16 @@ void TOperationControllerBase::InitializeStructures()
     DataFlowGraph_ = New<TDataFlowGraph>(InputNodeDirectory_);
     InitializeOrchid();
 
+    // NB: keep it sync with GetNonTrivialInputTransactionIds.
+    int nestedInputTransactionIndex = 0;
     for (const auto& path : GetInputTablePaths()) {
         auto table = New<TInputTable>();
         table->Path = path;
-        table->TransactionId = path.GetTransactionId().value_or(InputTransaction->GetId());
+        if (path.GetTransactionId()) {
+            table->TransactionId = NestedInputTransactions[nestedInputTransactionIndex++]->GetId();
+        } else {
+            table->TransactionId = InputTransaction->GetId();
+        }
         table->ColumnRenameDescriptors = path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors());
         InputTables_.emplace_back(std::move(table));
     }
@@ -547,7 +599,11 @@ void TOperationControllerBase::InitializeStructures()
         for (const auto& path : userJobSpec->FilePaths) {
             TUserFile file;
             file.Path = path;
-            file.TransactionId = path.GetTransactionId().value_or(InputTransaction->GetId());
+            if (path.GetTransactionId()) {
+                file.TransactionId = NestedInputTransactions[nestedInputTransactionIndex++]->GetId();
+            } else {
+                file.TransactionId = InputTransaction->GetId();
+            }
             file.Layer = false;
             files.emplace_back(std::move(file));
         }
@@ -565,6 +621,11 @@ void TOperationControllerBase::InitializeStructures()
             TUserFile file;
             file.Path = path;
             file.TransactionId = path.GetTransactionId().value_or(InputTransaction->GetId());
+            if (path.GetTransactionId()) {
+                file.TransactionId = NestedInputTransactions[nestedInputTransactionIndex++]->GetId();
+            } else {
+                file.TransactionId = InputTransaction->GetId();
+            }
             file.Layer = true;
             files.emplace_back(std::move(file));
         }
@@ -1042,6 +1103,10 @@ void TOperationControllerBase::StartTransactions()
         StartTransaction(ETransactionType::Debug, Client),
     };
 
+    for (auto transactionId : GetNonTrivialInputTransactionIds()) {
+        asyncResults.push_back(StartTransaction(ETransactionType::Input, InputClient, transactionId));
+    }
+
     auto results = WaitFor(CombineAll(asyncResults))
         .ValueOrThrow();
 
@@ -1050,6 +1115,9 @@ void TOperationControllerBase::StartTransactions()
         InputTransaction = results[1].ValueOrThrow();
         OutputTransaction = results[2].ValueOrThrow();
         DebugTransaction = results[3].ValueOrThrow();
+        for (int index = 4; index < results.size(); ++index) {
+            NestedInputTransactions.push_back(results[index].ValueOrThrow());
+        }
     }
 }
 
@@ -1282,7 +1350,7 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
             Y_UNREACHABLE();
     }
     i64 desiredChunkSize = autoMergeSpec->JobIO->TableWriter->DesiredChunkSize;
-    i64 desiredChunkDataWeight = desiredChunkSize / dataWeightRatio;
+    i64 desiredChunkDataWeight = std::max<i64>(1, desiredChunkSize / InputCompressionRatio);
     i64 dataWeightPerJob = desiredChunkDataWeight;
 
     // NB: if row count limit is set on any output table, we do not
@@ -1296,7 +1364,7 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
     }
 
     YT_LOG_INFO("Auto merge parameters calculated ("
-        "Mode: %v, OutputChunkCountEstimate: %v, MaxIntermediateChunkCount: %v, ChunkCountPerMergeJob: %v,"
+        "Mode: %v, OutputChunkCountEstimate: %v, MaxIntermediateChunkCount: %v, ChunkCountPerMergeJob: %v, "
         "ChunkSizeThreshold: %v, DesiredChunkSize: %v, DesiredChunkDataWeight: %v, IntermediateChunkUnstageMode: %v)",
         mode,
         outputChunkCountEstimate,
@@ -1602,6 +1670,9 @@ void TOperationControllerBase::CommitTransactions()
     }
     if (AsyncTransaction) {
         AsyncTransaction->Abort();
+    }
+    for (const auto& transaction : NestedInputTransactions) {
+        transaction->Abort();
     }
 }
 
@@ -2368,6 +2439,9 @@ void TOperationControllerBase::FinalizeJoblet(
     if (jobSummary->DownloadDuration) {
         statistics.AddSample("/time/artifacts_download", jobSummary->DownloadDuration->MilliSeconds());
     }
+    if (jobSummary->PrepareRootFSDuration) {
+        statistics.AddSample("/time/prepare_root_fs", jobSummary->PrepareRootFSDuration->MilliSeconds());
+    }
     if (jobSummary->ExecDuration) {
         statistics.AddSample("/time/exec", jobSummary->ExecDuration->MilliSeconds());
     }
@@ -2759,6 +2833,9 @@ TControllerTransactionIds TOperationControllerBase::GetTransactionIds()
     transactionIds.DebugId = getId(DebugTransaction);
     transactionIds.OutputCompletionId = getId(OutputCompletionTransaction);
     transactionIds.DebugCompletionId = getId(DebugCompletionTransaction);
+    for (const auto& transaction : NestedInputTransactions) {
+        transactionIds.NestedInputIds.push_back(getId(transaction));
+    }
 
     return transactionIds;
 }
@@ -2825,6 +2902,9 @@ void TOperationControllerBase::SafeAbort()
     abortTransaction(InputTransaction, InputClient, /* sync */ false);
     abortTransaction(OutputTransaction, OutputClient);
     abortTransaction(AsyncTransaction, Client, /* sync */ false);
+    for (const auto& transaction : NestedInputTransactions) {
+        abortTransaction(transaction, InputClient, /* sync */ false);
+    }
 
     WaitFor(Combine(abortTransactionFutures))
         .ThrowOnError();
@@ -4642,7 +4722,8 @@ void TOperationControllerBase::GetInputTablesAttributes()
                     "retained_timestamp",
                     "schema_mode",
                     "schema",
-                    "unflushed_timestamp"
+                    "unflushed_timestamp",
+                    "content_revision"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 SetTransactionId(req, *table->TransactionId);
@@ -4678,17 +4759,19 @@ void TOperationControllerBase::GetInputTablesAttributes()
                 table->Schema = attributes->Get<TTableSchema>("schema");
                 table->SchemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
                 table->ChunkCount = attributes->Get<int>("chunk_count");
+                table->ContentRevision = attributes->Get<ui64>("content_revision");
 
                 // Validate that timestamp is correct.
                 ValidateDynamicTableTimestamp(table->Path, table->IsDynamic, table->Schema, *attributes);
             }
-            YT_LOG_INFO("Input table locked (Path: %v, ObjectId: %v, Schema: %v, Dynamic: %v, ChunkCount: %v, SecurityTags: %v)",
+            YT_LOG_INFO("Input table locked (Path: %v, ObjectId: %v, Schema: %v, Dynamic: %v, ChunkCount: %v, SecurityTags: %v, ContentRevision: %v)",
                 path,
                 table->ObjectId,
                 table->Schema,
                 table->IsDynamic,
                 table->ChunkCount,
-                table->SecurityTags);
+                table->SecurityTags,
+                table->ContentRevision);
 
             if (!table->ColumnRenameDescriptors.empty()) {
                 if (table->Path.GetTeleport()) {
@@ -5336,6 +5419,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                 }
                 attributeKeys.push_back("key");
                 attributeKeys.push_back("chunk_count");
+                attributeKeys.push_back("content_revision");
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 batchReq->AddRequest(req, "get_attributes");
             }
@@ -5443,12 +5527,14 @@ void TOperationControllerBase::GetUserFilesAttributes()
                             Config->MaxUserFileChunkCount);
                     }
                     file.ChunkCount = chunkCount;
+                    file.ContentRevision = attributes.Get<ui64>("content_revision");
 
-                    YT_LOG_INFO("User file locked (Path: %v, TaskTitle: %v, FileName: %v, SecurityTags: %v)",
+                    YT_LOG_INFO("User file locked (Path: %v, TaskTitle: %v, FileName: %v, SecurityTags: %v, ContentRevision: %v)",
                         path,
                         userJobSpec->TaskTitle,
                         file.FileName,
-                        file.SecurityTags);
+                        file.SecurityTags,
+                        file.ContentRevision);
                 }
 
                 if (!file.Layer) {
@@ -6552,7 +6638,13 @@ void TOperationControllerBase::BuildInitializeMutableAttributes(TFluentMap fluen
         .Item("async_scheduler_transaction_id").Value(AsyncTransaction ? AsyncTransaction->GetId() : NullTransactionId)
         .Item("input_transaction_id").Value(InputTransaction ? InputTransaction->GetId() : NullTransactionId)
         .Item("output_transaction_id").Value(OutputTransaction ? OutputTransaction->GetId() : NullTransactionId)
-        .Item("debug_transaction_id").Value(DebugTransaction ? DebugTransaction->GetId() : NullTransactionId);
+        .Item("debug_transaction_id").Value(DebugTransaction ? DebugTransaction->GetId() : NullTransactionId)
+        .Item("nested_input_transaction_ids").DoListFor(NestedInputTransactions,
+            [] (TFluentList fluent, const ITransactionPtr& transaction) {
+                fluent
+                    .Item().Value(transaction->GetId());
+            }
+        );
 }
 
 void TOperationControllerBase::BuildPrepareAttributes(TFluentMap fluent) const
@@ -7093,6 +7185,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     if (config->JobTimeLimit) {
         jobSpec->set_job_time_limit(ToProto<i64>(*config->JobTimeLimit));
     }
+    jobSpec->set_prepare_time_limit(ToProto<i64>(config->PrepareTimeLimit));
     jobSpec->set_memory_limit(config->MemoryLimit);
     jobSpec->set_include_memory_mapped_files(config->IncludeMemoryMappedFiles);
     jobSpec->set_use_yamr_descriptors(config->UseYamrDescriptors);

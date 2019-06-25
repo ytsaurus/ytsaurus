@@ -66,17 +66,8 @@ void TServiceContextBase::Reply(const TError& error)
     Y_ASSERT(!Replied_);
 
     Error_ = error;
-    Replied_ = true;
 
-    DoReply();
-
-    if (AsyncResponseMessage_) {
-        AsyncResponseMessage_.Set(GetResponseMessage());
-    }
-
-    if (Logger.IsLevelEnabled(LogLevel_)) {
-        LogResponse();
-    }
+    ReplyEpilogue();
 }
 
 void TServiceContextBase::Reply(const TSharedRefArray& responseMessage)
@@ -103,13 +94,20 @@ void TServiceContextBase::Reply(const TSharedRefArray& responseMessage)
         ResponseAttachments_.clear();
     }
 
+    ReplyEpilogue();
+}
+
+void TServiceContextBase::ReplyEpilogue()
+{
     Replied_ = true;
 
-    DoReply();
+    BuildResponseMessage();
 
     if (AsyncResponseMessage_) {
-        AsyncResponseMessage_.Set(GetResponseMessage());
+        AsyncResponseMessage_.Set(ResponseMessage_);
     }
+
+    DoReply();
 
     if (Logger.IsLevelEnabled(LogLevel_)) {
         LogResponse();
@@ -121,51 +119,54 @@ void TServiceContextBase::SetComplete()
 
 TFuture<TSharedRefArray> TServiceContextBase::GetAsyncResponseMessage() const
 {
-    YCHECK(!Replied_);
-
     if (!AsyncResponseMessage_) {
         AsyncResponseMessage_ = NewPromise<TSharedRefArray>();
+        if (ResponseMessage_) {
+            AsyncResponseMessage_.Set(ResponseMessage_);
+        }
     }
 
     return AsyncResponseMessage_;
 }
 
-TSharedRefArray TServiceContextBase::GetResponseMessage() const
+const TSharedRefArray& TServiceContextBase::GetResponseMessage() const
 {
-    YCHECK(Replied_);
+    Y_ASSERT(ResponseMessage_);
+    return ResponseMessage_;
+}
 
-    if (!ResponseMessage_) {
-        NProto::TResponseHeader header;
-        ToProto(header.mutable_request_id(), RequestId_);
-        ToProto(header.mutable_error(), Error_);
+void TServiceContextBase::BuildResponseMessage()
+{
+    Y_ASSERT(!ResponseMessage_);
 
-        if (RequestHeader_->has_response_format()) {
-            header.set_format(RequestHeader_->response_format());
-        }
+    NProto::TResponseHeader header;
+    ToProto(header.mutable_request_id(), RequestId_);
+    ToProto(header.mutable_error(), Error_);
 
-        if (RequestHeader_->has_response_memory_zone()) {
-            header.set_memory_zone(RequestHeader_->response_memory_zone());
-        }
-
-        // COMPAT(kiselyovp)
-        if (RequestHeader_->has_response_codec()) {
-            header.set_codec(static_cast<int>(ResponseCodec_));
-        }
-
-        ResponseMessage_ = Error_.IsOK()
-            ? CreateResponseMessage(
-                header,
-                ResponseBody_,
-                ResponseAttachments_)
-            : CreateErrorResponseMessage(header);
-
-        auto responseMessageError = CheckBusMessageLimits(ResponseMessage_);
-        if (!responseMessageError.IsOK()) {
-            ResponseMessage_ = CreateErrorResponseMessage(responseMessageError);
-        }
+    if (RequestHeader_->has_response_format()) {
+        header.set_format(RequestHeader_->response_format());
     }
 
-    return ResponseMessage_;
+    if (RequestHeader_->has_response_memory_zone()) {
+        header.set_memory_zone(RequestHeader_->response_memory_zone());
+    }
+
+    // COMPAT(kiselyovp)
+    if (RequestHeader_->has_response_codec()) {
+        header.set_codec(static_cast<int>(ResponseCodec_));
+    }
+
+    ResponseMessage_ = Error_.IsOK()
+        ? CreateResponseMessage(
+            header,
+            ResponseBody_,
+            ResponseAttachments_)
+        : CreateErrorResponseMessage(header);
+
+    auto responseMessageError = CheckBusMessageLimits(ResponseMessage_);
+    if (!responseMessageError.IsOK()) {
+        ResponseMessage_ = CreateErrorResponseMessage(responseMessageError);
+    }
 }
 
 bool TServiceContextBase::IsReplied() const
@@ -246,6 +247,16 @@ TRequestId TServiceContextBase::GetRequestId() const
     return RequestId_;
 }
 
+TTcpDispatcherStatistics TServiceContextBase::GetBusStatistics() const
+{
+    return {};
+}
+
+const IAttributeDictionary& TServiceContextBase::GetEndpointAttributes() const
+{
+    return EmptyAttributes();
+}
+
 std::optional<TInstant> TServiceContextBase::GetStartTime() const
 {
     return RequestHeader_->has_start_time()
@@ -300,19 +311,36 @@ TRequestHeader& TServiceContextBase::RequestHeader()
     return *RequestHeader_;
 }
 
-void TServiceContextBase::SetRawRequestInfo(const TString& info)
+void TServiceContextBase::SetRawRequestInfo(TString info, bool incremental)
 {
-    RequestInfo_ = info;
-    if (Logger.IsLevelEnabled(LogLevel_)) {
+    Y_ASSERT(!Replied_);
+
+    if (!Logger.IsLevelEnabled(LogLevel_)) {
+        return;
+    }
+
+    if (!info.empty()) {
+        RequestInfos_.push_back(std::move(info));
+    }
+    if (!incremental) {
         LogRequest();
     }
 }
 
-void TServiceContextBase::SetRawResponseInfo(const TString& info)
+void TServiceContextBase::SetRawResponseInfo(TString info, bool incremental)
 {
     Y_ASSERT(!Replied_);
 
-    ResponseInfo_ = info;
+    if (!Logger.IsLevelEnabled(LogLevel_)) {
+        return;
+    }
+
+    if (!incremental) {
+        ResponseInfos_.clear();
+    }
+    if (!info.empty()) {
+        ResponseInfos_.push_back(std::move(info));
+    }
 }
 
 const NLogging::TLogger& TServiceContextBase::GetLogger() const
@@ -454,7 +482,7 @@ TFuture<TSharedRefArray> TServiceContextWrapper::GetAsyncResponseMessage() const
     return UnderlyingContext_->GetAsyncResponseMessage();
 }
 
-TSharedRefArray TServiceContextWrapper::GetResponseMessage() const
+const TSharedRefArray& TServiceContextWrapper::GetResponseMessage() const
 {
     return UnderlyingContext_->GetResponseMessage();
 }
@@ -509,14 +537,14 @@ NProto::TRequestHeader& TServiceContextWrapper::RequestHeader()
     return UnderlyingContext_->RequestHeader();
 }
 
-void TServiceContextWrapper::SetRawRequestInfo(const TString& info)
+void TServiceContextWrapper::SetRawRequestInfo(TString info, bool incremental)
 {
-    UnderlyingContext_->SetRawRequestInfo(info);
+    UnderlyingContext_->SetRawRequestInfo(std::move(info), incremental);
 }
 
-void TServiceContextWrapper::SetRawResponseInfo(const TString& info)
+void TServiceContextWrapper::SetRawResponseInfo(TString info, bool incremental)
 {
-    UnderlyingContext_->SetRawResponseInfo(info);
+    UnderlyingContext_->SetRawResponseInfo(std::move(info), incremental);
 }
 
 const NLogging::TLogger& TServiceContextWrapper::GetLogger() const

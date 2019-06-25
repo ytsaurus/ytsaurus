@@ -12,7 +12,7 @@ class TServerConfig
     : public NHttp::TServerConfig
 { };
 
-DEFINE_REFCOUNTED_CLASS(TServerConfig)
+DEFINE_REFCOUNTED_TYPE(TServerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -19,6 +19,7 @@ using namespace NSecurityServer;
 using namespace NTransactionServer;
 using namespace NCellMaster;
 using namespace NObjectClient;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -303,6 +304,109 @@ FOR_EACH_INHERITABLE_ATTRIBUTE(IMPLEMENT_ATTRIBUTE_ACCESSORS)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TMapNodeChildren::~TMapNodeChildren()
+{
+    YCHECK(KeyToChild.empty());
+    YCHECK(ChildToKey.empty());
+}
+
+void TMapNodeChildren::Save(NCellMaster::TSaveContext& context) const
+{
+    using NYT::Save;
+
+    Save(context, KeyToChild);
+}
+
+void TMapNodeChildren::Load(NCellMaster::TLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, KeyToChild);
+
+    // Reconstruct ChildToKey map.
+    for (const auto& [key, childNode] : KeyToChild) {
+        if (childNode) {
+            YCHECK(ChildToKey.insert(std::make_pair(childNode, key)).second);
+        }
+    }
+}
+
+/*static*/ void TMapNodeChildren::Destroy(
+    TMapNodeChildren* children,
+    const TObjectManagerPtr& objectManager)
+{
+    YCHECK(children->GetRefCount() == 0);
+    children->UnrefChildren(objectManager);
+
+    children->KeyToChild.clear();
+    children->ChildToKey.clear();
+
+    delete children;
+}
+
+/*static*/ TMapNodeChildren* TMapNodeChildren::Copy(
+    TMapNodeChildren* srcChildren,
+    const TObjectManagerPtr& objectManager)
+{
+    YCHECK(srcChildren->GetRefCount() != 0);
+
+    auto holder = std::make_unique<TMapNodeChildren>();
+    holder->KeyToChild = srcChildren->KeyToChild;
+    holder->ChildToKey = srcChildren->ChildToKey;
+
+    holder->RefChildren(objectManager);
+
+    return holder.release();
+}
+
+void TMapNodeChildren::RefChildren(const NObjectServer::TObjectManagerPtr& objectManager)
+{
+    // Make sure we handle children in a stable order.
+    for (const auto& [key, childNode] : SortKeyToChild(KeyToChild)) {
+        if (childNode) {
+            objectManager->RefObject(childNode);
+        }
+    }
+}
+
+void TMapNodeChildren::UnrefChildren(const NObjectServer::TObjectManagerPtr& objectManager)
+{
+    // Make sure we handle children in a stable order.
+    for (const auto& [key, childNode] : SortKeyToChild(KeyToChild)) {
+        if (childNode) {
+            objectManager->UnrefObject(childNode);
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMapNode::TMapNode(const TVersionedNodeId& id)
+    : TCompositeNodeBase(id)
+{ }
+
+TMapNode::~TMapNode() = default;
+
+const TMapNode::TKeyToChild& TMapNode::KeyToChild() const
+{
+    return Children_.Get().KeyToChild;
+}
+
+const TMapNode::TChildToKey& TMapNode::ChildToKey() const
+{
+    return Children_.Get().ChildToKey;
+}
+
+TMapNode::TKeyToChild& TMapNode::MutableKeyToChild(const TObjectManagerPtr& objectManager)
+{
+    return Children_.MutableGet(objectManager).KeyToChild;
+}
+
+TMapNode::TChildToKey& TMapNode::MutableChildToKey(const TObjectManagerPtr& objectManager)
+{
+    return Children_.MutableGet(objectManager).ChildToKey;
+}
+
 ENodeType TMapNode::GetNodeType() const
 {
     return ENodeType::Map;
@@ -314,10 +418,7 @@ void TMapNode::Save(NCellMaster::TSaveContext& context) const
 
     using NYT::Save;
     Save(context, ChildCountDelta_);
-    TMapSerializer<
-        TDefaultSerializer,
-        TNonversionedObjectRefSerializer
-    >::Save(context, KeyToChild_);
+    Save(context, Children_);
 }
 
 void TMapNode::Load(NCellMaster::TLoadContext& context)
@@ -325,25 +426,36 @@ void TMapNode::Load(NCellMaster::TLoadContext& context)
     TCompositeNodeBase::Load(context);
 
     using NYT::Load;
-    Load(context, ChildCountDelta_);
-    TMapSerializer<
-        TDefaultSerializer,
-        TNonversionedObjectRefSerializer
-    >::Load(context, KeyToChild_);
 
-    // Reconstruct ChildToKey map.
-    for (const auto& pair : KeyToChild_) {
-        const auto& key = pair.first;
-        auto* child = pair.second;
-        if (child) {
-            YCHECK(ChildToKey_.insert(std::make_pair(child, key)).second);
+    Load(context, ChildCountDelta_);
+
+    // COMPAT(shakurov)
+    if (context.GetVersion() < 835) {
+        Children_.ResetToDefaultConstructed();
+        // Passing a nullptr as the object manager is a dirty hack: in this
+        // particular case, we're sure there's no CoW sharing, and the object
+        // manager won't actually be used.
+        auto& keyToChild = MutableKeyToChild(nullptr);
+        auto& childToKey = MutableChildToKey(nullptr);
+        TMapSerializer<
+            TDefaultSerializer,
+            TNonversionedObjectRefSerializer
+        >::Load(context, keyToChild);
+
+        // Reconstruct ChildToKey map.
+        for (const auto& [key, childNode] : keyToChild) {
+            if (childNode) {
+                YCHECK(childToKey.insert(std::make_pair(childNode, key)).second);
+            }
         }
+    } else {
+        Load(context, Children_);
     }
 }
 
 int TMapNode::GetGCWeight() const
 {
-    return TObjectBase::GetGCWeight() + KeyToChild_.size();
+    return TObjectBase::GetGCWeight() + KeyToChild().size();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -362,15 +474,8 @@ void TMapNodeTypeHandler::DoDestroy(TMapNode* node)
 {
     TBase::DoDestroy(node);
 
-    // Drop references to the children.
-    // Make sure we handle them in a stable order.
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-    for (const auto& pair : SortKeyToChild(node->KeyToChild())) {
-        auto* node = pair.second;
-        if (node) {
-            objectManager->UnrefObject(node);
-        }
-    }
+    node->ChildCountDelta_ = 0;
+    node->Children_.Reset(Bootstrap_->GetObjectManager());
 }
 
 void TMapNodeTypeHandler::DoBranch(
@@ -379,6 +484,36 @@ void TMapNodeTypeHandler::DoBranch(
     const TLockRequest& lockRequest)
 {
     TBase::DoBranch(originatingNode, branchedNode, lockRequest);
+
+    YCHECK(!branchedNode->Children_);
+
+    if (lockRequest.Mode == ELockMode::Snapshot) {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+
+        if (originatingNode->IsTrunk()) {
+            branchedNode->ChildCountDelta() = originatingNode->ChildCountDelta();
+            branchedNode->Children_.Assign(originatingNode->Children_, objectManager);
+        } else {
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+
+            THashMap<TString, TCypressNodeBase*> keyToChildStorage;
+            const auto& originatingNodeChildren = GetMapNodeChildMap(
+                cypressManager,
+                originatingNode->GetTrunkNode(),
+                originatingNode->GetTransaction(),
+                &keyToChildStorage);
+
+            branchedNode->ChildCountDelta() = originatingNodeChildren.size();
+            branchedNode->MutableKeyToChild(objectManager) = originatingNodeChildren;
+            for (const auto& [key, childNode] : SortKeyToChild(branchedNode->KeyToChild())) {
+                if (childNode) {
+                    objectManager->RefObject(childNode);
+                }
+            }
+        }
+    }
+
+    // Non-snapshot branches only hold changes, i.e. deltas. Which are empty at first.
 }
 
 void TMapNodeTypeHandler::DoMerge(
@@ -391,8 +526,8 @@ void TMapNodeTypeHandler::DoMerge(
 
     bool isOriginatingNodeBranched = originatingNode->GetTransaction() != nullptr;
 
-    auto& keyToChild = originatingNode->KeyToChild();
-    auto& childToKey = originatingNode->ChildToKey();
+    auto& keyToChild = originatingNode->MutableKeyToChild(objectManager);
+    auto& childToKey = originatingNode->MutableChildToKey(objectManager);
 
     for (const auto& pair : SortKeyToChild(branchedNode->KeyToChild())) {
         const auto& key = pair.first;
@@ -400,6 +535,9 @@ void TMapNodeTypeHandler::DoMerge(
 
         auto it = keyToChild.find(key);
         if (childTrunkNode) {
+
+            objectManager->RefObject(childTrunkNode);
+
             if (it == keyToChild.end()) {
                 // Originating: missing
                 YCHECK(childToKey.insert(std::make_pair(childTrunkNode, key)).second);
@@ -438,6 +576,8 @@ void TMapNodeTypeHandler::DoMerge(
     }
 
     originatingNode->ChildCountDelta() += branchedNode->ChildCountDelta();
+
+    branchedNode->Children_.Reset(objectManager);
 }
 
 ICypressNodeProxyPtr TMapNodeTypeHandler::DoGetProxy(
@@ -475,6 +615,8 @@ void TMapNodeTypeHandler::DoClone(
     auto* clonedTrunkNode = clonedNode->GetTrunkNode();
 
     const auto& objectManager = Bootstrap_->GetObjectManager();
+    auto& clonedNodeKeyToChild = clonedNode->MutableKeyToChild(objectManager);
+    auto& clonedNodeChildToKey = clonedNode->MutableChildToKey(objectManager);
 
     for (const auto& pair : keyToChildList) {
         const auto& key = pair.first;
@@ -485,8 +627,8 @@ void TMapNodeTypeHandler::DoClone(
         auto* clonedChildNode = factory->CloneNode(childNode, mode);
         auto* clonedTrunkChildNode = clonedChildNode->GetTrunkNode();
 
-        YCHECK(clonedNode->KeyToChild().insert(std::make_pair(key, clonedTrunkChildNode)).second);
-        YCHECK(clonedNode->ChildToKey().insert(std::make_pair(clonedTrunkChildNode, key)).second);
+        YCHECK(clonedNodeKeyToChild.insert(std::make_pair(key, clonedTrunkChildNode)).second);
+        YCHECK(clonedNodeChildToKey.insert(std::make_pair(clonedTrunkChildNode, key)).second);
 
         AttachChild(objectManager, clonedTrunkNode, clonedChildNode);
 
@@ -498,6 +640,10 @@ bool TMapNodeTypeHandler::HasBranchedChangesImpl(TMapNode* originatingNode, TMap
 {
     if (TBase::HasBranchedChangesImpl(originatingNode, branchedNode)) {
         return true;
+    }
+
+    if (branchedNode->GetLockMode() == ELockMode::Snapshot) {
+        return false;
     }
 
     return !branchedNode->KeyToChild().empty();

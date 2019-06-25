@@ -11,6 +11,8 @@
 
 #include <yt/core/concurrency/action_queue.h>
 
+#include <yt/core/rpc/dispatcher.h>
+
 namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
@@ -31,7 +33,7 @@ TBlockFetcher::TBlockFetcher(
     , ChunkReader_(std::move(chunkReader))
     , BlockCache_(std::move(blockCache))
     , CompressionInvoker_(CreateFixedPriorityInvoker(
-        TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
+        NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
         blockReadOptions.WorkloadDescriptor.GetPriority()))
     , CompressionRatio_(compressionRatio)
     , AsyncSemaphore_(std::move(asyncSemaphore))

@@ -80,10 +80,35 @@ TString TProxyEntry::GetHost() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTracingConfig::TTracingConfig()
+{
+    RegisterParameter("global_sample_rate", GlobalSampleRate)
+        .Default(0.0);
+    RegisterParameter("user_sample_rate", UserSampleRate)
+        .Default();
+}
+
+bool IsTraceSampled(const TTracingConfigPtr& config, const TString& user)
+{
+    auto p = RandomNumber<double>();
+    if (p < config->GlobalSampleRate) {
+        return true;
+    }
+
+    auto it = config->UserSampleRate.find(user);
+    if (it != config->UserSampleRate.end() && p < it->second) {
+        return true;
+    }
+
+    return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TDynamicConfig::TDynamicConfig()
 {
-    RegisterParameter("tracing_user_sample_probability", TracingUserSampleProbability)
-        .Default();
+    RegisterParameter("tracing", Tracing)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

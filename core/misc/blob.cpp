@@ -1,7 +1,8 @@
-#include "align.h"
 #include "blob.h"
 #include "ref.h"
 #include "yt_alloc.h"
+
+#include <util/system/align.h>
 
 namespace NYT {
 

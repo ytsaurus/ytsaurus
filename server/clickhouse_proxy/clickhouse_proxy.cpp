@@ -113,6 +113,8 @@ public:
         Rsp_->SetStatus(response->GetStatusCode());
         Rsp_->GetHeaders()->MergeFrom(response->GetHeaders());
         PipeInputToOutput(response, Rsp_);
+        WaitFor(Rsp_->Close())
+            .ThrowOnError();
         YT_LOG_INFO("Request handled");
         Client_->GetConnection()->Terminate();
     }

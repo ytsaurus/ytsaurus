@@ -108,7 +108,7 @@ public:
         auto writerConfig = GetWriterConfig(outputSpec);
         auto timestamp = static_cast<TTimestamp>(outputSpec.timestamp());
 
-        WriterFactory_ = [=] (TNameTablePtr nameTable) {
+        WriterFactory_ = [=] (TNameTablePtr nameTable, const TTableSchema&) {
             YCHECK(!Writer_);
             Writer_ = CreateSchemalessMultiChunkWriter(
                 writerConfig,
@@ -132,7 +132,6 @@ private:
 
     TNameTablePtr NameTable_;
 
-
     virtual void CreateReader() override
     {
         ReaderFactory_(NameTable_, TColumnFilter());
@@ -140,7 +139,8 @@ private:
 
     virtual void CreateWriter() override
     {
-        WriterFactory_(NameTable_);
+        // NB. WriterFactory_ ignores schema argument and uses schema of output table.
+        WriterFactory_(NameTable_, TTableSchema());
     }
 };
 

@@ -851,7 +851,7 @@ void ValidateColumnSchema(
 
         {
             TComplexTypeFieldDescriptor descriptor(name, columnSchema.LogicalType());
-            columnSchema.LogicalType()->Validate(descriptor);
+            ValidateLogicalType(descriptor);
         }
 
         if (columnSchema.SimplifiedLogicalType() == ESimpleLogicalValueType::Any && columnSchema.Required()) {

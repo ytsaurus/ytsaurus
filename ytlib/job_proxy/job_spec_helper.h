@@ -22,6 +22,7 @@ struct IJobSpecHelper
     virtual NScheduler::TJobIOConfigPtr GetJobIOConfig() const = 0;
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetInputNodeDirectory() const = 0;
     virtual const NScheduler::NProto::TSchedulerJobSpecExt& GetSchedulerJobSpecExt() const = 0;
+    virtual const NChunkClient::TDataSourceDirectoryPtr& GetDataSourceDirectory() const = 0;
     virtual int GetKeySwitchColumnCount() const = 0;
     virtual bool IsReaderInterruptionSupported() const = 0;
 };

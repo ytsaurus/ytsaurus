@@ -16,6 +16,12 @@ namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TArtifactDownloadOptions
+{
+    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
+    NChunkClient::TTrafficMeterPtr TrafficMeter;
+};
+
 //! Manages chunks cached at Data Node.
 /*!
  *  \note
@@ -62,10 +68,17 @@ public:
      *
      *  Thread affinity: any
      */
-    TFuture<IChunkPtr> PrepareArtifact(
+    TFuture<IChunkPtr> DownloadArtifact(
         const TArtifactKey& key,
-        NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory = nullptr,
-        NChunkClient::TTrafficMeterPtr trafficMeter = nullptr);
+        const TArtifactDownloadOptions& options);
+
+    //! Constructs a producer that will download the artifact and feed its content to a stream.
+    /*!
+     *  Thread affinity: any
+     */
+    std::function<void(IOutputStream*)> MakeArtifactDownloadProducer(
+        const TArtifactKey& key,
+        const TArtifactDownloadOptions& options);
 
     //! Cache locations.
     DECLARE_BYREF_RO_PROPERTY(std::vector<TCacheLocationPtr>, Locations);

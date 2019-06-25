@@ -6,10 +6,13 @@ option java_multiple_files = true;
 
 option go_package = "a.yandex-team.ru/yt/go/proto/client/api/rpc_proxy";
 
+option python_package = "yt_proto.yt.client.api.rpc_proxy.proto";
+
 import "yt/core/misc/proto/guid.proto";
 import "yt/core/misc/proto/error.proto";
 import "yt/core/ytree/proto/attributes.proto";
 import "yt/client/hive/proto/timestamp_map.proto";
+import "yt/client/chunk_client/proto/data_statistics.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 // Scalars
@@ -432,6 +435,7 @@ message TRspGetTabletInfos
     {
         required int64 total_row_count = 1;
         required int64 trimmed_row_count = 2;
+        optional uint64 barrier_timestamp = 3;
     }
 
     repeated TTabletInfo tablets = 1;
@@ -1140,6 +1144,7 @@ message TReqGetFileFromCache
     required string md5 = 1;
     required string cache_path = 2; // YPath
 
+    optional TTransactionalOptions transactional_options = 100;
     optional TMasterReadOptions master_read_options = 102;
 }
 
@@ -1156,6 +1161,7 @@ message TReqPutFileToCache
     required string md5 = 2;
     required string cache_path = 3; // YPath
 
+    optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;
     optional TMasterReadOptions master_read_options = 102;
     optional TMutatingOptions mutating_options = 103;
@@ -1544,6 +1550,60 @@ message TReqWriteJournal
 }
 
 message TRspWriteJournal
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqReadTable
+{
+    required string path = 1; // RichYPath
+
+    optional bool unordered = 2 [default = false];
+    optional bool omit_inaccessible_columns = 3 [default = false];
+    optional bytes config = 4; // YSON-serialized TTableReaderConfig
+
+    optional TTransactionalOptions transactional_options = 100;
+}
+
+message TReadTableMeta
+{
+    required int64 start_row_index = 1;
+    repeated string key_columns = 2;
+    repeated string omitted_inaccessible_columns = 3;
+    required TTableSchema schema = 5;
+
+    required TTableReaderPayload payload = 4;
+}
+
+message TTableReaderPayload
+{
+    required int64 total_row_count = 1;
+
+    required NYT.NChunkClient.NProto.TDataStatistics data_statistics = 2;
+}
+
+message TRspReadTable
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqWriteTable
+{
+    required string path = 1; // RichYPath
+
+    optional bytes config = 2; // YSON-serialized TTableWriterConfig
+
+    optional TTransactionalOptions transactional_options = 100;
+}
+
+message TWriteTableMeta
+{
+    required TTableSchema schema = 1;
+}
+
+message TRspWriteTable
 {
 }
 

@@ -23,7 +23,7 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EMessageType, ui32,
 
 TSharedRefArray CreateRequestMessage(
     const NProto::TRequestHeader& header,
-    const TSharedRef& body,
+    TSharedRef body,
     const std::vector<TSharedRef>& attachments);
 
 TSharedRefArray CreateRequestMessage(
@@ -35,7 +35,7 @@ TSharedRefArray CreateRequestCancelationMessage(
 
 TSharedRefArray CreateResponseMessage(
     const NProto::TResponseHeader& header,
-    const TSharedRef& body,
+    TSharedRef body,
     const std::vector<TSharedRef>& attachments);
 
 TSharedRefArray CreateResponseMessage(

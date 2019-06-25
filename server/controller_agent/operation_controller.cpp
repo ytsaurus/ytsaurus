@@ -44,6 +44,7 @@ void ToProto(NProto::TControllerTransactionIds* transactionIdsProto, const NCont
     ToProto(transactionIdsProto->mutable_debug_id(), transactionIds.DebugId);
     ToProto(transactionIdsProto->mutable_output_completion_id(), transactionIds.OutputCompletionId);
     ToProto(transactionIdsProto->mutable_debug_completion_id(), transactionIds.DebugCompletionId);
+    ToProto(transactionIdsProto->mutable_nested_input_ids(), transactionIds.NestedInputIds);
 }
 
 void FromProto(NControllerAgent::TControllerTransactionIds* transactionIds, const NProto::TControllerTransactionIds& transactionIdsProto)
@@ -54,6 +55,7 @@ void FromProto(NControllerAgent::TControllerTransactionIds* transactionIds, cons
     transactionIds->DebugId  = FromProto<TTransactionId>(transactionIdsProto.debug_id());
     transactionIds->OutputCompletionId = FromProto<TTransactionId>(transactionIdsProto.output_completion_id());
     transactionIds->DebugCompletionId = FromProto<TTransactionId>(transactionIdsProto.debug_completion_id());
+    transactionIds->NestedInputIds = FromProto<std::vector<TTransactionId>>(transactionIdsProto.nested_input_ids());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

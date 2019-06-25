@@ -1,11 +1,17 @@
 #include "helpers.h"
 #include "client.h"
+#include "dispatcher.h"
 #include "channel_detail.h"
 #include "service.h"
 
 #include <yt/core/ytree/helpers.h>
+#include <yt/core/ytree/fluent.h>
+
+#include <yt/core/yson/consumer.h>
 
 #include <yt/core/yson/protobuf_interop.h>
+
+#include <yt/core/misc/hash.h>
 
 #include <contrib/libs/protobuf/io/coded_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
@@ -13,8 +19,31 @@
 namespace NYT::NRpc {
 
 using namespace NYson;
+using namespace NYTree;
 using namespace NRpc::NProto;
 using namespace NTracing;
+using namespace NYT::NBus;
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool operator==(const TAddressWithNetwork& lhs, const TAddressWithNetwork& rhs)
+{
+    return lhs.Address == rhs.Address && lhs.Network == rhs.Network;
+}
+
+TString ToString(const TAddressWithNetwork& addressWithNetwork)
+{
+    return Format("%v/%v", addressWithNetwork.Address, addressWithNetwork.Network);
+}
+
+void Serialize(const TAddressWithNetwork& addressWithNetwork, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("address").Value(addressWithNetwork.Address)
+            .Item("network").Value(addressWithNetwork.Network)
+        .EndMap();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,6 +118,12 @@ public:
         , Timeout_(timeout)
     { }
 
+    virtual IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
+    {
+        auto underlyingChannel = UnderlyingFactory_->CreateChannel(addressWithNetwork);
+        return CreateDefaultTimeoutChannel(underlyingChannel, Timeout_);
+    }
+
     virtual IChannelPtr CreateChannel(const TString& address) override
     {
         auto underlyingChannel = UnderlyingFactory_->CreateChannel(address);
@@ -98,7 +133,6 @@ public:
 private:
     const IChannelFactoryPtr UnderlyingFactory_;
     const TDuration Timeout_;
-
 };
 
 IChannelFactoryPtr CreateDefaultTimeoutChannelFactory(
@@ -157,6 +191,12 @@ public:
         : UnderlyingFactory_(std::move(underlyingFactory))
         , User_(user)
     { }
+
+    virtual IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
+    {
+        auto underlyingChannel = UnderlyingFactory_->CreateChannel(addressWithNetwork);
+        return CreateAuthenticatedChannel(underlyingChannel, User_);
+    }
 
     virtual IChannelPtr CreateChannel(const TString& address) override
     {
@@ -226,6 +266,12 @@ public:
         : UnderlyingFactory_(underlyingFactory)
         , RealmId_(realmId)
     { }
+
+    virtual IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
+    {
+        auto underlyingChannel = UnderlyingFactory_->CreateChannel(addressWithNetwork);
+        return CreateRealmChannel(underlyingChannel, RealmId_);
+    }
 
     virtual IChannelPtr CreateChannel(const TString& address) override
     {
@@ -442,4 +488,97 @@ void SetOrGenerateMutationId(const IClientRequestPtr& request, TMutationId id, b
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TInput, class TFunctor>
+TFuture<std::vector<std::invoke_result_t<TFunctor, const TInput&>>> AsyncTransform(
+    TRange<TInput> input,
+    const TFunctor& unaryFunc,
+    const IInvokerPtr& invoker)
+{
+    using TOutput = std::invoke_result_t<TFunctor, const TInput&>;
+    std::vector<TFuture<TOutput>> asyncResults(input.Size());
+    std::transform(
+        input.Begin(),
+        input.End(),
+        asyncResults.begin(),
+        [&] (const TInput& value) {
+            return BIND(unaryFunc, value)
+                .AsyncVia(invoker)
+                .Run();
+        });
+
+    return Combine(asyncResults);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<std::vector<TSharedRef>> AsyncCompressAttachments(
+    TRange<TSharedRef> attachments,
+    NCompression::ECodec codecId)
+{
+    if (codecId == NCompression::ECodec::None) {
+        return MakeFuture(attachments.ToVector());
+    }
+
+    auto* codec = NCompression::GetCodec(codecId);
+    return AsyncTransform(
+        attachments,
+        [=] (const TSharedRef& attachment) {
+            return codec->Compress(attachment);
+        },
+        TDispatcher::Get()->GetCompressionPoolInvoker());
+}
+
+TFuture<std::vector<TSharedRef>> AsyncDecompressAttachments(
+    TRange<TSharedRef> attachments,
+    NCompression::ECodec codecId)
+{
+    if (codecId == NCompression::ECodec::None) {
+        return MakeFuture(attachments.ToVector());
+    }
+
+    auto* codec = NCompression::GetCodec(codecId);
+    return AsyncTransform(
+        attachments,
+        [=] (const TSharedRef& compressedAttachment) {
+            return codec->Decompress(compressedAttachment);
+        },
+        TDispatcher::Get()->GetCompressionPoolInvoker());
+}
+
+std::vector<TSharedRef> CompressAttachments(
+    TRange<TSharedRef> attachments,
+    NCompression::ECodec codecId)
+{
+    if (codecId == NCompression::ECodec::None) {
+        return attachments.ToVector();
+    }
+    return NConcurrency::WaitFor(AsyncCompressAttachments(attachments, codecId))
+        .ValueOrThrow();
+}
+
+std::vector<TSharedRef> DecompressAttachments(
+    TRange<TSharedRef> attachments,
+    NCompression::ECodec codecId)
+{
+    if (codecId == NCompression::ECodec::None) {
+        return attachments.ToVector();
+    }
+    return NConcurrency::WaitFor(AsyncDecompressAttachments(attachments, codecId))
+        .ValueOrThrow();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NRpc
+
+////////////////////////////////////////////////////////////////////////////////
+
+size_t THash<NYT::NRpc::TAddressWithNetwork>::operator()(const NYT::NRpc::TAddressWithNetwork& addressWithNetwork) const
+{
+    size_t hash = 0;
+    NYT::HashCombine(hash, addressWithNetwork.Address);
+    NYT::HashCombine(hash, addressWithNetwork.Network);
+    return hash;
+}
+
+/////////////////////////////////////////////////////////////////////////////

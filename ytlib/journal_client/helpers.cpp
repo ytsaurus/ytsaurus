@@ -189,7 +189,13 @@ public:
     }
 
 private:
-    std::vector<TMiscExt> Infos_;
+    struct TResult
+    {
+        TString Address;
+        TMiscExt MiscExt;
+        TLocationUuid LocationUuid;
+    };
+    std::vector<TResult> Results_;
     std::vector<TError> InnerErrors_;
 
     TPromise<TMiscExt> Promise_ = NewPromise<TMiscExt>();
@@ -217,7 +223,6 @@ private:
 
             auto req = proxy.GetChunkMeta();
             ToProto(req->mutable_chunk_id(), ChunkId_);
-            req->set_medium_index(AllMediaIndex);
             req->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
             ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
             asyncResults.push_back(req->Invoke().Apply(
@@ -236,12 +241,19 @@ private:
     {
         if (rspOrError.IsOK()) {
             const auto& rsp = rspOrError.Value();
+            const auto& address = replica.NodeDescriptor.GetDefaultAddress();
             auto miscExt = GetProtoExtension<TMiscExt>(rsp->chunk_meta().extensions());
+            auto locationUuid = FromProto<TLocationUuid>(rsp->location_uuid());
 
-            Infos_.push_back(miscExt);
+            Results_.push_back({
+                address,
+                miscExt,
+                locationUuid,
+            });
 
-            YT_LOG_INFO("Received info for journal chunk (Address: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
-                replica.NodeDescriptor.GetDefaultAddress(),
+            YT_LOG_INFO("Received info for journal chunk (Address: %v, LocationUuid: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
+                address,
+                locationUuid,
                 miscExt.row_count(),
                 miscExt.uncompressed_data_size(),
                 miscExt.compressed_data_size());
@@ -255,24 +267,40 @@ private:
 
     void OnComplete(const TError&)
     {
-        if (Infos_.size() < Quorum_) {
-            auto error = TError("Unable to compute quorum info for journal chunk %v: too few replicas alive, %v found, %v needed",
+        THashMap<TLocationUuid, TString> locationUuidToAddress;
+        for (const auto& result : Results_) {
+            if (!result.LocationUuid) {
+                continue;
+            }
+            auto it = locationUuidToAddress.find(result.LocationUuid);
+            if (it == locationUuidToAddress.end()) {
+                YCHECK(locationUuidToAddress.emplace(result.LocationUuid, result.Address).second);
+            } else {
+                Promise_.Set(TError("Coinciding location uuid %v reported by nodes %v and %v",
+                    result.LocationUuid,
+                    result.Address,
+                    it->second));
+                return;
+            }
+        }
+
+        if (Results_.size() < Quorum_) {
+            Promise_.Set(TError("Unable to compute quorum info for journal chunk %v: too few replicas alive, %v found, %v needed",
                 ChunkId_,
-                Infos_.size(),
+                Results_.size(),
                 Quorum_)
-                << InnerErrors_;
-            Promise_.Set(error);
+                << InnerErrors_);
             return;
         }
 
         std::sort(
-            Infos_.begin(),
-            Infos_.end(),
-            [] (const TMiscExt& lhs, const TMiscExt& rhs) {
-                return lhs.row_count() < rhs.row_count();
+            Results_.begin(),
+            Results_.end(),
+            [] (const auto& lhs, const auto& rhs) {
+                return lhs.MiscExt.row_count() < rhs.MiscExt.row_count();
             });
 
-        const auto& quorumInfo = Infos_[Quorum_ - 1];
+        const auto& quorumInfo = Results_[Quorum_ - 1].MiscExt;
 
         YT_LOG_INFO("Quorum info for journal chunk computed successfully (RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
             quorumInfo.row_count(),

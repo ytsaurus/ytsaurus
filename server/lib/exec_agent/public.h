@@ -30,6 +30,7 @@ DEFINE_ENUM(EErrorCode,
     ((NotEnoughDiskSpace)            (1112))
     ((ArtifactDownloadFailed)        (1113))
     ((JobProxyPreparationTimeout)    (1114))
+    ((JobPreparationTimeout)         (1115))
     ((JobProxyFailed)                (1120))
 );
 

@@ -2,7 +2,7 @@ import yt.environment.init_operation_archive as init_operation_archive
 from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 
-from yt.common import YT_DATETIME_FORMAT_STRING
+from yt.common import YT_DATETIME_FORMAT_STRING, uuid_to_parts
 
 import pytest
 
@@ -10,6 +10,13 @@ import pytest
 def pytest_generate_tests(metafunc):
     if "read_from" in metafunc.fixturenames:
         metafunc.parametrize("read_from", metafunc.cls.read_from_values)
+
+
+def clear_start_time(path):
+    ops = select_rows("id_hi, id_lo, start_time, state FROM [{}]".format(path))
+    for i in range(len(ops)):
+        ops[i]["start_time"] = 0
+    insert_rows(path, ops, update=True)
 
 
 class ListOperationsSetup(YTEnvSetup):
@@ -485,6 +492,16 @@ class TestListOperationsArchiveOnly(_TestListOperationsBase):
     def setup_class(cls):
         super(TestListOperationsArchiveOnly, cls).setup_class()
         wait(lambda: not operation_nodes_exist())
+
+    def test_list_operation_sorting(self):
+        clear_start_time("//sys/operations_archive/ordered_by_start_time")
+        clear_start_time("//sys/operations_archive/ordered_by_id")
+        ops = list_operations(include_archive=True,
+                              from_time=datetime.utcfromtimestamp(0).strftime(YT_DATETIME_FORMAT_STRING),
+                              to_time=datetime.utcnow().strftime(YT_DATETIME_FORMAT_STRING))["operations"]
+        ids = [uuid_to_parts(op["id"]) for op in ops]
+        assert ids == sorted(ids, reverse=True)
+
 
 ##################################################################
 

@@ -15,12 +15,18 @@ message TLogicalType
     {
         repeated TStructField fields = 1;
     }
+    message TTupleLogicalType
+    {
+        repeated TLogicalType elements = 1;
+    }
+
 
     oneof type {
         int32 simple = 1;
         TLogicalType optional = 2;
         TLogicalType list = 3;
         TStructLogicalType struct_ = 4;
+        TTupleLogicalType tuple = 5;
     }
 }
 

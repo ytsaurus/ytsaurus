@@ -4,6 +4,8 @@
 
 #include <yt/client/api/client.h>
 
+#include <yt/core/misc/lazy_ptr.h>
+
 #include <yt/core/rpc/public.h>
 
 namespace NYT::NApi::NRpcProxy {
@@ -239,13 +241,10 @@ private:
     const NRpc::IChannelPtr Channel_;
     const TClientOptions ClientOptions_;
 
-    TSpinLock TableMountCacheSpinLock_;
-    std::atomic<bool> TableMountCacheInitialized_ = {false};
-    NTabletClient::ITableMountCachePtr TableMountCache_;
+    TLazyIntrusivePtr<NTabletClient::ITableMountCache> TableMountCache_;
 
-    TSpinLock TimestampProviderSpinLock_;
-    std::atomic<bool> TimestampProviderInitialized_ = {false};
-    NTransactionClient::ITimestampProviderPtr TimestampProvider_;
+    TLazyIntrusivePtr<NTransactionClient::ITimestampProvider> TimestampProvider_;
+    NTransactionClient::ITimestampProviderPtr CreateTimestampProvider() const;
 
     virtual TConnectionPtr GetRpcProxyConnection() override;
     virtual TClientPtr GetRpcProxyClient() override;

@@ -43,11 +43,17 @@ TJobSummary::TJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
     if (status->has_download_duration()) {
         DownloadDuration = FromProto<TDuration>(status->download_duration());
     }
+    if (status->has_prepare_root_fs_duration()) {
+        PrepareRootFSDuration = FromProto<TDuration>(status->prepare_root_fs_duration());
+    }
     if (status->has_exec_duration()) {
         ExecDuration = FromProto<TDuration>(status->exec_duration());
     }
     if (status->has_statistics()) {
         StatisticsYson = TYsonString(status->statistics());
+    }
+    if (status->has_phase()) {
+        Phase = static_cast<EJobPhase>(status->phase());
     }
 }
 
@@ -68,6 +74,15 @@ void TJobSummary::Persist(const NPhoenix::TPersistenceContext& context)
     Persist(context, ArchiveStderr);
     Persist(context, ArchiveFailContext);
     Persist(context, ArchiveProfile);
+
+    // ESnapshotVersion::PrepareRootFSDuration - used raw value here to avoid includes outside server/lib.
+    if (context.GetVersion() >= 300106) {
+        Persist(context, PrepareRootFSDuration);
+    }
+
+    if (context.GetVersion() >= 300108) {
+        Persist(context, Phase);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

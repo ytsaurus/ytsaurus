@@ -3,7 +3,6 @@
 #include "block_cache.h"
 #include "chunk_writer.h"
 #include "config.h"
-#include "dispatcher.h"
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
@@ -15,6 +14,8 @@
 #include <yt/core/misc/serialize.h>
 #include <yt/core/misc/checksum.h>
 #include <yt/core/misc/memory_zone.h>
+
+#include <yt/core/rpc/dispatcher.h>
 
 namespace NYT::NChunkClient {
 
@@ -36,7 +37,7 @@ TEncodingWriter::TEncodingWriter(
     , Semaphore_(New<TAsyncSemaphore>(Config_->EncodeWindowSize))
     , Codec_(NCompression::GetCodec(Options_->CompressionCodec))
     , CompressionInvoker_(CreateSerializedInvoker(CreateFixedPriorityInvoker(
-        TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
+        NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
         Config_->WorkloadDescriptor.GetPriority())))
     , WritePendingBlockCallback_(BIND(
         &TEncodingWriter::WritePendingBlock,

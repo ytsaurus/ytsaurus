@@ -43,19 +43,25 @@ struct ISlot
         TOperationId operationId) = 0;
 
     //! Returns tmpfs path if any.
-    virtual TFuture<std::vector<TString>> CreateSandboxDirectories(TUserSandboxOptions options) = 0;
+    virtual TFuture<std::vector<TString>> CreateSandboxDirectories(const TUserSandboxOptions& options) = 0;
 
     virtual TFuture<void> MakeLink(
         ESandboxKind sandboxKind,
         const TString& targetPath,
         const TString& linkName,
-        bool isExecutable) = 0;
+        bool executable) = 0;
 
     virtual TFuture<void> MakeCopy(
         ESandboxKind sandboxKind,
         const TString& sourcePath,
         const TString& destinationName,
-        bool isExecutable) = 0;
+        bool executable) = 0;
+
+    virtual TFuture<void> MakeFile(
+        ESandboxKind sandboxKind,
+        const std::function<void(IOutputStream*)>& producer,
+        const TString& destinationName,
+        bool executable) = 0;
 
     virtual TFuture<NDataNode::IVolumePtr> PrepareRootVolume(const std::vector<NDataNode::TArtifactKey>& layers) = 0;
 

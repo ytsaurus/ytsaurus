@@ -188,6 +188,8 @@ public:
 
     int MaxConsecutiveAborts;
 
+    TDuration DisableJobsTimeout;
+
     TSlotManagerConfig()
     {
         RegisterParameter("locations", Locations);
@@ -211,6 +213,8 @@ public:
 
         RegisterParameter("max_consecutive_aborts", MaxConsecutiveAborts)
             .Default(500);
+        RegisterParameter("disable_jobs_timeout", DisableJobsTimeout)
+            .Default(TDuration::Minutes(10));
     }
 };
 
@@ -313,6 +317,8 @@ public:
 
     i64 MinRequiredDiskSpace;
 
+    TDuration JobAbortionTimeout;
+
     TExecAgentConfig()
     {
         RegisterParameter("slot_manager", SlotManager)
@@ -357,6 +363,8 @@ public:
 
         RegisterParameter("min_required_disk_space", MinRequiredDiskSpace)
             .Default(100_MB);
+        RegisterParameter("job_abortion_timeout", JobAbortionTimeout)
+            .Default(TDuration::Minutes(15));
     }
 };
 

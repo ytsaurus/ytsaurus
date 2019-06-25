@@ -152,11 +152,11 @@ private:
         TTablet* tablet,
         const std::vector<TOrderedChunkStorePtr>& stores)
     {
-        const auto& tabletId = tablet->GetId();
+        auto tabletId = tablet->GetId();
         const auto& storeManager = tablet->GetStoreManager();
 
         NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("TabletId: %v", tablet->GetId());
+        Logger.AddTag("%v", tablet->GetLoggingId());
 
         try {
             YT_LOG_INFO("Trimming tablet stores (StoreIds: %v)",

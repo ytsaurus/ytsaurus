@@ -326,15 +326,6 @@ TTablet::TTablet(
     , Context_(context)
     , Logger(NLogging::TLogger(TabletNodeLogger)
         .AddTag("TabletId: %v", Id_))
-    , FlushThrottler_(CreateReconfigurableThroughputThrottler(
-        Config_->FlushThrottler,
-        Logger))
-    , CompactionThrottler_(CreateReconfigurableThroughputThrottler(
-        Config_->CompactionThrottler,
-        Logger))
-    , PartitioningThrottler_(CreateReconfigurableThroughputThrottler(
-        Config_->PartitioningThrottler,
-        Logger))
 { }
 
 TTablet::TTablet(
@@ -379,15 +370,6 @@ TTablet::TTablet(
     , Context_(context)
     , Logger(NLogging::TLogger(TabletNodeLogger)
         .AddTag("TabletId: %v", Id_))
-    , FlushThrottler_(CreateReconfigurableThroughputThrottler(
-        Config_->FlushThrottler,
-        Logger))
-    , CompactionThrottler_(CreateReconfigurableThroughputThrottler(
-        Config_->CompactionThrottler,
-        Logger))
-    , PartitioningThrottler_(CreateReconfigurableThroughputThrottler(
-        Config_->PartitioningThrottler,
-        Logger))
 {
     Initialize();
 }
@@ -1064,9 +1046,11 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
         snapshot->CellId = slot->GetCellId();
         snapshot->HydraManager = slot->GetHydraManager();
         snapshot->TabletManager = slot->GetTabletManager();
+        snapshot->TabletCellRuntimeData = slot->GetRuntimeData();
     }
 
     snapshot->TabletId = Id_;
+    snapshot->LoggingId = LoggingId_;
     snapshot->MountRevision = MountRevision_;
     snapshot->TablePath = TablePath_;
     snapshot->TableId = TableId_;
@@ -1148,7 +1132,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->RowKeyComparer = RowKeyComparer_;
     snapshot->PerformanceCounters = PerformanceCounters_;
     snapshot->ColumnEvaluator = ColumnEvaluator_;
-    snapshot->RuntimeData = RuntimeData_;
+    snapshot->TabletRuntimeData = RuntimeData_;
 
     for (const auto& pair : Replicas_) {
         YCHECK(snapshot->Replicas.emplace(pair.first, pair.second.BuildSnapshot()).second);
@@ -1184,6 +1168,21 @@ void TTablet::Initialize()
     ColumnEvaluator_ = Context_->GetColumnEvaluatorCache()->Find(PhysicalSchema_);
 
     StoresUpdateCommitSemaphore_ = New<NConcurrency::TAsyncSemaphore>(1);
+
+    FlushThrottler_ = CreateReconfigurableThroughputThrottler(
+        Config_->FlushThrottler,
+        Logger);
+    CompactionThrottler_ = CreateReconfigurableThroughputThrottler(
+        Config_->CompactionThrottler,
+        Logger);
+    PartitioningThrottler_ = CreateReconfigurableThroughputThrottler(
+        Config_->PartitioningThrottler,
+        Logger);
+
+    LoggingId_ = Format("TabletId: %v, TableId: %v, TablePath: %v",
+        Id_,
+        TableId_,
+        TablePath_);
 }
 
 void TTablet::FillProfilerTags(TCellId cellId)
@@ -1225,6 +1224,11 @@ void TTablet::ReconfigureThrottlers()
     FlushThrottler_->Reconfigure(Config_->FlushThrottler);
     CompactionThrottler_->Reconfigure(Config_->CompactionThrottler);
     PartitioningThrottler_->Reconfigure(Config_->PartitioningThrottler);
+}
+
+const TString& TTablet::GetLoggingId() const
+{
+    return LoggingId_;
 }
 
 void TTablet::UpdateReplicaCounters()
