@@ -278,7 +278,7 @@ def make_request(command_name,
         timeout=timeout,
         auth=auth,
         # TODO(ignat): Refactor retrying logic to avoid this hack.
-        is_ping=(command_name == "ping_tx"),
+        is_ping=(command_name in ("ping_tx", "ping_transaction")),
         proxy_provider=proxy_provider,
         client=client)
 

@@ -979,6 +979,7 @@ class YTInstance(object):
         client = self._create_cluster_client()
         client.create("map_node", "//sys/pool_trees/default", ignore_existing=True, recursive=True)
         client.set("//sys/pool_trees/@default_tree", "default")
+        client.set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 5)
         if not client.exists("//sys/pools"):
             client.link("//sys/pool_trees/default", "//sys/pools", ignore_existing=True)
 
