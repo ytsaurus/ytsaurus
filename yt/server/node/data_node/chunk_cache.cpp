@@ -1035,7 +1035,7 @@ private:
                 chunkId,
                 dataFileName);
 
-            static TClientBlockReadOptions blockReadOptions{
+            TClientBlockReadOptions blockReadOptions{
                 Config_->ArtifactCacheReader->WorkloadDescriptor,
                 New<TChunkReaderStatistics>(),
                 TReadSessionId::Create() };
@@ -1065,6 +1065,8 @@ private:
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Failed to validate cached chunk size (ChunkId: %v)",
                     chunkId);
+                location->RemoveChunkFilesPermanently(chunkId);
+                return std::nullopt;
             }
 
             return TArtifactKey(chunkId);
