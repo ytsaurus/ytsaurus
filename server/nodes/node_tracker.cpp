@@ -577,6 +577,8 @@ public:
                 podEntry->mutable_spec()->set_target_state(NClient::NApi::NProto::PTS_REMOVED);
                 podEntry->set_target_state(NClient::NApi::NProto::PTS_REMOVED);
             }
+
+            Response_->mutable_node()->mutable_cpu()->CopyFrom(Node_->GetCpuResourceOrThrow()->Spec().Load().cpu());
         }
 
         void ReconcileNodeResources()
