@@ -17,6 +17,9 @@ public:
     TDuration AccountStatisticsGossipPeriod;
     TDuration RequestRateSmoothingPeriod;
 
+    bool EnableDelayedMembershipClosureRecomputation;
+    TDuration MembershipClosureRecomputePeriod;
+
     TDynamicSecurityManagerConfig()
     {
         RegisterParameter("user_statistics_gossip_period", UserStatisticsGossipPeriod)
@@ -27,6 +30,11 @@ public:
             .Default(TDuration::Seconds(1));
         RegisterParameter("request_rate_smoothing_period", RequestRateSmoothingPeriod)
             .Default(TDuration::Seconds(1));
+
+        RegisterParameter("enable_delayed_membership_closure_recomputation", EnableDelayedMembershipClosureRecomputation)
+            .Default(false);
+        RegisterParameter("membership_closure_recomputation_period", MembershipClosureRecomputePeriod)
+            .Default(TDuration::Seconds(3));
     }
 };
 
