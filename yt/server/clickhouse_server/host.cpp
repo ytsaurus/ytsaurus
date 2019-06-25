@@ -47,7 +47,6 @@
 #include <common/logger_useful.h>
 
 #include <Poco/DirectoryIterator.h>
-#include <Poco/Ext/LevelFilterChannel.h>
 #include <Poco/File.h>
 #include <Poco/Logger.h>
 #include <Poco/Net/HTTPServer.h>
