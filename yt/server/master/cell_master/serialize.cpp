@@ -56,6 +56,7 @@ bool ValidateSnapshotVersion(int version)
         version == 833 || // shakurov: YT-10852
         version == 834 || // aozeritsky: TTabletCellBundle::Health_ added
         version == 835 || // shakurov: snapshot-lockable map nodes
+        version == 836 || // babenko: YT-10952: delayed membership closure recomputation
         false;
 }
 

@@ -1,4 +1,5 @@
 import pytest
+import __builtin__
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
@@ -265,6 +266,18 @@ class TestUsers(YTEnvSetup):
         add_member("u", "g")
 
         assert sorted(get("//sys/users/u/@usable_accounts")) == ["a1", "a2", "intermediate", "tmp"]
+
+    def test_delayed_membership_closure(self):
+        create_group("g1")
+        create_group("g2")
+        create_user("u")
+        add_member("g1", "g2")
+
+        set("//sys/@config/security_manager/membership_closure_recomputation_period", 3000)
+        set("//sys/@config/security_manager/enable_delayed_membership_closure_recomputation", True)
+        add_member("u", "g1")
+
+        wait(lambda: __builtin__.set(["g1", "g2"]) <= __builtin__.set(get("//sys/users/u/@member_of_closure")))
 
 ##################################################################
 

@@ -298,6 +298,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraIncreaseUserStatistics, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetUserStatistics, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetAccountStatistics, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraRecomputeMembershipClosure, Unretained(this)));
     }
 
     void Initialize()
@@ -566,6 +567,7 @@ public:
             YCHECK(group->Members().erase(subject) == 1);
         }
         subject->MemberOf().clear();
+        subject->RecursiveMemberOf().clear();
 
         for (const auto& pair : subject->LinkedObjects()) {
             auto* acd = GetAcd(pair.first);
@@ -702,7 +704,7 @@ public:
 
         DestroySubject(group);
 
-        RecomputeMembershipClosure();
+        DoRecomputeMembershipClosure();
 
         LogStructuredEventFluently(Logger, ELogLevel::Info)
             .Item("event").Value(EAccessControlEvent::GroupDestroyed)
@@ -780,6 +782,7 @@ public:
         }
 
         DoAddMember(group, member);
+        MaybeRecomputeMembershipClosure();
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Group member added (Group: %v, Member: %v)",
             group->GetName(),
@@ -806,6 +809,7 @@ public:
         }
 
         DoRemoveMember(group, member);
+        MaybeRecomputeMembershipClosure();
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Group member removed (Group: %v, Member: %v)",
             group->GetName(),
@@ -1311,6 +1315,7 @@ private:
 
     TPeriodicExecutorPtr AccountStatisticsGossipExecutor_;
     TPeriodicExecutorPtr UserStatisticsGossipExecutor_;
+    TPeriodicExecutorPtr MembershipClosureRecomputeExecutor_;
 
     NHydra::TEntityMap<TAccount> AccountMap_;
     THashMap<TString, TAccount*> AccountNameMap_;
@@ -1375,6 +1380,8 @@ private:
 
     // COMPAT(shakurov)
     bool NeedAdjustUserReadRateLimits_ = false;
+
+    bool MustRecomputeMembershipClosure_ = false;
 
     static i64 GetDiskSpaceToCharge(i64 diskSpace, NErasure::ECodec erasureCodec, TReplicationPolicy policy)
     {
@@ -1509,6 +1516,7 @@ private:
 
         YCHECK(user->RefObject() == 1);
         DoAddMember(GetBuiltinGroupForUser(user), user);
+        MaybeRecomputeMembershipClosure();
 
         if (!IsRecovery()) {
             RequestTracker_->ReconfigureUserRequestRateThrottler(user);
@@ -1555,8 +1563,23 @@ private:
         }
     }
 
-    void RecomputeMembershipClosure()
+    void MaybeRecomputeMembershipClosure()
     {
+        const auto& dynamicConfig = GetDynamicConfig();
+        if (dynamicConfig->EnableDelayedMembershipClosureRecomputation) {
+            if (!MustRecomputeMembershipClosure_) {
+                MustRecomputeMembershipClosure_ = true;
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Will recompute membership closure");
+            }
+        } else {
+            DoRecomputeMembershipClosure();
+        }
+    }
+
+    void DoRecomputeMembershipClosure()
+    {
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Started recomputing membership closure");
+
         for (const auto& pair : UserMap_) {
             pair.second->RecursiveMemberOf().clear();
         }
@@ -1571,6 +1594,17 @@ private:
                 PropagateRecursiveMemberOf(member, group);
             }
         }
+
+        MustRecomputeMembershipClosure_ = false;
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Finished recomputing membership closure");
+    }
+
+    void OnRecomputeMembershipClosure()
+    {
+        NProto::TReqRecomputeMembershipClosure request;
+        CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
+            ->CommitAndLog(Logger);
     }
 
 
@@ -1578,16 +1612,12 @@ private:
     {
         YCHECK(group->Members().insert(member).second);
         YCHECK(member->MemberOf().insert(group).second);
-
-        RecomputeMembershipClosure();
     }
 
     void DoRemoveMember(TGroup* group, TSubject* member)
     {
         YCHECK(group->Members().erase(member) == 1);
         YCHECK(member->MemberOf().erase(group) == 1);
-
-        RecomputeMembershipClosure();
     }
 
 
@@ -1613,6 +1643,7 @@ private:
         AccountMap_.SaveValues(context);
         UserMap_.SaveValues(context);
         GroupMap_.SaveValues(context);
+        Save(context, MustRecomputeMembershipClosure_);
     }
 
 
@@ -1625,6 +1656,8 @@ private:
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
+        using NYT::Load;
+
         AccountMap_.LoadValues(context);
         UserMap_.LoadValues(context);
         GroupMap_.LoadValues(context);
@@ -1635,6 +1668,11 @@ private:
 
         // COMPAT(shakurov)
         NeedAdjustUserReadRateLimits_ = context.GetVersion() < 829;
+
+        // COMPAT(babenko)
+        if (context.GetVersion() >= 836) {
+            MustRecomputeMembershipClosure_ = Load<bool>(context);
+        }
     }
 
     virtual void OnBeforeSnapshotLoaded() override
@@ -1882,6 +1920,8 @@ private:
         IntermediateAccount_ = nullptr;
         ChunkWiseAccountingMigrationAccount_ = nullptr;
 
+        MustRecomputeMembershipClosure_ = false;
+
         ResetAuthenticatedUser();
     }
 
@@ -1950,6 +1990,8 @@ private:
         if (EnsureBuiltinGroupInitialized(SuperusersGroup_, SuperusersGroupId_, SuperusersGroupName)) {
             DoAddMember(UsersGroup_, SuperusersGroup_);
         }
+
+        DoRecomputeMembershipClosure();
 
         // Users
 
@@ -2122,6 +2164,11 @@ private:
             BIND(&TImpl::OnUserStatisticsGossip, MakeWeak(this)));
         UserStatisticsGossipExecutor_->Start();
 
+        MembershipClosureRecomputeExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
+            BIND(&TImpl::OnRecomputeMembershipClosure, MakeWeak(this)));
+        MembershipClosureRecomputeExecutor_->Start();
+
         OnDynamicConfigChanged();
     }
 
@@ -2139,6 +2186,11 @@ private:
         if (UserStatisticsGossipExecutor_) {
             UserStatisticsGossipExecutor_->Stop();
             UserStatisticsGossipExecutor_.Reset();
+        }
+
+        if (MembershipClosureRecomputeExecutor_) {
+            MembershipClosureRecomputeExecutor_->Stop();
+            MembershipClosureRecomputeExecutor_.Reset();
         }
     }
 
@@ -2227,6 +2279,13 @@ private:
             } else {
                 account->ClusterStatistics() = newStatistics;
             }
+        }
+    }
+
+    void HydraRecomputeMembershipClosure(NProto::TReqRecomputeMembershipClosure* /*request*/)
+    {
+        if (MustRecomputeMembershipClosure_) {
+            DoRecomputeMembershipClosure();
         }
     }
 
@@ -2713,8 +2772,13 @@ private:
         if (AccountStatisticsGossipExecutor_) {
             AccountStatisticsGossipExecutor_->SetPeriod(GetDynamicConfig()->AccountStatisticsGossipPeriod);
         }
+
         if (UserStatisticsGossipExecutor_) {
             UserStatisticsGossipExecutor_->SetPeriod(GetDynamicConfig()->UserStatisticsGossipPeriod);
+        }
+
+        if (MembershipClosureRecomputeExecutor_) {
+            MembershipClosureRecomputeExecutor_->SetPeriod(GetDynamicConfig()->MembershipClosureRecomputePeriod);
         }
     }
 };
