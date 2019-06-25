@@ -20,6 +20,7 @@
 #include <yt/server/lib/misc/private.h>
 
 #include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/async_semaphore.h>
 
 #include <yt/core/logging/log_manager.h>
 
@@ -850,6 +851,7 @@ public:
             DataNodeProfiler.AppendPath("/layer_cache"))
         , Bootstrap_(bootstrap)
         , LayerLocations_(std::move(layerLocations))
+        , Semaphore_(New<TAsyncSemaphore>(config->LayerImportConcurrency))
     {
         for (const auto& location : LayerLocations_) {
             for (const auto& layerMeta : location->GetAllLayers()) {
@@ -875,7 +877,9 @@ public:
                 tag,
                 artifactKey);
 
-            chunkCache->PrepareArtifact(artifactKey, Bootstrap_->GetNodeDirectory())
+            TArtifactDownloadOptions downloadOptions;
+            downloadOptions.NodeDirectory = Bootstrap_->GetNodeDirectory();
+            chunkCache->DownloadArtifact(artifactKey, downloadOptions)
                 .Subscribe(BIND([=, this_ = MakeStrong(this), cookie_ = std::move(cookie)] (const TErrorOr<IChunkPtr>& artifactChunkOrError) mutable {
                     try {
                         YT_LOG_DEBUG("Layer artifact loaded, starting import (Tag: %v, Error: %v, ArtifactKey: %v)",
@@ -886,6 +890,15 @@ public:
                         // NB: ensure that artifact stays alive until the end of layer import.
                         const auto& artifactChunk = artifactChunkOrError.ValueOrThrow();
                         auto location = this_->PickLocation();
+
+                        // NB(psushin): we limit number of concurrently imported layers, since this is heavy operation 
+                        // which may delay light operations performed in the same IO thread pool inside porto daemon.
+                        // PORTO-518
+                        TAsyncSemaphoreGuard guard;
+                        while (!(guard = TAsyncSemaphoreGuard::TryAcquire(Semaphore_))) {
+                            WaitFor(Semaphore_->GetReadyEvent())
+                                .ThrowOnError();
+                        }
 
                         auto layerMeta = WaitFor(location->ImportLayer(artifactKey, artifactChunk->GetFileName(), tag))
                             .ValueOrThrow();
@@ -916,6 +929,8 @@ public:
 private:
     TBootstrap* const Bootstrap_;
     const std::vector<TLayerLocationPtr> LayerLocations_;
+
+    TAsyncSemaphorePtr Semaphore_;
 
     virtual bool IsResurrectionSupported() const override
     {
@@ -1154,9 +1169,9 @@ public:
                 tag)
             .Via(GetCurrentInvoker()));
 
-        // This promise is intentionally uncancelable. If we decide to abort job cancel job preparation
+        // This promise is intentionally uncancelable. If we decide to abort job and cancel job preparation
         // this volume will hopefully be reused by another job.
-        return promise.ToFuture()
+        return promise.ToFuture().ToUncancelable()
             .Apply(BIND(createVolume, true))
             .As<IVolumePtr>();
     }

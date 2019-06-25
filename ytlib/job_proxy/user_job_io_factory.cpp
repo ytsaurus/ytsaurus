@@ -8,8 +8,6 @@
 #include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
-#include <yt/ytlib/chunk_client/data_source.h>
-#include <yt/ytlib/chunk_client/job_spec_extensions.h>
 
 #include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 #include <yt/ytlib/job_tracker_client/public.h>
@@ -135,8 +133,7 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
         dataSliceDescriptors.insert(dataSliceDescriptors.end(), descriptors.begin(), descriptors.end());
     }
 
-    auto dataSourceDirectoryExt = GetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(schedulerJobSpecExt.extensions());
-    auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
+    auto dataSourceDirectory = jobSpecHelper->GetDataSourceDirectory();
 
     auto options = ConvertTo<TTableReaderOptionsPtr>(TYsonString(schedulerJobSpecExt.table_reader_options()));
 
@@ -302,8 +299,7 @@ public:
         // We must always enable table index to merge rows with the same index in the proper order.
         options->EnableTableIndex = true;
 
-        auto dataSourceDirectoryExt = GetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(schedulerJobSpecExt.extensions());
-        auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
+        auto dataSourceDirectory = JobSpecHelper_->GetDataSourceDirectory();
 
         for (const auto& inputSpec : schedulerJobSpecExt.input_table_specs()) {
             // ToDo(psushin): validate that input chunks are sorted.
@@ -507,8 +503,7 @@ public:
 
         const auto& inputSpec = schedulerJobSpecExt.input_table_specs(0);
         auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
-        auto dataSourceDirectoryExt = GetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(schedulerJobSpecExt.extensions());
-        auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
+        auto dataSourceDirectory = JobSpecHelper_->GetDataSourceDirectory();
 
         const auto& reduceJobSpecExt = JobSpecHelper_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         auto keyColumns = FromProto<TKeyColumns>(reduceJobSpecExt.key_columns());

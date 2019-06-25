@@ -1247,7 +1247,7 @@ private:
         }
 
         fluent
-            .Item("user_to_ephemeral_pools").Do(BIND(&TFairShareTree::BuildUserToEphemeralPools, tree))
+            .Item("user_to_ephemeral_pools").Do(BIND(&TFairShareTree::BuildUserToEphemeralPoolsInDefaultPool, tree))
             .Item("fair_share_info").BeginMap()
                 .Do(BIND(&TFairShareTree::BuildFairShareInfo, tree))
             .EndMap()

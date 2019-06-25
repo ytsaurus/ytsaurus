@@ -77,10 +77,10 @@ public:
         std::vector<TTablet*> tablets;
         std::vector<TTabletCell*> cells;
 
-        for (const auto& tabletId : tabletIds) {
+        for (auto tabletId : tabletIds) {
             tablets.push_back(tabletManager->GetTabletOrThrow(tabletId));
         }
-        for (const auto& cellId : cellIds) {
+        for (auto cellId : cellIds) {
             cells.push_back(tabletManager->GetTabletCellOrThrow(cellId));
         }
 

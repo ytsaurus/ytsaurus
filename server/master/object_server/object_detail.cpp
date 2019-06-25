@@ -75,10 +75,6 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ObjectServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TObjectProxyBase::TObjectProxyBase(
     TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
@@ -147,8 +143,8 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
 void TObjectProxyBase::GetBasicAttributes(TGetBasicAttributesContext* context)
 {
     const auto& securityManager = Bootstrap_->GetSecurityManager();
-    if (context->Permission != EPermission()) {
-        securityManager->ValidatePermission(Object_, context->Permission);
+    if (context->Permission) {
+        securityManager->ValidatePermission(Object_, *context->Permission);
     }
 }
 
@@ -208,27 +204,31 @@ void TObjectProxyBase::Invoke(const IServiceContextPtr& context)
     const auto& ypathExt = requestHeader.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
     YCHECK(!ypathExt.mutating() || NHydra::HasMutationContext());
 
-    const auto& securityManager = Bootstrap_->GetSecurityManager();
-    auto* user = securityManager->GetAuthenticatedUser();
-
     const auto& objectManager = Bootstrap_->GetObjectManager();
     if (requestHeader.HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
         const auto& prerequisitesExt = requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
         objectManager->ValidatePrerequisites(prerequisitesExt);
     }
 
-    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Invoke: %v:%v %v (ObjectId: %v, RequestId: %v, User: %v)",
-        context->GetService(),
-        context->GetMethod(),
-        ypathExt.path(),
-        GetVersionedId(),
-        context->GetRequestId(),
-        user->GetName());
+    {
+        TStringBuilder builder;
+        TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
+
+        delimitedBuilder->AppendFormat("TargetObjectId: %v", GetVersionedId());
+
+        if (!ypathExt.path().empty()) {
+            delimitedBuilder->AppendFormat("RequestPathSuffix: %v", ypathExt.path());
+        }
+
+        context->SetRawRequestInfo(builder.Flush(), true);
+    }
+
+    NProfiling::TWallTimer timer;
+
+    TSupportsAttributes::Invoke(context);
 
     const auto& Profiler = objectManager->GetProfiler();
     auto* counter = objectManager->GetMethodCumulativeExecuteTimeCounter(Object_->GetType(), context->GetMethod());
-    NProfiling::TWallTimer timer;
-    TSupportsAttributes::Invoke(context);
     Profiler.Increment(*counter, timer.GetElapsedValue());
 }
 

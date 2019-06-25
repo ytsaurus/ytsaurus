@@ -352,6 +352,7 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
                         .Item("state").Value(job.State)
                         .Item("address").Value(job.Address)
                         .Item("start_time").Value(job.StartTime)
+                        .Item("has_spec").Value(job.HasSpec)
                         .DoIf(job.FinishTime.operator bool(), [&] (TFluentMap fluent) {
                             fluent.Item("finish_time").Value(*job.FinishTime);
                         })
@@ -363,9 +364,6 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
                         })
                         .DoIf(job.FailContextSize.operator bool(), [&] (TFluentMap fluent) {
                             fluent.Item("fail_context_size").Value(*job.FailContextSize);
-                        })
-                        .DoIf(job.HasSpec.operator bool(), [&] (TFluentMap fluent) {
-                            fluent.Item("has_spec").Value(*job.HasSpec);
                         })
                         .DoIf(job.Error.operator bool(), [&] (TFluentMap fluent) {
                             fluent.Item("error").Value(job.Error);
@@ -418,7 +416,7 @@ void TGetJobCommand::DoExecute(ICommandContextPtr context)
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
-    ProduceSingleOutputValue(context, "job", result);
+    context->ProduceOutputValue(result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

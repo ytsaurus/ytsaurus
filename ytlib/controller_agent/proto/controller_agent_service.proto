@@ -79,6 +79,7 @@ message TControllerTransactionIds
     optional NYT.NProto.TGuid debug_id = 4;
     optional NYT.NProto.TGuid output_completion_id = 5;
     optional NYT.NProto.TGuid debug_completion_id = 6;
+    repeated NYT.NProto.TGuid nested_input_ids = 7;
 }
 
 message TReqInitializeOperation

@@ -418,7 +418,7 @@ ITableReaderPtr CreateTableReader(const NApi::NNative::IClientPtr& client, const
         readerOptions);
 
     // TODO(max42): rename?
-    auto readerTable = std::make_shared<TClickHouseTable>(path.GetPath(), tableObject->Schema);
+    auto readerTable = std::make_shared<TClickHouseTable>(path, tableObject->Schema);
     return NClickHouseServer::CreateTableReader(readerTable->Columns, std::move(chunkReader));
 }
 

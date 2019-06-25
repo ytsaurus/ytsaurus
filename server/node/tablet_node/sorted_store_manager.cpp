@@ -262,9 +262,7 @@ bool TSortedStoreManager::CheckInactiveStoresLocks(
     auto* transaction = context->Transaction;
 
     for (const auto& store : LockedStores_) {
-        auto error = store->AsSortedDynamic()->CheckRowLocks(row, transaction, lockMask);
-        if (!error.IsOK()) {
-            context->Error = error;
+        if (!store->AsSortedDynamic()->CheckRowLocks(row, lockMask, context)) {
             return false;
         }
     }
@@ -281,9 +279,7 @@ bool TSortedStoreManager::CheckInactiveStoresLocks(
             continue;
         }
 
-        auto error = store->CheckRowLocks(row, transaction, lockMask);
-        if (!error.IsOK()) {
-            context->Error = error;
+        if (!store->CheckRowLocks(row, lockMask, context)) {
             return false;
         }
     }
@@ -487,10 +483,15 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             }
 
             if (tabletSnapshot->Config->MergeRowsOnFlush) {
+                auto outputIt = rows.begin();
                 for (auto& row : rows) {
                     rowMerger.AddPartialRow(row);
-                    row = rowMerger.BuildMergedRow();
+                    auto mergedRow = rowMerger.BuildMergedRow();
+                    if (mergedRow) {
+                        *outputIt++ = mergedRow;
+                    }
                 }
+                rows.resize(std::distance(rows.begin(), outputIt));
             }
 
             if (!tableWriter->Write(rows)) {

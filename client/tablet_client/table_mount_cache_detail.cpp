@@ -62,7 +62,7 @@ void TTabletCache::RemoveExpiredEntries()
             removeIds.push_back(it->first);
         }
     }
-    for (const auto& tabletId : removeIds) {
+    for (auto tabletId : removeIds) {
         Map_.erase(tabletId);
     }
 

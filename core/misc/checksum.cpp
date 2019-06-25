@@ -1,46 +1,141 @@
 #include "checksum.h"
-#include "checksum_helpers.h"
 
-#ifdef YT_USE_CRC_PCLMUL
+#ifdef YT_USE_SSE42
     #include <tmmintrin.h>
     #include <nmmintrin.h>
     #include <wmmintrin.h>
-    #include <yt/core/misc/cpuid.h>
+
+    #include <util/system/cpu_id.h>
 #endif
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChecksum CombineChecksums(const std::vector<TChecksum>& blockChecksums)
+#ifdef YT_USE_SSE42
+
+namespace NCrcNative0xE543279765927881 {
+
+__m128i _mm_shift_right_si128(__m128i v, ui8 offset)
 {
-    TChecksum combined = NullChecksum;
-    for (auto checksum : blockChecksums) {
-        HashCombine(combined, checksum);
-    }
-    return combined;
+    static const ui8 RotateMask[] = {
+        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+        0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80
+    };
+
+    return _mm_shuffle_epi8(v, _mm_loadu_si128((__m128i *) (RotateMask + offset)));
 }
 
-////////////////////////////////////////////////////////////////////////////////
+__m128i _mm_shift_left_si128(__m128i v, ui8 offset)
+{
+    static const ui8 RotateMask[] = {
+        0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
+        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
+    };
 
-namespace NDetail {
+    return _mm_shuffle_epi8(v, _mm_loadu_si128((__m128i *) (RotateMask + 16 - offset)));
+}
 
-using namespace NCrc;
+__m128i ReverseBytes(__m128i value)
+{
+    return _mm_shuffle_epi8(value,
+        _mm_setr_epi8(0xf, 0xe, 0xd, 0xc, 0xb, 0xa, 0x9, 0x8, 0x7, 0x6, 0x5, 0x4, 0x3, 0x2, 0x1, 0x0));
+}
 
-#ifdef YT_USE_CRC_PCLMUL
+__m128i Fold(__m128i value, __m128i foldFactor)
+{
+    __m128i high = _mm_clmulepi64_si128(value, foldFactor, 0x11);
+    __m128i low = _mm_clmulepi64_si128(value, foldFactor, 0x00);
+    return _mm_xor_si128(high, low);
+}
 
-namespace NCrcSSE0xE543279765927881 {
+__m128i Fold(__m128i value, __m128i data, __m128i foldFactor)
+{
+    return _mm_xor_si128(data, Fold(value, foldFactor));
+}
+
+ATTRIBUTE_NO_SANITIZE_ADDRESS __m128i AlignedPrefixLoad(const void* p, size_t* length)
+{
+    size_t offset = (size_t)p & 15; *length = 16 - offset;
+    return _mm_shift_right_si128(_mm_load_si128((__m128i*)((char*)p - offset)), offset);
+}
+
+ATTRIBUTE_NO_SANITIZE_ADDRESS __m128i UnalignedLoad(const void* buf, size_t expectedLength = 16)
+{
+    size_t length;
+    __m128i result = AlignedPrefixLoad(buf, &length);
+
+    if (length < expectedLength) {
+        result = _mm_loadu_si128((__m128i*) buf);
+    }
+
+    return ReverseBytes(result);
+}
+
+__m128i AlignedLoad(const void* buf)
+{
+    return ReverseBytes(_mm_load_si128((__m128i*) buf));
+}
+
+__m128i FoldTail(__m128i result, __m128i tail, __m128i foldFactor, size_t tailLength)
+{
+    tail = _mm_or_si128(_mm_shift_right_si128(tail, 16 - tailLength), _mm_shift_left_si128(result, tailLength));
+    result = _mm_shift_right_si128(result, 16 - tailLength);
+    return Fold(result, tail, foldFactor);
+}
+
+ui64 BarretReduction(__m128i chunk, ui64 poly, ui64 mu)
+{
+    __m128i muAndPoly = _mm_set_epi64x(poly, mu);
+    __m128i high = _mm_set_epi64x(_mm_cvtsi128_si64(_mm_srli_si128(chunk, 8)), 0);
+
+    // T1(x) = (R(x) div x^64) clmul mu
+    // mu is 65 bit polynomial
+    __m128i t1 = _mm_xor_si128(_mm_clmulepi64_si128(high, muAndPoly, 0x01), high);
+
+    // T2(x) = (T1(x) div x^64) clmul p(x)
+    // p(x) is 65 bit polynomial, so we have to do xor of high 64 bits after carry-less multiplication
+    // but since the next operation is (R(x) xor T2(x)) mod x^64, xor is unnecessary
+    __m128i t2 = _mm_clmulepi64_si128(t1, muAndPoly, 0x11);
+
+    // return (R(x) xor T2(x)) mod x^64
+    return _mm_cvtsi128_si64(_mm_xor_si128(chunk, t2)); // .m128i_u64[0];
+}
 
 // http://www.intel.com/content/dam/www/public/us/en/documents/white-papers/fast-crc-computation-generic-polynomials-pclmulqdq-paper.pdf
 
-const ui64 Poly = ULL(0xE543279765927881);
-const ui64 Mu = ULL(0x9d9034581c0766b0); // DivXPow_64(128, poly)
+/*
+    ui64 DivXPow_64(size_t pow, ui64 p) // (x ^ pow) div p(x), where pow >= 64
+    {
+        ui64 result = 0;
+        ui64 rem = p;
+        while (pow-- > 64)
+        {
+            result = result << 1 | rem >> 63 & 1;
+            rem = (rem << 1) ^ (rem >> 63 & 1) * p;
+        }
+        return result;
+    }
 
-const ui64 XPow64ModPoly = ULL(0xe543279765927881); // ModXPow_64(64, poly)
-const ui64 XPow128ModPoly = ULL(0xf9c49baae9f0beb0); // ModXPow_64(128, poly)
-const ui64 XPow192ModPoly = ULL(0xd0665f166605dcc4); // ModXPow_64(128 + 64, poly)
-const ui64 XPow512ModPoly = ULL(0x209670022e7af509); // ModXPow_64(512, poly)
-const ui64 XPow576ModPoly = ULL(0xd85c929ddd7a7d69); // ModXPow_64(512 + 64, poly)
+    ui64 ModXPow_64(size_t pow, ui64 p) // (x ^ pow) mod p(x), where pow >= 64
+    {
+        ui64 rem = p;
+        while (pow-- > 64)
+        {
+            rem = (rem << 1) ^ (rem >> 63 & 1) * p;
+        }
+        return rem;
+    }
+*/
+
+constexpr ui64 Poly = ULL(0xE543279765927881);
+constexpr ui64 Mu = ULL(0x9d9034581c0766b0); // DivXPow_64(128, poly)
+
+constexpr ui64 XPow64ModPoly = ULL(0xe543279765927881); // ModXPow_64(64, poly)
+constexpr ui64 XPow128ModPoly = ULL(0xf9c49baae9f0beb0); // ModXPow_64(128, poly)
+constexpr ui64 XPow192ModPoly = ULL(0xd0665f166605dcc4); // ModXPow_64(128 + 64, poly)
+constexpr ui64 XPow512ModPoly = ULL(0x209670022e7af509); // ModXPow_64(512, poly)
+constexpr ui64 XPow576ModPoly = ULL(0xd85c929ddd7a7d69); // ModXPow_64(512 + 64, poly)
 
 __m128i FoldTo128(const __m128i* buf128, size_t buflen, __m128i result)
 {
@@ -124,7 +219,7 @@ ui64 Crc(const void* buf, size_t buflen, ui64 seed) Y_NO_SANITIZE("memory")
     return BarretReduction(result, Poly, Mu);
 }
 
-} // namespace NCrcSSE0xE543279765927881
+} // namespace namespace NCrcNative0xE543279765927881
 
 #endif
 
@@ -712,33 +807,35 @@ ui64 Crc(const void* buf, size_t buflen, ui64 crcinit)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef YT_USE_CRC_PCLMUL
+namespace {
 
-TChecksum GetChecksumImpl(const void* data, size_t length, TChecksum seed)
+ui64 CrcImpl(const void* data, size_t length, ui64 seed)
 {
-    if (CpuId.Pclmuldq()) {
-        return NCrcSSE0xE543279765927881::Crc(data, length, seed);
-    } else {
-        return NCrcTable0xE543279765927881::Crc(data, length, seed);
+#ifdef YT_USE_SSE42
+    static const bool Native = NX86::HaveSSE42() && NX86::HavePCLMUL();
+    if (Native) {
+        return NCrcNative0xE543279765927881::Crc(data, length, seed);
     }
-}
-
-#else
-
-TChecksum GetChecksumImpl(const void* data, size_t length, TChecksum seed)
-{
+#endif
     return NCrcTable0xE543279765927881::Crc(data, length, seed);
 }
 
-#endif
-
-} // namespace NDetail
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChecksum CombineChecksums(const std::vector<TChecksum>& blockChecksums)
+{
+    TChecksum combined = NullChecksum;
+    for (auto checksum : blockChecksums) {
+        HashCombine(combined, checksum);
+    }
+    return combined;
+}
+
 TChecksum GetChecksum(TRef data)
 {
-    return NDetail::GetChecksumImpl(data.Begin(), data.Size(), 0);
+    return CrcImpl(data.Begin(), data.Size(), 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -755,7 +852,7 @@ TChecksum TChecksumInput::GetChecksum() const
 size_t TChecksumInput::DoRead(void* buf, size_t len)
 {
     size_t res = Input_->Read(buf, len);
-    Checksum_ = NDetail::GetChecksumImpl(buf, res, Checksum_);
+    Checksum_ = CrcImpl(buf, res, Checksum_);
     return res;
 }
 
@@ -773,7 +870,7 @@ TChecksum TChecksumOutput::GetChecksum() const
 void TChecksumOutput::DoWrite(const void* buf, size_t len)
 {
     Output_->Write(buf, len);
-    Checksum_ = NDetail::GetChecksumImpl(buf, len, Checksum_);
+    Checksum_ = CrcImpl(buf, len, Checksum_);
 }
 
 void TChecksumOutput::DoFlush()

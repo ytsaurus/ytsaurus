@@ -31,6 +31,8 @@ public:
 
     TSlruCacheConfigPtr ClientCache;
 
+    i64 ReadBufferRowCount;
+
     TApiServiceConfig()
     {
         RegisterParameter("verbose_logging", VerboseLogging)
@@ -39,6 +41,8 @@ public:
             .Default(true);
         RegisterParameter("client_cache", ClientCache)
             .Default(New<TSlruCacheConfig>(1000));
+        RegisterParameter("read_buffer_row_count", ReadBufferRowCount)
+            .Default((i64) 10000);
     }
 };
 

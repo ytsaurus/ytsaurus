@@ -130,7 +130,7 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , CompressionInvoker_(CreateFixedPriorityInvoker(
-            NChunkClient::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
+            NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
             Config_->WorkloadDescriptor.GetPriority()))
         , PreloadSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentPreloads))
         , Throttler_(Bootstrap_->GetTabletNodeInThrottler(EWorkloadCategory::SystemTabletPreload))
@@ -269,8 +269,8 @@ private:
         VERIFY_INVOKERS_AFFINITY(feasibleInvokers);
 
         NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("TabletId: %v, StoreId: %v, Mode: %v, ReadSessionId: %v",
-            tablet->GetId(),
+        Logger.AddTag("%v, StoreId: %v, Mode: %v, ReadSessionId: %v",
+            tablet->GetLoggingId(),
             store->GetId(),
             mode,
             readSessionId);
@@ -319,7 +319,7 @@ private:
             store->Preload(std::move(chunkData));
             storeManager->EndStorePreload(store);
 
-            tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Preload].Store(TError());
+            tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Preload].Store(TError());
         } catch (const std::exception& ex) {
             // Do not back off if fiber cancellation exception was thrown.
             // SetInMemoryMode with other mode was called during current action execution.
@@ -332,7 +332,7 @@ private:
                 << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
                 << TErrorAttribute("background_activity", ETabletBackgroundActivity::Preload);
 
-            tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Preload].Store(error);
+            tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Preload].Store(error);
         } catch (const TFiberCanceledException&) {
             YT_LOG_DEBUG("Preload cancelled");
             throw;
@@ -506,9 +506,11 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     auto mode = tabletSnapshot->Config->InMemoryMode;
 
     NLogging::TLogger Logger(TabletNodeLogger);
-    Logger.AddTag(
-        "TabletId: %v, StoreId: %v, Mode: %v, ReadSessionId: %v",
-        tabletSnapshot->TabletId, store->GetId(), mode, readSessionId);
+    Logger.AddTag("%v, StoreId: %v, Mode: %v, ReadSessionId: %v",
+        tabletSnapshot->LoggingId,
+        store->GetId(),
+        mode,
+        readSessionId);
 
     YT_LOG_INFO("Store preload started");
 

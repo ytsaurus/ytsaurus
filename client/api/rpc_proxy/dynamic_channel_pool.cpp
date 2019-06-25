@@ -54,6 +54,11 @@ public:
         return *EndpointAttributes_;
     }
 
+    virtual TNetworkId GetNetworkId() const override
+    {
+        return DefaultNetworkId;
+    }
+
     virtual TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /*request*/) override
     {
         if (!Sticky_) {

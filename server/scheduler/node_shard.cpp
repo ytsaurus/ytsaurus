@@ -231,7 +231,8 @@ void TNodeShard::DoCleanup()
 
     for (const auto& pair : IdToNode_) {
         const auto& node = pair.second;
-        TLeaseManager::CloseLease(node->GetLease());
+        TLeaseManager::CloseLease(node->GetRegistrationLease());
+        TLeaseManager::CloseLease(node->GetHeartbeatLease());
     }
 
     IdToOpertionState_.clear();
@@ -455,7 +456,8 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             request->disk_info());
     }
 
-    TLeaseManager::RenewLease(node->GetLease());
+    TLeaseManager::RenewLease(node->GetHeartbeatLease());
+    TLeaseManager::RenewLease(node->GetRegistrationLease());
 
     if (node->GetMasterState() != NNodeTrackerClient::ENodeState::Online || node->GetSchedulerState() != ENodeState::Online) {
         auto error = TError("Node is not online");
@@ -602,7 +604,8 @@ void TNodeShard::UpdateExecNodeDescriptors()
             YCHECK(result->emplace(node->GetId(), node->BuildExecDescriptor()).second);
         } else {
             if (node->GetMasterState() == NNodeTrackerClient::ENodeState::Offline && node->GetSchedulerState() == ENodeState::Offline) {
-                TLeaseManager::CloseLease(node->GetLease());
+                TLeaseManager::CloseLease(node->GetRegistrationLease());
+                TLeaseManager::CloseLease(node->GetHeartbeatLease());
                 nodeIdsToRemove.push_back(nodeId);
             }
         }
@@ -699,7 +702,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
         }
 
         if (newState == NNodeTrackerClient::ENodeState::Online) {
-            TLeaseManager::RenewLease(execNode->GetLease());
+            TLeaseManager::RenewLease(execNode->GetRegistrationLease());
             if (execNode->GetSchedulerState() == ENodeState::Offline &&
                 execNode->GetLastSeenTime() + Config_->MaxNodeUnseenPeriodToAbortJobs < now)
             {
@@ -1277,7 +1280,7 @@ void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
         result->StartDescriptor.emplace(
             jobId,
             static_cast<EJobType>(response.job_type()),
-            FromProto<TJobResources>(response.resource_limits()),
+            FromProto<TJobResourcesWithQuota>(response.resource_limits()),
             response.interruptible());
     }
     for (const auto& protoCounter : response.failed()) {
@@ -1304,25 +1307,27 @@ int TNodeShard::GetJobReporterQueueIsTooLargeNodeCount()
 
 TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor& descriptor, ENodeState state)
 {
+    TExecNodePtr node;
+
     auto it = IdToNode_.find(nodeId);
     if (it == IdToNode_.end()) {
-        return RegisterNode(nodeId, descriptor, state);
-    }
+        node = RegisterNode(nodeId, descriptor, state);
+    } else {
+        node = it->second;
 
-    auto node = it->second;
+        // Update the current descriptor and state, just in case.
+        node->NodeDescriptor() = descriptor;
 
-    // Update the current descriptor and state, just in case.
-    node->NodeDescriptor() = descriptor;
-
-    // Update state to online only if node has no registration errors.
-    if (state != ENodeState::Online || node->GetRegistrationError().IsOK()) {
-        node->SetSchedulerState(state);
+        // Update state to online only if node has no registration errors.
+        if (state != ENodeState::Online || node->GetRegistrationError().IsOK()) {
+            node->SetSchedulerState(state);
+        }
     }
 
     return node;
 }
 
-void TNodeShard::OnNodeLeaseExpired(TNodeId nodeId)
+void TNodeShard::OnNodeRegistrationLeaseExpired(TNodeId nodeId)
 {
     auto it = IdToNode_.find(nodeId);
     YCHECK(it != IdToNode_.end());
@@ -1336,16 +1341,43 @@ void TNodeShard::OnNodeLeaseExpired(TNodeId nodeId)
     UnregisterNode(node);
 }
 
+void TNodeShard::OnNodeHeartbeatLeaseExpired(TNodeId nodeId)
+{
+    auto it = IdToNode_.find(nodeId);
+    YCHECK(it != IdToNode_.end());
+
+    const auto& node = it->second;
+
+    // We intentionally do not abort jobs here, it will happen when RegistrationLease expired or
+    // at node attributes update by separate timeout.
+    node->SetSchedulerState(ENodeState::Offline);
+
+    auto lease = TLeaseManager::CreateLease(
+        Config_->NodeHeartbeatTimeout,
+        BIND(&TNodeShard::OnNodeHeartbeatLeaseExpired, MakeWeak(this), node->GetId())
+            .Via(GetInvoker()));
+    node->SetHeartbeatLease(lease);
+}
+
 TExecNodePtr TNodeShard::RegisterNode(TNodeId nodeId, const TNodeDescriptor& descriptor, ENodeState state)
 {
     auto node = New<TExecNode>(nodeId, descriptor, state);
     const auto& address = node->GetDefaultAddress();
 
-    auto lease = TLeaseManager::CreateLease(
-        Config_->NodeHeartbeatTimeout,
-        BIND(&TNodeShard::OnNodeLeaseExpired, MakeWeak(this), node->GetId())
-            .Via(GetInvoker()));
-    node->SetLease(lease);
+    {
+        auto lease = TLeaseManager::CreateLease(
+            Config_->NodeRegistrationTimeout,
+            BIND(&TNodeShard::OnNodeRegistrationLeaseExpired, MakeWeak(this), node->GetId())
+                .Via(GetInvoker()));
+        node->SetRegistrationLease(lease);
+    }
+    {
+        auto lease = TLeaseManager::CreateLease(
+            Config_->NodeHeartbeatTimeout,
+            BIND(&TNodeShard::OnNodeHeartbeatLeaseExpired, MakeWeak(this), node->GetId())
+                .Via(GetInvoker()));
+        node->SetHeartbeatLease(lease);
+    }
 
     YCHECK(IdToNode_.insert(std::make_pair(node->GetId(), node)).second);
 
@@ -2376,8 +2408,8 @@ TJobPtr TNodeShard::GetJobOrThrow(TJobId jobId)
 
 TJobProberServiceProxy TNodeShard::CreateJobProberProxy(const TJobPtr& job)
 {
-    auto address = job->GetNode()->NodeDescriptor().GetAddressOrThrow(Bootstrap_->GetLocalNetworks());
-    return Host_->CreateJobProberProxy(address);
+    auto addressWithNetwork = job->GetNode()->NodeDescriptor().GetAddressWithNetworkOrThrow(Bootstrap_->GetLocalNetworks());
+    return Host_->CreateJobProberProxy(addressWithNetwork);
 }
 
 TNodeShard::TOperationState* TNodeShard::FindOperationState(TOperationId operationId)

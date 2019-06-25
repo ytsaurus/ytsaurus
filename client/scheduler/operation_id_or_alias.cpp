@@ -6,15 +6,28 @@ namespace NYT::NScheduler {
 
 const TString OperationAliasPrefix("*");
 
-TString GetOperationIdOrAliasContextInfo(const TOperationIdOrAlias& operationIdOrAlias)
+TOperationIdOrAlias::TOperationIdOrAlias(TOperationId id)
+    : Payload(id)
+{ }
+
+TOperationIdOrAlias::TOperationIdOrAlias(TString alias)
+    : Payload(std::move(alias))
+{ }
+
+void FormatValue(TStringBuilderBase* builder, const TOperationIdOrAlias& operationIdOrAlias, TStringBuf /*format*/)
 {
-    return Visit(operationIdOrAlias,
+    Visit(operationIdOrAlias.Payload,
         [&] (const TString& alias) {
-            return Format("OperationAlias: %v", operationIdOrAlias);
+            builder->AppendFormat("%v%v", OperationAliasPrefix, alias);
         },
         [&] (const TOperationId& operationId) {
-            return Format("OperationId: %v", operationIdOrAlias);
+            builder->AppendFormat("%v", operationId);
         });
+}
+
+TString ToString(const TOperationIdOrAlias& operationIdOrAlias)
+{
+    return ToStringViaBuilder(operationIdOrAlias);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -220,21 +220,19 @@ public:
             return false;
         }
 
-        auto* attachmentCodec = NCompression::GetCodec(attachmentCodecId);
-
         std::vector<TSharedRef> requestAttachments;
-        requestAttachments.reserve(UnderlyingContext_->RequestAttachments().size());
-        for (const auto& attachment : UnderlyingContext_->RequestAttachments()) {
-            try {
-                auto decompressedAttachment = attachmentCodec->Decompress(attachment);
-                requestAttachments.push_back(std::move(decompressedAttachment));
-            } catch (const std::exception& ex) {
-                UnderlyingContext_->Reply(TError(
-                    NRpc::EErrorCode::ProtocolError,
-                    "Error deserializing request attachments"));
-                return false;
-            }
+        try {
+            requestAttachments = DecompressAttachments(
+                UnderlyingContext_->RequestAttachments(),
+                attachmentCodecId);
+        } catch (const std::exception& ex) {
+            UnderlyingContext_->Reply(TError(
+                NRpc::EErrorCode::ProtocolError,
+                "Error deserializing request attachments")
+                << ex);
+            return false;
         }
+
         Request_->Attachments() = std::move(requestAttachments);
 
         return true;
@@ -325,12 +323,7 @@ protected:
                 }
             }
 
-            auto* attachmentCodec = NCompression::GetCodec(attachmentCodecId);
-            std::vector<TSharedRef> responseAttachments;
-            for (const auto& attachment : Response_->Attachments()) {
-                auto compressedAttachment = attachmentCodec->Compress(attachment);
-                responseAttachments.push_back(std::move(compressedAttachment));
-            }
+            auto responseAttachments = CompressAttachments(Response_->Attachments(), attachmentCodecId);
 
             this->UnderlyingContext_->SetResponseBody(std::move(serializedBody));
             this->UnderlyingContext_->ResponseAttachments() = std::move(responseAttachments);
@@ -461,10 +454,10 @@ protected:
         THandlerInvocationOptions Options;
 
         //! Maximum number of requests in queue (both waiting and executing).
-        int MaxQueueSize = TMethodConfig::DefaultMaxQueueSize;
+        int QueueSizeLimit = TMethodConfig::DefaultQueueSizeLimit;
 
         //! Maximum number of requests executing concurrently.
-        int MaxConcurrency = TMethodConfig::DefaultMaxConcurrency;
+        int ConcurrencyLimit = TMethodConfig::DefaultConcurrencyLimit;
 
         //! System requests are completely transparent to derived classes;
         //! in particular, |BeforeInvoke| is not called.
@@ -511,15 +504,15 @@ protected:
             return *this;
         }
 
-        TMethodDescriptor& SetMaxQueueSize(int value)
+        TMethodDescriptor& SetQueueSizeLimit(int value)
         {
-            MaxQueueSize = value;
+            QueueSizeLimit = value;
             return *this;
         }
 
-        TMethodDescriptor& SetMaxConcurrency(int value)
+        TMethodDescriptor& SetConcurrencyLimit(int value)
         {
-            MaxConcurrency = value;
+            ConcurrencyLimit = value;
             return *this;
         }
 
@@ -628,8 +621,9 @@ protected:
         TMethodDescriptor Descriptor;
         const NProfiling::TTagIdList TagIds;
 
-        //! The number of currently queued requests.
-        NProfiling::TAggregateGauge QueueSizeCounter;
+        std::atomic<int> QueueSize = {0};
+        NProfiling::TSimpleGauge QueueSizeCounter;
+        NProfiling::TSimpleGauge QueueSizeLimitCounter;
 
         std::atomic<int> ConcurrencySemaphore = {0};
         TLockFreeQueue<TServiceContextPtr> RequestQueue;
@@ -707,6 +701,8 @@ private:
     const TProtocolVersion ProtocolVersion_;
 
     const NProfiling::TTagId ServiceTagId_;
+    
+    const NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 
     NConcurrency::TReaderWriterSpinLock MethodMapLock_;
     THashMap<TString, TRuntimeMethodInfoPtr> MethodMap_;
@@ -719,10 +715,11 @@ private:
     TPromise<void> StopResult_ = NewPromise<void>();
     std::atomic<int> ActiveRequestCount_ = {0};
 
+    std::atomic<int> AuthenticationQueueSize_ = {0};
     NProfiling::TSimpleGauge AuthenticationQueueSizeCounter_;
     NProfiling::TAggregateGauge AuthenticationTimeCounter_;
-    int MaxAuthenticationQueueSize_ = TServiceConfig::DefaultMaxAuthenticationQueueSize;
-
+    int AuthenticationQueueSizeLimit_ = TServiceConfig::DefaultAuthenticationQueueSizeLimit;
+    
 private:
     struct TAcceptedRequest
     {
@@ -762,6 +759,8 @@ private:
     TMethodPerformanceCounters* GetMethodPerformanceCounters(
         const TRuntimeMethodInfoPtr& runtimeInfo,
         const TString& user);
+    
+    void OnProfiling();
 };
 
 DEFINE_REFCOUNTED_TYPE(TServiceBase)

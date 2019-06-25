@@ -21,7 +21,8 @@ DEFINE_ENUM(ELogicalMetatype,
     (Optional)
     (List)
     (Struct)
-    // In the future there will be Tuple, Variant, Struct, etc
+    (Tuple)
+    // In the future there will be Variant, Map, etc
 );
 
 class TLogicalType
@@ -35,10 +36,14 @@ public:
     const TOptionalLogicalType& AsOptionalTypeRef() const;
     const TListLogicalType& AsListTypeRef() const;
     const TStructLogicalType& AsStructTypeRef() const;
+    const TTupleLogicalType& AsTupleTypeRef() const;
 
     virtual size_t GetMemoryUsage() const = 0;
     virtual int GetTypeComplexity() const = 0;
-    virtual void Validate(const TComplexTypeFieldDescriptor& descriptor) const = 0;
+
+    // This function doesn't validate children of current node.
+    // Users should use ValidateLogicalType function.
+    virtual void ValidateNode() const = 0;
 
 private:
     const ELogicalMetatype Metatype_;
@@ -49,9 +54,12 @@ DEFINE_REFCOUNTED_TYPE(TLogicalType)
 TString ToString(const TLogicalType& logicalType);
 
 bool operator == (const TLogicalType& lhs, const TLogicalType& rhs);
+bool operator != (const TLogicalType& lhs, const TLogicalType& rhs);
 bool operator == (const TLogicalTypePtr& lhs, const TLogicalTypePtr& rhs) = delete;
 
 void ValidateAlterType(const TLogicalTypePtr& oldType, const TLogicalTypePtr& newType);
+
+void ValidateLogicalType(const TComplexTypeFieldDescriptor& descriptor);
 
 //! Returns true if #lhs type is subtype of #rhs type.
 //! We say that #lhs type is subtype of #rhs type
@@ -84,7 +92,7 @@ public:
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
-    virtual void Validate(const TComplexTypeFieldDescriptor& descriptor) const override;
+    virtual void ValidateNode() const override;
 
 private:
     const TLogicalTypePtr Element_;
@@ -103,7 +111,7 @@ public:
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
-    virtual void Validate(const TComplexTypeFieldDescriptor& descriptor) const override;
+    virtual void ValidateNode() const override;
 
 private:
     ESimpleLogicalValueType Element_;
@@ -122,7 +130,7 @@ public:
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
-    virtual void Validate(const TComplexTypeFieldDescriptor& descriptor) const override;
+    virtual void ValidateNode() const override;
 
 private:
     TLogicalTypePtr Element_;
@@ -142,9 +150,12 @@ public:
     TComplexTypeFieldDescriptor OptionalElement() const;
     TComplexTypeFieldDescriptor ListElement() const;
     TComplexTypeFieldDescriptor StructField(size_t i) const;
+    TComplexTypeFieldDescriptor TupleElement(size_t i) const;
 
     const TString& GetDescription() const;
     const TLogicalTypePtr& GetType() const;
+
+    void Walk(std::function<void(const TComplexTypeFieldDescriptor&)> onElement) const;
 
 private:
     TString Descriptor_;
@@ -169,7 +180,7 @@ public:
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
-    virtual void Validate(const TComplexTypeFieldDescriptor& descriptor) const override;
+    virtual void ValidateNode() const override;
 
 private:
     std::vector<TField> Fields_;
@@ -178,14 +189,34 @@ DEFINE_REFCOUNTED_TYPE(TStructLogicalType);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTupleLogicalType
+    : public TLogicalType
+{
+public:
+    explicit TTupleLogicalType(std::vector<TLogicalTypePtr> elements);
+
+    const std::vector<TLogicalTypePtr>& GetElements() const;
+
+    virtual size_t GetMemoryUsage() const override;
+    virtual int GetTypeComplexity() const override;
+    virtual void ValidateNode() const override;
+
+private:
+    std::vector<TLogicalTypePtr> Elements_;
+};
+DEFINE_REFCOUNTED_TYPE(TTupleLogicalType);
+
+////////////////////////////////////////////////////////////////////////////////
+
 extern TLogicalTypePtr NullLogicalType;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogicalTypePtr SimpleLogicalType(ESimpleLogicalValueType element, bool required);
+TLogicalTypePtr SimpleLogicalType(ESimpleLogicalValueType element, bool required = true);
 TLogicalTypePtr OptionalLogicalType(TLogicalTypePtr element);
 TLogicalTypePtr ListLogicalType(TLogicalTypePtr element);
 TLogicalTypePtr StructLogicalType(std::vector<TStructLogicalType::TField> fields);
+TLogicalTypePtr TupleLogicalType(std::vector<TLogicalTypePtr> fields);
 
 ////////////////////////////////////////////////////////////////////////////////
 

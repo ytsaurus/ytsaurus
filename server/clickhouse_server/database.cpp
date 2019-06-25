@@ -6,10 +6,18 @@
 #include "query_context.h"
 #include "table.h"
 
+#include <yt/ytlib/api/native/client.h>
+
+#include <yt/client/ypath/rich.h>
+
+#include <yt/core/ytree/convert.h>
+
 #include <Common/Exception.h>
 #include <Common/LRUCache.h>
 #include <Interpreters/Context.h>
 #include <Storages/IStorage.h>
+#include <Parsers/ParserCreateQuery.h>
+#include <Parsers/parseQuery.h>
 
 #include <memory>
 #include <mutex>
@@ -20,6 +28,8 @@ namespace NYT::NClickHouseServer {
 
 using namespace DB;
 using namespace NYPath;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,13 +96,9 @@ public:
         const Context& context,
         const std::string& name) override;
 
-    ASTPtr getCreateTableQuery(
-        const Context& context,
-        const std::string& name) const override;
+    ASTPtr getCreateTableQuery(const Context & context, const String & table_name) const override;
 
-    ASTPtr tryGetCreateTableQuery(
-        const Context& context,
-        const std::string& name) const override;
+    ASTPtr tryGetCreateTableQuery(const Context & context, const String & table_name) const override;
 
     ASTPtr getCreateDatabaseQuery(
         const Context &) const override;
@@ -107,6 +113,8 @@ private:
     StoragePtr GetTable(
         const Context& context,
         const std::string& name) const;
+
+    ASTPtr DoGetCreateTableQuery(const Context& context, const String& tableName, bool throwOnError) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -122,7 +130,7 @@ StoragePtr TDatabase::GetTable(
         return nullptr;
     }
 
-    return CreateStorageTable(std::move(table), Cluster);
+    return CreateStorageTable(std::move(table));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -196,9 +204,7 @@ void TDatabase::createTable(
     const StoragePtr& /* table */,
     const ASTPtr& /* query */)
 {
-    throw Exception(
-        "TDatabase: createTable() is not supported",
-        ErrorCodes::NOT_IMPLEMENTED);
+    // Table already created, nothing to do here.
 }
 
 void TDatabase::removeTable(
@@ -257,22 +263,14 @@ time_t TDatabase::getTableMetadataModificationTime(
     return 0;
 }
 
-ASTPtr TDatabase::getCreateTableQuery(
-    const Context& /* context */,
-    const std::string& /* name */) const
+ASTPtr TDatabase::getCreateTableQuery(const Context& context, const std::string& name) const
 {
-    throw Exception(
-        "TDatabase: getCreateTableQuery() is not supported",
-        ErrorCodes::NOT_IMPLEMENTED);
+    return DoGetCreateTableQuery(context, name, true /* throwOnError */);
 }
 
-ASTPtr TDatabase::tryGetCreateTableQuery(
-    const Context& /* context */,
-    const std::string& /* name */) const
+ASTPtr TDatabase::tryGetCreateTableQuery(const Context& context, const std::string& name) const
 {
-    throw Exception(
-        "TDatabase: tryGetCreateTableQuery() is not supported",
-        ErrorCodes::NOT_IMPLEMENTED);
+    return DoGetCreateTableQuery(context, name, false /* throwOnError */);
 }
 
 ASTPtr TDatabase::getCreateDatabaseQuery(
@@ -296,6 +294,44 @@ void TDatabase::shutdown()
 void TDatabase::drop()
 {
     // nothing to do
+}
+
+ASTPtr TDatabase::DoGetCreateTableQuery(const DB::Context& context, const DB::String& tableName, bool throwOnError) const
+{
+    auto* queryContext = GetQueryContext(context);
+    auto path = TRichYPath::Parse(TString(tableName));
+    NApi::TGetNodeOptions options;
+    options.Attributes = {
+        "compression_codec",
+        "erasure_codec",
+        "replication_factor",
+        "optimize_for",
+        "schema",
+    };
+    auto result = WaitFor(queryContext->Client()->GetNode(path.GetPath(), options))
+        .ValueOrThrow();
+    auto attributesYson = ConvertToYsonString(
+        ConvertToNode(result)->Attributes().ToMap(),
+        EYsonFormat::Text);
+    auto query = Format("CREATE TABLE \"%v\"(_ UInt8) ENGINE YtTable('%v')", path, attributesYson);
+
+    DB::ParserCreateQuery parser;
+    std::string errorMessage;
+    const char* data = query.data();
+    auto ast = tryParseQuery(
+        parser,
+        data,
+        data + query.size(),
+        errorMessage,
+        false /* hilite */,
+        "(n/a)",
+        false /* allow_multi_statements */,
+        0 /* max_query_size */);
+
+    if (!ast && throwOnError)
+        THROW_ERROR_EXCEPTION("Caught following error while parsing table creation query: %v", errorMessage);
+
+    return ast;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

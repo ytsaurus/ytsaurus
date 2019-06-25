@@ -16,6 +16,7 @@
 #include <yt/core/concurrency/throughput_throttler.h>
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/fiber.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/logging/log_manager.h>
 
@@ -45,6 +46,8 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Profiler = RpcServerProfiler;
+
+static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,6 +83,7 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     : Descriptor(descriptor)
     , TagIds(tagIds)
     , QueueSizeCounter("/request_queue_size", tagIds)
+    , QueueSizeLimitCounter("/request_queue_size_limit", tagIds)
     , LoggingSuppressionFailedRequestThrottler(
         CreateReconfigurableThroughputThrottler(TMethodConfig::DefaultLoggingSuppressionFailedRequestThrottler))
 { }
@@ -315,8 +319,6 @@ private:
 
     TDelayedExecutorCookie TimeoutCookie_;
 
-    TString GlobalRequestInfo_;
-
     bool Cancelable_ = false;
     TSingleShotCallbackList<void()> Canceled_;
 
@@ -427,7 +429,7 @@ private:
             }
         }
 
-        Profiler.Increment(RuntimeInfo_->QueueSizeCounter, +1);
+        ++RuntimeInfo_->QueueSize;
         ++Service_->ActiveRequestCount_;
     }
 
@@ -484,7 +486,7 @@ private:
                 ResponseCodec_);
         }
 
-        GlobalRequestInfo_ = builder.Flush();
+        RequestInfos_.push_back(builder.Flush());
     }
 
     void Finalize()
@@ -683,7 +685,7 @@ private:
             return;
         }
 
-        Profiler.Increment(RuntimeInfo_->QueueSizeCounter, -1);
+        --RuntimeInfo_->QueueSize;
         if (--Service_->ActiveRequestCount_ == 0 && Service_->Stopped_.load()) {
             Service_->StopResult_.TrySet();
         }
@@ -702,12 +704,8 @@ private:
 
         TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
 
-        if (GlobalRequestInfo_) {
-            delimitedBuilder->AppendString(GlobalRequestInfo_);
-        }
-
-        if (RequestInfo_) {
-            delimitedBuilder->AppendString(RequestInfo_);
+        for (const auto& info : RequestInfos_) {
+            delimitedBuilder->AppendString(info);
         }
 
         if (RuntimeInfo_->Descriptor.Cancelable && !Cancelable_) {
@@ -737,8 +735,8 @@ private:
             GetTotalMessageAttachmentSize(responseMessage),
             GetMessageAttachmentCount(responseMessage));
 
-        if (ResponseInfo_) {
-            delimitedBuilder->AppendString(ResponseInfo_);
+        for (const auto& info : ResponseInfos_) {
+            delimitedBuilder->AppendString(info);
         }
 
         delimitedBuilder->AppendFormat("ExecutionTime: %v, TotalTime: %v",
@@ -757,7 +755,7 @@ private:
             auto parameters = FromProto<TStreamingParameters>(RequestHeader_->server_attachments_streaming_parameters());
             RequestAttachmentsStream_ =  New<TAttachmentsInputStream>(
                 BIND(&TServiceContext::OnRequestAttachmentsStreamRead, MakeWeak(this)),
-                GetInvoker(),
+                TDispatcher::Get()->GetCompressionPoolInvoker(),
                 parameters.ReadTimeout);
         }
 
@@ -779,7 +777,7 @@ private:
             ResponseAttachmentsStream_ = New<TAttachmentsOutputStream>(
                 ResponseMemoryZone_,
                 ResponseCodec_,
-                GetInvoker(),
+                TDispatcher::Get()->GetCompressionPoolInvoker(),
                 BIND(&TServiceContext::OnPullResponseAttachmentsStream, MakeWeak(this)),
                 parameters.WindowSize,
                 parameters.WriteTimeout);
@@ -906,6 +904,10 @@ TServiceBase::TServiceBase(
     , ServiceId_(descriptor.GetFullServiceName(), realmId)
     , ProtocolVersion_(descriptor.ProtocolVersion)
     , ServiceTagId_(NProfiling::TProfileManager::Get()->RegisterTag("service", ServiceId_.ServiceName))
+    , ProfilingExecutor_(New<TPeriodicExecutor>(
+        GetSyncInvoker(),
+        BIND(&TServiceBase::OnProfiling, MakeWeak(this)),
+        ProfilingPeriod))
     , AuthenticationQueueSizeCounter_("/authentication_queue_size", {ServiceTagId_})
     , AuthenticationTimeCounter_("/authentication_time", {ServiceTagId_})
 {
@@ -914,6 +916,8 @@ TServiceBase::TServiceBase(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Discover)
         .SetInvoker(TDispatcher::Get()->GetLightInvoker())
         .SetSystem(true));
+
+    ProfilingExecutor_->Start();
 }
 
 const TServiceId& TServiceBase::GetServiceId() const
@@ -977,12 +981,12 @@ void TServiceBase::HandleRequest(
     }
 
     // Not actually atomic but should work fine as long as some small error is OK.
-    auto maxQueueSize = runtimeInfo->Descriptor.MaxQueueSize;
-    if (runtimeInfo->QueueSizeCounter.GetCurrent() > maxQueueSize) {
+    auto queueSizeLimit = runtimeInfo->Descriptor.QueueSizeLimit;
+    if (runtimeInfo->QueueSize.load() > queueSizeLimit) {
         replyError(TError(
             NRpc::EErrorCode::RequestQueueSizeLimitExceeded,
             "Request queue size limit exceeded")
-            << TErrorAttribute("limit", maxQueueSize));
+            << TErrorAttribute("limit", queueSizeLimit));
         return;
     }
 
@@ -1005,16 +1009,16 @@ void TServiceBase::HandleRequest(
     }
 
     // Not actually atomic but should work fine as long as some small error is OK.
-    auto maxAuthenticationQueueSize = MaxAuthenticationQueueSize_;
-    if (AuthenticationQueueSizeCounter_.GetCurrent() > maxAuthenticationQueueSize) {
+    auto authenticationQueueSizeLimit = AuthenticationQueueSizeLimit_;
+    if (AuthenticationQueueSize_.load() > authenticationQueueSizeLimit) {
         auto error = TError(
             NRpc::EErrorCode::RequestQueueSizeLimitExceeded,
             "Authentication request queue size limit exceeded")
-            << TErrorAttribute("limit", maxAuthenticationQueueSize);
+            << TErrorAttribute("limit", authenticationQueueSizeLimit);
         ReplyError(error, *acceptedRequest.Header, acceptedRequest.ReplyBus);
         return;
     }
-    Profiler.Increment(AuthenticationQueueSizeCounter_, +1);
+    ++AuthenticationQueueSize_;
 
     NProfiling::TWallTimer timer;
 
@@ -1060,7 +1064,7 @@ void TServiceBase::OnRequestAuthenticated(
     const TErrorOr<TAuthenticationResult>& authResultOrError)
 {
     Profiler.Update(AuthenticationTimeCounter_, timer.GetElapsedValue());
-    Profiler.Increment(AuthenticationQueueSizeCounter_, -1);
+    --AuthenticationQueueSize_;
     if (authResultOrError.IsOK()) {
         const auto& authResult = authResultOrError.Value();
         const auto& Logger = RpcServerLogger;
@@ -1187,7 +1191,7 @@ void TServiceBase::OnReplyBusTerminated(IBusPtr bus, const TError& error)
 bool TServiceBase::TryAcquireRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo)
 {
     auto& semaphore = runtimeInfo->ConcurrencySemaphore;
-    auto limit = runtimeInfo->Descriptor.MaxConcurrency;
+    auto limit = runtimeInfo->Descriptor.ConcurrencyLimit;
     while (true) {
         auto current = semaphore.load();
         if (current >= limit) {
@@ -1354,6 +1358,19 @@ TServiceBase::TMethodPerformanceCounters* TServiceBase::GetMethodPerformanceCoun
     }
 }
 
+void TServiceBase::OnProfiling()
+{
+    Profiler.Update(AuthenticationQueueSizeCounter_, AuthenticationQueueSize_.load());
+
+    {
+        TReaderGuard guard(MethodMapLock_);
+        for (const auto& [methodName, runtimeInfo] : MethodMap_) {
+            Profiler.Update(runtimeInfo->QueueSizeCounter, runtimeInfo->QueueSize.load());
+            Profiler.Update(runtimeInfo->QueueSizeLimitCounter, runtimeInfo->Descriptor.QueueSizeLimit);
+        }
+    }
+}
+
 TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor)
 {
     auto* profileManager = NProfiling::TProfileManager::Get();
@@ -1378,7 +1395,7 @@ void TServiceBase::Configure(INodePtr configNode)
     try {
         auto config = ConvertTo<TServiceConfigPtr>(configNode);
 
-        MaxAuthenticationQueueSize_ = config->MaxAuthenticationQueueSize;
+        AuthenticationQueueSizeLimit_ = config->AuthenticationQueueSizeLimit;
 
         for (const auto& pair : config->Methods) {
             const auto& methodName = pair.first;
@@ -1392,8 +1409,8 @@ void TServiceBase::Configure(INodePtr configNode)
 
             auto& descriptor = runtimeInfo->Descriptor;
             descriptor.SetHeavy(methodConfig->Heavy);
-            descriptor.SetMaxQueueSize(methodConfig->MaxQueueSize);
-            descriptor.SetMaxConcurrency(methodConfig->MaxConcurrency);
+            descriptor.SetQueueSizeLimit(methodConfig->QueueSizeLimit);
+            descriptor.SetConcurrencyLimit(methodConfig->ConcurrencyLimit);
             descriptor.SetLogLevel(methodConfig->LogLevel);
             descriptor.SetLoggingSuppressionTimeout(methodConfig->LoggingSuppressionTimeout);
 

@@ -67,8 +67,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkOwningNodes));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExecuteBatch)
             .SetHeavy(true)
-            .SetMaxQueueSize(10000)
-            .SetMaxConcurrency(10000));
+            .SetQueueSizeLimit(10000)
+            .SetConcurrencyLimit(10000));
     }
 
 private:

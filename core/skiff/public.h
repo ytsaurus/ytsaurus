@@ -51,8 +51,7 @@ class TSkiffConsumerBase;
 struct TParserTableDescription;
 struct TParserFieldInfo;
 
-struct TDenseFieldDescription;
-struct TSparseFieldDescription;
+class TFieldDescription;
 
 struct TSkiffTableDescription;
 

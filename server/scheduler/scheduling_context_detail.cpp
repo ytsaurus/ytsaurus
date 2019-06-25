@@ -46,9 +46,11 @@ bool TSchedulingContextBase::CanSatisfyResourceRequest(const TJobResources& jobR
 
 bool TSchedulingContextBase::CanStartJob(const TJobResourcesWithQuota& jobResourcesWithQuota) const
 {
+    std::vector<i64> diskRequests(DiskRequests_);
+    diskRequests.push_back(jobResourcesWithQuota.GetDiskQuota());
     return
         CanSatisfyResourceRequest(jobResourcesWithQuota.ToJobResources()) &&
-        CanSatisfyDiskRequest(DiskInfo_, jobResourcesWithQuota.GetDiskQuota());
+        CanSatisfyDiskRequests(DiskInfo_, diskRequests);
 }
 
 bool TSchedulingContextBase::CanStartMoreJobs() const
@@ -72,6 +74,10 @@ void TSchedulingContextBase::StartJob(
     TIncarnationId incarnationId,
     const TJobStartDescriptor& startDescriptor)
 {
+    ResourceUsage_ += startDescriptor.ResourceLimits.ToJobResources();
+    if (startDescriptor.ResourceLimits.GetDiskQuota() > 0) {
+        DiskRequests_.push_back(startDescriptor.ResourceLimits.GetDiskQuota());
+    }
     auto startTime = NProfiling::CpuInstantToInstant(GetNow());
     auto job = New<TJob>(
         startDescriptor.Id,
@@ -80,7 +86,7 @@ void TSchedulingContextBase::StartJob(
         incarnationId,
         Node_,
         startTime,
-        startDescriptor.ResourceLimits,
+        startDescriptor.ResourceLimits.ToJobResources(),
         startDescriptor.Interruptible,
         treeId);
     StartedJobs_.push_back(job);

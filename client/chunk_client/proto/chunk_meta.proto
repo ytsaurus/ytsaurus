@@ -2,6 +2,8 @@ package NYT.NChunkClient.NProto;
 
 import "yt/core/misc/proto/protobuf_helpers.proto";
 
+option python_package = "yt_proto.yt.client.chunk_client.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TBlockInfo

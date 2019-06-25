@@ -13,6 +13,7 @@
 #include <yt/core/logging/public.h>
 
 #include <Core/Field.h>
+#include <Storages/ColumnsDescription.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -35,6 +36,9 @@ DB::KeyCondition CreateKeyCondition(
 
 DB::Field ConvertToField(const NTableClient::TUnversionedValue& value);
 
+//! `value` should have Type field filled.
+void ConvertToUnversionedValue(const DB::Field& field, NTableClient::TUnversionedValue* value);
+
 void ConvertToFieldRow(const NTableClient::TUnversionedRow& row, DB::Field* field);
 void ConvertToFieldRow(const NTableClient::TUnversionedRow& row, int count, DB::Field* field);
 
@@ -51,6 +55,12 @@ TClickHouseTablePtr FetchClickHouseTable(
     const NApi::NNative::IClientPtr& client,
     const NYPath::TRichYPath& path,
     const NLogging::TLogger& logger);
+
+////////////////////////////////////////////////////////////////////////////////
+
+NTableClient::TTableSchema ConvertToTableSchema(
+    const DB::ColumnsDescription& columns,
+    const NTableClient::TKeyColumns& keyColumns);
 
 ////////////////////////////////////////////////////////////////////////////////
 

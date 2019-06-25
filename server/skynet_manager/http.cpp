@@ -89,6 +89,11 @@ public:
         DataSizeId_ = NameTable_->GetIdOrRegisterName("data_size");
     }
 
+    virtual const TTableSchema& GetSchema() const override
+    {
+        Y_UNREACHABLE();
+    }
+
     virtual const TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;

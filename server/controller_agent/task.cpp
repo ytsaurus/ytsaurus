@@ -379,7 +379,7 @@ void TTask::ScheduleJob(
     scheduleJobResult->StartDescriptor.emplace(
         joblet->JobId,
         jobType,
-        neededResources.ToJobResources(),
+        neededResources,
         IsJobInterruptible());
 
     joblet->Restarted = restarted;

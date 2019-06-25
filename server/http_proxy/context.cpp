@@ -582,7 +582,7 @@ void TContext::SetupOutputParameters()
     CreateBuildingYsonConsumer(&OutputParametersConsumer_, EYsonType::Node);
     OutputParametersConsumer_->OnBeginMap();
     DriverRequest_.ResponseParametersConsumer = OutputParametersConsumer_.get();
-    DriverRequest_.ParametersFinishedCallback = [this, weakThis = MakeWeak(this)] {
+    DriverRequest_.ResponseParametersFinishedCallback = [this, weakThis = MakeWeak(this)] {
         auto strongThis = weakThis.Lock();
         if (!strongThis) {
             return;
@@ -602,12 +602,8 @@ void TContext::SetupTracing()
         }
 
         auto config = Api_->GetCoordinator()->GetDynamicConfig();
-        const auto& tracingConfig = config->TracingUserSampleProbability;
-        auto it = tracingConfig.find(DriverRequest_.AuthenticatedUser);
-        if (it != tracingConfig.end()) {
-            if (RandomNumber<double>() < it->second) {
-                trace->SetSampled();
-            }
+        if (config->Tracing && IsTraceSampled(config->Tracing, DriverRequest_.AuthenticatedUser)) {
+            trace->SetSampled();
         }
     }
 }
@@ -729,6 +725,7 @@ void TContext::Finalize()
     if (!Error_.IsOK() && dumpErrorIntoResponse && DriverRequest_.OutputStream) {
         Y_UNUSED(WaitFor(DriverRequest_.OutputStream->Write(DumpError(Error_))));
         Y_UNUSED(WaitFor(DriverRequest_.OutputStream->Close()));
+        Y_UNUSED(WaitFor(Response_->Close()));
     } else if (!Response_->IsHeadersFlushed()) {
         Response_->GetHeaders()->Remove("Trailer");
 

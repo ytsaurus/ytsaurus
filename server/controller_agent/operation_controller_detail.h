@@ -425,6 +425,7 @@ protected:
     NApi::ITransactionPtr OutputCompletionTransaction;
     NApi::ITransactionPtr DebugCompletionTransaction;
     NApi::ITransactionPtr UserTransaction;
+    std::vector<NApi::ITransactionPtr> NestedInputTransactions;
 
     bool CommitFinished = false;
 
@@ -552,6 +553,7 @@ protected:
     void StartTransactions();
     virtual NTransactionClient::TTransactionId GetInputTransactionParentId();
     virtual NTransactionClient::TTransactionId GetOutputTransactionParentId();
+    std::vector<NTransactionClient::TTransactionId> GetNonTrivialInputTransactionIds();
     virtual void InitializeStructures();
     virtual void LockInputs();
     void InitUnrecognizedSpec();

@@ -67,6 +67,14 @@ TTcpBusClientConfigPtr TTcpBusClientConfig::CreateTcp(const TString& address)
     return config;
 }
 
+TTcpBusClientConfigPtr TTcpBusClientConfig::CreateTcp(const TString& address, const TString& network)
+{
+    auto config = New<TTcpBusClientConfig>();
+    config->Address = address;
+    config->NetworkName = network;
+    return config;
+}
+
 TTcpBusClientConfigPtr TTcpBusClientConfig::CreateUnixDomain(const TString& address)
 {
     auto config = New<TTcpBusClientConfig>();

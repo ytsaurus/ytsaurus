@@ -117,7 +117,7 @@ struct TPrerequisiteRevisionConfig
 {
     NYTree::TYPath Path;
     NTransactionClient::TTransactionId TransactionId;
-    i64 Revision;
+    ui64 Revision;
 
     TPrerequisiteRevisionConfig()
     {
@@ -220,8 +220,20 @@ struct TGetTabletsInfoOptions
 
 struct TTabletInfo
 {
+    //! Currently only provided for ordered tablets.
+    //! Indicates total number of rows added to the tablet (including trimmed ones).
+    // TODO(babenko): implement for sorted tablets
     i64 TotalRowCount = 0;
+
+    //! Only makes sense for ordered tablet.
+    //! Contains the number of front rows that are trimmed and are not guaranteed to be accessible.
     i64 TrimmedRowCount = 0;
+
+    //! Mostly makes sense for ordered tablets.
+    //! Contains the barrier timestamp of the tablet cell containing the tablet, which lags behind the current timestamp.
+    //! It is guaranteed that all transactions with commit timestamp not exceeding the barrier
+    //! are fully committed; e.g. all their addes rows are visible (and are included in TTabletInfo::TotalRowCount).
+    NTransactionClient::TTimestamp BarrierTimestamp;
 };
 
 struct TBalanceTabletCellsOptions
@@ -604,6 +616,7 @@ struct TFileWriterOptions
 struct TGetFileFromCacheOptions
     : public TTimeoutOptions
     , public TMasterReadOptions
+    , public TTransactionalOptions
 {
     NYPath::TYPath CachePath;
 };
@@ -613,6 +626,7 @@ struct TPutFileToCacheOptions
     , public TMasterReadOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
+    , public TTransactionalOptions
 {
     NYPath::TYPath CachePath;
     int RetryCount = 10;
@@ -936,7 +950,7 @@ struct TJob
     std::optional<double> Progress;
     std::optional<ui64> StderrSize;
     std::optional<ui64> FailContextSize;
-    std::optional<bool> HasSpec;
+    bool HasSpec = false;
     NYson::TYsonString Error;
     NYson::TYsonString BriefStatistics;
     NYson::TYsonString InputPaths;

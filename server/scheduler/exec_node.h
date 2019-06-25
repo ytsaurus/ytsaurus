@@ -62,8 +62,11 @@ public:
     //! Last time when heartbeat from node was processed.
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
 
+    //! Controls node at scheduler.
+    DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TLease, RegistrationLease);
+
     //! Controls heartbeat expiration.
-    DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TLease, Lease);
+    DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TLease, HeartbeatLease);
 
     //! State of node at master.
     DEFINE_BYVAL_RW_PROPERTY(NNodeTrackerClient::ENodeState, MasterState);

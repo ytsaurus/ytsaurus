@@ -172,7 +172,7 @@ void TRequestTracker::ReconfigureUserRequestRateThrottler(TUser* user)
         // followers (because it's they who handle read requests).
         // If there're two peers, there's only one follower - no division necessary.
         // If there's only one peer, its certainly being read from - no division necessary.
-        if (AlivePeerCount_ > 2) {
+        if (workloadType == EUserWorkloadType::Read && AlivePeerCount_ > 2) {
             requestRateLimit /= AlivePeerCount_ - 1;
         }
 

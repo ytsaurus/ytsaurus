@@ -10,6 +10,8 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/variant.h>
 
+#include <yt/core/profiling/profiler.h>
+
 #include <yt/core/rpc/public.h>
 
 #include <yt/core/yson/consumer.h>
@@ -100,7 +102,10 @@ struct IYPathService
     //! the underlying service.
     //! Building tree from underlying service is performed in #invoker,
     //! HeavyRpc invoker is used by default.
-    IYPathServicePtr Cached(TDuration updatePeriod, IInvokerPtr workerInvoker = nullptr);
+    IYPathServicePtr Cached(
+        TDuration updatePeriod,
+        IInvokerPtr workerInvoker = nullptr,
+        const NProfiling::TProfiler& profiler = NProfiling::TProfiler());
 
     //! Creates a wrapper that calls given callback on each invocation
     //! in order to validate user permission to query the ypath service.
@@ -118,12 +123,15 @@ protected:
 
 DEFINE_REFCOUNTED_TYPE(IYPathService)
 
-class ICachedYPathService
-    : public virtual TRefCounted
+////////////////////////////////////////////////////////////////////////////////
+
+struct ICachedYPathService
+    : public virtual IYPathService
 {
-public:
     virtual void SetCachePeriod(TDuration period) = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(ICachedYPathService)
 
 ////////////////////////////////////////////////////////////////////////////////
 

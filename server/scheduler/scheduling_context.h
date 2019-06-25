@@ -25,6 +25,7 @@ struct TFairShareSchedulingStatistics
     int ControllerScheduleJobCount = 0;
     int PreemptiveScheduleJobAttempts = 0;
     int NonPreemptiveScheduleJobAttempts = 0;
+    int PackingFallbackScheduleJobAttempts = 0;
     int ScheduledDuringPreemption = 0;
     int PreemptableJobCount = 0;
     bool HasAggressivelyStarvingElements = false;

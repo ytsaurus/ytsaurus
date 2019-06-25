@@ -1,7 +1,7 @@
 #pragma once
 
 #include "query_context.h"
-
+#include "cluster_tracker.h"
 #include "private.h"
 
 #include <yt/core/actions/public.h>
@@ -36,6 +36,8 @@ public:
     void AdjustQueryCount(const TString& user, EQueryKind queryKind, int delta);
 
     const IInvokerPtr& GetControlInvoker() const;
+
+    IClusterNodeTrackerPtr GetExecutionClusterNodeTracker() const;
 
 private:
     class TImpl;

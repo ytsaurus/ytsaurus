@@ -27,7 +27,10 @@ public:
 
     virtual void Shutdown() override;
 
-    NYT::NBus::TTosLevel GetTosLevelForBand(EMultiplexingBand band);
+    NYT::NBus::TTosLevel GetTosLevelForBand(EMultiplexingBand band, TNetworkId networkId);
+
+    // Register network names under unique ids.
+    TNetworkId GetNetworkId(const TString& networkName);
 
     //! Returns the invoker for the single thread used to dispatch light callbacks
     //! (e.g. discovery or request cancelation).
@@ -35,6 +38,12 @@ public:
     //! Returns the invoker for the thread pool used to dispatch heavy callbacks
     //! (e.g. serialization).
     const IInvokerPtr& GetHeavyInvoker();
+
+    //! Returns the prioritized invoker for the thread pool used to
+    //! dispatch compression callbacks.
+    const IPrioritizedInvokerPtr& GetPrioritizedCompressionPoolInvoker();
+    //! Returns the invoker for the thread pool used to dispatch compression callbacks.
+    const IInvokerPtr& GetCompressionPoolInvoker();
 
 private:
     class TImpl;

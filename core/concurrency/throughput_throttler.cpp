@@ -25,6 +25,8 @@ public:
         : Logger(logger)
         , Profiler(profiler)
         , ValueCounter_("/value")
+        , QueueSizeCounter_("/queue_size")
+
     {
         Reconfigure(config);
     }
@@ -73,6 +75,7 @@ public:
         TRequest request{count, NewPromise<void>()};
         Requests_.push(request);
         QueueTotalCount_ += count;
+        Profiler.Update(QueueSizeCounter_, QueueTotalCount_);
         return request.Promise;
     }
 
@@ -127,7 +130,7 @@ public:
         }
 
         Profiler.Increment(ValueCounter_, count);
-        return true;
+        return count;
     }
 
     virtual void Acquire(i64 count) override
@@ -193,6 +196,7 @@ private:
     const NProfiling::TProfiler Profiler;
 
     NProfiling::TMonotonicCounter ValueCounter_;
+    NProfiling::TSimpleGauge QueueSizeCounter_;
 
     std::atomic<i64> Available_ = {0};
     std::atomic<bool> HasLimit_ = {true};
@@ -244,6 +248,7 @@ private:
                 readyList.push_back(std::move(request.Promise));
             }
             QueueTotalCount_ -= request.Count;
+            Profiler.Update(QueueSizeCounter_, QueueTotalCount_);
             Requests_.pop();
         }
 

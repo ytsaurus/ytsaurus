@@ -47,12 +47,13 @@ struct IServiceContext
      */
     virtual TRequestId GetRequestId() const = 0;
 
-    //! Return statistics from underlying bus.
+    //! Returns the statistics from underlying bus.
     /*!
      *  For implementations not using bus, returns all zeroes.
      */
     virtual NYT::NBus::TTcpDispatcherStatistics GetBusStatistics() const = 0;
 
+    //! Returns the attributes of the connected endpoint.
     virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const = 0;
 
     //! Returns the instant when the current retry of request was issued by the client, if known.
@@ -123,7 +124,7 @@ struct IServiceContext
      *  \note
      *  Can only be called after the context is replied.
      */
-    virtual TSharedRefArray GetResponseMessage() const = 0;
+    virtual const TSharedRefArray& GetResponseMessage() const = 0;
 
     //! Returns the error that was previously set by #Reply.
     /*!
@@ -158,11 +159,26 @@ struct IServiceContext
     //! Returns mutable request header.
     virtual NProto::TRequestHeader& RequestHeader() = 0;
 
-    //! Sets and immediately logs the request logging info.
-    virtual void SetRawRequestInfo(const TString& info) = 0;
+    //! Registers a portion of request logging info.
+    /*!
+     *  \param incremental If true then \p info is just remembered but no logging happens.
+     *  If false then all remembered infos are logged (comma-separated).
+     *  This must be the last call to #SetRawRequestInfo for this context.
+     *
+     *  Passing empty \p info in incremental mode is no-op.
+     *  Passing empty \p info in non-incremental mode flushes the logging message.
+     */
+    virtual void SetRawRequestInfo(TString info, bool incremental) = 0;
 
-    //! Sets the response logging info. This info will be logged when the context is replied.
-    virtual void SetRawResponseInfo(const TString& info) = 0;
+    //! Registers a portion of response logging info.
+    /*!
+     *  \param incremental If false then \p info overrides all previously remembered infos.
+     *  These infos are logged (comma-separated) when the context is replied.
+     *
+     *  Passing empty \p info in incremental mode is no-op.
+     *  Passing empty \p info in non-incremental mode clears the logging infos.
+     */
+    virtual void SetRawResponseInfo(TString info, bool incremental) = 0;
 
     //! Returns the logger for request/response messages.
     virtual const NLogging::TLogger& GetLogger() const = 0;
@@ -186,10 +202,16 @@ struct IServiceContext
     void SetResponseInfo();
 
     template <class... TArgs>
-    void SetRequestInfo(const char* format, const TArgs&... args);
+    void SetRequestInfo(const char* format, TArgs&&... args);
 
     template <class... TArgs>
-    void SetResponseInfo(const char* format, const TArgs&... args);
+    void SetIncrementalRequestInfo(const char* format, TArgs&&... args);
+
+    template <class... TArgs>
+    void SetResponseInfo(const char* format, TArgs&&... args);
+
+    template <class... TArgs>
+    void SetIncrementalResponseInfo(const char* format, TArgs&&... args);
 
     //! Replies with a given message when the latter is set.
     void ReplyFrom(TFuture<TSharedRefArray> asyncMessage);

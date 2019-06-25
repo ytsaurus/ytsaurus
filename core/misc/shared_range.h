@@ -83,7 +83,7 @@ public:
         return TSharedRange<T>(begin, end, Holder_);
     }
 
-    THolderPtr GetHolder() const
+    const THolderPtr& GetHolder() const
     {
         return Holder_;
     }

@@ -101,7 +101,7 @@ TSlotLocation::TSlotLocation(
 
 TFuture<std::vector<TString>> TSlotLocation::CreateSandboxDirectories(int slotIndex, TUserSandboxOptions options, int userId)
 {
-    return BIND([=, this_ = MakeStrong(this)] () -> std::vector<TString> {
+    return BIND([=, this_ = MakeStrong(this)] {
          ValidateEnabled();
 
          YT_LOG_DEBUG("Making sandbox directiories (SlotIndex: %v)", slotIndex);
@@ -237,22 +237,17 @@ TFuture<std::vector<TString>> TSlotLocation::CreateSandboxDirectories(int slotIn
     .Run();
 }
 
-TFuture<void> TSlotLocation::MakeSandboxCopy(
+TFuture<void> TSlotLocation::DoMakeSandboxFile(
     int slotIndex,
     ESandboxKind kind,
-    const TString& sourcePath,
-    const TString& destinationName,
-    bool executable)
+    const std::function<void(const TString& destinationPath)>& callback,
+    const TString& destinationName)
 {
     return BIND([=, this_ = MakeStrong(this)] () {
         ValidateEnabled();
 
         auto sandboxPath = GetSandboxPath(slotIndex, kind);
         auto destinationPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, destinationName));
-
-        YT_LOG_DEBUG("Making sandbox copy (SourcePath: %v, DestinationName: %v)",
-            sourcePath,
-            destinationName);
 
         try {
             // This validations do not disable slot.
@@ -261,17 +256,17 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
         } catch (const std::exception& ex) {
             // Job will be failed.
             THROW_ERROR_EXCEPTION(
-                "Failed to make a copy for file %Qv into sandbox %v",
+                "Failed to build file %Qv in sandbox %v",
                 destinationName,
                 sandboxPath)
-                    << ex;
+                << ex;
         }
 
         auto logErrorAndDisableLocation = [&] (const std::exception& ex) {
             // Probably location error, job will be aborted.
             auto error = TError(
                 EErrorCode::ArtifactCopyingFailed,
-                "Failed to make a copy for file %Qv into sandbox %v",
+                "Failed to build file %Qv in sandbox %v",
                 destinationName,
                 sandboxPath) << ex;
             Disable(error);
@@ -279,24 +274,15 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
         };
 
         try {
-            NFS::ChunkedCopy(
-                sourcePath,
-                destinationPath,
-                Bootstrap_->GetConfig()->ExecAgent->SlotManager->FileCopyChunkSize);
+            callback(destinationPath);
             EnsureNotInUse(destinationPath);
-
-            auto permissions = 0666;
-            if (executable) {
-                permissions |= 0111;
-            }
-            SetPermissions(destinationPath, permissions);
         } catch (const TErrorException& ex) {
             if (IsInsideTmpfs(destinationPath) && ex.Error().FindMatching(ELinuxErrorCode::NOSPC)) {
-                THROW_ERROR_EXCEPTION("Failed to make a copy for file %Qv into sandbox %v: tmpfs is too small",
+                THROW_ERROR_EXCEPTION("Failed to build file %Qv in sandbox %v: tmpfs is too small",
                     destinationName,
                     sandboxPath) << ex;
             } else if (SlotsWithQuota_.find(slotIndex) != SlotsWithQuota_.end() && ex.Error().FindMatching(ELinuxErrorCode::NOSPC)) {
-                THROW_ERROR_EXCEPTION("Failed to make a copy for file %Qv into sandbox %v: disk space limit is too small",
+                THROW_ERROR_EXCEPTION("Failed to build file %Qv in sandbox %v: disk space limit is too small",
                     destinationName,
                     sandboxPath) << ex;
             } else {
@@ -310,6 +296,35 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
     .Run();
 }
 
+TFuture<void> TSlotLocation::MakeSandboxCopy(
+    int slotIndex,
+    ESandboxKind kind,
+    const TString& sourcePath,
+    const TString& destinationName,
+    bool executable)
+{
+    return DoMakeSandboxFile(
+        slotIndex,
+        kind,
+        [=] (const TString& destinationPath) {
+            YT_LOG_DEBUG("Started copying file to sandbox (SourcePath: %v, DestinationName: %v)",
+                sourcePath,
+                destinationName);
+
+            NFS::ChunkedCopy(
+                sourcePath,
+                destinationPath,
+                Bootstrap_->GetConfig()->ExecAgent->SlotManager->FileCopyChunkSize);
+
+            NFS::SetPermissions(destinationPath, 0666 + (executable ? 0111 : 0));
+
+            YT_LOG_DEBUG("Finished copying file to sandbox (SourcePath: %v, DestinationName: %v)",
+                sourcePath,
+                destinationName);
+        },
+        destinationName);
+}
+
 TFuture<void> TSlotLocation::MakeSandboxLink(
     int slotIndex,
     ESandboxKind kind,
@@ -317,53 +332,52 @@ TFuture<void> TSlotLocation::MakeSandboxLink(
     const TString& linkName,
     bool executable)
 {
-    return BIND([=, this_ = MakeStrong(this)] () {
-        ValidateEnabled();
+    return DoMakeSandboxFile(
+        slotIndex,
+        kind,
+        [=] (const TString& linkPath) {
+            YT_LOG_DEBUG("Started making sandbox symlink (TargetPath: %v, LinkName: %v)",
+                targetPath,
+                linkName);
 
-        auto sandboxPath = GetSandboxPath(slotIndex, kind);
-        auto linkPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, linkName));
+            // NB: Set permissions for the link _source_ and prevent writes to it.
+            NFS::SetPermissions(targetPath, 0644 + (executable ? 0111 : 0));
 
-        YT_LOG_DEBUG("Making sandbox symlink (TargetPath: %v, LinkName: %v)", targetPath, linkName);
-
-        try {
-            // These validations do not disable slot.
-            ValidateNotExists(linkPath);
-            ForceSubdirectories(linkPath, sandboxPath);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Failed to make a symlink %Qv into sandbox %v", linkName, sandboxPath)
-                << ex;
-        }
-
-        auto logErrorAndDisableLocation = [&] (const std::exception& ex) {
-            // Job will be aborted.
-            auto error = TError(EErrorCode::SlotLocationDisabled, "Failed to make a symlink %Qv into sandbox %v", linkName, sandboxPath)
-                << ex;
-            Disable(error);
-            THROW_ERROR error;
-        };
-
-        try {
-            EnsureNotInUse(targetPath);
-            NFS::SetExecutableMode(targetPath, executable);
             NFS::MakeSymbolicLink(targetPath, linkPath);
-        } catch (const TErrorException& ex) {
-            if (IsInsideTmpfs(targetPath) && ex.Error().FindMatching(ELinuxErrorCode::NOSPC)) {
-                THROW_ERROR_EXCEPTION("Failed to make a symlink for file %Qv into sandbox %v: tmpfs is too small",
-                    targetPath,
-                    sandboxPath) << ex;
-            } else if (SlotsWithQuota_.find(slotIndex) != SlotsWithQuota_.end() && ex.Error().FindMatching(ELinuxErrorCode::NOSPC)) {
-                THROW_ERROR_EXCEPTION("Failed to make a symlink for file %Qv into sandbox %v: disk space limit is too small",
-                    targetPath,
-                    sandboxPath) << ex;
-            } else {
-                logErrorAndDisableLocation(ex);
-            }
-        } catch (const std::exception& ex) {
-            logErrorAndDisableLocation(ex);
-        }
-    })
-    .AsyncVia(LocationQueue_->GetInvoker())
-    .Run();
+
+            YT_LOG_DEBUG("Finished making sandbox symlink (TargetPath: %v, LinkName: %v)",
+                targetPath,
+                linkName);
+        },
+        linkName);
+}
+
+TFuture<void> TSlotLocation::MakeSandboxFile(
+    int slotIndex,
+    ESandboxKind kind,
+    const std::function<void(IOutputStream*)>& producer,
+    const TString& destinationName,
+    bool executable)
+{
+    return DoMakeSandboxFile(
+        slotIndex,
+        kind,
+        [=] (const TString& destinationPath) {
+            YT_LOG_DEBUG("Started building sandbox file (DestinationName: %v)",
+                destinationName);
+
+            TFile file(destinationPath, CreateAlways | WrOnly | Seq | CloseOnExec);
+            file.Flock(LOCK_EX);
+
+            TFileOutput stream(file);
+            producer(&stream);
+
+            NFS::SetPermissions(destinationPath, 0666 + (executable ? 0111 : 0));
+
+            YT_LOG_DEBUG("Finished building sandbox file (DestinationName: %v)",
+                destinationName);
+        },
+        destinationName);
 }
 
 TFuture<void> TSlotLocation::FinalizeSanboxPreparation(
@@ -428,7 +442,9 @@ TFuture<void> TSlotLocation::MakeConfig(int slotIndex, INodePtr config)
             writer.Flush();
         } catch (const std::exception& ex) {
             // Job will be aborted.
-            auto error = TError(EErrorCode::SlotLocationDisabled, "Failed to write job proxy config into %v", proxyConfigPath) << ex;
+            auto error = TError(EErrorCode::SlotLocationDisabled, "Failed to write job proxy config into %v",
+                proxyConfigPath)
+                << ex;
             Disable(error);
             THROW_ERROR error;
         }

@@ -4,6 +4,7 @@
 
 #include <yt/server/scheduler/fair_share_tree_element.h>
 #include <yt/server/scheduler/operation_controller.h>
+#include <yt/server/scheduler/resource_tree.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -260,19 +261,23 @@ class TFairShareTreeHostMock
     : public IFairShareTreeHost
 {
 public:
+    TFairShareTreeHostMock()
+        : ResourceTree_(New<TResourceTree>())
+    { }
+
     virtual NProfiling::TAggregateGauge& GetProfilingCounter(const TString& name) override
     {
         return FakeCounter_;
     }
 
-    virtual NConcurrency::TReaderWriterSpinLock* GetSharedStateTreeLock() override
+    virtual TResourceTree* GetResourceTree() override
     {
-        return &SharedStateTreeLock_;
+        return ResourceTree_.Get();
     }
 
 private:
     NProfiling::TAggregateGauge FakeCounter_;
-    NConcurrency::TReaderWriterSpinLock SharedStateTreeLock_;
+    TResourceTreePtr ResourceTree_;
 };
 
 class TFairShareTreeTest
@@ -300,7 +305,8 @@ protected:
             TreeConfig_,
             // TODO(ignat): eliminate profiling from test.
             NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
-            "default");
+            "default",
+            SchedulerLogger);
     }
 
     TPoolPtr CreateTestPool(ISchedulerStrategyHost* host, const TString& name)
@@ -314,7 +320,8 @@ protected:
             TreeConfig_,
             // TODO(ignat): eliminate profiling from test.
             NProfiling::TProfileManager::Get()->RegisterTag("pool", name),
-            "default");
+            "default",
+            SchedulerLogger);
     }
 
     TOperationElementPtr CreateTestOperationElement(
@@ -332,7 +339,8 @@ protected:
             host,
             &FairShareTreeHostMock_,
             operation,
-            "default");
+            "default",
+            SchedulerLogger);
     }
 
     TExecNodePtr CreateTestExecNode(NNodeTrackerClient::TNodeId id, const TJobResourcesWithQuota& nodeResources)
@@ -354,16 +362,16 @@ protected:
         const TExecNodePtr& execNode)
     {
         auto schedulingContext = CreateSchedulingContext(
-            0,
+            /* nodeShardId */ 0,
             SchedulerConfig_,
             execNode,
             /* runningJobs */ {});
-        TFairShareContext context(schedulingContext, /* enableSchedulingInfoLogging */ true);
+        TFairShareContext context(schedulingContext, /* enableSchedulingInfoLogging */ true, SchedulerLogger);
         TDynamicAttributesList dynamicAttributes;
 
         context.StartStage(&SchedulingStageMock_);
         PrepareForTestScheduling(rootElement, &context, &dynamicAttributes);
-        operationElement->ScheduleJob(&context);
+        operationElement->ScheduleJob(&context, /* ignorePacking */ true);
         context.FinishStage();
     }
 
@@ -425,7 +433,7 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     EXPECT_EQ(0.0, poolB->Attributes().DemandRatio);
     EXPECT_EQ(0.1, operationElementX->Attributes().DemandRatio);
 
-    EXPECT_EQ(1.0, rootElement->Attributes().FairShareRatio);
+    EXPECT_EQ(0.1, rootElement->Attributes().FairShareRatio);
     EXPECT_EQ(0.1, rootElement->Attributes().DemandRatio);
     EXPECT_EQ(0.0, poolB->Attributes().FairShareRatio);
     EXPECT_EQ(0.1, operationElementX->Attributes().FairShareRatio);
@@ -654,7 +662,8 @@ TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
         .WillRepeatedly(testing::Invoke([&](auto context, auto jobLimits, auto treeId) {
             heartbeatsInScheduling.fetch_add(1);
             EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
-            return MakeFuture<TControllerScheduleJobResultPtr>(TErrorOr<TControllerScheduleJobResultPtr>(New<TControllerScheduleJobResult>()));
+            return MakeFuture<TControllerScheduleJobResultPtr>(
+                TErrorOr<TControllerScheduleJobResultPtr>(New<TControllerScheduleJobResult>()));
         }));
 
     std::vector<TFuture<void>> futures;

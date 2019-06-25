@@ -44,7 +44,7 @@ public:
         , Bootstrap_(bootstrap)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobSpecs)
-            .SetMaxConcurrency(100000));
+            .SetConcurrencyLimit(100000));
     }
 
 private:

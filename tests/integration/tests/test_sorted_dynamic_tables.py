@@ -33,7 +33,7 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
                 {"name": "value", "type": "string"}],
                 unique_keys=True)
             })
-        create_table_with_attributes(path, **attributes)
+        create("table", path, attributes=attributes)
 
     def _create_table_with_computed_column(self, path, **attributes):
         if "schema" not in attributes:
@@ -483,6 +483,21 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         actual = lookup_rows("//tmp/t", keys, column_names=["value3"], versioned=True, retention_config=retention_config)
         _check(actual[0])
 
+    def test_merge_rows_on_flush_removes_row(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@min_data_versions", 0)
+        set("//tmp/t/@max_data_versions", 0)
+        set("//tmp/t/@min_data_ttl", 0)
+        set("//tmp/t/@max_data_ttl", 0)
+        set("//tmp/t/@merge_rows_on_flush", True)
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 1, "value": "a"}])
+        assert select_rows("* from [//tmp/t]") == [{"key": 1, "value": "a"}]
+
+        sync_unmount_table("//tmp/t")
+        assert get("//tmp/t/@chunk_count") == 0
 
     def test_overflow_row_data_weight(self):
         sync_create_cells(1)
@@ -495,7 +510,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         with pytest.raises(YtError):
             insert_rows("//tmp/t", rows)
 
-    @skip_if_rpc_driver_backend
     def test_read_invalid_limits(self):
         sync_create_cells(1)
 
@@ -509,7 +523,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         with pytest.raises(YtError): read_table("//tmp/t[#5:]")
         with pytest.raises(YtError): read_table("<ranges=[{lower_limit={offset = 0};upper_limit={offset = 1}}]>//tmp/t")
 
-    @skip_if_rpc_driver_backend
     @pytest.mark.parametrize("erasure_codec", ["none", "reed_solomon_6_3", "lrc_12_2_2"])
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_read_table(self, optimize_for, erasure_codec):
@@ -535,7 +548,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert read_table("<timestamp=%s>//tmp/t" %(ts)) == rows1
         assert get("//tmp/t/@chunk_count") == 2
 
-    @skip_if_rpc_driver_backend
     def test_read_snapshot_lock(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -644,7 +656,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         abort_transaction(tx)
         verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
 
-    @skip_if_rpc_driver_backend
     def test_read_table_ranges(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", pivot_keys=[[], [5]])
@@ -690,7 +701,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert read_table("//tmp/t[(2):(9)]") == rows[2:9]
         assert get("//tmp/t/@chunk_count") == 6
 
-    @skip_if_rpc_driver_backend
     @parametrize_external
     def test_read_table_when_chunk_crosses_tablet_boundaries(self, external):
         self._create_simple_static_table("//tmp/t", external=external)
@@ -709,7 +719,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_reshard_table("//tmp/t", [[], [2], [4]])
         do_test()
 
-    @skip_if_rpc_driver_backend
     def test_write_table(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -1826,7 +1835,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert lookup_rows("//tmp/t", [{"key": 1}], versioned=True, timestamp=ts) == []
 
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    @skip_if_rpc_driver_backend
     def test_versioned_lookup_early_timestamp_after_alter(self, optimize_for):
         sync_create_cells(1)
 
@@ -2290,7 +2298,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert not get("//tmp/t/@schema/@unique_keys")
         with pytest.raises(YtError): alter_table("//tmp/t", dynamic=True)
 
-    @skip_if_rpc_driver_backend
     @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("in_memory_mode, enable_lookup_hash_table", [
@@ -2377,7 +2384,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         actual = select_rows("key, avalue from [//tmp/t]")
         assert_items_equal(actual, expected)
 
-    @skip_if_rpc_driver_backend
     @parametrize_external
     def test_chunk_list_kind(self, external):
         sync_create_cells(1)

@@ -33,6 +33,7 @@ TEST(TProcessTest, Basic)
 }
 
 #ifndef YT_IN_ARCADIA
+// NB: We cannot rely on 'ls' and 'sleep' in arcadia tests.
 TEST(TProcessTest, RunFromPathEnv)
 {
     auto p = New<TSimpleProcess>("ls", false);
@@ -41,6 +42,16 @@ TEST(TProcessTest, RunFromPathEnv)
     ASSERT_NO_THROW(finished = p->Spawn());
     ASSERT_TRUE(p->IsStarted());
     auto error = WaitFor(finished);
+    EXPECT_TRUE(error.IsOK()) << ToString(error);
+    EXPECT_TRUE(p->IsFinished());
+}
+
+TEST(TProcessTest, PollDuration)
+{
+    auto p = New<TSimpleProcess>("/bin/sleep", true, TDuration::MilliSeconds(1));
+    p->AddArgument("0.1");
+
+    auto error = WaitFor(p->Spawn());
     EXPECT_TRUE(error.IsOK()) << ToString(error);
     EXPECT_TRUE(p->IsFinished());
 }
@@ -215,16 +226,6 @@ TEST(TProcessTest, KillZombie)
     p->Kill(SIGKILL);
     auto error = WaitFor(finished);
     EXPECT_TRUE(error.IsOK());
-}
-
-TEST(TProcessTest, PollDuration)
-{
-    auto p = New<TSimpleProcess>("/bin/sleep", true, TDuration::MilliSeconds(1));
-    p->AddArgument("0.1");
-
-    auto error = WaitFor(p->Spawn());
-    EXPECT_TRUE(error.IsOK()) << ToString(error);
-    EXPECT_TRUE(p->IsFinished());
 }
 
 #endif

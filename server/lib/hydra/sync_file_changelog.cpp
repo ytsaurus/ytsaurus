@@ -525,7 +525,7 @@ public:
                 i64 endOffset = startOffset + header.DataSize;
 
                 auto data = envelope.Blob.Slice(startOffset, endOffset);
-                inputStream.Skip(AlignUp(header.DataSize));
+                inputStream.Skip(AlignUp<size_t>(header.DataSize, SerializationAlignment));
                 inputStream.Skip(header.PaddingSize);
 
                 auto checksum = GetChecksum(data);

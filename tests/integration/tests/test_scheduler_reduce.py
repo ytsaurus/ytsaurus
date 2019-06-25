@@ -1575,14 +1575,6 @@ done
         assert get("//tmp/t2/@row_count") in [0, 10000]
         assert get("//tmp/t2/@chunk_count") in [0, 1]
 
-
-class TestSchedulerNewReduceCommands(TestSchedulerReduceCommands):
-    @classmethod
-    def modify_controller_agent_config(cls, config):
-        TestSchedulerReduceCommands.modify_controller_agent_config(config)
-        config["controller_agent"]["reduce_operation_options"]["spec_template"] = {"use_new_controller": True}
-
-    @unix_only
     def test_reduce_skewed_key_distribution_one_table(self):
         create("table", "//tmp/in1")
         create("table", "//tmp/out")
@@ -1608,7 +1600,6 @@ class TestSchedulerNewReduceCommands(TestSchedulerReduceCommands):
                     {"key": "b"}]
         assert sorted(list(read_table("//tmp/out"))) == sorted(expected)
 
-    @unix_only
     def test_reduce_skewed_key_distribution_two_tables(self):
         create("table", "//tmp/in1")
         create("table", "//tmp/out")
@@ -1796,8 +1787,4 @@ class TestSchedulerNewReduceCommands(TestSchedulerReduceCommands):
 
 
 class TestSchedulerReduceCommandsMulticell(TestSchedulerReduceCommands):
-    NUM_SECONDARY_MASTER_CELLS = 2
-
-
-class TestSchedulerNewReduceCommandsMulticell(TestSchedulerNewReduceCommands):
     NUM_SECONDARY_MASTER_CELLS = 2

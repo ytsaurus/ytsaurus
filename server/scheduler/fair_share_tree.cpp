@@ -2,10 +2,12 @@
 #include "fair_share_tree_element.h"
 #include "public.h"
 #include "pools_config_parser.h"
+#include "resource_tree.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
 #include "fair_share_strategy_operation_controller.h"
-#include "fair_share_tree.h"
+
+#include "operation_log.h"
 
 #include <yt/server/lib/scheduler/config.h>
 
@@ -80,6 +82,80 @@ TTagId GetUserNameProfilingTag(const TString& userName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TOperationElement* TFairShareTree::TRootElementSnapshot::FindOperationElement(TOperationId operationId) const
+{
+    auto it = OperationIdToElement.find(operationId);
+    return it != OperationIdToElement.end() ? it->second : nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFairShareTree::TFairShareTreeSnapshot::TFairShareTreeSnapshot(
+    TFairShareTreePtr tree,
+    TFairShareTree::TRootElementSnapshotPtr rootElementSnapshot,
+    const NLogging::TLogger& logger)
+    : Tree_(std::move(tree))
+    , RootElementSnapshot_(std::move(rootElementSnapshot))
+    , Logger(logger)
+    , NodesFilter_(Tree_->GetNodesFilter())
+{ }
+
+TFuture<void> TFairShareTree::TFairShareTreeSnapshot::ScheduleJobs(const ISchedulingContextPtr& schedulingContext)
+{
+    return BIND(&TFairShareTree::DoScheduleJobs,
+        Tree_,
+        schedulingContext,
+        RootElementSnapshot_)
+        .AsyncVia(GetCurrentInvoker())
+        .Run();
+}
+
+void TFairShareTree::TFairShareTreeSnapshot::ProcessUpdatedJob(
+    TOperationId operationId,
+    TJobId jobId,
+    const TJobResources& delta)
+{
+    // NB: Should be filtered out on large clusters.
+    YT_LOG_DEBUG("Processing updated job (OperationId: %v, JobId: %v)", operationId, jobId);
+    auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
+    if (operationElement) {
+        operationElement->IncreaseJobResourceUsage(jobId, delta);
+    }
+}
+
+void TFairShareTree::TFairShareTreeSnapshot::ProcessFinishedJob(TOperationId operationId, TJobId jobId)
+{
+    // NB: Should be filtered out on large clusters.
+    YT_LOG_DEBUG("Processing finished job (OperationId: %v, JobId: %v)", operationId, jobId);
+    auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
+    if (operationElement) {
+        operationElement->OnJobFinished(jobId);
+    }
+}
+
+void TFairShareTree::TFairShareTreeSnapshot::ApplyJobMetricsDelta(
+    TOperationId operationId,
+    const TJobMetrics& jobMetricsDelta)
+{
+    auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
+    if (operationElement) {
+        operationElement->ApplyJobMetricsDelta(jobMetricsDelta);
+    }
+}
+
+bool TFairShareTree::TFairShareTreeSnapshot::HasOperation(TOperationId operationId) const
+{
+    auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
+    return operationElement != nullptr;
+}
+
+const TSchedulingTagFilter& TFairShareTree::TFairShareTreeSnapshot::GetNodesFilter() const
+{
+    return NodesFilter_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TFairShareTree::TFairShareTree(
     TFairShareStrategyTreeConfigPtr config,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
@@ -87,7 +163,8 @@ TFairShareTree::TFairShareTree(
     const std::vector<IInvokerPtr>& feasibleInvokers,
     const TString& treeId)
     : Config_(config)
-    , ControllerConfig_(controllerConfig)
+    , ControllerConfig_(std::move(controllerConfig))
+    , ResourceTree_(New<TResourceTree>())
     , Host_(host)
     , FeasibleInvokers_(feasibleInvokers)
     , TreeId_(treeId)
@@ -100,11 +177,14 @@ TFairShareTree::TFairShareTree(
     , PreemptiveSchedulingStage_(
         /* nameInLogs */ "Preemptive",
         TScheduleJobsProfilingCounters("/preemptive", {TreeIdProfilingTag_}))
+    , PackingFallbackSchedulingStage_(
+        /* nameInLogs */ "Packing fallback",
+        TScheduleJobsProfilingCounters("/packing_fallback", {TreeIdProfilingTag_}))
     , FairShareUpdateTimeCounter_("/fair_share_update_time", {TreeIdProfilingTag_})
     , FairShareLogTimeCounter_("/fair_share_log_time", {TreeIdProfilingTag_})
     , AnalyzePreemptableJobsTimeCounter_("/analyze_preemptable_jobs_time", {TreeIdProfilingTag_})
 {
-    RootElement_ = New<TRootElement>(Host_, this, config, GetPoolProfilingTag(RootPoolName), TreeId_);
+    RootElement_ = New<TRootElement>(Host_, this, config, GetPoolProfilingTag(RootPoolName), TreeId_, Logger);
 }
 
 IFairShareTreeSnapshotPtr TFairShareTree::CreateSnapshot()
@@ -196,7 +276,8 @@ bool TFairShareTree::RegisterOperation(
         Host_,
         this,
         state->GetHost(),
-        TreeId_);
+        TreeId_,
+        Logger);
 
     int index = RegisterSchedulingTagFilter(TSchedulingTagFilter(clonedSpec->SchedulingTagFilter));
     operationElement->SetSchedulingTagFilterIndex(index);
@@ -343,7 +424,8 @@ TPoolsUpdateResult TFairShareTree::UpdatePools(const INodePtr& poolsNode)
             /* defaultConfigured */ false,
             Config_,
             GetPoolProfilingTag(poolId),
-            TreeId_);
+            TreeId_,
+            Logger);
         const auto& parent = parsedPool.ParentId == RootPoolName
             ? static_cast<TCompositeSchedulerElementPtr>(RootElement_)
             : GetPool(parsedPool.ParentId);
@@ -357,7 +439,10 @@ TPoolsUpdateResult TFairShareTree::UpdatePools(const INodePtr& poolsNode)
         }
         auto pool = GetPool(poolId);
         if (pool->GetUserName()) {
-            YCHECK(UserToEphemeralPools_[pool->GetUserName().value()].erase(pool->GetId()) == 1);
+            const auto& userName = pool->GetUserName().value();
+            if (pool->IsEphemeralInDefaultParentPool()) {
+                YCHECK(UserToEphemeralPoolsInDefaultPool_[userName].erase(pool->GetId()) == 1);
+            }
             pool->SetUserName(std::nullopt);
         }
         ReconfigurePool(pool, parsedPool.PoolConfig);
@@ -557,14 +642,15 @@ void TFairShareTree::BuildBriefOperationProgress(TOperationId operationId, TFlue
         .Item("fair_share_ratio").Value(attributes.FairShareRatio);
 }
 
-void TFairShareTree::BuildUserToEphemeralPools(TFluentAny fluent)
+void TFairShareTree::BuildUserToEphemeralPoolsInDefaultPool(TFluentAny fluent)
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
     fluent
-        .DoMapFor(UserToEphemeralPools_, [] (TFluentMap fluent, const auto& value) {
+        .DoMapFor(UserToEphemeralPoolsInDefaultPool_, [] (TFluentMap fluent, const auto& pair) {
+            const auto& [userName, ephemeralPools] = pair;
             fluent
-                .Item(value.first).Value(value.second);
+                .Item(userName).Value(ephemeralPools);
         });
 }
 
@@ -819,6 +905,11 @@ bool TFairShareTree::HasOperation(TOperationId operationId)
     return static_cast<bool>(FindOperationElement(operationId));
 }
 
+TResourceTree* TFairShareTree::GetResourceTree()
+{
+    return ResourceTree_.Get();
+}
+
 TAggregateGauge& TFairShareTree::GetProfilingCounter(const TString& name)
 {
     TGuard<TSpinLock> guard(CustomProfilingCountersLock_);
@@ -832,21 +923,37 @@ TAggregateGauge& TFairShareTree::GetProfilingCounter(const TString& name)
     return *it->second;
 }
 
-TReaderWriterSpinLock* TFairShareTree::GetSharedStateTreeLock()
+void ReactivateBadPackingOperations(TFairShareContext* context)
 {
-    return &SharedStateTreeLock_;
+    for (const auto& operation : context->BadPackingOperations) {
+        context->DynamicAttributesList[operation->GetTreeIndex()].Active = true;
+        // TODO(antonkikh): This can be implemented more efficiently.
+        operation->UpdateAncestorsAttributes(context);
+    }
+    context->BadPackingOperations.clear();
 }
 
-void TFairShareTree::DoScheduleJobsWithoutPreemption(
+TDynamicAttributes TFairShareTree::GetGlobalDynamicAttributes(const TSchedulerElementPtr& element) const
+{
+    int index = element->GetTreeIndex();
+    if (index == UnassignedTreeIndex) {
+        return TDynamicAttributes();
+    } else {
+        YCHECK(index < GlobalDynamicAttributes_.size());
+        return GlobalDynamicAttributes_[index];
+    }
+}
+
+void TFairShareTree::DoScheduleJobsWithoutPreemptionImpl(
     const TRootElementSnapshotPtr& rootElementSnapshot,
     TFairShareContext* context,
-    TCpuInstant startTime)
+    TCpuInstant startTime,
+    bool ignorePacking,
+    bool oneJobOnly)
 {
     auto& rootElement = rootElementSnapshot->RootElement;
 
     {
-        YT_LOG_TRACE("Scheduling new jobs");
-
         bool prescheduleExecuted = false;
         TCpuInstant schedulingDeadline = startTime + DurationToCpuDuration(ControllerConfig_->ScheduleJobsTimeout);
 
@@ -864,7 +971,11 @@ void TFairShareTree::DoScheduleJobsWithoutPreemption(
                 context->PrescheduleCalled = true;
             }
             ++context->StageState->ScheduleJobAttempts;
-            if (!rootElement->ScheduleJob(context)) {
+            auto scheduleJobResult = rootElement->ScheduleJob(context, ignorePacking);
+            if (scheduleJobResult.Scheduled) {
+                ReactivateBadPackingOperations(context);
+            }
+            if (scheduleJobResult.Finished || (oneJobOnly && scheduleJobResult.Scheduled)) {
                 break;
             }
         }
@@ -872,6 +983,37 @@ void TFairShareTree::DoScheduleJobsWithoutPreemption(
         context->StageState->TotalDuration = scheduleTimer.GetElapsedTime();
         context->ProfileStageTimingsAndLogStatistics();
     }
+}
+
+void TFairShareTree::DoScheduleJobsWithoutPreemption(
+    const NYT::NScheduler::TFairShareTree::TRootElementSnapshotPtr& rootElementSnapshot,
+    NYT::NScheduler::TFairShareContext* context,
+    NYT::NProfiling::TCpuInstant startTime)
+{
+    YT_LOG_TRACE("Scheduling new jobs");
+
+    DoScheduleJobsWithoutPreemptionImpl(
+        rootElementSnapshot,
+        context,
+        startTime,
+        /* ignorePacking */ false,
+        /* oneJobOnly */ false);
+}
+
+void TFairShareTree::DoScheduleJobsPackingFallback(
+    const NYT::NScheduler::TFairShareTree::TRootElementSnapshotPtr& rootElementSnapshot,
+    NYT::NScheduler::TFairShareContext* context,
+    NYT::NProfiling::TCpuInstant startTime)
+{
+    YT_LOG_TRACE("Scheduling jobs with packing ignored");
+
+    // Schedule at most one job with packing ignored in case all operations have rejected the heartbeat.
+    DoScheduleJobsWithoutPreemptionImpl(
+        rootElementSnapshot,
+        context,
+        startTime,
+        /* ignorePacking */ true,
+        /* oneJobOnly */ true);
 }
 
 void TFairShareTree::DoScheduleJobsWithPreemption(
@@ -946,11 +1088,12 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
             }
 
             ++context->StageState->ScheduleJobAttempts;
-            if (!rootElement->ScheduleJob(context)) {
+            auto scheduleJobResult = rootElement->ScheduleJob(context, /* ignorePacking */ true);
+            if (scheduleJobResult.Scheduled) {
+                jobStartedUsingPreemption = context->SchedulingContext->StartedJobs().back();
                 break;
             }
-            if (context->SchedulingContext->StartedJobs().size() > startedBeforePreemption) {
-                jobStartedUsingPreemption = context->SchedulingContext->StartedJobs().back();
+            if (scheduleJobResult.Finished) {
                 break;
             }
         }
@@ -1070,12 +1213,15 @@ void TFairShareTree::DoScheduleJobs(
         LastSchedulingInformationLoggedTime_ = now;
     }
 
-    TFairShareContext context(schedulingContext, enableSchedulingInfoLogging);
+    TFairShareContext context(schedulingContext, enableSchedulingInfoLogging, Logger);
 
+    bool needPackingFallback;
     {
         context.StartStage(&NonPreemptiveSchedulingStage_);
         DoScheduleJobsWithoutPreemption(rootElementSnapshot, &context, now);
         context.SchedulingStatistics.NonPreemptiveScheduleJobAttempts = context.StageState->ScheduleJobAttempts;
+        needPackingFallback = schedulingContext->StartedJobs().empty() && !context.BadPackingOperations.empty();
+        ReactivateBadPackingOperations(&context);
         context.FinishStage();
     }
 
@@ -1108,6 +1254,13 @@ void TFairShareTree::DoScheduleJobs(
         context.FinishStage();
     } else {
         YT_LOG_DEBUG("Skip preemptive scheduling");
+    }
+
+    if (needPackingFallback) {
+        context.StartStage(&PackingFallbackSchedulingStage_);
+        DoScheduleJobsPackingFallback(rootElementSnapshot, &context, now);
+        context.SchedulingStatistics.PackingFallbackScheduleJobAttempts = context.StageState->ScheduleJobAttempts;
+        context.FinishStage();
     }
 
     schedulingContext->SetSchedulingStatistics(context.SchedulingStatistics);
@@ -1184,8 +1337,8 @@ void TFairShareTree::ReconfigurePool(const TPoolPtr& pool, const TPoolConfigPtr&
 void TFairShareTree::UnregisterPool(const TPoolPtr& pool)
 {
     auto userName = pool->GetUserName();
-    if (userName) {
-        YCHECK(UserToEphemeralPools_[*userName].erase(pool->GetId()) == 1);
+    if (userName && pool->IsEphemeralInDefaultParentPool()) {
+        YCHECK(UserToEphemeralPoolsInDefaultPool_[*userName].erase(pool->GetId()) == 1);
     }
 
     UnregisterSchedulingTagFilter(pool->GetSchedulingTagFilterIndex());
@@ -1377,7 +1530,10 @@ TPoolPtr TFairShareTree::GetOrCreatePool(const TPoolName& poolName, TString user
     // Create ephemeral pool.
     auto poolConfig = New<TPoolConfig>();
     if (poolName.GetParentPool()) {
-        poolConfig->Mode = GetPool(*poolName.GetParentPool())->GetConfig()->EphemeralSubpoolsMode;
+        auto parentPoolConfig = GetPool(*poolName.GetParentPool())->GetConfig();
+        poolConfig->Mode = parentPoolConfig->EphemeralSubpoolConfig->Mode;
+        poolConfig->MaxOperationCount = parentPoolConfig->EphemeralSubpoolConfig->MaxOperationCount;
+        poolConfig->MaxRunningOperationCount = parentPoolConfig->EphemeralSubpoolConfig->MaxRunningOperationCount;
     }
     pool = New<TPool>(
         Host_,
@@ -1387,17 +1543,20 @@ TPoolPtr TFairShareTree::GetOrCreatePool(const TPoolName& poolName, TString user
         /* defaultConfigured */ true,
         Config_,
         GetPoolProfilingTag(poolName.GetPool()),
-        TreeId_);
+        TreeId_,
+        Logger);
 
     pool->SetUserName(userName);
-    UserToEphemeralPools_[userName].insert(poolName.GetPool());
 
     TCompositeSchedulerElement* parent;
     if (poolName.GetParentPool()) {
         parent = GetPool(*poolName.GetParentPool()).Get();
     } else {
         parent = GetDefaultParentPool().Get();
+        pool->SetEphemeralInDefaultParentPool();
+        UserToEphemeralPoolsInDefaultPool_[userName].insert(poolName.GetPool());
     }
+
     RegisterPool(pool, parent);
     return pool;
 }
@@ -1478,7 +1637,7 @@ void TFairShareTree::BuildElementYson(const TSchedulerElementPtr& element, TFlue
         .Item("guaranteed_resources_ratio").Value(attributes.GuaranteedResourcesRatio)
         .Item("guaranteed_resources").Value(guaranteedResources)
         .Item("max_possible_usage_ratio").Value(attributes.MaxPossibleUsageRatio)
-        .Item("usage_ratio").Value(element->GetLocalResourceUsageRatio())
+        .Item("usage_ratio").Value(element->GetResourceUsageRatio())
         .Item("demand_ratio").Value(attributes.DemandRatio)
         .Item("fair_share_ratio").Value(attributes.FairShareRatio)
         .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio)
@@ -1491,7 +1650,7 @@ void TFairShareTree::BuildEssentialElementYson(const TSchedulerElementPtr& eleme
     auto dynamicAttributes = GetGlobalDynamicAttributes(element);
 
     fluent
-        .Item("usage_ratio").Value(element->GetLocalResourceUsageRatio())
+        .Item("usage_ratio").Value(element->GetResourceUsageRatio())
         .Item("demand_ratio").Value(attributes.DemandRatio)
         .Item("fair_share_ratio").Value(attributes.FairShareRatio)
         .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio)
@@ -1585,16 +1744,18 @@ void TFairShareTree::ValidateEphemeralPoolLimit(const IOperationStrategyHost* op
 
     const auto& userName = operation->GetAuthenticatedUser();
 
-    auto it = UserToEphemeralPools_.find(userName);
-    if (it == UserToEphemeralPools_.end()) {
-        return;
-    }
+    if (!poolName.GetParentPool()) {
+        auto it = UserToEphemeralPoolsInDefaultPool_.find(userName);
+        if (it == UserToEphemeralPoolsInDefaultPool_.end()) {
+            return;
+        }
 
-    if (it->second.size() + 1 > Config_->MaxEphemeralPoolsPerUser) {
-        THROW_ERROR_EXCEPTION("Limit for number of ephemeral pools %v for user %v in tree %Qv has been reached",
-            Config_->MaxEphemeralPoolsPerUser,
-            userName,
-            TreeId_);
+        if (it->second.size() + 1 > Config_->MaxEphemeralPoolsPerUser) {
+            THROW_ERROR_EXCEPTION("Limit for number of ephemeral pools %v for user %v in tree %Qv has been reached",
+                Config_->MaxEphemeralPoolsPerUser,
+                userName,
+                TreeId_);
+        }
     }
 }
 
@@ -1666,7 +1827,11 @@ void TFairShareTree::ProfileCompositeSchedulerElement(TMetricsAccumulator& accum
         {tag, TreeIdProfilingTag_});
 }
 
-void TFairShareTree::ProfileSchedulerElement(TMetricsAccumulator& accumulator, const TSchedulerElementPtr& element, const TString& profilingPrefix, const TTagIdList& tags) const
+void TFairShareTree::ProfileSchedulerElement(
+    TMetricsAccumulator& accumulator,
+    const TSchedulerElementPtr& element,
+    const TString& profilingPrefix,
+    const TTagIdList& tags) const
 {
     accumulator.Add(
         profilingPrefix + "/fair_share_ratio_x100000",
@@ -1675,7 +1840,7 @@ void TFairShareTree::ProfileSchedulerElement(TMetricsAccumulator& accumulator, c
         tags);
     accumulator.Add(
         profilingPrefix + "/usage_ratio_x100000",
-        static_cast<i64>(element->GetLocalResourceUsageRatio() * 1e5),
+        static_cast<i64>(element->GetResourceUsageRatio() * 1e5),
         EMetricType::Gauge,
         tags);
     accumulator.Add(

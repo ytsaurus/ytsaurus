@@ -45,6 +45,7 @@ struct TInputTable
     NTableClient::TTableSchema Schema;
     NTableClient::ETableSchemaMode SchemaMode;
     bool IsDynamic;
+    ui64 ContentRevision = 0;
 
     //! Set to true when schema of the table is compatible with the output
     //! teleport table and when no special options set that disallow chunk

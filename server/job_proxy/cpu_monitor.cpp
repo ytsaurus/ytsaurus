@@ -66,7 +66,7 @@ void TCpuMonitor::DoCheck()
     }
 
     UpdateAggregates();
-};
+}
 
 bool TCpuMonitor::TryUpdateSmoothedValue()
 {

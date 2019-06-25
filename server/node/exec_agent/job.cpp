@@ -51,6 +51,8 @@
 
 #include <yt/core/misc/proc.h>
 
+#include <yt/core/rpc/dispatcher.h>
+
 namespace NYT::NExecAgent {
 
 using namespace NRpc;
@@ -149,6 +151,13 @@ public:
                 if (userJobSpec.has_disk_space_limit()) {
                     diskSpaceLimit = userJobSpec.disk_space_limit();
                 }
+
+                if (userJobSpec.has_prepare_time_limit()) {
+                    auto prepareTimeLimit = FromProto<TDuration>(userJobSpec.prepare_time_limit());
+                    TDelayedExecutor::Submit(BIND(&TJob::OnJobPreparationTimeout, MakeStrong(this), prepareTimeLimit)
+                        .Via(Invoker_), prepareTimeLimit);
+                }
+
             }
 
             if (!Config_->JobController->TestGpu) {
@@ -163,7 +172,7 @@ public:
             SetJobPhase(EJobPhase::PreparingNodeDirectory);
             // This is a heavy part of preparation, offload it to compression invoker.
             BIND(&TJob::PrepareNodeDirectory, MakeWeak(this))
-                .AsyncVia(TDispatcher::Get()->GetCompressionPoolInvoker())
+                .AsyncVia(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker())
                 .Run()
                 .Subscribe(
                     BIND(&TJob::OnNodeDirectoryPrepared, MakeWeak(this))
@@ -178,13 +187,19 @@ public:
         YT_LOG_INFO(error, "Job abort requested (Phase: %v)",
             JobPhase_);
 
+        auto startAbortion = [&] () {
+            SetJobStatePhase(EJobState::Aborting, EJobPhase::WaitingAbort);
+            DoSetResult(error);
+            TDelayedExecutor::Submit(BIND(&TJob::OnJobAbortionTimeout, MakeStrong(this))
+                .Via(Invoker_), Config_->JobAbortionTimeout);
+        };
+
         switch (JobPhase_) {
             case EJobPhase::Created:
             case EJobPhase::DownloadingArtifacts:
             case EJobPhase::Running:
-                SetJobStatePhase(EJobState::Aborting, EJobPhase::WaitingAbort);
+                startAbortion();
                 ArtifactsFuture_.Cancel();
-                DoSetResult(error);
 
                 // Do the actual cleanup asynchronously.
                 BIND(&TJob::Cleanup, MakeStrong(this))
@@ -199,8 +214,7 @@ public:
             case EJobPhase::PreparingRootVolume:
             case EJobPhase::PreparingProxy:
                 // Wait for the next event handler to complete the abortion.
-                SetJobStatePhase(EJobState::Aborting, EJobPhase::WaitingAbort);
-                DoSetResult(error);
+                startAbortion();
                 Slot_->CancelPreparation();
                 break;
 
@@ -301,6 +315,19 @@ public:
             return TInstant::Now() - *PrepareTime_;
         } else {
             return *ExecTime_ - *PrepareTime_;
+        }
+    }
+
+    virtual std::optional<TDuration> GetPrepareRootFSDuration() const override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (!StartPrepareVolumeTime_) {
+            return std::nullopt;
+        } else if (!FinishPrepareVolumeTime_) {
+            return TInstant::Now() - *StartPrepareVolumeTime_;
+        } else {
+            return *FinishPrepareVolumeTime_ - *StartPrepareVolumeTime_;
         }
     }
 
@@ -677,6 +704,8 @@ private:
 
     std::optional<TInstant> PrepareTime_;
     std::optional<TInstant> CopyTime_;
+    std::optional<TInstant> StartPrepareVolumeTime_;
+    std::optional<TInstant> FinishPrepareVolumeTime_;
     std::optional<TInstant> ExecTime_;
     std::optional<TInstant> FinishTime_;
 
@@ -689,7 +718,8 @@ private:
     {
         ESandboxKind SandboxKind;
         TString Name;
-        bool IsExecutable;
+        bool Executable;
+        bool BypassArtifactCache;
         TArtifactKey Key;
         NDataNode::IChunkPtr Chunk;
     };
@@ -754,11 +784,11 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         TJobResult jobResult;
-        ToProto(jobResult.mutable_error(), error.Truncate());
-        DoSetResult(jobResult);
+        ToProto(jobResult.mutable_error(), error);
+        DoSetResult(std::move(jobResult));
     }
 
-    void DoSetResult(const TJobResult& jobResult)
+    void DoSetResult(TJobResult jobResult)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         if (JobResult_) {
@@ -767,6 +797,12 @@ private:
                 return;
             }
         }
+
+        {
+            auto error = FromProto<TError>(jobResult.error());
+            ToProto(jobResult.mutable_error(), error.Truncate());
+        }
+
         JobResult_ = jobResult;
         FinishTime_ = TInstant::Now();
     }
@@ -810,8 +846,6 @@ private:
                 NExecAgent::EErrorCode::NodeDirectoryPreparationFailed,
                 "Failed to prepare job node directory");
 
-            YT_LOG_INFO("Node directory prepared");
-
             SetJobPhase(EJobPhase::DownloadingArtifacts);
             auto artifactsFuture = DownloadArtifacts();
             artifactsFuture.Subscribe(
@@ -832,7 +866,6 @@ private:
             YT_LOG_INFO("Artifacts downloaded");
 
             const auto& chunks = errorOrArtifacts.Value();
-
             for (size_t index = 0; index < Artifacts_.size(); ++index) {
                 Artifacts_[index].Chunk = chunks[index];
             }
@@ -843,21 +876,19 @@ private:
                 .AsyncVia(Invoker_)
                 .Run()
                 .Subscribe(BIND(
-                    &TJob::OnDirectoriesPrepared,
+                    &TJob::OnSandboxDirectoriesPrepared,
                     MakeWeak(this))
                 .Via(Invoker_));
         });
     }
 
-    void OnDirectoriesPrepared(const TError& error)
+    void OnSandboxDirectoriesPrepared(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         GuardedAction([&] {
             ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to prepare sandbox directories");
-
-            YT_LOG_INFO("Slot directories prepared");
 
             SetJobPhase(EJobPhase::PreparingArtifacts);
             BIND(&TJob::PrepareArtifacts, MakeWeak(this))
@@ -882,6 +913,7 @@ private:
             if (LayerArtifactKeys_.empty()) {
                 RunJobProxy();
             } else {
+                StartPrepareVolumeTime_ = TInstant::Now();
                 SetJobPhase(EJobPhase::PreparingRootVolume);
                 YT_LOG_INFO("Preparing root volume (LayerCount: %v)", LayerArtifactKeys_.size());
                 Slot_->PrepareRootVolume(LayerArtifactKeys_)
@@ -896,6 +928,7 @@ private:
     void OnVolumePrepared(const TErrorOr<IVolumePtr>& volumeOrError)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        FinishPrepareVolumeTime_ = TInstant::Now();
 
         GuardedAction([&] {
             ValidateJobPhase(EJobPhase::PreparingRootVolume);
@@ -942,6 +975,32 @@ private:
                     "Failed to prepare job proxy within timeout, aborting job");
             }
         });
+    }
+
+    void OnJobPreparationTimeout(TDuration prepareTimeLimit)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        GuardedAction([&] {
+            if (JobPhase_ < EJobPhase::Running) {
+                THROW_ERROR_EXCEPTION(
+                    EErrorCode::JobPreparationTimeout,
+                    "Failed to prepare job within timeout")
+                    << TErrorAttribute("prepare_time_limit", prepareTimeLimit)
+                    << TErrorAttribute("job_start_time", StartTime_);
+            }
+        });
+    }
+
+    void OnJobAbortionTimeout()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (JobState_ == EJobState::Aborting) {
+            auto error = TError("Failed to abort job %v within timeout", Id_)
+                << TErrorAttribute("job_abortion_timeout", Config_->JobAbortionTimeout);
+            Bootstrap_->GetExecSlotManager()->Disable(error);
+        }
     }
 
     void OnJobProxyFinished(const TError& error)
@@ -993,15 +1052,6 @@ private:
         FinishTime_ = TInstant::Now();
         SetJobPhase(EJobPhase::Cleanup);
 
-        // NodeDirectory can be really huge, we better offload its cleanup.
-        WaitFor(BIND([this_ = MakeStrong(this), this] () {
-            auto* schedulerJobSpecExt = JobSpec_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-            schedulerJobSpecExt->clear_input_node_directory();
-        })
-            .AsyncVia(TDispatcher::Get()->GetCompressionPoolInvoker())
-            .Run())
-            .ThrowOnError();
-
         if (Slot_) {
             try {
                 YT_LOG_DEBUG("Clean processes (SlotIndex: %v)", Slot_->GetSlotIndex());
@@ -1011,6 +1061,16 @@ private:
                 YT_LOG_ERROR(ex, "Failed to clean processed (SlotIndex: %v)", Slot_->GetSlotIndex());
             }
         }
+
+        // NodeDirectory can be really huge, we better offload its cleanup.
+        // NB: do this after slot cleanup.
+        WaitFor(BIND([this_ = MakeStrong(this), this] () {
+            auto* schedulerJobSpecExt = JobSpec_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+            schedulerJobSpecExt->clear_input_node_directory();
+        })
+            .AsyncVia(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker())
+            .Run())
+            .ThrowOnError();
 
         YCHECK(JobResult_);
 
@@ -1082,6 +1142,8 @@ private:
             return;
         }
 
+        YT_LOG_INFO("Started preparing node directory");
+
         const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();
 
         for (int attempt = 1;; ++attempt) {
@@ -1143,7 +1205,8 @@ private:
         }
 
         nodeDirectory->DumpTo(schedulerJobSpecExt->mutable_input_node_directory());
-        YT_LOG_INFO("All node ids were resolved");
+
+        YT_LOG_INFO("Finished preparing node directory");
     }
 
     TJobProxyConfigPtr CreateConfig()
@@ -1170,13 +1233,15 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        YT_LOG_INFO("Started preparing sandbox directories");
+
         TUserSandboxOptions options;
 
         const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
-            for (auto tmpfsVolumeProto : userJobSpec.tmpfs_volumes()) {
+            for (const auto& tmpfsVolumeProto : userJobSpec.tmpfs_volumes()) {
                 TTmpfsVolume tmpfsVolume;
                 tmpfsVolume.Size = tmpfsVolumeProto.size();
                 tmpfsVolume.Path = tmpfsVolumeProto.path();
@@ -1202,8 +1267,11 @@ private:
 
         TmpfsPaths_ = WaitFor(Slot_->CreateSandboxDirectories(options))
             .ValueOrThrow();
+
+        YT_LOG_INFO("Finished preparing sandbox directories");
     }
 
+    // Build artifacts.
     void InitializeArtifacts()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1216,6 +1284,7 @@ private:
                     ESandboxKind::User,
                     descriptor.file_name(),
                     descriptor.executable(),
+                    descriptor.bypass_artifact_cache(),
                     TArtifactKey(descriptor),
                     nullptr});
             }
@@ -1239,24 +1308,39 @@ private:
                     ESandboxKind::Udf,
                     function.name(),
                     false,
+                    false,
                     key,
                     nullptr});
             }
         }
     }
 
+    TArtifactDownloadOptions MakeArtifactDownloadOptions()
+    {
+        TArtifactDownloadOptions options;
+        options.NodeDirectory = Bootstrap_->GetNodeDirectory();
+        options.TrafficMeter = TrafficMeter_;
+        return options;
+    }
+
+    // Start async artifacts download.
     TFuture<std::vector<NDataNode::IChunkPtr>> DownloadArtifacts()
     {
         const auto& chunkCache = Bootstrap_->GetChunkCache();
 
         std::vector<TFuture<IChunkPtr>> asyncChunks;
         for (const auto& artifact : Artifacts_) {
+            if (artifact.BypassArtifactCache) {
+                asyncChunks.push_back(MakeFuture<IChunkPtr>(nullptr));
+                continue;
+            }
+
             YT_LOG_INFO("Downloading user file (FileName: %v, SandboxKind: %v)",
                 artifact.Name,
                 artifact.SandboxKind);
 
-            const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();
-            auto asyncChunk = chunkCache->PrepareArtifact(artifact.Key, nodeDirectory, TrafficMeter_)
+            auto downloadOptions = MakeArtifactDownloadOptions();
+            auto asyncChunk = chunkCache->DownloadArtifact(artifact.Key, downloadOptions)
                 .Apply(BIND([=, fileName = artifact.Name, this_ = MakeStrong(this)] (const TErrorOr<IChunkPtr>& chunkOrError) {
                     THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError,
                         EErrorCode::ArtifactDownloadFailed,
@@ -1277,11 +1361,58 @@ private:
         return Combine(asyncChunks);
     }
 
-    //! Putting files to sandbox.
+    // Put files to sandbox.
+    TFuture<void> PrepareArtifact(const TArtifact& artifact)
+    {
+        if (artifact.BypassArtifactCache) {
+            YT_LOG_INFO("Downloading artifact with cache bypass (FileName: %v, Executable: %v, SandboxKind: %v)",
+                artifact.Name,
+                artifact.Executable,
+                artifact.SandboxKind);
+
+            const auto& chunkCache = Bootstrap_->GetChunkCache();
+            auto downloadOptions = MakeArtifactDownloadOptions();
+            auto producer = chunkCache->MakeArtifactDownloadProducer(artifact.Key, downloadOptions);
+
+            return Slot_->MakeFile(
+                artifact.SandboxKind,
+                producer,
+                artifact.Name,
+                artifact.Executable);
+        } else {
+            YCHECK(artifact.Chunk);
+
+            const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+            bool copyFiles = schedulerJobSpecExt.has_user_job_spec() && schedulerJobSpecExt.user_job_spec().copy_files();
+            if (copyFiles) {
+                YT_LOG_INFO("Copying artifact (FileName: %v, Executable: %v, SandboxKind: %v)",
+                    artifact.Name,
+                    artifact.Executable,
+                    artifact.SandboxKind);
+
+                return Slot_->MakeCopy(
+                    artifact.SandboxKind,
+                    artifact.Chunk->GetFileName(),
+                    artifact.Name,
+                    artifact.Executable);
+            } else {
+                YT_LOG_INFO("Making symlink for artifact (FileName: %v, Executable: %v, SandboxKind: %v)",
+                    artifact.Name,
+                    artifact.Executable,
+                    artifact.SandboxKind);
+
+                return Slot_->MakeLink(
+                    artifact.SandboxKind,
+                    artifact.Chunk->GetFileName(),
+                    artifact.Name,
+                    artifact.Executable);
+            }
+        }
+    }
+
     void PrepareArtifacts()
     {
-        const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        bool copyFiles = schedulerJobSpecExt.has_user_job_spec() && schedulerJobSpecExt.user_job_spec().copy_files();
+        YT_LOG_INFO("Started preparing artifacts");
 
         for (const auto& artifact : Artifacts_) {
             // Artifact preparation is uncancelable, so we check for an early exit.
@@ -1289,50 +1420,23 @@ private:
                 return;
             }
 
-            YCHECK(artifact.Chunk);
-
-            if (copyFiles) {
-                YT_LOG_INFO("Copying artifact (FileName: %v, IsExecutable: %v, SandboxKind: %v)",
-                    artifact.Name,
-                    artifact.IsExecutable,
-                    artifact.SandboxKind);
-
-                WaitFor(Slot_->MakeCopy(
-                    artifact.SandboxKind,
-                    artifact.Chunk->GetFileName(),
-                    artifact.Name,
-                    artifact.IsExecutable))
+            WaitFor(PrepareArtifact(artifact))
                 .ThrowOnError();
-            } else {
-                YT_LOG_INFO("Making symlink for artifact (FileName: %v, IsExecutable: %v, SandboxKind: %v)",
-                    artifact.Name,
-                    artifact.IsExecutable,
-                    artifact.SandboxKind);
-
-                WaitFor(Slot_->MakeLink(
-                    artifact.SandboxKind,
-                    artifact.Chunk->GetFileName(),
-                    artifact.Name,
-                    artifact.IsExecutable))
-                .ThrowOnError();
-            }
-
-            YT_LOG_INFO("Artifact prepared successfully (FileName: %v, SandboxKind: %v)",
-                artifact.Name,
-                artifact.SandboxKind);
         }
 
         // When all artifacts are prepared we can finally change permission for sandbox which will
         // take away write access from the current user (see slot_location.cpp for details).
+        const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         if (schedulerJobSpecExt.has_user_job_spec()) {
             YT_LOG_INFO("Setting sandbox permissions");
             WaitFor(Slot_->FinalizePreparation())
                 .ThrowOnError();
         }
+
+        YT_LOG_INFO("Finished preparing artifacts");
     }
 
     // Analyse results.
-
     static TError BuildJobProxyError(const TError& spawnError)
     {
         if (spawnError.IsOK()) {

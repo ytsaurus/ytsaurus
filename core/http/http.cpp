@@ -132,7 +132,9 @@ const SmallVector<TString, 1>& THeaders::GetAll(const TString& header) const
     return it->second.Values;
 }
 
-void THeaders::WriteTo(IOutputStream* out, const THashSet<TString>* filtered) const
+void THeaders::WriteTo(
+    IOutputStream* out,
+    const THashSet<TString, TCaseInsensitiveStringHasher, TCaseInsensitiveStringEqualityComparer>* filtered) const
 {
     for (const auto& pair : NameToEntry_) {
         // TODO(prime): sanitize headers

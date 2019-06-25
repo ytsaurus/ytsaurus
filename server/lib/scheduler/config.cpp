@@ -99,7 +99,7 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
 
     RegisterParameter("max_ephemeral_pools_per_user", MaxEphemeralPoolsPerUser)
         .GreaterThanOrEqual(1)
-        .Default(5);
+        .Default(1);
 
     RegisterParameter("update_preemptable_list_duration_logging_threshold", UpdatePreemptableListDurationLoggingThreshold)
         .Default(TDuration::MilliSeconds(100));
@@ -129,6 +129,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
 
     RegisterParameter("crash_on_operation_resource_usage_inconsistency", CrashOnOperationResourceUsageInconsistency)
         .Default(false);
+
+    RegisterParameter("packing", Packing)
+        .DefaultNew();
 
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
@@ -296,6 +299,9 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("node_heartbeat_timeout", NodeHeartbeatTimeout)
         .Default(TDuration::Seconds(60));
+
+    RegisterParameter("node_registration_timeout", NodeRegistrationTimeout)
+        .Default(TDuration::Seconds(600));
 
     RegisterParameter("watchers_update_period", WatchersUpdatePeriod)
         .Default(TDuration::Seconds(3));

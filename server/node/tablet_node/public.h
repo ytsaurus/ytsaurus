@@ -88,6 +88,8 @@ using TRevisionList = TEditList<ui32>;
 
 struct ITabletContext;
 
+struct TWriteContext;
+
 using TSyncReplicaIdList = SmallVector<TTableReplicaId, 2>;
 
 constexpr int EdenIndex = -1;

@@ -4,6 +4,8 @@
 
 #include <yt/core/actions/public.h>
 
+#include <yt/core/compression/public.h>
+
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/ref.h>
 
@@ -13,6 +15,20 @@
 #include <yt/core/tracing/trace_context.h>
 
 namespace NYT::NRpc {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TAddressWithNetwork
+{
+    TString Address;
+    TString Network;
+};
+
+bool operator==(const TAddressWithNetwork& lhs, const TAddressWithNetwork& rhs);
+
+TString ToString(const TAddressWithNetwork& addressWithNetwork);
+
+void Serialize(const TAddressWithNetwork& addressWithNetwork, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,4 +87,30 @@ void SetOrGenerateMutationId(const IClientRequestPtr& request, TMutationId id, b
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFuture<std::vector<TSharedRef>> AsyncCompressAttachments(
+    TRange<TSharedRef> attachments,
+    NCompression::ECodec codecId);
+
+TFuture<std::vector<TSharedRef>> AsyncDecompressAttachments(
+    TRange<TSharedRef> attachments,
+    NCompression::ECodec codecId);
+
+std::vector<TSharedRef> CompressAttachments(
+    TRange<TSharedRef> attachments,
+    NCompression::ECodec codecId);
+
+std::vector<TSharedRef> DecompressAttachments(
+    TRange<TSharedRef> attachments,
+    NCompression::ECodec codecId);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NRpc
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+struct THash<NYT::NRpc::TAddressWithNetwork>
+{
+    size_t operator()(const NYT::NRpc::TAddressWithNetwork& addressWithNetwork) const;
+};

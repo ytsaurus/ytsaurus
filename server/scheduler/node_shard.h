@@ -59,7 +59,7 @@ struct INodeShardHost
         TJobId jobId,
         const TString& user) = 0;
 
-    virtual NJobProberClient::TJobProberServiceProxy CreateJobProberProxy(const TString& address) = 0;
+    virtual NJobProberClient::TJobProberServiceProxy CreateJobProberProxy(const NRpc::TAddressWithNetwork& addressWithNetwork) = 0;
 
     virtual int GetOperationArchiveVersion() const = 0;
 };
@@ -293,7 +293,8 @@ private:
         ENodeState state);
     void UnregisterNode(const TExecNodePtr& node);
     void DoUnregisterNode(const TExecNodePtr& node);
-    void OnNodeLeaseExpired(NNodeTrackerClient::TNodeId nodeId);
+    void OnNodeHeartbeatLeaseExpired(NNodeTrackerClient::TNodeId nodeId);
+    void OnNodeRegistrationLeaseExpired(NNodeTrackerClient::TNodeId nodeId);
 
     void AbortAllJobsAtNode(const TExecNodePtr& node);
     void AbortUnconfirmedJobs(

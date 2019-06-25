@@ -27,17 +27,48 @@ struct TFixedMessageHeader
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef SerializeToProtoWithHeader(
+struct TSerializedMessageTag { };
+
+namespace {
+
+size_t GetAllocationSpaceForProtoWithHeader(const google::protobuf::MessageLite& message)
+{
+    return
+        sizeof (TFixedMessageHeader) +
+        message.ByteSize();
+}
+
+void SerializeAndAddProtoWithHeader(
+    TSharedRefArrayBuilder* builder,
     const TFixedMessageHeader& fixedHeader,
     const google::protobuf::MessageLite& message)
 {
-    size_t messageSize = message.ByteSize();
-    size_t totalSize = sizeof(fixedHeader) + messageSize;
-    struct TSerializedMessageTag { };
-    auto data = TSharedMutableRef::Allocate<TSerializedMessageTag>(totalSize, false);
-    ::memcpy(data.Begin(), &fixedHeader, sizeof(fixedHeader));
-    YCHECK(message.SerializeToArray(data.Begin() + sizeof(fixedHeader), messageSize));
-    return data;
+    auto ref = builder->AllocateAndAdd(
+        sizeof (TFixedMessageHeader) +
+        message.GetCachedSize());
+    ::memcpy(ref.Begin(), &fixedHeader, sizeof(fixedHeader));
+    message.SerializeWithCachedSizesToArray(reinterpret_cast<google::protobuf::uint8*>(ref.Begin() + sizeof(fixedHeader)));
+}
+
+size_t GetAllocationSpaceForProtoWithEnvelope(const google::protobuf::MessageLite& message)
+{
+    return
+        sizeof (TEnvelopeFixedHeader) +
+        message.ByteSize();
+}
+
+void SerializeAndAddProtoWithEnvelope(
+    TSharedRefArrayBuilder* builder,
+    const google::protobuf::MessageLite& message)
+{
+    auto ref = builder->AllocateAndAdd(
+        sizeof (TEnvelopeFixedHeader) +
+        message.GetCachedSize());
+    auto* header = static_cast<TEnvelopeFixedHeader*>(static_cast<void*>(ref.Begin()));
+    // Empty (default) TSerializedMessageEnvelope.
+    header->EnvelopeSize = 0;
+    header->MessageSize = message.GetCachedSize();
+    message.SerializeWithCachedSizesToArray(reinterpret_cast<google::protobuf::uint8*>(ref.Begin() + sizeof(TEnvelopeFixedHeader)));
 }
 
 bool DeserializeFromProtoWithHeader(
@@ -52,86 +83,116 @@ bool DeserializeFromProtoWithHeader(
         data.Size() - sizeof(TFixedMessageHeader));
 }
 
+} // namespace
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSharedRefArray CreateRequestMessage(
     const NProto::TRequestHeader& header,
-    const TSharedRef& body,
+    TSharedRef body,
     const std::vector<TSharedRef>& attachments)
 {
-    std::vector<TSharedRef> parts;
-    parts.reserve(2 + attachments.size());
-
-    parts.push_back(SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::Request}, header));
-
-    parts.push_back(body);
-
-    for (const auto& attachment : attachments) {
-        parts.push_back(attachment);
+    TSharedRefArrayBuilder builder(
+        2 + attachments.size(),
+        GetAllocationSpaceForProtoWithHeader(header),
+        GetRefCountedTypeCookie<TSerializedMessageTag>());
+    SerializeAndAddProtoWithHeader(
+        &builder,
+        TFixedMessageHeader{EMessageType::Request},
+        header);
+    builder.Add(std::move(body));
+    for (auto attachment : attachments) {
+        builder.Add(std::move(attachment));
     }
-
-    return TSharedRefArray(std::move(parts));
+    return builder.Finish();
 }
 
 TSharedRefArray CreateRequestMessage(
     const NProto::TRequestHeader& header,
     const TSharedRefArray& data)
 {
-    std::vector<TSharedRef> parts;
-    parts.reserve(1 + data.Size());
-
-    parts.push_back(SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::Request}, header));
-
-    for (const auto& part : data) {
-        parts.push_back(part);
+    TSharedRefArrayBuilder builder(
+        1 + data.Size(),
+        GetAllocationSpaceForProtoWithHeader(header),
+        GetRefCountedTypeCookie<TSerializedMessageTag>());
+    SerializeAndAddProtoWithHeader(
+        &builder,
+        TFixedMessageHeader{EMessageType::Request},
+        header);
+    for (auto part : data) {
+        builder.Add(std::move(part));
     }
-
-    return TSharedRefArray(std::move(parts));
+    return builder.Finish();
 }
 
 TSharedRefArray CreateRequestCancelationMessage(
     const NProto::TRequestCancelationHeader& header)
 {
-    auto headerData = SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::RequestCancelation}, header);
-    return TSharedRefArray(std::move(headerData));
+    TSharedRefArrayBuilder builder(
+        1,
+        GetAllocationSpaceForProtoWithHeader(header),
+        GetRefCountedTypeCookie<TSerializedMessageTag>());
+    SerializeAndAddProtoWithHeader(
+        &builder,
+        TFixedMessageHeader{EMessageType::RequestCancelation},
+        header);
+    return builder.Finish();
 }
 
 TSharedRefArray CreateResponseMessage(
     const NProto::TResponseHeader& header,
-    const TSharedRef& body,
+    TSharedRef body,
     const std::vector<TSharedRef>& attachments)
 {
-    std::vector<TSharedRef> parts;
-    parts.reserve(2 + attachments.size());
-
-    parts.push_back(SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::Response}, header));
-
-    parts.push_back(body);
-
-    for (const auto& attachment : attachments) {
-        parts.push_back(attachment);
+    TSharedRefArrayBuilder builder(
+        2 + attachments.size(),
+        GetAllocationSpaceForProtoWithHeader(header),
+        GetRefCountedTypeCookie<TSerializedMessageTag>());
+    SerializeAndAddProtoWithHeader(
+        &builder,
+        TFixedMessageHeader{EMessageType::Response},
+        header);
+    builder.Add(std::move(body));
+    for (auto attachment : attachments) {
+        builder.Add(std::move(attachment));
     }
-
-    return TSharedRefArray(std::move(parts));
+    return builder.Finish();
 }
 
 TSharedRefArray CreateResponseMessage(
     const ::google::protobuf::MessageLite& body,
     const std::vector<TSharedRef>& attachments)
 {
-    auto serializedBody = SerializeProtoToRefWithEnvelope(body, NCompression::ECodec::None, false);
-
-    return CreateResponseMessage(
-        NProto::TResponseHeader(),
-        serializedBody,
-        attachments);
+    NProto::TResponseHeader header;
+    TSharedRefArrayBuilder builder(
+        2 + attachments.size(),
+        GetAllocationSpaceForProtoWithHeader(header) + GetAllocationSpaceForProtoWithEnvelope(body),
+        GetRefCountedTypeCookie<TSerializedMessageTag>());
+    SerializeAndAddProtoWithHeader(
+        &builder,
+        TFixedMessageHeader{EMessageType::Response},
+        header);
+    SerializeAndAddProtoWithEnvelope(
+        &builder,
+        body);
+    for (auto attachment : attachments) {
+        builder.Add(std::move(attachment));
+    }
+    return builder.Finish();
 }
 
 TSharedRefArray CreateErrorResponseMessage(
     const NProto::TResponseHeader& header)
 {
-    auto headerData = SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::Response}, header);
-    return TSharedRefArray(std::move(headerData));
+    TSharedRefArrayBuilder builder(
+        1,
+        GetAllocationSpaceForProtoWithHeader(header),
+        GetRefCountedTypeCookie<TSerializedMessageTag>());
+    SerializeAndAddProtoWithHeader(
+        &builder,
+        TFixedMessageHeader{EMessageType::Response},
+        header);
+    return builder.Finish();
 }
 
 TSharedRefArray CreateErrorResponseMessage(
@@ -160,24 +221,32 @@ TSharedRefArray CreateStreamingPayloadMessage(
     const NProto::TStreamingPayloadHeader& header,
     const std::vector<TSharedRef>& attachments)
 {
-    std::vector<TSharedRef> parts;
-    parts.reserve(1 + attachments.size());
-
-    parts.push_back(SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::StreamingPayload}, header));
-
-    for (const auto& attachment : attachments) {
-        parts.push_back(attachment);
+    TSharedRefArrayBuilder builder(
+        1 + attachments.size(),
+        GetAllocationSpaceForProtoWithHeader(header),
+        GetRefCountedTypeCookie<TSerializedMessageTag>());
+    SerializeAndAddProtoWithHeader(
+        &builder,
+        TFixedMessageHeader{EMessageType::StreamingPayload},
+        header);
+    for (auto attachment : attachments) {
+        builder.Add(std::move(attachment));
     }
-
-    return TSharedRefArray(std::move(parts));
+    return builder.Finish();
 }
 
 TSharedRefArray CreateStreamingFeedbackMessage(
     const NProto::TStreamingFeedbackHeader& header)
 {
-    std::vector<TSharedRef> parts;
-    parts.push_back(SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::StreamingFeedback}, header));
-    return TSharedRefArray(std::move(parts));
+    TSharedRefArrayBuilder builder(
+        1,
+        GetAllocationSpaceForProtoWithHeader(header),
+        GetRefCountedTypeCookie<TSerializedMessageTag>());
+    SerializeAndAddProtoWithHeader(
+        &builder,
+        TFixedMessageHeader{EMessageType::StreamingFeedback},
+        header);
+    return builder.Finish();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -243,9 +312,18 @@ TSharedRefArray SetRequestHeader(
     const NProto::TRequestHeader& header)
 {
     Y_ASSERT(GetMessageType(message) == EMessageType::Request);
-    auto parts = message.ToVector();
-    parts[0] = SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::Request}, header);
-    return TSharedRefArray(parts);
+    TSharedRefArrayBuilder builder(
+        message.Size(),
+        GetAllocationSpaceForProtoWithHeader(header),
+        GetRefCountedTypeCookie<TSerializedMessageTag>());
+    SerializeAndAddProtoWithHeader(
+        &builder,
+        TFixedMessageHeader{EMessageType::Request},
+        header);
+    for (size_t index = 1; index < message.Size(); ++index) {
+        builder.Add(message[index]);
+    }
+    return builder.Finish();
 }
 
 bool ParseResponseHeader(
@@ -264,9 +342,18 @@ TSharedRefArray SetResponseHeader(
     const NProto::TResponseHeader& header)
 {
     Y_ASSERT(GetMessageType(message) == EMessageType::Response);
-    auto parts = message.ToVector();
-    parts[0] = SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::Response}, header);
-    return TSharedRefArray(parts);
+    TSharedRefArrayBuilder builder(
+        message.Size(),
+        GetAllocationSpaceForProtoWithHeader(header),
+        GetRefCountedTypeCookie<TSerializedMessageTag>());
+    SerializeAndAddProtoWithHeader(
+        &builder,
+        TFixedMessageHeader{EMessageType::Response},
+        header);
+    for (size_t index = 1; index < message.Size(); ++index) {
+        builder.Add(message[index]);
+    }
+    return builder.Finish();
 }
 
 void MergeRequestHeaderExtensions(
@@ -320,12 +407,12 @@ bool ParseStreamingFeedbackHeader(
 
 i64 GetMessageBodySize(const TSharedRefArray& message)
 {
-    return message.Size() >= 2 ? message[1].Size() : 0;
+    return message.Size() >= 2 ? static_cast<i64>(message[1].Size()) : 0;
 }
 
 int GetMessageAttachmentCount(const TSharedRefArray& message)
 {
-    return std::max(message.Size() - 2, 0);
+    return std::max(static_cast<int>(message.Size()) - 2, 0);
 }
 
 i64 GetTotalMessageAttachmentSize(const TSharedRefArray& message)

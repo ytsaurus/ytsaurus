@@ -13,6 +13,7 @@ using NChunkClient::TChunkId;
 using NChunkClient::TSessionId;
 using NChunkClient::ESessionType;
 using NChunkClient::TBlockId;
+using NChunkClient::TLocationUuid;
 
 using NNodeTrackerClient::TNodeId;
 

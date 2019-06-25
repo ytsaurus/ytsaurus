@@ -282,7 +282,7 @@ private:
                 const auto& key = cookie.GetKey();
 
                 YCHECK(rsp->part_counts_size() == 1);
-                auto responseMessage = TSharedRefArray(rsp->Attachments());
+                auto responseMessage = TSharedRefArray(rsp->Attachments(), TSharedRefArray::TCopyParts{});
 
                 TResponseHeader responseHeader;
                 YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
@@ -423,7 +423,8 @@ private:
                 auto parts = std::vector<TSharedRef>(
                     attachments.begin() + attachmentIndex,
                     attachments.begin() + attachmentIndex + partCount);
-                Promises_[subresponseIndex].Set(std::make_pair(TSharedRefArray(std::move(parts)), std::nullopt));
+                Promises_[subresponseIndex].Set(std::make_pair(
+                    TSharedRefArray(std::move(parts), TSharedRefArray::TMoveParts{}), std::nullopt));
                 attachmentIndex += partCount;
             }
         }
@@ -455,7 +456,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
         auto subrequestParts = std::vector<TSharedRef>(
             attachments.begin() + attachmentIndex,
             attachments.begin() + attachmentIndex + partCount);
-        auto subrequestMessage = TSharedRefArray(std::move(subrequestParts));
+        auto subrequestMessage = TSharedRefArray(std::move(subrequestParts), TSharedRefArray::TMoveParts{});
         attachmentIndex += partCount;
 
         if (subrequestMessage.Size() < 2) {

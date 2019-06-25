@@ -54,7 +54,7 @@ TEST_F(TNetTest, TransferFourBytes)
 
     a->Write(TSharedRef::FromString("ping")).Get();
 
-    TSharedMutableRef buffer = TSharedMutableRef::Allocate(10);
+    auto buffer = TSharedMutableRef::Allocate(10);
     ASSERT_EQ(4, b->Read(buffer).Get().ValueOrThrow());
     ASSERT_EQ(ToString(buffer.Slice(0, 4)), TString("ping"));
 }
@@ -69,9 +69,9 @@ TEST_F(TNetTest, TransferFourBytesUsingWriteV)
         TSharedRef::FromString("i"),
         TSharedRef::FromString("n"),
         TSharedRef::FromString("g")
-    })).Get();
+    }, TSharedRefArray::TMoveParts{})).Get().ThrowOnError();
 
-    TSharedMutableRef buffer = TSharedMutableRef::Allocate(10);
+    auto buffer = TSharedMutableRef::Allocate(10);
     ASSERT_EQ(4, b->Read(buffer).Get().ValueOrThrow());
     ASSERT_EQ(ToString(buffer.Slice(0, 4)), TString("ping"));
 }
@@ -192,7 +192,7 @@ TEST_F(TNetTest, StressConcurrentClose)
         runReceiver(b);
 
         Sleep(TDuration::MilliSeconds(10));
-        a->Close().Get();
+        a->Close().Get().ThrowOnError();
     }
 }
 

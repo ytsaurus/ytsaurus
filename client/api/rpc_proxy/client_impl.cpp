@@ -80,36 +80,23 @@ TClient::TClient(
     , ChannelPool_(channelPool)
     , Channel_(CreateCredentialsInjectingChannel(CreateDynamicChannel(channelPool), clientOptions))
     , ClientOptions_(clientOptions)
+    , TableMountCache_(BIND(
+        &CreateTableMountCache,
+        Connection_->GetConfig()->TableMountCache,
+        Channel_,
+        RpcProxyClientLogger,
+        Connection_->GetConfig()->RpcTimeout))
+    , TimestampProvider_(BIND(&TClient::CreateTimestampProvider, Unretained(this)))
 { }
 
 const ITableMountCachePtr& TClient::GetTableMountCache()
 {
-    if (!TableMountCacheInitialized_.load()) {
-        auto guard = Guard(TableMountCacheSpinLock_);
-        if (!TableMountCache_) {
-            TableMountCache_ = CreateTableMountCache(
-                Connection_->GetConfig()->TableMountCache,
-                Channel_,
-                RpcProxyClientLogger,
-                Connection_->GetConfig()->RpcTimeout);
-        }
-        TableMountCacheInitialized_.store(true);
-    }
-    return TableMountCache_;
+    return TableMountCache_.Value();
 }
 
 const ITimestampProviderPtr& TClient::GetTimestampProvider()
 {
-    if (!TimestampProviderInitialized_.load()) {
-        auto guard = Guard(TimestampProviderSpinLock_);
-        if (!TimestampProvider_) {
-            TimestampProvider_ = CreateBatchingTimestampProvider(
-                CreateTimestampProvider(Channel_, Connection_->GetConfig()->RpcTimeout),
-                Connection_->GetConfig()->TimestampProviderUpdatePeriod);
-        }
-        TimestampProviderInitialized_.store(true);
-    }
-    return TimestampProvider_;
+    return TimestampProvider_.Value();
 }
 
 TFuture<void> TClient::Terminate()
@@ -137,6 +124,13 @@ IChannelPtr TClient::GetStickyChannel()
     return CreateCredentialsInjectingChannel(
         CreateStickyChannel(ChannelPool_),
         ClientOptions_);
+}
+
+ITimestampProviderPtr TClient::CreateTimestampProvider() const
+{
+    return CreateBatchingTimestampProvider(
+        NRpcProxy::CreateTimestampProvider(Channel_, Connection_->GetConfig()->RpcTimeout),
+        Connection_->GetConfig()->TimestampProviderUpdatePeriod);
 }
 
 ITransactionPtr TClient::AttachTransaction(
@@ -459,10 +453,10 @@ TFuture<std::vector<TTabletInfo>> TClient::GetTabletInfos(
         std::vector<TTabletInfo> tabletInfos;
         tabletInfos.reserve(rsp->tablets_size());
         for (const auto& protoTabletInfo : rsp->tablets()) {
-            tabletInfos.emplace_back();
-            auto& result = tabletInfos.back();
-            result.TotalRowCount = protoTabletInfo.total_row_count();
-            result.TrimmedRowCount = protoTabletInfo.trimmed_row_count();
+            auto& tabletInfo = tabletInfos.emplace_back();
+            tabletInfo.TotalRowCount = protoTabletInfo.total_row_count();
+            tabletInfo.TrimmedRowCount = protoTabletInfo.trimmed_row_count();
+            tabletInfo.BarrierTimestamp = protoTabletInfo.barrier_timestamp();
         }
         return tabletInfos;
     }));
@@ -723,12 +717,12 @@ TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> TClient::GetJobInput(
     const TGetJobInputOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
-    auto connection = GetRpcProxyConnection();
-    const auto& config = connection->GetConfig();
-
     auto req = proxy.GetJobInput();
-    auto timeout = options.Timeout.value_or(config->DefaultTotalStreamingTimeout);
-    req->SetTimeout(timeout);
+    if (options.Timeout) {
+        SetTimeoutOptions(*req, options);
+    } else {
+        InitStreamingRequest(*req);
+    }
 
     ToProto(req->mutable_job_id(), jobId);
 
@@ -1004,6 +998,7 @@ TFuture<TGetFileFromCacheResult> TClient::GetFileFromCache(
 
     auto req = proxy.GetFileFromCache();
     SetTimeoutOptions(*req, options);
+    ToProto(req->mutable_transactional_options(), options);
 
     req->set_md5(md5);
     req->set_cache_path(options.CachePath);
@@ -1024,6 +1019,7 @@ TFuture<TPutFileToCacheResult> TClient::PutFileToCache(
 
     auto req = proxy.PutFileToCache();
     SetTimeoutOptions(*req, options);
+    ToProto(req->mutable_transactional_options(), options);
 
     req->set_path(path);
     req->set_md5(expectedMD5);

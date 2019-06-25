@@ -30,11 +30,6 @@ public:
     IInvokerPtr GetReaderInvoker();
     IInvokerPtr GetWriterInvoker();
 
-    IPrioritizedInvokerPtr GetPrioritizedCompressionPoolInvoker();
-    IPrioritizedInvokerPtr GetPrioritizedErasurePoolInvoker();
-
-    IInvokerPtr GetCompressionPoolInvoker();
-
 private:
     class TImpl;
     const std::unique_ptr<TImpl> Impl_;

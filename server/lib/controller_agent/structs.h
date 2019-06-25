@@ -35,11 +35,13 @@ struct TJobSummary
     NJobTrackerClient::NProto::TJobResult Result;
     TJobId Id;
     EJobState State = EJobState::None;
+    EJobPhase Phase = EJobPhase::Missing;
 
     std::optional<TInstant> FinishTime;
     std::optional<TDuration> PrepareDuration;
     std::optional<TDuration> DownloadDuration;
     std::optional<TDuration> ExecDuration;
+    std::optional<TDuration> PrepareRootFSDuration;
 
     // NB: The Statistics field will be set inside the controller in ParseStatistics().
     std::optional<NJobTrackerClient::TStatistics> Statistics;

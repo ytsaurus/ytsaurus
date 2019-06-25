@@ -6,7 +6,7 @@ namespace NYT::NCellMaster {
 
 int GetCurrentSnapshotVersion()
 {
-    return 832;
+    return 835;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -53,6 +53,9 @@ bool ValidateSnapshotVersion(int version)
         version == 830 || // ifsmirnov: Chunk view
         version == 831 || // shakurov: versioned @expiration_time
         version == 832 || // aozeritsky: TClusterResources::DiskSpace serialization
+        version == 833 || // shakurov: YT-10852
+        version == 834 || // aozeritsky: TTabletCellBundle::Health_ added
+        version == 835 || // shakurov: snapshot-lockable map nodes
         false;
 }
 

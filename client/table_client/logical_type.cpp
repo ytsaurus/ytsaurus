@@ -43,6 +43,11 @@ const TStructLogicalType& TLogicalType::AsStructTypeRef() const
     return dynamic_cast<const TStructLogicalType&>(*this);
 }
 
+const TTupleLogicalType& TLogicalType::AsTupleTypeRef() const
+{
+    return dynamic_cast<const TTupleLogicalType&>(*this);
+}
+
 static bool operator == (const TStructLogicalType::TField& lhs, const TStructLogicalType::TField& rhs)
 {
     return (lhs.Name == rhs.Name) && (*lhs.Type == *rhs.Type);
@@ -71,6 +76,21 @@ TString ToString(const TLogicalType& logicalType)
                     out << ';';
                 }
                 out << structItem.Name << '=' << ToString(*structItem.Type);
+            }
+            out << '>';
+            return out.Str();
+        }
+        case ELogicalMetatype::Tuple: {
+            TStringStream out;
+            out << "tuple<";
+            bool first = true;
+            for (const auto& element : logicalType.AsTupleTypeRef().GetElements()) {
+                if (first) {
+                    first = false;
+                } else {
+                    out << ';';
+                }
+                out << ToString(*element);
             }
             out << '>';
             return out.Str();
@@ -119,10 +139,8 @@ int TOptionalLogicalType::GetTypeComplexity() const
     }
 }
 
-void TOptionalLogicalType::Validate(const TComplexTypeFieldDescriptor& descriptor) const
-{
-    Element_->Validate(descriptor.OptionalElement());
-}
+void TOptionalLogicalType::ValidateNode() const
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -147,7 +165,7 @@ int TSimpleLogicalType::GetTypeComplexity() const
     return 1;
 }
 
-void TSimpleLogicalType::Validate(const TComplexTypeFieldDescriptor& /*descriptor*/) const
+void TSimpleLogicalType::ValidateNode() const
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -172,10 +190,8 @@ int TListLogicalType::GetTypeComplexity() const
     return 1 + Element_->GetTypeComplexity();
 }
 
-void TListLogicalType::Validate(const TComplexTypeFieldDescriptor& descriptor) const
-{
-    Element_->Validate(descriptor.ListElement());
-}
+void TListLogicalType::ValidateNode() const
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -206,6 +222,13 @@ TComplexTypeFieldDescriptor TComplexTypeFieldDescriptor::StructField(size_t i) c
     return TComplexTypeFieldDescriptor(Descriptor_ + "." + field.Name, field.Type);
 }
 
+TComplexTypeFieldDescriptor TComplexTypeFieldDescriptor::TupleElement(size_t i) const
+{
+    const auto& elements = Type_->AsTupleTypeRef().GetElements();
+    YCHECK(i < elements.size());
+    return TComplexTypeFieldDescriptor(Descriptor_ + Format(".<tuple-element-%v>", i), elements[i]);
+}
+
 const TString& TComplexTypeFieldDescriptor::GetDescription() const
 {
     return Descriptor_;
@@ -216,11 +239,37 @@ const TLogicalTypePtr& TComplexTypeFieldDescriptor::GetType() const
     return Type_;
 }
 
+void TComplexTypeFieldDescriptor::Walk(std::function<void(const TComplexTypeFieldDescriptor&)> onElement) const
+{
+    onElement(*this);
+    switch (GetType()->GetMetatype()) {
+        case ELogicalMetatype::Simple:
+            return;
+        case ELogicalMetatype::Optional:
+            OptionalElement().Walk(onElement);
+            return;
+        case ELogicalMetatype::List:
+            ListElement().Walk(onElement);
+            return;
+        case ELogicalMetatype::Struct:
+            for (size_t i = 0; i < GetType()->AsStructTypeRef().GetFields().size(); ++i) {
+                StructField(i).Walk(onElement);
+            }
+            return;
+        case ELogicalMetatype::Tuple:
+            for (size_t i = 0; i < GetType()->AsTupleTypeRef().GetElements().size(); ++i) {
+                TupleElement(i).Walk(onElement);
+            }
+            return;
+    }
+    Y_UNREACHABLE();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TStructLogicalType::TStructLogicalType(std::vector<TField> fields)
     : TLogicalType(ELogicalMetatype::Struct)
-    , Fields_(fields)
+    , Fields_(std::move(fields))
 { }
 
 const std::vector<TStructLogicalType::TField>& TStructLogicalType::GetFields() const
@@ -232,48 +281,81 @@ size_t TStructLogicalType::GetMemoryUsage() const
 {
     size_t result = sizeof(*this);
     result += sizeof(TField) * Fields_.size();
-    for (const auto& element : Fields_) {
-        result += element.Type->GetMemoryUsage();
+    for (const auto& field : Fields_) {
+        result += field.Type->GetMemoryUsage();
     }
     return result;
 }
 
 int TStructLogicalType::GetTypeComplexity() const
 {
-    ui32 result = 1;
+    int result = 1;
     for (const auto& field : Fields_) {
         result += field.Type->GetTypeComplexity();
     }
     return result;
 }
 
-void TStructLogicalType::Validate(const TComplexTypeFieldDescriptor& descriptor) const
+void TStructLogicalType::ValidateNode() const
 {
+    THashSet<TStringBuf> usedNames;
     for (size_t i = 0; i < Fields_.size(); ++i) {
         const auto& field = Fields_[i];
-        try {
-            if (field.Name.size() == 0) {
-                THROW_ERROR_EXCEPTION("Name of struct field #%v is empty",
-                    i);
-            }
-            if (field.Name.size() > MaxColumnNameLength) {
-                THROW_ERROR_EXCEPTION("Name of struct field #%v exceeds limit: %v > %v",
-                    i,
-                    field.Name.size(),
-                    MaxColumnNameLength);
-            }
-            if (!IsUtf(field.Name)) {
-                THROW_ERROR_EXCEPTION("Name of struct field #%v is not valid utf8",
-                    i);
-            }
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error validating field %Qv",
-                descriptor.GetDescription())
-                << ex;
+        if (field.Name.empty()) {
+            THROW_ERROR_EXCEPTION("Name of struct field #%v is empty",
+                i);
         }
-        field.Type->Validate(descriptor.StructField(i));
+        if (usedNames.contains(field.Name)) {
+            THROW_ERROR_EXCEPTION("Struct field name %Qv is used twice",
+                field.Name);
+        }
+        usedNames.emplace(field.Name);
+        if (field.Name.size() > MaxColumnNameLength) {
+            THROW_ERROR_EXCEPTION("Name of struct field #%v exceeds limit: %v > %v",
+                i,
+                field.Name.size(),
+                MaxColumnNameLength);
+        }
+        if (!IsUtf(field.Name)) {
+            THROW_ERROR_EXCEPTION("Name of struct field #%v is not valid utf8",
+                i);
+        }
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTupleLogicalType::TTupleLogicalType(std::vector<NYT::NTableClient::TLogicalTypePtr> elements)
+    : TLogicalType(ELogicalMetatype::Tuple)
+    , Elements_(std::move(elements))
+{ }
+
+const std::vector<TLogicalTypePtr>& TTupleLogicalType::GetElements() const
+{
+    return Elements_;
+}
+
+size_t TTupleLogicalType::GetMemoryUsage() const
+{
+    size_t result = sizeof(*this);
+    result += sizeof(TLogicalTypePtr) * Elements_.size();
+    for (const auto& element : Elements_) {
+        result += element->GetMemoryUsage();
+    }
+    return result;
+}
+
+int TTupleLogicalType::GetTypeComplexity() const
+{
+    int result = 1;
+    for (const auto& element : Elements_) {
+        result += element->GetTypeComplexity();
+    }
+    return result;
+}
+
+void TTupleLogicalType::ValidateNode() const
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -286,9 +368,15 @@ std::pair<std::optional<ESimpleLogicalValueType>, bool> SimplifyLogicalType(cons
             return std::make_pair(logicalType->AsOptionalTypeRef().Simplify(), false);
         case ELogicalMetatype::List:
         case ELogicalMetatype::Struct:
+        case ELogicalMetatype::Tuple:
             return std::make_pair(std::nullopt, true);
     }
     Y_UNREACHABLE();
+}
+
+bool operator != (const TLogicalType& lhs, const TLogicalType& rhs)
+{
+    return !(lhs == rhs);
 }
 
 bool operator == (const TLogicalType& lhs, const TLogicalType& rhs)
@@ -310,8 +398,34 @@ bool operator == (const TLogicalType& lhs, const TLogicalType& rhs)
             return *lhs.AsListTypeRef().GetElement() == *rhs.AsListTypeRef().GetElement();
         case ELogicalMetatype::Struct:
             return lhs.AsStructTypeRef().GetFields() == rhs.AsStructTypeRef().GetFields();
+        case ELogicalMetatype::Tuple: {
+            const auto& lhsTupleElements = lhs.AsTupleTypeRef().GetElements();
+            const auto& rhsTupleElements = rhs.AsTupleTypeRef().GetElements();
+            if (lhsTupleElements.size() != rhsTupleElements.size()) {
+                return false;
+            }
+            for (size_t i = 0; i < lhsTupleElements.size(); ++i) {
+                if (*lhsTupleElements[i] != *rhsTupleElements[i]) {
+                    return false;
+                }
+            }
+            return true;
+        }
     }
     Y_UNREACHABLE();
+}
+
+void ValidateLogicalType(const TComplexTypeFieldDescriptor& descriptor)
+{
+    descriptor.Walk([] (const TComplexTypeFieldDescriptor& descriptor) {
+        try {
+            descriptor.GetType()->ValidateNode();
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("%v has bad type",
+                descriptor.GetDescription())
+            << ex;
+        }
+    });
 }
 
 void ValidateAlterType(const TLogicalTypePtr& oldType, const TLogicalTypePtr& newType)
@@ -420,6 +534,14 @@ void ToProto(NProto::TLogicalType* protoLogicalType, const TLogicalTypePtr& logi
             }
             return;
         }
+        case ELogicalMetatype::Tuple: {
+            auto protoTuple = protoLogicalType->mutable_tuple();
+            for (const auto& element : logicalType->AsTupleTypeRef().GetElements()) {
+                auto protoElement = protoTuple->add_elements();
+                ToProto(protoElement, element);
+            }
+            return;
+        }
     }
     Y_UNREACHABLE();
 }
@@ -428,7 +550,7 @@ void FromProto(TLogicalTypePtr* logicalType, const NProto::TLogicalType& protoLo
 {
     switch (protoLogicalType.type_case()) {
         case NProto::TLogicalType::TypeCase::kSimple:
-            *logicalType = SimpleLogicalType(static_cast<ESimpleLogicalValueType>(protoLogicalType.simple()), true);
+            *logicalType = SimpleLogicalType(static_cast<ESimpleLogicalValueType>(protoLogicalType.simple()));
             return;
         case NProto::TLogicalType::TypeCase::kOptional: {
             TLogicalTypePtr element;
@@ -450,6 +572,15 @@ void FromProto(TLogicalTypePtr* logicalType, const NProto::TLogicalType& protoLo
                 fields.emplace_back(TStructLogicalType::TField{protoField.name(), std::move(fieldType)});
             }
             *logicalType = StructLogicalType(std::move(fields));
+            return;
+        }
+        case NProto::TLogicalType::TypeCase::kTuple: {
+            std::vector<TLogicalTypePtr> elements;
+            for (const auto& protoField : protoLogicalType.tuple().elements()) {
+                elements.emplace_back();
+                FromProto(&elements.back(), protoField);
+            }
+            *logicalType = TupleLogicalType(std::move(elements));
             return;
         }
         case NProto::TLogicalType::TypeCase::TYPE_NOT_SET:
@@ -502,6 +633,13 @@ void Serialize(const TLogicalTypePtr& logicalType, NYson::IYsonConsumer* consume
                     .Item("fields").Value(logicalType->AsStructTypeRef().GetFields())
                 .EndMap();
             return;
+        case ELogicalMetatype::Tuple:
+            NYTree::BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("metatype").Value(metatype)
+                    .Item("elements").Value(logicalType->AsTupleTypeRef().GetElements())
+                .EndMap();
+            return;
     }
     Y_UNREACHABLE();
 }
@@ -510,7 +648,7 @@ void Deserialize(TLogicalTypePtr& logicalType, NYTree::INodePtr node)
 {
     if (node->GetType() == NYTree::ENodeType::String) {
         auto simpleLogicalType = NYTree::ConvertTo<ESimpleLogicalValueType>(node);
-        logicalType = SimpleLogicalType(simpleLogicalType, true);
+        logicalType = SimpleLogicalType(simpleLogicalType);
         return;
     }
     if (node->GetType() != NYTree::ENodeType::Map) {
@@ -547,6 +685,12 @@ void Deserialize(TLogicalTypePtr& logicalType, NYTree::INodePtr node)
             auto fieldsNode = mapNode->GetChild("fields");
             auto fields = NYTree::ConvertTo<std::vector<TStructLogicalType::TField>>(fieldsNode);
             logicalType = StructLogicalType(std::move(fields));
+            return;
+        }
+        case ELogicalMetatype::Tuple: {
+            auto elementsNode = mapNode->GetChild("elements");
+            auto elements = NYTree::ConvertTo<std::vector<TLogicalTypePtr>>(elementsNode);
+            logicalType = TupleLogicalType(std::move(elements));
             return;
         }
     }
@@ -621,9 +765,14 @@ TLogicalTypePtr ListLogicalType(TLogicalTypePtr element)
     return New<TListLogicalType>(element);
 }
 
-inline TLogicalTypePtr StructLogicalType(std::vector<TStructLogicalType::TField> fields)
+TLogicalTypePtr StructLogicalType(std::vector<TStructLogicalType::TField> fields)
 {
     return New<TStructLogicalType>(std::move(fields));
+}
+
+TLogicalTypePtr TupleLogicalType(std::vector<TLogicalTypePtr> elements)
+{
+    return New<TTupleLogicalType>(std::move(elements));
 }
 
 TLogicalTypePtr NullLogicalType = Singleton<TSimpleTypeStore>()->GetSimpleType(ESimpleLogicalValueType::Null);
@@ -635,7 +784,7 @@ TLogicalTypePtr NullLogicalType = Singleton<TSimpleTypeStore>()->GetSimpleType(E
 size_t THash<NYT::NTableClient::TLogicalType>::operator()(const NYT::NTableClient::TLogicalType& logicalType) const
 {
     using namespace NYT::NTableClient;
-    const size_t typeHash = static_cast<size_t>(logicalType.GetMetatype());
+    const auto typeHash = static_cast<size_t>(logicalType.GetMetatype());
     switch (logicalType.GetMetatype()) {
         case ELogicalMetatype::Simple:
             return CombineHashes(static_cast<size_t>(logicalType.AsSimpleTypeRef().GetElement()), typeHash);
@@ -648,6 +797,14 @@ size_t THash<NYT::NTableClient::TLogicalType>::operator()(const NYT::NTableClien
             for (const auto& field : logicalType.AsStructTypeRef().GetFields()) {
                 result = CombineHashes(result, THash<TString>{}(field.Name));
                 result = CombineHashes(result, (*this)(*field.Type));
+            }
+            result = CombineHashes(result, typeHash);
+            return result;
+        }
+        case ELogicalMetatype::Tuple: {
+            size_t result = 0;
+            for (const auto& element : logicalType.AsTupleTypeRef().GetElements()) {
+                result = CombineHashes(result, (*this)(*element));
             }
             result = CombineHashes(result, typeHash);
             return result;

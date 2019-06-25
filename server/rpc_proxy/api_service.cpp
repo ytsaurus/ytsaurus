@@ -16,6 +16,8 @@
 #include <yt/client/api/file_writer.h>
 #include <yt/client/api/journal_reader.h>
 #include <yt/client/api/journal_writer.h>
+#include <yt/client/api/table_reader.h>
+#include <yt/client/api/table_writer.h>
 #include <yt/client/api/transaction.h>
 #include <yt/client/api/rowset.h>
 #include <yt/client/api/sticky_transaction_pool.h>
@@ -32,9 +34,9 @@
 
 #include <yt/ytlib/security_client/public.h>
 
+#include <yt/client/table_client/helpers.h>
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/row_buffer.h>
-
 #include <yt/client/table_client/wire_protocol.h>
 
 #include <yt/client/transaction_client/timestamp_provider.h>
@@ -49,8 +51,6 @@
 
 #include <yt/core/rpc/service_detail.h>
 #include <yt/core/rpc/stream.h>
-
-
 
 namespace NYT::NRpcProxy {
 
@@ -339,6 +339,13 @@ public:
             .SetStreamingEnabled(true)
             .SetCancelable(true));
 
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadTable)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteTable)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetFileFromCache));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PutFileToCache));
 
@@ -504,6 +511,9 @@ private:
         if (request->has_timeout()) {
             options.Timeout = FromProto<TDuration>(request->timeout());
         }
+        if (request->has_deadline()) {
+            options.Deadline = FromProto<TInstant>(request->deadline());
+        }
         if (request->has_id()) {
             FromProto(&options.Id, request->id());
         }
@@ -520,11 +530,12 @@ private:
             options.Attributes = NYTree::FromProto(request->attributes());
         }
 
-        context->SetRequestInfo("TransactionId: %v, ParentId: %v, Timeout: %v, AutoAbort: %v, "
+        context->SetRequestInfo("TransactionId: %v, ParentId: %v, Timeout: %v, Deadline: %v, AutoAbort: %v, "
             "Sticky: %v, Ping: %v, PingAncestors: %v, Atomicity: %v, Durability: %v",
             options.Id,
             options.ParentId,
             options.Timeout,
+            options.Deadline,
             options.AutoAbort,
             options.Sticky,
             options.Ping,
@@ -1650,8 +1661,7 @@ private:
             return;
         }
 
-        TOperationIdOrAlias operationIdOrAlias = TOperationId();
-        NScheduler::FromProto(&operationIdOrAlias, *request);
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
         TAbortOperationOptions options;
         SetTimeoutOptions(&options, context.Get());
@@ -1659,8 +1669,8 @@ private:
             options.AbortMessage = request->abort_message();
         }
 
-        context->SetRequestInfo("%v, AbortMessage: %v",
-            GetOperationIdOrAliasContextInfo(operationIdOrAlias),
+        context->SetRequestInfo("OperationId: %v, AbortMessage: %v",
+            operationIdOrAlias,
             options.AbortMessage);
 
         CompleteCallWith(
@@ -1675,8 +1685,7 @@ private:
             return;
         }
 
-        TOperationIdOrAlias operationIdOrAlias = TOperationId();
-        NScheduler::FromProto(&operationIdOrAlias, *request);
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
         TSuspendOperationOptions options;
         SetTimeoutOptions(&options, context.Get());
@@ -1684,8 +1693,8 @@ private:
             options.AbortRunningJobs = request->abort_running_jobs();
         }
 
-        context->SetRequestInfo("%v, AbortRunningJobs: %v",
-            GetOperationIdOrAliasContextInfo(operationIdOrAlias),
+        context->SetRequestInfo("OperationId: %v, AbortRunningJobs: %v",
+            operationIdOrAlias,
             options.AbortRunningJobs);
 
         CompleteCallWith(
@@ -1700,13 +1709,13 @@ private:
             return;
         }
 
-        TOperationIdOrAlias operationIdOrAlias = TOperationId();
-        NScheduler::FromProto(&operationIdOrAlias, *request);
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
         TResumeOperationOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRawRequestInfo(GetOperationIdOrAliasContextInfo(operationIdOrAlias));
+        context->SetRequestInfo("OperationId: %v",
+            operationIdOrAlias);
 
         CompleteCallWith(
             context,
@@ -1720,13 +1729,13 @@ private:
             return;
         }
 
-        TOperationIdOrAlias operationIdOrAlias = TOperationId();
-        NScheduler::FromProto(&operationIdOrAlias, *request);
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
         TCompleteOperationOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRawRequestInfo(GetOperationIdOrAliasContextInfo(operationIdOrAlias));
+        context->SetRequestInfo("OperationId: %v",
+            operationIdOrAlias);
 
         CompleteCallWith(
             context,
@@ -1740,16 +1749,15 @@ private:
             return;
         }
 
-        TOperationIdOrAlias operationIdOrAlias = TOperationId();
-        NScheduler::FromProto(&operationIdOrAlias, *request);
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
         auto parameters = TYsonString(request->parameters());
 
         TUpdateOperationParametersOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRequestInfo("%v, Parameters: %v",
-            GetOperationIdOrAliasContextInfo(operationIdOrAlias),
+        context->SetRequestInfo("OperationId: %v, Parameters: %v",
+            operationIdOrAlias,
             parameters);
 
         CompleteCallWith(
@@ -1767,8 +1775,7 @@ private:
             return;
         }
 
-        TOperationIdOrAlias operationIdOrAlias = TOperationId();
-        NScheduler::FromProto(&operationIdOrAlias, *request);
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
         TGetOperationOptions options;
         SetTimeoutOptions(&options, context.Get());
@@ -1782,8 +1789,8 @@ private:
         }
         options.IncludeRuntime = request->include_runtime();
 
-        context->SetRequestInfo("%v, IncludeRuntime: %v",
-            GetOperationIdOrAliasContextInfo(operationIdOrAlias),
+        context->SetRequestInfo("OperationId: %v, IncludeRuntime: %v",
+            operationIdOrAlias,
             options.IncludeRuntime);
 
         CompleteCallWith(
@@ -2229,7 +2236,10 @@ private:
         TSharedRange<TUnversionedRow>* keys,
         TOptions* options)
     {
-        NApi::NRpcProxy::ValidateRowsetDescriptor(request->rowset_descriptor(), 1, NApi::NRpcProxy::NProto::RK_UNVERSIONED);
+        NApi::NRpcProxy::ValidateRowsetDescriptor(
+            request->rowset_descriptor(),
+            NApi::NRpcProxy::CurrentWireFormatVersion,
+            NApi::NRpcProxy::NProto::RK_UNVERSIONED);
         if (request->Attachments().empty()) {
             context->Reply(TError("Request is missing rowset in attachments"));
             return false;
@@ -2496,6 +2506,7 @@ private:
                     auto* protoTabletInfo = response->add_tablets();
                     protoTabletInfo->set_total_row_count(tabletInfo.TotalRowCount);
                     protoTabletInfo->set_trimmed_row_count(tabletInfo.TrimmedRowCount);
+                    protoTabletInfo->set_barrier_timestamp(tabletInfo.BarrierTimestamp);
                 }
             });
     }
@@ -2940,7 +2951,7 @@ private:
             context,
             BIND(&IFileWriter::Write, fileWriter),
             BIND(&IFileWriter::Close, fileWriter),
-            false);
+            false /* feedbackEnabled */);
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -3033,7 +3044,143 @@ private:
                 return journalWriter->Write(rows);
             }),
             BIND(&IJournalWriter::Close, journalWriter),
-            true);
+            true /* feedbackEnabled */);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // TABLES
+    ////////////////////////////////////////////////////////////////////////////////
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadTable)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto path = FromProto<NYPath::TRichYPath>(request->path());
+
+        NApi::TTableReaderOptions options;
+        options.Unordered = request->unordered();
+        options.OmitInaccessibleColumns = request->omit_inaccessible_columns();
+        if (request->has_config()) {
+            options.Config = ConvertTo<TTableReaderConfigPtr>(TYsonString(request->config()));
+        }
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+
+        context->SetRequestInfo(
+            "Path: %v, Unordered: %v, OmitInaccessibleColumns: %v",
+            path);
+
+        auto tableReader = WaitFor(client->CreateTableReader(path, options))
+            .ValueOrThrow();
+
+        auto outputStream = context->GetResponseAttachmentsStream();
+        NApi::NRpcProxy::NProto::TReadTableMeta meta;
+        meta.set_start_row_index(tableReader->GetStartRowIndex());
+        ToProto(meta.mutable_key_columns(), tableReader->GetKeyColumns());
+        ToProto(meta.mutable_omitted_inaccessible_columns(),
+            tableReader->GetOmittedInaccessibleColumns());
+        ToProto(meta.mutable_schema(), tableReader->GetTableSchema());
+        meta.mutable_payload()->set_total_row_count(tableReader->GetTotalRowCount());
+        ToProto(meta.mutable_payload()->mutable_data_statistics(),
+            tableReader->GetDataStatistics());
+
+        auto metaRef = SerializeProtoToRef(meta);
+        WaitFor(outputStream->Write(metaRef))
+            .ThrowOnError();
+
+        int nameTableSize = 0;
+        std::vector<TUnversionedRow> rows;
+        rows.reserve(Config_->ReadBufferRowCount);
+        bool finished = false;
+
+        auto blockGenerator = BIND([&] {
+            if (finished) {
+                return MakeFuture(TSharedRef());
+            }
+
+            return AsyncReadRows(tableReader, &rows).Apply(BIND([&] {
+                if (rows.empty()) {
+                    finished = true;
+                }
+
+                auto rowsetData = NApi::NRpcProxy::SerializeRowsetWithNameTableDelta(
+                    tableReader->GetNameTable(),
+                    rows,
+                    &nameTableSize);
+
+                NApi::NRpcProxy::NProto::TTableReaderPayload payload;
+                payload.set_total_row_count(tableReader->GetTotalRowCount());
+                ToProto(payload.mutable_data_statistics(), tableReader->GetDataStatistics());
+                auto payloadRef = SerializeProtoToRef(payload);
+
+                return PackRefs(std::vector{rowsetData, payloadRef});
+            }));
+        });
+
+        HandleInputStreamingRequest(
+            context,
+            blockGenerator);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteTable)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto path = FromProto<NYPath::TRichYPath>(request->path());
+
+        NApi::TTableWriterOptions options;
+        if (request->has_config()) {
+            options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(request->config()));
+        }
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+
+        context->SetRequestInfo(
+            "Path: %v",
+            path);
+
+        auto tableWriter = WaitFor(client->CreateTableWriter(path, options))
+            .ValueOrThrow();
+
+        auto outputStream = context->GetResponseAttachmentsStream();
+        const auto& schema = tableWriter->GetSchema();
+        NApi::NRpcProxy::NProto::TWriteTableMeta meta;
+        ToProto(meta.mutable_schema(), schema);
+        auto metaRef = SerializeProtoToRef(meta);
+        WaitFor(outputStream->Write(metaRef))
+            .ThrowOnError();
+
+        NApi::NRpcProxy::NProto::TRowsetDescriptor descriptor;
+        descriptor.set_wire_format_version(NApi::NRpcProxy::CurrentWireFormatVersion);
+        descriptor.set_rowset_kind(NApi::NRpcProxy::NProto::RK_UNVERSIONED);
+
+        auto blockHandler = BIND([&] (const TSharedRef& block) {
+            // Here we assume our local tableWriter wouldn't modify its own name table,
+            // so we don't have to use an id mapping.
+            auto rows = NApi::NRpcProxy::DeserializeRowsetWithNameTableDelta(
+                block,
+                tableWriter->GetNameTable(),
+                &descriptor);
+
+            tableWriter->Write(rows);
+            return tableWriter->GetReadyEvent();
+        });
+
+        HandleOutputStreamingRequest(
+            context,
+            blockHandler,
+            BIND(&ITableWriter::Close, tableWriter),
+            false /* feedbackEnabled */);
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -3053,6 +3200,9 @@ private:
         SetTimeoutOptions(&options, context.Get());
 
         options.CachePath = request->cache_path();
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
         if (request->has_master_read_options()) {
             FromProto(&options, request->master_read_options());
         }
@@ -3087,6 +3237,9 @@ private:
         SetTimeoutOptions(&options, context.Get());
 
         options.CachePath = request->cache_path();
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
         if (request->has_prerequisite_options()) {
             FromProto(&options, request->prerequisite_options());
         }

@@ -643,8 +643,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
 
         case EInternedAttributeKey::Revision:
             BuildYsonFluently(consumer)
-                // TODO(babenko): KWYT-630
-                .Value(static_cast<i64>(node->GetRevision()));
+                .Value(node->GetRevision());
             return true;
 
         case EInternedAttributeKey::AttributesRevision:
@@ -1026,15 +1025,15 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
     EPermissionCheckScope scope,
     EPermission permission)
 {
-    if ((scope & EPermissionCheckScope::This) != EPermissionCheckScope::None) {
+    if (Any(scope & EPermissionCheckScope::This)) {
         ValidatePermission(node, permission);
     }
 
-    if ((scope & EPermissionCheckScope::Parent) != EPermissionCheckScope::None) {
+    if (Any(scope & EPermissionCheckScope::Parent)) {
         ValidatePermission(node->GetParent(), permission);
     }
 
-    if ((scope & EPermissionCheckScope::Descendants) != EPermissionCheckScope::None) {
+    if (Any(scope & EPermissionCheckScope::Descendants)) {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* trunkNode = node->GetTrunkNode();
         auto descendants = cypressManager->ListSubtreeNodes(trunkNode, Transaction, false);
@@ -2032,6 +2031,10 @@ int TMapNodeProxy::GetChildCount() const
     for (const auto* node : originators) {
         const auto* mapNode = node->As<TMapNode>();
         result += mapNode->ChildCountDelta();
+
+        if (mapNode->GetLockMode() == ELockMode::Snapshot) {
+            break;
+        }
     }
     return result;
 }
@@ -2093,8 +2096,13 @@ bool TMapNodeProxy::AddChild(const TString& key, const NYTree::INodePtr& child)
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
     auto* childImpl = LockImpl(trunkChildImpl);
 
-    impl->KeyToChild()[key] = trunkChildImpl;
-    YCHECK(impl->ChildToKey().insert(std::make_pair(trunkChildImpl, key)).second);
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+
+    auto& keyToChild = impl->MutableKeyToChild(objectManager);
+    auto& childToKey = impl->MutableChildToKey(objectManager);
+
+    keyToChild[key] = trunkChildImpl;
+    YCHECK(childToKey.insert(std::make_pair(trunkChildImpl, key)).second);
     ++impl->ChildCountDelta();
 
     AttachChild(Bootstrap_->GetObjectManager(), TrunkNode, childImpl);
@@ -2161,11 +2169,12 @@ void TMapNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newCh
 
     auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(key));
 
-    auto& keyToChild = impl->KeyToChild();
-    auto& childToKey = impl->ChildToKey();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+
+    auto& keyToChild = impl->MutableKeyToChild(objectManager);
+    auto& childToKey = impl->MutableChildToKey(objectManager);
 
     bool ownsOldChild = keyToChild.find(key) != keyToChild.end();
-    const auto& objectManager = Bootstrap_->GetObjectManager();
     DetachChild(objectManager, TrunkNode, oldChildImpl, ownsOldChild);
 
     keyToChild[key] = newTrunkChildImpl;
@@ -2235,10 +2244,10 @@ void TMapNodeProxy::DoRemoveChild(
     const TString& key,
     TCypressNodeBase* childImpl)
 {
-    auto* trunkChildImpl = childImpl->GetTrunkNode();
-    auto& keyToChild = impl->KeyToChild();
-    auto& childToKey = impl->ChildToKey();
     const auto& objectManager = Bootstrap_->GetObjectManager();
+    auto* trunkChildImpl = childImpl->GetTrunkNode();
+    auto& keyToChild = impl->MutableKeyToChild(objectManager);
+    auto& childToKey = impl->MutableChildToKey(objectManager);
     if (Transaction) {
         auto it = keyToChild.find(key);
         if (it == keyToChild.end()) {

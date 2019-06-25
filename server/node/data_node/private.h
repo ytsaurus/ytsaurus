@@ -16,6 +16,7 @@ extern const NLogging::TLogger P2PLogger;
 extern const NProfiling::TProfiler P2PProfiler;
 
 extern const TString CellIdFileName;
+extern const TString LocationUuidFileName;
 extern const TString MultiplexedDirectory;
 extern const TString TrashDirectory;
 extern const TString CleanExtension;

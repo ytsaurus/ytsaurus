@@ -3,6 +3,7 @@
 
 #include <yt/core/yson/null_consumer.h>
 #include <yt/core/yson/parser.h>
+#include <yt/core/yson/detail.h>
 
 #include <yt/core/ytree/convert.h>
 
@@ -16,8 +17,6 @@ namespace {
 using ::testing::InSequence;
 using ::testing::StrictMock;
 using ::testing::HasSubstr;
-
-using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -622,5 +621,112 @@ TEST(TYsonTest, ContextInExceptions_Margin)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TStringVectorBlockStream
+{
+public:
+    TStringVectorBlockStream(std::vector<TStringBuf> data)
+        : Data_(std::move(data))
+    { }
+
+    const char* Begin() const
+    {
+        return Data_[Index_].Data();
+    }
+
+    const char* Current() const
+    {
+        return Data_[Index_].Data() + Pointer_;
+    }
+
+    void Skip(size_t size)
+    {
+        Pointer_ += size;
+        YCHECK(Pointer_ < Data_[Index_].Size());
+    }
+
+    const char* End() const
+    {
+        return Data_[Index_].Data() + Data_[Index_].Size();
+    }
+
+    void RefreshBlock()
+    {
+        ++Index_;
+        Pointer_ = 0;
+    }
+
+private:
+    const std::vector<TStringBuf> Data_;
+    size_t Index_ = 0;
+    size_t Pointer_ = 0;
+};
+
+using TTestReaderWithContext = NDetail::TReaderWithContext<TStringVectorBlockStream, 15>;
+using TContextPair = std::pair<TString, size_t>;
+
+TTestReaderWithContext CreateTestReaderWithContext(std::vector<TStringBuf> data)
+{
+    return TTestReaderWithContext(TStringVectorBlockStream(data));
+}
+
+TEST(TContextTest, NoCheckpointContextCall)
+{
+    using TContextPair = std::pair<TString, size_t>;
+    auto reader = CreateTestReaderWithContext({
+        "12345",
+        "678",
+        "90123456",
+        "789",
+    });
+    EXPECT_EQ(reader.GetContextFromCheckpoint(), TContextPair("12345", 0));
+    reader.RefreshBlock();
+    EXPECT_EQ(reader.GetContextFromCheckpoint(), TContextPair("12345678", 0));
+    reader.RefreshBlock();
+    EXPECT_EQ(reader.GetContextFromCheckpoint(), TContextPair("123456789012345", 0));
+    reader.RefreshBlock();
+    EXPECT_EQ(reader.GetContextFromCheckpoint(), TContextPair("123456789012345", 0));
+}
+
+TEST(TContextTest, Simple)
+{
+    auto reader = CreateTestReaderWithContext({
+        "12345",
+        "678",
+        "90123456",
+        "789",
+    });
+    reader.Skip(2);
+    reader.CheckpointContext();
+    EXPECT_EQ(reader.GetContextFromCheckpoint(), TContextPair("12345", 2));
+}
+
+TEST(TContextTest, ReaderKeepsDataFromPrevBuffers)
+{
+    auto reader = CreateTestReaderWithContext({
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "0",
+        "a",
+        "b",
+    });
+    for (size_t i = 0; i < 10; ++i) {
+        reader.RefreshBlock();
+    }
+    EXPECT_EQ(*reader.Current(), 'a');
+    reader.CheckpointContext();
+    EXPECT_EQ(reader.GetContextFromCheckpoint(), TContextPair("1234567890a", 10));
+    reader.RefreshBlock();
+    EXPECT_EQ(reader.GetContextFromCheckpoint(), TContextPair("1234567890ab", 10));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
-} // namespace NYT::NYTree
+} // namespace NYT::NYson

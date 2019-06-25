@@ -80,29 +80,6 @@ static std::pair<TSkiffSchemaPtr, bool> DeoptionalizeSchema(TSkiffSchemaPtr skif
     }
 }
 
-static void ValidateColumnSchema(const TString& columnName, TSkiffSchemaPtr skiffSchema)
-{
-    switch (skiffSchema->GetWireType()) {
-        case EWireType::Yson32:
-        case EWireType::Int64:
-        case EWireType::Uint64:
-        case EWireType::Double:
-        case EWireType::Boolean:
-        case EWireType::String32:
-            break;
-
-        case EWireType::Nothing:
-        case EWireType::Tuple:
-        case EWireType::Variant8:
-        case EWireType::RepeatedVariant16:
-            THROW_ERROR_EXCEPTION("Column %Qv cannot be encoded as %Qlv",
-                columnName,
-                skiffSchema->GetWireType());
-        default:
-            Y_UNREACHABLE();
-    }
-}
-
 static TSkiffTableDescription CreateTableDescription(
     const NSkiff::TSkiffSchemaPtr& skiffSchema,
     const TString& rangeIndexColumnName,
@@ -188,11 +165,7 @@ static TSkiffTableDescription CreateTableDescription(
             }
             result.RangeIndexFieldIndex = i;
         }
-        bool isRequired;
-        TSkiffSchemaPtr deoptionalizedSchema;
-        std::tie(deoptionalizedSchema, isRequired) = DeoptionalizeSchema(child);
-        ValidateColumnSchema(childName, deoptionalizedSchema);
-        result.DenseFieldDescriptionList.emplace_back(childName, deoptionalizedSchema, isRequired);
+        result.DenseFieldDescriptionList.emplace_back(childName, child);
     }
 
     // Sparse fields.
@@ -213,9 +186,7 @@ static TSkiffTableDescription CreateTableDescription(
                 THROW_ERROR_EXCEPTION("Name %Qv is found multiple times",
                     name);
             }
-            auto deoptionalizedSchema = DeoptionalizeSchema(child).first;
-            ValidateColumnSchema(name, child);
-            result.SparseFieldDescriptionList.emplace_back(name, deoptionalizedSchema);
+            result.SparseFieldDescriptionList.emplace_back(name, child);
         }
     }
 
@@ -323,6 +294,10 @@ NSkiff::TSkiffSchemaPtr ParseSchema(
             switch (schemaRepresentation->WireType) {
                 case EWireType::Variant8:
                     return CreateVariant8Schema(childSchemaList)->SetName(schemaRepresentation->Name);
+                case EWireType::Variant16:
+                    return CreateVariant16Schema(childSchemaList)->SetName(schemaRepresentation->Name);
+                case EWireType::RepeatedVariant8:
+                    return CreateRepeatedVariant8Schema(childSchemaList)->SetName(schemaRepresentation->Name);
                 case EWireType::RepeatedVariant16:
                     return CreateRepeatedVariant16Schema(childSchemaList)->SetName(schemaRepresentation->Name);
                 case EWireType::Tuple:
@@ -358,18 +333,42 @@ std::vector<NSkiff::TSkiffSchemaPtr> ParseSkiffSchemas(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDenseFieldDescription::TDenseFieldDescription(TString name, const NSkiff::TSkiffSchemaPtr& deoptionalizedSchema, bool isRequired)
-    : Name(std::move(name))
-    , DeoptionalizedSchema(deoptionalizedSchema)
-    , Required(isRequired)
+TFieldDescription::TFieldDescription(TString name, NSkiff::TSkiffSchemaPtr schema)
+    : Name_(std::move(name))
+    , Schema_(std::move(schema))
 { }
 
-////////////////////////////////////////////////////////////////////////////////
+EWireType TFieldDescription::ValidatedSimplify() const
+{
+    auto result = Simplify();
+    if (!result) {
+        THROW_ERROR_EXCEPTION("Column %Qv cannot be encoded as %Qlv",
+            Name_,
+            GetShortDebugString(Schema_));
+    }
+    return *result;
+}
 
-TSparseFieldDescription::TSparseFieldDescription(TString name, const NSkiff::TSkiffSchemaPtr& deoptionalizedSchema)
-    : Name(std::move(name))
-    , DeoptionalizedSchema(deoptionalizedSchema)
-{ }
+bool TFieldDescription::IsRequired() const
+{
+    return DeoptionalizeSchema(Schema_).second;
+}
+
+std::optional<EWireType> TFieldDescription::Simplify() const
+{
+    auto wireType = DeoptionalizeSchema(Schema_).first->GetWireType();
+    switch (wireType) {
+        case EWireType::Yson32:
+        case EWireType::Int64:
+        case EWireType::Uint64:
+        case EWireType::Double:
+        case EWireType::Boolean:
+        case EWireType::String32:
+            return wireType;
+        default:
+            return std::nullopt;
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

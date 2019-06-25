@@ -91,7 +91,7 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
             .Item("omitted_inaccessible_columns").Value(reader->GetOmittedInaccessibleColumns())
             .DoIf(reader->GetTotalRowCount() > 0, [&](auto fluent) {
                 fluent
-                    .Item("start_row_index").Value(reader->GetTableRowIndex());
+                    .Item("start_row_index").Value(reader->GetStartRowIndex());
             });
     });
 
@@ -99,9 +99,10 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
         return;
     }
 
-    auto writer = CreateSchemalessWriterForFormat(
+    auto writer = CreateStaticTableWriterForFormat(
         context->GetOutputFormat(),
         reader->GetNameTable(),
+        {reader->GetTableSchema()},
         context->Request().OutputStream,
         false,
         ControlAttributes,
@@ -338,7 +339,7 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
         YCHECK(allColumns[index].size() == allStatistics[index].ColumnDataWeights.size());
     }
 
-    auto producer = [&] (IYsonConsumer* consumer) {
+    ProduceOutput(context, [&] (IYsonConsumer* consumer) {
         BuildYsonFluently(consumer)
             .DoList([&] (TFluentList fluent) {
                 for (int index = 0; index < Paths.size(); ++index) {
@@ -360,8 +361,7 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
                         .EndMap();
                 }
             });
-    };
-    ProduceOutput(context, producer, producer);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -582,17 +582,7 @@ void TSelectRowsCommand::DoExecute(ICommandContextPtr context)
     WaitFor(writer->Close())
         .ThrowOnError();
 
-    YT_LOG_INFO("Query result statistics (RowsRead: %v, RowsWritten: %v, AsyncTime: %v, SyncTime: %v, ExecuteTime: %v, "
-        "ReadTime: %v, WriteTime: %v, IncompleteInput: %v, IncompleteOutput: %v)",
-        statistics.RowsRead,
-        statistics.RowsWritten,
-        statistics.AsyncTime.MilliSeconds(),
-        statistics.SyncTime.MilliSeconds(),
-        statistics.ExecuteTime.MilliSeconds(),
-        statistics.ReadTime.MilliSeconds(),
-        statistics.WriteTime.MilliSeconds(),
-        statistics.IncompleteInput,
-        statistics.IncompleteOutput);
+    YT_LOG_INFO("Query result statistics (%v)", statistics);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1027,6 +1017,36 @@ void TAlterTableReplicaCommand::DoExecute(ICommandContextPtr context)
         .ThrowOnError();
 
     ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TGetTabletInfosCommand::TGetTabletInfosCommand()
+{
+    RegisterParameter("path", Path);
+    RegisterParameter("tablet_indexes", TabletIndexes);
+}
+
+void TGetTabletInfosCommand::DoExecute(ICommandContextPtr context)
+{
+    auto client = context->GetClient();
+    auto asyncTablets = client->GetTabletInfos(Path, TabletIndexes, Options);
+    auto tablets = WaitFor(asyncTablets)
+        .ValueOrThrow();
+
+    ProduceOutput(context, [&] (IYsonConsumer* consumer) {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("tablets").DoListFor(tablets, [&] (auto fluent, const auto& tablet) {
+                    fluent
+                        .Item().BeginMap()
+                            .Item("total_row_count").Value(tablet.TotalRowCount)
+                            .Item("trimmed_row_count").Value(tablet.TrimmedRowCount)
+                            .Item("barrier_timestamp").Value(tablet.BarrierTimestamp)
+                        .EndMap();
+                })
+            .EndMap();
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

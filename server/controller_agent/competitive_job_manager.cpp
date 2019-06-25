@@ -140,12 +140,12 @@ void TCompetitiveJobManager::OnJobFinished(const TJobletPtr& joblet)
 {
     YCHECK(CookieToCompetition_.contains(joblet->OutputCookie));
     auto& competition = CookieToCompetition_[joblet->OutputCookie];
+    auto pendingDataWeight = competition.PendingDataWeight;
     auto jobIt = Find(competition.Competitors, joblet->JobId);
     YCHECK(jobIt != competition.Competitors.end());
     competition.Competitors.erase(jobIt);
 
     if (competition.Competitors.empty()) {
-        PendingDataWeight_ -= competition.PendingDataWeight;
         CookieToCompetition_.erase(joblet->OutputCookie);
     } else {
         YCHECK(competition.Status == ECompetitionStatus::TwoCompetitiveJobs);
@@ -156,6 +156,7 @@ void TCompetitiveJobManager::OnJobFinished(const TJobletPtr& joblet)
         YT_LOG_DEBUG("Canceling speculative request early since original job finished (JobId: %v, Cookie: %v)",
             joblet->JobId,
             joblet->OutputCookie);
+        PendingDataWeight_ -= pendingDataWeight;
         SpeculativeCandidates_.erase(joblet->OutputCookie);
         JobCounter_->Decrement(1);
     }

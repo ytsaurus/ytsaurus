@@ -58,7 +58,7 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
         with ProfileMetric.at_scheduler("scheduler/pools/metrics/aggregated_smoothed_cpu_usage_x100").with_tag("pool", "root") as smoothed_cpu, \
                 ProfileMetric.at_scheduler("scheduler/pools/metrics/aggregated_max_cpu_usage_x100").with_tag("pool", "root") as max_cpu, \
                 ProfileMetric.at_scheduler("scheduler/pools/metrics/aggregated_preemptable_cpu_x100").with_tag("pool", "root") as preemptable_cpu:
-            run_sleeping_vanilla(SPEC_WITH_CPU_MONITOR)
+            run_sleeping_vanilla(spec=SPEC_WITH_CPU_MONITOR)
 
         wait(lambda: preemptable_cpu.update_profile().differentiate() > 0)
         smoothed_cpu_diff = smoothed_cpu.update_profile().differentiate()

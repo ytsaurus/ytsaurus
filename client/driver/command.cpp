@@ -8,28 +8,20 @@
 namespace NYT::NDriver {
 
 using namespace NYPath;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
 void ProduceOutput(
     ICommandContextPtr context,
-    std::function<void(NYson::IYsonConsumer*)> producerV3,
-    std::function<void(NYson::IYsonConsumer*)> producerV4)
+    const std::function<void(IYsonConsumer*)>& producer)
 {
     TStringStream stream;
-    NYson::TYsonWriter writer(&stream, NYson::EYsonFormat::Binary);
-    switch (context->GetConfig()->ApiVersion) {
-        case ApiVersion3:
-            producerV3(&writer);
-            break;
-        case ApiVersion4:
-            producerV4(&writer);
-            break;
-        default:
-            THROW_ERROR_EXCEPTION("Unsupported API version: %v", context->GetConfig()->ApiVersion);
-    }
+    TYsonWriter writer(&stream, EYsonFormat::Binary);
+    producer(&writer);
     writer.Flush();
-    context->ProduceOutputValue(NYson::TYsonString(stream.Str()));
+    context->ProduceOutputValue(TYsonString(stream.Str()));
 }
 
 void ProduceEmptyOutput(ICommandContextPtr context)
@@ -37,27 +29,32 @@ void ProduceEmptyOutput(ICommandContextPtr context)
     switch (context->GetConfig()->ApiVersion) {
         case ApiVersion3:
             break;
-        case ApiVersion4:
+        default:
             context->ProduceOutputValue(NYTree::BuildYsonStringFluently().BeginMap().EndMap());
             break;
-        default:
-            THROW_ERROR_EXCEPTION("Unsupported API version %v", context->GetConfig()->ApiVersion);
     }
 }
 
 void ProduceSingleOutput(
     ICommandContextPtr context,
     TStringBuf name,
-    std::function<void(NYson::IYsonConsumer*)> producer)
+    const std::function<void(IYsonConsumer*)>& producer)
 {
-    ProduceOutput(context, producer, [&](NYson::IYsonConsumer* consumer) {
-        NYTree::BuildYsonFluently(consumer)
-            .BeginMap()
-                .Item(name).Do([&](NYTree::TFluentAny fluent) {
-                    producer(fluent.GetConsumer());
-                })
-            .EndMap();
-    });
+    switch (context->GetConfig()->ApiVersion) {
+        case ApiVersion3:
+            ProduceOutput(context, producer);
+            break;
+        default:
+            ProduceOutput(context, [&] (IYsonConsumer* consumer) {
+                NYTree::BuildYsonFluently(consumer)
+                    .BeginMap()
+                        .Item(name).Do([&] (auto fluent) {
+                            producer(fluent.GetConsumer());
+                        })
+                    .EndMap();
+            });
+            break;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,14 +86,13 @@ void TCommandBase::Execute(ICommandContextPtr context)
 
 void TCommandBase::ProduceResponseParameters(
     ICommandContextPtr context,
-    std::function<void(NYson::IYsonConsumer*)> producer)
+    const std::function<void(IYsonConsumer*)>& producer)
 {
     producer(context->Request().ResponseParametersConsumer);
-    if (context->Request().ParametersFinishedCallback) {
-        context->Request().ParametersFinishedCallback();
+    if (context->Request().ResponseParametersFinishedCallback) {
+        context->Request().ResponseParametersFinishedCallback();
     }
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,7 +113,8 @@ TYPath RewritePath(const TYPath& path, bool rewriteOperationPath)
         return path;
     }
 
-    std::vector<std::pair<ETokenType, TString>> expectedTokens = {
+    using NYPath::ETokenType;
+    static const std::vector<std::pair<ETokenType, TString>> expectedTokens = {
         {ETokenType::Slash, "/"},
         {ETokenType::Slash, "/"},
         {ETokenType::Literal, "sys"},
@@ -126,7 +123,7 @@ TYPath RewritePath(const TYPath& path, bool rewriteOperationPath)
         {ETokenType::Slash, "/"},
     };
 
-    TTokenizer tokenizer(path);
+    NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
 
     for (const auto& pair : expectedTokens) {

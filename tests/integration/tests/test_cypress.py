@@ -10,7 +10,7 @@ from yt_driver_bindings import Driver
 from yt.yson import to_yson_type, YsonEntity
 from yt.environment.helpers import assert_items_equal
 
-from yt_env_setup import YTEnvSetup, skip_if_rpc_driver_backend
+from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 ##################################################################

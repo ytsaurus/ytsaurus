@@ -212,15 +212,15 @@ NYPath::TYPath GetFilePathInCache(const TString& md5, const NYPath::TYPath cache
 namespace {
 
 template <class TReq>
-void SetDynamicTableCypressRequestFullPath(TReq* req, TYPath* fullPath)
+void SetDynamicTableCypressRequestFullPath(TReq* req, const TYPath& fullPath)
 { }
 
 template <>
 void SetDynamicTableCypressRequestFullPath<NTabletClient::NProto::TReqMount>(
     NTabletClient::NProto::TReqMount* req,
-    TYPath* fullPath)
+    const TYPath& fullPath)
 {
-    req->set_path(*fullPath);
+    req->set_path(fullPath);
 }
 
 } // namespace
@@ -1097,7 +1097,7 @@ private:
         const auto& cellDirectory = Connection_->GetCellDirectory();
         const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
         const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(cellDescriptor, EPeerKind::Leader);
-        return ChannelFactory_->CreateChannel(primaryPeerDescriptor.GetAddressOrThrow(Connection_->GetNetworks()));
+        return ChannelFactory_->CreateChannel(primaryPeerDescriptor.GetAddressWithNetworkOrThrow(Connection_->GetNetworks()));
     }
 
 
@@ -1401,7 +1401,7 @@ private:
         for (const auto& pair : keys) {
             auto key = pair.first;
             auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
-            const auto& tabletId = tabletInfo->TabletId;
+            auto tabletId = tabletInfo->TabletId;
             if (tabletIds.insert(tabletId).second) {
                 cellIdToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
             }
@@ -1904,7 +1904,7 @@ private:
             for (int index = 0; index < sortedKeys.size();) {
                 auto key = sortedKeys[index].first;
                 auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
-                const auto& cellId = tabletInfo->CellId;
+                auto cellId = tabletInfo->CellId;
                 auto it = cellIdToSession.find(cellId);
                 if (it == cellIdToSession.end()) {
                     auto session = New<TTabletCellLookupSession>(
@@ -2171,9 +2171,9 @@ private:
 
             std::vector<TFuture<TQueryServiceProxy::TRspGetTabletInfoPtr>> futures;
             for (const auto& pair : cellToTabletIds) {
-                const auto& cellId = pair.first;
+                auto cellId = pair.first;
                 const auto& perCellTabletIds = pair.second;
-                const auto channel = GetReadCellChannelOrThrow(cellId);
+                auto channel = GetReadCellChannelOrThrow(cellId);
 
                 TQueryServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultGetInSyncReplicasTimeout));
@@ -2197,7 +2197,7 @@ private:
             }
 
             for (const auto& pair : replicaIdToCount) {
-                const auto& replicaId = pair.first;
+                auto replicaId = pair.first;
                 auto count = pair.second;
                 if (count == tabletIds.size()) {
                     replicaIds.push_back(replicaId);
@@ -2235,7 +2235,7 @@ private:
         for (const auto &path : paths) {
             YT_LOG_INFO("Collecting table input chunks (Path: %v)", path);
 
-            const auto& transactionId = path.GetTransactionId();
+            auto transactionId = path.GetTransactionId();
 
             auto inputChunks = CollectTableInputChunks(
                 path,
@@ -2326,16 +2326,16 @@ private:
                 const auto& tabletInfo = rsp->tablets(static_cast<int>(resultIndexIndex));
                 result.TotalRowCount = tabletInfo.total_row_count();
                 result.TrimmedRowCount = tabletInfo.trimmed_row_count();
+                result.BarrierTimestamp = tabletInfo.barrier_timestamp();
             }
         }
         return results;
     }
 
-    std::unique_ptr<IAttributeDictionary> ResolveExternalNode(
+    std::unique_ptr<IAttributeDictionary> ResolveExternalTable(
         const TYPath& path,
         TTableId* tableId,
         TCellTag* cellTag,
-        TString* fullPath = nullptr,
         const std::vector<TString>& extraAttributes = {})
     {
         auto proxy = CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
@@ -2343,10 +2343,11 @@ private:
 
         {
             auto req = TTableYPathProxy::Get(path + "/@");
-            std::vector<TString> attributeKeys{"id", "external_cell_tag"};
-            if (fullPath) {
-                attributeKeys.push_back("path");
-            }
+            std::vector<TString> attributeKeys{
+                "id",
+                "type",
+                "external_cell_tag"
+            };
             for (const auto& attribute : extraAttributes) {
                 attributeKeys.push_back(attribute);
             }
@@ -2356,24 +2357,30 @@ private:
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attributes of table %v", path);
+
         const auto& batchRsp = batchRspOrError.Value();
         auto getAttributesRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
+
         auto& rsp = getAttributesRspOrError.Value();
         auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+        if (!IsTableType(attributes->Get<EObjectType>("type"))) {
+            THROW_ERROR_EXCEPTION("%v is not a table");
+        }
         *tableId = attributes->Get<TTableId>("id");
         *cellTag = attributes->Get<TCellTag>("external_cell_tag", PrimaryMasterCellTag);
-        if (fullPath) {
-            *fullPath = attributes->Get<TString>("path");
-        }
         return attributes;
     }
 
     template <class TReq>
-    void ExecuteTabletServiceRequest(const TYPath& path, TReq* req, TYPath* fullPath = nullptr)
+    void ExecuteTabletServiceRequest(const TYPath& path, TReq* req)
     {
         TTableId tableId;
         TCellTag cellTag;
-        ResolveExternalNode(path, &tableId, &cellTag, fullPath);
+        auto attributes = ResolveExternalTable(
+            path,
+            &tableId,
+            &cellTag,
+            {"path"});
 
         TTransactionStartOptions txOptions;
         txOptions.Multicell = cellTag != PrimaryMasterCellTag;
@@ -2386,6 +2393,7 @@ private:
 
         ToProto(req->mutable_table_id(), tableId);
 
+        auto fullPath = attributes->Get<TString>("path");
         SetDynamicTableCypressRequestFullPath(req, fullPath);
 
         auto actionData = MakeTransactionActionData(*req);
@@ -2409,9 +2417,7 @@ private:
         const TMountTableOptions& options)
     {
         if (Connection_->GetConfig()->UseTabletService) {
-            TYPath fullPath;
             NTabletClient::NProto::TReqMount req;
-
             if (options.FirstTabletIndex) {
                 req.set_first_tablet_index(*options.FirstTabletIndex);
             }
@@ -2430,7 +2436,7 @@ private:
                 .ValueOrThrow();
             req.set_mount_timestamp(mountTimestamp);
 
-            ExecuteTabletServiceRequest(path, &req, &fullPath);
+            ExecuteTabletServiceRequest(path, &req);
         } else {
             auto req = TTableYPathProxy::Mount(path);
             SetMutationId(req, options);
@@ -2465,7 +2471,6 @@ private:
     {
         if (Connection_->GetConfig()->UseTabletService) {
             NTabletClient::NProto::TReqUnmount req;
-
             if (options.FirstTabletIndex) {
                 req.set_first_tablet_index(*options.FirstTabletIndex);
             }
@@ -2478,7 +2483,6 @@ private:
         } else {
             auto req = TTableYPathProxy::Unmount(path);
             SetMutationId(req, options);
-
             if (options.FirstTabletIndex) {
                 req->set_first_tablet_index(*options.FirstTabletIndex);
             }
@@ -2499,7 +2503,6 @@ private:
     {
         if (Connection_->GetConfig()->UseTabletService) {
             NTabletClient::NProto::TReqRemount req;
-
             if (options.FirstTabletIndex) {
                 req.set_first_tablet_index(*options.FirstTabletIndex);
             }
@@ -2511,7 +2514,6 @@ private:
         } else {
             auto req = TTableYPathProxy::Remount(path);
             SetMutationId(req, options);
-
             if (options.FirstTabletIndex) {
                 req->set_first_tablet_index(*options.FirstTabletIndex);
             }
@@ -2531,7 +2533,6 @@ private:
     {
         if (Connection_->GetConfig()->UseTabletService) {
             NTabletClient::NProto::TReqFreeze req;
-
             if (options.FirstTabletIndex) {
                 req.set_first_tablet_index(*options.FirstTabletIndex);
             }
@@ -2543,7 +2544,6 @@ private:
         } else {
             auto req = TTableYPathProxy::Freeze(path);
             SetMutationId(req, options);
-
             if (options.FirstTabletIndex) {
                 req->set_first_tablet_index(*options.FirstTabletIndex);
             }
@@ -2575,7 +2575,6 @@ private:
         } else {
             auto req = TTableYPathProxy::Unfreeze(path);
             SetMutationId(req, options);
-
             if (options.FirstTabletIndex) {
                 req->set_first_tablet_index(*options.FirstTabletIndex);
             }
@@ -2670,11 +2669,10 @@ private:
 
         TTableId tableId;
         TCellTag cellTag;
-        auto attributes = ResolveExternalNode(
+        auto attributes = ResolveExternalTable(
             path,
             &tableId,
             &cellTag,
-            nullptr /*fullPath*/,
             {"tablet_cell_bundle", "dynamic"});
 
         if (TypeFromId(tableId) != EObjectType::Table) {
@@ -2683,24 +2681,12 @@ private:
         }
 
         if (!attributes->Get<bool>("dynamic")) {
-            THROW_ERROR_EXCEPTION("Table must be dynamic")
-                << TErrorAttribute("path", path);
+            THROW_ERROR_EXCEPTION("Table %v must be dynamic",
+                path);
         }
 
-
-        auto optionalBundle = attributes->Find<TString>("tablet_cell_bundle");
-        if (!optionalBundle) {
-            THROW_ERROR_EXCEPTION("Table has no tablet cell bundle")
-                << TErrorAttribute("path", path);
-        }
-
-        DoCheckPermission(
-            Options_.GetUser(),
-            "//sys/tablet_cell_bundles/" + *optionalBundle,
-            EPermission::Write,
-            TCheckPermissionOptions{})
-            .ToError(Options_.GetUser(), EPermission::Write)
-            .ThrowOnError();
+        auto bundle = attributes->Get<TString>("tablet_cell_bundle");
+        InternalValidatePermission("//sys/tablet_cell_bundles/" + ToYPathLiteral(bundle), EPermission::Write);
 
         auto req = TTableYPathProxy::ReshardAutomatic(FromObjectId(tableId));
         SetMutationId(req, options);
@@ -2768,7 +2754,7 @@ private:
         TTableReplicaId replicaId,
         const TAlterTableReplicaOptions& options)
     {
-        ValidateTableReplicaTablePermission(replicaId, EPermission::Write);
+        InternalValidateTableReplicaTablePermission(replicaId, EPermission::Write);
 
         auto req = TTableReplicaYPathProxy::Alter(FromObjectId(replicaId));
         if (options.Enabled) {
@@ -2795,13 +2781,7 @@ private:
         const std::vector<TYPath>& movableTables,
         const TBalanceTabletCellsOptions& options)
     {
-        DoCheckPermission(
-            Options_.GetUser(),
-            "//sys/tablet_cell_bundles/" + tabletCellBundle,
-            EPermission::Write,
-            TCheckPermissionOptions{})
-            .ToError(Options_.GetUser(), EPermission::Write)
-            .ThrowOnError();
+        InternalValidatePermission("//sys/tablet_cell_bundles/" + ToYPathLiteral(tabletCellBundle), EPermission::Write);
 
         std::vector<TFuture<TTabletCellBundleYPathProxy::TRspBalanceTabletCellsPtr>> cellResponses;
 
@@ -2821,11 +2801,10 @@ private:
             for (const auto& path : movableTables) {
                 TTableId tableId;
                 TCellTag cellTag;
-                auto attributes = ResolveExternalNode(
+                auto attributes = ResolveExternalTable(
                     path,
                     &tableId,
                     &cellTag,
-                    nullptr /*fullPath*/,
                     {"dynamic", "tablet_cell_bundle"});
 
                 if (TypeFromId(tableId) != EObjectType::Table) {
@@ -2936,41 +2915,6 @@ private:
             .ThrowOnError();
     }
 
-    static bool TryParseObjectId(const TYPath& path, TObjectId* objectId)
-    {
-        NYPath::TTokenizer tokenizer(path);
-        if (tokenizer.Advance() != NYPath::ETokenType::Literal) {
-            return false;
-        }
-
-        auto token = tokenizer.GetToken();
-        if (!token.StartsWith(ObjectIdPathPrefix)) {
-            return false;
-        }
-
-        *objectId = TObjectId::FromString(token.SubString(ObjectIdPathPrefix.length(), token.length() - ObjectIdPathPrefix.length()));
-        return true;
-    }
-
-    void ValidatePermission(const TYPath& path, EPermission permission)
-    {
-        // TODO(babenko): consider passing proper timeout
-        const auto& user = Options_.GetUser();
-        WaitFor(CheckPermission(user, path, permission, {}))
-            .ValueOrThrow()
-            .ToError(user, permission)
-            .ThrowOnError();
-    }
-
-    void ValidateTableReplicaTablePermission(TTableReplicaId replicaId, EPermission permission)
-    {
-        // TODO(babenko): consider passing proper timeout
-        auto tablePathYson = WaitFor(GetNode(FromObjectId(replicaId) + "/@table_path", {}))
-            .ValueOrThrow();
-        auto tablePath = ConvertTo<TYPath>(tablePathYson);
-        ValidatePermission(tablePath, EPermission::Write);
-    }
-
     void DoRemoveNode(
         const TYPath& path,
         const TRemoveNodeOptions& options)
@@ -2982,7 +2926,7 @@ private:
             cellTag = CellTagFromId(objectId);
             switch (TypeFromId(objectId)) {
                 case EObjectType::TableReplica: {
-                    ValidateTableReplicaTablePermission(objectId, EPermission::Write);
+                    InternalValidateTableReplicaTablePermission(objectId, EPermission::Write);
                     break;
                 }
                 default:
@@ -3613,10 +3557,10 @@ private:
         switch (type) {
             case EObjectType::TableReplica: {
                 auto path = attributes->Get<TString>("table_path");
-                ValidatePermission(path, EPermission::Write);
+                InternalValidatePermission(path, EPermission::Write);
 
                 TTableId tableId;
-                ResolveExternalNode(path, &tableId, &cellTag);
+                ResolveExternalTable(path, &tableId, &cellTag);
 
                 attributes->Set("table_path", FromObjectId(tableId));
                 break;
@@ -3726,6 +3670,7 @@ private:
 
         auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
         auto req = TYPathProxy::Get(destination + "/@");
+        NCypressClient::SetTransactionId(req, options.TransactionId);
 
         std::vector<TString> attributeKeys{
             "md5"
@@ -3759,7 +3704,15 @@ private:
             return result;
         }
 
-        SetTouchedAttribute(destination);
+        try {
+            SetTouchedAttribute(destination, TPrerequisiteOptions(), options.TransactionId);
+        } catch (const NYT::TErrorException& ex) {
+            YT_LOG_DEBUG(
+                ex.Error(),
+                "Failed to set touched attribute on file (Destination: %v)",
+                destination);
+            return result;
+        }
 
         result.Path = destination;
         return result;
@@ -3779,6 +3732,8 @@ private:
         NApi::ITransactionPtr transaction;
         {
             auto transactionStartOptions = TTransactionStartOptions();
+            transactionStartOptions.ParentId = options.TransactionId;
+
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Format("Putting file %v to cache", path));
             transactionStartOptions.Attributes = std::move(attributes);
@@ -3809,23 +3764,18 @@ private:
 
         // Check permissions.
         {
-            auto checkPermissionOptions = TCheckPermissionOptions();
+            TCheckPermissionOptions checkPermissionOptions;
             checkPermissionOptions.TransactionId = transaction->GetId();
 
-            auto readPermissionResult = DoCheckPermission(Options_.GetUser(), objectIdPath, EPermission::Read, checkPermissionOptions);
-            readPermissionResult.ToError(Options_.GetUser(), EPermission::Read)
-                .ThrowOnError();
+            InternalValidatePermission(objectIdPath, EPermission::Read, checkPermissionOptions);
+            InternalValidatePermission(objectIdPath, EPermission::Remove, checkPermissionOptions);
 
-            auto removePermissionResult = DoCheckPermission(Options_.GetUser(), objectIdPath, EPermission::Remove, checkPermissionOptions);
-            removePermissionResult.ToError(Options_.GetUser(), EPermission::Remove)
-                .ThrowOnError();
-
-            auto usePermissionResult = DoCheckPermission(Options_.GetUser(), options.CachePath, EPermission::Use, checkPermissionOptions);
-
-            auto writePermissionResult = DoCheckPermission(Options_.GetUser(), options.CachePath, EPermission::Write, checkPermissionOptions);
-
+            auto usePermissionResult = InternalCheckPermission(options.CachePath, EPermission::Use, checkPermissionOptions);
+            auto writePermissionResult = InternalCheckPermission(options.CachePath, EPermission::Write, checkPermissionOptions);
             if (usePermissionResult.Action == ESecurityAction::Deny && writePermissionResult.Action == ESecurityAction::Deny) {
-                THROW_ERROR_EXCEPTION("You need write or use permission to use file cache")
+                THROW_ERROR_EXCEPTION("You need %Qlv or %Qlv permission to use file cache",
+                    EPermission::Use,
+                    EPermission::Write)
                     << usePermissionResult.ToError(Options_.GetUser(), EPermission::Use)
                     << writePermissionResult.ToError(Options_.GetUser(), EPermission::Write);
             }
@@ -4133,7 +4083,7 @@ private:
         result.reserve(attributes.size());
         for (const auto& attribute : attributes) {
             if (!SupportedOperationAttributes.contains(attribute)) {
-                THROW_ERROR_EXCEPTION("Attribute %Qv is not allowed",
+                THROW_ERROR_EXCEPTION("Operation attribute %Qv is not supported",
                     attribute);
             }
             if (attribute == "id") {
@@ -4490,7 +4440,7 @@ private:
         auto deadline = timeout.ToDeadLine();
 
         TOperationId operationId;
-        Visit(operationIdOrAlias,
+        Visit(operationIdOrAlias.Payload,
             [&] (const TOperationId& id) {
                 operationId = id;
             },
@@ -5708,6 +5658,8 @@ private:
 
             TSelectRowsOptions selectOptions;
             selectOptions.Timeout = deadline - Now();
+            selectOptions.InputRowLimit = std::numeric_limits<i64>::max();
+            selectOptions.MemoryLimitPerNode = 100_MB;
 
             auto resultCounts = WaitFor(SelectRows(builder.Build(), selectOptions))
                 .ValueOrThrow();
@@ -5762,6 +5714,8 @@ private:
         }
 
         builder.AddOrderByExpression("start_time", orderByDirection);
+        builder.AddOrderByExpression("id_hi", orderByDirection);
+        builder.AddOrderByExpression("id_lo", orderByDirection);
 
         if (options.Pool) {
             builder.AddWhereConjunct(Format("list_contains(pools, %Qv) OR pool = %Qv", *options.Pool, *options.Pool));
@@ -5784,6 +5738,8 @@ private:
 
         TSelectRowsOptions selectOptions;
         selectOptions.Timeout = deadline - Now();
+        selectOptions.InputRowLimit = std::numeric_limits<i64>::max();
+        selectOptions.MemoryLimitPerNode = 100_MB;
 
         auto rowsItemsId = WaitFor(SelectRows(builder.Build(), selectOptions))
             .ValueOrThrow();
@@ -6047,7 +6003,10 @@ private:
 
         std::sort(operations.begin(), operations.end(), [&] (const TOperation& lhs, const TOperation& rhs) {
             // Reverse order: most recent first.
-            return *lhs.StartTime > *rhs.StartTime;
+            return
+            std::tie(*lhs.StartTime, (*lhs.Id).Parts64[0], (*lhs.Id).Parts64[1])
+            >
+            std::tie(*rhs.StartTime, (*rhs.Id).Parts64[0], (*rhs.Id).Parts64[1]);
         });
 
         TListOperationsResult result;
@@ -6384,6 +6343,8 @@ private:
         TSelectRowsOptions selectRowsOptions;
         selectRowsOptions.Timestamp = AsyncLastCommittedTimestamp;
         selectRowsOptions.Timeout = deadline - Now();
+        selectRowsOptions.InputRowLimit = std::numeric_limits<i64>::max();
+        selectRowsOptions.MemoryLimitPerNode = 100_MB;
 
         TFuture<std::vector<TJob>> jobsInProgressFuture;
         if (includeInProgressJobs) {
@@ -6943,6 +6904,7 @@ private:
         "error",
         "statistics",
         "events",
+        "has_spec",
     };
 
     std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& attributes)
@@ -6951,7 +6913,7 @@ private:
         result.reserve(attributes.size() + 2); // Plus 2 as operation_id and job_id are split into hi and lo.
         for (const auto& attribute : attributes) {
             if (!SupportedJobAttributes.contains(attribute)) {
-                THROW_ERROR_EXCEPTION("Job attribute %Qv is not allowed", attribute);
+                THROW_ERROR_EXCEPTION("Job attribute %Qv is not supported", attribute);
             }
             if (attribute.EndsWith("_id")) {
                 result.push_back(attribute + "_hi");
@@ -6998,6 +6960,7 @@ private:
             "error",
             "statistics",
             "events",
+            "has_spec",
         };
 
         std::vector<int> columnIndexes;
@@ -7050,6 +7013,7 @@ private:
             }
         };
 
+        using std::placeholders::_1;
         return BuildYsonStringFluently()
             .BeginMap()
                 .DoIf(columnFilter.ContainsIndex(table.Index.OperationIdHi), [&] (TFluentMap fluent) {
@@ -7062,14 +7026,15 @@ private:
                     fluent.Item("state").Value(state);
                 })
 
-                .Do(std::bind(tryAddInstantFluentItem, std::placeholders::_1, "start_time", table.Index.StartTime))
-                .Do(std::bind(tryAddInstantFluentItem, std::placeholders::_1, "finish_time", table.Index.FinishTime))
+                .Do(std::bind(tryAddInstantFluentItem, _1, "start_time", table.Index.StartTime))
+                .Do(std::bind(tryAddInstantFluentItem, _1, "finish_time", table.Index.FinishTime))
 
-                .Do(std::bind(TryAddFluentItem<TString>,     std::placeholders::_1, "address",     row, columnFilter, table.Index.Address))
-                .Do(std::bind(TryAddFluentItem<TString>,     std::placeholders::_1, "type",        row, columnFilter, table.Index.Type))
-                .Do(std::bind(TryAddFluentItem<TYsonString>, std::placeholders::_1, "error",       row, columnFilter, table.Index.Error))
-                .Do(std::bind(TryAddFluentItem<TYsonString>, std::placeholders::_1, "statistics",  row, columnFilter, table.Index.Statistics))
-                .Do(std::bind(TryAddFluentItem<TYsonString>, std::placeholders::_1, "events",      row, columnFilter, table.Index.Events))
+                .Do(std::bind(TryAddFluentItem<bool>,        _1, "has_spec",   row, columnFilter, table.Index.HasSpec))
+                .Do(std::bind(TryAddFluentItem<TString>,     _1, "address",    row, columnFilter, table.Index.Address))
+                .Do(std::bind(TryAddFluentItem<TString>,     _1, "type",       row, columnFilter, table.Index.Type))
+                .Do(std::bind(TryAddFluentItem<TYsonString>, _1, "error",      row, columnFilter, table.Index.Error))
+                .Do(std::bind(TryAddFluentItem<TYsonString>, _1, "statistics", row, columnFilter, table.Index.Statistics))
+                .Do(std::bind(TryAddFluentItem<TYsonString>, _1, "events",     row, columnFilter, table.Index.Events))
             .EndMap();
     }
 
@@ -7188,6 +7153,57 @@ private:
             meta.MediumDirectory->Swap(rsp->mutable_medium_directory());
         }
         return meta;
+    }
+
+
+    static bool TryParseObjectId(const TYPath& path, TObjectId* objectId)
+    {
+        NYPath::TTokenizer tokenizer(path);
+        if (tokenizer.Advance() != NYPath::ETokenType::Literal) {
+            return false;
+        }
+
+        auto token = tokenizer.GetToken();
+        if (!token.StartsWith(ObjectIdPathPrefix)) {
+            return false;
+        }
+
+        *objectId = TObjectId::FromString(token.SubString(ObjectIdPathPrefix.length(), token.length() - ObjectIdPathPrefix.length()));
+        return true;
+    }
+
+    TCheckPermissionResult InternalCheckPermission(
+        const TYPath& path,
+        EPermission permission,
+        const TCheckPermissionOptions& options = {})
+    {
+        // TODO(babenko): consider passing proper timeout
+        const auto& user = Options_.GetUser();
+        return DoCheckPermission(user, path, permission, options);
+    }
+
+    void InternalValidatePermission(
+        const TYPath& path,
+        EPermission permission,
+        const TCheckPermissionOptions& options = {})
+    {
+        // TODO(babenko): consider passing proper timeout
+        const auto& user = Options_.GetUser();
+        DoCheckPermission(user, path, permission, options)
+            .ToError(user, permission)
+            .ThrowOnError();
+    }
+
+    void InternalValidateTableReplicaTablePermission(
+        TTableReplicaId replicaId,
+        EPermission permission,
+        const TCheckPermissionOptions& options = {})
+    {
+        // TODO(babenko): consider passing proper timeout
+        auto tablePathYson = WaitFor(GetNode(FromObjectId(replicaId) + "/@table_path", {}))
+            .ValueOrThrow();
+        auto tablePath = ConvertTo<TYPath>(tablePathYson);
+        InternalValidatePermission(tablePath, EPermission::Write, options);
     }
 };
 

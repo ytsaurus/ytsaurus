@@ -48,7 +48,7 @@ public:
 
     // Attribute accessors.
     // "append"
-    bool GetAppend() const;
+    bool GetAppend(bool defaultValue = false) const;
     void SetAppend(bool value);
 
     // "teleport"
@@ -113,6 +113,9 @@ public:
 
     // "security_tags"
     std::optional<std::vector<NSecurityClient::TSecurityTag>> GetSecurityTags() const;
+
+    // "bypass_artifact_cache"
+    bool GetBypassArtifactCache() const;
 
 private:
     TYPath Path_;

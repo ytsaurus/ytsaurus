@@ -69,6 +69,9 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             time.sleep(0.1)
         assert False
 
+    def test_root_pool(self):
+        assert are_almost_equal(get("//sys/scheduler/orchid/scheduler/pools/<Root>/fair_share_ratio"), 0.0)
+
     def test_scheduler_guaranteed_resources_ratio(self):
         create("map_node", "//sys/pools/big_pool", attributes={"min_share_ratio": 1.0})
         create("map_node", "//sys/pools/big_pool/subpool_1", attributes={"weight": 1.0})
@@ -134,7 +137,6 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
         release_breakpoint()
         op.track()
-
 
     def test_resource_limits(self):
         resource_limits = {"cpu": 1, "memory": 1000 * 1024 * 1024, "network": 10}
@@ -309,6 +311,49 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         op.track()
 
 ##################################################################
+
+
+class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
+    NUM_MASTERS = 1
+    NUM_NODES = 10
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 100,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "scheduler_connector": {
+                "heartbeat_period": 100
+            }
+        }
+    }
+
+    def test_strategy_with_slow_controller(self):
+        spec = {
+            "testing": {
+                "scheduling_delay": 1000,
+                "scheduling_delay_type": "async"
+            }
+        }
+        op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=20, spec=spec)
+        op2 = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=20, spec=spec)
+
+        wait_breakpoint(job_count=10)
+
+        for j in op1.get_running_jobs().keys():
+            release_breakpoint(job_id=j)
+        for j in op2.get_running_jobs().keys():
+            release_breakpoint(job_id=j)
+
+        wait_breakpoint(job_count=10)
+
+        assert op1.get_job_count("running") == 5
+        assert op2.get_job_count("running") == 5
+
 
 class TestStrategies(YTEnvSetup):
     NUM_MASTERS = 1
@@ -623,7 +668,6 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         for i in xrange(5):
             create("table", "//tmp/out" + str(i))
 
-
         ops = []
         def run(index, pool, should_raise):
             def execute(dont_track):
@@ -802,6 +846,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         time.sleep(0.5)
 
     def test_preemption(self):
+        set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 2)
         create("table", "//tmp/t_in")
         for i in xrange(3):
             write_table("<append=true>//tmp/t_in", {"foo": "bar"})
@@ -824,6 +869,7 @@ class TestSchedulerPreemption(YTEnvSetup):
 
     @pytest.mark.parametrize("interruptible", [False, True])
     def test_interrupt_job_on_preemption(self, interruptible):
+        set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 2)
         create("table", "//tmp/t_in")
         write_table(
             "//tmp/t_in",
@@ -1117,6 +1163,7 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
         set("//sys/pool_trees/default/@fair_share_preemption_timeout", 100)
         set("//sys/pool_trees/default/@min_share_preemption_timeout", 100)
         set("//sys/pool_trees/default/@preemptive_scheduling_backoff", 0)
+        set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 5)
         time.sleep(0.5)
 
     @classmethod
@@ -1133,12 +1180,13 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
 
         create("map_node", "//sys/pools/special_pool")
         set("//sys/pools/special_pool/@aggressive_starvation_enabled", True)
+        scheduling_info_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/"
 
-        get_fair_share_ratio = lambda op_id: \
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/fair_share_ratio".format(op_id))
+        def get_fair_share_ratio(op_id):
+            return get(scheduling_info_path.format(op_id) + "fair_share_ratio")
 
-        get_usage_ratio = lambda op_id: \
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/usage_ratio".format(op_id))
+        def get_usage_ratio(op_id):
+            return get(scheduling_info_path.format(op_id) + "usage_ratio")
 
         ops = []
         for index in xrange(2):
@@ -1321,6 +1369,7 @@ class TestSchedulerPools(YTEnvSetup):
 
         create("map_node", "//sys/pools/default_pool")
         set("//sys/pool_trees/default/@default_parent_pool", "default_pool")
+        set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 2)
         time.sleep(0.2)
 
         command = with_breakpoint("cat ; BREAKPOINT")
@@ -1355,29 +1404,42 @@ class TestSchedulerPools(YTEnvSetup):
         for op in [op1, op2]:
             op.track()
 
-    def test_ephemeral_pool_in_custom_pool(self):
+    def test_ephemeral_pool_in_custom_pool_simple(self):
         create("map_node", "//sys/pools/custom_pool")
-        create("map_node", "//sys/pools/custom_pool_fifo")
         set("//sys/pools/custom_pool/@create_ephemeral_subpools", True)
-        set("//sys/pools/custom_pool_fifo/@create_ephemeral_subpools", True)
-        set("//sys/pools/custom_pool_fifo/@ephemeral_subpools_mode", "fifo")
-
         time.sleep(0.2)
 
-        op1 = run_sleeping_vanilla(spec={"pool": "custom_pool"})
-        op2 = run_sleeping_vanilla(spec={"pool": "custom_pool_fifo"})
-        wait(lambda: len(list(op1.get_running_jobs())) == 1)
-        wait(lambda: len(list(op2.get_running_jobs())) == 1)
+        op = run_sleeping_vanilla(spec={"pool": "custom_pool"})
+        wait(lambda: len(list(op.get_running_jobs())) == 1)
 
-        pools_path = "//sys/scheduler/orchid/scheduler/pools/"
-
-        pool = get(pools_path + "custom_pool$root")
+        pool = get("//sys/scheduler/orchid/scheduler/pools/custom_pool$root")
         assert pool["parent"] == "custom_pool"
         assert pool["mode"] == "fair_share"
 
-        pool_fifo = get(pools_path + "custom_pool_fifo$root")
+    def test_ephemeral_pool_scheduling_mode(self):
+        create("map_node", "//sys/pools/custom_pool_fifo")
+        set("//sys/pools/custom_pool_fifo/@create_ephemeral_subpools", True)
+        set("//sys/pools/custom_pool_fifo/@ephemeral_subpool_config", {"mode": "fifo"})
+        time.sleep(0.2)
+
+        op = run_sleeping_vanilla(spec={"pool": "custom_pool_fifo"})
+        wait(lambda: len(list(op.get_running_jobs())) == 1)
+
+        pool_fifo = get("//sys/scheduler/orchid/scheduler/pools/custom_pool_fifo$root")
         assert pool_fifo["parent"] == "custom_pool_fifo"
         assert pool_fifo["mode"] == "fifo"
+
+    def test_ephemeral_pool_max_operation_count(self):
+        create("map_node", "//sys/pools/custom_pool")
+        set("//sys/pools/custom_pool/@create_ephemeral_subpools", True)
+        set("//sys/pools/custom_pool/@ephemeral_subpool_config", {"max_operation_count": 1})
+        time.sleep(0.2)
+
+        op = run_sleeping_vanilla(spec={"pool": "custom_pool"})
+        wait(lambda: len(list(op.get_running_jobs())) == 1)
+
+        with pytest.raises(YtError):
+            run_test_vanilla(command="", spec={"pool": "custom_pool"}, dont_track=False)
 
     def test_ephemeral_pools_limit(self):
         create("table", "//tmp/t_in")

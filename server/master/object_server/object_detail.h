@@ -57,7 +57,7 @@ protected:
 
     struct TGetBasicAttributesContext
     {
-        NYTree::EPermission Permission = {};
+        std::optional<NYTree::EPermission> Permission;
         TCellTag CellTag = NObjectClient::InvalidCellTag;
         std::optional<std::vector<TString>> Columns;
         bool OmitInaccessibleColumns = false;

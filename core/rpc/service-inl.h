@@ -12,18 +12,34 @@ namespace NYT::NRpc {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class... TArgs>
-void IServiceContext::SetRequestInfo(const char* format, const TArgs&... args)
+void IServiceContext::SetRequestInfo(const char* format, TArgs&&... args)
 {
     if (GetLogger().IsLevelEnabled(NLogging::ELogLevel::Debug)) {
-        SetRawRequestInfo(Format(format, args...));
+        SetRawRequestInfo(Format(format, std::forward<TArgs>(args)...), false);
     }
 }
 
 template <class... TArgs>
-void IServiceContext::SetResponseInfo(const char* format, const TArgs&... args)
+void IServiceContext::SetIncrementalRequestInfo(const char* format, TArgs&&... args)
 {
     if (GetLogger().IsLevelEnabled(NLogging::ELogLevel::Debug)) {
-        SetRawResponseInfo(Format(format, args...));
+        SetRawRequestInfo(Format(format, std::forward<TArgs>(args)...), true);
+    }
+}
+
+template <class... TArgs>
+void IServiceContext::SetResponseInfo(const char* format, TArgs&&... args)
+{
+    if (GetLogger().IsLevelEnabled(NLogging::ELogLevel::Debug)) {
+        SetRawResponseInfo(Format(format, std::forward<TArgs>(args)...), false);
+    }
+}
+
+template <class... TArgs>
+void IServiceContext::SetIncrementalResponseInfo(const char* format, TArgs&&... args)
+{
+    if (GetLogger().IsLevelEnabled(NLogging::ELogLevel::Debug)) {
+        SetRawResponseInfo(Format(format, std::forward<TArgs>(args)...), true);
     }
 }
 

@@ -35,6 +35,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(int, DynamicConfigVersion);
     DEFINE_BYREF_RW_PROPERTY(TBooleanFormula, NodeTagFilter);
     DEFINE_BYREF_RW_PROPERTY(TTabletBalancerConfigPtr, TabletBalancerConfig);
+    DEFINE_BYREF_RW_PROPERTY(ETabletCellHealth, Health);
 
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletCell*>, TabletCells);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletAction*>, TabletActions);

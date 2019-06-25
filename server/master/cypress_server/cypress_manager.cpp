@@ -33,6 +33,10 @@
 #include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/ypath_detail.h>
 
+// COMPAT(shakurov)
+#include <yt/server/master/table_server/table_node.h>
+#include <yt/server/master/chunk_server/chunk_list.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NBus;
@@ -912,7 +916,7 @@ public:
         }
 
         if (strongestLockModeBefore != strongestLockModeAfter) {
-            UnbranchOrUpdateNodesAfterUnlock(trunkNode, transaction, strongestLockModeBefore, strongestLockModeAfter);
+            RemoveOrUpdateNodesOnLockModeChange(trunkNode, transaction, strongestLockModeBefore, strongestLockModeAfter);
         }
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Node explicitly unlocked (NodeId: %v, TransactionId: %v)",
@@ -962,7 +966,56 @@ public:
         trunkNode->ResetLockingStateIfEmpty();
     }
 
-    void UnbranchOrUpdateNodesAfterUnlock(
+    // Returns the mode of the strongest lock among all of the descendants
+    // (branches, subbranches, subsubbranches...) of the node.
+    // NB: doesn't distinguish ELockMode::None and ELockMode::Snapshot - returns
+    // the latter even if there're no locks at all.
+    // (This is because snapshot locks may lie arbitrarily deep without
+    // affecting ancestors, and we want to avoid traversing the whole subtree.)
+    ELockMode GetStrongestLockModeOfNestedTransactions(TCypressNodeBase* trunkNode, TTransaction* transaction)
+    {
+        YCHECK(transaction);
+
+        auto result = ELockMode::Snapshot;
+        for (auto* nestedTransaction : transaction->NestedTransactions()) {
+            auto* versionedNode = FindNode(TVersionedNodeId{trunkNode->GetId(), nestedTransaction->GetId()});
+            if (!versionedNode) {
+                continue;
+            }
+
+            auto lockMode = versionedNode->GetLockMode();
+            YCHECK(lockMode != ELockMode::None);
+
+            if (result < lockMode) {
+                result = lockMode;
+
+                if (result == ELockMode::Exclusive) {
+                    break; // as strong as it gets
+                }
+            }
+        }
+
+        return result;
+    }
+
+    //! Patches the version tree of the #trunkNode, performing modifications
+    //! necessary when the lock mode of the branch corresponding to #transaction
+    //! is about to be changed.
+    /*!
+     *  The lock mode change may happen:
+     *    - when someone explicitly unlocks a node;
+     *    - on transaction abort.
+     *
+     *  In either case it may be necessary:
+     *    - to unbranch the branch created by #transaction or
+     *    - to update that branch's lock mode;
+     *    - to unbranch branches created by #transaction's ancestors or
+     *    - to update those branches' lock modes.
+     *
+     *  In the case of an explicit unlock, the need to perform the patch-up is self-evident.
+     *  In the case of transaction abort, the need for the patch-up is argued in YT-10796.
+     */
+    void RemoveOrUpdateNodesOnLockModeChange(
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction,
         ELockMode strongestLockModeBefore,
@@ -973,28 +1026,7 @@ public:
         auto mustUnbranchAboveNodes = strongestLockModeAfter <= ELockMode::Snapshot && strongestLockModeBefore > ELockMode::Snapshot;
         auto mustUpdateAboveNodes = strongestLockModeAfter > ELockMode::Snapshot;
 
-        // The mode of the strongest lock among all of the descendants
-        // (branches, subbranches, subsubbranches...) of the node being unlocked.
-        // NB: ELockMode::None and ELockMode::Snapshot are indistinguishable
-        // because snapshot locks may lie arbitrarily deep without affecting ancestors.
-        auto strongestLockModeBelow = ELockMode::None;
-        for (auto* nestedTransaction : transaction->NestedTransactions()) {
-            auto* versionedNode = FindNode(TVersionedNodeId{trunkNode->GetId(), nestedTransaction->GetId()});
-            if (!versionedNode) {
-                continue;
-            }
-
-            auto lockMode = versionedNode->GetLockMode();
-            YCHECK(lockMode != ELockMode::None);
-
-            if (strongestLockModeBelow < lockMode) {
-                strongestLockModeBelow = lockMode;
-
-                if (strongestLockModeBelow == ELockMode::Exclusive) {
-                    break; // as strong as it gets
-                }
-            }
-        }
+        auto strongestLockModeBelow = GetStrongestLockModeOfNestedTransactions(trunkNode, transaction);
 
         auto* branchedNode = GetNode(TVersionedNodeId{trunkNode->GetId(), transaction->GetId()});
         YCHECK(branchedNode->GetLockMode() != ELockMode::None);
@@ -1018,7 +1050,7 @@ public:
         auto unbranchNode = [&] (TCypressNodeBase* node) {
             auto* transaction = node->GetTransaction();
 
-            RemoveBranchedNode(transaction, node);
+            DestroyBranchedNode(transaction, node);
 
             auto& branchedNodes = transaction->BranchedNodes();
             auto it = std::remove(branchedNodes.begin(), branchedNodes.end(), node);
@@ -1033,40 +1065,47 @@ public:
         YCHECK(!mustUnbranchThisNode || !mustUpdateThisNode);
 
         if (mustUnbranchThisNode) {
-            // Nested arbitrarily deeply under the node being unbranched, there
-            // may lie a snapshot-locked branched node referencing the node we're
-            // about to unbranch as its originator. We must update these
-            // references to avoid dangling pointers.
-            // NB: the same needn't be done for the nodes to be unbrached above
-            // as they're not locked and thus couldn't possibly have been
-            // chosen to be originators of snapshot locks.
-            TCypressNodeBase* newOriginator = nullptr;
-            for (auto* current = transaction->GetParent(); current; current = current->GetParent()) {
-                if (current->LockedNodes().contains(trunkNode)) {
-                    newOriginator = GetNode(TVersionedNodeId{trunkNode->GetId(), current->GetId()});
-                    break;
+            if (!transaction->NestedTransactions().empty()) {
+                // Nested arbitrarily deeply under the node being unbranched, there
+                // may lie a snapshot-locked branched node referencing the node we're
+                // about to unbranch as its originator. We must update these
+                // references to avoid dangling pointers.
+                // NB: the same needn't be done for the nodes to be unbrached above
+                // as they're not locked and thus couldn't possibly have been
+                // chosen to be originators of snapshot locks.
+                TCypressNodeBase* newOriginator = nullptr;
+                for (auto* current = transaction->GetParent(); current; current = current->GetParent()) {
+                    if (current->LockedNodes().contains(trunkNode)) {
+                        newOriginator = GetNode(TVersionedNodeId{trunkNode->GetId(), current->GetId()});
+                        break;
+                    }
                 }
-            }
-            if (!newOriginator) {
-                newOriginator = trunkNode;
-            }
+                if (!newOriginator) {
+                    newOriginator = trunkNode;
+                }
 
-            for (auto* lock : trunkNode->LockingState().AcquiredLocks) {
-                if (lock->Request().Mode != ELockMode::Snapshot) {
-                    continue;
-                }
-                auto* lockTransaction = lock->GetTransaction();
-                if (lockTransaction->IsDescendantOf(transaction)) {
-                    auto* node = GetNode(TVersionedNodeId{trunkNode->GetId(), lockTransaction->GetId()});
-                    auto* nodeOriginator = node->GetOriginator();
-                    if (nodeOriginator == branchedNode) {
-                        node->SetOriginator(newOriginator);
+                for (auto* lock : trunkNode->LockingState().AcquiredLocks) {
+                    if (lock->Request().Mode != ELockMode::Snapshot) {
+                        continue;
+                    }
+                    auto* lockTransaction = lock->GetTransaction();
+                    if (lockTransaction->IsDescendantOf(transaction)) {
+                        auto* node = GetNode(TVersionedNodeId{trunkNode->GetId(), lockTransaction->GetId()});
+                        auto* nodeOriginator = node->GetOriginator();
+                        if (nodeOriginator == branchedNode) {
+                            Y_ASSERT(newOriginator != nodeOriginator);
+                            node->SetOriginator(newOriginator);
+                            // NB: a branch holds a strong reference to its originator's trunk.
+                            // New originator will have the same trunk, which means there's
+                            // no need to adjust reference counters here.
+                        }
                     }
                 }
             }
 
             unbranchNode(branchedNode);
         }
+
         if (mustUpdateThisNode) {
             YCHECK(!mustUnbranchThisNode);
             updateNode(branchedNode);
@@ -1091,6 +1130,35 @@ public:
                 }
             }
         }
+    }
+
+    //! Destroys a single branched node.
+    void DestroyBranchedNode(
+        TTransaction* transaction,
+        TCypressNodeBase* branchedNode)
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+
+        const auto& handler = GetHandler(branchedNode);
+
+        auto* trunkNode = branchedNode->GetTrunkNode();
+        auto branchedNodeId = branchedNode->GetVersionedId();
+
+        // Drop the implicit reference to the originator.
+        objectManager->UnrefObject(trunkNode);
+
+        if (branchedNode->GetLockMode() != ELockMode::Snapshot) {
+            // Cleanup the branched node.
+            auto* originatingNode = branchedNode->GetOriginator();
+            handler->Unbranch(originatingNode, branchedNode);
+        }
+
+        // Remove the node.
+        Y_ASSERT(branchedNode->GetTransaction() == transaction);
+        handler->Destroy(branchedNode);
+        NodeMap_.Remove(branchedNodeId);
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Branched node removed (NodeId: %v)", branchedNodeId);
     }
 
     TLock* CreateLock(
@@ -1330,6 +1398,9 @@ private:
     TNodeId RootNodeId_;
     TMapNode* RootNode_ = nullptr;
 
+    // COMPAT(shakurov). See YT-10852.
+    bool NeedCleanupHalfCommittedTransaction_ = false;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -1360,8 +1431,10 @@ private:
 
         NodeMap_.LoadValues(context);
         LockMap_.LoadValues(context);
-    }
 
+        // COMPAT(shakurov) see YT-10852
+        NeedCleanupHalfCommittedTransaction_ = context.GetVersion() < 833;
+    }
 
     virtual void Clear() override
     {
@@ -1385,6 +1458,13 @@ private:
         TCompositeAutomatonPart::SetZeroState();
 
         InitBuiltins();
+    }
+
+    virtual void OnBeforeSnapshotLoaded() override
+    {
+        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
+
+        NeedCleanupHalfCommittedTransaction_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1483,6 +1563,50 @@ private:
         YT_LOG_INFO("Finished initializing nodes");
 
         InitBuiltins();
+
+        // COMPAT(shakurov)
+        if (NeedCleanupHalfCommittedTransaction_)
+        {
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+
+            const auto nodeId = TGuid::FromString("14b9a-4f2edb-3fe0191-6f4fd698");
+            const auto transactionId = TGuid::FromString("14b9d-127f8e-3fe0001-1c229f47");
+            const auto branchedNodeId = TVersionedNodeId(nodeId, transactionId);
+
+            auto* trunkNode = FindNode(TVersionedNodeId(nodeId));
+            auto* branchedNode = FindNode(branchedNodeId);
+            auto* transaction = transactionManager->FindTransaction(transactionId);
+
+            YCHECK(!!trunkNode == !!branchedNode);
+            YCHECK(!!trunkNode == !!transaction);
+
+            if (trunkNode) {
+                YT_LOG_ERROR("Found the unfortunate half-committed transaction 14b9d-127f8e-3fe0001-1c229f47. Scrubbing it and its immediate vicinity out. See YT-10852.");
+
+                YCHECK(trunkNode->GetType() == EObjectType::Table);
+                auto* tableTrunkNode = trunkNode->As<NTableServer::TTableNode>();
+                auto* chunkList = tableTrunkNode->GetChunkList();
+                YCHECK(chunkList);
+                YCHECK(chunkList->GetId() == TGuid::FromString("14b2-bf8cb-1f560065-bd3efb"));
+                YCHECK(chunkList->TrunkOwningNodes().Size() == 1);
+                YCHECK(chunkList->BranchedOwningNodes().Empty());
+                YCHECK(*chunkList->TrunkOwningNodes().Begin() == tableTrunkNode);
+
+                objectManager->UnrefObject(trunkNode);
+                NodeMap_.Remove(branchedNodeId);
+                transaction->BranchedNodes().clear();
+                ReleaseLocks(transaction, false);
+                for (auto* object : transaction->ImportedObjects()) {
+                    objectManager->UnrefObject(object);
+                }
+                transaction->ExportedObjects().clear();
+                transaction->ImportedObjects().clear();
+                transactionManager->FinishTransaction(transaction);
+
+                YT_LOG_ERROR("The half-committed transaction 14b9d-127f8e-3fe0001-1c229f47 has been successfully scrubbed out.");
+            }
+        }
     }
 
 
@@ -1634,6 +1758,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        YCHECK(transaction->NestedTransactions().empty());
+
         RemoveBranchedNodes(transaction);
         ReleaseLocks(transaction, false);
     }
@@ -1738,6 +1864,42 @@ private:
 
         // New snapshot lock.
         if (request.Mode == ELockMode::Snapshot) {
+            if (transaction) {
+                // Check if a non-snapshot lock is already taken by this transaction.
+                if (transactionToExclusiveLocks.find(transaction) != transactionToExclusiveLocks.end()) {
+                    return TError(
+                        NCypressClient::EErrorCode::SameTransactionLockConflict,
+                        "Cannot take %Qlv lock for node %v since %Qlv lock is already taken by same transaction %v",
+                        request.Mode,
+                        GetNodePath(trunkNode, transaction),
+                        ELockMode::Exclusive,
+                        transaction->GetId());
+                }
+                for (const auto& pair : transactionAndKeyToSharedLocks) {
+                    const auto& lockTransaction = pair.first.first;
+                    if (transaction == lockTransaction) {
+                        return TError(
+                            NCypressClient::EErrorCode::SameTransactionLockConflict,
+                            "Cannot take %Qlv lock for node %v since %Qlv lock is already taken by same transaction %v",
+                            request.Mode,
+                            GetNodePath(trunkNode, transaction),
+                            ELockMode::Shared,
+                            transaction->GetId());
+                    }
+                }
+
+                // Check if any nested transaction has taken a non-snapshot lock.
+                auto lockModeBelow = GetStrongestLockModeOfNestedTransactions(trunkNode, transaction);
+                if (lockModeBelow > ELockMode::Snapshot) {
+                    return TError(
+                        NCypressClient::EErrorCode::DescendantTransactionLockConflict,
+                        "Cannot take %Qlv lock for node %v since %Qlv lock is already taken by a descendant transaction",
+                        request.Mode,
+                        GetNodePath(trunkNode, transaction),
+                        lockModeBelow);
+                }
+            }
+
             return TError();
         }
 
@@ -2174,10 +2336,11 @@ private:
                 default:
                     Y_UNREACHABLE();
             }
+
+            // NB: Node could be locked more than once.
+            parentTransaction->LockedNodes().insert(trunkNode);
         }
         YCHECK(parentTransaction->Locks().insert(lock).second);
-        // NB: Node could be locked more than once.
-        parentTransaction->LockedNodes().insert(trunkNode);
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Lock promoted (LockId: %v, TransactionId: %v -> %v)",
             lock->GetId(),
             transaction->GetId(),
@@ -2434,40 +2597,22 @@ private:
         transaction->BranchedNodes().clear();
     }
 
-    void RemoveBranchedNode(
-        TTransaction* transaction,
-        TCypressNodeBase* branchedNode)
-    {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-
-        const auto& handler = GetHandler(branchedNode);
-
-        auto* trunkNode = branchedNode->GetTrunkNode();
-        auto branchedNodeId = branchedNode->GetVersionedId();
-
-        // Drop the implicit reference to the originator.
-        objectManager->UnrefObject(trunkNode);
-
-        if (branchedNode->GetLockMode() != ELockMode::Snapshot) {
-            // Cleanup the branched node.
-            auto* originatingNode = branchedNode->GetOriginator();
-            handler->Unbranch(originatingNode, branchedNode);
-        }
-
-        // Remove the node.
-        Y_ASSERT(branchedNode->GetTransaction() == transaction);
-        handler->Destroy(branchedNode);
-        NodeMap_.Remove(branchedNodeId);
-
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Branched node removed (NodeId: %v)", branchedNodeId);
-    }
-
+    //! Unbranches all nodes branched by #transaction and updates their version trees.
     void RemoveBranchedNodes(TTransaction* transaction)
     {
-        for (auto* branchedNode : transaction->BranchedNodes()) {
-            RemoveBranchedNode(transaction, branchedNode);
+        YCHECK(transaction->BranchedNodes().size() == transaction->LockedNodes().size());
+
+        auto& branchedNodes = transaction->BranchedNodes();
+        // The reverse order is for efficient removal.
+        for (auto it = branchedNodes.rbegin(); it != branchedNodes.rend(); ) {
+            auto* branchedNode = *it++;
+            RemoveOrUpdateNodesOnLockModeChange(
+                branchedNode->GetTrunkNode(),
+                transaction,
+                branchedNode->GetLockMode(),
+                ELockMode::None);
         }
-        transaction->BranchedNodes().clear();
+        YCHECK(branchedNodes.empty());
     }
 
 

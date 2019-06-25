@@ -315,7 +315,10 @@ public:
         auto staticOrchidProducer = BIND(&TImpl::BuildStaticOrchid, MakeStrong(this));
         auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer)
             ->Via(GetControlInvoker(EControlQueue::Orchid))
-            ->Cached(Config_->StaticOrchidCacheUpdatePeriod, OrchidWorkerPool_->GetInvoker());
+            ->Cached(
+                Config_->StaticOrchidCacheUpdatePeriod,
+                OrchidWorkerPool_->GetInvoker(),
+                Profiler.AppendPath("/static_orchid"));
         StaticOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(staticOrchidService.Get()));
         YCHECK(StaticOrchidService_);
 
@@ -406,7 +409,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return Visit(idOrAlias,
+        return Visit(idOrAlias.Payload,
             [&] (const TOperationId& id) -> TOperationPtr {
                 auto it = IdToOperation_.find(id);
                 return it == IdToOperation_.end() ? nullptr : it->second;
@@ -842,9 +845,10 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage));
-
         auto update = ConvertTo<TOperationRuntimeParametersUpdatePtr>(parameters);
+
+        ValidateOperationAccess(user, operation->GetId(), update->GetRequiredPermissions());
+
         if (update->Acl.has_value()) {
             update->Acl->Entries.insert(
                 update->Acl->Entries.end(),
@@ -1202,12 +1206,12 @@ public:
             .Run(path, chunkId, operationId, jobId, user);
     }
 
-    TJobProberServiceProxy CreateJobProberProxy(const TString& address) override
+    TJobProberServiceProxy CreateJobProberProxy(const TAddressWithNetwork& addressWithNetwork) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         const auto& channelFactory = GetMasterClient()->GetChannelFactory();
-        auto channel = channelFactory->CreateChannel(address);
+        auto channel = channelFactory->CreateChannel(addressWithNetwork);
 
         TJobProberServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(Config_->JobProberRpcTimeout);
@@ -1592,7 +1596,7 @@ private:
                     RegisterOperationAlias(operation);
                 }
 
-                RegisterOperation(operation, false);
+                RegisterOperation(operation, /* jobsReady */ false);
 
                 operation->SetStateAndEnqueueEvent(EOperationState::Orphaned);
                 AddOperationToTransientQueue(operation);
@@ -2086,10 +2090,9 @@ private:
             }
 
             // NB(babenko): now we only validate this on start but not during revival
+            // NB(ignat): this validation must be just before operation registration below
+            // to avoid violation of pool limits. See YT-10802.
             Strategy_->ValidatePoolLimits(operation.Get(), operation->GetRuntimeParameters());
-
-            WaitFor(MasterConnector_->CreateOperationNode(operation))
-                .ThrowOnError();
         } catch (const std::exception& ex) {
             if (aliasRegistered) {
                 auto it = OperationAliases_.find(*operation->Alias());
@@ -2106,7 +2109,19 @@ private:
 
         ValidateOperationState(operation, EOperationState::Starting);
 
-        RegisterOperation(operation, true);
+        RegisterOperation(operation, /* jobsReady */ true);
+
+        try {
+            WaitFor(MasterConnector_->CreateOperationNode(operation))
+                .ThrowOnError();
+        } catch (const std::exception& ex) {
+            auto wrappedError = TError("Failed to create cypress node for operation %v",
+                operation->GetId())
+                << ex;
+            operation->SetStarted(wrappedError);
+            UnregisterOperation(operation);
+            return;
+        }
 
         operation->SetStateAndEnqueueEvent(EOperationState::WaitingForAgent);
         AddOperationToTransientQueue(operation);
@@ -2748,7 +2763,7 @@ private:
         }
 
         auto operationProgress = WaitFor(BIND(&TImpl::RequestOperationProgress, MakeStrong(this), operation)
-            .AsyncVia(GetControlInvoker(EControlQueue::Operation))
+            .AsyncVia(operation->GetCancelableControlInvoker())
             .Run())
             .ValueOrThrow();
 
@@ -2779,6 +2794,9 @@ private:
             scheduleAbort(transactions.InputTransaction);
             scheduleAbort(transactions.OutputTransaction);
             scheduleAbort(transactions.DebugTransaction);
+            for (const auto& transaction : transactions.NestedInputTransactions) {
+                scheduleAbort(transaction);
+            }
 
             try {
                 WaitFor(Combine(asyncResults))
@@ -2864,6 +2882,9 @@ private:
         abortTransaction(transactions.AsyncTransaction);
         abortTransaction(transactions.InputTransaction);
         abortTransaction(transactions.OutputTransaction);
+        for (const auto& transaction : transactions.NestedInputTransactions) {
+            abortTransaction(transaction);
+        }
 
         SetOperationFinalState(operation, EOperationState::Aborted, error);
 

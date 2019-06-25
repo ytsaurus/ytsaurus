@@ -140,10 +140,10 @@ public:
         return OpenResult_->Reader->GetReadyEvent();
     }
 
-    i64 GetTableRowIndex() const
+    i64 GetStartRowIndex() const
     {
         YCHECK(OpenResult_);
-        return OpenResult_->Reader->GetTableRowIndex();
+        return StartRowIndex_;
     }
 
     virtual i64 GetTotalRowCount() const override
@@ -170,6 +170,11 @@ public:
         return OpenResult_->Reader->GetKeyColumns();
     }
 
+    virtual const TTableSchema& GetTableSchema() const override
+    {
+        return OpenResult_->TableSchema;
+    }
+
     virtual const std::vector<TString>& GetOmittedInaccessibleColumns() const override
     {
         YCHECK(OpenResult_);
@@ -191,6 +196,7 @@ private:
 
     TFuture<void> ReadyEvent_;
     std::optional<TSchemalessMultiChunkReaderCreateResult> OpenResult_;
+    i64 StartRowIndex_;
     NProfiling::TCpuInstant ReadDeadline_ = Max<NProfiling::TCpuInstant>();
 
     void DoOpen()
@@ -204,6 +210,8 @@ private:
             BandwidthThrottler_,
             RpsThrottler_))
             .ValueOrThrow();
+
+        StartRowIndex_ = OpenResult_->Reader->GetTableRowIndex();
         
         if (Transaction_) {
             StartListenTransaction(Transaction_);
@@ -461,7 +469,8 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
         .Apply(BIND([=, userObject = std::move(userObject)] {
             return TSchemalessMultiChunkReaderCreateResult{
                 reader,
-                userObject->OmittedInaccessibleColumns
+                userObject->OmittedInaccessibleColumns,
+                schema
             };
         }));
 }

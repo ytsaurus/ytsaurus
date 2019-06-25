@@ -15,6 +15,7 @@ struct TBriefJobStatistics
     : public TIntrinsicRefCounted
 {
     TInstant Timestamp = TInstant::Zero();
+    EJobPhase Phase;
 
     i64 ProcessedInputRowCount = 0;
     i64 ProcessedInputUncompressedDataSize = 0;

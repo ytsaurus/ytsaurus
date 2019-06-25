@@ -51,7 +51,7 @@ private:
     TBootstrap* Bootstrap_;
     TString CliqueId_;
 
-    TSerializableAccessControlList CurrentAcl_;
+    std::optional<TSerializableAccessControlList> CurrentAcl_;
     NProfiling::TCpuInstant LastCurrentAclUpdateTime_;
 
 public:
@@ -96,14 +96,16 @@ public:
         }
 
         try {
-            NScheduler::ValidateOperationAccess(
-                TString(userName),
-                TGuid::FromString(CliqueId_),
-                TGuid() /* jobId */,
-                EPermission::Read,
-                const_cast<TUsersManager*>(this)->GetCurrentAcl(),
-                Bootstrap_->GetRootClient(),
-                Logger);
+            if (auto acl = const_cast<TUsersManager*>(this)->GetCurrentAcl()) {
+                NScheduler::ValidateOperationAccess(
+                    TString(userName),
+                    TGuid::FromString(CliqueId_),
+                    TGuid() /* jobId */,
+                    EPermission::Read,
+                    *acl,
+                    Bootstrap_->GetRootClient(),
+                    Logger);
+            }
             return true;
         } catch (const TErrorException& ex) {
             if (ex.Error().FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
@@ -145,7 +147,7 @@ private:
         }
     }
 
-    TSerializableAccessControlList GetCurrentAcl()
+    std::optional<TSerializableAccessControlList> GetCurrentAcl()
     {
         auto currentTime = NProfiling::GetCpuInstant();
         auto updatePeriod = NProfiling::DurationToCpuDuration(Bootstrap_->GetConfig()->OperationAclUpdatePeriod);
@@ -173,10 +175,17 @@ private:
             TGuid::FromString(CliqueId_),
             std::move(options)))
             .ValueOrThrow();
-        auto aclNode = ConvertTo<IMapNodePtr>(runtimeParametersYsonString)
-            ->FindChild("runtime_parameters")
+        auto runtimeParametersNode = ConvertTo<IMapNodePtr>(runtimeParametersYsonString)
+            ->FindChild("runtime_parameters");
+        if (!runtimeParametersNode) {
+            return;
+        }
+        auto aclNode = runtimeParametersNode
             ->AsMap()
             ->FindChild("acl");
+        if (!aclNode) {
+            return;
+        }
         CurrentAcl_ = ConvertTo<TSerializableAccessControlList>(std::move(aclNode));
         LastCurrentAclUpdateTime_ = NProfiling::GetCpuInstant();
     }

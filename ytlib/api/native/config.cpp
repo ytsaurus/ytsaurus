@@ -158,7 +158,7 @@ TConnectionConfig::TConnectionConfig()
     });
 
     RegisterPostprocessor([&] () {
-        const auto& cellId = PrimaryMaster->CellId;
+        auto cellId = PrimaryMaster->CellId;
         auto primaryCellTag = CellTagFromId(PrimaryMaster->CellId);
         THashSet<TCellTag> cellTags = {primaryCellTag};
         for (const auto& cellConfig : SecondaryMasters) {

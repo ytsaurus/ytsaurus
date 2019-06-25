@@ -323,7 +323,7 @@ void TTabletTrackerImplOld::SchedulePeerRevocation(TTabletCell* cell)
     if (TInstant::Now() < StartTime_ + Config_->PeerRevocationTimeout)
         return;
 
-    const auto& cellId = cell->GetId();
+    auto cellId = cell->GetId();
 
     TReqRevokePeers request;
     ToProto(request.mutable_cell_id(), cellId);

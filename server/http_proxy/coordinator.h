@@ -50,6 +50,22 @@ DEFINE_REFCOUNTED_TYPE(TProxyEntry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTracingConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    double GlobalSampleRate;
+    THashMap<TString, double> UserSampleRate;
+
+    TTracingConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TTracingConfig)
+
+bool IsTraceSampled(const TTracingConfigPtr& config, const TString& user);
+
+////////////////////////////////////////////////////////////////////////////////
+
 // TDynamicConfig is part of proxy configuration stored in cypress.
 //
 // NOTE: config might me unavalable. Users must handle such cases
@@ -58,7 +74,7 @@ class TDynamicConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    THashMap<TString, double> TracingUserSampleProbability;
+    TTracingConfigPtr Tracing;
 
     TDynamicConfig();
 };

@@ -1426,7 +1426,7 @@ private:
         const TTableMountInfoPtr& tableInfo,
         const TTableCommitSessionPtr& tableSession)
     {
-        const auto& tabletId = tabletInfo->TabletId;
+        auto tabletId = tabletInfo->TabletId;
         auto it = TabletIdToSession_.find(tabletId);
         if (it == TabletIdToSession_.end()) {
             auto evaluatorCache = Client_->GetNativeConnection()->GetColumnEvaluatorCache();

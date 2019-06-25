@@ -1,6 +1,6 @@
 #include "table.h"
 
-#include "types_translation.h"
+#include "type_translation.h"
 
 #include <yt/client/table_client/schema.h>
 
@@ -24,7 +24,6 @@ bool TClickHouseColumn::IsNullable() const
     return (Flags & static_cast<int>(EColumnFlags::Nullable)) != 0;
 }
 
-
 void TClickHouseColumn::SetSorted()
 {
     Flags |= static_cast<int>(EColumnFlags::Sorted);
@@ -38,6 +37,24 @@ void TClickHouseColumn::DropSorted()
 void TClickHouseColumn::SetNullable()
 {
     Flags |= static_cast<int>(EColumnFlags::Nullable);
+}
+
+std::optional<TClickHouseColumn> TClickHouseColumn::FromColumnSchema(const NTableClient::TColumnSchema& columnSchema)
+{
+    auto type = columnSchema.GetPhysicalType();
+
+    if (!IsYtTypeSupported(type)) {
+        return std::nullopt;
+    }
+
+    TClickHouseColumn column;
+    column.Name = columnSchema.Name();
+    column.Type = RepresentYtType(type);
+    if (columnSchema.SortOrder()) {
+        column.SetSorted();
+    }
+
+    return column;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,58 +73,15 @@ bool operator != (const TClickHouseColumn& lhs, const TClickHouseColumn& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClickHouseTableSchemaBuilder
-{
-private:
-    std::vector<TClickHouseColumn> Columns;
-
-public:
-    TClickHouseTableSchemaBuilder()
-    {}
-
-    // return false if column skipped
-    bool AddColumn(const TColumnSchema& columnSchema);
-
-    std::vector<TClickHouseColumn> GetColumns()
-    {
-        return std::move(Columns);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool TClickHouseTableSchemaBuilder::AddColumn(const TColumnSchema& ytColumn)
-{
-    auto ytPhysicalType = ytColumn.GetPhysicalType();
-
-    if (!IsYtTypeSupported(ytPhysicalType)) {
-        // skip unsupported type
-        return false;
-    }
-
-    TClickHouseColumn column;
-    column.Name = ytColumn.Name();
-    column.Type = RepresentYtType(ytPhysicalType);
-    if (ytColumn.SortOrder()) {
-        column.SetSorted();
-    }
-    Columns.push_back(std::move(column));
-    return true;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TClickHouseTable::TClickHouseTable(const TYPath& path, const TTableSchema& schema)
+TClickHouseTable::TClickHouseTable(const TRichYPath& path, const TTableSchema& schema)
     : Path(path)
     , TableSchema(schema)
 {
-    TClickHouseTableSchemaBuilder schemaBuilder;
-
-    for (const auto& columnSchema: schema.Columns()) {
-        schemaBuilder.AddColumn(columnSchema);
+    for (const auto& columnSchema : schema.Columns()) {
+        if (auto clickHouseColumn = TClickHouseColumn::FromColumnSchema(columnSchema)) {
+            Columns.emplace_back(*clickHouseColumn);
+        }
     }
-
-    Columns = schemaBuilder.GetColumns();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -212,14 +212,6 @@ void TYPathResponse::DeserializeBody(TRef /*data*/, std::optional<NCompression::
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath FindRequestYPath(const NRpc::NProto::TRequestHeader& header)
-{
-    if (header.HasExtension(NProto::TYPathHeaderExt::ypath_header_ext)) {
-        return GetRequestYPath(header);
-    }
-    return TYPath();
-}
-
 const TYPath& GetRequestYPath(const NRpc::NProto::TRequestHeader& header)
 {
     const auto& ext = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
@@ -361,14 +353,14 @@ void ExecuteVerb(
             return UnderlyingContext_->GetEndpointAttributes();
         }
 
-        virtual void SetRawRequestInfo(const TString& info) override
+        virtual void SetRawRequestInfo(TString info, bool incremental) override
         {
-            UnderlyingContext_->SetRawRequestInfo(info);
+            UnderlyingContext_->SetRawRequestInfo(std::move(info), incremental);
         }
 
-        virtual void SetRawResponseInfo(const TString& info) override
+        virtual void SetRawResponseInfo(TString info, bool incremental) override
         {
-            UnderlyingContext_->SetRawResponseInfo(info);
+            UnderlyingContext_->SetRawResponseInfo(std::move(info), incremental);
         }
 
     private:

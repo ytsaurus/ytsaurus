@@ -4,7 +4,7 @@ from test_dynamic_tables import DynamicTablesBase
 
 from yt_env_setup import YTEnvSetup, skip_if_rpc_driver_backend, parametrize_external
 from yt_commands import *
-from time import sleep
+from time import sleep, time
 from yt.yson import YsonEntity
 from yt.environment.helpers import assert_items_equal, wait
 from yt.wrapper import YtResponseError
@@ -156,9 +156,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert get_all_counters() == (0, 0, 0, 0)
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "test"}], require_sync_replica=False)
-        sleep(2)
-
-        assert get_all_counters() == (1, 1, 13, 13)
+        wait(lambda: get_all_counters() == (1, 1, 13, 13))
 
     @flaky(max_runs=5)
     @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA_SORTED, SIMPLE_SCHEMA_ORDERED])
@@ -716,6 +714,39 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(lambda: get("#{0}/@mode".format(replica_id1)) == "async")
         wait(lambda: get("#{0}/@mode".format(replica_id2)) == "sync")
 
+    def test_sync_replication_switch_bundle_health(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": "true"})
+        replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "sync"})
+        replica_id2 = create_table_replica("//tmp/t", "primary", "//tmp/r2", attributes={"mode": "async"})
+        self._create_replica_table("//tmp/r1", replica_id1)
+        self._create_replica_table("//tmp/r2", replica_id2)
+        sync_enable_table_replica(replica_id1)
+        sync_enable_table_replica(replica_id2)
+
+        wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.replica_driver) == "good")
+
+        nodes = ls("//sys/nodes", driver=self.replica_driver)
+        for node in nodes:
+            set("//sys/nodes/" + node + "/@banned", "true", driver=self.replica_driver)
+
+        wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.replica_driver) != "good")
+
+        for i in range(5):
+            try:
+                insert_rows("//tmp/t", [{"key": i, "value1": "test%d"%(i), "value2": i}])
+            except:
+                pass
+
+        get("#{0}/@errors".format(replica_id1))
+        wait(lambda: get("#{0}/@mode".format(replica_id1)) == "async")
+        wait(lambda: get("#{0}/@mode".format(replica_id2)) == "sync")
+
+        for node in nodes:
+            set("//sys/nodes/" + node + "/@banned", "false", driver=self.replica_driver)
+
+        wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.replica_driver) == "good")
+
     def test_cannot_sync_write_into_disabled_replica(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
@@ -966,7 +997,6 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 1, "value2": 50}], aggregate=True, update=True, require_sync_replica=False)
         wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test2", "value2": 150}])
 
-    @flaky(max_runs=5)
     def test_replication_lag(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema=self.AGGREGATE_SCHEMA)
@@ -991,12 +1021,14 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 1, "value1": "test1"}], require_sync_replica=False)
         sleep(1.0)
 
-        shift = get_lag_time()
-        assert shift > 2000
-
+        base_lag_time = get_lag_time()
+        base_unix_time = time()
+        assert base_lag_time > 2000
         for i in xrange(10):
             sleep(1.0)
-            assert shift + i * 1000 <= get_lag_time() <= shift + (i + 4) * 1000
+            cur_unix_time = time()
+            cur_lag_time = get_lag_time()
+            assert abs((cur_lag_time - base_lag_time) - (cur_unix_time - base_unix_time) * 1000) <= 2000
 
         sync_enable_table_replica(replica_id)
         wait(lambda: get_lag_time() == 0)

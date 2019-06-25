@@ -187,9 +187,7 @@ void TCypressNodeBase::Load(TLoadContext& context)
     Load(context, ModificationTime_);
     // COMPAT(aozeritsky)
     if (context.GetVersion() < 811) {
-        i64 revision;
-        Load(context, revision);
-
+        ui64 revision = Load<ui64>(context);
         AttributesRevision_ = revision;
         ContentRevision_ = revision;
     } else {
