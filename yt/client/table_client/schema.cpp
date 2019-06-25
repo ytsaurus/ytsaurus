@@ -636,10 +636,14 @@ TTableSchema TTableSchema::ToReplicationLog() const
         for (const auto& column : Columns_) {
             if (column.SortOrder()) {
                 columns.push_back(
-                    TColumnSchema(TReplicationLogTable::KeyColumnNamePrefix + column.Name(), column.LogicalType()));
+                    TColumnSchema(
+                        TReplicationLogTable::KeyColumnNamePrefix + column.Name(),
+                        MakeOptionalIfNot(column.LogicalType())));
             } else {
                 columns.push_back(
-                    TColumnSchema(TReplicationLogTable::ValueColumnNamePrefix + column.Name(), column.LogicalType()));
+                    TColumnSchema(
+                        TReplicationLogTable::ValueColumnNamePrefix + column.Name(),
+                        MakeOptionalIfNot(column.LogicalType())));
                 columns.push_back(
                     TColumnSchema(TReplicationLogTable::FlagsColumnNamePrefix + column.Name(), ESimpleLogicalValueType::Uint64));
             }
@@ -647,7 +651,9 @@ TTableSchema TTableSchema::ToReplicationLog() const
     } else {
         for (const auto& column : Columns_) {
             columns.push_back(
-                TColumnSchema(TReplicationLogTable::ValueColumnNamePrefix + column.Name(), column.LogicalType()));
+                TColumnSchema(
+                    TReplicationLogTable::ValueColumnNamePrefix + column.Name(),
+                    MakeOptionalIfNot(column.LogicalType())));
         }
         columns.push_back(TColumnSchema(TReplicationLogTable::ValueColumnNamePrefix + TabletIndexColumnName, ESimpleLogicalValueType::Int64));
     }
