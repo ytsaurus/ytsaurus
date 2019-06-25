@@ -37,6 +37,19 @@ AGGREGATE_SCHEMA = [
     {"name": "value2", "type": "int64", "aggregate": "sum"}
 ]
 
+REQUIRED_SCHEMA = [
+    {"name": "key1", "type": "int64", "sort_order": "ascending", "required": True},
+    {"name": "key2", "type": "int64", "sort_order": "ascending"},
+    {"name": "value1", "type": "int64", "required": True},
+    {"name": "value2", "type": "int64"}
+]
+REQUIREDLESS_SCHEMA = [
+    {"name": "key1", "type": "int64", "sort_order": "ascending"},
+    {"name": "key2", "type": "int64", "sort_order": "ascending"},
+    {"name": "value1", "type": "int64"},
+    {"name": "value2", "type": "int64"}
+]
+
 EXPRESSION_SCHEMA = [
     {"name": "hash", "type": "int64", "sort_order": "ascending", "expression": "key % 10"},
     {"name": "key", "type": "int64", "sort_order": "ascending"},
@@ -76,6 +89,8 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
         self.SIMPLE_SCHEMA_ORDERED = SIMPLE_SCHEMA_ORDERED
         self.PERTURBED_SCHEMA = PERTURBED_SCHEMA
         self.AGGREGATE_SCHEMA = AGGREGATE_SCHEMA
+        self.REQUIRED_SCHEMA = REQUIRED_SCHEMA
+        self.REQUIREDLESS_SCHEMA = REQUIREDLESS_SCHEMA
         self.EXPRESSION_SCHEMA = EXPRESSION_SCHEMA
         self.EXPRESSIONLESS_SCHEMA = EXPRESSIONLESS_SCHEMA
         self.REPLICA_CLUSTER_NAME = "remote_0"
@@ -1255,6 +1270,82 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         set("//tmp/dir/@acl", [make_ace("allow", "u", "write")])
         remove("#" + replica_id, authenticated_user="u")
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    def test_required_columns(self, mode):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", schema=self.REQUIRED_SCHEMA)
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": mode})
+        self._create_replica_table("//tmp/r", replica_id, schema=self.REQUIRED_SCHEMA)
+        sync_enable_table_replica(replica_id)
+
+        insert_rows("//tmp/t", [{"key1": 1, "key2": 1, "value1": 1, "value2": 1}], require_sync_replica=False)
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == \
+            [{"key1": 1, "key2": 1, "value1": 1, "value2": 1}])
+
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", [{"key2": 1, "value1": 1, "value2": 1}], require_sync_replica=False)
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", [{"key1": 1, "key2": 1, "value2": 1}], require_sync_replica=False)
+
+        delete_rows("//tmp/t", [{"key1": 1, "key2": 1}], require_sync_replica=False)
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [])
+
+        with pytest.raises(YtError):
+            delete_rows("//tmp/t", [{"key2": 1}], require_sync_replica=False)
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    def test_required_columns_schema_mismatch_1(self, mode):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", schema=self.REQUIRED_SCHEMA)
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": mode})
+        self._create_replica_table("//tmp/r", replica_id, schema=self.REQUIREDLESS_SCHEMA)
+        sync_enable_table_replica(replica_id)
+
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", [{"key2": 1, "value1": 1, "value2": 1}], require_sync_replica=False)
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", [{"key1": 2, "key2": 2, "value2": 2}], require_sync_replica=False)
+        full_row = {"key1": 3, "key2": 3, "value1": 3, "value2": 3}
+        insert_rows("//tmp/t", [full_row], require_sync_replica=False)
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [full_row])
+
+    def test_required_columns_schema_mismatch_2_sync(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", schema=self.REQUIREDLESS_SCHEMA)
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "sync"})
+        self._create_replica_table("//tmp/r", replica_id, schema=self.REQUIRED_SCHEMA)
+        sync_enable_table_replica(replica_id)
+
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", [{"key2": 1, "value1": 1, "value2": 1}], require_sync_replica=False)
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", [{"key1": 2, "key2": 2, "value2": 2}], require_sync_replica=False)
+        full_row = {"key1": 3, "key2": 3, "value1": 3, "value2": 3}
+        insert_rows("//tmp/t", [full_row], require_sync_replica=False)
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [full_row])
+
+    @pytest.mark.parametrize("failure_type", ["key", "value"])
+    def test_required_columns_schema_mismatch_2_async(self, failure_type):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", schema=self.REQUIREDLESS_SCHEMA)
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "async"})
+        self._create_replica_table("//tmp/r", replica_id, schema=self.REQUIRED_SCHEMA)
+        sync_enable_table_replica(replica_id)
+
+        row = {"key1": 2, "key2": 2, "value1": 2, "value2": 2}
+        full_row = {"key1": 3, "key2": 3, "value1": 3, "value2": 3}
+        if failure_type == "key":
+            row.pop("key1")
+        else:
+            row.pop("value1")
+
+        # Failed to reach the replica due to required.
+        insert_rows("//tmp/t", [row], require_sync_replica=False)
+        # Should've reached the replica but replication is blocked by previous request.
+        insert_rows("//tmp/t", [full_row], require_sync_replica=False)
+
+        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == []
 
 ##################################################################
 
