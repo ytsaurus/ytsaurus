@@ -506,10 +506,9 @@ def find_files_to_grep(log_directories, application, start_time_str, end_time_st
         if m:
             date_files.append((m.group(0), log_file))
             continue
-        m = re.search("[.]debug[.]log([.](?P<number>\d+)([.]gz)?)?$", fname)
+        m = re.search("[.]debug[.]log(?P<number>[.]\d+)?([.]gz)?$", fname)
         if m:
-            number = m.group("number")
-            number = int(number) if number else 0
+            number = int(m.group("number").strip(".")) if m.group("number") else 0
             digit_files.append((number, log_file))
         else:
             raise LogrepError("Unknown name of log file: {}".format(fname))
