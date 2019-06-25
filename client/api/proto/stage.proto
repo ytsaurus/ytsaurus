@@ -5,9 +5,9 @@ package NYP.NClient.NApi.NProto;
 import "yp/client/api/proto/conditions.proto";
 import "yp/client/api/proto/data_model.proto";
 import "yp/client/api/proto/deploy.proto";
+import "yp/client/api/proto/downloadable_resources.proto";
 import "yp/client/api/proto/multi_cluster_replica_set.proto";
 import "yp/client/api/proto/replica_set.proto";
-import "yp/client/api/proto/resources.proto";
 import "yp/client/api/proto/pod_agent.proto";
 
 import "yt/core/yson/proto/protobuf_interop.proto";
