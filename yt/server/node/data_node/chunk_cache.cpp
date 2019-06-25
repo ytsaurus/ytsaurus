@@ -22,6 +22,7 @@
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/file_writer.h>
+#include <yt/ytlib/chunk_client/file_reader.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/block_fetcher.h>
 
@@ -307,7 +308,6 @@ public:
             }
 
             location->Start();
-
         }
 
         ValidateLocationMedia();
@@ -1025,6 +1025,48 @@ private:
         TChunkId chunkId)
     {
         if (!IsArtifactChunkId(chunkId)) {
+            // NB(psushin): cached chunks (non-artifacts) are not fsynced when written. This may result in truncated or even empty
+            // files on power loss. To detect corrupted chunks we validate their size against value in misc extension.
+
+            auto dataFileName = location->GetChunkPath(chunkId);
+
+            auto chunkReader = New<TFileReader>(
+                location->GetIOEngine(),
+                chunkId,
+                dataFileName);
+
+            static TClientBlockReadOptions blockReadOptions{
+                Config_->ArtifactCacheReader->WorkloadDescriptor,
+                New<TChunkReaderStatistics>(),
+                TReadSessionId::Create() };
+
+            auto metaOrError = WaitFor(chunkReader->GetMeta(blockReadOptions));
+
+            if (!metaOrError.IsOK()) {
+                YT_LOG_WARNING(metaOrError, "Failed to read cached chunk meta (ChunkId: %v)",
+                    chunkId);
+                location->RemoveChunkFilesPermanently(chunkId);
+                return std::nullopt;
+            }
+
+            const auto& meta = *metaOrError.Value();
+            auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
+
+            try {
+                TFile dataFile(dataFileName, OpenExisting);
+                if (dataFile.GetLength() != miscExt.compressed_data_size()) {
+                    YT_LOG_WARNING("Failed to validate cached chunk size (ChunkId: %v, ExpectedSize: %v, ActualSize: %v)",
+                        chunkId,
+                        miscExt.compressed_data_size(),
+                        dataFile.GetLength());
+                    location->RemoveChunkFilesPermanently(chunkId);
+                    return std::nullopt;
+                }
+            } catch (const std::exception& ex) {
+                YT_LOG_WARNING(ex, "Failed to validate cached chunk size (ChunkId: %v)",
+                    chunkId);
+            }
+
             return TArtifactKey(chunkId);
         }
 
