@@ -1084,7 +1084,7 @@ public:
         // Create locations.
         for (int index = 0; index < config->LayerLocations.size(); ++index) {
             const auto& locationConfig = config->LayerLocations[index];
-            auto id = Format("layers_%v", index);
+            auto id = Format("layers%v", index);
 
             try {
                 auto location = New<TLayerLocation>(
