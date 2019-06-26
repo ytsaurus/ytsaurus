@@ -126,8 +126,10 @@ public:
 
         YT_LOG_DEBUG("Narrowing schema to %v columns", readSchema.GetColumnCount());
 
-        // TODO(max42): put something here :)
+        // TODO(max42): put something here :) And move to config.
         auto config = New<TTableReaderConfig>();
+        config->GroupSize = 150_MB;
+        config->WindowSize = 200_MB;
         auto options = New<NTableClient::TTableReaderOptions>();
 
         YT_LOG_INFO("Creating table readers");
