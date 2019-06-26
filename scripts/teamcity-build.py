@@ -942,6 +942,27 @@ def run_unit_tests(options, build_context):
         process_core_dumps(options, "unit_tests", sandbox_current)
         rmtree(sandbox_current)
 
+
+@build_step
+def run_ya_tests(options, build_context):
+    if options.disable_tests:
+        teamcity_message("Skipping ya make tests since tests are disabled")
+
+    env = ya_make_env(options)
+    args = [
+        os.path.join(options.checkout_directory, "ya"),
+        "make",
+        "--dist", "--new-dist",
+        "-tt",
+        "yt/tests",
+    ]
+    args += ya_make_args(options)
+    args += ya_make_definition_args(options)
+    if options.use_asan:
+        args += ["--sanitize=address"]
+    run(args, env=env, cwd=options.checkout_directory)
+
+
 def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None, python_version=None):
     yt_processes_cleanup()
 
