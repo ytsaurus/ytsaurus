@@ -124,6 +124,20 @@ std::vector<TString> TTentativeTreeEligibility::FindAndBanSlowTentativeTrees()
     return slowTreeIds;
 }
 
+void TTentativeTreeEligibility::LogTentativeTreeStatistics() const
+{
+    THashMap<TString, TDuration> treeAverageJobDurations;
+    for (const auto& pair : StartedJobsPerPoolTree_) {
+        const auto& treeId = pair.first;
+        treeAverageJobDurations.insert(std::make_pair(treeId, GetTentativeTreeAverageJobDuration(treeId)));
+    }
+
+    YT_LOG_DEBUG("Tentative tree statistics (NonTentativeJobCount: %v, NonTentativeAverageDuration: %v, TentativeTreeJobDurations: %v)",
+        NonTentativeTreeDuration_.GetCount(),
+        NonTentativeTreeDuration_.GetAvg(),
+        treeAverageJobDurations);
+}
+
 void TTentativeTreeEligibility::UpdateDurations(
     const TJobSummary& jobSummary,
     const TString& treeId,
