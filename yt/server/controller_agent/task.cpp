@@ -1190,6 +1190,11 @@ std::vector<TString> TTask::FindAndBanSlowTentativeTrees()
     return TentativeTreeEligibility_.FindAndBanSlowTentativeTrees();
 }
 
+void TTask::LogTentativeTreeStatistics() const
+{
+    return TentativeTreeEligibility_.LogTentativeTreeStatistics();
+}
+
 void TTask::AbortJobViaScheduler(TJobId jobId, EAbortReason reason)
 {
     GetTaskHost()->AbortJobViaScheduler(jobId, reason);

@@ -6841,6 +6841,7 @@ void TOperationControllerBase::CheckTentativeTreeEligibility()
 {
     THashSet<TString> treeIds;
     for (const auto& task : Tasks) {
+        task->LogTentativeTreeStatistics();
         for (const auto& treeId : task->FindAndBanSlowTentativeTrees()) {
             treeIds.insert(treeId);
         }
