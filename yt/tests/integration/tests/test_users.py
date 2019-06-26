@@ -91,7 +91,7 @@ class TestUsers(YTEnvSetup):
         assert_items_equal(get("//sys/groups/users/@members"),
             ["superusers", "owner", "application_operations"])
         assert_items_equal(get("//sys/groups/superusers/@members"),
-            ["root", "scheduler", "job", "replicator", "file_cache", "application_operations", "operations_cleaner"])
+            ["root", "scheduler", "job", "replicator", "file_cache", "application_operations", "operations_cleaner", "operations_client"])
 
         assert_items_equal(get("//sys/users/root/@member_of"), ["superusers"])
         assert_items_equal(get("//sys/users/guest/@member_of"), ["everyone"])

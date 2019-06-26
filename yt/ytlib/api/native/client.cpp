@@ -390,14 +390,6 @@ public:
 
         SchedulerChannel_ = wrapChannel(Connection_->GetSchedulerChannel());
 
-        for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
-            // NOTE(asaitgalin): Cache is tied to user so to utilize cache properly all Cypress
-            // requests for operations archive should be performed under the same user.
-            OperationsArchiveChannels_[kind] = CreateAuthenticatedChannel(
-                Connection_->GetMasterChannelOrThrow(kind, PrimaryMasterCellTag),
-                "application_operations");
-        }
-
         ChannelFactory_ = CreateNodeChannelFactory(
             wrapChannelFactory(Connection_->GetChannelFactory()),
             Connection_->GetNetworks());
@@ -898,6 +890,7 @@ private:
     TEnumIndexedVector<THashMap<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
     TEnumIndexedVector<IChannelPtr, EMasterChannelKind> OperationsArchiveChannels_;
+    bool AreOperationsArchiveChannelsInitialized_ = false;
     INodeChannelFactoryPtr ChannelFactory_;
     TTransactionManagerPtr TransactionManager_;
     TFunctionImplCachePtr FunctionImplCache_;
@@ -905,6 +898,30 @@ private:
     std::unique_ptr<TSchedulerServiceProxy> SchedulerProxy_;
     std::unique_ptr<TJobProberServiceProxy> JobProberProxy_;
 
+    const IChannelPtr& GetOperationArchiveChannel(EMasterChannelKind kind)
+    {
+        if (!AreOperationsArchiveChannelsInitialized_) {
+            // COMPAT(levysotsky): If user "operations_client" does not exist, fallback to "application_operations".
+            TString operationsClientUserName;
+            {
+                auto path = GetUserPath(OperationsClientUserName);
+                if (DoNodeExists(path, TNodeExistsOptions())) {
+                    operationsClientUserName = OperationsClientUserName;
+                } else {
+                    operationsClientUserName = "application_operations";
+                }
+            }
+            for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
+                // NOTE(asaitgalin): Cache is tied to user so to utilize cache properly all Cypress
+                // requests for operations archive should be performed under the same user.
+                OperationsArchiveChannels_[kind] = CreateAuthenticatedChannel(
+                    Connection_->GetMasterChannelOrThrow(kind, PrimaryMasterCellTag),
+                    operationsClientUserName);
+            }
+            AreOperationsArchiveChannelsInitialized_ = true;
+        }
+        return OperationsArchiveChannels_[kind];
+    }
 
     template <class T>
     TFuture<T> Execute(
@@ -5458,7 +5475,7 @@ private:
                 return LightAttributes.contains(attribute);
             });
 
-        TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
+        TObjectServiceProxy proxy(GetOperationArchiveChannel(options.ReadFrom));
         auto listBatchReq = proxy.ExecuteBatch();
         SetBalancingHeader(listBatchReq, options);
 
@@ -5967,7 +5984,7 @@ private:
         auto accessFilter = options.AccessFilter;
         std::optional<THashSet<TString>> transitiveClosureOfSubject;
         if (accessFilter) {
-            TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
+            TObjectServiceProxy proxy(GetOperationArchiveChannel(options.ReadFrom));
             transitiveClosureOfSubject = GetSubjectClosure(
                 accessFilter->Subject,
                 proxy,
@@ -6426,7 +6443,7 @@ private:
         TInstant deadline,
         const TListJobsOptions& options)
     {
-        TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
+        TObjectServiceProxy proxy(GetOperationArchiveChannel(options.ReadFrom));
 
         auto attributeFilter = std::vector<TString>{
             "job_type",

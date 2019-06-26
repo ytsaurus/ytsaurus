@@ -290,6 +290,7 @@ public:
         OwnerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffa);
         FileCacheUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffef);
         OperationsCleanerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffee);
+        OperationsClientUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffed);
 
         EveryoneGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xffffffffffffffff);
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
@@ -1364,6 +1365,9 @@ private:
     TUserId OperationsCleanerUserId_;
     TUser* OperationsCleanerUser_ = nullptr;
 
+    TUserId OperationsClientUserId_;
+    TUser* OperationsClientUser_ = nullptr;
+
     NHydra::TEntityMap<TGroup> GroupMap_;
     THashMap<TString, TGroup*> GroupNameMap_;
 
@@ -1500,7 +1504,8 @@ private:
             id == SchedulerUserId_ ||
             id == ReplicatorUserId_ ||
             id == FileCacheUserId_ ||
-            id == OperationsCleanerUserId_)
+            id == OperationsCleanerUserId_ ||
+            id == OperationsClientUserId_)
         {
             return SuperusersGroup_;
         } else {
@@ -1912,6 +1917,7 @@ private:
         JobUser_ = nullptr;
         SchedulerUser_ = nullptr;
         OperationsCleanerUser_ = nullptr;
+        OperationsClientUser_ = nullptr;
         ReplicatorUser_ = nullptr;
         OwnerUser_ = nullptr;
         FileCacheUser_ = nullptr;
@@ -2045,6 +2051,13 @@ private:
             OperationsCleanerUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
             OperationsCleanerUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
             OperationsCleanerUser_->SetRequestQueueSizeLimit(1000000);
+        }
+
+        // operations client
+        if (EnsureBuiltinUserInitialized(OperationsClientUser_, OperationsClientUserId_, OperationsClientUserName)) {
+            OperationsClientUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
+            OperationsClientUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
+            OperationsClientUser_->SetRequestQueueSizeLimit(1000000);
         }
 
         // Accounts
