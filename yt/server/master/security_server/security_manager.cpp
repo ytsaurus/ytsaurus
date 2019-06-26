@@ -628,7 +628,7 @@ public:
         if (!IsObjectAlive(user)) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::AuthenticationError,
-                "No such user %Qv; Create user by requesting any IDM role on this cluster",
+                "No such user %Qv; create user by requesting any IDM role on this cluster",
                 name);
         }
         return user;
