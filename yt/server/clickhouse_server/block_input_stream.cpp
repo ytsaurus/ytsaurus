@@ -114,7 +114,7 @@ private:
             auto dataType = dataTypes.get(GetTypeName(type));
             auto column = dataType->createColumn();
             if (!columnSchema.Required()) {
-                column = DB::ColumnNullable::create(std::move(column), DB::ColumnVector<Int8>::create());
+                column = DB::ColumnNullable::create(std::move(column), DB::ColumnVector<UInt8>::create());
                 dataType = DB::makeNullable(dataType);
             }
             HeaderBlock_.insert({ std::move(column), dataType, columnSchema.Name() });
