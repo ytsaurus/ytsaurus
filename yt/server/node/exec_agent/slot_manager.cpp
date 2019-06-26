@@ -160,7 +160,7 @@ ISlotPtr TSlotManager::AcquireSlot(i64 diskSpaceRequest)
             << TErrorAttribute("feasible_slot_count", feasibleSlotCount);
     }
 
-    YCHECK(!FreeSlots_.empty());
+    YT_VERIFY(!FreeSlots_.empty());
     int slotIndex = *FreeSlots_.begin();
     FreeSlots_.erase(slotIndex);
 
@@ -170,7 +170,7 @@ ISlotPtr TSlotManager::AcquireSlot(i64 diskSpaceRequest)
 void TSlotManager::ReleaseSlot(int slotIndex)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YCHECK(FreeSlots_.insert(slotIndex).second);
+    YT_VERIFY(FreeSlots_.insert(slotIndex).second);
 }
 
 int TSlotManager::GetSlotCount() const

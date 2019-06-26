@@ -202,8 +202,8 @@ public:
         }
 
         if (UserJobEnvironment_) {
-            YCHECK(host->GetConfig()->BusServer->UnixDomainName);
-            YCHECK(UserId_);
+            YT_VERIFY(host->GetConfig()->BusServer->UnixDomainName);
+            YT_VERIFY(UserId_);
             Process_ = UserJobEnvironment_->CreateUserJobProcess(
                 ExecProgramName,
                 *UserId_,
@@ -338,7 +338,7 @@ public:
             }
 
             ToProto(schedulerResultExt->mutable_core_infos(), coreResult.CoreInfos);
-            YCHECK(coreResult.BoundaryKeys.empty() || coreResult.BoundaryKeys.sorted());
+            YT_VERIFY(coreResult.BoundaryKeys.empty() || coreResult.BoundaryKeys.sorted());
             ToProto(schedulerResultExt->mutable_core_table_boundary_keys(), coreResult.BoundaryKeys);
         }
 
@@ -619,7 +619,7 @@ private:
 
         auto contextChunkIds = DoDumpInputContext(contexts);
 
-        YCHECK(contextChunkIds.size() <= 1);
+        YT_VERIFY(contextChunkIds.size() <= 1);
         if (!contextChunkIds.empty()) {
             ToProto(schedulerResultExt->mutable_fail_context_chunk_id(), contextChunkIds.front());
         }
@@ -634,7 +634,7 @@ private:
         const auto& contexts = result.Value();
 
         auto chunks = DoDumpInputContext(contexts);
-        YCHECK(chunks.size() == 1);
+        YT_VERIFY(chunks.size() == 1);
 
         if (chunks.front() == NullChunkId) {
             THROW_ERROR_EXCEPTION("Cannot dump job context: reading has not started yet");
@@ -1045,7 +1045,7 @@ private:
         statistics.AddSample("/user_job/memory_limit", UserJobSpec_.memory_limit());
         statistics.AddSample("/user_job/memory_reserve", UserJobSpec_.memory_reserve());
 
-        YCHECK(UserJobSpec_.memory_limit() > 0);
+        YT_VERIFY(UserJobSpec_.memory_limit() > 0);
         statistics.AddSample(
             "/user_job/memory_reserve_factor_x10000",
             static_cast<int>((1e4 * UserJobSpec_.memory_reserve()) / UserJobSpec_.memory_limit()));
@@ -1342,7 +1342,7 @@ private:
             CleanupUserProcesses();
         }
 
-        YCHECK(tmpfsSizes.size() == MaximumTmpfsSizes_.size());
+        YT_VERIFY(tmpfsSizes.size() == MaximumTmpfsSizes_.size());
         for (int index = 0; index < tmpfsSizes.size(); ++index) {
             MaximumTmpfsSizes_[index] = std::max(MaximumTmpfsSizes_[index].load(), tmpfsSizes[index]);
         }

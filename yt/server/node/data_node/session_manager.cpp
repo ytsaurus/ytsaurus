@@ -46,8 +46,8 @@ TSessionManager::TSessionManager(
     : Config_(config)
     , Bootstrap_(bootstrap)
 {
-    YCHECK(config);
-    YCHECK(bootstrap);
+    YT_VERIFY(config);
+    YT_VERIFY(bootstrap);
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
 }
 
@@ -55,7 +55,7 @@ ISessionPtr TSessionManager::FindSession(TSessionId sessionId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    YCHECK(sessionId.MediumIndex != AllMediaIndex);
+    YT_VERIFY(sessionId.MediumIndex != AllMediaIndex);
 
     auto it = SessionMap_.find(sessionId);
     return it == SessionMap_.end() ? nullptr : it->second;
@@ -196,7 +196,7 @@ void TSessionManager::RegisterSession(const ISessionPtr& session)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    YCHECK(SessionMap_.emplace(session->GetId(), session).second);
+    YT_VERIFY(SessionMap_.emplace(session->GetId(), session).second);
     session->GetStoreLocation()->UpdateSessionCount(session->GetType(), +1);
 }
 
@@ -204,7 +204,7 @@ void TSessionManager::UnregisterSession(const ISessionPtr& session)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    YCHECK(SessionMap_.erase(session->GetId()) == 1);
+    YT_VERIFY(SessionMap_.erase(session->GetId()) == 1);
     session->GetStoreLocation()->UpdateSessionCount(session->GetType(), -1);
 }
 

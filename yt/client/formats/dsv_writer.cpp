@@ -19,7 +19,7 @@ TDsvWriterBase::TDsvWriterBase(
     TDsvFormatConfigPtr config)
     : Config_(config)
 {
-    YCHECK(Config_);
+    YT_VERIFY(Config_);
     ConfigureEscapeTables(config, true /* addCarriageReturn */, &KeyEscapeTable_, &ValueEscapeTable_);
 }
 
@@ -181,8 +181,8 @@ void TDsvNodeConsumer::OnBeginMap()
 
 void TDsvNodeConsumer::OnKeyedItem(TStringBuf key)
 {
-    Y_ASSERT(!AllowBeginMap_);
-    Y_ASSERT(!AllowBeginList_);
+    YT_ASSERT(!AllowBeginMap_);
+    YT_ASSERT(!AllowBeginList_);
 
     if (BeforeFirstMapItem_) {
         BeforeFirstMapItem_ = false;
@@ -196,8 +196,8 @@ void TDsvNodeConsumer::OnKeyedItem(TStringBuf key)
 
 void TDsvNodeConsumer::OnEndMap()
 {
-    Y_ASSERT(!AllowBeginMap_);
-    Y_ASSERT(!AllowBeginList_);
+    YT_ASSERT(!AllowBeginMap_);
+    YT_ASSERT(!AllowBeginList_);
 }
 
 void TDsvNodeConsumer::OnBeginAttributes()
@@ -207,7 +207,7 @@ void TDsvNodeConsumer::OnBeginAttributes()
 
 void TDsvNodeConsumer::OnEndAttributes()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

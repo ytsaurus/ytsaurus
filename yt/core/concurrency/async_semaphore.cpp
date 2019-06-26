@@ -8,12 +8,12 @@ TAsyncSemaphore::TAsyncSemaphore(i64 totalSlots)
     : TotalSlots_(totalSlots)
     , FreeSlots_(totalSlots)
 {
-    YCHECK(TotalSlots_ >= 0);
+    YT_VERIFY(TotalSlots_ >= 0);
 }
 
 void TAsyncSemaphore::SetTotal(i64 totalSlots)
 {
-    YCHECK(totalSlots >= 0);
+    YT_VERIFY(totalSlots >= 0);
 
     {
         TGuard<TSpinLock> guard(SpinLock_);
@@ -27,13 +27,13 @@ void TAsyncSemaphore::SetTotal(i64 totalSlots)
 
 void TAsyncSemaphore::Release(i64 slots /* = 1 */)
 {
-    YCHECK(slots >= 0);
+    YT_VERIFY(slots >= 0);
 
     {
         TGuard<TSpinLock> guard(SpinLock_);
 
         FreeSlots_ += slots;
-        Y_ASSERT(FreeSlots_ <= TotalSlots_);
+        YT_ASSERT(FreeSlots_ <= TotalSlots_);
 
         if (Releasing_) {
             return;
@@ -79,7 +79,7 @@ void TAsyncSemaphore::Release(i64 slots /* = 1 */)
 
 void TAsyncSemaphore::Acquire(i64 slots /* = 1 */)
 {
-    YCHECK(slots >= 0);
+    YT_VERIFY(slots >= 0);
 
     TGuard<TSpinLock> guard(SpinLock_);
     FreeSlots_ -= slots;
@@ -87,7 +87,7 @@ void TAsyncSemaphore::Acquire(i64 slots /* = 1 */)
 
 bool TAsyncSemaphore::TryAcquire(i64 slots /*= 1*/)
 {
-    YCHECK(slots >= 0);
+    YT_VERIFY(slots >= 0);
 
     TGuard<TSpinLock> guard(SpinLock_);
     if (FreeSlots_ < slots) {
@@ -102,7 +102,7 @@ void TAsyncSemaphore::AsyncAcquire(
     IInvokerPtr invoker,
     i64 slots)
 {
-    YCHECK(slots >= 0);
+    YT_VERIFY(slots >= 0);
 
     TGuard<TSpinLock> guard(SpinLock_);
     if (FreeSlots_ >= slots) {
@@ -248,7 +248,7 @@ TAsyncSemaphoreGuard TAsyncSemaphoreGuard::TryAcquire(TAsyncSemaphorePtr semapho
 
 TAsyncSemaphoreGuard TAsyncSemaphoreGuard::TransferSlots(i64 slotsToTransfer)
 {
-    YCHECK(slotsToTransfer >= 0 && slotsToTransfer <= Slots_);
+    YT_VERIFY(slotsToTransfer >= 0 && slotsToTransfer <= Slots_);
     Slots_ -= slotsToTransfer;
     TAsyncSemaphoreGuard spawnedGuard;
     spawnedGuard.Semaphore_ = Semaphore_;

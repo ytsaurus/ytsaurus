@@ -79,7 +79,7 @@ TFuture<TValue> TAsyncExpiringCache<TKey, TValue>::Get(const TKey& key)
         auto promise = entry->Promise;
         // NB: we don't want to hold a strong reference to entry after releasing the guard, so we make a weak reference here.
         auto weakEntry = MakeWeak(entry);
-        YCHECK(Map_.insert(std::make_pair(key, std::move(entry))).second);
+        YT_VERIFY(Map_.insert(std::make_pair(key, std::move(entry))).second);
         guard.Release();
         InvokeGet(weakEntry, key, false);
         return promise;
@@ -146,7 +146,7 @@ TFuture<typename TAsyncExpiringCache<TKey, TValue>::TCombinedValue> TAsyncExpiri
             invokeEntries.push_back(entry);
             results[index] = entry->Promise;
 
-            YCHECK(Map_.insert(std::make_pair(key, std::move(entry))).second);
+            YT_VERIFY(Map_.insert(std::make_pair(key, std::move(entry))).second);
         }
 
         std::vector<TKey> invokeKeys;
@@ -194,7 +194,7 @@ void TAsyncExpiringCache<TKey, TValue>::SetResult(const TWeakPtr<TEntry>& weakEn
     }
 
     auto it = Map_.find(key);
-    Y_ASSERT(it != Map_.end() && it->second == entry);
+    YT_ASSERT(it != Map_.end() && it->second == entry);
 
     auto now = NProfiling::GetCpuInstant();
     auto expirationTime = valueOrError.IsOK() ? Config_->ExpireAfterSuccessfulUpdateTime : Config_->ExpireAfterFailedUpdateTime;

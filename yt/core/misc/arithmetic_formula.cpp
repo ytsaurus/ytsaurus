@@ -134,7 +134,7 @@ static int Precedence(EFormulaTokenType type) {
         FOR_EACH_TOKEN(EXTRACT_PRECEDENCE)
     };
     int index = static_cast<int>(type);
-    YCHECK(0 <= index && index < sizeof(precedence) / sizeof(*precedence));
+    YT_VERIFY(0 <= index && index < sizeof(precedence) / sizeof(*precedence));
     return precedence[index];
 }
 
@@ -163,7 +163,7 @@ TString ToString(const TFormulaToken& token)
             case 1:
                 return "%true";
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     } else {
         return ToString(token.Type);
@@ -268,12 +268,12 @@ i64 TGenericFormulaImpl::Eval(const THashMap<TString, i64>& values, EEvaluationC
     };
 
 #define APPLY_BINARY_OP(op) \
-    YCHECK(stack.size() >= 2); \
+    YT_VERIFY(stack.size() >= 2); \
     { \
-        YCHECK(std::holds_alternative<i64>(stack.back())); \
+        YT_VERIFY(std::holds_alternative<i64>(stack.back())); \
         auto top = std::get<i64>(stack.back()); \
         stack.pop_back(); \
-        YCHECK(std::holds_alternative<i64>(stack.back())); \
+        YT_VERIFY(std::holds_alternative<i64>(stack.back())); \
         stack.back() = static_cast<i64>(std::get<i64>(stack.back()) op top); \
     }
 
@@ -288,8 +288,8 @@ i64 TGenericFormulaImpl::Eval(const THashMap<TString, i64>& values, EEvaluationC
                 stack.push_back(token.Number);
                 break;
             case EFormulaTokenType::LogicalNot:
-                YCHECK(!stack.empty());
-                YCHECK(std::holds_alternative<i64>(stack.back()));
+                YT_VERIFY(!stack.empty());
+                YT_VERIFY(std::holds_alternative<i64>(stack.back()));
                 stack.back() = static_cast<i64>(!std::get<i64>(stack.back()));
                 break;
             case EFormulaTokenType::LogicalOr:
@@ -336,16 +336,16 @@ i64 TGenericFormulaImpl::Eval(const THashMap<TString, i64>& values, EEvaluationC
                 break;
             case EFormulaTokenType::Divides:
             case EFormulaTokenType::Modulus:
-                YCHECK(stack.size() >= 2);
+                YT_VERIFY(stack.size() >= 2);
                 {
-                    YCHECK(std::holds_alternative<i64>(stack.back()));
+                    YT_VERIFY(std::holds_alternative<i64>(stack.back()));
                     i64 top = std::get<i64>(stack.back());
                     if (top == 0) {
                         THROW_ERROR_EXCEPTION("Division by zero in formula %Qv", Formula_)
                             << TErrorAttribute("values", values);
                     }
                     stack.pop_back();
-                    YCHECK(std::holds_alternative<i64>(stack.back()));
+                    YT_VERIFY(std::holds_alternative<i64>(stack.back()));
                     if (std::get<i64>(stack.back()) == std::numeric_limits<i64>::min() && top == -1) {
                         THROW_ERROR_EXCEPTION("Division of INT64_MIN by -1 in formula %Qv", Formula_)
                             << TErrorAttribute("values", values);
@@ -358,9 +358,9 @@ i64 TGenericFormulaImpl::Eval(const THashMap<TString, i64>& values, EEvaluationC
                 }
                 break;
             case EFormulaTokenType::Comma:
-                YCHECK(stack.size() >= 2);
+                YT_VERIFY(stack.size() >= 2);
                 {
-                    YCHECK(std::holds_alternative<i64>(stack.back()));
+                    YT_VERIFY(std::holds_alternative<i64>(stack.back()));
                     i64 top = std::get<i64>(stack.back());
                     stack.pop_back();
                     Visit(stack.back(),
@@ -374,13 +374,13 @@ i64 TGenericFormulaImpl::Eval(const THashMap<TString, i64>& values, EEvaluationC
                 }
                 break;
             case EFormulaTokenType::In:
-                YCHECK(stack.size() >= 2);
+                YT_VERIFY(stack.size() >= 2);
                 {
                     auto set = std::holds_alternative<i64>(stack.back())
                         ? std::vector<i64>{std::get<i64>(stack.back())}
                         : std::move(std::get<std::vector<i64>>(stack.back()));
                     stack.pop_back();
-                    YCHECK(std::holds_alternative<i64>(stack.back()));
+                    YT_VERIFY(std::holds_alternative<i64>(stack.back()));
                     i64 element = std::get<i64>(stack.back());
                     stack.pop_back();
                     stack.push_back(static_cast<i64>(std::find(
@@ -390,7 +390,7 @@ i64 TGenericFormulaImpl::Eval(const THashMap<TString, i64>& values, EEvaluationC
                 }
                 break;
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
     if (stack.empty()) {
@@ -399,8 +399,8 @@ i64 TGenericFormulaImpl::Eval(const THashMap<TString, i64>& values, EEvaluationC
         }
         return true;
     }
-    YCHECK(stack.size() == 1);
-    YCHECK(std::holds_alternative<i64>(stack.back()));
+    YT_VERIFY(stack.size() == 1);
+    YT_VERIFY(std::holds_alternative<i64>(stack.back()));
     return std::get<i64>(stack[0]);
 
 #undef APPLY_BINARY_OP
@@ -551,7 +551,7 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Tokenize(const TString& formula,
     };
 
     auto extractBooleanLiteral = [&] {
-        YCHECK(formula[pos] == '%');
+        YT_VERIFY(formula[pos] == '%');
         ++pos;
 
         size_t start = pos;
@@ -566,7 +566,7 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Tokenize(const TString& formula,
             return 1;
         } else {
             throwError(pos, Format("Invalid literal %Qv", buf));
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
     };
 
@@ -704,7 +704,7 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Parse(
                     throwError(
                         token.Position,
                         "Invalid token in boolean formula (only '!', '&', '|', '(', ')', '%false', '%true' are allowed)");
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         }
     }
@@ -747,7 +747,7 @@ void TGenericFormulaImpl::CheckTypeConsistency(
                 stack.push_back(EFormulaTokenType::Number);
                 break;
             case EFormulaTokenType::LogicalNot:
-                YCHECK(!stack.empty());
+                YT_VERIFY(!stack.empty());
                 validateIsNumber(stack.back(), token.Position);
                 break;
             case EFormulaTokenType::LogicalOr:
@@ -766,24 +766,24 @@ void TGenericFormulaImpl::CheckTypeConsistency(
             case EFormulaTokenType::Multiplies:
             case EFormulaTokenType::Divides:
             case EFormulaTokenType::Modulus:
-                YCHECK(stack.size() >= 2);
+                YT_VERIFY(stack.size() >= 2);
                 validateIsNumber(stack.back(), token.Position);
                 stack.pop_back();
                 validateIsNumber(stack.back(), token.Position);
                 break;
             case EFormulaTokenType::Comma:
-                YCHECK(stack.size() >= 2);
+                YT_VERIFY(stack.size() >= 2);
                 validateIsNumber(stack.back(), token.Position);
                 stack.pop_back();
                 stack.back() = EFormulaTokenType::Set;
                 break;
             case EFormulaTokenType::In:
-                YCHECK(stack.size() >= 2);
+                YT_VERIFY(stack.size() >= 2);
                 stack.pop_back();
                 validateIsNumber(stack.back(), token.Position);
                 break;
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
     if (!stack.empty()) {

@@ -179,7 +179,7 @@ TListOperationsResult ListOperations(
 
         auto id = TOperationId::FromString(key);
         auto state = operationNode->Attributes().Get<EOperationState>("state");
-        YCHECK(rootOperationIdToState.emplace(id, state).second);
+        YT_VERIFY(rootOperationIdToState.emplace(id, state).second);
     }
 
     for (int hash = 0x0; hash <= 0xFF; ++hash) {
@@ -196,10 +196,10 @@ TListOperationsResult ListOperations(
 
         for (const auto& operationNode : hashBucketList->GetChildren()) {
             auto id = TOperationId::FromString(operationNode->GetValue<TString>());
-            YCHECK((id.Parts32[0] & 0xff) == hash);
+            YT_VERIFY((id.Parts32[0] & 0xff) == hash);
 
             auto state = operationNode->Attributes().Get<EOperationState>("state");
-            YCHECK(operationSet.insert(id).second);
+            YT_VERIFY(operationSet.insert(id).second);
 
             if (IsOperationInProgress(state)) {
                 result.OperationsToRevive.push_back({id, state});

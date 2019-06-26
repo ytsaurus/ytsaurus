@@ -41,9 +41,9 @@ TBlockFetcher::TBlockFetcher(
     , BlockReadOptions_(blockReadOptions)
     , Logger(ChunkClientLogger)
 {
-    YCHECK(ChunkReader_);
-    YCHECK(BlockCache_);
-    YCHECK(!BlockInfos_.empty());
+    YT_VERIFY(ChunkReader_);
+    YT_VERIFY(BlockCache_);
+    YT_VERIFY(!BlockInfos_.empty());
 
     Logger.AddTag("ChunkId: %v", ChunkReader_->GetChunkId());
     if (BlockReadOptions_.ReadSessionId) {
@@ -91,7 +91,7 @@ TBlockFetcher::TBlockFetcher(
         }
 
         // Contrary would mean that the same block was requested twice with different priorities.
-        YCHECK(BlockIndexToWindowIndex_.find(currentBlock.Index) == BlockIndexToWindowIndex_.end());
+        YT_VERIFY(BlockIndexToWindowIndex_.find(currentBlock.Index) == BlockIndexToWindowIndex_.end());
 
         int windowIndex = BlockIndexToWindowIndex_.size();
         BlockIndexToWindowIndex_[currentBlock.Index] = windowIndex;
@@ -106,7 +106,7 @@ TBlockFetcher::TBlockFetcher(
     YT_LOG_DEBUG("Creating block fetcher (Blocks: %v)",
         blockIndexes);
 
-    YCHECK(TotalRemainingSize_ > 0);
+    YT_VERIFY(TotalRemainingSize_ > 0);
 
     AsyncSemaphore_->AsyncAcquire(
         BIND(&TBlockFetcher::FetchNextGroup, MakeWeak(this)),
@@ -121,14 +121,14 @@ bool TBlockFetcher::HasMoreBlocks() const
 
 TFuture<TBlock> TBlockFetcher::FetchBlock(int blockIndex)
 {
-    YCHECK(HasMoreBlocks());
+    YT_VERIFY(HasMoreBlocks());
 
     auto iterator = BlockIndexToWindowIndex_.find(blockIndex);
-    YCHECK(iterator != BlockIndexToWindowIndex_.end());
+    YT_VERIFY(iterator != BlockIndexToWindowIndex_.end());
     int windowIndex = iterator->second;
     auto& windowSlot = Window_[windowIndex];
 
-    YCHECK(windowSlot.RemainingFetches > 0);
+    YT_VERIFY(windowSlot.RemainingFetches > 0);
     if (!windowSlot.FetchStarted.test_and_set()) {
         YT_LOG_DEBUG("Fetching block out of turn (BlockIndex: %v, WindowIndex: %v)",
             blockIndex,
@@ -173,7 +173,7 @@ void TBlockFetcher::DecompressBlocks(
     const std::vector<int>& windowIndexes,
     const std::vector<TBlock>& compressedBlocks)
 {
-    YCHECK(windowIndexes.size() == compressedBlocks.size());
+    YT_VERIFY(windowIndexes.size() == compressedBlocks.size());
     for (int i = 0; i < compressedBlocks.size(); ++i) {
         const auto& compressedBlock = compressedBlocks[i];
         int windowIndex = windowIndexes[i];
@@ -191,7 +191,7 @@ void TBlockFetcher::DecompressBlocks(
             NProfiling::TCpuTimingGuard timer(&DecompressionTime);
             uncompressedBlock = Codec_->Decompress(compressedBlock.Data);
         }
-        YCHECK(uncompressedBlock.Size() == blockInfo.UncompressedDataSize);
+        YT_VERIFY(uncompressedBlock.Size() == blockInfo.UncompressedDataSize);
 
         auto& windowSlot = Window_[windowIndex];
         GetBlockPromise(windowSlot).Set(TBlock(uncompressedBlock));
@@ -377,7 +377,7 @@ TSequentialBlockFetcher::TSequentialBlockFetcher(
 
 TFuture<TBlock> TSequentialBlockFetcher::FetchNextBlock()
 {
-    YCHECK(CurrentIndex_ < OriginalOrderBlockInfos_.size());
+    YT_VERIFY(CurrentIndex_ < OriginalOrderBlockInfos_.size());
     return FetchBlock(OriginalOrderBlockInfos_[CurrentIndex_++].Index);
 }
 

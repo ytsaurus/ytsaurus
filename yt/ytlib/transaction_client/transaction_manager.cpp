@@ -176,7 +176,7 @@ public:
                 return StartNonAtomicTabletTransaction();
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -191,13 +191,13 @@ public:
         CellId_ = Owner_->PrimaryCellId_;
         Id_ = id;
         AutoAbort_ = options.AutoAbort;
-        YCHECK(!options.Sticky);
+        YT_VERIFY(!options.Sticky);
         PingPeriod_ = options.PingPeriod;
         Ping_ = options.Ping;
         PingAncestors_ = options.PingAncestors;
         State_ = ETransactionState::Active;
-        YCHECK(RegisteredParticipantIds_.insert(CellId_).second);
-        YCHECK(ConfirmedParticipantIds_.insert(CellId_).second);
+        YT_VERIFY(RegisteredParticipantIds_.insert(CellId_).second);
+        YT_VERIFY(ConfirmedParticipantIds_.insert(CellId_).second);
 
         Register();
 
@@ -241,7 +241,7 @@ public:
                     break;
 
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         }
 
@@ -253,7 +253,7 @@ public:
                 return DoCommitNonAtomic();
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -288,7 +288,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        YCHECK(Atomicity_ == EAtomicity::Full);
+        YT_VERIFY(Atomicity_ == EAtomicity::Full);
 
         {
             auto guard = Guard(SpinLock_);
@@ -345,7 +345,7 @@ public:
 
     void RegisterParticipant(TCellId cellId)
     {
-        YCHECK(TypeFromId(cellId) == EObjectType::TabletCell ||
+        YT_VERIFY(TypeFromId(cellId) == EObjectType::TabletCell ||
                TypeFromId(cellId) == EObjectType::ClusterCell);
 
 
@@ -370,7 +370,7 @@ public:
 
     void ConfirmParticipant(TCellId cellId)
     {
-        YCHECK(TypeFromId(cellId) == EObjectType::TabletCell);
+        YT_VERIFY(TypeFromId(cellId) == EObjectType::TabletCell);
 
 
         if (Atomicity_ != EAtomicity::Full) {
@@ -384,7 +384,7 @@ public:
                 return;
             }
 
-            YCHECK(RegisteredParticipantIds_.find(cellId) != RegisteredParticipantIds_.end());
+            YT_VERIFY(RegisteredParticipantIds_.find(cellId) != RegisteredParticipantIds_.end());
             if (ConfirmedParticipantIds_.insert(cellId).second) {
                 YT_LOG_DEBUG("Transaction participant confirmed (TransactionId: %v, CellId: %v)",
                     Id_,
@@ -395,7 +395,7 @@ public:
 
     void ChooseCoordinator(const TTransactionCommitOptions& options)
     {
-        YCHECK(!CoordinatorCellId_);
+        YT_VERIFY(!CoordinatorCellId_);
 
         if (Atomicity_ != EAtomicity::Full || RegisteredParticipantIds_.empty()) {
             return;
@@ -491,7 +491,7 @@ private:
                 ValidateTabletStartOptions(options);
                 break;
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -541,7 +541,7 @@ private:
     {
         ValidateMasterTransactionId(id);
         // NB: Sticky transactions are handled in TNativeClient.
-        YCHECK(!options.Sticky);
+        YT_VERIFY(!options.Sticky);
     }
 
 
@@ -549,7 +549,7 @@ private:
     {
         if (AutoAbort_) {
             auto guard = Guard(Owner_->SpinLock_);
-            YCHECK(Owner_->AliveTransactions_.insert(this).second);
+            YT_VERIFY(Owner_->AliveTransactions_.insert(this).second);
         }
     }
 
@@ -585,7 +585,7 @@ private:
             case ETransactionType::Tablet:
                 return StartAtomicTabletTransaction(options);
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -642,8 +642,8 @@ private:
         auto cellId = ReplaceCellTagInId(CellId_, cellTag);
 
         State_ = ETransactionState::Active;
-        YCHECK(RegisteredParticipantIds_.insert(cellId).second);
-        YCHECK(ConfirmedParticipantIds_.insert(cellId).second);
+        YT_VERIFY(RegisteredParticipantIds_.insert(cellId).second);
+        YT_VERIFY(ConfirmedParticipantIds_.insert(cellId).second);
 
         const auto& rsp = rspOrError.Value();
         Id_ = FromProto<TTransactionId>(rsp->id());
@@ -665,8 +665,8 @@ private:
 
     TFuture<void> StartAtomicTabletTransaction(const TTransactionStartOptions& options)
     {
-        YCHECK(Atomicity_ == EAtomicity::Full);
-        YCHECK(Durability_ == EDurability::Sync);
+        YT_VERIFY(Atomicity_ == EAtomicity::Full);
+        YT_VERIFY(Durability_ == EDurability::Sync);
 
         Id_ = options.Id
             ? options.Id
@@ -685,7 +685,7 @@ private:
 
         // Start ping scheduling.
         // Participants will be added into it upon arrival.
-        YCHECK(Ping_);
+        YT_VERIFY(Ping_);
         RunPeriodicPings();
 
         return VoidFuture;
@@ -693,7 +693,7 @@ private:
 
     TFuture<void> StartNonAtomicTabletTransaction()
     {
-        YCHECK(Atomicity_ == EAtomicity::None);
+        YT_VERIFY(Atomicity_ == EAtomicity::None);
 
         StartTimestamp_ = InstantToTimestamp(TInstant::Now()).first;
 
@@ -748,7 +748,7 @@ private:
         }
 
         try {
-            YCHECK(CoordinatorCellId_);
+            YT_VERIFY(CoordinatorCellId_);
 
             YT_LOG_DEBUG("Committing transaction (TransactionId: %v, CoordinatorCellId: %v)",
                 Id_,
@@ -831,7 +831,7 @@ private:
             return VoidFuture;
         }
 
-        YCHECK(CoordinatorCellId_);
+        YT_VERIFY(CoordinatorCellId_);
         auto coordinatorChannel = Owner_->CellDirectory_->GetChannelOrThrow(CoordinatorCellId_);
         auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), true);
         auto req = proxy.GetDownedParticipants();
@@ -1112,9 +1112,9 @@ TTransactionManager::TImpl::TImpl(
     , CellDirectory_(cellDirectory)
     , DownedCellTracker_(downedCellTracker)
 {
-    YCHECK(Config_);
-    YCHECK(TimestampProvider_);
-    YCHECK(CellDirectory_);
+    YT_VERIFY(Config_);
+    YT_VERIFY(TimestampProvider_);
+    YT_VERIFY(CellDirectory_);
 }
 
 TFuture<TTransactionPtr> TTransactionManager::TImpl::Start(

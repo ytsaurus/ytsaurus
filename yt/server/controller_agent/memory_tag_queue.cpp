@@ -35,7 +35,7 @@ TMemoryTag TMemoryTagQueue::AssignTagToOperation(TOperationId operationId)
         AllocateNewTags();
     }
 
-    YCHECK(!AvailableTags_.empty());
+    YT_VERIFY(!AvailableTags_.empty());
     auto tag = AvailableTags_.front();
     AvailableTags_.pop();
     UsedTags_.insert(tag);
@@ -55,7 +55,7 @@ void TMemoryTagQueue::ReclaimTag(TMemoryTag tag)
 
     TGuard<TSpinLock> guard(Lock_);
 
-    YCHECK(UsedTags_.erase(tag));
+    YT_VERIFY(UsedTags_.erase(tag));
 
     auto operationId = TagToLastOperationId_[tag];
 

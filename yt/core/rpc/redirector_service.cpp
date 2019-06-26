@@ -42,7 +42,7 @@ public:
 
         FirstTimeSerialization_ = false;
 
-        Y_ASSERT(Message_.Size() >= 2);
+        YT_ASSERT(Message_.Size() >= 2);
 
         auto body = Message_[1];
         auto attachments = std::vector<TSharedRef>(Message_.Begin() + 2, Message_.End());
@@ -62,32 +62,32 @@ public:
 
     virtual const NRpc::TStreamingParameters& ClientAttachmentsStreamingParameters() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual NRpc::TStreamingParameters& ClientAttachmentsStreamingParameters() override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual const NRpc::TStreamingParameters& ServerAttachmentsStreamingParameters() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual NRpc::TStreamingParameters& ServerAttachmentsStreamingParameters() override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
     
     virtual NConcurrency::IAsyncZeroCopyOutputStreamPtr GetRequestAttachmentsStream() const override
     {
-        Y_UNIMPLEMENTED();
+        YT_UNIMPLEMENTED();
     }
 
     virtual NConcurrency::IAsyncZeroCopyInputStreamPtr GetResponseAttachmentsStream() const override
     {
-        Y_UNIMPLEMENTED();
+        YT_UNIMPLEMENTED();
     }
 
     virtual bool IsHeavy() const override
@@ -138,22 +138,22 @@ public:
 
     virtual bool GetRetry() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void SetRetry(bool /*value*/) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual TMutationId GetMutationId() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void SetMutationId(TMutationId /*id*/) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual size_t GetHash() const override
@@ -168,7 +168,7 @@ public:
 
     virtual void SetMultiplexingBand(EMultiplexingBand /*band*/) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
 private:
@@ -219,12 +219,12 @@ public:
 
     virtual void HandleStreamingPayload(const TStreamingPayload& /*payload*/) override
     {
-        Y_UNIMPLEMENTED();
+        YT_UNIMPLEMENTED();
     }
 
     virtual void HandleStreamingFeedback(const TStreamingFeedback& /*feedback*/) override
     {
-        Y_UNIMPLEMENTED();
+        YT_UNIMPLEMENTED();
     }
 
 private:
@@ -390,7 +390,7 @@ IServicePtr CreateRedirectorService(
     const TServiceId& serviceId,
     IChannelPtr sinkChannel)
 {
-    YCHECK(sinkChannel);
+    YT_VERIFY(sinkChannel);
 
     return New<TRedirectorService>(serviceId, sinkChannel);
 }

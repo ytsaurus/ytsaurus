@@ -254,7 +254,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
                 Logger,
                 &result[resultIndex].Chunks);
 
-            YCHECK(!result[resultIndex].Chunks.empty());
+            YT_VERIFY(!result[resultIndex].Chunks.empty());
 
             nodeDirectory->DumpTo(&result[resultIndex].NodeDirectory);
         }
@@ -269,7 +269,7 @@ void AppendUdfDescriptors(
     const std::vector<TString>& functionNames,
     const std::vector<TExternalFunctionSpec>& externalFunctionSpecs)
 {
-    YCHECK(functionNames.size() == externalFunctionSpecs.size());
+    YT_VERIFY(functionNames.size() == externalFunctionSpecs.size());
 
     YT_LOG_DEBUG("Appending UDF descriptors (Count: %v)", externalFunctionSpecs.size());
 
@@ -520,7 +520,7 @@ public:
         const TClientBlockReadOptions& blockReadOptions)
     {
         auto client = Client_.Lock();
-        YCHECK(client);
+        YT_VERIFY(client);
         auto chunks = key.ChunkSpecs;
 
         YT_LOG_DEBUG("Downloading implementation for UDF function (Chunks: %v, ReadSessionId: %v)",
@@ -554,7 +554,7 @@ public:
         }
 
         i64 size = GetByteSize(blocks);
-        YCHECK(size);
+        YT_VERIFY(size);
         auto file = TSharedMutableRef::Allocate(size);
         auto memoryOutput = TMemoryOutput(file.Begin(), size);
 
@@ -631,7 +631,7 @@ void AppendFunctionImplementation(
     const TExternalFunctionImpl& function,
     const TSharedRef& impl)
 {
-    YCHECK(!impl.Empty());
+    YT_VERIFY(!impl.Empty());
 
     const auto& name = function.Name;
 
@@ -757,7 +757,7 @@ void Deserialize(TDescriptorType& value, NYTree::INodePtr node)
             break;
         }
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

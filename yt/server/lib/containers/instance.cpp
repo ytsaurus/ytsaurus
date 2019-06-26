@@ -259,7 +259,7 @@ public:
 
         double cpuLimit;
 
-        YCHECK(cpuLimitRsp.Value().EndsWith('c'));
+        YT_VERIFY(cpuLimitRsp.Value().EndsWith('c'));
         auto cpuLimitValue = TStringBuf(cpuLimitRsp.Value().begin(), cpuLimitRsp.Value().size() - 1);
         if (!TryFromString<double>(cpuLimitValue, cpuLimit)) {
             THROW_ERROR_EXCEPTION("Failed to parse cpu limit value from porto")
@@ -281,7 +281,7 @@ public:
         auto parentName = absoluteName.substr(0, slashPosition);
 
         if (parentName != Prefix) {
-            YCHECK(parentName.length() > Prefix.length());
+            YT_VERIFY(parentName.length() > Prefix.length());
             auto parent = GetInstance(Executor_, parentName);
             auto parentLimits = parent->GetResourceLimitsRecursive();
 

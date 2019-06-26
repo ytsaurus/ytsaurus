@@ -12,8 +12,8 @@ inline bool TPlacementDomain::operator==(const TPlacementDomain& rhs) const
         return true;
     }
 
-    Y_ASSERT(!DataCenter || !rhs.DataCenter || (DataCenter->GetId() == rhs.DataCenter->GetId()) == (DataCenter == rhs.DataCenter));
-    Y_ASSERT((Medium->GetId() == rhs.Medium->GetId()) == (Medium == rhs.Medium));
+    YT_ASSERT(!DataCenter || !rhs.DataCenter || (DataCenter->GetId() == rhs.DataCenter->GetId()) == (DataCenter == rhs.DataCenter));
+    YT_ASSERT((Medium->GetId() == rhs.Medium->GetId()) == (Medium == rhs.Medium));
 
     return DataCenter == rhs.DataCenter && Medium == rhs.Medium;
 }

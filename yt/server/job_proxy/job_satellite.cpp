@@ -233,7 +233,7 @@ void TJobProbeTools::Init(TJobId jobId)
             break;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 
     auto currentWorkDir = NFs::CurrentWorkingDirectory();
@@ -396,7 +396,7 @@ TJobSatelliteWorker::TJobSatelliteWorker(
     , Logger(NLogging::TLogger(JobSatelliteLogger)
         .AddTag("JobId: %v", JobId_))
 {
-    YCHECK(JobId_);
+    YT_VERIFY(JobId_);
     YT_LOG_DEBUG("Starting job satellite service");
 }
 
@@ -409,7 +409,7 @@ void TJobSatelliteWorker::EnsureJobProbe()
 
 std::vector<TChunkId> TJobSatelliteWorker::DumpInputContext()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 TYsonString TJobSatelliteWorker::StraceJob()
@@ -420,7 +420,7 @@ TYsonString TJobSatelliteWorker::StraceJob()
 
 TString TJobSatelliteWorker::GetStderr()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TJobSatelliteWorker::SignalJob(const TString& signalName)
@@ -437,12 +437,12 @@ TYsonString TJobSatelliteWorker::PollJobShell(const TYsonString& parameters)
 
 void TJobSatelliteWorker::Interrupt()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TJobSatelliteWorker::Fail()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TJobSatelliteWorker::GracefulShutdown(const TError &error)
@@ -554,7 +554,7 @@ void RunJobSatellite(
             auto jobSatellite = New<TJobSatellite>(config, pid, uid, env, TJobId::FromString(jobId));
             jobSatellite->Run();
 
-            YCHECK(HandleEintr(::waitid, P_PID, pid, &processInfo, WEXITED) == 0);
+            YT_VERIFY(HandleEintr(::waitid, P_PID, pid, &processInfo, WEXITED) == 0);
 
             jobSatellite->Stop(ProcessInfoToError(processInfo));
         } catch (const std::exception& ex) {

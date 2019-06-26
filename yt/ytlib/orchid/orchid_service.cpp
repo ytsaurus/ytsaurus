@@ -59,7 +59,7 @@ private:
 
                 const auto& responseMessage = responseMessageOrError.Value();
                 TResponseHeader responseHeader;
-                YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
+                YT_VERIFY(ParseResponseHeader(responseMessage, &responseHeader));
 
                 auto error = FromProto<TError>(responseHeader.error());
 

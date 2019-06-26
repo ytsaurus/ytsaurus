@@ -174,7 +174,7 @@ void Run(const char* configFilename)
 
     YT_LOG_INFO("Discovered %v nodes", execNodes.size());
 
-    YCHECK(!execNodes.empty());
+    YT_VERIFY(!execNodes.empty());
 
     const auto operations = LoadOperations(config->ShiftOperationsToStart);
     const TInstant earliestTime = FindEarliestTime(operations);

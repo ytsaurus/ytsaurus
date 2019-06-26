@@ -29,7 +29,7 @@ TDecayingMaxMinBalancer<T, W>::TDecayingMaxMinBalancer(
 template <typename T, typename W>
 void TDecayingMaxMinBalancer<T, W>::AddContender(T contender, W initialWeight)
 {
-    Y_ASSERT(FindContender(contender) == Contenders_.end());
+    YT_ASSERT(FindContender(contender) == Contenders_.end());
     Contenders_.emplace_back(contender, initialWeight);
 }
 
@@ -72,7 +72,7 @@ void TDecayingMaxMinBalancer<T, W>::AddWeight(T winner, W extraWeight)
     MaybeDecay();
 
     auto it = FindContender(winner);
-    YCHECK(it != Contenders_.end());
+    YT_VERIFY(it != Contenders_.end());
 
     it->Weight += extraWeight;
 }

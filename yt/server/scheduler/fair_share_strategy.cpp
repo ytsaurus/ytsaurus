@@ -153,7 +153,7 @@ public:
         auto state = New<TFairShareStrategyOperationState>(operation);
         state->TreeIdToPoolNameMap() = GetOperationPools(operation->GetRuntimeParameters());
 
-        YCHECK(OperationIdToOperationState_.insert(
+        YT_VERIFY(OperationIdToOperationState_.insert(
             std::make_pair(operation->GetId(), state)).second);
 
         auto runtimeParams = operation->GetRuntimeParameters();
@@ -163,7 +163,7 @@ public:
             const auto& tree = GetTree(pair.first);
 
             auto paramsIt = runtimeParams->SchedulingOptionsPerPoolTree.find(treeId);
-            YCHECK(paramsIt != runtimeParams->SchedulingOptionsPerPoolTree.end());
+            YT_VERIFY(paramsIt != runtimeParams->SchedulingOptionsPerPoolTree.end());
 
             if (tree->RegisterOperation(state, spec, paramsIt->second)) {
                 ActivateOperations({operation->GetId()});
@@ -181,7 +181,7 @@ public:
             DoUnregisterOperationFromTree(state, treeId);
         }
 
-        YCHECK(OperationIdToOperationState_.erase(operation->GetId()) == 1);
+        YT_VERIFY(OperationIdToOperationState_.erase(operation->GetId()) == 1);
     }
 
     virtual void UnregisterOperationFromTree(TOperationId operationId, const TString& treeId) override
@@ -292,7 +292,7 @@ public:
         for (const auto& pair : IdToTree_) {
             const auto& treeId = pair.first;
             const auto& tree = pair.second;
-            YCHECK(snapshots.insert(std::make_pair(treeId, tree->CreateSnapshot())).second);
+            YT_VERIFY(snapshots.insert(std::make_pair(treeId, tree->CreateSnapshot())).second);
         }
 
         {
@@ -444,7 +444,7 @@ public:
 
         auto newPools = GetOperationPools(operation->GetRuntimeParameters());
 
-        YCHECK(newPools.size() == state->TreeIdToPoolNameMap().size());
+        YT_VERIFY(newPools.size() == state->TreeIdToPoolNameMap().size());
 
         //tentative trees can be removed from state, we must apply these changes to new state
         for (const auto& erasedTree : state->ErasedTrees()) {
@@ -456,7 +456,7 @@ public:
             const auto& oldPool = pair.second;
 
             auto newPoolIt = newPools.find(treeId);
-            YCHECK(newPoolIt != newPools.end());
+            YT_VERIFY(newPoolIt != newPools.end());
 
             auto tree = GetTree(treeId);
             if (oldPool.GetPool() != newPoolIt->second.GetPool()) {
@@ -465,7 +465,7 @@ public:
             }
 
             auto it = runtimeParams->SchedulingOptionsPerPoolTree.find(treeId);
-            YCHECK(it != runtimeParams->SchedulingOptionsPerPoolTree.end());
+            YT_VERIFY(it != runtimeParams->SchedulingOptionsPerPoolTree.end());
             tree->UpdateOperationRuntimeParameters(operation->GetId(), it->second);
         }
         state->TreeIdToPoolNameMap() = newPools;
@@ -499,7 +499,7 @@ public:
                 treeParams->Pool = GetTree(tree)->CreatePoolName(spec->Pool, user);
                 treeParams->ResourceLimits = spec->ResourceLimits;
             }
-            YCHECK(runtimeParameters->SchedulingOptionsPerPoolTree.emplace(tree, std::move(treeParams)).second);
+            YT_VERIFY(runtimeParameters->SchedulingOptionsPerPoolTree.emplace(tree, std::move(treeParams)).second);
         }
     }
 
@@ -572,7 +572,7 @@ public:
                     const auto& tree = pair.second;
 
                     auto it = descriptorsPerPoolTree.find(treeId);
-                    YCHECK(it != descriptorsPerPoolTree.end());
+                    YT_VERIFY(it != descriptorsPerPoolTree.end());
 
                     fluent
                         .Item(treeId).BeginMap()
@@ -666,7 +666,7 @@ public:
         for (const auto& pair : IdToTree_) {
             const auto& treeId = pair.first;
             const auto& tree = pair.second;
-            YCHECK(snapshots.insert(std::make_pair(treeId, tree->CreateSnapshot())).second);
+            YT_VERIFY(snapshots.insert(std::make_pair(treeId, tree->CreateSnapshot())).second);
         }
 
         {
@@ -729,8 +729,8 @@ public:
         int* snapshotRevision) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YCHECK(successfullyUpdatedJobs->empty());
-        YCHECK(jobsToAbort->empty());
+        YT_VERIFY(successfullyUpdatedJobs->empty());
+        YT_VERIFY(jobsToAbort->empty());
 
         YT_LOG_DEBUG("Processing job updates in strategy (UpdateCount: %v)",
             jobUpdates.size());
@@ -774,7 +774,7 @@ public:
                     break;
                 }
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         }
 
@@ -983,7 +983,7 @@ private:
     TFairShareStrategyOperationStatePtr GetOperationState(TOperationId operationId) const
     {
         auto it = OperationIdToOperationState_.find(operationId);
-        YCHECK(it != OperationIdToOperationState_.end());
+        YT_VERIFY(it != OperationIdToOperationState_.end());
         return it->second;
     }
 
@@ -996,7 +996,7 @@ private:
     TFairShareTreePtr GetTree(const TString& id) const
     {
         auto tree = FindTree(id);
-        YCHECK(tree);
+        YT_VERIFY(tree);
         return tree;
     }
 
@@ -1009,7 +1009,7 @@ private:
         for (const auto& pair : TreeIdToSnapshot_) {
             const auto& snapshot = pair.second;
             if (snapshot->GetNodesFilter().CanSchedule(descriptor.Tags)) {
-                YCHECK(!result);  // Only one snapshot should be found
+                YT_VERIFY(!result);  // Only one snapshot should be found
                 result = snapshot;
             }
         }
@@ -1198,8 +1198,8 @@ private:
             for (const auto& treeAndPool : poolsMap) {
                 const auto& treeId = treeAndPool.first;
 
-                YCHECK(operationIdToTreeSet[operationId].insert(treeId).second);
-                YCHECK(treeIdToOperationSet[treeId].insert(operationId).second);
+                YT_VERIFY(operationIdToTreeSet[operationId].insert(treeId).second);
+                YT_VERIFY(treeIdToOperationSet[treeId].insert(operationId).second);
             }
         }
 
@@ -1215,11 +1215,11 @@ private:
             for (const auto& operationId : it->second) {
                 const auto& state = GetOperationState(operationId);
                 GetTree(treeId)->UnregisterOperation(state);
-                YCHECK(state->TreeIdToPoolNameMap().erase(treeId) == 1);
+                YT_VERIFY(state->TreeIdToPoolNameMap().erase(treeId) == 1);
 
                 auto treeSetIt = operationIdToTreeSet.find(operationId);
-                YCHECK(treeSetIt != operationIdToTreeSet.end());
-                YCHECK(treeSetIt->second.erase(treeId) == 1);
+                YT_VERIFY(treeSetIt != operationIdToTreeSet.end());
+                YT_VERIFY(treeSetIt->second.erase(treeId) == 1);
             }
         }
 

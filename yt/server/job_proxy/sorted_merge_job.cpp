@@ -40,7 +40,7 @@ public:
 
     virtual void Initialize() override
     {
-        YCHECK(SchedulerJobSpecExt_.output_table_specs_size() == 1);
+        YT_VERIFY(SchedulerJobSpecExt_.output_table_specs_size() == 1);
         const auto& outputSpec = SchedulerJobSpecExt_.output_table_specs(0);
 
         auto keyColumns = FromProto<TKeyColumns>(MergeJobSpecExt_.key_columns());

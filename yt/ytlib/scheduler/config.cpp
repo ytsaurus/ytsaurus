@@ -1526,7 +1526,7 @@ TOperationRuntimeParametersPtr UpdateRuntimeParameters(
     const TOperationRuntimeParametersPtr& origin,
     const TOperationRuntimeParametersUpdatePtr& update)
 {
-    YCHECK(origin);
+    YT_VERIFY(origin);
     auto result = CloneYsonSerializable(origin);
     if (update->Acl) {
         result->Acl = *update->Acl;

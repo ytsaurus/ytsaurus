@@ -71,15 +71,15 @@ public:
 
     TSharedRange<T> Slice(size_t startOffset, size_t endOffset) const
     {
-        Y_ASSERT(startOffset <= this->Size());
-        Y_ASSERT(endOffset >= startOffset && endOffset <= this->Size());
+        YT_ASSERT(startOffset <= this->Size());
+        YT_ASSERT(endOffset >= startOffset && endOffset <= this->Size());
         return TSharedRange<T>(this->Begin() + startOffset, endOffset - startOffset, Holder_);
     }
 
     TSharedRange<T> Slice(const T* begin, const T* end) const
     {
-        Y_ASSERT(begin >= this->Begin());
-        Y_ASSERT(end <= this->End());
+        YT_ASSERT(begin >= this->Begin());
+        YT_ASSERT(end <= this->End());
         return TSharedRange<T>(begin, end, Holder_);
     }
 
@@ -225,15 +225,15 @@ public:
 
     TSharedMutableRange<T> Slice(size_t startOffset, size_t endOffset) const
     {
-        Y_ASSERT(startOffset <= this->Size());
-        Y_ASSERT(endOffset >= startOffset && endOffset <= this->Size());
+        YT_ASSERT(startOffset <= this->Size());
+        YT_ASSERT(endOffset >= startOffset && endOffset <= this->Size());
         return TSharedMutableRange<T>(this->Begin() + startOffset, endOffset - startOffset, Holder_);
     }
 
     TSharedMutableRange<T> Slice(T* begin, T* end) const
     {
-        Y_ASSERT(begin >= this->Begin());
-        Y_ASSERT(end <= this->End());
+        YT_ASSERT(begin >= this->Begin());
+        YT_ASSERT(end <= this->End());
         return TSharedMutableRange<T>(begin, end, Holder_);
     }
 

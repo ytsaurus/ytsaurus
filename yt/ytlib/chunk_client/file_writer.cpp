@@ -82,9 +82,9 @@ TFuture<void> TFileWriter::LockDataFile(const std::shared_ptr<TFileHandle>& file
 
 TFuture<void> TFileWriter::Open()
 {
-    YCHECK(!Open_);
-    YCHECK(!Closed_);
-    YCHECK(!Opening_);
+    YT_VERIFY(!Open_);
+    YT_VERIFY(!Closed_);
+    YT_VERIFY(!Opening_);
 
     Opening_ = true;
 
@@ -106,8 +106,8 @@ TFuture<void> TFileWriter::Open()
 
 bool TFileWriter::WriteBlock(const TBlock& block)
 {
-    YCHECK(Open_);
-    YCHECK(!Closed_);
+    YT_VERIFY(Open_);
+    YT_VERIFY(!Closed_);
 
     block.ValidateChecksum();
 
@@ -132,9 +132,9 @@ bool TFileWriter::WriteBlock(const TBlock& block)
             auto end = ::AlignUp(Buffer_.Begin() + BufferPosition_ + size, Alignment);
             auto data = Buffer_.Slice(start, end);
 
-            YCHECK(offset >= 0 && offset <= filePosition);
-            YCHECK(start >= Buffer_.Begin() && end <= Buffer_.End());
-            YCHECK(filePosition - offset == Buffer_.Begin() + BufferPosition_ - start);
+            YT_VERIFY(offset >= 0 && offset <= filePosition);
+            YT_VERIFY(start >= Buffer_.Begin() && end <= Buffer_.End());
+            YT_VERIFY(filePosition - offset == Buffer_.Begin() + BufferPosition_ - start);
 
             NConcurrency::WaitFor(IOEngine_->Pwrite(DataFile_, data, offset)).ThrowOnError();
 
@@ -143,7 +143,7 @@ bool TFileWriter::WriteBlock(const TBlock& block)
             BufferPosition_ += size;
             p += size;
 
-            YCHECK(BufferPosition_ <= Buffer_.Size());
+            YT_VERIFY(BufferPosition_ <= Buffer_.Size());
 
             if (BufferPosition_ == Buffer_.Size()) {
                 BufferPosition_ = 0;
@@ -152,7 +152,7 @@ bool TFileWriter::WriteBlock(const TBlock& block)
 
         DataSize_ += block.Size();
 
-        YCHECK(filePosition == DataSize_);
+        YT_VERIFY(filePosition == DataSize_);
     } catch (const std::exception& ex) {
         Error_ = TError(
             "Failed to write chunk data file %v",
@@ -166,8 +166,8 @@ bool TFileWriter::WriteBlock(const TBlock& block)
 
 bool TFileWriter::WriteBlocks(const std::vector<TBlock>& blocks)
 {
-    YCHECK(Open_);
-    YCHECK(!Closed_);
+    YT_VERIFY(Open_);
+    YT_VERIFY(!Closed_);
 
     for (const auto& block : blocks) {
         if (!WriteBlock(block)) {
@@ -179,8 +179,8 @@ bool TFileWriter::WriteBlocks(const std::vector<TBlock>& blocks)
 
 TFuture<void> TFileWriter::GetReadyEvent()
 {
-    YCHECK(Open_);
-    YCHECK(!Closed_);
+    YT_VERIFY(Open_);
+    YT_VERIFY(!Closed_);
 
     return MakeFuture(Error_);
 }
@@ -261,28 +261,28 @@ void TFileWriter::Abort()
 
 const TChunkInfo& TFileWriter::GetChunkInfo() const
 {
-    YCHECK(Closed_);
+    YT_VERIFY(Closed_);
 
     return ChunkInfo_;
 }
 
 const TDataStatistics& TFileWriter::GetDataStatistics() const
 {
-    YCHECK(Closed_);
+    YT_VERIFY(Closed_);
 
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 const TRefCountedChunkMetaPtr& TFileWriter::GetChunkMeta() const
 {
-    YCHECK(Closed_);
+    YT_VERIFY(Closed_);
 
     return ChunkMeta_;
 }
 
 TChunkReplicaWithMediumList TFileWriter::GetWrittenChunkReplicas() const
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 TChunkId TFileWriter::GetChunkId() const
@@ -302,7 +302,7 @@ i64 TFileWriter::GetDataSize() const
 
 bool TFileWriter::HasSickReplicas() const
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

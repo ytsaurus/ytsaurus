@@ -35,8 +35,8 @@ public:
         , Logger(logger)
         , Profiler(profiler)
     {
-        YCHECK(Config_);
-        YCHECK(Invoker_);
+        YT_VERIFY(Config_);
+        YT_VERIFY(Invoker_);
 
         EvictionExecutor_ = New<TPeriodicExecutor>(
             Invoker_,
@@ -90,7 +90,7 @@ public:
     TFuture<TSharedRefArray> TryBeginRequest(TMutationId id, bool isRetry)
     {
         VERIFY_THREAD_AFFINITY(HomeThread);
-        Y_ASSERT(id);
+        YT_ASSERT(id);
 
         if (!Started_) {
             THROW_ERROR_EXCEPTION("Response keeper is not active");
@@ -122,7 +122,7 @@ public:
                 << TErrorAttribute("warmup_time", Config_->WarmupTime);
         }
 
-        YCHECK(PendingResponses_.insert(std::make_pair(id, NewPromise<TSharedRefArray>())).second);
+        YT_VERIFY(PendingResponses_.insert(std::make_pair(id, NewPromise<TSharedRefArray>())).second);
 
         YT_LOG_TRACE("Response will be kept (MutationId: %v)", id);
 
@@ -132,7 +132,7 @@ public:
     void EndRequest(TMutationId id, TSharedRefArray response)
     {
         VERIFY_THREAD_AFFINITY(HomeThread);
-        Y_ASSERT(id);
+        YT_ASSERT(id);
 
         if (!Started_) {
             return;
@@ -165,7 +165,7 @@ public:
     void CancelRequest(TMutationId id, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(HomeThread);
-        Y_ASSERT(id);
+        YT_ASSERT(id);
 
         if (!Started_) {
             return;
@@ -281,7 +281,7 @@ private:
             }
 
             auto it = FinishedResponses_.find(item.Id);
-            YCHECK(it != FinishedResponses_.end());
+            YT_VERIFY(it != FinishedResponses_.end());
             UpdateCounters(it->second, -1);
             FinishedResponses_.erase(it);
             ResponseEvictionQueue_.pop_front();

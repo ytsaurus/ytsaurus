@@ -45,7 +45,7 @@ public:
     virtual Poco::AutoPtr<Poco::Util::AbstractConfiguration> load(const std::string& configFile, const std::string & /* preprocessed_dir = "" */) const override
     {
         auto it = Dictionaries_.find(configFile);
-        YCHECK(it != Dictionaries_.end());
+        YT_VERIFY(it != Dictionaries_.end());
         return ConvertToPocoConfig(NYTree::BuildYsonNodeFluently()
             .BeginMap()
                 .Item("dictionary").Value(it->second)
@@ -87,12 +87,12 @@ public:
 
     virtual Poco::Timestamp getLastModificationTime(const std::string& /* configFile */) const override
     {
-        Y_UNIMPLEMENTED();
+        YT_UNIMPLEMENTED();
     }
 
     virtual Poco::AutoPtr<Poco::Util::AbstractConfiguration> load(const std::string& /* configFile */, const std::string & /* preprocessed_dir = "" */) const override
     {
-        Y_UNIMPLEMENTED();
+        YT_UNIMPLEMENTED();
     }
 };
 

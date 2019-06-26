@@ -80,8 +80,8 @@ public:
 
     virtual TFuture<void> Open() override
     {
-        YCHECK(!Initialized_);
-        YCHECK(!OpenFuture_);
+        YT_VERIFY(!Initialized_);
+        YT_VERIFY(!OpenFuture_);
 
         OpenFuture_ = BIND(&TConfirmingWriter::OpenSession, MakeWeak(this))
             .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
@@ -96,8 +96,8 @@ public:
 
     virtual bool WriteBlocks(const std::vector<TBlock>& blocks) override
     {
-        YCHECK(Initialized_);
-        YCHECK(OpenFuture_.IsSet());
+        YT_VERIFY(Initialized_);
+        YT_VERIFY(OpenFuture_.IsSet());
 
         if (!OpenFuture_.Get().IsOK()) {
             return false;
@@ -108,8 +108,8 @@ public:
 
     virtual TFuture<void> GetReadyEvent() override
     {
-        YCHECK(Initialized_);
-        YCHECK(OpenFuture_.IsSet());
+        YT_VERIFY(Initialized_);
+        YT_VERIFY(OpenFuture_.IsSet());
         if (!OpenFuture_.Get().IsOK()) {
             return OpenFuture_;
         } else {
@@ -119,8 +119,8 @@ public:
 
     virtual TFuture<void> Close(const TRefCountedChunkMetaPtr& chunkMeta) override
     {
-        YCHECK(Initialized_);
-        YCHECK(OpenFuture_.IsSet());
+        YT_VERIFY(Initialized_);
+        YT_VERIFY(OpenFuture_.IsSet());
 
         ChunkMeta_ = chunkMeta;
 
@@ -133,19 +133,19 @@ public:
 
     virtual const NProto::TChunkInfo& GetChunkInfo() const override
     {
-        YCHECK(Closed_);
+        YT_VERIFY(Closed_);
         return UnderlyingWriter_->GetChunkInfo();
     }
 
     virtual const NProto::TDataStatistics& GetDataStatistics() const override
     {
-        YCHECK(Closed_);
+        YT_VERIFY(Closed_);
         return DataStatistics_;
     }
 
     virtual TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
     {
-        YCHECK(UnderlyingWriter_);
+        YT_VERIFY(UnderlyingWriter_);
         return UnderlyingWriter_->GetWrittenChunkReplicas();
     }
 
@@ -267,7 +267,7 @@ private:
         YT_LOG_DEBUG("Chunk closed");
 
         auto replicas = UnderlyingWriter_->GetWrittenChunkReplicas();
-        YCHECK(!replicas.empty());
+        YT_VERIFY(!replicas.empty());
 
         static const THashSet<int> masterMetaTags{
             TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
@@ -281,7 +281,7 @@ private:
             masterMetaTags);
 
         // Sanity check.
-        YCHECK(FindProtoExtension<NChunkClient::NProto::TMiscExt>(masterChunkMeta.extensions()));
+        YT_VERIFY(FindProtoExtension<NChunkClient::NProto::TMiscExt>(masterChunkMeta.extensions()));
 
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTag_);
         TChunkServiceProxy proxy(channel);

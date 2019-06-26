@@ -117,7 +117,7 @@ TFuture<IChannelPtr> TDynamicChannelPool::GetRandomChannel()
         return MakeFuture<IChannelPtr>(TError("Channel pool is terminated"));
     }
 
-    YCHECK(!Slots_.empty());
+    YT_VERIFY(!Slots_.empty());
 
     int index = RandomNumber(Slots_.size());
     for (int i = 0; i < TryCount; ++i) {

@@ -100,7 +100,7 @@ private:
 
 IChannelPtr CreateDefaultTimeoutChannel(IChannelPtr underlyingChannel, TDuration timeout)
 {
-    YCHECK(underlyingChannel);
+    YT_VERIFY(underlyingChannel);
 
     return New<TDefaultTimeoutChannel>(underlyingChannel, timeout);
 }
@@ -139,7 +139,7 @@ IChannelFactoryPtr CreateDefaultTimeoutChannelFactory(
     IChannelFactoryPtr underlyingFactory,
     TDuration timeout)
 {
-    YCHECK(underlyingFactory);
+    YT_VERIFY(underlyingFactory);
 
     return New<TDefaultTimeoutChannelFactory>(underlyingFactory, timeout);
 }
@@ -174,7 +174,7 @@ private:
 
 IChannelPtr CreateAuthenticatedChannel(IChannelPtr underlyingChannel, const TString& user)
 {
-    YCHECK(underlyingChannel);
+    YT_VERIFY(underlyingChannel);
 
     return New<TAuthenticatedChannel>(std::move(underlyingChannel), user);
 }
@@ -214,7 +214,7 @@ IChannelFactoryPtr CreateAuthenticatedChannelFactory(
     IChannelFactoryPtr underlyingFactory,
     const TString& user)
 {
-    YCHECK(underlyingFactory);
+    YT_VERIFY(underlyingFactory);
 
     return New<TAuthenticatedChannelFactory>(std::move(underlyingFactory), user);
 }
@@ -249,7 +249,7 @@ private:
 
 IChannelPtr CreateRealmChannel(IChannelPtr underlyingChannel, TRealmId realmId)
 {
-    YCHECK(underlyingChannel);
+    YT_VERIFY(underlyingChannel);
 
     return New<TRealmChannel>(std::move(underlyingChannel), realmId);
 }
@@ -289,7 +289,7 @@ IChannelFactoryPtr CreateRealmChannelFactory(
     IChannelFactoryPtr underlyingFactory,
     TRealmId realmId)
 {
-    YCHECK(underlyingFactory);
+    YT_VERIFY(underlyingFactory);
 
     return New<TRealmChannelFactory>(std::move(underlyingFactory), realmId);
 }

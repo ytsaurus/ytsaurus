@@ -41,7 +41,7 @@ public:
         : TSimpleJobBase(host)
         , UseParallelReader_(useParallelReader)
     {
-        YCHECK(SchedulerJobSpecExt_.output_table_specs_size() == 1);
+        YT_VERIFY(SchedulerJobSpecExt_.output_table_specs_size() == 1);
     }
 
     virtual void Initialize() override
@@ -77,7 +77,7 @@ public:
             : CreateSchemalessSequentialMultiReader;
 
         ReaderFactory_ = [=] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
-            YCHECK(!Reader_);
+            YT_VERIFY(!Reader_);
             Reader_ = readerFactory(
                 Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader,
                 readerOptions,
@@ -109,7 +109,7 @@ public:
         auto timestamp = static_cast<TTimestamp>(outputSpec.timestamp());
 
         WriterFactory_ = [=] (TNameTablePtr nameTable, const TTableSchema&) {
-            YCHECK(!Writer_);
+            YT_VERIFY(!Writer_);
             Writer_ = CreateSchemalessMultiChunkWriter(
                 writerConfig,
                 options,

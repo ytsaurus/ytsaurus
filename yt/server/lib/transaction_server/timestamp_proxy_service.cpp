@@ -26,7 +26,7 @@ public:
             TransactionServerLogger)
         , Provider_(provider)
     {
-        YCHECK(Provider_);
+        YT_VERIFY(Provider_);
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps));
     }

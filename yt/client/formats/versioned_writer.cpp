@@ -53,7 +53,7 @@ bool TVersionedWriter::Write(TRange<TVersionedRow> rows)
                 Consumer_->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
                 break;
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     };
 

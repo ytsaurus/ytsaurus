@@ -103,7 +103,7 @@ struct TNullFactory
     template <class T>
     static T* Instantiate()
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 };
 

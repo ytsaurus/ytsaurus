@@ -443,7 +443,7 @@ public:
         auto deadline = request.FinishTime + Config_->CleanDelay;
 
         ArchiveTimeToOperationIdMap_.emplace(deadline, id);
-        YCHECK(OperationMap_.emplace(id, std::move(request)).second);
+        YT_VERIFY(OperationMap_.emplace(id, std::move(request)).second);
 
         YT_LOG_DEBUG("Operation submitted for archivation (OperationId: %v, ArchivationStartTime: %v)",
             id,
@@ -544,7 +544,7 @@ private:
         if (Config_->Enable && !Enabled_) {
             Enabled_ = true;
 
-            YCHECK(!CancelableContext_);
+            YT_VERIFY(!CancelableContext_);
             CancelableContext_ = New<TCancelableContext>();
             CancelableControlInvoker_ = CancelableContext_->CreateInvoker(
                 Bootstrap_->GetControlInvoker(EControlQueue::OperationsCleaner));
@@ -869,7 +869,7 @@ private:
             archivedOperationRequests.reserve(batch.size());
             for (const auto& operationId : batch) {
                 auto it = OperationMap_.find(operationId);
-                YCHECK(it != OperationMap_.end());
+                YT_VERIFY(it != OperationMap_.end());
                 archivedOperationRequests.emplace_back(std::move(it->second));
                 OperationMap_.erase(it);
                 EnqueueForRemoval(operationId);
@@ -914,7 +914,7 @@ private:
                 if (batchRspOrError.IsOK()) {
                     const auto& batchRsp = batchRspOrError.Value();
                     auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_lock_count");
-                    YCHECK(rsps.size() == batch.size());
+                    YT_VERIFY(rsps.size() == batch.size());
 
                     for (int index = 0; index < rsps.size(); ++index) {
                         bool isLocked = false;
@@ -961,7 +961,7 @@ private:
                 if (batchRspOrError.IsOK()) {
                     const auto& batchRsp = batchRspOrError.Value();
                     auto rsps = batchRsp->GetResponses<TYPathProxy::TRspRemove>("remove_operation");
-                    YCHECK(rsps.size() == operationIdsToRemove.size());
+                    YT_VERIFY(rsps.size() == operationIdsToRemove.size());
 
                     for (int index = 0; index < operationIdsToRemove.size(); ++index) {
                         const auto& operationId = operationIdsToRemove[index];
@@ -988,7 +988,7 @@ private:
                 }
             }
 
-            YCHECK(batch.size() >= failedOperationIds.size());
+            YT_VERIFY(batch.size() >= failedOperationIds.size());
             int removedCount = batch.size() - failedOperationIds.size();
             YT_LOG_DEBUG("Successfully removed %v operations from Cypress", removedCount);
 
@@ -1082,7 +1082,7 @@ private:
         VERIFY_INVOKER_AFFINITY(GetInvoker());
 
         auto it = OperationMap_.find(operationId);
-        YCHECK(it != OperationMap_.end());
+        YT_VERIFY(it != OperationMap_.end());
         return it->second;
     }
 };
@@ -1210,12 +1210,12 @@ std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error requesting operations attributes for archivation");
 
         auto rsps = rspOrError.Value()->GetResponses<TYPathProxy::TRspGet>("get_op_attributes");
-        YCHECK(batch.size() == rsps.size());
+        YT_VERIFY(batch.size() == rsps.size());
 
         for (int index = 0; index < batch.size(); ++index) {
             auto attributes = ConvertToAttributes(TYsonString(rsps[index].Value()->value()));
             auto operationId = TOperationId::FromString(attributes->Get<TString>("key"));
-            YCHECK(operationId == batch[index]);
+            YT_VERIFY(operationId == batch[index]);
 
             try {
                 TArchiveOperationRequest req;

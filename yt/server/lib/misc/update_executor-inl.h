@@ -54,7 +54,7 @@ TUpdateParameters* TUpdateExecutor<TKey, TUpdateParameters>::AddUpdate(const TKe
     VERIFY_THREAD_AFFINITY(UpdateThread);
 
     auto pair = Updates_.insert(std::make_pair(key, TUpdateRecord(key, parameters)));
-    YCHECK(pair.second);
+    YT_VERIFY(pair.second);
     YT_LOG_DEBUG("Item added to periodic updates (Key: %v)", key);
     return &pair.first->second.UpdateParameters;
 }
@@ -64,7 +64,7 @@ void TUpdateExecutor<TKey, TUpdateParameters>::RemoveUpdate(const TKey& key)
 {
     VERIFY_THREAD_AFFINITY(UpdateThread);
 
-    YCHECK(Updates_.erase(key) == 1);
+    YT_VERIFY(Updates_.erase(key) == 1);
     YT_LOG_DEBUG("Item removed from periodic updates (Key: %v)", key);
 }
 
@@ -83,7 +83,7 @@ TUpdateParameters* TUpdateExecutor<TKey, TUpdateParameters>::GetUpdate(const TKe
     VERIFY_THREAD_AFFINITY(UpdateThread);
 
     auto* result = FindUpdate(key);
-    YCHECK(result);
+    YT_VERIFY(result);
     return result;
 }
 
@@ -123,7 +123,7 @@ void TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdates()
     }
 
     auto result = NConcurrency::WaitFor(CombineAll(asyncResults));
-    YCHECK(result.IsOK());
+    YT_VERIFY(result.IsOK());
     if (!result.IsOK()) {
         OnUpdateFailed_(result);
         return;

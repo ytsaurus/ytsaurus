@@ -150,7 +150,7 @@ public:
     {
         TGuard<TSpinLock> guard(SpinLock_);
 
-        YCHECK(!Dialed_);
+        YT_VERIFY(!Dialed_);
         Dialed_ = true;
 
         Connect();
@@ -209,7 +209,7 @@ private:
     void CloseSocket()
     {
         if (Socket_ != INVALID_SOCKET) {
-            YCHECK(TryClose(Socket_));
+            YT_VERIFY(TryClose(Socket_));
             Socket_ = INVALID_SOCKET;
         }
     }
@@ -233,7 +233,7 @@ private:
         try {
             int family = Address_.GetSockAddr()->sa_family;
 
-            YCHECK(Socket_ == INVALID_SOCKET);
+            YT_VERIFY(Socket_ == INVALID_SOCKET);
             if (Address_.GetSockAddr()->sa_family == AF_UNIX) {
                 Socket_ = CreateUnixClientSocket();
             } else {
@@ -273,7 +273,7 @@ private:
 
     void Finish()
     {
-        Y_ASSERT(Finished_);
+        YT_ASSERT(Finished_);
         if (Socket_ == INVALID_SOCKET) {
             OnFinished_(Error_);
         } else {
@@ -282,7 +282,7 @@ private:
 
             int error = GetSocketError(socket);
             if (error != 0) {
-                YCHECK(TryClose(socket, false));
+                YT_VERIFY(TryClose(socket, false));
                 socket = INVALID_SOCKET;
                 Error_ = TError(NRpc::EErrorCode::TransportError, "Connect error")
                     << TError::FromSystem(error);

@@ -200,7 +200,7 @@ public:
     virtual TProcessBasePtr CreateUserJobProcess(const TString& path, int uid, const std::optional<TString>& coreHandlerSocketPath) override
     {
         Y_UNUSED(coreHandlerSocketPath);
-        YCHECK(!Process_);
+        YT_VERIFY(!Process_);
 
         UserId_ = uid;
         Process_ =  New<TSimpleProcess>(path, false);

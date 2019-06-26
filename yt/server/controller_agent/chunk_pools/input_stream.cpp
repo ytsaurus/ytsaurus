@@ -56,7 +56,7 @@ TInputStreamDirectory::TInputStreamDirectory(
     : Descriptors_(std::move(descriptors))
     , DefaultDescriptor_(defaultDescriptor)
 {
-    YCHECK(DefaultDescriptor_.IsPrimary());
+    YT_VERIFY(DefaultDescriptor_.IsPrimary());
 }
 
 const TInputStreamDescriptor& TInputStreamDirectory::GetDescriptor(int inputStreamIndex) const

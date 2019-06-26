@@ -16,7 +16,7 @@ TAddressMap GetLocalAddresses(const TNetworkAddressList& addresses, int port)
     TAddressMap result;
     result.reserve(addresses.size());
     for (const auto& pair : addresses) {
-        YCHECK(result.emplace(pair.first, BuildServiceAddress(pair.second, port)).second);
+        YT_VERIFY(result.emplace(pair.first, BuildServiceAddress(pair.second, port)).second);
     }
 
     // Add default address.

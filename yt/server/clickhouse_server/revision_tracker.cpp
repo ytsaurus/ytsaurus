@@ -28,7 +28,7 @@ bool TRevisionTracker::HasRevisionChanged() const
         // We do not want to lose state of the dictionary for as long as possible.
         return false;
     }
-    YCHECK(*currentRevision >= *Revision_);
+    YT_VERIFY(*currentRevision >= *Revision_);
     return *currentRevision != *Revision_;
 }
 

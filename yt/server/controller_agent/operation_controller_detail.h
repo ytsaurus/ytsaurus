@@ -105,7 +105,7 @@ class TOperationControllerBase
     , public ITaskHost
 {
     // In order to make scheduler more stable, we do not allow
-    // pure YCHECK to be executed from the controller code (directly
+    // pure YT_VERIFY to be executed from the controller code (directly
     // or indirectly). Thus, all interface methods of IOperationController
     // are divided into two groups: those that involve YCHECKs
     // to make assertions essential for further execution, and pure ones.
@@ -197,7 +197,7 @@ private: \
 
 public:
     // These are "pure" interface methods, i. e. those that do not involve YCHECKs.
-    // If some of these methods still fails due to unnoticed YCHECK, consider
+    // If some of these methods still fails due to unnoticed YT_VERIFY, consider
     // moving it to the section above.
 
     // NB(max42): Don't make Revive safe! It may lead to either destroying all

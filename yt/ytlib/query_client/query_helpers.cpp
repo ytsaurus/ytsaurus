@@ -403,7 +403,7 @@ TConstExpressionPtr EliminateInExpression(
 
                 UniteBounds(&allBounds);
 
-                YCHECK(!allBounds.empty());
+                YT_VERIFY(!allBounds.empty());
                 unitedBounds = std::move(allBounds.front());
             }
 
@@ -469,7 +469,7 @@ TConstExpressionPtr EliminatePredicate(
             ? TBound(keyRange.first[keyPartIndex], true)
             : TBound(MakeUnversionedSentinelValue(EValueType::Min), false);
 
-        YCHECK(keyPartIndex < keyRange.second.GetCount());
+        YT_VERIFY(keyPartIndex < keyRange.second.GetCount());
         auto upper = TBound(keyRange.second[keyPartIndex], keyPartIndex + 1 < keyRange.second.GetCount());
 
         return std::make_pair(lower, upper);
@@ -485,7 +485,7 @@ TConstExpressionPtr EliminatePredicate(
         }
 
         UniteBounds(&allBounds);
-        YCHECK(!allBounds.empty());
+        YT_VERIFY(!allBounds.empty());
         unitedBoundsByColumn[keyPartIndex] = std::move(allBounds.front());
     }
 

@@ -45,14 +45,14 @@ public:
     TPoolName GetPoolNameByTreeId(const TString& treeId) const
     {
         auto it = TreeIdToPoolNameMap_.find(treeId);
-        YCHECK(it != TreeIdToPoolNameMap_.end());
+        YT_VERIFY(it != TreeIdToPoolNameMap_.end());
         return it->second;
     }
 
     void EraseTree(const TString& treeId)
     {
         ErasedTrees_.push_back(treeId);
-        YCHECK(TreeIdToPoolNameMap_.erase(treeId) == 1);
+        YT_VERIFY(TreeIdToPoolNameMap_.erase(treeId) == 1);
     }
 };
 

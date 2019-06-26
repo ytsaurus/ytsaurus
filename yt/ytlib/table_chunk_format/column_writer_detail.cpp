@@ -81,7 +81,7 @@ i32 TVersionedColumnWriterBase::GetCurrentSegmentSize() const
 void TVersionedColumnWriterBase::WriteUnversionedValues(TRange<NTableClient::TUnversionedRow> rows)
 {
     // Versioned column writers don't support unversioned rows.
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
  void TVersionedColumnWriterBase::Reset()
@@ -165,7 +165,7 @@ void TVersionedColumnWriterBase::DumpVersionedData(TSegmentInfo* segmentInfo)
                 rowIndexes.push_back(rowIndex);
             }
         }
-        YCHECK(rowIndexes.size() == NullBitmap_.GetBitSize());
+        YT_VERIFY(rowIndexes.size() == NullBitmap_.GetBitSize());
 
         segmentInfo->Data.push_back(CompressUnsignedVector(
             MakeRange(rowIndexes),

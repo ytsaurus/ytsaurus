@@ -96,15 +96,15 @@ TBoundaryKeys BuildBoundaryKeysFromOutputResult(
     const TEdgeDescriptor& edgeDescriptor,
     const TRowBufferPtr& rowBuffer)
 {
-    YCHECK(!boundaryKeys.empty());
-    YCHECK(boundaryKeys.sorted());
-    YCHECK(!edgeDescriptor.TableWriterOptions->ValidateUniqueKeys || boundaryKeys.unique_keys());
+    YT_VERIFY(!boundaryKeys.empty());
+    YT_VERIFY(boundaryKeys.sorted());
+    YT_VERIFY(!edgeDescriptor.TableWriterOptions->ValidateUniqueKeys || boundaryKeys.unique_keys());
 
     auto trimAndCaptureKey = [&] (const TOwningKey& key) {
         int limit = edgeDescriptor.TableUploadOptions.TableSchema.GetKeyColumnCount();
         if (key.GetCount() > limit) {
             // NB: This can happen for a teleported chunk from a table with a wider key in sorted (but not unique_keys) mode.
-            YCHECK(!edgeDescriptor.TableWriterOptions->ValidateUniqueKeys);
+            YT_VERIFY(!edgeDescriptor.TableWriterOptions->ValidateUniqueKeys);
             return rowBuffer->Capture(key.Begin(), limit);
         } else {
             return rowBuffer->Capture(key.Begin(), key.GetCount());
@@ -160,7 +160,7 @@ void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector
                     descriptor->set_format(file.Format.GetData());
                     break;
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         }
     }

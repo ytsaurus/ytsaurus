@@ -279,7 +279,7 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
         auto physicalType = CheckedEnumCast<EValueType>(protoSchema.type());
         schema->SetLogicalType(SimpleLogicalType(GetLogicalType(physicalType), protoSchema.required()));
     }
-    YCHECK(schema->GetPhysicalType() == CheckedEnumCast<EValueType>(protoSchema.type()));
+    YT_VERIFY(schema->GetPhysicalType() == CheckedEnumCast<EValueType>(protoSchema.type()));
 
     schema->SetLock(protoSchema.has_lock() ? std::make_optional(protoSchema.lock()) : std::nullopt);
     schema->SetExpression(protoSchema.has_expression() ? std::make_optional(protoSchema.expression()) : std::nullopt);
@@ -323,7 +323,7 @@ const TColumnSchema* TTableSchema::FindColumn(TStringBuf name) const
 const TColumnSchema& TTableSchema::GetColumn(TStringBuf name) const
 {
     auto* column = FindColumn(name);
-    YCHECK(column);
+    YT_VERIFY(column);
     return *column;
 }
 
@@ -724,12 +724,12 @@ void FromProto(
     auto columns = FromProto<std::vector<TColumnSchema>>(protoSchema.columns());
     for (int columnIndex = 0; columnIndex < protoKeyColumns.names_size(); ++columnIndex) {
         auto& columnSchema = columns[columnIndex];
-        YCHECK(columnSchema.Name() == protoKeyColumns.names(columnIndex));
+        YT_VERIFY(columnSchema.Name() == protoKeyColumns.names(columnIndex));
         columnSchema.SetSortOrder(ESortOrder::Ascending);
     }
     for (int columnIndex = protoKeyColumns.names_size(); columnIndex < columns.size(); ++columnIndex) {
         auto& columnSchema = columns[columnIndex];
-        YCHECK(!columnSchema.SortOrder());
+        YT_VERIFY(!columnSchema.SortOrder());
     }
     *schema = TTableSchema(
         std::move(columns),
@@ -953,7 +953,7 @@ void ValidateColumnUniqueness(const TTableSchema& schema)
 void ValidateLocks(const TTableSchema& schema)
 {
     THashSet<TString> lockNames;
-    YCHECK(lockNames.insert(PrimaryLockName).second);
+    YT_VERIFY(lockNames.insert(PrimaryLockName).second);
     for (const auto& column : schema.Columns()) {
         if (column.Lock()) {
             lockNames.insert(*column.Lock());

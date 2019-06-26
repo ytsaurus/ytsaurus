@@ -49,7 +49,7 @@ void TCommit::Save(TSaveContext& context) const
 {
     using NYT::Save;
 
-    YCHECK(Persistent_);
+    YT_VERIFY(Persistent_);
     Save(context, TransactionId_);
     Save(context, MutationId_);
     Save(context, ParticipantCellIds_);

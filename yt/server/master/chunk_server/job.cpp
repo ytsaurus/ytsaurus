@@ -107,7 +107,7 @@ TJobPtr TJob::CreateSeal(
     TChunkPtrWithIndexes chunkWithIndexes,
     TNode* node)
 {
-    YCHECK(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
+    YT_VERIFY(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
 
     TNodeResources resourceUsage;
     resourceUsage.set_seal_slots(1);

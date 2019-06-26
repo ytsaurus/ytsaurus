@@ -456,7 +456,7 @@ void THostsHandler::HandleRequest(
         }
 
         if (path != "/hosts" && path != "/hosts/") {
-            YCHECK(path.StartsWith("/hosts/"));
+            YT_VERIFY(path.StartsWith("/hosts/"));
             suffix = TString(path.substr(7));
         }
 

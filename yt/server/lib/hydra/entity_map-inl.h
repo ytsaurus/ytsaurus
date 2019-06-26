@@ -105,7 +105,7 @@ TValue* TReadOnlyEntityMap<TValue>::Get(const TKey& key) const
     VERIFY_THREAD_AFFINITY(UserThread);
 
     auto* value = Find(key);
-    YCHECK(value);
+    YT_VERIFY(value);
     return value;
 }
 
@@ -192,9 +192,9 @@ TValue* TEntityMap<TValue, TTraits>::Insert(const TKey& key, std::unique_ptr<TVa
     VERIFY_THREAD_AFFINITY(this->UserThread);
 
     auto* value = valueHolder.release();
-    Y_ASSERT(value);
+    YT_ASSERT(value);
 
-    YCHECK(this->Map_.insert(std::make_pair(key, value)).second);
+    YT_VERIFY(this->Map_.insert(std::make_pair(key, value)).second);
     value->SetDynamicData(AllocateDynamicData());
 
     return value;
@@ -205,7 +205,7 @@ void TEntityMap<TValue, TTraits>::Remove(const TKey& key)
 {
     VERIFY_THREAD_AFFINITY(this->UserThread);
 
-    YCHECK(TryRemove(key));
+    YT_VERIFY(TryRemove(key));
 }
 
 template <class TValue, class TTraits>
@@ -231,7 +231,7 @@ std::unique_ptr<TValue> TEntityMap<TValue, TTraits>::Release(const TKey& key)
     VERIFY_THREAD_AFFINITY(this->UserThread);
 
     auto it = this->Map_.find(key);
-    Y_ASSERT(it != this->Map_.end());
+    YT_ASSERT(it != this->Map_.end());
     auto* value = it->second;
     FreeDynamicData(value->GetDynamicData());
     value->SetDynamicData(nullptr);
@@ -324,7 +324,7 @@ void TEntityMap<TValue, TTraits>::LoadKeys(TContext& context)
 
             value->SetDynamicData(AllocateDynamicData());
 
-            YCHECK(this->Map_.insert(std::make_pair(key, value.release())).second);
+            YT_VERIFY(this->Map_.insert(std::make_pair(key, value.release())).second);
 
             SERIALIZATION_DUMP_WRITE(context, "%v aka %v", key, serializationKey.Index);
         }
@@ -337,7 +337,7 @@ void TEntityMap<TValue, TTraits>::LoadValues(TContext& context)
 {
     VERIFY_THREAD_AFFINITY(this->UserThread);
 
-    YCHECK(LoadKeys_.size() == LoadValues_.size());
+    YT_VERIFY(LoadKeys_.size() == LoadValues_.size());
 
     SERIALIZATION_DUMP_WRITE(context, "values[%v]", LoadKeys_.size());
 

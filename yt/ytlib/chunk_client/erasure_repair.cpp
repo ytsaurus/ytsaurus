@@ -62,7 +62,7 @@ public:
             ++index;
         }
 
-        YCHECK(index == CachedBlocks_.size());
+        YT_VERIFY(index == CachedBlocks_.size());
 
         if (index < blockIndexes.size()) {
             auto blockIndexesToRequest = std::vector<int>(blockIndexes.begin() + index, blockIndexes.end());
@@ -100,7 +100,7 @@ public:
         return blocksFuture.Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TBlock>& blocks) mutable {
             for (int index = 0; index < blocks.size(); ++index) {
                 auto it = blockIndexToSavedBlocksIndex.find(index);
-                YCHECK(it != blockIndexToSavedBlocksIndex.end());
+                YT_VERIFY(it != blockIndexToSavedBlocksIndex.end());
                 SavedBlocks_[it->second] = blocks[index];
             }
         }));
@@ -110,7 +110,7 @@ public:
     {
         std::vector<TBlock> result;
         for (const auto& blockOrNull : SavedBlocks_) {
-            YCHECK(blockOrNull);
+            YT_VERIFY(blockOrNull);
             result.push_back(*blockOrNull);
         }
         return result;
@@ -147,7 +147,7 @@ public:
         , ErasedIndices_(erasedIndices)
         , BlockReadOptions_(options)
     {
-        YCHECK(erasedIndices.size() == writers.size());
+        YT_VERIFY(erasedIndices.size() == writers.size());
     }
 
     TFuture<void> Run()
@@ -235,13 +235,13 @@ private:
 
         // Validate repaired parts checksums.
         if (placementExt.part_checksums_size() != 0) {
-            YCHECK(placementExt.part_checksums_size() == Codec_->GetTotalPartCount());
+            YT_VERIFY(placementExt.part_checksums_size() == Codec_->GetTotalPartCount());
 
             for (int index = 0; index < Writers_.size(); ++index) {
                 TChecksum repairedPartChecksum = writerConsumers[index]->GetPartChecksum();
                 TChecksum expectedPartChecksum = placementExt.part_checksums(ErasedIndices_[index]);
 
-                YCHECK(expectedPartChecksum == NullChecksum || repairedPartChecksum == expectedPartChecksum);
+                YT_VERIFY(expectedPartChecksum == NullChecksum || repairedPartChecksum == expectedPartChecksum);
             }
         }
 
@@ -264,8 +264,8 @@ private:
             placementExt.parity_last_block_size());
 
         auto repairIndices = Codec_->GetRepairIndices(ErasedIndices_);
-        YCHECK(repairIndices);
-        YCHECK(repairIndices->size() == Readers_.size());
+        YT_VERIFY(repairIndices);
+        YT_VERIFY(repairIndices->size() == Readers_.size());
 
         for (int i = 0; i < Readers_.size(); ++i) {
             int repairIndex = (*repairIndices)[i];
@@ -330,7 +330,7 @@ public:
             return VoidFuture;
         }
 
-        YCHECK(!LastRange_ || LastRange_->End <= range.Begin);
+        YT_VERIFY(!LastRange_ || LastRange_->End <= range.Begin);
         LastRange_ = range;
 
         for (int index = 0; index < Ranges_.size(); ++index) {
@@ -351,7 +351,7 @@ public:
 
     std::vector<TBlock> GetSavedBlocks()
     {
-        YCHECK(TotalBytes_ == SavedBytes_);
+        YT_VERIFY(TotalBytes_ == SavedBytes_);
         std::vector<TBlock> result;
         for (const auto& block : Blocks_) {
             result.emplace_back(TSharedRef(block));
@@ -403,8 +403,8 @@ public:
         , DataBlocksPlacementInParts_(BuildDataBlocksPlacementInParts(BlockIndexes_, PlacementExt_))
     {
         auto repairIndices = *Codec_->GetRepairIndices(ErasedIndices_);
-        YCHECK(std::is_sorted(ErasedIndices_.begin(), ErasedIndices_.end()));
-        YCHECK(std::is_sorted(repairIndices.begin(), repairIndices.end()));
+        YT_VERIFY(std::is_sorted(ErasedIndices_.begin(), ErasedIndices_.end()));
+        YT_VERIFY(std::is_sorted(repairIndices.begin(), repairIndices.end()));
 
         for (int partIndex : repairIndices) {
             RepairPartBlockSizes_.push_back(GetBlockSizes(partIndex, PlacementExt_));
@@ -585,7 +585,7 @@ public:
         std::optional<i64> /* estimatedSize */)
     {
         // Implement when first needed.
-        Y_UNIMPLEMENTED();
+        YT_UNIMPLEMENTED();
     }
 
     virtual bool IsValid() const override

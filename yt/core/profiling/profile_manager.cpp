@@ -63,8 +63,8 @@ public:
 
     void Start()
     {
-        YCHECK(!WasStarted);
-        YCHECK(!WasShutdown);
+        YT_VERIFY(!WasStarted);
+        YT_VERIFY(!WasShutdown);
 
         WasStarted = true;
 
@@ -130,7 +130,7 @@ public:
 
         auto id = static_cast<TTagId>(IdToTag.size());
         IdToTag.push_back(tag);
-        YCHECK(TagToId.insert(std::make_pair(pair, id)).second);
+        YT_VERIFY(TagToId.insert(std::make_pair(pair, id)).second);
         TagKeyToValues[tag.Key].push_back(tag.Value);
 
         return id;
@@ -271,7 +271,7 @@ private:
                             .Item("value").Value(sample.Value)
                             .Item("tags").DoMapFor(sample.TagIds, [&] (TFluentMap fluent, TTagId tagId) {
                                 auto it = tagIdToValue.find(tagId);
-                                YCHECK(it != tagIdToValue.end());
+                                YT_VERIFY(it != tagIdToValue.end());
                                 const auto& tag = it->second;
                                 fluent
                                     .Item(tag.Key).Value(tag.Value);
@@ -378,7 +378,7 @@ private:
 
         YT_LOG_DEBUG("Creating bucket %v", path);
         auto bucket = New<TBucket>();
-        YCHECK(PathToBucket.insert(std::make_pair(path, bucket)).second);
+        YT_VERIFY(PathToBucket.insert(std::make_pair(path, bucket)).second);
 
         auto node = CreateVirtualNode(bucket);
         ForceYPath(Root, path);

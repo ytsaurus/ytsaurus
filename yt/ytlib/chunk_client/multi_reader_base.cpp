@@ -171,8 +171,8 @@ void TMultiReaderBase::DoOpenReader(int index)
     OnReaderOpened(reader, index);
 
     TGuard<TSpinLock> guard(ActiveReadersLock_);
-    YCHECK(NonOpenedReaderIndexes_.erase(index));
-    YCHECK(ActiveReaders_.insert(reader).second);
+    YT_VERIFY(NonOpenedReaderIndexes_.erase(index));
+    YT_VERIFY(ActiveReaders_.insert(reader).second);
 }
 
 void TMultiReaderBase::OnReaderFinished()
@@ -185,7 +185,7 @@ void TMultiReaderBase::OnReaderFinished()
         TGuard<TSpinLock> guard(ActiveReadersLock_);
         DataStatistics_ += CurrentSession_.Reader->GetDataStatistics();
         DecompressionStatistics_ += CurrentSession_.Reader->GetDecompressionStatistics();
-        YCHECK(ActiveReaders_.erase(CurrentSession_.Reader));
+        YT_VERIFY(ActiveReaders_.erase(CurrentSession_.Reader));
     }
 
     --ActiveReaderCount_;

@@ -213,7 +213,7 @@ protected:
                 NotifyExecutorPrepared(GetConfig());
             } catch (const std::exception& ex) {
                 fprintf(stderr, "Unable to notify job proxy\n%s", ex.what());
-                Y_UNREACHABLE();
+                YT_ABORT();
             }
         }
 

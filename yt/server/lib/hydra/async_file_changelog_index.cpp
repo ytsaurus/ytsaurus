@@ -43,7 +43,7 @@ typename std::vector<T>::const_iterator LastNotGreater(
     const T& value)
 {
     auto res = std::upper_bound(vec.begin(), vec.end(), value);
-    YCHECK(res != vec.begin());
+    YT_VERIFY(res != vec.begin());
     --res;
     return res;
 }
@@ -55,7 +55,7 @@ typename std::vector<T>::const_iterator LastNotGreater(
     TComparator comparator)
 {
     auto res = std::upper_bound(vec.begin(), vec.end(), value, comparator);
-    YCHECK(res != vec.begin());
+    YT_VERIFY(res != vec.begin());
     --res;
     return res;
 }
@@ -111,7 +111,7 @@ void TIndexBucket::Push(const TChangelogIndexRecord& record)
 
 void TIndexBucket::PushHeader()
 {
-    YCHECK(CurrentIndexId_ == 0);
+    YT_VERIFY(CurrentIndexId_ == 0);
 
     static_assert(sizeof(TChangelogIndexHeader) <= sizeof(TChangelogIndexRecord),
         "sizeof(TChangelogIndexHeader) <= sizeof(TChangelogIndexRecord)");
@@ -123,7 +123,7 @@ void TIndexBucket::PushHeader()
 
 void TIndexBucket::UpdateRecordCount(int newRecordCount)
 {
-    YCHECK(Offset_ == 0);
+    YT_VERIFY(Offset_ == 0);
     Header_->IndexRecordCount = newRecordCount;
 }
 
@@ -158,7 +158,7 @@ TAsyncFileChangelogIndex::TAsyncFileChangelogIndex(
     , CurrentIndexBucket_(FirstIndexBucket_)
 {
     FirstIndexBucket_->PushHeader();
-    YCHECK(Alignment_ % sizeof(TChangelogIndexRecord) == 0);
+    YT_VERIFY(Alignment_ % sizeof(TChangelogIndexRecord) == 0);
 }
 
 //! Creates an empty index file.
@@ -200,7 +200,7 @@ void TAsyncFileChangelogIndex::Read(const std::optional<i32>& truncatedRecordCou
         static_assert(sizeof(indexHeader) >= 12, "Sizeof index header must be >= 12");
         indexStream.Load(&indexHeader, 12);
         ValidateSignature(indexHeader);
-        YCHECK(indexHeader.IndexRecordCount >= 0);
+        YT_VERIFY(indexHeader.IndexRecordCount >= 0);
         if (indexHeader.Signature == indexHeader.ExpectedSignature) {
             indexStream.Skip(sizeof(indexHeader.Padding));
         }
@@ -224,7 +224,7 @@ void TAsyncFileChangelogIndex::Read(const std::optional<i32>& truncatedRecordCou
 void TAsyncFileChangelogIndex::TruncateInvalidRecords(i64 correctPrefixSize)
 {
     YT_LOG_WARNING_IF(correctPrefixSize < Index_.size(), "Changelog index contains invalid records, truncated");
-    YCHECK(correctPrefixSize <= Index_.size());
+    YT_VERIFY(correctPrefixSize <= Index_.size());
     Index_.resize(correctPrefixSize);
 
     FirstIndexBucket_->UpdateRecordCount(Index_.size());
@@ -250,12 +250,12 @@ void TAsyncFileChangelogIndex::TruncateInvalidRecords(i64 correctPrefixSize)
         // calculate file offset of CurrentIndexBucket
         auto indexOffset = (recordIndex + firstRecordId) * sizeof(TChangelogIndexRecord);
 
-        YCHECK(indexOffset % Alignment_ == 0);
+        YT_VERIFY(indexOffset % Alignment_ == 0);
 
         CurrentIndexBucket_ = New<TIndexBucket>(MaxIndexRecordsPerBucket_, Alignment_, indexOffset);
         auto recordCount = totalRecordCount - recordIndex;
 
-        YCHECK(recordCount < MaxIndexRecordsPerBucket_);
+        YT_VERIFY(recordCount < MaxIndexRecordsPerBucket_);
 
         for (int index = 0; index < recordCount; ++index) {
             CurrentIndexBucket_->Push(Index_[recordIndex + index]);
@@ -276,7 +276,7 @@ void TAsyncFileChangelogIndex::Search(
     int lastRecordId,
     i64 maxBytes) const
 {
-    YCHECK(!Index_.empty());
+    YT_VERIFY(!Index_.empty());
 
     *lowerBound = *LastNotGreater(Index_, TChangelogIndexRecord(firstRecordId, -1), CompareRecordIds);
 
@@ -344,13 +344,13 @@ void TAsyncFileChangelogIndex::UpdateIndexBuckets()
  */
 void TAsyncFileChangelogIndex::ProcessRecord(int recordId, i64 currentFilePosition, int totalSize)
 {
-    YCHECK(CurrentBlockSize_ >= 0);
+    YT_VERIFY(CurrentBlockSize_ >= 0);
 
     // We add a new index record
     // 1) for the very first data record; or
     // 2) if the size of data records added since last index record exceeds IndexBlockSize.
     if (recordId == 0 || CurrentBlockSize_ >= IndexBlockSize_) {
-        YCHECK(Index_.empty() || Index_.back().RecordId < recordId);
+        YT_VERIFY(Index_.empty() || Index_.back().RecordId < recordId);
 
         CurrentBlockSize_ = 0;
         Index_.emplace_back(recordId, currentFilePosition);
@@ -409,7 +409,7 @@ const std::vector<TChangelogIndexRecord>& TAsyncFileChangelogIndex::Records() co
 
 const TChangelogIndexRecord& TAsyncFileChangelogIndex::LastRecord() const
 {
-    YCHECK(!Index_.empty());
+    YT_VERIFY(!Index_.empty());
     return Index_.back();
 }
 

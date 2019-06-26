@@ -97,8 +97,8 @@ TObjectServiceProxy::TRspExecuteBatchPtr TObjectServiceProxy::TReqExecuteSubbatc
 TSharedRefArray TObjectServiceProxy::TReqExecuteSubbatch::PatchForRetry(const TSharedRefArray& message)
 {
     NRpc::NProto::TRequestHeader header;
-    YCHECK(ParseRequestHeader(message, &header));
-    YCHECK(!header.retry());
+    YT_VERIFY(ParseRequestHeader(message, &header));
+    YT_VERIFY(!header.retry());
     header.set_retry(true);
     return SetRequestHeader(message, header);
 }
@@ -221,7 +221,7 @@ void TObjectServiceProxy::TReqExecuteBatch::PushDownPrerequisites()
         const auto& batchPrerequisitesExt = Header_.GetExtension(NProto::TPrerequisitesExt::prerequisites_ext);
         for (auto& descriptor : InnerRequestDescriptors_) {
             NRpc::NProto::TRequestHeader requestHeader;
-            YCHECK(ParseRequestHeader(descriptor.Message, &requestHeader));
+            YT_VERIFY(ParseRequestHeader(descriptor.Message, &requestHeader));
             auto* prerequisitesExt = requestHeader.MutableExtension(NProto::TPrerequisitesExt::prerequisites_ext);
             prerequisitesExt->mutable_transactions()->MergeFrom(batchPrerequisitesExt.transactions());
             prerequisitesExt->mutable_revisions()->MergeFrom(batchPrerequisitesExt.revisions());
@@ -243,7 +243,7 @@ void TObjectServiceProxy::TReqExecuteBatch::InvokeNextBatch()
     auto lastBatchEnd = CurBatchEnd_;
     CurBatchEnd_ = std::min(CurBatchBegin_ + MaxSingleSubbatchSize, GetTotalSubrequestCount());
 
-    YCHECK(CurBatchBegin_ < CurBatchEnd_ || GetTotalSubrequestCount() == 0);
+    YT_VERIFY(CurBatchBegin_ < CurBatchEnd_ || GetTotalSubrequestCount() == 0);
 
     // Optimization for the typical case of a small batch.
     if (CurBatchBegin_ == 0 && CurBatchEnd_ == GetTotalSubrequestCount()) {
@@ -287,7 +287,7 @@ void TObjectServiceProxy::TReqExecuteBatch::OnSubbatchResponse(const TErrorOr<TR
         rsp->GetSize());
 
     // The remote side shouldn't backoff until there's at least one subresponse.
-    YCHECK(rsp->GetSize() > 0 || GetTotalSubrequestCount() == 0);
+    YT_VERIFY(rsp->GetSize() > 0 || GetTotalSubrequestCount() == 0);
 
     GetFullResponse()->Append(rsp);
 
@@ -384,7 +384,7 @@ void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(
 
 void TObjectServiceProxy::TRspExecuteBatch::Append(const TRspExecuteBatchPtr& subbatchResponse)
 {
-    YCHECK(
+    YT_VERIFY(
         PartRanges_.empty() && Attachments_.empty() ||
         PartRanges_.back().second == Attachments_.size());
 
@@ -432,7 +432,7 @@ std::vector<TErrorOr<NYTree::TYPathResponsePtr>> TObjectServiceProxy::TRspExecut
 
 TSharedRefArray TObjectServiceProxy::TRspExecuteBatch::GetResponseMessage(int index) const
 {
-    YCHECK(index >= 0 && index < GetSize());
+    YT_VERIFY(index >= 0 && index < GetSize());
     int beginIndex = PartRanges_[index].first;
     int endIndex = PartRanges_[index].second;
     if (beginIndex == endIndex) {
@@ -452,7 +452,7 @@ std::optional<i64> TObjectServiceProxy::TRspExecuteBatch::GetRevision(int index)
         return std::nullopt;
     }
 
-    YCHECK(index >= 0 && index <= Revisions_.size());
+    YT_VERIFY(index >= 0 && index <= Revisions_.size());
     return Revisions_[index];
 }
 

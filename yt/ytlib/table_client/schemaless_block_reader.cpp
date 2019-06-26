@@ -22,7 +22,7 @@ THorizontalSchemalessBlockReader::THorizontalSchemalessBlockReader(
     , KeyColumnCount_(keyColumnCount)
     , ExtraColumnCount_(extraColumnCount)
 {
-    YCHECK(Meta_.row_count() > 0);
+    YT_VERIFY(Meta_.row_count() > 0);
 
     keyColumnCount = std::max(KeyColumnCount_, ChunkKeyColumnCount_);
     auto keyDataSize = GetUnversionedRowByteSize(KeyColumnCount_);
@@ -48,7 +48,7 @@ bool THorizontalSchemalessBlockReader::NextRow()
 
 bool THorizontalSchemalessBlockReader::SkipToRowIndex(i64 rowIndex)
 {
-    YCHECK(rowIndex >= RowIndex_);
+    YT_VERIFY(rowIndex >= RowIndex_);
     return JumpToRowIndex(rowIndex);
 }
 
@@ -63,7 +63,7 @@ bool THorizontalSchemalessBlockReader::SkipToKey(const TKey key)
         RowIndex_,
         Meta_.row_count(),
         [&] (i64 index) {
-            YCHECK(JumpToRowIndex(index));
+            YT_VERIFY(JumpToRowIndex(index));
             return GetKey() < key;
         });
 
@@ -171,7 +171,7 @@ bool THorizontalSchemalessBlockReader::JumpToRowIndex(i64 rowIndex)
     CurrentPointer_ = Data_.Begin() + offset;
 
     CurrentPointer_ += ReadVarUint32(CurrentPointer_, &ValueCount_);
-    YCHECK(ValueCount_ >= ChunkKeyColumnCount_);
+    YT_VERIFY(ValueCount_ >= ChunkKeyColumnCount_);
 
     const char* ptr = CurrentPointer_;
     for (int i = 0; i < ChunkKeyColumnCount_; ++i) {

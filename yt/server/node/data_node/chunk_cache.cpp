@@ -120,7 +120,7 @@ private:
             Underlying_->Write(buf, len);
         } catch (const std::exception& ex) {
             Location_->Disable(ex);
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
     }
 
@@ -130,7 +130,7 @@ private:
             Underlying_->Write(parts, count);
         } catch (const std::exception& ex) {
             Location_->Disable(ex);
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
     }
 
@@ -140,7 +140,7 @@ private:
             Underlying_->Flush();
         } catch (const std::exception& ex) {
             Location_->Disable(ex);
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
     }
 
@@ -150,7 +150,7 @@ private:
             Underlying_->Finish();
         } catch (const std::exception& ex) {
             Location_->Disable(ex);
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
     }
 };
@@ -231,7 +231,7 @@ private:
         return result.Apply(BIND([location = Location_] (const TError& error) {
             if (!error.IsOK()) {
                 location->Disable(error);
-                Y_UNREACHABLE();
+                YT_ABORT();
             }
         }));
     }
@@ -405,7 +405,7 @@ public:
                         downloader = &TImpl::DownloadTable;
                         break;
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
             }
 
@@ -448,7 +448,7 @@ public:
                 producerBuilder = &TImpl::MakeTableProducer;
                 break;
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         return (this->*producerBuilder)(
@@ -592,7 +592,7 @@ private:
     TChunkId GetOrCreateArtifactId(const TArtifactKey& key, bool canPrepareSingleChunk)
     {
         if (canPrepareSingleChunk) {
-            YCHECK(key.chunk_specs_size() == 1);
+            YT_VERIFY(key.chunk_specs_size() == 1);
             const auto& chunkSpec = key.chunk_specs(0);
             return FromProto<TChunkId>(chunkSpec.chunk_id());
         } else {
@@ -908,7 +908,7 @@ private:
                 break;
 
             case EDataSourceType::VersionedTable:
-                YCHECK(schema);
+                YT_VERIFY(schema);
                 dataSourceDirectory->DataSources().push_back(MakeVersionedDataSource(
                     CachedSourcePath,
                     *schema,
@@ -919,7 +919,7 @@ private:
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         auto reader = CreateSchemalessSequentialMultiReader(

@@ -258,7 +258,7 @@ public:
     TTabletSnapshotPtr GetCachedTabletSnapshot(TTabletId tabletId)
     {
         auto it = Map_.find(tabletId);
-        YCHECK(it != Map_.end());
+        YT_VERIFY(it != Map_.end());
         return it->second;
     }
 
@@ -464,7 +464,7 @@ private:
                         for (const auto& split : dataSplits) {
                             for (int index = 0; index < split.Ranges.Size(); ++index) {
                                 isRanges = true;
-                                YCHECK(!isKeys);
+                                YT_VERIFY(!isKeys);
                                 const auto& range = split.Ranges[index];
                                 int lowerBoundWidth = std::min(
                                     GetSignificantWidth(range.first),
@@ -498,7 +498,7 @@ private:
 
                             for (int index = 0; index < split.Keys.Size(); ++index) {
                                 isKeys = true;
-                                YCHECK(!isRanges);
+                                YT_VERIFY(!isRanges);
                                 const auto& key = split.Keys[index];
 
                                 int keyWidth = std::min(
@@ -868,7 +868,7 @@ private:
             }
         }
 
-        YCHECK(splitOffset == splitCount);
+        YT_VERIFY(splitOffset == splitCount);
 
         return DoCoordinateAndExecute(
             std::move(refiners),
@@ -899,7 +899,7 @@ private:
 
         auto appendGroup = [&] (const TGroup& group) {
             if (!groupedByPartitions.empty() && groupedByPartitions.back().PartitionIt == group.PartitionIt) {
-                Y_ASSERT(groupedByPartitions.back().EndIt < group.EndIt);
+                YT_ASSERT(groupedByPartitions.back().EndIt < group.EndIt);
                 groupedByPartitions.back().EndIt = group.EndIt;
             } else {
                 groupedByPartitions.push_back(group);
@@ -923,7 +923,7 @@ private:
                 [] (TKey lhs, const TPartitionSnapshotPtr& rhs) {
                     return lhs < rhs->NextPivotKey;
                 });
-            YCHECK(startIt != partitions.end());
+            YT_VERIFY(startIt != partitions.end());
 
             auto nextPivotKey = (*startIt)->NextPivotKey.Get();
 
@@ -1040,7 +1040,7 @@ private:
         std::vector<TRowRange> group;
 
         auto addGroup = [&] () {
-            YCHECK(!group.empty());
+            YT_VERIFY(!group.empty());
             YT_LOG_DEBUG_IF(verboseLogging, "(%v, %v) make batch [%v .. %v] from %v ranges",
                 currentSampleCount,
                 nextSampleCount,
@@ -1069,7 +1069,7 @@ private:
                 size_t sampleCount = std::distance(startSampleIt, endSampleIt);
                 size_t nextGroupSampleCount = currentSampleCount + sampleCount;
 
-                YCHECK(nextSampleCount >= currentSampleCount);
+                YT_VERIFY(nextSampleCount >= currentSampleCount);
 
                 auto it = startSampleIt;
                 while (nextSampleCount < nextGroupSampleCount) {
@@ -1104,14 +1104,14 @@ private:
 
             auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tablePartId);
 
-            YCHECK(tablePartIdRange.Keys.Empty() != ranges.Empty());
+            YT_VERIFY(tablePartIdRange.Keys.Empty() != ranges.Empty());
 
             if (!tabletSnapshot->TableSchema.IsSorted() || ranges.Empty()) {
                 groupedSplits.push_back(tablePartIdRange);
                 continue;
             }
 
-            YCHECK(std::is_sorted(
+            YT_VERIFY(std::is_sorted(
                 ranges.Begin(),
                 ranges.End(),
                 [] (const TRowRange& lhs, const TRowRange& rhs) {
@@ -1119,7 +1119,7 @@ private:
                 }));
 
             const auto& partitions = tabletSnapshot->PartitionList;
-            YCHECK(!partitions.empty());
+            YT_VERIFY(!partitions.empty());
 
             auto splits = SplitTablet(partitions, ranges, rowBuffer);
 
@@ -1136,7 +1136,7 @@ private:
         }
 
         for (const auto& split : groupedSplits) {
-            YCHECK(std::is_sorted(
+            YT_VERIFY(std::is_sorted(
                 split.Ranges.Begin(),
                 split.Ranges.End(),
                 [] (const TRowRange& lhs, const TRowRange& rhs) {
@@ -1144,7 +1144,7 @@ private:
                 }));
         }
 
-        YCHECK(std::is_sorted(
+        YT_VERIFY(std::is_sorted(
             groupedSplits.begin(),
             groupedSplits.end(),
             [] (const TDataRanges& lhs, const TDataRanges& rhs) {

@@ -36,7 +36,7 @@ void TExpirationTracker::Start()
     YT_LOG_INFO("Started registering node expiration (Count: %v)",
         ExpiredNodes_.size());
     for (auto* trunkNode : ExpiredNodes_) {
-        Y_ASSERT(!trunkNode->GetExpirationIterator());
+        YT_ASSERT(!trunkNode->GetExpirationIterator());
         if (auto expirationTime = trunkNode->TryGetExpirationTime()) {
             RegisterNodeExpiration(trunkNode, *expirationTime);
         }
@@ -44,7 +44,7 @@ void TExpirationTracker::Start()
     ExpiredNodes_.clear();
     YT_LOG_INFO("Finished registering node expiration");
 
-    YCHECK(!CheckExecutor_);
+    YT_VERIFY(!CheckExecutor_);
     CheckExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::ExpirationTracker),
         BIND(&TExpirationTracker::OnCheck, MakeWeak(this)));
@@ -73,7 +73,7 @@ void TExpirationTracker::Clear()
 void TExpirationTracker::OnNodeExpirationTimeUpdated(TCypressNodeBase* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    Y_ASSERT(trunkNode->IsTrunk());
+    YT_ASSERT(trunkNode->IsTrunk());
 
     if (trunkNode->GetExpirationIterator()) {
         UnregisterNodeExpiration(trunkNode);
@@ -93,7 +93,7 @@ void TExpirationTracker::OnNodeExpirationTimeUpdated(TCypressNodeBase* trunkNode
 void TExpirationTracker::OnNodeDestroyed(TCypressNodeBase* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    Y_ASSERT(trunkNode->IsTrunk());
+    YT_ASSERT(trunkNode->IsTrunk());
 
     if (trunkNode->GetExpirationIterator()) {
         UnregisterNodeExpiration(trunkNode);
@@ -106,7 +106,7 @@ void TExpirationTracker::OnNodeDestroyed(TCypressNodeBase* trunkNode)
 void TExpirationTracker::OnNodeRemovalFailed(TCypressNodeBase* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    Y_ASSERT(trunkNode->IsTrunk());
+    YT_ASSERT(trunkNode->IsTrunk());
 
     if (trunkNode->GetExpirationIterator()) {
         return;
@@ -154,7 +154,7 @@ void TExpirationTracker::OnCheck()
         const auto& pair = *it;
         auto expirationTime = pair.first;
         auto* trunkNode = pair.second;
-        Y_ASSERT(*trunkNode->GetExpirationIterator() == it);
+        YT_ASSERT(*trunkNode->GetExpirationIterator() == it);
 
         if (expirationTime > now) {
             break;
@@ -162,7 +162,7 @@ void TExpirationTracker::OnCheck()
 
         ToProto(request.add_node_ids(), trunkNode->GetId());
         UnregisterNodeExpiration(trunkNode);
-        YCHECK(ExpiredNodes_.insert(trunkNode).second);
+        YT_VERIFY(ExpiredNodes_.insert(trunkNode).second);
     }
 
     if (request.node_ids_size() == 0) {

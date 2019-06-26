@@ -250,12 +250,12 @@ TDuration TProfiler::DoTimingStop(
     const std::optional<TTagIdList>& totalTagIds) const
 {
     // Failure here means that the timer was not started or already stopped.
-    Y_ASSERT(timer.Start_ != 0);
+    YT_ASSERT(timer.Start_ != 0);
 
     auto now = GetCpuInstant();
     auto cpuDuration = now - timer.Start_;
     auto value = CpuDurationToValue(cpuDuration);
-    Y_ASSERT(value >= 0);
+    YT_ASSERT(value >= 0);
 
     auto path = key ? timer.Path_ + "/" + ToYPathLiteral(*key) : timer.Path_;
     auto tagIds = totalTagIds ? timer.TagIds_ + *totalTagIds : timer.TagIds_;
@@ -286,7 +286,7 @@ TDuration TProfiler::DoTimingCheckpoint(
     const std::optional<TTagIdList>& checkpointTagIds) const
 {
     // Failure here means that the timer was not started or already stopped.
-    Y_ASSERT(timer.Start_ != 0);
+    YT_ASSERT(timer.Start_ != 0);
 
     auto now = GetCpuInstant();
 
@@ -302,7 +302,7 @@ TDuration TProfiler::DoTimingCheckpoint(
         case ETimerMode::Sequential: {
             auto lastCheckpoint = timer.LastCheckpoint_ == 0 ? timer.Start_ : timer.LastCheckpoint_;
             auto duration = CpuDurationToValue(now - lastCheckpoint);
-            Y_ASSERT(duration >= 0);
+            YT_ASSERT(duration >= 0);
             Enqueue(path, duration, EMetricType::Gauge, tagIds);
             timer.LastCheckpoint_ = now;
             return CpuDurationToDuration(duration);
@@ -310,13 +310,13 @@ TDuration TProfiler::DoTimingCheckpoint(
 
         case ETimerMode::Parallel: {
             auto duration = CpuDurationToValue(now - timer.Start_);
-            Y_ASSERT(duration >= 0);
+            YT_ASSERT(duration >= 0);
             Enqueue(path, duration, EMetricType::Gauge, tagIds);
             return CpuDurationToDuration(duration);
         }
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -445,7 +445,7 @@ void TProfiler::OnUpdated(TAggregateGauge& counter, TValue value) const
             break;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

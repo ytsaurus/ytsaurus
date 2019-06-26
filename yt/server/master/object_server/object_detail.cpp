@@ -83,9 +83,9 @@ TObjectProxyBase::TObjectProxyBase(
     , Metadata_(metadata)
     , Object_(object)
 {
-    Y_ASSERT(Bootstrap_);
-    Y_ASSERT(Metadata_);
-    Y_ASSERT(Object_);
+    YT_ASSERT(Bootstrap_);
+    YT_ASSERT(Metadata_);
+    YT_ASSERT(Object_);
 }
 
 TObjectId TObjectProxyBase::GetId() const
@@ -202,7 +202,7 @@ void TObjectProxyBase::Invoke(const IServiceContextPtr& context)
 
     // Validate that mutating requests are only being invoked inside mutations or recovery.
     const auto& ypathExt = requestHeader.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-    YCHECK(!ypathExt.mutating() || NHydra::HasMutationContext());
+    YT_VERIFY(!ypathExt.mutating() || NHydra::HasMutationContext());
 
     const auto& objectManager = Bootstrap_->GetObjectManager();
     if (requestHeader.HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
@@ -363,7 +363,7 @@ void TObjectProxyBase::ReplicateAttributeUpdate(IServiceContextPtr context)
 
 IAttributeDictionary* TObjectProxyBase::GetCustomAttributes()
 {
-    Y_ASSERT(CustomAttributes_);
+    YT_ASSERT(CustomAttributes_);
     return CustomAttributes_;
 }
 
@@ -634,7 +634,7 @@ void TObjectProxyBase::ValidateCustomAttributeLength(const TYsonString& value)
 
 void TObjectProxyBase::DeclareMutating()
 {
-    YCHECK(NHydra::HasMutationContext());
+    YT_VERIFY(NHydra::HasMutationContext());
 }
 
 void TObjectProxyBase::DeclareNonMutating()
@@ -656,13 +656,13 @@ void TObjectProxyBase::ValidateNoTransaction()
 
 void TObjectProxyBase::ValidatePermission(EPermissionCheckScope scope, EPermission permission, const TString& /* user */)
 {
-    YCHECK(scope == EPermissionCheckScope::This);
+    YT_VERIFY(scope == EPermissionCheckScope::This);
     ValidatePermission(Object_, permission);
 }
 
 void TObjectProxyBase::ValidatePermission(TObjectBase* object, EPermission permission)
 {
-    YCHECK(object);
+    YT_VERIFY(object);
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
     securityManager->ValidatePermission(object, user, permission);
@@ -741,7 +741,7 @@ std::vector<TString> TNontemplateNonversionedObjectProxyBase::TCustomAttributeDi
     if (attributes) {
         for (const auto& pair : attributes->Attributes()) {
             // Attribute cannot be empty (i.e. deleted) in null transaction.
-            Y_ASSERT(pair.second);
+            YT_ASSERT(pair.second);
             keys.push_back(pair.first);
         }
     }
@@ -762,7 +762,7 @@ TYsonString TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary:
     }
 
     // Attribute cannot be empty (i.e. deleted) in null transaction.
-    Y_ASSERT(it->second);
+    YT_ASSERT(it->second);
     return it->second;
 }
 
@@ -793,7 +793,7 @@ bool TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::Remove
     }
 
     // Attribute cannot be empty (i.e. deleted) in null transaction.
-    Y_ASSERT(it->second);
+    YT_ASSERT(it->second);
     attributes->Attributes().erase(it);
     if (attributes->Attributes().empty()) {
         object->ClearAttributes();

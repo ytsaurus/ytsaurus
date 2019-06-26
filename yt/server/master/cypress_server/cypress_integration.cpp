@@ -16,7 +16,7 @@ using namespace NObjectClient;
 
 INodeTypeHandlerPtr CreateLockMapTypeHandler(TBootstrap* bootstrap)
 {
-    YCHECK(bootstrap);
+    YT_VERIFY(bootstrap);
 
     return CreateVirtualTypeHandler(
         bootstrap,

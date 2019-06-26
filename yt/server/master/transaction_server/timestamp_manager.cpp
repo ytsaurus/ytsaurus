@@ -55,8 +55,8 @@ public:
             automatonInvoker)
         , Config_(config)
     {
-        YCHECK(Config_);
-        YCHECK(AutomatonInvoker_);
+        YT_VERIFY(Config_);
+        YT_VERIFY(AutomatonInvoker_);
 
         TimestampQueue_ = New<TActionQueue>("Timestamp");
         TimestampInvoker_ = TimestampQueue_->GetInvoker();
@@ -148,7 +148,7 @@ private:
         }
 
         int count = context->Request().count();
-        YCHECK(count >= 0);
+        YT_VERIFY(count >= 0);
         if (count > Config_->MaxTimestampsPerRequest) {
             context->Reply(TError("Too many timestamps requested: %v > %v",
                 count,
@@ -173,7 +173,7 @@ private:
         }
 
         // Make sure there's no overflow in the counter part.
-        YCHECK(((CurrentTimestamp_ + count) >> TimestampCounterWidth) == (CurrentTimestamp_ >> TimestampCounterWidth));
+        YT_VERIFY(((CurrentTimestamp_ + count) >> TimestampCounterWidth) == (CurrentTimestamp_ >> TimestampCounterWidth));
 
         auto result = CurrentTimestamp_;
         CurrentTimestamp_ += count;

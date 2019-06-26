@@ -125,7 +125,7 @@ std::vector<TClickHouseTablePtr> FetchClickHouseTables(TQueryContext* queryConte
     }
 
     const auto& rsps = batchRspOrError.Value()->GetResponses<TYPathProxy::TRspGet>();
-    YCHECK(rsps.size() == paths.size());
+    YT_VERIFY(rsps.size() == paths.size());
 
     std::vector<TClickHouseTablePtr> tables;
     std::vector<TError> errors;

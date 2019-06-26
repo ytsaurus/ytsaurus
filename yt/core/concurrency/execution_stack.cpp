@@ -81,7 +81,7 @@ TExecutionStack::TExecutionStack(size_t size)
     ::mprotect(Base_, guardSize, PROT_NONE);
 
     Stack_ = Base_ + guardSize;
-    YCHECK((reinterpret_cast<uintptr_t>(Stack_)& 15) == 0);
+    YT_VERIFY((reinterpret_cast<uintptr_t>(Stack_)& 15) == 0);
 }
 
 TExecutionStack::~TExecutionStack()
@@ -117,7 +117,7 @@ void* TExecutionStack::GetOpaque()
 
 void TExecutionStack::SetTrampoline(void (*trampoline)(void*))
 {
-    Y_ASSERT(!Trampoline_);
+    YT_ASSERT(!Trampoline_);
     Trampoline_ = trampoline;
 }
 
@@ -152,7 +152,7 @@ std::shared_ptr<TExecutionStack> CreateExecutionStack(EExecutionStackKind kind)
         case EExecutionStackKind::Large:
             return ObjectPool<TPooledExecutionStack<EExecutionStackKind::Large, LargeExecutionStackSize>>().Allocate();
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

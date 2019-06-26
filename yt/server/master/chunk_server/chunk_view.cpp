@@ -17,27 +17,27 @@ TChunkView::TChunkView(const TChunkViewId& id)
 
 void TChunkView::SetUnderlyingChunk(TChunk* underlyingChunk)
 {
-    YCHECK(underlyingChunk);
+    YT_VERIFY(underlyingChunk);
     auto chunkType = EChunkType(underlyingChunk->ChunkMeta().type());
-    YCHECK(chunkType == EChunkType::Table);
+    YT_VERIFY(chunkType == EChunkType::Table);
 
     UnderlyingChunk_ = underlyingChunk;
 }
 
 void TChunkView::SetReadRange(TReadRange readRange)
 {
-    YCHECK(!readRange.LowerLimit().HasOffset());
-    YCHECK(!readRange.UpperLimit().HasOffset());
-    YCHECK(!readRange.LowerLimit().HasChunkIndex());
-    YCHECK(!readRange.UpperLimit().HasChunkIndex());
-    YCHECK(!readRange.LowerLimit().HasRowIndex());
-    YCHECK(!readRange.UpperLimit().HasRowIndex());
+    YT_VERIFY(!readRange.LowerLimit().HasOffset());
+    YT_VERIFY(!readRange.UpperLimit().HasOffset());
+    YT_VERIFY(!readRange.LowerLimit().HasChunkIndex());
+    YT_VERIFY(!readRange.UpperLimit().HasChunkIndex());
+    YT_VERIFY(!readRange.LowerLimit().HasRowIndex());
+    YT_VERIFY(!readRange.UpperLimit().HasRowIndex());
 
     ReadRange_ = std::move(readRange);
 
     if (readRange.UpperLimit().HasKey()) {
         const auto& key = readRange.UpperLimit().GetKey();
-        YCHECK(key != NTableClient::MaxKey());
+        YT_VERIFY(key != NTableClient::MaxKey());
     }
 }
 
@@ -95,7 +95,7 @@ void TChunkView::AddParent(TChunkList* parent)
 void TChunkView::RemoveParent(TChunkList* parent)
 {
     auto it = std::find(Parents_.begin(), Parents_.end(), parent);
-    YCHECK(it != Parents_.end());
+    YT_VERIFY(it != Parents_.end());
     Parents_.erase(it);
 }
 

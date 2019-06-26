@@ -281,11 +281,11 @@ private:
                 const auto& rsp = rspOrError.Value();
                 const auto& key = cookie.GetKey();
 
-                YCHECK(rsp->part_counts_size() == 1);
+                YT_VERIFY(rsp->part_counts_size() == 1);
                 auto responseMessage = TSharedRefArray(rsp->Attachments(), TSharedRefArray::TCopyParts{});
 
                 TResponseHeader responseHeader;
-                YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
+                YT_VERIFY(ParseResponseHeader(responseMessage, &responseHeader));
                 auto responseError = FromProto<TError>(responseHeader.error());
                 auto revision = rsp->revisions_size() > 0 ? std::make_optional(rsp->revisions(0)) : std::nullopt;
 
@@ -414,7 +414,7 @@ private:
                 Context_->GetRequestId());
 
             const auto& rsp = rspOrError.Value();
-            YCHECK(rsp->part_counts_size() == Promises_.size());
+            YT_VERIFY(rsp->part_counts_size() == Promises_.size());
 
             int attachmentIndex = 0;
             const auto& attachments = rsp->Attachments();

@@ -47,7 +47,7 @@ protected:
             CurrentRowValues_.resize(
                 *std::max_element(IdToIndexInRow_.begin(), IdToIndexInRow_.end()) + 1);
         }
-        YCHECK(Config_->Columns);
+        YT_VERIFY(Config_->Columns);
     }
 
     int FindMissingValueIndex() const
@@ -208,7 +208,7 @@ public:
 
             CurrentRowValues_.assign(CurrentRowValues_.size(), nullptr);
             for (auto item = row.Begin(); item != row.End(); ++item) {
-                Y_ASSERT(item->Id >= 0 && item->Id < IdToIndexInRow_.size());
+                YT_ASSERT(item->Id >= 0 && item->Id < IdToIndexInRow_.size());
                 if (IdToIndexInRow_[item->Id] != -1) {
                     CurrentRowValues_[IdToIndexInRow_[item->Id]] = item;
                 }

@@ -68,7 +68,7 @@ ISchemafulReaderPtr CreateChunkReader(
     const TTableSchema& readerSchema,
     bool allowUnorderedRead)
 {
-    YCHECK(!dataSourceDirectory->DataSources().empty());
+    YT_VERIFY(!dataSourceDirectory->DataSources().empty());
 
     VerifyDataSourcesAreHomogeneous(dataSourceDirectory);
     const auto& representativeDataSource = dataSourceDirectory->DataSources().front();
@@ -107,7 +107,7 @@ ISchemafulReaderPtr CreateChunkReader(
                 bandwidthThrottler,
                 GetUnlimitedThrottler() /* rps throttler */);
         } else if (dataSourceType == EDataSourceType::VersionedTable) {
-            YCHECK(dataSliceDescriptors.size() == 1);
+            YT_VERIFY(dataSliceDescriptors.size() == 1);
 
             // TODO(max42): fill properly.
             TClientBlockReadOptions blockReadOptions;

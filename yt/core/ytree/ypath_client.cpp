@@ -82,17 +82,17 @@ const TString& TYPathRequest::GetService() const
 
 void TYPathRequest::SetUser(const TString& /*user*/)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 const TString& TYPathRequest::GetUser() const
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TYPathRequest::SetUserAgent(const TString& userAgent)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 bool TYPathRequest::GetRetry() const
@@ -131,7 +131,7 @@ EMultiplexingBand TYPathRequest::GetMultiplexingBand() const
 
 void TYPathRequest::SetMultiplexingBand(EMultiplexingBand /*band*/)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 const NRpc::NProto::TRequestHeader& TYPathRequest::Header() const
@@ -146,32 +146,32 @@ NRpc::NProto::TRequestHeader& TYPathRequest::Header()
 
 const NRpc::TStreamingParameters& TYPathRequest::ClientAttachmentsStreamingParameters() const
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 NRpc::TStreamingParameters& TYPathRequest::ClientAttachmentsStreamingParameters()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 const NRpc::TStreamingParameters& TYPathRequest::ServerAttachmentsStreamingParameters() const
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 NRpc::TStreamingParameters& TYPathRequest::ServerAttachmentsStreamingParameters()
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 NConcurrency::IAsyncZeroCopyOutputStreamPtr TYPathRequest::GetRequestAttachmentsStream() const
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 NConcurrency::IAsyncZeroCopyInputStreamPtr TYPathRequest::GetResponseAttachmentsStream() const
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 TSharedRefArray TYPathRequest::Serialize()
@@ -187,7 +187,7 @@ TSharedRefArray TYPathRequest::Serialize()
 
 void TYPathResponse::Deserialize(TSharedRefArray message)
 {
-    Y_ASSERT(message);
+    YT_ASSERT(message);
 
     NRpc::NProto::TResponseHeader header;
     if (!ParseResponseHeader(message, &header)) {
@@ -200,7 +200,7 @@ void TYPathResponse::Deserialize(TSharedRefArray message)
     }
 
     // Deserialize body.
-    Y_ASSERT(message.Size() >= 2);
+    YT_ASSERT(message.Size() >= 2);
     DeserializeBody(message[1]);
 
     // Load attachments.
@@ -230,9 +230,9 @@ void ResolveYPath(
     IYPathServicePtr* suffixService,
     TYPath* suffixPath)
 {
-    Y_ASSERT(rootService);
-    Y_ASSERT(suffixService);
-    Y_ASSERT(suffixPath);
+    YT_ASSERT(rootService);
+    YT_ASSERT(suffixService);
+    YT_ASSERT(suffixPath);
 
     auto currentService = rootService;
 
@@ -289,7 +289,7 @@ TFuture<TSharedRefArray> ExecuteVerb(
     }
 
     NRpc::NProto::TRequestHeader requestHeader;
-    YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
+    YT_VERIFY(ParseRequestHeader(requestMessage, &requestHeader));
     SetRequestYPath(&requestHeader, suffixPath);
 
     auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
@@ -324,7 +324,7 @@ void ExecuteVerb(
 
     auto requestMessage = context->GetRequestMessage();
     NRpc::NProto::TRequestHeader requestHeader;
-    YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
+    YT_VERIFY(ParseRequestHeader(requestMessage, &requestHeader));
     SetRequestYPath(&requestHeader, suffixPath);
 
     auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
@@ -597,7 +597,7 @@ void SetNodeByYPath(
 
             default:
                 ThrowCannotHaveChildren(currentNode);
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
         nextSegment();
     }
@@ -611,7 +611,7 @@ void SetNodeByYPath(
             if (child) {
                 currentMap->ReplaceChild(child, value);
             } else {
-                YCHECK(currentMap->AddChild(key, value));
+                YT_VERIFY(currentMap->AddChild(key, value));
             }
             break;
         }
@@ -627,7 +627,7 @@ void SetNodeByYPath(
 
         default:
             ThrowCannotHaveChildren(currentNode);
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -664,7 +664,7 @@ void ForceYPath(
                 child = currentMap->AsMap()->FindChild(key);
                 if (!child) {
                     child = factory->CreateMap();
-                    YCHECK(currentMap->AddChild(key, child));
+                    YT_VERIFY(currentMap->AddChild(key, child));
                 }
                 break;
             }
@@ -679,7 +679,7 @@ void ForceYPath(
 
             default:
                 ThrowCannotHaveChildren(currentNode);
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
         nextSegment();
@@ -704,9 +704,9 @@ INodePtr PatchNode(const INodePtr& base, const INodePtr& patch)
         for (const auto& key : patchMap->GetKeys()) {
             if (baseMap->FindChild(key)) {
                 resultMap->RemoveChild(key);
-                YCHECK(resultMap->AddChild(key, PatchNode(baseMap->GetChild(key), patchMap->GetChild(key))));
+                YT_VERIFY(resultMap->AddChild(key, PatchNode(baseMap->GetChild(key), patchMap->GetChild(key))));
             } else {
-                YCHECK(resultMap->AddChild(key, CloneNode(patchMap->GetChild(key))));
+                YT_VERIFY(resultMap->AddChild(key, CloneNode(patchMap->GetChild(key))));
             }
         }
         result->MutableAttributes()->MergeFrom(patch->Attributes());
@@ -816,7 +816,7 @@ bool AreNodesEqual(const INodePtr& lhs, const INodePtr& rhs)
             return true;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

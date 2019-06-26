@@ -51,7 +51,7 @@ public:
         protoSpec.ParseFromString(base64DecodedSpec);
         SubquerySpec_ = NYT::FromProto<TSubquerySpec>(protoSpec);
 
-        YCHECK((SubquerySpec_.InitialQueryId == queryContext->QueryId) == (queryContext->QueryKind == EQueryKind::InitialQuery));
+        YT_VERIFY((SubquerySpec_.InitialQueryId == queryContext->QueryId) == (queryContext->QueryKind == EQueryKind::InitialQuery));
         if (SubquerySpec_.InitialQueryId != queryContext->QueryId) {
             queryContext->Logger.AddTag("InitialQueryId: %v", SubquerySpec_.InitialQueryId);
         }

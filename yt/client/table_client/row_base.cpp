@@ -67,7 +67,7 @@ bool TColumnFilter::ContainsIndex(int columnIndex) const
 
 const TColumnFilter::TIndexes& TColumnFilter::GetIndexes() const
 {
-    YCHECK(!IsUniversal_);
+    YT_VERIFY(!IsUniversal_);
     return Indexes_;
 }
 

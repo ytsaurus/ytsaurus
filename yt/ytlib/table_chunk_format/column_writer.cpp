@@ -38,7 +38,7 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedColumnWriter(
             return CreateUnversionedAnyColumnWriter(columnIndex, blockWriter);
 
         default:
-            Y_UNIMPLEMENTED();
+            YT_UNIMPLEMENTED();
     }
 }
 
@@ -87,7 +87,7 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
                 blockWriter);
 
         default:
-            Y_UNIMPLEMENTED();
+            YT_UNIMPLEMENTED();
     }
 }
 

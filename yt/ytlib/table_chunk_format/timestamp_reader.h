@@ -172,19 +172,19 @@ public:
 
     NTableClient::TTimestamp GetDeleteTimestamp(i64 rowIndex) const
     {
-        YCHECK(rowIndex < CurrentRowIndex_ + PreparedRowCount_);
+        YT_VERIFY(rowIndex < CurrentRowIndex_ + PreparedRowCount_);
         return DeleteTimestamps_[rowIndex - CurrentRowIndex_];
     }
 
     NTableClient::TTimestamp GetWriteTimestamp(i64 rowIndex) const
     {
-        YCHECK(rowIndex < CurrentRowIndex_ + PreparedRowCount_);
+        YT_VERIFY(rowIndex < CurrentRowIndex_ + PreparedRowCount_);
         return WriteTimestamps_[rowIndex - CurrentRowIndex_];
     }
 
     TRange<std::pair<ui32, ui32>> GetTimestampIndexRanges(i64 rowCount) const
     {
-        YCHECK(rowCount <= PreparedRowCount_);
+        YT_VERIFY(rowCount <= PreparedRowCount_);
         return MakeRange(
             TimestampIndexRanges_.data(),
             TimestampIndexRanges_.data() + rowCount);

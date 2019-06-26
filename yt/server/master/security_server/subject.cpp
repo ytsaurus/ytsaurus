@@ -44,13 +44,13 @@ void TSubject::Load(NCellMaster::TLoadContext& context)
 
 TUser* TSubject::AsUser()
 {
-    YCHECK(GetType() == EObjectType::User);
+    YT_VERIFY(GetType() == EObjectType::User);
     return static_cast<TUser*>(this);
 }
 
 TGroup* TSubject::AsGroup()
 {
-    YCHECK(GetType() == EObjectType::Group);
+    YT_VERIFY(GetType() == EObjectType::Group);
     return static_cast<TGroup*>(this);
 }
 
@@ -58,7 +58,7 @@ void TSubject::LinkObject(TObjectBase* object)
 {
     auto it = LinkedObjects_.find(object);
     if (it == LinkedObjects_.end()) {
-        YCHECK(LinkedObjects_.insert(std::make_pair(object, 1)).second);
+        YT_VERIFY(LinkedObjects_.insert(std::make_pair(object, 1)).second);
     } else {
         ++it->second;
     }
@@ -67,7 +67,7 @@ void TSubject::LinkObject(TObjectBase* object)
 void TSubject::UnlinkObject(TObjectBase* object)
 {
     auto it = LinkedObjects_.find(object);
-    YCHECK(it != LinkedObjects_.end());
+    YT_VERIFY(it != LinkedObjects_.end());
     if (--it->second == 0) {
         LinkedObjects_.erase(it);
     }

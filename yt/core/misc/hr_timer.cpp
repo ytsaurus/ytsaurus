@@ -24,15 +24,15 @@ void GetHRInstant(THRInstant* instant)
     // http://stackoverflow.com/questions/6814792/why-is-clock-gettime-so-erratic
     // http://stackoverflow.com/questions/7935518/is-clock-gettime-adequate-for-submicrosecond-timing
     struct timespec* ts = reinterpret_cast<struct timespec*>(instant);
-    YCHECK(clock_gettime(CLOCK_REALTIME, ts) == 0);
+    YT_VERIFY(clock_gettime(CLOCK_REALTIME, ts) == 0);
 #elif defined(_darwin_)
     // See http://lists.mysql.com/commits/70966
     static mach_timebase_info_data_t info = { 0, 0 };
     if (Y_UNLIKELY(info.denom == 0)) {
-        YCHECK(mach_timebase_info(&info) == 0);
+        YT_VERIFY(mach_timebase_info(&info) == 0);
     }
     ui64 time;
-    YCHECK((time = mach_absolute_time()));
+    YT_VERIFY((time = mach_absolute_time()));
     time *= info.numer;
     time /= info.denom;
     instant->Seconds = time / NumberOfNsInS;
@@ -40,11 +40,11 @@ void GetHRInstant(THRInstant* instant)
 #elif defined(_win_)
     static LARGE_INTEGER frequency = { 0 };
     if (Y_UNLIKELY(frequency.QuadPart == 0)) {
-        YCHECK(QueryPerformanceFrequency(&frequency));
+        YT_VERIFY(QueryPerformanceFrequency(&frequency));
 
     }
     LARGE_INTEGER time;
-    YCHECK((QueryPerformanceCounter(&time)));
+    YT_VERIFY((QueryPerformanceCounter(&time)));
     instant->Seconds = time.QuadPart / frequency.QuadPart;
     instant->Nanoseconds = (time.QuadPart % frequency.QuadPart) * NumberOfNsInS / frequency.QuadPart;
 #else
@@ -55,11 +55,11 @@ void GetHRInstant(THRInstant* instant)
 THRDuration GetHRDuration(const THRInstant& begin, const THRInstant& end)
 {
     if (end.Seconds == begin.Seconds) {
-        Y_ASSERT(end.Nanoseconds >= begin.Nanoseconds);
+        YT_ASSERT(end.Nanoseconds >= begin.Nanoseconds);
         return end.Nanoseconds - begin.Nanoseconds;
     }
 
-    Y_ASSERT(
+    YT_ASSERT(
         end.Seconds > begin.Seconds &&
         end.Seconds - begin.Seconds <
             std::numeric_limits<THRDuration>::max() / NumberOfNsInS);

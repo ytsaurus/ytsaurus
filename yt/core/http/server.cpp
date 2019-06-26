@@ -62,7 +62,7 @@ public:
 
     virtual void AddHandler(const TString& path, const IHttpHandlerPtr& handler) override
     {
-        YCHECK(!Started_);
+        YT_VERIFY(!Started_);
         Handlers_.Add(path, handler);
     }
 
@@ -73,7 +73,7 @@ public:
 
     virtual void Start() override
     {
-        YCHECK(!Started_);
+        YT_VERIFY(!Started_);
         Started_ = true;
 
         YT_LOG_INFO("Server started");

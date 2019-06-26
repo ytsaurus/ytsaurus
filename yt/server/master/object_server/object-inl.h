@@ -31,7 +31,7 @@ inline TObjectDynamicData* TObjectBase::GetDynamicData() const
 
 inline void TObjectBase::SetDestroyed()
 {
-    Y_ASSERT(RefCounter_ == 0);
+    YT_ASSERT(RefCounter_ == 0);
     Flags_.Destroyed = true;
 }
 
@@ -47,20 +47,20 @@ inline TObjectId TObjectBase::GetId() const
 
 inline int TObjectBase::RefObject()
 {
-    Y_ASSERT(RefCounter_ >= 0);
+    YT_ASSERT(RefCounter_ >= 0);
     return ++RefCounter_;
 }
 
 inline int TObjectBase::UnrefObject(int count)
 {
-    Y_ASSERT(RefCounter_ >= count);
+    YT_ASSERT(RefCounter_ >= count);
     return RefCounter_ -= count;
 }
 
 inline int TObjectBase::EphemeralRefObject(TEpoch epoch)
 {
-    YCHECK(IsAlive());
-    Y_ASSERT(EphemeralRefCounter_ >= 0);
+    YT_VERIFY(IsAlive());
+    YT_ASSERT(EphemeralRefCounter_ >= 0);
 
     if (epoch != EphemeralLockEpoch_) {
         EphemeralRefCounter_ = 0;
@@ -71,22 +71,22 @@ inline int TObjectBase::EphemeralRefObject(TEpoch epoch)
 
 inline int TObjectBase::EphemeralUnrefObject(TEpoch epoch)
 {
-    Y_ASSERT(EphemeralRefCounter_ > 0);
-    Y_ASSERT(EphemeralLockEpoch_ == epoch);
+    YT_ASSERT(EphemeralRefCounter_ > 0);
+    YT_ASSERT(EphemeralLockEpoch_ == epoch);
     return --EphemeralRefCounter_;
 }
 
 inline int TObjectBase::WeakRefObject()
 {
-    YCHECK(IsAlive());
-    Y_ASSERT(WeakRefCounter_ >= 0);
+    YT_VERIFY(IsAlive());
+    YT_ASSERT(WeakRefCounter_ >= 0);
 
     return ++WeakRefCounter_;
 }
 
 inline int TObjectBase::WeakUnrefObject()
 {
-    Y_ASSERT(WeakRefCounter_ > 0);
+    YT_ASSERT(WeakRefCounter_ > 0);
     return --WeakRefCounter_;
 }
 
@@ -97,7 +97,7 @@ inline int TObjectBase::ImportRefObject()
 
 inline int TObjectBase::ImportUnrefObject()
 {
-    Y_ASSERT(ImportRefCounter_ > 0);
+    YT_ASSERT(ImportRefCounter_ > 0);
     return --ImportRefCounter_;
 }
 

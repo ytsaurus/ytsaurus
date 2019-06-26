@@ -154,7 +154,7 @@ static TEnumerationDescription CreateEnumerationMap(const TString& enumName, con
         case EProtobufType::OtherColumns:
             return FieldDescriptor::TYPE_BYTES;
     }
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 std::optional<EProtobufType> ConvertToInternalProtobufType(::google::protobuf::FieldDescriptor::Type type, bool enumAsStrings)
@@ -206,7 +206,7 @@ TEnumerationDescription ConvertToEnumMap(const ::google::protobuf::EnumDescripto
     TEnumerationDescription result(enumDescriptor.full_name());
     for (int i = 0; i < enumDescriptor.value_count(); ++i) {
         auto valueDescriptor = enumDescriptor.value(i);
-        YCHECK(valueDescriptor);
+        YT_VERIFY(valueDescriptor);
         result.Add(valueDescriptor->name(), valueDescriptor->number());
     }
     return result;
@@ -336,7 +336,7 @@ void TProtobufFormatDescription::InitFromFileDescriptors(const TProtobufFormatCo
             if (field.Type == EProtobufType::EnumString || field.Type == EProtobufType::EnumInt)
             {
                 auto enumDescriptor = fieldDescriptor->enum_type();
-                YCHECK(enumDescriptor);
+                YT_VERIFY(enumDescriptor);
                 auto enumName = enumDescriptor->full_name();
 
                 auto it = EnumerationDescriptionMap_.find(enumName);

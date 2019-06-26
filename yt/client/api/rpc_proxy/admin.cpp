@@ -43,17 +43,17 @@ TFuture<void> TAdmin::GCCollect(const TGCCollectOptions& options)
 
 TFuture<void> TAdmin::KillProcess(const TString& /* address */, const TKillProcessOptions& /* options */)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 TFuture<TString> TAdmin::WriteCoreDump(const TString& /* address */, const TWriteCoreDumpOptions& /* options */)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 TFuture<TString> TAdmin::WriteOperationControllerCoreDump(TOperationId /* operationId */)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

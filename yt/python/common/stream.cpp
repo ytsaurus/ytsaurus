@@ -227,8 +227,8 @@ const char* TStreamReader::End() const
 
 void TStreamReader::RefreshBlock()
 {
-    YCHECK(CurrentPtr_ == EndPtr_);
-    YCHECK(!Finished_);
+    YT_VERIFY(CurrentPtr_ == EndPtr_);
+    YT_VERIFY(!Finished_);
 
     Blocks_.push_back(NextBlock_);
     if (Blocks_.size() == 1) {
@@ -279,7 +279,7 @@ TSharedRef TStreamReader::ExtractPrefix(int endBlockIndex, const char* endPtr)
     }
 
     PrefixStart_ = endPtr;
-    YCHECK(Blocks_[0].begin() <= PrefixStart_ && PrefixStart_ <= Blocks_[0].end());
+    YT_VERIFY(Blocks_[0].begin() <= PrefixStart_ && PrefixStart_ <= Blocks_[0].end());
 
     return result;
 }
@@ -296,7 +296,7 @@ TSharedRef TStreamReader::ExtractPrefix(const char* endPtr)
         }
     }
 
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 TSharedRef TStreamReader::ExtractPrefix()
@@ -325,7 +325,7 @@ TSharedRef TStreamReader::ExtractPrefix(size_t length)
         lastBlockIndex = length / BlockSize_ + 1;
     }
 
-    YCHECK(lastBlockIndex < Blocks_.size());
+    YT_VERIFY(lastBlockIndex < Blocks_.size());
     return ExtractPrefix(lastBlockIndex, Blocks_[lastBlockIndex].Begin() + positionInLastBlock);
 }
 

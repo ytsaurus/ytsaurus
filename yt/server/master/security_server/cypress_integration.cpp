@@ -125,7 +125,7 @@ private:
 
 INodeTypeHandlerPtr CreateAccountMapTypeHandler(TBootstrap* bootstrap)
 {
-    YCHECK(bootstrap);
+    YT_VERIFY(bootstrap);
 
     return CreateVirtualTypeHandler(
         bootstrap,
@@ -177,7 +177,7 @@ private:
 
 INodeTypeHandlerPtr CreateUserMapTypeHandler(TBootstrap* bootstrap)
 {
-    YCHECK(bootstrap);
+    YT_VERIFY(bootstrap);
 
     return CreateVirtualTypeHandler(
         bootstrap,
@@ -229,7 +229,7 @@ private:
 
 INodeTypeHandlerPtr CreateGroupMapTypeHandler(TBootstrap* bootstrap)
 {
-    YCHECK(bootstrap);
+    YT_VERIFY(bootstrap);
 
     return CreateVirtualTypeHandler(
         bootstrap,

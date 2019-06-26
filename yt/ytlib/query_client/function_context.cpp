@@ -38,7 +38,7 @@ public:
 
     bool IsLiteralArg(int argIndex) const
     {
-        Y_ASSERT(argIndex >= 0);
+        YT_ASSERT(argIndex >= 0);
         return LiteralArgs_[argIndex];
     }
 

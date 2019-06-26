@@ -36,7 +36,7 @@ bool TSchemafulWriter::Write(TRange<TUnversionedRow> rows)
             continue;
         }
 
-        Y_ASSERT(static_cast<int>(row.GetCount()) >= columnCount);
+        YT_ASSERT(static_cast<int>(row.GetCount()) >= columnCount);
         Consumer_->OnBeginMap();
         for (int index = 0; index < columnCount; ++index) {
             const auto& value = row[index];
@@ -67,7 +67,7 @@ bool TSchemafulWriter::Write(TRange<TUnversionedRow> rows)
                     Consumer_->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
                     break;
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         }
         Consumer_->OnEndMap();

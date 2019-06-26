@@ -47,7 +47,7 @@ protected:
         std::vector<TUnversionedRow> someRows;
         someRows.reserve(100);
         while (reader->Read(&someRows)) {
-            YCHECK(!someRows.empty());
+            YT_VERIFY(!someRows.empty());
             for (auto row : someRows) {
                 allRows.push_back(TUnversionedOwningRow(row));
             }

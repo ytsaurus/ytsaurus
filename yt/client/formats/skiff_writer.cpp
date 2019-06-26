@@ -180,7 +180,7 @@ TUnversionedValueToSkiffConverter CreateSimpleValueConverter(EWireType wireType,
 #undef CASE
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -368,7 +368,7 @@ public:
                 const auto& denseField = denseFieldDescriptionList[i];
                 const auto id = NameTable_->GetIdOrRegisterName(denseField.Name());
                 ResizeToContainIndex(&knownFields, id);
-                YCHECK(knownFields[id].EncodingPart == ESkiffWriterColumnType::Unknown);
+                YT_VERIFY(knownFields[id].EncodingPart == ESkiffWriterColumnType::Unknown);
                 knownFields[id] = TSkiffEncodingInfo::Dense(i);
 
                 auto simplified = denseField.Simplify();
@@ -386,7 +386,7 @@ public:
                 const auto& sparseField = sparseFieldDescriptionList[i];
                 auto id = NameTable_->GetIdOrRegisterName(sparseField.Name());
                 ResizeToContainIndex(&knownFields, id);
-                YCHECK(knownFields[id].EncodingPart == ESkiffWriterColumnType::Unknown);
+                YT_VERIFY(knownFields[id].EncodingPart == ESkiffWriterColumnType::Unknown);
 
                 TUnversionedValueToSkiffConverter converter;
                 if (auto complexConverter = createComplexValueConverter(sparseField, /*sparse*/ true)) {
@@ -429,10 +429,10 @@ private:
         // To keep things simple we always recompute table index / row index by ourselves.
         for (const auto& value : *CurrentRow_) {
             if (value.Id == GetTableIndexColumnId()) {
-                YCHECK(value.Type == EValueType::Int64);
+                YT_VERIFY(value.Type == EValueType::Int64);
                 tableIndex = value.Data.Int64;
             } else if (value.Id == GetRowIndexColumnId()) {
-                YCHECK(value.Type == EValueType::Int64);
+                YT_VERIFY(value.Type == EValueType::Int64);
                 rowIndex = value.Data.Int64;
             }
         }
@@ -530,13 +530,13 @@ private:
                         OtherValueIndexes_.emplace_back(valueIndex);
                         break;
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
             }
             if (rowIndexFieldIndex != MissingSystemColumn || rangeIndexFieldIndex != MissingSystemColumn) {
                 bool needUpdateRangeIndex = tableIndex != TableIndex_;
                 if (rangeIndexValueId != static_cast<ui32>(-1)) {
-                    YCHECK(row[rangeIndexValueId].Type == EValueType::Int64);
+                    YT_VERIFY(row[rangeIndexValueId].Type == EValueType::Int64);
                     const auto rangeIndex = row[rangeIndexValueId].Data.Int64;
                     needUpdateRangeIndex = needUpdateRangeIndex || rangeIndex != RangeIndex_;
                     if (rangeIndexFieldIndex != MissingSystemColumn) {
@@ -550,7 +550,7 @@ private:
                         << GetRowPositionErrorAttributes();
                 }
                 if (rowIndexValueId != static_cast<ui32>(-1)) {
-                    YCHECK(row[rowIndexValueId].Type == EValueType::Int64);
+                    YT_VERIFY(row[rowIndexValueId].Type == EValueType::Int64);
                     const auto rowIndex = row[rowIndexValueId].Data.Int64;
                     bool needUpdateRowIndex = needUpdateRangeIndex || rowIndex != RowIndex_ + 1;
                     if (rowIndexFieldIndex != MissingSystemColumn) {

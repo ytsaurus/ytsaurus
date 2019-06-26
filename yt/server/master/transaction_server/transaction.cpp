@@ -123,7 +123,7 @@ void TTransaction::AddNodeResourceUsage(const NCypressServer::TCypressNodeBase* 
 
 bool TTransaction::IsDescendantOf(TTransaction* transaction) const
 {
-    YCHECK(transaction);
+    YT_VERIFY(transaction);
     for (auto* current = GetParent(); current; current = current->GetParent()) {
         if (current == transaction) {
             return true;

@@ -57,8 +57,8 @@ TTabletAutomatonPart::TTabletAutomatonPart(
     , Slot_(slot)
     , Bootstrap_(bootstrap)
 {
-    YCHECK(Slot_);
-    YCHECK(Bootstrap_);
+    YT_VERIFY(Slot_);
+    YT_VERIFY(Bootstrap_);
 
     Logger = NLogging::TLogger(TabletNodeLogger)
         .AddTag("CellId: %v", Slot_->GetCellId());

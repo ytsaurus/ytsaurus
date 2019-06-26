@@ -66,7 +66,7 @@ private:
             case EObjectType::ForeignChunkMap:
                 return chunkManager->ForeignChunks();
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -139,7 +139,7 @@ private:
             case EObjectType::ForeignChunkMap:
                 return "//sys/foreign_chunks";
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -149,7 +149,7 @@ INodeTypeHandlerPtr CreateChunkMapTypeHandler(
     TBootstrap* bootstrap,
     EObjectType type)
 {
-    YCHECK(bootstrap);
+    YT_VERIFY(bootstrap);
 
     return CreateVirtualTypeHandler(
         bootstrap,
@@ -196,7 +196,7 @@ private:
 
 INodeTypeHandlerPtr CreateChunkViewMapTypeHandler(TBootstrap* bootstrap)
 {
-    YCHECK(bootstrap);
+    YT_VERIFY(bootstrap);
 
     return CreateVirtualTypeHandler(
         bootstrap,
@@ -244,7 +244,7 @@ private:
 
 INodeTypeHandlerPtr CreateChunkListMapTypeHandler(TBootstrap* bootstrap)
 {
-    YCHECK(bootstrap);
+    YT_VERIFY(bootstrap);
 
     return CreateVirtualTypeHandler(
         bootstrap,
@@ -306,7 +306,7 @@ private:
 
 INodeTypeHandlerPtr CreateMediumMapTypeHandler(TBootstrap* bootstrap)
 {
-    YCHECK(bootstrap);
+    YT_VERIFY(bootstrap);
 
     return CreateVirtualTypeHandler(
         bootstrap,

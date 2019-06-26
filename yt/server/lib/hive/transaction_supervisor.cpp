@@ -93,11 +93,11 @@ public:
         , TransactionSupervisorService_(New<TTransactionSupervisorService>(this))
         , TransactionParticipantService_(New<TTransactionParticipantService>(this))
     {
-        YCHECK(Config_);
-        YCHECK(TrackerInvoker_);
-        YCHECK(ResponseKeeper_);
-        YCHECK(TransactionManager_);
-        YCHECK(TimestampProvider_);
+        YT_VERIFY(Config_);
+        YT_VERIFY(TrackerInvoker_);
+        YT_VERIFY(ResponseKeeper_);
+        YT_VERIFY(TransactionManager_);
+        YT_VERIFY(TimestampProvider_);
 
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCoordinatorCommitSimpleTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCoordinatorCommitDistributedTransactionPhaseOne, Unretained(this)));
@@ -405,7 +405,7 @@ private:
                         break;
 
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
             };
 
@@ -474,7 +474,7 @@ private:
                     break;
 
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         }
 
@@ -765,7 +765,7 @@ private:
         TMutationId mutationId,
         const TString& userName)
     {
-        YCHECK(!HasMutationContext());
+        YT_VERIFY(!HasMutationContext());
 
         auto* commit = FindCommit(transactionId);
         if (commit) {
@@ -797,7 +797,7 @@ private:
 
     void CommitSimpleTransaction(TCommit* commit)
     {
-        YCHECK(!commit->GetPersistent());
+        YT_VERIFY(!commit->GetPersistent());
 
         auto transactionId = commit->GetTransactionId();
 
@@ -822,7 +822,7 @@ private:
 
     void CommitDistributedTransaction(TCommit* commit)
     {
-        YCHECK(!commit->GetPersistent());
+        YT_VERIFY(!commit->GetPersistent());
 
         auto prepareTimestamp = commit->GetGeneratePrepareTimestamp()
             ? TimestampProvider_->GetLatestTimestamp()
@@ -847,7 +847,7 @@ private:
         bool force,
         const TString& userName)
     {
-        YCHECK(!HasMutationContext());
+        YT_VERIFY(!HasMutationContext());
 
         auto* abort = FindAbort(transactionId);
         if (abort) {
@@ -920,7 +920,7 @@ private:
     {
         return asyncMessage.Apply(BIND([] (const TSharedRefArray& message) -> TFuture<void> {
             TResponseHeader header;
-            YCHECK(ParseResponseHeader(message, &header));
+            YT_VERIFY(ParseResponseHeader(message, &header));
             return header.has_error()
                 ? MakeFuture<void>(FromProto<TError>(header.error()))
                 : VoidFuture;
@@ -1009,7 +1009,7 @@ private:
                 userName);
         } catch (const std::exception& ex) {
             if (auto commit = FindCommit(transactionId)) {
-                YCHECK(!commit->GetPersistent());
+                YT_VERIFY(!commit->GetPersistent());
                 SetCommitFailed(commit, ex);
                 RemoveTransientCommit(commit);
             }
@@ -1080,8 +1080,8 @@ private:
             commit->ParticipantCellIds(),
             commitTimestamps);
 
-        YCHECK(commit->GetDistributed());
-        YCHECK(commit->GetPersistent());
+        YT_VERIFY(commit->GetDistributed());
+        YT_VERIFY(commit->GetPersistent());
 
         if (commit->GetPersistentState() != ECommitState::Prepare) {
             YT_LOG_ERROR_UNLESS(IsRecovery(),
@@ -1113,8 +1113,8 @@ private:
             return;
         }
 
-        YCHECK(commit->GetDistributed());
-        YCHECK(commit->GetPersistent());
+        YT_VERIFY(commit->GetDistributed());
+        YT_VERIFY(commit->GetPersistent());
 
         if (commit->GetPersistentState() != ECommitState::Prepare) {
             YT_LOG_ERROR_UNLESS(IsRecovery(),
@@ -1342,7 +1342,7 @@ private:
         auto* commit = FindCommit(transactionId);
         std::unique_ptr<TCommit> commitHolder;
         if (commit) {
-            YCHECK(!commit->GetPersistent());
+            YT_VERIFY(!commit->GetPersistent());
             commitHolder = TransientCommitMap_.Release(transactionId);
         } else {
             commitHolder = std::make_unique<TCommit>(
@@ -1362,13 +1362,13 @@ private:
 
     void RemoveTransientCommit(TCommit* commit)
     {
-        YCHECK(!commit->GetPersistent());
+        YT_VERIFY(!commit->GetPersistent());
         TransientCommitMap_.Remove(commit->GetTransactionId());
     }
 
     void RemovePersistentCommit(TCommit* commit)
     {
-        YCHECK(commit->GetPersistent());
+        YT_VERIFY(commit->GetPersistent());
         PersistentCommitMap_.Remove(commit->GetTransactionId());
     }
 
@@ -1408,7 +1408,7 @@ private:
 
     void RunCoordinatorCommit(TCommit* commit)
     {
-        YCHECK(HasMutationContext());
+        YT_VERIFY(HasMutationContext());
 
         auto transactionId = commit->GetTransactionId();
         SetCommitSucceeded(commit);
@@ -1441,7 +1441,7 @@ private:
     TAbort* CreateAbort(TTransactionId transactionId, TMutationId mutationId)
     {
         auto pair = TransientAbortMap_.emplace(transactionId, TAbort(transactionId, mutationId));
-        YCHECK(pair.second);
+        YT_VERIFY(pair.second);
         return &pair.first->second;
     }
 
@@ -1477,7 +1477,7 @@ private:
 
     void RemoveAbort(TAbort* abort)
     {
-        YCHECK(TransientAbortMap_.erase(abort->GetTransactionId()) == 1);
+        YT_VERIFY(TransientAbortMap_.erase(abort->GetTransactionId()) == 1);
     }
 
 
@@ -1503,7 +1503,7 @@ private:
                     YT_LOG_DEBUG("Inheriting commit timestamp (TransactionId: %v, ParticipantCellId: %v)",
                         transactionId,
                         cellId);
-                    YCHECK(asyncCoordinatorTimestamp);
+                    YT_VERIFY(asyncCoordinatorTimestamp);
                     asyncTimestamp = asyncCoordinatorTimestamp;
                 } else {
                     YT_LOG_DEBUG("Generating commit timestamp (TransactionId: %v, ParticipantCellId: %v)",
@@ -1605,8 +1605,8 @@ private:
             ParticipantProviders_,
             Logger);
 
-        YCHECK(StrongParticipantMap_.emplace(cellId, wrappedParticipant).second);
-        YCHECK(WeakParticipantMap_.emplace(cellId, wrappedParticipant).second);
+        YT_VERIFY(StrongParticipantMap_.emplace(cellId, wrappedParticipant).second);
+        YT_VERIFY(WeakParticipantMap_.emplace(cellId, wrappedParticipant).second);
 
         YT_LOG_DEBUG("Participant cell registered (ParticipantCellId: %v)",
             cellId);
@@ -1676,7 +1676,7 @@ private:
             }
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -1691,7 +1691,7 @@ private:
 
     void SendParticipantRequests(TCommit* commit)
     {
-        YCHECK(commit->RespondedCellIds().empty());
+        YT_VERIFY(commit->RespondedCellIds().empty());
         for (auto cellId : commit->ParticipantCellIds()) {
             SendParticipantRequest(commit, cellId);
         }
@@ -1718,7 +1718,7 @@ private:
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
         response.Subscribe(
             BIND(&TImpl::OnParticipantResponse, MakeWeak(this), commit->GetTransactionId(), state, participant)
@@ -1853,7 +1853,7 @@ private:
                 return ECommitState::Finishing;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -1882,7 +1882,7 @@ private:
             ParticipantCleanupPeriod);
         ParticipantCleanupExecutor_->Stop();
 
-        YCHECK(TransientCommitMap_.GetSize() == 0);
+        YT_VERIFY(TransientCommitMap_.GetSize() == 0);
         for (const auto& pair : PersistentCommitMap_) {
             auto* commit = pair.second;
             ChangeCommitTransientState(commit, commit->GetPersistentState());

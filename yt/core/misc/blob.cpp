@@ -37,7 +37,7 @@ TBlob::TBlob(
     size_t alignment)
     : Alignment_(alignment)
 {
-    YCHECK(Alignment_ > 0);
+    YT_VERIFY(Alignment_ > 0);
     SetTagCookie(tagCookie);
     Reset();
     Append(data, size);
@@ -150,7 +150,7 @@ void TBlob::Reset()
 
 void TBlob::Allocate(size_t newCapacity)
 {
-    YCHECK(!Buffer_);
+    YT_VERIFY(!Buffer_);
     Buffer_ = static_cast<char*>(NYTAlloc::Allocate(newCapacity + Alignment_ - 1));
     Begin_ = AlignUp(Buffer_, Alignment_);
     Capacity_ = newCapacity;

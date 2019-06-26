@@ -438,7 +438,7 @@ private:
                 .Apply(BIND([] (const TError&) { })));
         }
         auto result = WaitFor(Combine(asyncResults));
-        YCHECK(result.IsOK());
+        YT_VERIFY(result.IsOK());
 
         EndSlotScan_.Fire();
 
@@ -455,7 +455,7 @@ private:
                 return index;
             }
         }
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 };
 

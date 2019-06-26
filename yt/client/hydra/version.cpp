@@ -60,7 +60,7 @@ TVersion TVersion::FromRevision(ui64 revision)
 
 TVersion TVersion::Advance(int delta) const
 {
-    Y_ASSERT(delta >= 0);
+    YT_ASSERT(delta >= 0);
     return TVersion(SegmentId, RecordId + delta);
 }
 

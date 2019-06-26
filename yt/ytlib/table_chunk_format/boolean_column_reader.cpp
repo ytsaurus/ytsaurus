@@ -65,7 +65,7 @@ public:
         const char* ptr = data.Begin();
         ptr += InitDenseReader(ptr);
         ptr += InitValueReader(ptr);
-        YCHECK(ptr == data.End());
+        YT_VERIFY(ptr == data.End());
     }
 };
 
@@ -85,7 +85,7 @@ public:
         const char* ptr = data.Begin();
         ptr += InitSparseReader(ptr);
         ptr += InitValueReader(ptr);
-        YCHECK(ptr == data.End());
+        YT_VERIFY(ptr == data.End());
     }
 };
 
@@ -139,7 +139,7 @@ public:
     {
         const char* ptr = data.Begin();
         ptr += InitValueReader(data.Begin());
-        YCHECK(ptr == data.End());
+        YT_VERIFY(ptr == data.End());
     }
 };
 

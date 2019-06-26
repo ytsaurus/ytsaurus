@@ -107,7 +107,7 @@ char* TChunkedMemoryPool::AllocateSlowCore(size_t size)
         return ref.Begin();
     }
 
-    YCHECK(NextChunkIndex_ <= Chunks_.size());
+    YT_VERIFY(NextChunkIndex_ <= Chunks_.size());
 
     if (NextSmallSize_ < RegularChunkSize) {
         auto block = ChunkProvider_->Allocate(std::max(NextSmallSize_, size), TagCookie_);

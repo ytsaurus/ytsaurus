@@ -282,7 +282,7 @@ bool TFairShareTree::RegisterOperation(
     int index = RegisterSchedulingTagFilter(TSchedulingTagFilter(clonedSpec->SchedulingTagFilter));
     operationElement->SetSchedulingTagFilterIndex(index);
 
-    YCHECK(OperationIdToElement_.insert(std::make_pair(operationId, operationElement)).second);
+    YT_VERIFY(OperationIdToElement_.insert(std::make_pair(operationId, operationElement)).second);
 
     auto poolName = state->GetPoolNameByTreeId(TreeId_);
     auto pool = GetOrCreatePool(poolName, state->GetHost()->GetAuthenticatedUser());
@@ -310,7 +310,7 @@ void TFairShareTree::UnregisterOperation(
 
     UnregisterSchedulingTagFilter(operationElement->GetSchedulingTagFilterIndex());
 
-    YCHECK(OperationIdToElement_.erase(operationId) == 1);
+    YT_VERIFY(OperationIdToElement_.erase(operationId) == 1);
 
     // Operation can be missing in this map.
     OperationIdToActivationTime_.erase(operationId);
@@ -415,7 +415,7 @@ TPoolsUpdateResult TFairShareTree::UpdatePools(const INodePtr& poolsNode)
 
     for (const auto& poolId: poolsConfigParser.GetNewPoolsByInOrderTraversal()) {
         auto it = parsedPoolMap.find(poolId);
-        YCHECK(it != parsedPoolMap.end());
+        YT_VERIFY(it != parsedPoolMap.end());
         auto parsedPool = it->second;
         auto pool = New<TPool>(
             Host_,
@@ -442,7 +442,7 @@ TPoolsUpdateResult TFairShareTree::UpdatePools(const INodePtr& poolsNode)
         if (pool->GetUserName()) {
             const auto& userName = pool->GetUserName().value();
             if (pool->IsEphemeralInDefaultParentPool()) {
-                YCHECK(UserToEphemeralPoolsInDefaultPool_[userName].erase(pool->GetId()) == 1);
+                YT_VERIFY(UserToEphemeralPoolsInDefaultPool_[userName].erase(pool->GetId()) == 1);
             }
             pool->SetUserName(std::nullopt);
         }
@@ -505,7 +505,7 @@ void TFairShareTree::ChangeOperationPool(
 
     OnOperationRemovedFromPool(state, oldParent);
 
-    YCHECK(OnOperationAddedToPool(state, element));
+    YT_VERIFY(OnOperationAddedToPool(state, element));
 }
 
 TError TFairShareTree::CheckOperationUnschedulable(
@@ -940,7 +940,7 @@ TDynamicAttributes TFairShareTree::GetGlobalDynamicAttributes(const TSchedulerEl
     if (index == UnassignedTreeIndex) {
         return TDynamicAttributes();
     } else {
-        YCHECK(index < GlobalDynamicAttributes_.size());
+        YT_VERIFY(index < GlobalDynamicAttributes_.size());
         return GlobalDynamicAttributes_[index];
     }
 }
@@ -1308,8 +1308,8 @@ void TFairShareTree::DoRegisterPool(const TPoolPtr& pool)
 {
     int index = RegisterSchedulingTagFilter(pool->GetSchedulingTagFilter());
     pool->SetSchedulingTagFilterIndex(index);
-    YCHECK(Pools_.insert(std::make_pair(pool->GetId(), pool)).second);
-    YCHECK(PoolToMinUnusedSlotIndex_.insert(std::make_pair(pool->GetId(), 0)).second);
+    YT_VERIFY(Pools_.insert(std::make_pair(pool->GetId(), pool)).second);
+    YT_VERIFY(PoolToMinUnusedSlotIndex_.insert(std::make_pair(pool->GetId(), 0)).second);
 }
 
 void TFairShareTree::RegisterPool(const TPoolPtr& pool, const TCompositeSchedulerElementPtr& parent)
@@ -1339,17 +1339,17 @@ void TFairShareTree::UnregisterPool(const TPoolPtr& pool)
 {
     auto userName = pool->GetUserName();
     if (userName && pool->IsEphemeralInDefaultParentPool()) {
-        YCHECK(UserToEphemeralPoolsInDefaultPool_[*userName].erase(pool->GetId()) == 1);
+        YT_VERIFY(UserToEphemeralPoolsInDefaultPool_[*userName].erase(pool->GetId()) == 1);
     }
 
     UnregisterSchedulingTagFilter(pool->GetSchedulingTagFilterIndex());
 
-    YCHECK(PoolToMinUnusedSlotIndex_.erase(pool->GetId()) == 1);
-    YCHECK(PoolToSpareSlotIndices_.erase(pool->GetId()) <= 1);
+    YT_VERIFY(PoolToMinUnusedSlotIndex_.erase(pool->GetId()) == 1);
+    YT_VERIFY(PoolToSpareSlotIndices_.erase(pool->GetId()) <= 1);
 
     // We cannot use pool after erase because Pools may contain last alive reference to it.
     auto extractedPool = std::move(Pools_[pool->GetId()]);
-    YCHECK(Pools_.erase(pool->GetId()) == 1);
+    YT_VERIFY(Pools_.erase(pool->GetId()) == 1);
 
     extractedPool->SetAlive(false);
     auto parent = extractedPool->GetParent();
@@ -1363,7 +1363,7 @@ void TFairShareTree::UnregisterPool(const TPoolPtr& pool)
 bool TFairShareTree::TryAllocatePoolSlotIndex(const TString& poolName, int slotIndex)
 {
     auto minUnusedIndexIt = PoolToMinUnusedSlotIndex_.find(poolName);
-    YCHECK(minUnusedIndexIt != PoolToMinUnusedSlotIndex_.end());
+    YT_VERIFY(minUnusedIndexIt != PoolToMinUnusedSlotIndex_.end());
 
     auto& spareSlotIndices = PoolToSpareSlotIndices_[poolName];
 
@@ -1397,7 +1397,7 @@ void TFairShareTree::AllocateOperationSlotIndex(const TFairShareStrategyOperatio
     auto it = PoolToSpareSlotIndices_.find(poolName);
     if (it == PoolToSpareSlotIndices_.end() || it->second.empty()) {
         auto minUnusedIndexIt = PoolToMinUnusedSlotIndex_.find(poolName);
-        YCHECK(minUnusedIndexIt != PoolToMinUnusedSlotIndex_.end());
+        YT_VERIFY(minUnusedIndexIt != PoolToMinUnusedSlotIndex_.end());
         slotIndex = minUnusedIndexIt->second;
         ++minUnusedIndexIt->second;
     } else {
@@ -1416,11 +1416,11 @@ void TFairShareTree::AllocateOperationSlotIndex(const TFairShareStrategyOperatio
 void TFairShareTree::ReleaseOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName)
 {
     auto slotIndex = state->GetHost()->FindSlotIndex(TreeId_);
-    YCHECK(slotIndex);
+    YT_VERIFY(slotIndex);
 
     auto it = PoolToSpareSlotIndices_.find(poolName);
     if (it == PoolToSpareSlotIndices_.end()) {
-        YCHECK(PoolToSpareSlotIndices_.insert(std::make_pair(poolName, THashSet<int>{*slotIndex})).second);
+        YT_VERIFY(PoolToSpareSlotIndices_.insert(std::make_pair(poolName, THashSet<int>{*slotIndex})).second);
     } else {
         it->second.insert(*slotIndex);
     }
@@ -1499,7 +1499,7 @@ void TFairShareTree::UnregisterSchedulingTagFilter(const TSchedulingTagFilter& f
         return;
     }
     auto it = SchedulingTagFilterToIndexAndCount_.find(filter);
-    YCHECK(it != SchedulingTagFilterToIndexAndCount_.end());
+    YT_VERIFY(it != SchedulingTagFilterToIndexAndCount_.end());
     --it->second.Count;
     if (it->second.Count == 0) {
         RegisteredSchedulingTagFilters_[it->second.Index] = EmptySchedulingTagFilter;
@@ -1517,7 +1517,7 @@ TPoolPtr TFairShareTree::FindPool(const TString& id)
 TPoolPtr TFairShareTree::GetPool(const TString& id)
 {
     auto pool = FindPool(id);
-    YCHECK(pool);
+    YT_VERIFY(pool);
     return pool;
 }
 
@@ -1583,7 +1583,7 @@ TOperationElementPtr TFairShareTree::FindOperationElement(TOperationId operation
 TOperationElementPtr TFairShareTree::GetOperationElement(TOperationId operationId)
 {
     auto element = FindOperationElement(operationId);
-    YCHECK(element);
+    YT_VERIFY(element);
     return element;
 }
 

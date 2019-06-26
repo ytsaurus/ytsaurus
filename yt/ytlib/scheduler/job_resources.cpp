@@ -249,7 +249,7 @@ double GetResource(const TJobResources& resources, EResourceType type)
         ITERATE_JOB_RESOURCES(XX)
         #undef XX
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

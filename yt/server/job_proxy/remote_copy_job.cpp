@@ -76,15 +76,15 @@ public:
         , RemoteCopyQueue_(New<TActionQueue>("RemoteCopy"))
         , CopySemaphore_(New<TAsyncSemaphore>(RemoteCopyJobSpecExt_.concurrency()))
     {
-        YCHECK(SchedulerJobSpecExt_.input_table_specs_size() == 1);
-        YCHECK(SchedulerJobSpecExt_.output_table_specs_size() == 1);
+        YT_VERIFY(SchedulerJobSpecExt_.input_table_specs_size() == 1);
+        YT_VERIFY(SchedulerJobSpecExt_.output_table_specs_size() == 1);
 
         DataSliceDescriptors_ = UnpackDataSliceDescriptors(SchedulerJobSpecExt_.input_table_specs(0));
 
         for (const auto& dataSliceDescriptor : DataSliceDescriptors_) {
             for (const auto& inputChunkSpec : dataSliceDescriptor.ChunkSpecs) {
-                YCHECK(!inputChunkSpec.has_lower_limit());
-                YCHECK(!inputChunkSpec.has_upper_limit());
+                YT_VERIFY(!inputChunkSpec.has_lower_limit());
+                YT_VERIFY(!inputChunkSpec.has_upper_limit());
             }
         }
 
@@ -316,7 +316,7 @@ private:
                 Host_->GetTrafficMeter(),
                 Host_->GetOutBandwidthThrottler());
 
-            YCHECK(readers.size() == writers.size());
+            YT_VERIFY(readers.size() == writers.size());
 
             auto erasurePlacementExt = GetProtoExtension<TErasurePlacementExt>(chunkMeta->extensions());
 
@@ -360,7 +360,7 @@ private:
                 diskSpace += writers[index]->GetChunkInfo().disk_space();
 
                 auto replicas = writers[index]->GetWrittenChunkReplicas();
-                YCHECK(replicas.size() == 1);
+                YT_VERIFY(replicas.size() == 1);
                 auto replica = TChunkReplicaWithMedium(
                     replicas.front().GetNodeId(),
                     index,
@@ -442,7 +442,7 @@ private:
             TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value
         };
 
-        YCHECK(!writtenReplicas.empty());
+        YT_VERIFY(!writtenReplicas.empty());
 
         NChunkClient::NProto::TChunkMeta masterChunkMeta(*inputChunkMeta);
         FilterProtoExtensions(

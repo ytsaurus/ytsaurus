@@ -38,8 +38,8 @@ void TPacketDecoder::Restart()
 
 bool TPacketDecoder::Advance(size_t size)
 {
-    Y_ASSERT(FragmentRemaining_ != 0);
-    Y_ASSERT(size <= FragmentRemaining_);
+    YT_ASSERT(FragmentRemaining_ != 0);
+    YT_ASSERT(size <= FragmentRemaining_);
 
     PacketSize_ += size;
     FragmentRemaining_ -= size;
@@ -221,7 +221,7 @@ size_t TPacketEncoder::GetPacketSize(
             break;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
     return size;
 }
@@ -303,7 +303,7 @@ bool TPacketEncoder::EndFixedHeaderPhase()
             return true;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

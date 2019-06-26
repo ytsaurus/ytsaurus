@@ -211,7 +211,7 @@ private:
                         state = ENodeState::Mixed;
                         break;
                     default:
-                        YCHECK(false);
+                        YT_VERIFY(false);
                 }
                 BuildYsonFluently(consumer)
                     .DoListFor(nodeTracker->Nodes(), [=] (TFluentList fluent, const std::pair<TObjectId, TNode*>& pair) {
@@ -332,7 +332,7 @@ private:
 
 INodeTypeHandlerPtr CreateClusterNodeMapTypeHandler(TBootstrap* bootstrap)
 {
-    YCHECK(bootstrap);
+    YT_VERIFY(bootstrap);
 
     return New<TClusterNodeMapTypeHandler>(bootstrap);
 }
@@ -383,7 +383,7 @@ private:
 
 INodeTypeHandlerPtr CreateRackMapTypeHandler(TBootstrap* bootstrap)
 {
-    YCHECK(bootstrap);
+    YT_VERIFY(bootstrap);
 
     return CreateVirtualTypeHandler(
         bootstrap,
@@ -440,7 +440,7 @@ private:
 
 INodeTypeHandlerPtr CreateDataCenterMapTypeHandler(TBootstrap* bootstrap)
 {
-    YCHECK(bootstrap);
+    YT_VERIFY(bootstrap);
 
     return CreateVirtualTypeHandler(
         bootstrap,

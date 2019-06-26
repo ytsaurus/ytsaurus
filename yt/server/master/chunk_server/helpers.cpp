@@ -71,7 +71,7 @@ void AttachToChunkList(
 
     const auto& parents = chunkList->Parents();
     if (!parents.Empty()) {
-        YCHECK(parents.Size() == 1);
+        YT_VERIFY(parents.Size() == 1);
         chunkList = *parents.begin();
 
         // Go upwards and apply delta.
@@ -105,7 +105,7 @@ void DetachFromChunkList(
         int childIndex = chunkList->GetTrimmedChildCount();
         for (auto childIt = childrenBegin; childIt != childrenEnd; ++childIt, ++childIndex) {
             auto* child = *childIt;
-            YCHECK(child == children[childIndex]);
+            YT_VERIFY(child == children[childIndex]);
             children[childIndex] = nullptr;
         }
         int newTrimmedChildCount = chunkList->GetTrimmedChildCount() + static_cast<int>(childrenEnd - childrenBegin);
@@ -133,7 +133,7 @@ void DetachFromChunkList(
         for (auto childIt = childrenBegin; childIt != childrenEnd; ++childIt) {
             auto* child = *childIt;
             auto indexIt = childToIndex.find(child);
-            YCHECK(indexIt != childToIndex.end());
+            YT_VERIFY(indexIt != childToIndex.end());
             int index = indexIt->second;
             if (index != children.size() - 1) {
                 children[index] = children.back();
@@ -167,7 +167,7 @@ void SetChunkTreeParent(TChunkList* parent, TChunkTree* child)
             child->AsChunkList()->AddParent(parent);
             break;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -186,7 +186,7 @@ void ResetChunkTreeParent(TChunkList* parent, TChunkTree* child)
             child->AsChunkList()->RemoveParent(parent);
             break;
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -205,7 +205,7 @@ TChunkTreeStatistics GetChunkTreeStatistics(TChunkTree* chunkTree)
         case EObjectType::ChunkList:
             return chunkTree->AsChunkList()->Statistics();
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -222,7 +222,7 @@ void AppendChunkTreeChild(
 
     if (child && !chunkList->IsOrdered()) {
         int index = static_cast<int>(chunkList->Children().size());
-        YCHECK(chunkList->ChildToIndex().emplace(child, index).second);
+        YT_VERIFY(chunkList->ChildToIndex().emplace(child, index).second);
     }
 
     statistics->Accumulate(GetChunkTreeStatistics(child));
@@ -261,9 +261,9 @@ void RecomputeChunkListStatistics(TChunkList* chunkList)
     ResetChunkListStatistics(chunkList);
 
     // TODO(ifsmirnov): looks like this function is called only for empty
-    // chunk lists. Check it and add YCHECK in TChunkList::SetKind
+    // chunk lists. Check it and add YT_VERIFY in TChunkList::SetKind
     // that it is called only for empty chunk lists.
-    YCHECK(chunkList->Children().empty());
+    YT_VERIFY(chunkList->Children().empty());
 
     if (chunkList->HasAppendableCumulativeStatistics()) {
         chunkList->CumulativeStatistics().DeclareAppendable();
@@ -326,7 +326,7 @@ std::vector<TChunkOwnerBase*> GetOwningNodes(TChunkTree* chunkTree)
                 break;
             }
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -412,7 +412,7 @@ TYsonString DoGetMulticellOwningNodes(
         const auto& batchRsp = batchRspOrError.Value();
 
         auto rsps = batchRsp->GetResponses<TCypressYPathProxy::TRspGet>("get_path");
-        YCHECK(rsps.size() == nodeIds.size());
+        YT_VERIFY(rsps.size() == nodeIds.size());
 
         TStringStream stream;
         TBufferedBinaryYsonWriter writer(&stream);
@@ -480,7 +480,7 @@ bool IsEmpty(const TChunkTree* chunkTree)
             return IsEmpty(chunkTree->AsChunkList());
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -521,7 +521,7 @@ TOwningKey GetUpperBoundKey(const TChunkTree* chunkTree)
                 return child;
             }
         }
-        Y_UNREACHABLE();
+        YT_ABORT();
     };
 
     const auto* currentChunkTree = chunkTree;
@@ -539,7 +539,7 @@ TOwningKey GetUpperBoundKey(const TChunkTree* chunkTree)
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 }
@@ -579,7 +579,7 @@ TOwningKey GetMinKey(const TChunkTree* chunkTree)
                 return child;
             }
         }
-        Y_UNREACHABLE();
+        YT_ABORT();
     };
 
     const auto* currentChunkTree = chunkTree;
@@ -597,7 +597,7 @@ TOwningKey GetMinKey(const TChunkTree* chunkTree)
                 break;
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 }
@@ -645,7 +645,7 @@ std::vector<TChunkViewMergeResult> MergeAdjacentChunkViewRanges(std::vector<TChu
 
         for (auto it = beginSameChunkRange + 1; it != endSameChunkRange; ++it) {
             const auto* chunkTree = *it;
-            YCHECK(chunkTree->GetType() == EObjectType::ChunkView);
+            YT_VERIFY(chunkTree->GetType() == EObjectType::ChunkView);
             const auto* chunkView = chunkTree->AsChunkView();
             auto nextLowerLimit = lowerLimitOrEmptyKey(chunkView);
             if (nextLowerLimit < upperLimit) {

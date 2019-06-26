@@ -132,7 +132,7 @@ void SerializeProtobufMessage(
     auto byteSize = message.ByteSize();
     struct TProtobufToYsonTag { };
     TBlob wireBytes(GetRefCountedTypeCookie<TProtobufToYsonTag>(), byteSize, false);
-    YCHECK(message.SerializePartialToArray(wireBytes.Begin(), byteSize));
+    YT_VERIFY(message.SerializePartialToArray(wireBytes.Begin(), byteSize));
     ArrayInputStream inputStream(wireBytes.Begin(), byteSize);
     ParseProtobuf(consumer, &inputStream, type);
 }

@@ -137,7 +137,7 @@ public:
 
     virtual void SkipToRowIndex(i64 rowIndex) override
     {
-        YCHECK(GetSegmentRowIndex(rowIndex) >= SegmentRowIndex_);
+        YT_VERIFY(GetSegmentRowIndex(rowIndex) >= SegmentRowIndex_);
         SegmentRowIndex_ = GetSegmentRowIndex(rowIndex);
     }
 
@@ -175,7 +175,7 @@ private:
         while (rangeRowIndex < rows.Size() && segmentRowIndex < Meta_.row_count()) {
             auto row = rows[rangeRowIndex];
             if (row) {
-                YCHECK(GetUnversionedValueCount(row) > ColumnIndex_);
+                YT_VERIFY(GetUnversionedValueCount(row) > ColumnIndex_);
                 SetValue(&GetUnversionedValue(row, ColumnIndex_), segmentRowIndex);
             }
 
@@ -228,7 +228,7 @@ public:
     virtual void SkipToRowIndex(i64 rowIndex) override
     {
         auto segmentRowIndex = GetSegmentRowIndex(rowIndex);
-        YCHECK(segmentRowIndex >= SegmentRowIndex_);
+        YT_VERIFY(segmentRowIndex >= SegmentRowIndex_);
         if (segmentRowIndex > SegmentRowIndex_) {
             SegmentRowIndex_ = segmentRowIndex;
 
@@ -379,17 +379,17 @@ public:
         }
 
         LastBlockSegmentIndex_ = FindLastBlockSegment();
-        YCHECK(LastBlockSegmentIndex_ >= CurrentSegmentIndex_);
+        YT_VERIFY(LastBlockSegmentIndex_ >= CurrentSegmentIndex_);
     }
 
     virtual void SkipToRowIndex(i64 rowIndex) override
     {
-        YCHECK(rowIndex >= CurrentRowIndex_);
+        YT_VERIFY(rowIndex >= CurrentRowIndex_);
 
         CurrentRowIndex_ = rowIndex;
         int segmentIndex = FindSegmentByRow(rowIndex);
 
-        YCHECK(segmentIndex >= CurrentSegmentIndex_);
+        YT_VERIFY(segmentIndex >= CurrentSegmentIndex_);
         if (segmentIndex != CurrentSegmentIndex_) {
             CurrentSegmentIndex_ = segmentIndex;
             ResetSegmentReader();
@@ -467,7 +467,7 @@ protected:
                 return segmentMeta.block_index() < blockIndex;
             }
         );
-        YCHECK(it != ColumnMeta_.segments().end());
+        YT_VERIFY(it != ColumnMeta_.segments().end());
         return std::distance(ColumnMeta_.segments().begin(), it);
     }
 
@@ -482,7 +482,7 @@ protected:
             }
         );
 
-        YCHECK(it != ColumnMeta_.segments().begin());
+        YT_VERIFY(it != ColumnMeta_.segments().begin());
         return std::distance(ColumnMeta_.segments().begin(), it - 1);
     }
 
@@ -554,7 +554,7 @@ protected:
     {
         i64 readRowCount = 0;
         while (readRowCount < rows.Size()) {
-            YCHECK(CurrentSegmentIndex_ <= LastBlockSegmentIndex_);
+            YT_VERIFY(CurrentSegmentIndex_ <= LastBlockSegmentIndex_);
             if (!SegmentReader_) {
                 SegmentReader_ = CreateSegmentReader(CurrentSegmentIndex_);
             }
@@ -580,7 +580,7 @@ protected:
         i64 upperRowIndex)
     {
         // Use lookup segment readers while GetEqualRange.
-        YCHECK(lowerRowIndex <= upperRowIndex);
+        YT_VERIFY(lowerRowIndex <= upperRowIndex);
 
         if (lowerRowIndex == upperRowIndex) {
             return std::make_pair(lowerRowIndex, upperRowIndex);
@@ -797,7 +797,7 @@ public:
 
     virtual void SkipToRowIndex(i64 rowIndex) override
     {
-        YCHECK(GetSegmentRowIndex(rowIndex) >= SegmentRowIndex_);
+        YT_VERIFY(GetSegmentRowIndex(rowIndex) >= SegmentRowIndex_);
         SegmentRowIndex_ = GetSegmentRowIndex(rowIndex);
     }
 
@@ -806,7 +806,7 @@ public:
         TRange<std::pair<ui32, ui32>> timestampIndexRanges,
         bool produceAllVersions) override
     {
-        YCHECK(rows.Size() == timestampIndexRanges.Size());
+        YT_VERIFY(rows.Size() == timestampIndexRanges.Size());
 
         i64 rangeRowIndex = 0;
         while (rangeRowIndex < rows.Size() && SegmentRowIndex_ < Meta_.row_count()) {
@@ -826,7 +826,7 @@ public:
         i64 rangeRowIndex = 0;
         while (rangeRowIndex < rows.Size() && SegmentRowIndex_ < Meta_.row_count()) {
             auto row = rows[rangeRowIndex];
-            YCHECK(row);
+            YT_VERIFY(row);
             SetAllValues(row);
 
             ++SegmentRowIndex_;
@@ -837,7 +837,7 @@ public:
 
     void GetValueCounts(TMutableRange<ui32> valueCounts) const
     {
-        YCHECK(SegmentRowIndex_ + valueCounts.Size() <= Meta_.row_count());
+        YT_VERIFY(SegmentRowIndex_ + valueCounts.Size() <= Meta_.row_count());
 
         for (i64 rangeRowIndex = 0; rangeRowIndex < valueCounts.Size(); ++rangeRowIndex) {
             valueCounts[rangeRowIndex] = ValueExtractor_.GetValueCount(SegmentRowIndex_ + rangeRowIndex);
@@ -888,7 +888,7 @@ public:
 
     virtual void SkipToRowIndex(i64 rowIndex) override
     {
-        YCHECK(GetSegmentRowIndex(rowIndex) >= SegmentRowIndex_);
+        YT_VERIFY(GetSegmentRowIndex(rowIndex) >= SegmentRowIndex_);
 
         if (GetSegmentRowIndex(rowIndex) > SegmentRowIndex_) {
             SegmentRowIndex_ = GetSegmentRowIndex(rowIndex);
@@ -902,7 +902,7 @@ public:
         TRange<std::pair<ui32, ui32>> timestampIndexRanges,
         bool produceAllVersions) override
     {
-        YCHECK(rows.Size() == timestampIndexRanges.Size());
+        YT_VERIFY(rows.Size() == timestampIndexRanges.Size());
 
         i64 rangeRowIndex = 0;
         while (rangeRowIndex < rows.Size() && SegmentRowIndex_ < Meta_.row_count()) {
@@ -928,7 +928,7 @@ public:
                 continue;
             }
 
-            YCHECK(SegmentRowIndex_ == ValueExtractor_.GetRowIndex(ValueIndex_));
+            YT_VERIFY(SegmentRowIndex_ == ValueExtractor_.GetRowIndex(ValueIndex_));
 
             auto row = rows[rangeRowIndex];
             if (row){
@@ -969,7 +969,7 @@ public:
                 continue;
             }
 
-            YCHECK(SegmentRowIndex_ == ValueExtractor_.GetRowIndex(ValueIndex_));
+            YT_VERIFY(SegmentRowIndex_ == ValueExtractor_.GetRowIndex(ValueIndex_));
 
             auto row = rows[rangeRowIndex];
             SetAllValues(row);
@@ -984,7 +984,7 @@ public:
 
     virtual void GetValueCounts(TMutableRange<ui32> valueCounts) const override
     {
-        YCHECK(SegmentRowIndex_ + valueCounts.Size() <= Meta_.row_count());
+        YT_VERIFY(SegmentRowIndex_ + valueCounts.Size() <= Meta_.row_count());
 
         i64 rangeRowIndex = 0;
         i64 currentValueIndex = ValueIndex_;
@@ -1010,7 +1010,7 @@ public:
                 continue;
             }
 
-            YCHECK(currentRowIndex == ValueExtractor_.GetRowIndex(currentValueIndex));
+            YT_VERIFY(currentRowIndex == ValueExtractor_.GetRowIndex(currentValueIndex));
             ui32 count = 0;
             while (currentValueIndex < ValueExtractor_.GetValueCount() &&
                 currentRowIndex == ValueExtractor_.GetRowIndex(currentValueIndex))

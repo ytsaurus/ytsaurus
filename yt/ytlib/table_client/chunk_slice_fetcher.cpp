@@ -64,7 +64,7 @@ public:
         , KeyColumns_(keyColumns)
         , SliceByKeys_(sliceByKeys)
     {
-        YCHECK(ChunkSliceSize_ > 0);
+        YT_VERIFY(ChunkSliceSize_ > 0);
     }
 
     virtual TFuture<void> Fetch() override
@@ -197,7 +197,7 @@ private:
         std::optional<TKeySetReader> keysReader;
         NYT::TRange<TKey> keys;
         if (rsp->keys_in_attachment()) {
-            YCHECK(rsp->Attachments().size() == 1);
+            YT_VERIFY(rsp->Attachments().size() == 1);
             keysReader.emplace(rsp->Attachments().front());
             keys = keysReader->GetKeys();
         }

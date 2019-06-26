@@ -28,7 +28,7 @@ template <class TKey, class TValue>
 typename TRandomAccessQueue<TKey, TValue>::TEntry TRandomAccessQueue<TKey, TValue>::Pop()
 {
     auto listIt = Queue_.begin();
-    YCHECK(listIt != Queue_.end());
+    YT_VERIFY(listIt != Queue_.end());
     auto entry = std::move(*listIt);
     KeyToEntryMap_.erase(entry.first);
     Queue_.erase(listIt);
@@ -85,7 +85,7 @@ void TRandomAccessQueue<TKey, TValue>::Load(TLoadContext& context)
     Load(context, Queue_);
 
     for (auto it = Queue_.begin(); it != Queue_.end(); ++it) {
-        YCHECK(KeyToEntryMap_.insert(std::make_pair(it->first, it)).second);
+        YT_VERIFY(KeyToEntryMap_.insert(std::make_pair(it->first, it)).second);
     }
 }
 

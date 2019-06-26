@@ -95,7 +95,7 @@ protected:
                 }
             }
         } else {
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
 
         return true;

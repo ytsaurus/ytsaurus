@@ -162,7 +162,7 @@ void CheckFieldType(const Py::Object& value, NSkiff::EWireType wireType, bool re
             break;
         }
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

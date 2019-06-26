@@ -373,8 +373,8 @@ private:
                 continue;
             }
 
-            YCHECK(confirmedIds.insert(id).second);
-            YCHECK(fileIds.erase(id) == 1);
+            YT_VERIFY(confirmedIds.insert(id).second);
+            YT_VERIFY(fileIds.erase(id) == 1);
         }
 
         for (const auto& id : fileIds) {
@@ -438,7 +438,7 @@ private:
             UsedSpace_ += meta.size();
 
             auto guard = Guard(SpinLock);
-            YCHECK(Layers_.insert(std::make_pair(id, meta)).second);
+            YT_VERIFY(Layers_.insert(std::make_pair(id, meta)).second);
         }
     }
 
@@ -457,7 +457,7 @@ private:
             auto error = TError("Failed to compute available space")
                 << ex;
             Disable(error);
-            Y_UNREACHABLE(); // Disable() exits the process.
+            YT_ABORT(); // Disable() exits the process.
         }
 
         i64 remainingQuota = std::max(static_cast<i64>(0), GetQuota() - UsedSpace_);
@@ -567,7 +567,7 @@ private:
             }
 
             Disable(error);
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
     }
 
@@ -589,7 +589,7 @@ private:
                 layerId)
                 << ex;
             Disable(error);
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
 
         i64 layerSize = -1;
@@ -638,7 +638,7 @@ private:
             auto volumeId = WaitFor(Executor_->CreateVolume(mountPath, parameters))
                 .ValueOrThrow();
 
-            YCHECK(volumeId.Path == mountPath);
+            YT_VERIFY(volumeId.Path == mountPath);
 
             YT_LOG_INFO("Volume created (VolumeId: %v, VolumeMountPath: %v)",
                 id,
@@ -678,14 +678,14 @@ private:
                 volumeMetaFileName);
 
             auto guard = Guard(SpinLock);
-            YCHECK(Volumes_.insert(std::make_pair(id, volumeMeta)).second);
+            YT_VERIFY(Volumes_.insert(std::make_pair(id, volumeMeta)).second);
 
             return volumeMeta;
         } catch (const std::exception& ex) {
             auto error = TError("Failed to create volume %v", id)
                 << ex;
             Disable(error);
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
     }
 
@@ -695,7 +695,7 @@ private:
 
         {
             auto guard = Guard(SpinLock);
-            YCHECK(Volumes_.contains(volumeId));
+            YT_VERIFY(Volumes_.contains(volumeId));
         }
 
         auto volumePath = GetVolumePath(volumeId);
@@ -721,12 +721,12 @@ private:
                 volumeMetaPath);
 
             auto guard = Guard(SpinLock);
-            YCHECK(Volumes_.erase(volumeId) == 1);
+            YT_VERIFY(Volumes_.erase(volumeId) == 1);
         } catch (const std::exception& ex) {
             auto error = TError("Failed to remove volume %v", volumeId)
                 << ex;
             Disable(error);
-            Y_UNREACHABLE();
+            YT_ABORT();
         }
     }
 };
@@ -803,7 +803,7 @@ public:
     {
         Evicted_.ToFuture()
            .Subscribe(BIND([=] (const TError& error) {
-                YCHECK(error.IsOK());
+                YT_VERIFY(error.IsOK());
                 callback.Run();
             }));
     }
@@ -1107,7 +1107,7 @@ public:
 
     virtual TFuture<IVolumePtr> PrepareVolume(const std::vector<TArtifactKey>& layers) override
     {
-        YCHECK(!layers.empty());
+        YT_VERIFY(!layers.empty());
 
         auto volumeKey = TVolumeKey(layers);
         auto tag = TGuid::Create();
@@ -1145,11 +1145,11 @@ public:
                     tag);
 
                 promise = NewPromise<TVolumeStatePtr>();
-                YCHECK(Volumes_.insert(std::make_pair(volumeKey, TAsyncVolume{promise.ToFuture(), tag})).second);
+                YT_VERIFY(Volumes_.insert(std::make_pair(volumeKey, TAsyncVolume{promise.ToFuture(), tag})).second);
             }
         }
 
-        YCHECK(promise);
+        YT_VERIFY(promise);
 
         // We have to create a new volume.
         std::vector<TFuture<TLayerPtr>> layerFutures;
@@ -1245,7 +1245,7 @@ private:
             volumeStatePromise.Set(volumeState);
         } catch (const std::exception& ex) {
             volumeStatePromise.Set(TError(ex));
-            YCHECK(RemoveVolume(key));
+            YT_VERIFY(RemoveVolume(key));
         }
     }
 };

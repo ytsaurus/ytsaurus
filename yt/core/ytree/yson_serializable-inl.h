@@ -75,7 +75,7 @@ inline void LoadFromNode(
         }
 
         default:
-            Y_UNIMPLEMENTED();
+            YT_UNIMPLEMENTED();
     }
 }
 
@@ -105,7 +105,7 @@ void LoadFromNode(
         }
 
         default:
-            Y_UNIMPLEMENTED();
+            YT_UNIMPLEMENTED();
     }
 }
 
@@ -132,7 +132,7 @@ void LoadFromNode(
         }
 
         default:
-            Y_UNIMPLEMENTED();
+            YT_UNIMPLEMENTED();
     }
 }
 
@@ -163,7 +163,7 @@ void LoadFromNode(
         }
 
         default:
-            Y_UNIMPLEMENTED();
+            YT_UNIMPLEMENTED();
     }
 }
 
@@ -211,7 +211,7 @@ void LoadFromNode(
         }
 
         default:
-            Y_UNIMPLEMENTED();
+            YT_UNIMPLEMENTED();
     }
 }
 
@@ -531,7 +531,7 @@ TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::RegisterParameter(
     if (UnrecognizedStrategy == EUnrecognizedStrategy::KeepRecursive) {
         parameter->SetKeepUnrecognizedRecursively();
     }
-    YCHECK(Parameters.insert(std::make_pair(parameterName, parameter)).second);
+    YT_VERIFY(Parameters.insert(std::make_pair(parameterName, parameter)).second);
     return *parameter;
 }
 

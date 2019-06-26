@@ -57,8 +57,8 @@ Value* TCGIRBuilder::ViaClosure(Value* value, Twine name)
     Twine resultingName(name.isTriviallyEmpty() ? valueName : name);
 
     // Otherwise, capture |value| in the parent context.
-    YCHECK(Parent_);
-    YCHECK(ClosurePtr_);
+    YT_VERIFY(Parent_);
+    YT_VERIFY(ClosurePtr_);
 
     Value* valueInParent = Parent_->ViaClosure(value, resultingName);
 
@@ -69,7 +69,7 @@ Value* TCGIRBuilder::ViaClosure(Value* value, Twine name)
         return it->second.first;
     } else {
         int indexInClosure = Mapping_.size();
-        YCHECK(indexInClosure < MaxClosureSize);
+        YT_VERIFY(indexInClosure < MaxClosureSize);
 
         InsertPoint currentIP = saveIP();
         SetInsertPoint(EntryBlock_, EntryBlock_->begin());

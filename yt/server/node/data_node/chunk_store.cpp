@@ -182,11 +182,11 @@ IChunkPtr TChunkStore::FindChunk(TChunkId chunkId, int mediumIndex) const
 
 TChunkStore::TChunkEntry TChunkStore::DoUpdateChunk(IChunkPtr oldChunk, IChunkPtr newChunk)
 {
-    Y_ASSERT(oldChunk->GetId() == newChunk->GetId());
-    Y_ASSERT(oldChunk->GetLocation()->GetMediumDescriptor().Index == newChunk->GetLocation()->GetMediumDescriptor().Index);
+    YT_ASSERT(oldChunk->GetId() == newChunk->GetId());
+    YT_ASSERT(oldChunk->GetLocation()->GetMediumDescriptor().Index == newChunk->GetLocation()->GetMediumDescriptor().Index);
 
     auto itRange = ChunkMap_.equal_range(oldChunk->GetId());
-    YCHECK(itRange.first != itRange.second);
+    YT_VERIFY(itRange.first != itRange.second);
 
     auto it = std::find_if(
         itRange.first,
@@ -195,7 +195,7 @@ TChunkStore::TChunkEntry TChunkStore::DoUpdateChunk(IChunkPtr oldChunk, IChunkPt
             return pair.second.Chunk == oldChunk;
         });
 
-    YCHECK(it != itRange.second);
+    YT_VERIFY(it != itRange.second);
 
     it->second = BuildEntry(newChunk);
 
@@ -228,7 +228,7 @@ TChunkStore::TChunkEntry TChunkStore::DoEraseChunk(IChunkPtr chunk)
 void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YCHECK(chunk->GetLocation()->IsEnabled());
+    YT_VERIFY(chunk->GetLocation()->IsEnabled());
 
     bool doRegister = true;
 
@@ -287,7 +287,7 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
             }
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
     }
 
@@ -329,7 +329,7 @@ void TChunkStore::DoRegisterChunk(const IChunkPtr& chunk)
             break;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 
     ChunkAdded_.Fire(chunk);
@@ -346,7 +346,7 @@ void TChunkStore::UpdateExistingChunk(IChunkPtr chunk)
     chunk->IncrementVersion();
 
     auto oldChunkEntry = FindExistingChunk(chunk);
-    YCHECK(oldChunkEntry.Chunk);
+    YT_VERIFY(oldChunkEntry.Chunk);
     location->UpdateUsedSpace(-oldChunkEntry.DiskSpace);
 
     // TODO(shakurov): shouldn't we be write-locking ChunkMap_ here?
@@ -366,7 +366,7 @@ void TChunkStore::UpdateExistingChunk(IChunkPtr chunk)
         }
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 
     ChunkAdded_.Fire(chunk);
@@ -573,7 +573,7 @@ IChunkPtr TChunkStore::CreateFromDescriptor(
                 descriptor);
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -585,7 +585,7 @@ TChunkStore::TPlacementInfo* TChunkStore::GetOrCreatePlacementInfo(const TPlacem
         TPlacementInfo placementInfo;
         placementInfo.CurrentLocationIndex = static_cast<int>(RandomNumber(Locations_.size()));
         auto pair = PlacementIdToInfo_.emplace(placementId, placementInfo);
-        YCHECK(pair.second);
+        YT_VERIFY(pair.second);
         it = pair.first;
         YT_LOG_DEBUG("Placement info registered (PlacementId: %v)",
             placementId);
@@ -608,7 +608,7 @@ void TChunkStore::ExpirePlacementInfos()
         const auto& placementId = it->second;
         YT_LOG_DEBUG("Placement info unregistered (PlacementId: %v)",
             placementId);
-        YCHECK(PlacementIdToInfo_.erase(placementId) == 1);
+        YT_VERIFY(PlacementIdToInfo_.erase(placementId) == 1);
         DeadlineToPlacementId_.erase(it);
     }
 }

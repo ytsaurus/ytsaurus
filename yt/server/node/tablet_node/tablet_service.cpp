@@ -56,8 +56,8 @@ public:
         , Slot_(slot)
         , Bootstrap_(bootstrap)
     {
-        YCHECK(Slot_);
-        YCHECK(Bootstrap_);
+        YT_VERIFY(Slot_);
+        YT_VERIFY(Bootstrap_);
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Write));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterTransactionActions));

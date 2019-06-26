@@ -144,7 +144,7 @@ public:
         EndOffset_ += appendSize;
         if (EndOffset_ >= Capacity) {
             EndOffset_ -= Capacity;
-            YCHECK(EndOffset_ < Capacity);
+            YT_VERIFY(EndOffset_ < Capacity);
         }
 
         size_t tailSize = std::min<size_t>(EndOffset_, appendSize);
@@ -155,7 +155,7 @@ public:
 
     void CopyTailTo(size_t copySize, T* begin) const
     {
-        YCHECK(copySize <= Size_);
+        YT_VERIFY(copySize <= Size_);
 
         if (copySize > EndOffset_) {
             size_t tailSize = copySize - EndOffset_;
@@ -777,7 +777,7 @@ public:
             throwIncorrectBoolean();
         }
 
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     void ReadBinaryInt64(i64* result)
@@ -917,7 +917,7 @@ public:
 
     void RefreshBlock()
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     void Advance(size_t bytes)

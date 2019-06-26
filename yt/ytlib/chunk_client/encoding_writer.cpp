@@ -226,7 +226,7 @@ void TEncodingWriter::ProcessCompressedBlock(const TBlock& block, i64 sizeToRele
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
 void TEncodingWriter::WritePendingBlock(const TErrorOr<TBlock>& blockOrError)
 {
-    YCHECK(blockOrError.IsOK());
+    YT_VERIFY(blockOrError.IsOK());
 
     const auto& block = blockOrError.Value();
     if (!block) {

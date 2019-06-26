@@ -21,8 +21,8 @@ TChunkScanner::TChunkScanner(
 
 void TChunkScanner::Start(TChunk* frontChunk, int chunkCount)
 {
-    YCHECK(!GlobalIterator_);
-    YCHECK(GlobalCount_ < 0);
+    YT_VERIFY(!GlobalIterator_);
+    YT_VERIFY(GlobalCount_ < 0);
 
     ScheduleGlobalScan(frontChunk, chunkCount);
 }
@@ -74,7 +74,7 @@ TChunk* TChunkScanner::DequeueChunk()
 
     bool alive = IsObjectAlive(chunk);
     if (alive) {
-        Y_ASSERT(chunk->GetScanFlag(Kind_, epoch));
+        YT_ASSERT(chunk->GetScanFlag(Kind_, epoch));
         chunk->ClearScanFlag(Kind_, epoch);
     }
     ObjectManager_->EphemeralUnrefObject(chunk);
@@ -101,14 +101,14 @@ int TChunkScanner::GetQueueSize() const
 
 void TChunkScanner::AdvanceGlobalIterator()
 {
-    YCHECK(GlobalCount_ > 0);
+    YT_VERIFY(GlobalCount_ > 0);
     --GlobalCount_;
 
     GlobalIterator_ = GlobalIterator_->GetNextScannedChunk(Kind_);
     if (!GlobalIterator_) {
         // NB: Some chunks could vanish during the scan so this is not
         // necessary zero.
-        YCHECK(GlobalCount_ >= 0);
+        YT_VERIFY(GlobalCount_ >= 0);
         YT_LOG_INFO("Global chunk scan finished (VanishedChunkCount: %v)",
             GlobalCount_);
         GlobalCount_ = 0;

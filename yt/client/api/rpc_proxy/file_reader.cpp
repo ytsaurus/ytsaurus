@@ -20,7 +20,7 @@ public:
         : Underlying_(std::move(underlying))
         , Revision_(revision)
     {
-        YCHECK(Underlying_);
+        YT_VERIFY(Underlying_);
     }
 
     virtual TFuture<TSharedRef> Read() override

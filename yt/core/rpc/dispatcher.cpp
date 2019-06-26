@@ -66,7 +66,7 @@ public:
 
             for (auto& [networkName, tosLevel] : bandConfig->NetworkToTosLevel) {
                 auto it = std::find(NetworkNames_.begin(), NetworkNames_.end(), networkName);
-                YCHECK(it != NetworkNames_.end());
+                YT_VERIFY(it != NetworkNames_.end());
                 auto id = std::distance(NetworkNames_.begin(), it);
                 bandDescriptor.NetworkIdToTosLevel[id] = tosLevel;
             }

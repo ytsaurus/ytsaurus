@@ -17,12 +17,12 @@ public:
         : TInvokerWrapper(std::move(underlyingInvoker))
         , Context_(std::move(context))
     {
-        YCHECK(Context_);
+        YT_VERIFY(Context_);
     }
 
     virtual void Invoke(TClosure callback) override
     {
-        Y_ASSERT(callback);
+        YT_ASSERT(callback);
 
         if (Context_->Canceled_) {
             return;
@@ -95,7 +95,7 @@ void TCancelableContext::SubscribeCanceled(const TClosure& callback)
 
 void TCancelableContext::UnsubscribeCanceled(const TClosure& /*callback*/)
 {
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 void TCancelableContext::PropagateTo(TCancelableContextPtr context)

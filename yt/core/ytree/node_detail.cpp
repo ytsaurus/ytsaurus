@@ -94,7 +94,7 @@ void TNodeBase::GetKeySelf(
             break;
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 
     context->SetResponseInfo("Key: %v", key);
@@ -141,7 +141,7 @@ IYPathService::TResolveResult TNodeBase::ResolveRecursive(
     }
 
     ThrowCannotHaveChildren(this);
-    Y_UNREACHABLE();
+    YT_ABORT();
 }
 
 TYPath TNodeBase::GetPath() const
@@ -166,7 +166,7 @@ TYPath TNodeBase::GetPath() const
                 break;
             }
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
         tokens.emplace_back(std::move(token));
         current = parent;
@@ -289,7 +289,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
 
         default:
             tokenizer.ThrowUnexpected();
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -386,7 +386,7 @@ void TMapNodeMixin::SetChild(
 
             auto newChild = lastStep ? child : factory->CreateMap();
             if (currentNode != rootNode) {
-                YCHECK(currentNode->AddChild(key, newChild));
+                YT_VERIFY(currentNode->AddChild(key, newChild));
             } else {
                 rootChild = newChild;
                 rootKey = key;
@@ -405,7 +405,7 @@ void TMapNodeMixin::SetChild(
         }
     }
 
-    YCHECK(rootKey);
+    YT_VERIFY(rootKey);
     rootNode->AddChild(rootKey, rootChild);
 }
 
@@ -443,7 +443,7 @@ void TMapNodeMixin::SetChildren(TReqMultiset* request, TRspMultiset* /* response
 
         auto factory = CreateFactory();
         auto childNode = ConvertToNode(value, factory.get());
-        YCHECK(mapNode->AddChild(key, childNode));
+        YT_VERIFY(mapNode->AddChild(key, childNode));
         factory->Commit();
     }
 }
@@ -506,7 +506,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
 
         default:
             tokenizer.ThrowUnexpected();
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 
@@ -613,18 +613,18 @@ void TNonexistingService::ExistsAny(const TCtxExistsPtr& context)
 
 TTransactionalNodeFactoryBase::~TTransactionalNodeFactoryBase()
 {
-    YCHECK(State_ == EState::Committed || State_ == EState::RolledBack);
+    YT_VERIFY(State_ == EState::Committed || State_ == EState::RolledBack);
 }
 
 void TTransactionalNodeFactoryBase::Commit() noexcept
 {
-    YCHECK(State_ == EState::Active);
+    YT_VERIFY(State_ == EState::Active);
     State_ = EState::Committed;
 }
 
 void TTransactionalNodeFactoryBase::Rollback() noexcept
 {
-    YCHECK(State_ == EState::Active);
+    YT_VERIFY(State_ == EState::Active);
     State_ = EState::RolledBack;
 }
 

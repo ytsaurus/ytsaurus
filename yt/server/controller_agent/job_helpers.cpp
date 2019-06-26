@@ -133,7 +133,7 @@ bool CheckJobActivity(
 
 TBriefJobStatisticsPtr BuildBriefStatistics(std::unique_ptr<TJobSummary> jobSummary)
 {
-    YCHECK(jobSummary->Statistics);
+    YT_VERIFY(jobSummary->Statistics);
     const auto& statistics = *jobSummary->Statistics;
 
     auto briefStatistics = New<TBriefJobStatistics>();

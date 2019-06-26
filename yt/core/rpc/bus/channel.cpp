@@ -53,7 +53,7 @@ public:
         : Client_(std::move(client))
         , NetworkId_(TDispatcher::Get()->GetNetworkId(Client_->GetNetworkName()))
     {
-        YCHECK(Client_);
+        YT_VERIFY(Client_);
     }
 
     virtual const TString& GetEndpointDescription() const override
@@ -95,7 +95,7 @@ public:
 
     virtual TFuture<void> Terminate(const TError& error) override
     {
-        YCHECK(!error.IsOK());
+        YT_VERIFY(!error.IsOK());
         VERIFY_THREAD_AFFINITY_ANY();
 
         std::vector<TSessionPtr> sessions;
@@ -247,7 +247,7 @@ private:
 
         void Initialize(IBusPtr bus)
         {
-            Y_ASSERT(bus);
+            YT_ASSERT(bus);
             Bus_ = std::move(bus);
             Bus_->SetTosLevel(TosLevel_);
         }
@@ -286,8 +286,8 @@ private:
             IClientResponseHandlerPtr responseHandler,
             const TSendOptions& options)
         {
-            YCHECK(request);
-            YCHECK(responseHandler);
+            YT_VERIFY(request);
+            YT_VERIFY(responseHandler);
             VERIFY_THREAD_AFFINITY_ANY();
 
             auto requestControl = New<TClientRequestControl>(
@@ -914,7 +914,7 @@ private:
             TStringBuf reason,
             const TError& error)
         {
-            YCHECK(responseHandler);
+            YT_VERIFY(responseHandler);
 
             auto detailedError = error
                 << TErrorAttribute("realm_id", requestControl->GetRealmId())
@@ -1122,7 +1122,7 @@ private:
 
 IChannelPtr CreateBusChannel(IBusClientPtr client)
 {
-    YCHECK(client);
+    YT_VERIFY(client);
 
     return New<TBusChannel>(std::move(client));
 }

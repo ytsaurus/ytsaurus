@@ -20,7 +20,7 @@ public:
 
     virtual void ResetBlock(TSharedRef block, int blockIndex) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void SkipToRowIndex(i64 rowIndex) override
@@ -45,7 +45,7 @@ public:
 
     virtual int GetCurrentBlockIndex() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual std::optional<int> GetNextBlockIndex() const override

@@ -105,7 +105,7 @@ public:
     void OnEndList()
     {
         auto item = Stack_.back();
-        YCHECK(item.first == ETokenType::List);
+        YT_VERIFY(item.first == ETokenType::List);
         if (item.second) {
             Writer_.OnEndList();
         }
@@ -135,7 +135,7 @@ public:
     void OnEndMap()
     {
         auto item = Stack_.back();
-        YCHECK(item.first == ETokenType::Map);
+        YT_VERIFY(item.first == ETokenType::Map);
         if (item.second) {
             Writer_.OnEndMap();
         }
@@ -156,7 +156,7 @@ public:
     void OnEndAttributes()
     {
         auto item = Stack_.back();
-        YCHECK(item.first == ETokenType::Attributes);
+        YT_VERIFY(item.first == ETokenType::Attributes);
         if (item.second) {
             Writer_.OnEndAttributes();
             ExpectValue_ = true;

@@ -15,9 +15,9 @@ void TTransactionManagerBase<TTransaction>::RegisterTransactionActionHandlers(
     const TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
     const TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor)
 {
-    YCHECK(PrepareActionHandlerMap_.emplace(prepareActionDescriptor.Type, prepareActionDescriptor.Handler).second);
-    YCHECK(CommitActionHandlerMap_.emplace(commitActionDescriptor.Type, commitActionDescriptor.Handler).second);
-    YCHECK(AbortActionHandlerMap_.emplace(abortActionDescriptor.Type, abortActionDescriptor.Handler).second);
+    YT_VERIFY(PrepareActionHandlerMap_.emplace(prepareActionDescriptor.Type, prepareActionDescriptor.Handler).second);
+    YT_VERIFY(CommitActionHandlerMap_.emplace(commitActionDescriptor.Type, commitActionDescriptor.Handler).second);
+    YT_VERIFY(AbortActionHandlerMap_.emplace(abortActionDescriptor.Type, abortActionDescriptor.Handler).second);
 }
 
 template <class TTransaction>

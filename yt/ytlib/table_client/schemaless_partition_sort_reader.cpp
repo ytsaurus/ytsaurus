@@ -80,7 +80,7 @@ public:
         , SortComparer_(this)
         , MergeComparer_(this)
     {
-        YCHECK(EstimatedRowCount_ <= std::numeric_limits<i32>::max());
+        YT_VERIFY(EstimatedRowCount_ <= std::numeric_limits<i32>::max());
 
         Shuffle(dataSliceDescriptors.begin(), dataSliceDescriptors.end());
 
@@ -120,7 +120,7 @@ public:
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
-        YCHECK(rows->capacity() > 0);
+        YT_VERIFY(rows->capacity() > 0);
         if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
             return true;
         }
@@ -158,7 +158,7 @@ public:
         while (ReadRowCount_ < sortedRowCount && rows->size() < rows->capacity() && dataWeight < MaxDataSizePerRead) {
             auto sortedIndex = SortedIndexes_[ReadRowCount_];
             auto& rowDescriptor = RowDescriptorBuffer_[sortedIndex];
-            YCHECK(rowDescriptor.BlockReader->JumpToRowIndex(rowDescriptor.RowIndex));
+            YT_VERIFY(rowDescriptor.BlockReader->JumpToRowIndex(rowDescriptor.RowIndex));
             rows->push_back(rowDescriptor.BlockReader->GetRow(&MemoryPool_));
             dataWeight += GetDataWeight(rows->back());
             ++ReadRowCount_;
@@ -166,7 +166,7 @@ public:
 
         ReadDataWeight_ += dataWeight;
 
-        YCHECK(!rows->empty());
+        YT_VERIFY(!rows->empty());
         return true;
     }
 
@@ -197,13 +197,13 @@ public:
 
     virtual bool IsFetchingCompleted() const override
     {
-        YCHECK(UnderlyingReader_);
+        YT_VERIFY(UnderlyingReader_);
         return UnderlyingReader_->IsFetchingCompleted();
     }
 
     virtual TDataStatistics GetDataStatistics() const override
     {
-        YCHECK(UnderlyingReader_);
+        YT_VERIFY(UnderlyingReader_);
         auto dataStatistics = UnderlyingReader_->GetDataStatistics();
         dataStatistics.set_row_count(ReadRowCount_);
         dataStatistics.set_data_weight(ReadDataWeight_);
@@ -212,25 +212,25 @@ public:
 
     virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
     {
-        YCHECK(UnderlyingReader_);
+        YT_VERIFY(UnderlyingReader_);
         return UnderlyingReader_->GetDecompressionStatistics();
     }
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
-        YCHECK(UnderlyingReader_);
+        YT_VERIFY(UnderlyingReader_);
         return UnderlyingReader_->GetFailedChunkIds();
     }
 
     virtual TInterruptDescriptor GetInterruptDescriptor(
         TRange<TUnversionedRow> unreadRows) const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual void Interrupt() override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual i64 GetTableRowIndex() const override
@@ -457,7 +457,7 @@ private:
             }
 
             if (!isNetworkReleased) {
-                YCHECK(UnderlyingReader_->IsFetchingCompleted());
+                YT_VERIFY(UnderlyingReader_->IsFetchingCompleted());
                 OnNetworkReleased_.Run();
             }
 
@@ -465,8 +465,8 @@ private:
             int bucketCount = static_cast<int>(BucketStart_.size()) - 1;
 
             if (!IsApproximate_) {
-                YCHECK(TotalRowCount_ <= EstimatedRowCount_);
-                YCHECK(bucketCount <= EstimatedBucketCount_);
+                YT_VERIFY(TotalRowCount_ <= EstimatedRowCount_);
+                YT_VERIFY(bucketCount <= EstimatedBucketCount_);
             }
 
             YT_LOG_INFO("Finished reading input (RowCount: %v, BucketCount: %v)",
@@ -518,7 +518,7 @@ private:
                 while (!BucketHeap_.empty()) {
                     int bucketIndex = BucketHeap_.front();
                     if (SortedIndexes_.size() > 0) {
-                        Y_ASSERT(!SortComparer_(Buckets_[bucketIndex], SortedIndexes_.back()));
+                        YT_ASSERT(!SortComparer_(Buckets_[bucketIndex], SortedIndexes_.back()));
                     }
                     SortedIndexes_.push_back(Buckets_[bucketIndex]);
                     ++bucketIndex;
@@ -536,7 +536,7 @@ private:
                     }
                 }
 
-                YCHECK(sortedRowCount == TotalRowCount_);
+                YT_VERIFY(sortedRowCount == TotalRowCount_);
                 SortedRowCount_ = sortedRowCount;
             }
             YT_LOG_INFO("Finished merge");

@@ -43,8 +43,8 @@ TCompositeAutomatonPart::TCompositeAutomatonPart(
     , Automaton_(automaton.Get())
     , AutomatonInvoker_(std::move(automatonInvoker))
 {
-    YCHECK(HydraManager_);
-    YCHECK(Automaton_);
+    YT_VERIFY(HydraManager_);
+    YT_VERIFY(Automaton_);
 
     HydraManager_->SubscribeStartLeading(BIND(&TThis::OnStartLeading, MakeWeak(this)));
     HydraManager_->SubscribeStartLeading(BIND(&TThis::OnRecoveryStarted, MakeWeak(this)));
@@ -68,7 +68,7 @@ void TCompositeAutomatonPart::RegisterSaver(
     TCallback<void(TSaveContext&)> callback)
 {
     // Check for duplicate part names.
-    YCHECK(Automaton_->SaverPartNames_.insert(name).second);
+    YT_VERIFY(Automaton_->SaverPartNames_.insert(name).second);
 
     TCompositeAutomaton::TSyncSaverDescriptor descriptor;
     descriptor.Priority = priority;
@@ -84,7 +84,7 @@ void TCompositeAutomatonPart::RegisterSaver(
     TCallback<TCallback<void(TSaveContext&)>()> callback)
 {
     // Check for duplicate part names.
-    YCHECK(Automaton_->SaverPartNames_.insert(name).second);
+    YT_VERIFY(Automaton_->SaverPartNames_.insert(name).second);
 
     TCompositeAutomaton::TAsyncSaverDescriptor descriptor;
     descriptor.Priority = priority;
@@ -110,7 +110,7 @@ void TCompositeAutomatonPart::RegisterLoader(
         }
         callback.Run(context);
     });
-    YCHECK(Automaton_->PartNameToLoaderDescriptor_.insert(std::make_pair(name, descriptor)).second);
+    YT_VERIFY(Automaton_->PartNameToLoaderDescriptor_.insert(std::make_pair(name, descriptor)).second);
 }
 
 void TCompositeAutomatonPart::RegisterMethod(
@@ -124,7 +124,7 @@ void TCompositeAutomatonPart::RegisterMethod(
         callback,
         TMonotonicCounter("/cumulative_mutation_time", tagIds)
     };
-    YCHECK(Automaton_->MethodNameToDescriptor_.insert(std::make_pair(type, descriptor)).second);
+    YT_VERIFY(Automaton_->MethodNameToDescriptor_.insert(std::make_pair(type, descriptor)).second);
 }
 
 bool TCompositeAutomatonPart::ValidateSnapshotVersion(int /*version*/)
@@ -237,12 +237,12 @@ void TCompositeAutomaton::SetSerializationDumpEnabled(bool value)
 
 void TCompositeAutomaton::RegisterPart(TCompositeAutomatonPartPtr part)
 {
-    YCHECK(part);
+    YT_VERIFY(part);
 
     Parts_.push_back(part);
 
     if (HydraManager_) {
-        YCHECK(HydraManager_ == part->HydraManager_);
+        YT_VERIFY(HydraManager_ == part->HydraManager_);
     } else {
         HydraManager_ = part->HydraManager_;
 
@@ -304,7 +304,7 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
         return VoidFuture;
     }
 
-    YCHECK(AsyncSnapshotInvoker_);
+    YT_VERIFY(AsyncSnapshotInvoker_);
 
     std::vector<TCallback<void(TSaveContext&)>> asyncCallbacks;
 
@@ -494,7 +494,7 @@ void TCompositeAutomaton::OnRecoveryComplete()
 TCompositeAutomaton::TMethodDescriptor* TCompositeAutomaton::GetMethodDescriptor(const TString& mutationType)
 {
     auto it = MethodNameToDescriptor_.find(mutationType);
-    YCHECK(it != MethodNameToDescriptor_.end());
+    YT_VERIFY(it != MethodNameToDescriptor_.end());
     return &it->second;
 }
 

@@ -55,15 +55,15 @@ TRequestKey TRequestKey::FromRow(
     const TNameTablePtr& nameTable,
     const TUnversionedRow& row)
 {
-    YCHECK(row.GetCount() == 2);
+    YT_VERIFY(row.GetCount() == 2);
     TRequestKey key;
 
-    YCHECK(row[0].Id == nameTable->GetId("table_path"));
-    YCHECK(row[0].Type == EValueType::String);
+    YT_VERIFY(row[0].Id == nameTable->GetId("table_path"));
+    YT_VERIFY(row[0].Type == EValueType::String);
     key.TablePath = TString(row[0].Data.String, row[0].Length);
 
-    YCHECK(row[1].Id == nameTable->GetId("options"));
-    YCHECK(row[1].Type == EValueType::String);
+    YT_VERIFY(row[1].Id == nameTable->GetId("options"));
+    YT_VERIFY(row[1].Type == EValueType::String);
     TYsonString optionsYson(row[1].Data.String, row[1].Length);
     auto optionsNode = ConvertToNode(optionsYson)->AsMap();
     key.TableRevision = ConvertTo<ui64>(optionsNode->FindChild("revision"));
@@ -77,7 +77,7 @@ void TRequestKey::FillRow(
     const NTableClient::TNameTablePtr& nameTable,
     const NTableClient::TRowBufferPtr& rowBuffer) const
 {
-    YCHECK(row->GetCount() >= 2);
+    YT_VERIFY(row->GetCount() >= 2);
 
     auto tablePathId = nameTable->GetIdOrRegisterName("table_path");
     (*row)[0] = rowBuffer->Capture(MakeUnversionedStringValue(TablePath, tablePathId));
@@ -122,31 +122,31 @@ TRequestState TRequestState::FromRow(
 {
     TRequestState state;
 
-    YCHECK(row[3].Id == nameTable->GetId("state"));
-    YCHECK(row[3].Type == EValueType::String);
+    YT_VERIFY(row[3].Id == nameTable->GetId("state"));
+    YT_VERIFY(row[3].Type == EValueType::String);
     state.State = TEnumTraits<ERequestState>::FromString(TStringBuf(row[3].Data.String, row[3].Length));
 
-    YCHECK(row[4].Id == nameTable->GetId("update_time"));
-    YCHECK(row[4].Type == EValueType::Uint64);
+    YT_VERIFY(row[4].Id == nameTable->GetId("update_time"));
+    YT_VERIFY(row[4].Type == EValueType::Uint64);
     state.UpdateTime = TInstant::MicroSeconds(row[4].Data.Uint64);
 
-    YCHECK(row[5].Id == nameTable->GetId("owner_id"));
-    YCHECK(row[5].Type == EValueType::String);
+    YT_VERIFY(row[5].Id == nameTable->GetId("owner_id"));
+    YT_VERIFY(row[5].Type == EValueType::String);
     state.OwnerId = TGuid::FromString(TStringBuf(row[5].Data.String, row[5].Length));
 
-    YCHECK(row[6].Id == nameTable->GetId("error"));
+    YT_VERIFY(row[6].Id == nameTable->GetId("error"));
     if (row[6].Type == EValueType::Any) {
         TYsonString errorYson(row[6].Data.String, row[6].Length);
         state.Error = ConvertTo<TError>(errorYson);
     }
 
-    YCHECK(row[7].Id == nameTable->GetId("progress"));
+    YT_VERIFY(row[7].Id == nameTable->GetId("progress"));
     if (row[7].Type == EValueType::Any) {
         TYsonString progressYson(row[7].Data.String, row[7].Length);
         state.Progress = progressYson;
     }
 
-    YCHECK(row[8].Id == nameTable->GetId("resources"));
+    YT_VERIFY(row[8].Id == nameTable->GetId("resources"));
     if (row[8].Type == EValueType::Any) {
         TYsonString resourcesYson(row[8].Data.String, row[8].Length);
         state.Resources = ConvertTo<std::vector<TResourceLinkPtr>>(resourcesYson);
@@ -257,8 +257,8 @@ THashSet<TResourceId> TTables::ListResources()
 
     THashSet<TResourceId> resources;
     for (auto&& row : result.Rowset->GetRows()) {
-        YCHECK(row.GetCount() == 1);
-        YCHECK(row[0].Type == EValueType::String);
+        YT_VERIFY(row.GetCount() == 1);
+        YT_VERIFY(row[0].Type == EValueType::String);
         resources.emplace(row[0].Data.String, row[0].Length);
     }
     return resources;
@@ -404,7 +404,7 @@ std::vector<TResourceId> TTables::FinishRequest(
     for (const auto& shard : shards) {
         auto description = ConvertResource(shard.Resource, true, false);
 
-        YCHECK(!shard.Resource.files().empty());
+        YT_VERIFY(!shard.Resource.files().empty());
         auto startRow = shard.Resource.files()[0].start_row();
         const auto& lastFile = shard.Resource.files()[shard.Resource.files().size() - 1];
         auto endRow = lastFile.start_row() + lastFile.row_count();
@@ -503,12 +503,12 @@ void TTables::GetResource(
     }
 
     const auto& row = result.Rowset->GetRows()[0];
-    YCHECK(row.GetCount() == 3);
-    YCHECK(row[0].Type == EValueType::String);
+    YT_VERIFY(row.GetCount() == 3);
+    YT_VERIFY(row[0].Type == EValueType::String);
     auto duplicateId = TGuid::FromString(TString(row[0].Data.String, row[0].Length));
-    YCHECK(row[1].Type == EValueType::String);
+    YT_VERIFY(row[1].Type == EValueType::String);
     *tableRange = TString(row[1].Data.String, row[1].Length);
-    YCHECK(row[2].Type == EValueType::String);
+    YT_VERIFY(row[2].Type == EValueType::String);
     DeserializeProto(resource, TRef(row[2].Data.String, row[2].Length));
 
     // TODO(prime): load sha1 from /files table

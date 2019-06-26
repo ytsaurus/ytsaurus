@@ -74,7 +74,7 @@ TSamplesFetcher::TSamplesFetcher(
     , DesiredSampleCount_(desiredSampleCount)
     , MaxSampleSize_(maxSampleSize)
 {
-    YCHECK(DesiredSampleCount_ > 0);
+    YT_VERIFY(DesiredSampleCount_ > 0);
 }
 
 void TSamplesFetcher::AddChunk(TInputChunkPtr chunk)
@@ -182,7 +182,7 @@ void TSamplesFetcher::OnResponse(
     std::optional<TKeySetReader> keysReader;
     NYT::TRange<TKey> keySet;
     if (rsp->keys_in_attachment()) {
-        YCHECK(rsp->Attachments().size() == 1);
+        YT_VERIFY(rsp->Attachments().size() == 1);
         keysReader.emplace(rsp->Attachments().front());
         keySet = keysReader->GetKeys();
     }
@@ -203,7 +203,7 @@ void TSamplesFetcher::OnResponse(
         for (const auto& protoSample : sampleResponse.samples()) {
             TKey key;
             if (protoSample.has_key_index()) {
-                YCHECK(keysReader);
+                YT_VERIFY(keysReader);
                 key = RowBuffer_->Capture(keySet[protoSample.key_index()]);
             } else {
                 FromProto(&key, protoSample.key(), RowBuffer_);
@@ -215,7 +215,7 @@ void TSamplesFetcher::OnResponse(
                 protoSample.weight()
             };
 
-            YCHECK(sample.Key.GetCount() == KeyColumns_.size());
+            YT_VERIFY(sample.Key.GetCount() == KeyColumns_.size());
             Samples_.push_back(sample);
         }
     }

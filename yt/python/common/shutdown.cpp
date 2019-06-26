@@ -27,7 +27,7 @@ void Shutdown()
 
 void RegisterShutdownCallback(TCallback<void()> additionalCallback, int index)
 {
-    YCHECK(0 <= index && index < MaxAdditionalShutdownCallbackCount);
+    YT_VERIFY(0 <= index && index < MaxAdditionalShutdownCallbackCount);
     AdditionalShutdownCallbacks[index] = additionalCallback;
 }
 

@@ -16,7 +16,7 @@ void TThreadAffinitySlot::Check(TThreadId threadId)
 {
     auto expectedId = InvalidThreadId;
     if (!BoundId_.compare_exchange_strong(expectedId, threadId)) {
-        YCHECK(expectedId == threadId);
+        YT_VERIFY(expectedId == threadId);
     }
 }
 

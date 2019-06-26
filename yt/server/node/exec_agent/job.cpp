@@ -819,11 +819,11 @@ private:
                 return true;
 
             case EJobPhase::Created:
-                YCHECK(JobState_ == EJobState::Waiting);
+                YT_VERIFY(JobState_ == EJobState::Waiting);
                 return false;
 
             default:
-                YCHECK(JobState_ == EJobState::Running);
+                YT_VERIFY(JobState_ == EJobState::Running);
                 return false;
         }
     }
@@ -1072,7 +1072,7 @@ private:
             .Run())
             .ThrowOnError();
 
-        YCHECK(JobResult_);
+        YT_VERIFY(JobResult_);
 
         // Copy info from traffic meter to statistics.
         auto deserializedStatistics = ConvertTo<NJobTrackerClient::TStatistics>(Statistics_);
@@ -1380,7 +1380,7 @@ private:
                 artifact.Name,
                 artifact.Executable);
         } else {
-            YCHECK(artifact.Chunk);
+            YT_VERIFY(artifact.Chunk);
 
             const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             bool copyFiles = schedulerJobSpecExt.has_user_job_spec() && schedulerJobSpecExt.user_job_spec().copy_files();

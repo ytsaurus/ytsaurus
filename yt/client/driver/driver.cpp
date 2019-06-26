@@ -78,7 +78,7 @@ void TDriverRequest::Reset()
 TCommandDescriptor IDriver::GetCommandDescriptor(const TString& commandName) const
 {
     auto descriptor = FindCommandDescriptor(commandName);
-    YCHECK(descriptor);
+    YT_VERIFY(descriptor);
     return *descriptor;
 }
 
@@ -107,8 +107,8 @@ public:
         , Connection_(std::move(connection))
         , StickyTransactionPool_(CreateStickyTransactionPool(Logger))
     {
-        YCHECK(Config_);
-        YCHECK(Connection_);
+        YT_VERIFY(Config_);
+        YT_VERIFY(Connection_);
 
         // Register all commands.
 #define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy, version) \
@@ -291,8 +291,8 @@ public:
 
         const auto& entry = it->second;
 
-        YCHECK(entry.Descriptor.InputType == EDataType::Null || request.InputStream);
-        YCHECK(entry.Descriptor.OutputType == EDataType::Null || request.OutputStream);
+        YT_VERIFY(entry.Descriptor.InputType == EDataType::Null || request.InputStream);
+        YT_VERIFY(entry.Descriptor.OutputType == EDataType::Null || request.OutputStream);
 
         const auto& user = request.AuthenticatedUser;
         const auto& client = ClientCache_->GetClient(user, request.UserToken);
@@ -388,7 +388,7 @@ private:
             TCommand command;
             command.Execute(context);
         });
-        YCHECK(CommandNameToEntry_.insert(std::make_pair(descriptor.CommandName, entry)).second);
+        YT_VERIFY(CommandNameToEntry_.insert(std::make_pair(descriptor.CommandName, entry)).second);
     }
 
     static void DoExecute(TExecuteCallback executeCallback, TCommandContextPtr context)
@@ -488,7 +488,7 @@ private:
 
         virtual TYsonString ConsumeInputValue() override
         {
-            YCHECK(Request_.InputStream);
+            YT_VERIFY(Request_.InputStream);
             auto syncInputStream = CreateSyncAdapter(Request_.InputStream);
 
             auto producer = CreateProducerForFormat(
@@ -501,7 +501,7 @@ private:
 
         virtual void ProduceOutputValue(const TYsonString& yson) override
         {
-            YCHECK(Request_.OutputStream);
+            YT_VERIFY(Request_.OutputStream);
             auto syncOutputStream = CreateBufferedSyncAdapter(Request_.OutputStream);
 
             auto consumer = CreateConsumerForFormat(

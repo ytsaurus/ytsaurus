@@ -44,8 +44,8 @@ void TPortoProcess::Kill(int signal)
 
 void TPortoProcess::DoSpawn()
 {
-    YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
-    YCHECK(Args_.size());
+    YT_VERIFY(ProcessId_ == InvalidProcessId && !Finished_);
+    YT_VERIFY(Args_.size());
     if (!WorkingDirectory_.empty()) {
         ContainerInstance_->SetCwd(WorkingDirectory_);
     }
@@ -78,7 +78,7 @@ void TPortoProcess::DoSpawn()
         ProcessId_,
         ContainerInstance_->GetName());
 
-    YCHECK(execFuture);
+    YT_VERIFY(execFuture);
     execFuture.Subscribe(BIND([=, this_ = MakeStrong(this)](TErrorOr<int> exitCodeOrError) {
         Finished_ = true;
         if (exitCodeOrError.IsOK()) {

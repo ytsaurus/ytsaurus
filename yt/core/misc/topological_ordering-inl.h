@@ -70,7 +70,7 @@ void TIncrementalTopologicalOrdering<TVertexDescriptor>::Rebuild()
         queue.pop();
 
         auto it = inDegree.find(vertex);
-        YCHECK(it != inDegree.end() && it->second == 0);
+        YT_VERIFY(it != inDegree.end() && it->second == 0);
         inDegree.erase(it);
 
         TopologicalOrdering_.push_back(vertex);
@@ -83,7 +83,7 @@ void TIncrementalTopologicalOrdering<TVertexDescriptor>::Rebuild()
     }
 
     // Check that all vertices are visited.
-    YCHECK(inDegree.empty());
+    YT_VERIFY(inDegree.empty());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

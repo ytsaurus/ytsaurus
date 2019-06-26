@@ -112,10 +112,10 @@ public:
         , ArriveInstant_(GetCpuInstant())
 
     {
-        Y_ASSERT(RequestMessage_);
-        Y_ASSERT(ReplyBus_);
-        Y_ASSERT(Service_);
-        Y_ASSERT(RuntimeInfo_);
+        YT_ASSERT(RequestMessage_);
+        YT_ASSERT(ReplyBus_);
+        YT_ASSERT(Service_);
+        YT_ASSERT(RuntimeInfo_);
 
         Initialize();
     }
@@ -794,7 +794,7 @@ private:
 
     void OnPullResponseAttachmentsStream()
     {
-        YCHECK(ResponseAttachmentsStream_);
+        YT_VERIFY(ResponseAttachmentsStream_);
         auto payload = ResponseAttachmentsStream_->TryPull();
         if (!payload) {
             return;
@@ -830,7 +830,7 @@ private:
 
     void OnResponseStreamingPayloadAcked(int sequenceNumber, const TError& error)
     {
-        YCHECK(ResponseAttachmentsStream_);
+        YT_VERIFY(ResponseAttachmentsStream_);
         if (error.IsOK()) {
             YT_LOG_DEBUG("Response streaming payload delivery acknowledged (RequestId: %v, SequenceNumber: %v)",
                 RequestId_,
@@ -845,7 +845,7 @@ private:
 
     void OnRequestAttachmentsStreamRead()
     {
-        YCHECK(RequestAttachmentsStream_);
+        YT_VERIFY(RequestAttachmentsStream_);
         auto feedback = RequestAttachmentsStream_->GetFeedback();
 
         YT_LOG_DEBUG("Request streaming attachments read (RequestId: %v, ReadPosition: %v)",
@@ -871,7 +871,7 @@ private:
 
     void OnRequestStreamingFeedbackAcked(const TError& error)
     {
-        YCHECK(RequestAttachmentsStream_);
+        YT_VERIFY(RequestAttachmentsStream_);
         if (error.IsOK()) {
             YT_LOG_DEBUG("Request streaming feedback delivery acknowledged (RequestId: %v)",
                 RequestId_);
@@ -911,7 +911,7 @@ TServiceBase::TServiceBase(
     , AuthenticationQueueSizeCounter_("/authentication_queue_size", {ServiceTagId_})
     , AuthenticationTimeCounter_("/authentication_time", {ServiceTagId_})
 {
-    YCHECK(DefaultInvoker_);
+    YT_VERIFY(DefaultInvoker_);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Discover)
         .SetInvoker(TDispatcher::Get()->GetLightInvoker())
@@ -1385,7 +1385,7 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDe
     {
         TWriterGuard guard(MethodMapLock_);
         // Failure here means that such method is already registered.
-        YCHECK(MethodMap_.insert(std::make_pair(descriptor.Method, runtimeInfo)).second);
+        YT_VERIFY(MethodMap_.insert(std::make_pair(descriptor.Method, runtimeInfo)).second);
         return runtimeInfo;
     }
 }
@@ -1446,7 +1446,7 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::FindMethodInfo(const TString& 
 TServiceBase::TRuntimeMethodInfoPtr TServiceBase::GetMethodInfo(const TString& method)
 {
     auto runtimeInfo = FindMethodInfo(method);
-    YCHECK(runtimeInfo);
+    YT_VERIFY(runtimeInfo);
     return runtimeInfo;
 }
 

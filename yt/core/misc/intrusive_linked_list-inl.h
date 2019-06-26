@@ -50,7 +50,7 @@ void TIntrusiveLinkedList<TItem, TItemToNode>::PushBack(TItem* item)
 template <class TItem, class TItemToNode>
 void TIntrusiveLinkedList<TItem, TItemToNode>::PopBack()
 {
-    Y_ASSERT(Back_);
+    YT_ASSERT(Back_);
     if (Front_ == Back_) {
         Front_ = Back_ = nullptr;
     } else {
@@ -78,7 +78,7 @@ void TIntrusiveLinkedList<TItem, TItemToNode>::PushFront(TItem* item)
 template <class TItem, class TItemToNode>
 void TIntrusiveLinkedList<TItem, TItemToNode>::PopFront()
 {
-    Y_ASSERT(Front_);
+    YT_ASSERT(Front_);
     if (Front_ == Back_) {
         Front_ = Back_ = nullptr;
     } else {
@@ -91,7 +91,7 @@ void TIntrusiveLinkedList<TItem, TItemToNode>::PopFront()
 template <class TItem, class TItemToNode>
 void TIntrusiveLinkedList<TItem, TItemToNode>::Remove(TItem* item)
 {
-    Y_ASSERT(Front_);
+    YT_ASSERT(Front_);
     auto* node = ItemToNode_(item);
     if (node->Next) {
         ItemToNode_(node->Next)->Prev = node->Prev;

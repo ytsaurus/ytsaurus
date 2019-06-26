@@ -225,7 +225,7 @@ bool Compare(
         }
         CHECK(Compare(transformRhs->DefaultExpression, lhsSchema, transformRhs->DefaultExpression, rhsSchema, maxIndex))
     } else {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 #undef CHECK
 
@@ -298,7 +298,7 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
             }
 
             default:
-                Y_UNREACHABLE();
+                YT_ABORT();
         }
 
     } else if (auto referenceExpr = original->As<TReferenceExpression>()) {
@@ -470,7 +470,7 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
         }
 
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

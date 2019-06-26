@@ -482,13 +482,13 @@ public:
 
     i64 GetSyncSize() const
     {
-        YCHECK(UnderlyingStream_);
+        YT_VERIFY(UnderlyingStream_);
         return SyncSize_;
     }
 
     i64 GetAsyncSize() const
     {
-        YCHECK(UnderlyingStream_);
+        YT_VERIFY(UnderlyingStream_);
         return AsyncSize_;
     }
 
@@ -608,11 +608,11 @@ TDecoratedAutomaton::TDecoratedAutomaton(
         .AddTag("CellId: %v", CellManager_->GetCellId()))
     , Profiler(profiler)
 {
-    YCHECK(Config_);
-    YCHECK(CellManager_);
-    YCHECK(Automaton_);
-    YCHECK(ControlInvoker_);
-    YCHECK(SnapshotStore_);
+    YT_VERIFY(Config_);
+    YT_VERIFY(CellManager_);
+    YT_VERIFY(Automaton_);
+    YT_VERIFY(ControlInvoker_);
+    YT_VERIFY(SnapshotStore_);
     VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
     VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
 
@@ -629,42 +629,42 @@ void TDecoratedAutomaton::Initialize()
 
 void TDecoratedAutomaton::OnStartLeading(TEpochContextPtr epochContext)
 {
-    YCHECK(State_ == EPeerState::Stopped);
+    YT_VERIFY(State_ == EPeerState::Stopped);
     State_ = EPeerState::LeaderRecovery;
     StartEpoch(epochContext);
 }
 
 void TDecoratedAutomaton::OnLeaderRecoveryComplete()
 {
-    YCHECK(State_ == EPeerState::LeaderRecovery);
+    YT_VERIFY(State_ == EPeerState::LeaderRecovery);
     State_ = EPeerState::Leading;
     LastSnapshotTime_ = TInstant::Now();
 }
 
 void TDecoratedAutomaton::OnStopLeading()
 {
-    YCHECK(State_ == EPeerState::Leading || State_ == EPeerState::LeaderRecovery);
+    YT_VERIFY(State_ == EPeerState::Leading || State_ == EPeerState::LeaderRecovery);
     State_ = EPeerState::Stopped;
     StopEpoch();
 }
 
 void TDecoratedAutomaton::OnStartFollowing(TEpochContextPtr epochContext)
 {
-    YCHECK(State_ == EPeerState::Stopped);
+    YT_VERIFY(State_ == EPeerState::Stopped);
     State_ = EPeerState::FollowerRecovery;
     StartEpoch(epochContext);
 }
 
 void TDecoratedAutomaton::OnFollowerRecoveryComplete()
 {
-    YCHECK(State_ == EPeerState::FollowerRecovery);
+    YT_VERIFY(State_ == EPeerState::FollowerRecovery);
     State_ = EPeerState::Following;
     LastSnapshotTime_ = TInstant::Now();
 }
 
 void TDecoratedAutomaton::OnStopFollowing()
 {
-    YCHECK(State_ == EPeerState::Following || State_ == EPeerState::FollowerRecovery);
+    YT_VERIFY(State_ == EPeerState::Following || State_ == EPeerState::FollowerRecovery);
     State_ = EPeerState::Stopped;
     StopEpoch();
 }
@@ -767,10 +767,10 @@ const TMutationRequest& TDecoratedAutomaton::LogLeaderMutation(
     TFuture<TMutationResponse>* commitResult)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    Y_ASSERT(recordData);
-    Y_ASSERT(localFlushResult);
-    Y_ASSERT(commitResult);
-    Y_ASSERT(!RotatingChangelog_);
+    YT_ASSERT(recordData);
+    YT_ASSERT(localFlushResult);
+    YT_ASSERT(commitResult);
+    YT_ASSERT(!RotatingChangelog_);
 
     PendingMutations_.emplace(
         LoggedVersion_,
@@ -794,14 +794,14 @@ const TMutationRequest& TDecoratedAutomaton::LogLeaderMutation(
     *commitResult = pendingMutation.CommitPromise;
 
     LoggedVersion_ = pendingMutation.Version.Advance();
-    YCHECK(EpochContext_->ReachableVersion < LoggedVersion_);
+    YT_VERIFY(EpochContext_->ReachableVersion < LoggedVersion_);
 
     return pendingMutation.Request;
 }
 
 TFuture<TMutationResponse> TDecoratedAutomaton::TryBeginKeptRequest(const TMutationRequest& request)
 {
-    YCHECK(State_ == EPeerState::Leading);
+    YT_VERIFY(State_ == EPeerState::Leading);
 
     if (!Options_.ResponseKeeper) {
         return TFuture<TMutationResponse>();
@@ -827,7 +827,7 @@ void TDecoratedAutomaton::LogFollowerMutation(
     TFuture<void>* logResult)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    Y_ASSERT(!RotatingChangelog_);
+    YT_ASSERT(!RotatingChangelog_);
 
     TSharedRef mutationData;
     DeserializeMutationRecord(recordData, &MutationHeader_, &mutationData);
@@ -855,7 +855,7 @@ void TDecoratedAutomaton::LogFollowerMutation(
     }
 
     LoggedVersion_ = version.Advance();
-    YCHECK(EpochContext_->ReachableVersion < LoggedVersion_);
+    YT_VERIFY(EpochContext_->ReachableVersion < LoggedVersion_);
 }
 
 TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot()
@@ -887,7 +887,7 @@ TFuture<void> TDecoratedAutomaton::RotateChangelog()
     YT_LOG_INFO("Rotating changelog (Version: %v)",
         loggedVersion);
 
-    YCHECK(!RotatingChangelog_);
+    YT_VERIFY(!RotatingChangelog_);
     RotatingChangelog_ = true;
 
     return BIND(&TDecoratedAutomaton::DoRotateChangelog, MakeStrong(this))
@@ -906,7 +906,7 @@ void TDecoratedAutomaton::DoRotateChangelog()
         WaitFor(Changelog_->Flush())
             .ThrowOnError();
 
-        YCHECK(loggedVersion.RecordId == Changelog_->GetRecordCount());
+        YT_VERIFY(loggedVersion.RecordId == Changelog_->GetRecordCount());
 
         TChangelogMeta meta;
         meta.set_prev_record_count(loggedVersion.RecordId);
@@ -922,10 +922,10 @@ void TDecoratedAutomaton::DoRotateChangelog()
     RecoveryRecordCount_ = 0;
     RecoveryDataSize_ = 0;
 
-    YCHECK(RotatingChangelog_);
+    YT_VERIFY(RotatingChangelog_);
     RotatingChangelog_ = false;
 
-    YCHECK(EpochContext_->ReachableVersion < LoggedVersion_);
+    YT_VERIFY(EpochContext_->ReachableVersion < LoggedVersion_);
 
     YT_LOG_INFO("Changelog rotated");
 }
@@ -1001,10 +1001,10 @@ void TDecoratedAutomaton::RotateAutomatonVersionIfNeeded(TVersion mutationVersio
 {
     auto automatonVersion = GetAutomatonVersion();
     if (mutationVersion.SegmentId == automatonVersion.SegmentId) {
-        YCHECK(mutationVersion.RecordId == automatonVersion.RecordId);
+        YT_VERIFY(mutationVersion.RecordId == automatonVersion.RecordId);
     } else {
-        YCHECK(mutationVersion.SegmentId > automatonVersion.SegmentId);
-        YCHECK(mutationVersion.RecordId == 0);
+        YT_VERIFY(mutationVersion.SegmentId > automatonVersion.SegmentId);
+        YT_VERIFY(mutationVersion.RecordId == 0);
         RotateAutomatonVersion(mutationVersion.SegmentId);
     }
 }
@@ -1028,7 +1028,7 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
 
     if (Options_.ResponseKeeper && mutationId) {
         if (State_ == EPeerState::Leading) {
-            YCHECK(mutationId == PendingMutationIds_.front());
+            YT_VERIFY(mutationId == PendingMutationIds_.front());
             PendingMutationIds_.pop();
         }
         const auto& response = context->Response();
@@ -1100,7 +1100,7 @@ TVersion TDecoratedAutomaton::GetAutomatonVersion() const
 void TDecoratedAutomaton::RotateAutomatonVersion(int segmentId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YCHECK(GetAutomatonVersion().SegmentId < segmentId);
+    YT_VERIFY(GetAutomatonVersion().SegmentId < segmentId);
 
     auto automatonVersion = TVersion(segmentId, 0);
     AutomatonVersion_ = automatonVersion;
@@ -1172,7 +1172,7 @@ void TDecoratedAutomaton::ReleaseSystemLock()
 
 void TDecoratedAutomaton::StartEpoch(TEpochContextPtr epochContext)
 {
-    YCHECK(!EpochContext_);
+    YT_VERIFY(!EpochContext_);
     EpochContext_ = std::move(epochContext);
 }
 

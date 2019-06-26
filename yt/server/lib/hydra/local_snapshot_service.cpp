@@ -84,8 +84,8 @@ private:
             offset,
             length);
 
-        YCHECK(offset >= 0);
-        YCHECK(length >= 0);
+        YT_VERIFY(offset >= 0);
+        YT_VERIFY(length >= 0);
 
         auto reader = FileStore_->CreateRawReader(snapshotId, offset);
 

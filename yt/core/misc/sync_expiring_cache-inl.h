@@ -55,7 +55,7 @@ TValue TSyncExpiringCache<TKey, TValue>::Get(const TKey& key)
             it->second = TEntry({now, now, std::move(result)});
         } else {
             auto emplaceResult = Map_.emplace(key, TEntry({now, now, std::move(result)}));
-            YCHECK(emplaceResult.second);
+            YT_VERIFY(emplaceResult.second);
             it = emplaceResult.first;
         }
 

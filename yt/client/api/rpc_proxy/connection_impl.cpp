@@ -134,7 +134,7 @@ TConnection::~TConnection()
 
 NObjectClient::TCellTag TConnection::GetCellTag()
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 IInvokerPtr TConnection::GetInvoker()
@@ -165,7 +165,7 @@ NHiveClient::ITransactionParticipantPtr TConnection::CreateTransactionParticipan
     NHiveClient::TCellId,
     const TTransactionParticipantOptions&)
 {
-    Y_UNIMPLEMENTED();
+    YT_UNIMPLEMENTED();
 }
 
 void TConnection::ClearMetadataCaches()
@@ -225,7 +225,7 @@ void TConnection::OnProxyListUpdate()
             std::vector<TString> proxies;
             if (Config_->ClusterUrl) {
                 YT_LOG_DEBUG("Updating proxy list from HTTP");
-                YCHECK(HttpCredentials_);
+                YT_VERIFY(HttpCredentials_);
                 proxies = DiscoverProxiesByHttp(*HttpCredentials_);
             } else {
                 YT_LOG_DEBUG("Updating proxy list from RPC");

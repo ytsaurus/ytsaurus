@@ -126,7 +126,7 @@ private:
                         break;
 
                     default:
-                        Y_UNREACHABLE();
+                        YT_ABORT();
                 }
             }
         }
@@ -218,7 +218,7 @@ private:
                 }
 
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
 
             auto serializedJobSpec = SerializeProtoToRefWithEnvelope(jobSpec);

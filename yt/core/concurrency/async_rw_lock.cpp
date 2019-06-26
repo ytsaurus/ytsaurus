@@ -22,7 +22,7 @@ void TAsyncReaderWriterLock::ReleaseReader()
 {
     TGuard<TSpinLock> guard(SpinLock_);
 
-    YCHECK(ActiveReaderCount_ > 0);
+    YT_VERIFY(ActiveReaderCount_ > 0);
 
     --ActiveReaderCount_;
     if (ActiveReaderCount_ == 0 && !WriterPromiseQueue_.empty()) {
@@ -52,7 +52,7 @@ void TAsyncReaderWriterLock::ReleaseWriter()
 {
     TGuard<TSpinLock> guard(SpinLock_);
 
-    YCHECK(HasActiveWriter_);
+    YT_VERIFY(HasActiveWriter_);
 
     HasActiveWriter_ = false;
     if (WriterPromiseQueue_.empty()) {
