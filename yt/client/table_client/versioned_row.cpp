@@ -250,7 +250,6 @@ void ValidateClientDataRow(
                 expectedName,
                 actualName);
         }
-        ValidateValueType(row.BeginKeys()[index], schema, index, /*typeAnyAcceptsAllValues*/ false);
         ValidateKeyValue(row.BeginKeys()[index]);
     }
 
@@ -334,10 +333,6 @@ void ValidateDuplicateAndRequiredValueColumns(
     const TTimestamp* writeTimestamps,
     int writeTimestampCount)
 {
-    if (writeTimestampCount == 0) {
-        return;
-    }
-
     auto& columnSeen = *columnPresenceBuffer;
     YCHECK(columnSeen.size() >= schema.GetColumnCount());
     std::fill(columnSeen.begin(), columnSeen.end(), 0);
