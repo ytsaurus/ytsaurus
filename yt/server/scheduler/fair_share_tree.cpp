@@ -358,6 +358,7 @@ bool TFairShareTree::OnOperationAddedToPool(
         TError("Max running operation count violated")
             << TErrorAttribute("pool", violatedPool->GetId())
             << TErrorAttribute("limit", violatedPool->GetMaxRunningOperationCount())
+            << TErrorAttribute("tree", TreeId_)
     );
 
     return false;
