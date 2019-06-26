@@ -36,8 +36,8 @@ message TDeployStatusDetails
 {
     TDeployProgress total_progress = 1;
     TDeployProgress current_revision_progress = 2;
-    TControllerStatus contoller_status = 3;
-    map<string, TDeployProgress> revisions = 4 [(NYT.NYson.NProto.yson_map) = true];
+    TControllerStatus controller_status = 3;
+    map<uint64, TDeployProgress> revisions = 4;
 }
 
 message TClusterDeployStatus
